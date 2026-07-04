@@ -13,7 +13,8 @@ import { dirname, isAbsolute, join, relative } from "node:path";
 const markerFileBaseName = "codex-compaction-recovery-pending";
 const legacySeedHandoffBaseName = "codex-compaction-recovery-seed";
 const seedFileName = "compaction-seed.json";
-const recoveryPayloadSchemaVersion = 2;
+const recoveryPayloadSchemaVersion = 3;
+const sessionlessScopeId = "sessionless";
 const recoveryArtifactMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
 
 const posixClearScriptPath = ".arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs";
@@ -25,15 +26,35 @@ const windowsClearScriptPath = ".arc\\system\\.internal\\harness-hooks\\common\\
 const recoveryPendingBanner = "=== ARC post-compaction recovery: PENDING ===";
 export const recoveryCompleteBanner = "=== ARC post-compaction recovery: COMPLETE ===";
 
-// Hook payloads (PostToolUse carries full tool output) can exceed the pipe
-// buffer; exiting without draining stdin breaks the harness's write and the
-// hook is reported failed. Every hook entrypoint drains before exiting.
-export function drainStdin() {
+// Codex delivers the stable per-session identifier on the hook's stdin JSON
+// payload (`session_id`) — NOT as an environment variable. `CODEX_THREAD_ID` is
+// scoped to the model's shell-tool sandbox and is absent from hook subprocesses
+// (verified on Codex 0.142.5: a PreCompact hook's stdin carries `session_id`, its
+// env does not). Every turn-scoped event (PreCompact, PostToolUse,
+// UserPromptSubmit) receives the same `session_id`, so the writer and the readers
+// key the marker on one identifier all of them can see — the scope then matches
+// across separately-spawned hook processes, which a ppid-derived scope never could.
+//
+// Reading the payload also drains stdin: hook payloads (PostToolUse carries full
+// tool output) can exceed the pipe buffer, and exiting without draining breaks the
+// harness's write and fails the hook. Every hook entrypoint reads before exiting.
+export function readHookInput() {
+  let raw = "";
   try {
-    readFileSync(0);
+    raw = readFileSync(0, "utf8");
   } catch {
-    // A closed or TTY stdin has nothing to drain.
+    // A closed or TTY stdin has nothing to read.
   }
+  let sessionId = null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.session_id === "string" && parsed.session_id.trim().length > 0) {
+      sessionId = parsed.session_id.trim();
+    }
+  } catch {
+    // Empty or non-JSON stdin — degrade to the sessionless scope below.
+  }
+  return { sessionId, raw };
 }
 
 export function resolveRepoRoot() {
@@ -84,35 +105,22 @@ function globalInternalDir(root) {
   return join(root, ".arc", "user", ".internal");
 }
 
-function currentCodexThreadId() {
-  const raw = process.env.CODEX_THREAD_ID;
-  if (typeof raw !== "string") {
-    return null;
+// The marker filename and its recorded scope both derive from the hook's stdin
+// `session_id`. A present session id scopes the marker to that Codex session (so a
+// sibling session in the same worktree never claims it); an absent one falls back to
+// a single stable scope shared by writer and readers alike. The fallback is
+// deliberately NOT process/ppid-keyed: each hook runs in its own short-lived shell
+// with a distinct parent pid, so a ppid suffix differs between the PreCompact writer
+// and the PostToolUse/UserPromptSubmit readers and the marker could never be found.
+// The only cost of the stable fallback is that two concurrent session-id-less Codex
+// sessions in one worktree+identity would share a marker; `session_id` is
+// contractual and present in practice, so this path is defensive.
+function resolveScope(sessionId) {
+  if (typeof sessionId === "string" && sessionId.trim().length > 0) {
+    const id = sessionId.trim();
+    return { kind: "session", id, suffix: id };
   }
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function currentScope() {
-  const codexThreadId = currentCodexThreadId();
-  if (codexThreadId !== null) {
-    return {
-      kind: "thread",
-      id: codexThreadId,
-      suffix: codexThreadId,
-      codexThreadId,
-      hookParentPid: process.ppid,
-    };
-  }
-
-  const parentPid = String(process.ppid);
-  return {
-    kind: "process",
-    id: parentPid,
-    suffix: `ppid-${parentPid}`,
-    codexThreadId: null,
-    hookParentPid: process.ppid,
-  };
+  return { kind: "sessionless", id: sessionlessScopeId, suffix: sessionlessScopeId };
 }
 
 function fileSafeSuffix(value) {
@@ -164,9 +172,9 @@ function hasControlCharacter(value) {
   return false;
 }
 
-export function writePendingMarker(seedPath) {
+export function writePendingMarker(seedPath, sessionId) {
   const root = resolveRepoRoot();
-  const scope = currentScope();
+  const scope = resolveScope(sessionId);
   const normalizedSeedPath = normalizeSeedPath(root, seedPath);
   const markerDir = join(root, dirname(normalizedSeedPath));
   const markerPath = join(markerDir, markerFileName(scope));
@@ -179,8 +187,7 @@ export function writePendingMarker(seedPath) {
       kind: scope.kind,
       id: scope.id,
     },
-    codexThreadId: scope.codexThreadId,
-    hookParentPid: scope.hookParentPid,
+    sessionId: scope.kind === "session" ? scope.id : null,
     emittedAt: new Date().toISOString(),
     fallback: false,
     reason: null,
@@ -192,9 +199,9 @@ export function writePendingMarker(seedPath) {
   return { root, markerPath };
 }
 
-export function writeFallbackPendingMarker(reason = null) {
+export function writeFallbackPendingMarker(reason = null, sessionId) {
   const root = resolveRepoRoot();
-  const scope = currentScope();
+  const scope = resolveScope(sessionId);
   const markerDir = globalInternalDir(root);
   const markerPath = join(markerDir, markerFileName(scope));
 
@@ -206,8 +213,7 @@ export function writeFallbackPendingMarker(reason = null) {
       kind: scope.kind,
       id: scope.id,
     },
-    codexThreadId: scope.codexThreadId,
-    hookParentPid: scope.hookParentPid,
+    sessionId: scope.kind === "session" ? scope.id : null,
     emittedAt: new Date().toISOString(),
     fallback: true,
     reason: typeof reason === "string" && reason.trim().length > 0 ? singleLine(reason) : null,
@@ -219,9 +225,9 @@ export function writeFallbackPendingMarker(reason = null) {
   return { root, markerPath };
 }
 
-export function findPendingMarkers() {
+export function findPendingMarkers(sessionId) {
   const root = resolveRepoRoot();
-  const scope = currentScope();
+  const scope = resolveScope(sessionId);
   const expectedMarkerName = markerFileName(scope);
   const markers = [];
 
@@ -301,8 +307,8 @@ export function claimMarker(markerPath) {
 // write fails afterward the injection is lost and no later boundary retries. The
 // safety nets are marker re-arm on the next compaction and the age-based reaper; a
 // genuinely missed recovery surfaces to the user, who can run the manual fallback.
-export function claimPendingInjection() {
-  const { root, markers } = findPendingMarkers();
+export function claimPendingInjection(sessionId) {
+  const { root, markers } = findPendingMarkers(sessionId);
   const claimed = [];
   for (const marker of markers) {
     if (marker.claimed) continue;
@@ -314,7 +320,7 @@ export function claimPendingInjection() {
 export function clearPendingMarkers(options = {}) {
   const root = resolveRepoRoot();
   const markers = options.markerPath === undefined
-    ? findPendingMarkers().markers
+    ? findPendingMarkers(options.sessionId).markers
     : [{ markerPath: validateMarkerPath(root, options.markerPath) }];
   const removed = [];
 

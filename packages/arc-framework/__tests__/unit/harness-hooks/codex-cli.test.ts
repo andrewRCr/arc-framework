@@ -19,6 +19,12 @@ const seedScriptPath = resolve(hookRoot, "common/pre-compact-seed.mjs");
 const postToolUseScriptPath = resolve(hookRoot, "common/post-tool-use-recover.mjs");
 const userPromptScriptPath = resolve(hookRoot, "common/user-prompt-recover.mjs");
 
+// Codex delivers the session identity on the hook's stdin JSON payload (session_id),
+// not via an environment variable, so the test harness feeds it the same way. The
+// default is a realistic UUIDv7 (Codex 0.142.5's session_id shape); a null sessionId
+// exercises the sessionless fallback scope.
+const DEFAULT_SESSION_ID = "019f2efb-d813-7900-ae5b-519a9cbaea26";
+
 interface CommandHook {
   type: "command";
   command: string;
@@ -57,11 +63,18 @@ interface PendingMarker {
   schemaVersion: number;
   kind: string;
   scope: { kind: string; id: string };
-  codexThreadId: string | null;
+  sessionId: string | null;
   emittedAt: string;
   fallback: boolean;
   reason: string | null;
   seedPath: string | null;
+}
+
+interface RunOpts {
+  // undefined → DEFAULT_SESSION_ID on stdin; null → no session_id (sessionless scope).
+  sessionId?: string | null;
+  env?: NodeJS.ProcessEnv;
+  args?: string[];
 }
 
 function readJson<T>(path: string): T {
@@ -72,34 +85,56 @@ function claimSentinelPath(markerPath: string): string {
   return markerPath.replace(/\.json$/, ".claim.json");
 }
 
-function runHookScript(
-  path: string,
-  cwd?: string,
-  env: NodeJS.ProcessEnv = {},
-  args: string[] = [],
-): HookOutput {
-  return JSON.parse(runHookScriptRaw(path, cwd, env, args)) as HookOutput;
+function hookStdin(sessionId: string | null): string {
+  const payload: Record<string, unknown> = { hook_event_name: "PreCompact" };
+  if (sessionId !== null) {
+    payload.session_id = sessionId;
+  }
+  return `${JSON.stringify(payload)}\n`;
 }
 
-function runHookScriptRaw(
-  path: string,
-  cwd?: string,
-  envOverrides: NodeJS.ProcessEnv = {},
-  args: string[] = [],
-): string {
-  return execFileSync(process.execPath, [path, ...args], {
+function hookEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ARC_HOOK_ARC_COMMAND: "arc",
+    ARC_HOOK_STALE_BUILD_COMMAND: "",
+    ARC_HOOK_HARNESS: "",
+    CLAUDE_PROJECT_DIR: "",
+    ...overrides,
+  };
+}
+
+function resolveSessionId(opts: RunOpts): string | null {
+  return opts.sessionId === undefined ? DEFAULT_SESSION_ID : opts.sessionId;
+}
+
+function runHookScript(path: string, cwd?: string, opts: RunOpts = {}): HookOutput {
+  return JSON.parse(runHookScriptRaw(path, cwd, opts)) as HookOutput;
+}
+
+function runHookScriptRaw(path: string, cwd?: string, opts: RunOpts = {}): string {
+  return execFileSync(process.execPath, [path, ...(opts.args ?? [])], {
     cwd,
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    env: {
-      ...process.env,
-      ARC_HOOK_ARC_COMMAND: "arc",
-      ARC_HOOK_STALE_BUILD_COMMAND: "",
-      ARC_HOOK_HARNESS: "",
-      CLAUDE_PROJECT_DIR: "",
-      CODEX_THREAD_ID: "",
-      ...envOverrides,
-    },
+    input: hookStdin(resolveSessionId(opts)),
+    stdio: ["pipe", "pipe", "pipe"],
+    env: hookEnv(opts.env),
+  });
+}
+
+// Runs a hook script under an intermediate short-lived shell (`true && node …`),
+// exactly like a real Codex hook command — so the node process's parent pid is the
+// ephemeral shell, and differs between successive invocations. This reproduces the
+// production condition a scope keyed on parent pid could never survive; a
+// session_id-keyed scope matches across these distinct-pid processes.
+function runHookViaShellRaw(path: string, cwd: string, opts: RunOpts = {}): string {
+  const command = `true && ${shellArg(process.execPath)} ${shellArg(path)}`;
+  return execFileSync("sh", ["-c", command], {
+    cwd,
+    encoding: "utf8",
+    input: hookStdin(resolveSessionId(opts)),
+    stdio: ["pipe", "pipe", "pipe"],
+    env: hookEnv(opts.env),
   });
 }
 
@@ -122,18 +157,17 @@ function recoveryFileSuffix(value: string): string {
   return suffix;
 }
 
-function markerFileNameFor(env: NodeJS.ProcessEnv = {}): string {
-  const threadId = env.CODEX_THREAD_ID?.trim();
-  const rawSuffix = threadId && threadId.length > 0 ? threadId : `ppid-${process.pid}`;
-  return `codex-compaction-recovery-pending-${recoveryFileSuffix(rawSuffix)}.json`;
+function markerFileNameFor(sessionId: string | null = DEFAULT_SESSION_ID): string {
+  const suffix = sessionId !== null && sessionId.length > 0 ? sessionId : "sessionless";
+  return `codex-compaction-recovery-pending-${recoveryFileSuffix(suffix)}.json`;
 }
 
-function identityMarkerPath(root: string, env: NodeJS.ProcessEnv = {}): string {
-  return join(root, ".arc", "user", "andrew", ".internal", markerFileNameFor(env));
+function identityMarkerPath(root: string, sessionId: string | null = DEFAULT_SESSION_ID): string {
+  return join(root, ".arc", "user", "andrew", ".internal", markerFileNameFor(sessionId));
 }
 
-function fallbackMarkerPath(root: string, env: NodeJS.ProcessEnv = {}): string {
-  return join(root, ".arc", "user", ".internal", markerFileNameFor(env));
+function fallbackMarkerPath(root: string, sessionId: string | null = DEFAULT_SESSION_ID): string {
+  return join(root, ".arc", "user", ".internal", markerFileNameFor(sessionId));
 }
 
 function writeSuccessFakeArc(root: string, identity = "andrew"): string {
@@ -150,19 +184,25 @@ function writeSuccessFakeArc(root: string, identity = "andrew"): string {
   return fakeArcPath;
 }
 
-function runSeedSuccess(root: string, env: NodeJS.ProcessEnv = {}): void {
+function runSeedSuccess(root: string, opts: RunOpts = {}): void {
   runHookScriptRaw(seedScriptPath, root, {
-    ARC_HOOK_ARC_COMMAND: nodeScriptCommand(writeSuccessFakeArc(root)),
-    ARC_HOOK_HARNESS: "codex-cli",
-    ...env,
+    ...opts,
+    env: {
+      ARC_HOOK_ARC_COMMAND: nodeScriptCommand(writeSuccessFakeArc(root)),
+      ARC_HOOK_HARNESS: "codex-cli",
+      ...opts.env,
+    },
   });
 }
 
-function runSeedFailure(root: string, env: NodeJS.ProcessEnv = {}): void {
+function runSeedFailure(root: string, opts: RunOpts = {}): void {
   runHookScriptRaw(seedScriptPath, root, {
-    ARC_HOOK_ARC_COMMAND: `${shellArg(process.execPath)} -e ${shellArg("process.exit(1);")}`,
-    ARC_HOOK_HARNESS: "codex-cli",
-    ...env,
+    ...opts,
+    env: {
+      ARC_HOOK_ARC_COMMAND: `${shellArg(process.execPath)} -e ${shellArg("process.exit(1);")}`,
+      ARC_HOOK_HARNESS: "codex-cli",
+      ...opts.env,
+    },
   });
 }
 
@@ -247,7 +287,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(seedScript).toContain("writePendingMarker");
     expect(seedScript).toContain("writeFallbackPendingMarker");
     expect(seedScript).toContain("reapExpiredRecoveryArtifacts");
-    expect(seedScript).toContain("drainStdin");
+    expect(seedScript).toContain("readHookInput");
     expect(seedScript).toContain("ARC_HOOK_STALE_BUILD_COMMAND");
     expect(seedScript).toContain("timeout: 15_000");
     expect(seedScript).toContain("stdio: [\"ignore\", \"pipe\", \"pipe\"]");
@@ -350,15 +390,15 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         `writeFileSync(${JSON.stringify(statePath)}, JSON.stringify({ built: true }));`,
       ].join("\n"));
 
-      const env = { CODEX_THREAD_ID: "thread-a" };
       runHookScriptRaw(seedScriptPath, root, {
-        ...env,
-        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
-        ARC_HOOK_STALE_BUILD_COMMAND: nodeScriptCommand(fakeBuildPath),
-        ARC_HOOK_HARNESS: "codex-cli",
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_STALE_BUILD_COMMAND: nodeScriptCommand(fakeBuildPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
       });
 
-      const marker = readJson<PendingMarker>(identityMarkerPath(root, env));
+      const marker = readJson<PendingMarker>(identityMarkerPath(root));
       expect(marker.kind).toBe("codex-compaction-recovery-pending");
       expect(marker.seedPath).toBe(".arc/user/andrew/.internal/compaction-seed.json");
     });
@@ -366,9 +406,9 @@ describe("Codex CLI compaction recovery hook recipe", () => {
 
   it("writes markers only for the Codex harness", () => {
     withTempArcProject((root) => {
-      runSeedSuccess(root, { CODEX_THREAD_ID: "thread-a", ARC_HOOK_HARNESS: "claude-code" });
-      expect(existsSync(identityMarkerPath(root, { CODEX_THREAD_ID: "thread-a" }))).toBe(false);
-      expect(existsSync(fallbackMarkerPath(root, { CODEX_THREAD_ID: "thread-a" }))).toBe(false);
+      runSeedSuccess(root, { env: { ARC_HOOK_HARNESS: "claude-code" } });
+      expect(existsSync(identityMarkerPath(root))).toBe(false);
+      expect(existsSync(fallbackMarkerPath(root))).toBe(false);
     });
 
     withTempArcProject((root) => {
@@ -376,23 +416,25 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       try {
         // CLAUDE_PROJECT_DIR present with no explicit harness reads as Claude Code.
         runHookScriptRaw(seedScriptPath, outside, {
-          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(writeSuccessFakeArc(root)),
-          CLAUDE_PROJECT_DIR: root,
-          CODEX_THREAD_ID: "thread-a",
+          env: {
+            ARC_HOOK_ARC_COMMAND: nodeScriptCommand(writeSuccessFakeArc(root)),
+            CLAUDE_PROJECT_DIR: root,
+          },
         });
-        expect(existsSync(identityMarkerPath(root, { CODEX_THREAD_ID: "thread-a" }))).toBe(false);
-        expect(existsSync(fallbackMarkerPath(root, { CODEX_THREAD_ID: "thread-a" }))).toBe(false);
+        expect(existsSync(identityMarkerPath(root))).toBe(false);
+        expect(existsSync(fallbackMarkerPath(root))).toBe(false);
 
         // An explicit harness declaration outranks the CLAUDE_PROJECT_DIR tell,
         // and marker state resolves against the project dir, not the cwd.
         runHookScriptRaw(seedScriptPath, outside, {
-          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(writeSuccessFakeArc(root)),
-          ARC_HOOK_HARNESS: "codex-cli",
-          CLAUDE_PROJECT_DIR: root,
-          CODEX_THREAD_ID: "thread-a",
+          env: {
+            ARC_HOOK_ARC_COMMAND: nodeScriptCommand(writeSuccessFakeArc(root)),
+            ARC_HOOK_HARNESS: "codex-cli",
+            CLAUDE_PROJECT_DIR: root,
+          },
         });
-        expect(existsSync(identityMarkerPath(root, { CODEX_THREAD_ID: "thread-a" }))).toBe(true);
-        expect(existsSync(identityMarkerPath(outside, { CODEX_THREAD_ID: "thread-a" }))).toBe(false);
+        expect(existsSync(identityMarkerPath(root))).toBe(true);
+        expect(existsSync(identityMarkerPath(outside))).toBe(false);
       } finally {
         rmSync(outside, { recursive: true, force: true });
       }
@@ -401,15 +443,14 @@ describe("Codex CLI compaction recovery hook recipe", () => {
 
   it("writes a fallback marker when the PreCompact seed command fails", () => {
     withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      runSeedFailure(root, env);
+      runSeedFailure(root);
 
-      const marker = readJson<PendingMarker>(fallbackMarkerPath(root, env));
+      const marker = readJson<PendingMarker>(fallbackMarkerPath(root));
       expect(marker.kind).toBe("codex-compaction-recovery-pending");
       expect(marker.fallback).toBe(true);
       expect(marker.seedPath).toBeNull();
       expect(marker.reason).toBe("seed command exited 1");
-      expect(existsSync(identityMarkerPath(root, env))).toBe(false);
+      expect(existsSync(identityMarkerPath(root))).toBe(false);
     });
   });
 
@@ -425,14 +466,14 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         })}\n`)});`,
       ].join("\n"));
 
-      const env = { CODEX_THREAD_ID: "thread-a" };
       runHookScriptRaw(seedScriptPath, root, {
-        ...env,
-        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
-        ARC_HOOK_HARNESS: "codex-cli",
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
       });
 
-      expect(readJson<PendingMarker>(fallbackMarkerPath(root, env)).reason).toBe(
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root)).reason).toBe(
         "seed write skipped (identity-missing)",
       );
     });
@@ -451,14 +492,14 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         })}\n`)});`,
       ].join("\n"));
 
-      const env = { CODEX_THREAD_ID: "thread-a" };
       runHookScriptRaw(seedScriptPath, root, {
-        ...env,
-        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
-        ARC_HOOK_HARNESS: "codex-cli",
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
       });
 
-      expect(readJson<PendingMarker>(fallbackMarkerPath(root, env)).reason).toBe(
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root)).reason).toBe(
         "seed command reported an unexpected seed path",
       );
     });
@@ -477,14 +518,14 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         })}\n`)});`,
       ].join("\n"));
 
-      const env = { CODEX_THREAD_ID: "thread-a" };
       runHookScriptRaw(seedScriptPath, root, {
-        ...env,
-        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
-        ARC_HOOK_HARNESS: "codex-cli",
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
       });
 
-      expect(readJson<PendingMarker>(fallbackMarkerPath(root, env)).reason).toBe(
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root)).reason).toBe(
         "seed command reported a written seed for an unsafe identity",
       );
     });
@@ -503,14 +544,14 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         })}\n`)});`,
       ].join("\n"));
 
-      const env = { CODEX_THREAD_ID: "thread-a" };
       runHookScriptRaw(seedScriptPath, root, {
-        ...env,
-        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
-        ARC_HOOK_HARNESS: "codex-cli",
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
       });
 
-      expect(readJson<PendingMarker>(fallbackMarkerPath(root, env)).reason).toBe(
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root)).reason).toBe(
         "seed command reported a written seed for an unsafe identity",
       );
     });
@@ -518,12 +559,11 @@ describe("Codex CLI compaction recovery hook recipe", () => {
 
   it("injects recovery context once, then dedupes across both channels", () => {
     withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      runSeedSuccess(root, env);
-      const markerPath = identityMarkerPath(root, env);
+      runSeedSuccess(root);
+      const markerPath = identityMarkerPath(root);
       expect(existsSync(markerPath)).toBe(true);
 
-      const output = runHookScript(postToolUseScriptPath, root, env);
+      const output = runHookScript(postToolUseScriptPath, root);
       // Codex 0.142.5 rejects extra top-level fields (suppressOutput) on
       // PostToolUse output, so the payload carries hookSpecificOutput only.
       expect(Object.keys(output)).toEqual(["hookSpecificOutput"]);
@@ -547,30 +587,59 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       // and every later boundary — same channel or the UserPromptSubmit channel —
       // stays silent until the marker is cleared. No more re-nag.
       expect(existsSync(claimSentinelPath(markerPath))).toBe(true);
-      expect(runHookScriptRaw(postToolUseScriptPath, root, env)).toBe("");
-      expect(runHookScriptRaw(userPromptScriptPath, root, env)).toBe("");
+      expect(runHookScriptRaw(postToolUseScriptPath, root)).toBe("");
+      expect(runHookScriptRaw(userPromptScriptPath, root)).toBe("");
 
-      expect(runHookScriptRaw(postToolUseScriptPath, root, { CODEX_THREAD_ID: "thread-b" })).toBe("");
-      expect(runHookScriptRaw(userPromptScriptPath, root, { CODEX_THREAD_ID: "thread-b" })).toBe("");
+      // A different session never claims this session's marker.
+      expect(runHookScriptRaw(postToolUseScriptPath, root, { sessionId: "other-session" })).toBe("");
+      expect(runHookScriptRaw(userPromptScriptPath, root, { sessionId: "other-session" })).toBe("");
 
       // Clearing removes the marker + claim and closes the window with the banner.
-      expect(runHookScriptRaw(clearScriptPath, root, env)).toContain(
+      expect(runHookScriptRaw(clearScriptPath, root)).toContain(
         "=== ARC post-compaction recovery: COMPLETE ===",
       );
       expect(existsSync(markerPath)).toBe(false);
       expect(existsSync(claimSentinelPath(markerPath))).toBe(false);
-      expect(runHookScriptRaw(postToolUseScriptPath, root, env)).toBe("");
-      expect(runHookScriptRaw(userPromptScriptPath, root, env)).toBe("");
+      expect(runHookScriptRaw(postToolUseScriptPath, root)).toBe("");
+      expect(runHookScriptRaw(userPromptScriptPath, root)).toBe("");
+    });
+  });
+
+  it("matches the marker across separate hook processes with distinct parent pids", () => {
+    withTempArcProject((root) => {
+      // The regression this fix closes: the PreCompact writer and the PostToolUse
+      // reader are independent OS processes under different short-lived shells, so
+      // their parent pids differ. They agree on the marker only because both key it
+      // on the stdin session_id — a ppid-derived scope would never match here. (The
+      // prior in-process harness spawned every hook as a child of one test process,
+      // so a shared pid masked exactly this bug.)
+      const sessionId = "019f2f00-aaaa-7000-8000-000000000001";
+      runHookViaShellRaw(seedScriptPath, root, {
+        sessionId,
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(writeSuccessFakeArc(root)),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
+      });
+      const markerPath = identityMarkerPath(root, sessionId);
+      expect(existsSync(markerPath)).toBe(true);
+
+      const output = JSON.parse(runHookViaShellRaw(postToolUseScriptPath, root, { sessionId })) as HookOutput;
+      expect(output.hookSpecificOutput?.hookEventName).toBe("PostToolUse");
+      expect(output.hookSpecificOutput?.additionalContext).toContain(markerPath);
+
+      // A separate-process reader on a different session id still must not cross-inject.
+      expect(runHookViaShellRaw(postToolUseScriptPath, root, { sessionId: "019f2f00-bbbb-7000-8000-000000000002" }))
+        .toBe("");
     });
   });
 
   it("injects from the UserPromptSubmit channel when no tool boundary claimed first", () => {
     withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      runSeedSuccess(root, env);
-      const markerPath = identityMarkerPath(root, env);
+      runSeedSuccess(root);
+      const markerPath = identityMarkerPath(root);
 
-      const output = runHookScript(userPromptScriptPath, root, env);
+      const output = runHookScript(userPromptScriptPath, root);
       expect(output.suppressOutput).toBe(true);
       expect(output.hookSpecificOutput).toMatchObject({ hookEventName: "UserPromptSubmit" });
       expect(output.hookSpecificOutput?.additionalContext).toContain("=== ARC post-compaction recovery: PENDING ===");
@@ -578,24 +647,23 @@ describe("Codex CLI compaction recovery hook recipe", () => {
 
       // Having claimed via the prompt channel, the tool channel now stays silent.
       expect(existsSync(claimSentinelPath(markerPath))).toBe(true);
-      expect(runHookScriptRaw(postToolUseScriptPath, root, env)).toBe("");
+      expect(runHookScriptRaw(postToolUseScriptPath, root)).toBe("");
     });
   });
 
   it("re-arms the claim when a later compaction rewrites the marker", () => {
     withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      runSeedSuccess(root, env);
-      runHookScript(postToolUseScriptPath, root, env);
-      const markerPath = identityMarkerPath(root, env);
+      runSeedSuccess(root);
+      runHookScript(postToolUseScriptPath, root);
+      const markerPath = identityMarkerPath(root);
       expect(existsSync(claimSentinelPath(markerPath))).toBe(true);
-      expect(runHookScriptRaw(postToolUseScriptPath, root, env)).toBe("");
+      expect(runHookScriptRaw(postToolUseScriptPath, root)).toBe("");
 
       // A later compaction rewrites the marker and drops the stale claim, so the
       // next boundary injects again.
-      runSeedSuccess(root, env);
+      runSeedSuccess(root);
       expect(existsSync(claimSentinelPath(markerPath))).toBe(false);
-      const output = runHookScript(postToolUseScriptPath, root, env);
+      const output = runHookScript(postToolUseScriptPath, root);
       expect(output.hookSpecificOutput?.hookEventName).toBe("PostToolUse");
     });
   });
@@ -614,21 +682,20 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         })}\n`)});`,
       ].join("\n"));
 
-      const env = { CODEX_THREAD_ID: "thread-a" };
       runHookScriptRaw(seedScriptPath, root, {
-        ...env,
-        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
-        ARC_HOOK_HARNESS: "codex-cli",
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
       });
 
-      const marker = readJson<PendingMarker>(fallbackMarkerPath(root, env));
+      const marker = readJson<PendingMarker>(fallbackMarkerPath(root));
       expect(marker.fallback).toBe(true);
       expect(marker.seedPath).toBeNull();
       expect(marker.reason).toContain("seed-invalid");
 
       const output = runHookScript(postToolUseScriptPath, root, {
-        ...env,
-        ARC_HOOK_ARC_COMMAND: "npx arc",
+        env: { ARC_HOOK_ARC_COMMAND: "npx arc" },
       });
       const additionalContext = output.hookSpecificOutput?.additionalContext ?? "";
       expect(additionalContext).toContain("Seed issue detected");
@@ -638,12 +705,10 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
-  it("keeps recovery filenames collision-free for unsafe thread ids", () => {
+  it("keeps recovery filenames collision-free for unsafe session ids", () => {
     withTempArcProject((root) => {
-      const slashThread = { CODEX_THREAD_ID: "a/b" };
-      const underscoreThread = { CODEX_THREAD_ID: "a_b" };
-      runSeedSuccess(root, slashThread);
-      runSeedSuccess(root, underscoreThread);
+      runSeedSuccess(root, { sessionId: "a/b" });
+      runSeedSuccess(root, { sessionId: "a_b" });
 
       const slashMarkerPath = join(
         root,
@@ -663,10 +728,10 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       );
       expect(existsSync(slashMarkerPath)).toBe(true);
       expect(existsSync(underscoreMarkerPath)).toBe(true);
-      expect(readJson<PendingMarker>(slashMarkerPath).codexThreadId).toBe("a/b");
-      expect(readJson<PendingMarker>(underscoreMarkerPath).codexThreadId).toBe("a_b");
+      expect(readJson<PendingMarker>(slashMarkerPath).sessionId).toBe("a/b");
+      expect(readJson<PendingMarker>(underscoreMarkerPath).sessionId).toBe("a_b");
 
-      const slashOutput = runHookScript(postToolUseScriptPath, root, slashThread);
+      const slashOutput = runHookScript(postToolUseScriptPath, root, { sessionId: "a/b" });
       expect(slashOutput.hookSpecificOutput?.additionalContext).toContain(slashMarkerPath);
       expect(slashOutput.hookSpecificOutput?.additionalContext).not.toContain(underscoreMarkerPath);
     });
@@ -685,7 +750,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       writeFileSync(markerPath, "{}\n");
 
       expect(() =>
-        runHookScriptRaw(clearScriptPath, root, { CODEX_THREAD_ID: "thread-a" }, ["--marker", markerPath]),
+        runHookScriptRaw(clearScriptPath, root, { args: ["--marker", markerPath] }),
       ).toThrow("Invalid ARC recovery marker path");
       expect(existsSync(markerPath)).toBe(true);
     });
@@ -702,36 +767,41 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(content).toContain("shellQuote");
   });
 
-  it("uses process-scoped markers instead of a global fallback when no thread id is available", () => {
+  it("uses a stable sessionless-scoped marker when no session id is available", () => {
     withTempArcProject((root) => {
-      runSeedSuccess(root);
-      const markerPath = identityMarkerPath(root);
-      expect(markerPath).toContain(`ppid-${process.pid}`);
+      // With no session_id on stdin, the writer falls back to a single stable scope —
+      // NOT a ppid-derived one. A separate reader process (also session-id-less)
+      // computes the same marker name and finds it, which a per-process ppid scope
+      // never could.
+      runSeedSuccess(root, { sessionId: null });
+      const markerPath = identityMarkerPath(root, null);
+      expect(markerPath).toContain("codex-compaction-recovery-pending-sessionless.json");
       expect(existsSync(markerPath)).toBe(true);
+      expect(readJson<PendingMarker>(markerPath).scope).toEqual({ kind: "sessionless", id: "sessionless" });
+      expect(readJson<PendingMarker>(markerPath).sessionId).toBeNull();
 
-      const output = runHookScript(postToolUseScriptPath, root);
+      const output = runHookScript(postToolUseScriptPath, root, { sessionId: null });
       expect(output.hookSpecificOutput?.additionalContext).toContain(markerPath);
     });
   });
 
   it("clears all same-scope pending markers when recovery sees more than one", () => {
     withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      runSeedFailure(root, env);
-      runSeedSuccess(root, env);
-      const globalMarkerPath = fallbackMarkerPath(root, env);
-      const scopedMarkerPath = identityMarkerPath(root, env);
+      runSeedFailure(root);
+      runSeedSuccess(root);
+      const globalMarkerPath = fallbackMarkerPath(root);
+      const scopedMarkerPath = identityMarkerPath(root);
       expect(existsSync(globalMarkerPath)).toBe(true);
       expect(existsSync(scopedMarkerPath)).toBe(true);
 
-      const output = runHookScript(userPromptScriptPath, root, env);
+      const output = runHookScript(userPromptScriptPath, root);
       const additionalContext = output.hookSpecificOutput?.additionalContext ?? "";
       expect(additionalContext).toContain("clear the markers");
       expect(additionalContext.match(/--marker/gu)).toHaveLength(2);
       expect(additionalContext).toContain(globalMarkerPath);
       expect(additionalContext).toContain(scopedMarkerPath);
 
-      expect(runHookScriptRaw(clearScriptPath, root, env)).toContain(
+      expect(runHookScriptRaw(clearScriptPath, root)).toContain(
         "=== ARC post-compaction recovery: COMPLETE ===",
       );
       expect(existsSync(globalMarkerPath)).toBe(false);
@@ -744,14 +814,13 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       // Two same-scope markers, with the global one already claimed by a
       // (simulated) concurrent process. This process must inject only the marker
       // it wins — emitting the full set from each racer would duplicate.
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      runSeedFailure(root, env);
-      runSeedSuccess(root, env);
-      const globalMarkerPath = fallbackMarkerPath(root, env);
-      const scopedMarkerPath = identityMarkerPath(root, env);
+      runSeedFailure(root);
+      runSeedSuccess(root);
+      const globalMarkerPath = fallbackMarkerPath(root);
+      const scopedMarkerPath = identityMarkerPath(root);
       writeFileSync(claimSentinelPath(globalMarkerPath), `${JSON.stringify({ claimedAt: "prior" })}\n`);
 
-      const output = runHookScript(postToolUseScriptPath, root, env);
+      const output = runHookScript(postToolUseScriptPath, root);
       const additionalContext = output.hookSpecificOutput?.additionalContext ?? "";
       expect(additionalContext.match(/--marker/gu)).toHaveLength(1);
       expect(additionalContext).toContain(scopedMarkerPath);
@@ -762,17 +831,10 @@ describe("Codex CLI compaction recovery hook recipe", () => {
 
   it("treats malformed scoped markers as pending", () => {
     withTempArcProject((root) => {
-      const markerPath = join(
-        root,
-        ".arc",
-        "user",
-        "andrew",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
+      const markerPath = identityMarkerPath(root);
       writeFileSync(markerPath, "{not-json");
 
-      const output = runHookScript(userPromptScriptPath, root, { CODEX_THREAD_ID: "thread-a" });
+      const output = runHookScript(userPromptScriptPath, root);
 
       expect(output.hookSpecificOutput?.additionalContext).toContain(markerPath);
     });
@@ -808,23 +870,20 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         emittedAt: expiredEmittedAt,
       })}\n`);
 
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      runSeedSuccess(root, env);
+      runSeedSuccess(root);
 
       expect(existsSync(legacyHandoffPath)).toBe(false);
       expect(existsSync(deadScopeMarkerPath)).toBe(false);
-      expect(existsSync(identityMarkerPath(root, env))).toBe(true);
+      expect(existsSync(identityMarkerPath(root))).toBe(true);
     });
   });
 
   it("uses ARC_HOOK_ARC_COMMAND in injected recovery instructions", () => {
     withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      runSeedSuccess(root, env);
+      runSeedSuccess(root);
 
       const output = runHookScript(postToolUseScriptPath, root, {
-        ...env,
-        ARC_HOOK_ARC_COMMAND: "npx arc",
+        env: { ARC_HOOK_ARC_COMMAND: "npx arc" },
       });
 
       expect(output.hookSpecificOutput?.additionalContext).toContain(

@@ -1,11 +1,11 @@
 import {
   buildRecoveryInstructions,
   claimPendingInjection,
-  drainStdin,
+  readHookInput,
 } from "./codex-recovery-marker.mjs";
 
-drainStdin();
-const { claimed } = claimPendingInjection();
+const { sessionId } = readHookInput();
+const { claimed } = claimPendingInjection(sessionId);
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 
 // Turn-boundary channel: covers a compaction with no subsequent tool call — the

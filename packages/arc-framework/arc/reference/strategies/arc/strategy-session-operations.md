@@ -990,7 +990,7 @@ Two reset paths matter:
 For supported harnesses, install the opt-in compaction-recovery hook recipe during
 [initial setup][setup-workflow]. The hooks write a machine-local seed before compaction and inject
 the recovery requirement after a `compact` event — immediately on Claude Code, and at the first
-tool-or-prompt boundary after compaction on Codex, where a thread-scoped pending marker carries the
+tool-or-prompt boundary after compaction on Codex, where a session-scoped pending marker carries the
 requirement until recovery clears it. On Codex the tool and user-prompt channels share an atomic
 per-marker claim, so each pending marker's requirement is injected exactly once — no duplicate fires
 across parallel tool calls or the two channels — and the injection brackets the recovery window with

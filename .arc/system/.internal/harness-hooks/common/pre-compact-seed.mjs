@@ -2,13 +2,15 @@ import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 
 import {
-  drainStdin,
+  readHookInput,
   reapExpiredRecoveryArtifacts,
   writeFallbackPendingMarker,
   writePendingMarker,
 } from "./codex-recovery-marker.mjs";
 
-drainStdin();
+// Read the PreCompact payload's `session_id` (drains stdin in the same call) so the
+// marker is scoped to a key the later reader hooks share — see codex-recovery-marker.
+const { sessionId } = readHookInput();
 const cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 const staleBuildCommand = process.env.ARC_HOOK_STALE_BUILD_COMMAND?.trim() || "";
@@ -76,11 +78,11 @@ function shouldRetryAfterBuild(result) {
 
 function writeMarkerFromResult(result) {
   if (result.status !== 0) {
-    writeFallbackPendingMarker(seedCommandFailureMessage(result));
+    writeFallbackPendingMarker(seedCommandFailureMessage(result), sessionId);
     return;
   }
   if (typeof result.stdout !== "string") {
-    writeFallbackPendingMarker("seed command produced no JSON envelope");
+    writeFallbackPendingMarker("seed command produced no JSON envelope", sessionId);
     return;
   }
 
@@ -88,7 +90,7 @@ function writeMarkerFromResult(result) {
   try {
     envelope = JSON.parse(result.stdout);
   } catch (err) {
-    writeFallbackPendingMarker(`seed command produced malformed JSON: ${errorMessage(err)}`);
+    writeFallbackPendingMarker(`seed command produced malformed JSON: ${errorMessage(err)}`, sessionId);
     return;
   }
 
@@ -100,11 +102,11 @@ function writeMarkerFromResult(result) {
     && expectedPath !== null
     && samePath(write.path, expectedPath)
   ) {
-    writePendingMarker(write.path);
+    writePendingMarker(write.path, sessionId);
     return;
   }
 
-  writeFallbackPendingMarker(seedWriteFailureMessage(write, expectedPath));
+  writeFallbackPendingMarker(seedWriteFailureMessage(write, expectedPath), sessionId);
 }
 
 function expectedSeedPath(envelope) {
