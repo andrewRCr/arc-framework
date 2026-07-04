@@ -131,6 +131,23 @@ describe("arc start dispatch — against real worktrees", () => {
     expect((await readWorktreeMarker(wt)).kind).toBe("present");
   });
 
+  it("create-new: registers the ownership marker ignore rule before leaving the spawned worktree", async () => {
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/clean-marker" });
+    h.spawned.push(wt);
+
+    const outcome = await runCreateNew(
+      { io: h.io, internalTemplateDir: getInternalTemplatePath() },
+      { worktreePath: h.repo, identity: IDENTITY, name: "clean-marker" },
+    );
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect((await readWorktreeMarker(wt)).kind).toBe("present");
+
+    const { stdout } = await execFileAsync("git", ["status", "--short", "--untracked-files=all"], { cwd: wt });
+    expect(stdout).not.toContain(".arc/system/.internal/worktree-marker.json");
+  });
+
   it("create-new: copies registered gitignored harness dirs from the primary worktree only", async () => {
     await mkdir(join(h.repo, ".codex", "skills"), { recursive: true });
     await writeFile(join(h.repo, ".codex", "skills", "arc.txt"), "copied from primary\n");

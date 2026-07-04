@@ -47,6 +47,9 @@ function recordingExecWithPrimary(primaryPath: string): { exec: GitExec; calls: 
     if (args[0] === "worktree" && args[1] === "list") {
       return { stdout: `worktree ${primaryPath}\nHEAD abc123\nbranch refs/heads/main\n` };
     }
+    if (args[0] === "rev-parse" && args[1] === "--git-path") {
+      return { stdout: join(primaryPath, ".git", "info", "exclude") };
+    }
     return { stdout: "" };
   };
   return { exec, calls };

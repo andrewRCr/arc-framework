@@ -119,15 +119,14 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
           graduate / resume spawn paths, and copied registered dirs from the primary checkout after post-create
           provisioning while leaving unregistered primary dirs untouched.
 
-    - `[ ]` **2.1.c User-dir scaffold at the ceremony locus**
-        - Scaffold the per-WU user workspace at the BI-4-corrected locus (the spawned worktree under spawn mode).
-        - _Depends on 2.4.c (the spawn-mode ceremony-locus fix) landing first — the corrected locus is what this
-          scaffolds against._
+    - `[~]` **2.1.c User-dir scaffold at the ceremony locus**
+        - Superseded by Task 2.4.d, which keeps the executable checkbox after the spawn-mode ceremony-locus fix
+          it depends on instead of leaving a blocked open leaf ahead of the current task cursor.
 
-    - `[ ]` **2.1.d `worktree-marker.json` ignore-rule registration**
-        - Build `test-first` (one behavior at a time):
-            - provisioning registers the marker's ignore rule (or writes it to an already-ignored path) so an
-              arc-spawned worktree leaves a clean tree
+    - `[x]` **2.1.d `worktree-marker.json` ignore-rule registration**
+        - Spawn provisioning now resolves Git's `info/exclude` from the spawned worktree, appends the marker path
+          once before writing `worktree-marker.json`, and verifies a real spawned worktree no longer reports the
+          marker in `git status`.
 
     - `[ ]` **2.1.e Self-hosting `worktree.post_create` script wiring**
         - Add this repo's post-create deps script and wire `.arc/system/arc-config.yml` to it, while keeping the
@@ -239,11 +238,15 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
             - under spawn mode, relocation staging + user-open target the spawned worktree
             - the init commit lands on the plan branch (resolvable by the worktree session from its `.arc/active/`)
 
-    - `[ ]` **2.4.d `renderBullets` 120-wrap for multi-line `Depends On`**
+    - `[ ]` **2.4.d User-dir scaffold at the corrected ceremony locus**
+        - Scaffold the per-WU user workspace at the spawned worktree under spawn mode, after 2.4.c has corrected the
+          ceremony locus that the scaffold targets.
+
+    - `[ ]` **2.4.e `renderBullets` 120-wrap for multi-line `Depends On`**
         - Build `test-first` (one behavior at a time):
             - a multi-value `Depends On` re-renders wrapped at 120, not collapsed to a single ~250-char line
 
-    - `[ ]` **2.4.e Harness-conditional relocate / spawn-anchored hop**
+    - `[ ]` **2.4.f Harness-conditional relocate / spawn-anchored hop**
         - Claude Code true relocate (`EnterWorktree`); Codex spawn-anchored (`codex --cd <path>`, made
           first-class by 2.4.b's mini-handoff). Re-verify Codex's linked-worktree cwd behavior at build time.
           Harness integration — validated manually / in e2e, not unit.

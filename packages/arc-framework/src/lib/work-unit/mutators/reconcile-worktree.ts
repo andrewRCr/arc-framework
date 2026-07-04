@@ -35,13 +35,16 @@
  * @module
  */
 
-import { cp, stat } from "node:fs/promises";
+import { cp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
 import { parseRegisteredHarnessDirs } from "../../git/worktree-harness-dirs.js";
 import { isWorktreeClean } from "../../git/worktree-cleanup.js";
-import { writeWorktreeOwnershipMarker } from "../../git/worktree-marker.js";
+import {
+  ensureWorktreeMarkerIgnored,
+  writeWorktreeOwnershipMarker,
+} from "../../git/worktree-marker.js";
 import { resolveWorktreeLocation } from "../../git/worktree-location.js";
 import { resolvePrimaryWorktreePath } from "../../git/worktree-roster.js";
 
@@ -61,6 +64,12 @@ export interface ReconcileWorktreeFs {
   directoryExists(path: string): Promise<boolean>;
   /** Recursively copy a directory into the destination worktree. */
   copyDirectory(source: string, destination: string): Promise<void>;
+  /** Read a UTF-8 text file. */
+  readFile(path: string): Promise<string>;
+  /** Write a UTF-8 text file. */
+  writeFile(path: string, content: string): Promise<void>;
+  /** Ensure a directory exists. */
+  mkdir(path: string, options: { recursive: boolean }): Promise<void>;
 }
 
 /** Production filesystem adapter for {@link reconcileWorktree}. */
@@ -75,6 +84,11 @@ export const nodeReconcileWorktreeFs: ReconcileWorktreeFs = {
   },
   copyDirectory: async (source, destination) => {
     await cp(source, destination, { recursive: true, force: true });
+  },
+  readFile: (path) => readFile(path, "utf8"),
+  writeFile,
+  mkdir: async (path, options) => {
+    await mkdir(path, options);
   },
 };
 
@@ -255,6 +269,7 @@ export async function reconcileWorktree(
       worktreePath,
       registeredHarnessDirs: op.registeredHarnessDirs,
     });
+    await ensureWorktreeMarkerIgnored(worktreePath, ctx.exec, ctx.fs);
     await writeWorktreeOwnershipMarker(worktreePath, {
       createdByArc: true,
       wuName: op.wuName,

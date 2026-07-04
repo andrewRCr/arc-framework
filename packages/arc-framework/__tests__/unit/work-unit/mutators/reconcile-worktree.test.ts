@@ -49,6 +49,7 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorktreeContext; even
     if (args[0] === "status") return { stdout: opts.status ?? "" };
     if (args[0] === "worktree" && args[1] === "list") return { stdout: opts.worktreeList ?? "" };
     if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return { stdout: `${opts.toplevel ?? ""}\n` };
+    if (args[0] === "rev-parse" && args[1] === "--git-path") return { stdout: ".git/info/exclude\n" };
     return { stdout: "" };
   };
   const ctx: ReconcileWorktreeContext = {
@@ -62,6 +63,9 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorktreeContext; even
       copyDirectory: async (source, destination) => {
         events.push(["copy", source, destination]);
       },
+      readFile: async () => "",
+      writeFile: async () => {},
+      mkdir: async () => {},
     },
   };
   return { ctx, events };
@@ -110,6 +114,7 @@ describe("reconcileWorktree — spawn", () => {
     expect(result).toMatchObject({ mutation: "spawn", worktreePath: expectedPath, branch: "plan/demo-wu" });
     expect(events).toEqual([
       ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
+      ["git", "rev-parse", "--git-path", "info/exclude"],
     ]);
 
     const marker = await readWorktreeMarker(expectedPath);
@@ -162,6 +167,7 @@ describe("reconcileWorktree — spawn", () => {
     expect(events).toEqual([
       ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
       postCreateCommand,
+      ["git", "rev-parse", "--git-path", "info/exclude"],
     ]);
   });
 
@@ -227,6 +233,7 @@ describe("reconcileWorktree — spawn", () => {
       ["exists", join(primaryPath, ".claude")],
       ["copy", join(primaryPath, ".claude"), join(expectedPath, ".claude")],
       ["exists", join(primaryPath, ".missing")],
+      ["git", "rev-parse", "--git-path", "info/exclude"],
     ]);
   });
 
@@ -254,6 +261,7 @@ describe("reconcileWorktree — spawn", () => {
       ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
       ["exists", join(primaryPath, ".codex")],
       ["copy", join(primaryPath, ".codex"), join(expectedPath, ".codex")],
+      ["git", "rev-parse", "--git-path", "info/exclude"],
     ]);
   });
 
@@ -276,7 +284,10 @@ describe("reconcileWorktree — spawn", () => {
     });
 
     expect(result).toMatchObject({ mutation: "spawn", worktreePath: expectedPath, branch: "feat/demo-wu" });
-    expect(events).toEqual([["git", "worktree", "add", expectedPath, "feat/demo-wu"]]);
+    expect(events).toEqual([
+      ["git", "worktree", "add", expectedPath, "feat/demo-wu"],
+      ["git", "rev-parse", "--git-path", "info/exclude"],
+    ]);
 
     const marker = await readWorktreeMarker(expectedPath);
     expect(marker).toMatchObject({
