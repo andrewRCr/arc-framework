@@ -15,56 +15,60 @@ _Design decisions:_ The matrix skeleton and its loud/silent classifications are 
 `spec-finalize-parallelism.md` § The authored matrix skeleton; this phase confirms and finalizes that
 enumeration and its dispositions rather than re-deriving it. Sequencing context in `notes-finalize-parallelism.md`.
 
-### `[ ]` **1.1 Finalize the shared-mutable-surface matrix**
+### `[x]` **1.1 Finalize the shared-mutable-surface matrix**
 
 - _Goal:_ Every shared-mutable surface is enumerated and classified loud-vs-silent with a disposition
   (`BI-n` / `wave-n` / `playbook`), so no surface enters the waves unclassified and every silent cell has a
   named closure path.
-- _Approach:_ Validate the spec's authored skeleton against source and lock dispositions; this is a
-  confirm-and-finalize pass, not a re-derivation.
-- **Additional Context:** `spec-finalize-parallelism.md` § The authored matrix skeleton (the classified starting state).
 
-    - `[ ]` **1.1.a Surface set A — repo-shared (common git dir / remote)**
-        - Confirm writer × trigger × concurrent-write outcome for base branch, `refs/notes/arc/user/{id}`,
-          same-entry resolution, the sync-state and errands marker refs, and the git-guarded surfaces
-          (worktree registry, branch pushes, `.git/config`, ref races); lock each loud/silent + disposition.
+    - `[x]` **1.1.a Surface set A — repo-shared (common git dir / remote)**
+        - Source-checked base-branch, user-notes, same-entry, sync-state, errand-ref, and git-guarded surfaces;
+          locked BI-3 / wave / playbook dispositions in `notes-finalize-parallelism.md`.
 
-    - `[ ]` **1.1.b Surface set B — tracked, branch-mediated**
-        - Same treatment for `ROADMAP.md`, foreign stub metas vs. concurrent graduate/groom, the `completed/`
-          archive index, and `ATOMIC-INBOX` / cohort docs / `arc-config.yml`.
+    - `[x]` **1.1.b Surface set B — tracked, branch-mediated**
+        - Classified ROADMAP stale-render residue, foreign-stub route races, duplicate completed-index numbering,
+          and shared tracked-file conflicts with wave / playbook dispositions.
 
-    - `[ ]` **1.1.c Surface set C — per-checkout gitignored**
-        - Same treatment for the harness layer, `node_modules`, `worktree-marker.json`, user files, `.machine-id`,
-          spawn-mode transition writes, `compaction-seed.json` + sibling markers, and the audit log.
+    - `[x]` **1.1.c Surface set C — per-checkout gitignored**
+        - Classified fresh-worktree absence/divergence surfaces for harness dirs, deps, marker state, user files,
+          machine id, spawn-locus writes, compaction seed, and audit log.
 
-    - `[ ]` **1.1.d Cross-cutting row + assemble the GA-checklist starting state**
-        - Add the probe-snapshot staleness (TOCTOU) row; assemble the finalized matrix as the GA checklist's
-          starting state, with every cell carrying a disposition.
-        - The finalized matrix and the in-progress GA checklist live in `notes-finalize-parallelism.md`
-          (dedicated sections), appended across the waves; the blessed checklist + playbook reach their durable
-          homes in Phase 8 (Task 8.2).
+    - `[x]` **1.1.d Cross-cutting row + assemble the GA-checklist starting state**
+        - Added the probe-snapshot staleness row and seeded the GA checklist's build-gate, wave-evidence, and
+          playbook/closeout sections in `notes-finalize-parallelism.md`.
 
-### `[ ]` **1.2 Trace the projection-builder consumer contract to source**
+- _Outcome:_ `notes-finalize-parallelism.md` now holds the finalized Layer-1 matrix and the in-progress GA
+  checklist starting state. The source-confirmed nuance is that the notes lock exists but remains per-checkout, so
+  the same-machine sibling-worktree loss stays a BI-3 gap.
+
+### `[x]` **1.2 Trace the projection-builder consumer contract to source**
 
 - _Goal:_ The `projection.ts` producer/consumer contract across the `async-merge-lifecycle` ↔
   `cross-machine-sync-coherence` boundary is traced to source and classified, so a producer/consumer drift
   can't hide as a silent non-write-race seam.
-- _Note:_ Producer `projectManifest` / `stripTombstoneSections`; consumers `commands/user/{save-load,sync-status}.ts`
-  and `merge.ts`. Verified in practice under wave 4 (Task 6.2).
 
-    - `[ ]` **1.2.a Characterize and classify the contract**
-        - Trace what each consumer assumes about the projection shape; classify loud/silent; record the
-          disposition and the wave-4 verification hook.
+    - `[x]` **1.2.a Characterize and classify the contract**
+        - Source-traced `projectManifest` / `stripTombstoneSections` through `save-load.ts`, `sync-status.ts`, and
+          `merge.ts`; classified the contract as source-consistent today but silent-if-drift, with the wave-4
+          verification hook recorded in `notes-finalize-parallelism.md`.
 
-### `[ ]` **1.3 Trace errand-vs-WU teardown symmetry to source**
+- _Outcome:_ The projection basis is tombstone-free for registered cross-WU files only, preserves manifest
+  version/path set, and is the single hash / comparison / reconstruction basis its consumers assume.
+
+### `[x]` **1.3 Trace errand-vs-WU teardown symmetry to source**
 
 - _Goal:_ Errand close/reap and WU integration/worktree-removal are shown to tear down branch, worktree, notes,
   and inbox-origin state through symmetric non-interfering paths — or the asymmetry is classified and
   dispositioned.
-- _Note:_ Verified in practice under wave 3 (Task 5.5).
 
-    - `[ ]` **1.3.a Trace both teardown paths and classify**
-        - Map each teardown's state transitions; identify any interference under concurrency; record disposition.
+    - `[x]` **1.3.a Trace both teardown paths and classify**
+        - Source-traced errand close's containment-safe branch reap plus record/inbox cleanup and WU archive/teardown's
+          logical ship plus post-merge physical cleanup; classified the asymmetries as intentional and
+          non-interfering.
+
+- _Outcome:_ Errands own record/inbox cleanup and in-place branch reaping; WUs own lifecycle/user-workspace state
+  plus optional linked-worktree teardown, with residual concurrency surfaces already named for wave 3 and the
+  playbook.
 
 ### `[ ]` **1.4 Adversarial pass over the matrix and draft GA checklist**
 
