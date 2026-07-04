@@ -10,6 +10,10 @@ import type {
 } from "../../lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { CoreIO } from "../../lib/types.js";
+import type {
+  BranchBoundedNotesExportTarget,
+  PlanBranchBoundedNotesExportResult,
+} from "../../lib/user-sync/branch-bounded-notes-export.js";
 
 /** I/O dependencies for the user command. */
 export interface UserIOContext extends CoreIO {
@@ -279,12 +283,11 @@ export type PairedPushLegOutcome =
  * Outcome surface of the injected notes-leg pusher delegate.
  *
  * A superset taxonomy covering every notes-push result downstream rendering
- * may encounter. Production's `pairedNotesAdapter` (wiring
- * `pushNotesWithReconcile`) emits the lossless-reconcile subset
- * (`success` / `noop` / `ok-recovered` / `no-remote` / `blocked` / `failed`);
- * the remaining variants stay available for stub-injected tests. The skip
- * variants are added by `runPairedPush` itself when an upstream leg
- * short-circuits the flow.
+ * may encounter. The branch-bounded paired adapter emits
+ * `success` / `noop` / `no-remote` / `failed`; planning misses can produce
+ * `refused` before the pusher fires; the remaining variants stay available
+ * for stub-injected tests and legacy rendering paths. The skip variants are
+ * added by `runPairedPush` itself when an upstream leg short-circuits the flow.
  */
 export type PairedPushNotesPusherResult =
   | { status: "success" }
@@ -292,6 +295,7 @@ export type PairedPushNotesPusherResult =
   | { status: "ok-recovered"; via: "force" | "merge" }
   | { status: "cancelled" }
   | { status: "no-remote" }
+  | { status: "refused"; message: string }
   | { status: "failed-nontty-conflict"; message?: string }
   | { status: "blocked"; conditions: PushabilityCondition[] }
   | { status: "failed"; error: Error };
@@ -309,14 +313,16 @@ export interface PairedPushNotesContext {
   access: AccessFn;
   /** Worktree branch the paired flow just pushed; threaded into the matrix. */
   worktreeBranch: string;
+  /** Branch-bounded notes export target the notes leg actually attempts. */
+  notesExportTarget: BranchBoundedNotesExportTarget;
 }
 
 /**
  * Pluggable notes-leg pusher injected into {@link RunPairedPushOptions}.
  *
- * Production wires `pushNotesWithReconcile` so paired and single-leg pushes
- * share automatic lossless reconcile, idempotent no-op detection, and
- * pre-check refusal. Tests inject a stub that emits a chosen outcome.
+ * Production wires the branch-bounded notes-export adapter, which pushes the
+ * already-planned temporary target. Tests inject a stub that emits a chosen
+ * outcome.
  */
 export type PairedPushNotesPusher = (
   context: PairedPushNotesContext,
@@ -329,6 +335,8 @@ export interface PairedPushMarkerContext {
   cwd: string;
   /** Worktree branch the paired flow just pushed — the HEAD the about-to-fire notes push advances for. */
   worktreeBranch: string;
+  /** Branch-bounded notes export target the notes leg actually attempts. */
+  notesExportTarget: BranchBoundedNotesExportTarget;
 }
 
 /**
@@ -344,6 +352,16 @@ export interface PairedPushMarkerContext {
  */
 export type PairedPushMarkerPublisher = (
   context: PairedPushMarkerContext,
+) => Promise<void>;
+
+/** Planner seam deriving the branch-bounded notes target after the worktree leg lands. */
+export type PairedPushNotesExportPlanner = (
+  context: Pick<PairedPushNotesContext, "io" | "identity" | "worktreeBranch">,
+) => Promise<PlanBranchBoundedNotesExportResult>;
+
+/** Cleanup seam for the temporary branch-bounded notes export target. */
+export type PairedPushNotesExportCleaner = (
+  target: BranchBoundedNotesExportTarget,
 ) => Promise<void>;
 
 /**
@@ -395,9 +413,8 @@ export interface RunPairedPushOptions {
    */
   setUpstream?: boolean;
   /**
-   * Notes-leg pusher delegate. Production wires
-   * `pushNotesWithReconcile` so the paired flow inherits its automatic
-   * lossless reconcile and idempotent-noop semantics; tests inject a stub.
+   * Notes-leg pusher delegate. Production wires the branch-bounded export
+   * adapter; tests inject a stub.
    */
   pushNotes: PairedPushNotesPusher;
   /**
@@ -407,6 +424,17 @@ export interface RunPairedPushOptions {
    * {@link PairedPushMarkerPublisher}.
    */
   publishMarker?: PairedPushMarkerPublisher;
+  /**
+   * Optional planner seam for the branch-bounded notes export target. Production
+   * uses the real git planner; tests inject a fixed target.
+   */
+  planNotesExport?: PairedPushNotesExportPlanner;
+  /**
+   * Optional cleaner seam for the temporary branch-bounded notes export target.
+   * Production deletes the temp ref after the notes leg finishes; tests inject a
+   * no-op or spy.
+   */
+  cleanupNotesExport?: PairedPushNotesExportCleaner;
   /**
    * Auto-retry budget for a transient notes-leg failure. Defaults to
    * `DEFAULT_NOTES_PUSH_RETRY` (two silent retries with short backoff) when

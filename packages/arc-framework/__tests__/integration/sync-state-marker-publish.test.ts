@@ -157,6 +157,39 @@ describe("publishSyncStateMarker", () => {
     }
   });
 
+  it("records an explicit planned notes-export target instead of the raw local notes tip", async () => {
+    const remoteDir = await addBareRemote(repo);
+    try {
+      const rawLocalTip = await seedNotesRef(repo);
+      const plannedTarget = "f".repeat(40);
+      const head = await revParse(repo, "HEAD");
+      const now = "2026-06-25T12:30:00.000Z";
+
+      const outcome = await publishSyncStateMarker({
+        cwd: repo,
+        io,
+        execInput: makeGitExecInput(repo),
+        identity: IDENTITY,
+        intent: plannedTarget,
+        now,
+      });
+      expect(outcome).toEqual({ kind: "published" });
+
+      const machineId = await getOrCreateMachineId(repo, io, IDENTITY);
+      const marker = await readSyncStateMarker(refIoFor(repo, io), machineId);
+      expect(marker).toEqual({
+        version: 1,
+        machineId,
+        lastAttemptedCommit: head,
+        attemptTimestamp: now,
+        intent: plannedTarget,
+      });
+      expect(marker?.intent).not.toBe(rawLocalTip);
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
   it("no-write path: a remoteless repo skips on the push without throwing", async () => {
     // No origin configured — the local ref write succeeds but the push has
     // nowhere to land; the helper degrades safe rather than surfacing an error.

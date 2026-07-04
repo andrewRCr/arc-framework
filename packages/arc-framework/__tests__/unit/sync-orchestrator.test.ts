@@ -84,6 +84,11 @@ vi.mock("../../src/handlers/push-recovery.js", () => ({
   pushNotesWithReconcile: (...args: unknown[]) => mockPushWithRecovery(...args),
 }));
 
+const mockPushBranchBoundedNotesExport = vi.fn();
+vi.mock("../../src/lib/user-sync/branch-bounded-notes-export.js", () => ({
+  pushBranchBoundedNotesExport: (...args: unknown[]) => mockPushBranchBoundedNotesExport(...args),
+}));
+
 const mockResolveUserIdentity = vi.fn();
 const mockIsNonInteractive = vi.fn(() => false);
 vi.mock("../../src/handlers/shared.js", () => ({
@@ -1042,7 +1047,7 @@ describe("--yes wiring", () => {
     expect(outcome.cell).toBe("notes-only");
   });
 
-  it("paired notes adapter delegates to the reconcile pusher and maps its outcome", async () => {
+  it("paired notes adapter delegates to the branch-bounded pusher and maps its outcome", async () => {
     setConfig("on-sync");
     setNotesPolicy("prompt");
     setWorktree("clean");
@@ -1051,7 +1056,14 @@ describe("--yes wiring", () => {
     mockRunPairedPush.mockImplementation(async (opts: unknown) => {
       const o = opts as {
         pushNotes: (ctx: { io: unknown; identity: string; cwd: string;
-          access: unknown; worktreeBranch: string }) => Promise<unknown>;
+          access: unknown; worktreeBranch: string; notesExportTarget: unknown }) => Promise<unknown>;
+      };
+      const notesExportTarget = {
+        ref: "refs/notes/arc/user/andrew__branch_export_test",
+        destinationRef: "refs/notes/arc/user/andrew",
+        tip: "f".repeat(40),
+        annotatedCommits: ["a".repeat(40)],
+        omittedCommits: [],
       };
       capturedNotesContext = await o.pushNotes({
         io: {},
@@ -1059,6 +1071,7 @@ describe("--yes wiring", () => {
         cwd: "/repo",
         access: () => Promise.resolve(),
         worktreeBranch: "main",
+        notesExportTarget,
       });
       return {
         save: { status: "success", result: { identity: "andrew", commit: "x", fileCount: 1, warnings: [] } },
@@ -1068,11 +1081,11 @@ describe("--yes wiring", () => {
         exitCode: 0,
       };
     });
-    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
+    mockPushBranchBoundedNotesExport.mockResolvedValue({ kind: "pushed" });
 
     await handleSync({ yes: true });
 
-    expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
+    expect(mockPushBranchBoundedNotesExport).toHaveBeenCalledTimes(1);
     expect(capturedNotesContext).toEqual({ status: "success" });
   });
 

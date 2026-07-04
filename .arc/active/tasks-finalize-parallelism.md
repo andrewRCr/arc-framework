@@ -173,17 +173,12 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
         - Unit and true-race e2e coverage now prove primary + linked worktrees converge on one id and leave no
           checkout-local `.machine-id` behind; sync-state marker producer tests read the new common-dir store.
 
-    - `[ ]` **2.3.c Branch-bounded paired notes export**
-        - Keep paired push's worktree-before-notes invariant true even when the shared local notes ref contains notes
-          saved by sibling worktrees. Derive one planned notes-export target after the worktree leg lands; the marker
-          publisher and notes pusher both consume that target. Filter/stage to commits reachable from the landed
-          branch, or refuse with actionable recovery when the safe subset cannot be proven.
-        - Build `test-first` (one behavior at a time):
-            - A save, B save, then A paired push does not publish B's note until B's branch is on origin
-            - A paired push still publishes A's note after A's branch leg succeeds
-            - the marker intent equals the planned notes-export target the notes leg actually attempts
-            - unsafe notes content fails loud or remains local; a successful notes leg leaves no note on origin whose
-              annotated commit is unavailable
+    - `[x]` **2.3.c Branch-bounded paired notes export**
+        - Paired push now plans a temporary notes export after the worktree leg lands, stages origin's current notes
+          plus only local notes reachable from the landed branch, and pushes that exact target through the paired
+          notes adapter so sibling branch notes remain local until their commits are published.
+        - The sync-state marker records the planned export target, not the raw local notes tip, and same-commit
+          remote note conflicts refuse loudly without moving either local or origin notes.
 
     - `[ ]` **2.3.d Multi-intent sync-state marker handling**
         - After sibling worktrees share one workspace machine id, do not let same-key marker overwrites hide an

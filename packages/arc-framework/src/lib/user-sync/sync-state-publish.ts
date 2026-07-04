@@ -5,8 +5,8 @@
  *
  * This is the producer-side composition over the primitives built in earlier
  * phases: resolve the machine-id ({@link getOrCreateMachineId}), stamp the
- * marker payload (HEAD as `lastAttemptedCommit`, the local notes-ref tip as the
- * self-invalidation `intent`), write this machine's entry
+ * marker payload (HEAD as `lastAttemptedCommit`, the planned notes export target
+ * as the self-invalidation `intent`), write this machine's entry
  * ({@link writeSyncStateMarker}), and push it with the per-machine union
  * reconcile ({@link reconcileSyncStatePush}).
  *
@@ -61,6 +61,11 @@ export interface PublishSyncStateMarkerInput {
   lastAttemptedCommit?: string;
   /** Attempt timestamp stamped on the marker. Defaults to the wall clock. */
   now?: string;
+  /**
+   * Notes-ref target this publish is about to attempt. When omitted, the local
+   * notes-ref tip is used for the single-leg full-ref notes push path.
+   */
+  intent?: string;
 }
 
 /**
@@ -82,7 +87,7 @@ export async function publishSyncStateMarker(
 ): Promise<PublishSyncStateMarkerOutcome> {
   const { cwd, io, execInput, identity } = input;
   try {
-    const intent = await readLocalNotesRefTip(io.exec, identity);
+    const intent = input.intent ?? await readLocalNotesRefTip(io.exec, identity);
     if (intent === null) return { kind: "skipped", reason: "no-notes-ref" };
 
     const lastAttemptedCommit = input.lastAttemptedCommit ?? (await readHead(io.exec));
@@ -117,7 +122,7 @@ export async function publishSyncStateMarker(
   }
 }
 
-/** Origin-bound target of the about-to-fire push: this machine's local notes-ref tip, or `null` when absent. */
+/** Origin-bound target of a full-ref notes push: this machine's local notes-ref tip, or `null` when absent. */
 async function readLocalNotesRefTip(exec: GitExec, identity: string): Promise<string | null> {
   return readRefTip(exec, `${USER_NOTES_REF}/${identity}`);
 }

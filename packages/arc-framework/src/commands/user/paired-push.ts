@@ -28,26 +28,35 @@
  * branch. Both paths achieve user-facing safety; the asymmetry is
  * intentional (see {@link ../../lib/git/pushability.js}).
  *
- * The notes leg is delegated to an injected {@link PairedPushNotesPusher}
- * (production wires `pushNotesWithReconcile`) so the paired and single-leg
- * paths share automatic lossless reconcile, idempotent no-op detection, and
- * pre-check refusal without `commands/user/` taking a Clack dependency.
+ * The notes leg is branch-bounded. After the worktree leg lands, the helper
+ * derives one temporary notes-export target and hands that exact target to
+ * the marker publisher and injected notes pusher. This keeps sibling
+ * worktree notes local until their branches land, without `commands/user/`
+ * taking a Clack dependency.
  *
- * No automatic retry. Recovery is the caller's responsibility via
- * `arc user push` (idempotent).
+ * The notes leg silently retries transient push failures before surfacing a
+ * partial-push recovery state. Durable recovery is the caller's responsibility
+ * via `arc user push` (idempotent).
  *
  * @module
  */
 
 import { runPushabilityStatus } from "../../lib/git/index.js";
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
+import {
+  cleanupBranchBoundedNotesExport,
+  planBranchBoundedNotesExport,
+  type PlanBranchBoundedNotesExportResult,
+} from "../../lib/user-sync/branch-bounded-notes-export.js";
 import { clearPartialPushMarker, recordPartialPushMarker } from "../../lib/user-sync/index.js";
 import { runNotesPushWithRetry } from "./notes-push-retry.js";
 import { runUserSave } from "./save-load.js";
 import type {
   PairedPushMarkerContext,
   PairedPushMarkerPublisher,
+  PairedPushNotesContext,
   PairedPushNotesOutcome,
+  PairedPushNotesPusherResult,
   PairedPushResult,
   PairedPushSaveOutcome,
   RunPairedPushOptions,
@@ -80,6 +89,8 @@ export async function runPairedPush(
   const {
     io, identity, cwd, access, branch, worktreeSyncState, pushNotes,
     publishMarker, setUpstream = false, notesRetryConfig, sleep,
+    planNotesExport = defaultPlanNotesExport,
+    cleanupNotesExport,
   } = options;
 
   const pushability = await runPushabilityStatus({
@@ -138,12 +149,34 @@ export async function runPairedPush(
     };
   }
 
+  const exportPlan = await planNotesExport({ io, identity, worktreeBranch: branch });
+  if (exportPlan.kind !== "planned") {
+    const notes = notesOutcomeForPlanMiss(exportPlan);
+    await recordPartialPushMarker(cwd, io, identity);
+    return {
+      save,
+      worktree,
+      notes,
+      conditions: pushability.conditions,
+      exitCode: 1,
+      retryOffer: { autoRetries: 0 },
+    };
+  }
+
+  const notesExportTarget = exportPlan.target;
+
   // Marker before notes: publish this machine's outstanding notes-push intent
-  // ahead of the notes leg, so a landed marker reads "about to push notes for
-  // HEAD X" to a sibling clone. Best-effort and isolated — a publish failure
+  // ahead of the notes leg, so a landed marker names the same export target the
+  // notes leg is about to push. Best-effort and isolated — a publish failure
   // (or a throwing delegate) never blocks the notes leg or flips the exit code.
   if (publishMarker) {
-    await publishMarkerSafely(publishMarker, { io, identity, cwd, worktreeBranch: branch });
+    await publishMarkerSafely(publishMarker, {
+      io,
+      identity,
+      cwd,
+      worktreeBranch: branch,
+      notesExportTarget,
+    });
   }
 
   // Auto-retry a transient notes-leg failure a couple of times before surfacing
@@ -152,9 +185,13 @@ export async function runPairedPush(
   // it and returns a structured retry-offer for the agent/workflow layer to
   // resolve. Non-blocking by construction.
   const retry = await runNotesPushWithRetry(
-    () => pushNotes({ io, identity, cwd, access, worktreeBranch: branch }),
+    () => pushNotes({ io, identity, cwd, access, worktreeBranch: branch, notesExportTarget }),
     notesRetryConfig,
     sleep,
+  );
+  await cleanupNotesExportSafely(
+    cleanupNotesExport ?? ((target) => cleanupBranchBoundedNotesExport({ exec: io.exec, target })),
+    notesExportTarget,
   );
   const notes: PairedPushNotesOutcome = retry.result;
   if (isNotesSuccess(notes)) {
@@ -179,6 +216,43 @@ export async function runPairedPush(
       ? { retryOffer: { autoRetries: retry.autoRetries } }
       : {}),
   };
+}
+
+async function defaultPlanNotesExport(
+  context: Pick<PairedPushNotesContext, "io" | "identity" | "worktreeBranch">,
+): Promise<PlanBranchBoundedNotesExportResult> {
+  return planBranchBoundedNotesExport({
+    exec: context.io.exec,
+    identity: context.identity,
+    branch: context.worktreeBranch,
+  });
+}
+
+function notesOutcomeForPlanMiss(
+  plan: Exclude<PlanBranchBoundedNotesExportResult, { kind: "planned" }>,
+): PairedPushNotesPusherResult {
+  switch (plan.kind) {
+    case "skipped":
+      return {
+        status: "refused",
+        message: `Branch-bounded notes export could not find a safe target (${plan.reason}).`,
+      };
+    case "refused":
+      return { status: "refused", message: plan.message };
+    case "failed":
+      return { status: "failed", error: plan.error };
+  }
+}
+
+async function cleanupNotesExportSafely(
+  cleanupNotesExport: (target: PairedPushNotesContext["notesExportTarget"]) => Promise<void>,
+  target: PairedPushNotesContext["notesExportTarget"],
+): Promise<void> {
+  try {
+    await cleanupNotesExport(target);
+  } catch {
+    // Best-effort: temp-ref cleanup must not hide the notes outcome or marker update.
+  }
 }
 
 /**
