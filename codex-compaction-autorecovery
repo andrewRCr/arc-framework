@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "codex-compaction-autorecovery",
-  "origin": "inbox",
-  "intent": "Automate Codex compaction recovery via SessionStart(source: compact) and clean up recovery-artifact hygiene",
-  "branch": "chore/codex-compaction-autorecovery",
-  "createdAt": "2026-07-04T12:57:29.804Z",
-  "originEntry": "Automate Codex compaction recovery via `SessionStart(source: compact)` + recovery-artifact hygiene"
-}
