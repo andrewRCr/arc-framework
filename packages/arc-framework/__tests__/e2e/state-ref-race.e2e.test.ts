@@ -12,7 +12,7 @@
  * the in-process tests cannot.
  *
  * Per-guard coverage:
- *   - sync-state ref (D1): two machine-keyed entries both land in the ref tree.
+ *   - sync-state ref (D1): two entry-keyed writes both land in the ref tree.
  *   - errand ref (D1): two errand records both land in the ref tree.
  *   - user-notes (D4): two notes for two commits both land under the lock.
  *   - machine-id (D3): two first-callers converge on a single id.
@@ -97,7 +97,7 @@ async function emptyCommit(repo: string, message: string): Promise<string> {
 }
 
 describe("true-race smokes — same-machine write-safety guards", () => {
-  it("sync-state ref (D1): two racing machine-keyed writes both land", async () => {
+  it("sync-state ref (D1): two racing entry-keyed writes both land", async () => {
     const dir = await createTempRepo("arc-race-syncstate-");
     try {
       const expectedKeys: string[] = [];

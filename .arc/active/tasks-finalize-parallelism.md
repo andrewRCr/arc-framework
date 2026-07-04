@@ -149,15 +149,11 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
 - _Outcome:_ Remote-only WU pickup now runs through guarded lifecycle machinery via `arc materialize`, and
   session-init guidance points work-unit materialize through that command before `arc user pull`.
 
-### `[ ]` **2.3 BI-3 — Repo-shared anchoring for per-machine sync guards**
+### `[x]` **2.3 BI-3 — Repo-shared anchoring for per-machine sync guards**
 
 - _Goal:_ Same-machine cross-worktree notes writers serialize, paired notes pushes do not export sibling notes
   before those sibling branches land, sync-state marker surfacing cannot hide an earlier sibling partial-push intent,
   and `.machine-id` is workspace-scoped so sibling worktrees share one machine identity.
-- _Rationale:_ Anchoring the lock at the worktree root lets two worktrees each hold "the" lock and race
-  `git notes add` — the exact silent loss the lock exists to prevent. Paired push must also avoid publishing the
-  whole shared local notes ref when it contains a sibling worktree's saved note for an unpushed commit, and the
-  workspace-scoped machine id must not collapse two unresolved sibling marker intents into one latest-wins entry.
 
     - `[x]` **2.3.a Re-anchor the notes lock at the git common dir**
         - `getNotesLockPath` now resolves `git rev-parse --git-common-dir` through the caller's git executor and
@@ -180,15 +176,16 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
         - The sync-state marker records the planned export target, not the raw local notes tip, and same-commit
           remote note conflicts refuse loudly without moving either local or origin notes.
 
-    - `[ ]` **2.3.d Multi-intent sync-state marker handling**
-        - After sibling worktrees share one workspace machine id, do not let same-key marker overwrites hide an
-          earlier live notes-push intent. Keep `.machine-id` as marker provenance, but key marker storage by export
-          intent rather than machine id alone.
-        - Build `test-first` (one behavior at a time):
-            - two sibling worktrees can publish two unresolved notes-push intents without one hiding the other
-            - a later fulfilled sibling intent does not silence an earlier live intent
-            - marker payload still identifies the workspace machine provenance
-            - fulfilled and expired marker intents still self-invalidate / age out as before
+    - `[x]` **2.3.d Multi-intent sync-state marker handling**
+        - Sync-state markers now store entries by notes-export intent while retaining `machineId` as payload
+          provenance, so one workspace machine can publish multiple unresolved intents without latest-wins
+          overwrite.
+        - Marker consumers enumerate all keyed entries, keep live same-machine intents independent of fulfilled
+          siblings, and continue applying the existing fulfillment and TTL self-invalidation rules.
+
+- _Outcome:_ BI-3 now anchors the notes lock and workspace machine id in the repo git common dir, bounds paired
+  notes export to the landed branch, and keys sync-state marker entries by export intent so same-workspace sibling
+  pushes cannot hide earlier live notes-push intents.
 
 ### `[ ]` **2.4 BI-4 — Worktree launch bridge**
 

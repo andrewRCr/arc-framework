@@ -6,9 +6,9 @@
  * This is the producer-side composition over the primitives built in earlier
  * phases: resolve the machine-id ({@link getOrCreateMachineId}), stamp the
  * marker payload (HEAD as `lastAttemptedCommit`, the planned notes export target
- * as the self-invalidation `intent`), write this machine's entry
- * ({@link writeSyncStateMarker}), and push it with the per-machine union
- * reconcile ({@link reconcileSyncStatePush}).
+ * as the self-invalidation `intent`), write that intent entry
+ * ({@link writeSyncStateMarker}), and push it with the keyed union reconcile
+ * ({@link reconcileSyncStatePush}).
  *
  * Degrade-safe by construction: it never throws, and the caller (the paired
  * push) treats every outcome as best-effort. A successful notes push later
@@ -23,7 +23,11 @@
 import { readRefTip } from "../git/ref-tree.js";
 import { getOrCreateMachineId } from "./sync-state.js";
 import { reconcileSyncStatePush } from "./sync-state-merge.js";
-import { writeSyncStateMarker, type SyncStateMarker } from "./sync-state-marker.js";
+import {
+  syncStateMarkerKey,
+  writeSyncStateMarker,
+  type SyncStateMarker,
+} from "./sync-state-marker.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import type { CoreIO } from "../types.js";
 
@@ -74,7 +78,7 @@ export interface PublishSyncStateMarkerInput {
  *
  * Skips (no write, no push) when the local notes ref is absent (nothing to
  * advance toward) or HEAD cannot be resolved. Otherwise stamps the marker,
- * writes this machine's key, and reconcile-pushes it. Never throws — a remote
+ * writes this intent's key, and reconcile-pushes it. Never throws — a remote
  * push refusal (fetch-only clone, ref-level ACL), an unreachable remote, or any
  * git error resolves to `failed` / `skipped`, so the caller's notes leg
  * proceeds exactly as today.
@@ -103,8 +107,9 @@ export async function publishSyncStateMarker(
     };
 
     const refIo = { exec: io.exec, execInput, identity };
+    const markerKey = syncStateMarkerKey(marker);
     await writeSyncStateMarker(refIo, marker);
-    const outcome = await reconcileSyncStatePush(refIo, machineId);
+    const outcome = await reconcileSyncStatePush(refIo, markerKey);
     switch (outcome.kind) {
       case "pushed":
         return { kind: "published" };
