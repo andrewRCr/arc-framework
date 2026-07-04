@@ -17,6 +17,7 @@ import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import { runCreateNew, runGraduate, resolveStartDispatch } from "../../src/commands/start.js";
+import { handleStart } from "../../src/handlers/start.js";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -59,6 +60,7 @@ interface Harness {
   /** Absolute `worktree.location_template` — lands spawns beside the repo (in the temp parent). */
   locationTemplate: string;
   spawned: string[];
+  cleanupPaths: string[];
 }
 
 /** A real git repo on `main` with `.arc/` scaffolding and an initial commit. */
@@ -72,10 +74,10 @@ async function setup(): Promise<Harness> {
     join(repo, ".arc", "system", "arc-config.yml"),
     `branch.base: main\nbranch.protection: partial\nworktree.location_template: ${locationTemplate}\n`,
   );
-  await writeFile(join(repo, ".gitignore"), ".codex/\n.unregistered-harness/\n");
+  await writeFile(join(repo, ".gitignore"), ".codex/\n.unregistered-harness/\n.arc/user/\n");
   await execFileAsync("git", ["add", "-A"], { cwd: repo });
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "scaffold"], { cwd: repo });
-  return { repo, io: { ...createUserIOContext(), exec: makeGitExec(repo) }, locationTemplate, spawned: [] };
+  return { repo, io: { ...createUserIOContext(), exec: makeGitExec(repo) }, locationTemplate, spawned: [], cleanupPaths: [] };
 }
 
 /** Commit a stub meta into a lifecycle tier so `git mv` can relocate it. */
@@ -109,6 +111,9 @@ describe("arc start dispatch — against real worktrees", () => {
       await execFileAsync("git", ["worktree", "remove", "--force", wt], { cwd: h.repo }).catch(() => {});
       await rm(wt, { recursive: true, force: true });
     }
+    for (const path of h.cleanupPaths) {
+      await rm(path, { recursive: true, force: true });
+    }
     await cleanupTempDir(h.repo);
   });
 
@@ -129,6 +134,93 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(record.State).toBe("Planning");
     expect(record.Branch).toBe("plan/alpha");
     expect((await readWorktreeMarker(wt)).kind).toBe("present");
+  });
+
+  it("create-new handler: shell invocation commits and pushes the spawned plan branch", async () => {
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+    await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/shell-alpha" });
+    h.spawned.push(wt);
+
+    const originalCwd = process.cwd();
+    const savedExitCode = process.exitCode;
+    process.exitCode = undefined;
+    let observedExitCode: typeof process.exitCode;
+    try {
+      process.chdir(h.repo);
+      await handleStart("shell-alpha", { yes: true });
+      observedExitCode = process.exitCode;
+    } finally {
+      process.chdir(originalCwd);
+      process.exitCode = savedExitCode;
+    }
+
+    expect(observedExitCode).toBeUndefined();
+
+    const { stdout: subject } = await execFileAsync("git", ["log", "-1", "--format=%s"], { cwd: wt });
+    const { stdout: body } = await execFileAsync("git", ["log", "-1", "--format=%b"], { cwd: wt });
+    expect(subject.trim()).toBe("chore(arc): start shell-alpha in planning");
+    expect(body).toContain("Context: meta-shell-alpha.md (activation)");
+    const roadmap = await readFile(join(wt, ".arc", "backlog", "ROADMAP.md"), "utf8");
+    expect(roadmap).toContain("shell-alpha");
+    expect(roadmap).toContain("Generated from meta files");
+    const notes = await readFile(join(wt, ".arc", "user", IDENTITY, "shell-alpha", "SESSION-NOTES.md"), "utf8");
+    const { stdout: shortHead } = await execFileAsync("git", ["rev-parse", "--short", "HEAD"], { cwd: wt });
+    expect(notes).toContain("**Working On:** meta-shell-alpha.md");
+    expect(notes).toContain(`**Commit at Handoff:** \`${shortHead.trim()}\``);
+
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: wt });
+    const { stdout: remoteHead } = await execFileAsync("git", ["ls-remote", "origin", "refs/heads/plan/shell-alpha"], { cwd: h.repo });
+    expect(remoteHead).toContain(head.trim());
+  });
+
+  it("graduate handler: shell invocation commits and pushes the spawned plan branch", async () => {
+    await commitMeta(h.repo, "backlog/planned/shell-widget", "shell-widget", "Planning", "[none]");
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+    await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/shell-widget" });
+    h.spawned.push(wt);
+
+    const originalCwd = process.cwd();
+    const savedExitCode = process.exitCode;
+    process.exitCode = undefined;
+    let observedExitCode: typeof process.exitCode;
+    try {
+      process.chdir(h.repo);
+      await handleStart("shell-widget", { yes: true });
+      observedExitCode = process.exitCode;
+    } finally {
+      process.chdir(originalCwd);
+      process.exitCode = savedExitCode;
+    }
+
+    expect(observedExitCode).toBeUndefined();
+    expect(await pathExists(join(wt, ".arc", "active", "meta-shell-widget.md"))).toBe(true);
+    expect(await pathExists(join(wt, ".arc", "backlog", "planned", "shell-widget", "meta-shell-widget.md"))).toBe(false);
+    expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "shell-widget", "meta-shell-widget.md"))).toBe(true);
+
+    const { stdout: subject } = await execFileAsync("git", ["log", "-1", "--format=%s"], { cwd: wt });
+    const { stdout: body } = await execFileAsync("git", ["log", "-1", "--format=%b"], { cwd: wt });
+    expect(subject.trim()).toBe("chore(arc): graduate shell-widget into active");
+    expect(body).toContain("Context: meta-shell-widget.md (activation)");
+    const notes = await readFile(join(wt, ".arc", "user", IDENTITY, "shell-widget", "SESSION-NOTES.md"), "utf8");
+    const { stdout: shortHead } = await execFileAsync("git", ["rev-parse", "--short", "HEAD"], { cwd: wt });
+    expect(notes).toContain("**Working On:** meta-shell-widget.md");
+    expect(notes).toContain(`**Commit at Handoff:** \`${shortHead.trim()}\``);
+
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: wt });
+    const { stdout: remoteHead } = await execFileAsync("git", ["ls-remote", "origin", "refs/heads/plan/shell-widget"], { cwd: h.repo });
+    expect(remoteHead).toContain(head.trim());
   });
 
   it("create-new: registers the ownership marker ignore rule before leaving the spawned worktree", async () => {
@@ -194,15 +286,19 @@ describe("arc start dispatch — against real worktrees", () => {
     );
 
     expect(result.status).toBe("graduated");
-    // The stub relocated `backlog → active` (real `git mv`) — not a fresh scaffold over it.
-    expect(await pathExists(join(h.repo, ".arc", "active", "meta-widget.md"))).toBe(true);
-    expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(false);
-    // The worktree spawned on the cut branch.
+    // The stub relocated `backlog → active` in the spawned worktree — not the invoking checkout.
     expect(await pathExists(wt)).toBe(true);
+    expect(await pathExists(join(wt, ".arc", "active", "meta-widget.md"))).toBe(true);
+    expect(await pathExists(join(wt, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(false);
+    expect(await pathExists(join(h.repo, ".arc", "active", "meta-widget.md"))).toBe(false);
+    expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(true);
     // The `reconcile-status-user` side-effect rendered for real (local-only) and wrote STATUS.USER.
-    const statusUserPath = join(h.repo, ".arc", "user", IDENTITY, "STATUS.USER.md");
+    const statusUserPath = join(wt, ".arc", "user", IDENTITY, "STATUS.USER.md");
     expect(await pathExists(statusUserPath)).toBe(true);
     expect(await readFile(statusUserPath, "utf8")).toContain("## In Flight");
+    const notes = await readFile(join(wt, ".arc", "user", IDENTITY, "widget", "SESSION-NOTES.md"), "utf8");
+    expect(notes).toContain("Graduated the backlog stub");
+    expect(notes).toContain("**Commit at Handoff:** `[start ceremony pending]`");
   });
 
   it("graduate --here: cuts the branch in the current checkout, no worktree spawned", async () => {
@@ -243,15 +339,12 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(true);
   });
 
-  it("worktree-occupancy (spawn): graduating into a fresh worktree IS rejected by a base-checkout occupant", async () => {
-    // A graduate spawn's `relocate` leg runs `git mv backlog → active` in the BASE
-    // checkout before the worktree spawns — so graduating into an occupied base
-    // checkout would land a second meta in `active/` (the two-metas foot-gun). The
-    // occupancy guard rejects before any mutation; only a re-attach spawn (resume)
-    // lands nothing in the base and is exempt.
-    await commitMeta(h.repo, "active", "incumbent", "Active", "feat/incumbent");
+  it("worktree-occupancy (spawn): graduating into a fresh worktree ignores an invoking-checkout occupant", async () => {
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
+    await execFileAsync("git", ["switch", "-c", "feat/incumbent"], { cwd: h.repo });
+    await commitMeta(h.repo, "active", "incumbent", "Active", "feat/incumbent");
     const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/widget" });
+    h.spawned.push(wt);
 
     const result = await runGraduate(
       buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
@@ -265,12 +358,13 @@ describe("arc start dispatch — against real worktrees", () => {
       },
     );
 
-    expect(result.status).toBe("rejected");
-    if (result.status !== "rejected") return;
-    expect(result.reason).toMatch(/active work unit|occupanc|one active/i);
-    // The guard fires before any mutation: the stub stays in backlog, no worktree spawned.
+    expect(result.status).toBe("graduated");
+    if (result.status !== "graduated") return;
+    expect(await pathExists(join(wt, ".arc", "active", "meta-widget.md"))).toBe(true);
+    // The invoking checkout's active WU stays where it was; graduate did not add a second active meta there.
+    expect(await pathExists(join(h.repo, ".arc", "active", "meta-incumbent.md"))).toBe(true);
+    expect(await pathExists(join(h.repo, ".arc", "active", "meta-widget.md"))).toBe(false);
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(true);
-    expect(await pathExists(wt)).toBe(false);
   });
 
   it("refuse: an already-Active WU is refused as occupied (no mutation)", async () => {

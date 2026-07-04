@@ -171,6 +171,8 @@ export interface UserOpenOptions {
   identity: string;
   wuName: string;
   internalTemplateDir: string;
+  /** Optional caller-composed SESSION-NOTES seed; defaults to the internal template. */
+  sessionNotesSeed?: string;
 }
 
 /** Options for the close operation (retires a per-WU user workspace subdir). */

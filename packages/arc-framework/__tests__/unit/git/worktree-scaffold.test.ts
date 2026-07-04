@@ -109,6 +109,26 @@ describe("scaffoldIntoWorktree — cold-start (use-existing)", () => {
     expect(record.Origin).toBe("https://github.com/acme/widget/issues/42");
     expect(record.Design).toBe("spec-manual-tool.md");
   });
+
+  it("passes a ceremony SESSION-NOTES seed through to the user workspace", async () => {
+    const seed = "# Session Notes\n\n## Handoff Metadata\n\n**Working On:** meta-manual-tool.md\n";
+
+    await scaffoldIntoWorktree(
+      { io, internalTemplateDir: getInternalTemplatePath() },
+      {
+        worktreePath: worktree,
+        branch: "feat/manual-tool",
+        wuName: "manual-tool",
+        spawningIdentity: "andrew",
+        createdByArc: false,
+        sessionNotesSeed: seed,
+      },
+    );
+
+    await expect(
+      io.readFile(join(worktree, ".arc", "user", "andrew", "manual-tool", "SESSION-NOTES.md")),
+    ).resolves.toBe(seed);
+  });
 });
 
 describe("scaffoldIntoWorktree — planning-stage pointer at init", () => {

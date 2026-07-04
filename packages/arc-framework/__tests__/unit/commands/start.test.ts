@@ -497,6 +497,12 @@ describe("runCreateNew — create-new worktree spawn", () => {
     );
     expect(record.State).toBe("Planning");
     expect(record.Branch).toBe("plan/widget");
+    const sessionNotes = await io.readFile(
+      join(expectedPath, ".arc", "user", "andrew", "widget", "SESSION-NOTES.md"),
+    );
+    expect(sessionNotes).toContain("**Working On:** meta-widget.md");
+    expect(sessionNotes).toContain("**Commit at Handoff:** `[start ceremony pending]`");
+    expect(sessionNotes).toContain("**Session Type:** planning");
     expect((await readWorktreeMarker(expectedPath)).kind).toBe("present");
 
     await rm(expectedPath, { recursive: true, force: true });

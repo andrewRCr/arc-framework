@@ -200,27 +200,26 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
   prints exactly what it committed and pushed. Shares surface with `graduation-cleanup` — coordinate at pickup.
 - **Additional Context:** `spec-finalize-parallelism.md` § Committed build items (BI-4).
 
-    - `[ ]` **2.4.a CLI-complete `arc start` substrate**
-        - Build `test-first` (one behavior at a time):
-            - the three former judgment steps resolve deterministically (Next Action sentinel; deterministic
-              ROADMAP regen; formulaic graduation commit message)
-            - a shell-invoked start runs end-to-end without an interactive session
-        - _Note:_ the deterministic ROADMAP regen consumes `roadmap-tooling`'s renderer (a spec Non-Goal for FP
-          to build); it lands pre-wave-1, so 2.4.a's regen leg builds against it, not a hand-rendered ROADMAP.
+    - `[x]` **2.4.a CLI-complete `arc start` substrate**
+        - _Outcome:_ Added deterministic start-ceremony substrate: graduate resets `Next Action`, stages pointer
+          rewrites, and exposes formulaic commit messages; create-new shell `arc start` now refreshes/stages the
+          generated ROADMAP, commits, and pushes the `plan/<slug>` branch. The graduate commit/push fire remains
+          with Task 2.4.c's spawn-locus fix.
 
-    - `[ ]` **2.4.b Mini-handoff into seeded SESSION-NOTES at spawn**
-        - `init-work-unit` seeds the spawned WU's SESSION-NOTES via the handoff idiom (notes ref is checkout- and
-          branch-independent), so the first worktree session is a rich Resume.
+    - `[x]` **2.4.b Mini-handoff into seeded SESSION-NOTES at spawn**
+        - Spawned `arc start` paths now seed WU-scoped SESSION-NOTES with handoff fields (`Working On`,
+          `Commit at Handoff`, `Session Type`) and shell ceremonies rewrite the pending commit anchor to the actual
+          start-ceremony commit.
 
-    - `[ ]` **2.4.c Spawn-mode ceremony-locus fix**
-        - Build `test-first` (one behavior at a time):
-            - under spawn mode, relocation staging + user-open target the spawned worktree
-            - the init commit lands on the plan branch (resolvable by the worktree session from its `.arc/active/`)
+    - `[x]` **2.4.c Spawn-mode ceremony-locus fix**
+        - Graduate spawn now creates the worktree first, rebinds the transition executor to that checkout, runs
+          relocation / staging / user-open / ROADMAP from the spawned locus, and commits + pushes the formulaic
+          graduate ceremony on the `plan/<slug>` branch. The conservative `--here` path is unchanged.
 
-    - `[ ]` **2.4.d Per-WU user workspace scaffold at the corrected ceremony locus**
-        - Scaffold the spawned worktree's WU-scoped user workspace under spawn mode, after 2.4.c has corrected the
-          ceremony locus that the scaffold targets. Cross-WU identity-global files are intentionally excluded and
-          resolve through BI-6's canonical user-surface binding.
+    - `[x]` **2.4.d Per-WU user workspace scaffold at the corrected ceremony locus**
+        - The user-workspace open side-effect accepts the spawn mini-handoff seed and runs at the corrected worktree
+          locus for graduate spawn; create-new uses the scaffold path's seed. Identity-global user files remain
+          excluded and stay with BI-6's canonical binding work.
 
     - `[ ]` **2.4.e `renderBullets` 120-wrap for multi-line `Depends On`**
         - Build `test-first` (one behavior at a time):

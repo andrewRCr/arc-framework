@@ -98,6 +98,8 @@ export interface TransitionInputs {
    * `provisional` vs `planned`. Single-edge transitions ignore it.
    */
   commitment?: Location;
+  /** Optional SESSION-NOTES seed for user-workspace open side-effects. */
+  sessionNotesSeed?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +198,8 @@ export type ArtifactRunner = (params: {
 export interface ExecuteTransitionContext {
   /** Repository root containing `.arc/`. */
   cwd: string;
+  /** Re-bind the same production/test seams to another repository root when a verb shifts locus. */
+  withCwd?: (cwd: string) => ExecuteTransitionContext;
   /** Filesystem seam for {@link buildLifecycleIndex} — the only direct fs at entry. */
   indexFs: LifecycleIndexFs;
 

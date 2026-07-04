@@ -92,6 +92,8 @@ export interface ScaffoldWorktreeParams {
   design?: string;
   /** Whether ARC created the worktree (gates the ownership marker); defaults to `true`. */
   createdByArc?: boolean;
+  /** Optional richer SESSION-NOTES seed for ceremony-created worktrees. */
+  sessionNotesSeed?: string;
   /** Forward-compat tier hint — accepted, not branched on. */
   tier?: string;
   /** Forward-compat type hint — accepted, not branched on. */
@@ -149,6 +151,7 @@ export async function scaffoldIntoWorktree(
     identity: params.spawningIdentity,
     wuName: params.wuName,
     internalTemplateDir: ctx.internalTemplateDir,
+    sessionNotesSeed: params.sessionNotesSeed,
   });
 
   await writeWorktreeOwnershipMarker(params.worktreePath, {

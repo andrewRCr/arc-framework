@@ -30,14 +30,23 @@ import { basename } from "node:path";
 
 import { parseSpecInput } from "../lib/active/spec-input-parser.js";
 import type { MetaFieldName } from "../lib/active/meta-reader.js";
-import { PLANNING_WORKFLOWS } from "../lib/active/current-workflow-consistency.js";
+import {
+  BEGIN_CURRENT_WORKFLOW_SENTINEL,
+  PLANNING_WORKFLOWS,
+} from "../lib/active/current-workflow-consistency.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
-import type { LifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
-import { resolveSlugState } from "../lib/work-unit/lifecycle-resolver.js";
+import {
+  buildLifecycleIndex,
+  type LifecycleIndex,
+} from "../lib/work-unit/lifecycle-index.js";
+import {
+  resolveSlugPosition,
+  resolveSlugState,
+} from "../lib/work-unit/lifecycle-resolver.js";
 import {
   executeTransition,
   type ExecuteTransitionContext,
@@ -47,6 +56,8 @@ import {
 import {
   nodeReconcileWorktreeFs,
   reconcileWorktree,
+  type ReconcileWorktreeOp,
+  type ReconcileWorktreeResult,
 } from "../lib/work-unit/mutators/reconcile-worktree.js";
 import {
   scaffoldIntoWorktree,
@@ -113,12 +124,77 @@ export function resolveStartDispatch(index: LifecycleIndex, name: string): Start
 /** The flat `active/` tier a graduated WU lands in. */
 const ACTIVE_DIR = ".arc/active";
 
+/** Placeholder written before the shell handler lands the start ceremony commit. */
+export const START_CEREMONY_PENDING_COMMIT = "[start ceremony pending]";
+
+/** Inputs for the start-spawn mini-handoff seed written to per-WU SESSION-NOTES. */
+export interface StartSessionNotesSeedParams {
+  /** Work-unit slug the spawned worktree hosts. */
+  wuName: string;
+  /** Branch checked out in the spawned worktree. */
+  branch: string;
+  /** Spawn ceremony variant that produced the worktree. */
+  kind: "create-new" | "graduate";
+  /** Commit anchor for freshness checks, or the pending placeholder before commit. */
+  commit: string;
+}
+
+/**
+ * Compose the mini-handoff seed for a just-spawned planning worktree.
+ *
+ * The seed uses the normal handoff fields (`Working On`, `Commit at Handoff`,
+ * optional `Session Type`) so the first session in the spawned checkout can
+ * resume from local notes without depending on the invoking checkout.
+ *
+ * @param params - Work unit, branch, ceremony kind, and freshness commit anchor.
+ * @returns Complete SESSION-NOTES content with a trailing newline.
+ */
+export function buildStartSessionNotesSeed(params: StartSessionNotesSeedParams): string {
+  const metaFile = `meta-${params.wuName}.md`;
+  const action =
+    params.kind === "create-new"
+      ? "Created a new planning work unit with `arc start`."
+      : "Graduated the backlog stub into this planning worktree with `arc start`.";
+  return `# Session Notes
+
+> _Personal context for this work unit — written at handoff, read at next session-init.
+> Keep this scoped to the work unit's local resume context._
+
+## Handoff Metadata
+
+**Working On:** ${metaFile}
+
+**Commit at Handoff:** \`${params.commit}\`
+
+**Session Type:** planning
+
+## Completed Work
+
+- ${action}
+- Branch \`${params.branch}\` is checked out here and \`${metaFile}\` is the active project pointer.
+
+## Remaining Work Before Returning to Task List
+
+- Resume planning from \`Current Workflow\` in \`${metaFile}\`; \`Next Action\` is seeded to
+  \`${BEGIN_CURRENT_WORKFLOW_SENTINEL}\`.
+
+## Additional Context
+
+- Seeded at worktree spawn so the first session can resume without relying on the invoking checkout.
+- User notes are identity-scoped and branch-independent; use the normal notes save/load flow at handoff.
+
+---
+`;
+}
+
 /** The fields every `graduate` shares, regardless of locus. */
 interface GraduateBaseParams {
   /** Backlog-stub name to graduate (its current tier is resolved from the index). */
   name: string;
   /** The WU's resolved `Class` — the `class-resolved` guard input; an unresolved `[TBD]` is refused. */
   cls: string;
+  /** Optional mini-handoff seed for the user workspace open side-effect. */
+  sessionNotesSeed?: string;
 }
 
 /** Spawn-path `graduate` (the default) — cuts `plan/<name>` in a fresh worktree. */
@@ -154,6 +230,31 @@ export interface GraduateInPlaceParams extends GraduateBaseParams {
 /** Inputs for {@link runGraduate} — spawn (default) or in-place (`--here`). */
 export type GraduateParams = GraduateSpawnParams | GraduateInPlaceParams;
 
+/**
+ * Build the deterministic ceremony commit message for a backlog-stub graduate.
+ *
+ * The subject is intentionally formulaic: graduating a stub into `active/` has no
+ * remaining judgment once the command has resolved the WU name and lifecycle edge.
+ * The context footer attaches to the meta ceremony artifact, which is the tracked
+ * lifecycle record the transition moves.
+ *
+ * @param name - Work-unit slug being graduated.
+ * @returns A complete hook-valid commit message with trailing newline.
+ */
+export function buildGraduateCeremonyCommitMessage(name: string): string {
+  return `chore(arc): graduate ${name} into active\n\nContext: meta-${name}.md (activation)\n`;
+}
+
+/**
+ * Build the deterministic ceremony commit message for a brand-new planning WU.
+ *
+ * @param name - Work-unit slug being started.
+ * @returns A complete hook-valid commit message with trailing newline.
+ */
+export function buildCreateNewCeremonyCommitMessage(name: string): string {
+  return `chore(arc): start ${name} in planning\n\nContext: meta-${name}.md (activation)\n`;
+}
+
 /** The outcome of a `graduate` attempt — a rejection, or the relocated meta path + branch. */
 export type GraduateResult =
   | { status: "rejected"; reason: string }
@@ -166,6 +267,10 @@ export type GraduateResult =
       backfilled: MetaFieldName[];
       /** The one-line "backfilled N field(s)" ceremony notice, or `null` on a no-op reconcile. */
       notice: string | null;
+      /** Worktree root the graduate ceremony landed in. Present for spawn and placed-worktree paths. */
+      worktreePath?: string;
+      /** Notice surfaced when the spawned worktree has no post-create provisioning script configured. */
+      postCreateNotice?: string;
     };
 
 /**
@@ -190,24 +295,112 @@ export async function runGraduate(
   params: GraduateParams,
 ): Promise<GraduateResult> {
   const branch = `plan/${params.name}`;
+  if (!params.inPlace) {
+    return runGraduateSpawn(ctx, params, branch);
+  }
+
+  return runGraduateThroughExecutor(
+    ctx,
+    params,
+    branch,
+    { mutation: "spawn", inPlace: true, branch, createBranch: true },
+  );
+}
+
+async function runGraduateSpawn(
+  ctx: ExecuteTransitionContext,
+  params: GraduateSpawnParams,
+  branch: string,
+): Promise<GraduateResult> {
+  const preflight = await preflightGraduateSpawn(ctx, params);
+  if (preflight !== null) return { status: "rejected", reason: preflight };
+  if (ctx.withCwd === undefined) {
+    return {
+      status: "rejected",
+      reason: "graduate spawn requires an executor context that can re-bind to the spawned worktree.",
+    };
+  }
+
+  let spawnResult: ReconcileWorktreeResult;
+  try {
+    spawnResult = await ctx.reconcileWorktree({
+      mutation: "spawn",
+      branch,
+      base: params.baseBranch,
+      locationTemplate: params.locationTemplate,
+      repo: params.repo,
+      wuName: params.name,
+      spawningIdentity: params.spawningIdentity,
+      postCreateScript: params.postCreateScript,
+      primaryWorktreePath: params.primaryWorktreePath,
+      registeredHarnessDirs: params.registeredHarnessDirs,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { status: "rejected", reason: `could not spawn the worktree: ${message}` };
+  }
+  if (spawnResult.mutation !== "spawn") {
+    return { status: "rejected", reason: "could not spawn the worktree: unexpected teardown result from spawn leg" };
+  }
+
+  const targetCtx = ctx.withCwd(spawnResult.worktreePath);
+  const result = await runGraduateThroughExecutor(
+    targetCtx,
+    {
+      ...params,
+      sessionNotesSeed:
+        params.sessionNotesSeed
+        ?? buildStartSessionNotesSeed({
+          wuName: params.name,
+          branch,
+          kind: "graduate",
+          commit: START_CEREMONY_PENDING_COMMIT,
+        }),
+    },
+    branch,
+    { mutation: "spawn", inPlace: true, branch, createBranch: true, deferCheckout: true },
+  );
+  if (result.status !== "graduated") return result;
+  return {
+    ...result,
+    worktreePath: spawnResult.worktreePath,
+    ...(spawnResult.postCreateNotice === undefined ? {} : { postCreateNotice: spawnResult.postCreateNotice }),
+  };
+}
+
+async function preflightGraduateSpawn(
+  ctx: ExecuteTransitionContext,
+  params: GraduateSpawnParams,
+): Promise<string | null> {
+  if (params.cls === "" || params.cls === "[TBD]") {
+    return "`start` requires a resolved `Class` (not `[TBD]`) supplied in inputs.";
+  }
+
+  const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
+  const position = resolveSlugPosition(index, params.name);
+  if (
+    position === null ||
+    position.phase !== "Planning" ||
+    (position.location !== "provisional" && position.location !== "planned")
+  ) {
+    const where = position === null ? "nonexistent" : `${position.phase}/${position.location}`;
+    return `\`start\` can only graduate a backlog Planning stub from \`provisional\` or \`planned\` (found \`${where}\`).`;
+  }
+  return null;
+}
+
+async function runGraduateThroughExecutor(
+  ctx: ExecuteTransitionContext,
+  params: GraduateBaseParams,
+  branch: string,
+  worktreeOp: ReconcileWorktreeOp,
+): Promise<GraduateResult> {
   const inputs: TransitionInputs = {
     toDir: ACTIVE_DIR,
     branchOp: { mutation: "create" },
-    worktreeOp: params.inPlace
-      ? { mutation: "spawn", inPlace: true, branch, createBranch: true }
-      : {
-          mutation: "spawn",
-          branch,
-          base: params.baseBranch,
-          locationTemplate: params.locationTemplate,
-          repo: params.repo,
-          wuName: params.name,
-          spawningIdentity: params.spawningIdentity,
-          postCreateScript: params.postCreateScript,
-          primaryWorktreePath: params.primaryWorktreePath,
-          registeredHarnessDirs: params.registeredHarnessDirs,
-        },
+    worktreeOp,
     class: params.cls,
+    sessionNotesSeed: params.sessionNotesSeed,
   };
 
   const outcome = await executeTransition(ctx, { verb: "start", slug: params.name, inputs });
@@ -226,6 +419,8 @@ export async function runGraduate(
   // bullet is guaranteed present (the write is fail-loud on an absent field), and
   // is idempotent with the absent-meta case (both target the planning-entry stage).
   await ctx.writeCurrentWorkflowField(metaPath, PLANNING_WORKFLOWS[0]);
+  await ctx.writeSoftFields(metaPath, { "Next Action": BEGIN_CURRENT_WORKFLOW_SENTINEL });
+  await ctx.stageMeta?.(metaPath);
   const notice =
     backfilled.length > 0
       ? `Backfilled ${backfilled.length} meta field(s) against the code field model: ${backfilled.join(", ")}.`
@@ -539,6 +734,12 @@ export async function runCreateNew(
       wuName,
       spawningIdentity: params.identity,
       createdByArc: false,
+      sessionNotesSeed: buildStartSessionNotesSeed({
+        wuName,
+        branch,
+        kind: "create-new",
+        commit: START_CEREMONY_PENDING_COMMIT,
+      }),
     });
   } catch (err) {
     await rollbackSpawnedWorktree(ctx.io.exec, worktreePath, branch);

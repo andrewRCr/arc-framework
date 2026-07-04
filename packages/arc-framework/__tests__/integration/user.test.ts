@@ -2093,6 +2093,27 @@ describe("user open", () => {
     expect(sessionNotes).toBe(template);
   });
 
+  it("uses a caller-supplied SESSION-NOTES seed when provided", async () => {
+    const io = makeUserIO(tempDir);
+    const seed = "# Session Notes\n\n## Handoff Metadata\n\n**Working On:** meta-feature-x.md\n";
+
+    await runUserOpen({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      wuName: "feature-x",
+      internalTemplateDir: getInternalTemplatePath(),
+      sessionNotesSeed: seed,
+    });
+
+    await expect(
+      readFile(
+        join(tempDir, ".arc", "user", "test-user", "feature-x", "SESSION-NOTES.md"),
+        "utf-8",
+      ),
+    ).resolves.toBe(seed);
+  });
+
   it("idempotent on second invocation — preserves existing SESSION-NOTES edits", async () => {
     const io = makeUserIO(tempDir);
 

@@ -7,10 +7,9 @@
  *   through the shipped status renderer (wired by the executor as `composeView`)
  *   and writes `STATUS.USER.md` under the identity workspace. Identity-scoped —
  *   a null identity skips.
- * - `reconcile-roadmap` is declared forward-compat: `roadmap-tooling` owns the
- *   real ROADMAP renderer, so this emits a precise advisory naming the work unit
- *   and its `from → to` move for a hand-render, committing to no ROADMAP format,
- *   bucket, or derived-state label.
+ * - `reconcile-roadmap` builds the project readiness view, writes ROADMAP, and
+ *   stages it for the lifecycle ceremony; a render/write failure degrades to an
+ *   advisory so the transition stays recoverable.
  *
  * Both keep their I/O behind injected seams (three-layer architecture); the
  * executor supplies the composer + filesystem and surfaces the roadmap advisory.
@@ -119,6 +118,8 @@ export async function reconcileStatusUserSideEffect(
 
 /** Parameters for {@link reconcileRoadmap}. */
 export interface ReconcileRoadmapParams {
+  /** Repository root containing `.arc/`. */
+  cwd: string;
   /** The work unit's slug. */
   slug: string;
   /** Source position, or `null` for a creation edge. */
@@ -127,22 +128,50 @@ export interface ReconcileRoadmapParams {
   to: LifecyclePosition | null;
 }
 
+/** Dependencies for {@link reconcileRoadmap}. */
+export interface ReconcileRoadmapContext {
+  /** Compose the rendered ROADMAP body. */
+  composeView: () => Promise<string>;
+  /** Create the backlog directory if absent. */
+  mkdir: MkdirFn;
+  /** Write `ROADMAP.md`. */
+  writeFile: WriteFileFn;
+  /** Stage `ROADMAP.md` for the surrounding ceremony commit. */
+  stageFile: (path: string) => Promise<void>;
+}
+
 /** Render a position as `phase/location`, or `nonexistent` for an absent endpoint. */
 function positionLabel(position: LifecyclePosition | null): string {
   return position === null ? "nonexistent" : `${position.phase}/${position.location}`;
 }
 
 /**
- * Emit the interim ROADMAP-regen advisory for a transition — a precise,
- * actionable line naming the work unit and its `from → to` move, flagging that
- * the readiness view needs a hand-render until `roadmap-tooling` ships the
- * renderer. It commits to no ROADMAP format, bucket, or derived-state label
- * (those are downstream); the executor surfaces the returned string.
+ * Regenerate and stage ROADMAP after a lifecycle transition.
  *
- * @param params - Slug and the from / to positions.
- * @returns The advisory line.
+ * The view is derived and recoverable, so failures return an advisory instead of
+ * throwing. Successful writes ensure `.arc/backlog/`, write exactly one trailing
+ * newline, and stage the file so the lifecycle ceremony commit includes the
+ * refreshed readiness view.
+ *
+ * @param ctx - Injected composer + filesystem + staging seams.
+ * @param params - Repository root plus the slug / move being reported on degrade.
+ * @returns `undefined` on success; an advisory string on degrade.
  */
-export function reconcileRoadmap(params: ReconcileRoadmapParams): string {
+export async function reconcileRoadmap(
+  ctx: ReconcileRoadmapContext,
+  params: ReconcileRoadmapParams,
+): Promise<string | undefined> {
   const move = `${positionLabel(params.from)} → ${positionLabel(params.to)}`;
-  return `ROADMAP regen pending (no renderer yet): \`${params.slug}\` ${move} — hand-render the readiness view.`;
+  try {
+    const dir = join(params.cwd, ".arc", "backlog");
+    const path = join(dir, "ROADMAP.md");
+    const view = await ctx.composeView();
+    const body = view.endsWith("\n") ? view : `${view}\n`;
+    await ensureDir(dir, ctx.mkdir);
+    await ctx.writeFile(path, body);
+    await ctx.stageFile(path);
+    return undefined;
+  } catch {
+    return `ROADMAP regen failed: \`${params.slug}\` ${move} — refresh the project readiness view manually.`;
+  }
 }

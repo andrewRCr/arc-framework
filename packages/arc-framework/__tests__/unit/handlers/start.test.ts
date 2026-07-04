@@ -32,8 +32,16 @@ const mockResolveStartDispatch = vi.fn();
 const mockRunCreateNew = vi.fn();
 const mockRunColdStart = vi.fn();
 const mockRunGraduate = vi.fn();
+const mockExec = vi.fn();
+const mockReadFile = vi.fn(async () => "");
+const mockWriteFile = vi.fn();
+const mockMkdir = vi.fn();
 
 vi.mock("../../../src/commands/start.js", () => ({
+  buildCreateNewCeremonyCommitMessage: (name: string) =>
+    `chore(arc): start ${name} in planning\n\nContext: meta-${name}.md (activation)\n`,
+  buildGraduateCeremonyCommitMessage: (name: string) =>
+    `chore(arc): graduate ${name} into active\n\nContext: meta-${name}.md (activation)\n`,
   resolveStartDispatch: (...args: unknown[]) => mockResolveStartDispatch(...args),
   runCreateNew: (...args: unknown[]) => mockRunCreateNew(...args),
   runColdStart: (...args: unknown[]) => mockRunColdStart(...args),
@@ -84,7 +92,12 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 }));
 
 vi.mock("../../../src/lib/io-context.js", () => ({
-  createUserIOContext: () => ({ exec: vi.fn(), readFile: vi.fn(async () => ""), writeFile: vi.fn() }),
+  createUserIOContext: () => ({
+    exec: mockExec,
+    readFile: mockReadFile,
+    writeFile: mockWriteFile,
+    mkdir: mockMkdir,
+  }),
 }));
 
 vi.mock("../../../src/lib/paths.js", () => ({ getInternalTemplatePath: () => "/tmpl" }));
@@ -96,6 +109,9 @@ describe("handleStart — dispatch orchestration", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockExec.mockResolvedValue({ stdout: "", stderr: "" });
+    mockReadFile.mockResolvedValue("");
+    mockMkdir.mockResolvedValue(undefined);
     mockIsNonInteractive.mockReturnValue(true); // skip confirm by default
     mockIsCancel.mockReturnValue(false);
     savedExitCode = process.exitCode;
@@ -128,6 +144,43 @@ describe("handleStart — dispatch orchestration", () => {
     expect(process.exitCode).toBeUndefined();
   });
 
+  it("shell-completes a create-new start with a deterministic commit and push", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockRunCreateNew.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
+    });
+    mockExec.mockImplementation(async (_cmd, args) =>
+      args[0] === "rev-parse" ? { stdout: "abc1234\n", stderr: "" } : { stdout: "", stderr: "" },
+    );
+
+    await handleStart("widget", {});
+
+    expect(mockExec).toHaveBeenCalledWith(
+      "git",
+      ["add", ".arc/active/meta-widget.md", ".arc/backlog/ROADMAP.md"],
+      { cwd: "/repos/myrepo.plan-widget" },
+    );
+    expect(mockExec).toHaveBeenCalledWith(
+      "git",
+      [
+        "commit",
+        "-m",
+        "chore(arc): start widget in planning",
+        "-m",
+        "Context: meta-widget.md (activation)",
+      ],
+      { cwd: "/repos/myrepo.plan-widget" },
+    );
+    expect(mockExec).toHaveBeenCalledWith(
+      "git",
+      ["push", "-u", "origin", "plan/widget"],
+      { cwd: "/repos/myrepo.plan-widget" },
+    );
+    expect(mockLog.info).toHaveBeenCalledWith("Committed abc1234 and pushed plan/widget.");
+    expect(process.exitCode).toBeUndefined();
+  });
+
   it("routes a backlog stub to graduate, supplying the resolved Class", async () => {
     mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
     mockRunGraduate.mockResolvedValue({
@@ -142,6 +195,46 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockRunGraduate).toHaveBeenCalledTimes(1);
     expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", baseBranch: "main" });
     expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Graduated");
+  });
+
+  it("shell-completes a graduate spawn with a deterministic commit and push in the spawned worktree", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockRunGraduate.mockResolvedValue({
+      status: "graduated",
+      branch: "plan/widget",
+      metaPath: ".arc/active/meta-widget.md",
+      worktreePath: "/repos/myrepo.plan-widget",
+      outcome: { status: "ok", advisories: [] },
+    });
+    mockExec.mockImplementation(async (_cmd, args) =>
+      args[0] === "rev-parse" ? { stdout: "def5678\n", stderr: "" } : { stdout: "", stderr: "" },
+    );
+
+    await handleStart("widget", {});
+
+    expect(mockExec).toHaveBeenCalledWith(
+      "git",
+      ["add", ".arc/active/meta-widget.md", ".arc/backlog/ROADMAP.md"],
+      { cwd: "/repos/myrepo.plan-widget" },
+    );
+    expect(mockExec).toHaveBeenCalledWith(
+      "git",
+      [
+        "commit",
+        "-m",
+        "chore(arc): graduate widget into active",
+        "-m",
+        "Context: meta-widget.md (activation)",
+      ],
+      { cwd: "/repos/myrepo.plan-widget" },
+    );
+    expect(mockExec).toHaveBeenCalledWith(
+      "git",
+      ["push", "-u", "origin", "plan/widget"],
+      { cwd: "/repos/myrepo.plan-widget" },
+    );
+    expect(mockLog.info).toHaveBeenCalledWith("Committed def5678 and pushed plan/widget.");
+    expect(process.exitCode).toBeUndefined();
   });
 
   it("routes a parked WU to resume", async () => {
@@ -260,5 +353,20 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockRunCreateNew).not.toHaveBeenCalled();
     expect(mockLog.info).toHaveBeenCalledWith(expect.stringMatching(/cancelled/i));
     expect(process.exitCode).toBeUndefined();
+  });
+
+  it("names the commit and push side effect in spawned-start confirmation prompts", async () => {
+    mockIsNonInteractive.mockReturnValue(false);
+    mockConfirm.mockResolvedValue(false);
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+
+    await handleStart("widget", {});
+
+    expect(mockConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringMatching(/commit and push the start ceremony/i),
+      }),
+    );
+    expect(mockRunGraduate).not.toHaveBeenCalled();
   });
 });

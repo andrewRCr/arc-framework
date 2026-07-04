@@ -25,8 +25,8 @@
  * view through the shared `STATUS.USER` assembly (the same one `arc status --user`
  * uses) in local-only mode and writes `STATUS.USER.md`, degrading to an advisory
  * rather than failing the transition if the render or write throws.
- * `reconcile-roadmap` stays a forward-compat advisory — `roadmap-tooling` owns the
- * real ROADMAP renderer.
+ * `reconcile-roadmap` writes and stages the project readiness view through the
+ * shared status renderer.
  *
  * @module
  */
@@ -47,6 +47,7 @@ import {
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
+import { composeProjectReadinessView } from "../status/project-view.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
@@ -98,13 +99,23 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
 
+  /** Best-effort freshness marker for generated readiness views. */
+  const renderedRef = async (): Promise<string> => {
+    try {
+      const { stdout } = await exec("git", ["rev-parse", "--short", "HEAD"]);
+      return stdout.trim() || "working tree";
+    } catch {
+      return "working tree";
+    }
+  };
+
   /** The lifecycle-index scan seam — shared by the executor's entry build and the discharge side-effect. */
   const indexFs: LifecycleIndexFs = {
     readdir: (p) => readdir(at(p), { withFileTypes: true }),
     readFile: (p) => io.readFile(at(p)),
   };
 
-  const userWorkspaceHandler: SideEffectHandler = async ({ slug, to }) => {
+  const userWorkspaceHandler: SideEffectHandler = async ({ slug, to, inputs }) => {
     // No resolved identity ⇒ no user-workspace satellite to open or close. Skip
     // uniformly on both directions — the prior open path fired with an empty
     // identity while the close path was already skipped, an inconsistency.
@@ -113,7 +124,14 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     // out (to backlog / completed / nonexistent) closes it. Start's arms all land
     // in an active location, so they open.
     if (to !== null && to.location === "active") {
-      await runUserOpen({ cwd, io, identity, wuName: slug, internalTemplateDir });
+      await runUserOpen({
+        cwd,
+        io,
+        identity,
+        wuName: slug,
+        internalTemplateDir,
+        sessionNotesSeed: inputs.sessionNotesSeed,
+      });
     } else {
       await runUserClose({ cwd, identity, wuName: slug });
     }
@@ -160,6 +178,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
 
   return {
     cwd,
+    withCwd: (nextCwd) => buildExecutorContext({ ...deps, cwd: nextCwd }),
     exec,
     indexFs,
 
@@ -236,7 +255,26 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates, exec }),
 
     sideEffects: {
-      "reconcile-roadmap": ({ slug, from, to }) => reconcileRoadmap({ slug, from, to }),
+      "reconcile-roadmap": ({ slug, from, to }) =>
+        reconcileRoadmap(
+          {
+            composeView: async () =>
+              composeProjectReadinessView({
+                cwd,
+                renderedRef: await renderedRef(),
+                fs: {
+                  readFile: (p) => io.readFile(p),
+                  readdir: (p) => readdir(p, { withFileTypes: true }),
+                },
+              }),
+            mkdir: io.mkdir,
+            writeFile: io.writeFile,
+            stageFile: async (path) => {
+              await exec("git", ["add", path]);
+            },
+          },
+          { cwd, slug, from, to },
+        ),
       "reconcile-status-user": ({ slug, from, to }) =>
         reconcileStatusUserSideEffect(
           {
