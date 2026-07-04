@@ -76,7 +76,7 @@ function okConfig(): Probe<ConfigStatusResult> {
       settings: {
         "branch.base": "main",
         "branch.protection": "partial",
-        "worktree.location_template": "../{repo}.{branch}",
+        "worktree.location_template": "../{repo}.{name}",
         "worktree.post_create": "",
         "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
         "commit.format": "conventional",

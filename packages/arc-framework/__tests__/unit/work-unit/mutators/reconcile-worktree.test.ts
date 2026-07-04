@@ -97,8 +97,13 @@ describe("reconcileWorktree — spawn", () => {
 
   it("creates the branch + worktree at the templated path and writes the ownership marker", async () => {
     const { ctx, events } = buildCtx();
-    const template = join(root, "{repo}.{branch}");
-    const expectedPath = resolveWorktreeLocation({ template, repo: "demo", branch: "plan/demo-wu" });
+    const template = join(root, "{repo}.{name}");
+    const expectedPath = resolveWorktreeLocation({
+      template,
+      repo: "demo",
+      name: "demo-wu",
+      branch: "plan/demo-wu",
+    });
 
     const result = await reconcileWorktree(ctx, {
       mutation: "spawn",
@@ -126,7 +131,7 @@ describe("reconcileWorktree — spawn", () => {
 
   it("returns an actionable notice when no post-create script is configured", async () => {
     const { ctx } = buildCtx();
-    const template = join(root, "{repo}.{branch}");
+    const template = join(root, "{repo}.{name}");
 
     const result = await reconcileWorktree(ctx, {
       mutation: "spawn",
@@ -146,8 +151,13 @@ describe("reconcileWorktree — spawn", () => {
 
   it("runs a configured post-create script after worktree add and before returning", async () => {
     const { ctx, events } = buildCtx();
-    const template = join(root, "{repo}.{branch}");
-    const expectedPath = resolveWorktreeLocation({ template, repo: "demo", branch: "plan/demo-wu" });
+    const template = join(root, "{repo}.{name}");
+    const expectedPath = resolveWorktreeLocation({
+      template,
+      repo: "demo",
+      name: "demo-wu",
+      branch: "plan/demo-wu",
+    });
     const postCreateCommand =
       process.platform === "win32"
         ? ["cmd.exe", "/d", "/s", "/c", "npm run wt:post-create"]
@@ -173,8 +183,13 @@ describe("reconcileWorktree — spawn", () => {
 
   it("fails loud and writes no marker when the configured post-create script fails", async () => {
     const { ctx, events } = buildCtx({ failPostCreate: true });
-    const template = join(root, "{repo}.{branch}");
-    const expectedPath = resolveWorktreeLocation({ template, repo: "demo", branch: "plan/demo-wu" });
+    const template = join(root, "{repo}.{name}");
+    const expectedPath = resolveWorktreeLocation({
+      template,
+      repo: "demo",
+      name: "demo-wu",
+      branch: "plan/demo-wu",
+    });
     const postCreateCommand =
       process.platform === "win32"
         ? ["cmd.exe", "/d", "/s", "/c", "npm run wt:post-create"]
@@ -202,8 +217,13 @@ describe("reconcileWorktree — spawn", () => {
 
   it("copies registered primary harness dirs after post-create provisioning", async () => {
     const primaryPath = join(root, "primary");
-    const template = join(root, "{repo}.{branch}");
-    const expectedPath = resolveWorktreeLocation({ template, repo: "demo", branch: "plan/demo-wu" });
+    const template = join(root, "{repo}.{name}");
+    const expectedPath = resolveWorktreeLocation({
+      template,
+      repo: "demo",
+      name: "demo-wu",
+      branch: "plan/demo-wu",
+    });
     const { ctx, events } = buildCtx({
       existingDirs: [join(primaryPath, ".codex"), join(primaryPath, ".claude")],
     });
@@ -239,8 +259,13 @@ describe("reconcileWorktree — spawn", () => {
 
   it("leaves unregistered primary harness dirs untouched", async () => {
     const primaryPath = join(root, "primary");
-    const template = join(root, "{repo}.{branch}");
-    const expectedPath = resolveWorktreeLocation({ template, repo: "demo", branch: "plan/demo-wu" });
+    const template = join(root, "{repo}.{name}");
+    const expectedPath = resolveWorktreeLocation({
+      template,
+      repo: "demo",
+      name: "demo-wu",
+      branch: "plan/demo-wu",
+    });
     const { ctx, events } = buildCtx({
       existingDirs: [join(primaryPath, ".codex"), join(primaryPath, ".unregistered-harness")],
     });
@@ -267,8 +292,13 @@ describe("reconcileWorktree — spawn", () => {
 
   it("re-attaches an existing branch (bare add, no -b) and still marks the worktree for resume", async () => {
     const { ctx, events } = buildCtx();
-    const template = join(root, "{repo}.{branch}");
-    const expectedPath = resolveWorktreeLocation({ template, repo: "demo", branch: "feat/demo-wu" });
+    const template = join(root, "{repo}.{name}");
+    const expectedPath = resolveWorktreeLocation({
+      template,
+      repo: "demo",
+      name: "demo-wu",
+      branch: "feat/demo-wu",
+    });
 
     const result = await reconcileWorktree(ctx, {
       mutation: "spawn",

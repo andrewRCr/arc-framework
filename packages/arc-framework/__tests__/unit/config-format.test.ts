@@ -24,7 +24,7 @@ const FULL_SETTINGS: ConfigSettings = {
   "integration.stale_after_days": "2",
   "branch.base": "main",
   "branch.protection": "full",
-  "worktree.location_template": "../{repo}.{branch}",
+  "worktree.location_template": "../{repo}.{name}",
   "worktree.post_create": "",
   "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
   "commit.format": "conventional",

@@ -118,7 +118,7 @@ function executorFor(h: Harness): ReturnType<typeof buildExecutorContext> {
  */
 async function setup(): Promise<Harness> {
   const repo = await createTempRepo("arc-park-resume-");
-  const locationTemplate = join(dirname(repo), "{repo}.{branch}");
+  const locationTemplate = join(dirname(repo), "{repo}.{name}");
   await mkdir(join(repo, ".arc", "active"), { recursive: true });
   await mkdir(join(repo, ".arc", "backlog", "planned"), { recursive: true });
   await mkdir(join(repo, ".arc", "system"), { recursive: true });
@@ -130,7 +130,12 @@ async function setup(): Promise<Harness> {
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "scaffold"], { cwd: repo });
 
   // The WU branch + worktree carry the authoritative active/ meta; main does not.
-  const wuWorktree = resolveWorktreeLocation({ template: locationTemplate, repo: basename(repo), branch: BRANCH });
+  const wuWorktree = resolveWorktreeLocation({
+    template: locationTemplate,
+    repo: basename(repo),
+    name: SLUG,
+    branch: BRANCH,
+  });
   await execFileAsync("git", ["worktree", "add", "-b", BRANCH, wuWorktree], { cwd: repo });
   await mkdir(join(wuWorktree, ".arc", "active"), { recursive: true });
   await writeFile(join(wuWorktree, ACTIVE_REL), activeMeta());
@@ -204,7 +209,12 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
   it("round-trip (spawn): resume re-attaches in a fresh worktree and removes the pointer", async () => {
     await parkAndShip(h);
 
-    const resumeWt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: BRANCH });
+    const resumeWt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: SLUG,
+      branch: BRANCH,
+    });
     h.spawned.push(resumeWt);
 
     const result = await runResume(

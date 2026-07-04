@@ -464,7 +464,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
 
   /** Template that lands the spawned worktree beside the primary (inside the temp parent). */
   function siblingTemplate(): string {
-    return join(primaryRoot, "..", "{repo}.{branch}");
+    return join(primaryRoot, "..", "{repo}.{name}");
   }
 
   it("spawns a worktree on a new `plan/<name>` branch via the reconcile-worktree spawn leg", async () => {
@@ -485,6 +485,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
     const expectedPath = resolveWorktreeLocation({
       template: siblingTemplate(),
       repo: basename(primaryRoot),
+      name: "widget",
       branch: "plan/widget",
     });
     // The branch forks from the base via `git worktree add … -b plan/widget <base>`.
@@ -528,6 +529,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
     const expectedPath = resolveWorktreeLocation({
       template: siblingTemplate(),
       repo: basename(primaryRoot),
+      name: "widget",
       branch: "plan/widget",
     });
     // base from config (`develop`, not the `main` default); path from the
@@ -560,6 +562,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
     const expectedPath = resolveWorktreeLocation({
       template: siblingTemplate(),
       repo: basename(primaryRoot),
+      name: "widget",
       branch: "plan/widget",
     });
     const postCreateCommand =
@@ -610,6 +613,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
     const expectedPath = resolveWorktreeLocation({
       template: siblingTemplate(),
       repo: basename(primaryRoot),
+      name: "widget",
       branch: "plan/widget",
     });
     expect(outcome.value).toMatchObject({

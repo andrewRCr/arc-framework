@@ -2,8 +2,9 @@
  * Worktree location resolution — expands the `worktree.location_template`
  * config value into a concrete filesystem path at worktree-creation time.
  *
- * `{repo}` expands to the repository name and `{branch}` to the branch name
- * with path separators slugged to `-` (so `plan/foo` -> `plan-foo`).
+ * `{repo}` expands to the repository name, `{name}` to the work-unit name, and
+ * `{branch}` to the branch name with path separators slugged to `-` (so
+ * `plan/foo` -> `plan-foo`).
  *
  * The result is a creation-time artifact: ARC resolves it once when it creates
  * a worktree and thereafter reads the live location from `git worktree list`.
@@ -20,6 +21,8 @@ export interface WorktreeLocationParams {
   template: string;
   /** Repository name; replaces `{repo}`. */
   repo: string;
+  /** Work-unit name; replaces `{name}`. */
+  name: string;
   /** Branch name at creation time; replaces `{branch}` with separators slugged to `-`. */
   branch: string;
 }
@@ -33,10 +36,13 @@ function slugBranch(branch: string): string {
  * Resolve a worktree's filesystem path by expanding `template` against the
  * repository name and creation-time branch.
  *
- * @param params - Template plus the `{repo}` / `{branch}` expansion values.
- * @returns The resolved path with `{repo}` and the slugged `{branch}` substituted.
+ * @param params - Template plus the `{repo}` / `{name}` / `{branch}` expansion values.
+ * @returns The resolved path with `{repo}`, `{name}`, and the slugged `{branch}` substituted.
  */
 export function resolveWorktreeLocation(params: WorktreeLocationParams): string {
-  const { template, repo, branch } = params;
-  return template.replaceAll("{repo}", repo).replaceAll("{branch}", slugBranch(branch));
+  const { template, repo, name, branch } = params;
+  return template
+    .replaceAll("{repo}", repo)
+    .replaceAll("{name}", name)
+    .replaceAll("{branch}", slugBranch(branch));
 }

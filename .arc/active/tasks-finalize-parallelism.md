@@ -190,15 +190,11 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
   notes export to the landed branch, and keys sync-state marker entries by export intent so same-workspace sibling
   pushes cannot hide earlier live notes-push intents.
 
-### `[ ]` **2.4 BI-4 — Worktree launch bridge**
+### `[x]` **2.4 BI-4 — Worktree launch bridge**
 
 - _Goal:_ A shell-invoked `arc start` is CLI-complete (spawn → provision → relocate → reconcile → ceremony
   commit → push) and hands off into the spawned WU's seeded SESSION-NOTES, so worktree-by-default costs one
   session and boots rich — and the ceremony lands correctly under spawn mode.
-- _Context:_ Interlock semantics — the explicit shell invocation _is_ the approval (deterministic ceremony
-  content, no judgment left to gate); the release covers the ceremony's own commit + push only, and the command
-  prints exactly what it committed and pushed. Shares surface with `graduation-cleanup` — coordinate at pickup.
-- **Additional Context:** `spec-finalize-parallelism.md` § Committed build items (BI-4).
 
     - `[x]` **2.4.a CLI-complete `arc start` substrate**
         - _Outcome:_ Added deterministic start-ceremony substrate: graduate resets `Next Action`, stages pointer
@@ -232,11 +228,15 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
           `init-work-unit` now consumes that recipe instead of continuing from the invoking checkout. Codex
           `--cd <DIR>` support was re-verified against the installed CLI help.
 
-    - `[ ]` **2.4.g Worktree path naming across activation**
-        - Verify whether branch/path parity is load-bearing after `plan/<slug>` branches activate to
-          `feat/<slug>` while the worktree directory keeps the `plan-` prefix. If parity is cosmetic, switch spawned
-          dirs to WU-name-only; if load-bearing, rename the worktree directory at activation and cover roster /
-          teardown / sweep lookups.
+    - `[x]` **2.4.g Worktree path naming across activation**
+        - Branch/path parity proved cosmetic: activation renames branch/meta state only, while roster, teardown, and
+          sweeps resolve live paths from `git worktree list`. Spawned worktree defaults now use the WU-name token
+          (`../{repo}.{name}`), with `{branch}` retained for explicit branch-labeled templates.
+
+- _Outcome:_ BI-4 now makes spawned start paths CLI-complete and handoff-ready: create-new / graduate spawn
+  provision, relocate, scaffold the user workspace, refresh the project readiness view, commit and push the
+  `plan/<slug>` branch, seed SESSION-NOTES, print harness entry recipes, and name spawned worktrees by WU slug so
+  activation branch rotation does not imply path churn.
 
 ### `[ ]` **2.5 BI-5 — Graduate-transition crash-class fix**
 

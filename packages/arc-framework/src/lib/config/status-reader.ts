@@ -33,7 +33,7 @@ import type { ConfigSettings } from "../../commands/config/types.js";
 const DEFAULTS: ConfigSettings = {
   "branch.base": "main",
   "branch.protection": "partial",
-  "worktree.location_template": "../{repo}.{branch}",
+  "worktree.location_template": "../{repo}.{name}",
   "worktree.post_create": "",
   "worktree.harness_dirs": DEFAULT_WORKTREE_HARNESS_DIRS,
   "commit.format": "conventional",

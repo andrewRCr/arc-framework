@@ -45,7 +45,7 @@ function buildSettings(overrides: FixtureOverrides = {}): ResolvedSettingsResult
     "integration.stale_after_days": "2",
     "branch.base": branchBase,
     "branch.protection": branchProtection,
-    "worktree.location_template": "../{repo}.{branch}",
+    "worktree.location_template": "../{repo}.{name}",
     "worktree.post_create": "",
     "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
     "commit.format": "conventional",

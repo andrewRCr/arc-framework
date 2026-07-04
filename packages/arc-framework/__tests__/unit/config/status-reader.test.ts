@@ -477,16 +477,16 @@ describe("readConfigSettings — worktree.location_template", () => {
     expect(AGENT_CONSUMABLE_KEYS).toContain("worktree.location_template");
   });
 
-  it("applies the '../{repo}.{branch}' default when absent", async () => {
+  it("applies the '../{repo}.{name}' default when absent", async () => {
     await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
     const result = await readConfigSettings(fixture.root);
-    expect(result.settings["worktree.location_template"]).toBe("../{repo}.{branch}");
+    expect(result.settings["worktree.location_template"]).toBe("../{repo}.{name}");
     expect(result.defaultsApplied).toContain("worktree.location_template");
     expect(result.warnings).toHaveLength(0);
   });
 
   it("passes any on-disk value through verbatim (freeform — no enum gate)", async () => {
-    for (const value of ["../{repo}.{branch}", ".worktrees/{branch}", "~/wt/{repo}.{branch}"]) {
+    for (const value of ["../{repo}.{name}", "../{repo}.{branch}", ".worktrees/{branch}", "~/wt/{repo}.{branch}"]) {
       await writeFile(fixture.configPath, `worktree.location_template: ${value}\n`);
       const result = await readConfigSettings(fixture.root);
       expect(result.settings["worktree.location_template"]).toBe(value);

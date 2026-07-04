@@ -66,7 +66,7 @@ interface Harness {
 /** A real git repo on `main` with `.arc/` scaffolding and an initial commit. */
 async function setup(): Promise<Harness> {
   const repo = await createTempRepo("arc-start-dispatch-");
-  const locationTemplate = join(dirname(repo), "{repo}.{branch}");
+  const locationTemplate = join(dirname(repo), "{repo}.{name}");
   await mkdir(join(repo, ".arc", "active"), { recursive: true });
   await mkdir(join(repo, ".arc", "backlog", "planned"), { recursive: true });
   await mkdir(join(repo, ".arc", "system"), { recursive: true });
@@ -118,7 +118,12 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("create-new: spawns a real worktree on a new plan/ branch with a scaffolded meta + marker", async () => {
-    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/alpha" });
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "alpha",
+      branch: "plan/alpha",
+    });
     h.spawned.push(wt);
 
     const outcome = await runCreateNew(
@@ -144,7 +149,12 @@ describe("arc start dispatch — against real worktrees", () => {
     await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
     await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
 
-    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/shell-alpha" });
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "shell-alpha",
+      branch: "plan/shell-alpha",
+    });
     h.spawned.push(wt);
 
     const originalCwd = process.cwd();
@@ -188,7 +198,12 @@ describe("arc start dispatch — against real worktrees", () => {
     await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
     await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
 
-    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/shell-widget" });
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "shell-widget",
+      branch: "plan/shell-widget",
+    });
     h.spawned.push(wt);
 
     const originalCwd = process.cwd();
@@ -224,7 +239,12 @@ describe("arc start dispatch — against real worktrees", () => {
   });
 
   it("create-new: registers the ownership marker ignore rule before leaving the spawned worktree", async () => {
-    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/clean-marker" });
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "clean-marker",
+      branch: "plan/clean-marker",
+    });
     h.spawned.push(wt);
 
     const outcome = await runCreateNew(
@@ -250,7 +270,12 @@ describe("arc start dispatch — against real worktrees", () => {
       `branch.base: main\nbranch.protection: partial\nworktree.location_template: ${h.locationTemplate}\nworktree.harness_dirs: .codex\n`,
     );
 
-    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/harnessed" });
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "harnessed",
+      branch: "plan/harnessed",
+    });
     h.spawned.push(wt);
 
     const outcome = await runCreateNew(
@@ -266,7 +291,12 @@ describe("arc start dispatch — against real worktrees", () => {
 
   it("graduate: an existing backlog stub graduates onto its branch (never mis-scaffolds)", async () => {
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
-    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/widget" });
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "widget",
+      branch: "plan/widget",
+    });
     h.spawned.push(wt);
 
     // The name collision routes to graduate, not create-new.
@@ -303,7 +333,12 @@ describe("arc start dispatch — against real worktrees", () => {
 
   it("graduate --here: cuts the branch in the current checkout, no worktree spawned", async () => {
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
-    const spawnWt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/widget" });
+    const spawnWt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "widget",
+      branch: "plan/widget",
+    });
 
     const result = await runGraduate(
       buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
@@ -343,7 +378,12 @@ describe("arc start dispatch — against real worktrees", () => {
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
     await execFileAsync("git", ["switch", "-c", "feat/incumbent"], { cwd: h.repo });
     await commitMeta(h.repo, "active", "incumbent", "Active", "feat/incumbent");
-    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/widget" });
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: "widget",
+      branch: "plan/widget",
+    });
     h.spawned.push(wt);
 
     const result = await runGraduate(

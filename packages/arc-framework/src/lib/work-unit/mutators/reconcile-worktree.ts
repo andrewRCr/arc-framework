@@ -242,6 +242,7 @@ export async function reconcileWorktree(
     const worktreePath = resolveWorktreeLocation({
       template: op.locationTemplate,
       repo: op.repo,
+      name: op.wuName,
       branch: op.branch,
     });
     // Re-attach (`createBranch: false`) checks out an existing preserved branch — bare `add`, no
