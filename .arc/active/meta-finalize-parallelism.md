@@ -12,11 +12,11 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.4 — BI-4 — Worktree launch bridge
-- **Next Task:** Task 2.5.a — Pre-flight meta-shape validation + `arc verify` check (line ~248)
+- **Last Completed:** Task 2.5 — BI-5 — Graduate-transition crash-class fix
+- **Next Task:** Task 2.6.a — User-surface resolver by semantic scope (line ~266)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.5.a — build pre-flight meta-shape validation and `arc verify` check
+- **Next Action:** Start Task 2.6.a — implement the semantic user-surface resolver and wire identity-global callers
 
 - **PR URL:** [none]
 - **Completed:** [none]
