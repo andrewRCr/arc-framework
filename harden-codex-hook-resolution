@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "harden-codex-hook-resolution",
+  "origin": "description",
+  "intent": "Resolve Codex hook scripts from the primary worktree so version-skewed worktrees no longer fail; surface recovery failures only when genuinely owed",
+  "branch": "fix/harden-codex-hook-resolution",
+  "createdAt": "2026-07-04T16:29:52.131Z"
+}
