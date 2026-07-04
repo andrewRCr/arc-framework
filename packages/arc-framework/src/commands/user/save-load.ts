@@ -104,7 +104,7 @@ export async function runUserSave(
   // Serialize the smallest span containing that RMW — the recent-notes read,
   // tombstone apply, and the write — under a per-identity advisory lock,
   // releasing in `finally` so a thrown write still frees it for the next caller.
-  const lock = await acquireAdvisoryLock(getNotesLockPath(cwd, identity));
+  const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
   try {
     const recentNotes = await readRecentUserNotes(io.exec, identity);
     applyRemovalTombstones(result.manifest, recentNotes, new Date().toISOString());

@@ -159,15 +159,12 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
   whole shared local notes ref when it contains a sibling worktree's saved note for an unpushed commit, and the
   workspace-scoped machine id must not collapse two unresolved sibling marker intents into one latest-wins entry.
 
-    - `[ ]` **2.3.a Re-anchor the notes lock at the git common dir**
-        - Re-base `getNotesLockPath` (`notes-lock.ts`) from the per-worktree user-internal dir to the git common
-          dir, so all same-machine worktrees resolve one lock. Resolving the common dir needs
-          `git rev-parse --git-common-dir` (async), so this currently-pure `(cwd, identity)` path builder gains a
-          git-resolution step; the `.git` common tree is untracked, satisfying 2.3.b's clean-tree requirement.
-        - Build `test-first` (one behavior at a time):
-            - `getNotesLockPath` resolves to a common-dir-anchored path shared across sibling worktrees
-            - _(integration-tier)_ two same-machine worktrees contend for the one lock (serialized), and a note
-              written under concurrency survives — no read-modify-write clobber
+    - `[x]` **2.3.a Re-anchor the notes lock at the git common dir**
+        - `getNotesLockPath` now resolves `git rev-parse --git-common-dir` through the caller's git executor and
+          anchors the per-identity lock under the repo-shared common dir; `runUserSave` and the true-race worker
+          await that async path before acquiring the unchanged advisory lock.
+        - Unit coverage now asserts absolute and relative common-dir resolution, and the true-race e2e smoke now
+          races primary + linked-worktree note writers to prove both notes survive under the shared lock.
 
     - `[ ]` **2.3.b Mint `.machine-id` at the git common dir (workspace-as-machine)**
         - Re-base `getMachineIdPath` / `getOrCreateMachineId` (`lib/user-sync/sync-state.ts`) from per-checkout to

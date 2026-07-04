@@ -19,8 +19,8 @@
  */
 
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, rm } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import { describe, it, expect } from "vitest";
@@ -156,6 +156,34 @@ describe("true-race smokes — same-machine write-safety guards", () => {
       }
     } finally {
       await cleanupTempDir(dir);
+    }
+  }, SMOKE_TIMEOUT_MS);
+
+  it("user-notes (D4): sibling worktrees contend through one common-dir lock", async () => {
+    const dir = await createTempRepo("arc-race-notes-worktrees-");
+    const worktree = join(dirname(dir), `${basename(dir)}-sibling`);
+    try {
+      await emptyCommit(dir, "base");
+      await execFileAsync("git", ["worktree", "add", "-b", "sibling", worktree, "HEAD"], { cwd: dir });
+
+      const noted: string[] = [];
+      for (let round = 0; round < ROUNDS; round++) {
+        const commitA = await emptyCommit(dir, `worktree-note-round-${round}-a`);
+        const commitB = await emptyCommit(worktree, `worktree-note-round-${round}-b`);
+        const results = await runRound([
+          ["notes", dir, IDENTITY, commitA],
+          ["notes", worktree, IDENTITY, commitB],
+        ]);
+        expectAllOk(results, round);
+        noted.push(commitA, commitB);
+        for (const commit of noted) {
+          expect(await noteShow(dir, commit), `round ${round} note ${commit}`).toContain(`note for ${commit}`);
+        }
+      }
+    } finally {
+      await execFileAsync("git", ["worktree", "remove", "--force", worktree], { cwd: dir }).catch(() => {});
+      await cleanupTempDir(dir);
+      await rm(worktree, { recursive: true, force: true });
     }
   }, SMOKE_TIMEOUT_MS);
 

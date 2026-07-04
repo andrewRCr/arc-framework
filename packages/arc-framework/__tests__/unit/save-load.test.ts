@@ -187,6 +187,9 @@ function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
       if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
         return { stdout: head, stderr: "" };
       }
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+        return { stdout: ".git\n", stderr: "" };
+      }
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
     readFile: vi.fn(async (filePath: string) => {
@@ -740,6 +743,9 @@ function concurrentSaveIO(
       if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
         return { stdout: head, stderr: "" };
       }
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+        return { stdout: ".git\n", stderr: "" };
+      }
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
     readFile: vi.fn(async (filePath: string) => {
@@ -803,16 +809,17 @@ describe("runUserSave — note-write serialization (advisory lock)", () => {
   it("releases the lock when the note write throws, so the next save proceeds", async () => {
     const recorder: CriticalSectionRecorder = { active: 0, maxActive: 0, commits: [] };
 
+    const failingIo = concurrentSaveIO(headA, recorder, { writeNoteThrows: true });
     await expect(
       runUserSave({
         cwd,
-        io: concurrentSaveIO(headA, recorder, { writeNoteThrows: true }),
+        io: failingIo,
         identity: "andrew",
       }),
     ).rejects.toThrow("write failed");
 
     // The lock was released in `finally` despite the throw — no orphaned lockfile.
-    expect(await exists(getNotesLockPath(cwd, "andrew"))).toBe(false);
+    expect(await exists(await getNotesLockPath(failingIo.exec, cwd, "andrew"))).toBe(false);
 
     // A subsequent save acquires cleanly rather than deadlocking on a stuck lock.
     const result = await runUserSave({
@@ -850,6 +857,7 @@ function mockSaveIOWithNotes(
   const io: UserIOContext = {
     exec: vi.fn(async (cmd: string, args: string[]) => {
       if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+      if (args[0] === "rev-parse" && args[1] === "--git-common-dir") return { stdout: ".git\n", stderr: "" };
       if (args[0] === "log") return { stdout: historyCommit, stderr: "" };
       if (args[0] === "diff-tree") return { stdout: notePath, stderr: "" };
       if (args[0] === "show") {
@@ -1295,6 +1303,9 @@ describe("LocalSyncState v4 schema", () => {
         if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
           return { stdout: head, stderr: "" };
         }
+        if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: ".git\n", stderr: "" };
+        }
         throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
       }),
       readDir: vi.fn(async () => [{ name: "SESSION-NOTES.md", size: 7 }]),
@@ -1386,6 +1397,9 @@ describe("LocalSyncState v4 schema", () => {
         exec: vi.fn(async (cmd: string, args: string[]) => {
           if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
             return { stdout: head, stderr: "" };
+          }
+          if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+            return { stdout: ".git\n", stderr: "" };
           }
           throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
         }),

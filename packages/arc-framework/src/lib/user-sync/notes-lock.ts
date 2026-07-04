@@ -6,9 +6,9 @@
  * read-modify-write on the notes tree with no old-value protection, so two
  * racing same-identity saves silently collapse to one note. This lock is the
  * serialization that closes that race: an exclusive-create lockfile (the same
- * `O_EXCL` primitive the machine-id store rests on) under
- * `user/{identity}/.internal/`, recording the holder's pid, acquisition time,
- * and a per-acquisition token. A lock is reclaimed only when it is provably
+ * `O_EXCL` primitive the machine-id store rests on) under the repository's git
+ * common directory, recording the holder's pid, acquisition time, and a
+ * per-acquisition token. A lock is reclaimed only when it is provably
  * abandoned — the recorded pid is no longer alive (`process.kill(pid, 0)`), or the
  * lockfile is malformed. A live holder, or one whose lockfile is momentarily
  * unreadable, is waited on rather than broken; the bounded wait deadline then
@@ -27,14 +27,18 @@
 
 import { randomUUID } from "node:crypto";
 import { readFile as fsReadFile, unlink as fsUnlink } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 
 import { exclusiveCreateFile } from "../fs.js";
+import type { GitExec } from "../git/exec.js";
 
-import { getUserInternalDir, type ExclusiveCreateFn } from "./sync-state.js";
+import type { ExclusiveCreateFn } from "./sync-state.js";
 
-/** Notes write lockfile name under `user/{identity}/.internal/`. */
+/** Notes write lockfile name under the repo-shared git common dir. */
 const NOTES_LOCK_FILENAME = ".notes.lock";
+const REPO_SHARED_ARC_DIR = "arc";
+const REPO_SHARED_USER_DIR = "user";
+const REPO_SHARED_INTERNAL_DIR = ".internal";
 
 /** Total bounded wait for a held-and-live lock before surfacing a timeout. */
 const DEFAULT_MAX_WAIT_MS = 10_000;
@@ -123,9 +127,26 @@ export class AdvisoryLockTimeoutError extends Error {
   }
 }
 
-/** Absolute path to the notes-write lockfile for an identity. */
-export function getNotesLockPath(cwd: string, identity: string): string {
-  return join(getUserInternalDir(cwd, identity), NOTES_LOCK_FILENAME);
+/** Absolute path to the repo-shared notes-write lockfile for an identity. */
+export async function getNotesLockPath(exec: GitExec, cwd: string, identity: string): Promise<string> {
+  const commonDir = await resolveGitCommonDir(exec, cwd);
+  return join(
+    commonDir,
+    REPO_SHARED_ARC_DIR,
+    REPO_SHARED_USER_DIR,
+    identity,
+    REPO_SHARED_INTERNAL_DIR,
+    NOTES_LOCK_FILENAME,
+  );
+}
+
+async function resolveGitCommonDir(exec: GitExec, cwd: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", "--git-common-dir"], { cwd });
+  const commonDir = stdout.trim();
+  if (commonDir.length === 0) {
+    throw new Error("git rev-parse --git-common-dir returned an empty path");
+  }
+  return isAbsolute(commonDir) ? commonDir : resolve(cwd, commonDir);
 }
 
 /**
