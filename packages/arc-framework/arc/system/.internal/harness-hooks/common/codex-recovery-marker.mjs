@@ -13,21 +13,48 @@ import { dirname, isAbsolute, join, relative } from "node:path";
 const markerFileBaseName = "codex-compaction-recovery-pending";
 const legacySeedHandoffBaseName = "codex-compaction-recovery-seed";
 const seedFileName = "compaction-seed.json";
-const recoveryPayloadSchemaVersion = 2;
+const recoveryPayloadSchemaVersion = 3;
+const sessionlessScopeId = "sessionless";
 const recoveryArtifactMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
 
 const posixClearScriptPath = ".arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs";
 const windowsClearScriptPath = ".arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs";
 
-// Hook payloads (PostToolUse carries full tool output) can exceed the pipe
-// buffer; exiting without draining stdin breaks the harness's write and the
-// hook is reported failed. Every hook entrypoint drains before exiting.
-export function drainStdin() {
+// Symmetric banners bracket the recovery window in the transcript: the injection
+// opens it (PENDING, agent instructions follow), the clear command closes it
+// (COMPLETE, terminal).
+const recoveryPendingBanner = "=== ARC post-compaction recovery: PENDING ===";
+export const recoveryCompleteBanner = "=== ARC post-compaction recovery: COMPLETE ===";
+
+// Codex delivers the stable per-session identifier on the hook's stdin JSON
+// payload (`session_id`) — NOT as an environment variable. `CODEX_THREAD_ID` is
+// scoped to the model's shell-tool sandbox and is absent from hook subprocesses
+// (verified on Codex 0.142.5: a PreCompact hook's stdin carries `session_id`, its
+// env does not). Every turn-scoped event (PreCompact, PostToolUse,
+// UserPromptSubmit) receives the same `session_id`, so the writer and the readers
+// key the marker on one identifier all of them can see — the scope then matches
+// across separately-spawned hook processes, which a ppid-derived scope never could.
+//
+// Reading the payload also drains stdin: hook payloads (PostToolUse carries full
+// tool output) can exceed the pipe buffer, and exiting without draining breaks the
+// harness's write and fails the hook. Every hook entrypoint reads before exiting.
+export function readHookInput() {
+  let raw = "";
   try {
-    readFileSync(0);
+    raw = readFileSync(0, "utf8");
   } catch {
-    // A closed or TTY stdin has nothing to drain.
+    // A closed or TTY stdin has nothing to read.
   }
+  let sessionId = null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.session_id === "string" && parsed.session_id.trim().length > 0) {
+      sessionId = parsed.session_id.trim();
+    }
+  } catch {
+    // Empty or non-JSON stdin — degrade to the sessionless scope below.
+  }
+  return { sessionId, raw };
 }
 
 export function resolveRepoRoot() {
@@ -78,35 +105,22 @@ function globalInternalDir(root) {
   return join(root, ".arc", "user", ".internal");
 }
 
-function currentCodexThreadId() {
-  const raw = process.env.CODEX_THREAD_ID;
-  if (typeof raw !== "string") {
-    return null;
+// The marker filename and its recorded scope both derive from the hook's stdin
+// `session_id`. A present session id scopes the marker to that Codex session (so a
+// sibling session in the same worktree never claims it); an absent one falls back to
+// a single stable scope shared by writer and readers alike. The fallback is
+// deliberately NOT process/ppid-keyed: each hook runs in its own short-lived shell
+// with a distinct parent pid, so a ppid suffix differs between the PreCompact writer
+// and the PostToolUse/UserPromptSubmit readers and the marker could never be found.
+// The only cost of the stable fallback is that two concurrent session-id-less Codex
+// sessions in one worktree+identity would share a marker; `session_id` is
+// contractual and present in practice, so this path is defensive.
+function resolveScope(sessionId) {
+  if (typeof sessionId === "string" && sessionId.trim().length > 0) {
+    const id = sessionId.trim();
+    return { kind: "session", id, suffix: id };
   }
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function currentScope() {
-  const codexThreadId = currentCodexThreadId();
-  if (codexThreadId !== null) {
-    return {
-      kind: "thread",
-      id: codexThreadId,
-      suffix: codexThreadId,
-      codexThreadId,
-      hookParentPid: process.ppid,
-    };
-  }
-
-  const parentPid = String(process.ppid);
-  return {
-    kind: "process",
-    id: parentPid,
-    suffix: `ppid-${parentPid}`,
-    codexThreadId: null,
-    hookParentPid: process.ppid,
-  };
+  return { kind: "sessionless", id: sessionlessScopeId, suffix: sessionlessScopeId };
 }
 
 function fileSafeSuffix(value) {
@@ -158,9 +172,9 @@ function hasControlCharacter(value) {
   return false;
 }
 
-export function writePendingMarker(seedPath) {
+export function writePendingMarker(seedPath, sessionId) {
   const root = resolveRepoRoot();
-  const scope = currentScope();
+  const scope = resolveScope(sessionId);
   const normalizedSeedPath = normalizeSeedPath(root, seedPath);
   const markerDir = join(root, dirname(normalizedSeedPath));
   const markerPath = join(markerDir, markerFileName(scope));
@@ -173,21 +187,21 @@ export function writePendingMarker(seedPath) {
       kind: scope.kind,
       id: scope.id,
     },
-    codexThreadId: scope.codexThreadId,
-    hookParentPid: scope.hookParentPid,
+    sessionId: scope.kind === "session" ? scope.id : null,
     emittedAt: new Date().toISOString(),
     fallback: false,
     reason: null,
     seedPath: normalizedSeedPath,
-    notifiedAt: null,
   }, null, 2)}\n`);
+  // Drop any stale claim so a marker rewritten by a later compaction re-arms.
+  rmSync(claimPath(markerPath), { force: true });
 
   return { root, markerPath };
 }
 
-export function writeFallbackPendingMarker(reason = null) {
+export function writeFallbackPendingMarker(reason = null, sessionId) {
   const root = resolveRepoRoot();
-  const scope = currentScope();
+  const scope = resolveScope(sessionId);
   const markerDir = globalInternalDir(root);
   const markerPath = join(markerDir, markerFileName(scope));
 
@@ -199,21 +213,21 @@ export function writeFallbackPendingMarker(reason = null) {
       kind: scope.kind,
       id: scope.id,
     },
-    codexThreadId: scope.codexThreadId,
-    hookParentPid: scope.hookParentPid,
+    sessionId: scope.kind === "session" ? scope.id : null,
     emittedAt: new Date().toISOString(),
     fallback: true,
     reason: typeof reason === "string" && reason.trim().length > 0 ? singleLine(reason) : null,
     seedPath: null,
-    notifiedAt: null,
   }, null, 2)}\n`);
+  // Drop any stale claim so a marker rewritten by a later compaction re-arms.
+  rmSync(claimPath(markerPath), { force: true });
 
   return { root, markerPath };
 }
 
-export function findPendingMarkers() {
+export function findPendingMarkers(sessionId) {
   const root = resolveRepoRoot();
-  const scope = currentScope();
+  const scope = resolveScope(sessionId);
   const expectedMarkerName = markerFileName(scope);
   const markers = [];
 
@@ -233,14 +247,12 @@ export function findPendingMarkers() {
       let seedPath = null;
       let fallback = false;
       let reason = null;
-      let notifiedAt = null;
       try {
         const marker = JSON.parse(readFileSync(markerPath, "utf8"));
         emittedAt = typeof marker.emittedAt === "string" ? marker.emittedAt : null;
         seedPath = typeof marker.seedPath === "string" ? marker.seedPath : null;
         fallback = marker.fallback === true;
         reason = typeof marker.reason === "string" ? singleLine(marker.reason) : null;
-        notifiedAt = typeof marker.notifiedAt === "string" ? marker.notifiedAt : null;
         scopeMatches = marker.scope === undefined
           || (marker.scope.kind === scope.kind && marker.scope.id === scope.id);
       } catch {
@@ -249,35 +261,77 @@ export function findPendingMarkers() {
 
       if (!scopeMatches) continue;
 
-      markers.push({ markerPath, emittedAt, seedPath, fallback, reason, notifiedAt });
+      markers.push({ markerPath, emittedAt, seedPath, fallback, reason, claimed: existsSync(claimPath(markerPath)) });
     }
   }
 
   return { root, markers };
 }
 
-export function markMarkersNotified(markers) {
-  const notifiedAt = new Date().toISOString();
-  for (const marker of markers) {
-    try {
-      const payload = JSON.parse(readFileSync(marker.markerPath, "utf8"));
-      payload.notifiedAt = notifiedAt;
-      writeFileSync(marker.markerPath, `${JSON.stringify(payload, null, 2)}\n`);
-    } catch {
-      // Notification bookkeeping is best-effort; an unmarked marker re-notifies, never blocks.
-    }
+// The claim sentinel is the atomic exactly-once gate. `writeFileSync` with the
+// `wx` flag (O_CREAT|O_EXCL) can be won by only one process, so concurrent
+// PostToolUse fires (parallel tool calls) and a cross-channel PostToolUse +
+// UserPromptSubmit pair can never both inject: the first to create the sentinel
+// wins; every other reader gets EEXIST and stays silent.
+function claimPath(markerPath) {
+  return markerPath.replace(/\.json$/, ".claim.json");
+}
+
+export function claimMarker(markerPath) {
+  try {
+    writeFileSync(
+      claimPath(markerPath),
+      `${JSON.stringify({ claimedAt: new Date().toISOString() })}\n`,
+      { flag: "wx" },
+    );
+    return true;
+  } catch {
+    // EEXIST — already claimed — or a transient write failure: either way this
+    // process stays silent. A transient failure self-heals, since the marker
+    // stays unclaimed and the next tool/prompt boundary retries the claim.
+    return false;
   }
+}
+
+// Find pending markers and atomically claim any not yet claimed. Returns only the
+// markers THIS process won — the caller injects those, not the full pending set.
+// Two same-scope markers (a global fallback + a scoped marker) can be won by two
+// concurrent processes; emitting the full set from each would duplicate, so
+// per-won-marker injection keeps every marker's instruction exactly once — no
+// duplication across parallel tool calls or the tool/prompt channels, and nothing
+// missed. The `marker.claimed` pre-filter is only an optimization; the real gate is
+// the atomic `wx` write in claimMarker.
+//
+// Claim-before-deliver makes injection at-most-once: the sentinel is created here,
+// before the caller writes the injection, so if that process dies or its stdout
+// write fails afterward the injection is lost and no later boundary retries. The
+// safety nets are marker re-arm on the next compaction and the age-based reaper; a
+// genuinely missed recovery surfaces to the user, who can run the manual fallback.
+export function claimPendingInjection(sessionId) {
+  const { root, markers } = findPendingMarkers(sessionId);
+  const claimed = [];
+  for (const marker of markers) {
+    if (marker.claimed) continue;
+    if (claimMarker(marker.markerPath)) claimed.push(marker);
+  }
+  return { root, claimed };
 }
 
 export function clearPendingMarkers(options = {}) {
   const root = resolveRepoRoot();
   const markers = options.markerPath === undefined
-    ? findPendingMarkers().markers
+    ? findPendingMarkers(options.sessionId).markers
     : [{ markerPath: validateMarkerPath(root, options.markerPath) }];
   const removed = [];
 
   for (const marker of markers) {
+    // Only report a marker as removed when it actually existed — an explicit
+    // --marker path is passed through unconditionally, so without this guard a
+    // re-run of the (idempotent) clear would re-report a removal and re-emit the
+    // COMPLETE banner.
+    if (!existsSync(marker.markerPath)) continue;
     rmSync(marker.markerPath, { force: true });
+    rmSync(claimPath(marker.markerPath), { force: true });
     removed.push(marker.markerPath);
   }
 
@@ -356,15 +410,14 @@ export function buildRecoveryInstructions({ markers, arcCommand }) {
     : `2. Seed issue detected: if the current worktree is the intended compacted state, first run ${arcCommand} status --session-init --write-compaction-seed --json, then run ${arcCommand} recover audit --json.`;
 
   return [
-    "=== ARC post-compaction recovery (agent instructions) ===",
-    "Before project work resumes:",
+    recoveryPendingBanner,
+    "Agent instructions — complete before resuming project work.",
+    "Recovery is mandatory even if your context feels sufficient: compaction loss is silent, so you cannot tell from inside what was dropped.",
     "1. Follow .arc/system/workflows/arc/session-lifecycle/session-recover.md.",
     auditInstruction,
-    "3. Use recovered ARC context for procedure/state; use the compacted harness summary only for the volatile work locus.",
-    "4. If any actions landed between compaction and this notice, re-verify them against the recovered ARC context before continuing.",
-    `5. If ready after load-set rehydration, clear ${markers.length === 1 ? "the marker" : "the markers"}:`,
+    "3. Recovered ARC context governs procedure and state; the harness summary covers only the volatile work locus — re-verify any actions taken since compaction against it.",
+    `4. When ready after rehydration, clear ${markers.length === 1 ? "the marker" : "the markers"} (or, if recovery stops, leave ${markers.length === 1 ? "it" : "them"} and report the structured stop reasons):`,
     ...clearCommands,
-    "6. If stopped, leave the marker and report the structured stop reasons.",
     ...seedIssueLines,
   ].join("\n");
 }
