@@ -19,7 +19,11 @@ const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
 /** Planned temporary notes ref whose tip is safe to push to origin. */
 export interface BranchBoundedNotesExportTarget {
-  /** Temporary local notes ref staged for push. */
+  /**
+   * Local notes ref to push. Usually a temporary branch-bounded ref; when the
+   * caller's local notes ref is already branch-safe, this is the destination ref
+   * itself so the push preserves the existing notes-ref ancestry.
+   */
   ref: string;
   /** Real origin-bound notes ref this target updates. */
   destinationRef: string;
@@ -101,32 +105,13 @@ export async function planBranchBoundedNotesExport(
   if (localEntries.length === 0) return { kind: "skipped", reason: "no-local-notes" };
 
   try {
-    await deleteRef(exec, tempRef);
     const remoteTip = await readRemoteRefTip(exec, destinationRef);
-    if (remoteTip !== null) {
-      await exec("git", ["fetch", "origin", `+${destinationRef}:${tempRef}`]);
-    }
-
-    const remoteEntries = new Map(
-      (remoteTip === null ? [] : await listNotes(exec, tempRef)).map((entry) => [entry.commit, entry.blob]),
-    );
     const localIncludesRemote = remoteTip === null || await isAncestor(exec, remoteTip, localTip);
     const annotatedCommits: string[] = [];
     const omittedCommits: string[] = [];
 
     for (const entry of localEntries) {
       if (await isAncestor(exec, entry.commit, branch)) {
-        const remoteBlob = remoteEntries.get(entry.commit);
-        if (remoteBlob !== undefined && remoteBlob !== entry.blob && !localIncludesRemote) {
-          await deleteRef(exec, tempRef);
-          return {
-            kind: "refused",
-            message:
-              `Cannot branch-bound user notes export: origin already has a different note for `
-              + `${entry.commit.slice(0, 8)} and the local notes ref does not contain origin's notes tip.`,
-          };
-        }
-        await exec("git", ["notes", `--ref=${tempRef}`, "add", "-f", "-C", entry.blob, entry.commit]);
         annotatedCommits.push(entry.commit);
       } else {
         omittedCommits.push(entry.commit);
@@ -136,6 +121,43 @@ export async function planBranchBoundedNotesExport(
     if (annotatedCommits.length === 0) {
       await deleteRef(exec, tempRef);
       return { kind: "skipped", reason: "empty-export" };
+    }
+
+    if (omittedCommits.length === 0 && localIncludesRemote) {
+      return {
+        kind: "planned",
+        target: {
+          ref: destinationRef,
+          destinationRef,
+          tip: localTip,
+          annotatedCommits: annotatedCommits.sort(),
+          omittedCommits: [],
+        },
+      };
+    }
+
+    await deleteRef(exec, tempRef);
+    if (remoteTip !== null) {
+      await exec("git", ["fetch", "origin", `+${destinationRef}:${tempRef}`]);
+    }
+
+    const remoteEntries = new Map(
+      (remoteTip === null ? [] : await listNotes(exec, tempRef)).map((entry) => [entry.commit, entry.blob]),
+    );
+
+    for (const entry of localEntries) {
+      if (!(await isAncestor(exec, entry.commit, branch))) continue;
+      const remoteBlob = remoteEntries.get(entry.commit);
+      if (remoteBlob !== undefined && remoteBlob !== entry.blob && !localIncludesRemote) {
+        await deleteRef(exec, tempRef);
+        return {
+          kind: "refused",
+          message:
+            `Cannot branch-bound user notes export: origin already has a different note for `
+            + `${entry.commit.slice(0, 8)} and the local notes ref does not contain origin's notes tip.`,
+        };
+      }
+      await exec("git", ["notes", `--ref=${tempRef}`, "add", "-f", "-C", entry.blob, entry.commit]);
     }
 
     const tip = await readRefTip(exec, tempRef);
@@ -189,6 +211,7 @@ export async function pushBranchBoundedNotesExport(
 export async function cleanupBranchBoundedNotesExport(
   input: CleanupBranchBoundedNotesExportInput,
 ): Promise<void> {
+  if (input.target.ref === input.target.destinationRef) return;
   await deleteRef(input.exec, input.target.ref);
 }
 

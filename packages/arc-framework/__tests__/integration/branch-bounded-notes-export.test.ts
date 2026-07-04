@@ -68,6 +68,40 @@ describe("branch-bounded paired notes export", () => {
     remote = undefined;
   });
 
+  it("reuses the local notes ref when every local note is branch-safe", async () => {
+    repo = await createTempRepo("arc-branch-notes-local-safe-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    await git(repo, ["checkout", "-b", "work-a"]);
+    const commitA = await makeCommit(repo, "work A");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "note A", commitA]);
+    await git(repo, ["push", "-u", "origin", "work-a"]);
+    const localTip = await git(repo, ["rev-parse", NOTES_REF]);
+
+    const plan = await planBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      identity: IDENTITY,
+      branch: "work-a",
+    });
+    expect(plan.kind).toBe("planned");
+    if (plan.kind !== "planned") return;
+
+    expect(plan.target).toMatchObject({
+      ref: NOTES_REF,
+      destinationRef: NOTES_REF,
+      tip: localTip,
+      annotatedCommits: [commitA],
+      omittedCommits: [],
+    });
+
+    await cleanupBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      target: plan.target,
+    });
+    expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(localTip);
+  });
+
   it("exports the landed branch note without publishing a sibling branch note", async () => {
     repo = await createTempRepo("arc-branch-notes-");
     await makeCommit(repo, "base");
@@ -94,6 +128,7 @@ describe("branch-bounded paired notes export", () => {
     if (plan.kind !== "planned") return;
 
     try {
+      expect(plan.target.ref).not.toBe(NOTES_REF);
       expect(plan.target.annotatedCommits).toEqual([commitA]);
       expect(plan.target.omittedCommits).toEqual([commitB]);
 
