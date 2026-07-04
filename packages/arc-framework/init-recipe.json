@@ -60,7 +60,7 @@
     "system/.internal/harness-hooks/common/codex-recovery-marker.mjs",
     "system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs",
     "system/.internal/harness-hooks/common/pre-compact-seed.mjs",
-    "system/.internal/harness-hooks/common/post-compact-recover.mjs",
+    "system/.internal/harness-hooks/common/post-tool-use-recover.mjs",
     "system/.internal/harness-hooks/common/session-start-compact.mjs",
     "system/.internal/harness-hooks/common/user-prompt-recover.mjs",
     "system/methods/classify-work-unit.md",
