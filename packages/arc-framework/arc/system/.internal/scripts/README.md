@@ -19,8 +19,8 @@ scripts.
   (typo protection). Called by `verify-integrity.sh` and usable standalone.
 
 - **`verify-integrity.sh`** — Orchestrator that runs all mechanical health checks: config
-  validation, file structure, reference integrity, hook status, and session state consistency.
-  Invoked via the `arc-verify` skill.
+  validation, file structure, reference integrity, hook status, method/extension frontmatter,
+  and lifecycle meta-file shape. Invoked via the `arc-verify` skill.
 
 ## Running
 

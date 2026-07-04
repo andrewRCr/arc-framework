@@ -25,6 +25,7 @@ import {
   setMetaDesign,
   setMetaFinalizeFields,
   reconcileMetaFields,
+  validateMetaFieldBlockShape,
   META_FIELDS,
   type MetaFieldOverrides,
 } from "../../../src/lib/active/meta-reader.js";
@@ -80,6 +81,35 @@ describe("parseIdentifierList — shared comma-list parse", () => {
   it("filters empty elements from a malformed comma run", () => {
     expect(parseIdentifierList("alpha, , beta")).toEqual(["alpha", "beta"]);
     expect(parseIdentifierList("alpha,")).toEqual(["alpha"]);
+  });
+});
+
+describe("validateMetaFieldBlockShape", () => {
+  it("passes a rendered meta without changing content", () => {
+    const content = renderMetaFile("foo", { State: "Planning", Design: "draft-foo.md" });
+
+    expect(validateMetaFieldBlockShape(content, ".arc/backlog/planned/foo/meta-foo.md")).toEqual([]);
+    expect(content).toBe(renderMetaFile("foo", { State: "Planning", Design: "draft-foo.md" }));
+  });
+
+  it("flags a pre-field-block meta with no closing rule", () => {
+    const content = [
+      "# Metadata: Foo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Planning` | `andrew` | `[none]` | `Light` | `P1` |",
+      "",
+      "- **Design:** `draft-foo.md`",
+      "- **Task List:** [none]",
+      "",
+    ].join("\n");
+
+    const diagnostics = validateMetaFieldBlockShape(content, ".arc/backlog/planned/foo/meta-foo.md");
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toContain(".arc/backlog/planned/foo/meta-foo.md");
+    expect(diagnostics[0]).toContain("closing `---`");
   });
 });
 

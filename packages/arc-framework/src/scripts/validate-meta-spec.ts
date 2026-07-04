@@ -1,21 +1,25 @@
 /**
  * Meta-file field validator — pre-commit hook entry point.
  *
- * Given a list of staged file paths, identifies meta-files (`meta-*.md`)
- * under both flat (`.arc/active/meta-*.md`) and subdir
- * (`.arc/active/<category>/meta-*.md`) layouts. Validates the `**Design:**`
- * field value against the allowed shapes: empty, `[none]`, bare-basename
- * `.md` filename, or `https?://` URL; requires a valid `**State:**` value
- * from the codified four-value enum; and validates the optional `**Cohort:**`
- * value against the two-segment path cap. Surrounding whitespace and a single
- * pair of wrapping backticks are stripped before matching.
+ * Given a list of staged file paths, identifies lifecycle meta-files
+ * (`meta-*.md`) under active, backlog, and completed tiers. Validates the
+ * managed field-block shape, the `**Design:**` field value against the allowed
+ * shapes (empty, `[none]`, bare-basename `.md` filename, or `https?://` URL),
+ * the codified four-value `**State:**` enum, and the optional `**Cohort:**`
+ * two-segment path cap. Surrounding whitespace and a single pair of wrapping
+ * backticks are stripped before matching.
  *
  * @module
  */
 
 import { fileURLToPath } from "node:url";
 
-import { parseIdentifierList, parseMetaRecord, stripInlineCode } from "../lib/active/meta-reader.js";
+import {
+  parseIdentifierList,
+  parseMetaRecord,
+  stripInlineCode,
+  validateMetaFieldBlockShape,
+} from "../lib/active/meta-reader.js";
 import { validateCohortPath } from "../lib/active/cohort-path.js";
 import { runPathListScript } from "./cli-runner.js";
 
@@ -28,8 +32,11 @@ export interface ValidationResult {
   diagnostics: string[];
 }
 
-const META_PATH =
-  /(?:^|\/)\.arc\/active\/(?:[^/]+\/)?meta-[^/]+\.md$/;
+const META_PATH = new RegExp(
+  String.raw`(?:^|/)\.arc/`
+    + String.raw`(?:active(?:/[^/]+)?|backlog/(?:planned|provisional)(?:/.*)?|completed(?:/.*)?)/`
+    + String.raw`meta-[^/]+\.md$`,
+);
 const MD_FILENAME = /^[a-zA-Z0-9._-]+\.md$/;
 const URL_SHAPE = /^https?:\/\/\S+$/;
 const META_FIELD_LINE = /^\s*-\s+\*\*([^:]+):\*\*\s*(.*?)\s*$/;
@@ -188,6 +195,7 @@ export function validateFiles(
   for (const path of paths) {
     if (classifyPath(path) === "other") continue;
     const content = readFile(path);
+    diagnostics.push(...validateMetaFieldBlockShape(content, path));
     diagnostics.push(...validateSpec(content, path));
     diagnostics.push(...validateLifecycleFields(content, path));
     diagnostics.push(...validateCohort(content, path));

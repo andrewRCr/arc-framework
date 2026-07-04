@@ -238,23 +238,23 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
   `plan/<slug>` branch, seed SESSION-NOTES, print harness entry recipes, and name spawned worktrees by WU slug so
   activation branch rotation does not imply path churn.
 
-### `[ ]` **2.5 BI-5 — Graduate-transition crash-class fix**
+### `[x]` **2.5 BI-5 — Graduate-transition crash-class fix**
 
 - _Goal:_ The graduate transition fails loud on an old-shape meta _before_ any mutation, and all validation
   precedes any mutation so the partial-state window shrinks to near-zero.
-- _Rationale:_ The crash class came from a silent-heal-then-loud-crash composition; pre-flight validation removes
-  the trigger, so no rollback machinery is needed (the residual crash-mid-mutation is a playbook entry).
 
-    - `[ ]` **2.5.a Pre-flight meta-shape validation + `arc verify` check**
-        - Build `test-first` (one behavior at a time):
-            - an old-shape meta (e.g. missing the closing `---` anchor) fails loud with an actionable error
-              before any mutation
-            - a well-formed meta passes validation unchanged
-            - `arc verify` flags an old-shape meta
+    - `[x]` **2.5.a Pre-flight meta-shape validation + `arc verify` check**
+        - Added shared managed-field-block shape validation, broadened staged lifecycle-meta validation across
+          active/backlog/completed tiers, and taught the integrity verifier to flag missing H1 / closing `---`
+          anchors.
 
-    - `[ ]` **2.5.b Validate-first mutation ordering in `start.ts`**
-        - Build `test-first` (one behavior at a time):
-            - no worktree/branch/relocation/meta mutation occurs until all validation has passed
+    - `[x]` **2.5.b Validate-first mutation ordering in `start.ts`**
+        - `runGraduate` now preflights the backlog meta before spawn or `--here` transition execution, rejecting
+          old-shape metas before worktree, branch, relocation, or meta mutations.
+
+- _Outcome:_ Graduate now fails loud on metas without the managed field-block closing delimiter before mutation;
+  commit-time validation and `arc-verify` flag the same shape class, with regression coverage for both spawn and
+  in-place paths.
 
 ### `[ ]` **2.6 BI-6 — Identity-global user-surface binding**
 

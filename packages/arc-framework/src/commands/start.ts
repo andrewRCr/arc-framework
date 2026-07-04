@@ -26,10 +26,10 @@
  * @module
  */
 
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 
 import { parseSpecInput } from "../lib/active/spec-input-parser.js";
-import type { MetaFieldName } from "../lib/active/meta-reader.js";
+import { validateMetaFieldBlockShape, type MetaFieldName } from "../lib/active/meta-reader.js";
 import {
   BEGIN_CURRENT_WORKFLOW_SENTINEL,
   PLANNING_WORKFLOWS,
@@ -295,6 +295,9 @@ export async function runGraduate(
   params: GraduateParams,
 ): Promise<GraduateResult> {
   const branch = `plan/${params.name}`;
+  const preflight = await preflightGraduate(ctx, params.name, params.cls);
+  if (preflight !== null) return { status: "rejected", reason: preflight };
+
   if (!params.inPlace) {
     return runGraduateSpawn(ctx, params, branch);
   }
@@ -312,8 +315,6 @@ async function runGraduateSpawn(
   params: GraduateSpawnParams,
   branch: string,
 ): Promise<GraduateResult> {
-  const preflight = await preflightGraduateSpawn(ctx, params);
-  if (preflight !== null) return { status: "rejected", reason: preflight };
   if (ctx.withCwd === undefined) {
     return {
       status: "rejected",
@@ -368,16 +369,17 @@ async function runGraduateSpawn(
   };
 }
 
-async function preflightGraduateSpawn(
+async function preflightGraduate(
   ctx: ExecuteTransitionContext,
-  params: GraduateSpawnParams,
+  name: string,
+  cls: string,
 ): Promise<string | null> {
-  if (params.cls === "" || params.cls === "[TBD]") {
+  if (cls === "" || cls === "[TBD]") {
     return "`start` requires a resolved `Class` (not `[TBD]`) supplied in inputs.";
   }
 
   const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
-  const position = resolveSlugPosition(index, params.name);
+  const position = resolveSlugPosition(index, name);
   if (
     position === null ||
     position.phase !== "Planning" ||
@@ -386,6 +388,24 @@ async function preflightGraduateSpawn(
     const where = position === null ? "nonexistent" : `${position.phase}/${position.location}`;
     return `\`start\` can only graduate a backlog Planning stub from \`provisional\` or \`planned\` (found \`${where}\`).`;
   }
+
+  const entry = index.get(name);
+  if (entry === undefined) {
+    return `could not resolve the backlog meta for \`${name}\`.`;
+  }
+
+  let content: string;
+  try {
+    content = await ctx.indexFs.readFile(join(ctx.cwd, entry.path));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return `could not validate the backlog meta for \`${name}\` before mutation: ${message}`;
+  }
+  const diagnostics = validateMetaFieldBlockShape(content, entry.path);
+  if (diagnostics.length > 0) {
+    return `\`start\` cannot graduate \`${name}\`: ${diagnostics.join(" ")}`;
+  }
+
   return null;
 }
 

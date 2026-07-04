@@ -42,7 +42,7 @@ function metaFile(
   if (fields.integrationLine !== undefined && fields.integrationLine !== null) {
     lines.push(fields.integrationLine);
   }
-  lines.push("- **Task List:** tasks-foo.md", "");
+  lines.push("- **Task List:** tasks-foo.md", "", "---", "");
   return lines.join("\n");
 }
 
@@ -57,6 +57,12 @@ describe("classifyPath", () => {
     expect(classifyPath(".arc/active/meta-work-organization-reform.md")).toBe(
       "meta",
     );
+  });
+
+  it("classifies backlog and completed lifecycle meta-files as meta", () => {
+    expect(classifyPath(".arc/backlog/planned/foo/meta-foo.md")).toBe("meta");
+    expect(classifyPath(".arc/backlog/provisional/foo/meta-foo.md")).toBe("meta");
+    expect(classifyPath(".arc/completed/2026-q3/foo/meta-foo.md")).toBe("meta");
   });
 
   it("classifies retired legacy status-files as other (no longer recognized)", () => {
@@ -239,6 +245,8 @@ describe("validateFiles", () => {
       "- **Design:** [none]",
       "- **Task List:** tasks-foo.md",
       "",
+      "---",
+      "",
     ].join("\n");
     const files = { [META_PATH_FIXTURE]: content };
     const result = validateFiles(Object.keys(files), fakeReader(files));
@@ -315,6 +323,27 @@ describe("validateFiles", () => {
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toEqual([]);
   });
+
+  it("flags old-shape metas missing the closing metadata rule", () => {
+    const files = {
+      ".arc/backlog/planned/foo/meta-foo.md": [
+        "# Metadata: Foo",
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        "| `Planning` | `andrew` | `[none]` | `Light` | `P1` |",
+        "",
+        "- **Design:** `draft-foo.md`",
+        "- **Task List:** [none]",
+        "",
+      ].join("\n"),
+    };
+
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics.some((d) => d.includes("closing `---`"))).toBe(true);
+  });
 });
 
 describe("validateFiles — Design multi-value (one or two refs)", () => {
@@ -361,6 +390,8 @@ describe("validateFiles — Design multi-value (one or two refs)", () => {
       "- **Design:** `spec-b.md`",
       "- **Task List:** tasks-foo.md",
       "",
+      "---",
+      "",
     ].join("\n");
     const files = { [META_PATH_FIXTURE]: content };
     const result = validateFiles(Object.keys(files), fakeReader(files));
@@ -390,7 +421,7 @@ describe("validateLifecycleFields — core-block table form", () => {
 
   it("fails loud on a malformed core-block table", () => {
     const content =
-      "# Metadata: Foo\n\n- **Design:** [none]\n| State | Owner |\n| --- | --- |\n| `Active` |\n";
+      "# Metadata: Foo\n\n- **Design:** [none]\n| State | Owner |\n| --- | --- |\n| `Active` |\n\n---\n";
     const files = { [META_PATH_FIXTURE]: content };
     const result = validateFiles([META_PATH_FIXTURE], fakeReader(files));
     expect(result.pass).toBe(false);

@@ -30,6 +30,7 @@ interface MetaSpec {
   state: string;
   cls?: string;
   branch?: string;
+  closingRule?: boolean;
 }
 
 /** Build an injectable index fs over a fixed set of metas (mirrors the park/resume harness). */
@@ -72,7 +73,8 @@ function buildIndexFs(metas: MetaSpec[], root = CWD): LifecycleIndexFs {
         `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "[none]"}\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |\n\n` +
         `- **Cohort:** [none]\n- **Depends On:** [none]\n\n` +
         `- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n` +
-        `- **Next Action:** begin.\n\n---\n`,
+        `- **Next Action:** begin.\n\n` +
+        (meta.closingRule === false ? "" : "---\n"),
     );
   }
 
@@ -292,6 +294,55 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(result.reason).toMatch(/class/i);
     // Refusal is total — no relocate, no spawn.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("worktree:"))).toBe(false);
+  });
+
+  it("rejects an old-shape meta before spawning or relocating", async () => {
+    const { ctx, calls } = buildCtx([
+      {
+        slug: "widget",
+        tier: "backlog/planned",
+        subdir: "widget",
+        state: "Planning",
+        cls: "Light",
+        closingRule: false,
+      },
+    ]);
+
+    const result = await runGraduate(ctx, { ...BASE, cls: "Light" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toContain("closing `---`");
+    expect(
+      calls.some(
+        (c) =>
+          c.startsWith("relocate:")
+          || c.startsWith("worktree:")
+          || c === "branch:create"
+          || c === "reconcile-meta"
+          || c === "stage-write",
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects an old-shape meta before in-place branch mutation", async () => {
+    const { ctx, calls } = buildCtx([
+      {
+        slug: "widget",
+        tier: "backlog/planned",
+        subdir: "widget",
+        state: "Planning",
+        cls: "Light",
+        closingRule: false,
+      },
+    ]);
+
+    const result = await runGraduate(ctx, { name: "widget", cls: "Light", inPlace: true });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toContain("closing `---`");
+    expect(calls.some((c) => c.startsWith("worktree:") || c.startsWith("relocate:"))).toBe(false);
   });
 
   it("forward-reconciles the relocated meta with the planning-entry pointer and surfaces the count notice", async () => {

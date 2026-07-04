@@ -635,6 +635,34 @@ export interface ReconcileMetaResult {
   backfilled: MetaFieldName[];
 }
 
+/**
+ * Validate the managed meta field-block anchor shape required by forward
+ * reconciliation and targeted field writes. Older metas without the closing
+ * `---` rule remain readable, but transition code must refuse them before any
+ * mutation because the healer cannot place backfilled fields safely.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param path - User-facing path to include in diagnostics.
+ * @returns Diagnostics; empty means the field block is anchorable.
+ */
+export function validateMetaFieldBlockShape(content: string, path: string): string[] {
+  const lines = content.split(/\r?\n/);
+  const h1Idx = lines.findIndex((line) => /^# /.test(line));
+  if (h1Idx === -1) {
+    return [`${path}: missing metadata H1 heading (\`# Metadata: <name>\`)`];
+  }
+
+  const ruleIdx = lines.findIndex((line, i) => i > h1Idx && line.trim() === "---");
+  if (ruleIdx === -1) {
+    return [
+      `${path}: missing closing \`---\` metadata delimiter after managed fields; `
+        + "add a standalone `---` before any body sections.",
+    ];
+  }
+
+  return [];
+}
+
 /** Build the bullet-marker regex for a field label — the `- **<name>:**` line test. */
 function bulletMarkerRe(name: string): RegExp {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
