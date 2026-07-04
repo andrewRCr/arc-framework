@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "recovery-injection-once",
-  "origin": "description",
-  "intent": "Make Codex recovery injection exactly-once (atomic claim across both hook channels) and bracket the recovery window with PENDING/COMPLETE banners",
-  "branch": "fix/recovery-injection-once",
-  "createdAt": "2026-07-04T18:52:02.485Z"
-}
