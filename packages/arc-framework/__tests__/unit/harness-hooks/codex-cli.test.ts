@@ -62,11 +62,14 @@ interface PendingMarker {
   fallback: boolean;
   reason: string | null;
   seedPath: string | null;
-  notifiedAt: string | null;
 }
 
 function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf8")) as T;
+}
+
+function claimSentinelPath(markerPath: string): string {
+  return markerPath.replace(/\.json$/, ".claim.json");
 }
 
 function runHookScript(
@@ -358,7 +361,6 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       const marker = readJson<PendingMarker>(identityMarkerPath(root, env));
       expect(marker.kind).toBe("codex-compaction-recovery-pending");
       expect(marker.seedPath).toBe(".arc/user/andrew/.internal/compaction-seed.json");
-      expect(marker.notifiedAt).toBeNull();
     });
   });
 
@@ -407,7 +409,6 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(marker.fallback).toBe(true);
       expect(marker.seedPath).toBeNull();
       expect(marker.reason).toBe("seed command exited 1");
-      expect(marker.notifiedAt).toBeNull();
       expect(existsSync(identityMarkerPath(root, env))).toBe(false);
     });
   });
@@ -515,7 +516,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
-  it("injects recovery context at the first tool boundary and notifies once", () => {
+  it("injects recovery context once, then dedupes across both channels", () => {
     withTempArcProject((root) => {
       const env = { CODEX_THREAD_ID: "thread-a" };
       runSeedSuccess(root, env);
@@ -528,44 +529,72 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(Object.keys(output)).toEqual(["hookSpecificOutput"]);
       expect(output.hookSpecificOutput).toMatchObject({ hookEventName: "PostToolUse" });
       const additionalContext = output.hookSpecificOutput?.additionalContext ?? "";
-      expect(additionalContext).toContain("=== ARC post-compaction recovery (agent instructions) ===");
+      expect(additionalContext).toContain("=== ARC post-compaction recovery: PENDING ===");
+      expect(additionalContext).toContain("Agent instructions — complete before resuming project work.");
+      // The audit is mandatory even when residual context feels sufficient — compaction loss is silent.
+      expect(additionalContext).toContain("mandatory even if your context feels sufficient");
       expect(additionalContext).toContain("session-recover.md");
       expect(additionalContext).toContain("2. Audit command: arc recover audit --json.");
       expect(additionalContext).toContain(
-        "re-verify them against the recovered ARC context",
+        "re-verify any actions taken since compaction",
       );
       expect(additionalContext).toContain("clear-codex-recovery-pending.mjs");
       expect(additionalContext).toContain("--marker");
       expect(additionalContext).toContain(markerPath);
       expect(additionalContext).not.toContain("Seed issue");
 
-      expect(readJson<PendingMarker>(markerPath).notifiedAt).not.toBeNull();
+      // The atomic claim sentinel gates re-injection: the first boundary claims it,
+      // and every later boundary — same channel or the UserPromptSubmit channel —
+      // stays silent until the marker is cleared. No more re-nag.
+      expect(existsSync(claimSentinelPath(markerPath))).toBe(true);
       expect(runHookScriptRaw(postToolUseScriptPath, root, env)).toBe("");
-
-      const backstop = runHookScript(userPromptScriptPath, root, env);
-      expect(backstop.suppressOutput).toBe(true);
-      expect(backstop.hookSpecificOutput).toMatchObject({ hookEventName: "UserPromptSubmit" });
-      expect(backstop.hookSpecificOutput?.additionalContext).toContain(markerPath);
+      expect(runHookScriptRaw(userPromptScriptPath, root, env)).toBe("");
 
       expect(runHookScriptRaw(postToolUseScriptPath, root, { CODEX_THREAD_ID: "thread-b" })).toBe("");
       expect(runHookScriptRaw(userPromptScriptPath, root, { CODEX_THREAD_ID: "thread-b" })).toBe("");
 
-      expect(runHookScriptRaw(clearScriptPath, root, env)).toBe("");
+      // Clearing removes the marker + claim and closes the window with the banner.
+      expect(runHookScriptRaw(clearScriptPath, root, env)).toContain(
+        "=== ARC post-compaction recovery: COMPLETE ===",
+      );
       expect(existsSync(markerPath)).toBe(false);
+      expect(existsSync(claimSentinelPath(markerPath))).toBe(false);
       expect(runHookScriptRaw(postToolUseScriptPath, root, env)).toBe("");
       expect(runHookScriptRaw(userPromptScriptPath, root, env)).toBe("");
     });
   });
 
-  it("re-arms notification when a later compaction rewrites the marker", () => {
+  it("injects from the UserPromptSubmit channel when no tool boundary claimed first", () => {
+    withTempArcProject((root) => {
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      runSeedSuccess(root, env);
+      const markerPath = identityMarkerPath(root, env);
+
+      const output = runHookScript(userPromptScriptPath, root, env);
+      expect(output.suppressOutput).toBe(true);
+      expect(output.hookSpecificOutput).toMatchObject({ hookEventName: "UserPromptSubmit" });
+      expect(output.hookSpecificOutput?.additionalContext).toContain("=== ARC post-compaction recovery: PENDING ===");
+      expect(output.hookSpecificOutput?.additionalContext).toContain(markerPath);
+
+      // Having claimed via the prompt channel, the tool channel now stays silent.
+      expect(existsSync(claimSentinelPath(markerPath))).toBe(true);
+      expect(runHookScriptRaw(postToolUseScriptPath, root, env)).toBe("");
+    });
+  });
+
+  it("re-arms the claim when a later compaction rewrites the marker", () => {
     withTempArcProject((root) => {
       const env = { CODEX_THREAD_ID: "thread-a" };
       runSeedSuccess(root, env);
       runHookScript(postToolUseScriptPath, root, env);
+      const markerPath = identityMarkerPath(root, env);
+      expect(existsSync(claimSentinelPath(markerPath))).toBe(true);
       expect(runHookScriptRaw(postToolUseScriptPath, root, env)).toBe("");
 
+      // A later compaction rewrites the marker and drops the stale claim, so the
+      // next boundary injects again.
       runSeedSuccess(root, env);
-      expect(readJson<PendingMarker>(identityMarkerPath(root, env)).notifiedAt).toBeNull();
+      expect(existsSync(claimSentinelPath(markerPath))).toBe(false);
       const output = runHookScript(postToolUseScriptPath, root, env);
       expect(output.hookSpecificOutput?.hookEventName).toBe("PostToolUse");
     });
@@ -702,9 +731,32 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(additionalContext).toContain(globalMarkerPath);
       expect(additionalContext).toContain(scopedMarkerPath);
 
-      expect(runHookScriptRaw(clearScriptPath, root, env)).toBe("");
+      expect(runHookScriptRaw(clearScriptPath, root, env)).toContain(
+        "=== ARC post-compaction recovery: COMPLETE ===",
+      );
       expect(existsSync(globalMarkerPath)).toBe(false);
       expect(existsSync(scopedMarkerPath)).toBe(false);
+    });
+  });
+
+  it("injects only the markers this process won, not the full pending set", () => {
+    withTempArcProject((root) => {
+      // Two same-scope markers, with the global one already claimed by a
+      // (simulated) concurrent process. This process must inject only the marker
+      // it wins — emitting the full set from each racer would duplicate.
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      runSeedFailure(root, env);
+      runSeedSuccess(root, env);
+      const globalMarkerPath = fallbackMarkerPath(root, env);
+      const scopedMarkerPath = identityMarkerPath(root, env);
+      writeFileSync(claimSentinelPath(globalMarkerPath), `${JSON.stringify({ claimedAt: "prior" })}\n`);
+
+      const output = runHookScript(postToolUseScriptPath, root, env);
+      const additionalContext = output.hookSpecificOutput?.additionalContext ?? "";
+      expect(additionalContext.match(/--marker/gu)).toHaveLength(1);
+      expect(additionalContext).toContain(scopedMarkerPath);
+      expect(additionalContext).not.toContain(globalMarkerPath);
+      expect(additionalContext).not.toContain("clear the markers");
     });
   });
 

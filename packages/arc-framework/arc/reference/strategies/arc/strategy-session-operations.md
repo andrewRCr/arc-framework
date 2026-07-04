@@ -989,11 +989,15 @@ Two reset paths matter:
 
 For supported harnesses, install the opt-in compaction-recovery hook recipe during
 [initial setup][setup-workflow]. The hooks write a machine-local seed before compaction and inject
-the recovery requirement after a `compact` event — immediately on Claude Code, and at the first tool
-boundary after compaction (with a user-prompt backstop) on Codex, where a thread-scoped pending
-marker carries the requirement until recovery clears it. `clear` remains deliberately unhooked for
-recovery; Codex may run a cleanup-only clear hook to remove a stale pending marker. If hooks are not
-installed, run the manual fallback when compaction erases ARC operating context.
+the recovery requirement after a `compact` event — immediately on Claude Code, and at the first
+tool-or-prompt boundary after compaction on Codex, where a thread-scoped pending marker carries the
+requirement until recovery clears it. On Codex the tool and user-prompt channels share an atomic
+per-marker claim, so each pending marker's requirement is injected exactly once — no duplicate fires
+across parallel tool calls or the two channels — and the injection brackets the recovery window with
+`PENDING`/`COMPLETE` banners.
+`clear` remains deliberately unhooked for recovery; Codex may run a cleanup-only clear hook to remove
+a stale pending marker. If hooks are not installed, run the manual fallback when compaction erases ARC
+operating context.
 
 Recovery restores ARC's operating context. It does not reload on-demand context that was pulled
 mid-task before compaction. The recovery load set is ARC-owned context only; repository-root harness
