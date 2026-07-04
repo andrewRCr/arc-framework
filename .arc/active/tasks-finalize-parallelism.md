@@ -90,21 +90,22 @@ enumeration and its dispositions rather than re-deriving it. Sequencing context 
 
 ## **Phase 2:** Build items
 
-_Purpose:_ Land the five committed build items that instrument the flip and gate the waves — worktree
+_Purpose:_ Land the six committed build items that instrument the flip and gate the waves — worktree
 dependency/harness provisioning, in-place Materialize, repo-shared sync-guard anchoring, the worktree launch
-bridge, and the graduate-transition crash-class fix. Ordinary code work under per-task quality gates; each
-item's _in-practice_ verification lands in the wave phases (wave-tied, noted per wave).
+bridge, the graduate-transition crash-class fix, and identity-global user-surface binding. Ordinary code work
+under per-task quality gates; each item's _in-practice_ verification lands in the wave phases (wave-tied, noted
+per wave).
 
 _Design decisions:_ Directions are settled in `spec-finalize-parallelism.md` § Committed build items; the
-wave-gating relationships (BI-1 harness leg + BI-3 → wave 1; BI-1 node-deps leg → wave 2; BI-2 → wave 4) are
-enforced in the wave preambles, not here. BI-1 and BI-4 carry the most subtasks — kept as single parents with
-internal decomposition; the grounding audit (Pass 3) can still split either if it proves overcommitted.
+wave-gating relationships (BI-1 harness leg + BI-3 + BI-6 → wave 1; BI-1 node-deps leg → wave 2; BI-2 → wave 4)
+are enforced in the wave preambles, not here. BI-1 and BI-4 carry the most subtasks — kept as single parents with
+internal decomposition; the grounding audit (Pass 3) can still split any parent if it proves overcommitted.
 
 ### `[x]` **2.1 BI-1 — Worktree dependency provisioning manifest**
 
-- _Goal:_ A spawned worktree comes up fully working — project deps provisioned, harness layer present, user dir
-  scaffolded, marker tree clean — via an ordered post-create manifest, and emits an actionable notice (never a
-  silent no-op) when the deps step is unconfigured.
+- _Goal:_ A spawned worktree comes up fully working — project deps provisioned, harness layer present, per-WU user
+  workspace scaffolded, marker tree clean — via an ordered post-create manifest, and emits an actionable notice
+  (never a silent no-op) when the deps step is unconfigured.
 
     - `[x]` **2.1.a `worktree.post_create` deps-script invocation point**
         - Spawned worktrees now read `worktree.post_create`, run a configured script immediately after
@@ -114,7 +115,9 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
     - `[x]` **2.1.b Registered-harness-dir copy-from-primary**
         - Added `worktree.harness_dirs` with the universal harness-dir default, threaded it through create-new /
           graduate / resume spawn paths, and copied registered dirs from the primary checkout after post-create
-          provisioning while leaving unregistered primary dirs untouched.
+          provisioning while leaving unregistered primary dirs untouched. Post-PR #189 intake refined the model:
+          copied dirs are authoritative only for per-worktree harnesses; repo-global harnesses such as Codex need
+          primary-backed recipe verification instead of treating the linked worktree copy as authoritative.
 
     - `[~]` **2.1.c User-dir scaffold at the ceremony locus**
         - Superseded by Task 2.4.d, which keeps the executable checkbox after the spawn-mode ceremony-locus fix
@@ -130,8 +133,8 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
           it, while leaving the packaged `arc-config.yml` default empty for adopter projects.
 
 - _Outcome:_ BI-1's post-create invocation, registered harness copy, marker ignore, and self-hosting
-  provisioning wiring are landed. The user-dir scaffold leg moved to Task 2.4.d so it runs after Task 2.4.c
-  corrects the spawn-mode ceremony locus it depends on.
+  provisioning wiring are landed. The per-WU user workspace scaffold leg moved to Task 2.4.d so it runs after
+  Task 2.4.c corrects the spawn-mode ceremony locus it depends on.
 
 ### `[x]` **2.2 BI-2 — In-place Materialize for cross-machine pickup**
 
@@ -214,9 +217,10 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
             - under spawn mode, relocation staging + user-open target the spawned worktree
             - the init commit lands on the plan branch (resolvable by the worktree session from its `.arc/active/`)
 
-    - `[ ]` **2.4.d User-dir scaffold at the corrected ceremony locus**
-        - Scaffold the per-WU user workspace at the spawned worktree under spawn mode, after 2.4.c has corrected the
-          ceremony locus that the scaffold targets.
+    - `[ ]` **2.4.d Per-WU user workspace scaffold at the corrected ceremony locus**
+        - Scaffold the spawned worktree's WU-scoped user workspace under spawn mode, after 2.4.c has corrected the
+          ceremony locus that the scaffold targets. Cross-WU identity-global files are intentionally excluded and
+          resolve through BI-6's canonical user-surface binding.
 
     - `[ ]` **2.4.e `renderBullets` 120-wrap for multi-line `Depends On`**
         - Build `test-first` (one behavior at a time):
@@ -225,7 +229,15 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
     - `[ ]` **2.4.f Harness-conditional relocate / spawn-anchored hop**
         - Claude Code true relocate (`EnterWorktree`); Codex spawn-anchored (`codex --cd <path>`, made
           first-class by 2.4.b's mini-handoff). Re-verify Codex's linked-worktree cwd behavior at build time.
-          Harness integration — validated manually / in e2e, not unit.
+          Harness integration — validated manually / in e2e, not unit. Prefer a common generated-recipe invariant
+          where effective config and scripts share one install root; record per-harness capability variance only
+          where the harness's own discovery model forces it.
+
+    - `[ ]` **2.4.g Worktree path naming across activation**
+        - Verify whether branch/path parity is load-bearing after `plan/<slug>` branches activate to
+          `feat/<slug>` while the worktree directory keeps the `plan-` prefix. If parity is cosmetic, switch spawned
+          dirs to WU-name-only; if load-bearing, rename the worktree directory at activation and cover roster /
+          teardown / sweep lookups.
 
 ### `[ ]` **2.5 BI-5 — Graduate-transition crash-class fix**
 
@@ -244,6 +256,32 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
     - `[ ]` **2.5.b Validate-first mutation ordering in `start.ts`**
         - Build `test-first` (one behavior at a time):
             - no worktree/branch/relocation/meta mutation occurs until all validation has passed
+
+### `[ ]` **2.6 BI-6 — Identity-global user-surface binding**
+
+- _Goal:_ From any worktree, identity-global user surfaces resolve to one canonical machine-local materialization,
+  while per-WU SESSION-NOTES remains worktree-scoped. The design composes with `strategy-storage-evolution.md`,
+  `draft-arc-backend.md`, and `operational-state-docs`: this is a resolver/storage-boundary fix, not a new
+  checkout-local merge convention.
+
+    - `[ ]` **2.6.a User-surface resolver by semantic scope**
+        - Build `test-first` (one behavior at a time):
+            - `USER-INBOX`, `WORKING-MEMORY`, `STATUS.USER`, and identity-global nudge markers resolve to the
+              canonical root from primary and linked worktrees
+            - WU-scoped SESSION-NOTES resolves to the active worktree's per-WU subdir
+            - session-init inbox/reminder/working-memory reads use the canonical identity-global paths
+
+    - `[ ]` **2.6.b Notes save/load split-source handling**
+        - Build `test-first` (one behavior at a time):
+            - `arc user save` serializes the current WU's SESSION-NOTES from the active worktree and cross-WU
+              records from the canonical identity-global root
+            - `arc user load` / `arc user pull` restore each surface to its semantic locus without importing a
+              sibling WU's SESSION-NOTES into the current worktree
+
+    - `[ ]` **2.6.c Divergent-copy migration and teardown guard**
+        - Detect existing linked-worktree copies of identity-global files, reconcile them once into the canonical
+          root with merge-aware behavior, and ensure worktree teardown cannot silently delete the only copy of a
+          capture that has not reached notes.
 
 ## **Phase 3:** Burn-in wave 1 — two doc-only WUs
 
@@ -505,13 +543,15 @@ parent below states the reconciliation _procedure + recorded outcome_, not the u
   silent cell closed by a build item, verified in a wave, or carried as a documented limitation with a recovery
   path — and the projection-builder contract + errand-vs-WU teardown trace-through are each traced, classified,
   and dispositioned.
-- `[ ]` All five build items land and are verified: BI-1 provisions a spawned worktree to a working state (node
+- `[ ]` All six build items land and are verified: BI-1 provisions a spawned worktree to a working state (node
   gates pass off-primary; harness layer present; marker tree clean) and notices when unconfigured; BI-2's
   in-place Materialize checks out a remote WU without spawning, honoring the occupancy guard; BI-3 serializes
   same-machine cross-worktree notes writers, prevents paired-push sibling-note early export, and keeps marker
   surfacing from hiding live sibling partial-push intents; BI-4 makes a
   shell-invoked `arc start` CLI-complete with the mini-handoff, and a wave-2 re-graduation lands its ceremony on
-  the plan branch with a 120-wrapped `Depends On`; BI-5 fails loud on an old-shape meta before any mutation.
+  the plan branch with a 120-wrapped `Depends On`; BI-5 fails loud on an old-shape meta before any mutation; BI-6
+  makes identity-global user surfaces canonical across worktrees without moving per-WU SESSION-NOTES out of the
+  active worktree.
 - `[ ]` All four burn-in waves complete on sacrificial workload with their induced detector-tests firing (base
   drift, notes lag, behind-base-at-integration, stale worktree each surface as claimed) — no detector silently
   no-ops.

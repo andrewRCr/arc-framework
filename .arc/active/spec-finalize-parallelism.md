@@ -48,7 +48,8 @@ correctness gaps the build items below fix.
   recall — and classify each surface's concurrent-write failure as **loud** (blocked/refused/conflicting) or
   **silent** (lost update, stale read, wrong-premise work). Silent cells are the GA blockers.
 - **Land the committed build items** that gate the flip — dependency/harness provisioning, in-place materialize,
-  repo-shared sync-guard anchoring, the worktree launch bridge, and the graduate-transition crash-class fix.
+  repo-shared sync-guard anchoring, the worktree launch bridge, the graduate-transition crash-class fix, and the
+  identity-global user-surface binding.
 - **Verify the worktree-default flip in real practice** — `worktree-default-start` *landed* the create-new
   `arc start` flip (and `async-merge-lifecycle` the awaiting-review / async-merge tail); this WU *exercises* the
   flip across genuinely concurrent WUs and errands, on deliberately sacrificial workload so a discovered gap
@@ -113,8 +114,11 @@ create:
 2. **Registered harness dirs.** The gitignored harness integration layer (`.claude/`, `.codex/`, `.gemini/`,
    `.opencode/`, …: skills, hooks, permission allowlists) is absent in a fresh worktree — a session launched there
    has no ARC skill entry, emits no compaction seed, and gets no post-compaction recovery injection. Provision by
-   **copy-from-primary as the universal default**: ARC keeps a registered list of gitignored harness dirs and
-   mirrors whatever the primary has — zero per-harness knowledge, covering harnesses ARC has never heard of.
+   **copy-from-primary as the universal default** where the harness resolves project config per worktree. The
+   invariant is common even when harness behavior is not: effective config and scripts must resolve from one coherent
+   install root. Claude Code currently fits the per-worktree copy model; Codex CLI resolves project hooks from the
+   primary/shared git-dir config, so its registered-dir copy is a no-op for hook config and the installer must verify
+   the primary-backed recipe instead of assuming the linked worktree's `.codex/` is authoritative.
 3. **User-dir scaffold** at the correct locus (per BI-4's ceremony-locus fix).
 
 Also folded here (2026-07-03 dogfood finding): the spawn/scaffold path writes a per-worktree
@@ -125,9 +129,10 @@ clean tree.
 
 The `arc update`-style **regeneration** path for harness dirs (reference impls + registration at
 verify-and-configure / an add-agent workflow) is the clean long-term evolution but is **downstream**: BI-1 ships
-copy-from-primary plus the registered-dir list as the designed seam, and the regen path routes to its owner
-post-FP (§ Resolution model handles escalation if the waves surface drift pain). Files/seam:
-`worktree.post_create` config key, `src/lib/git/worktree-scaffold.ts`, the registered harness-dir list.
+the registered harness capability surface (copy when per-worktree, primary-backed verification when repo-global),
+and the regen path routes to its owner post-FP (§ Resolution model handles escalation if the waves surface drift
+pain). Files/seam: `worktree.post_create` config key, `src/lib/git/worktree-scaffold.ts`, the registered
+harness-dir list.
 
 **BI-2 — In-place Materialize for cross-machine pickup.** The begin-work transitions (`graduate` / `resume`)
 carry a `--here` in-place opt-out; **Materialize** (cross-machine pickup of a remote-only in-flight WU) is the
@@ -222,6 +227,29 @@ written); recovery was manual. Remedies, both absorbed:
 The silent-heal-then-loud-crash *composition* was the sharp edge; pre-flight validation removes its trigger.
 Files: `src/lib/active/meta-reader.ts` (`reconcileMetaFields` anchor, `replaceBulletField` throw),
 `src/commands/start.ts` (mutation ordering).
+
+**BI-6 — Identity-global user-surface binding.** Worktree parallelism exposed a storage-boundary mismatch:
+flat `user/{identity}/` surfaces are semantically identity-global but physically checkout-local. Live evidence
+2026-07-04: the primary worktree and the FP worktree held divergent `USER-INBOX.md` copies, and a session-init
+inbox probe on the primary counted only the primary's captures. That makes mid-WU capture invisible to housekeep
+and creates a teardown loss mode: a linked worktree's gitignored inbox survives only if notes save/load happened
+before the worktree is removed.
+
+Direction: resolve user state by **semantic scope**, through a storage resolver rather than raw checkout paths.
+Per-WU surfaces (`SESSION-NOTES.md`, contributor-role per-WU meta) stay worktree-adjacent. Identity-global
+surfaces (`USER-INBOX.md`, `WORKING-MEMORY.md`, `STATUS.USER.md`, future `VECTOR.USER`, and identity-global nudge
+markers) resolve from any worktree to one machine-local canonical materialization — likely the primary worktree's
+`user/{identity}/` root as the zero-config interim. This is not a new storage axis and not a file-aggregation
+workaround: it is the near-term instance of the storage abstraction that `strategy-storage-evolution.md` and
+`draft-arc-backend.md` require. When Local/backend storage lands, the resolver's backing store changes; callers
+do not.
+
+Write model: near-term notes save/load splits sources by scope — current worktree for the active WU's
+`SESSION-NOTES.md`, canonical identity-global root for cross-WU records — and performs a one-time migration that
+reconciles existing divergent worktree copies. Do not build read-side sweeps over every worktree copy as the
+primary solution: that bakes in checkout-local state and conflicts with `operational-state-docs`' record direction.
+The durable record shape stays slug-keyed / entry-granular, mapping cleanly to the backend event-log model for
+mutable inbox records; BI-6 only fixes the materialization binding needed before worktree GA.
 
 ### Verification design
 
@@ -360,10 +388,11 @@ not a write race:**
   **Loud** → **BI-1**.
 - **`worktree-marker.json`** — the spawn ownership marker lands in the tracked `.internal/` tree with no ignore
   carve-out; surfaces as a dirty/committable file. **Loud** (visible) → **BI-1** (register its ignore rule).
-- **User files** (`USER-INBOX` / `WORKING-MEMORY` / `SESSION-NOTES`) — per-checkout copies reconciled via the
-  notes ref; entry-union handles different-entry edits; same-entry is row A-3; the three-remover `USER-INBOX`
-  line reconciliation stays a named seam suspect. A shared-checkout different-entry removal is also a local
-  whole-file read/write residue until the wave-3 primary/errand invariant settles → wave 3 / playbook.
+- **User files** — per-WU `SESSION-NOTES` is correctly checkout-adjacent, but identity-global files
+  (`USER-INBOX`, `WORKING-MEMORY`, `STATUS.USER`, future `VECTOR.USER`, global nudge markers) are semantically
+  cross-WU while physically checkout-local. Different worktrees can therefore hold divergent captures and a
+  primary housekeep/session-init probe sees only one copy. **Silent** → **BI-6**. After canonical binding, the
+  remaining user-file seams are row A-3 same-entry edits and the wave-3 `USER-INBOX` removal race.
 - **`.machine-id`** — exclusive-create mint per checkout: every spawned worktree becomes a distinct "machine."
   → **BI-3** (workspace-as-machine).
 - **Spawn-mode transition writes** — the graduate transition stages relocation + user-open against the invoking
@@ -546,13 +575,15 @@ This WU **gates** completion, so it cannot route a fix back to an already-shippe
   recovery path. No unclassified surface remains — **and the interface/consumer-contract + teardown-symmetry
   trace-through is resolved too** (the projection-builder cross-member contract and errand-vs-WU teardown each
   traced, classified, and dispositioned), so a non-write-race seam between members can't hide.
-- **All five build items land and are verified:** BI-1 provisions a spawned worktree to a working state (node
+- **All six build items land and are verified:** BI-1 provisions a spawned worktree to a working state (node
   gates pass off-primary; harness layer present; marker tree clean) and emits a notice when unconfigured; BI-2's
   in-place Materialize checks out a remote WU without spawning, honoring the occupancy guard; BI-3 serializes
   same-machine notes writers, prevents paired-push sibling-note early export, and keeps marker surfacing from hiding
   live sibling partial-push intents; BI-4 makes a shell-invoked `arc start` CLI-complete with the mini-handoff, and a
   wave-2 re-graduation lands its ceremony on the plan branch with a 120-wrapped `Depends On`; BI-5's pre-flight
-  validation fails loud on an old-shape meta before any mutation.
+  validation fails loud on an old-shape meta before any mutation; BI-6 makes identity-global user surfaces resolve
+  to one canonical machine-local materialization from every worktree, with per-WU `SESSION-NOTES` still scoped to
+  the active worktree.
 - **All four burn-in waves complete** on sacrificial workload with their induced detector-tests firing (base
   drift, notes lag, behind-base-at-integration, stale worktree each surface as claimed) — no detector silently
   no-ops.

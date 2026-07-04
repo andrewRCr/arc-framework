@@ -124,13 +124,12 @@ verification; **playbook** = document/recover rather than build inside FP.
   `.arc/system/.internal/worktree-marker.json`; the source comment says the marker is gitignored, but the live
   repo only ignores `pristine.json`, so a spawned worktree currently becomes dirty. Classification: **loud**.
   Disposition: **BI-1** ignore-rule registration / ignored-path move; **wave 1** verifies clean marker state.
-- **User files.** `SESSION-NOTES`, `WORKING-MEMORY`, and `USER-INBOX` are per-checkout materializations reconciled
-  through the user-notes ref. Different cross-WU entries union; same-entry conflict is row A. The remaining named
-  user-file seam is concurrent removal from multiple errands/drain paths: same entry through the notes merge window,
-  and different entries in one shared checkout because `runUserInboxRemove` is a whole-file read/write with no local
-  lock/CAS. Classification: **mostly loud/merged, with row-A same-entry residue and shared-checkout local RMW
-  residue**. Disposition: **wave 3** verifies the three-remover path and whether serialized-primary practice avoids
-  local resurrection; accepted limitations go to **playbook**.
+- **User files.** Per-WU `SESSION-NOTES` is correctly checkout-adjacent, but `WORKING-MEMORY`, `USER-INBOX`,
+  `STATUS.USER`, future `VECTOR.USER`, and identity-global nudge markers are semantically cross-WU while physically
+  checkout-local. Live evidence 2026-07-04: the primary and FP worktree inboxes diverged, and the primary probe saw
+  only its own captures. Classification: **silent gap**. Disposition: **BI-6** canonical identity-global resolver
+  with storage-forward-compat checked against `strategy-storage-evolution.md`, `draft-arc-backend.md`, and
+  `operational-state-docs`; remaining row-A same-entry and removal-race seams stay in wave 3 / playbook.
 - **`.machine-id`.** `getOrCreateMachineId` currently stores a bare UUID at `.arc/user/{id}/.internal/.machine-id`,
   so sibling worktrees on one machine mint distinct ids. That fragments sync-state marker identity and keeps marker
   semantics per-checkout instead of per-machine. Classification: **silent presentation/coherence drift**.
@@ -222,20 +221,22 @@ named detector conditions, and the playbook/doctrine closeout absorbs the accept
 
 ### Build gates before waves
 
-- [ ] **BI-1:** spawned worktree provisioning: deps script, registered harness-dir copy, user-dir scaffold, and clean
-  worktree marker state.
+- [ ] **BI-1:** spawned worktree provisioning: deps script, registered harness capability handling, per-WU user
+  workspace scaffold, and clean worktree marker state.
 - [ ] **BI-2:** in-place Materialize for cross-machine pickup under the occupancy guard.
 - [ ] **BI-3:** git-common-dir notes lock, branch-bounded paired-notes export, multi-intent sync-state marker
   handling, and workspace-scoped `.machine-id`.
 - [ ] **BI-4:** CLI-complete start / mini-handoff / spawn-mode ceremony-locus fix.
 - [ ] **BI-5:** validate-first graduate transition crash-class fix.
+- [ ] **BI-6:** identity-global user surfaces resolve to one canonical machine-local materialization from every
+  worktree; per-WU SESSION-NOTES remains worktree-scoped.
 - [ ] **`roadmap-tooling`:** deterministic ROADMAP renderer available before wave 1.
 
 ### Wave evidence to collect
 
-- [ ] **Wave 1:** two doc-only WUs in worktrees; verify harness presence, notes-lock/machine-id behavior,
-  paired-push sibling-note export prevention, multi-intent sync-state marker reads, ROADMAP contention, base-drift
-  surface, and clean marker state.
+- [ ] **Wave 1:** two doc-only WUs in worktrees; verify harness presence, identity-global user-surface visibility,
+  notes-lock/machine-id behavior, paired-push sibling-note export prevention, multi-intent sync-state marker reads,
+  ROADMAP contention, base-drift surface, and clean marker state.
 - [ ] **Wave 2:** one code WU plus one doc WU; verify dependency provisioning, off-primary quality gates,
   BI-4 re-graduation, and the graduate-transition crash-class detector.
 - [ ] **Wave 3:** two code WUs plus live errand/drain; verify errand ref merge/conflict behavior, same/different-entry
