@@ -12,11 +12,11 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.4 — Adversarial pass over the matrix and draft GA checklist
-- **Next Task:** Task 2.1 — BI-1 — Worktree dependency provisioning manifest
+- **Last Completed:** Task 2.2 — BI-2 — In-place Materialize for cross-machine pickup
+- **Next Task:** Task 2.3.a — Re-anchor the notes lock at the git common dir (line ~162)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.1 — BI-1 worktree dependency provisioning manifest
+- **Next Action:** Start Task 2.3.a — re-anchor `getNotesLockPath` to the git common dir
 
 - **PR URL:** [none]
 - **Completed:** [none]
