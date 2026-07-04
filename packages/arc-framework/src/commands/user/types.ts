@@ -185,6 +185,7 @@ export interface UserCloseOptions {
 /** Options for dropping a slug-matched `USER-INBOX` entry. */
 export interface UserInboxRemoveOptions {
   cwd: string;
+  io: UserIOContext;
   identity: string;
   /**
    * The entry's slug. Title-keyed in v1 — the value is matched against the

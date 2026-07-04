@@ -85,6 +85,26 @@ describe("CompactionSeed schema", () => {
     ]);
   });
 
+  it("accepts absolute load-set paths for resolver-produced identity-global entries", () => {
+    const value = seed({
+      loadSet: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [
+          {
+            path: "/repo/.arc/user/andrew/WORKING-MEMORY.md",
+            readMode: { kind: "full" },
+          },
+        ],
+      },
+    });
+
+    expect(isCompactionSeed(value)).toBe(true);
+    expect(parseCompactionSeedJson(JSON.stringify(value))).toMatchObject({
+      ok: true,
+      seed: value,
+    });
+  });
+
   it("accepts POSIX and Windows absolute repo roots", () => {
     expect(isCompactionSeed(seed({ repoRoot: "/repo" }))).toBe(true);
     expect(isCompactionSeed(seed({ repoRoot: "C:\\repo" }))).toBe(true);

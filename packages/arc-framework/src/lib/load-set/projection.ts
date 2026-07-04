@@ -9,7 +9,7 @@
  * @module
  */
 
-import { isAbsolute } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 import { LOAD_SET_MANIFEST_VERSION, type LoadSetEntry, type LoadSetManifest } from "./types.js";
 
@@ -23,6 +23,11 @@ export type LoadSetPlanningStage = "draft-design" | "create-spec" | "generate-ta
 export interface LoadSetProjectionInput {
   /** ARC identity, or `null` when identity is absent. */
   identity: string | null;
+  /**
+   * Canonical identity-global user root. When omitted, defaults to the
+   * active-checkout-relative `.arc/user/{identity}` path.
+   */
+  identityGlobalUserDir?: string | null;
   /** Active WU slug, or `null` between units / unresolved. */
   activeWorkUnit: string | null;
   /** Active meta path relative to the repo root, or `null` when none resolved. */
@@ -94,7 +99,7 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
   }
 
   if (input.identity !== null) {
-    entries.push(full(userPath(input.identity, "WORKING-MEMORY.md")));
+    entries.push(identityGlobalFull(identityGlobalPath(input, "WORKING-MEMORY.md")));
   }
 
   if (input.sessionType === "planning" && input.planningStage !== null) {
@@ -121,6 +126,21 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
 
 function userPath(...segments: readonly string[]): string {
   return [".arc", "user", ...segments.map((segment) => safePathSegment(segment))].join("/");
+}
+
+function identityGlobalPath(input: LoadSetProjectionInput, filename: string): string {
+  if (input.identity === null) {
+    throw new Error("identity-global user path requires identity");
+  }
+  if (input.identityGlobalUserDir !== undefined && input.identityGlobalUserDir !== null) {
+    return join(input.identityGlobalUserDir, safePathSegment(filename));
+  }
+  return userPath(input.identity, filename);
+}
+
+function identityGlobalFull(path: string): LoadSetEntry {
+  assertIdentityGlobalLoadSetPath(path);
+  return { path, readMode: { kind: "full" } };
 }
 
 function safePathSegment(segment: string): string {
@@ -155,5 +175,15 @@ export function assertLoadSetPath(path: string): void {
   }
   for (const segment of segments) {
     safePathSegment(segment);
+  }
+}
+
+/** Assert a resolver-produced identity-global path is safe to include in a load-set manifest. */
+export function assertIdentityGlobalLoadSetPath(path: string): void {
+  if (path.length === 0 || path.includes("\0")) {
+    throw new Error(`Identity-global load-set path must be non-empty: ${path}`);
+  }
+  if (!isAbsolute(path)) {
+    assertLoadSetPath(path);
   }
 }

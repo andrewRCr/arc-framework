@@ -263,24 +263,12 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
   `draft-arc-backend.md`, and `operational-state-docs`: this is a resolver/storage-boundary fix, not a new
   checkout-local merge convention.
 
-    - `[ ]` **2.6.a User-surface resolver by semantic scope**
-        - Build `test-first` (one behavior at a time):
-            - Codify the interim `UserSurfaceResolver` contract before wiring callers: visible identity-global
-              surfaces use one canonical machine-local materialization, with the primary worktree's
-              `.arc/user/{identity}/` root as the zero-config backing store unless the call site is explicitly
-              machine-internal; repo-shared common-dir helpers remain for hidden internal stores such as locks /
-              machine id.
-            - Load-set / compaction-seed / nudge-marker contracts consume resolver-produced identity-global paths
-              rather than assuming active-checkout-relative `.arc/user/{identity}/...` paths from linked worktrees.
-            - `USER-INBOX`, `WORKING-MEMORY`, `STATUS.USER`, and identity-global nudge markers resolve to the
-              canonical root from primary and linked worktrees
-            - WU-scoped SESSION-NOTES resolves to the active worktree's per-WU subdir
-            - All identity-global readers and writers are routed through the resolver: `arc user add`,
-              `arc user inbox-remove` / errand cleanup, `STATUS.USER` cache read/write, session-init
-              inbox/reminder/working-memory/load-set surfaces, and `arc user status` drift inspection.
-            - Shipped workflow/skill guidance that currently tells agents to edit
-              `.arc/user/{identity}/{USER-INBOX,WORKING-MEMORY}.md` directly is updated to use the resolver-backed
-              path/command surface, so linked-worktree sessions cannot recreate divergent checkout-local copies.
+    - `[x]` **2.6.a User-surface resolver by semantic scope**
+        - Added `UserSurfaceResolver` and routed identity-global user surfaces through the primary-worktree
+          materialization while leaving SESSION-NOTES scoped to the active worktree. User add/inbox removal,
+          errand cleanup, STATUS.USER cache/regen, session-init/recover load-set, compaction-seed, nudge markers,
+          and user-status drift reads now consume resolver paths; shipped guidance names the resolver/load-set
+          path instead of linked-checkout copies.
 
     - `[ ]` **2.6.b Notes save/load split-source handling**
         - Build `test-first` (one behavior at a time):

@@ -406,8 +406,9 @@ Markers:
   Filter applies — empty is normal.
 
 - **WORKING-MEMORY entries:** Cross-WU persistent context — entries that survive across handoffs
-  (and WU boundaries) at `.arc/user/{identity}/WORKING-MEMORY.md`. Each needs an explicit removal
-  trigger (not tied to full work unit completion). Same filter as above.
+  (and WU boundaries) at the resolver-backed identity-global `WORKING-MEMORY.md` path. Under
+  linked-worktree operation, this is the primary worktree's `.arc/user/{identity}/WORKING-MEMORY.md`.
+  Each needs an explicit removal trigger (not tied to full work unit completion). Same filter as above.
 
     - **Passes:** forward-looking constraints (terminology for an unlanded rename), un-codified
       meta-conventions, parking references to uncommitted work visible in `git status`.

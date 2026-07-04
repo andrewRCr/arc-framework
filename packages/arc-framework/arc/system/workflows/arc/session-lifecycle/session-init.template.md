@@ -422,9 +422,11 @@ session-state, follow the override instead.
           `refs/notes/arc/user/{identity}`). If no notes either, fall back to
           `git log --oneline -10`. Tracked state + git history is sufficient.
 
-    2. `.arc/user/{identity}/WORKING-MEMORY.md` — cross-WU persistent context. Entries each carry
-       a `_Remove when:_` trigger; treat them as active constraints for this session until their
-       trigger condition is met.
+    2. Resolver-backed identity-global `WORKING-MEMORY.md` — cross-WU persistent context. Read
+       the path emitted in the session-init load set; under linked-worktree operation it is the
+       primary worktree's `.arc/user/{identity}/WORKING-MEMORY.md`, not the active worktree's
+       checkout-local copy. Entries each carry a `_Remove when:_` trigger; treat them as active
+       constraints for this session until their trigger condition is met.
         - **If absent**: no persistent context yet — common for fresh repos or sessions before
           any entry has been added.
 

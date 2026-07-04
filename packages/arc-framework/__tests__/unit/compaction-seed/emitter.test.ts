@@ -89,6 +89,14 @@ describe("resolveCompactionSeedPath", () => {
       .toBe(join("/repo", ".arc", "user", "andrew", ".internal", "compaction-seed.json"));
   });
 
+  it("targets the resolver-provided identity-global root when supplied", () => {
+    expect(resolveCompactionSeedPath({
+      cwd: "/repo-linked",
+      identity: "andrew",
+      identityGlobalUserDir: join("/repo", ".arc", "user", "andrew"),
+    })).toBe(join("/repo", ".arc", "user", "andrew", ".internal", "compaction-seed.json"));
+  });
+
   it("rejects identities that would escape the user directory", () => {
     for (const identity of [
       "../andrew",

@@ -723,7 +723,9 @@ to task-list bundling would cost, see [meta-file timing background][TODO-docs-si
 
 `user/{identity}/` carries per-developer session-state content. Its layout encodes semantic class
 through path structure: WU-scoped content lives in a per-WU subdir; developer-scoped (cross-WU)
-content lives flat at the root.
+content lives flat at the resolver-backed identity-global root. Under in-repo/worktree operation,
+that identity-global root is the primary worktree's `user/{identity}/`; linked worktrees do not get
+independent flat-file copies.
 
 **Layout:**
 
@@ -742,10 +744,11 @@ WU's lifecycle and travel with that WU's branch; cross-WU root files carry devel
 context that persists across work units. The `.internal/` dotdir is per-machine and never
 serialized — see § Session State Portability.
 
-Each worktree's `user/{identity}/` filesystem holds exactly one WU subdir (its own WU's), making
-worktree-correctness inspectable at a glance: `ls user/{identity}/` shows which WU this worktree
-serves. Multi-worktree concurrent use produces non-colliding subdirs because worktrees are
-physically separate.
+Each worktree's checkout-local `user/{identity}/` filesystem holds exactly one WU subdir (its own
+WU's), making worktree-correctness inspectable at a glance: `ls user/{identity}/` shows which WU this
+worktree serves. Multi-worktree concurrent use produces non-colliding subdirs because worktrees are
+physically separate; flat identity-global files (`USER-INBOX.md`, `WORKING-MEMORY.md`, `STATUS.USER.md`)
+are resolved to the canonical root instead.
 
 ---
 
@@ -781,7 +784,8 @@ snapshot (write at handoff, consume at next session-init for the same WU, discar
 and USER-INBOX is a capture surface (live additions draining at ceremony boundaries),
 WORKING-MEMORY persists across work units with explicit eviction triggers per entry.
 
-**Location.** `user/{identity}/WORKING-MEMORY.md` — flat at the workspace root, cross-WU scope.
+**Location.** resolver-backed identity-global `user/{identity}/WORKING-MEMORY.md` — flat at the
+canonical workspace root, cross-WU scope.
 
 **Per-entry shape.** Each entry carries an explicit removal trigger inline:
 
@@ -819,7 +823,8 @@ branch-agnostic. Where SESSION-NOTES is a per-WU snapshot (write at handoff, dis
 integration) and WORKING-MEMORY is eviction-triggered persistent context, USER-INBOX is a
 live-write capture surface — entries land any time, drain at the between-WUs housekeep flow.
 
-**Location.** `user/{identity}/USER-INBOX.md` — flat at the workspace root, cross-WU scope.
+**Location.** resolver-backed identity-global `user/{identity}/USER-INBOX.md` — flat at the canonical
+workspace root, cross-WU scope.
 
 **Section structure.**
 

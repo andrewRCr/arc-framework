@@ -51,6 +51,8 @@ export interface EmitCompactionSeedOptions {
   cwd: string;
   envelope: CompactionSeedEnvelope;
   gitSnapshot: CompactionSeedGitSnapshot;
+  /** Canonical identity-global user root. Defaults to the active checkout. */
+  identityGlobalUserDir?: string | null;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
   now?: () => Date;
 }
@@ -66,11 +68,16 @@ export type EmitCompactionSeedResult =
   };
 
 /** Resolve the fixed seed path for an identity. */
-export function resolveCompactionSeedPath(ctx: { cwd: string; identity: string }): string {
+export function resolveCompactionSeedPath(ctx: {
+  cwd: string;
+  identity: string;
+  identityGlobalUserDir?: string | null;
+}): string {
   if (isUnsafeCompactionSeedIdentity(ctx.identity)) {
     throw new Error(`Invalid compaction seed identity: ${ctx.identity}`);
   }
-  return join(ctx.cwd, ".arc", "user", ctx.identity, ".internal", "compaction-seed.json");
+  const userDir = ctx.identityGlobalUserDir ?? join(ctx.cwd, ".arc", "user", ctx.identity);
+  return join(userDir, ".internal", "compaction-seed.json");
 }
 
 function isUnsafeCompactionSeedIdentity(identity: string): boolean {
@@ -132,7 +139,11 @@ export async function emitCompactionSeed(
 
   let path: string;
   try {
-    path = resolveCompactionSeedPath({ cwd: options.cwd, identity });
+    path = resolveCompactionSeedPath({
+      cwd: options.cwd,
+      identity,
+      identityGlobalUserDir: options.identityGlobalUserDir,
+    });
   } catch (err) {
     return { status: "failed", reason: "identity-invalid", message: errorMessage(err) };
   }

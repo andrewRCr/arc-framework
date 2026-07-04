@@ -20,6 +20,7 @@ import {
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
 import { gitConfigGet } from "../lib/git/index.js";
 import { gitExec } from "../lib/io-context.js";
+import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import {
   auditRecoveryState,
   type RecoveryAuditStopReason,
@@ -60,7 +61,9 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
     return;
   }
 
-  const seedPath = resolveCompactionSeedPath({ cwd, identity });
+  const identityGlobalUserDir = (await resolveUserSurfaceResolver({ cwd, identity, exec: gitExec }))
+    .identityGlobalRoot;
+  const seedPath = resolveCompactionSeedPath({ cwd, identity, identityGlobalUserDir });
   let seedContent: string;
   try {
     seedContent = await readFile(seedPath, "utf8");
@@ -97,6 +100,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
     identity,
     role,
     probes,
+    identityGlobalUserDir,
   });
 
   let statusOutput: string;

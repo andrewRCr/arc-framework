@@ -322,10 +322,12 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(await pathExists(join(wt, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(false);
     expect(await pathExists(join(h.repo, ".arc", "active", "meta-widget.md"))).toBe(false);
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(true);
-    // The `reconcile-status-user` side-effect rendered for real (local-only) and wrote STATUS.USER.
-    const statusUserPath = join(wt, ".arc", "user", IDENTITY, "STATUS.USER.md");
+    // The `reconcile-status-user` side-effect rendered for real (local-only) and wrote STATUS.USER
+    // at the identity-global root.
+    const statusUserPath = join(h.repo, ".arc", "user", IDENTITY, "STATUS.USER.md");
     expect(await pathExists(statusUserPath)).toBe(true);
     expect(await readFile(statusUserPath, "utf8")).toContain("## In Flight");
+    expect(await pathExists(join(wt, ".arc", "user", IDENTITY, "STATUS.USER.md"))).toBe(false);
     const notes = await readFile(join(wt, ".arc", "user", IDENTITY, "widget", "SESSION-NOTES.md"), "utf8");
     expect(notes).toContain("Graduated the backlog stub");
     expect(notes).toContain("**Commit at Handoff:** `[start ceremony pending]`");

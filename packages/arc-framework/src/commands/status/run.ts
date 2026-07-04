@@ -217,7 +217,7 @@ export async function runStatus(options: RunStatusOptions): Promise<StatusResult
 export async function runSessionInitStatus(
   options: RunSessionInitStatusOptions,
 ): Promise<SessionInitProbeResult> {
-  const { identity, role, probes } = options;
+  const { identity, role, probes, identityGlobalUserDir } = options;
 
   type RawUser = Slot<UserSessionInitStatusResult>;
   type RawRetired =
@@ -531,6 +531,7 @@ export async function runSessionInitStatus(
       activeExtensions: extensions.ok ? extensions.value.active : [],
       cohortDocPath,
       cohortDoc,
+      identityGlobalUserDir: identityGlobalUserDir ?? null,
     })
     : active;
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
@@ -575,7 +576,7 @@ export async function runSessionInitStatus(
 export async function runRecoverStatus(
   options: RunRecoverStatusOptions,
 ): Promise<SessionRecoverProbeResult> {
-  const { identity, role, probes } = options;
+  const { identity, role, probes, identityGlobalUserDir } = options;
 
   const worktreeTask = safeProbe(() => probes.worktree());
   const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
@@ -630,6 +631,7 @@ export async function runRecoverStatus(
       activeExtensions: extensions.ok ? extensions.value.active : [],
       cohortDocPath,
       cohortDoc,
+      identityGlobalUserDir: identityGlobalUserDir ?? null,
     })
     : active;
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
@@ -685,6 +687,7 @@ function loadSetFromState(options: {
   activeExtensions: readonly string[];
   cohortDocPath: string | null;
   cohortDoc: { ok: true; value: string | null } | ProbeErrorSlot;
+  identityGlobalUserDir: string | null;
 }): { ok: true; value: ReturnType<typeof resolveLoadSetManifest> } | ProbeErrorSlot {
   if (!options.cohortDoc.ok) return options.cohortDoc;
   try {
@@ -697,6 +700,7 @@ function loadSetFromState(options: {
       taskListPath: options.taskListPath,
       activeExtensions: options.activeExtensions,
       cohortDocPath: options.cohortDocPath,
+      identityGlobalUserDir: options.identityGlobalUserDir,
     }));
   } catch (err) {
     return fromRejection(err);

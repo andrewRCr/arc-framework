@@ -15,7 +15,6 @@
  */
 
 import { access, readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 
 import * as p from "@clack/prompts";
 
@@ -102,6 +101,7 @@ import {
 } from "../lib/compaction-seed/emitter.js";
 import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
+import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
@@ -175,13 +175,17 @@ async function resolveNudgeState(
   io: ReturnType<typeof createUserIOContext>,
   identity: string | null,
   markerRelative: string,
+  resolveSurfaces?: (identity: string) => Promise<UserSurfaceResolver>,
 ): Promise<NudgeMarkerState> {
   const today = new Date().toISOString().slice(0, 10);
   if (identity === null) {
     return { shouldNudge: false, markerPath: null, today };
   }
-  const markerPath = `.arc/user/${identity}/${markerRelative}`;
-  const absoluteMarkerPath = join(cwd, ".arc", "user", identity, markerRelative);
+  const surfaces = resolveSurfaces !== undefined
+    ? await resolveSurfaces(identity)
+    : await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec });
+  const markerPath = surfaces.identityGlobalDisplayPath(markerRelative);
+  const absoluteMarkerPath = surfaces.identityGlobalPath(markerRelative);
   const lastNudge = await io.readFile(absoluteMarkerPath).then(
     (content) => content.trim(),
     () => null,
@@ -242,10 +246,21 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
 
   const io = createUserIOContext();
   const { identity, role } = await readIdentityPointers();
+  const userSurfaceResolvers = new Map<string, ReturnType<typeof resolveUserSurfaceResolver>>();
+  const userSurfacesFor = (id: string): Promise<UserSurfaceResolver> => {
+    let resolver = userSurfaceResolvers.get(id);
+    if (resolver === undefined) {
+      resolver = resolveUserSurfaceResolver({ cwd, identity: id, exec: gitExec });
+      userSurfaceResolvers.set(id, resolver);
+    }
+    return resolver;
+  };
   // Both the inbox-state and reminder-sweep probes read the same personal
   // `USER-INBOX.md`; a missing file reads as empty (no captures).
   const readUserInbox = (id: string): Promise<string> =>
-    io.readFile(join(cwd, ".arc", "user", id, "USER-INBOX.md")).catch(() => "");
+    userSurfacesFor(id)
+      .then((surfaces) => io.readFile(surfaces.identityGlobalPath("USER-INBOX.md")))
+      .catch(() => "");
 
   if (opts.sessionHandoff) {
     if (!json) {
@@ -323,6 +338,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         cwd,
         dirty: () => runDirtyStateStatus({ exec: gitExec }),
       }),
+      identityGlobalUserDir: identity === null ? null : (await userSurfacesFor(identity)).identityGlobalRoot,
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
@@ -502,7 +518,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           records,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
-          nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE),
+          nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE, userSurfacesFor),
         });
       },
       materializableWorkUnits: async () => {
@@ -522,7 +538,13 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           identity,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays,
-          nudge: await resolveNudgeState(cwd, io, identity, WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE),
+          nudge: await resolveNudgeState(
+            cwd,
+            io,
+            identity,
+            WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE,
+            userSurfacesFor,
+          ),
           prSource: input.includeSharpening ? createGhWorkUnitPrSource(gitExec) : undefined,
         });
       },
@@ -543,7 +565,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       taskCursor: async (taskListPath) =>
         resolveTaskListCursorFromFile({ cwd, taskListPath }),
     };
-    const result = await runSessionInitStatus({ identity, role, probes });
+    const identityGlobalUserDir = identity === null
+      ? null
+      : (await userSurfacesFor(identity)).identityGlobalRoot;
+    const result = await runSessionInitStatus({ identity, role, probes, identityGlobalUserDir });
     if (opts.writeCompactionSeed && compactionSeedGitSnapshotP !== null) {
       try {
         const gitSnapshot = await compactionSeedGitSnapshotP;
@@ -551,6 +576,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           cwd,
           envelope: result,
           gitSnapshot,
+          identityGlobalUserDir,
         }));
         surfaceCompactionSeedWrite(result.compactionSeedWrite);
       } catch (err) {

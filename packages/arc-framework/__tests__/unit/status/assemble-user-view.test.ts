@@ -51,4 +51,34 @@ describe("assembleStatusUserView", () => {
     expect(view.source).toBe("no-identity");
     expect(exec).not.toHaveBeenCalled();
   });
+
+  it("reads the STATUS.USER cache from the primary worktree when invoked from a linked worktree", async () => {
+    const paths: string[] = [];
+    const view = await assembleStatusUserView({
+      cwd: "/repo-linked",
+      exec: makeExec({
+        worktreeList: [
+          "worktree /repo",
+          "HEAD 1111111111111111111111111111111111111111",
+          "branch refs/heads/main",
+          "",
+          "worktree /repo-linked",
+          "HEAD 2222222222222222222222222222222222222222",
+          "branch refs/heads/feat/demo",
+          "",
+        ].join("\n"),
+      }),
+      identity: "andrew",
+      teamMode: false,
+      localOnly: false,
+      readFile: (path) => {
+        paths.push(path);
+        return Promise.reject(new Error("no cache"));
+      },
+      readdir: () => Promise.resolve([]),
+    });
+
+    expect(view.source).toBe("cache-missing");
+    expect(paths).toContain("/repo/.arc/user/andrew/STATUS.USER.md");
+  });
 });

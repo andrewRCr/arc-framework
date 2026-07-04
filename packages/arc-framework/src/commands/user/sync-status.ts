@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { getCurrentBranch, serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import {
@@ -19,6 +17,7 @@ import {
 import { computeUnsavedDirection, missingFilesAreIntentionalRetirement } from "./drift.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index.js";
+import { resolveUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
   findNearestUserNote,
@@ -1418,7 +1417,8 @@ async function inspectDiskVsLocalSnapshot(
   io: UserIOContext,
   identity: string,
 ): Promise<DiskVsSnapshotInspection> {
-  const userDir = join(cwd, ".arc", "user", identity);
+  const userDir = (await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec }))
+    .identityGlobalRoot;
   let diskManifest: SyncManifest | null = null;
 
   try {
