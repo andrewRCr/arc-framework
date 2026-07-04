@@ -12,11 +12,11 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.3 — BI-3 — Repo-shared anchoring for per-machine sync guards
-- **Next Task:** Task 2.4.a — CLI-complete `arc start` substrate (line ~200)
+- **Last Completed:** Task 2.4 — BI-4 — Worktree launch bridge
+- **Next Task:** Task 2.5.a — Pre-flight meta-shape validation + `arc verify` check (line ~248)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.4.a — build the CLI-complete `arc start` substrate
+- **Next Action:** Start Task 2.5.a — build pre-flight meta-shape validation and `arc verify` check
 
 - **PR URL:** [none]
 - **Completed:** [none]
