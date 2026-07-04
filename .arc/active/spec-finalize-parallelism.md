@@ -74,8 +74,8 @@ correctness gaps the build items below fix.
   before wave 1 (concurrent regens); FP consumes it, doesn't build it.
 - **Not the interlock-intensity model.** FP *supplies* burn-in evidence of which stops hurt under concurrency;
   `interlock-release-refinement` owns the trust-grant/interlock-release model that consumes it.
-- **Not the principled sync-primitive rewrite.** BI-3 re-anchors the existing lock (a contained path change);
-  the ref-CAS-with-retry evolution routes to `sync-primitive-discipline`.
+- **Not the principled sync-primitive rewrite.** BI-3 stays a contained guard/export/marker correction on the
+  existing notes path; the full ref-CAS-with-retry evolution routes to `sync-primitive-discipline`.
 
 ## Proposed Design
 
@@ -151,13 +151,23 @@ lock file anchors at the *worktree* root (`resolveArcRoot` walks to the nearest 
 sessions inside one checkout. Post-flip, two same-machine sessions in different worktrees each acquire "the" lock
 and race the unguarded `git notes add` read-modify-write — a silently dropped note, the exact loss the lock
 exists to prevent (the non-fast-forward `cat_sort_uniq` recovery covers cross-*machine* divergence, not a
-same-machine ref clobber). Direction: **re-anchor the lock at the git common dir** — a contained path change to
-the proven mechanism, serializing all same-machine worktrees. `.machine-id` settles with it as
-**workspace-as-machine**: minted at the git common dir, so worktrees share one machine identity — semantically
-correct (worktrees *are* one machine) and the end of marker-tree pollution from per-checkout mints. The
-principled evolution (rewriting the notes save as ref-CAS with retry) routes to `sync-primitive-discipline`.
-Gates wave 1 (the first concurrent notes sync). Files: `lib/user-sync/notes-lock.ts` (anchor), `.machine-id`
-mint locus.
+same-machine ref clobber). Direction part 1: **re-anchor the lock at the git common dir** — a contained path
+change to the proven mechanism, serializing all same-machine worktrees.
+
+The same repo-shared notes ref also means paired push must not publish sibling worktree notes whose branches have
+not landed. Direction part 2: derive a branch-bounded planned notes-export target after the worktree leg lands,
+then have both the sync-state marker and the notes push refer to that same export target, or refuse with actionable
+recovery when the safe subset cannot be proven. A marker for the raw local notes ref paired with a filtered notes
+push is invalid: fulfillment/self-invalidation would compare against a target the push did not actually attempt.
+
+`.machine-id` settles as **workspace-as-machine provenance**: minted at the git common dir, so worktrees share one
+machine identity — semantically correct (worktrees *are* one machine) and the end of marker-tree pollution from
+per-checkout mints. It is **not** sufficient as the storage key for live notes-push intent. Direction part 3:
+key sync-state marker storage by export intent (with machine id retained as payload/provenance), so every live
+export intent remains independently represented until fulfilled or expired. The principled evolution (rewriting the
+notes save as ref-CAS with retry) routes to `sync-primitive-discipline`. Gates wave 1 (the first concurrent notes
+sync). Files: `lib/user-sync/notes-lock.ts` (anchor), `.machine-id` mint locus, `sync-state-marker.ts` /
+`sync-state-publish.ts` / `partial-push-marker-surface.ts` (intent representation), and the paired notes-push path.
 
 **BI-4 — Worktree launch bridge (one-session init as the worktree-by-default ergonomic target).** FP's own
 graduation exposed the init ergonomics gap: the session that runs `init-work-unit` stays in the primary while the
@@ -311,14 +321,17 @@ documented limitation / recovery entry.
   behind-base branch merges stale-premise work cleanly). **Silent** → pre-FP errand (behind-base reconcile gate,
   landed PR #181); waves re-verify the gate fires.
 - **`refs/notes/arc/user/{id}`** — notes sync at every handoff/save, all classes, all machines; the per-checkout
-  lock lets same-machine cross-worktree writers race `git notes add` and drop a note. **Silent** → **BI-3**.
+  lock lets same-machine cross-worktree writers race `git notes add` and drop a note, and paired push can publish a
+  sibling worktree's note before that sibling branch lands unless the notes leg is branch-bounded. **Silent** →
+  **BI-3**.
 - **Same-entry cross-WU resolution** (`resolveCrossWuState`) — divergent edits to one entry resolve by
   wall-clock recency; one edit silently loses. **Silent**, narrow, recoverable → documented limitation
   (§ Seam-audit decisions carries fix direction).
-- **`refs/arc/user/{id}/sync-state`** (marker ref) — tree-CAS retry; publishers converge. **Loud** → wave 1
-  verifies detectors read it *cross-worktree*. With BI-3's workspace-as-machine, same-workspace worktrees share
-  one marker key and the publish sits outside the notes-lock span — wave 1 includes the shared-key case
-  (misordered sibling publishes; low materiality — TTL-bounded, presentation-only, a later push subsumes).
+- **`refs/arc/user/{id}/sync-state`** (marker ref) — tree-CAS retry; cross-machine publishers converge. With BI-3's
+  workspace-as-machine, same-workspace worktrees share provenance but cannot collapse live marker storage to one
+  latest-wins key: two unresolved sibling notes-push intents must remain independently represented until fulfilled
+  or expired. **Silent if same-key overwrite hides a live intent** → **BI-3**; wave 1 verifies detector reads
+  *cross-worktree* and the multi-intent shared-key case.
 - **`refs/arc/user/{id}/errands`** — tree-CAS + same-slug collision surfacing (never auto-resolved). **Loud** →
   wave 3.
 - **Worktree registry**, **branch pushes**, **`.git/config`**, **branch-creation ref races** — all guarded by
@@ -349,7 +362,8 @@ not a write race:**
   carve-out; surfaces as a dirty/committable file. **Loud** (visible) → **BI-1** (register its ignore rule).
 - **User files** (`USER-INBOX` / `WORKING-MEMORY` / `SESSION-NOTES`) — per-checkout copies reconciled via the
   notes ref; entry-union handles different-entry edits; same-entry is row A-3; the three-remover `USER-INBOX`
-  line reconciliation stays a named seam suspect → wave 3.
+  line reconciliation stays a named seam suspect. A shared-checkout different-entry removal is also a local
+  whole-file read/write residue until the wave-3 primary/errand invariant settles → wave 3 / playbook.
 - **`.machine-id`** — exclusive-create mint per checkout: every spawned worktree becomes a distinct "machine."
   → **BI-3** (workspace-as-machine).
 - **Spawn-mode transition writes** — the graduate transition stages relocation + user-open against the invoking
@@ -534,11 +548,11 @@ This WU **gates** completion, so it cannot route a fix back to an already-shippe
   traced, classified, and dispositioned), so a non-write-race seam between members can't hide.
 - **All five build items land and are verified:** BI-1 provisions a spawned worktree to a working state (node
   gates pass off-primary; harness layer present; marker tree clean) and emits a notice when unconfigured; BI-2's
-  in-place Materialize checks out a remote WU without spawning, honoring the occupancy guard; BI-3's lock
-  re-anchor serializes same-machine cross-worktree notes writers (no dropped note under induced concurrency);
-  BI-4 makes a shell-invoked `arc start` CLI-complete with the mini-handoff, and a wave-2 re-graduation lands its
-  ceremony on the plan branch with a 120-wrapped `Depends On`; BI-5's pre-flight validation fails loud on an
-  old-shape meta before any mutation.
+  in-place Materialize checks out a remote WU without spawning, honoring the occupancy guard; BI-3 serializes
+  same-machine notes writers, prevents paired-push sibling-note early export, and keeps marker surfacing from hiding
+  live sibling partial-push intents; BI-4 makes a shell-invoked `arc start` CLI-complete with the mini-handoff, and a
+  wave-2 re-graduation lands its ceremony on the plan branch with a 120-wrapped `Depends On`; BI-5's pre-flight
+  validation fails loud on an old-shape meta before any mutation.
 - **All four burn-in waves complete** on sacrificial workload with their induced detector-tests firing (base
   drift, notes lag, behind-base-at-integration, stale worktree each surface as claimed) — no detector silently
   no-ops.

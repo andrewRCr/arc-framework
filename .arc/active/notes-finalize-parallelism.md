@@ -8,6 +8,7 @@ the spec's design body doesn't carry.
 - [Sequencing & coordination](#sequencing--coordination)
 - [Shared-mutable-surface matrix](#shared-mutable-surface-matrix)
 - [Seam trace-throughs](#seam-trace-throughs)
+- [Adversarial pass](#adversarial-pass)
 - [GA checklist starting state](#ga-checklist-starting-state)
 - [Scope & sizing](#scope--sizing)
 
@@ -57,6 +58,12 @@ verification; **playbook** = document/recover rather than build inside FP.
   push divergence reconciles through the notes push/merge path, but same-machine local ref clobber remains the
   decisive gap. Classification: **silent**. Disposition: **BI-3** re-anchors the lock at the git common dir; **wave
   1** induces same-machine sibling notes saves.
+- **Paired-push sibling-note export.** The same local notes ref is shared by sibling worktrees, while paired push
+  pushes only the current branch before publishing the whole notes ref. Interleaving A save, B save, A paired push
+  can publish B's note for an unpushed B commit, violating the branch-before-notes invariant while still succeeding
+  and clearing the partial-push marker. The BI-3 common-dir save lock prevents local note clobber but does not make
+  notes export branch-bounded. Classification: **silent invariant violation**. Disposition: **BI-3** adds a
+  branch-bounded paired-notes export / reachability guard; **wave 1** induces the export-before-branch case.
 - **Same-entry cross-WU resolution.** Writers are concurrent edits to one `WORKING-MEMORY` / `USER-INBOX` entry that
   later merge through the notes window. `mergeCrossWuFile` unions different entries, honors live removal
   tombstones, and resolves the same `(section, key)` identity by the most-recent note that mentions it. Two
@@ -66,10 +73,12 @@ verification; **playbook** = document/recover rather than build inside FP.
 - **`refs/arc/user/{id}/sync-state`.** Writers publish per-machine partial-push markers before the notes leg. Direct
   writes use tree commits with compare-and-swap retry; cross-machine non-fast-forward pushes reconcile by
   per-machine union. Today each worktree mints a distinct `.machine-id`; after **BI-3** sibling worktrees share a
-  workspace machine id, so a same-workspace marker publish can overwrite a sibling's marker. That residue is
-  presentation-only, TTL-bounded, and superseded by the next publish. Classification: **loud / aware, with
-  low-materiality shared-key residue**. Disposition: **wave 1** verifies cross-worktree detector reads and the
-  shared-key case.
+  workspace machine id, so a same-workspace marker publish can overwrite a sibling's marker. That is
+  presentation-only only when no earlier live notes-push intent is hidden; two unresolved sibling intents under one
+  key can otherwise make a cross-machine resume miss notes lag. Classification: **loud / aware when every live
+  intent remains represented; silent if same-workspace key collapse hides one**. Disposition: **BI-3** keys marker
+  storage by export intent, retains machine id as provenance, and uses the same planned export target as the notes
+  leg; **wave 1** verifies cross-worktree detector reads and the multi-intent shared-key case.
 - **`refs/arc/user/{id}/errands`.** Writers are errand open/close/promote and errand partial-push recovery. Direct
   writes use the same tree-ref compare-and-swap retry; remote non-fast-forward pushes merge distinct slugs and
   surface divergent same-slug records as a conflict, leaving the local ref intact. Classification: **loud**.
@@ -117,9 +126,11 @@ verification; **playbook** = document/recover rather than build inside FP.
   Disposition: **BI-1** ignore-rule registration / ignored-path move; **wave 1** verifies clean marker state.
 - **User files.** `SESSION-NOTES`, `WORKING-MEMORY`, and `USER-INBOX` are per-checkout materializations reconciled
   through the user-notes ref. Different cross-WU entries union; same-entry conflict is row A. The remaining named
-  user-file seam is concurrent removal of the same `USER-INBOX` line from multiple errands/drain paths.
-  Classification: **mostly loud/merged, with row-A same-entry residue**. Disposition: **wave 3** verifies the
-  three-remover path; same-entry limitation goes to **playbook**.
+  user-file seam is concurrent removal from multiple errands/drain paths: same entry through the notes merge window,
+  and different entries in one shared checkout because `runUserInboxRemove` is a whole-file read/write with no local
+  lock/CAS. Classification: **mostly loud/merged, with row-A same-entry residue and shared-checkout local RMW
+  residue**. Disposition: **wave 3** verifies the three-remover path and whether serialized-primary practice avoids
+  local resurrection; accepted limitations go to **playbook**.
 - **`.machine-id`.** `getOrCreateMachineId` currently stores a bare UUID at `.arc/user/{id}/.internal/.machine-id`,
   so sibling worktrees on one machine mint distinct ids. That fragments sync-state marker identity and keeps marker
   semantics per-checkout instead of per-machine. Classification: **silent presentation/coherence drift**.
@@ -193,6 +204,17 @@ remaining verification hook; the burn-in waves still exercise each one in practi
   `USER-INBOX` same-entry loss remains the row-A limitation, and branch/worktree refusals are git-guarded loud
   failures for the playbook.
 
+## Adversarial pass
+
+Fresh-context review ran two broad passes plus one targeted BI-3 design pass. Pass 1 found the paired-push
+sibling-note export gap, folded into matrix row A, BI-3, and wave 1. Pass 2 confirmed that gap was represented,
+then found the sync-state marker multi-intent gap now folded into BI-3 / wave 1, plus the lower-materiality
+`USER-INBOX` local removal RMW residue folded into wave 3 / playbook handling. The targeted pass confirmed BI-3 is
+a contained extension, not a bad pivot, but tightened the design: `.machine-id` is provenance only; marker storage
+is keyed by export intent, and marker `intent` must match the notes export target actually attempted. The passes
+withstood source checks for the projection contract, teardown paths, errand ref, archive index, ROADMAP
+stale-render, foreign stubs, harness/deps provisioning, compaction marker, and audit-log rows.
+
 ## GA checklist starting state
 
 The checklist starts from the finalized matrix above. It closes only when the build gates land, waves induce the
@@ -203,7 +225,8 @@ named detector conditions, and the playbook/doctrine closeout absorbs the accept
 - [ ] **BI-1:** spawned worktree provisioning: deps script, registered harness-dir copy, user-dir scaffold, and clean
   worktree marker state.
 - [ ] **BI-2:** in-place Materialize for cross-machine pickup under the occupancy guard.
-- [ ] **BI-3:** git-common-dir notes lock and workspace-scoped `.machine-id`.
+- [ ] **BI-3:** git-common-dir notes lock, branch-bounded paired-notes export, multi-intent sync-state marker
+  handling, and workspace-scoped `.machine-id`.
 - [ ] **BI-4:** CLI-complete start / mini-handoff / spawn-mode ceremony-locus fix.
 - [ ] **BI-5:** validate-first graduate transition crash-class fix.
 - [ ] **`roadmap-tooling`:** deterministic ROADMAP renderer available before wave 1.
@@ -211,12 +234,13 @@ named detector conditions, and the playbook/doctrine closeout absorbs the accept
 ### Wave evidence to collect
 
 - [ ] **Wave 1:** two doc-only WUs in worktrees; verify harness presence, notes-lock/machine-id behavior,
-  sync-state marker reads, ROADMAP contention, base-drift surface, and clean marker state.
+  paired-push sibling-note export prevention, multi-intent sync-state marker reads, ROADMAP contention, base-drift
+  surface, and clean marker state.
 - [ ] **Wave 2:** one code WU plus one doc WU; verify dependency provisioning, off-primary quality gates,
   BI-4 re-graduation, and the graduate-transition crash-class detector.
-- [ ] **Wave 3:** two code WUs plus live errand/drain; verify errand ref merge/conflict behavior, three-remover
-  `USER-INBOX` reconciliation, teardown symmetry, primary/errand concurrency fork evidence, and interlock-friction
-  observations.
+- [ ] **Wave 3:** two code WUs plus live errand/drain; verify errand ref merge/conflict behavior, same/different-entry
+  `USER-INBOX` removal reconciliation, teardown symmetry, primary/errand concurrency fork evidence, and
+  interlock-friction observations.
 - [ ] **Wave 4:** cross-machine resume; verify Materialize spawn + in-place pickup, notes lag / partial-push marker
   surfacing, and projection-contract evidence from Task 1.2.
 
@@ -224,6 +248,8 @@ named detector conditions, and the playbook/doctrine closeout absorbs the accept
 
 - [ ] Same-entry cross-WU edit limitation: symptom, recovery from notes/backups, and guidance to avoid concurrent
   same-entry edits.
+- [ ] `USER-INBOX` local removal RMW residue: serialized-primary guidance, resurrection symptom, and recovery from
+  notes/backups.
 - [ ] Base-drift and probe-staleness recovery: re-probe, merge base forward, and do not rewrite pushed branches.
 - [ ] Git-guarded loud failures: worktree/branch/config/ref refusal symptoms and retry/reconcile path.
 - [ ] Duplicate `completed/` sequence number: cosmetic renumber recovery.

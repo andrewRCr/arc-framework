@@ -70,16 +70,23 @@ enumeration and its dispositions rather than re-deriving it. Sequencing context 
   plus optional linked-worktree teardown, with residual concurrency surfaces already named for wave 3 and the
   playbook.
 
-### `[ ]` **1.4 Adversarial pass over the matrix and draft GA checklist**
+### `[x]` **1.4 Adversarial pass over the matrix and draft GA checklist**
 
 - _Goal:_ A fresh-context attack surfaces any concurrent-session failure the matrix misses, and surviving
   findings fold back into the matrix before the waves rely on it.
-- _Approach:_ Run the `adversarial-review` fresh-subagent mechanism with the prompt "what concurrent-session
-  failure does this matrix miss?"; verify each finding against source before folding it in.
 
-    - `[ ]` **1.4.a Run the adversarial pass and reconcile findings**
-        - Spawn the fresh-context review; triage findings (real vs. already-covered); fold surviving cells into
-          the matrix with dispositions.
+    - `[x]` **1.4.a Run the adversarial pass and reconcile findings**
+        - Two broad fresh-context passes plus a targeted BI-3 design pass produced two source-confirmed major
+          findings: paired push can export a sibling worktree's saved note before that sibling branch is pushed, and
+          workspace-scoped sync-state markers can hide an earlier sibling partial-push intent. Both are folded into
+          the spec, matrix, BI-3, and wave-1 verification. The second pass also produced one minor `USER-INBOX`
+          local-removal residue, folded into wave 3 / playbook scope.
+
+- _Outcome:_ The matrix now treats paired-push sibling-note early export as a silent notes-ref invariant violation
+  and same-workspace marker collapse as a potential silent detector miss, both with BI-3 and wave-1 closure hooks.
+  The BI-3 design now treats `.machine-id` as provenance while marker storage keys by export intent, with marker
+  `intent` matching the notes export target actually attempted. The `USER-INBOX` different-entry removal RMW is
+  recorded as a lower-materiality wave-3/playbook residue.
 
 ## **Phase 2:** Build items
 
@@ -156,10 +163,13 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
 
 ### `[ ]` **2.3 BI-3 — Repo-shared anchoring for per-machine sync guards**
 
-- _Goal:_ Same-machine cross-worktree notes writers serialize — no dropped note under induced concurrency — and
-  `.machine-id` is workspace-scoped so sibling worktrees share one machine identity.
+- _Goal:_ Same-machine cross-worktree notes writers serialize, paired notes pushes do not export sibling notes
+  before those sibling branches land, sync-state marker surfacing cannot hide an earlier sibling partial-push intent,
+  and `.machine-id` is workspace-scoped so sibling worktrees share one machine identity.
 - _Rationale:_ Anchoring the lock at the worktree root lets two worktrees each hold "the" lock and race
-  `git notes add` — the exact silent loss the lock exists to prevent.
+  `git notes add` — the exact silent loss the lock exists to prevent. Paired push must also avoid publishing the
+  whole shared local notes ref when it contains a sibling worktree's saved note for an unpushed commit, and the
+  workspace-scoped machine id must not collapse two unresolved sibling marker intents into one latest-wins entry.
 
     - `[ ]` **2.3.a Re-anchor the notes lock at the git common dir**
         - Re-base `getNotesLockPath` (`notes-lock.ts`) from the per-worktree user-internal dir to the git common
@@ -178,6 +188,28 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
         - Build `test-first` (one behavior at a time):
             - sibling worktrees resolve the same machine id
             - no per-checkout mint pollutes the marker tree
+
+    - `[ ]` **2.3.c Branch-bounded paired notes export**
+        - Keep paired push's worktree-before-notes invariant true even when the shared local notes ref contains notes
+          saved by sibling worktrees. Derive one planned notes-export target after the worktree leg lands; the marker
+          publisher and notes pusher both consume that target. Filter/stage to commits reachable from the landed
+          branch, or refuse with actionable recovery when the safe subset cannot be proven.
+        - Build `test-first` (one behavior at a time):
+            - A save, B save, then A paired push does not publish B's note until B's branch is on origin
+            - A paired push still publishes A's note after A's branch leg succeeds
+            - the marker intent equals the planned notes-export target the notes leg actually attempts
+            - unsafe notes content fails loud or remains local; a successful notes leg leaves no note on origin whose
+              annotated commit is unavailable
+
+    - `[ ]` **2.3.d Multi-intent sync-state marker handling**
+        - After sibling worktrees share one workspace machine id, do not let same-key marker overwrites hide an
+          earlier live notes-push intent. Keep `.machine-id` as marker provenance, but key marker storage by export
+          intent rather than machine id alone.
+        - Build `test-first` (one behavior at a time):
+            - two sibling worktrees can publish two unresolved notes-push intents without one hiding the other
+            - a later fulfilled sibling intent does not silence an earlier live intent
+            - marker payload still identifies the workspace machine provenance
+            - fulfilled and expired marker intents still self-invalidate / age out as before
 
 ### `[ ]` **2.4 BI-4 — Worktree launch bridge**
 
@@ -259,11 +291,13 @@ coordination detail in `notes-finalize-parallelism.md` § Sequencing.
 - _Goal:_ Each wave-1 cell's predicted failure is induced and observed, confirming (or correcting) its
   loud/silent classification.
 
-    - `[ ]` **3.2.a Notes-ref cross-worktree writer race (BI-3 in practice)**
-        - Induce two same-machine worktree notes writes; confirm serialization holds and no note is dropped.
+    - `[ ]` **3.2.a Notes-ref cross-worktree writer/export race (BI-3 in practice)**
+        - Induce two same-machine worktree notes writes plus the A-save/B-save/A-paired-push interleaving; confirm
+          serialization holds, no note is dropped, and no sibling note is exported before its branch lands.
 
     - `[ ]` **3.2.b Sync-state marker shared-key ordering**
-        - Exercise the shared-key publish (misordered sibling publishes); confirm TTL-bounded, presentation-only.
+        - Exercise misordered sibling publishes with multiple unresolved marker intents; confirm no earlier live
+          marker is hidden, and any remaining shared-key residue is TTL-bounded / presentation-only.
 
     - `[ ]` **3.2.c ROADMAP concurrent regen**
         - Induce concurrent regens from different base states; confirm conflict (loud) vs. stale-render (silent).
@@ -339,12 +373,14 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
 
 ### `[ ]` **5.2 Verify the wave-3 matrix cells**
 
-- _Goal:_ Each wave-3 cell's predicted failure is induced and observed (errands-ref same-slug collision, the
-  three-remover `USER-INBOX` reconciliation, the compaction-seed shared-checkout race).
+- _Goal:_ Each wave-3 cell's predicted failure is induced and observed (errands-ref same-slug collision,
+  same/different-entry `USER-INBOX` removal reconciliation, the compaction-seed shared-checkout race).
 
     - `[ ]` **5.2.a Errands-ref same-slug collision surfacing**
 
-    - `[ ]` **5.2.b `USER-INBOX` three-remover reconciliation**
+    - `[ ]` **5.2.b `USER-INBOX` removal reconciliation**
+        - Induce same-entry and different-entry removal races from the live errand/drain shape; confirm whether
+          serialized-primary practice prevents local resurrection, or record the accepted playbook limitation.
 
     - `[ ]` **5.2.c Compaction-seed shared-checkout race**
 
@@ -492,7 +528,8 @@ parent below states the reconciliation _procedure + recorded outcome_, not the u
 - `[ ]` All five build items land and are verified: BI-1 provisions a spawned worktree to a working state (node
   gates pass off-primary; harness layer present; marker tree clean) and notices when unconfigured; BI-2's
   in-place Materialize checks out a remote WU without spawning, honoring the occupancy guard; BI-3 serializes
-  same-machine cross-worktree notes writers (no dropped note under induced concurrency); BI-4 makes a
+  same-machine cross-worktree notes writers, prevents paired-push sibling-note early export, and keeps marker
+  surfacing from hiding live sibling partial-push intents; BI-4 makes a
   shell-invoked `arc start` CLI-complete with the mini-handoff, and a wave-2 re-graduation lands its ceremony on
   the plan branch with a 120-wrapped `Depends On`; BI-5 fails loud on an old-shape meta before any mutation.
 - `[ ]` All four burn-in waves complete on sacrificial workload with their induced detector-tests firing (base
