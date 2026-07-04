@@ -620,6 +620,8 @@ export async function handleResume(slug: string | undefined, opts: ResumeOptions
     name: target,
     locationTemplate: settings["worktree.location_template"],
     postCreateScript: settings["worktree.post_create"],
+    primaryWorktreePath,
+    registeredHarnessDirs: settings["worktree.harness_dirs"],
     repo: basename(primaryWorktreePath),
     spawningIdentity: base.identity,
   });

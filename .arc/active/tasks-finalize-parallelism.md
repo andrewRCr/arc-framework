@@ -114,13 +114,10 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
           `git worktree add`, surface an unconfigured deps-provisioning notice, and fail loud before marker /
           scaffold follow-on work if the script exits non-zero.
 
-    - `[ ]` **2.1.b Registered-harness-dir copy-from-primary**
-        - The registered-dir list lives under the `worktree.*` config namespace (sibling to `worktree.post_create`),
-          keeping worktree provisioning config in one place.
-        - Build `test-first` (one behavior at a time):
-            - the registered-dir list drives a copy of whatever gitignored harness dirs the primary has
-            - an unregistered harness dir present on the primary is left untouched (registration is the contract)
-        - Copy mechanics themselves are exercised in integration/e2e, not unit.
+    - `[x]` **2.1.b Registered-harness-dir copy-from-primary**
+        - Added `worktree.harness_dirs` with the universal harness-dir default, threaded it through create-new /
+          graduate / resume spawn paths, and copied registered dirs from the primary checkout after post-create
+          provisioning while leaving unregistered primary dirs untouched.
 
     - `[ ]` **2.1.c User-dir scaffold at the ceremony locus**
         - Scaffold the per-WU user workspace at the BI-4-corrected locus (the spawned worktree under spawn mode).

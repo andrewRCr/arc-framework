@@ -125,6 +125,10 @@ export interface ResumeSpawnParams {
   spawningIdentity: string;
   /** Project-supplied post-create provisioning script, run inside the new worktree when configured. */
   postCreateScript?: string;
+  /** Resolved primary checkout path; source for registered harness-dir copy. */
+  primaryWorktreePath?: string;
+  /** Comma-separated registered harness dirs to copy from the primary checkout. */
+  registeredHarnessDirs?: string;
 }
 
 /**
@@ -418,6 +422,8 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
           wuName: name,
           spawningIdentity: params.spawningIdentity,
           postCreateScript: params.postCreateScript,
+          primaryWorktreePath: params.primaryWorktreePath,
+          registeredHarnessDirs: params.registeredHarnessDirs,
         },
   };
 

@@ -141,6 +141,8 @@ async function resolveSpawnConfig(
   baseBranch: string;
   locationTemplate: string;
   postCreateScript: string;
+  primaryWorktreePath: string;
+  registeredHarnessDirs: string;
   repo: string;
   teamMode: boolean;
 } | null> {
@@ -155,6 +157,8 @@ async function resolveSpawnConfig(
     baseBranch: settings["branch.base"],
     locationTemplate: settings["worktree.location_template"],
     postCreateScript: settings["worktree.post_create"],
+    primaryWorktreePath,
+    registeredHarnessDirs: settings["worktree.harness_dirs"],
     repo: basename(primaryWorktreePath),
     teamMode: settings["team.mode"] === "true",
   };
@@ -268,6 +272,8 @@ async function graduate(
       baseBranch: config.baseBranch,
       locationTemplate: config.locationTemplate,
       postCreateScript: config.postCreateScript,
+      primaryWorktreePath: config.primaryWorktreePath,
+      registeredHarnessDirs: config.registeredHarnessDirs,
       repo: config.repo,
       spawningIdentity: ctx.identity,
     },
@@ -356,6 +362,8 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
       name: wuName,
       locationTemplate: config.locationTemplate,
       postCreateScript: config.postCreateScript,
+      primaryWorktreePath: config.primaryWorktreePath,
+      registeredHarnessDirs: config.registeredHarnessDirs,
       repo: config.repo,
       spawningIdentity: ctx.identity,
     },

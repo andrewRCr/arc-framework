@@ -31,6 +31,8 @@ interface MockOptions {
   toplevel?: string;
   /** Make the configured post-create script fail. */
   failPostCreate?: boolean;
+  /** Primary-side directories that should appear present to the harness-dir copy seam. */
+  existingDirs?: readonly string[];
 }
 
 /**
@@ -40,6 +42,7 @@ interface MockOptions {
  */
 function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorktreeContext; events: Event[] } {
   const events: Event[] = [];
+  const existingDirs = new Set(opts.existingDirs ?? []);
   const exec: GitExec = async (cmd, args) => {
     events.push([cmd, ...args]);
     if (cmd !== "git" && opts.failPostCreate === true) throw new Error("exit 42");
@@ -51,6 +54,15 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorktreeContext; even
   const ctx: ReconcileWorktreeContext = {
     exec,
     chdir: (dir) => events.push(["chdir", dir]),
+    fs: {
+      directoryExists: async (path) => {
+        events.push(["exists", path]);
+        return existingDirs.has(path);
+      },
+      copyDirectory: async (source, destination) => {
+        events.push(["copy", source, destination]);
+      },
+    },
   };
   return { ctx, events };
 }
@@ -180,6 +192,69 @@ describe("reconcileWorktree — spawn", () => {
       postCreateCommand,
     ]);
     expect(await readWorktreeMarker(expectedPath)).toEqual({ kind: "absent" });
+  });
+
+  it("copies registered primary harness dirs after post-create provisioning", async () => {
+    const primaryPath = join(root, "primary");
+    const template = join(root, "{repo}.{branch}");
+    const expectedPath = resolveWorktreeLocation({ template, repo: "demo", branch: "plan/demo-wu" });
+    const { ctx, events } = buildCtx({
+      existingDirs: [join(primaryPath, ".codex"), join(primaryPath, ".claude")],
+    });
+    const postCreateCommand =
+      process.platform === "win32"
+        ? ["cmd.exe", "/d", "/s", "/c", "npm run wt:post-create"]
+        : ["sh", "-c", "npm run wt:post-create"];
+
+    await reconcileWorktree(ctx, {
+      mutation: "spawn",
+      branch: "plan/demo-wu",
+      base: "main",
+      locationTemplate: template,
+      repo: "demo",
+      wuName: "demo-wu",
+      spawningIdentity: "andrew",
+      postCreateScript: "npm run wt:post-create",
+      registeredHarnessDirs: ".codex,.claude,.missing",
+      primaryWorktreePath: primaryPath,
+    });
+
+    expect(events).toEqual([
+      ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
+      postCreateCommand,
+      ["exists", join(primaryPath, ".codex")],
+      ["copy", join(primaryPath, ".codex"), join(expectedPath, ".codex")],
+      ["exists", join(primaryPath, ".claude")],
+      ["copy", join(primaryPath, ".claude"), join(expectedPath, ".claude")],
+      ["exists", join(primaryPath, ".missing")],
+    ]);
+  });
+
+  it("leaves unregistered primary harness dirs untouched", async () => {
+    const primaryPath = join(root, "primary");
+    const template = join(root, "{repo}.{branch}");
+    const expectedPath = resolveWorktreeLocation({ template, repo: "demo", branch: "plan/demo-wu" });
+    const { ctx, events } = buildCtx({
+      existingDirs: [join(primaryPath, ".codex"), join(primaryPath, ".unregistered-harness")],
+    });
+
+    await reconcileWorktree(ctx, {
+      mutation: "spawn",
+      branch: "plan/demo-wu",
+      base: "main",
+      locationTemplate: template,
+      repo: "demo",
+      wuName: "demo-wu",
+      spawningIdentity: "andrew",
+      registeredHarnessDirs: ".codex",
+      primaryWorktreePath: primaryPath,
+    });
+
+    expect(events).toEqual([
+      ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
+      ["exists", join(primaryPath, ".codex")],
+      ["copy", join(primaryPath, ".codex"), join(expectedPath, ".codex")],
+    ]);
   });
 
   it("re-attaches an existing branch (bare add, no -b) and still marks the worktree for resume", async () => {

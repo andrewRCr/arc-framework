@@ -78,6 +78,7 @@ function okConfig(): Probe<ConfigStatusResult> {
         "branch.protection": "partial",
         "worktree.location_template": "../{repo}.{branch}",
         "worktree.post_create": "",
+        "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
         "commit.format": "conventional",
         "commit.context_footer": "required",
         "commit.custom_pattern": "",
@@ -283,7 +284,7 @@ describe("buildStatusSummary — full mode", () => {
     // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
     expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("23 agent-consumable settings");
+    expect(summary).toContain("24 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });

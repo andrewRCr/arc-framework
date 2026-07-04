@@ -72,6 +72,7 @@ async function setup(): Promise<Harness> {
     join(repo, ".arc", "system", "arc-config.yml"),
     `branch.base: main\nbranch.protection: partial\nworktree.location_template: ${locationTemplate}\n`,
   );
+  await writeFile(join(repo, ".gitignore"), ".codex/\n.unregistered-harness/\n");
   await execFileAsync("git", ["add", "-A"], { cwd: repo });
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "scaffold"], { cwd: repo });
   return { repo, io: { ...createUserIOContext(), exec: makeGitExec(repo) }, locationTemplate, spawned: [] };
@@ -128,6 +129,30 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(record.State).toBe("Planning");
     expect(record.Branch).toBe("plan/alpha");
     expect((await readWorktreeMarker(wt)).kind).toBe("present");
+  });
+
+  it("create-new: copies registered gitignored harness dirs from the primary worktree only", async () => {
+    await mkdir(join(h.repo, ".codex", "skills"), { recursive: true });
+    await writeFile(join(h.repo, ".codex", "skills", "arc.txt"), "copied from primary\n");
+    await mkdir(join(h.repo, ".unregistered-harness"), { recursive: true });
+    await writeFile(join(h.repo, ".unregistered-harness", "secret.txt"), "should stay primary-local\n");
+    await writeFile(
+      join(h.repo, ".arc", "system", "arc-config.yml"),
+      `branch.base: main\nbranch.protection: partial\nworktree.location_template: ${h.locationTemplate}\nworktree.harness_dirs: .codex\n`,
+    );
+
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/harnessed" });
+    h.spawned.push(wt);
+
+    const outcome = await runCreateNew(
+      { io: h.io, internalTemplateDir: getInternalTemplatePath() },
+      { worktreePath: h.repo, identity: IDENTITY, name: "harnessed" },
+    );
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    await expect(readFile(join(wt, ".codex", "skills", "arc.txt"), "utf8")).resolves.toBe("copied from primary\n");
+    expect(await pathExists(join(wt, ".unregistered-harness", "secret.txt"))).toBe(false);
   });
 
   it("graduate: an existing backlog stub graduates onto its branch (never mis-scaffolds)", async () => {

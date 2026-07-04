@@ -49,6 +49,11 @@ worktree.location_template: ../{repo}.{branch}
 # notice instead of silently doing nothing.
 worktree.post_create: ""
 
+# Comma-separated list of top-level gitignored harness directories to copy
+# from the primary checkout into ARC-created linked worktrees. ARC copies only
+# entries that exist on the primary checkout and skips absent entries.
+worktree.harness_dirs: .claude,.codex,.gemini,.opencode
+
 # --- Commit Discipline ---
 
 # Commit message format enforced by commit-msg hook.

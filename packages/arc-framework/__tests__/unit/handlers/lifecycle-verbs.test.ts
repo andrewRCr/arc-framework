@@ -35,7 +35,12 @@ vi.mock("../../../src/lib/io-context.js", () => ({
 
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
   readConfigSettings: async () => ({
-    settings: { "team.mode": "false", "worktree.location_template": "../{repo}-{branch}", "worktree.post_create": "" },
+    settings: {
+      "team.mode": "false",
+      "worktree.location_template": "../{repo}-{branch}",
+      "worktree.post_create": "",
+      "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
+    },
   }),
 }));
 

@@ -15,6 +15,7 @@ import {
   AGENT_CONSUMABLE_KEYS,
   readConfigSettings,
 } from "../../../src/lib/config/status-reader.js";
+import { DEFAULT_WORKTREE_HARNESS_DIRS } from "../../../src/lib/git/worktree-harness-dirs.js";
 
 interface Fixture {
   root: string;
@@ -29,8 +30,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 23 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(23);
+  it("enumerates the 24 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(24);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -121,6 +122,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "branch.protection: full",
       "worktree.location_template: .worktrees/{branch}",
       "worktree.post_create: npm run setup:worktree",
+      "worktree.harness_dirs: .codex,.custom-harness",
       "commit.format: custom",
       "commit.context_footer: disabled",
       "commit.custom_pattern: ^FOO-.+",
@@ -147,6 +149,7 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["branch.base"]).toBe("develop");
     expect(result.settings["worktree.location_template"]).toBe(".worktrees/{branch}");
     expect(result.settings["worktree.post_create"]).toBe("npm run setup:worktree");
+    expect(result.settings["worktree.harness_dirs"]).toBe(".codex,.custom-harness");
     expect(result.settings["commit.format"]).toBe("custom");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["user.notes_push"]).toBe("manual");
@@ -519,6 +522,36 @@ describe("readConfigSettings — worktree.post_create", () => {
     const result = await readConfigSettings(fixture.root);
     expect(result.settings["worktree.post_create"]).toBe("npm run setup:worktree");
     expect(result.defaultsApplied).not.toContain("worktree.post_create");
+    expect(result.warnings).toHaveLength(0);
+  });
+});
+
+describe("readConfigSettings — worktree.harness_dirs", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("is an agent-consumable key", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toContain("worktree.harness_dirs");
+  });
+
+  it("applies the registered harness-dir default when absent", async () => {
+    await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["worktree.harness_dirs"]).toBe(DEFAULT_WORKTREE_HARNESS_DIRS);
+    expect(result.defaultsApplied).toContain("worktree.harness_dirs");
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("passes any on-disk value through verbatim (freeform registered-dir list)", async () => {
+    await writeFile(fixture.configPath, "worktree.harness_dirs: .codex,.custom-harness\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["worktree.harness_dirs"]).toBe(".codex,.custom-harness");
+    expect(result.defaultsApplied).not.toContain("worktree.harness_dirs");
     expect(result.warnings).toHaveLength(0);
   });
 });

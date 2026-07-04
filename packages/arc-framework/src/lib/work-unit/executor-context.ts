@@ -54,7 +54,10 @@ import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js
 import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-executor.js";
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
-import { reconcileWorktree } from "./mutators/reconcile-worktree.js";
+import {
+  nodeReconcileWorktreeFs,
+  reconcileWorktree,
+} from "./mutators/reconcile-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
 import { dischargeDepEdges } from "./side-effects/discharge-dep-edges.js";
@@ -179,7 +182,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
     reconcileWorktree: (op) =>
-      reconcileWorktree({ exec, chdir: (dir) => { process.chdir(at(dir)); } }, op),
+      reconcileWorktree({ exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorktreeFs }, op),
 
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));

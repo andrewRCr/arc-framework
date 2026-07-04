@@ -44,7 +44,10 @@ import {
   type TransitionInputs,
   type TransitionOutcome,
 } from "../lib/work-unit/lifecycle-executor.js";
-import { reconcileWorktree } from "../lib/work-unit/mutators/reconcile-worktree.js";
+import {
+  nodeReconcileWorktreeFs,
+  reconcileWorktree,
+} from "../lib/work-unit/mutators/reconcile-worktree.js";
 import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
@@ -132,6 +135,10 @@ export interface GraduateSpawnParams extends GraduateBaseParams {
   spawningIdentity: string;
   /** Project-supplied post-create provisioning script, run inside the new worktree when configured. */
   postCreateScript?: string;
+  /** Resolved primary checkout path; source for registered harness-dir copy. */
+  primaryWorktreePath?: string;
+  /** Comma-separated registered harness dirs to copy from the primary checkout. */
+  registeredHarnessDirs?: string;
 }
 
 /**
@@ -197,6 +204,8 @@ export async function runGraduate(
           wuName: params.name,
           spawningIdentity: params.spawningIdentity,
           postCreateScript: params.postCreateScript,
+          primaryWorktreePath: params.primaryWorktreePath,
+          registeredHarnessDirs: params.registeredHarnessDirs,
         },
     class: params.cls,
   };
@@ -480,6 +489,7 @@ export async function runCreateNew(
   const baseBranch = settings["branch.base"];
   const locationTemplate = settings["worktree.location_template"];
   const postCreateScript = settings["worktree.post_create"];
+  const registeredHarnessDirs = settings["worktree.harness_dirs"];
 
   const primaryWorktreePath = await resolvePrimaryWorktreePath(ctx.io.exec);
   if (primaryWorktreePath === null) {
@@ -496,7 +506,7 @@ export async function runCreateNew(
   let postCreateNotice: string | undefined;
   try {
     const spawnResult = await reconcileWorktree(
-      { exec: ctx.io.exec, chdir: (dir) => { process.chdir(dir); } },
+      { exec: ctx.io.exec, chdir: (dir) => { process.chdir(dir); }, fs: nodeReconcileWorktreeFs },
       {
         mutation: "spawn",
         branch,
@@ -506,6 +516,8 @@ export async function runCreateNew(
         wuName,
         spawningIdentity: params.identity,
         postCreateScript,
+        primaryWorktreePath,
+        registeredHarnessDirs,
       },
     );
     if (spawnResult.mutation !== "spawn") {

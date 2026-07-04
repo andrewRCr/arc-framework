@@ -120,6 +120,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "branch.protection": "partial",
       "worktree.location_template": "../{repo}.{branch}",
       "worktree.post_create": "",
+      "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
       "commit.format": "conventional",
       "commit.context_footer": "required",
       "commit.custom_pattern": "",

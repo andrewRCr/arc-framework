@@ -56,7 +56,10 @@ import { buildLifecycleIndex, type LifecycleIndexFs } from "../lifecycle-index.j
 import { isShipped } from "../lifecycle-resolver.js";
 import { fetchPrune } from "../mutators/fetch-prune.js";
 import { reconcileBranch } from "../mutators/reconcile-branch.js";
-import { reconcileWorktree } from "../mutators/reconcile-worktree.js";
+import {
+  nodeReconcileWorktreeFs,
+  reconcileWorktree,
+} from "../mutators/reconcile-worktree.js";
 import { isSlugSafe } from "../slug.js";
 
 /** The seams `runTeardown` drives — the git executor (pinned to cwd), the index scan, and the locus-hop. */
@@ -210,7 +213,10 @@ async function teardownBranchProjection(
     const primary = await resolvePrimaryWorktreePath(exec);
     if (worktreePath !== undefined && worktreePath !== primary) {
       try {
-        await reconcileWorktree({ exec, chdir }, { mutation: "teardown", worktreePath, currentLocus: cwd });
+        await reconcileWorktree(
+          { exec, chdir, fs: nodeReconcileWorktreeFs },
+          { mutation: "teardown", worktreePath, currentLocus: cwd },
+        );
       } catch (err) {
         return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
       }

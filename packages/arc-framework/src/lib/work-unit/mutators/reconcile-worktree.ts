@@ -35,9 +35,11 @@
  * @module
  */
 
-import { isAbsolute, relative, resolve } from "node:path";
+import { cp, stat } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
+import { parseRegisteredHarnessDirs } from "../../git/worktree-harness-dirs.js";
 import { isWorktreeClean } from "../../git/worktree-cleanup.js";
 import { writeWorktreeOwnershipMarker } from "../../git/worktree-marker.js";
 import { resolveWorktreeLocation } from "../../git/worktree-location.js";
@@ -49,7 +51,32 @@ export interface ReconcileWorktreeContext {
   exec: GitExec;
   /** Relocate the agent's process locus on a self-teardown. Production binds `process.chdir`. */
   chdir: (dir: string) => void;
+  /** Filesystem seam for post-create harness-dir provisioning. */
+  fs: ReconcileWorktreeFs;
 }
+
+/** Filesystem operations used by the fresh-worktree post-create provisioning leg. */
+export interface ReconcileWorktreeFs {
+  /** Return true when `path` exists and is a directory. */
+  directoryExists(path: string): Promise<boolean>;
+  /** Recursively copy a directory into the destination worktree. */
+  copyDirectory(source: string, destination: string): Promise<void>;
+}
+
+/** Production filesystem adapter for {@link reconcileWorktree}. */
+export const nodeReconcileWorktreeFs: ReconcileWorktreeFs = {
+  directoryExists: async (path) => {
+    try {
+      return (await stat(path)).isDirectory();
+    } catch (err) {
+      if (isErrnoException(err) && err.code === "ENOENT") return false;
+      throw err;
+    }
+  },
+  copyDirectory: async (source, destination) => {
+    await cp(source, destination, { recursive: true, force: true });
+  },
+};
 
 /**
  * The worktree operation to perform, as a discriminated union:
@@ -85,6 +112,10 @@ export type ReconcileWorktreeOp =
       spawningIdentity: string;
       /** Project-supplied post-create provisioning script, run inside the new worktree when configured. */
       postCreateScript?: string;
+      /** Resolved primary checkout path; source for registered harness-dir copy. */
+      primaryWorktreePath?: string;
+      /** Comma-separated `worktree.harness_dirs` value. */
+      registeredHarnessDirs?: string;
       /** Marker timestamp (epoch millis); injectable for tests. */
       now?: number;
     }
@@ -134,6 +165,33 @@ function postCreateShellCommand(script: string): { cmd: string; args: string[] }
   return process.platform === "win32"
     ? { cmd: "cmd.exe", args: ["/d", "/s", "/c", script] }
     : { cmd: "sh", args: ["-c", script] };
+}
+
+function isErrnoException(err: unknown): err is { code?: string } {
+  return typeof err === "object" && err !== null && "code" in err;
+}
+
+async function copyRegisteredHarnessDirs(
+  ctx: ReconcileWorktreeContext,
+  params: {
+    primaryWorktreePath: string | undefined;
+    worktreePath: string;
+    registeredHarnessDirs: string | undefined;
+  },
+): Promise<void> {
+  const dirs = parseRegisteredHarnessDirs(params.registeredHarnessDirs);
+  if (dirs.length === 0) return;
+
+  const primaryWorktreePath = params.primaryWorktreePath ?? (await resolvePrimaryWorktreePath(ctx.exec));
+  if (primaryWorktreePath === null) {
+    throw new Error("could not resolve the primary worktree path to copy registered harness dirs");
+  }
+
+  for (const dir of dirs) {
+    const source = join(primaryWorktreePath, dir);
+    if (!(await ctx.fs.directoryExists(source))) continue;
+    await ctx.fs.copyDirectory(source, join(params.worktreePath, dir));
+  }
 }
 
 /**
@@ -192,6 +250,11 @@ export async function reconcileWorktree(
     } else {
       postCreateNotice = POST_CREATE_UNCONFIGURED_NOTICE;
     }
+    await copyRegisteredHarnessDirs(ctx, {
+      primaryWorktreePath: op.primaryWorktreePath,
+      worktreePath,
+      registeredHarnessDirs: op.registeredHarnessDirs,
+    });
     await writeWorktreeOwnershipMarker(worktreePath, {
       createdByArc: true,
       wuName: op.wuName,
