@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 
@@ -1258,7 +1258,12 @@ describe("LocalSyncState v4 schema", () => {
 
   function realFsIO(overrides: Partial<UserIOContext> = {}): UserIOContext {
     return {
-      exec: vi.fn(async () => ({ stdout: "", stderr: "" })),
+      exec: vi.fn(async (cmd: string, args: string[], options?: { cwd?: string }) => {
+        if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: ".git\n", stderr: "" };
+        }
+        throw new Error(`unexpected git call from ${options?.cwd ?? "<none>"}: ${cmd} ${args.join(" ")}`);
+      }),
       readFile: vi.fn(async (p: string) => readFile(p, "utf-8")),
       writeFile: vi.fn(async (p: string, c: string) => {
         await writeFile(p, c, "utf-8");
@@ -1269,6 +1274,10 @@ describe("LocalSyncState v4 schema", () => {
       writeNote: vi.fn(async () => undefined),
       ...overrides,
     };
+  }
+
+  function machineIdStore(root: string = cwd): string {
+    return join(root, ".git", "arc", "user", identity, ".internal", ".machine-id");
   }
 
   it("reads v2 records without error and leaves savedAt undefined", async () => {
@@ -1539,8 +1548,33 @@ describe("LocalSyncState v4 schema", () => {
     const id = await getOrCreateMachineId(cwd, realFsIO(), identity);
 
     expect(id).toMatch(UUID_V4);
-    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    const onDisk = (await readFile(machineIdStore(), "utf-8")).trim();
     expect(onDisk).toBe(id);
+    expect(await exists(join(internalDir, ".machine-id"))).toBe(false);
+  });
+
+  it("stores machine-id in the git common dir so sibling worktrees share it without checkout pollution", async () => {
+    const commonGitDir = join(cwd, ".git");
+    const siblingCwd = join(dirname(cwd), `${basename(cwd)}-sibling`);
+    await mkdir(siblingCwd, { recursive: true });
+    const exec = vi.fn(async (cmd: string, args: string[], options?: { cwd?: string }) => {
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+        return { stdout: `${commonGitDir}\n`, stderr: "" };
+      }
+      throw new Error(`unexpected git call from ${options?.cwd ?? "<none>"}: ${cmd} ${args.join(" ")}`);
+    });
+    const io = realFsIO({ exec });
+
+    const first = await getOrCreateMachineId(cwd, io, identity);
+    const second = await getOrCreateMachineId(siblingCwd, io, identity);
+
+    expect(second).toBe(first);
+    expect(exec).toHaveBeenCalledWith("git", ["rev-parse", "--git-common-dir"], { cwd });
+    expect(exec).toHaveBeenCalledWith("git", ["rev-parse", "--git-common-dir"], { cwd: siblingCwd });
+    const commonStore = join(commonGitDir, "arc", "user", identity, ".internal", ".machine-id");
+    expect((await readFile(commonStore, "utf-8")).trim()).toBe(first);
+    expect(await exists(join(cwd, ".arc", "user", identity, ".internal", ".machine-id"))).toBe(false);
+    expect(await exists(join(siblingCwd, ".arc", "user", identity, ".internal", ".machine-id"))).toBe(false);
   });
 
   it("returns the same machine-id on a subsequent read (idempotent — no regeneration)", async () => {
@@ -1548,7 +1582,7 @@ describe("LocalSyncState v4 schema", () => {
     const second = await getOrCreateMachineId(cwd, realFsIO(), identity);
 
     expect(second).toBe(first);
-    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    const onDisk = (await readFile(machineIdStore(), "utf-8")).trim();
     expect(onDisk).toBe(first);
   });
 
@@ -1574,6 +1608,7 @@ describe("LocalSyncState v4 schema", () => {
     // Force the lost-race branch: the injected create models a concurrent
     // first-caller that already wrote the canonical id, so our create collides.
     const losingCreate = vi.fn(async (path: string) => {
+      await mkdir(dirname(path), { recursive: true });
       await writeFile(path, winnerId, "utf-8");
       const err: NodeJS.ErrnoException = new Error("EEXIST: file already exists");
       err.code = "EEXIST";
@@ -1584,7 +1619,7 @@ describe("LocalSyncState v4 schema", () => {
 
     expect(id).toBe(winnerId);
     expect(losingCreate).toHaveBeenCalledOnce();
-    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    const onDisk = (await readFile(machineIdStore(), "utf-8")).trim();
     expect(onDisk).toBe(winnerId);
   });
 
@@ -1597,7 +1632,7 @@ describe("LocalSyncState v4 schema", () => {
 
     await expect(getOrCreateMachineId(cwd, io, identity)).rejects.toThrow("EACCES");
     // The error aborted before any create — no id was written behind it.
-    expect(await exists(join(internalDir, ".machine-id"))).toBe(false);
+    expect(await exists(machineIdStore())).toBe(false);
   });
 
   it("adopts a legacy .sync-state.json machineId into .machine-id instead of minting fresh", async () => {
@@ -1608,8 +1643,20 @@ describe("LocalSyncState v4 schema", () => {
 
     // The established identity migrates, rather than a fresh mint orphaning its marker key.
     expect(id).toBe(legacyId);
-    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    const onDisk = (await readFile(machineIdStore(), "utf-8")).trim();
     expect(onDisk).toBe(legacyId);
+  });
+
+  it("adopts a legacy checkout-local .machine-id into the common-dir store", async () => {
+    const legacyId = "abcdef01-1234-4abc-89ab-001122334455";
+    const legacyPath = join(internalDir, ".machine-id");
+    await writeFile(legacyPath, legacyId, "utf-8");
+
+    const id = await getOrCreateMachineId(cwd, realFsIO(), identity);
+
+    expect(id).toBe(legacyId);
+    expect((await readFile(machineIdStore(), "utf-8")).trim()).toBe(legacyId);
+    expect((await readFile(legacyPath, "utf-8")).trim()).toBe(legacyId);
   });
 
   it("read-tolerates the legacy .sync-state.json machineId — never writes it back", async () => {

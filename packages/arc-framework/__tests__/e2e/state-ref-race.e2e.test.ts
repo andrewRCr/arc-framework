@@ -19,7 +19,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { readFile, rm } from "node:fs/promises";
+import { readFile, rm, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
@@ -58,6 +58,16 @@ async function refTip(repo: string, ref: string): Promise<string | null> {
     return stdout.trim();
   } catch {
     return null;
+  }
+}
+
+/** Whether a filesystem path exists. */
+async function exists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -204,12 +214,40 @@ describe("true-race smokes — same-machine write-safety guards", () => {
         expect(new Set(ids).size, `round ${round} converged`).toBe(1);
 
         const persisted = (
-          await readFile(join(dir, ".arc", "user", identity, ".internal", ".machine-id"), "utf-8")
+          await readFile(join(dir, ".git", "arc", "user", identity, ".internal", ".machine-id"), "utf-8")
         ).trim();
         expect(persisted, `round ${round} persisted`).toBe(ids[0]);
       }
     } finally {
       await cleanupTempDir(dir);
+    }
+  }, SMOKE_TIMEOUT_MS);
+
+  it("machine-id (D3): sibling worktrees converge on one common-dir id without checkout pollution", async () => {
+    const dir = await createTempRepo("arc-race-machineid-worktrees-");
+    const worktree = join(dirname(dir), `${basename(dir)}-sibling`);
+    try {
+      await emptyCommit(dir, "base");
+      await execFileAsync("git", ["worktree", "add", "-b", "sibling", worktree, "HEAD"], { cwd: dir });
+      const identity = "shared-mid";
+
+      const results = await runRound([
+        ["machine-id", dir, identity],
+        ["machine-id", worktree, identity],
+      ]);
+      expectAllOk(results, 0);
+
+      const ids = results.map((res) => (JSON.parse(res.stdout.trim()) as { id: string }).id);
+      expect(ids[0]).toBeTruthy();
+      expect(new Set(ids).size).toBe(1);
+      const commonStore = join(dir, ".git", "arc", "user", identity, ".internal", ".machine-id");
+      expect((await readFile(commonStore, "utf-8")).trim()).toBe(ids[0]);
+      expect(await exists(join(dir, ".arc", "user", identity, ".internal", ".machine-id"))).toBe(false);
+      expect(await exists(join(worktree, ".arc", "user", identity, ".internal", ".machine-id"))).toBe(false);
+    } finally {
+      await execFileAsync("git", ["worktree", "remove", "--force", worktree], { cwd: dir }).catch(() => {});
+      await cleanupTempDir(dir);
+      await rm(worktree, { recursive: true, force: true });
     }
   }, SMOKE_TIMEOUT_MS);
 });

@@ -64,7 +64,7 @@ async function readMarker(
 
 /** This clone's persisted machine-id (assigned on the first marker publish). */
 async function machineId(clone: string): Promise<string> {
-  const path = join(clone, ".arc", "user", IDENTITY, ".internal", ".machine-id");
+  const path = join(clone, ".git", "arc", "user", IDENTITY, ".internal", ".machine-id");
   const id = (await readFile(path, "utf-8")).trim();
   if (!id) throw new Error("machine-id not persisted");
   return id;

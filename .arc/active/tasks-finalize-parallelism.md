@@ -166,13 +166,12 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
         - Unit coverage now asserts absolute and relative common-dir resolution, and the true-race e2e smoke now
           races primary + linked-worktree note writers to prove both notes survive under the shared lock.
 
-    - `[ ]` **2.3.b Mint `.machine-id` at the git common dir (workspace-as-machine)**
-        - Re-base `getMachineIdPath` / `getOrCreateMachineId` (`lib/user-sync/sync-state.ts`) from per-checkout to
-          the git common dir (same async `git rev-parse --git-common-dir` resolution as 2.3.a; the untracked
-          `.git` common tree is what satisfies the no-marker-pollution goal).
-        - Build `test-first` (one behavior at a time):
-            - sibling worktrees resolve the same machine id
-            - no per-checkout mint pollutes the marker tree
+    - `[x]` **2.3.b Mint `.machine-id` at the git common dir (workspace-as-machine)**
+        - `getOrCreateMachineId` now stores the per-workspace machine id under the repo git common dir via the
+          shared repo-user internal path helper, adopts legacy checkout-local IDs, and leaves `.sync-state.json`
+          per-checkout under `.arc/user`.
+        - Unit and true-race e2e coverage now prove primary + linked worktrees converge on one id and leave no
+          checkout-local `.machine-id` behind; sync-state marker producer tests read the new common-dir store.
 
     - `[ ]` **2.3.c Branch-bounded paired notes export**
         - Keep paired push's worktree-before-notes invariant true even when the shared local notes ref contains notes

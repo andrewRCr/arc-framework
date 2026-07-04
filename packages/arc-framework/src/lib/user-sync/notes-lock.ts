@@ -27,18 +27,16 @@
 
 import { randomUUID } from "node:crypto";
 import { readFile as fsReadFile, unlink as fsUnlink } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { join } from "node:path";
 
 import { exclusiveCreateFile } from "../fs.js";
 import type { GitExec } from "../git/exec.js";
 
+import { getRepoSharedUserInternalDir } from "./repo-shared-paths.js";
 import type { ExclusiveCreateFn } from "./sync-state.js";
 
 /** Notes write lockfile name under the repo-shared git common dir. */
 const NOTES_LOCK_FILENAME = ".notes.lock";
-const REPO_SHARED_ARC_DIR = "arc";
-const REPO_SHARED_USER_DIR = "user";
-const REPO_SHARED_INTERNAL_DIR = ".internal";
 
 /** Total bounded wait for a held-and-live lock before surfacing a timeout. */
 const DEFAULT_MAX_WAIT_MS = 10_000;
@@ -129,24 +127,7 @@ export class AdvisoryLockTimeoutError extends Error {
 
 /** Absolute path to the repo-shared notes-write lockfile for an identity. */
 export async function getNotesLockPath(exec: GitExec, cwd: string, identity: string): Promise<string> {
-  const commonDir = await resolveGitCommonDir(exec, cwd);
-  return join(
-    commonDir,
-    REPO_SHARED_ARC_DIR,
-    REPO_SHARED_USER_DIR,
-    identity,
-    REPO_SHARED_INTERNAL_DIR,
-    NOTES_LOCK_FILENAME,
-  );
-}
-
-async function resolveGitCommonDir(exec: GitExec, cwd: string): Promise<string> {
-  const { stdout } = await exec("git", ["rev-parse", "--git-common-dir"], { cwd });
-  const commonDir = stdout.trim();
-  if (commonDir.length === 0) {
-    throw new Error("git rev-parse --git-common-dir returned an empty path");
-  }
-  return isAbsolute(commonDir) ? commonDir : resolve(cwd, commonDir);
+  return join(await getRepoSharedUserInternalDir(exec, cwd, identity), NOTES_LOCK_FILENAME);
 }
 
 /**
