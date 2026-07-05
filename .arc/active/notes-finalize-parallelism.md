@@ -54,8 +54,9 @@ drain-time check landed in the rules + strategy). The edges that remain live dur
 
 ### Dogfood finding (2026-07-05): worktree launch model
 
-Surfaced dogfooding FP from the primary. Two coupled findings; both reshape **BI-4** and add a launch-model
-doctrine question to the GA scope.
+Surfaced dogfooding FP from the primary. Three coupled findings: the first two reshape **BI-4** and add a
+launch-model doctrine question to the GA scope; the third (below) reinforces the spawn-anchored model with
+recovery-integrity evidence and reshapes **BI-6** (Task 2.6.e).
 
 **Relocate desync (retires BI-4(c) as SOP).** `EnterWorktree` — Claude Code's BI-4(c) "true relocate" — hops the
 *agent process* cwd into the linked worktree, but the developer's terminal and tooling do not follow: Warp + Herdr
@@ -90,6 +91,18 @@ the anti-pattern.
 worktree that writes FP's *divergent local* inbox copy (the 2026-07-04 divergence), not the canonical primary — so
 the finding lands in these tracked notes instead. The capture reflex hitting the wrong inbox is one more instance of
 the BI-6 identity-global-surface gap.
+
+**Compaction-recovery integrity (reinforces spawn-anchored; adds Task 2.6.e).** This session's post-compaction
+recovery read a seed describing `main`, not FP — proof the launch model has teeth beyond terminal UX. Two distinct
+mechanisms, verified in code: (1) *Capture* — the PreCompact / SessionStart hooks resolve their root from
+`CLAUDE_PROJECT_DIR` (unset here) → `git rev-parse --show-toplevel` at the *harness* launch cwd, which is the primary
+under relocate; the agent's per-command `cd` is invisible to them, so the emit captured `main`. Spawn-anchored launch
+(harness rooted *in* the worktree) fixes this — recovery-integrity evidence for the (a)/(b) model, verified by a
+wave. (2) *Storage* — 2.6.a routed the seed through the identity-global resolver (→ primary), but the seed is
+per-session state; under concurrent worktrees every session clobbers the one shared seed (last-writer-wins) and
+recovers another worktree's state. This bites the *blessed* concurrent path, not the relocate one, so spawn-anchored
+does **not** fix it — hence **Task 2.6.e** re-binds the seed worktree-local. No harm this session: the harness's own
+compaction summary + tracked state carried the real context; the ARC seed was inert.
 
 ## Shared-mutable-surface matrix
 

@@ -292,6 +292,18 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
           base carries the cleanup; wave 1 verifies a spawned worktree shows no stale surfaces. (Always-fresh
           materialization + tracked `ROADMAP` parity + the pinning DX are downstream — captured to a separate stub.)
 
+    - `[ ]` **2.6.e Re-bind the compaction-recovery seed worktree-local, not identity-global**
+        - 2.6.a routed the compaction-seed through the identity-global resolver (→ primary), but the seed is
+          per-session state, not identity-global — closer to SESSION-NOTES than to `WORKING-MEMORY`. Spawn-anchored
+          launch fixes _capture_ (whose state the seed describes) but not _storage_: under concurrent worktrees every
+          session resolves the same `primary/.arc/user/{id}/.internal/compaction-seed.json`, so compactions clobber
+          each other last-writer-wins and a session recovers a _different_ worktree's state. Re-resolve the seed
+          worktree-local (per-session), symmetric across emit (`status --write-compaction-seed`) and audit
+          (`recover`), decoupled from the identity-global resolver; tear it down with the worktree. Lands before
+          Phase 2.I so base carries it; a wave verifies two concurrent worktree sessions each recover their own
+          state, no clobber. (Surfaced 2026-07-05 when this session's relocate anchored the seed to `main`; the
+          clobber itself is on the blessed concurrent path, not the relocate one.)
+
 ## **Phase 2.R:** ROADMAP renderer gate
 
 _Purpose:_ Repair the discovered pre-wave gap: wave 1 needs deterministic ROADMAP regeneration before concurrent
@@ -302,7 +314,7 @@ spawning the sacrificial WUs.
 _Design decisions:_ The implementation belongs to `roadmap-tooling` or a split from it, not FP. FP tracks the gate
 and records the verification only.
 
-### `[ ]` **2.R.1 Pull forward the deterministic ROADMAP renderer slice**
+### `[x]` **2.R.1 Pull forward the deterministic ROADMAP renderer slice**
 
 - _Goal:_ The minimal renderer capability needed by wave 1 lands outside FP, without requiring full Heavy
   `roadmap-tooling` completion.
