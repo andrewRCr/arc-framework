@@ -12,11 +12,11 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.5 — BI-5 — Graduate-transition crash-class fix
-- **Next Task:** Task 2.6.a — User-surface resolver by semantic scope (line ~266)
+- **Last Completed:** Task 2.6 — BI-6 — Identity-global user-surface binding
+- **Next Task:** Task 3.1.a — Confirm the wave-1 slate (line ~300)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.6.a — implement the semantic user-surface resolver and wire identity-global callers
+- **Next Action:** Start Task 3.1.a — confirm the wave-1 slate and verify FP surface-disjointness
 
 - **PR URL:** [none]
 - **Completed:** [none]
