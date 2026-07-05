@@ -269,6 +269,43 @@ primary solution: that bakes in checkout-local state and conflicts with `operati
 The durable record shape stays slug-keyed / entry-granular, mapping cleanly to the backend event-log model for
 mutable inbox records; BI-6 only fixes the materialization binding needed before worktree GA.
 
+### WU-entry architecture (settled 2026-07-05)
+
+Worktree-by-default raises WU-entry cadence, so entry paths must be first-class rather than the current stopgap.
+The 2026-07-05 dogfood finding (`notes-finalize-parallelism.md`) forces the launch-model rework below. FP ships
+the entry ergonomics; it does **not** build the broader lifecycle reform (captured separately, last bullet).
+
+- **Launch model — spawn-anchored is universal.** The universal entry is a fresh session started in the target
+  worktree, booting rich via the mini-handoff. Live relocate (`EnterWorktree` into an already-running session) is
+  demoted to an opt-in escape hatch, not the default. The finding: relocating a live session into a spawned
+  worktree desyncs its loaded context from the worktree's actual state; a fresh in-worktree session avoids it.
+
+- **`--start` disposition — keep, as an agentic focused-recon arm.** `arc-session --start <slug>` is retained and
+  sharpened: a universal load-set (not general discovery), deterministic readiness recon on the named WU, then an
+  informed prompt (ready / not + why; launch via `arc start` and read the worktree SESSION-NOTES?). Single-turn
+  when green, with the primed agent fielding follow-up questions. It is symmetric with bare `arc start <slug>`
+  (the no-agent action, the documented default for the know-what-to-start case). No separate `--vet` / `--precheck`
+  verb — the agentic door is `--start`, the plain door is bare `arc start`.
+
+- **Vet content — Tier-1 gates, Tier-2 invites.** Tier-1 deterministic signals (dependency edges; base-drift
+  staleness once a readiness baseline exists) *can gate*. The Tier-2 judgment pass *never gates* — it is an
+  invitation licensed by choosing the agentic door, escalating from a soft invite (Tier-1 green) to a
+  recommendation (Tier-1 drift). Reuses session-init's in-flight-composition `Class` advisory (already computed).
+
+- **Readiness = socket-only in FP.** The `--start` vet ships a readiness *contract* — attested-ready field if
+  present, else a best-effort "tasks Finalized?" heuristic, else deps-only — but FP mints **no** readiness field
+
+  or marker. The marker is a scheduling/throughput primitive with no concurrency failure mode, so it is invisible
+  to the burn-in waves (which validate mechanics, not throughput). Minting it is the reform WU's call, not FP's.
+
+- **Direction — async-first.** Plan-in-backlog on a grooming branch; activate = spawn the worktree at
+  implementation start. The full lifecycle state-model reform (two-axis unbundling of planning-completion vs.
+  activation, DoR attestation, two-source staleness, `init` retiring into stub / plan / activate, the
+  backlog-concurrency policy, and event-log/backend forward-compat) is captured as high-priority planned WU
+  `wu-lifecycle-state-model`. FP references it; it does not build it.
+
+The actionable decomposition lives in `tasks-finalize-parallelism.md` Phase 2.E.
+
 ### Verification design
 
 Unknown gaps cannot be enumerated away; the design goal is that discovering one never costs the work in flight
@@ -641,14 +678,12 @@ open because they are empirical (they need the live substrate to answer), not be
 - **Burn-in workload slate** — recorded provisionally; each pick's Class and lifecycle stage confirm at pickup.
   Spec-readiness is not required before launch: a wave deliberately spans stages, and a rough stub is spawned and
   groomed in its own worktree during the wave (§ Verification design, Workload selection basis).
-- **WU-entry architecture (`--start`, bare CLI, discovery)** — worktree-by-default raises WU-entry cadence, so FP
-  must ship proper entry ergonomics rather than defer them. Open: whether `arc-session --start <slug>` is dropped
-  (bare CLI is the same effect; routing it through the full discovery path is wasteful) or repurposed (likely a
-  new verb) as a bare-CLI-equivalent launch an ARC-loaded agent vets first (impl-readiness, a second opinion), and
-  the shape of the bare-CLI ↔ agent-vetted ↔ discovery entry spectrum overall — an agent-mediated launch must earn
-  its keep beyond saving a keystroke. Owned **within FP** as a dedicated phase in `tasks-finalize-parallelism.md`
-  (design filled after the rest of the task-list rework, likely a dedicated session); settles there, not deferred
-  to a follow-up.
+- **WU-entry architecture (`--start`, bare CLI, discovery)** — **settled 2026-07-05** (by design, not burn-in
+  evidence — the exception to this section's empirical framing). Spawn-anchored launch is the universal entry;
+  `--start` is retained as an agentic focused-recon arm symmetric with bare `arc start <slug>`; readiness is
+  socket-only in FP (no minted marker); direction is async-first, with the broader lifecycle reform captured as
+  planned WU `wu-lifecycle-state-model`. Full record: § WU-entry architecture (settled 2026-07-05); decomposition:
+  `tasks-finalize-parallelism.md` Phase 2.E.
 - **Orchestrated-drain shape** (sequential vs dispatched errand execution) — sequential-first leaning recorded;
   wave-3 drain-shape evidence decides whether to escalate to worktree-dispatch.
 - **The three seam-audit decisions** — enumerated above with options and recorded leanings; each settles at its
