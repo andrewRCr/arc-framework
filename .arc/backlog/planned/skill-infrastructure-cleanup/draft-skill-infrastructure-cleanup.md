@@ -73,6 +73,31 @@
 
 ---
 
+### `[ ]` **Make `/arc-plan` self-establish the grooming locus on ad-hoc (cold) entry**
+
+- _Routed from:_ live friction during `recovery-hardening` grooming, ad-hoc `/arc-plan` invoked outside
+  session-init (2026-07-04).
+- _Concern:_ a sharper, concrete instance of § _Guard ARC skills against cold (no-session-init) invocation_
+  below — not just missing orientation, but a missing **locus**. `draft-design`'s "Grooming-entry skip" assumes
+  you already sit on a committable grooming branch, because `session-init`'s `--plan` signal-leaf relocates to
+  `chore/groom-<slug>` cut from base. Invoked cold (`/arc-plan` direct, no session-init) that relocate never ran:
+  entry landed on protected `main`; the planning-entry gate correctly redirected (`protected-base`), but the
+  redirect→stub route mints the stub **without** relocating onto a grooming branch to draft on. Had to
+  hand-stitch the sanctioned path: `arc plan check` → manual `git checkout -b chore/groom-<slug>` →
+  `arc stub … --commitment planned --priority` → author the draft. Two further snags: (1) the stub-then-groom
+  sequence for a **non-existent** stub is not a gapless single entry — `--plan <stub>` grooms an _existing_ stub,
+  so ad-hoc "create and groom a new stub" has no one door; (2) a stale dev build surfaced mid-flow (`dist`
+  stale post-merge) and the CLI-driven ceremony silently depends on a fresh build.
+- _Design fork (needs thought):_ the general cold-invocation entry below leans **advisory / warn** ("run
+  `arc-session` first"). This instance argues a stronger shape for grooming — the `arc-plan` skill **door** should
+  carry entry-triage/dispatch judgment and **self-establish** the locus (relocate to grooming branch +
+  stub-if-missing), mirroring session-init's `--plan` relocate, rather than only warning. That is skill-door-model
+  work (kin to § _Codify the skill-door model_). The underlying **mechanic** (protected-base → auto-cut/offer the
+  grooming branch) is kin to `cold-start-init-polish` facet 2 (`arc start --here` protected-base auto-cut) and may
+  live there, while the "which door owns ad-hoc grooming entry" decision lives here. `planning-iteration-mechanics`
+  is adjacent (planning pipeline) but owns iteration _content_, not entry _establishment_.
+- _Captured during:_ `recovery-hardening` grooming via ad-hoc `/arc-plan`, 2026-07-04.
+
 ## Scope (routed captures — iterate into a plan)
 
 ### Standardize ARC skill frontmatter to the agentskills.io spec
