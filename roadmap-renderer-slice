@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "roadmap-renderer-slice",
+  "origin": "description",
+  "intent": "Promote FP's deterministic ROADMAP renderer slice to main: fill the reconcileRoadmap seam (advisory-stub to real compose/write/stage) so finalize-parallelism's burn-in waves can depend on on-demand ROADMAP regen; adds a dangling-dependency-edge guard. No new public command, no render-shape change (both stay roadmap-tooling).",
+  "branch": "chore/roadmap-renderer-slice",
+  "createdAt": "2026-07-05T12:46:37.327Z"
+}
