@@ -6,6 +6,7 @@ import {
   reconcileStatusUserSideEffect,
   reconcileRoadmap,
   type ReconcileStatusUserContext,
+  type ReconcileRoadmapContext,
 } from "../../../../src/lib/work-unit/side-effects/readiness-regen.js";
 import type { LifecyclePosition } from "../../../../src/lib/work-unit/lifecycle-state.js";
 
@@ -16,11 +17,12 @@ interface CtxState {
   composeCalls: number;
   mkdirs: string[];
   writes: { path: string; content: string }[];
+  stages: string[];
 }
 
 /** Build a status-user context over a fixed composed view, recording all I/O. */
 function buildCtx(view: string): { ctx: ReconcileStatusUserContext; state: CtxState } {
-  const state: CtxState = { composeCalls: 0, mkdirs: [], writes: [] };
+  const state: CtxState = { composeCalls: 0, mkdirs: [], writes: [], stages: [] };
   const ctx: ReconcileStatusUserContext = {
     composeView: async () => {
       state.composeCalls += 1;
@@ -32,6 +34,28 @@ function buildCtx(view: string): { ctx: ReconcileStatusUserContext; state: CtxSt
     },
     writeFile: async (path, content) => {
       state.writes.push({ path, content });
+    },
+  };
+  return { ctx, state };
+}
+
+/** Build a roadmap context over a fixed composed view, recording all I/O. */
+function buildRoadmapCtx(view: string): { ctx: ReconcileRoadmapContext; state: CtxState } {
+  const state: CtxState = { composeCalls: 0, mkdirs: [], writes: [], stages: [] };
+  const ctx: ReconcileRoadmapContext = {
+    composeView: async () => {
+      state.composeCalls += 1;
+      return view;
+    },
+    mkdir: async (path) => {
+      state.mkdirs.push(path);
+      return undefined;
+    },
+    writeFile: async (path, content) => {
+      state.writes.push({ path, content });
+    },
+    stageFile: async (path) => {
+      state.stages.push(path);
     },
   };
   return { ctx, state };
@@ -123,18 +147,42 @@ describe("reconcileStatusUserSideEffect", () => {
 });
 
 describe("reconcileRoadmap", () => {
-  it("emits a precise advisory naming the WU and its from → to move", () => {
-    const advisory = reconcileRoadmap({ slug: "demo-wu", from: ACTIVE, to: PARKED });
+  it("writes and stages the deterministic ROADMAP view", async () => {
+    const { ctx, state } = buildRoadmapCtx("# Roadmap\n\nrows");
 
-    expect(advisory).toContain("demo-wu");
-    expect(advisory).toContain("Active/active");
-    expect(advisory).toContain("Active/planned");
-    expect(advisory).toMatch(/ROADMAP/);
-    expect(advisory).toMatch(/hand-render|pending/i);
+    const advisory = await reconcileRoadmap(ctx, {
+      cwd: "/repo",
+      slug: "demo-wu",
+      from: ACTIVE,
+      to: PARKED,
+    });
+
+    const expectedPath = join("/repo", ".arc", "backlog", "ROADMAP.md");
+    expect(advisory).toBeUndefined();
+    expect(state.mkdirs).toEqual([join("/repo", ".arc", "backlog")]);
+    expect(state.writes).toEqual([{ path: expectedPath, content: "# Roadmap\n\nrows\n" }]);
+    expect(state.stages).toEqual([expectedPath]);
   });
 
-  it("labels an absent endpoint as nonexistent (creation / deletion edges)", () => {
-    expect(reconcileRoadmap({ slug: "demo-wu", from: null, to: ACTIVE })).toContain("nonexistent");
-    expect(reconcileRoadmap({ slug: "demo-wu", from: ACTIVE, to: null })).toContain("nonexistent");
+  it("degrades to an advisory naming the WU and move when rendering fails", async () => {
+    const ctx: ReconcileRoadmapContext = {
+      composeView: () => Promise.reject(new Error("renderer unavailable")),
+      mkdir: async () => undefined,
+      writeFile: async () => undefined,
+      stageFile: async () => undefined,
+    };
+
+    const advisory = await reconcileRoadmap(ctx, {
+      cwd: "/repo",
+      slug: "demo-wu",
+      from: null,
+      to: ACTIVE,
+    });
+
+    expect(advisory).toContain("demo-wu");
+    expect(advisory).toContain("nonexistent");
+    expect(advisory).toContain("Active/active");
+    expect(advisory).toMatch(/ROADMAP/);
+    expect(advisory).toMatch(/failed/);
   });
 });
