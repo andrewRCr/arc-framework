@@ -298,13 +298,14 @@ and records the verification only.
 - _Goal:_ The minimal renderer capability needed by wave 1 lands outside FP, without requiring full Heavy
   `roadmap-tooling` completion.
 
-    - `[ ]` **2.R.1.a Scope the slice boundary**
-        - Decide whether `roadmap-tooling` can land just the renderer slice or needs a dedicated split WU. Keep the
-          slice to deterministic ROADMAP refresh for lifecycle / start ceremony needs, not STATUS.USER,
-          rename, link-reanchor, or other buffer scope.
+    - `[x]` **2.R.1.a Scope the slice boundary**
+        - Scoped the gate to a dedicated renderer-command slice, not full Heavy `roadmap-tooling`: expose /
+          stabilize deterministic `ROADMAP.md` refresh around the existing project-readiness composer and
+          lifecycle/start ceremony write paths. Exclude `STATUS.USER`, `STATUS.PROJECT` rename, link reanchoring,
+          shared render-standard extraction, and `operational-state-docs`' generic managed-record projection engine.
 
     - `[ ]` **2.R.1.b Complete the slice in its own session**
-        - Start and finish the chosen `roadmap-tooling` slice on its own branch / session. FP remains the observer
+        - Start and finish the dedicated renderer-command slice on its own branch / session. FP remains the observer
           and does not absorb the implementation.
 
     - `[ ]` **2.R.1.c Verify the FP gate**

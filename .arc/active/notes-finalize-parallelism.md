@@ -24,6 +24,16 @@ drain-time check landed in the rules + strategy). The edges that remain live dur
   unblocks BI-4's CLI-complete `arc start` (deterministic ceremony-commit content). The full Heavy WU is not the
   gate; the slice slots *beside* FP Phases 1–2, not ahead of FP's start. `tasks-finalize-parallelism.md` tracks
   the gate explicitly in Phase 2.R.
+    - **2.R.1.a scope verdict:** pull a dedicated renderer-command slice rather than starting the whole Heavy
+      `roadmap-tooling` WU. The existing FP branch already has `composeProjectReadinessView` plus lifecycle/start
+      ceremony ROADMAP write paths; the missing gate-facing piece is a public, testable render/check command or
+      equivalent slice that wave sessions can invoke. Include only deterministic `ROADMAP.md` refresh for lifecycle
+      / start ceremony and manual-trigger use. Exclude `STATUS.USER`, `STATUS.PROJECT` rename, link reanchoring,
+      shared render-standard extraction, and buffer cleanup.
+    - **`operational-state-docs` boundary:** treat the slice as an interim markdown composer over meta files.
+      Do not build the generic render/reconcile projection engine, structural-contract migration, or managed-record
+      substrate here; those stay with `operational-state-docs` / its decomposed members and later absorb this
+      renderer boundary.
 - **`interlock-release-refinement` consumes FP's burn-in evidence (post-waves).** Its parallelism-relevant slice
   (integration-time interlock-stacking collapse) either slice-extracts per its own draft, or — preferred —
   consumes this WU's evidence of which stops actually hurt under concurrency and which weren't decision-bearing
