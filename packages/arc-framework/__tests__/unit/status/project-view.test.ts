@@ -71,10 +71,12 @@ describe("composeProjectReadinessView", () => {
     expect(view).toContain("| ready-beta | P2");
     expect(view).toContain("## Blocked");
     expect(view).toContain("### Depth 1");
-    expect(view).toContain("| blocked-gamma | P3");
-    expect(view).toContain("ready-beta");
+    const depth1Section = view.slice(view.indexOf("### Depth 1"), view.indexOf("### Depth 2"));
+    expect(depth1Section).toContain("| blocked-gamma | P3");
+    expect(depth1Section).toContain("ready-beta");
     expect(view).toContain("### Depth 2");
-    expect(view).toContain("| blocked-delta | P3");
-    expect(view).toContain("blocked-gamma");
+    const depth2Section = view.slice(view.indexOf("### Depth 2"));
+    expect(depth2Section).toContain("| blocked-delta | P3");
+    expect(depth2Section).toContain("blocked-gamma");
   });
 });
