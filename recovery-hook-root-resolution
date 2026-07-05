@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "recovery-hook-root-resolution",
-  "origin": "description",
-  "intent": "Unify compaction-recovery hook root resolution so the PreCompact seed-path check holds from any cwd within a (linked) worktree",
-  "branch": "fix/recovery-hook-root-resolution",
-  "createdAt": "2026-07-05T00:36:44.705Z"
-}
