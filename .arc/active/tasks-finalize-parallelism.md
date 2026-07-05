@@ -347,7 +347,7 @@ it). Positioned pre-2.I so the forward-port carries the entry-arch to `main` and
 ergonomics off base — the design anchors are `spec-finalize-parallelism.md` § WU-entry architecture and § Committed
 build items (BI-4).
 
-### `[ ]` **2.E.1 Sharpen `arc-session --start` into the focused-recon arm**
+### `[x]` **2.E.1 Sharpen `arc-session --start` into the focused-recon arm**
 
 - _Goal:_ `arc-session --start <slug>` boots the universal load-set (not general discovery), runs a deterministic
   readiness recon on the named WU, and closes on an informed launch prompt — a single-turn green path symmetric
@@ -363,26 +363,30 @@ build items (BI-4).
           over the old no-active-WU-only placement — coherent now that launch spawns its own worktree. Two-tier vet
           gating is 2.E.1.b; skill-doc sync is 2.E.1.c.
 
-    - `[ ]` **2.E.1.b Two-tier vet — Tier-1 gates, Tier-2 invites**
-        - Tier-1 deterministic signals (dependency edges; base-drift staleness once a readiness baseline exists)
-          _can gate_ the launch; the Tier-2 judgment pass _never gates_ — it escalates from a soft invite (Tier-1
-          green) to a recommendation (Tier-1 drift). Reuse session-init's in-flight-composition `Class` advisory
-          rather than recomputing it.
+    - `[x]` **2.E.1.b Two-tier vet — Tier-1 gates, Tier-2 invites**
+        - Added the two-tier readiness vet to the recon arm (both session-init copies): a Tier-1 deterministic gate
+          (dependency edges resolved by slug via `arc status`; base-drift staleness wherever a readiness baseline
+          exists) and a never-gating Tier-2 judgment pass (soft invite on Tier-1 green → recommendation on drift)
+          reusing the probe's already-computed in-flight-composition `Class` advisory. Step 6 verdict line names the
+          tiers.
 
-    - `[ ]` **2.E.1.c Sync the `arc-session` skill doc**
-        - Rewrite the `arc-session` skill's `--start` description from the current no-active-WU start shortcut to the
-          focused-recon arm, keeping it a terminal entry that still honors sync, dirty-tree, freshness, and mismatch
-          surfaces.
+    - `[x]` **2.E.1.c Sync the `arc-session` skill doc**
+        - Rewrote the `arc-session` skill's `--start` description (both canonical copies) from the no-active-WU start
+          shortcut to the checkout-preserving, arm-orthogonal focused-recon arm — universal load + readiness recon +
+          informed launch prompt, still honoring sync/dirty/freshness/mismatch surfaces and, on launch, the spawned
+          `arc start`'s commit/push interlocks and `Class` guard. The gitignored harness copy already tracks
+          canonical.
 
-### `[ ]` **2.E.2 Ship the socket-only readiness contract**
+### `[x]` **2.E.2 Ship the socket-only readiness contract**
 
 - _Goal:_ The `--start` vet resolves readiness through a layered contract without FP minting any readiness field or
   marker — the socket is present; the scheduling primitive is the reform WU's to add.
 
-    - `[ ]` **2.E.2.a Layered readiness resolution**
-        - Resolve readiness best-effort: an attested-ready field if one is present, else a "tasks Finalized?"
-          heuristic over the task list, else deps-only. FP mints no readiness field/marker (no concurrency failure
-          mode → invisible to the waves); the contract is a stable seam `wu-lifecycle-state-model` later fills.
+    - `[x]` **2.E.2.a Layered readiness resolution**
+        - Folded the layered readiness resolution into the recon arm's vet preamble (both session-init copies): a
+          recorded ready-attestation when the target's meta carries one, else a "tasks Finalized?" heuristic over its
+          task list, else deps-only. FP mints no attestation field, so today it degrades to the heuristic/deps
+          fallback — a stable socket `wu-lifecycle-state-model` later fills. Spec already carried the design.
 
 ### `[ ]` **2.E.3 Recenter the launch recipe on spawn-anchored entry**
 
@@ -397,15 +401,16 @@ build items (BI-4).
           rich off the seed" — not per-harness launch commands (which harness / invocation is the developer's tooling
           per the launch-model inversion); auto-provisioning already absorbs the per-harness asymmetry.
 
-### `[ ]` **2.E.4 Document bare `arc start <slug>` as the know-what-to-start default**
+### `[x]` **2.E.4 Document bare `arc start <slug>` as the know-what-to-start default**
 
 - _Goal:_ The entry spectrum reads coherently — bare `arc start <slug>` is the documented default for the
   know-what-to-start case, `--start` is the agent-vetted door, unseeded discovery is the third path.
 
-    - `[ ]` **2.E.4.a Signpost the bare-CLI default and reconcile the entry docs**
-        - Document bare `arc start <slug>` (the BI-4 substrate) as the default for arranging tooling before a fresh
-          in-worktree session, and reconcile the session-init + `arc-session` entry surfaces so the bare-CLI ↔
-          agent-vetted (`--start`) ↔ discovery spectrum is stated once, without contradiction.
+    - `[x]` **2.E.4.a Signpost the bare-CLI default and reconcile the entry docs**
+        - Stated the WU-launch entry spectrum once, in the recon arm intro (both session-init copies): bare
+          `arc start <slug>` (know-what-to-start, no agent) ↔ `--start <slug>` (agent-vetted) ↔ unseeded
+          `arc-session` discovery. The `arc-session` skill's `--start` symmetry framing aligns — stated once, no
+          contradiction.
 
 ## **Phase 2.I:** Mid-flight build-items integration
 

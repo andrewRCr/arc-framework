@@ -161,7 +161,9 @@ Arm only the declared goal — surface no unrequested routes, and don't nag abou
 ### Focused-recon arm
 
 `--start <slug>` routes to the **focused-recon arm** — the agentic know-what-to-start door, symmetric with the
-no-agent bare `arc start <slug>`. Checkout-preserving (never relocates or disturbs the active checkout) and
+no-agent bare `arc start <slug>`. The WU-launch entry spectrum: bare `arc start <slug>` when you know the target
+and want no agent, `--start <slug>` for an agent-vetted launch, and unseeded `arc-session` discovery when you do
+not yet know what to start. Checkout-preserving (never relocates or disturbs the active checkout) and
 arm-orthogonal: it recons a named target and launches it into its **own spawned worktree**, so it fires whether or
 not a WU is active. Resolved here when no signal-leaf signal is present (a co-supplied signal-leaf outranks it); it
 is neither a positional seed nor a signal-leaf relocation.
@@ -178,6 +180,18 @@ is neither a positional seed nor a signal-leaf relocation.
 4. **Recon and launch at Step 6.** Close on the informed launch prompt over the target (readiness verdict — ready /
    not + why); on launch, run the spawn-anchored `arc start <slug>`, verify the seeded mini-handoff landed, and hand
    off. See [Step 6's `--start` recon terminal](#6-confirm-orientation).
+
+**Readiness vet — two tiers.** Resolve the target's readiness best-effort — a recorded ready-attestation when its
+meta carries one, else a "tasks Finalized?" heuristic over the target's task list, else deps-only — then layer two
+passes over that result:
+
+- **Tier-1 — deterministic, can gate.** The target's dependency edges gate the launch when unmet — resolve each by
+  slug (`arc status <slug>`), never a state-blind `Depends On` read. Base-drift staleness gates as a second Tier-1
+  signal wherever the target carries a readiness baseline to measure against; absent one, that signal does not
+  apply. A failed Tier-1 signal blocks the green path and reports why.
+- **Tier-2 — judgment, never gates.** An invitation licensed by choosing the agentic door — sanity-check the pick,
+  offer a second opinion. It escalates from a soft invite (Tier-1 green) to a recommendation (Tier-1 drift), never a
+  block. Reuse the probe's in-flight-composition `Class` advisory (already computed); do not recompute it.
 
 ### Entry dispatch
 
@@ -644,9 +658,9 @@ Otherwise render the normal orientation and prompt.
 - `--next` on the Resume arm: omit the final proceed prompt and begin the active meta's Next Action directly.
   Bare `--next` on a no-active-WU Orient arm is a no-op.
 **`--start` focused-recon terminal.** On the [focused-recon arm](#focused-recon-arm), frame Step 6 on the
-**target WU**, not the active-work-state shape: report the readiness verdict (ready / not + why over the target's
-deterministic signals) and close on the launch prompt — `Launch <slug>? (spawn-anchored — arc start, then start a
-fresh session in the new worktree)`. On launch:
+**target WU**, not the active-work-state shape: report the readiness verdict (ready / not + why — Tier-1 gates,
+Tier-2 invites; see the recon arm's readiness vet) and close on the launch prompt —
+`Launch <slug>? (spawn-anchored — arc start, then start a fresh session in the new worktree)`. On launch:
 
 1. Run the spawn-anchored `arc start <slug>` (spawns the target's own worktree); `init-work-unit`'s
    `workflowCommit` / `workflowPush` interlocks and `class-resolved` guard fire unchanged.
