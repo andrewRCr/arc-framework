@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { join, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 
 import {
   readHookInput,
@@ -112,7 +113,24 @@ function writeMarkerFromResult(result) {
 function expectedSeedPath(envelope) {
   const identity = typeof envelope?.identity?.identity === "string" ? envelope.identity.identity : "";
   if (!isSafeIdentitySegment(identity)) return null;
-  return join(cwd, ".arc", "user", identity, ".internal", "compaction-seed.json");
+  return join(arcRoot(cwd), ".arc", "user", identity, ".internal", "compaction-seed.json");
+}
+
+// Resolve the ARC root the way the `arc` CLI's resolveArcRoot does: walk up from
+// the hook's base dir to the nearest ancestor containing `.arc/`. The seed is
+// written under that root (the emitter resolves it identically), which is not
+// necessarily the raw base dir when the hook runs from a subdirectory or a linked
+// worktree — so matching this walk-up keeps expectedSeedPath equal to the emitter's
+// reported write path. Falls back to the base dir when no `.arc/` is found (the
+// seed write would itself fail there, so the check still fails safe).
+function arcRoot(startDir) {
+  let dir = resolve(startDir);
+  for (;;) {
+    if (existsSync(join(dir, ".arc"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return resolve(startDir);
+    dir = parent;
+  }
 }
 
 function samePath(actual, expected) {
