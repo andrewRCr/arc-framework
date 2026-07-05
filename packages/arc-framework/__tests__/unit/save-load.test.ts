@@ -179,7 +179,7 @@ interface SaveMockConfig {
 
 function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
   const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-  const files = config.files ?? { "SESSION-NOTES.md": "# Notes" };
+  const files = config.files ?? { "WORKING-MEMORY.md": "# Notes" };
   let writtenNote: string | null = null;
 
   return {
@@ -679,7 +679,7 @@ describe("runUserSave — save verification", () => {
     const io = mockSaveIO({
       readback: JSON.stringify({
         version: 2,
-        files: { "SESSION-NOTES.md": "# Different" },
+        files: { "WORKING-MEMORY.md": "# Different" },
       }),
     });
 
@@ -714,7 +714,7 @@ describe("runUserSave — save verification", () => {
     await runUserSave({ cwd, io, identity: "andrew" });
 
     const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
-    expect(onDisk.priorFileList).toEqual(["SESSION-NOTES.md"]);
+    expect(onDisk.priorFileList).toEqual(["WORKING-MEMORY.md"]);
   });
 });
 
@@ -735,7 +735,7 @@ function concurrentSaveIO(
   recorder: CriticalSectionRecorder,
   config: { writeNoteThrows?: boolean } = {},
 ): UserIOContext {
-  const files = { "SESSION-NOTES.md": "# Notes" };
+  const files = { "WORKING-MEMORY.md": "# Notes" };
   let writtenNote: string | null = null;
 
   return {
@@ -932,7 +932,7 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
   const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   const manifest: SyncManifest = config.manifest ?? {
     version: 2,
-    files: { "SESSION-NOTES.md": "# Notes" },
+    files: { "WORKING-MEMORY.md": "# Notes" },
   };
   const readback = config.readback ?? { ...manifest.files };
   const noteContent = JSON.stringify(manifest);
@@ -1009,9 +1009,9 @@ describe("runUserLoad — load verification", () => {
     const io = mockLoadIO({
       manifest: {
         version: 2,
-        files: { "SESSION-NOTES.md": "# Notes" },
+        files: { "WORKING-MEMORY.md": "# Notes" },
       },
-      readback: { "SESSION-NOTES.md": undefined },
+      readback: { "WORKING-MEMORY.md": undefined },
     });
 
     await expect(
@@ -1025,9 +1025,9 @@ describe("runUserLoad — load verification", () => {
     const io = mockLoadIO({
       manifest: {
         version: 2,
-        files: { "SESSION-NOTES.md": "# Notes" },
+        files: { "WORKING-MEMORY.md": "# Notes" },
       },
-      readback: { "SESSION-NOTES.md": "# Different content" },
+      readback: { "WORKING-MEMORY.md": "# Different content" },
     });
 
     await expect(
@@ -1043,7 +1043,7 @@ describe("runUserLoad — load verification", () => {
       head,
       manifest: {
         version: 2,
-        files: { "SESSION-NOTES.md": "# Notes" },
+        files: { "WORKING-MEMORY.md": "# Notes" },
       },
     });
 
@@ -1304,7 +1304,7 @@ describe("LocalSyncState v4 schema", () => {
     const head = "b".repeat(40);
     const userDir = join(cwd, ".arc", "user", identity);
     await mkdir(userDir, { recursive: true });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Notes", "utf-8");
 
     let writtenNote: string | null = null;
     const io = realFsIO({
@@ -1317,7 +1317,7 @@ describe("LocalSyncState v4 schema", () => {
         }
         throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
       }),
-      readDir: vi.fn(async () => [{ name: "SESSION-NOTES.md", size: 7 }]),
+      readDir: vi.fn(async () => [{ name: "WORKING-MEMORY.md", size: 7 }]),
       writeNote: vi.fn(async (_ref: string, content: string) => {
         writtenNote = content;
       }),
@@ -1398,7 +1398,7 @@ describe("LocalSyncState v4 schema", () => {
     const head = "f".repeat(40);
     const userDir = join(cwd, ".arc", "user", identity);
     await mkdir(userDir, { recursive: true });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Concurrent A", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Concurrent A", "utf-8");
 
     const makeIO = (content: string): UserIOContext => {
       let writtenNote: string | null = null;
@@ -1413,10 +1413,10 @@ describe("LocalSyncState v4 schema", () => {
           throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
         }),
         readFile: vi.fn(async (p: string) => {
-          if (p.endsWith("SESSION-NOTES.md")) return content;
+          if (p.endsWith("WORKING-MEMORY.md")) return content;
           return readFile(p, "utf-8");
         }),
-        readDir: vi.fn(async () => [{ name: "SESSION-NOTES.md", size: content.length }]),
+        readDir: vi.fn(async () => [{ name: "WORKING-MEMORY.md", size: content.length }]),
         writeNote: vi.fn(async (_ref: string, c: string) => {
           writtenNote = c;
         }),

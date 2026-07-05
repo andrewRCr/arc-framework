@@ -270,19 +270,12 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
           and user-status drift reads now consume resolver paths; shipped guidance names the resolver/load-set
           path instead of linked-checkout copies.
 
-    - `[ ]` **2.6.b Notes save/load split-source handling**
-        - Build `test-first` (one behavior at a time):
-            - `arc user save` derives/passes the current WU, then serializes one logical manifest from two physical
-              loci: current WU `SESSION-NOTES.md` from the active worktree and identity-global flat files from the
-              canonical root.
-            - `arc user load` / `arc user pull` materialize each manifest entry to its semantic locus: current WU
-              per-WU files into the active worktree and identity-global flat files into the canonical root, without
-              importing a sibling WU's SESSION-NOTES into the current worktree.
-            - Save/load verification, pre-load backups, backup listing, and sync-status/drift inspection compare the
-              same logical split manifest they materialize, not one checkout-local `userDir`.
-            - Legacy root-level `SESSION-NOTES.md` from old manifests never becomes identity-global state: load may
-              migrate it to the current WU only when no WU-scoped notes entry exists; otherwise preserve it via
-              backup/notice, and save excludes any new flat root `SESSION-NOTES.md`.
+    - `[x]` **2.6.b Notes save/load split-source handling**
+        - Split user-notes save/load now uses one logical manifest over two physical loci: identity-global flat
+          files serialize/materialize at the canonical root, while the current WU's SESSION-NOTES
+          serializes/materializes from the active worktree. Load verification, pre-load backups, backup listing,
+          and status/drift comparison use the same logical split basis, and legacy root SESSION-NOTES entries
+          migrate only to the current WU or are preserved as backup-only legacy content.
 
     - `[ ]` **2.6.c Divergent-copy migration and teardown guard**
         - Detect existing linked-worktree copies of identity-global files, reconcile them once into the canonical

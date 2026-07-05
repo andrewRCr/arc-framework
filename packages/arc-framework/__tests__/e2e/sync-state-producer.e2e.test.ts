@@ -102,7 +102,7 @@ async function installArcWithNotes(clone: string): Promise<void> {
   }
   await git(clone, ["config", "--local", "arc.pushInterlock", "on-sync"]);
   await writeFile(
-    join(clone, ".arc", "user", IDENTITY, "SESSION-NOTES.md"),
+    join(clone, ".arc", "user", IDENTITY, "WORKING-MEMORY.md"),
     "# producer notes\n",
     "utf-8",
   );
@@ -192,7 +192,7 @@ describe("partial-push sync-state marker — multi-machine producer lifecycle", 
     // it — B creates its own before seeding its notes.
     await mkdir(join(harness.cloneB, ".arc", "user", IDENTITY), { recursive: true });
     await writeFile(
-      join(harness.cloneB, ".arc", "user", IDENTITY, "SESSION-NOTES.md"),
+      join(harness.cloneB, ".arc", "user", IDENTITY, "WORKING-MEMORY.md"),
       "# clone B notes\n",
       "utf-8",
     );

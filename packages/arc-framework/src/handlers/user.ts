@@ -268,10 +268,11 @@ export async function handleUserSave(): Promise<void> {
   if (!cwd) return;
 
   try {
+    const currentWuName = await resolveCurrentWuName(cwd, io.exec);
     const result = await runWithSpinner(
       output,
       "Saving user directory...",
-      () => runUserSave({ cwd, io, identity }),
+      () => runUserSave({ cwd, io, identity, currentWuName }),
       "Save complete.",
     );
     p.note(buildSaveSummary(result), "Saved");

@@ -163,7 +163,7 @@ describe("branch-bounded paired notes export", () => {
     const ioB = makeUserIO(repo);
     await mkdir(join(repo, ".arc", "user", IDENTITY), { recursive: true });
     await writeFile(
-      join(repo, ".arc", "user", IDENTITY, "SESSION-NOTES.md"),
+      join(repo, ".arc", "user", IDENTITY, "WORKING-MEMORY.md"),
       "# B notes\n",
       "utf-8",
     );
@@ -171,7 +171,7 @@ describe("branch-bounded paired notes export", () => {
 
     await git(repo, ["checkout", "work-a"]);
     await writeFile(
-      join(repo, ".arc", "user", IDENTITY, "SESSION-NOTES.md"),
+      join(repo, ".arc", "user", IDENTITY, "WORKING-MEMORY.md"),
       "# A notes\n",
       "utf-8",
     );

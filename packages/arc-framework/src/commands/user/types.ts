@@ -44,6 +44,11 @@ export interface UserSaveOptions {
   cwd: string;
   io: UserIOContext;
   identity: string;
+  /**
+   * Bare work-unit name of the session's current WU. When omitted, save derives
+   * it from active-meta / branch before serializing per-WU SESSION-NOTES.
+   */
+  currentWuName?: string;
 }
 
 /** Error specific to user save operations. */
