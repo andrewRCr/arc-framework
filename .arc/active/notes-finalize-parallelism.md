@@ -47,6 +47,45 @@ drain-time check landed in the rules + strategy). The edges that remain live dur
   `/arc-shift` disposition) are routed at planning close via gitignored `USER-INBOX` captures, not by editing
   sibling WUs' tracked buffers from this branch.
 
+### Dogfood finding (2026-07-05): worktree launch model
+
+Surfaced dogfooding FP from the primary. Two coupled findings; both reshape **BI-4** and add a launch-model
+doctrine question to the GA scope.
+
+**Relocate desync (retires BI-4(c) as SOP).** `EnterWorktree` — Claude Code's BI-4(c) "true relocate" — hops the
+*agent process* cwd into the linked worktree, but the developer's terminal and tooling do not follow: Warp + Herdr
+(and any GUI multiplexer, e.g. Superconductor) still present the primary. Structural, not a tool bug — a child
+process changing its own cwd has no channel to reconfigure the parent terminal / multiplexer / GUI; OSC-7 / title
+escapes would not move a shell cwd or a pane, and GUI apps get nothing. ARC cannot fix it (above its layer), and the
+desync between the human's tooling model and the agent's is a dealbreaker for making relocate the SOP. So: demote
+layer (c) to an escape hatch at most (a developer who does not care about terminal sync), never the recommended path
+— the objection is harness-independent in spirit even though only Claude Code offers the relocate. Promote the
+**spawn-anchored** shape (a fresh session started *in* the worktree) from Codex-specific fallback to the
+**universal** model, resting on (a) CLI-complete `arc start` from the bare shell + (b) the mini-handoff into the
+seeded `SESSION-NOTES` so the fresh session boots rich. Design inversion: **ARC establishes the worktree; the
+developer arranges their own tooling; the agent starts fresh in the worktree** — ARC does not drive the terminal /
+GUI (out of its control, wildly per-developer). "Seamlessly continue the same session" is off the table as a goal;
+"cleanly hand off to a fresh in-worktree session" replaces it.
+
+**Launch-flow / `--start` purpose (GA-scope question, not solve-now).** Keep two entry intents distinct: (1)
+*don't-know-what-to-start* → discovery, agent-mediated (`arc-session` discovery arm), keep; (2) *know-what-to-start*
+→ a clean CLI op (bare `arc start <slug>`, the (a) substrate), so the developer arranges tooling between launch and
+agent-start. But a real **middle ground** the two poles miss: even knowing the target, an `arc-session`-style agent
+already carrying the core ARC loadset earns value *before* launch — vet/verify impl-readiness, a second opinion,
+sanity-checking the pick. An agent-mediated launch must earn its keep beyond "you did not type the CLI yourself," or
+it has no purpose. Open question: the `arc-session --start <slug>` skill signal (which opened the session that
+surfaced this) either (i) should not exist — bare CLI is the same effect, and routing it through the full discovery
+session-init path is wasteful — or (ii) should be repurposed (likely a different verb): *same effect as the bare CLI
+launch, but an ARC-loaded agent vets/verifies before the launch fires*. Still handle the pure just-launch-it case,
+but never require an agent that adds nothing. Closing loop: the `--start` shortcut that opened this session is itself
+the "launch and seamlessly continue in one session" ambition that walked into the relocate trap — the ambition is
+the anti-pattern.
+
+**Bonus BI-6 evidence.** The reflex to capture this so it is not lost routes to `USER-INBOX`, but from this linked
+worktree that writes FP's *divergent local* inbox copy (the 2026-07-04 divergence), not the canonical primary — so
+the finding lands in these tracked notes instead. The capture reflex hitting the wrong inbox is one more instance of
+the BI-6 identity-global-surface gap.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
