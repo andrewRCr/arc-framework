@@ -279,8 +279,9 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
 
     - `[x]` **2.6.c Divergent-copy migration and teardown guard**
         - Linked-worktree resolver entry and teardown now scan ignored flat identity-global user files, merge known
-          cross-WU shapes into the primary canonical root, refuse divergent unknown or malformed files, and feed the
-          same safety signal into stale-worktree and branch-gone cleanup offers.
+          cross-WU shapes into the primary canonical root, discard stale generated `STATUS.USER` caches, refuse
+          divergent unknown or malformed files, and feed the same safety signal into stale-worktree and branch-gone
+          cleanup offers.
 
 ## **Phase 3:** Burn-in wave 1 — two doc-only WUs
 

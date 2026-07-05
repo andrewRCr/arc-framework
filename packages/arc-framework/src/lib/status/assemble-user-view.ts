@@ -21,6 +21,8 @@
  * @module
  */
 
+import { dirname } from "node:path";
+
 import type { GitExec } from "../git/exec.js";
 import {
   filterRosterByIdentity,
@@ -49,6 +51,10 @@ export interface AssembleStatusUserViewDeps {
   readFile: (path: string) => Promise<string>;
   /** Read directory entry names — used by the worktree roster scan. */
   readdir: (path: string) => Promise<string[]>;
+  /** Optional writer for persisting a freshly rendered STATUS.USER cache. */
+  writeFile?: (path: string, content: string) => Promise<void>;
+  /** Optional directory creator paired with {@link writeFile}. */
+  mkdir?: (path: string, options: { recursive: boolean }) => Promise<void>;
 }
 
 const META_FILE_RE = /^meta-(.+)\.md$/;
@@ -90,13 +96,13 @@ function localRosterEntryToInFlight(entry: WorktreeRosterEntry): InFlightEntry[]
 export async function assembleStatusUserView(
   deps: AssembleStatusUserViewDeps,
 ): Promise<StatusUserViewResult> {
-  const { cwd, exec, identity, teamMode, localOnly, readFile, readdir } = deps;
+  const { cwd, exec, identity, teamMode, localOnly, readFile, readdir, writeFile, mkdir } = deps;
 
   const statusUserPath = identity === null
     ? null
     : (await resolveUserSurfaceResolver({ cwd, identity, exec })).identityGlobalPath("STATUS.USER.md");
 
-  return runStatusUserView({
+  const view = await runStatusUserView({
     exec,
     identity,
     teamMode,
@@ -114,4 +120,11 @@ export async function assembleStatusUserView(
     },
     readReadyMine: () => loadReadyMineSlice({ cwd, identity }),
   });
+
+  if (view.source === "rendered" && statusUserPath !== null && writeFile !== undefined && mkdir !== undefined) {
+    await mkdir(dirname(statusUserPath), { recursive: true });
+    await writeFile(statusUserPath, view.output.endsWith("\n") ? view.output : `${view.output}\n`);
+  }
+
+  return view;
 }

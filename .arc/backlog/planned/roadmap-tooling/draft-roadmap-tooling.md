@@ -97,6 +97,10 @@
   trigger points the strategy names (spawn / activate / integrate / shift / handoff + session-start-no-active-WU
   for the cross-machine slice). Reconcile the strategy § STATUS.USER claims with shipped behavior as the writer
   lands.
+- *Interim:* `finalize-parallelism` added a narrow cache safety patch: explicit `arc status --user` refreshes now
+  write the resolver-backed cache, and linked-worktree migration discards stale generated `STATUS.USER.md` copies
+  instead of treating them as divergent authored user content. Full trigger wiring, document chrome, and offline
+  cache merge remain here.
 - *Scope:* M — the deferred file-write/reconcile + trigger wiring (CLI + workflows, package-synced).
 
 ### `[ ]` **Render standard: uniform columns (replace conditional-column rules) + Priority as a regen trigger**

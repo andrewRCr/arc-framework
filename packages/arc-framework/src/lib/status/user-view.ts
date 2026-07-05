@@ -27,8 +27,9 @@
  *   Only the in-flight half degrades this way; the structured merge of the fresh
  *   local ready slice into the cached document is the deferred file-writer's job.
  *
- * This work unit renders to the terminal only; the canonical-file write and
- * reconcile reuse the same render core and land later.
+ * The explicit view path may persist a successful render as the local cache.
+ * The full structured writer, chrome, trigger wiring, and offline cache merge
+ * reuse the same render core and land later.
  *
  * @module
  */

@@ -4,8 +4,8 @@
  * Linked worktrees created before identity-global user surfaces were bound to
  * the primary checkout can still hold ignored flat files under `.arc/user/*`.
  * Git sees those worktrees as clean, so teardown must reconcile mergeable files
- * into the primary materialization, or refuse when a divergent flat file has no
- * safe merge strategy.
+ * into the primary materialization, discard generated caches, or refuse when a
+ * divergent flat file has no safe merge strategy.
  *
  * @module
  */
@@ -58,6 +58,7 @@ export interface ReconcileLinkedIdentityGlobalUserSurfacesOptions {
 }
 
 const LEGACY_ROOT_SESSION_NOTES = "SESSION-NOTES.md";
+const DISCARDABLE_GENERATED_CACHES = new Set(["STATUS.USER.md"]);
 
 /**
  * Dry-run safety predicate for cleanup-offer probes.
@@ -90,8 +91,9 @@ export async function linkedIdentityGlobalUserSurfacesAreSafe(options: {
  *
  * Known cross-WU files use the same entry-union merge as notes sync, with the
  * primary copy as the base so a stale linked copy cannot overwrite canonical
- * entries. Unknown flat files copy over only when the primary lacks the file;
- * divergent unknown files block removal.
+ * entries. Generated cache files are disposable because their source of truth is
+ * the renderer, not the stale linked-worktree copy. Unknown flat files copy over
+ * only when the primary lacks the file; divergent unknown files block removal.
  *
  * @param options - Worktree roots, filesystem seam, and optional dry-run mode
  * @returns Reconciled file labels, or a blocking reason
@@ -146,6 +148,7 @@ function reconcileIdentityGlobalFile(
   canonicalContent: string | null,
   linkedContent: string,
 ): { status: "ok"; content: string | null } | { status: "blocked"; reason: string } {
+  if (DISCARDABLE_GENERATED_CACHES.has(filename)) return { status: "ok", content: null };
   if (canonicalContent === null) return { status: "ok", content: linkedContent };
   if (canonicalContent === linkedContent) return { status: "ok", content: null };
 

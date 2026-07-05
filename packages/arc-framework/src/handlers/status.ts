@@ -609,6 +609,8 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       teamMode,
       localOnly,
       readFile: io.readFile,
+      writeFile: io.writeFile,
+      mkdir: (path, options) => io.mkdir(path, options).then(() => undefined),
       readdir: (path) => readdir(path),
     });
     if (json) {
