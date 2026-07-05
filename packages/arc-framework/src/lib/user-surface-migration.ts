@@ -10,7 +10,7 @@
  * @module
  */
 
-import { readdir, readFile, writeFile, mkdir } from "node:fs/promises";
+import { readdir, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import { classifyUserSyncPath } from "./user-sync/classifier.js";
@@ -30,6 +30,8 @@ export interface UserSurfaceMigrationFs {
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
   mkdir(path: string, options: { recursive: boolean }): Promise<void>;
+  /** Remove a file. Only invoked when signposting retires a regenerable cache. */
+  removeFile?(path: string): Promise<void>;
 }
 
 /** Production filesystem adapter for user-surface migration scans. */
@@ -40,11 +42,12 @@ export const nodeUserSurfaceMigrationFs: UserSurfaceMigrationFs = {
   mkdir: async (path, options) => {
     await mkdir(path, options);
   },
+  removeFile: (path) => rm(path, { force: true }),
 };
 
 /** Result of scanning and optionally reconciling a linked worktree's flat user files. */
 export type LinkedIdentityGlobalUserSurfaceResult =
-  | { status: "ok"; reconciled: string[] }
+  | { status: "ok"; reconciled: string[]; signposted: string[] }
   | { status: "blocked"; reason: string };
 
 export interface ReconcileLinkedIdentityGlobalUserSurfacesOptions {
@@ -55,10 +58,61 @@ export interface ReconcileLinkedIdentityGlobalUserSurfacesOptions {
   fs: UserSurfaceMigrationFs;
   /** Inspect only; do not write canonical files. */
   dryRun?: boolean;
+  /**
+   * After merging a linked copy up, retire it in place: durable surfaces become an
+   * explanatory signpost stub, regenerable caches are removed. Off by default (the
+   * teardown caller deletes the whole worktree; the dry-run safety probe inspects only).
+   */
+  signpost?: boolean;
 }
 
 const LEGACY_ROOT_SESSION_NOTES = "SESSION-NOTES.md";
 const DISCARDABLE_GENERATED_CACHES = new Set(["STATUS.USER.md"]);
+
+/** First-line marker identifying a retired identity-global surface stub. */
+const SIGNPOST_SENTINEL = "<!-- arc:signpost";
+
+/**
+ * Whether a file's content is a signpost stub this module previously wrote.
+ *
+ * The scan skips stubs so their notice text is never merged into canonical and a
+ * stub is never re-stamped; replacing a stub with real content (dropping the
+ * sentinel) opts the file back into the merge-up path.
+ *
+ * @param content - File content to test
+ * @returns `true` when the content leads with the signpost sentinel
+ */
+export function isSignpostStub(content: string): boolean {
+  return content.trimStart().startsWith(SIGNPOST_SENTINEL);
+}
+
+function isDiscardableGeneratedCache(filename: string): boolean {
+  return DISCARDABLE_GENERATED_CACHES.has(filename);
+}
+
+/**
+ * Build the in-place notice left where a linked worktree's durable identity-global
+ * surface used to live — naming the canonical primary-worktree copy for content and
+ * `arc user status` for drift, so a direct read finds "not here, and why."
+ */
+function buildSignpostStub(params: { filename: string; canonicalPath: string }): string {
+  const { filename, canonicalPath } = params;
+  return [
+    `${SIGNPOST_SENTINEL} surface=${filename} -->`,
+    `# ${filename} — not materialized in this worktree`,
+    "",
+    "This is a **linked worktree**. Identity-global user surfaces are canonical on the",
+    "**primary** worktree and resolve there automatically — ARC reads and writes the",
+    "canonical copy for you, so nothing here needs editing.",
+    "",
+    `- Content: \`${canonicalPath}\``,
+    "- Status / drift: `arc user status`",
+    "",
+    "_This is a signpost, not the surface. View or edit the canonical copy above; ARC",
+    "already routes reads and writes there._",
+    "",
+  ].join("\n");
+}
 
 /**
  * Dry-run safety predicate for cleanup-offer probes.
@@ -101,13 +155,16 @@ export async function linkedIdentityGlobalUserSurfacesAreSafe(options: {
 export async function reconcileLinkedIdentityGlobalUserSurfaces(
   options: ReconcileLinkedIdentityGlobalUserSurfacesOptions,
 ): Promise<LinkedIdentityGlobalUserSurfaceResult> {
-  const { worktreePath, primaryWorktreePath, fs, dryRun = false } = options;
-  if (resolve(worktreePath) === resolve(primaryWorktreePath)) return { status: "ok", reconciled: [] };
+  const { worktreePath, primaryWorktreePath, fs, dryRun = false, signpost = false } = options;
+  if (resolve(worktreePath) === resolve(primaryWorktreePath)) {
+    return { status: "ok", reconciled: [], signposted: [] };
+  }
 
   const linkedUserRoot = join(worktreePath, ".arc", "user");
   const canonicalUserRoot = join(primaryWorktreePath, ".arc", "user");
   const identities = (await readDirOrEmpty(fs, linkedUserRoot)).filter((entry) => entry.isDirectory());
   const reconciled: string[] = [];
+  const signposted: string[] = [];
 
   for (const identityEntry of identities) {
     const identity = identityEntry.name;
@@ -121,21 +178,38 @@ export async function reconcileLinkedIdentityGlobalUserSurfaces(
       const linkedPath = join(linkedIdentityRoot, entry.name);
       const canonicalPath = join(canonicalIdentityRoot, entry.name);
       const linkedContent = await fs.readFile(linkedPath);
+      // A copy already reduced to a signpost stub carries no user content: never
+      // merge the notice text into canonical, and never re-stamp an existing stub.
+      if (isSignpostStub(linkedContent)) continue;
+
       const canonicalContent = await readFileIfExists(fs, canonicalPath);
       const fileLabel = `${identity}/${entry.name}`;
       const resolvedFile = reconcileIdentityGlobalFile(entry.name, fileLabel, canonicalContent, linkedContent);
       if (resolvedFile.status === "blocked") return resolvedFile;
-      if (resolvedFile.content === null) continue;
 
-      reconciled.push(fileLabel);
-      if (!dryRun) {
-        await fs.mkdir(canonicalIdentityRoot, { recursive: true });
-        await fs.writeFile(canonicalPath, resolvedFile.content);
+      if (resolvedFile.content !== null) {
+        reconciled.push(fileLabel);
+        if (!dryRun) {
+          await fs.mkdir(canonicalIdentityRoot, { recursive: true });
+          await fs.writeFile(canonicalPath, resolvedFile.content);
+        }
+      }
+
+      // Canonical is now authoritative, so retire the linked copy: a durable surface
+      // leaves an explanatory stub, a regenerable cache is removed. Both close the
+      // stale-read / write-to-wrong-copy window a lingering copy would keep open.
+      if (signpost && !dryRun) {
+        if (isDiscardableGeneratedCache(entry.name)) {
+          await fs.removeFile?.(linkedPath);
+        } else {
+          await fs.writeFile(linkedPath, buildSignpostStub({ filename: entry.name, canonicalPath }));
+          signposted.push(fileLabel);
+        }
       }
     }
   }
 
-  return { status: "ok", reconciled };
+  return { status: "ok", reconciled, signposted };
 }
 
 function isIdentityGlobalFilename(filename: string): boolean {

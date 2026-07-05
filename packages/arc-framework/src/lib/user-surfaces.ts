@@ -98,6 +98,7 @@ export async function resolveUserSurfaceResolver(options: {
       worktreePath: options.cwd,
       primaryWorktreePath: primaryWorktree,
       fs: nodeUserSurfaceMigrationFs,
+      signpost: true,
     });
     if (migration.status === "blocked") throw new Error(migration.reason);
   }

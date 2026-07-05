@@ -283,14 +283,15 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
           divergent unknown or malformed files, and feed the same safety signal into stale-worktree and branch-gone
           cleanup offers.
 
-    - `[ ]` **2.6.d Clean up and signpost linked-worktree identity-global copies**
-        - The resolver + migration route reads/writes to canonical and merge a linked worktree's durable copies up,
-          but never remove them — so stale `WORKING-MEMORY` / `USER-INBOX` copies linger, misleading direct reads
-          (human and agent) and opening a write-to-wrong-copy window. After migrating up, remove the linked durable
-          copies and leave one thin signpost stub (canonical lives on the primary; `arc user status`), so a worktree
-          is "not present + explained." Generated caches (`STATUS.USER`) already discard. Lands before Phase 2.I so
-          base carries the cleanup; wave 1 verifies a spawned worktree shows no stale surfaces. (Always-fresh
-          materialization + tracked `ROADMAP` parity + the pinning DX are downstream — captured to a separate stub.)
+    - `[x]` **2.6.d Clean up and signpost linked-worktree identity-global copies**
+        - After merging a linked worktree's durable identity-global copy up, `reconcileLinkedIdentityGlobalUserSurfaces`
+          now retires the linked copy in place: a durable surface (`WORKING-MEMORY` / `USER-INBOX`) is replaced with a
+          per-surface signpost stub naming the canonical primary-worktree path and `arc user status`; a regenerable
+          cache (`STATUS.USER`) is removed. A recognizable sentinel marks the stub so the next resolver-entry scan
+          skips it — never merging notice text into canonical, never re-stamping — while real content re-opts into the
+          merge-up path. Gated by a `signpost` option: on for the live resolver entry (`resolveUserSurfaceResolver`),
+          off for teardown (git deletes the worktree) and the dry-run safety probe. Scan-based cleanup only —
+          proactive "present everywhere" materialization stays the downstream always-fresh stub.
 
     - `[ ]` **2.6.e Re-bind the compaction-recovery seed worktree-local, not identity-global**
         - 2.6.a routed the compaction-seed through the identity-global resolver (→ primary), but the seed is

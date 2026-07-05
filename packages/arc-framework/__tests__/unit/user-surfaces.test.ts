@@ -1,8 +1,11 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ExecResult, GitExec } from "../../src/lib/git/exec.js";
+import { isSignpostStub } from "../../src/lib/user-surface-migration.js";
 import {
   createUserSurfaceResolver,
   resolveUserSurfaceResolver,
@@ -98,5 +101,40 @@ describe("resolveUserSurfaceResolver", () => {
     });
 
     expect(resolver.identityGlobalRoot).toBe(join("/repo", ".arc", "user", "andrew"));
+  });
+});
+
+describe("resolveUserSurfaceResolver signposting", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-user-surfaces-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("retires a linked worktree's stale durable copy to a signpost on resolver entry", async () => {
+    const primary = join(root, "primary");
+    const linked = join(root, "linked");
+    const primaryUserDir = join(primary, ".arc", "user", "andrew");
+    const linkedUserDir = join(linked, ".arc", "user", "andrew");
+    await mkdir(primaryUserDir, { recursive: true });
+    await mkdir(linkedUserDir, { recursive: true });
+    await writeFile(join(linkedUserDir, "WORKING-MEMORY.md"), "linked memory\n");
+
+    const resolver = await resolveUserSurfaceResolver({
+      cwd: linked,
+      identity: "andrew",
+      exec: execReturningWorktrees(primary, linked),
+    });
+
+    // Resolver routes identity-global reads to the primary root...
+    expect(resolver.identityGlobalRoot).toBe(primaryUserDir);
+    // ...the content was merged up...
+    await expect(readFile(join(primaryUserDir, "WORKING-MEMORY.md"), "utf8")).resolves.toBe("linked memory\n");
+    // ...and the linked copy is now a signpost, not stale content.
+    expect(isSignpostStub(await readFile(join(linkedUserDir, "WORKING-MEMORY.md"), "utf8"))).toBe(true);
   });
 });
