@@ -66,6 +66,7 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorktreeContext; even
       readFile: async () => "",
       writeFile: async () => {},
       mkdir: async () => {},
+      readDir: async () => [],
     },
   };
   return { ctx, events };
@@ -365,8 +366,8 @@ describe("reconcileWorktree — spawn in place (--here)", () => {
 
 describe("reconcileWorktree — teardown", () => {
   it("removes a clean worktree without --force and without a locus hop (non-self)", async () => {
-    const { ctx, events } = buildCtx({ status: "" });
     const worktreePath = "/work/wt/demo";
+    const { ctx, events } = buildCtx({ status: "", worktreeList: porcelain("/work/primary", worktreePath) });
 
     const result = await reconcileWorktree(ctx, {
       mutation: "teardown",
@@ -377,6 +378,7 @@ describe("reconcileWorktree — teardown", () => {
     expect(result).toEqual({ mutation: "teardown", worktreePath, locusHopped: false });
     expect(events).toEqual([
       ["git", "status", "--porcelain"],
+      ["git", "worktree", "list", "--porcelain"],
       ["git", "worktree", "remove", worktreePath],
     ]);
   });

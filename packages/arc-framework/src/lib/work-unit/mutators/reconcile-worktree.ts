@@ -35,7 +35,7 @@
  * @module
  */
 
-import { cp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
@@ -47,6 +47,10 @@ import {
 } from "../../git/worktree-marker.js";
 import { resolveWorktreeLocation } from "../../git/worktree-location.js";
 import { resolvePrimaryWorktreePath } from "../../git/worktree-roster.js";
+import {
+  reconcileLinkedIdentityGlobalUserSurfaces,
+  type UserSurfaceMigrationDirent,
+} from "../../user-surface-migration.js";
 
 /** Dependencies for {@link reconcileWorktree}. */
 export interface ReconcileWorktreeContext {
@@ -70,6 +74,8 @@ export interface ReconcileWorktreeFs {
   writeFile(path: string, content: string): Promise<void>;
   /** Ensure a directory exists. */
   mkdir(path: string, options: { recursive: boolean }): Promise<void>;
+  /** Read directory entries. */
+  readDir(path: string): Promise<UserSurfaceMigrationDirent[]>;
 }
 
 /** Production filesystem adapter for {@link reconcileWorktree}. */
@@ -90,6 +96,7 @@ export const nodeReconcileWorktreeFs: ReconcileWorktreeFs = {
   mkdir: async (path, options) => {
     await mkdir(path, options);
   },
+  readDir: (path) => readdir(path, { withFileTypes: true }),
 };
 
 /**
@@ -290,12 +297,21 @@ export async function reconcileWorktree(
     throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
   }
 
+  const primary = await resolvePrimaryWorktreePath(ctx.exec);
+  if (primary === null) {
+    throw new Error(`cannot resolve the primary worktree before teardown of ${worktreePath}`);
+  }
+  const userSurfaceReconcile = await reconcileLinkedIdentityGlobalUserSurfaces({
+    worktreePath,
+    primaryWorktreePath: primary,
+    fs: ctx.fs,
+  });
+  if (userSurfaceReconcile.status === "blocked") {
+    throw new Error(userSurfaceReconcile.reason);
+  }
+
   let locusHopped = false;
   if (isSelfTeardown(worktreePath, currentLocus)) {
-    const primary = await resolvePrimaryWorktreePath(ctx.exec);
-    if (primary === null) {
-      throw new Error(`cannot resolve the primary worktree to hop to before self-teardown of ${worktreePath}`);
-    }
     ctx.chdir(primary);
     locusHopped = true;
   }

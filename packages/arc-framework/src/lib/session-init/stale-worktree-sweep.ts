@@ -26,10 +26,16 @@ import {
 } from "../git/worktree-cleanup.js";
 import { readWorktreeMarker, type WorktreeMarkerReadResult } from "../git/worktree-marker.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
-import type {
-  WorktreeRosterEntry,
-  WorktreeRosterResult,
+import {
+  resolvePrimaryWorktreePath,
+  type WorktreeRosterEntry,
+  type WorktreeRosterResult,
 } from "../git/worktree-roster.js";
+import {
+  linkedIdentityGlobalUserSurfacesAreSafe,
+  nodeUserSurfaceMigrationFs,
+  type UserSurfaceMigrationFs,
+} from "../user-surface-migration.js";
 import { isShippedWorkUnit, readShippedWorkUnitsFromRef } from "../work-unit/completed-index.js";
 
 export interface StaleWorktreeSweepInput {
@@ -96,6 +102,8 @@ export interface RunStaleWorktreeSweepOptions {
   exec: GitExec;
   /** Reads a worktree's ownership marker; injected for testability. */
   readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
+  /** Filesystem seam for ignored identity-global user-surface safety scans. */
+  userSurfaceFs?: UserSurfaceMigrationFs;
 }
 
 /**
@@ -113,6 +121,7 @@ export async function runStaleWorktreeSweep(
 ): Promise<StaleWorktreeSweepResult> {
   const { roster, worktreeIdentity, baseBranch, exec } = options;
   const readMarker = options.readMarker ?? readWorktreeMarker;
+  const userSurfaceFs = options.userSurfaceFs ?? nodeUserSurfaceMigrationFs;
   const integrationTarget = `origin/${baseBranch}`;
 
   if (worktreeIdentity.kind !== "primary") {
@@ -121,18 +130,24 @@ export async function runStaleWorktreeSweep(
 
   const shipped = await readShippedWorkUnitsFromRef(exec, integrationTarget);
   const { candidates, warnings } = findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity });
+  const primaryWorktreePath = candidates.length === 0 ? null : await resolvePrimaryWorktreePath(exec);
 
   const worktrees = await Promise.all(
     candidates.map(async (entry) => {
-      const [marker, clean, merged] = await Promise.all([
+      const [marker, clean, merged, userSurfacesSafe] = await Promise.all([
         readMarker(entry.worktreePath),
         isWorktreeClean({ exec, cwd: entry.worktreePath }),
         isLandedInBase(exec, entry.branch, integrationTarget),
+        linkedIdentityGlobalUserSurfacesAreSafe({
+          primaryWorktreePath,
+          worktreePath: entry.worktreePath,
+          fs: userSurfaceFs,
+        }),
       ]);
       return {
         worktreePath: entry.worktreePath,
         branch: entry.branch,
-        decision: decideWorktreeCleanup({ marker, clean, merged, context: "shipped" }),
+        decision: decideWorktreeCleanup({ marker, clean, userSurfacesSafe, merged, context: "shipped" }),
       };
     }),
   );

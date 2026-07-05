@@ -256,7 +256,7 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
   commit-time validation and `arc-verify` flag the same shape class, with regression coverage for both spawn and
   in-place paths.
 
-### `[ ]` **2.6 BI-6 — Identity-global user-surface binding**
+### `[x]` **2.6 BI-6 — Identity-global user-surface binding**
 
 - _Goal:_ From any worktree, identity-global user surfaces resolve to one canonical machine-local materialization,
   while per-WU SESSION-NOTES remains worktree-scoped. The design composes with `strategy-storage-evolution.md`,
@@ -277,14 +277,10 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
           and status/drift comparison use the same logical split basis, and legacy root SESSION-NOTES entries
           migrate only to the current WU or are preserved as backup-only legacy content.
 
-    - `[ ]` **2.6.c Divergent-copy migration and teardown guard**
-        - Detect existing linked-worktree copies of identity-global files, reconcile them once into the canonical
-          root with merge-aware behavior, and ensure worktree teardown cannot silently delete the only copy of a
-          capture that has not reached notes.
-        - The guard runs at the common worktree-removal path, not only during the first migration, because ignored
-          `.arc/user/*` edits do not make a linked worktree dirty. Cleanup-offer probes surface the same risk.
-        - Test that a git-clean linked worktree containing only ignored identity-global user captures is reconciled
-          or refused before `git worktree remove` can delete it.
+    - `[x]` **2.6.c Divergent-copy migration and teardown guard**
+        - Linked-worktree resolver entry and teardown now scan ignored flat identity-global user files, merge known
+          cross-WU shapes into the primary canonical root, refuse divergent unknown or malformed files, and feed the
+          same safety signal into stale-worktree and branch-gone cleanup offers.
 
 ## **Phase 3:** Burn-in wave 1 — two doc-only WUs
 

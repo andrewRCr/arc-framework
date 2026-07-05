@@ -9,11 +9,15 @@
  * @module
  */
 
-import { isAbsolute, join, relative } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import { toForwardSlash } from "./fs.js";
 import type { GitExec } from "./git/exec.js";
 import { resolvePrimaryWorktreePath } from "./git/worktree-roster.js";
+import {
+  nodeUserSurfaceMigrationFs,
+  reconcileLinkedIdentityGlobalUserSurfaces,
+} from "./user-surface-migration.js";
 
 export interface UserSurfaceResolverOptions {
   /** Current ARC project root / active worktree root. */
@@ -89,6 +93,15 @@ export async function resolveUserSurfaceResolver(options: {
   exec: GitExec;
 }): Promise<UserSurfaceResolver> {
   const primaryWorktree = await resolvePrimaryWorktreePath(options.exec);
+  if (primaryWorktree !== null && resolve(primaryWorktree) !== resolve(options.cwd)) {
+    const migration = await reconcileLinkedIdentityGlobalUserSurfaces({
+      worktreePath: options.cwd,
+      primaryWorktreePath: primaryWorktree,
+      fs: nodeUserSurfaceMigrationFs,
+    });
+    if (migration.status === "blocked") throw new Error(migration.reason);
+  }
+
   return createUserSurfaceResolver({
     cwd: options.cwd,
     identity: options.identity,

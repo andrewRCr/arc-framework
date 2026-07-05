@@ -1204,6 +1204,49 @@ describe("user save/load — split-source worktree surfaces", () => {
     }
   });
 
+  it("migrates mergeable linked identity-global copies into the primary root before saving", async () => {
+    const linked = await addLinkedWorktree(tempDir, "feat/split-migration");
+    try {
+      const primaryUserDir = join(tempDir, ".arc", "user", "test-user");
+      const linkedUserDir = join(linked, ".arc", "user", "test-user");
+      await mkdir(join(linkedUserDir, "split-migration"), { recursive: true });
+      await writeFile(join(linkedUserDir, "split-migration", "SESSION-NOTES.md"), "# Linked notes", "utf-8");
+      await writeFile(
+        join(linkedUserDir, "USER-INBOX.md"),
+        [
+          "# User Inbox",
+          "",
+          "## Errand",
+          "",
+          "### `[ ]` **linked capture**",
+          "",
+          "- _Created:_ `2026-07-05`",
+          "",
+          "## Work Unit",
+          "",
+        ].join("\n"),
+        "utf-8",
+      );
+
+      const linkedIo = makeUserIO(linked);
+      const save = await runUserSave({
+        cwd: linked,
+        io: linkedIo,
+        identity: "test-user",
+        currentWuName: "split-migration",
+      });
+
+      expect(save.fileCount).toBe(3);
+      expect(await readFile(join(primaryUserDir, "USER-INBOX.md"), "utf-8")).toContain("linked capture");
+      const head = await readHead(linked);
+      const note = await linkedIo.readNote("arc/user/test-user", head);
+      const manifest = JSON.parse(note!) as { files: Record<string, string> };
+      expect(manifest.files["USER-INBOX.md"]).toContain("linked capture");
+    } finally {
+      await execFileAsync("git", ["-C", tempDir, "worktree", "remove", "--force", linked]);
+    }
+  });
+
   it("loads identity-global files to primary and current-WU files to the active linked worktree", async () => {
     const linked = await addLinkedWorktree(tempDir, "feat/split-load");
     try {
