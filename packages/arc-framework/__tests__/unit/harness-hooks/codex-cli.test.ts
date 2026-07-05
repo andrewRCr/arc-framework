@@ -505,6 +505,33 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
+  it("accepts the emitted seed path when the hook runs from a subdirectory of the ARC root", () => {
+    withTempArcProject((root) => {
+      // The seed-path check must resolve the ARC root by walking up to `.arc/`,
+      // exactly as the `arc` emitter's resolveArcRoot does — not by naive-joining
+      // the raw hook cwd. When PreCompact runs from a subdirectory (or a linked
+      // worktree) the raw cwd is not the ARC root, yet the emitter still writes the
+      // seed under the walked-up root; a naive join would mis-expect the path and
+      // fall back with "unexpected seed path". A real git repo makes resolveRepoRoot
+      // (git show-toplevel) deterministic, mirroring production.
+      execFileSync("git", ["init", "-q"], { cwd: root });
+      const subdir = join(root, "packages", "arc-framework");
+      mkdirSync(subdir, { recursive: true });
+
+      runHookScriptRaw(seedScriptPath, subdir, {
+        env: {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(writeSuccessFakeArc(root)),
+          ARC_HOOK_HARNESS: "codex-cli",
+        },
+      });
+
+      // The real (non-fallback) marker is armed under the walked-up root, and no
+      // "unexpected seed path" fallback is written.
+      expect(readJson<PendingMarker>(identityMarkerPath(root)).fallback).toBe(false);
+      expect(existsSync(fallbackMarkerPath(root))).toBe(false);
+    });
+  });
+
   it("does not trim identity when validating emitted seed paths", () => {
     withTempArcProject((root) => {
       const fakeArcPath = join(root, "fake-arc.mjs");
