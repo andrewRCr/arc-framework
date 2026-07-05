@@ -12,11 +12,11 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.R.1.a — Scope the slice boundary
-- **Next Task:** Task 2.R.1.b — Complete the slice in its own session (line ~307)
+- **Last Completed:** Burn-in re-plan — mid-flight integration (2.I), launch model, wave-1 lifecycle rework
+- **Next Task:** Task 2.6.d — Clean up and signpost linked-worktree identity-global copies (line ~286)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.R.1.b — complete the dedicated renderer-command slice in a separate session
+- **Next Action:** Start Task 2.6.d — migrate-then-remove linked identity-global copies + add the signpost stub
 
 - **PR URL:** [none]
 - **Completed:** [none]
