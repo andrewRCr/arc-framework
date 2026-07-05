@@ -3,23 +3,24 @@ import { describe, expect, it } from "vitest";
 import { renderWorktreeEntryRecipe } from "../../../src/lib/harness/worktree-entry.js";
 
 describe("renderWorktreeEntryRecipe", () => {
-  it("renders the common worktree-entry invariant and known harness recipes", () => {
+  it("leads with the fresh-session path and demotes live relocate to an escape hatch", () => {
     const recipe = renderWorktreeEntryRecipe({ worktreePath: "/repos/arc-framework.plan-widget" });
 
     expect(recipe).toContain("post-create provisioning and registered harness-dir copy have run");
-    expect(recipe).toContain("Claude Code: use `EnterWorktree`");
     expect(recipe).toContain(
-      "Codex CLI: open a fresh terminal or end this session, then run `codex --cd /repos/arc-framework.plan-widget`",
+      "Primary — start a fresh session in `/repos/arc-framework.plan-widget` with your harness of choice, " +
+        "then invoke `arc-session`",
     );
-    expect(recipe).toContain("and invoke `$arc-session`");
-    expect(recipe).toContain("Other harnesses: start the harness from this worktree root");
+    expect(recipe).toContain("boots rich off the seeded handoff");
+    expect(recipe).toContain("Escape hatch");
+    expect(recipe).toContain("Claude Code's `EnterWorktree`");
   });
 
-  it("quotes paths with whitespace for the Codex command", () => {
+  it("emits no per-harness launch command", () => {
     const recipe = renderWorktreeEntryRecipe({ worktreePath: "/repos/arc framework.plan-widget" });
 
-    expect(recipe).toContain(
-      "Codex CLI: open a fresh terminal or end this session, then run `codex --cd '/repos/arc framework.plan-widget'`",
-    );
+    expect(recipe).not.toContain("codex --cd");
+    // The path is shown as plain data (raw), not shell-escaped for a command.
+    expect(recipe).toContain("`/repos/arc framework.plan-widget`");
   });
 });

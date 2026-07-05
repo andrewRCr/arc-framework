@@ -180,7 +180,8 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockLog.info).toHaveBeenCalledWith("Committed abc1234 and pushed plan/widget.");
     expect(mockNote).toHaveBeenCalledWith(
       expect.stringContaining(
-        "Codex CLI: open a fresh terminal or end this session, then run `codex --cd /repos/myrepo.plan-widget`",
+        "Primary — start a fresh session in `/repos/myrepo.plan-widget` with your harness of choice, " +
+          "then invoke `arc-session`",
       ),
       "Next session",
     );
@@ -241,7 +242,10 @@ describe("handleStart — dispatch orchestration", () => {
     );
     expect(mockLog.info).toHaveBeenCalledWith("Committed def5678 and pushed plan/widget.");
     expect(mockNote).toHaveBeenCalledWith(
-      expect.stringContaining("Claude Code: use `EnterWorktree`"),
+      expect.stringContaining(
+        "Primary — start a fresh session in `/repos/myrepo.plan-widget` with your harness of choice, " +
+          "then invoke `arc-session`",
+      ),
       "Next session",
     );
     expect(process.exitCode).toBeUndefined();

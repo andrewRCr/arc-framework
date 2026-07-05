@@ -388,18 +388,17 @@ build items (BI-4).
           task list, else deps-only. FP mints no attestation field, so today it degrades to the heuristic/deps
           fallback — a stable socket `wu-lifecycle-state-model` later fills. Spec already carried the design.
 
-### `[ ]` **2.E.3 Recenter the launch recipe on spawn-anchored entry**
+### `[x]` **2.E.3 Recenter the launch recipe on spawn-anchored entry**
 
 - _Goal:_ The BI-4 `Next session` recipe leads with the spawn-anchored fresh-session entry and demotes live
   relocate to an opt-in escape hatch, per the desync finding.
 
-    - `[ ]` **2.E.3.a Rework the Task 2.4.f recipe emission**
-        - Reorder the emitted `Next session` recipe so the spawn-anchored fresh in-worktree session is the primary
-          path and live relocate (`EnterWorktree` / re-enter mid-session) is an explicit escape hatch, not a
-          co-equal branch. Preserve the common root invariant (enter after post-create provisioning + harness-dir
-          copy, now automatic per BI-1). Emit generic entry — worktree path + "open a fresh session here; it boots
-          rich off the seed" — not per-harness launch commands (which harness / invocation is the developer's tooling
-          per the launch-model inversion); auto-provisioning already absorbs the per-harness asymmetry.
+    - `[x]` **2.E.3.a Rework the Task 2.4.f recipe emission**
+        - Reworked `renderWorktreeEntryRecipe` (`worktree-entry.ts`): leads with a generic spawn-anchored
+          fresh-session entry (worktree path + invoke `arc-session`, boots rich off the seed) and demotes live
+          relocate (`EnterWorktree`) to a labeled opt-in escape hatch. Dropped the per-harness launch commands
+          (`codex --cd …`) and the now-moot shell-quoting helper; the path shows as plain data. Updated the renderer
+          unit test and two `start.test.ts` recipe assertions.
 
 ### `[x]` **2.E.4 Document bare `arc start <slug>` as the know-what-to-start default**
 
