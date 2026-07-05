@@ -256,7 +256,7 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
   commit-time validation and `arc-verify` flag the same shape class, with regression coverage for both spawn and
   in-place paths.
 
-### `[ ]` **2.6 BI-6 — Identity-global user-surface binding**
+### `[x]` **2.6 BI-6 — Identity-global user-surface binding**
 
 - _Goal:_ From any worktree, identity-global user surfaces resolve to one canonical machine-local materialization,
   while per-WU SESSION-NOTES remains worktree-scoped. The design composes with `strategy-storage-evolution.md`,
@@ -293,17 +293,14 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
           off for teardown (git deletes the worktree) and the dry-run safety probe. Scan-based cleanup only —
           proactive "present everywhere" materialization stays the downstream always-fresh stub.
 
-    - `[ ]` **2.6.e Re-bind the compaction-recovery seed worktree-local, not identity-global**
-        - 2.6.a routed the compaction-seed through the identity-global resolver (→ primary), but the seed is
-          per-session state, not identity-global — closer to SESSION-NOTES than to `WORKING-MEMORY`. Spawn-anchored
-          launch fixes _capture_ (whose state the seed describes) but not _storage_: under concurrent worktrees every
-          session resolves the same `primary/.arc/user/{id}/.internal/compaction-seed.json`, so compactions clobber
-          each other last-writer-wins and a session recovers a _different_ worktree's state. Re-resolve the seed
-          worktree-local (per-session), symmetric across emit (`status --write-compaction-seed`) and audit
-          (`recover`), decoupled from the identity-global resolver; tear it down with the worktree. Lands before
-          Phase 2.I so base carries it; a wave verifies two concurrent worktree sessions each recover their own
-          state, no clobber. (Surfaced 2026-07-05 when this session's relocate anchored the seed to `main`; the
-          clobber itself is on the blessed concurrent path, not the relocate one.)
+    - `[x]` **2.6.e Re-bind the compaction-recovery seed worktree-local, not identity-global**
+        - `resolveCompactionSeedPath` now roots the seed at the active checkout (`cwd/.arc/user/{id}/.internal/…`)
+          and no longer accepts an identity-global root, so the emit side (`status --write-compaction-seed`) and the
+          audit side (`recover`) resolve the same per-worktree path symmetrically. Concurrent worktree sessions each
+          own a private seed — no last-writer-wins clobber, and no cross-worktree state recovery — and the seed is
+          torn down with its worktree (it lives in the worktree's own gitignored `.internal/`). Both handlers keep
+          resolving `identityGlobalUserDir` for their load-set / recovery-manifest projections; only the seed path
+          was detached from it. (Live two-worktree no-clobber check is wave work.)
 
 ## **Phase 2.R:** ROADMAP renderer gate
 

@@ -63,7 +63,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
 
   const identityGlobalUserDir = (await resolveUserSurfaceResolver({ cwd, identity, exec: gitExec }))
     .identityGlobalRoot;
-  const seedPath = resolveCompactionSeedPath({ cwd, identity, identityGlobalUserDir });
+  const seedPath = resolveCompactionSeedPath({ cwd, identity });
   let seedContent: string;
   try {
     seedContent = await readFile(seedPath, "utf8");

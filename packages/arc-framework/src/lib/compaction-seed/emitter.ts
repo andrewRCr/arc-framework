@@ -51,8 +51,6 @@ export interface EmitCompactionSeedOptions {
   cwd: string;
   envelope: CompactionSeedEnvelope;
   gitSnapshot: CompactionSeedGitSnapshot;
-  /** Canonical identity-global user root. Defaults to the active checkout. */
-  identityGlobalUserDir?: string | null;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
   now?: () => Date;
 }
@@ -67,17 +65,22 @@ export type EmitCompactionSeedResult =
     message: string;
   };
 
-/** Resolve the fixed seed path for an identity. */
+/**
+ * Resolve the seed path for an identity, rooted at the active worktree.
+ *
+ * The compaction seed is per-session state, not an identity-global surface: it
+ * lives under the current checkout (`cwd`), so concurrent worktrees each own a
+ * private seed and one session's compaction cannot clobber another's — and the
+ * seed is torn down with its worktree.
+ */
 export function resolveCompactionSeedPath(ctx: {
   cwd: string;
   identity: string;
-  identityGlobalUserDir?: string | null;
 }): string {
   if (isUnsafeCompactionSeedIdentity(ctx.identity)) {
     throw new Error(`Invalid compaction seed identity: ${ctx.identity}`);
   }
-  const userDir = ctx.identityGlobalUserDir ?? join(ctx.cwd, ".arc", "user", ctx.identity);
-  return join(userDir, ".internal", "compaction-seed.json");
+  return join(ctx.cwd, ".arc", "user", ctx.identity, ".internal", "compaction-seed.json");
 }
 
 function isUnsafeCompactionSeedIdentity(identity: string): boolean {
@@ -142,7 +145,6 @@ export async function emitCompactionSeed(
     path = resolveCompactionSeedPath({
       cwd: options.cwd,
       identity,
-      identityGlobalUserDir: options.identityGlobalUserDir,
     });
   } catch (err) {
     return { status: "failed", reason: "identity-invalid", message: errorMessage(err) };

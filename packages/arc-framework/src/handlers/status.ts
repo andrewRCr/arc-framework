@@ -576,7 +576,6 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           cwd,
           envelope: result,
           gitSnapshot,
-          identityGlobalUserDir,
         }));
         surfaceCompactionSeedWrite(result.compactionSeedWrite);
       } catch (err) {
