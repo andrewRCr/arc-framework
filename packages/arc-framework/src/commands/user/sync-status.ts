@@ -1,6 +1,4 @@
-import { join } from "node:path";
-
-import { getCurrentBranch, serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
+import { getCurrentBranch, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -13,6 +11,7 @@ import {
   isComparableSourceCommit,
   projectManifest,
   readLocalSyncState,
+  resolveCurrentWuName,
   type UserSyncCause,
   type UserSyncCauseConfidence,
 } from "../../lib/user-sync/index.js";
@@ -21,9 +20,11 @@ import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
+  buildUserLoadManifestSnapshot,
   findNearestUserNote,
   hashSyncManifest,
   listBackupFiles,
+  serializeSplitUserManifest,
 } from "./save-load.js";
 import { notesRef } from "./shared.js";
 import type {
@@ -106,13 +107,14 @@ export async function runUserStatus(
     remoteSyncEnabled = false,
     verbose,
   } = options;
+  const currentWuName = await resolveCurrentWuName(cwd, io.exec);
   const shouldProbeWorktree = !offline && remoteSyncEnabled;
   const [
     diskInspection, search, backupFiles, remoteIdentities, refInspection, worktreeProbe,
     userNotesRefExists, localSyncState,
   ] = await Promise.all([
-    inspectDiskVsLocalSnapshot(cwd, io, identity),
-    findNearestUserNote({ cwd, io, identity }),
+    inspectDiskVsLocalSnapshot(cwd, io, identity, currentWuName),
+    findNearestUserNote({ cwd, io, identity, currentWuName }),
     listBackupFiles(cwd, io, identity),
     all ? listRemoteUserIdentities(io) : Promise.resolve([]),
     offline
@@ -330,8 +332,10 @@ async function inspectSessionLocalNoteFreshness(input: {
   cwd: string;
   io: UserIOContext;
   identity: string;
+  currentWuName?: string;
 }): Promise<UserSessionLocalNoteFreshness> {
-  const { note } = await findNearestUserNote(input);
+  const currentWuName = input.currentWuName ?? await resolveCurrentWuName(input.cwd, input.io.exec);
+  const { note } = await findNearestUserNote({ ...input, currentWuName });
   if (!note) {
     return {
       state: "missing",
@@ -1417,12 +1421,18 @@ async function inspectDiskVsLocalSnapshot(
   cwd: string,
   io: UserIOContext,
   identity: string,
+  currentWuName?: string,
 ): Promise<DiskVsSnapshotInspection> {
-  const userDir = join(cwd, ".arc", "user", identity);
+  const resolvedCurrentWuName = currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
   let diskManifest: SyncManifest | null = null;
 
   try {
-    const diskResult = await serialize(userDir, io.readDir, io.readFile);
+    const diskResult = await serializeSplitUserManifest({
+      cwd,
+      io,
+      identity,
+      currentWuName: resolvedCurrentWuName,
+    });
     if (Object.keys(diskResult.manifest.files).length > 0) {
       diskManifest = diskResult.manifest;
     }
@@ -1430,8 +1440,15 @@ async function inspectDiskVsLocalSnapshot(
     diskManifest = null;
   }
 
-  const { note } = await findNearestUserNote({ cwd, io, identity });
-  if (!note) {
+  let noteSnapshot;
+  try {
+    noteSnapshot = await buildUserLoadManifestSnapshot({
+      cwd,
+      io,
+      identity,
+      currentWuName: resolvedCurrentWuName,
+    });
+  } catch {
     return {
       state: diskManifest ? "different" : "same",
       diskStatus: diskManifest ? "local unsaved" : "current",
@@ -1439,11 +1456,7 @@ async function inspectDiskVsLocalSnapshot(
       missingFiles: [],
     };
   }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(note.content) as unknown;
-  } catch {
+  if (noteSnapshot.manifest === null) {
     return {
       state: diskManifest ? "different" : "same",
       diskStatus: diskManifest ? "local unsaved" : "current",
@@ -1456,8 +1469,7 @@ async function inspectDiskVsLocalSnapshot(
   // tree that differs from the note only in its in-band `## Removed:` set compares
   // equal and reads `current`. The materialized hash compared against below is
   // likewise written over the projection (save/load), keeping one basis throughout.
-  const noteManifest = parsed as SyncManifest;
-  const projectedNote = projectManifest(noteManifest);
+  const projectedNote = projectManifest(noteSnapshot.manifest);
   const noteHash = hashSyncManifest(projectedNote);
   const localSyncState = await readLocalSyncState(cwd, io, identity);
 
@@ -1507,10 +1519,10 @@ async function inspectDiskVsLocalSnapshot(
 
   const materializedHash = localSyncState.materializedManifestHash;
   if (
-    note.commit !== localSyncState.sourceCommit
+    noteSnapshot.sourceCommit !== localSyncState.sourceCommit
     && isComparableSourceCommit(localSyncState.sourceCommit)
   ) {
-    const noteIsDescendant = await isAncestor(io, localSyncState.sourceCommit, note.commit);
+    const noteIsDescendant = await isAncestor(io, localSyncState.sourceCommit, noteSnapshot.sourceCommit);
     if (noteIsDescendant && diskHash === materializedHash) {
       return { state: "different", diskStatus: "stale", direction: "behind", missingFiles };
     }

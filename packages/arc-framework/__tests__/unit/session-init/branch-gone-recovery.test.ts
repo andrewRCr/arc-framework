@@ -7,6 +7,7 @@ import type {
   WorktreeRosterResult,
 } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
+import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
 
 const PRESENT_MARKER: WorktreeMarkerReadResult = {
   kind: "present",
@@ -34,6 +35,12 @@ function buildExec(opts: { dirty?: Set<string>; merged?: Set<string> } = {}): Gi
       if (branch !== undefined && opts.merged?.has(branch)) return { stdout: "", stderr: "" };
       return { stdout: "+ deadbeef\n", stderr: "" };
     }
+    if (args[0] === "worktree" && args[1] === "list") {
+      return {
+        stdout: "worktree /primary\nHEAD 1111111111111111111111111111111111111111\nbranch refs/heads/main\n",
+        stderr: "",
+      };
+    }
     throw new Error(`unexpected git invocation: ${args.join(" ")}`);
   });
 }
@@ -48,6 +55,28 @@ function roster(entries: WorktreeRosterEntry[]): WorktreeRosterResult {
   return { entries, warnings: [] };
 }
 
+const emptyUserSurfaceFs: UserSurfaceMigrationFs = {
+  readDir: async () => [],
+  readFile: async () => "",
+  writeFile: async () => {},
+  mkdir: async () => {},
+};
+
+const divergentUnknownUserSurfaceFs: UserSurfaceMigrationFs = {
+  readDir: async (path) => {
+    if (path === "/wt/a/.arc/user") {
+      return [{ name: "andrew", isDirectory: () => true, isFile: () => false }];
+    }
+    if (path === "/wt/a/.arc/user/andrew") {
+      return [{ name: "FUTURE.md", isDirectory: () => false, isFile: () => true }];
+    }
+    return [];
+  },
+  readFile: async (path) => path.startsWith("/primary/") ? "primary\n" : "linked\n",
+  writeFile: async () => {},
+  mkdir: async () => {},
+};
+
 describe("runBranchGoneRecovery", () => {
   it("resolves to a lone live WU worktree, deriving its action from per-worktree signals", async () => {
     const result = await runBranchGoneRecovery({
@@ -59,6 +88,7 @@ describe("runBranchGoneRecovery", () => {
       recentBranches: [],
       exec: buildExec({ merged: new Set() }), // feat/a not merged → live
       readMarker: readMarkerFrom({ "/wt/a": PRESENT_MARKER }),
+      userSurfaceFs: emptyUserSurfaceFs,
     });
 
     expect(result).toEqual({
@@ -77,11 +107,31 @@ describe("runBranchGoneRecovery", () => {
       recentBranches: [],
       exec: buildExec({ merged: new Set(["feat/a"]) }),
       readMarker: readMarkerFrom({ "/wt/a": PRESENT_MARKER }),
+      userSurfaceFs: emptyUserSurfaceFs,
     });
 
     expect(result).toEqual({
       kind: "resolved",
       candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "removable" },
+    });
+  });
+
+  it("keeps a merged WU worktree as a switch target when ignored user surfaces cannot reconcile", async () => {
+    const result = await runBranchGoneRecovery({
+      roster: roster([
+        { worktreePath: "/wt/a", branch: "feat/a", metaFilePath: "/wt/a/.arc/active/meta-a.md" },
+      ]),
+      currentBranch: "feat/gone",
+      baseBranch: "main",
+      recentBranches: [],
+      exec: buildExec({ merged: new Set(["feat/a"]) }),
+      readMarker: readMarkerFrom({ "/wt/a": PRESENT_MARKER }),
+      userSurfaceFs: divergentUnknownUserSurfaceFs,
+    });
+
+    expect(result).toEqual({
+      kind: "resolved",
+      candidate: { branch: "feat/a", worktreePath: "/wt/a", proposedAction: "switch" },
     });
   });
 
@@ -94,6 +144,7 @@ describe("runBranchGoneRecovery", () => {
       recentBranches: [],
       exec: buildExec(),
       readMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
     });
 
     expect(result).toEqual({
@@ -113,6 +164,7 @@ describe("runBranchGoneRecovery", () => {
       recentBranches: [],
       exec: buildExec(),
       readMarker: readMarkerFrom({}),
+      userSurfaceFs: emptyUserSurfaceFs,
     });
 
     expect(result).toEqual({ kind: "main-fallback" });
@@ -126,6 +178,7 @@ describe("runBranchGoneRecovery", () => {
       recentBranches: ["feat/recent"],
       exec: buildExec(),
       readMarker: readMarkerFrom({}),
+      userSurfaceFs: emptyUserSurfaceFs,
     });
 
     expect(result).toEqual({
@@ -145,6 +198,7 @@ describe("runBranchGoneRecovery", () => {
       recentBranches: ["main", "feat/a", "feat/new"],
       exec: buildExec({ merged: new Set() }),
       readMarker: readMarkerFrom({ "/wt/a": PRESENT_MARKER }),
+      userSurfaceFs: emptyUserSurfaceFs,
     });
 
     // Worktree tier is non-empty (feat/a), so it wins outright — recent tier not consulted.
@@ -165,6 +219,7 @@ describe("runBranchGoneRecovery", () => {
       recentBranches: [],
       exec: buildExec({ merged: new Set() }),
       readMarker: readMarkerFrom({ "/wt/a": PRESENT_MARKER, "/wt/b": PRESENT_MARKER }),
+      userSurfaceFs: emptyUserSurfaceFs,
     });
 
     expect(result.kind).toBe("surface");

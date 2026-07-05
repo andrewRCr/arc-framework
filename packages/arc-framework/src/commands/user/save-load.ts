@@ -10,6 +10,8 @@ import {
   reduceCommitsToCausallyMaximal,
   serialize,
   shortHash,
+  type SerializeResult,
+  type SkipWarning,
   type SyncManifest,
 } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
@@ -25,6 +27,7 @@ import {
   NO_COMPARABLE_SOURCE_COMMIT,
   planRetiredSubdirReconcile,
   projectManifest,
+  resolveCurrentWuName,
   stashedFilesInSubdir,
   subdirsFromPaths,
   readLocalSyncState,
@@ -34,6 +37,7 @@ import {
   type MergeNote,
   type OrphanClassification,
 } from "../../lib/user-sync/index.js";
+import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
@@ -62,6 +66,8 @@ import {
 const BACKUP_TIMESTAMPED_PREFIX = ".pre-load-backup-";
 const BACKUP_TIMESTAMPED_SUFFIX = ".json";
 const BACKUP_RETENTION = 3;
+const LEGACY_ROOT_SESSION_NOTES = "SESSION-NOTES.md";
+const LEGACY_ROOT_SESSION_NOTES_BACKUP = "legacy-root-SESSION-NOTES.md";
 
 type ResolutionPointer = Pick<LocalSyncState, "sourceCommit" | "sourceOperation">;
 
@@ -77,6 +83,25 @@ interface ReachableNoteCandidate {
   content?: string;
 }
 
+export type LegacyRootSessionNotesAction =
+  | { kind: "none" }
+  | { kind: "migrated"; targetPath: string }
+  | { kind: "backup"; content: string; reason: "scoped-exists" | "no-current-wu"; scopedPath?: string };
+
+export interface LoadManifestSnapshot {
+  search: NearestNoteSearch;
+  manifest: SyncManifest | null;
+  sourceCommit: string;
+  fromAncestor: boolean;
+  mergeWarnings: string[];
+  legacyRootSessionNotes: LegacyRootSessionNotesAction;
+}
+
+interface WuManifestSelection {
+  manifest: SyncManifest;
+  legacyRootSessionNotes: LegacyRootSessionNotesAction;
+}
+
 /**
  * Save the user directory to user notes on HEAD.
  *
@@ -90,10 +115,15 @@ export async function runUserSave(
   options: UserSaveOptions,
 ): Promise<UserSaveResult> {
   const { cwd, io, identity } = options;
-  const userDir = join(cwd, ".arc", "user", identity);
+  const currentWuName = options.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
 
   const { stdout: commit } = await io.exec("git", ["rev-parse", "HEAD"]);
-  const result = await serialize(userDir, io.readDir, io.readFile);
+  const result = await serializeSplitUserManifest({
+    cwd,
+    io,
+    identity,
+    currentWuName,
+  });
 
   if (Object.keys(result.manifest.files).length === 0) {
     throw new UserSaveError("No eligible files found in user directory to save.");
@@ -104,7 +134,7 @@ export async function runUserSave(
   // Serialize the smallest span containing that RMW — the recent-notes read,
   // tombstone apply, and the write — under a per-identity advisory lock,
   // releasing in `finally` so a thrown write still frees it for the next caller.
-  const lock = await acquireAdvisoryLock(getNotesLockPath(cwd, identity));
+  const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
   try {
     const recentNotes = await readRecentUserNotes(io.exec, identity);
     applyRemovalTombstones(result.manifest, recentNotes, new Date().toISOString());
@@ -142,22 +172,194 @@ export async function runUserLoad(
   options: UserLoadOptions,
 ): Promise<UserLoadOutcome | null> {
   const { cwd, io, identity } = options;
-  const userDir = join(cwd, ".arc", "user", identity);
+  const currentWuName = options.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
+  const resolver = await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec });
+  const snapshot = await buildUserLoadManifestSnapshot({
+    cwd,
+    io,
+    identity,
+    currentWuName,
+  });
+
+  if (snapshot.manifest === null) {
+    return null;
+  }
+  const loadManifest = snapshot.manifest;
+
+  let notices: LoadMessage[] = [];
+  const cleanups: LoadMessage[] = [];
+  try {
+    const localResult = await serializeSplitUserManifest({
+      cwd,
+      io,
+      identity,
+      currentWuName,
+      resolver,
+    });
+    const localFiles = localResult.manifest.files;
+    const activeUserDir = join(cwd, ".arc", "user", identity);
+    const activeLocalFiles = (await serialize(activeUserDir, io.readDir, io.readFile)).manifest.files;
+    const reconcile = await resolveReconcilableSubdirs({ cwd, exec: io.exec, localFiles: activeLocalFiles });
+    const reconciledFileBackup = filesInSubdirs(activeLocalFiles, new Set(reconcile));
+    const legacyBackupFiles = legacyRootSessionNotesBackupFiles(snapshot.legacyRootSessionNotes);
+    const backupManifest = buildBackupManifest(localFiles, reconciledFileBackup, legacyBackupFiles);
+
+    let backupFilename: string | null = null;
+    if (Object.keys(backupManifest.files).length > 0) {
+      backupFilename = await writeTimestampedBackup(
+        join(resolver.identityGlobalRoot, ".internal"),
+        io,
+        backupManifest,
+      );
+    }
+
+    const reconciled = await removeReconciledSubdirs({ cwd, identity, reconcile });
+    const backupForNotice = backupFilename ?? createTimestampedBackupFilename();
+
+    notices = [
+      ...legacyRootSessionNotesNotices(snapshot.legacyRootSessionNotes, backupFilename),
+      ...classifyOrphans({
+        localFiles: { ...localFiles, ...reconciledFileBackup },
+        manifestFiles: loadManifest.files,
+        reconciledSubdirs: reconciled,
+        currentWuName,
+      }).map((classification) => ({
+        level: "notice" as const,
+        text: renderOrphanNotice(classification, backupForNotice),
+      })),
+    ];
+
+    // Tier the removal announcement by content: a subdir holding only ARC's
+    // own SESSION-NOTES is a routine cleanup; one the operator stashed extra
+    // files in earns a louder notice naming them and the recoverable backup.
+    for (const subdir of reconciled) {
+      const stashed = stashedFilesInSubdir(Object.keys(activeLocalFiles), subdir);
+      if (stashed.length === 0) {
+        cleanups.push({
+          level: "cleanup",
+          text: `Retired WU subdir "${subdir}" (shipped) — removed; backed up to .internal/${backupForNotice}`,
+        });
+      } else {
+        notices.push({
+          level: "notice",
+          text:
+            `Retired WU subdir "${subdir}" (shipped) — removed; it held file(s) you added ` +
+            `(${stashed.join(", ")}); recover from .internal/${backupForNotice} if you still need them`,
+        });
+      }
+    }
+  } catch {
+    // User dir doesn't exist yet — nothing to back up, skip gracefully
+  }
+
+  await deserializeSplitUserManifest({
+    cwd,
+    io,
+    identity,
+    currentWuName,
+    resolver,
+  }, loadManifest);
+  await verifyMaterializedSplitUserManifest({
+    cwd,
+    io,
+    identity,
+    currentWuName,
+    resolver,
+  }, snapshot.sourceCommit, loadManifest);
+  const projectedLoad = projectManifest(loadManifest);
+  await writeLocalSyncState(
+    cwd, io, identity, hashSyncManifest(projectedLoad), snapshot.sourceCommit, "load", snapshot.sourceCommit,
+    Object.keys(projectedLoad.files),
+  );
+
+  return {
+    kind: "loaded",
+    identity,
+    commit: await formatLoadSourceCommit(io, snapshot.sourceCommit),
+    fileCount: Object.keys(loadManifest.files).length,
+    fromAncestor: snapshot.fromAncestor,
+    ancestorDistance: snapshot.search.note?.ancestorDistance ?? 0,
+    // A cross-WU-only load (no per-WU note resolved — e.g. a brand-new WU loading
+    // shared context before its first save) has no annotated commit to be off-
+    // ancestry, so leave `reachableFromHead` undefined rather than defaulting it
+    // false and firing the off-ancestry summary line spuriously.
+    reachableFromHead: snapshot.search.note?.reachableFromHead,
+    currentBranch: snapshot.search.note?.reachableFromHead === false ? await getCurrentBranch(io.exec) : null,
+    messages: [
+      ...cleanups,
+      ...notices,
+      ...snapshot.mergeWarnings.map((text): LoadMessage => ({ level: "warning", text })),
+    ],
+  };
+}
+
+/**
+ * Serialize the logical user-sync manifest from semantic storage roots.
+ *
+ * Identity-global flat files come from the canonical root, while the current
+ * WU's SESSION-NOTES tree comes from the active worktree. The returned manifest
+ * is the single logical basis saved to notes, compared by status, and captured
+ * in pre-load backups.
+ *
+ * @param options - User command options plus optional resolved WU/resolver
+ * @returns Logical manifest and serialization warnings
+ */
+export async function serializeSplitUserManifest(options: {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+  currentWuName?: string;
+  resolver?: UserSurfaceResolver;
+}): Promise<SerializeResult> {
+  const { cwd, io, identity, currentWuName } = options;
+  const resolver = options.resolver
+    ?? await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec });
+  const identityResult = await serializeIdentityGlobalRoot(resolver, io);
+  const files: Record<string, string> = { ...identityResult.manifest.files };
+  const warnings: SkipWarning[] = [...identityResult.warnings];
+
+  if (currentWuName !== undefined) {
+    const workUnitResult = await serialize(resolver.workUnitRoot(currentWuName), io.readDir, io.readFile);
+    Object.assign(files, prefixManifestFiles(workUnitResult.manifest.files, currentWuName));
+    warnings.push(...workUnitResult.warnings.map((warning) => ({
+      ...warning,
+      path: `${currentWuName}/${warning.path}`,
+    })));
+  }
+
+  return { manifest: { version: 2, files }, warnings };
+}
+
+/**
+ * Build the logical manifest a load/status operation should compare or
+ * materialize, without writing files.
+ *
+ * @param options - Load options, including the already-resolved current WU
+ * @returns Snapshot of the selected note, logical manifest, and merge warnings
+ */
+export async function buildUserLoadManifestSnapshot(
+  options: UserLoadOptions,
+): Promise<LoadManifestSnapshot> {
+  const { io, identity } = options;
   const search = await findNearestUserNote(options);
   const recentNotes = await readRecentUserNotes(io.exec, identity);
   const { files: crossWuFiles, warnings: mergeWarnings } = mergeCrossWuFromNotes(recentNotes);
 
-  // Per-WU subdir restores from the note carrying the current WU; cross-WU flat
-  // files merge across the recent-note window, so a brand-new WU still loads
-  // shared context before its own note exists. There is nothing to load only
-  // when both sources produce no loadable content.
   if (!search.note && Object.keys(crossWuFiles).length === 0) {
-    return null;
+    return {
+      search,
+      manifest: null,
+      sourceCommit: NO_COMPARABLE_SOURCE_COMMIT,
+      fromAncestor: false,
+      mergeWarnings,
+      legacyRootSessionNotes: { kind: "none" },
+    };
   }
 
   let version: SyncManifest["version"] = 2;
   let sourceCommit = NO_COMPARABLE_SOURCE_COMMIT;
   let fromAncestor = false;
+  let legacyRootSessionNotes: LegacyRootSessionNotesAction = { kind: "none" };
   const perWuFiles: Record<string, string> = {};
 
   if (search.note) {
@@ -165,97 +367,94 @@ export async function runUserLoad(
     version = manifest.version;
     sourceCommit = search.note.commit;
     fromAncestor = search.note.fromAncestor;
-    for (const [path, content] of Object.entries(filterManifestForWu(manifest, options.currentWuName).files)) {
-      if (classifyUserSyncPath(path) !== "cross-wu") perWuFiles[path] = content;
+    const selection = filterManifestForWu(manifest, options.currentWuName);
+    legacyRootSessionNotes = selection.legacyRootSessionNotes;
+    for (const [path, content] of Object.entries(selection.manifest.files)) {
+      if (!isIdentityGlobalManifestPath(path)) perWuFiles[path] = content;
     }
   }
-
-  const loadManifest: SyncManifest = { version, files: { ...perWuFiles, ...crossWuFiles } };
-
-  let notices: LoadMessage[] = [];
-  const cleanups: LoadMessage[] = [];
-  try {
-    const localResult = await serialize(userDir, io.readDir, io.readFile);
-    const localFiles = localResult.manifest.files;
-
-    if (Object.keys(localFiles).length > 0) {
-      const backupFilename = createTimestampedBackupFilename();
-      const internalDir = getUserInternalDir(cwd, identity);
-      await ensureDir(internalDir, io.mkdir);
-      await io.writeFile(
-        join(internalDir, backupFilename),
-        JSON.stringify(localResult.manifest),
-      );
-      await pruneTimestampedBackups(internalDir, io.readDir);
-
-      // Retired-subdir reconcile: every shipped per-WU subdir is removed. Its
-      // files were just captured in the pre-load backup, so the removal is
-      // recoverable. Runs before the stale-file scan so a reconciled subdir's
-      // files aren't also reported as "preserved".
-      const reconciled = await reconcileRetiredSubdirs({ cwd, identity, exec: io.exec, localFiles });
-
-      notices = classifyOrphans({
-        localFiles,
-        manifestFiles: loadManifest.files,
-        reconciledSubdirs: reconciled,
-        currentWuName: options.currentWuName,
-      }).map((classification) => ({
-        level: "notice",
-        text: renderOrphanNotice(classification, backupFilename),
-      }));
-
-      // Tier the removal announcement by content: a subdir holding only ARC's
-      // own SESSION-NOTES is a routine cleanup; one the operator stashed extra
-      // files in earns a louder notice naming them and the recoverable backup.
-      for (const subdir of reconciled) {
-        const stashed = stashedFilesInSubdir(Object.keys(localFiles), subdir);
-        if (stashed.length === 0) {
-          cleanups.push({
-            level: "cleanup",
-            text: `Retired WU subdir "${subdir}" (shipped) — removed; backed up to .internal/${backupFilename}`,
-          });
-        } else {
-          notices.push({
-            level: "notice",
-            text:
-              `Retired WU subdir "${subdir}" (shipped) — removed; it held file(s) you added ` +
-              `(${stashed.join(", ")}); recover from .internal/${backupFilename} if you still need them`,
-          });
-        }
-      }
-    }
-  } catch {
-    // User dir doesn't exist yet — nothing to back up, skip gracefully
-  }
-
-  await ensureDir(userDir, io.mkdir);
-  await deserialize(userDir, loadManifest, io.writeFile, io.mkdir);
-  await verifyMaterializedUserDir(userDir, io, sourceCommit, loadManifest);
-  const projectedLoad = projectManifest(loadManifest);
-  await writeLocalSyncState(
-    cwd, io, identity, hashSyncManifest(projectedLoad), sourceCommit, "load", sourceCommit,
-    Object.keys(projectedLoad.files),
-  );
 
   return {
-    kind: "loaded",
-    identity,
-    commit: await formatLoadSourceCommit(io, sourceCommit),
-    fileCount: Object.keys(loadManifest.files).length,
+    search,
+    manifest: { version, files: { ...perWuFiles, ...crossWuFiles } },
+    sourceCommit,
     fromAncestor,
-    ancestorDistance: search.note?.ancestorDistance ?? 0,
-    // A cross-WU-only load (no per-WU note resolved — e.g. a brand-new WU loading
-    // shared context before its first save) has no annotated commit to be off-
-    // ancestry, so leave `reachableFromHead` undefined rather than defaulting it
-    // false and firing the off-ancestry summary line spuriously.
-    reachableFromHead: search.note?.reachableFromHead,
-    currentBranch: search.note?.reachableFromHead === false ? await getCurrentBranch(io.exec) : null,
-    messages: [
-      ...cleanups,
-      ...notices,
-      ...mergeWarnings.map((text): LoadMessage => ({ level: "warning", text })),
-    ],
+    mergeWarnings,
+    legacyRootSessionNotes,
   };
+}
+
+async function serializeIdentityGlobalRoot(
+  resolver: UserSurfaceResolver,
+  io: UserIOContext,
+): Promise<SerializeResult> {
+  return serialize(
+    resolver.identityGlobalRoot,
+    async (dirPath) => (await io.readDir(dirPath))
+      .filter((entry) => isIdentityGlobalManifestPath(entry.name)),
+    io.readFile,
+  );
+}
+
+function isIdentityGlobalManifestPath(path: string): boolean {
+  return classifyUserSyncPath(path) === "cross-wu" && path !== LEGACY_ROOT_SESSION_NOTES;
+}
+
+function prefixManifestFiles(
+  files: Record<string, string>,
+  prefix: string,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(files).map(([path, content]) => [`${prefix}/${path}`, content]),
+  );
+}
+
+async function deserializeSplitUserManifest(
+  options: {
+    cwd: string;
+    io: UserIOContext;
+    identity: string;
+    currentWuName?: string;
+    resolver: UserSurfaceResolver;
+  },
+  manifest: SyncManifest,
+): Promise<void> {
+  const identityGlobalFiles: Record<string, string> = {};
+  const workUnitFiles: Record<string, string> = {};
+  const currentWuName = options.currentWuName;
+
+  for (const [path, content] of Object.entries(manifest.files)) {
+    if (isIdentityGlobalManifestPath(path)) {
+      identityGlobalFiles[path] = content;
+      continue;
+    }
+    if (currentWuName === undefined) continue;
+    const prefix = `${currentWuName}/`;
+    if (path.startsWith(prefix)) {
+      workUnitFiles[path.slice(prefix.length)] = content;
+    }
+  }
+
+  if (Object.keys(identityGlobalFiles).length > 0) {
+    await ensureDir(options.resolver.identityGlobalRoot, options.io.mkdir);
+    await deserialize(
+      options.resolver.identityGlobalRoot,
+      { version: manifest.version, files: identityGlobalFiles },
+      options.io.writeFile,
+      options.io.mkdir,
+    );
+  }
+
+  if (currentWuName !== undefined && Object.keys(workUnitFiles).length > 0) {
+    const workUnitRoot = options.resolver.workUnitRoot(currentWuName);
+    await ensureDir(workUnitRoot, options.io.mkdir);
+    await deserialize(
+      workUnitRoot,
+      { version: manifest.version, files: workUnitFiles },
+      options.io.writeFile,
+      options.io.mkdir,
+    );
+  }
 }
 
 /**
@@ -309,7 +508,7 @@ function mergeCrossWuFromNotes(
   const seen = new Set<string>();
   for (const noteFiles of perNoteFiles) {
     for (const path of Object.keys(noteFiles)) {
-      if (!seen.has(path) && classifyUserSyncPath(path) === "cross-wu") {
+      if (!seen.has(path) && isIdentityGlobalManifestPath(path)) {
         seen.add(path);
         crossWuNames.push(path);
       }
@@ -347,7 +546,7 @@ function applyRemovalTombstones(
 ): void {
   const perNoteFiles = recentNotes.map((note) => parseManifestFiles(note.content) ?? {});
   for (const [name, content] of Object.entries(manifest.files)) {
-    if (classifyUserSyncPath(name) !== "cross-wu") continue;
+    if (!isIdentityGlobalManifestPath(name)) continue;
 
     const priorNotes: MergeNote[] = [];
     for (const noteFiles of perNoteFiles) {
@@ -360,23 +559,98 @@ function applyRemovalTombstones(
   }
 }
 
-async function verifyMaterializedUserDir(
-  userDir: string,
+function filesInSubdirs(
+  files: Record<string, string>,
+  subdirs: ReadonlySet<string>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(files).filter(([path]) => {
+      const wu = wuNameOfPath(path);
+      return wu !== null && subdirs.has(wu);
+    }),
+  );
+}
+
+function legacyRootSessionNotesBackupFiles(
+  action: LegacyRootSessionNotesAction,
+): Record<string, string> {
+  return action.kind === "backup"
+    ? { [LEGACY_ROOT_SESSION_NOTES_BACKUP]: action.content }
+    : {};
+}
+
+function buildBackupManifest(
+  localFiles: Record<string, string>,
+  reconciledFiles: Record<string, string>,
+  legacyBackupFiles: Record<string, string>,
+): SyncManifest {
+  return {
+    version: 2,
+    files: { ...localFiles, ...reconciledFiles, ...legacyBackupFiles },
+  };
+}
+
+async function writeTimestampedBackup(
+  internalDir: string,
   io: UserIOContext,
+  manifest: SyncManifest,
+): Promise<string> {
+  const backupFilename = createTimestampedBackupFilename();
+  await ensureDir(internalDir, io.mkdir);
+  await io.writeFile(join(internalDir, backupFilename), JSON.stringify(manifest));
+  await pruneTimestampedBackups(internalDir, io.readDir);
+  return backupFilename;
+}
+
+function legacyRootSessionNotesNotices(
+  action: LegacyRootSessionNotesAction,
+  backupFilename: string | null,
+): LoadMessage[] {
+  switch (action.kind) {
+    case "none":
+      return [];
+    case "migrated":
+      return [{
+        level: "notice",
+        text: `Migrated legacy root-level SESSION-NOTES.md to ${action.targetPath}.`,
+      }];
+    case "backup": {
+      const backupPath = backupFilename === null ? ".internal/" : `.internal/${backupFilename}`;
+      const reason = action.reason === "scoped-exists" && action.scopedPath
+        ? `${action.scopedPath} already exists`
+        : "no current work unit resolved";
+      return [{
+        level: "notice",
+        text: `Skipped legacy root-level SESSION-NOTES.md because ${reason}; backed up to ${backupPath}`,
+      }];
+    }
+  }
+}
+
+async function verifyMaterializedSplitUserManifest(
+  options: {
+    cwd: string;
+    io: UserIOContext;
+    identity: string;
+    currentWuName?: string;
+    resolver: UserSurfaceResolver;
+  },
   commit: string,
   manifest: SyncManifest,
 ): Promise<void> {
-  const shortCommit = await formatLoadSourceCommit(io, commit);
+  const shortCommit = await formatLoadSourceCommit(options.io, commit);
   const expectedFiles: Record<string, string> = {};
   const readbackFiles: Record<string, string> = {};
 
   for (const [name, content] of Object.entries(manifest.files)) {
     if (!isSafeManifestPath(name)) continue;
+    const materializedPath = resolveMaterializedManifestPath(options, name);
+    if (materializedPath === null) continue;
     expectedFiles[name] = content;
 
     let actual: string;
     try {
-      actual = await io.readFile(`${userDir}/${name}`);
+      actual = await options.io.readFile(materializedPath);
     } catch {
       throw new UserLoadVerificationError(
         `Load verification failed for note ${shortCommit}: materialized file "${name}" was missing or unreadable.`,
@@ -392,6 +666,24 @@ async function verifyMaterializedUserDir(
       `Load verification failed for note ${shortCommit}: materialized file content did not match the loaded manifest.`,
     );
   }
+}
+
+function resolveMaterializedManifestPath(
+  options: {
+    currentWuName?: string;
+    resolver: UserSurfaceResolver;
+  },
+  manifestPath: string,
+): string | null {
+  if (isIdentityGlobalManifestPath(manifestPath)) {
+    return join(options.resolver.identityGlobalRoot, manifestPath);
+  }
+
+  const currentWuName = options.currentWuName;
+  if (currentWuName === undefined) return null;
+  const prefix = `${currentWuName}/`;
+  if (!manifestPath.startsWith(prefix)) return null;
+  return join(options.resolver.workUnitRoot(currentWuName), manifestPath.slice(prefix.length));
 }
 
 async function formatLoadSourceCommit(
@@ -656,7 +948,7 @@ function parseManifestFiles(noteContent: string): Record<string, unknown> | null
 function noteManifestContainsWu(noteContent: string, wuName: string): boolean {
   const files = parseManifestFiles(noteContent);
   if (!files) return false;
-  return Object.keys(files).some((path) => wuNameOfPath(path) === wuName);
+  return Object.keys(files).some((path) => path === LEGACY_ROOT_SESSION_NOTES || wuNameOfPath(path) === wuName);
 }
 
 /**
@@ -691,27 +983,6 @@ async function removeReconciledSubdirs(params: {
     await removeStaleUserWuSubdir({ cwd: params.cwd, identity: params.identity, subdir });
   }
   return new Set(params.reconcile);
-}
-
-/**
- * Reconcile retired per-WU subdirs at load time — resolve the reconcilable set
- * ({@link resolveReconcilableSubdirs}) and remove each. Removal is recoverable:
- * the caller has already written the pre-load backup capturing these files.
- *
- * @returns The set of reconciled (removed) subdir names.
- */
-async function reconcileRetiredSubdirs(params: {
-  cwd: string;
-  identity: string;
-  exec: GitExec;
-  localFiles: Record<string, string>;
-}): Promise<Set<string>> {
-  const reconcile = await resolveReconcilableSubdirs({
-    cwd: params.cwd,
-    exec: params.exec,
-    localFiles: params.localFiles,
-  });
-  return removeReconciledSubdirs({ cwd: params.cwd, identity: params.identity, reconcile });
 }
 
 /**
@@ -791,14 +1062,51 @@ function renderOrphanNotice(classification: OrphanClassification, backupFilename
 function filterManifestForWu(
   manifest: SyncManifest,
   currentWuName: string | undefined,
-): SyncManifest {
+): WuManifestSelection {
   const files: Record<string, string> = {};
+  const legacyRootContent = manifest.files[LEGACY_ROOT_SESSION_NOTES];
+  const scopedSessionNotesPath = currentWuName === undefined
+    ? undefined
+    : `${currentWuName}/${LEGACY_ROOT_SESSION_NOTES}`;
+  const scopedSessionNotesExists = scopedSessionNotesPath !== undefined
+    && manifest.files[scopedSessionNotesPath] !== undefined;
+
   for (const [path, content] of Object.entries(manifest.files)) {
-    if (classifyUserSyncPath(path) === "cross-wu" || wuNameOfPath(path) === currentWuName) {
+    if (path === LEGACY_ROOT_SESSION_NOTES) continue;
+    if (isIdentityGlobalManifestPath(path) || wuNameOfPath(path) === currentWuName) {
       files[path] = content;
     }
   }
-  return { version: manifest.version, files };
+
+  if (legacyRootContent === undefined) {
+    return { manifest: { version: manifest.version, files }, legacyRootSessionNotes: { kind: "none" } };
+  }
+
+  if (currentWuName === undefined) {
+    return {
+      manifest: { version: manifest.version, files },
+      legacyRootSessionNotes: { kind: "backup", content: legacyRootContent, reason: "no-current-wu" },
+    };
+  }
+
+  if (scopedSessionNotesPath !== undefined && scopedSessionNotesExists) {
+    return {
+      manifest: { version: manifest.version, files },
+      legacyRootSessionNotes: {
+        kind: "backup",
+        content: legacyRootContent,
+        reason: "scoped-exists",
+        scopedPath: scopedSessionNotesPath,
+      },
+    };
+  }
+
+  const targetPath = `${currentWuName}/${LEGACY_ROOT_SESSION_NOTES}`;
+  files[targetPath] = legacyRootContent;
+  return {
+    manifest: { version: manifest.version, files },
+    legacyRootSessionNotes: { kind: "migrated", targetPath },
+  };
 }
 
 async function countCommitsSince(
@@ -818,14 +1126,22 @@ export async function listBackupFiles(
   io: UserIOContext,
   identity: string,
 ): Promise<string[]> {
-  const legacyFiles = await readBackupNames(join(cwd, ".arc", "user", identity), io.readDir);
-  const internalFiles = await readBackupNames(getUserInternalDir(cwd, identity), io.readDir);
-  const backupFiles = [...internalFiles, ...legacyFiles];
+  const resolver = await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec });
+  const roots = uniquePaths([resolver.identityGlobalRoot, join(cwd, ".arc", "user", identity)]);
+  const internalDirs = uniquePaths([join(resolver.identityGlobalRoot, ".internal"), getUserInternalDir(cwd, identity)]);
+  const backupFiles = [
+    ...(await Promise.all(internalDirs.map((dir) => readBackupNames(dir, io.readDir)))).flat(),
+    ...(await Promise.all(roots.map((dir) => readBackupNames(dir, io.readDir)))).flat(),
+  ];
   const legacy = backupFiles.filter((name) => name === BACKUP_FILENAME);
   const timestamped = backupFiles
     .filter((name) => isTimestampedBackupFile(name))
     .sort((left, right) => right.localeCompare(left));
-  return [...timestamped, ...legacy];
+  return [...new Set([...timestamped, ...legacy])];
+}
+
+function uniquePaths(paths: readonly string[]): string[] {
+  return [...new Set(paths)];
 }
 
 function createTimestampedBackupFilename(): string {

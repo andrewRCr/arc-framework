@@ -14,6 +14,8 @@ export interface ConfigSettings {
   "branch.base": string;
   "branch.protection": string;
   "worktree.location_template": string;
+  "worktree.post_create": string;
+  "worktree.harness_dirs": string;
   "commit.format": string;
   "commit.context_footer": string;
   "commit.custom_pattern": string;

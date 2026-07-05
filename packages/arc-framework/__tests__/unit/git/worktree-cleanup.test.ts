@@ -43,6 +43,18 @@ describe("decideWorktreeCleanup", () => {
       ).toEqual({ action: "blocked", reason: "unmerged" });
     });
 
+    it("is blocked when ignored identity-global user surfaces cannot be reconciled", () => {
+      expect(
+        decideWorktreeCleanup({
+          marker: present,
+          clean: true,
+          userSurfacesSafe: false,
+          merged: true,
+          context: "shipped",
+        }),
+      ).toEqual({ action: "blocked", reason: "user-surfaces" });
+    });
+
     it("is external when there is no marker — externally managed", () => {
       expect(
         decideWorktreeCleanup({ marker: absent, clean: true, merged: true, context: "shipped" }),

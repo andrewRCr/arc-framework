@@ -56,7 +56,7 @@ async function revParse(repo: string, rev: string): Promise<string> {
   return stdout.trim();
 }
 
-/** Machine keys present on the remote sync-state ref, read from the repo's origin. */
+/** Entry keys present on the remote sync-state ref, read from the repo's origin. */
 async function remoteKeys(repo: string): Promise<string[]> {
   const { stdout } = await execFileAsync("git", ["ls-remote", "origin", REF], { cwd: repo });
   if (stdout.trim() === "") return [];
@@ -104,9 +104,9 @@ describe("publishSyncStateMarker", () => {
       expect(outcome).toEqual({ kind: "published" });
 
       const machineId = await getOrCreateMachineId(repo, io, IDENTITY);
-      expect(await remoteKeys(repo)).toEqual([machineId]);
+      expect(await remoteKeys(repo)).toEqual([notesTip]);
 
-      const marker = await readSyncStateMarker(refIoFor(repo, io), machineId);
+      const marker = await readSyncStateMarker(refIoFor(repo, io), notesTip);
       expect(marker).toEqual({
         version: 1,
         machineId,
@@ -152,6 +152,89 @@ describe("publishSyncStateMarker", () => {
       });
       expect(outcome).toEqual({ kind: "skipped", reason: "no-notes-ref" });
       expect(await remoteKeys(repo)).toEqual([]);
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("records an explicit planned notes-export target instead of the raw local notes tip", async () => {
+    const remoteDir = await addBareRemote(repo);
+    try {
+      const rawLocalTip = await seedNotesRef(repo);
+      const plannedTarget = "f".repeat(40);
+      const head = await revParse(repo, "HEAD");
+      const now = "2026-06-25T12:30:00.000Z";
+
+      const outcome = await publishSyncStateMarker({
+        cwd: repo,
+        io,
+        execInput: makeGitExecInput(repo),
+        identity: IDENTITY,
+        intent: plannedTarget,
+        now,
+      });
+      expect(outcome).toEqual({ kind: "published" });
+
+      const machineId = await getOrCreateMachineId(repo, io, IDENTITY);
+      expect(await remoteKeys(repo)).toEqual([plannedTarget]);
+
+      const marker = await readSyncStateMarker(refIoFor(repo, io), plannedTarget);
+      expect(marker).toEqual({
+        version: 1,
+        machineId,
+        lastAttemptedCommit: head,
+        attemptTimestamp: now,
+        intent: plannedTarget,
+      });
+      expect(marker?.intent).not.toBe(rawLocalTip);
+    } finally {
+      await cleanupTempDir(remoteDir);
+    }
+  });
+
+  it("keeps two unresolved same-machine intents as separate sync-state entries", async () => {
+    const remoteDir = await addBareRemote(repo);
+    try {
+      const intentA = "a".repeat(40);
+      const intentB = "b".repeat(40);
+      const commitA = await revParse(repo, "HEAD");
+      await makeCommit(repo, "second intent worktree commit");
+      const commitB = await revParse(repo, "HEAD");
+
+      const first = await publishSyncStateMarker({
+        cwd: repo,
+        io,
+        execInput: makeGitExecInput(repo),
+        identity: IDENTITY,
+        intent: intentA,
+        lastAttemptedCommit: commitA,
+        now: "2026-06-25T12:00:00.000Z",
+      });
+      expect(first).toEqual({ kind: "published" });
+
+      const second = await publishSyncStateMarker({
+        cwd: repo,
+        io,
+        execInput: makeGitExecInput(repo),
+        identity: IDENTITY,
+        intent: intentB,
+        lastAttemptedCommit: commitB,
+        now: "2026-06-25T12:05:00.000Z",
+      });
+      expect(second).toEqual({ kind: "published" });
+
+      const machineId = await getOrCreateMachineId(repo, io, IDENTITY);
+      expect(await remoteKeys(repo)).toEqual([intentA, intentB].sort());
+      expect(await readSyncStateMarker(refIoFor(repo, io), intentA)).toMatchObject({
+        machineId,
+        lastAttemptedCommit: commitA,
+        intent: intentA,
+      });
+      expect(await readSyncStateMarker(refIoFor(repo, io), intentB)).toMatchObject({
+        machineId,
+        lastAttemptedCommit: commitB,
+        intent: intentB,
+      });
     } finally {
       await cleanupTempDir(remoteDir);
     }

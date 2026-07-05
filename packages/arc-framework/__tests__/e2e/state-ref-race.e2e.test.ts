@@ -12,15 +12,15 @@
  * the in-process tests cannot.
  *
  * Per-guard coverage:
- *   - sync-state ref (D1): two machine-keyed entries both land in the ref tree.
+ *   - sync-state ref (D1): two entry-keyed writes both land in the ref tree.
  *   - errand ref (D1): two errand records both land in the ref tree.
  *   - user-notes (D4): two notes for two commits both land under the lock.
  *   - machine-id (D3): two first-callers converge on a single id.
  */
 
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, rm, stat } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import { describe, it, expect } from "vitest";
@@ -61,6 +61,16 @@ async function refTip(repo: string, ref: string): Promise<string | null> {
   }
 }
 
+/** Whether a filesystem path exists. */
+async function exists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The tree keys (entry names) held in a ref's commit, sorted; empty when absent. */
 async function refTreeKeys(repo: string, ref: string): Promise<string[]> {
   const tip = await refTip(repo, ref);
@@ -87,7 +97,7 @@ async function emptyCommit(repo: string, message: string): Promise<string> {
 }
 
 describe("true-race smokes — same-machine write-safety guards", () => {
-  it("sync-state ref (D1): two racing machine-keyed writes both land", async () => {
+  it("sync-state ref (D1): two racing entry-keyed writes both land", async () => {
     const dir = await createTempRepo("arc-race-syncstate-");
     try {
       const expectedKeys: string[] = [];
@@ -159,6 +169,34 @@ describe("true-race smokes — same-machine write-safety guards", () => {
     }
   }, SMOKE_TIMEOUT_MS);
 
+  it("user-notes (D4): sibling worktrees contend through one common-dir lock", async () => {
+    const dir = await createTempRepo("arc-race-notes-worktrees-");
+    const worktree = join(dirname(dir), `${basename(dir)}-sibling`);
+    try {
+      await emptyCommit(dir, "base");
+      await execFileAsync("git", ["worktree", "add", "-b", "sibling", worktree, "HEAD"], { cwd: dir });
+
+      const noted: string[] = [];
+      for (let round = 0; round < ROUNDS; round++) {
+        const commitA = await emptyCommit(dir, `worktree-note-round-${round}-a`);
+        const commitB = await emptyCommit(worktree, `worktree-note-round-${round}-b`);
+        const results = await runRound([
+          ["notes", dir, IDENTITY, commitA],
+          ["notes", worktree, IDENTITY, commitB],
+        ]);
+        expectAllOk(results, round);
+        noted.push(commitA, commitB);
+        for (const commit of noted) {
+          expect(await noteShow(dir, commit), `round ${round} note ${commit}`).toContain(`note for ${commit}`);
+        }
+      }
+    } finally {
+      await execFileAsync("git", ["worktree", "remove", "--force", worktree], { cwd: dir }).catch(() => {});
+      await cleanupTempDir(dir);
+      await rm(worktree, { recursive: true, force: true });
+    }
+  }, SMOKE_TIMEOUT_MS);
+
   it("machine-id (D3): two racing first-callers converge on one id", async () => {
     const dir = await createTempRepo("arc-race-machineid-");
     try {
@@ -176,12 +214,40 @@ describe("true-race smokes — same-machine write-safety guards", () => {
         expect(new Set(ids).size, `round ${round} converged`).toBe(1);
 
         const persisted = (
-          await readFile(join(dir, ".arc", "user", identity, ".internal", ".machine-id"), "utf-8")
+          await readFile(join(dir, ".git", "arc", "user", identity, ".internal", ".machine-id"), "utf-8")
         ).trim();
         expect(persisted, `round ${round} persisted`).toBe(ids[0]);
       }
     } finally {
       await cleanupTempDir(dir);
+    }
+  }, SMOKE_TIMEOUT_MS);
+
+  it("machine-id (D3): sibling worktrees converge on one common-dir id without checkout pollution", async () => {
+    const dir = await createTempRepo("arc-race-machineid-worktrees-");
+    const worktree = join(dirname(dir), `${basename(dir)}-sibling`);
+    try {
+      await emptyCommit(dir, "base");
+      await execFileAsync("git", ["worktree", "add", "-b", "sibling", worktree, "HEAD"], { cwd: dir });
+      const identity = "shared-mid";
+
+      const results = await runRound([
+        ["machine-id", dir, identity],
+        ["machine-id", worktree, identity],
+      ]);
+      expectAllOk(results, 0);
+
+      const ids = results.map((res) => (JSON.parse(res.stdout.trim()) as { id: string }).id);
+      expect(ids[0]).toBeTruthy();
+      expect(new Set(ids).size).toBe(1);
+      const commonStore = join(dir, ".git", "arc", "user", identity, ".internal", ".machine-id");
+      expect((await readFile(commonStore, "utf-8")).trim()).toBe(ids[0]);
+      expect(await exists(join(dir, ".arc", "user", identity, ".internal", ".machine-id"))).toBe(false);
+      expect(await exists(join(worktree, ".arc", "user", identity, ".internal", ".machine-id"))).toBe(false);
+    } finally {
+      await execFileAsync("git", ["worktree", "remove", "--force", worktree], { cwd: dir }).catch(() => {});
+      await cleanupTempDir(dir);
+      await rm(worktree, { recursive: true, force: true });
     }
   }, SMOKE_TIMEOUT_MS);
 });

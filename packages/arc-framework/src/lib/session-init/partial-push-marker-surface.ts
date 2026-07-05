@@ -2,7 +2,7 @@
  * B-side consumer of the sibling sync-state ref — selects the live partial-push
  * markers session-init renders as the **Aware** advisory one-liner.
  *
- * The producer (`partial-push-marker`) writes a per-machine marker to
+ * The producer (`partial-push-marker`) writes a per-intent marker to
  * `refs/arc/user/{identity}/sync-state` recording an outstanding notes-push
  * intent (HEAD it was advancing for, when, and the notes-ref target). On a
  * sibling clone, a marker whose intent origin's notes ref has not yet reached is
@@ -52,7 +52,7 @@ export interface PartialPushMarkerSurfaceResult {
 
 /** Inputs to the pure marker-selection decision. */
 export interface SelectAwareMarkersInput {
-  /** Every machine's marker read from the local sync-state ref; empty when the ref is absent. */
+  /** Every marker read from the local sync-state ref; empty when the ref is absent. */
   markers: SyncStateMarker[];
   /**
    * Origin's notes-ref tip, against which each marker's intent is compared. The
@@ -113,7 +113,7 @@ export interface RunPartialPushMarkerSurfaceOptions {
 /**
  * Read the local sync-state ref and resolve the Aware surface for it.
  *
- * Enumerates every machine's entry, parses each into a marker (malformed or
+ * Enumerates every entry, parses each into a marker (malformed or
  * key-mismatched entries drop out at the typed boundary), reads the local
  * notes-ref tip as origin's network-free proxy, and runs the pure selection. An
  * absent ref yields no entries and the surface is silent.
@@ -131,7 +131,7 @@ export async function runPartialPushMarkerSurface(
   if (entries.size === 0) return { markers: [] };
 
   const markers = (
-    await Promise.all([...entries.keys()].map((machineId) => readSyncStateMarker(refIo, machineId)))
+    await Promise.all([...entries.keys()].map((entryKey) => readSyncStateMarker(refIo, entryKey)))
   ).filter((marker): marker is SyncStateMarker => marker !== null);
 
   const notesRefTip = await readRefTip(exec, `${USER_NOTES_REF}/${identity}`);

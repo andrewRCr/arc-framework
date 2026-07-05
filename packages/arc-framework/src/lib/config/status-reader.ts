@@ -22,6 +22,7 @@ import { join } from "node:path";
 
 import { parseArcConfig } from "./index.js";
 import { ARC_CONFIG_SEGMENTS } from "../constants.js";
+import { DEFAULT_WORKTREE_HARNESS_DIRS } from "../git/worktree-harness-dirs.js";
 import type { ConfigSettings } from "../../commands/config/types.js";
 
 /**
@@ -32,7 +33,9 @@ import type { ConfigSettings } from "../../commands/config/types.js";
 const DEFAULTS: ConfigSettings = {
   "branch.base": "main",
   "branch.protection": "partial",
-  "worktree.location_template": "../{repo}.{branch}",
+  "worktree.location_template": "../{repo}.{name}",
+  "worktree.post_create": "",
+  "worktree.harness_dirs": DEFAULT_WORKTREE_HARNESS_DIRS,
   "commit.format": "conventional",
   "commit.context_footer": "required",
   "commit.custom_pattern": "",

@@ -681,12 +681,16 @@ export interface RunSessionInitStatusOptions {
   identity: string | null;
   role: string | null;
   probes: SessionInitProbes;
+  /** Canonical identity-global user root resolved by the handler. */
+  identityGlobalUserDir?: string | null;
 }
 
 export interface RunRecoverStatusOptions {
   identity: string | null;
   role: string | null;
   probes: SessionRecoverProbes;
+  /** Canonical identity-global user root resolved by the handler. */
+  identityGlobalUserDir?: string | null;
 }
 
 export interface RunSessionHandoffStatusOptions {

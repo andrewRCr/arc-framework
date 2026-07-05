@@ -1,9 +1,9 @@
 /**
  * Integration tests for the sibling sync-state ref transport primitives.
  *
- * Runs against a real temporary git repo to verify per-machine entries write to
+ * Runs against a real temporary git repo to verify raw entries write to
  * and read from `refs/arc/user/{identity}/sync-state` as a tree of blobs keyed
- * by `machineId`, that a write touches only the writer's own key, and that the
+ * by entry name, that a write touches only the requested key, and that the
  * fetch force-updates a local tracking ref from origin (the reconcile input a
  * later phase consumes).
  */
@@ -50,6 +50,9 @@ function markerFor(machineId: string, overrides: Partial<SyncStateMarker> = {}):
   };
 }
 
+const INTENT_A = "a".repeat(40);
+const INTENT_B = "b".repeat(40);
+
 describe("sync-state ref transport primitives", () => {
   let dir: string;
   let io: SyncStateRefIO;
@@ -81,7 +84,7 @@ describe("sync-state ref transport primitives", () => {
     expect(await readEntry(io, "anything")).toBeNull();
   });
 
-  it("reads a multi-entry tree keyed by machineId", async () => {
+  it("reads a multi-entry tree keyed by entry name", async () => {
     await writeEntry(io, "machine-a", "alpha");
     await writeEntry(io, "machine-b", "beta");
     await writeEntry(io, "machine-c", "gamma");
@@ -182,31 +185,37 @@ describe("sync-state marker over the ref", () => {
     }
   });
 
-  it("round-trips a typed marker written then read back by machineId", async () => {
+  it("round-trips a typed marker written then read back by intent key", async () => {
     const marker = markerFor("machine-a");
     await writeSyncStateMarker(io, marker);
+
+    expect(await readSyncStateMarker(io, marker.intent)).toEqual(marker);
+  });
+
+  it("reads an absent marker key back as null", async () => {
+    await writeSyncStateMarker(io, markerFor("machine-a"));
+
+    expect(await readSyncStateMarker(io, "c".repeat(40))).toBeNull();
+  });
+
+  it("writes each marker under its own intent key without disturbing the other", async () => {
+    await writeSyncStateMarker(io, markerFor("machine-a", { intent: INTENT_A }));
+    await writeSyncStateMarker(io, markerFor("machine-b", { intent: INTENT_B }));
+
+    expect((await readSyncStateMarker(io, INTENT_A))?.machineId).toBe("machine-a");
+    expect((await readSyncStateMarker(io, INTENT_B))?.machineId).toBe("machine-b");
+  });
+
+  it("still reads a legacy machine-keyed marker", async () => {
+    const marker = markerFor("machine-a");
+    await writeEntry(io, "machine-a", serializeSyncStateMarker(marker));
 
     expect(await readSyncStateMarker(io, "machine-a")).toEqual(marker);
   });
 
-  it("reads an absent machine's marker back as null", async () => {
-    await writeSyncStateMarker(io, markerFor("machine-a"));
-
-    expect(await readSyncStateMarker(io, "machine-b")).toBeNull();
-  });
-
-  it("writes each machine's marker under its own key without disturbing the other", async () => {
-    await writeSyncStateMarker(io, markerFor("machine-a", { intent: "a".repeat(40) }));
-    await writeSyncStateMarker(io, markerFor("machine-b", { intent: "b".repeat(40) }));
-
-    expect((await readSyncStateMarker(io, "machine-a"))?.intent).toBe("a".repeat(40));
-    expect((await readSyncStateMarker(io, "machine-b"))?.intent).toBe("b".repeat(40));
-  });
-
-  it("rejects a blob whose embedded machineId disagrees with its tree key", async () => {
-    // The tree key is the ownership boundary — a blob read under `machine-a`
-    // that claims to be `machine-b` is malformed untrusted data, not a valid
-    // cross-machine alias.
+  it("rejects a blob whose intent and legacy machine id both disagree with its tree key", async () => {
+    // The tree key is the ownership boundary — a blob read under an unrelated
+    // key is malformed untrusted data, not a valid alias.
     await writeEntry(io, "machine-a", serializeSyncStateMarker(markerFor("machine-b")));
 
     expect(await readSyncStateMarker(io, "machine-a")).toBeNull();

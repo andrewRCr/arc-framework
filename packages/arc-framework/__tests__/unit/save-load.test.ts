@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 
@@ -179,13 +179,16 @@ interface SaveMockConfig {
 
 function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
   const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-  const files = config.files ?? { "SESSION-NOTES.md": "# Notes" };
+  const files = config.files ?? { "WORKING-MEMORY.md": "# Notes" };
   let writtenNote: string | null = null;
 
   return {
     exec: vi.fn(async (cmd: string, args: string[]) => {
       if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
         return { stdout: head, stderr: "" };
+      }
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+        return { stdout: ".git\n", stderr: "" };
       }
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
@@ -676,7 +679,7 @@ describe("runUserSave — save verification", () => {
     const io = mockSaveIO({
       readback: JSON.stringify({
         version: 2,
-        files: { "SESSION-NOTES.md": "# Different" },
+        files: { "WORKING-MEMORY.md": "# Different" },
       }),
     });
 
@@ -711,7 +714,7 @@ describe("runUserSave — save verification", () => {
     await runUserSave({ cwd, io, identity: "andrew" });
 
     const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
-    expect(onDisk.priorFileList).toEqual(["SESSION-NOTES.md"]);
+    expect(onDisk.priorFileList).toEqual(["WORKING-MEMORY.md"]);
   });
 });
 
@@ -732,13 +735,16 @@ function concurrentSaveIO(
   recorder: CriticalSectionRecorder,
   config: { writeNoteThrows?: boolean } = {},
 ): UserIOContext {
-  const files = { "SESSION-NOTES.md": "# Notes" };
+  const files = { "WORKING-MEMORY.md": "# Notes" };
   let writtenNote: string | null = null;
 
   return {
     exec: vi.fn(async (cmd: string, args: string[]) => {
       if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
         return { stdout: head, stderr: "" };
+      }
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+        return { stdout: ".git\n", stderr: "" };
       }
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
@@ -803,16 +809,17 @@ describe("runUserSave — note-write serialization (advisory lock)", () => {
   it("releases the lock when the note write throws, so the next save proceeds", async () => {
     const recorder: CriticalSectionRecorder = { active: 0, maxActive: 0, commits: [] };
 
+    const failingIo = concurrentSaveIO(headA, recorder, { writeNoteThrows: true });
     await expect(
       runUserSave({
         cwd,
-        io: concurrentSaveIO(headA, recorder, { writeNoteThrows: true }),
+        io: failingIo,
         identity: "andrew",
       }),
     ).rejects.toThrow("write failed");
 
     // The lock was released in `finally` despite the throw — no orphaned lockfile.
-    expect(await exists(getNotesLockPath(cwd, "andrew"))).toBe(false);
+    expect(await exists(await getNotesLockPath(failingIo.exec, cwd, "andrew"))).toBe(false);
 
     // A subsequent save acquires cleanly rather than deadlocking on a stuck lock.
     const result = await runUserSave({
@@ -850,6 +857,7 @@ function mockSaveIOWithNotes(
   const io: UserIOContext = {
     exec: vi.fn(async (cmd: string, args: string[]) => {
       if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+      if (args[0] === "rev-parse" && args[1] === "--git-common-dir") return { stdout: ".git\n", stderr: "" };
       if (args[0] === "log") return { stdout: historyCommit, stderr: "" };
       if (args[0] === "diff-tree") return { stdout: notePath, stderr: "" };
       if (args[0] === "show") {
@@ -924,7 +932,7 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
   const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   const manifest: SyncManifest = config.manifest ?? {
     version: 2,
-    files: { "SESSION-NOTES.md": "# Notes" },
+    files: { "WORKING-MEMORY.md": "# Notes" },
   };
   const readback = config.readback ?? { ...manifest.files };
   const noteContent = JSON.stringify(manifest);
@@ -1001,9 +1009,9 @@ describe("runUserLoad — load verification", () => {
     const io = mockLoadIO({
       manifest: {
         version: 2,
-        files: { "SESSION-NOTES.md": "# Notes" },
+        files: { "WORKING-MEMORY.md": "# Notes" },
       },
-      readback: { "SESSION-NOTES.md": undefined },
+      readback: { "WORKING-MEMORY.md": undefined },
     });
 
     await expect(
@@ -1017,9 +1025,9 @@ describe("runUserLoad — load verification", () => {
     const io = mockLoadIO({
       manifest: {
         version: 2,
-        files: { "SESSION-NOTES.md": "# Notes" },
+        files: { "WORKING-MEMORY.md": "# Notes" },
       },
-      readback: { "SESSION-NOTES.md": "# Different content" },
+      readback: { "WORKING-MEMORY.md": "# Different content" },
     });
 
     await expect(
@@ -1035,7 +1043,7 @@ describe("runUserLoad — load verification", () => {
       head,
       manifest: {
         version: 2,
-        files: { "SESSION-NOTES.md": "# Notes" },
+        files: { "WORKING-MEMORY.md": "# Notes" },
       },
     });
 
@@ -1250,7 +1258,12 @@ describe("LocalSyncState v4 schema", () => {
 
   function realFsIO(overrides: Partial<UserIOContext> = {}): UserIOContext {
     return {
-      exec: vi.fn(async () => ({ stdout: "", stderr: "" })),
+      exec: vi.fn(async (cmd: string, args: string[], options?: { cwd?: string }) => {
+        if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: ".git\n", stderr: "" };
+        }
+        throw new Error(`unexpected git call from ${options?.cwd ?? "<none>"}: ${cmd} ${args.join(" ")}`);
+      }),
       readFile: vi.fn(async (p: string) => readFile(p, "utf-8")),
       writeFile: vi.fn(async (p: string, c: string) => {
         await writeFile(p, c, "utf-8");
@@ -1261,6 +1274,10 @@ describe("LocalSyncState v4 schema", () => {
       writeNote: vi.fn(async () => undefined),
       ...overrides,
     };
+  }
+
+  function machineIdStore(root: string = cwd): string {
+    return join(root, ".git", "arc", "user", identity, ".internal", ".machine-id");
   }
 
   it("reads v2 records without error and leaves savedAt undefined", async () => {
@@ -1287,7 +1304,7 @@ describe("LocalSyncState v4 schema", () => {
     const head = "b".repeat(40);
     const userDir = join(cwd, ".arc", "user", identity);
     await mkdir(userDir, { recursive: true });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Notes", "utf-8");
 
     let writtenNote: string | null = null;
     const io = realFsIO({
@@ -1295,9 +1312,12 @@ describe("LocalSyncState v4 schema", () => {
         if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
           return { stdout: head, stderr: "" };
         }
+        if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: ".git\n", stderr: "" };
+        }
         throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
       }),
-      readDir: vi.fn(async () => [{ name: "SESSION-NOTES.md", size: 7 }]),
+      readDir: vi.fn(async () => [{ name: "WORKING-MEMORY.md", size: 7 }]),
       writeNote: vi.fn(async (_ref: string, content: string) => {
         writtenNote = content;
       }),
@@ -1378,7 +1398,7 @@ describe("LocalSyncState v4 schema", () => {
     const head = "f".repeat(40);
     const userDir = join(cwd, ".arc", "user", identity);
     await mkdir(userDir, { recursive: true });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Concurrent A", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Concurrent A", "utf-8");
 
     const makeIO = (content: string): UserIOContext => {
       let writtenNote: string | null = null;
@@ -1387,13 +1407,16 @@ describe("LocalSyncState v4 schema", () => {
           if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
             return { stdout: head, stderr: "" };
           }
+          if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+            return { stdout: ".git\n", stderr: "" };
+          }
           throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
         }),
         readFile: vi.fn(async (p: string) => {
-          if (p.endsWith("SESSION-NOTES.md")) return content;
+          if (p.endsWith("WORKING-MEMORY.md")) return content;
           return readFile(p, "utf-8");
         }),
-        readDir: vi.fn(async () => [{ name: "SESSION-NOTES.md", size: content.length }]),
+        readDir: vi.fn(async () => [{ name: "WORKING-MEMORY.md", size: content.length }]),
         writeNote: vi.fn(async (_ref: string, c: string) => {
           writtenNote = c;
         }),
@@ -1525,8 +1548,33 @@ describe("LocalSyncState v4 schema", () => {
     const id = await getOrCreateMachineId(cwd, realFsIO(), identity);
 
     expect(id).toMatch(UUID_V4);
-    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    const onDisk = (await readFile(machineIdStore(), "utf-8")).trim();
     expect(onDisk).toBe(id);
+    expect(await exists(join(internalDir, ".machine-id"))).toBe(false);
+  });
+
+  it("stores machine-id in the git common dir so sibling worktrees share it without checkout pollution", async () => {
+    const commonGitDir = join(cwd, ".git");
+    const siblingCwd = join(dirname(cwd), `${basename(cwd)}-sibling`);
+    await mkdir(siblingCwd, { recursive: true });
+    const exec = vi.fn(async (cmd: string, args: string[], options?: { cwd?: string }) => {
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+        return { stdout: `${commonGitDir}\n`, stderr: "" };
+      }
+      throw new Error(`unexpected git call from ${options?.cwd ?? "<none>"}: ${cmd} ${args.join(" ")}`);
+    });
+    const io = realFsIO({ exec });
+
+    const first = await getOrCreateMachineId(cwd, io, identity);
+    const second = await getOrCreateMachineId(siblingCwd, io, identity);
+
+    expect(second).toBe(first);
+    expect(exec).toHaveBeenCalledWith("git", ["rev-parse", "--git-common-dir"], { cwd });
+    expect(exec).toHaveBeenCalledWith("git", ["rev-parse", "--git-common-dir"], { cwd: siblingCwd });
+    const commonStore = join(commonGitDir, "arc", "user", identity, ".internal", ".machine-id");
+    expect((await readFile(commonStore, "utf-8")).trim()).toBe(first);
+    expect(await exists(join(cwd, ".arc", "user", identity, ".internal", ".machine-id"))).toBe(false);
+    expect(await exists(join(siblingCwd, ".arc", "user", identity, ".internal", ".machine-id"))).toBe(false);
   });
 
   it("returns the same machine-id on a subsequent read (idempotent — no regeneration)", async () => {
@@ -1534,7 +1582,7 @@ describe("LocalSyncState v4 schema", () => {
     const second = await getOrCreateMachineId(cwd, realFsIO(), identity);
 
     expect(second).toBe(first);
-    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    const onDisk = (await readFile(machineIdStore(), "utf-8")).trim();
     expect(onDisk).toBe(first);
   });
 
@@ -1560,6 +1608,7 @@ describe("LocalSyncState v4 schema", () => {
     // Force the lost-race branch: the injected create models a concurrent
     // first-caller that already wrote the canonical id, so our create collides.
     const losingCreate = vi.fn(async (path: string) => {
+      await mkdir(dirname(path), { recursive: true });
       await writeFile(path, winnerId, "utf-8");
       const err: NodeJS.ErrnoException = new Error("EEXIST: file already exists");
       err.code = "EEXIST";
@@ -1570,7 +1619,7 @@ describe("LocalSyncState v4 schema", () => {
 
     expect(id).toBe(winnerId);
     expect(losingCreate).toHaveBeenCalledOnce();
-    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    const onDisk = (await readFile(machineIdStore(), "utf-8")).trim();
     expect(onDisk).toBe(winnerId);
   });
 
@@ -1583,7 +1632,7 @@ describe("LocalSyncState v4 schema", () => {
 
     await expect(getOrCreateMachineId(cwd, io, identity)).rejects.toThrow("EACCES");
     // The error aborted before any create — no id was written behind it.
-    expect(await exists(join(internalDir, ".machine-id"))).toBe(false);
+    expect(await exists(machineIdStore())).toBe(false);
   });
 
   it("adopts a legacy .sync-state.json machineId into .machine-id instead of minting fresh", async () => {
@@ -1594,8 +1643,20 @@ describe("LocalSyncState v4 schema", () => {
 
     // The established identity migrates, rather than a fresh mint orphaning its marker key.
     expect(id).toBe(legacyId);
-    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    const onDisk = (await readFile(machineIdStore(), "utf-8")).trim();
     expect(onDisk).toBe(legacyId);
+  });
+
+  it("adopts a legacy checkout-local .machine-id into the common-dir store", async () => {
+    const legacyId = "abcdef01-1234-4abc-89ab-001122334455";
+    const legacyPath = join(internalDir, ".machine-id");
+    await writeFile(legacyPath, legacyId, "utf-8");
+
+    const id = await getOrCreateMachineId(cwd, realFsIO(), identity);
+
+    expect(id).toBe(legacyId);
+    expect((await readFile(machineIdStore(), "utf-8")).trim()).toBe(legacyId);
+    expect((await readFile(legacyPath, "utf-8")).trim()).toBe(legacyId);
   });
 
   it("read-tolerates the legacy .sync-state.json machineId — never writes it back", async () => {

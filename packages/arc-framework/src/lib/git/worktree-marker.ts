@@ -12,10 +12,11 @@
  * @module
  */
 
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import { atomicWriteJson } from "../fs.js";
+import type { GitExec } from "./exec.js";
 
 /** Machine-local marker recording that ARC created a worktree. */
 export interface WorktreeMarker {
@@ -36,6 +37,23 @@ export type WorktreeMarkerReadResult =
   | { kind: "malformed"; message: string; path: string };
 
 const MARKER_PATH_SEGMENTS = [".arc", "system", ".internal", "worktree-marker.json"] as const;
+const MARKER_IGNORE_PATTERN = ".arc/system/.internal/worktree-marker.json";
+
+/** Filesystem seam for registering the marker's Git ignore rule. */
+export interface WorktreeMarkerIgnoreFs {
+  readFile(path: string): Promise<string>;
+  writeFile(path: string, content: string): Promise<void>;
+  mkdir(path: string, options: { recursive: boolean }): Promise<void>;
+}
+
+/** Production filesystem adapter for marker ignore registration. */
+export const nodeWorktreeMarkerIgnoreFs: WorktreeMarkerIgnoreFs = {
+  readFile: (path) => readFile(path, "utf8"),
+  writeFile,
+  mkdir: async (path, options) => {
+    await mkdir(path, options);
+  },
+};
 
 /**
  * Resolve the marker's absolute path under a worktree root. Pure path math —
@@ -46,6 +64,37 @@ const MARKER_PATH_SEGMENTS = [".arc", "system", ".internal", "worktree-marker.js
  */
 export function resolveWorktreeMarkerPath(cwd: string): string {
   return join(cwd, ...MARKER_PATH_SEGMENTS);
+}
+
+/**
+ * Register the machine-local ownership marker in Git's exclude file.
+ *
+ * @param cwd - Worktree root the marker belongs to.
+ * @param exec - Git executor pinned to this repository.
+ * @param fs - Filesystem adapter.
+ */
+export async function ensureWorktreeMarkerIgnored(
+  cwd: string,
+  exec: GitExec,
+  fs: WorktreeMarkerIgnoreFs,
+): Promise<void> {
+  const { stdout } = await exec("git", ["rev-parse", "--git-path", "info/exclude"], { cwd });
+  const rawPath = stdout.trim();
+  const excludePath = isAbsolute(rawPath) ? rawPath : resolve(cwd, rawPath);
+
+  let content = "";
+  try {
+    content = await fs.readFile(excludePath);
+  } catch (err) {
+    if (!isNodeError(err) || err.code !== "ENOENT") throw err;
+  }
+
+  const lines = content.split(/\r?\n/u);
+  if (lines.includes(MARKER_IGNORE_PATTERN)) return;
+
+  const prefix = content.length === 0 || content.endsWith("\n") ? content : `${content}\n`;
+  await fs.mkdir(dirname(excludePath), { recursive: true });
+  await fs.writeFile(excludePath, `${prefix}${MARKER_IGNORE_PATTERN}\n`);
 }
 
 /**

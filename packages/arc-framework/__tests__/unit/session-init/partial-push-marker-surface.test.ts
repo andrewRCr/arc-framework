@@ -102,7 +102,7 @@ describe("selectAwareMarkers", () => {
 });
 
 /**
- * git stub driving the IO composition: `ls-tree` lists the ref's machine keys,
+ * git stub driving the IO composition: `ls-tree` lists the ref's entry keys,
  * `cat-file -p <ref>:<key>` returns each entry's serialized blob,
  * `rev-parse --verify <notes-ref>` returns origin's notes-ref tip, and
  * `rev-list <intent> ^<tip>` backs the reachability check (`isContainedIn`) —
@@ -195,5 +195,38 @@ describe("runPartialPushMarkerSurface", () => {
     });
 
     expect(result.markers).toEqual([]);
+  });
+
+  it("surfaces an earlier live same-machine intent when a later sibling intent is fulfilled", async () => {
+    const liveIntent = "a".repeat(40);
+    const fulfilledIntent = "b".repeat(40);
+    const result = await runPartialPushMarkerSurface({
+      exec: buildExec({
+        entries: {
+          [liveIntent]: marker({
+            machineId: "workspace-id",
+            lastAttemptedCommit: "live-head",
+            intent: liveIntent,
+          }),
+          [fulfilledIntent]: marker({
+            machineId: "workspace-id",
+            lastAttemptedCommit: "fulfilled-head",
+            intent: fulfilledIntent,
+          }),
+        },
+        notesTip: fulfilledIntent,
+        reachable: false,
+      }),
+      identity: "andrew",
+      now: NOW,
+    });
+
+    expect(result.markers).toEqual([
+      {
+        machineId: "workspace-id",
+        lastAttemptedCommit: "live-head",
+        attemptTimestamp: NOW,
+      },
+    ]);
   });
 });

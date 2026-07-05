@@ -56,6 +56,10 @@ function deriveExpectedMutators(
   from: LifecyclePosition | null,
   to: LifecyclePosition | null,
 ): MutatorSpec {
+  if (verb === "materialize") {
+    return { reconcileWorktree: "spawn" };
+  }
+
   const ef = expectedEncoding(from);
   const et = expectedEncoding(to);
   const spec: MutatorSpec = {};
@@ -285,7 +289,7 @@ describe("lifecycle transition table — branch-field projection", () => {
     for (const edge of TRANSITIONS) {
       // The executor's effective projection: gated exactly like `applyBranchField`
       // — a `clearBranchField` edge clears the field logically, else project the leg.
-      const projected = !softFieldsApply(edge)
+      const projected = edge.from === null || !softFieldsApply(edge)
         ? null
         : edge.encodingUpdates.clearBranchField
           ? NONE_BRANCH

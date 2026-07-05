@@ -137,9 +137,10 @@ function isNotesSuccess(result: PairedPushNotesPusherResult): boolean {
 
 /**
  * A failure a re-push can clear. Only a raw `failed` (a git/network error)
- * qualifies — `no-remote`, `blocked`, and `failed-nontty-conflict` are
- * non-transient (retrying the same push without resolving them just fails
- * again), so they skip auto-retry and surface the offer immediately.
+ * qualifies — `no-remote`, `refused`, `blocked`, and
+ * `failed-nontty-conflict` are non-transient (retrying the same push without
+ * resolving them just fails again), so they skip auto-retry and surface the
+ * offer immediately.
  */
 function isTransientFailure(result: PairedPushNotesPusherResult): boolean {
   return result.status === "failed";

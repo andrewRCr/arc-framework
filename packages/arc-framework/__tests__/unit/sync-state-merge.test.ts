@@ -1,7 +1,7 @@
 /**
- * Unit tests for the pure per-machine sync-state entry union-merge — disjoint
- * union, the writer's own-key re-write winning without collision, and the
- * writer's own-key deletion surviving a remote that still carries the entry.
+ * Unit tests for the pure keyed sync-state entry union-merge — disjoint union,
+ * the writer's current-key re-write winning without collision, and the
+ * current-key deletion surviving a remote that still carries the entry.
  * Independent of any git remote.
  */
 

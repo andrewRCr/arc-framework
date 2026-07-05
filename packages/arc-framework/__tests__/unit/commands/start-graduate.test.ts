@@ -9,12 +9,17 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { normalize } from "node:path";
 
 import type { ExecuteTransitionContext, SideEffectHandler } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import type { DirEntry, LifecycleIndexFs } from "../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../src/lib/work-unit/lifecycle-transitions.js";
 import type { MetaFieldName, MetaFieldOverrides } from "../../../src/lib/active/meta-reader.js";
-import { runGraduate, type GraduateParams } from "../../../src/commands/start.js";
+import {
+  buildGraduateCeremonyCommitMessage,
+  runGraduate,
+  type GraduateParams,
+} from "../../../src/commands/start.js";
 
 const CWD = "/repo";
 
@@ -25,10 +30,12 @@ interface MetaSpec {
   state: string;
   cls?: string;
   branch?: string;
+  closingRule?: boolean;
 }
 
 /** Build an injectable index fs over a fixed set of metas (mirrors the park/resume harness). */
-function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
+function buildIndexFs(metas: MetaSpec[], root = CWD): LifecycleIndexFs {
+  const normalizedRoot = normalize(root);
   const dirs = new Map<string, DirEntry[]>();
   const files = new Map<string, string>();
 
@@ -48,7 +55,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
   };
 
   for (const meta of metas) {
-    const tierAbs = `${CWD}/.arc/${meta.tier}`;
+    const tierAbs = `${normalizedRoot}/.arc/${meta.tier}`;
     let dirAbs = tierAbs;
     let parent = tierAbs;
     for (const seg of meta.subdir.split("/").filter((s) => s !== "")) {
@@ -66,7 +73,8 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
         `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "[none]"}\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |\n\n` +
         `- **Cohort:** [none]\n- **Depends On:** [none]\n\n` +
         `- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n` +
-        `- **Next Action:** begin.\n\n---\n`,
+        `- **Next Action:** begin.\n\n` +
+        (meta.closingRule === false ? "" : "---\n"),
     );
   }
 
@@ -92,11 +100,19 @@ interface StageWrite {
   stage: string;
 }
 
+interface SoftWrite {
+  metaPath: string;
+  updates: Partial<Record<MetaFieldName, string>>;
+}
+
 interface Harness {
   ctx: ExecuteTransitionContext;
   calls: string[];
   reconcileCalls: ReconcileCall[];
   stageWrites: StageWrite[];
+  softWrites: SoftWrite[];
+  stagedMetas: string[];
+  worktreeOps: unknown[];
 }
 
 function buildCtx(
@@ -107,30 +123,39 @@ function buildCtx(
   const calls: string[] = [];
   const reconcileCalls: ReconcileCall[] = [];
   const stageWrites: StageWrite[] = [];
+  const softWrites: SoftWrite[] = [];
+  const stagedMetas: string[] = [];
+  const worktreeOps: unknown[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
-    sideEffects[id] = () => {
+    sideEffects[id] = ({ inputs }) => {
       calls.push(`side:${id}`);
+      if (id === "user-workspace" && inputs.sessionNotesSeed !== undefined) {
+        calls.push(`session-seed:${inputs.sessionNotesSeed}`);
+      }
       return undefined;
     };
   }
 
-  const ctx: ExecuteTransitionContext = {
-    cwd: CWD,
-    indexFs: buildIndexFs(metas),
+  const makeCtx = (cwd: string): ExecuteTransitionContext => ({
+    cwd,
+    withCwd: (nextCwd) => makeCtx(nextCwd),
+    indexFs: buildIndexFs(metas, cwd),
     setPhase: async () => ({ phase: "Planning" }),
     relocateArtifacts: async (params) => {
       calls.push(`relocate:${params.fromDir}->${params.toDir}`);
+      calls.push(`relocate-cwd:${cwd}`);
       return { moved: [`meta-${params.slug}.md`] };
     },
     reconcileBranch: async (op) => {
       calls.push(`branch:${op.mutation}`);
     },
     reconcileWorktree: async (op) => {
+      worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       return op.mutation === "spawn"
-        ? { mutation: "spawn", worktreePath: "/repo/../wt", branch: op.branch }
+        ? { mutation: "spawn", worktreePath: op.inPlace ? cwd : "/repo/../wt", branch: op.branch }
         : { mutation: "teardown", worktreePath: "", locusHopped: false };
     },
     writeBranchField: async () => {},
@@ -141,20 +166,26 @@ function buildCtx(
     writeDesignField: async () => {},
     writeSoftFields: async (path, updates) => {
       calls.push(`soft:${Object.keys(updates).join(",")}`);
+      softWrites.push({ metaPath: path, updates });
     },
     reconcileMeta: async (metaPath, overrides) => {
       calls.push("reconcile-meta");
       reconcileCalls.push({ metaPath, overrides });
       return reconcileBackfill;
     },
+    stageMeta: async (metaPath) => {
+      calls.push("stage-meta");
+      stagedMetas.push(metaPath);
+    },
     sideEffects,
     guardValidators: {
       "worktree-occupancy": () =>
         occupancyOk ? { ok: true } : { ok: false, message: "worktree already holds an active work unit `other`." },
     },
-  };
+  });
+  const ctx = makeCtx(CWD);
 
-  return { ctx, calls, reconcileCalls, stageWrites };
+  return { ctx, calls, reconcileCalls, stageWrites, softWrites, stagedMetas, worktreeOps };
 }
 
 const BASE = {
@@ -166,6 +197,13 @@ const BASE = {
 } satisfies Omit<Extract<GraduateParams, { inPlace?: false }>, "cls">;
 
 describe("runGraduate — backlog stub onto its branch", () => {
+  it("builds the formulaic ceremony commit message", () => {
+    expect(buildGraduateCeremonyCommitMessage("widget")).toBe(
+      "chore(arc): graduate widget into active\n\n" +
+        "Context: meta-widget.md (activation)\n",
+    );
+  });
+
   it("relocates a provisional stub to active/ and spawns its plan/ branch", async () => {
     const { ctx, calls } = buildCtx([
       { slug: "widget", tier: "backlog/provisional", subdir: "widget", state: "Planning", cls: "Light" },
@@ -183,6 +221,10 @@ describe("runGraduate — backlog stub onto its branch", () => {
     }
     expect(calls).toContain("relocate:.arc/backlog/provisional/widget->.arc/active");
     expect(calls).toContain("worktree:spawn");
+    expect(calls).toContain("worktree:spawn:in-place");
+    expect(calls).toContain("relocate-cwd:/repo/../wt");
+    expect(calls.indexOf("worktree:spawn")).toBeLessThan(calls.indexOf("relocate-cwd:/repo/../wt"));
+    expect(calls.some((c) => c.startsWith("session-seed:") && c.includes("meta-widget.md"))).toBe(true);
   });
 
   it("relocates a planned stub too (name-collision → graduate)", async () => {
@@ -194,6 +236,17 @@ describe("runGraduate — backlog stub onto its branch", () => {
 
     expect(result.status).toBe("graduated");
     expect(calls).toContain("relocate:.arc/backlog/planned/widget->.arc/active");
+  });
+
+  it("threads the configured post-create script into spawned graduate worktrees", async () => {
+    const { ctx, worktreeOps } = buildCtx([
+      { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Light" },
+    ]);
+
+    const result = await runGraduate(ctx, { ...BASE, cls: "Light", postCreateScript: "npm run setup:worktree" });
+
+    expect(result.status).toBe("graduated");
+    expect(worktreeOps[0]).toMatchObject({ mutation: "spawn", postCreateScript: "npm run setup:worktree" });
   });
 
   it("graduates in place (no worktree spawned) when inPlace is set", async () => {
@@ -209,6 +262,7 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(result.metaPath).toBe(".arc/active/meta-widget.md");
     // Relocate + in-place worktree placement (checkout -b) fire; no fresh worktree is spawned.
     expect(calls).toContain("relocate:.arc/backlog/planned/widget->.arc/active");
+    expect(calls).toContain(`relocate-cwd:${CWD}`);
     expect(calls).toContain("worktree:spawn:in-place");
     expect(calls).not.toContain("worktree:spawn");
   });
@@ -240,6 +294,55 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(result.reason).toMatch(/class/i);
     // Refusal is total — no relocate, no spawn.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("worktree:"))).toBe(false);
+  });
+
+  it("rejects an old-shape meta before spawning or relocating", async () => {
+    const { ctx, calls } = buildCtx([
+      {
+        slug: "widget",
+        tier: "backlog/planned",
+        subdir: "widget",
+        state: "Planning",
+        cls: "Light",
+        closingRule: false,
+      },
+    ]);
+
+    const result = await runGraduate(ctx, { ...BASE, cls: "Light" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toContain("closing `---`");
+    expect(
+      calls.some(
+        (c) =>
+          c.startsWith("relocate:")
+          || c.startsWith("worktree:")
+          || c === "branch:create"
+          || c === "reconcile-meta"
+          || c === "stage-write",
+      ),
+    ).toBe(false);
+  });
+
+  it("rejects an old-shape meta before in-place branch mutation", async () => {
+    const { ctx, calls } = buildCtx([
+      {
+        slug: "widget",
+        tier: "backlog/planned",
+        subdir: "widget",
+        state: "Planning",
+        cls: "Light",
+        closingRule: false,
+      },
+    ]);
+
+    const result = await runGraduate(ctx, { name: "widget", cls: "Light", inPlace: true });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toContain("closing `---`");
+    expect(calls.some((c) => c.startsWith("worktree:") || c.startsWith("relocate:"))).toBe(false);
   });
 
   it("forward-reconciles the relocated meta with the planning-entry pointer and surfaces the count notice", async () => {
@@ -296,5 +399,38 @@ describe("runGraduate — backlog stub onto its branch", () => {
     // Ordering is load-bearing: the stage write is fail-loud on an absent bullet, so
     // it must run *after* the reconcile inserts a missing field (pre-field meta case).
     expect(calls.indexOf("reconcile-meta")).toBeLessThan(calls.indexOf("stage-write"));
+  });
+
+  it("resets Next Action to the begin-current-workflow sentinel for shell-complete start", async () => {
+    const { ctx, calls, softWrites } = buildCtx(
+      [{ slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Heavy" }],
+      /* occupancyOk */ true,
+      /* reconcileBackfill */ [],
+    );
+
+    const result = await runGraduate(ctx, { ...BASE, cls: "Heavy" });
+
+    expect(result.status).toBe("graduated");
+    if (result.status !== "graduated") return;
+    expect(softWrites).toContainEqual({
+      metaPath: ".arc/active/meta-widget.md",
+      updates: { "Next Action": "[begin current workflow]" },
+    });
+    expect(calls.indexOf("stage-write")).toBeLessThan(calls.indexOf("soft:Next Action"));
+  });
+
+  it("stages the post-transition planning pointer rewrites", async () => {
+    const { ctx, calls, stagedMetas } = buildCtx(
+      [{ slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Heavy" }],
+      /* occupancyOk */ true,
+      /* reconcileBackfill */ [],
+    );
+
+    const result = await runGraduate(ctx, { ...BASE, cls: "Heavy" });
+
+    expect(result.status).toBe("graduated");
+    if (result.status !== "graduated") return;
+    expect(stagedMetas).toEqual([".arc/active/meta-widget.md", ".arc/active/meta-widget.md"]);
+    expect(calls.indexOf("soft:Next Action")).toBeLessThan(calls.lastIndexOf("stage-meta"));
   });
 });

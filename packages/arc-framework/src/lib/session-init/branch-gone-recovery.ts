@@ -16,11 +16,17 @@ import { isLandedInBase } from "../git/branch-containment.js";
 import { isWorktreeClean } from "../git/worktree-cleanup.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
 import type { GitExec } from "../git/exec.js";
-import type {
-  WorktreeRosterEntry,
-  WorktreeRosterResult,
+import {
+  resolvePrimaryWorktreePath,
+  type WorktreeRosterEntry,
+  type WorktreeRosterResult,
 } from "../git/worktree-roster.js";
 import type { WorktreeMarkerReadResult } from "../git/worktree-marker.js";
+import {
+  linkedIdentityGlobalUserSurfacesAreSafe,
+  nodeUserSurfaceMigrationFs,
+  type UserSurfaceMigrationFs,
+} from "../user-surface-migration.js";
 import {
   determineCandidateAction,
   resolveCascade,
@@ -47,6 +53,8 @@ export interface RunBranchGoneRecoveryOptions {
   exec: GitExec;
   /** Reads a worktree's ownership marker; injected for testability. */
   readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
+  /** Filesystem seam for ignored identity-global user-surface safety scans. */
+  userSurfaceFs?: UserSurfaceMigrationFs;
 }
 
 /**
@@ -60,12 +68,15 @@ export async function runBranchGoneRecovery(
 ): Promise<CascadeResolution> {
   const { roster, currentBranch, baseBranch, recentBranches, exec } = options;
   const readMarker = options.readMarker ?? readWorktreeMarker;
+  const userSurfaceFs = options.userSurfaceFs ?? nodeUserSurfaceMigrationFs;
   const integrationTarget = `origin/${baseBranch}`;
+  const worktreeEntries = roster.entries.filter((entry) => entry.branch !== currentBranch);
+  const primaryWorktreePath = worktreeEntries.length === 0 ? null : await resolvePrimaryWorktreePath(exec);
 
   const worktreeCandidates = await Promise.all(
-    roster.entries
-      .filter((entry) => entry.branch !== currentBranch)
-      .map((entry) => buildWorktreeCandidate(entry, { exec, readMarker, integrationTarget })),
+    worktreeEntries.map((entry) =>
+      buildWorktreeCandidate(entry, { exec, readMarker, userSurfaceFs, integrationTarget, primaryWorktreePath }),
+    ),
   );
 
   // The fallback tier: recent branches that are not the gone branch, not the
@@ -85,7 +96,9 @@ export async function runBranchGoneRecovery(
 interface CandidateContext {
   exec: GitExec;
   readMarker: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
+  userSurfaceFs: UserSurfaceMigrationFs;
   integrationTarget: string;
+  primaryWorktreePath: string | null;
 }
 
 async function buildWorktreeCandidate(
@@ -98,15 +111,20 @@ async function buildWorktreeCandidate(
     return { branch: entry.branch, worktreePath: entry.worktreePath, proposedAction: "switch" };
   }
 
-  const [marker, clean, merged] = await Promise.all([
+  const [marker, clean, merged, userSurfacesSafe] = await Promise.all([
     ctx.readMarker(entry.worktreePath),
     isWorktreeClean({ exec: ctx.exec, cwd: entry.worktreePath }),
     isLandedInBase(ctx.exec, entry.branch, ctx.integrationTarget),
+    linkedIdentityGlobalUserSurfacesAreSafe({
+      primaryWorktreePath: ctx.primaryWorktreePath,
+      worktreePath: entry.worktreePath,
+      fs: ctx.userSurfaceFs,
+    }),
   ]);
 
   return {
     branch: entry.branch,
     worktreePath: entry.worktreePath,
-    proposedAction: determineCandidateAction({ isMainOrAdmin: false, marker, clean, merged }),
+    proposedAction: determineCandidateAction({ isMainOrAdmin: false, marker, clean, userSurfacesSafe, merged }),
   };
 }

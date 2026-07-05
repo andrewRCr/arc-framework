@@ -42,6 +42,8 @@ const IDENTITY = "andrew";
 const REF = syncStateRef(IDENTITY);
 const MACHINE_A = "machine-a";
 const MACHINE_B = "machine-b";
+const INTENT_A = "a".repeat(40);
+const INTENT_B = "b".repeat(40);
 
 /**
  * A reconcile-path exec that fails the incoming-tree read. The reconcile fetches into
@@ -66,12 +68,13 @@ function makeIncomingReadFailExec(realExec: GitExec, errorMessage: string): GitE
 }
 
 function markerFor(machineId: string, overrides: Partial<SyncStateMarker> = {}): SyncStateMarker {
+  const intent = machineId === MACHINE_A ? INTENT_A : INTENT_B;
   return {
     version: 1,
     machineId,
     lastAttemptedCommit: "a".repeat(40),
     attemptTimestamp: "2026-06-25T12:00:00.000Z",
-    intent: "b".repeat(40),
+    intent,
     ...overrides,
   };
 }
@@ -88,7 +91,7 @@ async function cloneOf(remoteDir: string): Promise<string> {
   return dir;
 }
 
-/** Machine keys present on the remote sync-state ref, read from a clone. */
+/** Entry keys present on the remote sync-state ref, read from a clone. */
 async function remoteKeys(dir: string): Promise<string[]> {
   const { stdout } = await execFileAsync("git", ["ls-remote", "origin", REF], { cwd: dir });
   if (stdout.trim() === "") return [];
@@ -123,26 +126,26 @@ describe("sync-state-ref reconcile-push", () => {
   it("pushes a clean first push without a reconcile pass", async () => {
     await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
 
-    expect(await reconcileSyncStatePush(ioA, MACHINE_A)).toEqual({ kind: "pushed" });
-    expect(await remoteKeys(repoA)).toEqual([MACHINE_A]);
+    expect(await reconcileSyncStatePush(ioA, INTENT_A)).toEqual({ kind: "pushed" });
+    expect(await remoteKeys(repoA)).toEqual([INTENT_A]);
   });
 
   it("is a no-op when there is no local ref to push", async () => {
-    expect(await reconcileSyncStatePush(ioA, MACHINE_A)).toEqual({ kind: "noop" });
+    expect(await reconcileSyncStatePush(ioA, INTENT_A)).toEqual({ kind: "noop" });
   });
 
   it("unions both machines' entries over a non-fast-forward push", async () => {
     await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
-    await reconcileSyncStatePush(ioA, MACHINE_A);
+    await reconcileSyncStatePush(ioA, INTENT_A);
 
     // repoB never fetched the ref, so its write forks a divergent root.
     await writeSyncStateMarker(ioB, markerFor(MACHINE_B));
-    expect(await reconcileSyncStatePush(ioB, MACHINE_B)).toEqual({ kind: "reconciled" });
+    expect(await reconcileSyncStatePush(ioB, INTENT_B)).toEqual({ kind: "reconciled" });
 
-    expect(await remoteKeys(repoB)).toEqual([MACHINE_A, MACHINE_B]);
+    expect(await remoteKeys(repoB)).toEqual([INTENT_A, INTENT_B]);
     // Both markers survive the union — neither machine's entry is lost.
-    expect((await readSyncStateMarker(ioB, MACHINE_A))?.machineId).toBe(MACHINE_A);
-    expect((await readSyncStateMarker(ioB, MACHINE_B))?.machineId).toBe(MACHINE_B);
+    expect((await readSyncStateMarker(ioB, INTENT_A))?.machineId).toBe(MACHINE_A);
+    expect((await readSyncStateMarker(ioB, INTENT_B))?.machineId).toBe(MACHINE_B);
   });
 
   it("bounds the retry loop and surfaces a definite failure on relentless rejection", async () => {
@@ -164,7 +167,7 @@ describe("sync-state-ref reconcile-push", () => {
 
     const outcome = await reconcileSyncStatePush(
       { exec: rejectingExec, execInput: makeGitExecInput(repoA), identity: IDENTITY },
-      MACHINE_A,
+      INTENT_A,
     );
 
     expect(outcome.kind).toBe("failed");
@@ -193,7 +196,7 @@ describe("sync-state-ref reconcile-push", () => {
 
     const outcome = await reconcileSyncStatePush(
       { exec: settleOnLastExec, execInput: makeGitExecInput(repoA), identity: IDENTITY },
-      MACHINE_A,
+      INTENT_A,
     );
 
     expect(outcome.kind).toBe("reconciled");
@@ -218,7 +221,7 @@ describe("sync-state-ref reconcile-push", () => {
 
     const outcome = await reconcileSyncStatePush(
       { exec: failingReconcileExec, execInput: makeGitExecInput(repoA), identity: IDENTITY },
-      MACHINE_A,
+      INTENT_A,
     );
 
     expect(outcome.kind).toBe("failed");
@@ -226,7 +229,7 @@ describe("sync-state-ref reconcile-push", () => {
 
   it("aborts on a genuine post-fetch read error instead of writing a tree narrowed to this machine", async () => {
     await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
-    await reconcileSyncStatePush(ioA, MACHINE_A);
+    await reconcileSyncStatePush(ioA, INTENT_A);
 
     // repoB writes its own marker over a divergent root — its push is a genuine
     // non-fast-forward that drives the reconcile.
@@ -240,17 +243,17 @@ describe("sync-state-ref reconcile-push", () => {
 
     const outcome = await reconcileSyncStatePush(
       { exec: failingReadExec, execInput: makeGitExecInput(repoB), identity: IDENTITY },
-      MACHINE_B,
+      INTENT_B,
     );
 
     expect(outcome.kind).toBe("failed");
     // Machine A's entry survives on the remote — no narrowed tree was pushed.
-    expect(await remoteKeys(repoB)).toEqual([MACHINE_A]);
+    expect(await remoteKeys(repoB)).toEqual([INTENT_A]);
   });
 
   it("treats a legitimately-absent post-fetch read as empty and unions rather than aborting", async () => {
     await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
-    await reconcileSyncStatePush(ioA, MACHINE_A);
+    await reconcileSyncStatePush(ioA, INTENT_A);
 
     await writeSyncStateMarker(ioB, markerFor(MACHINE_B));
 
@@ -265,7 +268,7 @@ describe("sync-state-ref reconcile-push", () => {
 
     const outcome = await reconcileSyncStatePush(
       { exec: absentIncomingExec, execInput: makeGitExecInput(repoB), identity: IDENTITY },
-      MACHINE_B,
+      INTENT_B,
     );
 
     expect(outcome.kind).toBe("reconciled");
@@ -273,7 +276,7 @@ describe("sync-state-ref reconcile-push", () => {
 
   it("fetches into a per-reconcile-unique incoming ref and cleans it up", async () => {
     await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
-    await reconcileSyncStatePush(ioA, MACHINE_A);
+    await reconcileSyncStatePush(ioA, INTENT_A);
     await writeSyncStateMarker(ioB, markerFor(MACHINE_B));
 
     const realExec = makeGitExec(repoB);
@@ -289,7 +292,7 @@ describe("sync-state-ref reconcile-push", () => {
 
     const outcome = await reconcileSyncStatePush(
       { exec: spyExec, execInput: makeGitExecInput(repoB), identity: IDENTITY },
-      MACHINE_B,
+      INTENT_B,
     );
 
     expect(outcome.kind).toBe("reconciled");

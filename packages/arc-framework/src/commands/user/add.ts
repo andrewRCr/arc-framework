@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { ensureDir } from "../../lib/template/index.js";
 import { CROSS_WU_INSTANCE_FILES } from "../../lib/setup.js";
+import { resolveUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import type { UserAddOptions } from "./types.js";
 
 /**
@@ -21,7 +22,8 @@ export async function runUserAdd(
   options: UserAddOptions,
 ): Promise<void> {
   const { cwd, io, identity, internalTemplateDir } = options;
-  const userDir = join(cwd, ".arc", "user", identity);
+  const userDir = (await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec }))
+    .identityGlobalRoot;
 
   await ensureDir(userDir, io.mkdir);
 

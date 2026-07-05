@@ -298,6 +298,17 @@ function isRepoRelativePathArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(isRepoRelativePath);
 }
 
+function isLoadSetPath(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.includes("\0")) return false;
+  if (isRepoRelativePath(value)) return true;
+  return isAbsoluteLoadSetPath(value);
+}
+
+function isAbsoluteLoadSetPath(value: string): boolean {
+  if (value.startsWith("/")) return posix.normalize(value) === value;
+  return /^[A-Za-z]:[\\/]/u.test(value) || value.startsWith("\\\\");
+}
+
 function isNullableSessionType(
   value: unknown,
 ): value is CompactionSeedSessionType | null {
@@ -331,7 +342,7 @@ function isLoadSetManifest(value: unknown): value is LoadSetManifest {
 
 function isLoadSetEntry(value: unknown): value is LoadSetEntry {
   if (!isRecord(value)) return false;
-  return isRepoRelativePath(value.path) && isReadMode(value.readMode);
+  return isLoadSetPath(value.path) && isReadMode(value.readMode);
 }
 
 function isReadMode(value: unknown): value is ReadMode {

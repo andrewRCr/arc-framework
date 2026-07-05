@@ -25,7 +25,7 @@ import type { UserIOContext, UserOpenOptions } from "./types.js";
  * unconditionally on the target path.
  */
 export async function runUserOpen(options: UserOpenOptions): Promise<void> {
-  const { cwd, io, identity, wuName, internalTemplateDir } = options;
+  const { cwd, io, identity, wuName, internalTemplateDir, sessionNotesSeed } = options;
   const wuDir = join(cwd, ".arc", "user", identity, wuName);
 
   await ensureDir(wuDir, io.mkdir);
@@ -34,10 +34,10 @@ export async function runUserOpen(options: UserOpenOptions): Promise<void> {
   if (await fileExists(io, seedPath)) {
     return;
   }
-  const template = await io.readFile(
-    join(internalTemplateDir, "user", "SESSION-NOTES.md"),
-  );
-  await io.writeFile(seedPath, template);
+  const content =
+    sessionNotesSeed
+    ?? await io.readFile(join(internalTemplateDir, "user", "SESSION-NOTES.md"));
+  await io.writeFile(seedPath, content);
 }
 
 async function fileExists(io: UserIOContext, path: string): Promise<boolean> {

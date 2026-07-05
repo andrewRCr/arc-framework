@@ -81,6 +81,18 @@ describe("reconcileStatusUser", () => {
     expect(state.writes[0]!.content).toBe("body\n");
   });
 
+  it("writes STATUS.USER under the resolved identity-global root when supplied", async () => {
+    const { ctx, state } = buildCtx("body");
+    ctx.resolveIdentityGlobalRoot = async () => join("/primary", ".arc", "user", "andrew");
+
+    const result = await reconcileStatusUser(ctx, { cwd: "/linked", identity: "andrew" });
+
+    const expectedPath = join("/primary", ".arc", "user", "andrew", "STATUS.USER.md");
+    expect(result).toEqual({ written: true, path: expectedPath });
+    expect(state.mkdirs).toEqual([join("/primary", ".arc", "user", "andrew")]);
+    expect(state.writes).toEqual([{ path: expectedPath, content: "body\n" }]);
+  });
+
   it("skips entirely when identity is absent (the view is identity-scoped)", async () => {
     const { ctx, state } = buildCtx("body");
 

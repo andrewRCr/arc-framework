@@ -91,3 +91,13 @@ describe("validate-config.sh — session.init_load.notes", () => {
     expect(result.stdout).not.toContain("Unknown key: 'session.init_load.notes'");
   });
 });
+
+describe("validate-config.sh — worktree provisioning keys", () => {
+  it("recognizes post-create and harness-dir settings as known", async () => {
+    const result = await runValidateConfig("worktree.post_create: npm install\nworktree.harness_dirs: .codex\n");
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).not.toContain("Unknown key: 'worktree.post_create'");
+    expect(result.stdout).not.toContain("Unknown key: 'worktree.harness_dirs'");
+  });
+});

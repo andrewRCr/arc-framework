@@ -21,6 +21,8 @@ import { basename, join } from "node:path";
 import * as p from "@clack/prompts";
 
 import {
+  buildCreateNewCeremonyCommitMessage,
+  buildGraduateCeremonyCommitMessage,
   resolveStartDispatch,
   runColdStart,
   runCreateNew,
@@ -31,8 +33,11 @@ import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
+import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
+import { ensureDir } from "../lib/template/files.js";
+import { composeProjectReadinessView } from "../lib/status/project-view.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
@@ -137,7 +142,15 @@ interface ArmContext {
 /** Resolve `branch.base`, `worktree.location_template`, and the `{repo}` basename from config + git. */
 async function resolveSpawnConfig(
   ctx: ArmContext,
-): Promise<{ baseBranch: string; locationTemplate: string; repo: string; teamMode: boolean } | null> {
+): Promise<{
+  baseBranch: string;
+  locationTemplate: string;
+  postCreateScript: string;
+  primaryWorktreePath: string;
+  registeredHarnessDirs: string;
+  repo: string;
+  teamMode: boolean;
+} | null> {
   const { settings } = await readConfigSettings(ctx.cwd);
   const primaryWorktreePath = await resolvePrimaryWorktreePath(ctx.io.exec);
   if (primaryWorktreePath === null) {
@@ -148,6 +161,9 @@ async function resolveSpawnConfig(
   return {
     baseBranch: settings["branch.base"],
     locationTemplate: settings["worktree.location_template"],
+    postCreateScript: settings["worktree.post_create"],
+    primaryWorktreePath,
+    registeredHarnessDirs: settings["worktree.harness_dirs"],
     repo: basename(primaryWorktreePath),
     teamMode: settings["team.mode"] === "true",
   };
@@ -156,7 +172,11 @@ async function resolveSpawnConfig(
 /** Create-new arm — spawn a fresh worktree on a new `plan/<name>` branch. */
 async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext): Promise<void> {
   if (!skipConfirm(opts)) {
-    if (!(await confirmStep(`Spawn a new worktree for work unit "${wuName}" on a new plan/${wuName} branch?`))) {
+    if (!(
+      await confirmStep(
+        `Spawn a new worktree for work unit "${wuName}" on plan/${wuName}, then commit and push the start ceremony?`,
+      )
+    )) {
       p.log.info("Create-new cancelled.");
       return;
     }
@@ -182,6 +202,32 @@ async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext): P
     ].join("\n"),
     "Spawned",
   );
+  if (r.postCreateNotice) p.log.info(r.postCreateNotice);
+  const roadmap = await refreshRoadmapForStartCeremony(ctx, r.worktreePath);
+  if (!roadmap.ok) {
+    p.log.error(roadmap.reason);
+    process.exitCode = 1;
+    return;
+  }
+  const ceremony = await commitAndPushStartCeremony(ctx, {
+    cwd: r.worktreePath,
+    branch: r.branch,
+    stagePaths: [`.arc/active/meta-${r.wuName}.md`, ".arc/backlog/ROADMAP.md"],
+    message: buildCreateNewCeremonyCommitMessage(r.wuName),
+  });
+  if (!ceremony.ok) {
+    p.log.error(ceremony.reason);
+    process.exitCode = 1;
+    return;
+  }
+  await stampStartSessionNotesCommit(ctx, {
+    cwd: r.worktreePath,
+    identity: ctx.identity,
+    wuName: r.wuName,
+    commit: ceremony.commit,
+  });
+  p.log.info(`Committed ${ceremony.commit} and pushed ${r.branch}.`);
+  reportWorktreeEntryRecipe(r.worktreePath);
   p.outro("Done.");
 }
 
@@ -246,7 +292,11 @@ async function graduate(
   if (config === null) return;
 
   if (!skipConfirm(opts)) {
-    if (!(await confirmStep(`Graduate "${wuName}" onto a new plan/${wuName} branch and spawn its worktree?`))) {
+    if (!(
+      await confirmStep(
+        `Graduate "${wuName}" into a spawned plan/${wuName} worktree, then commit and push the start ceremony?`,
+      )
+    )) {
       p.log.info("Graduate cancelled.");
       return;
     }
@@ -259,6 +309,9 @@ async function graduate(
       cls,
       baseBranch: config.baseBranch,
       locationTemplate: config.locationTemplate,
+      postCreateScript: config.postCreateScript,
+      primaryWorktreePath: config.primaryWorktreePath,
+      registeredHarnessDirs: config.registeredHarnessDirs,
       repo: config.repo,
       spawningIdentity: ctx.identity,
     },
@@ -270,11 +323,44 @@ async function graduate(
   }
 
   p.note(
-    [`Work unit: ${wuName}`, `Branch:    ${result.branch}`, `Meta:      ${result.metaPath}`].join("\n"),
+    [
+      `Work unit: ${wuName}`,
+      `Branch:    ${result.branch}`,
+      ...(result.worktreePath === undefined ? [] : [`Worktree:  ${result.worktreePath}`]),
+      `Meta:      ${result.metaPath}`,
+    ].join("\n"),
     "Graduated",
   );
+  if (result.postCreateNotice) p.log.info(result.postCreateNotice);
   reportAdvisories(result.outcome);
   if (result.notice) p.log.info(result.notice);
+  if (result.worktreePath !== undefined) {
+    const roadmap = await refreshRoadmapForStartCeremony(ctx, result.worktreePath);
+    if (!roadmap.ok) {
+      p.log.error(roadmap.reason);
+      process.exitCode = 1;
+      return;
+    }
+    const ceremony = await commitAndPushStartCeremony(ctx, {
+      cwd: result.worktreePath,
+      branch: result.branch,
+      stagePaths: [`.arc/active/meta-${wuName}.md`, ".arc/backlog/ROADMAP.md"],
+      message: buildGraduateCeremonyCommitMessage(wuName),
+    });
+    if (!ceremony.ok) {
+      p.log.error(ceremony.reason);
+      process.exitCode = 1;
+      return;
+    }
+    await stampStartSessionNotesCommit(ctx, {
+      cwd: result.worktreePath,
+      identity: ctx.identity,
+      wuName,
+      commit: ceremony.commit,
+    });
+    p.log.info(`Committed ${ceremony.commit} and pushed ${result.branch}.`);
+    reportWorktreeEntryRecipe(result.worktreePath);
+  }
   p.outro("Done.");
 }
 
@@ -343,7 +429,15 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
         rmdir: (path) => rmdir(path),
       },
     },
-    { name: wuName, locationTemplate: config.locationTemplate, repo: config.repo, spawningIdentity: ctx.identity },
+    {
+      name: wuName,
+      locationTemplate: config.locationTemplate,
+      postCreateScript: config.postCreateScript,
+      primaryWorktreePath: config.primaryWorktreePath,
+      registeredHarnessDirs: config.registeredHarnessDirs,
+      repo: config.repo,
+      spawningIdentity: ctx.identity,
+    },
   );
   if (result.status === "rejected") {
     p.log.error(result.reason);
@@ -421,5 +515,95 @@ async function coldStart(
 function reportAdvisories(outcome: TransitionOutcome): void {
   if (outcome.status === "ok") {
     for (const advisory of outcome.advisories) p.log.info(advisory);
+  }
+}
+
+function reportWorktreeEntryRecipe(worktreePath: string): void {
+  p.note(renderWorktreeEntryRecipe({ worktreePath }), "Next session");
+}
+
+interface StartCeremonyOptions {
+  cwd: string;
+  branch: string;
+  stagePaths: string[];
+  message: string;
+}
+
+type StartCeremonyResult =
+  | { ok: true; commit: string }
+  | { ok: false; reason: string };
+
+function commitMessageArgs(message: string): string[] {
+  const [subject = "", ...bodyLines] = message.trimEnd().split("\n");
+  const body = bodyLines.join("\n").trim();
+  return body === "" ? ["-m", subject] : ["-m", subject, "-m", body];
+}
+
+async function commitAndPushStartCeremony(
+  ctx: ArmContext,
+  opts: StartCeremonyOptions,
+): Promise<StartCeremonyResult> {
+  try {
+    await ctx.io.exec("git", ["add", ...opts.stagePaths], { cwd: opts.cwd });
+    await ctx.io.exec("git", ["commit", ...commitMessageArgs(opts.message)], { cwd: opts.cwd });
+    const { stdout } = await ctx.io.exec("git", ["rev-parse", "--short", "HEAD"], { cwd: opts.cwd });
+    await ctx.io.exec("git", ["push", "-u", "origin", opts.branch], { cwd: opts.cwd });
+    return { ok: true, commit: stdout.trim() || "HEAD" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `start ceremony commit/push failed: ${message}` };
+  }
+}
+
+type RefreshRoadmapResult = { ok: true } | { ok: false; reason: string };
+
+async function refreshRoadmapForStartCeremony(
+  ctx: ArmContext,
+  cwd: string,
+): Promise<RefreshRoadmapResult> {
+  try {
+    const renderedRef = await startRenderedRef(ctx, cwd);
+    const view = await composeProjectReadinessView({
+      cwd,
+      renderedRef,
+      fs: {
+        readFile: (p) => ctx.io.readFile(p),
+        readdir: (p) => readdir(p, { withFileTypes: true }),
+      },
+    });
+    const dir = join(cwd, ".arc", "backlog");
+    await ensureDir(dir, ctx.io.mkdir);
+    await ctx.io.writeFile(join(dir, "ROADMAP.md"), view.endsWith("\n") ? view : `${view}\n`);
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `ROADMAP regen failed: ${message}` };
+  }
+}
+
+async function startRenderedRef(ctx: ArmContext, cwd: string): Promise<string> {
+  try {
+    const { stdout } = await ctx.io.exec("git", ["rev-parse", "--short", "HEAD"], { cwd });
+    return stdout.trim() || "working tree";
+  } catch {
+    return "working tree";
+  }
+}
+
+async function stampStartSessionNotesCommit(
+  ctx: ArmContext,
+  opts: { cwd: string; identity: string; wuName: string; commit: string },
+): Promise<void> {
+  const notesPath = join(opts.cwd, ".arc", "user", opts.identity, opts.wuName, "SESSION-NOTES.md");
+  try {
+    const content = await ctx.io.readFile(notesPath);
+    const next = content.replace(
+      /\*\*Commit at Handoff:\*\*\s+`[^`]+`/u,
+      `**Commit at Handoff:** \`${opts.commit}\``,
+    );
+    if (next !== content) await ctx.io.writeFile(notesPath, next);
+  } catch {
+    // Best-effort: the tracked ceremony is complete; a missing gitignored seed is
+    // a degraded resume aid, not a failed start.
   }
 }

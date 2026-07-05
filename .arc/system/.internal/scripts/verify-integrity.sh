@@ -356,7 +356,50 @@ check_per_file_dir "$extensions_dir" "extension"
 echo ""
 
 # ============================================================================
-# 7. Manifest awareness
+# 7. Meta-file shape
+# ============================================================================
+
+echo "--- Meta Files ---"
+
+check_meta_field_block_shape() {
+    local file="$1"
+    local label="${file#"$ARC_DIR"/}"
+    local h1_line
+
+    h1_line=$(grep -nE '^# ' "$file" 2>/dev/null | head -n 1 | cut -d: -f1 || true)
+    if [ -z "$h1_line" ]; then
+        error "$label: missing metadata H1 heading (\`# Metadata: <name>\`)"
+        return
+    fi
+
+    if awk -v h1="$h1_line" 'NR > h1 && $0 ~ /^[[:space:]]*---[[:space:]]*$/ { found=1; exit } END { exit found ? 0 : 1 }' "$file"; then
+        pass "$label: meta field block anchor present"
+    else
+        error "$label: missing closing \`---\` metadata delimiter after managed fields"
+    fi
+}
+
+found_meta=false
+for meta_root in \
+    "$ARC_DIR/active" \
+    "$ARC_DIR/backlog/planned" \
+    "$ARC_DIR/backlog/provisional" \
+    "$ARC_DIR/completed"; do
+    [ -d "$meta_root" ] || continue
+    while IFS= read -r meta_file; do
+        found_meta=true
+        check_meta_field_block_shape "$meta_file"
+    done < <(find "$meta_root" -type f -name 'meta-*.md' | sort)
+done
+
+if [ "$found_meta" = false ]; then
+    info "No lifecycle meta files found"
+fi
+
+echo ""
+
+# ============================================================================
+# 8. Manifest awareness
 # ============================================================================
 
 echo "--- Manifest ---"

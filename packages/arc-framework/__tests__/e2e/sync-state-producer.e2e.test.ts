@@ -7,9 +7,9 @@
  * notes leg fails) — the exact cross-machine condition the marker exists to make
  * visible. Assertions read the git refs directly (the sibling B-side rendering
  * is a separate work unit): the sync-state ref carries the producer's
- * machine-keyed entry, the recorded intent is live while origin's notes lag, and
+ * intent-keyed entry, the recorded intent is live while origin's notes lag, and
  * it self-invalidates (fulfilled) once the notes land. A second clone proves the
- * per-machine union-merge.
+ * keyed union-merge.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -43,7 +43,7 @@ async function refTip(repo: string, ref: string): Promise<string | null> {
   }
 }
 
-/** Machine-key entry names on the origin's sync-state ref tree (sorted). */
+/** Entry keys on the origin's sync-state ref tree (sorted). */
 async function syncStateKeys(origin: string): Promise<string[]> {
   const tip = await refTip(origin, SYNC_STATE_REF);
   if (tip === null) return [];
@@ -51,20 +51,20 @@ async function syncStateKeys(origin: string): Promise<string[]> {
   return out.split("\n").map((s) => s.trim()).filter(Boolean).sort();
 }
 
-/** Read and parse a machine's marker entry from the origin's sync-state ref. */
+/** Read and parse one marker entry from the origin's sync-state ref. */
 async function readMarker(
   origin: string,
-  machineId: string,
+  entryKey: string,
 ): Promise<{ machineId: string; lastAttemptedCommit: string; intent: string }> {
   const tip = await refTip(origin, SYNC_STATE_REF);
   if (tip === null) throw new Error("sync-state ref absent on origin");
-  const blob = await git(origin, ["cat-file", "blob", `${tip}:${machineId}`]);
+  const blob = await git(origin, ["cat-file", "blob", `${tip}:${entryKey}`]);
   return JSON.parse(blob) as { machineId: string; lastAttemptedCommit: string; intent: string };
 }
 
 /** This clone's persisted machine-id (assigned on the first marker publish). */
 async function machineId(clone: string): Promise<string> {
-  const path = join(clone, ".arc", "user", IDENTITY, ".internal", ".machine-id");
+  const path = join(clone, ".git", "arc", "user", IDENTITY, ".internal", ".machine-id");
   const id = (await readFile(path, "utf-8")).trim();
   if (!id) throw new Error("machine-id not persisted");
   return id;
@@ -102,7 +102,7 @@ async function installArcWithNotes(clone: string): Promise<void> {
   }
   await git(clone, ["config", "--local", "arc.pushInterlock", "on-sync"]);
   await writeFile(
-    join(clone, ".arc", "user", IDENTITY, "SESSION-NOTES.md"),
+    join(clone, ".arc", "user", IDENTITY, "WORKING-MEMORY.md"),
     "# producer notes\n",
     "utf-8",
   );
@@ -136,13 +136,15 @@ describe("partial-push sync-state marker — multi-machine producer lifecycle", 
     expect(await refTip(harness.origin, "refs/heads/main")).not.toBeNull();
     expect(await refTip(harness.origin, NOTES_REF)).toBeNull();
 
-    // The sync-state ref carries exactly A's machine-keyed entry.
-    const idA = await machineId(harness.cloneA);
-    expect(await syncStateKeys(harness.origin)).toEqual([idA]);
-
-    // The entry records A's outstanding intent (its local notes-ref tip).
+    // The sync-state ref carries exactly A's intent-keyed entry.
     const localNotesTip = await refTip(harness.cloneA, NOTES_REF);
-    const marker = await readMarker(harness.origin, idA);
+    if (localNotesTip === null) throw new Error("local notes ref absent");
+    const idA = await machineId(harness.cloneA);
+    expect(await syncStateKeys(harness.origin)).toEqual([localNotesTip]);
+
+    // The entry records A's outstanding intent and keeps machine provenance in the payload.
+    const marker = await readMarker(harness.origin, localNotesTip);
+    expect(marker.machineId).toBe(idA);
     expect(marker.intent).toBe(localNotesTip);
 
     // Liveness is "live": origin's notes ref has not reached the recorded intent
@@ -165,13 +167,18 @@ describe("partial-push sync-state marker — multi-machine producer lifecycle", 
     expect(recovered.exitCode).toBe(0);
 
     // Origin's notes ref now reaches the recorded intent → fulfilled: the same
-    // comparison `evaluateMarkerLiveness` makes, here at the git level.
+    // ancestry comparison `evaluateMarkerLiveness` makes, here at the git level.
+    const [entryKey] = await syncStateKeys(harness.origin);
+    if (entryKey === undefined) throw new Error("sync-state marker absent");
     const idA = await machineId(harness.cloneA);
-    const marker = await readMarker(harness.origin, idA);
-    expect(await refTip(harness.origin, NOTES_REF)).toBe(marker.intent);
+    const marker = await readMarker(harness.origin, entryKey);
+    expect(marker.machineId).toBe(idA);
+    const originNotesTip = await refTip(harness.origin, NOTES_REF);
+    if (originNotesTip === null) throw new Error("origin notes ref absent");
+    await git(harness.origin, ["merge-base", "--is-ancestor", marker.intent, originNotesTip]);
   }, 30_000);
 
-  it("two machines hold outstanding intents → per-machine union-merge, neither clobbers", async () => {
+  it("two machines hold outstanding intents → keyed union-merge, neither clobbers", async () => {
     await installArcWithNotes(harness.cloneA);
     await rejectNotesPushes(harness.origin);
     const a = await runCli(["sync", "--json"], { cwd: harness.cloneA, timeout: 20_000 });
@@ -185,17 +192,21 @@ describe("partial-push sync-state marker — multi-machine producer lifecycle", 
     // it — B creates its own before seeding its notes.
     await mkdir(join(harness.cloneB, ".arc", "user", IDENTITY), { recursive: true });
     await writeFile(
-      join(harness.cloneB, ".arc", "user", IDENTITY, "SESSION-NOTES.md"),
+      join(harness.cloneB, ".arc", "user", IDENTITY, "WORKING-MEMORY.md"),
       "# clone B notes\n",
       "utf-8",
     );
     const b = await runCli(["sync", "--json"], { cwd: harness.cloneB, timeout: 20_000 });
     expect(b.exitCode).toBe(1);
 
-    // Both machine keys coexist on the ref — the union-merge kept A's entry.
+    // Both intent keys coexist on the ref — the union-merge kept A's entry.
     const idA = await machineId(harness.cloneA);
     const idB = await machineId(harness.cloneB);
     expect(idA).not.toBe(idB);
-    expect(await syncStateKeys(harness.origin)).toEqual([idA, idB].sort());
+    const keys = await syncStateKeys(harness.origin);
+    expect(keys).toHaveLength(2);
+    const markers = await Promise.all(keys.map((key) => readMarker(harness.origin, key)));
+    expect(markers.map((marker) => marker.machineId).sort()).toEqual([idA, idB].sort());
+    expect(markers.map((marker) => marker.intent).sort()).toEqual(keys);
   }, 30_000);
 });

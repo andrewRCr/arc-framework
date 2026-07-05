@@ -158,7 +158,7 @@ async function main(): Promise<void> {
     }
     case "notes": {
       const commit = req(extra[0], "commit");
-      const lock = await acquireAdvisoryLock(getNotesLockPath(repo, id));
+      const lock = await acquireAdvisoryLock(await getNotesLockPath(exec, repo, id));
       try {
         await execInput(
           ["notes", "--ref", notesRef(id), "add", "-f", "-F", "-", commit],

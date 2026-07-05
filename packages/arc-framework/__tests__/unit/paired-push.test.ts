@@ -27,6 +27,8 @@ import type {
 const mockRecordPartialPushMarker = vi.fn();
 const mockClearPartialPushMarker = vi.fn();
 const mockRunUserSave = vi.fn();
+const mockPlanNotesExport = vi.fn();
+const mockCleanupNotesExport = vi.fn();
 
 vi.mock("../../src/commands/user/save-load.js", () => ({
   runUserSave: (opts: unknown) => mockRunUserSave(opts),
@@ -174,6 +176,16 @@ const COMMON_OPTIONS = {
   identity: "andrew",
   cwd: "/repo",
   branch: "main",
+  planNotesExport: mockPlanNotesExport,
+  cleanupNotesExport: mockCleanupNotesExport,
+};
+
+const NOTES_EXPORT_TARGET = {
+  ref: "refs/notes/arc/user/andrew__branch_export_test",
+  destinationRef: "refs/notes/arc/user/andrew",
+  tip: "f".repeat(40),
+  annotatedCommits: ["a".repeat(40)],
+  omittedCommits: [],
 };
 
 /** No-op delay so auto-retry tests don't wait on real backoff timers. */
@@ -188,6 +200,8 @@ describe("runPairedPush", () => {
       fileCount: 1,
       warnings: [],
     });
+    mockPlanNotesExport.mockResolvedValue({ kind: "planned", target: NOTES_EXPORT_TARGET });
+    mockCleanupNotesExport.mockResolvedValue(undefined);
   });
 
   it("save and both push legs succeed → result reports success; save precedes pushes", async () => {
@@ -238,6 +252,7 @@ describe("runPairedPush", () => {
       cwd: "/repo",
       access,
       worktreeBranch: "main",
+      notesExportTarget: NOTES_EXPORT_TARGET,
     });
 
     expect(events).toEqual(["save", "push origin main"]);
@@ -554,7 +569,13 @@ describe("runPairedPush", () => {
       // Worktree push, then marker, then notes — the producer ordering invariant.
       expect(order).toEqual(["save", "push origin main", "marker", "notes"]);
       expect(markerCalls).toEqual([
-        { io, identity: "andrew", cwd: "/repo", worktreeBranch: "main" },
+        {
+          io,
+          identity: "andrew",
+          cwd: "/repo",
+          worktreeBranch: "main",
+          notesExportTarget: NOTES_EXPORT_TARGET,
+        },
       ]);
       expect(notesCalls).toHaveLength(1);
     });

@@ -106,6 +106,8 @@ export interface CandidateActionInputs {
   marker: WorktreeMarkerReadResult;
   /** Whether the candidate worktree's tree is clean. */
   clean: boolean;
+  /** Whether ignored identity-global user surfaces are absent or safely mergeable. */
+  userSurfacesSafe?: boolean;
   /** Whether the candidate's branch is merged into the integration target. */
   merged: boolean;
 }
@@ -127,6 +129,7 @@ export function determineCandidateAction(inputs: CandidateActionInputs): Candida
   const decision = decideWorktreeCleanup({
     marker: inputs.marker,
     clean: inputs.clean,
+    userSurfacesSafe: inputs.userSurfacesSafe,
     merged: inputs.merged,
     context: "shipped",
   });

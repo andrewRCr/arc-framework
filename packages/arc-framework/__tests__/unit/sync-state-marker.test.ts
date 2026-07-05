@@ -1,6 +1,6 @@
 /**
  * Unit tests for the sync-state marker schema — the serialize/parse boundary
- * for the per-machine entry the sibling sync-state ref carries.
+ * for the intent-keyed entry the sibling sync-state ref carries.
  *
  * Covers a lossless round-trip, rejection of malformed or partial blobs, and
  * narrowing of adversarial `unknown` input at the parse boundary (no `any`

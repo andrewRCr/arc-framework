@@ -328,8 +328,20 @@ describe("releaseAdvisoryLock", () => {
 });
 
 describe("getNotesLockPath", () => {
-  it("resolves the notes lockfile under the identity's .internal bookkeeping dir", () => {
-    const path = getNotesLockPath("/repo", "andrew");
-    expect(path).toBe(join("/repo", ".arc", "user", "andrew", ".internal", ".notes.lock"));
+  it("resolves the notes lockfile under the git common dir", async () => {
+    const exec = vi.fn(async () => ({ stdout: "/repo/.git\n", stderr: "" }));
+
+    const path = await getNotesLockPath(exec, "/repo/worktree-a", "andrew");
+
+    expect(exec).toHaveBeenCalledWith("git", ["rev-parse", "--git-common-dir"], { cwd: "/repo/worktree-a" });
+    expect(path).toBe(join("/repo", ".git", "arc", "user", "andrew", ".internal", ".notes.lock"));
+  });
+
+  it("normalizes a relative git common dir against the worktree cwd", async () => {
+    const exec = vi.fn(async () => ({ stdout: ".git\n", stderr: "" }));
+
+    await expect(getNotesLockPath(exec, "/repo", "andrew")).resolves.toBe(
+      join("/repo", ".git", "arc", "user", "andrew", ".internal", ".notes.lock"),
+    );
   });
 });

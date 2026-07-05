@@ -237,7 +237,8 @@ export async function handleUserInboxRemove(slug: string): Promise<void> {
   if (!cwd) return;
 
   try {
-    const result = await runUserInboxRemove({ cwd, identity, slug });
+    const io = createUserIOContext();
+    const result = await runUserInboxRemove({ cwd, io, identity, slug });
     if (result.removed) p.log.success(`Removed USER-INBOX entry: ${slug}`);
     else if (result.inboxMissing) p.log.info(`No USER-INBOX for ${identity}; nothing to remove.`);
     else p.log.info(`No matching USER-INBOX entry (already absent): ${slug}`);
@@ -267,10 +268,11 @@ export async function handleUserSave(): Promise<void> {
   if (!cwd) return;
 
   try {
+    const currentWuName = await resolveCurrentWuName(cwd, io.exec);
     const result = await runWithSpinner(
       output,
       "Saving user directory...",
-      () => runUserSave({ cwd, io, identity }),
+      () => runUserSave({ cwd, io, identity, currentWuName }),
       "Save complete.",
     );
     p.note(buildSaveSummary(result), "Saved");
