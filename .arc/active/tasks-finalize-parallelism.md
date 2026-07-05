@@ -304,20 +304,81 @@ and records the verification only.
           lifecycle/start ceremony write paths. Exclude `STATUS.USER`, `STATUS.PROJECT` rename, link reanchoring,
           shared render-standard extraction, and `operational-state-docs`' generic managed-record projection engine.
 
-    - `[ ]` **2.R.1.b Complete the slice in its own session**
-        - Start and finish the dedicated renderer-command slice on its own branch / session. FP remains the observer
-          and does not absorb the implementation.
+    - `[x]` **2.R.1.b Complete the slice in its own session**
+        - Shipped to `main` as a standalone errand (PR #195, `render the project readiness view from meta files`),
+          not a dedicated FP-branch session. FP remained the observer and did not absorb the implementation; the
+          slice is on base, so FP inherits it via the Phase 2.I merge-back.
 
-    - `[ ]` **2.R.1.c Verify the FP gate**
-        - Confirm the deterministic ROADMAP regeneration path is available on FP's branch / base before `3.1.b`,
-          then record the exact capability / command in `notes-finalize-parallelism.md`.
+    - `[~]` **2.R.1.c Verify the FP gate**
+        - Superseded by Phase 2.I: the renderer (on `main` via #195) reaches FP's branch through the 2.I.2.a
+          merge-back, and its availability on FP's branch is verified there (2.I.2.b) alongside CLI homogeneity,
+          before wave 1.
+
+## **Phase 2.I:** Mid-flight build-items integration
+
+_Purpose:_ Land the completed build items on `main` before the waves consume them, so wave worktrees (cut off
+base) run the same CLI as the observer — the real adopter topology, not a mixed-version dogfood. Defaults stay
+unflipped: base gains the mechanism, never the `--here`→spawn default (that flip is the GA-closeout Task 8.3).
+
+_Design decisions:_ Settled in `spec-finalize-parallelism.md` § Shape and launch constraint. The mechanism is a
+**code-only forward-port**, not a branch merge — FP's active-WU branch carries FP's own `.arc/active/*` artifacts,
+and merging it whole would make FP appear active on the primary. Mirrors the #195 renderer extraction.
+
+### `[ ]` **2.I.1 Forward-port the build-item changes to `main`**
+
+- _Goal:_ The BI-1→BI-6 changes reach `main` as their own PR — `packages/**` plus `.arc/system/` config, and not
+  FP's `.arc/active/*finalize-parallelism*` planning artifacts.
+
+    - `[ ]` **2.I.1.a Assemble the code-only forward-port branch + PR**
+        - Cut a branch off `main`, apply FP's build-item diff excluding `.arc/active/*finalize-parallelism*`,
+          confirm the diff is build-items-only (no FP planning artifacts, no default flip), and open the PR.
+
+    - `[ ]` **2.I.1.b Merge to `main` (defaults unflipped)**
+        - Merge after review; confirm base carries the mechanism with the begin-work default still `--here`.
+
+### `[ ]` **2.I.2 Merge `main` back into FP and verify homogeneity**
+
+- _Goal:_ FP's branch is current with base, and a worktree spawned off `main` runs the same build-item CLI as the
+  observer.
+
+    - `[ ]` **2.I.2.a Merge `main` into FP's branch**
+        - Expect a clean merge — the forward-ported content is byte-identical to FP's; reconcile only FP's own
+          later drift, if any.
+
+    - `[ ]` **2.I.2.b Confirm CLI homogeneity and renderer availability for the waves**
+        - Verify a worktree spawned off `main` provisions and resolves `npx arc` to the build-item CLI (BI-1), and
+          the deterministic ROADMAP regeneration path resolves on FP's branch — the base-state precondition the
+          wave gates now require. Record the exact renderer capability / command in `notes-finalize-parallelism.md`.
+
+## **Phase 2.E:** WU-entry architecture
+
+_Purpose:_ Ship proper WU-entry ergonomics before GA — worktree-by-default raises entry cadence, so the entry
+paths must be first-class, not the current stopgap. Owns the `--start` disposition and the launch-model rework the
+2026-07-05 dogfood finding forces (`notes-finalize-parallelism.md`). Design anchors:
+`spec-finalize-parallelism.md` § Open Questions (WU-entry architecture) and § Committed build items (BI-4).
+
+> [!NOTE]
+> **Placeholder phase — subtasks authored in a dedicated session** after the rest of the task-list rework, per the
+> 2026-07-05 planning decision. Represented now so the scope is not forgotten or bolted on late. Two framing
+> questions settle when it is filled: (1) the `--start` disposition — drop (bare CLI suffices) vs. repurpose as an
+> agent-vetted launch (likely a new verb); (2) execution position — pre-waves (so the waves dogfood the new entry
+> ergonomics; needs its code on base via a Phase 2.I-style forward-port) vs. later (waves use the current entry and
+> entry-arch retrofits). Seed scope below is the known work, not the final decomposition.
+
+- _Seed scope (to decompose):_
+    - Repurpose or retire `arc-session --start <slug>` per the entry-spectrum decision (bare CLI ↔ agent-vetted ↔
+      discovery) — an agent-mediated launch must earn its keep beyond saving a keystroke.
+    - Rework BI-4's `Next session` recipe (Task 2.4.f) to center the spawn-anchored fresh-session entry and demote
+      live relocate (`EnterWorktree`) to an opt-in escape hatch, per the desync finding.
+    - Make the bare-shell `arc start` path (BI-4 substrate) the documented default for the know-what-to-start case,
+      the human arranging tooling before the fresh in-worktree session starts.
 
 ## **Phase 3:** Burn-in wave 1 — two doc-only WUs
 
 _Purpose:_ First live concurrency exercise on node-toolchain-free workload — spawn, notes sync, ROADMAP
-contention, integration ordering — plus induced detector-tests for the cells this wave covers. Gated on BI-1's
-harness-layer leg + BI-3 + the deterministic ROADMAP renderer slice; workload: two Light doc-only WUs,
-spec-ready at pickup.
+contention, integration ordering — plus induced detector-tests for the cells this wave covers. Gated on
+Phase 2.I (build items on base) + BI-1's harness-layer leg + BI-3 + the deterministic ROADMAP renderer slice;
+workload: two Light doc WUs, planning-stage stubs groomed in-worktree during the wave.
 
 _Design decisions:_ Workload is sacrificial and surface-disjoint from FP's build items (provisional slate:
 `inbound-routing-method` + `adr-accept-timing`). Every wave verifies detectors as well as paths. Gating and
@@ -325,19 +386,24 @@ coordination detail in `notes-finalize-parallelism.md` § Sequencing.
 
 ### `[ ]` **3.1 Prepare and launch the wave-1 sacrificial workload**
 
-- _Goal:_ Two Light doc-only WUs run concurrently in spawned worktrees alongside FP, each with Class and
-  spec-readiness confirmed at pickup.
+- _Goal:_ Two Light doc WUs run concurrently in spawned worktrees alongside FP, groomed in-worktree during the
+  wave — Class and lifecycle stage confirmed at pickup, spec-readiness deliberately not a precondition.
 
     - `[x]` **3.1.a Confirm the wave-1 slate**
         - Confirmed `inbound-routing-method` + `adr-accept-timing` remain the best wave-1 slate: both are `Light`,
-          dependency-free, doc-oriented, and surface-disjoint from FP's build items. Both still need standalone
-          planning/spec sessions before launch; FP should vet and observe them, not iterate their designs here.
+          dependency-free, doc-oriented, and surface-disjoint from FP's build items. Both are planning-stage stubs,
+          groomed in-worktree during the wave (draft→spec→tasks in their own spawned worktrees); FP observes and
+          does not iterate their designs on its own branch.
 
-    - `[ ]` **3.1.b Bring the wave-1 WUs to spec readiness in standalone sessions**
-        - Run separate sessions for `inbound-routing-method` and `adr-accept-timing` until each has the Light-scaled
-          spec / task artifacts needed for launch. FP records readiness only; it does not absorb their planning.
+    - `[ ]` **3.1.b Spawn the wave-1 stubs and groom them in-worktree**
+        - Spawn both stubs into worktrees via the spawn-anchored entry (a fresh session in each worktree), then
+          iterate each draft→spec→tasks→execution in its own worktree, concurrently with FP. Exercises planning
+          ceremony under concurrency and yields evidence for the "activation-ready is not a clean state" gap.
 
-    - `[ ]` **3.1.c Spawn and run the two WUs alongside FP**
+    - `[ ]` **3.1.c Verify the spawn-anchored launch model**
+        - Confirm each worktree is entered by a fresh in-worktree session that boots rich via the BI-4 mini-handoff
+          and has the harness layer present (BI-1), with no step depending on live relocate (`EnterWorktree`).
+          Record launch-ergonomics friction as input to the Phase 2.E entry-architecture work.
 
 ### `[ ]` **3.2 Verify the wave-1 matrix cells**
 
