@@ -46,6 +46,11 @@ drain-time check landed in the rules + strategy). The edges that remain live dur
 - **Coordination-seam captures** (the batch-errand/drain-shape seams, the same-entry-merge build home, the
   `/arc-shift` disposition) are routed at planning close via gitignored `USER-INBOX` captures, not by editing
   sibling WUs' tracked buffers from this branch.
+- **Mid-flight build-items forward-port (Phase 2.I) is a base write — sequence it.** The build items reach `main`
+  as a code-only forward-port before the waves (so wave worktrees run the observer's CLI), which writes
+  `origin/main`. Coordinate with any concurrent base writer (sibling WU integration, errand / housekeep PRs) as a
+  normal base merge; FP then merges `main` back. Defaults stay unflipped — the mechanism lands, the `--here`→spawn
+  default does not (Task 8.3).
 
 ### Dogfood finding (2026-07-05): worktree launch model
 
