@@ -283,11 +283,40 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
           divergent unknown or malformed files, and feed the same safety signal into stale-worktree and branch-gone
           cleanup offers.
 
+## **Phase 2.R:** ROADMAP renderer gate
+
+_Purpose:_ Repair the discovered pre-wave gap: wave 1 needs deterministic ROADMAP regeneration before concurrent
+spawn / integration evidence is meaningful, but full Heavy `roadmap-tooling` completion is not the gate. Pull
+forward the smallest renderer slice through its own work unit or session, then verify FP can rely on it before
+spawning the sacrificial WUs.
+
+_Design decisions:_ The implementation belongs to `roadmap-tooling` or a split from it, not FP. FP tracks the gate
+and records the verification only.
+
+### `[ ]` **2.R.1 Pull forward the deterministic ROADMAP renderer slice**
+
+- _Goal:_ The minimal renderer capability needed by wave 1 lands outside FP, without requiring full Heavy
+  `roadmap-tooling` completion.
+
+    - `[ ]` **2.R.1.a Scope the slice boundary**
+        - Decide whether `roadmap-tooling` can land just the renderer slice or needs a dedicated split WU. Keep the
+          slice to deterministic ROADMAP refresh for lifecycle / start ceremony needs, not STATUS.USER,
+          rename, link-reanchor, or other buffer scope.
+
+    - `[ ]` **2.R.1.b Complete the slice in its own session**
+        - Start and finish the chosen `roadmap-tooling` slice on its own branch / session. FP remains the observer
+          and does not absorb the implementation.
+
+    - `[ ]` **2.R.1.c Verify the FP gate**
+        - Confirm the deterministic ROADMAP regeneration path is available on FP's branch / base before `3.1.b`,
+          then record the exact capability / command in `notes-finalize-parallelism.md`.
+
 ## **Phase 3:** Burn-in wave 1 — two doc-only WUs
 
 _Purpose:_ First live concurrency exercise on node-toolchain-free workload — spawn, notes sync, ROADMAP
 contention, integration ordering — plus induced detector-tests for the cells this wave covers. Gated on BI-1's
-harness-layer leg + BI-3 + `roadmap-tooling`; workload: two Light doc-only WUs, spec-ready at pickup.
+harness-layer leg + BI-3 + the deterministic ROADMAP renderer slice; workload: two Light doc-only WUs,
+spec-ready at pickup.
 
 _Design decisions:_ Workload is sacrificial and surface-disjoint from FP's build items (provisional slate:
 `inbound-routing-method` + `adr-accept-timing`). Every wave verifies detectors as well as paths. Gating and
@@ -298,11 +327,16 @@ coordination detail in `notes-finalize-parallelism.md` § Sequencing.
 - _Goal:_ Two Light doc-only WUs run concurrently in spawned worktrees alongside FP, each with Class and
   spec-readiness confirmed at pickup.
 
-    - `[ ]` **3.1.a Confirm the wave-1 slate**
-        - Confirm `inbound-routing-method` + `adr-accept-timing` are Light and spec-ready (or substitute from the
-          doc-only pool); verify surface-disjointness from FP's build items.
+    - `[x]` **3.1.a Confirm the wave-1 slate**
+        - Confirmed `inbound-routing-method` + `adr-accept-timing` remain the best wave-1 slate: both are `Light`,
+          dependency-free, doc-oriented, and surface-disjoint from FP's build items. Both still need standalone
+          planning/spec sessions before launch; FP should vet and observe them, not iterate their designs here.
 
-    - `[ ]` **3.1.b Spawn and run the two WUs alongside FP**
+    - `[ ]` **3.1.b Bring the wave-1 WUs to spec readiness in standalone sessions**
+        - Run separate sessions for `inbound-routing-method` and `adr-accept-timing` until each has the Light-scaled
+          spec / task artifacts needed for launch. FP records readiness only; it does not absorb their planning.
+
+    - `[ ]` **3.1.c Spawn and run the two WUs alongside FP**
 
 ### `[ ]` **3.2 Verify the wave-1 matrix cells**
 

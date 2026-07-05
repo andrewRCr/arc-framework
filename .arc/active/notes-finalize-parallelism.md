@@ -19,10 +19,11 @@ edges are recorded here rather than in a tracked sequencing surface. The pre-FP 
 (the behind-base reconcile gate and the sweep base-ref index shipped as pre-FP errands; the `arc status <slug>`
 drain-time check landed in the rules + strategy). The edges that remain live during FP's own run:
 
-- **`roadmap-tooling` before wave 1.** Concurrent ROADMAP regens from different base states are a wave-1 surface;
-  the deterministic renderer (full WU or its renderer slice — decide at pickup) must land before wave 1, and it
-  also unblocks BI-4's CLI-complete `arc start` (deterministic ceremony-commit content). It slots *beside* FP
-  Phases 1–2, not ahead of FP's start.
+- **Deterministic ROADMAP handling before wave 1.** Concurrent ROADMAP regens from different base states are a
+  wave-1 surface; the deterministic renderer slice from `roadmap-tooling` must land before wave 1, and it also
+  unblocks BI-4's CLI-complete `arc start` (deterministic ceremony-commit content). The full Heavy WU is not the
+  gate; the slice slots *beside* FP Phases 1–2, not ahead of FP's start. `tasks-finalize-parallelism.md` tracks
+  the gate explicitly in Phase 2.R.
 - **`interlock-release-refinement` consumes FP's burn-in evidence (post-waves).** Its parallelism-relevant slice
   (integration-time interlock-stacking collapse) either slice-extracts per its own draft, or — preferred —
   consumes this WU's evidence of which stops actually hurt under concurrency and which weren't decision-bearing
@@ -230,7 +231,8 @@ named detector conditions, and the playbook/doctrine closeout absorbs the accept
 - [ ] **BI-5:** validate-first graduate transition crash-class fix.
 - [ ] **BI-6:** identity-global user surfaces resolve to one canonical machine-local materialization from every
   worktree; per-WU SESSION-NOTES remains worktree-scoped.
-- [ ] **`roadmap-tooling`:** deterministic ROADMAP renderer available before wave 1.
+- [ ] **Deterministic ROADMAP renderer:** renderer slice from `roadmap-tooling` available before wave 1; full
+  Heavy WU completion is not the gate.
 
 ### Wave evidence to collect
 

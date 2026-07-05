@@ -71,8 +71,9 @@ correctness gaps the build items below fix.
   developer + one agent + one work unit under attention at a time, concurrency scaled to the attention available.
   Session-per-errand and dozens-of-concurrent-sessions are explicit anti-goals, consistent with PROJECT-PRD's
   *Focused attention over multi-tracked throughput* tradeoff.
-- **Not the render automation.** Deterministic ROADMAP regeneration is `roadmap-tooling`'s deliverable, slotted
-  before wave 1 (concurrent regens); FP consumes it, doesn't build it.
+- **Not the render automation.** Deterministic ROADMAP regeneration is `roadmap-tooling`'s deliverable; wave 1
+  needs the renderer slice available for concurrent-regeneration evidence, not the whole Heavy WU completed. FP
+  consumes it, doesn't build it.
 - **Not the interlock-intensity model.** FP *supplies* burn-in evidence of which stops hurt under concurrency;
   `interlock-release-refinement` owns the trust-grant/interlock-release model that consumes it.
 - **Not the principled sync-primitive rewrite.** BI-3 stays a contained guard/export/marker correction on the
@@ -299,7 +300,8 @@ contaminating the evidence), while its **node-deps leg additionally gates wave 2
 off-primary). BI-3 gates wave 1 (first concurrent notes sync); BI-2 gates wave 4 (cross-machine materialize).
 
 - **Wave 1 — two doc-only WUs in parallel worktrees.** No node toolchain dependence; exercises spawn, notes
-  sync, ROADMAP contention, integration ordering. (Gated on BI-1's harness-layer leg + BI-3 + `roadmap-tooling`.)
+  sync, ROADMAP contention, integration ordering. (Gated on BI-1's harness-layer leg + BI-3 + the deterministic
+  ROADMAP renderer slice.)
 - **Wave 2 — one code WU + one doc WU.** First real exercise of worktree dependency provisioning + per-task
   quality gates off-primary; a re-graduation verifies BI-4's ceremony-locus fix. (Adds BI-1's node-deps leg.)
 - **Wave 3 — code WU + code WU + a live errand session.** Adds primary-singleton contention and the
@@ -316,10 +318,10 @@ redo — cheap ≠ valueless: real backlog items wanted anyway), **wave-shape-ma
 own build items** (nothing touching user-sync, scaffold, or start-transition code, else a workload failure
 contaminates the observer), **mutually disjoint on code surfaces** (contention belongs on the shared ARC surfaces
 under test, not co-edited modules), **outside the milestone path**, **completable within its observation
-window**, and **spec-ready in time** (a pick clears its own Light-scaled draft→spec→tasks pipeline, groomed in
-the primary during Phases 1–2 so no wave gates on planning). Risk decays across waves as surfaces verify; the
-Heavy/Novel backlog advances meanwhile via primary grooming sessions and queues as the GA bless's first
-consumers.
+window**, and **spec-ready in time** (a pick clears its own Light-scaled draft→spec→tasks pipeline in a standalone
+planning session before launch, so no wave gate depends on doing that grooming inside FP). Risk decays across
+waves as surfaces verify; the Heavy/Novel backlog advances meanwhile via primary grooming sessions and queues as
+the GA bless's first consumers.
 
 *Provisional slate* (confirm Class + spec-readiness at pickup): Wave 1 `inbound-routing-method` +
 `adr-accept-timing`; Wave 2 code `cli-test-hardening` + a doc partner from the `[TBD]` pool; Wave 3
