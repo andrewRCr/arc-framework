@@ -95,9 +95,22 @@ matrix; Phase 2 lands the build items; Phase 3+ are the calendar-gated, observat
 FP is deliberately active alongside the wave workload — the observer WU is itself part of the concurrency under
 test.
 
+**The build items integrate to base before the waves consume them (mid-flight, defaults-unflipped).** The waves
+observe the build items *running inside spawned worktrees*, and a WU worktree is always cut off `branch.base`
+(config-resolved; no override) — so it runs base's CLI. Carrying the build items unmerged on FP's branch would put
+FP's fixes in the observer while the observed worktrees run the pre-FP CLI: a configuration no adopter will ever
+run, so its evidence would prove nothing about the shipped topology. So Phase 2 integrates to `main` at the
+Phase 2→3 boundary, FP merges `main` back, and the waves spawn off `main` under one CLI — the real adopter topology.
+This is a **mid-flight integration, not the author/consumer split** the no-split rationale rejects: Phase 1 still
+authors the checklist and the waves still consume it within one WU. The merge is **additive / opt-in only** — the
+begin-work `--here`→spawn default flip stays gated on wave evidence (the final flip at GA closeout), so base
+gains the mechanism, never the changed default. (The deterministic ROADMAP renderer already set this precedent,
+landing on `main` ahead of wave 1.)
+
 **FP launches into a spawned worktree, never `--here`.** The standing interim "`--here` until FP ships" default
 explicitly does not apply to FP itself: in-place launch would occupy the primary singleton for the WU's whole
-long-running life and exempt the observer from the very mechanics under test.
+long-running life and exempt the observer from the very mechanics under test. *How* a session enters that worktree
+is the spawn-anchored model (a fresh session in the worktree), not live relocate — see § Verification design (BI-4).
 
 ### Committed build items
 
@@ -188,12 +201,16 @@ already works "CLI mechanics, then a session resumes there" — local start is i
 - **(b) Bridge:** `init-work-unit` ends with a mini-handoff into the spawned WU's seeded SESSION-NOTES — the
   existing handoff idiom applied at spawn (the notes ref is checkout- and branch-independent) — so the worktree
   session boots rich instead of cold.
-- **(c) Sugar, harness-conditional:** where the harness can relocate a live session into a worktree, offer the
-  hop (surfaced per harness, never hidden). Claude Code supports **true relocate** (`EnterWorktree`). Codex CLI
-  has **no live-session relocate** — its supported shape is **spawn-anchored**: launch a fresh session in the
-  worktree (`codex --cd <path>`), which layer (b)'s mini-handoff makes first-class (spawn-anchored ≈ relocate
-  minus live context). Caveat: Codex has known cwd-confusion bugs inside a linked worktree — re-verify at build
-  time.
+- **(c) Spawn-anchored is the universal entry; live relocate is at most an escape hatch.** The honest way into a
+  spawned worktree is a **fresh session started in it** (launch claude/codex in the worktree, e.g. `codex --cd
+  <path>`), made first-class by layer (b)'s mini-handoff (spawn-anchored ≈ relocate minus live context). Live
+  relocate — a harness hopping a running session's cwd into the worktree, e.g. Claude Code's `EnterWorktree` — is
+  **not** the recommended path: it moves only the agent process while the developer's terminal, multiplexer, and
+  GUI tooling stay pointed at the primary, desyncing the human's model from the agent's (structural, not a tool
+  bug; dogfood finding 2026-07-05 in `notes-finalize-parallelism.md`). Offer it only as an opt-in escape hatch for
+  a developer who does not rely on terminal sync, never as the default. Design inversion: ARC establishes the
+  worktree via the (a) substrate; the developer arranges their own tooling; the agent starts fresh in the worktree.
+  Caveat: Codex has known cwd-confusion bugs inside a linked worktree — re-verify at build time.
 
 Carries the **spawn-mode ceremony-locus fix**: the graduate transition stages the backlog→active relocation and
 opens the per-WU user workspace against the **invoking** checkout — correct under `--here`, wrong under spawn,
@@ -294,6 +311,11 @@ miss?" Fresh eyes attack the enumeration's blind spots — the unknown-unknowns 
 work into it. Phase the live verification as waves, each using deliberately low-stakes work so a discovered gap
 costs a cheap redo:
 
+**Every gating build item must be integrated to `main`, not merely landed on FP's branch, before the wave it
+gates.** Wave worktrees are cut off base, so they inherit a build item only once it is on base; an item still
+unmerged on FP's branch is not a satisfied gate — the Phase 2→3 mid-flight integration (§ Shape and launch
+constraint) is what puts them there. The gating relationships below are therefore base-state preconditions:
+
 BI-1's legs gate the waves asymmetrically: its **harness-layer leg gates every worktree wave** (a wave-1 session
 without it runs silently outside the ARC machinery — no skill entry, no compaction seed, no recovery injection —
 contaminating the evidence), while its **node-deps leg additionally gates wave 2 onward** (the first code WU
@@ -318,12 +340,19 @@ redo — cheap ≠ valueless: real backlog items wanted anyway), **wave-shape-ma
 own build items** (nothing touching user-sync, scaffold, or start-transition code, else a workload failure
 contaminates the observer), **mutually disjoint on code surfaces** (contention belongs on the shared ARC surfaces
 under test, not co-edited modules), **outside the milestone path**, **completable within its observation
-window**, and **spec-ready in time** (a pick clears its own Light-scaled draft→spec→tasks pipeline in a standalone
-planning session before launch, so no wave gate depends on doing that grooming inside FP). Risk decays across
-waves as surfaces verify; the Heavy/Novel backlog advances meanwhile via primary grooming sessions and queues as
-the GA bless's first consumers.
+window**, and **groomed only in its own worktree** (any draft→spec→tasks iteration a pick still needs happens in
+the pick's spawned worktree, never on FP's branch — worktree isolation keeps wave churn off the observer). Risk
+decays across waves as surfaces verify; the Heavy/Novel backlog advances meanwhile via primary grooming sessions
+and queues as the GA bless's first consumers.
 
-*Provisional slate* (confirm Class + spec-readiness at pickup): Wave 1 `inbound-routing-method` +
+**Spec-readiness is deliberately not a gate — a wave spans lifecycle stages.** Some picks are spec-ready; others
+are rough backlog stubs (a draft plus inbound-buffer captures) spawned and iterated in-worktree. Spawning and
+iterating a stub is the *richer* exercise: it runs planning ceremony under concurrency — draft→spec→tasks,
+`/arc-plan`, capture drain, ROADMAP regen from planning-stage metas, notes accumulation — that a pre-groomed pick
+skips, and it yields direct evidence for the unresolved 'activation-ready is not a clean state' gap. The machinery
+must handle a pick at any stage; gating on spec-readiness tests only the sanitized spec-ready→execute subset.
+
+*Provisional slate* (confirm Class + lifecycle stage at pickup): Wave 1 `inbound-routing-method` +
 `adr-accept-timing`; Wave 2 code `cli-test-hardening` + a doc partner from the `[TBD]` pool; Wave 3
 `ci-cross-platform-hardening` + one further Light code pick + the live errand drain (which doubles as the
 drain-shape evidence collector). `skill-infrastructure-cleanup` is excluded — it overlaps BI-1's harness-layer
@@ -561,9 +590,10 @@ This WU **gates** completion, so it cannot route a fix back to an already-shippe
   is that no ARC verb destroys committed or uncommitted work, and every loud failure has a written recovery.
   Sacrificial-only workload in early waves bounds the cost of a discovered gap to a cheap redo.
 
-- **User-facing impact (DX).** BI-4's launch bridge is the ergonomic target: worktree-by-default should cost one
-  session, not two, and boot rich rather than cold. The harness-conditional relocate/spawn-anchored split means
-  the DX degrades gracefully on harnesses without live relocate rather than blocking them.
+- **User-facing impact (DX).** BI-4's launch bridge is the ergonomic target: a spawned worktree should boot rich
+  rather than cold via the mini-handoff. The launch model is **spawn-anchored** — a fresh session in the worktree,
+  the same on every harness — because live relocate desyncs the developer's own tooling from the agent (finding
+  2026-07-05); the bare-CLI (a) substrate lets the developer arrange their environment before that session starts.
 
 - **Concurrency model during FP's own run.** FP active in its worktree does not serialize the rest of
   development: the primary stays the out-of-WU surface (errands, grooming, housekeep, base-context ceremonies);
@@ -586,9 +616,9 @@ This WU **gates** completion, so it cannot route a fix back to an already-shippe
   validation fails loud on an old-shape meta before any mutation; BI-6 makes identity-global user surfaces resolve
   to one canonical machine-local materialization from every worktree, with per-WU `SESSION-NOTES` still scoped to
   the active worktree.
-- **All four burn-in waves complete** on sacrificial workload with their induced detector-tests firing (base
-  drift, notes lag, behind-base-at-integration, stale worktree each surface as claimed) — no detector silently
-  no-ops.
+- **All four burn-in waves complete** on sacrificial workload (deliberately spanning lifecycle stages — spec-ready
+  picks and rough stubs iterated in-worktree) with their induced detector-tests firing (base drift, notes lag,
+  behind-base-at-integration, stale worktree each surface as claimed); no detector silently no-ops.
 - **The three seam-audit decisions are resolved with evidence** (parallel-errand fork + batch sub-decision;
   same-entry merge disposition; `/arc-shift` revival), each recorded with its rationale and any spawned
   follow-up WU.
@@ -608,8 +638,17 @@ open because they are empirical (they need the live substrate to answer), not be
 
 - **Matrix cell verification** — the skeleton and classifications are authored; inducing each condition and
   observing the actual failure is wave work.
-- **Burn-in workload slate** — recorded provisionally; each pick's Class resolution and spec readiness confirm at
-  pickup (few are spec-ready today; picks clear their own Light-scaled pipeline in the primary before their wave).
+- **Burn-in workload slate** — recorded provisionally; each pick's Class and lifecycle stage confirm at pickup.
+  Spec-readiness is not required before launch: a wave deliberately spans stages, and a rough stub is spawned and
+  groomed in its own worktree during the wave (§ Verification design, Workload selection basis).
+- **WU-entry architecture (`--start`, bare CLI, discovery)** — worktree-by-default raises WU-entry cadence, so FP
+  must ship proper entry ergonomics rather than defer them. Open: whether `arc-session --start <slug>` is dropped
+  (bare CLI is the same effect; routing it through the full discovery path is wasteful) or repurposed (likely a
+  new verb) as a bare-CLI-equivalent launch an ARC-loaded agent vets first (impl-readiness, a second opinion), and
+  the shape of the bare-CLI ↔ agent-vetted ↔ discovery entry spectrum overall — an agent-mediated launch must earn
+  its keep beyond saving a keystroke. Owned **within FP** as a dedicated phase in `tasks-finalize-parallelism.md`
+  (design filled after the rest of the task-list rework, likely a dedicated session); settles there, not deferred
+  to a follow-up.
 - **Orchestrated-drain shape** (sequential vs dispatched errand execution) — sequential-first leaning recorded;
   wave-3 drain-shape evidence decides whether to escalate to worktree-dispatch.
 - **The three seam-audit decisions** — enumerated above with options and recorded leanings; each settles at its
