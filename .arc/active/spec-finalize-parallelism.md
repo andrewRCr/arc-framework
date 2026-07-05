@@ -200,7 +200,8 @@ already works "CLI mechanics, then a session resumes there" — local start is i
   (pre-wave-1 anyway), and graduation commit messages are formulaic (`chore(arc): graduate <name> into active`).
 - **(b) Bridge:** `init-work-unit` ends with a mini-handoff into the spawned WU's seeded SESSION-NOTES — the
   existing handoff idiom applied at spawn (the notes ref is checkout- and branch-independent) — so the worktree
-  session boots rich instead of cold.
+  session boots rich instead of cold. The handoff *emission* shape (worktree path + generic fresh-session
+  instruction, never a harness-specific command) is settled in § WU-entry architecture.
 - **(c) Spawn-anchored is the universal entry; live relocate is at most an escape hatch.** The honest way into a
   spawned worktree is a **fresh session started in it** (launch claude/codex in the worktree, e.g. `codex --cd
   <path>`), made first-class by layer (b)'s mini-handoff (spawn-anchored ≈ relocate minus live context). Live
@@ -279,13 +280,26 @@ the entry ergonomics; it does **not** build the broader lifecycle reform (captur
   worktree, booting rich via the mini-handoff. Live relocate (`EnterWorktree` into an already-running session) is
   demoted to an opt-in escape hatch, not the default. The finding: relocating a live session into a spawned
   worktree desyncs its loaded context from the worktree's actual state; a fresh in-worktree session avoids it.
+  **Handoff emission is a path, not a command:** the launch emits the datum ARC owns and the human can't guess — the
+  worktree path, plus slug/branch and a "boots rich off the seeded handoff" note — with a generic "open a fresh
+  session there with your harness of choice" instruction. It never emits a harness-specific launch command
+  (`codex --cd …` etc.): which harness the developer wants in the worktree, its version-specific invocation, and even
+  which harnesses are viable there (provisioning-dependent) are unknowable and, per the design inversion, the
+  developer's own tooling to arrange. (A future `preferred-harness` config knob could reinstate a convenience
+  command — out of FP scope, candidate only.) **Soft guard against in-session continuation:** if a user who doesn't
+  know the flow asks the launching agent to "just keep going" in-session, the agent doesn't silently relocate — it
+  surfaces the terminal-desync tradeoff and re-offers the fresh-session path, honoring an explicit informed opt-in
+  (recommend-and-confirm, not a block). Applies to bare `arc start` discovery launches and `--start` alike.
 
 - **`--start` disposition — keep, as an agentic focused-recon arm.** `arc-session --start <slug>` is retained and
   sharpened: a universal load-set (not general discovery), deterministic readiness recon on the named WU, then an
-  informed prompt (ready / not + why; launch via `arc start` and read the worktree SESSION-NOTES?). Single-turn
-  when green, with the primed agent fielding follow-up questions. It is symmetric with bare `arc start <slug>`
-  (the no-agent action, the documented default for the know-what-to-start case). No separate `--vet` / `--precheck`
-  verb — the agentic door is `--start`, the plain door is bare `arc start`.
+  informed prompt (ready / not + why; launch?). On launch the agent runs the CLI-complete `arc start`, **verifies
+  BI-4(b)'s seeded mini-handoff actually landed** in the spawned worktree's SESSION-NOTES (the 2026-07-05 finding
+  proved this bridge can silently write the wrong thing), then hands off per the launch model above — worktree path
+  plus the generic fresh-session instruction, no in-session continuation. Single-turn when green, with the primed
+  agent fielding follow-up questions. It is symmetric with bare `arc start <slug>` (the no-agent action, the
+  documented default for the know-what-to-start case). No separate `--vet` / `--precheck` verb — the agentic door is
+  `--start`, the plain door is bare `arc start`.
 
 - **Vet content — Tier-1 gates, Tier-2 invites.** Tier-1 deterministic signals (dependency edges; base-drift
   staleness once a readiness baseline exists) *can gate*. The Tier-2 judgment pass *never gates* — it is an

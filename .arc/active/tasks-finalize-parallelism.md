@@ -353,11 +353,15 @@ build items (BI-4).
   readiness recon on the named WU, and closes on an informed launch prompt — a single-turn green path symmetric
   with the no-agent bare `arc start <slug>`.
 
-    - `[ ]` **2.E.1.a Recon arm in the session-init `--start` handling**
-        - Route `--start <slug>` to a focused-recon leaf: universal load-set only (no ROADMAP discovery pass), a
-          deterministic readiness read on the named WU, then an informed prompt ("ready / not + why; launch via
-          `arc start` and read the worktree SESSION-NOTES?"). Green with no open questions → single-turn; the primed
-          agent fields any follow-up before the human runs the launch.
+    - `[x]` **2.E.1.a Recon arm in the session-init `--start` handling**
+        - Repurposed `--start <slug>` in `session-init.md` (+ package `session-init.template.md` mirror) from the
+          no-active-WU start shortcut into a checkout-preserving, arm-orthogonal **focused-recon arm**: a new Step 2
+          subsection (resolve target → notes-sync + universal-only load + target readiness read → skip Step 5
+          discovery) and a Step 6 recon terminal (readiness verdict → spawn-anchored `arc start` → verify the seeded
+          mini-handoff landed → generic path-not-command handoff → soft-guard against in-session continuation). Five
+          other `--start` cross-references reconciled. Arm-orthogonal (fires regardless of active-WU state) chosen
+          over the old no-active-WU-only placement — coherent now that launch spawns its own worktree. Two-tier vet
+          gating is 2.E.1.b; skill-doc sync is 2.E.1.c.
 
     - `[ ]` **2.E.1.b Two-tier vet — Tier-1 gates, Tier-2 invites**
         - Tier-1 deterministic signals (dependency edges; base-drift staleness once a readiness baseline exists)
@@ -389,7 +393,9 @@ build items (BI-4).
         - Reorder the emitted `Next session` recipe so the spawn-anchored fresh in-worktree session is the primary
           path and live relocate (`EnterWorktree` / re-enter mid-session) is an explicit escape hatch, not a
           co-equal branch. Preserve the common root invariant (enter after post-create provisioning + harness-dir
-          copy) and the per-harness recipes.
+          copy, now automatic per BI-1). Emit generic entry — worktree path + "open a fresh session here; it boots
+          rich off the seed" — not per-harness launch commands (which harness / invocation is the developer's tooling
+          per the launch-model inversion); auto-provisioning already absorbs the per-harness asymmetry.
 
 ### `[ ]` **2.E.4 Document bare `arc start <slug>` as the know-what-to-start default**
 
