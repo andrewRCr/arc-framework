@@ -14,7 +14,6 @@
  * @module
  */
 
-import type { InFlightState } from "../git/in-flight-derivation.js";
 import type { Priority, WorkClass } from "../../commands/active/types.js";
 import { cohortLeaf } from "../active/cohort-path.js";
 
@@ -23,7 +22,7 @@ export interface StatusViewRow {
   /** Canonical WU-name — the row's identity and total-order sort tiebreak. */
   workUnit: string;
   /** Lifecycle phase, surfaced in the State column. */
-  state?: InFlightState;
+  state?: string;
   /**
    * Recorded weight (`Light` / `Heavy` / `Novel` / `[TBD]`); absent → em-dash
    * cell (the column never drops).
