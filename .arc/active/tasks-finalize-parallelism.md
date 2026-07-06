@@ -424,7 +424,7 @@ and merging it whole would make FP appear active on the primary. Mirrors the #19
 and entry-arch touch the same file classes (`packages/**` + `.arc/system/`), so they forward-port as one combined
 PR, not two.
 
-### `[ ]` **2.I.1 Forward-port the build-item and entry-arch changes to `main`**
+### `[x]` **2.I.1 Forward-port the build-item and entry-arch changes to `main`**
 
 - _Goal:_ The BI-1→BI-6 changes and the Phase 2.E entry-arch reach `main` as one PR — `packages/**` plus
   `.arc/system/` config (workflows, skill), and not FP's `.arc/active/*finalize-parallelism*` planning artifacts.
@@ -436,8 +436,14 @@ PR, not two.
           confirmed no begin-work default flip. Base drift was the #195 renderer only — resolved 2 co-evolved-file
           conflicts preserving #195's test-scoping refinement. Opened PR #196.
 
-    - `[ ]` **2.I.1.b Merge to `main` (defaults unflipped)**
-        - Merge after review; confirm base carries the mechanism with the begin-work default still `--here`.
+    - `[x]` **2.I.1.b Merge to `main` (defaults unflipped)**
+        - Ran CodeRabbit on the PR (auto-review is disabled on the repo); folded 7 verified findings into #196 as
+          two fix commits (start push-fail SHA, bounded materialize fetch, ENOENT-narrowed load catch, best-effort
+          STATUS.USER cache, Windows/UNC load-set traversal reject, reserved `.git`/`.arc` harness-dir reject, two
+          doc corrections) with regression tests; a scoped re-review's one follow-up (backslash-canonical Windows
+          load-set paths) was resolved too. Routed the one non-folded finding to blocking task `7.1`. CI green
+          (all three portability OSes); merged via merge commit `8371a08a`. Base carries the mechanism with the
+          begin-work default still `--here`.
 
 ### `[ ]` **2.I.2 Merge `main` back into FP and verify homogeneity**
 
