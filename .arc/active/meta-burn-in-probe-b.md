@@ -8,10 +8,10 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal] — purpose-built burn-in fixture for finalize-parallelism wave 1 (disposable).
-- **Design:** [none]
+- **Design:** `spec-burn-in-probe-b.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
