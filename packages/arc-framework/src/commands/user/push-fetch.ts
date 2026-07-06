@@ -26,8 +26,8 @@ import {
  * Runs the pushability pre-check matrix first when an `access` seam is
  * provided. Block-disposition conditions (rebase in progress, detached HEAD)
  * refuse the push regardless of `force` — these are environmental issues, not
- * divergence; force-push doesn't resolve them. Auto-fixed conditions (missing
- * notes refspec) proceed silently after fix.
+ * divergence; force-push doesn't resolve them. Auto-fixed conditions proceed
+ * silently after fix.
  *
  * Advisory disposition is **not** refused at this site (single-leg / paired
  * asymmetry — see `lib/git/pushability.ts`). Divergent pushes pass the

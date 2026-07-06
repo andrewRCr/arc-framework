@@ -449,9 +449,9 @@ describe("runPairedPush", () => {
         status: "blocked",
         conditions: [
           {
-            kind: "missing-notes-refspec",
+            kind: "detached-head",
             disposition: "block",
-            guidance: "missing refspec",
+            guidance: "detached head",
           },
         ],
       } satisfies PairedPushNotesPusherResult,

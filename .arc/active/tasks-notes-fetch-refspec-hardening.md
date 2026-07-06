@@ -17,42 +17,16 @@ load-bearing, not cleanup — it re-installs the refspec inline, so leaving it w
 Invariant checks run at **integration tier** against a temp origin + clone (the `integration` / `multi-clone`
 harness), not the built binary. Full loci and reproduction recipe in `notes-notes-fetch-refspec-hardening.md`.
 
-### `[ ]` **1.1 Stop installing the force-wildcard refspec**
+### `[x]` **1.1 Stop installing the force-wildcard refspec**
 
 - _Goal:_ An unpushed `arc user save` survives a plain `git fetch`, a `git pull`, and a `git fetch --prune origin`
   — canonical `refs/notes/arc/user/<id>` is unchanged (not force-updated, not deleted) — because no code path
   installs or re-installs the wildcard.
-- _Note:_ Two install sites are removed together: the `arc setup` call and `detectNotesRefspec`'s inline
-  re-install. Removing only the first leaves the notes-target pushability probe re-adding the refspec.
-- **Additional Context:** `notes-notes-fetch-refspec-hardening.md` § Reproduction & verification recipe,
-  § Implementation loci
-
-    - Drop the `configureNotesRefspec` call in `runPostInitSetup` (`lib/setup.ts`) plus its now-unused import.
-
-    - Strip the dead assertion from `lib/git/pushability.ts`: remove `detectNotesRefspec`, the `NOTES_REFSPEC`
-      constant, the `missing-notes-refspec` member of the `PushabilityCondition` kind union, the `evaluatesNotes`
-      probe block and its now-orphaned local, and the `configureNotesRefspec` import; refresh the doc comments that
-      list a notes-refspec condition (the module header and the `runPushabilityStatus` comment).
-
-    - Remove the stale `missing-notes-refspec` mention in `handlers/release/push.ts` (doc comment).
-
-    - Update every test that references the removed condition kind (whole-repo grep for `missing-notes-refspec`
-      must return no `src/` or `__tests__/` hit at close): remove the "auto-configures and re-probe shows installed"
-      case in `__tests__/unit/git/pushability.test.ts`; retarget the two synthetic literals rather than deleting
-      their tests — `__tests__/unit/handlers/release/push.test.ts` (an `auto-fixed`-disposition sample; retarget its
-      `kind` to a surviving kind so the auto-fixed pass-through guard survives, or drop the case if that behavior is
-      judged unreachable post-removal) and `__tests__/unit/paired-push.test.ts` (a `block`-disposition sample under
-      `satisfies`; retarget its `kind` to a surviving block/caller-resolvable kind such as `detached-head`).
-
-    - Build `test-first` (one behavior at a time):
-        - Unpushed `arc user save` → plain `git fetch origin` leaves canonical `refs/notes/arc/user/<id>` unchanged.
-        - The same unpushed save survives `git pull`.
-        - The same unpushed save survives `git fetch --prune origin` (ref not deleted).
-        - The same unpushed save survives an `arc user status` run — its internal notes-ref temp fetch is the
-          original incident vector — with canonical unchanged.
-        - `arc setup` on a fresh clone writes no `+refs/notes/arc/user/*` wildcard into `remote.origin.fetch`; the
-          branch refspec is intact.
-        - After removal, a `target: "notes"` pushability probe adds no refspec (guards the inline re-install path).
+- _Outcome:_ `runPostInitSetup` no longer calls `configureNotesRefspec`, and `runPushabilityStatus` no longer
+  detects or auto-fixes a missing notes wildcard. Integration coverage pins that init with an existing origin keeps
+  only the branch fetch refspec and that local user-notes saves survive `git fetch`, `git pull`,
+  `git fetch --prune origin`, and `arc user status`'s comparison path; unit fixtures no longer mention
+  `missing-notes-refspec`.
 
 ### `[ ]` **1.2 Delete the orphaned `configureNotesRefspec` and its vestigial harness install**
 

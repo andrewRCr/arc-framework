@@ -13,14 +13,19 @@ import { pathToFileURL } from "node:url";
 
 import {
   cleanupTempDir,
+  createTempRepo,
   initInTempRepo,
   makeUserIO,
   makeCommit,
   addBareRemote,
   execFileAsync,
+  loadRecipe,
+  makeIOContext,
+  getArcTemplatePath,
   getInternalTemplatePath,
   DEFAULT_PROMPTS,
 } from "../helpers/integration.js";
+import { runInit } from "../../src/commands/init.js";
 import { hashSyncManifest, serializeSplitUserManifest } from "../../src/commands/user/save-load.js";
 import { buildLoadSummary } from "../../src/commands/user/format.js";
 import { runRetiredSubdirDetection } from "../../src/lib/session-init/retired-subdir-detection.js";
@@ -111,6 +116,13 @@ async function readNotesRefTip(cwd: string, identity: string): Promise<string> {
 async function readHead(cwd: string): Promise<string> {
   const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd });
   return stdout.trim();
+}
+
+async function readFetchRefspecs(cwd: string): Promise<string[]> {
+  const { stdout } = await execFileAsync(
+    "git", ["config", "--get-all", "remote.origin.fetch"], { cwd },
+  );
+  return stdout.trim().split("\n").filter(Boolean);
 }
 
 async function addLinkedWorktree(repo: string, branch: string): Promise<string> {
@@ -1434,6 +1446,98 @@ describe("user push and pull", () => {
     await cleanupTempDir(tempDir);
     await cleanupTempDir(remoteDir);
     if (cloneDir) await cleanupTempDir(cloneDir);
+  });
+
+  async function initRepoWithRemote(identity = "test-user"): Promise<{ repo: string; remote: string }> {
+    const repo = await createTempRepo("arc-notes-fetch-");
+    await makeCommit(repo, "initial commit");
+    const remote = await addBareRemote(repo);
+    const recipe = await loadRecipe();
+    await runInit({
+      cwd: repo,
+      io: makeIOContext(repo),
+      templateDir: getArcTemplatePath(),
+      internalTemplateDir: getInternalTemplatePath(),
+      recipe,
+      prompts: DEFAULT_PROMPTS,
+      identityResult: identity,
+    });
+    return { repo, remote };
+  }
+
+  async function saveUserMemory(repo: string, identity: string, content: string): Promise<string> {
+    const io = makeUserIO(repo);
+    await writeFile(
+      join(repo, ".arc", "user", identity, "WORKING-MEMORY.md"),
+      content,
+      "utf-8",
+    );
+    await runUserSave({ cwd: repo, io, identity });
+    return readNotesRefTip(repo, identity);
+  }
+
+  it("init on a repo with origin keeps branch fetch configured without adding a notes wildcard", async () => {
+    const { repo, remote } = await initRepoWithRemote();
+    try {
+      const refspecs = await readFetchRefspecs(repo);
+
+      expect(refspecs).toContain("+refs/heads/*:refs/remotes/origin/*");
+      expect(refspecs).not.toContain("+refs/notes/arc/user/*:refs/notes/arc/user/*");
+    } finally {
+      await cleanupTempDir(repo);
+      await cleanupTempDir(remote);
+    }
+  });
+
+  it.each([
+    ["plain git fetch", ["fetch", "origin"]],
+    ["git pull", ["pull"]],
+  ])("%s preserves an unpushed local user-notes save", async (_label, args) => {
+    const { repo, remote } = await initRepoWithRemote();
+    try {
+      const io = makeUserIO(repo);
+      await saveUserMemory(repo, "test-user", "# Remote baseline\n");
+      await runUserPush({ io, identity: "test-user" });
+      const localTip = await saveUserMemory(repo, "test-user", "# Local unpushed\n");
+
+      await execFileAsync("git", args, { cwd: repo });
+
+      await expect(readNotesRefTip(repo, "test-user")).resolves.toBe(localTip);
+    } finally {
+      await cleanupTempDir(repo);
+      await cleanupTempDir(remote);
+    }
+  });
+
+  it("git fetch --prune origin preserves an unpushed local user-notes save when no remote note exists", async () => {
+    const { repo, remote } = await initRepoWithRemote();
+    try {
+      const localTip = await saveUserMemory(repo, "test-user", "# Local only\n");
+
+      await execFileAsync("git", ["fetch", "--prune", "origin"], { cwd: repo });
+
+      await expect(readNotesRefTip(repo, "test-user")).resolves.toBe(localTip);
+    } finally {
+      await cleanupTempDir(repo);
+      await cleanupTempDir(remote);
+    }
+  });
+
+  it("user status preserves an unpushed local user-notes save while comparing a stale remote note", async () => {
+    const { repo, remote } = await initRepoWithRemote();
+    try {
+      const io = makeUserIO(repo);
+      await saveUserMemory(repo, "test-user", "# Remote baseline\n");
+      await runUserPush({ io, identity: "test-user" });
+      const localTip = await saveUserMemory(repo, "test-user", "# Local unpushed\n");
+
+      await runUserStatus({ cwd: repo, io, identity: "test-user" });
+
+      await expect(readNotesRefTip(repo, "test-user")).resolves.toBe(localTip);
+    } finally {
+      await cleanupTempDir(repo);
+      await cleanupTempDir(remote);
+    }
   });
 
   it("push sends notes ref to remote, pull retrieves it in a clone", async () => {

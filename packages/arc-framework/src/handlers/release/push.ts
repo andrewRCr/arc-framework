@@ -13,8 +13,8 @@
  * {@link runPushabilityStatus} are filtered to the refusal-causing subset:
  * any `block` disposition, plus the `force-push-required` advisory which
  * inherits the always-refuse contract from `pushability.ts`'s preamble.
- * `auto-fixed` dispositions (e.g., `missing-notes-refspec`) pass through
- * — the matrix self-resolved the issue, so the wrapper does not refuse.
+ * `auto-fixed` dispositions pass through — the matrix self-resolved the
+ * issue, so the wrapper does not refuse.
  *
  * **Settings resolution.** Callers pass a pre-resolved
  * `ResolvedSettingsResult`. Resolving once at the handler boundary and
