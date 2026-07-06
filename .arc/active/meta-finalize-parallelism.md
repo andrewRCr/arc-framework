@@ -14,14 +14,17 @@
 - **Current Workflow:** [none]
 - **Last Completed:** Phase 2.I — Mid-flight build-items integration (Tasks 2.I.1–2.I.2 complete; Phase 2 complete)
 - **Next Task:** Task 3.1.b — Scaffold, spawn, and groom the synthetic fixtures in-worktree (line ~502)
-- **Blockers:** [none] — the notes base-resolution anomaly is fixed (PR #200) and `main` is merged into FP.
+- **Blockers:** BLOCKED pending `notes-fetch-refspec-hardening` merge + FP rebuild — this session discovered a
+  notes-fetch clobber bug (a plain `git fetch` force-overwrites/prunes unpushed user notes); notes-sync is unsafe
+  on FP's current build until that fix lands. The controlled notes re-enable and probe induction both wait on it.
 
-- **Next Action:** Notes-sync still deferred (by choice at handoff) — do the controlled re-enable as step 1
-  (`arc user save` to re-anchor the FP note onto merged HEAD → `arc user sync`; confirm clean convergence, no
-  resurrected tombstones → sync pending USER-INBOX captures, incl. the new `cli-test-hardening` flake capture),
-  then retire the notes-anomaly WORKING-MEMORY entry. Resume Task 3.1.b as observer: probe-a is now fixed (merged
-  `main` + rebuilt, re-probes clean) and grooming; provision/fix probe-b, and drive 3.2–3.3 induction from this
-  observer worktree. Detail in SESSION-NOTES.
+- **Next Action:** BLOCKED on `notes-fetch-refspec-hardening` (notes-sync clobber fix, now in planning). On
+  resume, once that WU has merged to `main` and FP has merged `main` + rebuilt (`npm run build`): (1) controlled
+  notes re-enable — `arc user save` → `arc user sync` (now clobber-safe), confirm convergence, which also pushes
+  FP's unpushed commits; (2) sync pending USER-INBOX captures (incl. `cli-test-hardening` + probe-a's
+  save-location capture); (3) retire the notes-clobber + notes-anomaly WORKING-MEMORY entries as their triggers
+  are met; (4) resume Task 3.1.b as observer and merge `main`/rebuild/resume the two paused probe worktrees; drive
+  3.2–3.3 induction. Detail in SESSION-NOTES.
 
 - **PR URL:** [none]
 - **Completed:** [none]
