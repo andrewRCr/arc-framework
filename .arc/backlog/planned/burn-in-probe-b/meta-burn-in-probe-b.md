@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
+| `Planning` | `andrew`  | [none]     | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
