@@ -468,16 +468,21 @@ PR, not two.
           lifecycle side-effect). Renderer capability / command recorded in `notes-finalize-parallelism.md`
           § Build gates before waves.
 
-## **Phase 3:** Burn-in wave 1 — two doc-only WUs
+## **Phase 3:** Burn-in wave 1 — two synthetic doc-only fixtures
 
 _Purpose:_ First live concurrency exercise on node-toolchain-free workload — spawn, notes sync, ROADMAP
 contention, integration ordering — plus induced detector-tests for the cells this wave covers. Gated on
 Phase 2.I (build items + entry-arch on base) + BI-1's harness-layer leg + BI-3 + the deterministic ROADMAP renderer slice;
-workload: two Light doc WUs, planning-stage stubs groomed in-worktree during the wave.
+workload: two purpose-built synthetic fixtures (`burn-in-probe-a` + `burn-in-probe-b`), spawned and groomed
+in-worktree during the wave.
 
-_Design decisions:_ Workload is sacrificial and surface-disjoint from FP's build items (provisional slate:
-`inbound-routing-method` + `adr-accept-timing`). Every wave verifies detectors as well as paths. Gating and
-coordination detail in `notes-finalize-parallelism.md` § Sequencing.
+_Design decisions:_ Workload pivoted from real Light doc WUs to purpose-built synthetic fixtures — the "real
+Light doc WU" premise did not survive contact (real Light doc work is Errand-shaped and single-session; real
+substantial doc work is Heavy or carries code/lifecycle legs), so no backlog stub cleanly met wave 1's
+doc-only + multi-session + surface-disjoint need. The fixtures run the real lifecycle over synthetic content (real
+ceremony), each producing its own evidence log as its deliverable; matrix-cell / detector induction is driven by
+the observer. Rationale in `notes-finalize-parallelism.md` § Wave-1 workload. Every wave verifies detectors as
+well as paths; gating + coordination detail in § Sequencing.
 
 ### `[ ]` **3.1 Prepare and launch the wave-1 sacrificial workload**
 
@@ -485,16 +490,21 @@ coordination detail in `notes-finalize-parallelism.md` § Sequencing.
   wave — Class and lifecycle stage confirmed at pickup, spec-readiness deliberately not a precondition.
 
     - `[x]` **3.1.a Confirm the wave-1 slate**
-        - Confirmed `inbound-routing-method` + `adr-accept-timing` remain the best wave-1 slate: both are `Light`,
-          dependency-free, doc-oriented, and surface-disjoint from FP's build items. Both are planning-stage stubs,
-          groomed in-worktree during the wave (draft→spec→tasks in their own spawned worktrees); FP observes and
-          does not iterate their designs on its own branch.
+        - Evaluated real Light doc backlog picks and found the "real Light doc WU" premise unsatisfiable for wave
+          1: `inbound-routing-method` drifted Heavy (buffer coupled to unstarted `shared-inbox-model`),
+          `adr-accept-timing` carries code/lifecycle legs (enforcement hook + `integrate-work-unit` flip step), and
+          `cli-readme` is single-session Errand-shaped (no handoff→resume, so cross-session notes convergence never
+          fires). The category "real, Light, doc-only, multi-session, coherent WU" is near-empty by construction.
+          Pivoted to two purpose-built synthetic fixtures (`burn-in-probe-a` + `burn-in-probe-b`) that run the real
+          lifecycle over synthetic content; FP observes and drives cell/detector induction. Finding recorded in
+          `notes-finalize-parallelism.md` § Wave-1 workload.
 
-    - `[ ]` **3.1.b Spawn the wave-1 stubs and groom them in-worktree**
-        - Spawn both stubs into worktrees via the spawn-anchored entry (a fresh session in each worktree), then
-          iterate each draft→spec→tasks→execution in its own worktree, concurrently with FP. Exercises planning
-          ceremony under concurrency and yields evidence for `wu-lifecycle-state-model` (the captured lifecycle
-          reform), whose "activation-ready is not a clean state" gap this surfaces.
+    - `[ ]` **3.1.b Scaffold, spawn, and groom the synthetic fixtures in-worktree**
+        - Scaffold the two fixture stubs onto `main`, then spawn both into worktrees via the spawn-anchored entry
+          (a fresh session in each), and groom each draft→spec→tasks→execution in its own worktree, concurrently
+          with FP — real ceremony over synthetic content. Exercises planning ceremony under concurrency and yields
+          evidence for `wu-lifecycle-state-model` (the captured lifecycle reform), whose "activation-ready is not a
+          clean state" gap this surfaces — sharpened by the workload finding itself (see § Wave-1 workload note).
 
     - `[ ]` **3.1.c Verify the spawn-anchored launch model**
         - Confirm each worktree is entered by a fresh in-worktree session that boots rich via the BI-4 mini-handoff

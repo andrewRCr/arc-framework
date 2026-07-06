@@ -46,6 +46,12 @@ drain-time check landed in the rules + strategy). The edges that remain live dur
 - **Coordination-seam captures** (the batch-errand/drain-shape seams, the same-entry-merge build home, the
   `/arc-shift` disposition) are routed at planning close via gitignored `USER-INBOX` captures, not by editing
   sibling WUs' tracked buffers from this branch.
+- **Wave-1-surfaced captures pending routing (2026-07-05).** Two findings surfaced during wave-1 setup, to flush
+  to `USER-INBOX` from a primary session (capture-from-this-linked-worktree is unreliable per the BI-6 divergence
+  in § Dogfood finding above): (1) session-init entry-arm naming — rename the user-facing `focused recon` arm to
+  `preflight` (closed form), rename BI-5's internal `preflight` meta-validation usage to free the term, keep the
+  `--start` signal → `WU_Target: wu-lifecycle-state-model` (x-ref naming-conventions). (2) The wave-1 workload
+  finding (§ Dogfood finding, Wave-1 workload) as `Class`/lifecycle evidence → `WU_Target: wu-lifecycle-state-model`.
 - **Mid-flight build-items forward-port (Phase 2.I) is a base write — sequence it.** The build items reach `main`
   as a code-only forward-port before the waves (so wave worktrees run the observer's CLI), which writes
   `origin/main`. Coordinate with any concurrent base writer (sibling WU integration, errand / housekeep PRs) as a
@@ -103,6 +109,32 @@ per-session state; under concurrent worktrees every session clobbers the one sha
 recovers another worktree's state. This bites the *blessed* concurrent path, not the relocate one, so spawn-anchored
 does **not** fix it — hence **Task 2.6.e** re-binds the seed worktree-local. No harm this session: the harness's own
 compaction summary + tracked state carried the real context; the ARC seed was inert.
+
+### Dogfood finding (2026-07-05): Wave-1 workload — real Light doc WUs don't exist in the needed shape
+
+Surfaced selecting the wave-1 slate. The *Workload selection basis* assumed real Light doc backlog stubs could
+serve as wave-1 workload ("cheap ≠ valueless: real backlog items wanted anyway"). Dogfooding the pick falsified
+that for wave 1, across three consecutive candidates vetted via the `--start` preflight recon:
+
+- `inbound-routing-method` — drifted Light→Heavy; Inbound Buffer coupled to unstarted `shared-inbox-model`
+  (can't groom in isolation).
+- `adr-accept-timing` — carries code/lifecycle legs (an enforcement hook + an `integrate-work-unit` flip step),
+  so not doc-only, and its buffer forces a design call on groom.
+- `cli-readme` — genuinely Light and doc-only, but single-session / Errand-shaped: no handoff→resume, so the
+  cross-session notes save/load/converge surface (core of 3.2.a / BI-3) never fires.
+
+**Structural finding:** the wave's real need is *lifecycle + concurrency exercise*, not content substance — and
+"real, Light, doc-only, **multi-session**, coherent WU" is near-empty by construction (real Light doc work is
+Errand-shaped; real substantial doc work is Heavy or legged). `Class` is a rest-state snapshot that grooming can
+invalidate — sharp evidence for `wu-lifecycle-state-model`'s "activation-ready is not a clean state" gap, and a
+sharper selection axis than `Class: Light`: **determinate scope** (grooming produces a known artifact, not a
+design resolution) and **multi-session span**.
+
+**Resolution:** wave 1 uses two purpose-built synthetic fixtures (`burn-in-probe-a` + `burn-in-probe-b`) that
+run the real lifecycle over synthetic content — a proper test fixture for the first, lowest-stakes wave. Each
+fixture produces its own evidence log as its deliverable (folds into these notes at wave close); the observer
+drives cell/detector induction. Real-work realism is carried by waves 2–4 (code supply is plentiful). The
+preflight recon catching all three drifts is itself positive launch-model evidence (Task 3.1.c).
 
 ## Shared-mutable-surface matrix
 

@@ -372,9 +372,10 @@ without it runs silently outside the ARC machinery — no skill entry, no compac
 contaminating the evidence), while its **node-deps leg additionally gates wave 2 onward** (the first code WU
 off-primary). BI-3 gates wave 1 (first concurrent notes sync); BI-2 gates wave 4 (cross-machine materialize).
 
-- **Wave 1 — two doc-only WUs in parallel worktrees.** No node toolchain dependence; exercises spawn, notes
-  sync, ROADMAP contention, integration ordering. (Gated on BI-1's harness-layer leg + BI-3 + the deterministic
-  ROADMAP renderer slice.)
+- **Wave 1 — two synthetic doc-only fixtures in parallel worktrees.** No node toolchain dependence; exercises
+  spawn, notes sync, ROADMAP contention, integration ordering. Purpose-built fixtures, not real backlog picks —
+  see *Wave-1 workload exception* below. (Gated on BI-1's harness-layer leg + BI-3 + the deterministic ROADMAP
+  renderer slice.)
 - **Wave 2 — one code WU + one doc WU.** First real exercise of worktree dependency provisioning + per-task
   quality gates off-primary; a re-graduation verifies BI-4's ceremony-locus fix. (Adds BI-1's node-deps leg.)
 - **Wave 3 — code WU + code WU + a live errand session.** Adds primary-singleton contention and the
@@ -396,6 +397,15 @@ the pick's spawned worktree, never on FP's branch — worktree isolation keeps w
 decays across waves as surfaces verify; the Heavy/Novel backlog advances meanwhile via primary grooming sessions
 and queues as the GA bless's first consumers.
 
+*Wave-1 workload exception (2026-07-05, from dogfooding the slate).* The "real backlog items wanted anyway"
+preference proved unsatisfiable for wave 1 specifically: real *Light* doc work is Errand-shaped and
+single-session (no handoff→resume, so cross-session notes convergence never fires), while real *substantial* doc
+work is Heavy or carries code/lifecycle legs (breaking doc-only + surface-disjoint). "Real, Light, doc-only,
+multi-session, coherent WU" is near-empty by construction. Wave 1 therefore uses two **purpose-built synthetic
+fixtures** (`burn-in-probe-a` + `burn-in-probe-b`) that run the real lifecycle over synthetic content — a proper
+test fixture for the first, lowest-stakes wave — with real-work realism carried by waves 2–4 (code supply is
+plentiful). Matrix-cell / detector induction is driven by the observer, not the fixtures.
+
 **Spec-readiness is deliberately not a gate — a wave spans lifecycle stages.** Some picks are spec-ready; others
 are rough backlog stubs (a draft plus inbound-buffer captures) spawned and iterated in-worktree. Spawning and
 iterating a stub is the *richer* exercise: it runs planning ceremony under concurrency — draft→spec→tasks,
@@ -403,11 +413,11 @@ iterating a stub is the *richer* exercise: it runs planning ceremony under concu
 skips, and it yields direct evidence for the unresolved 'activation-ready is not a clean state' gap. The machinery
 must handle a pick at any stage; gating on spec-readiness tests only the sanitized spec-ready→execute subset.
 
-*Provisional slate* (confirm Class + lifecycle stage at pickup): Wave 1 `inbound-routing-method` +
-`adr-accept-timing`; Wave 2 code `cli-test-hardening` + a doc partner from the `[TBD]` pool; Wave 3
-`ci-cross-platform-hardening` + one further Light code pick + the live errand drain (which doubles as the
-drain-shape evidence collector). `skill-infrastructure-cleanup` is excluded — it overlaps BI-1's harness-layer
-surface.
+*Provisional slate* (confirm Class + lifecycle stage at pickup): Wave 1 `burn-in-probe-a` + `burn-in-probe-b`
+(synthetic fixtures — see *Wave-1 workload exception* above); Wave 2 code `cli-test-hardening` + a doc partner
+from the `[TBD]` pool; Wave 3 `ci-cross-platform-hardening` + one further Light code pick + the live errand
+drain (which doubles as the drain-shape evidence collector). `skill-infrastructure-cleanup` is excluded — it
+overlaps BI-1's harness-layer surface.
 
 **Containment invariants (GA-checklist section).** Invert prevention into blast-radius guarantees, each verified
 not assumed: committed + pushed work is never losable; uncommitted work is never destroyed by any ARC verb
