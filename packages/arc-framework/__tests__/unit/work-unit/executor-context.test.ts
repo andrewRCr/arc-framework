@@ -211,6 +211,17 @@ describe("buildExecutorContext — user-workspace binding", () => {
     expect(mockRunUserClose).not.toHaveBeenCalled();
   });
 
+  it("passes a transition-supplied SESSION-NOTES seed when opening the workspace", async () => {
+    const handler = buildCtx("andrew").sideEffects?.["user-workspace"];
+    if (handler === undefined) throw new Error("user-workspace handler was not registered");
+
+    await handler({ ...OPEN_CTX, inputs: { sessionNotesSeed: "# seeded\n" } });
+
+    expect(mockRunUserOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: "andrew", wuName: "foo", sessionNotesSeed: "# seeded\n" }),
+    );
+  });
+
   it("closes the workspace on a move out of an active location (identity present)", async () => {
     const handler = buildCtx("andrew").sideEffects?.["user-workspace"];
     if (handler === undefined) throw new Error("user-workspace handler was not registered");
@@ -267,5 +278,22 @@ describe("buildExecutorContext — git executor cwd default + override", () => {
     await ctx.exec!("git", ["status", "--porcelain"], { cwd: "/wt-foo" });
 
     expect(io.exec).toHaveBeenCalledWith("git", ["status", "--porcelain"], { cwd: "/wt-foo" });
+  });
+
+  it("can re-bind the executor context to a spawned worktree root", async () => {
+    const io = fakeIo();
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+    const rebound = ctx.withCwd?.("/repo.plan-foo");
+    if (rebound === undefined) throw new Error("withCwd was not registered");
+
+    await rebound.exec!("git", ["status", "--short"]);
+
+    expect(io.exec).toHaveBeenCalledWith("git", ["status", "--short"], { cwd: "/repo.plan-foo" });
   });
 });

@@ -85,10 +85,57 @@ describe("CompactionSeed schema", () => {
     ]);
   });
 
+  it("accepts absolute load-set paths for resolver-produced identity-global entries", () => {
+    const value = seed({
+      loadSet: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [
+          {
+            path: "/repo/.arc/user/andrew/WORKING-MEMORY.md",
+            readMode: { kind: "full" },
+          },
+        ],
+      },
+    });
+
+    expect(isCompactionSeed(value)).toBe(true);
+    expect(parseCompactionSeedJson(JSON.stringify(value))).toMatchObject({
+      ok: true,
+      seed: value,
+    });
+  });
+
   it("accepts POSIX and Windows absolute repo roots", () => {
     expect(isCompactionSeed(seed({ repoRoot: "/repo" }))).toBe(true);
     expect(isCompactionSeed(seed({ repoRoot: "C:\\repo" }))).toBe(true);
     expect(isCompactionSeed(seed({ repoRoot: "\\\\server\\share\\repo" }))).toBe(true);
+  });
+
+  it("rejects Windows absolute load-set paths with traversal segments", () => {
+    const traversal = seed({
+      loadSet: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [{ path: "C:\\repo\\..\\..\\secret.md", readMode: { kind: "full" } }],
+      },
+    });
+    expect(isCompactionSeed(traversal)).toBe(false);
+
+    const canonical = seed({
+      loadSet: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [{ path: "C:\\repo\\.arc\\user\\andrew\\WORKING-MEMORY.md", readMode: { kind: "full" } }],
+      },
+    });
+    expect(isCompactionSeed(canonical)).toBe(true);
+
+    // Windows absolute paths are backslash-canonical; the forward-slash form is not accepted.
+    const forwardSlash = seed({
+      loadSet: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [{ path: "C:/repo/WORKING-MEMORY.md", readMode: { kind: "full" } }],
+      },
+    });
+    expect(isCompactionSeed(forwardSlash)).toBe(false);
   });
 
   it("keeps currentWorkflow as soft orientation rather than a path field", () => {

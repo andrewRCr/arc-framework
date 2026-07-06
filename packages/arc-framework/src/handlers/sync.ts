@@ -77,6 +77,7 @@ import {
 } from "../lib/git/index.js";
 import { executeInboundPull } from "../lib/git/inbound-pull.js";
 import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
+import { pushBranchBoundedNotesExport } from "../lib/user-sync/branch-bounded-notes-export.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   runWorktreeSyncStatus,
@@ -706,7 +707,7 @@ async function executePaired(
     branch,
     worktreeSyncState: ctx.worktreeState,
     setUpstream,
-    pushNotes: (context) => pairedNotesAdapter(context, ctx.output),
+    pushNotes: (context) => pairedNotesAdapter(context),
     publishMarker: publishMarkerAdapter,
   });
   renderPairedResult(result, branch, ctx.output);
@@ -736,48 +737,30 @@ async function publishMarkerAdapter(context: PairedPushMarkerContext): Promise<v
     io: context.io,
     execInput: context.io.execInput,
     identity: context.identity,
+    intent: context.notesExportTarget.tip,
   });
 }
 
 /**
- * Notes-leg pusher delegate for `runPairedPush`. Threads the paired flow's
- * context into `pushNotesWithReconcile` so paired and single-leg pushes share
- * automatic lossless reconcile, idempotent no-op detection, and pre-check
- * refusal. Maps the notes-push outcome onto the paired result surface.
+ * Notes-leg pusher delegate for `runPairedPush`. Pushes the branch-bounded
+ * temporary notes ref planned after the worktree leg lands, so the paired cell
+ * never exports sibling-worktree notes for commits outside that branch.
  */
 async function pairedNotesAdapter(
   context: PairedPushNotesContext,
-  output: SyncOutput,
 ): Promise<PairedPushNotesPusherResult> {
-  const outcome = await pushNotesWithReconcile({
-    io: context.io,
+  const outcome = await pushBranchBoundedNotesExport({
+    exec: context.io.exec,
     identity: context.identity,
-    cwd: context.cwd,
-    access: context.access,
-    worktreeBranch: context.worktreeBranch,
-    output,
-    // Quiet: this fires once per auto-retry attempt; a per-attempt spinner would
-    // render the silent retries as visible churn. renderPairedResult reports the
-    // single final notes outcome below.
-    quiet: true,
+    target: context.notesExportTarget,
   });
   switch (outcome.kind) {
     case "pushed":
       return { status: "success" };
     case "noop":
       return { status: "noop" };
-    case "reconciled":
-      return { status: "ok-recovered", via: "merge" };
     case "no-remote":
       return { status: "no-remote" };
-    case "blocked":
-      return { status: "blocked", conditions: outcome.conditions };
-    case "conflict":
-      // A lossless-reconcile-failed conflict is deterministic — re-pushing hits
-      // the same merge — so route it to the non-transient conflict status rather
-      // than `failed`, which the notes-push retry treats as transient and would
-      // auto-retry pointlessly (ending in a misleading primed-retry offer).
-      return { status: "failed-nontty-conflict", message: outcome.message };
     case "failed":
       return { status: "failed", error: outcome.error };
   }
@@ -803,6 +786,8 @@ function pairedNotesToRecord(result: PairedPushResult): LegOutcomeRecord {
       return { action: "save+push", result: "cancelled" };
     case "no-remote":
       return { action: "save+push", result: "failed", detail: "no-remote" };
+    case "refused":
+      return { action: "save+push", result: "blocked", detail: "branch-bounded-export-refused" };
     case "failed-nontty-conflict":
       return { action: "save+push", result: "failed", detail: "nontty-conflict" };
     case "blocked":
@@ -883,6 +868,10 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
     case "no-remote":
       output.log.error("No remote configured. Push requires a remote repository.");
       output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      return;
+    case "refused":
+      output.log.warn(notes.message);
+      output.log.warn("Partial publish recorded; retry after resolving the notes export target.");
       return;
     case "failed-nontty-conflict":
       output.log.warn(

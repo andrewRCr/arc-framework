@@ -25,6 +25,7 @@ import {
   setMetaDesign,
   setMetaFinalizeFields,
   reconcileMetaFields,
+  validateMetaFieldBlockShape,
   META_FIELDS,
   type MetaFieldOverrides,
 } from "../../../src/lib/active/meta-reader.js";
@@ -83,11 +84,64 @@ describe("parseIdentifierList — shared comma-list parse", () => {
   });
 });
 
+describe("validateMetaFieldBlockShape", () => {
+  it("passes a rendered meta without changing content", () => {
+    const content = renderMetaFile("foo", { State: "Planning", Design: "draft-foo.md" });
+
+    expect(validateMetaFieldBlockShape(content, ".arc/backlog/planned/foo/meta-foo.md")).toEqual([]);
+    expect(content).toBe(renderMetaFile("foo", { State: "Planning", Design: "draft-foo.md" }));
+  });
+
+  it("flags a pre-field-block meta with no closing rule", () => {
+    const content = [
+      "# Metadata: Foo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Planning` | `andrew` | `[none]` | `Light` | `P1` |",
+      "",
+      "- **Design:** `draft-foo.md`",
+      "- **Task List:** [none]",
+      "",
+    ].join("\n");
+
+    const diagnostics = validateMetaFieldBlockShape(content, ".arc/backlog/planned/foo/meta-foo.md");
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toContain(".arc/backlog/planned/foo/meta-foo.md");
+    expect(diagnostics[0]).toContain("closing `---`");
+  });
+});
+
 describe("identifier-list fields — per-element backtick render", () => {
   it("renders a two-value Depends On as two discrete backticked tokens", () => {
     const md = renderMetaFile("foo", { "Depends On": "alpha, beta" });
     expect(md).toContain("- **Depends On:** `alpha`, `beta`");
     expect(md).not.toContain("`alpha, beta`"); // never the compound whole-value span
+  });
+
+  it("wraps a long Depends On list at 120 columns without changing the parsed value", () => {
+    const dependencies = [
+      "first-parallelism-foundation",
+      "second-parallelism-foundation",
+      "third-parallelism-foundation",
+      "fourth-parallelism-foundation",
+      "fifth-parallelism-foundation",
+      "sixth-parallelism-foundation",
+      "seventh-parallelism-foundation",
+    ];
+    const md = renderMetaFile("foo", { "Depends On": dependencies.join(", ") });
+    const lines = md.split("\n");
+    const start = lines.findIndex((line) => line.startsWith("- **Depends On:**"));
+    const dependsOnLines: string[] = [];
+    for (const line of lines.slice(start)) {
+      if (dependsOnLines.length > 0 && line.trim() === "") break;
+      dependsOnLines.push(line);
+    }
+
+    expect(dependsOnLines.length).toBeGreaterThan(1);
+    expect(dependsOnLines.every((line) => line.length <= 120)).toBe(true);
+    expect(parseMetaRecord(md)["Depends On"]).toBe(dependencies.join(", "));
   });
 
   it("renders a two-value Design as two discrete backticked tokens", () => {

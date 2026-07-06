@@ -117,7 +117,7 @@ describe("user-notes cross-clone sync regression", () => {
       }
 
       const cloneANotesPath = join(
-        harness.cloneA, ".arc", "user", identity, "SESSION-NOTES.md",
+        harness.cloneA, ".arc", "user", identity, "WORKING-MEMORY.md",
       );
       const sessionNotesContent = "# Cross-clone regression test\n";
       await writeFile(cloneANotesPath, sessionNotesContent, "utf-8");
@@ -173,7 +173,7 @@ describe("user-notes cross-clone sync regression", () => {
       expect(pullResult?.kind).toBe("loaded");
 
       const cloneBNotes = await readFile(
-        join(harness.cloneB, ".arc", "user", identity, "SESSION-NOTES.md"),
+        join(harness.cloneB, ".arc", "user", identity, "WORKING-MEMORY.md"),
         "utf-8",
       );
       expect(cloneBNotes).toBe(sessionNotesContent);
@@ -231,7 +231,7 @@ describe("user-notes paired-push cross-clone regression", () => {
         );
 
         const cloneANotesPath = join(
-          harness.cloneA, ".arc", "user", identity, "SESSION-NOTES.md",
+          harness.cloneA, ".arc", "user", identity, "WORKING-MEMORY.md",
         );
         const sessionNotesContent =
           "# Paired-push regression test\n\nClone A handoff payload.\n";
@@ -300,7 +300,7 @@ describe("user-notes paired-push cross-clone regression", () => {
         expect(pullResult?.kind).toBe("loaded");
 
         const cloneBNotes = await readFile(
-          join(harness.cloneB, ".arc", "user", identity, "SESSION-NOTES.md"),
+          join(harness.cloneB, ".arc", "user", identity, "WORKING-MEMORY.md"),
           "utf-8",
         );
         expect(cloneBNotes).toBe(sessionNotesContent);

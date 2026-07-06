@@ -1,11 +1,12 @@
 /**
- * The sync-state marker entry — the typed per-machine payload the sibling
+ * The sync-state marker entry — the typed per-intent payload the sibling
  * sync-state ref carries, its serialize/parse boundary, and the typed read and
  * write over the ref.
  *
- * Each machine owns one entry, keyed by its `machineId` in the ref's tree (see
- * {@link module:lib/user-sync/sync-state-ref}). The entry records a notes-push
- * attempt — what HEAD it was advancing for, when, and the notes-ref target it
+ * Each outstanding intent owns one entry, keyed by the marker's notes-ref
+ * target in the ref's tree (see {@link module:lib/user-sync/sync-state-ref}).
+ * The payload still carries `machineId` as provenance: what workspace produced
+ * the attempt, what HEAD it was advancing for, when, and the notes-ref target it
  * was advancing to — everything the consumer surface and the liveness predicate
  * read. The blob is untrusted external data: the parse boundary narrows it from
  * `unknown` and returns `null` on malformed input, never throwing, so a later
@@ -28,7 +29,7 @@ import {
 export interface SyncStateMarker {
   /** Schema version — bumped on a shape change; reads tolerate and normalize. */
   version: 1;
-  /** The writing machine's stable id; the entry's tree key. */
+  /** The writing machine's stable id; provenance only, not the entry's tree key. */
   machineId: string;
   /** The HEAD the notes push was advancing for (→ the short-sha in the consumer surface). */
   lastAttemptedCommit: string;
@@ -36,6 +37,11 @@ export interface SyncStateMarker {
   attemptTimestamp: string;
   /** The notes-ref target state the push was advancing to — the basis for self-invalidation. */
   intent: string;
+}
+
+/** Tree key for a marker entry: the notes-ref target whose liveness the entry tracks. */
+export function syncStateMarkerKey(marker: Pick<SyncStateMarker, "intent">): string {
+  return marker.intent;
 }
 
 /**
@@ -189,31 +195,32 @@ export function isMarkerExpired(
 }
 
 /**
- * Read one machine's marker from the ref, or `null` when the ref, the key, or
+ * Read one marker entry from the ref, or `null` when the ref, the key, or
  * the blob's shape is absent/invalid.
  *
- * The tree key is the ownership boundary, so a blob whose embedded `machineId`
- * disagrees with the key it was read under is treated as invalid — the ref is
- * untrusted external data, and a key/payload mismatch would otherwise leak a
- * cross-machine alias through the typed API.
+ * The tree key is the ownership boundary. Current entries are keyed by
+ * `intent`; legacy per-machine entries are still accepted when the key matches
+ * `machineId` so older refs remain visible until they self-invalidate or age
+ * out. Any other key/payload mismatch is treated as invalid untrusted data.
  *
  * @param io - Injected read seam and identity.
- * @param machineId - The machine whose entry to read.
+ * @param entryKey - The sync-state tree key to read.
  * @returns The parsed marker, or `null` when missing, unparseable, or key-mismatched.
  */
 export async function readSyncStateMarker(
   io: SyncStateRefReadIO,
-  machineId: string,
+  entryKey: string,
 ): Promise<SyncStateMarker | null> {
-  const blob = await readEntry(io, machineId);
+  const blob = await readEntry(io, entryKey);
   if (blob === null) return null;
   const marker = deserializeSyncStateMarker(blob);
-  return marker !== null && marker.machineId === machineId ? marker : null;
+  return marker !== null && isMarkerKeyForEntry(marker, entryKey) ? marker : null;
 }
 
 /**
- * Write (create or overwrite) this machine's marker into the ref, keyed by
- * `marker.machineId`. Touches only the writer's own key.
+ * Write (create or overwrite) this marker into the ref, keyed by its intent.
+ * Touches only that intent key, so a workspace can hold multiple unresolved
+ * attempts at once.
  *
  * @param io - Injected git seams (including the stdin-fed writer) and identity.
  * @param marker - The marker to store.
@@ -223,5 +230,9 @@ export async function writeSyncStateMarker(
   io: SyncStateRefIO,
   marker: SyncStateMarker,
 ): Promise<string> {
-  return writeEntry(io, marker.machineId, serializeSyncStateMarker(marker));
+  return writeEntry(io, syncStateMarkerKey(marker), serializeSyncStateMarker(marker));
+}
+
+function isMarkerKeyForEntry(marker: SyncStateMarker, entryKey: string): boolean {
+  return entryKey === syncStateMarkerKey(marker) || entryKey === marker.machineId;
 }

@@ -120,6 +120,22 @@ diagnostic, not a replacement.
 **Remediation:** Restore the missing directory, file, or frontmatter key. If upgrading from an
 older ARC version, re-run `arc update` to pull in the per-file structure.
 
+### Meta Files
+
+Checks lifecycle `meta-*.md` files under `active/`, `backlog/planned/`,
+`backlog/provisional/`, and `completed/` for the managed field-block anchor shape. The meta
+must carry an H1 and a standalone closing `---` delimiter after the managed fields, so
+field backfills and targeted writes can anchor safely.
+
+**Severity:**
+
+- **ERROR** — missing H1 or missing closing `---` delimiter.
+- **PASS** — the field-block anchor is present.
+- **INFO** — no lifecycle meta files exist.
+
+**Remediation:** Add the missing H1 or standalone closing `---` delimiter before retrying
+the lifecycle operation or verification check.
+
 ### Manifest
 
 Informational check for `.arc-manifest.json`. When present (post-CLI installations), future

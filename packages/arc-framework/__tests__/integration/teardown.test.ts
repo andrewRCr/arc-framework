@@ -181,6 +181,14 @@ async function shipCheapBranch(h: MultiClone, branch: string): Promise<void> {
   await git(cloneA, ["checkout", "main"]);
 }
 
+/** Make local ARC user surfaces ignored, matching installed ARC projects. */
+async function ignoreArcUserDir(cloneA: string): Promise<void> {
+  await writeFile(join(cloneA, ".gitignore"), ".arc/user/\n");
+  await git(cloneA, ["add", ".gitignore"]);
+  await git(cloneA, ["commit", "-m", "chore: ignore user surfaces"]);
+  await git(cloneA, ["push", "origin", "main"]);
+}
+
 describe("arc teardown — merge-strategy-independent branch reaping", () => {
   for (const strategy of ["squash", "rebase", "merge-commit"] as const) {
     it(`reaps the merged branch and prunes the stale ref on a ${strategy} ship path`, async () => {
@@ -383,6 +391,88 @@ describe("arc teardown — worktree dispatch over real git", () => {
       if (result.status !== "rejected") return;
       expect(result.reason).toMatch(/dirty worktree/i);
       // Nothing reaped: the branch and worktree survive the refusal.
+      expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
+    } finally {
+      await rm(wtParent, { recursive: true, force: true });
+      await h.cleanup();
+    }
+  });
+
+  it("reconciles ignored linked identity-global entries before removing a clean worktree", async () => {
+    const h = await setupMultiClone();
+    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-wt-"));
+    try {
+      await ignoreArcUserDir(h.cloneA);
+      await shipFeature(h, "demo", "merge-commit");
+      await writeShippedMeta(h.cloneA, "demo");
+      const wtPath = join(wtParent, "wt");
+      await git(h.cloneA, ["worktree", "add", wtPath, "feat/demo"]);
+
+      const primaryUserDir = join(h.cloneA, ".arc", "user", "clone-a");
+      const linkedUserDir = join(wtPath, ".arc", "user", "clone-a");
+      await mkdir(primaryUserDir, { recursive: true });
+      await mkdir(linkedUserDir, { recursive: true });
+      await writeFile(
+        join(primaryUserDir, "USER-INBOX.md"),
+        "# User Inbox\n\n## Errand\n\n## Work Unit\n",
+      );
+      await writeFile(
+        join(linkedUserDir, "USER-INBOX.md"),
+        [
+          "# User Inbox",
+          "",
+          "## Errand",
+          "",
+          "### `[ ]` **save linked capture**",
+          "",
+          "- _Created:_ `2026-07-05`",
+          "",
+          "## Work Unit",
+          "",
+        ].join("\n"),
+      );
+      expect(await git(wtPath, ["status", "--porcelain"])).toBe("");
+
+      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+
+      expect(result.status).toBe("torn-down");
+      if (result.status !== "torn-down") return;
+      expect(result.worktreeRemoved?.endsWith("/wt")).toBe(true);
+      expect(await readFile(join(primaryUserDir, "USER-INBOX.md"), "utf-8")).toContain("save linked capture");
+      const worktrees = await git(h.cloneA, ["worktree", "list"]);
+      expect(worktrees).not.toContain(result.worktreeRemoved!);
+    } finally {
+      await rm(wtParent, { recursive: true, force: true });
+      await h.cleanup();
+    }
+  });
+
+  it("refuses to remove a clean linked worktree with an unreconciled unknown identity-global file", async () => {
+    const h = await setupMultiClone();
+    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-wt-"));
+    try {
+      await ignoreArcUserDir(h.cloneA);
+      await shipFeature(h, "demo", "merge-commit");
+      await writeShippedMeta(h.cloneA, "demo");
+      const wtPath = join(wtParent, "wt");
+      await git(h.cloneA, ["worktree", "add", wtPath, "feat/demo"]);
+
+      const primaryUserDir = join(h.cloneA, ".arc", "user", "clone-a");
+      const linkedUserDir = join(wtPath, ".arc", "user", "clone-a");
+      await mkdir(primaryUserDir, { recursive: true });
+      await mkdir(linkedUserDir, { recursive: true });
+      await writeFile(join(primaryUserDir, "FUTURE.md"), "primary\n");
+      await writeFile(join(linkedUserDir, "FUTURE.md"), "linked\n");
+      expect(await git(wtPath, ["status", "--porcelain"])).toBe("");
+
+      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+
+      expect(result.status).toBe("rejected");
+      if (result.status !== "rejected") return;
+      expect(result.reason).toMatch(/identity-global user surface/i);
+      expect(await readFile(join(primaryUserDir, "FUTURE.md"), "utf-8")).toBe("primary\n");
+      const worktrees = await git(h.cloneA, ["worktree", "list"]);
+      expect(worktrees).toContain(wtPath);
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
     } finally {
       await rm(wtParent, { recursive: true, force: true });

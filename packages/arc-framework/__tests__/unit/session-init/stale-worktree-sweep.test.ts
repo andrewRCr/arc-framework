@@ -7,6 +7,7 @@ import {
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
+import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
 
 const shipped = new Set(["work-organization-reform"]);
 
@@ -97,6 +98,12 @@ function buildExec(opts: { clean: boolean; merged: boolean; shippedFromRef?: boo
     if (args[0] === "cherry") {
       return { stdout: opts.merged ? "" : "+ deadbeef\n", stderr: "" };
     }
+    if (args[0] === "worktree" && args[1] === "list") {
+      return {
+        stdout: "worktree /primary\nHEAD 1111111111111111111111111111111111111111\nbranch refs/heads/main\n",
+        stderr: "",
+      };
+    }
     throw new Error(`unexpected git invocation: ${args.join(" ")}`);
   }) as GitExec;
 }
@@ -111,11 +118,34 @@ const presentMarker: WorktreeMarkerReadResult = {
   },
 };
 
+const emptyUserSurfaceFs: UserSurfaceMigrationFs = {
+  readDir: async () => [],
+  readFile: async () => "",
+  writeFile: async () => {},
+  mkdir: async () => {},
+};
+
+const divergentUnknownUserSurfaceFs: UserSurfaceMigrationFs = {
+  readDir: async (path) => {
+    if (path === "/wt/wor/.arc/user") {
+      return [{ name: "andrew", isDirectory: () => true, isFile: () => false }];
+    }
+    if (path === "/wt/wor/.arc/user/andrew") {
+      return [{ name: "FUTURE.md", isDirectory: () => false, isFile: () => true }];
+    }
+    return [];
+  },
+  readFile: async (path) => path.startsWith("/primary/") ? "primary\n" : "linked\n",
+  writeFile: async () => {},
+  mkdir: async () => {},
+};
+
 function runSweep(opts: {
   clean: boolean;
   merged: boolean;
   marker: WorktreeMarkerReadResult;
   roster?: WorktreeRosterResult;
+  userSurfaceFs?: UserSurfaceMigrationFs;
 }) {
   return runStaleWorktreeSweep({
     roster: opts.roster ?? shippedRoster(),
@@ -123,6 +153,7 @@ function runSweep(opts: {
     baseBranch: "main",
     exec: buildExec({ clean: opts.clean, merged: opts.merged }),
     readMarker: async () => opts.marker,
+    userSurfaceFs: opts.userSurfaceFs ?? emptyUserSurfaceFs,
   });
 }
 
@@ -153,6 +184,17 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "unmerged" });
   });
 
+  it("blocks a clean shipped worktree with unreconciled ignored identity-global files", async () => {
+    const result = await runSweep({
+      clean: true,
+      merged: true,
+      marker: presentMarker,
+      userSurfaceFs: divergentUnknownUserSurfaceFs,
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "user-surfaces" });
+  });
+
   it("reports no worktrees when none of the roster's WUs have shipped", async () => {
     const roster: WorktreeRosterResult = {
       entries: [{ worktreePath: "/wt/foundation", branch: "feat/worktree-foundation" }],
@@ -170,6 +212,7 @@ describe("runStaleWorktreeSweep", () => {
       baseBranch: "main",
       exec: buildExec({ clean: true, merged: true }),
       readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
     });
 
     expect(result.worktrees).toEqual([]);
@@ -182,6 +225,7 @@ describe("runStaleWorktreeSweep", () => {
       baseBranch: "main",
       exec: buildExec({ clean: true, merged: true, shippedFromRef: true }),
       readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
     });
 
     expect(result.worktrees).toHaveLength(1);

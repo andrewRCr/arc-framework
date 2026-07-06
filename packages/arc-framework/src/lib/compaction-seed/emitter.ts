@@ -65,8 +65,18 @@ export type EmitCompactionSeedResult =
     message: string;
   };
 
-/** Resolve the fixed seed path for an identity. */
-export function resolveCompactionSeedPath(ctx: { cwd: string; identity: string }): string {
+/**
+ * Resolve the seed path for an identity, rooted at the active worktree.
+ *
+ * The compaction seed is per-session state, not an identity-global surface: it
+ * lives under the current checkout (`cwd`), so concurrent worktrees each own a
+ * private seed and one session's compaction cannot clobber another's — and the
+ * seed is torn down with its worktree.
+ */
+export function resolveCompactionSeedPath(ctx: {
+  cwd: string;
+  identity: string;
+}): string {
   if (isUnsafeCompactionSeedIdentity(ctx.identity)) {
     throw new Error(`Invalid compaction seed identity: ${ctx.identity}`);
   }
@@ -132,7 +142,10 @@ export async function emitCompactionSeed(
 
   let path: string;
   try {
-    path = resolveCompactionSeedPath({ cwd: options.cwd, identity });
+    path = resolveCompactionSeedPath({
+      cwd: options.cwd,
+      identity,
+    });
   } catch (err) {
     return { status: "failed", reason: "identity-invalid", message: errorMessage(err) };
   }

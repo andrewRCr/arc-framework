@@ -136,9 +136,9 @@ arc user open {name}
 
 > **Skip this step** under `pm.mode: none` or `external`.
 
-If planning already incorporated inbox entries from `user/{identity}/USER-INBOX.md` or
-`backlog/ATOMIC-INBOX.md` into this WU's spec or task list, finalize that absorption now. Delete only the source
-entries that were incorporated.
+If planning already incorporated inbox entries from the resolver-backed identity-global
+`user/{identity}/USER-INBOX.md` or `backlog/ATOMIC-INBOX.md` into this WU's spec or task list, finalize that
+absorption now. Delete only the source entries that were incorporated.
 
 Personal source cleanup (`USER-INBOX`) is user-state cleanup, not a project commit. Tracked project-source cleanup
 (`ATOMIC-INBOX`) lands as the ceremony write below. Do not drain or reroute unrelated personal captures here —

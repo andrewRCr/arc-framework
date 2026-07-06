@@ -45,6 +45,22 @@ describe("resolveLoadSetManifest", () => {
     ]);
   });
 
+  it("uses the resolver-provided identity-global root for WORKING-MEMORY only", () => {
+    const manifest = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "execution",
+      planningStage: null,
+      identityGlobalUserDir: "/repo/.arc/user/andrew",
+    });
+
+    expect(manifest.entries).toContainEqual(
+      fullEntry(".arc/user/andrew/loadset-projection/SESSION-NOTES.md"),
+    );
+    expect(manifest.entries).toContainEqual(
+      fullEntry("/repo/.arc/user/andrew/WORKING-MEMORY.md"),
+    );
+  });
+
   it("leaves harness-managed instruction files out of ARC recovery context", () => {
     const manifest = resolveLoadSetManifest({
       ...BASE_INPUT,

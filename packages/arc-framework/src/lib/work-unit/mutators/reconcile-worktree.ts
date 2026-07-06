@@ -35,13 +35,22 @@
  * @module
  */
 
-import { isAbsolute, relative, resolve } from "node:path";
+import { cp, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
+import { parseRegisteredHarnessDirs } from "../../git/worktree-harness-dirs.js";
 import { isWorktreeClean } from "../../git/worktree-cleanup.js";
-import { writeWorktreeOwnershipMarker } from "../../git/worktree-marker.js";
+import {
+  ensureWorktreeMarkerIgnored,
+  writeWorktreeOwnershipMarker,
+} from "../../git/worktree-marker.js";
 import { resolveWorktreeLocation } from "../../git/worktree-location.js";
 import { resolvePrimaryWorktreePath } from "../../git/worktree-roster.js";
+import {
+  reconcileLinkedIdentityGlobalUserSurfaces,
+  type UserSurfaceMigrationDirent,
+} from "../../user-surface-migration.js";
 
 /** Dependencies for {@link reconcileWorktree}. */
 export interface ReconcileWorktreeContext {
@@ -49,7 +58,46 @@ export interface ReconcileWorktreeContext {
   exec: GitExec;
   /** Relocate the agent's process locus on a self-teardown. Production binds `process.chdir`. */
   chdir: (dir: string) => void;
+  /** Filesystem seam for post-create harness-dir provisioning. */
+  fs: ReconcileWorktreeFs;
 }
+
+/** Filesystem operations used by the fresh-worktree post-create provisioning leg. */
+export interface ReconcileWorktreeFs {
+  /** Return true when `path` exists and is a directory. */
+  directoryExists(path: string): Promise<boolean>;
+  /** Recursively copy a directory into the destination worktree. */
+  copyDirectory(source: string, destination: string): Promise<void>;
+  /** Read a UTF-8 text file. */
+  readFile(path: string): Promise<string>;
+  /** Write a UTF-8 text file. */
+  writeFile(path: string, content: string): Promise<void>;
+  /** Ensure a directory exists. */
+  mkdir(path: string, options: { recursive: boolean }): Promise<void>;
+  /** Read directory entries. */
+  readDir(path: string): Promise<UserSurfaceMigrationDirent[]>;
+}
+
+/** Production filesystem adapter for {@link reconcileWorktree}. */
+export const nodeReconcileWorktreeFs: ReconcileWorktreeFs = {
+  directoryExists: async (path) => {
+    try {
+      return (await stat(path)).isDirectory();
+    } catch (err) {
+      if (isErrnoException(err) && err.code === "ENOENT") return false;
+      throw err;
+    }
+  },
+  copyDirectory: async (source, destination) => {
+    await cp(source, destination, { recursive: true, force: true });
+  },
+  readFile: (path) => readFile(path, "utf8"),
+  writeFile,
+  mkdir: async (path, options) => {
+    await mkdir(path, options);
+  },
+  readDir: (path) => readdir(path, { withFileTypes: true }),
+};
 
 /**
  * The worktree operation to perform, as a discriminated union:
@@ -83,6 +131,12 @@ export type ReconcileWorktreeOp =
       wuName: string;
       /** Identity creating the worktree — the ownership marker. */
       spawningIdentity: string;
+      /** Project-supplied post-create provisioning script, run inside the new worktree when configured. */
+      postCreateScript?: string;
+      /** Resolved primary checkout path; source for registered harness-dir copy. */
+      primaryWorktreePath?: string;
+      /** Comma-separated `worktree.harness_dirs` value. */
+      registeredHarnessDirs?: string;
       /** Marker timestamp (epoch millis); injectable for tests. */
       now?: number;
     }
@@ -111,8 +165,12 @@ export type ReconcileWorktreeOp =
 
 /** Outcome of a {@link reconcileWorktree} call. */
 export type ReconcileWorktreeResult =
-  | { mutation: "spawn"; worktreePath: string; branch: string }
+  | { mutation: "spawn"; worktreePath: string; branch: string; postCreateNotice?: string }
   | { mutation: "teardown"; worktreePath: string; locusHopped: boolean };
+
+/** Notice surfaced when the project has not configured its worktree provisioning script. */
+const POST_CREATE_UNCONFIGURED_NOTICE =
+  "No `worktree.post_create` script configured; deps must be provisioned before running ARC commands in this worktree.";
 
 /**
  * Whether `locus` sits inside (or at) `worktreePath` — the self-teardown test.
@@ -121,6 +179,40 @@ export type ReconcileWorktreeResult =
 function isSelfTeardown(worktreePath: string, locus: string): boolean {
   const rel = relative(resolve(worktreePath), resolve(locus));
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+/** Shell invocation for a project-supplied post-create script. */
+function postCreateShellCommand(script: string): { cmd: string; args: string[] } {
+  return process.platform === "win32"
+    ? { cmd: "cmd.exe", args: ["/d", "/s", "/c", script] }
+    : { cmd: "sh", args: ["-c", script] };
+}
+
+function isErrnoException(err: unknown): err is { code?: string } {
+  return typeof err === "object" && err !== null && "code" in err;
+}
+
+async function copyRegisteredHarnessDirs(
+  ctx: ReconcileWorktreeContext,
+  params: {
+    primaryWorktreePath: string | undefined;
+    worktreePath: string;
+    registeredHarnessDirs: string | undefined;
+  },
+): Promise<void> {
+  const dirs = parseRegisteredHarnessDirs(params.registeredHarnessDirs);
+  if (dirs.length === 0) return;
+
+  const primaryWorktreePath = params.primaryWorktreePath ?? (await resolvePrimaryWorktreePath(ctx.exec));
+  if (primaryWorktreePath === null) {
+    throw new Error("could not resolve the primary worktree path to copy registered harness dirs");
+  }
+
+  for (const dir of dirs) {
+    const source = join(primaryWorktreePath, dir);
+    if (!(await ctx.fs.directoryExists(source))) continue;
+    await ctx.fs.copyDirectory(source, join(params.worktreePath, dir));
+  }
 }
 
 /**
@@ -157,6 +249,7 @@ export async function reconcileWorktree(
     const worktreePath = resolveWorktreeLocation({
       template: op.locationTemplate,
       repo: op.repo,
+      name: op.wuName,
       branch: op.branch,
     });
     // Re-attach (`createBranch: false`) checks out an existing preserved branch — bare `add`, no
@@ -166,13 +259,37 @@ export async function reconcileWorktree(
         ? ["worktree", "add", worktreePath, op.branch]
         : ["worktree", "add", worktreePath, "-b", op.branch, op.base];
     await ctx.exec("git", add);
+    const postCreateScript = op.postCreateScript?.trim();
+    let postCreateNotice: string | undefined;
+    if (postCreateScript) {
+      const { cmd, args } = postCreateShellCommand(postCreateScript);
+      try {
+        await ctx.exec(cmd, args, { cwd: worktreePath });
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        throw new Error(`worktree.post_create failed: ${detail}`, { cause: err });
+      }
+    } else {
+      postCreateNotice = POST_CREATE_UNCONFIGURED_NOTICE;
+    }
+    await copyRegisteredHarnessDirs(ctx, {
+      primaryWorktreePath: op.primaryWorktreePath,
+      worktreePath,
+      registeredHarnessDirs: op.registeredHarnessDirs,
+    });
+    await ensureWorktreeMarkerIgnored(worktreePath, ctx.exec, ctx.fs);
     await writeWorktreeOwnershipMarker(worktreePath, {
       createdByArc: true,
       wuName: op.wuName,
       spawningIdentity: op.spawningIdentity,
       now: op.now,
     });
-    return { mutation: "spawn", worktreePath, branch: op.branch };
+    return {
+      mutation: "spawn",
+      worktreePath,
+      branch: op.branch,
+      ...(postCreateNotice === undefined ? {} : { postCreateNotice }),
+    };
   }
 
   const { worktreePath, currentLocus } = op;
@@ -180,12 +297,21 @@ export async function reconcileWorktree(
     throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
   }
 
+  const primary = await resolvePrimaryWorktreePath(ctx.exec);
+  if (primary === null) {
+    throw new Error(`cannot resolve the primary worktree before teardown of ${worktreePath}`);
+  }
+  const userSurfaceReconcile = await reconcileLinkedIdentityGlobalUserSurfaces({
+    worktreePath,
+    primaryWorktreePath: primary,
+    fs: ctx.fs,
+  });
+  if (userSurfaceReconcile.status === "blocked") {
+    throw new Error(userSurfaceReconcile.reason);
+  }
+
   let locusHopped = false;
   if (isSelfTeardown(worktreePath, currentLocus)) {
-    const primary = await resolvePrimaryWorktreePath(ctx.exec);
-    if (primary === null) {
-      throw new Error(`cannot resolve the primary worktree to hop to before self-teardown of ${worktreePath}`);
-    }
     ctx.chdir(primary);
     locusHopped = true;
   }

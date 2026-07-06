@@ -21,7 +21,7 @@
  * @module
  */
 
-import { join } from "node:path";
+import { dirname } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
 import {
@@ -30,6 +30,7 @@ import {
   type WorktreeRosterEntry,
 } from "../git/index.js";
 import type { InFlightEntry } from "../git/in-flight-derivation.js";
+import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 
 import { loadReadyMineSlice } from "./ready-mine-source.js";
 import { runStatusUserView, type StatusUserViewResult } from "./user-view.js";
@@ -50,6 +51,10 @@ export interface AssembleStatusUserViewDeps {
   readFile: (path: string) => Promise<string>;
   /** Read directory entry names — used by the worktree roster scan. */
   readdir: (path: string) => Promise<string[]>;
+  /** Optional writer for persisting a freshly rendered STATUS.USER cache. */
+  writeFile?: (path: string, content: string) => Promise<void>;
+  /** Optional directory creator paired with {@link writeFile}. */
+  mkdir?: (path: string, options: { recursive: boolean }) => Promise<void>;
 }
 
 const META_FILE_RE = /^meta-(.+)\.md$/;
@@ -88,15 +93,16 @@ function localRosterEntryToInFlight(entry: WorktreeRosterEntry): InFlightEntry[]
  * @param deps - Repository root, git executor, identity, mode flags, and the I/O seams.
  * @returns The rendered view result (rendered table, degraded cache, or status message).
  */
-export function assembleStatusUserView(
+export async function assembleStatusUserView(
   deps: AssembleStatusUserViewDeps,
 ): Promise<StatusUserViewResult> {
-  const { cwd, exec, identity, teamMode, localOnly, readFile, readdir } = deps;
+  const { cwd, exec, identity, teamMode, localOnly, readFile, readdir, writeFile, mkdir } = deps;
 
-  const statusUserPath =
-    identity === null ? null : join(cwd, ".arc", "user", identity, "STATUS.USER.md");
+  const statusUserPath = identity === null
+    ? null
+    : (await resolveUserSurfaceResolver({ cwd, identity, exec })).identityGlobalPath("STATUS.USER.md");
 
-  return runStatusUserView({
+  const view = await runStatusUserView({
     exec,
     identity,
     teamMode,
@@ -114,4 +120,15 @@ export function assembleStatusUserView(
     },
     readReadyMine: () => loadReadyMineSlice({ cwd, identity }),
   });
+
+  if (view.source === "rendered" && statusUserPath !== null && writeFile !== undefined && mkdir !== undefined) {
+    try {
+      await mkdir(dirname(statusUserPath), { recursive: true });
+      await writeFile(statusUserPath, view.output.endsWith("\n") ? view.output : `${view.output}\n`);
+    } catch {
+      // Advisory cache only — a failed write must not break the already-rendered view.
+    }
+  }
+
+  return view;
 }

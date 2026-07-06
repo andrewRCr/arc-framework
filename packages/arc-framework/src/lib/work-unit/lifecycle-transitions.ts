@@ -33,14 +33,16 @@ import type { LifecyclePosition, Location, Phase } from "./lifecycle-state.js";
  *
  * Phase-axis: `activate` ⊥ `deactivate`, `reopen` ⊥ `integrate`. Location-axis:
  * `park` ⊥ `resume`, `promote` ⊥ `demote`. Forward / terminal / destructive:
- * `stub` ⊥ `abandon`, `decompose` and `archive` (irreversible). `start` is the
- * state-dispatching entry verb (the inverse of `park` at its headline cell).
+ * `stub` ⊥ `abandon`, `decompose`, `archive`, and `materialize` (irreversible).
+ * `start` is the state-dispatching entry verb (the inverse of `park` at its
+ * headline cell); `materialize` is the remote-only entry verb.
  *
  * Declared as a runtime array (the totality walk's verb axis) with {@link Verb}
  * derived from it, so the type and the enumerable list never drift.
  */
 export const VERBS = [
   "start",
+  "materialize",
   "park",
   "resume",
   "activate",
@@ -507,6 +509,20 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     softFields: FRESH_SOFT,
   },
   {
+    // Cross-machine pickup: the authoritative artifacts already ride the fetched
+    // remote branch, so this edge only places that branch into a local checkout.
+    // There is no inverse transition: un-materializing a local checkout is a
+    // teardown/park concern, not a lifecycle round-trip to the remote-only source.
+    verb: "materialize",
+    from: null,
+    to: ACTIVE,
+    inverse: null,
+    guards: ["worktree-occupancy"],
+    encodingUpdates: { reconcileWorktree: "spawn" },
+    sideEffects: withRender("user-workspace"),
+    softFields: PRESERVE_SOFT,
+  },
+  {
     verb: "start",
     from: PROVISIONAL,
     to: PLANNING,
@@ -757,6 +773,11 @@ export const MARKED_ILLEGAL: readonly IllegalCell[] = [
     "start",
     [SHIPPED],
     "shipped is terminal — begin new work as a fresh origin-linked WU",
+  ),
+  ...illegalCells(
+    "materialize",
+    [PROVISIONAL, PLANNED, PLANNING, ACTIVE, INTEGRATING, PARKED, SHIPPED],
+    "materialize picks up a remote-only WU; it only applies when no local lifecycle record exists",
   ),
   ...illegalCells(
     "decompose",

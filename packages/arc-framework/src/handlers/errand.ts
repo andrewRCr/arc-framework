@@ -415,7 +415,7 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
 
   // Drop the originating inbox capture (only inbox-promoted errands carry one);
   // idempotent — an absent entry or missing inbox file is a clean no-op.
-  await dropOriginatingInboxCapture(cwd, identity, result.record.originEntry);
+  await dropOriginatingInboxCapture(cwd, io, identity, result.record.originEntry);
 
   p.log.success(`Closed errand '${slug}' — reaped ${result.record.branch}, record removed.`);
   p.outro("Done.");
@@ -492,7 +492,7 @@ export async function handleErrandRetire(slug: string): Promise<void> {
       break;
   }
 
-  await dropOriginatingInboxCapture(cwd, identity, result.record.originEntry);
+  await dropOriginatingInboxCapture(cwd, io, identity, result.record.originEntry);
 
   p.log.success(`Retired errand record '${slug}' — the branch is preserved for the promoted work unit.`);
   p.outro("Done.");
@@ -619,7 +619,7 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
       break;
   }
 
-  await dropOriginatingInboxCapture(cwd, identity, result.record.originEntry);
+  await dropOriginatingInboxCapture(cwd, io, identity, result.record.originEntry);
 
   const stage = floor === "derivation" ? "Planning (draft-design)" : "Active";
   p.log.success(
@@ -637,11 +637,12 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
 /** Drop the originating capture, if the record carries a back-pointer. */
 async function dropOriginatingInboxCapture(
   cwd: string,
+  io: ReturnType<typeof createUserIOContext>,
   identity: string,
   originEntry: string | undefined,
 ): Promise<void> {
   if (originEntry === undefined) return;
-  const dropped = await runUserInboxRemove({ cwd, identity, slug: originEntry });
+  const dropped = await runUserInboxRemove({ cwd, io, identity, slug: originEntry });
   if (dropped.removed) p.log.info("Dropped the originating inbox capture.");
 }
 

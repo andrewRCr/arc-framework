@@ -1321,14 +1321,14 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
   it("reads a fresh save as current when an older reachable note is also present", async () => {
     const olderCommit = "a".repeat(40);
     const savedCommit = "c".repeat(40);
-    const savedFiles = { "SESSION-NOTES.md": "saved-current" };
+    const savedFiles = { "WORKING-MEMORY.md": "saved-current" };
     const savedManifest: SyncManifest = { version: 2, files: savedFiles };
     const io = buildIO({
       sourceCommit: savedCommit,
       noteCommit: savedCommit,
       annotatedNoteCommits: [olderCommit, savedCommit],
       noteFilesByCommit: {
-        [olderCommit]: { "SESSION-NOTES.md": "older-note" },
+        [olderCommit]: { "WORKING-MEMORY.md": "older-note" },
         [savedCommit]: savedFiles,
       },
       reachableCommits: [savedCommit, olderCommit],
@@ -1348,14 +1348,14 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
   });
 
   it("flags disk as 'behind' and routes to `arc user load` when note advanced past sourceCommit while disk matches materialized", async () => {
-    const diskFiles = { "SESSION-NOTES.md": "disk-content" };
+    const diskFiles = { "WORKING-MEMORY.md": "disk-content" };
     const diskManifest: SyncManifest = { version: 2, files: diskFiles };
     const noteCommit = "b".repeat(40);
     const io = buildIO({
       sourceCommit: "a".repeat(40),
       noteCommit,
       diskFiles,
-      noteFiles: { "SESSION-NOTES.md": "newer-from-other-machine" },
+      noteFiles: { "WORKING-MEMORY.md": "newer-from-other-machine" },
       materializedManifestHash: hashSyncManifest(diskManifest),
       sourceIsAncestorOfNote: true,
     });
@@ -1368,13 +1368,13 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
   });
 
   it("reflects unsaved edits and routes to `arc user save` when note is at sourceCommit and disk diverged from materialized", async () => {
-    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    const noteFiles = { "WORKING-MEMORY.md": "saved" };
     const noteManifest: SyncManifest = { version: 2, files: noteFiles };
     const sharedCommit = "a".repeat(40);
     const io = buildIO({
       sourceCommit: sharedCommit,
       noteCommit: sharedCommit,
-      diskFiles: { "SESSION-NOTES.md": "edited" },
+      diskFiles: { "WORKING-MEMORY.md": "edited" },
       noteFiles,
       materializedManifestHash: hashSyncManifest(noteManifest),
       sourceIsAncestorOfNote: true,
@@ -1390,14 +1390,14 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
   it("reports mixed direction with manual-reconciliation framing when both note and disk advanced from the materialized baseline", async () => {
     const baselineManifest: SyncManifest = {
       version: 2,
-      files: { "SESSION-NOTES.md": "baseline" },
+      files: { "WORKING-MEMORY.md": "baseline" },
     };
     const noteCommit = "b".repeat(40);
     const io = buildIO({
       sourceCommit: "a".repeat(40),
       noteCommit,
-      diskFiles: { "SESSION-NOTES.md": "local-edits" },
-      noteFiles: { "SESSION-NOTES.md": "remote-edits" },
+      diskFiles: { "WORKING-MEMORY.md": "local-edits" },
+      noteFiles: { "WORKING-MEMORY.md": "remote-edits" },
       materializedManifestHash: hashSyncManifest(baselineManifest),
       sourceIsAncestorOfNote: true,
     });
@@ -1414,14 +1414,14 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
   it("reports mixed direction with manual-reconciliation framing when note is unreachable from sourceCommit", async () => {
     const baselineManifest: SyncManifest = {
       version: 2,
-      files: { "SESSION-NOTES.md": "baseline" },
+      files: { "WORKING-MEMORY.md": "baseline" },
     };
     const noteCommit = "b".repeat(40);
     const io = buildIO({
       sourceCommit: "a".repeat(40),
       noteCommit,
-      diskFiles: { "SESSION-NOTES.md": "baseline" },
-      noteFiles: { "SESSION-NOTES.md": "orphan-history" },
+      diskFiles: { "WORKING-MEMORY.md": "baseline" },
+      noteFiles: { "WORKING-MEMORY.md": "orphan-history" },
       materializedManifestHash: hashSyncManifest(baselineManifest),
       sourceIsAncestorOfNote: false,
     });
@@ -2052,8 +2052,10 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
     diskMatchesNote?: boolean;
     /** When `true`, the disk has no user files — the note's files are all missing on disk. */
     diskEmpty?: boolean;
-    /** Override the note-side manifest files (default: a single top-level `SESSION-NOTES.md`). */
+    /** Override the note-side manifest files (default: a single top-level `WORKING-MEMORY.md`). */
     noteFiles?: Record<string, string>;
+    /** Current branch returned for WU-name fallback resolution. */
+    currentBranch?: string;
     /** WU slugs the shipped-set oracle (`git ls-tree origin/<base> -- completed/`) reports as shipped. */
     shippedWus?: string[];
   }
@@ -2062,12 +2064,12 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
     const diskFiles: Record<string, string> = options.diskEmpty
       ? {}
       : options.diskMatchesNote
-        ? { "SESSION-NOTES.md": "shared-content" }
-        : { "SESSION-NOTES.md": "disk-content" };
+        ? { "WORKING-MEMORY.md": "shared-content" }
+        : { "WORKING-MEMORY.md": "disk-content" };
     const noteFiles = options.noteFiles
       ?? (options.diskMatchesNote
-        ? { "SESSION-NOTES.md": "shared-content" }
-        : { "SESSION-NOTES.md": "newer-from-other-machine" });
+        ? { "WORKING-MEMORY.md": "shared-content" }
+        : { "WORKING-MEMORY.md": "newer-from-other-machine" });
     const noteJSON = JSON.stringify({ version: 2, files: noteFiles });
     const materializedManifest: SyncManifest = { version: 2, files: diskFiles };
     const materializedManifestHash = hashSyncManifest(materializedManifest);
@@ -2127,6 +2129,9 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
         }
         if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
           return { stdout: `${noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
+          return { stdout: `${options.currentBranch ?? "main"}\n`, stderr: "" };
         }
         if (args[0] === "notes" && args[2] === "list") {
           return { stdout: `${"0".repeat(40)} ${noteCommit}\n`, stderr: "" };
@@ -2269,6 +2274,7 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
       diskEmpty: true,
       noteFiles: { "shipped-wu/SESSION-NOTES.md": "ghost" },
       shippedWus: ["shipped-wu"],
+      currentBranch: "feat/shipped-wu",
     });
 
     const result = await runUserSessionInitStatus({
@@ -2290,6 +2296,7 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
       diskEmpty: true,
       noteFiles: { "live-wu/SESSION-NOTES.md": "arrival" },
       shippedWus: [],
+      currentBranch: "feat/live-wu",
     });
 
     const result = await runUserSessionInitStatus({

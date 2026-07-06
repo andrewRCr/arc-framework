@@ -1028,11 +1028,12 @@ unmerged WU branch on the remote) is in flight — so the in-flight slice surfac
 executing ones; the ready slice is your `backlog/planned/**` work whose dependencies have all shipped. Each row is
 sized by `Class` so the balance reads at a glance. Everything else stays in the project view.
 
-**Location and storage.** The file lives at `.arc/user/{identity}/STATUS.USER.md` — gitignored, per-machine. It
-does **not** sync: every machine regenerates it identically from remote refs (and open PRs), so it is an optional
-local cache, never transported content. There is no separate persisted cache — **the rendered file is the
-cache**. Opening it never regenerates it (the passive path: instant, no network read); it is trustworthy when
-opened because the last relevant trigger refreshed it.
+**Location and storage.** The file lives at resolver-backed identity-global `user/{identity}/STATUS.USER.md`
+(under linked-worktree operation, the primary worktree's `.arc/user/{identity}/STATUS.USER.md`) — gitignored,
+per-machine. It does **not** sync: every machine regenerates it identically from remote refs (and open PRs), so it
+is an optional local cache, never transported content. There is no separate persisted cache — **the rendered file
+is the cache**. Opening it never regenerates it (the passive path: instant, no network read); it is trustworthy
+when opened because the last relevant trigger refreshed it.
 
 **Columns and sort.** Per § Render standard — the two `STATUS.USER` column sets (In Flight and Ready; Owner
 omitted, constant `= me`; `Class` always rendered) and the shared `(priority, cohort, wu-name)` sort key. Each
@@ -1041,8 +1042,8 @@ table shares the project view's tier ordering, filtered rather than re-sorted.
 **Rendered shape.** The file opens with an H1 — `Status (User): {identity}` — and a standing header note (a
 generated, gitignored-local cache refreshed at the triggers below; the single-cache / passive-open invariant
 above). The In Flight table follows, then the Ready table. An `Updated:` provenance footer closes the file. The
-seeded `.arc/user/{identity}/STATUS.USER.md` is the canonical worked example a hand-render and the render core
-both reproduce.
+seeded resolver-backed identity-global `STATUS.USER.md` is the canonical worked example a hand-render and the
+render core both reproduce.
 
 **Regeneration triggers.** The in-flight content has two slices with different refresh costs; the ready slice is
 a third, purely-local input that needs no network:
@@ -1071,9 +1072,9 @@ read for a fast offline view; the ready slice is unaffected.
 2. Derive your ready slice — `backlog/planned/**` metas owned by you whose dependencies have all shipped (absent
    from the active + planned + provisional pipeline), each sized by `Class`.
 3. Apply the `STATUS.USER` column sets and the `(priority, cohort, wu-name)` sort key from § Render standard.
-4. Write `.arc/user/{identity}/STATUS.USER.md` — the In Flight and Ready tables, plus the standing header note and
-   `Updated:` footer described above. Because the sort is a total order, the rendered slices match the eventual
-   automated render byte-for-byte; the `Updated:` stamp is the only part that varies.
+4. Write the resolver-backed identity-global `STATUS.USER.md` — the In Flight and Ready tables, plus the standing
+   header note and `Updated:` footer described above. Because the sort is a total order, the rendered slices match
+   the eventual automated render byte-for-byte; the `Updated:` stamp is the only part that varies.
 
 ---
 

@@ -89,6 +89,15 @@ describe("resolveCompactionSeedPath", () => {
       .toBe(join("/repo", ".arc", "user", "andrew", ".internal", "compaction-seed.json"));
   });
 
+  it("stays worktree-local so concurrent worktrees never share a seed", () => {
+    // The seed roots at the active checkout, not a shared identity-global root, so two
+    // worktrees of the same identity own distinct seeds and cannot clobber each other.
+    expect(resolveCompactionSeedPath({ cwd: "/repo-linked", identity: "andrew" }))
+      .toBe(join("/repo-linked", ".arc", "user", "andrew", ".internal", "compaction-seed.json"));
+    expect(resolveCompactionSeedPath({ cwd: "/repo-linked", identity: "andrew" }))
+      .not.toBe(resolveCompactionSeedPath({ cwd: "/repo", identity: "andrew" }));
+  });
+
   it("rejects identities that would escape the user directory", () => {
     for (const identity of [
       "../andrew",

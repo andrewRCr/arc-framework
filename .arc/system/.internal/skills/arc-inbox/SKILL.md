@@ -72,9 +72,11 @@ executing them is `arc-session`'s.
 
 5. Write it.
 
-   - Append the entry to the chosen section of `user/{identity}/USER-INBOX.md` — personal and
-     gitignored, so it accepts writes any time, from any branch, with no isolation cost. Leave existing
-     entries in place; `USER-INBOX` drains at the between-WUs `arc-housekeep` flow.
+   - Append the entry to the chosen section of the resolver-backed identity-global `USER-INBOX.md`
+     (under linked-worktree operation, the primary worktree's `user/{identity}/USER-INBOX.md`, not a
+     linked worktree's checkout-local copy). It is personal and gitignored, so it accepts writes any
+     time, from any branch, with no isolation cost. Leave existing entries in place; `USER-INBOX`
+     drains at the between-WUs `arc-housekeep` flow.
    - **Homeless errand-class item** — one with no determinable home still captures to `## Errand` here; it
      transits to the shared `backlog/ATOMIC-INBOX.md` at the next drain. Never write the shared inbox
      directly from a capture — it is drain-written only (write isolation). The shared inbox is

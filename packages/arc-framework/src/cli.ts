@@ -39,6 +39,7 @@ import {
   handleDemote,
   handlePark,
   handleResume,
+  handleMaterialize,
   handleActivate,
   handleDeactivate,
   handleIntegrate,
@@ -52,6 +53,7 @@ import {
   type StubOptions,
   type ParkOptions,
   type ResumeOptions,
+  type MaterializeOptions,
   type ActivateOptions,
   type IntegrateOptions,
   type ReopenOptions,
@@ -119,7 +121,7 @@ program
   .command("start [name]")
   .description(
     "Start a work unit. Default spawns an isolated worktree on a new `plan/<name>` "
-    + "branch; `--here` works in the current worktree instead.",
+    + "branch, then commits and pushes that start ceremony; `--here` works in the current worktree instead.",
   )
   .option(
     "--here",
@@ -129,7 +131,7 @@ program
     "--from <pointer-or-blurb>",
     "Spec input — issue ref → Origin, spec/draft artifact → Design, else passed through for assessment",
   )
-  .option("-y, --yes", "Skip the confirm prompt")
+  .option("-y, --yes", "Skip the confirm prompt; spawned starts still commit and push the ceremony")
   .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
 
 // --- Lifecycle verbs (top-level peers of `arc start`) ---
@@ -176,6 +178,15 @@ program
   )
   .option("--here", "Re-attach in the current worktree instead of spawning a new one")
   .action((slug: string | undefined, opts: ResumeOptions) => handleResume(slug, opts));
+
+program
+  .command("materialize [slug]")
+  .description(
+    "Pick up a remote-only in-flight work unit. Default spawns a fresh worktree; "
+    + "`--here` checks it out in the current worktree.",
+  )
+  .option("--here", "Check out in the current worktree instead of spawning a new one")
+  .action((slug: string | undefined, opts: MaterializeOptions) => handleMaterialize(slug, opts));
 
 program
   .command("activate [slug]")

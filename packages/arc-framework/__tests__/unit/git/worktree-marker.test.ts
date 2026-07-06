@@ -12,12 +12,15 @@ import { mkdtemp, rm, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 import {
+  ensureWorktreeMarkerIgnored,
+  nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarker,
   writeWorktreeMarker,
   writeWorktreeOwnershipMarker,
   resolveWorktreeMarkerPath,
   type WorktreeMarker,
 } from "../../../src/lib/git/worktree-marker.js";
+import type { GitExec } from "../../../src/lib/git/exec.js";
 
 describe("worktree-marker", () => {
   let cwd: string;
@@ -106,5 +109,52 @@ describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write",
     });
 
     expect(await readWorktreeMarker(cwd)).toEqual({ kind: "absent" });
+  });
+});
+
+describe("ensureWorktreeMarkerIgnored", () => {
+  let cwd: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-worktree-marker-ignore-"));
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  function execReturningGitExclude(): { exec: GitExec; calls: string[][] } {
+    const calls: string[][] = [];
+    const exec: GitExec = async (cmd, args, options) => {
+      calls.push([cmd, ...args, options?.cwd ?? ""]);
+      return { stdout: ".git/info/exclude\n" };
+    };
+    return { exec, calls };
+  }
+
+  it("appends the marker pattern to the worktree's git exclude file", async () => {
+    const { exec, calls } = execReturningGitExclude();
+    const excludePath = join(cwd, ".git", "info", "exclude");
+    await mkdir(dirname(excludePath), { recursive: true });
+    await writeFile(excludePath, "# local ignores\n", "utf8");
+
+    await ensureWorktreeMarkerIgnored(cwd, exec, nodeWorktreeMarkerIgnoreFs);
+
+    await expect(readFile(excludePath, "utf8")).resolves.toBe(
+      "# local ignores\n.arc/system/.internal/worktree-marker.json\n",
+    );
+    expect(calls).toEqual([["git", "rev-parse", "--git-path", "info/exclude", cwd]]);
+  });
+
+  it("does not duplicate an existing marker pattern", async () => {
+    const { exec } = execReturningGitExclude();
+    const excludePath = join(cwd, ".git", "info", "exclude");
+    const existing = ".arc/system/.internal/worktree-marker.json\n";
+    await mkdir(dirname(excludePath), { recursive: true });
+    await writeFile(excludePath, existing, "utf8");
+
+    await ensureWorktreeMarkerIgnored(cwd, exec, nodeWorktreeMarkerIgnoreFs);
+
+    await expect(readFile(excludePath, "utf8")).resolves.toBe(existing);
   });
 });

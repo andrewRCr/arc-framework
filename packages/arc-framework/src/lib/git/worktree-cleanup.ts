@@ -7,10 +7,11 @@
  * - {@link isWorktreeClean} — whether a worktree's tree has no uncommitted
  *   changes, via `git status --porcelain` scoped to its `cwd`.
  * - {@link decideWorktreeCleanup} — the pure decision mapping marker presence,
- *   clean, merged, and removal-context signals to one removability state. The
- *   returned state describes the *worktree* (not the action) — each caller
- *   chooses its action per its own approval model: the branch-gone cascade's
- *   user-offer, the stale-worktree sweep's user-offer.
+ *   clean, identity-global user-surface safety, merged, and removal-context
+ *   signals to one removability state. The returned state describes the
+ *   *worktree* (not the action) — each caller chooses its action per its own
+ *   approval model: the branch-gone cascade's user-offer, the stale-worktree
+ *   sweep's user-offer.
  *
  * The `merged` signal `decideWorktreeCleanup` consumes is resolved by the callers
  * from the shared branch-containment oracle (`isLandedInBase`), which proves
@@ -51,7 +52,7 @@ export async function isWorktreeClean(options: IsWorktreeCleanOptions): Promise<
 /** Removability state of an ARC-managed worktree at a cleanup site. */
 export type WorktreeCleanupDecision =
   | { action: "removable" }
-  | { action: "blocked"; reason: "uncommitted" | "unmerged" }
+  | { action: "blocked"; reason: "uncommitted" | "user-surfaces" | "unmerged" }
   | { action: "external" };
 
 /**
@@ -71,6 +72,8 @@ export interface WorktreeCleanupInputs {
   marker: WorktreeMarkerReadResult;
   /** Whether the working tree is clean (no uncommitted changes). */
   clean: boolean;
+  /** Whether ignored identity-global user surfaces are absent or safely mergeable. */
+  userSurfacesSafe?: boolean;
   /** Whether the branch is merged into the integration target. */
   merged: boolean;
   /** Removal context — gates whether the merge check applies. */
@@ -84,6 +87,8 @@ export interface WorktreeCleanupInputs {
  *   is externally managed; cleanup is the operator's tool's concern.
  * - Present but uncommitted changes → `blocked` (`uncommitted`): never
  *   auto-remove; the dirty state is shown.
+ * - Present and clean but unreconcilable ignored identity-global user surfaces
+ *   → `blocked` (`user-surfaces`): a removal would drop local-only user content.
  * - Present and clean but unmerged under `shipped` context → `blocked`
  *   (`unmerged`): the branch (or its unpushed commits) is not in the target;
  *   never auto-remove.
@@ -101,6 +106,9 @@ export function decideWorktreeCleanup(inputs: WorktreeCleanupInputs): WorktreeCl
   }
   if (!clean) {
     return { action: "blocked", reason: "uncommitted" };
+  }
+  if (inputs.userSurfacesSafe === false) {
+    return { action: "blocked", reason: "user-surfaces" };
   }
   if (!merged && context === "shipped") {
     return { action: "blocked", reason: "unmerged" };

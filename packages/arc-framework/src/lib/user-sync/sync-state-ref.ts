@@ -1,15 +1,14 @@
 /**
- * The sibling sync-state ref — its name, IO types, and the per-machine entry
+ * The sibling sync-state ref — its name, IO types, and keyed entry
  * read/write/transport primitives. The cross-machine companion to the
  * user-notes ref.
  *
  * The key-agnostic tree-commit mechanism lives in the shared
  * {@link module:lib/git/ref-tree}; this module binds it to
- * `refs/arc/user/{identity}/sync-state`, where the tree's keys are machine ids.
- * Per-machine ownership is what lets concurrent cross-machine writes union
- * cleanly — each machine writes only its own key; the union-merge reconcile
- * that depends on it lands in a later phase. The ref lives under `refs/arc/`,
- * so `git notes` never operates on it.
+ * `refs/arc/user/{identity}/sync-state`, where typed marker entries are keyed
+ * by notes-push intent. Distinct keys union cleanly, so concurrent writes
+ * preserve each other. The ref lives under `refs/arc/`, so `git notes` never
+ * operates on it.
  *
  * @module
  */
@@ -52,23 +51,23 @@ export interface SyncStateRefIO extends SyncStateRefReadIO {
   execInput: GitExecInput;
 }
 
-/** Every machine's entry in the ref's tree, keyed by `machineId` → blob-sha; empty when the ref is absent. */
+/** Every entry in the ref's tree, keyed by entry name → blob-sha; empty when the ref is absent. */
 export async function readEntries(io: SyncStateRefReadIO): Promise<Map<string, string>> {
   return readTreeEntries(io.exec, syncStateRef(io.identity));
 }
 
 /**
- * Read one machine's raw entry blob, or `null` when the ref or the key is
+ * Read one raw entry blob, or `null` when the ref or the key is
  * absent. The blob is opaque here — the typed marker schema parses it.
  *
  * @param io - Injected read seam and identity.
- * @param machineId - The key identifying the machine's entry in the ref's tree.
+ * @param entryKey - The entry key in the ref's tree.
  * @returns The entry's blob content, or `null` when missing.
  */
-export async function readEntry(io: SyncStateRefReadIO, machineId: string): Promise<string | null> {
+export async function readEntry(io: SyncStateRefReadIO, entryKey: string): Promise<string | null> {
   const ref = syncStateRef(io.identity);
   try {
-    const { stdout } = await io.exec("git", ["cat-file", "-p", `${ref}:${machineId}`]);
+    const { stdout } = await io.exec("git", ["cat-file", "-p", `${ref}:${entryKey}`]);
     return stdout;
   } catch {
     return null;
@@ -76,25 +75,25 @@ export async function readEntry(io: SyncStateRefReadIO, machineId: string): Prom
 }
 
 /**
- * Write (create or overwrite) one machine's entry, keyed by `machineId`. Builds
+ * Write (create or overwrite) one entry, keyed by `entryKey`. Builds
  * a tree carrying every existing entry plus this one, commits it onto the ref's
- * prior tip, and moves the ref — touching only the writer's own key, so a
+ * prior tip, and moves the ref — touching only this key, so a
  * concurrent sibling's entry is preserved. No working-tree file is touched.
  *
  * @param io - Injected git seams (including the stdin-fed writer) and identity.
- * @param machineId - The writing machine's id; its tree key.
+ * @param entryKey - The entry key to write.
  * @param content - The serialized entry blob to store.
  * @returns The new commit sha.
  */
 export async function writeEntry(
   io: SyncStateRefIO,
-  machineId: string,
+  entryKey: string,
   content: string,
 ): Promise<string> {
   const ref = syncStateRef(io.identity);
   const blobSha = await hashBlob(io.execInput, content);
-  const outcome = await writeTreeWithCasRetry(io, ref, `sync-state: write ${machineId}`, (entries) => {
-    entries.set(machineId, blobSha);
+  const outcome = await writeTreeWithCasRetry(io, ref, `sync-state: write ${entryKey}`, (entries) => {
+    entries.set(entryKey, blobSha);
     return entries;
   });
   if (outcome.kind === "failed") throw outcome.error;

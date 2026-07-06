@@ -56,9 +56,9 @@ is part of arc-in-git's capture model — it routes to shared backlog destinatio
 The capture surfaces split by **ownership** (personal vs. project-shared) and **work character**
 (atomic vs. multi-step):
 
-- **Personal** — `user/{identity}/USER-INBOX.md`. Live-capture surface; cross-PM-mode (exists
-  outside arc-in-git too). See `strategy-session-operations.md` § USER-INBOX for purpose,
-  lifecycle, and the `## Errand` / `## Work Unit` section semantics.
+- **Personal** — resolver-backed identity-global `user/{identity}/USER-INBOX.md`. Live-capture
+  surface; cross-PM-mode (exists outside arc-in-git too). See `strategy-session-operations.md`
+  § USER-INBOX for purpose, lifecycle, and the `## Errand` / `## Work Unit` section semantics.
 - **Project-shared atomic** — `backlog/ATOMIC-INBOX.md` (below). The *only* shared inbox: multi-step
   work always has a stub home, so there is no shared multi-step surface.
 

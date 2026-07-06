@@ -21,8 +21,7 @@ import {
   getInternalTemplatePath,
   DEFAULT_PROMPTS,
 } from "../helpers/integration.js";
-import { serialize } from "../../src/lib/git/index.js";
-import { hashSyncManifest } from "../../src/commands/user/save-load.js";
+import { hashSyncManifest, serializeSplitUserManifest } from "../../src/commands/user/save-load.js";
 import { buildLoadSummary } from "../../src/commands/user/format.js";
 import { runRetiredSubdirDetection } from "../../src/lib/session-init/retired-subdir-detection.js";
 import { inferRetiredSubdirs } from "../../src/lib/session-init/recommended-action.js";
@@ -113,6 +112,13 @@ async function readHead(cwd: string): Promise<string> {
   return stdout.trim();
 }
 
+async function addLinkedWorktree(repo: string, branch: string): Promise<string> {
+  const linked = await mkdtemp(join(tmpdir(), "arc-user-linked-"));
+  await rm(linked, { recursive: true, force: true });
+  await execFileAsync("git", ["-C", repo, "worktree", "add", "-b", branch, linked]);
+  return linked;
+}
+
 function expectLoaded(result: UserLoadOutcome | null): UserLoadResult {
   expect(result).not.toBeNull();
   expect(result?.kind).toBe("loaded");
@@ -137,9 +143,8 @@ async function readLocalSyncStateFixture(
 }
 
 async function hashUserDir(tempDir: string, identity: string): Promise<string> {
-  const userDir = join(tempDir, ".arc", "user", identity);
   const io = makeUserIO(tempDir);
-  const result = await serialize(userDir, io.readDir, io.readFile);
+  const result = await serializeSplitUserManifest({ cwd: tempDir, io, identity });
   return hashSyncManifest(result.manifest);
 }
 
@@ -174,10 +179,10 @@ describe("user save and load", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    // Add some content to SESSION-NOTES.md
+    // Add identity-global content.
     await writeFile(
-      join(userDir, "SESSION-NOTES.md"),
-      "# Session Notes\nWorking on feature X",
+      join(userDir, "WORKING-MEMORY.md"),
+      "# Working Memory\nRemember feature X",
       "utf-8",
     );
 
@@ -190,7 +195,7 @@ describe("user save and load", () => {
 
     // Modify the local file to verify load overwrites
     await writeFile(
-      join(userDir, "SESSION-NOTES.md"),
+      join(userDir, "WORKING-MEMORY.md"),
       "modified locally",
       "utf-8",
     );
@@ -205,9 +210,9 @@ describe("user save and load", () => {
 
     // Verify restored content
     const restored = await readFile(
-      join(userDir, "SESSION-NOTES.md"), "utf-8",
+      join(userDir, "WORKING-MEMORY.md"), "utf-8",
     );
-    expect(restored).toBe("# Session Notes\nWorking on feature X");
+    expect(restored).toBe("# Working Memory\nRemember feature X");
   });
 
   it("load finds a reachable ancestor note when HEAD has no note", async () => {
@@ -215,7 +220,7 @@ describe("user save and load", () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     await writeFile(
-      join(userDir, "SESSION-NOTES.md"),
+      join(userDir, "WORKING-MEMORY.md"),
       "# Ancestor content",
       "utf-8",
     );
@@ -236,7 +241,7 @@ describe("user save and load", () => {
     expect(loadedResult.ancestorDistance).toBe(2);
 
     const restored = await readFile(
-      join(userDir, "SESSION-NOTES.md"), "utf-8",
+      join(userDir, "WORKING-MEMORY.md"), "utf-8",
     );
     expect(restored).toBe("# Ancestor content");
   });
@@ -245,7 +250,7 @@ describe("user save and load", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Deep reachable note", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Deep reachable note", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     for (let i = 0; i < 25; i++) {
@@ -260,7 +265,7 @@ describe("user save and load", () => {
     expect(loadedResult.fromAncestor).toBe(true);
     expect(loadedResult.ancestorDistance).toBe(25);
 
-    const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
+    const restored = await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8");
     expect(restored).toBe("# Deep reachable note");
   });
 
@@ -270,7 +275,7 @@ describe("user save and load", () => {
 
     await execFileAsync("git", ["-C", tempDir, "checkout", "-b", "side-session"]);
     await makeCommit(tempDir, "side session work");
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Side session note", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Side session note", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     await execFileAsync("git", ["-C", tempDir, "checkout", "main"]);
@@ -282,7 +287,7 @@ describe("user save and load", () => {
     expect(loadedResult.reachableFromHead).toBe(false);
     expect(loadedResult.currentBranch).toBe("main");
 
-    const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
+    const restored = await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8");
     expect(restored).toBe("# Side session note");
   });
 
@@ -292,7 +297,7 @@ describe("user save and load", () => {
 
     await execFileAsync("git", ["-C", tempDir, "checkout", "-b", "finished-elsewhere"]);
     await makeCommit(tempDir, "finished elsewhere work");
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Branch gone note", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Branch gone note", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     await execFileAsync("git", ["-C", tempDir, "checkout", "main"]);
@@ -305,7 +310,7 @@ describe("user save and load", () => {
     const loadedResult = expectLoaded(loadResult);
     expect(loadedResult.reachableFromHead).toBe(false);
 
-    const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
+    const restored = await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8");
     expect(restored).toBe("# Branch gone note");
   });
 
@@ -385,7 +390,7 @@ describe("user save and load", () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     // Save a note on the initial commit
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Merge ancestor", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Merge ancestor", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // Create a branch, make a commit, switch back, make another commit, merge
@@ -405,7 +410,7 @@ describe("user save and load", () => {
     const loadedResult = expectLoaded(loadResult);
     expect(loadedResult.fromAncestor).toBe(true);
 
-    const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
+    const restored = await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8");
     expect(restored).toBe("# Merge ancestor");
   });
 
@@ -414,7 +419,7 @@ describe("user save and load", () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     // Save a note on current commit
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Shallow test", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Shallow test", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     const remoteDir = await addBareRemote(tempDir);
@@ -442,7 +447,7 @@ describe("user save and load", () => {
     const loadedResult = expectLoaded(loadResult);
     expect(loadedResult.fromAncestor).toBe(true);
 
-    const restored = await readFile(join(shallowUserDir, "SESSION-NOTES.md"), "utf-8");
+    const restored = await readFile(join(shallowUserDir, "WORKING-MEMORY.md"), "utf-8");
     expect(restored).toBe("# Shallow test");
 
     await cleanupTempDir(shallowDir);
@@ -454,7 +459,7 @@ describe("user save and load", () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     // Save a note
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Deep note", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Deep note", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     const remoteDir = await addBareRemote(tempDir);
@@ -483,7 +488,7 @@ describe("user save and load", () => {
     const loadedResult = expectLoaded(loadResult);
     expect(loadedResult.reachableFromHead).toBeUndefined();
 
-    const restored = await readFile(join(shallowUserDir, "SESSION-NOTES.md"), "utf-8");
+    const restored = await readFile(join(shallowUserDir, "WORKING-MEMORY.md"), "utf-8");
     expect(restored).toBe("# Deep note");
 
     await cleanupTempDir(shallowDir);
@@ -508,11 +513,11 @@ describe("user load — backup and stale detection", () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     // Write content and save
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Original", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // Modify local file
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Modified locally", "utf-8");
 
     // Load — should create backup of "Modified locally" state
     await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
@@ -526,7 +531,7 @@ describe("user load — backup and stale detection", () => {
     // Verify backup exists and contains the pre-load state
     const backupRaw = await readFile(join(userDir, ".internal", backupPath!), "utf-8");
     const backup = JSON.parse(backupRaw) as { version: number; files: Record<string, string> };
-    expect(backup.files["SESSION-NOTES.md"]).toBe("# Modified locally");
+    expect(backup.files["WORKING-MEMORY.md"]).toBe("# Modified locally");
   });
 
   it("skips backup gracefully when user dir does not exist", async () => {
@@ -535,12 +540,12 @@ describe("user load — backup and stale detection", () => {
 
     // Save as test-user, then try loading as new-user (no dir yet)
     const existingUserDir = join(tempDir, ".arc", "user", "test-user");
-    await writeFile(join(existingUserDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+    await writeFile(join(existingUserDir, "WORKING-MEMORY.md"), "# Notes", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // Create a note for new-user by saving manually
     await mkdir(userDir, { recursive: true });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# New user", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# New user", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "new-user" });
 
     // Remove the dir to simulate first load on a fresh clone
@@ -565,8 +570,8 @@ describe("user load — backup and stale detection", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    // Save with just SESSION-NOTES
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+    // Save with one identity-global file.
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Notes", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // Add an extra local file that won't be in the manifest
@@ -587,11 +592,11 @@ describe("user load — backup and stale detection", () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     // Save initial state
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# First", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# First", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // Modify and create a dotfile
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Second", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Second", "utf-8");
     await writeFile(join(userDir, ".some-dotfile"), "hidden", "utf-8");
 
     // Load — backup should not include .some-dotfile
@@ -605,18 +610,18 @@ describe("user load — backup and stale detection", () => {
     const backupRaw = await readFile(join(userDir, ".internal", backupPath!), "utf-8");
     const backup = JSON.parse(backupRaw) as { files: Record<string, string> };
     expect(backup.files[".some-dotfile"]).toBeUndefined();
-    expect(backup.files["SESSION-NOTES.md"]).toBe("# Second");
+    expect(backup.files["WORKING-MEMORY.md"]).toBe("# Second");
   });
 
   it("retains only the latest three timestamped backups", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Original", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     for (let i = 1; i <= 4; i++) {
-      await writeFile(join(userDir, "SESSION-NOTES.md"), `# Local ${i}`, "utf-8");
+      await writeFile(join(userDir, "WORKING-MEMORY.md"), `# Local ${i}`, "utf-8");
       await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
     }
 
@@ -631,7 +636,7 @@ describe("user load — backup and stale detection", () => {
         return JSON.parse(raw) as { files: Record<string, string> };
       }),
     );
-    expect(manifests.map((manifest) => manifest.files["SESSION-NOTES.md"]).sort()).toEqual([
+    expect(manifests.map((manifest) => manifest.files["WORKING-MEMORY.md"]).sort()).toEqual([
       "# Local 2",
       "# Local 3",
       "# Local 4",
@@ -642,12 +647,12 @@ describe("user load — backup and stale detection", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Original", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await writeFile(join(userDir, BACKUP_FILENAME), JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "# Legacy" } }));
 
     for (let i = 1; i <= 4; i++) {
-      await writeFile(join(userDir, "SESSION-NOTES.md"), `# Local ${i}`, "utf-8");
+      await writeFile(join(userDir, "WORKING-MEMORY.md"), `# Local ${i}`, "utf-8");
       await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
     }
 
@@ -693,7 +698,7 @@ describe("user load — retired-subdir reconciliation", () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     // Baseline note carries only the cross-WU flat file — no per-WU subdir.
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Cross-WU", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // A retired WU's subdir lingers locally; it never made it into a note (no drift
@@ -732,7 +737,7 @@ describe("user load — retired-subdir reconciliation", () => {
       // Current notes: the cross-WU file is saved and unchanged on disk, so the
       // notes-load signal (`loadNeeded`) would not fire — isolating the
       // retired-subdir signal as the sole reconcile trigger.
-      await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+      await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Cross-WU", "utf-8");
       await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
       // A sibling shipped on origin/main; its user subdir lingers locally with no
@@ -771,7 +776,7 @@ describe("user load — retired-subdir reconciliation", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Cross-WU", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // Never shipped (absent from origin/main `completed/`) → must stay.
@@ -791,8 +796,8 @@ describe("user load — retired-subdir reconciliation", () => {
     // window no longer preserves; shipped + no drift reconciles.
     await mkdir(join(userDir, "done-wu"), { recursive: true });
     await writeFile(join(userDir, "done-wu", "SESSION-NOTES.md"), "# Done WU", "utf-8");
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
-    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user", currentWuName: "done-wu" });
     await markShippedOnOrigin("done-wu");
 
     // A different current WU, so materialization can't re-create done-wu — its
@@ -808,8 +813,8 @@ describe("user load — retired-subdir reconciliation", () => {
 
     await mkdir(join(userDir, "old-wu"), { recursive: true });
     await writeFile(join(userDir, "old-wu", "SESSION-NOTES.md"), "# Old WU", "utf-8");
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
-    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user", currentWuName: "old-wu" });
     await markShippedOnOrigin("old-wu");
 
     // Local edit beyond the last-pushed note — once drift-preserved, now reconciled
@@ -829,7 +834,7 @@ describe("user load — retired-subdir reconciliation", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Cross-WU", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // The operator stashed a non-ARC file in the subdir before the WU shipped.
@@ -864,7 +869,7 @@ describe("user load — retired-subdir reconciliation", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Cross-WU", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     await mkdir(join(userDir, "old-wu"), { recursive: true });
@@ -889,7 +894,7 @@ describe("user load — retired-subdir reconciliation", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Cross-WU", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // Never shipped on origin/main → unresolvable → must survive (the prompt's residual case).
@@ -906,7 +911,7 @@ describe("user load — retired-subdir reconciliation", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Cross-WU", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // Not shipped → nothing reconciles → the recoverable-removal backup is never needed.
@@ -945,8 +950,8 @@ describe("user save/load — subdirectory support", () => {
     await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory", "utf-8");
     await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# Notes", "utf-8");
 
-    // Save (class-agnostic — every eligible file by path)
-    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    // Save the current WU plus identity-global files.
+    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x" });
     expect(saveResult.fileCount).toBe(2);
 
     // Delete everything and reload scoped to feature-x: its subdir plus the
@@ -975,8 +980,8 @@ describe("user save/load — subdirectory support", () => {
     await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# X", "utf-8");
     await writeFile(join(userDir, "feature-y", "SESSION-NOTES.md"), "# Y", "utf-8");
 
-    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
-    expect(saveResult.fileCount).toBe(3);
+    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x" });
+    expect(saveResult.fileCount).toBe(2);
 
     await rm(userDir, { recursive: true, force: true });
 
@@ -1001,7 +1006,7 @@ describe("user save/load — subdirectory support", () => {
     await mkdir(join(userDir, "feature-x"), { recursive: true });
     await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory", "utf-8");
     await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# X", "utf-8");
-    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserSave({ cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x" });
 
     await rm(userDir, { recursive: true, force: true });
 
@@ -1033,7 +1038,7 @@ describe("user save/load — subdirectory support", () => {
       "utf-8",
     );
     await writeFile(join(userDir, "feature-old", "SESSION-NOTES.md"), "# old", "utf-8");
-    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserSave({ cwd: tempDir, io, identity: "test-user", currentWuName: "feature-old" });
 
     // Advance HEAD so the next save lands on a distinct note rather than
     // overwriting the first.
@@ -1048,7 +1053,7 @@ describe("user save/load — subdirectory support", () => {
       "utf-8",
     );
     await writeFile(join(userDir, "feature-current", "SESSION-NOTES.md"), "# current", "utf-8");
-    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserSave({ cwd: tempDir, io, identity: "test-user", currentWuName: "feature-current" });
 
     // Load scoped to the current WU.
     await rm(userDir, { recursive: true, force: true });
@@ -1076,7 +1081,7 @@ describe("user save/load — subdirectory support", () => {
     await mkdir(join(userDir, "feature-x"), { recursive: true });
     await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# old", "utf-8");
     await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory old", "utf-8");
-    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserSave({ cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x" });
 
     await makeCommit(tempDir, "advance to newer note");
 
@@ -1084,7 +1089,7 @@ describe("user save/load — subdirectory support", () => {
     await mkdir(join(userDir, "feature-x"), { recursive: true });
     await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# new", "utf-8");
     await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory new", "utf-8");
-    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserSave({ cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x" });
 
     await rm(userDir, { recursive: true, force: true });
 
@@ -1105,7 +1110,7 @@ describe("user save/load — subdirectory support", () => {
     await rm(userDir, { recursive: true, force: true });
     await mkdir(userDir, { recursive: true });
     await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Deep memory", "utf-8");
-    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserSave({ cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x" });
 
     for (let i = 0; i < 15; i++) {
       await makeCommit(tempDir, `advance ${i}`);
@@ -1121,7 +1126,7 @@ describe("user save/load — subdirectory support", () => {
     expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toBe("# Deep memory");
   });
 
-  it("keeps cross-WU-only load status out of mixed with the sentinel basis", async () => {
+  it("keeps cross-WU-only load status current with the sentinel basis", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -1129,7 +1134,7 @@ describe("user save/load — subdirectory support", () => {
     await mkdir(join(userDir, "feature-x"), { recursive: true });
     await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# X", "utf-8");
     await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory", "utf-8");
-    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserSave({ cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x" });
 
     await rm(userDir, { recursive: true, force: true });
 
@@ -1145,8 +1150,221 @@ describe("user save/load — subdirectory support", () => {
 
     expect(status.diskStatus).not.toBe("mixed");
     expect(status.unsavedDirection).not.toBe("mixed");
-    expect(status.diskStatus).toBe("stale");
-    expect(status.unsavedDirection).toBe("missing");
+    expect(status.diskStatus).toBe("current");
+    expect(status.unsavedDirection).toBeNull();
+  });
+});
+
+describe("user save/load — split-source worktree surfaces", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
+    await makeCommit(tempDir, "initial commit");
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tempDir);
+  });
+
+  it("saves identity-global files from primary and SESSION-NOTES from the active linked worktree", async () => {
+    const linked = await addLinkedWorktree(tempDir, "feat/split-save");
+    try {
+      const primaryUserDir = join(tempDir, ".arc", "user", "test-user");
+      const linkedUserDir = join(linked, ".arc", "user", "test-user");
+      await mkdir(join(linkedUserDir, "split-save"), { recursive: true });
+      await writeFile(join(primaryUserDir, "WORKING-MEMORY.md"), "# Primary memory", "utf-8");
+      await writeFile(join(primaryUserDir, "SESSION-NOTES.md"), "# Legacy root should not save", "utf-8");
+      await mkdir(linkedUserDir, { recursive: true });
+      await writeFile(join(linkedUserDir, "WORKING-MEMORY.md"), "# Linked stale copy", "utf-8");
+      await writeFile(join(linkedUserDir, "split-save", "SESSION-NOTES.md"), "# Linked notes", "utf-8");
+
+      const linkedIo = makeUserIO(linked);
+      const save = await runUserSave({
+        cwd: linked,
+        io: linkedIo,
+        identity: "test-user",
+        currentWuName: "split-save",
+      });
+
+      expect(save.fileCount).toBe(3);
+      const head = await readHead(linked);
+      const note = await linkedIo.readNote("arc/user/test-user", head);
+      expect(note).not.toBeNull();
+      const manifest = JSON.parse(note!) as { files: Record<string, string> };
+      expect(manifest.files).toMatchObject({
+        "WORKING-MEMORY.md": "# Primary memory",
+        "USER-INBOX.md": expect.any(String) as string,
+        "split-save/SESSION-NOTES.md": "# Linked notes",
+      });
+      expect(manifest.files["SESSION-NOTES.md"]).toBeUndefined();
+      expect(manifest.files["WORKING-MEMORY.md"]).not.toBe("# Linked stale copy");
+    } finally {
+      await execFileAsync("git", ["-C", tempDir, "worktree", "remove", "--force", linked]);
+    }
+  });
+
+  it("migrates mergeable linked identity-global copies into the primary root before saving", async () => {
+    const linked = await addLinkedWorktree(tempDir, "feat/split-migration");
+    try {
+      const primaryUserDir = join(tempDir, ".arc", "user", "test-user");
+      const linkedUserDir = join(linked, ".arc", "user", "test-user");
+      await mkdir(join(linkedUserDir, "split-migration"), { recursive: true });
+      await writeFile(join(linkedUserDir, "split-migration", "SESSION-NOTES.md"), "# Linked notes", "utf-8");
+      await writeFile(
+        join(linkedUserDir, "USER-INBOX.md"),
+        [
+          "# User Inbox",
+          "",
+          "## Errand",
+          "",
+          "### `[ ]` **linked capture**",
+          "",
+          "- _Created:_ `2026-07-05`",
+          "",
+          "## Work Unit",
+          "",
+        ].join("\n"),
+        "utf-8",
+      );
+
+      const linkedIo = makeUserIO(linked);
+      const save = await runUserSave({
+        cwd: linked,
+        io: linkedIo,
+        identity: "test-user",
+        currentWuName: "split-migration",
+      });
+
+      expect(save.fileCount).toBe(3);
+      expect(await readFile(join(primaryUserDir, "USER-INBOX.md"), "utf-8")).toContain("linked capture");
+      const head = await readHead(linked);
+      const note = await linkedIo.readNote("arc/user/test-user", head);
+      const manifest = JSON.parse(note!) as { files: Record<string, string> };
+      expect(manifest.files["USER-INBOX.md"]).toContain("linked capture");
+    } finally {
+      await execFileAsync("git", ["-C", tempDir, "worktree", "remove", "--force", linked]);
+    }
+  });
+
+  it("loads identity-global files to primary and current-WU files to the active linked worktree", async () => {
+    const linked = await addLinkedWorktree(tempDir, "feat/split-load");
+    try {
+      const primaryUserDir = join(tempDir, ".arc", "user", "test-user");
+      const linkedUserDir = join(linked, ".arc", "user", "test-user");
+      await rm(join(primaryUserDir, "WORKING-MEMORY.md"), { force: true });
+      await rm(join(primaryUserDir, "USER-INBOX.md"), { force: true });
+
+      const linkedIo = makeUserIO(linked);
+      const head = await readHead(linked);
+      await linkedIo.writeNote(
+        "arc/user/test-user",
+        JSON.stringify({
+          version: 2,
+          files: {
+            "WORKING-MEMORY.md": "# Loaded memory",
+            "split-load/SESSION-NOTES.md": "# Loaded notes",
+          },
+        }),
+        head,
+      );
+
+      const load = expectLoaded(await runUserLoad({
+        cwd: linked,
+        io: linkedIo,
+        identity: "test-user",
+        currentWuName: "split-load",
+      }));
+
+      expect(load.fileCount).toBe(2);
+      expect(await readFile(join(primaryUserDir, "WORKING-MEMORY.md"), "utf-8")).toBe("# Loaded memory");
+      expect(await readFile(join(linkedUserDir, "split-load", "SESSION-NOTES.md"), "utf-8"))
+        .toBe("# Loaded notes");
+      await expect(readFile(join(linkedUserDir, "WORKING-MEMORY.md"), "utf-8")).rejects.toThrow();
+    } finally {
+      await execFileAsync("git", ["-C", tempDir, "worktree", "remove", "--force", linked]);
+    }
+  });
+
+  it("migrates a legacy root SESSION-NOTES entry to the current WU when no scoped notes exist", async () => {
+    const linked = await addLinkedWorktree(tempDir, "feat/legacy-load");
+    try {
+      const linkedIo = makeUserIO(linked);
+      const head = await readHead(linked);
+      await linkedIo.writeNote(
+        "arc/user/test-user",
+        JSON.stringify({
+          version: 2,
+          files: {
+            "SESSION-NOTES.md": "# Legacy notes",
+            "WORKING-MEMORY.md": "# Memory",
+          },
+        }),
+        head,
+      );
+
+      const result = expectLoaded(await runUserLoad({
+        cwd: linked,
+        io: linkedIo,
+        identity: "test-user",
+        currentWuName: "legacy-load",
+      }));
+
+      expect(result.messages.some((m) => m.text.includes("Migrated legacy root-level SESSION-NOTES.md"))).toBe(true);
+      expect(await readFile(
+        join(linked, ".arc", "user", "test-user", "legacy-load", "SESSION-NOTES.md"),
+        "utf-8",
+      )).toBe("# Legacy notes");
+      await expect(readFile(join(tempDir, ".arc", "user", "test-user", "SESSION-NOTES.md"), "utf-8"))
+        .rejects.toThrow();
+    } finally {
+      await execFileAsync("git", ["-C", tempDir, "worktree", "remove", "--force", linked]);
+    }
+  });
+
+  it("skips and backs up legacy root SESSION-NOTES when scoped notes already exist", async () => {
+    const linked = await addLinkedWorktree(tempDir, "feat/legacy-skip");
+    try {
+      const linkedIo = makeUserIO(linked);
+      const head = await readHead(linked);
+      await linkedIo.writeNote(
+        "arc/user/test-user",
+        JSON.stringify({
+          version: 2,
+          files: {
+            "SESSION-NOTES.md": "# Legacy notes",
+            "legacy-skip/SESSION-NOTES.md": "# Scoped notes",
+          },
+        }),
+        head,
+      );
+
+      const result = expectLoaded(await runUserLoad({
+        cwd: linked,
+        io: linkedIo,
+        identity: "test-user",
+        currentWuName: "legacy-skip",
+      }));
+
+      const notice = result.messages.find((m) => m.text.includes("Skipped legacy root-level SESSION-NOTES.md"));
+      expect(notice?.text).toContain("backed up to .internal/");
+      expect(await readFile(
+        join(linked, ".arc", "user", "test-user", "legacy-skip", "SESSION-NOTES.md"),
+        "utf-8",
+      )).toBe("# Scoped notes");
+
+      const backups = await listBackupFiles(join(tempDir, ".arc", "user", "test-user"));
+      const backupName = backups.find((name) => /^\.pre-load-backup-.*\.json$/u.test(name));
+      expect(backupName).toBeDefined();
+      const backup = JSON.parse(
+        await readFile(join(tempDir, ".arc", "user", "test-user", ".internal", backupName!), "utf-8"),
+      ) as { files: Record<string, string> };
+      expect(backup.files["legacy-root-SESSION-NOTES.md"]).toBe("# Legacy notes");
+      await expect(readFile(join(tempDir, ".arc", "user", "test-user", "SESSION-NOTES.md"), "utf-8"))
+        .rejects.toThrow();
+    } finally {
+      await execFileAsync("git", ["-C", tempDir, "worktree", "remove", "--force", linked]);
+    }
   });
 });
 
@@ -1238,7 +1456,7 @@ describe("user push and pull", () => {
 
     // Save a note locally
     await writeFile(
-      join(userDir, "SESSION-NOTES.md"),
+      join(userDir, "WORKING-MEMORY.md"),
       "# Portable notes",
       "utf-8",
     );
@@ -1279,7 +1497,7 @@ describe("user push and pull", () => {
 
     // Verify content arrived
     const restored = await readFile(
-      join(cloneUserDir, "SESSION-NOTES.md"), "utf-8",
+      join(cloneUserDir, "WORKING-MEMORY.md"), "utf-8",
     );
     expect(restored).toBe("# Portable notes");
   });
@@ -1289,7 +1507,7 @@ describe("user push and pull", () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     // Save and push initial notes
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Version 1", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Version 1", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
 
@@ -1301,13 +1519,13 @@ describe("user push and pull", () => {
     const cloneIO = makeUserIO(cloneDir);
     const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
     await mkdir(cloneUserDir, { recursive: true });
-    await writeFile(join(cloneUserDir, "SESSION-NOTES.md"), "# Version 2 from clone", "utf-8");
+    await writeFile(join(cloneUserDir, "WORKING-MEMORY.md"), "# Version 2 from clone", "utf-8");
     await runUserSave({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
     // Force-push from clone — notes refs diverge since clone doesn't inherit them
     await runUserPush({ io: cloneIO, identity: "test-user", force: true });
 
     // Now save different notes locally (diverged from remote)
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Version 3 local", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Version 3 local", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // Regular push should fail with divergence error
@@ -1321,7 +1539,7 @@ describe("user push and pull", () => {
     // Verify remote has our version (force pull — refs diverged)
     await runUserPull({ cwd: cloneDir, io: cloneIO, identity: "test-user", force: true });
     await runUserLoad({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
-    const restoredInClone = await readFile(join(cloneUserDir, "SESSION-NOTES.md"), "utf-8");
+    const restoredInClone = await readFile(join(cloneUserDir, "WORKING-MEMORY.md"), "utf-8");
     expect(restoredInClone).toBe("# Version 3 local");
   });
 
@@ -1330,7 +1548,7 @@ describe("user push and pull", () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     // First worktree saves on its current commit and publishes.
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Local notes", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Local notes", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
 
@@ -1345,12 +1563,12 @@ describe("user push and pull", () => {
     const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
     await mkdir(cloneUserDir, { recursive: true });
     await makeCommit(cloneDir, "clone advances HEAD");
-    await writeFile(join(cloneUserDir, "SESSION-NOTES.md"), "# Clone notes", "utf-8");
+    await writeFile(join(cloneUserDir, "WORKING-MEMORY.md"), "# Clone notes", "utf-8");
     await runUserSave({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
     await runUserPush({ io: cloneIO, identity: "test-user", force: true });
 
     // The first worktree re-saves on its own commit and pushes → non-ff.
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Local notes v2", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Local notes v2", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await expect(
       runUserPush({ io, identity: "test-user" }),
@@ -1380,7 +1598,7 @@ describe("user push and pull", () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
     // First worktree saves on the current commit and publishes.
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Temp v1", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Temp v1", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
 
@@ -1395,7 +1613,7 @@ describe("user push and pull", () => {
     const cloneIO = makeUserIO(cloneDir);
     const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
     await mkdir(cloneUserDir, { recursive: true });
-    await writeFile(join(cloneUserDir, "SESSION-NOTES.md"), "# Clone v1", "utf-8");
+    await writeFile(join(cloneUserDir, "WORKING-MEMORY.md"), "# Clone v1", "utf-8");
     await runUserSave({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
     await runUserPush({ io: cloneIO, identity: "test-user", force: true });
 
@@ -1404,7 +1622,7 @@ describe("user push and pull", () => {
     )).stdout.trim().split(/\s+/u)[0];
 
     // First worktree re-saves on the same commit and pushes → non-ff.
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Temp v2", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Temp v2", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await expect(
       runUserPush({ io, identity: "test-user" }),
@@ -1434,7 +1652,7 @@ describe("user push and pull", () => {
     // Save notes under a different identity
     const otherDir = join(tempDir, ".arc", "user", "other-dev");
     await mkdir(otherDir, { recursive: true });
-    await writeFile(join(otherDir, "SESSION-NOTES.md"), "# Other dev notes", "utf-8");
+    await writeFile(join(otherDir, "WORKING-MEMORY.md"), "# Other dev notes", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "other-dev" });
     await runUserPush({ io, identity: "other-dev" });
 
@@ -1456,7 +1674,7 @@ describe("user push and pull", () => {
     });
     expect(result).not.toBeNull();
 
-    const restored = await readFile(join(cloneOtherDir, "SESSION-NOTES.md"), "utf-8");
+    const restored = await readFile(join(cloneOtherDir, "WORKING-MEMORY.md"), "utf-8");
     expect(restored).toBe("# Other dev notes");
   });
 
@@ -1484,7 +1702,7 @@ describe("user push and pull", () => {
     expect(await hasLocalNotes(io, "test-user")).toBe(false);
 
     // Save a note
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Notes", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     // Now notes exist
@@ -1499,7 +1717,7 @@ describe("user push and pull", () => {
     expect(await hasRemoteNotes(io, "test-user")).toBe(false);
 
     // Save and push
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Notes", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Notes", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
 
@@ -1510,7 +1728,7 @@ describe("user push and pull", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved before new work", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Saved before new work", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ cwd: tempDir, io, identity: "test-user" });
     await makeCommit(tempDir, "work after save");
@@ -1537,7 +1755,7 @@ describe("user push and pull", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Needs push", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Needs push", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     const localRefHash = await readNotesRefTip(tempDir, "test-user");
     const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
@@ -1554,7 +1772,7 @@ describe("user push and pull", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Already pushed", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Already pushed", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ cwd: tempDir, io, identity: "test-user" });
     const localRefHash = await readNotesRefTip(tempDir, "test-user");
@@ -1614,7 +1832,7 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Note", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Note", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
 
@@ -1632,19 +1850,19 @@ describe("user status", () => {
     expect(afterSave.localNoteFreshness?.state).toBe("current-head");
   });
 
-  it("reports current after a later notes-ref update lands on an older commit", async () => {
+  it("reports local-unsaved after a later cross-WU update lands on an older commit", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
     const olderCommit = await readHead(tempDir);
     await makeCommit(tempDir, "middle commit");
     const savedHead = await makeCommit(tempDir, "current commit");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved descendant", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Saved descendant", "utf-8");
     const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     await io.writeNote(
       "arc/user/test-user",
-      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "# Older arrival" } }),
+      JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": "# Older arrival" } }),
       olderCommit,
     );
 
@@ -1652,7 +1870,7 @@ describe("user status", () => {
     const state = await inspectUserSyncState({ cwd: tempDir, io, identity: "test-user" });
 
     expect(status.savedCommit).toBe(saveResult.commit);
-    expect(status.diskStatus).toBe("current");
+    expect(status.diskStatus).toBe("local unsaved");
     expect(status.savedFromAncestor).toBe(false);
     expect(status.ancestorDistance).toBe(0);
     expect(status.savedReachableFromHead).toBe(true);
@@ -1672,12 +1890,12 @@ describe("user status", () => {
     const savedHead = await makeCommit(tempDir, "current commit");
     const savedContent = "# Saved descendant";
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), savedContent, "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), savedContent, "utf-8");
     const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
     await io.writeNote(
       "arc/user/test-user",
-      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": savedContent } }),
+      JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": savedContent } }),
       olderCommit,
     );
 
@@ -1701,7 +1919,7 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Local", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Local", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
 
@@ -1728,12 +1946,12 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Original", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Modified locally", "utf-8");
     await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
     await unlink(join(userDir, ".internal", ".sync-state.json"));
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified after load", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Modified after load", "utf-8");
 
     const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
     const summary = buildUserStatusSummary(result);
@@ -1752,11 +1970,11 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Original", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Modified locally", "utf-8");
     await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified after load", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Modified after load", "utf-8");
 
     const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
     const summary = buildUserStatusSummary(result);
@@ -1773,7 +1991,7 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Original", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await writeFile(join(userDir, "scratch.md"), "# Local scratch", "utf-8");
 
@@ -1792,9 +2010,9 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Original", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Modified locally", "utf-8");
 
     const modifiedHash = await hashUserDir(tempDir, "test-user");
     const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
@@ -1816,9 +2034,9 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Original", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Original", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Modified locally", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Modified locally", "utf-8");
 
     const modifiedHash = await hashUserDir(tempDir, "test-user");
     const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
@@ -1840,7 +2058,7 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved locally", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Saved locally", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     const localRefHash = await readNotesRefTip(tempDir, "test-user");
     const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
@@ -1860,12 +2078,12 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# First save", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# First save", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     const staleRefHash = await readNotesRefTip(tempDir, "test-user");
     const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Second save", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Second save", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await writePartialPushMarker(tempDir, "test-user", staleRefHash, head.trim());
 
@@ -1881,7 +2099,7 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Pushed", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Pushed", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
     const localRefHash = await readNotesRefTip(tempDir, "test-user");
@@ -1901,7 +2119,7 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved locally", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Saved locally", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     const localRefHash = await readNotesRefTip(tempDir, "test-user");
     const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
@@ -1921,12 +2139,12 @@ describe("user status", () => {
     const userDir = join(tempDir, ".arc", "user", "test-user");
     const otherDir = join(tempDir, ".arc", "user", "other-dev");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Test user", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Test user", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
 
     await mkdir(otherDir, { recursive: true });
-    await writeFile(join(otherDir, "SESSION-NOTES.md"), "# Other dev", "utf-8");
+    await writeFile(join(otherDir, "WORKING-MEMORY.md"), "# Other dev", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "other-dev" });
     await runUserPush({ io, identity: "other-dev" });
 
@@ -1942,7 +2160,7 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Local", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Local", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
 
@@ -1965,7 +2183,7 @@ describe("user status", () => {
     expect(result.state).toBe("remote-ahead");
     expect(result.shouldPromptToPull).toBe(true);
 
-    await expect(readFile(join(cloneUserDir, "SESSION-NOTES.md"), "utf-8")).rejects.toMatchObject({
+    await expect(readFile(join(cloneUserDir, "WORKING-MEMORY.md"), "utf-8")).rejects.toMatchObject({
       code: "ENOENT",
     });
   });
@@ -1974,7 +2192,7 @@ describe("user status", () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved before new HEAD", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Saved before new HEAD", "utf-8");
     const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await runUserPush({ io, identity: "test-user" });
     await makeCommit(tempDir, "advance after save");
@@ -2091,6 +2309,27 @@ describe("user open", () => {
       "utf-8",
     );
     expect(sessionNotes).toBe(template);
+  });
+
+  it("uses a caller-supplied SESSION-NOTES seed when provided", async () => {
+    const io = makeUserIO(tempDir);
+    const seed = "# Session Notes\n\n## Handoff Metadata\n\n**Working On:** meta-feature-x.md\n";
+
+    await runUserOpen({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      wuName: "feature-x",
+      internalTemplateDir: getInternalTemplatePath(),
+      sessionNotesSeed: seed,
+    });
+
+    await expect(
+      readFile(
+        join(tempDir, ".arc", "user", "test-user", "feature-x", "SESSION-NOTES.md"),
+        "utf-8",
+      ),
+    ).resolves.toBe(seed);
   });
 
   it("idempotent on second invocation — preserves existing SESSION-NOTES edits", async () => {

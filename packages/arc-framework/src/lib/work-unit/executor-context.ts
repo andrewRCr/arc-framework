@@ -25,8 +25,8 @@
  * view through the shared `STATUS.USER` assembly (the same one `arc status --user`
  * uses) in local-only mode and writes `STATUS.USER.md`, degrading to an advisory
  * rather than failing the transition if the render or write throws.
- * `reconcile-roadmap` stays a forward-compat advisory — `roadmap-tooling` owns the
- * real ROADMAP renderer.
+ * `reconcile-roadmap` writes and stages the project readiness view through the
+ * shared status renderer.
  *
  * @module
  */
@@ -48,6 +48,7 @@ import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
 import { composeProjectReadinessView } from "../status/project-view.js";
+import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
@@ -55,7 +56,10 @@ import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js
 import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-executor.js";
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
-import { reconcileWorktree } from "./mutators/reconcile-worktree.js";
+import {
+  nodeReconcileWorktreeFs,
+  reconcileWorktree,
+} from "./mutators/reconcile-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
 import { dischargeDepEdges } from "./side-effects/discharge-dep-edges.js";
@@ -112,7 +116,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     readFile: (p) => io.readFile(at(p)),
   };
 
-  const userWorkspaceHandler: SideEffectHandler = async ({ slug, to }) => {
+  const userWorkspaceHandler: SideEffectHandler = async ({ slug, to, inputs }) => {
     // No resolved identity ⇒ no user-workspace satellite to open or close. Skip
     // uniformly on both directions — the prior open path fired with an empty
     // identity while the close path was already skipped, an inconsistency.
@@ -121,7 +125,14 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     // out (to backlog / completed / nonexistent) closes it. Start's arms all land
     // in an active location, so they open.
     if (to !== null && to.location === "active") {
-      await runUserOpen({ cwd, io, identity, wuName: slug, internalTemplateDir });
+      await runUserOpen({
+        cwd,
+        io,
+        identity,
+        wuName: slug,
+        internalTemplateDir,
+        sessionNotesSeed: inputs.sessionNotesSeed,
+      });
     } else {
       await runUserClose({ cwd, identity, wuName: slug });
     }
@@ -168,6 +179,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
 
   return {
     cwd,
+    withCwd: (nextCwd) => buildExecutorContext({ ...deps, cwd: nextCwd }),
     exec,
     indexFs,
 
@@ -190,7 +202,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
     reconcileWorktree: (op) =>
-      reconcileWorktree({ exec, chdir: (dir) => { process.chdir(at(dir)); } }, op),
+      reconcileWorktree({ exec, chdir: (dir) => { process.chdir(at(dir)); }, fs: nodeReconcileWorktreeFs }, op),
 
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));
@@ -281,6 +293,8 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
               ).output,
             mkdir: io.mkdir,
             writeFile: io.writeFile,
+            resolveIdentityGlobalRoot: async (resolvedIdentity) =>
+              (await resolveUserSurfaceResolver({ cwd, identity: resolvedIdentity, exec })).identityGlobalRoot,
           },
           { cwd, identity, slug, from, to },
         ),

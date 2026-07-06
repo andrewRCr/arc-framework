@@ -31,7 +31,7 @@ import {
   type MetaFieldName,
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import type { GitExec } from "../lib/git/exec.js";
+import { boundedFetch, type GitExec } from "../lib/git/exec.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import {
@@ -39,6 +39,8 @@ import {
   resolveWorktreePathsByBranch,
   runWorktreeRoster,
 } from "../lib/git/worktree-roster.js";
+import { deriveInFlight } from "../lib/git/in-flight-derivation.js";
+import { DEFAULT_NETWORK_TIMEOUT_MS, resolveInFlightBranchSet } from "../lib/git/remote-ref-reader.js";
 import { resolveWriteContext, type WriteContext } from "../lib/git/write-context.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
@@ -59,6 +61,7 @@ import {
   type BacklogMoveResult,
 } from "../lib/work-unit/verbs/promote-demote.js";
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
+import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { runDecompose } from "../lib/work-unit/verbs/decompose.js";
 import { parseCutMap } from "../lib/work-unit/decompose-cut-map.js";
@@ -73,6 +76,10 @@ import {
   type FinalizeFirePoint,
 } from "../lib/work-unit/verbs/finalize-stage.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
+import {
+  findMaterializableWorkUnits,
+  type MaterializableWorkUnit,
+} from "../lib/session-init/materializable-work-units.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 
@@ -574,6 +581,12 @@ export interface ResumeOptions {
   here?: boolean;
 }
 
+/** Options for `arc materialize`. */
+export interface MaterializeOptions {
+  /** Check out the remote-only WU in the current worktree instead of spawning a new one. */
+  here?: boolean;
+}
+
 /**
  * `arc resume <slug>` — re-attach a parked WU's preserved branch. Spawns a fresh
  * worktree by default; `--here` re-attaches in the current checkout (no spawn).
@@ -619,6 +632,9 @@ export async function handleResume(slug: string | undefined, opts: ResumeOptions
   const result = await runResume(ctx, {
     name: target,
     locationTemplate: settings["worktree.location_template"],
+    postCreateScript: settings["worktree.post_create"],
+    primaryWorktreePath,
+    registeredHarnessDirs: settings["worktree.harness_dirs"],
     repo: basename(primaryWorktreePath),
     spawningIdentity: base.identity,
   });
@@ -627,6 +643,143 @@ export async function handleResume(slug: string | undefined, opts: ResumeOptions
     return;
   }
   reportOutcome("Resumed", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+function formatMaterializeCandidates(candidates: readonly MaterializableWorkUnit[]): string {
+  if (candidates.length === 0) return "No remote-only work units are available to materialize.";
+  return [
+    "Remote-only work units available to materialize:",
+    ...candidates.map((c) => `- ${c.name} (${c.branch})`),
+  ].join("\n");
+}
+
+async function resolveMaterializeCandidate(
+  base: VerbBase,
+  settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"],
+  slug: string | undefined,
+): Promise<MaterializableWorkUnit | null> {
+  const target = slug?.trim();
+  const branchSet = await resolveInFlightBranchSet({ exec: base.io.exec, localOnly: false });
+  if (!branchSet.reachable) {
+    refuse("could not refresh remote materialize candidates from `origin` — retry when the remote is reachable.");
+    return null;
+  }
+
+  const entries = await deriveInFlight({
+    exec: base.io.exec,
+    branches: branchSet.branches,
+    identity: base.identity,
+    teamMode: settings["team.mode"] === "true",
+  });
+  const { candidates } = findMaterializableWorkUnits({ entries, identity: base.identity });
+  if (!target) {
+    refuse(`\`arc materialize <slug>\` requires a work-unit name.\n\n${formatMaterializeCandidates(candidates)}`);
+    return null;
+  }
+
+  const matches = candidates.filter((candidate) => candidate.name === target);
+  if (matches.length === 1) return matches[0] ?? null;
+  if (matches.length > 1) {
+    refuse(
+      `\`${target}\` matches multiple remote-only branches: ${matches.map((m) => `\`${m.branch}\``).join(", ")}.`,
+    );
+    return null;
+  }
+  refuse(`\`${target}\` is not a remote-only materialize candidate.\n\n${formatMaterializeCandidates(candidates)}`);
+  return null;
+}
+
+async function fetchMaterializeBranch(exec: GitExec, branch: string): Promise<void> {
+  const result = await boundedFetch(
+    exec,
+    `+refs/heads/${branch}:refs/remotes/origin/${branch}`,
+    DEFAULT_NETWORK_TIMEOUT_MS,
+  );
+  if (result.outcome === "timeout") {
+    throw new Error(`fetching \`${branch}\` from \`origin\` timed out after ${DEFAULT_NETWORK_TIMEOUT_MS}ms`);
+  }
+  if (result.outcome === "error") {
+    throw result.error instanceof Error ? result.error : new Error(String(result.error));
+  }
+}
+
+/**
+ * `arc materialize <slug>` — pick up a remote-only in-flight WU on this machine.
+ * Spawns a fresh worktree by default; `--here` checks out the fetched remote
+ * branch in the current checkout under the occupancy guard.
+ */
+export async function handleMaterialize(
+  slug: string | undefined,
+  opts: MaterializeOptions = {},
+): Promise<void> {
+  p.intro("arc materialize");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const { executor, settings } = await buildExecutor(base);
+  const candidate = await resolveMaterializeCandidate(base, settings, slug);
+  if (candidate === null) return;
+
+  try {
+    await fetchMaterializeBranch(base.io.exec, candidate.branch);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    refuse(`could not fetch \`origin/${candidate.branch}\` for materialize: ${detail}`);
+    return;
+  }
+
+  if (opts.here) {
+    const result = await runMaterialize(executor, {
+      name: candidate.name,
+      branch: candidate.branch,
+      inPlace: true,
+    });
+    if (result.status === "rejected") {
+      refuse(result.reason);
+      return;
+    }
+    reportOutcome(
+      "Materialized (in place)",
+      [
+        `Work unit: ${candidate.name}`,
+        `Branch:    ${candidate.branch}`,
+        ``,
+        `Run \`arc user pull\`, then re-run session init to resume.`,
+      ],
+      result.outcome,
+    );
+    return;
+  }
+
+  const primaryWorktreePath = await resolvePrimaryWorktreePath(base.io.exec);
+  if (primaryWorktreePath === null) {
+    refuse("could not resolve the primary worktree path to derive the repository name");
+    return;
+  }
+  const result = await runMaterialize(executor, {
+    name: candidate.name,
+    branch: candidate.branch,
+    locationTemplate: settings["worktree.location_template"],
+    postCreateScript: settings["worktree.post_create"],
+    primaryWorktreePath,
+    registeredHarnessDirs: settings["worktree.harness_dirs"],
+    repo: basename(primaryWorktreePath),
+    spawningIdentity: base.identity,
+  });
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome(
+    "Materialized",
+    [
+      `Work unit: ${candidate.name}`,
+      `Branch:    ${candidate.branch}`,
+      ``,
+      `Run \`arc user pull\` in the materialized checkout, then re-run session init to resume.`,
+    ],
+    result.outcome,
+  );
 }
 
 // ---------------------------------------------------------------------------

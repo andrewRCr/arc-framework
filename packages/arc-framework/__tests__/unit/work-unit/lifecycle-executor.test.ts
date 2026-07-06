@@ -125,6 +125,8 @@ interface SpyOptions {
   sideEffects?: Partial<Record<SideEffectId, SideEffectHandler>>;
   /** Register the scaffold/remove artifact runner. */
   withScaffoldOrRemove?: boolean;
+  /** Notice returned by the worktree spawn leg. */
+  worktreeNotice?: string;
 }
 
 /**
@@ -182,7 +184,12 @@ function buildSpies(opts: SpyOptions = {}): Spies {
       calls.push(`leg:worktree:${op.mutation}`);
       guardThrow("reconcileWorktree");
       return op.mutation === "spawn"
-        ? { mutation: "spawn", worktreePath: "/wt", branch: "feat/x" }
+        ? {
+            mutation: "spawn",
+            worktreePath: "/wt",
+            branch: "feat/x",
+            ...(opts.worktreeNotice === undefined ? {} : { postCreateNotice: opts.worktreeNotice }),
+          }
         : { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };
     },
     scaffoldOrRemove: opts.withScaffoldOrRemove
@@ -524,6 +531,24 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
     // artifacts (relocate) → worktree (spawn) → branch (create).
     expect(legTypes).toEqual(["artifacts", "worktree", "branch"]);
     expect(calls.indexOf("leg:worktree:spawn")).toBeLessThan(calls.indexOf("leg:branch:create"));
+  });
+
+  it("surfaces a worktree post-create notice as an advisory", async () => {
+    const { ctx } = buildSpies({
+      metas: [PLANNED_META],
+      guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
+      worktreeNotice: "No `worktree.post_create` script configured; deps must be provisioned.",
+    });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "start",
+      slug: "demo",
+      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+    });
+
+    expect(outcome.status).toBe("ok");
+    if (outcome.status !== "ok") return;
+    expect(outcome.advisories).toContain("No `worktree.post_create` script configured; deps must be provisioned.");
   });
 
   it("reports a mid-bundle leg failure as recoverable — no side-effects, no soft write", async () => {

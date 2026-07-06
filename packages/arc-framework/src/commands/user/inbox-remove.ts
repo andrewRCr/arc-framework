@@ -9,10 +9,8 @@
  * @module
  */
 
-import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-
 import { removeInboxEntry } from "../../lib/user-sync/index.js";
+import { resolveUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import type { UserInboxRemoveOptions, UserInboxRemoveResult } from "./types.js";
 
 /**
@@ -27,18 +25,19 @@ import type { UserInboxRemoveOptions, UserInboxRemoveResult } from "./types.js";
  * @returns Whether an entry was removed and whether the inbox file was absent.
  */
 export async function runUserInboxRemove(options: UserInboxRemoveOptions): Promise<UserInboxRemoveResult> {
-  const { cwd, identity, slug } = options;
-  const inboxPath = join(cwd, ".arc", "user", identity, "USER-INBOX.md");
+  const { cwd, io, identity, slug } = options;
+  const inboxPath = (await resolveUserSurfaceResolver({ cwd, identity, exec: io.exec }))
+    .identityGlobalPath("USER-INBOX.md");
 
   let content: string;
   try {
-    content = await readFile(inboxPath, "utf-8");
+    content = await io.readFile(inboxPath);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return { removed: false, inboxMissing: true };
     throw err;
   }
 
   const result = removeInboxEntry(content, slug);
-  if (result.removed) await writeFile(inboxPath, result.content, "utf-8");
+  if (result.removed) await io.writeFile(inboxPath, result.content);
   return { removed: result.removed, inboxMissing: false };
 }

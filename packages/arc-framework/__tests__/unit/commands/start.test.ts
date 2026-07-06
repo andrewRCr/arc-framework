@@ -47,6 +47,9 @@ function recordingExecWithPrimary(primaryPath: string): { exec: GitExec; calls: 
     if (args[0] === "worktree" && args[1] === "list") {
       return { stdout: `worktree ${primaryPath}\nHEAD abc123\nbranch refs/heads/main\n` };
     }
+    if (args[0] === "rev-parse" && args[1] === "--git-path") {
+      return { stdout: join(primaryPath, ".git", "info", "exclude") };
+    }
     return { stdout: "" };
   };
   return { exec, calls };
@@ -461,7 +464,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
 
   /** Template that lands the spawned worktree beside the primary (inside the temp parent). */
   function siblingTemplate(): string {
-    return join(primaryRoot, "..", "{repo}.{branch}");
+    return join(primaryRoot, "..", "{repo}.{name}");
   }
 
   it("spawns a worktree on a new `plan/<name>` branch via the reconcile-worktree spawn leg", async () => {
@@ -482,6 +485,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
     const expectedPath = resolveWorktreeLocation({
       template: siblingTemplate(),
       repo: basename(primaryRoot),
+      name: "widget",
       branch: "plan/widget",
     });
     // The branch forks from the base via `git worktree add … -b plan/widget <base>`.
@@ -494,6 +498,12 @@ describe("runCreateNew — create-new worktree spawn", () => {
     );
     expect(record.State).toBe("Planning");
     expect(record.Branch).toBe("plan/widget");
+    const sessionNotes = await io.readFile(
+      join(expectedPath, ".arc", "user", "andrew", "widget", "SESSION-NOTES.md"),
+    );
+    expect(sessionNotes).toContain("**Working On:** meta-widget.md");
+    expect(sessionNotes).toContain("**Commit at Handoff:** `[start ceremony pending]`");
+    expect(sessionNotes).toContain("**Session Type:** planning");
     expect((await readWorktreeMarker(expectedPath)).kind).toBe("present");
 
     await rm(expectedPath, { recursive: true, force: true });
@@ -519,6 +529,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
     const expectedPath = resolveWorktreeLocation({
       template: siblingTemplate(),
       repo: basename(primaryRoot),
+      name: "widget",
       branch: "plan/widget",
     });
     // base from config (`develop`, not the `main` default); path from the
@@ -527,6 +538,45 @@ describe("runCreateNew — create-new worktree spawn", () => {
       "git", "worktree", "add", expectedPath, "-b", "plan/widget", "develop",
     ]);
     expect(outcome.value.worktreePath).toBe(expectedPath);
+
+    await rm(expectedPath, { recursive: true, force: true });
+  });
+
+  it("runs configured worktree.post_create after create-new spawns the worktree", async () => {
+    await writeArcConfig(primaryRoot, {
+      "worktree.location_template": siblingTemplate(),
+      "worktree.post_create": "npm run setup:worktree",
+    });
+    const rec = recordingExecWithPrimary(primaryRoot);
+    const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };
+
+    const outcome = await runCreateNew(ctx(io), {
+      worktreePath: primaryRoot,
+      identity: "andrew",
+      name: "widget",
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const expectedPath = resolveWorktreeLocation({
+      template: siblingTemplate(),
+      repo: basename(primaryRoot),
+      name: "widget",
+      branch: "plan/widget",
+    });
+    const postCreateCommand =
+      process.platform === "win32"
+        ? ["cmd.exe", "/d", "/s", "/c", "npm run setup:worktree"]
+        : ["sh", "-c", "npm run setup:worktree"];
+    expect(rec.calls).toEqual(
+      expect.arrayContaining([
+        ["git", "worktree", "add", expectedPath, "-b", "plan/widget", "main"],
+        postCreateCommand,
+      ]),
+    );
+    expect(rec.calls.findIndex((c) => c[0] === "git" && c[1] === "worktree" && c[2] === "add"))
+      .toBeLessThan(rec.calls.findIndex((c) => c[0] === postCreateCommand[0]));
 
     await rm(expectedPath, { recursive: true, force: true });
   });
@@ -563,13 +613,15 @@ describe("runCreateNew — create-new worktree spawn", () => {
     const expectedPath = resolveWorktreeLocation({
       template: siblingTemplate(),
       repo: basename(primaryRoot),
+      name: "widget",
       branch: "plan/widget",
     });
-    expect(outcome.value).toEqual({
+    expect(outcome.value).toMatchObject({
       worktreePath: expectedPath,
       branch: "plan/widget",
       wuName: "widget",
     });
+    expect(outcome.value.postCreateNotice).toMatch(/deps must be provisioned/i);
 
     await rm(expectedPath, { recursive: true, force: true });
   });

@@ -21,6 +21,8 @@ import { atomicWriteJson, exclusiveCreateFile } from "../fs.js";
 import { ensureDir } from "../template/index.js";
 import type { CoreIO } from "../types.js";
 
+import { getRepoSharedUserInternalDir } from "./repo-shared-paths.js";
+
 const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
 /** Dedicated canonical machine-id store — a bare UUID, raced via exclusive create. */
 const MACHINE_ID_FILENAME = ".machine-id";
@@ -95,9 +97,9 @@ export function getUserInternalDir(cwd: string, identity: string): string {
   return join(cwd, ".arc", "user", identity, USER_INTERNAL_DIRNAME);
 }
 
-/** Absolute path to the dedicated `.machine-id` store (the canonical machine identity). */
-function getMachineIdPath(cwd: string, identity: string): string {
-  return join(getUserInternalDir(cwd, identity), MACHINE_ID_FILENAME);
+/** Absolute path to the repo-shared dedicated `.machine-id` store. */
+async function getMachineIdPath(cwd: string, io: CoreIO, identity: string): Promise<string> {
+  return join(await getRepoSharedUserInternalDir(io.exec, cwd, identity), MACHINE_ID_FILENAME);
 }
 
 export async function readLocalSyncState(
@@ -195,8 +197,8 @@ const MACHINE_ID_READBACK_ATTEMPTS = 50;
 const MACHINE_ID_READBACK_DELAY_MS = 2;
 
 /**
- * Resolve this machine's stable identifier from the dedicated `.machine-id`
- * store under `user/{identity}/.internal/`, creating one on first need.
+ * Resolve this machine's stable identifier from the repo-shared dedicated
+ * `.machine-id` store, creating one on first need.
  *
  * The id is a random {@link randomUUID} — never the hostname or any environment
  * value — so it can key a sync-state marker on a ref collaborators fetch
@@ -220,17 +222,19 @@ export async function getOrCreateMachineId(
   identity: string,
   exclusiveCreate: ExclusiveCreateFn = exclusiveCreateFile,
 ): Promise<string> {
-  const machineIdPath = getMachineIdPath(cwd, identity);
+  const machineIdPath = await getMachineIdPath(cwd, io, identity);
 
   const existing = await readMachineIdFile(io, machineIdPath);
   if (existing) return existing;
 
-  // On a fresh `.machine-id`, adopt an id already established under the legacy
-  // `.sync-state.json` field before minting — so a machine that already has an
-  // identity keeps it rather than orphaning its sync-state marker key. The
-  // legacy field is read-tolerated only; nothing writes it back. Routed through
-  // the same exclusive create so concurrent migrators still converge on one.
-  const adopted = await readLegacyMachineId(cwd, io, identity);
+  // On a fresh common-dir `.machine-id`, adopt an id already established by the
+  // prior checkout-local store or the legacy `.sync-state.json` field before
+  // minting — so a machine that already has an identity keeps it rather than
+  // orphaning its sync-state marker key. Legacy stores are read-tolerated only;
+  // nothing writes them back. Routed through the same exclusive create so
+  // concurrent migrators still converge on one.
+  const adopted = await readLegacyCheckoutMachineId(cwd, io, identity)
+    ?? await readLegacyMachineId(cwd, io, identity);
   const candidate = adopted ?? randomUUID();
   try {
     await exclusiveCreate(machineIdPath, candidate);
@@ -298,6 +302,20 @@ function isErrnoCode(err: unknown, code: string): boolean {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * The pre-common-dir machine-id store, read directly from the old checkout-local
+ * `.arc/user/{identity}/.internal/.machine-id` path. Used solely by
+ * {@link getOrCreateMachineId}'s one-time migration adopt — no current writer
+ * persists this path.
+ */
+async function readLegacyCheckoutMachineId(
+  cwd: string,
+  io: CoreIO,
+  identity: string,
+): Promise<string | null> {
+  return readMachineIdFile(io, join(getUserInternalDir(cwd, identity), MACHINE_ID_FILENAME));
 }
 
 /**

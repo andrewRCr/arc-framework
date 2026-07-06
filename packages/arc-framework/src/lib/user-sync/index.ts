@@ -99,6 +99,7 @@ export {
 export {
   serializeSyncStateMarker,
   deserializeSyncStateMarker,
+  syncStateMarkerKey,
   evaluateMarkerLiveness,
   isMarkerExpired,
   SYNC_STATE_MARKER_TTL_DAYS,

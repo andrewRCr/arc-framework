@@ -34,6 +34,8 @@ export interface ReconcileStatusUserContext {
   mkdir: MkdirFn;
   /** Write `STATUS.USER.md`. */
   writeFile: WriteFileFn;
+  /** Resolve the canonical identity-global user root. Defaults to the active checkout. */
+  resolveIdentityGlobalRoot?: (identity: string) => Promise<string>;
 }
 
 /** Parameters for {@link reconcileStatusUser}. */
@@ -69,7 +71,9 @@ export async function reconcileStatusUser(
 ): Promise<ReconcileStatusUserResult> {
   if (params.identity === null) return { written: false, path: null };
 
-  const dir = join(params.cwd, ".arc", "user", params.identity);
+  const dir = ctx.resolveIdentityGlobalRoot !== undefined
+    ? await ctx.resolveIdentityGlobalRoot(params.identity)
+    : join(params.cwd, ".arc", "user", params.identity);
   const path = join(dir, "STATUS.USER.md");
   const view = await ctx.composeView();
   const body = view.endsWith("\n") ? view : `${view}\n`;

@@ -160,6 +160,18 @@ describe("determineCandidateAction", () => {
     expect(action).toBe("switch");
   });
 
+  it("proposes a switch for a WU worktree with unsafe ignored user surfaces", () => {
+    const action = determineCandidateAction({
+      isMainOrAdmin: false,
+      marker: presentMarker,
+      clean: true,
+      userSurfacesSafe: false,
+      merged: true,
+    });
+
+    expect(action).toBe("switch");
+  });
+
   it("is external for a malformed marker", () => {
     const action = determineCandidateAction({
       isMainOrAdmin: false,

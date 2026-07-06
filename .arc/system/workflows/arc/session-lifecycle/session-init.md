@@ -119,10 +119,10 @@ When present, run the **spine** below before resolving the entry mode: it outran
 cold-start resolution on **any** arm and never clobbers the active checkout. Signal absent → skip to
 [Entry dispatch](#entry-dispatch) unchanged.
 
-`--next` and `--start <wu-slug>` are **entry shortcuts**, not signal-leaf signals. They do not use this spine,
-do not relocate through `resolveWriteContext`, and do not skip the sync, context, or mismatch checks below:
-`--next` is handled at the Resume-arm terminal gate, and `--start` is handled at the no-active-WU Orient terminal
-gate.
+`--next` and `--start <slug>` are handled outside this spine — neither uses it or relocates through
+`resolveWriteContext`. `--next` is a Resume-arm terminal shortcut (handled at the Resume terminal gate). `--start`
+is the [focused-recon arm](#focused-recon-arm) — checkout-preserving and arm-orthogonal, resolved just below
+when no signal-leaf signal is present.
 
 Place it after the branch-gone precondition and ahead of the arm resolution; on the signal path the spine
 replaces Step 3's full context-load with a universal-only load and **skips the resume/orient worktree pull** —
@@ -158,6 +158,41 @@ capture-seeded `--errand` reads it).
 
 Arm only the declared goal — surface no unrequested routes, and don't nag about the active WU.
 
+### Focused-recon arm
+
+`--start <slug>` routes to the **focused-recon arm** — the agentic know-what-to-start door, symmetric with the
+no-agent bare `arc start <slug>`. The WU-launch entry spectrum: bare `arc start <slug>` when you know the target
+and want no agent, `--start <slug>` for an agent-vetted launch, and unseeded `arc-session` discovery when you do
+not yet know what to start. Checkout-preserving (never relocates or disturbs the active checkout) and
+arm-orthogonal: it recons a named target and launches it into its **own spawned worktree**, so it fires whether or
+not a WU is active. Resolved here when no signal-leaf signal is present (a co-supplied signal-leaf outranks it); it
+is neither a positional seed nor a signal-leaf relocation.
+
+1. **Resolve the target.** Match `<slug>` against the backlog-WU candidate set (the set positional-seed pre-focus
+   uses). Missing, ambiguous, non-backlog, or already-started / terminal → context mismatch: surface the target
+   state and fall back to normal orientation; the arm does not fire.
+2. **Sync notes, then load universal context + target recon.** Run the conditional sync pulls' notes channel
+   (worktree / base channels surface as readiness input, not a relocate pull), then Step 3 items 1–6 and
+   WORKING-MEMORY (item 8.2) — universal surfaces only (skip the active WU's own artifacts: SESSION-NOTES, active
+   task list, lifecycle workflow), **no ROADMAP discovery pass**. Then read the target WU's own meta (and its task
+   list when present) for the deterministic readiness recon.
+3. **Skip Step 5 discovery.** The named target replaces next-work discovery; run no unseeded pass.
+4. **Recon and launch at Step 6.** Close on the informed launch prompt over the target (readiness verdict — ready /
+   not + why); on launch, run the spawn-anchored `arc start <slug>`, verify the seeded mini-handoff landed, and hand
+   off. See [Step 6's `--start` recon terminal](#6-confirm-orientation).
+
+**Readiness vet — two tiers.** Resolve the target's readiness best-effort — a recorded ready-attestation when its
+meta carries one, else a "tasks Finalized?" heuristic over the target's task list, else deps-only — then layer two
+passes over that result:
+
+- **Tier-1 — deterministic, can gate.** The target's dependency edges gate the launch when unmet — resolve each by
+  slug (`arc status <slug>`), never a state-blind `Depends On` read. Base-drift staleness gates as a second Tier-1
+  signal wherever the target carries a readiness baseline to measure against; absent one, that signal does not
+  apply. A failed Tier-1 signal blocks the green path and reports why.
+- **Tier-2 — judgment, never gates.** An invitation licensed by choosing the agentic door — sanity-check the pick,
+  offer a second opinion. It escalates from a soft invite (Tier-1 green) to a recommendation (Tier-1 drift), never a
+  block. Reuse the probe's in-flight-composition `Class` advisory (already computed); do not recompute it.
+
 ### Entry dispatch
 
 Select the entry mode from `active.value.resolution` and `worktree.value` (the probe pre-resolves both — do
@@ -168,9 +203,9 @@ entry (it reaches this workflow as context, not via the probe). It feeds **cold-
 arm it is surfaced, not acted on.
 
 An **entry shortcut** may also accompany the invocation. `--next` asks the Resume arm to begin the active meta's
-Next Action after a bare-clean orientation. `--start <wu-slug>` asks the no-active-WU Orient arm to start the
-named backlog work unit after a bare-clean orientation. Both shortcuts are terminal-only: conditional sync
-surfaces, dirty state, freshness gaps, blockers, or Step 7 mismatches fall back to the normal prompt.
+Next Action after a bare-clean orientation; it is terminal-only — conditional sync surfaces, dirty state, freshness
+gaps, blockers, or Step 7 mismatches fall back to the normal prompt. (`--start <slug>` is not an arm shortcut here —
+it is the [focused-recon arm](#focused-recon-arm) resolved above.)
 
 An **explicit-intent signal** present at invocation is handled by
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) above, which takes precedence over the arm resolution
@@ -185,8 +220,8 @@ here; the arms below are the **signal-absent** path.
   units). The **signal-absent** path: discovery is the dispatch intent (the positional seed stays orthogonal —
   never "any arg"), with a housekeep soft-offer overlaid when the inbox holds routable captures. An explicit
   `--errand` / `--housekeep` / `--plan` is dispatched by the signal leaf above, before this arm — including the
-  no-active-WU errand elaboration ([Errand cold-entry](#errand-cold-entry-orient-arm) below). `--start
-  <wu-slug>` stays on this arm as a terminal shortcut, not a signal-leaf relocation.
+  no-active-WU errand elaboration ([Errand cold-entry](#errand-cold-entry-orient-arm) below). `--start <slug>` is
+  the [focused-recon arm](#focused-recon-arm), resolved above this arm — not an Orient-arm shortcut.
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
       next-work discovery orients and awaits direction. A positional seed naming a backlog WU **pre-focuses**
       that WU with an init offer (Step 5) — confirm-only, never auto-init. If `errandState` carries flagged
@@ -211,13 +246,13 @@ here; the arms below are the **signal-absent** path.
   non-empty) or a remote-only errand (`errandState.value.materializable.candidates` includes a `chore/<slug>`
   branch with no local worktree and no backing meta). Surface the candidates and ask which to materialize when
   more than one is present; never guess — the candidate list *is* the correctness mechanism (you pick a real
-  in-flight entry, so a phantom / typo'd name is impossible). For a work unit: `git worktree add <path>
-  origin/<branch>` at the path resolved from `worktree.location_template` (`{repo}` → repo name, `{branch}` →
-  branch with `/` slugged to `-`), then `arc user pull` to load its notes; **re-run the Step 1 probe** and
-  proceed as **Resume**. For an errand: `git worktree add <path> origin/<branch>`, **re-run the Step 1 probe**,
-  and proceed as **Errand-resume**. The candidate surface already excludes any entry checked out locally (the
-  oracle's `remoteOnly` filter); as a backstop, git refuses a double checkout, so an already-materialized branch
-  resolves to its existing worktree rather than erroring into a second one.
+  in-flight entry, so a phantom / typo'd name is impossible). For a work unit: run `arc materialize <name>` (or
+  `arc materialize <name> --here` when explicitly materializing in the current checkout), then `arc user pull` to
+  load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an errand:
+  `git worktree add <path> origin/<branch>`, **re-run the Step 1 probe**, and proceed as **Errand-resume**. The
+  candidate surface already excludes any entry checked out locally (the oracle's `remoteOnly` filter); as a
+  backstop, `git worktree add` refuses a double checkout — an already-materialized branch fails with an error
+  rather than spawning a second worktree.
 
 **Cold-start** and **Materialize** are the only arms peeled off before context-load — each mints or fetches
 state, then re-runs the probe and re-enters as **Resume** or **Errand-resume**. **Resume**, **Errand-resume**,
@@ -227,8 +262,8 @@ and **Orient** continue straight to the channels below.
 disposition), and the Orient/discovery arm pre-focuses a seed that names a backlog WU (Step 5 — confirm to
 init). On the remaining arms a supplied seed is not consumed: surface a one-line note in orientation (Step 6)
 that starting fresh work from it means spawning or checking out a new worktree and re-entering there. `--start
-<wu-slug>` is not a positional seed; its slug is the explicit start target and is valid only on the
-no-active-WU Orient arm.
+<slug>` is not a positional seed; its slug is the explicit recon-and-launch target, handled by the
+[focused-recon arm](#focused-recon-arm) (checkout-preserving, arm-orthogonal).
 
 ### Conditional sync pulls (resume / orient arm)
 
@@ -422,9 +457,11 @@ session-state, follow the override instead.
           `refs/notes/arc/user/{identity}`). If no notes either, fall back to
           `git log --oneline -10`. Tracked state + git history is sufficient.
 
-    2. `.arc/user/{identity}/WORKING-MEMORY.md` — cross-WU persistent context. Entries each carry
-       a `_Remove when:_` trigger; treat them as active constraints for this session until their
-       trigger condition is met.
+    2. Resolver-backed identity-global `WORKING-MEMORY.md` — cross-WU persistent context. Read
+       the path emitted in the session-init load set; under linked-worktree operation it is the
+       primary worktree's `.arc/user/{identity}/WORKING-MEMORY.md`, not the active worktree's
+       checkout-local copy. Entries each carry a `_Remove when:_` trigger; treat them as active
+       constraints for this session until their trigger condition is met.
         - **If absent**: no persistent context yet — common for fresh repos or sessions before
           any entry has been added.
 
@@ -561,12 +598,9 @@ If the freshness gap suggests an interrupted session, run the crash-recovery rou
 `[none]`) — discovery only applies between work units. A planning session is an active WU even with no task
 list yet; the meta file's Next Action carries direction.
 
-**`--start <wu-slug>` shortcut.** When present on the no-active-WU Orient arm, resolve `<wu-slug>` before the
-unseeded discovery pass, against the same backlog-WU candidate set that positional-seed pre-focus uses. Missing,
-ambiguous, non-backlog, or already-started / terminal targets are context mismatches: surface the target state and
-fall back to the normal orientation prompt. A valid target bypasses discovery and the confirm-only init offer, but
-do **not** run `arc start <wu-slug>` yet; carry the pending start target to Step 6's terminal-gate check so sync,
-dirty, freshness, blocker, and mismatch surfaces still win.
+**`--start <slug>` focused-recon arm.** Handled by the [focused-recon arm](#focused-recon-arm) in Step 2 —
+target resolution and the universal-only load happen there, and the named target replaces next-work discovery. Skip
+this section's discovery pass entirely; the readiness recon and launch prompt run at Step 6.
 
 When no active meta file was resolved, or the resolved file shows `**Task List:** [none]` outside a
 planning session, assess readiness for the next unit. When a **positional seed** names a backlog WU,
@@ -623,10 +657,22 @@ Otherwise render the normal orientation and prompt.
 
 - `--next` on the Resume arm: omit the final proceed prompt and begin the active meta's Next Action directly.
   Bare `--next` on a no-active-WU Orient arm is a no-op.
-- `--start <wu-slug>` on the no-active-WU Orient arm: omit the confirm-only init offer and run `arc start
-  <wu-slug>` for the pending start target. Once the handoff to `arc start` happens, `init-work-unit` runs
-  unchanged: its `workflowCommit` / `workflowPush` interlocks and `class-resolved` guard still fire. `--start`
-  on a Resume arm is surfaced as an unconsumed shortcut and falls back to the normal prompt.
+**`--start` focused-recon terminal.** On the [focused-recon arm](#focused-recon-arm), frame Step 6 on the
+**target WU**, not the active-work-state shape: report the readiness verdict (ready / not + why — Tier-1 gates,
+Tier-2 invites; see the recon arm's readiness vet) and close on the launch prompt —
+`Launch <slug>? (spawn-anchored — arc start, then start a fresh session in the new worktree)`. On launch:
+
+1. Run the spawn-anchored `arc start <slug>` (spawns the target's own worktree); `init-work-unit`'s
+   `workflowCommit` / `workflowPush` interlocks and `class-resolved` guard fire unchanged.
+2. Verify the seeded mini-handoff landed in the spawned worktree's SESSION-NOTES; if it did not, surface the gap
+   rather than reporting a clean launch.
+3. Hand off generically — emit the worktree path, slug / branch, and "open a fresh session there with your harness
+   of choice; it boots rich off the seed." Never emit a harness-specific launch command.
+
+**Soft guard — no in-session continuation.** Do not relocate the running session into the spawned worktree. If asked
+to "just keep going" in-session, surface the terminal-desync tradeoff (the human's terminal / GUI stay on the
+current checkout while only the agent process moves) and re-offer the fresh-session path; relocate only on an
+explicit informed opt-in. Recommend-and-confirm, not a block.
 
 **Output format:**
 
