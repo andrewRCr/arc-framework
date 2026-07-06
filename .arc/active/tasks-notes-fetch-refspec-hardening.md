@@ -28,23 +28,13 @@ harness), not the built binary. Full loci and reproduction recipe in `notes-note
   `git fetch --prune origin`, and `arc user status`'s comparison path; unit fixtures no longer mention
   `missing-notes-refspec`.
 
-### `[ ]` **1.2 Delete the orphaned `configureNotesRefspec` and its vestigial harness install**
+### `[x]` **1.2 Delete the orphaned `configureNotesRefspec` and its vestigial harness install**
 
 - _Goal:_ With no production caller left, `configureNotesRefspec` and its barrel re-export are gone, and no test
   references the removed helper.
-- _Context:_ Once 1.1 lands, the only remaining references are the `lib/git/index.ts` re-export and the
-  `multi-clone` harness, which calls `configureNotesRefspec` to install the wildcard on every test clone. That
-  install is **vestigial**: the multi-clone tests already propagate notes via explicit `runUserPull`, and their two
-  plain `git fetch origin` calls are branch fetches (asserting `origin/main`) the wildcard never touched. So the
-  deletion needs no test-body migration — only the dangling harness call + import come out.
-
-    - Delete `configureNotesRefspec` from `lib/git/exec.ts` and its re-export from `lib/git/index.ts`.
-
-    - Drop the `configureNotesRefspec` call and its import in `__tests__/helpers/multi-clone.ts`; leave the branch
-      fetches and the `runUserPull`-based notes propagation untouched.
-
-    - Remove the deleted symbol from unit tests: the `configureNotesRefspec` describe block and its import in
-      `__tests__/unit/git/git.test.ts`.
+- _Outcome:_ Removed `configureNotesRefspec` from `lib/git/exec.ts`, its barrel export from `lib/git/index.ts`,
+  and the vestigial multi-clone harness install. The deleted helper's unit-test block is gone; cross-clone tests
+  still pass through explicit `arc user` propagation.
 
 ### `[ ]` **1.3 Defense-in-depth: `--refmap=` on arc's explicit notes-ref temp fetches**
 

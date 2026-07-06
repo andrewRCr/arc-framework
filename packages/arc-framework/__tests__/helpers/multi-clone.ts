@@ -3,8 +3,8 @@
  *
  * Builds a bare origin plus two working clones for cross-machine sync
  * regression coverage. By default both clones share a common starting commit
- * on `main`, and each clone has the ARC user-notes refspec configured so
- * `git fetch` round-trips notes without per-test setup.
+ * on `main`. Notes propagation stays explicit through the `arc user` helpers
+ * each test invokes.
  *
  * Designed to be reused by future cross-clone scenarios — clone identity,
  * extra `git config` overrides, and initial-commit seeding are all
@@ -17,9 +17,6 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-
-import { configureNotesRefspec } from "../../src/lib/git/index.js";
-import { makeGitExec } from "./integration.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -115,7 +112,6 @@ async function createClone(
   for (const [key, value] of Object.entries(options.config)) {
     await execFileAsync("git", ["config", key, value], { cwd: dir });
   }
-  await configureNotesRefspec(makeGitExec(dir));
   return dir;
 }
 
