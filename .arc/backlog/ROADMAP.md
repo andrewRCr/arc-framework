@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `12487053`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `8371a08a`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -19,9 +19,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 ## Ready
 
 | Work unit                     | Priority | Owner  | Depends on | Cohort                     |
-|-------------------------------|----------|--------|------------|----------------------------|
+| ----------------------------- | -------- | ------ | ---------- | -------------------------- |
 | interlock-release-refinement  | P1       | andrew | —          | approval-flow-refinement   |
 | pr-decomposition              | P1       | andrew | —          | —                          |
+| recovery-hardening            | P1       | andrew | —          | —                          |
 | roadmap-tooling               | P1       | andrew | —          | —                          |
 | composable-workflows          | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition           | P2       | andrew | —          | agent-context-optimization |
@@ -52,6 +53,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | adopter-content-aware-ci      | P3       | andrew | —          | —                          |
 | adr-accept-timing             | P3       | andrew | —          | —                          |
 | arc-reinforce                 | P3       | andrew | —          | —                          |
+| burn-in-probe-a               | P3       | andrew | —          | —                          |
+| burn-in-probe-b               | P3       | andrew | —          | —                          |
 | cohort-cut-coherence          | P3       | andrew | —          | —                          |
 | cold-start-init-polish        | P3       | andrew | —          | —                          |
 | contributor-path              | P3       | andrew | —          | —                          |
@@ -75,7 +78,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 ### Depth 1
 
 | Work unit                     | Priority | Owner  | Depends on                    | Cohort                     |
-|-------------------------------|----------|--------|-------------------------------|----------------------------|
+| ----------------------------- | -------- | ------ | ----------------------------- | -------------------------- |
 | unit-scoped-review            | P2       | andrew | commit-increments             | approval-flow-refinement   |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption        | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization          | agent-context-optimization |
@@ -87,10 +90,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit                  | Priority | Owner  | Depends on                                                  | Cohort            |
-|----------------------------|----------|--------|-------------------------------------------------------------|-------------------|
-| wu5-public-release         | P3       | andrew | docs-content-sweep                                          | release-readiness |
-| local-mode                 | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
+| Work unit          | Priority | Owner  | Depends on                                                  | Cohort            |
+| ------------------ | -------- | ------ | ----------------------------------------------------------- | ----------------- |
+| wu5-public-release | P3       | andrew | docs-content-sweep                                          | release-readiness |
+| local-mode         | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
 
 ---
 

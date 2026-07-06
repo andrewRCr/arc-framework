@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { tmpdir } from "node:os";
 
 import {
@@ -122,6 +122,39 @@ describe("reconcileWorktree — spawn", () => {
       ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
       ["git", "rev-parse", "--git-path", "info/exclude"],
     ]);
+
+    const marker = await readWorktreeMarker(expectedPath);
+    expect(marker).toMatchObject({
+      kind: "present",
+      marker: { spawnedByArc: true, wuName: "demo-wu", spawningIdentity: "andrew" },
+    });
+  });
+
+  it("absolutizes a repo-root-relative location template against the primary root", async () => {
+    // Regression: the default `worktree.location_template` is repo-root-relative
+    // (`../{repo}.{name}`), so the resolved value is relative. The spawn must return an
+    // absolute path — a relative one becomes the executor's cwd, and the ceremony's staged
+    // `git add ../<worktree>/…` then escapes the worktree (`fatal: … outside repository`).
+    const { ctx, events } = buildCtx();
+    const primaryPath = join(root, "primary");
+    const expectedPath = join(root, "demo.demo-wu"); // resolve(primaryPath, "../demo.demo-wu")
+
+    const result = await reconcileWorktree(ctx, {
+      mutation: "spawn",
+      branch: "plan/demo-wu",
+      base: "main",
+      locationTemplate: "../{repo}.{name}",
+      repo: "demo",
+      wuName: "demo-wu",
+      spawningIdentity: "andrew",
+      primaryWorktreePath: primaryPath,
+      now: Date.parse("2026-06-15T12:00:00.000Z"),
+    });
+
+    expect(isAbsolute(result.worktreePath)).toBe(true);
+    expect(result).toMatchObject({ mutation: "spawn", worktreePath: expectedPath, branch: "plan/demo-wu" });
+    // The `git worktree add` target is the absolute path, never the `..`-relative template.
+    expect(events[0]).toEqual(["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"]);
 
     const marker = await readWorktreeMarker(expectedPath);
     expect(marker).toMatchObject({

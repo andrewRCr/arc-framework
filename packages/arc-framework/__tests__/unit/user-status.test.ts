@@ -1931,7 +1931,9 @@ describe("runUserSessionInitStatus", () => {
     const currentHead = "b".repeat(40);
     const userDir = "/repo/.arc/user/andrew";
     const internalDir = `${userDir}/.internal`;
-    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    // Branch fallback resolves the current WU to `current`; the saved note carries
+    // that WU's own SESSION-NOTES so it resolves as the nearest note.
+    const noteFiles = { "current/SESSION-NOTES.md": "saved" };
     const noteJSON = JSON.stringify(manifest(noteFiles));
     const syncStateContent = JSON.stringify({
       version: 2,
@@ -1967,10 +1969,10 @@ describe("runUserSessionInitStatus", () => {
       },
       readDir: async (dir: string) => {
         if (dir !== userDir) return [];
-        return [{ name: "SESSION-NOTES.md", size: noteFiles["SESSION-NOTES.md"].length }];
+        return [{ name: "current/SESSION-NOTES.md", size: noteFiles["current/SESSION-NOTES.md"].length }];
       },
       readFile: async (path: string) => {
-        if (path === `${userDir}/SESSION-NOTES.md`) return noteFiles["SESSION-NOTES.md"];
+        if (path === `${userDir}/current/SESSION-NOTES.md`) return noteFiles["current/SESSION-NOTES.md"];
         if (path === `${internalDir}/.sync-state.json`) return syncStateContent;
         throw new Error(`ENOENT: ${path}`);
       },
@@ -2623,7 +2625,9 @@ describe("runUserStatus saved-note projection", () => {
   }
 
   function buildIO(scenario: ProjectionScenario): UserIOContext {
-    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    // Branch fallback resolves the current WU to `status-projection`; the saved
+    // note carries that WU's own SESSION-NOTES so it resolves as the nearest note.
+    const noteFiles = { "status-projection/SESSION-NOTES.md": "saved" };
     const noteManifest = manifest(noteFiles);
     const noteJSON = JSON.stringify(noteManifest);
     const syncStateContent = JSON.stringify({

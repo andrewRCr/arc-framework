@@ -246,12 +246,26 @@ export async function reconcileWorktree(
   }
 
   if (op.mutation === "spawn") {
-    const worktreePath = resolveWorktreeLocation({
+    // `worktree.location_template` is repo-root-relative (default `../{repo}.{name}`),
+    // so its resolved value is relative too. That path becomes the executor's cwd for
+    // the ceremony commit; left relative, the staged `git add <path>` would carry a
+    // `..` that escapes the spawned worktree (`fatal: … outside repository`). Absolutize
+    // a relative template against the repo root once, here, so every downstream consumer
+    // gets an absolute path; an already-absolute template needs no root and passes through.
+    const templatedPath = resolveWorktreeLocation({
       template: op.locationTemplate,
       repo: op.repo,
       name: op.wuName,
       branch: op.branch,
     });
+    let worktreePath = templatedPath;
+    if (!isAbsolute(templatedPath)) {
+      const primaryRoot = op.primaryWorktreePath ?? (await resolvePrimaryWorktreePath(ctx.exec));
+      if (primaryRoot === null) {
+        throw new Error("cannot resolve the primary worktree root to absolutize the relative spawn path");
+      }
+      worktreePath = resolve(primaryRoot, templatedPath);
+    }
     // Re-attach (`createBranch: false`) checks out an existing preserved branch — bare `add`, no
     // `-b`/base; the default cuts a fresh branch (`-b <branch> <base>`) for graduate / create-new.
     const add =
