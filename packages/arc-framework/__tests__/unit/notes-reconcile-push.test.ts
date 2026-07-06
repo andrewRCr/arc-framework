@@ -93,7 +93,7 @@ describe("reconcileNotesPush", () => {
         if (pushCount === 1) return nonFastForward();
         return { stdout: "", stderr: "" };
       },
-      [`fetch origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
+      [`fetch --refmap= origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
       [`notes --ref ${SHORT_REF} merge -s cat_sort_uniq ${TEMP}`]: { stdout: "", stderr: "" },
       [`notes --ref ${SHORT_REF} list`]: { stdout: `noteobj ${NOTE_COMMIT}`, stderr: "" },
       [`notes --ref ${SHORT_REF} show *`]: { stdout: VALID_NOTE, stderr: "" },
@@ -106,6 +106,11 @@ describe("reconcileNotesPush", () => {
     expect(result.kind).toBe("reconciled");
 
     // The lossless cat_sort_uniq notes merge fired against the fetched temp ref.
+    expect(
+      calls.some((args) =>
+        args[0] === "fetch" && args[1] === "--refmap=" && args[2] === "origin",
+      ),
+    ).toBe(true);
     const mergeCall = calls.find(
       (args) => args[0] === "notes" && args.includes("merge") && args.includes("cat_sort_uniq"),
     );
@@ -155,7 +160,7 @@ describe("reconcileNotesPush", () => {
       [`rev-parse --verify ${REF}`]: { stdout: "premerge-tip", stderr: "" },
       [`ls-remote origin ${REF}`]: { stdout: `remotehash\t${REF}`, stderr: "" },
       [`push origin ${REF}`]: () => nonFastForward(),
-      [`fetch origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
+      [`fetch --refmap= origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
       [`notes --ref ${SHORT_REF} merge -s cat_sort_uniq ${TEMP}`]: { stdout: "", stderr: "" },
       [`notes --ref ${SHORT_REF} list`]: { stdout: `noteobj ${NOTE_COMMIT}`, stderr: "" },
       // cat_sort_uniq concatenated two manifests for the same commit → invalid JSON.
@@ -181,7 +186,7 @@ describe("reconcileNotesPush", () => {
       [`rev-parse --verify ${REF}`]: { stdout: "premerge-tip", stderr: "" },
       [`ls-remote origin ${REF}`]: { stdout: `remotehash\t${REF}`, stderr: "" },
       [`push origin ${REF}`]: () => nonFastForward(),
-      [`fetch origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
+      [`fetch --refmap= origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
       [`notes --ref ${SHORT_REF} merge -s cat_sort_uniq ${TEMP}`]: () => {
         throw new Error("fatal: a notes merge is already in-progress");
       },

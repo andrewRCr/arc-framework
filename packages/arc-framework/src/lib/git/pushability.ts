@@ -5,7 +5,7 @@
  * Distinct concern from {@link ./worktree-sync.js | worktree-sync}: that probe
  * answers "what's local-vs-remote?", this one answers "can a push fire right
  * now?" Some conditions (rebase, detached HEAD) are global; others depend on
- * the push target (worktree branch upstream, notes-ref fetch refspec).
+ * the push target (worktree branch upstream, single-leg alignment).
  *
  * Consumed by `commands/user/push-fetch.ts` before the notes push and by the
  * session-handoff probe envelope so the handoff workflow can gate the
@@ -34,7 +34,7 @@
  * @module
  */
 
-import { configureNotesRefspec, type GitExec } from "./exec.js";
+import type { GitExec } from "./exec.js";
 import type { WorktreeSyncState } from "./worktree-sync.js";
 
 /** Which push target(s) the matrix evaluates. `both` unions worktree and notes conditions. */
@@ -45,7 +45,6 @@ export type PushabilityConditionKind =
   | "rebase-in-progress"
   | "detached-head"
   | "no-upstream-branch"
-  | "missing-notes-refspec"
   | "force-push-required"
   | "worktree-not-aligned-with-origin";
 
@@ -136,15 +135,12 @@ export interface RunPushabilityStatusOptions {
   worktreeBranch?: string;
 }
 
-/** Notes refspec that must be present in `remote.origin.fetch` for round-tripping ARC user notes. */
-const NOTES_REFSPEC = "+refs/notes/arc/user/*:refs/notes/arc/user/*";
-
 /**
  * Probe pushability conditions for the requested target(s).
  *
  * Returns the union of detected conditions. Global conditions (rebase,
- * detached HEAD) apply regardless of target. Ref-specific conditions
- * (worktree upstream, notes refspec) apply only to their target.
+ * detached HEAD) apply regardless of target. Target-specific conditions
+ * (worktree upstream, single-leg alignment) apply only to their target.
  */
 export async function runPushabilityStatus(
   options: RunPushabilityStatusOptions,
@@ -156,7 +152,6 @@ export async function runPushabilityStatus(
   conditions.push(...rebaseConditions);
 
   const evaluatesWorktree = target === "worktree" || target === "both";
-  const evaluatesNotes = target === "notes" || target === "both";
 
   if (evaluatesWorktree) {
     const branchOrDetached = await detectBranchState(exec);
@@ -182,13 +177,6 @@ export async function runPushabilityStatus(
           "Worktree branch has diverged from origin — force-push would be required to publish. "
           + "Reconcile via rebase or merge before pushing.",
       });
-    }
-  }
-
-  if (evaluatesNotes) {
-    const refspecCondition = await detectNotesRefspec(exec);
-    if (refspecCondition !== null) {
-      conditions.push(refspecCondition);
     }
   }
 
@@ -339,25 +327,4 @@ function buildAlignmentGuidance(
   }
   return `Worktree has diverged from \`origin/${branch}\` (${ahead} ahead, ${behind} behind) — `
     + "reconcile via rebase or merge before pushing notes.";
-}
-
-async function detectNotesRefspec(exec: GitExec): Promise<PushabilityCondition | null> {
-  let fetchEntries = "";
-  try {
-    const { stdout } = await exec("git", ["config", "--get-all", "remote.origin.fetch"]);
-    fetchEntries = stdout;
-  } catch {
-    // No fetch entries configured at all.
-  }
-  if (fetchEntries.includes(NOTES_REFSPEC)) {
-    return null;
-  }
-  const installed = await configureNotesRefspec(exec);
-  return {
-    kind: "missing-notes-refspec",
-    disposition: "auto-fixed",
-    guidance: installed
-      ? "Notes-ref fetch refspec was missing from `remote.origin.fetch` — auto-configured."
-      : "Notes-ref fetch refspec missing and no `origin` remote configured — set up a remote before pushing notes.",
-  };
 }

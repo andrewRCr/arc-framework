@@ -119,7 +119,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   ];
   await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
 
-  // User directory, session templates, and notes refspec
+  // User directory and session templates
   await runPostInitSetup({
     arcDir, internalTemplateDir, io, identityResult,
   });

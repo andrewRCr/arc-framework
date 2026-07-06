@@ -2,12 +2,11 @@
  * Shared setup operations for `arc init` and `arc join`.
  *
  * Git integration (hooks path) and post-init user setup (identity, user
- * directory, notes refspec). Extracted from init.ts so both commands share
- * the same setup sequence.
+ * directory). Extracted from init.ts so both commands share the same setup
+ * sequence.
  */
 
 import { ensureDir } from "./template/index.js";
-import { configureNotesRefspec } from "./git/index.js";
 import { detectHookManager } from "./hook-manager.js";
 import { integrateHooks } from "./hook-integration.js";
 import { join } from "node:path";
@@ -69,13 +68,12 @@ export interface PostInitSetupOptions {
 /**
  * Run post-init user setup shared by both fresh and join modes.
  *
- * Stores identity in git config, creates the user directory with the
+ * Stores identity in git config and creates the user directory with the
  * cross-WU instance files (WORKING-MEMORY, USER-INBOX) seeded from the
- * internal templates, and configures the git notes refspec for cross-machine
- * portability. SESSION-NOTES is per-WU and seeded lazily by `arc user open`
- * once a work unit is anchored — there is no anchored WU at init time. Per-
- * user files seed cross-PM-mode (R65b) — `pm.mode` no longer gates
- * user-directory seeding.
+ * internal templates. SESSION-NOTES is per-WU and seeded lazily by
+ * `arc user open` once a work unit is anchored — there is no anchored WU
+ * at init time. Per-user files seed cross-PM-mode (R65b) — `pm.mode` no
+ * longer gates user-directory seeding.
  */
 export async function runPostInitSetup(
   options: PostInitSetupOptions,
@@ -93,6 +91,4 @@ export async function runPostInitSetup(
       await io.writeFile(join(userDir, filename), content);
     }
   }
-
-  await configureNotesRefspec(io.exec);
 }

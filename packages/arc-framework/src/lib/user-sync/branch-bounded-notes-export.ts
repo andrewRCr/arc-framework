@@ -138,7 +138,7 @@ export async function planBranchBoundedNotesExport(
 
     await deleteRef(exec, tempRef);
     if (remoteTip !== null) {
-      await exec("git", ["fetch", "origin", `+${destinationRef}:${tempRef}`]);
+      await exec("git", ["fetch", "--refmap=", "origin", `+${destinationRef}:${tempRef}`]);
     }
 
     const remoteEntries = new Map(

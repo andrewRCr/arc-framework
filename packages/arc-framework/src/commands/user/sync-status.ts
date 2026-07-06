@@ -1404,7 +1404,7 @@ async function boundedNotesRefFetch(
   tempRef: string,
   timeoutMs?: number,
 ): Promise<void> {
-  const args = ["fetch", "origin", `+${localRef}:${tempRef}`];
+  const args = ["fetch", "--refmap=", "origin", `+${localRef}:${tempRef}`];
   if (timeoutMs === undefined) {
     await io.exec("git", args);
     return;
