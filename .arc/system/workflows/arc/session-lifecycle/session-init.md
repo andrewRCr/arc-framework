@@ -251,8 +251,8 @@ here; the arms below are the **signal-absent** path.
   load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an errand:
   `git worktree add <path> origin/<branch>`, **re-run the Step 1 probe**, and proceed as **Errand-resume**. The
   candidate surface already excludes any entry checked out locally (the oracle's `remoteOnly` filter); as a
-  backstop, git refuses a double checkout, so an already-materialized branch resolves to its existing worktree
-  rather than erroring into a second one.
+  backstop, `git worktree add` refuses a double checkout — an already-materialized branch fails with an error
+  rather than spawning a second worktree.
 
 **Cold-start** and **Materialize** are the only arms peeled off before context-load — each mints or fetches
 state, then re-runs the probe and re-enters as **Resume** or **Errand-resume**. **Resume**, **Errand-resume**,

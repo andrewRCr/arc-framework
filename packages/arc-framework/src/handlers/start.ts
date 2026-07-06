@@ -547,8 +547,21 @@ async function commitAndPushStartCeremony(
     await ctx.io.exec("git", ["add", ...opts.stagePaths], { cwd: opts.cwd });
     await ctx.io.exec("git", ["commit", ...commitMessageArgs(opts.message)], { cwd: opts.cwd });
     const { stdout } = await ctx.io.exec("git", ["rev-parse", "--short", "HEAD"], { cwd: opts.cwd });
-    await ctx.io.exec("git", ["push", "-u", "origin", opts.branch], { cwd: opts.cwd });
-    return { ok: true, commit: stdout.trim() || "HEAD" };
+    const commit = stdout.trim() || "HEAD";
+    try {
+      await ctx.io.exec("git", ["push", "-u", "origin", opts.branch], { cwd: opts.cwd });
+    } catch (err) {
+      // The commit already landed; only the push failed. Surface the SHA and a
+      // retry so the user resumes the push rather than re-running the ceremony.
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        reason:
+          `commit ${commit} landed in ${opts.cwd}, but push failed: ${message}. ` +
+          `Retry with \`git push -u origin ${opts.branch}\`.`,
+      };
+    }
+    return { ok: true, commit };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `start ceremony commit/push failed: ${message}` };

@@ -172,7 +172,7 @@ checkout after a spawned start succeeds.
   `/arc-session` in the relocated session.
 - **Codex CLI** — no live-session relocate. Do not launch nested Codex from a shell escape inside the current
   session. Tell the user to open a fresh terminal (or end this session and reuse the terminal), run
-  `codex --cd <worktree-path>`, then invoke `$arc-session`. The seeded SESSION-NOTES is the handoff bridge; the
+  `codex --cd <worktree-path>`, then invoke `arc-session`. The seeded SESSION-NOTES is the handoff bridge; the
   invoking no-active-WU session needs no handoff unless extra context surfaced after the start and has not been
   captured.
 - **Other harnesses** — enter the emitted worktree root by the harness-native mechanism, then invoke that

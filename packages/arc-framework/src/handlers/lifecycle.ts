@@ -31,7 +31,7 @@ import {
   type MetaFieldName,
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import type { GitExec } from "../lib/git/exec.js";
+import { boundedFetch, type GitExec } from "../lib/git/exec.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import {
@@ -40,7 +40,7 @@ import {
   runWorktreeRoster,
 } from "../lib/git/worktree-roster.js";
 import { deriveInFlight } from "../lib/git/in-flight-derivation.js";
-import { resolveInFlightBranchSet } from "../lib/git/remote-ref-reader.js";
+import { DEFAULT_NETWORK_TIMEOUT_MS, resolveInFlightBranchSet } from "../lib/git/remote-ref-reader.js";
 import { resolveWriteContext, type WriteContext } from "../lib/git/write-context.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
@@ -690,7 +690,17 @@ async function resolveMaterializeCandidate(
 }
 
 async function fetchMaterializeBranch(exec: GitExec, branch: string): Promise<void> {
-  await exec("git", ["fetch", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`]);
+  const result = await boundedFetch(
+    exec,
+    `+refs/heads/${branch}:refs/remotes/origin/${branch}`,
+    DEFAULT_NETWORK_TIMEOUT_MS,
+  );
+  if (result.outcome === "timeout") {
+    throw new Error(`fetching \`${branch}\` from \`origin\` timed out after ${DEFAULT_NETWORK_TIMEOUT_MS}ms`);
+  }
+  if (result.outcome === "error") {
+    throw result.error instanceof Error ? result.error : new Error(String(result.error));
+  }
 }
 
 /**

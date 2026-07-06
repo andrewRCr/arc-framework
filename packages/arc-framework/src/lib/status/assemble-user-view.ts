@@ -122,8 +122,12 @@ export async function assembleStatusUserView(
   });
 
   if (view.source === "rendered" && statusUserPath !== null && writeFile !== undefined && mkdir !== undefined) {
-    await mkdir(dirname(statusUserPath), { recursive: true });
-    await writeFile(statusUserPath, view.output.endsWith("\n") ? view.output : `${view.output}\n`);
+    try {
+      await mkdir(dirname(statusUserPath), { recursive: true });
+      await writeFile(statusUserPath, view.output.endsWith("\n") ? view.output : `${view.output}\n`);
+    } catch {
+      // Advisory cache only — a failed write must not break the already-rendered view.
+    }
   }
 
   return view;

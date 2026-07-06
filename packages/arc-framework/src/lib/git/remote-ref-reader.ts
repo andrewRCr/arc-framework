@@ -23,7 +23,7 @@ import type { GitExec } from "./exec.js";
  * 0.45s on a good link; the budget covers the slow-link tail while keeping a
  * miss non-blocking. Callers may override per invocation.
  */
-const DEFAULT_NETWORK_TIMEOUT_MS = 5000;
+export const DEFAULT_NETWORK_TIMEOUT_MS = 5000;
 
 /** Outcome of a timeout-bounded git read — `ok: false` on timeout or error. */
 interface BoundedResult {
