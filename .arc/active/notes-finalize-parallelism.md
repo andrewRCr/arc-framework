@@ -46,12 +46,6 @@ drain-time check landed in the rules + strategy). The edges that remain live dur
 - **Coordination-seam captures** (the batch-errand/drain-shape seams, the same-entry-merge build home, the
   `/arc-shift` disposition) are routed at planning close via gitignored `USER-INBOX` captures, not by editing
   sibling WUs' tracked buffers from this branch.
-- **Wave-1-surfaced captures pending routing (2026-07-05).** Two findings surfaced during wave-1 setup, to flush
-  to `USER-INBOX` from a primary session (capture-from-this-linked-worktree is unreliable per the BI-6 divergence
-  in § Dogfood finding above): (1) session-init entry-arm naming — rename the user-facing `focused recon` arm to
-  `preflight` (closed form), rename BI-5's internal `preflight` meta-validation usage to free the term, keep the
-  `--start` signal → `WU_Target: wu-lifecycle-state-model` (x-ref naming-conventions). (2) The wave-1 workload
-  finding (§ Dogfood finding, Wave-1 workload) as `Class`/lifecycle evidence → `WU_Target: wu-lifecycle-state-model`.
 - **Mid-flight build-items forward-port (Phase 2.I) is a base write — sequence it.** The build items reach `main`
   as a code-only forward-port before the waves (so wave worktrees run the observer's CLI), which writes
   `origin/main`. Coordinate with any concurrent base writer (sibling WU integration, errand / housekeep PRs) as a
