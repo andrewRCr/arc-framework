@@ -9,16 +9,13 @@
 _Purpose:_ Capture the lifecycle evidence this disposable Wave 1 fixture exists to produce, with a small
 `notes-burn-in-probe-a.md` companion as the durable record.
 
-### `[ ]` **1.1 Create the burn-in evidence log**
+### `[x]` **1.1 Create the burn-in evidence log**
 
 - _Goal:_ `notes-burn-in-probe-a.md` records the spawned-worktree lifecycle evidence needed to evaluate this
   fixture.
 
-    - Create `notes-burn-in-probe-a.md` beside the spec and task list.
-    - Record the already-observed launch/session-init facts: spawned worktree path, seeded `SESSION-NOTES`, clean
-      notes-status message after the PR 202 fix, and base-merge/reprobe history.
-    - Keep the file as an evidence log, not a design artifact: factual observations, command outcomes, and any
-      routed follow-up concerns only.
+- _Outcome:_ Created `notes-burn-in-probe-a.md` with the observed spawn/session-init facts, PR #201/#202
+  notes-status reprobes, artifact-placement correction, stale-upstream recovery, and sibling-touch warnings.
 
 ### `[ ]` **1.2 Exercise handoff and resume evidence**
 
