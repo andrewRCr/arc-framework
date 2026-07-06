@@ -698,6 +698,21 @@ export interface UserSessionLocalNoteFreshness {
    * states that don't surface ancestry context.
    */
   currentBranch?: string | null;
+  /**
+   * For the `missing` state: whether the freshness query was work-unit-scoped
+   * (a current WU resolved). `false` means identity-scoped (no current WU — an
+   * errand or between-WUs), where `missing` speaks to the identity's whole
+   * notes ref. Omitted on the non-`missing` states.
+   */
+  wuScoped?: boolean;
+  /**
+   * For a WU-scoped `missing` state: whether the WU's SESSION-NOTES.md is
+   * present on disk — seeded by spawn/start but not yet saved to the notes ref.
+   * `true` is the expected fresh-spawn state; `false` means no personal context
+   * exists for the WU on disk or in the ref (an unexpected gap). Omitted when
+   * not WU-scoped or not `missing`.
+   */
+  seedPresent?: boolean;
 }
 
 /**
