@@ -1476,6 +1476,19 @@ describe("user push and pull", () => {
     return readNotesRefTip(repo, identity);
   }
 
+  async function installNotesFetchWildcard(repo: string): Promise<void> {
+    await execFileAsync(
+      "git",
+      [
+        "config",
+        "--add",
+        "remote.origin.fetch",
+        "+refs/notes/arc/user/*:refs/notes/arc/user/*",
+      ],
+      { cwd: repo },
+    );
+  }
+
   it("init on a repo with origin keeps branch fetch configured without adding a notes wildcard", async () => {
     const { repo, remote } = await initRepoWithRemote();
     try {
@@ -1527,6 +1540,24 @@ describe("user push and pull", () => {
     const { repo, remote } = await initRepoWithRemote();
     try {
       const io = makeUserIO(repo);
+      await saveUserMemory(repo, "test-user", "# Remote baseline\n");
+      await runUserPush({ io, identity: "test-user" });
+      const localTip = await saveUserMemory(repo, "test-user", "# Local unpushed\n");
+
+      await runUserStatus({ cwd: repo, io, identity: "test-user" });
+
+      await expect(readNotesRefTip(repo, "test-user")).resolves.toBe(localTip);
+    } finally {
+      await cleanupTempDir(repo);
+      await cleanupTempDir(remote);
+    }
+  });
+
+  it("user status ignores a stale configured notes wildcard during its temp fetch", async () => {
+    const { repo, remote } = await initRepoWithRemote();
+    try {
+      const io = makeUserIO(repo);
+      await installNotesFetchWildcard(repo);
       await saveUserMemory(repo, "test-user", "# Remote baseline\n");
       await runUserPush({ io, identity: "test-user" });
       const localTip = await saveUserMemory(repo, "test-user", "# Local unpushed\n");

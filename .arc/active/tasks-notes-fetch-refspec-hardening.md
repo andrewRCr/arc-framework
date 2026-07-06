@@ -36,22 +36,14 @@ harness), not the built binary. Full loci and reproduction recipe in `notes-note
   and the vestigial multi-clone harness install. The deleted helper's unit-test block is gone; cross-clone tests
   still pass through explicit `arc user` propagation.
 
-### `[ ]` **1.3 Defense-in-depth: `--refmap=` on arc's explicit notes-ref temp fetches**
+### `[x]` **1.3 Defense-in-depth: `--refmap=` on arc's explicit notes-ref temp fetches**
 
 - _Goal:_ A stray configured refspec can never re-introduce the clobber through arc's own notes-ref temp fetches —
   each ignores configured refspecs.
-- _Note:_ `runUserFetch`'s canonical-target fetch is deliberately excluded — its explicit `<ref>:<ref>` refspec
-  governs its own (non-)force semantics. The two `refs/arc/user/**` temp fetches are not vectors of this bug (no
-  configured wildcard matches) and stay out of scope.
-
-    - Add `--refmap=` to the three notes-ref temp fetches: `boundedNotesRefFetch`
-      (`commands/user/sync-status.ts`), the reconcile fetch in `reconcileAndRepush` (`commands/user/push-fetch.ts`),
-      and the export fetch in `lib/user-sync/branch-bounded-notes-export.ts`.
-
-    - Test the defense (integration): with a `+refs/notes/arc/user/*` wildcard deliberately reinstalled in a temp
-      clone, an unpushed `arc user save` survives arc's notes-ref temp fetch (an `arc user status` /
-      `boundedNotesRefFetch` run) — canonical `refs/notes/arc/user/<id>` unchanged — proving `--refmap=`
-      neutralizes a stray configured refspec.
+- _Outcome:_ Added `--refmap=` to `boundedNotesRefFetch`, the reconcile incoming-ref fetch, and the
+  branch-bounded notes-export fetch while leaving `runUserFetch`'s canonical-target fetch unchanged. Integration
+  coverage now manually reinstalls the wildcard and proves `arc user status` preserves an unpushed local note; the
+  reconcile unit tests pin the same fetch shape for non-fast-forward recovery.
 
 ### `[ ]` **1.4 One-time cleanup of this clone's configured refspec**
 

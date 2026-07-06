@@ -2978,9 +2978,10 @@ describe("runUserStatus bounded notes-ref fetch", () => {
       }
       if (
         args[0] === "fetch"
-        && args[1] === "origin"
-        && typeof args[2] === "string"
-        && args[2].startsWith(`+${notesRef}:`)
+        && args[1] === "--refmap="
+        && args[2] === "origin"
+        && typeof args[3] === "string"
+        && args[3].startsWith(`+${notesRef}:`)
       ) {
         if (fetchBehavior === "abort-error") {
           const err = new Error("aborted");
@@ -3020,9 +3021,10 @@ describe("runUserStatus bounded notes-ref fetch", () => {
   function findNotesRefFetch(calls: ExecCall[]): ExecCall | undefined {
     return calls.find((c) =>
       c.args[0] === "fetch"
-      && c.args[1] === "origin"
-      && typeof c.args[2] === "string"
-      && c.args[2].startsWith(`+${notesRef}:`),
+      && c.args[1] === "--refmap="
+      && c.args[2] === "origin"
+      && typeof c.args[3] === "string"
+      && c.args[3].startsWith(`+${notesRef}:`),
     );
   }
 

@@ -252,7 +252,7 @@ async function reconcileAndRepush(
   const incoming = incomingNotesRef(fullRef);
   const preMergeTip = await readRefTip(io, fullRef);
 
-  await io.exec("git", ["fetch", "origin", incomingFetchRefspec(fullRef)]);
+  await io.exec("git", ["fetch", "--refmap=", "origin", incomingFetchRefspec(fullRef)]);
 
   try {
     await io.exec("git", notesMergeArgs(shortRef, incoming));
