@@ -429,9 +429,12 @@ PR, not two.
 - _Goal:_ The BI-1→BI-6 changes and the Phase 2.E entry-arch reach `main` as one PR — `packages/**` plus
   `.arc/system/` config (workflows, skill), and not FP's `.arc/active/*finalize-parallelism*` planning artifacts.
 
-    - `[ ]` **2.I.1.a Assemble the code-only forward-port branch + PR**
-        - Cut a branch off `main`, apply FP's build-item + entry-arch diff excluding `.arc/active/*finalize-parallelism*`,
-          confirm the diff is mechanism-only (no FP planning artifacts, no default flip), and open the PR.
+    - `[x]` **2.I.1.a Assemble the code-only forward-port branch + PR**
+        - Cut `chore/forward-port-parallelism-mechanism` off `main` and 3-way-applied FP's net mechanism diff
+          (150 files): CLI + tests, `.arc/system/` workflows/skill/config, the `worktree-post-create.sh` script, and
+          the strategy/inbox docs describing the shipped user-surface resolver. FP's planning artifacts excluded;
+          confirmed no begin-work default flip. Base drift was the #195 renderer only — resolved 2 co-evolved-file
+          conflicts preserving #195's test-scoping refinement. Opened PR #196.
 
     - `[ ]` **2.I.1.b Merge to `main` (defaults unflipped)**
         - Merge after review; confirm base carries the mechanism with the begin-work default still `--here`.
@@ -645,6 +648,22 @@ the waves run rather than authored up front.
 > **Open phase — populated during the burn-in waves** (Phases 3–6), per the Resolution model. Near-empty by
 > design; the incompleteness is intentional. Remove on close — `_Purpose:_` keeps the emergent-population fact
 > legible. _Prototype marker (FP); codified by `task-list-conventions`._
+
+### `[ ]` **7.1 [BLOCKING] Move identity-global user-surface migration out of the path resolver**
+
+- _Goal:_ `resolveUserSurfaceResolver` resolves paths only — it neither performs linked-worktree migration writes
+  nor throws on a blocked migration, so routine read-only command paths (`arc user add`, `inbox-remove`, `status`,
+  `recover`, plus executor-context and user-view assembly) can't fail on an unrelated divergent flat file.
+  Migration relocates to an explicit opt-in flow (command layer or a dedicated reconcile step); if it must stay
+  co-located, resolution degrades to advisory rather than throwing.
+- _Blocking:_ MUST resolve before FP integration / GA — do not let this ship unfixed. The same issue rides on
+  `main` after the Phase 2.I forward-port (the port is byte-faithful), so its fix reaches `main` at FP's own
+  integration. Latent, not a current-work blocker: throws only on a linked worktree with an unmergeable divergent
+  flat file.
+- _Files:_ `src/lib/user-surfaces.ts` (`resolveUserSurfaceResolver` ~90-113 — the
+  `reconcileLinkedIdentityGlobalUserSurfaces({ signpost: true })` call and the `blocked` → `throw`) and its call
+  sites.
+- _Surfaced by:_ CodeRabbit review of the Phase 2.I forward-port (PR #196), 2026-07-05.
 
 ## **Phase 8:** GA closeout
 
