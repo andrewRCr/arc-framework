@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "fix-spawn-worktree-path",
+  "origin": "description",
+  "intent": "Absolutize spawned worktree path so start-ceremony git add doesn't escape the worktree under a relative location_template",
+  "branch": "fix/fix-spawn-worktree-path",
+  "createdAt": "2026-07-06T11:45:41.598Z"
+}
