@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "stub-burn-in-probes",
+  "origin": "description",
+  "intent": "scaffold wave-1 burn-in fixture stubs for finalize-parallelism",
+  "branch": "chore/stub-burn-in-probes",
+  "createdAt": "2026-07-06T03:04:40.892Z"
+}
