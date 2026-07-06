@@ -142,6 +142,62 @@ describe("buildUserStatusResult", () => {
     expect(result.detailLines).not.toContain("Latest local user note is current with HEAD.");
   });
 
+  it("scopes the missing-note line to the identity when no WU is resolved", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: null,
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.detailLines).toContain("No local user note exists yet for this identity.");
+  });
+
+  it("reports a WU-scoped missing note with a disk seed as seeded-but-unsaved", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: null,
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+      wuScoped: true,
+      seedPresent: true,
+    });
+
+    expect(result.detailLines).toContain(
+      "SESSION-NOTES seeded on disk for this work unit; not yet saved to the notes ref (saves at first handoff).",
+    );
+    expect(result.detailLines).not.toContain("No local user note exists yet for this identity.");
+  });
+
+  it("reports a WU-scoped missing note with no disk seed as an unexpected gap", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: null,
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+      wuScoped: true,
+      seedPresent: false,
+    });
+
+    expect(result.detailLines).toContain(
+      "No SESSION-NOTES for this work unit — none on disk and none in the notes ref. " +
+      "A seed was expected at spawn/start; the workspace may not have been opened, or the seed was removed.",
+    );
+    expect(result.detailLines).not.toContain("No local user note exists yet for this identity.");
+  });
+
   it("reports conflicts with a fetch hint", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
@@ -1789,8 +1845,109 @@ describe("runUserSessionInitStatus", () => {
       commit: null,
       commitShort: null,
       ancestorDistance: 0,
+      wuScoped: false,
     });
     expect(result.detailLines).toContain("No local user note exists for this identity.");
+  });
+
+  it("projects a WU-scoped empty note with a disk seed present as seeded-but-unsaved", async () => {
+    const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+    const currentHead = "b".repeat(40);
+    const seedPath = "/repo/.arc/user/andrew/probe-x/SESSION-NOTES.md";
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${sameRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") {
+          return { stdout: "feat/probe-x\n", stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${sameRefHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: "", stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+      readFile: async (path: string) => (path === seedPath ? "seed" : ""),
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.localNoteFreshness).toEqual({
+      state: "missing",
+      commit: null,
+      commitShort: null,
+      ancestorDistance: 0,
+      wuScoped: true,
+      seedPresent: true,
+    });
+    expect(result.detailLines).toContain(
+      "SESSION-NOTES seeded on disk for this work unit; not yet saved to the notes ref (saves at first handoff).",
+    );
+    expect(result.detailLines).not.toContain("No local user note exists for this identity.");
+  });
+
+  it("projects a WU-scoped empty note with no disk seed as an unexpected gap", async () => {
+    const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+    const currentHead = "b".repeat(40);
+    const seedPath = "/repo/.arc/user/andrew/probe-x/SESSION-NOTES.md";
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${sameRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") {
+          return { stdout: "feat/probe-x\n", stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${sameRefHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: "", stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+      readFile: async (path: string) => {
+        if (path === seedPath) throw new Error("ENOENT");
+        return "";
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.localNoteFreshness).toEqual({
+      state: "missing",
+      commit: null,
+      commitShort: null,
+      ancestorDistance: 0,
+      wuScoped: true,
+      seedPresent: false,
+    });
+    expect(result.detailLines).toContain(
+      "No SESSION-NOTES for this work unit — none on disk and none in the notes ref. " +
+      "A seed was expected at spawn/start; the workspace may not have been opened, or the seed was removed.",
+    );
+    expect(result.detailLines).not.toContain("No local user note exists for this identity.");
   });
 
   it("projects a reachable note at HEAD as current-head freshness", async () => {
@@ -1931,7 +2088,9 @@ describe("runUserSessionInitStatus", () => {
     const currentHead = "b".repeat(40);
     const userDir = "/repo/.arc/user/andrew";
     const internalDir = `${userDir}/.internal`;
-    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    // Branch fallback resolves the current WU to `current`; the saved note carries
+    // that WU's own SESSION-NOTES so it resolves as the nearest note.
+    const noteFiles = { "current/SESSION-NOTES.md": "saved" };
     const noteJSON = JSON.stringify(manifest(noteFiles));
     const syncStateContent = JSON.stringify({
       version: 2,
@@ -1967,10 +2126,10 @@ describe("runUserSessionInitStatus", () => {
       },
       readDir: async (dir: string) => {
         if (dir !== userDir) return [];
-        return [{ name: "SESSION-NOTES.md", size: noteFiles["SESSION-NOTES.md"].length }];
+        return [{ name: "current/SESSION-NOTES.md", size: noteFiles["current/SESSION-NOTES.md"].length }];
       },
       readFile: async (path: string) => {
-        if (path === `${userDir}/SESSION-NOTES.md`) return noteFiles["SESSION-NOTES.md"];
+        if (path === `${userDir}/current/SESSION-NOTES.md`) return noteFiles["current/SESSION-NOTES.md"];
         if (path === `${internalDir}/.sync-state.json`) return syncStateContent;
         throw new Error(`ENOENT: ${path}`);
       },
@@ -2623,7 +2782,9 @@ describe("runUserStatus saved-note projection", () => {
   }
 
   function buildIO(scenario: ProjectionScenario): UserIOContext {
-    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    // Branch fallback resolves the current WU to `status-projection`; the saved
+    // note carries that WU's own SESSION-NOTES so it resolves as the nearest note.
+    const noteFiles = { "status-projection/SESSION-NOTES.md": "saved" };
     const noteManifest = manifest(noteFiles);
     const noteJSON = JSON.stringify(noteManifest);
     const syncStateContent = JSON.stringify({
