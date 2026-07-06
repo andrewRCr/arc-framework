@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "regen-package-lock",
-  "origin": "description",
-  "intent": "Regenerate package-lock.json so fresh worktree npm install is a no-op (engines.git lock sync)",
-  "branch": "chore/regen-package-lock",
-  "createdAt": "2026-07-06T15:18:44.258Z"
-}
