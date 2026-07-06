@@ -165,6 +165,10 @@ export async function runUserStatus(
     worktree: worktreeProbe ?? undefined,
     remoteSyncEnabled,
     userNotesRefExists,
+    wuScoped: currentWuName !== undefined,
+    ...(currentWuName !== undefined
+      ? { seedPresent: await sessionNotesSeedExists(cwd, io, identity, currentWuName) }
+      : {}),
     ...(verbose === undefined ? {} : { verbose }),
     ...(userSyncCause ? { userSyncCause } : {}),
   });
@@ -689,6 +693,20 @@ interface BuildUserStatusInput {
    * Drives the cause-aware detail line and action-oriented headline.
    */
   userSyncCause?: { cause: UserSyncCause; confidence: UserSyncCauseConfidence };
+  /**
+   * Whether a current WU resolved (work-unit-scoped). With no current WU
+   * (identity-scoped — an errand or between-WUs), a missing note speaks to the
+   * identity's whole notes ref. Drives WU-vs-identity phrasing of the
+   * "no local user note" line.
+   */
+  wuScoped?: boolean;
+  /**
+   * For a WU-scoped missing note: whether the WU's SESSION-NOTES.md is present
+   * on disk — seeded by spawn/start but not yet saved to the notes ref.
+   * Distinguishes the benign "seeded, unsaved" state from an unexpected "no
+   * personal context anywhere" gap.
+   */
+  seedPresent?: boolean;
 }
 
 const FIRST_USE_ORIENTATION_HINT =
@@ -1061,7 +1079,17 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
       `${noteOffBranchHistoryClause(currentBranch)}.`,
     );
   } else if (!savedCommit && diskState === "different") {
-    detailLines.push("No local user note exists yet for this identity.");
+    if (input.wuScoped) {
+      detailLines.push(
+        input.seedPresent
+          ? "SESSION-NOTES seeded on disk for this work unit; not yet saved to the notes ref " +
+            "(saves at first handoff)."
+          : "No SESSION-NOTES for this work unit — none on disk and none in the notes ref. " +
+            "A seed was expected at spawn/start; the workspace may not have been opened, or the seed was removed.",
+      );
+    } else {
+      detailLines.push("No local user note exists yet for this identity.");
+    }
   }
 
   if (backupFiles.length > 0) {

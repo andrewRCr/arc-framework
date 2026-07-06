@@ -142,6 +142,62 @@ describe("buildUserStatusResult", () => {
     expect(result.detailLines).not.toContain("Latest local user note is current with HEAD.");
   });
 
+  it("scopes the missing-note line to the identity when no WU is resolved", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: null,
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.detailLines).toContain("No local user note exists yet for this identity.");
+  });
+
+  it("reports a WU-scoped missing note with a disk seed as seeded-but-unsaved", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: null,
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+      wuScoped: true,
+      seedPresent: true,
+    });
+
+    expect(result.detailLines).toContain(
+      "SESSION-NOTES seeded on disk for this work unit; not yet saved to the notes ref (saves at first handoff).",
+    );
+    expect(result.detailLines).not.toContain("No local user note exists yet for this identity.");
+  });
+
+  it("reports a WU-scoped missing note with no disk seed as an unexpected gap", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "different",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: null,
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+      wuScoped: true,
+      seedPresent: false,
+    });
+
+    expect(result.detailLines).toContain(
+      "No SESSION-NOTES for this work unit — none on disk and none in the notes ref. " +
+      "A seed was expected at spawn/start; the workspace may not have been opened, or the seed was removed.",
+    );
+    expect(result.detailLines).not.toContain("No local user note exists yet for this identity.");
+  });
+
   it("reports conflicts with a fetch hint", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
