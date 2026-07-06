@@ -1,8 +1,8 @@
 # Metadata: burn-in-probe-a
 
-| **State**  | **Owner** | **Branch**             | **Class** | **Priority** |
-| ---------- | --------- | ---------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/burn-in-probe-a` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch**              | **Class** | **Priority** |
+| --------- | --------- | ----------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `chore/burn-in-probe-a` | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,12 +11,12 @@
 - **Design:** `spec-burn-in-probe-a.md`
 - **Task List:** `tasks-burn-in-probe-a.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Create the burn-in evidence log (line ~12)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Create the burn-in evidence log
 
 - **PR URL:** [none]
 - **Completed:** [none]
