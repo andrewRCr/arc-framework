@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { getCurrentBranch, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import {
@@ -342,6 +344,10 @@ async function inspectSessionLocalNoteFreshness(input: {
       commit: null,
       commitShort: null,
       ancestorDistance: 0,
+      wuScoped: currentWuName !== undefined,
+      ...(currentWuName !== undefined
+        ? { seedPresent: await sessionNotesSeedExists(input.cwd, input.io, input.identity, currentWuName) }
+        : {}),
     };
   }
 
@@ -359,6 +365,27 @@ async function inspectSessionLocalNoteFreshness(input: {
     return { state: "ancestor", ...base };
   }
   return { state: "current-head", ...base };
+}
+
+/**
+ * Whether the WU's SESSION-NOTES.md is present on disk — the spawn/start seed,
+ * written to `user/{identity}/{wuName}/` before any `arc user save`. Distinguishes
+ * the benign "seeded but not yet saved" freshness state from an unexpected "no
+ * personal context anywhere for this work unit" gap.
+ */
+async function sessionNotesSeedExists(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+  wuName: string,
+): Promise<boolean> {
+  const seedPath = join(cwd, ".arc", "user", identity, wuName, "SESSION-NOTES.md");
+  try {
+    await io.readFile(seedPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 interface UserSyncRefInspection {
@@ -584,7 +611,18 @@ function renderSessionLocalNoteFreshness(
 
   switch (freshness.state) {
     case "missing":
-      return ["No local user note exists for this identity."];
+      if (!freshness.wuScoped) {
+        return ["No local user note exists for this identity."];
+      }
+      return freshness.seedPresent
+        ? [
+            "SESSION-NOTES seeded on disk for this work unit; not yet saved to the notes ref " +
+            "(saves at first handoff).",
+          ]
+        : [
+            "No SESSION-NOTES for this work unit — none on disk and none in the notes ref. " +
+            "A seed was expected at spawn/start; the workspace may not have been opened, or the seed was removed.",
+          ];
     case "current-head":
       return ["Latest local user note is current with HEAD."];
     case "ancestor":
