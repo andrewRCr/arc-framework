@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "notes-legacy-root-match",
-  "origin": "description",
-  "intent": "Excise the WU-agnostic legacy-root-SESSION-NOTES match in noteManifestContainsWu that resolves a false stale nearest-note for new WUs",
-  "branch": "fix/notes-legacy-root-match",
-  "createdAt": "2026-07-06T14:42:36.992Z"
-}
