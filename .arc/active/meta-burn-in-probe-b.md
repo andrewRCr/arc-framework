@@ -1,8 +1,8 @@
 # Metadata: burn-in-probe-b
 
-| **State**  | **Owner** | **Branch**             | **Class** | **Priority** |
-| ---------- | --------- | ---------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/burn-in-probe-b` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch**              | **Class** | **Priority** |
+| --------- | --------- | ----------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `chore/burn-in-probe-b` | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,12 +11,12 @@
 - **Design:** `spec-burn-in-probe-b.md`
 - **Task List:** `tasks-burn-in-probe-b.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Create the evidence log scaffold (line ~13)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Create the evidence log scaffold
 
 - **PR URL:** [none]
 - **Completed:** [none]
