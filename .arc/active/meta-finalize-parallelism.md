@@ -12,13 +12,13 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 2.E — WU-entry architecture (Tasks 2.E.1–2.E.4 complete)
-- **Next Task:** Task 2.I.1 — Forward-port the build-item and entry-arch changes to `main` (line ~427)
+- **Last Completed:** Phase 2.I — Mid-flight build-items integration (Tasks 2.I.1–2.I.2 complete; Phase 2 complete)
+- **Next Task:** Task 3.1.b — Spawn the wave-1 stubs and groom them in-worktree (line ~493)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 2.I — cut the code-only forward-port branch off `main` (build-items + entry-arch,
-  excluding FP's `.arc/active/*finalize-parallelism*` artifacts) and open the PR (Task 2.I.1.a); then merge to base
-  and merge `main` back into FP (2.I.2). Base write — needs explicit authorization before merge.
+- **Next Action:** Begin Phase 3 (burn-in wave 1) — spawn the two Light doc WUs (`inbound-routing-method` +
+  `adr-accept-timing`) into worktrees off `main` via the spawn-anchored entry, then groom each draft→spec→tasks
+  in-worktree, concurrently with FP (Task 3.1.b).
 
 - **PR URL:** [none]
 - **Completed:** [none]
