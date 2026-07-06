@@ -130,6 +130,32 @@ fixture produces its own evidence log as its deliverable (folds into these notes
 drives cell/detector induction. Real-work realism is carried by waves 2–4 (code supply is plentiful). The
 preflight recon catching all three drifts is itself positive launch-model evidence (Task 3.1.c).
 
+### Dogfood finding (2026-07-06): in-flight state-reporting integrity — foreign-write false positives
+
+Surfaced during FP's own handoff commit and, in reverse, at `burn-in-probe-b`'s activation: the pre-commit
+foreign-write advisory (`check-foreign-writes` → `detectForeignArtifactOverlap`) reported cross-WU meta overlaps
+that don't exist — `chore/burn-in-probe-b also touches meta-finalize-parallelism.md`, and symmetrically at probe-b
+activation ("`finalize-parallelism` also touches this WU's meta path"). Verified false: probe-b tracks only its own
+`{meta,spec,tasks}-burn-in-probe-b.md`, cut cleanly from `main`; the committed-diff and uncommitted-status probes
+the detector runs both return empty against current state, so the overlap primitive's static logic is sound and the
+misfire does not reproduce deterministically.
+
+**Localization:** the fault is in the in-flight **roster derivation** (`runActiveInFlight`) feeding the primitive
+stale/wrong refs during concurrent worktree churn (the misfire clustered around `arc start --here` reshuffling
+worktree/branch state), not the overlap diff itself. `classifyPathSurface` correctly excludes `ROADMAP.md`
+(`"other"`), so ROADMAP is not the direct trigger — but FP and probe-b both diff-touch the single shared
+`ROADMAP.md` every WU regens + commits, a distinct shared-mutable contention hazard (matrix cell 3.2.c).
+
+**Why it matters (GA blocker):** advisory-or-not, a parallelism GA gate cannot certify a state layer that reports
+false facts about what is in flight. Trust in the concurrency systems FP validates depends on the in-flight roster
+and ROADMAP being a truthful single source of truth.
+
+**Resolution (routed, not resolved here):** the actionable scope — harden the roster/oracle derivation and give the
+ROADMAP/STATUS render a concurrency-guarded single-source-of-truth model — is routed to `roadmap-tooling`
+(USER-INBOX `WU_Target: roadmap-tooling`) and formalized as a hard dependency of FP (meta `Depends On`). Sequence:
+`notes-fetch-refspec-hardening` → `roadmap-tooling` (groomed with this concern) → resume FP waves against the
+resolved state layer. FP holds the GA gate closed until it lands.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification

@@ -12,14 +12,14 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit            | Priority | Owner  | Depends on | Cohort            |
-| ---------- | -------------------- | -------- | ------ | ---------- | ----------------- |
-| `Active`   | finalize-parallelism | P1       | andrew | —          | agile-parallelism |
+| State    | Work unit            | Priority | Owner  | Depends on      | Cohort            |
+|----------|----------------------|----------|--------|-----------------|-------------------|
+| `Active` | finalize-parallelism | P1       | andrew | roadmap-tooling | agile-parallelism |
 
 ## Ready
 
 | Work unit                     | Priority | Owner  | Depends on | Cohort                     |
-| ----------------------------- | -------- | ------ | ---------- | -------------------------- |
+|-------------------------------|----------|--------|------------|----------------------------|
 | interlock-release-refinement  | P1       | andrew | —          | approval-flow-refinement   |
 | pr-decomposition              | P1       | andrew | —          | —                          |
 | recovery-hardening            | P1       | andrew | —          | —                          |
@@ -78,7 +78,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 ### Depth 1
 
 | Work unit                     | Priority | Owner  | Depends on                    | Cohort                     |
-| ----------------------------- | -------- | ------ | ----------------------------- | -------------------------- |
+|-------------------------------|----------|--------|-------------------------------|----------------------------|
 | unit-scoped-review            | P2       | andrew | commit-increments             | approval-flow-refinement   |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption        | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization          | agent-context-optimization |
@@ -91,7 +91,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 ### Depth 2
 
 | Work unit          | Priority | Owner  | Depends on                                                  | Cohort            |
-| ------------------ | -------- | ------ | ----------------------------------------------------------- | ----------------- |
+|--------------------|----------|--------|-------------------------------------------------------------|-------------------|
 | wu5-public-release | P3       | andrew | docs-content-sweep                                          | release-readiness |
 | local-mode         | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
 

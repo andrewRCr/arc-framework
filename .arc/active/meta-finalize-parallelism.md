@@ -5,7 +5,7 @@
 | `Active`  | `andrew`  | `feat/finalize-parallelism` | `Heavy`   | `P1`         |
 
 - **Cohort:** `agile-parallelism`
-- **Depends On:** [none]
+- **Depends On:** roadmap-tooling
 
 - **Origin:** [internal]
 - **Design:** `spec-finalize-parallelism.md`
@@ -14,9 +14,12 @@
 - **Current Workflow:** [none]
 - **Last Completed:** Phase 2.I — Mid-flight build-items integration (Tasks 2.I.1–2.I.2 complete; Phase 2 complete)
 - **Next Task:** Task 3.1.b — Scaffold, spawn, and groom the synthetic fixtures in-worktree (line ~502)
-- **Blockers:** BLOCKED pending `notes-fetch-refspec-hardening` merge + FP rebuild — this session discovered a
-  notes-fetch clobber bug (a plain `git fetch` force-overwrites/prunes unpushed user notes); notes-sync is unsafe
-  on FP's current build until that fix lands. The controlled notes re-enable and probe induction both wait on it.
+- **Blockers:** Two gates before the burn-in waves resume, both must ship + FP rebuild: (1)
+  `notes-fetch-refspec-hardening` — a notes-fetch clobber bug (a plain `git fetch` force-overwrites/prunes unpushed
+  user notes) makes notes-sync unsafe on FP's current build; (2) `roadmap-tooling` — the in-flight state-reporting
+  layer (roster derivation + ROADMAP shared-mutable contention) reports false facts (see
+  `notes-finalize-parallelism.md` § state-integrity finding), a GA blocker, now formalized as a hard `Depends On`.
+  Waves must consume a trustworthy state layer, not characterize a broken one.
 
 - **Next Action:** BLOCKED on `notes-fetch-refspec-hardening` (notes-sync clobber fix, now in planning). On
   resume, once that WU has merged to `main` and FP has merged `main` + rebuilt (`npm run build`): (1) controlled
