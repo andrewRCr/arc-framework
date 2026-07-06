@@ -113,6 +113,7 @@ vi.mock("../../../src/lib/work-unit/verbs/materialize.js", () => ({
 const mockResolveInFlightBranchSet = vi.fn();
 vi.mock("../../../src/lib/git/remote-ref-reader.js", () => ({
   resolveInFlightBranchSet: (...a: unknown[]) => mockResolveInFlightBranchSet(...a),
+  DEFAULT_NETWORK_TIMEOUT_MS: 5000,
 }));
 
 const mockDeriveInFlight = vi.fn();
@@ -366,11 +367,11 @@ describe("handleMaterialize", () => {
   it("fetches the selected remote ref and dispatches runMaterialize with the spawn config", async () => {
     await handleMaterialize("foo");
 
-    expect(mockIoExec).toHaveBeenCalledWith("git", [
-      "fetch",
-      "origin",
-      "+refs/heads/feat/foo:refs/remotes/origin/feat/foo",
-    ]);
+    expect(mockIoExec).toHaveBeenCalledWith(
+      "git",
+      ["fetch", "origin", "+refs/heads/feat/foo:refs/remotes/origin/feat/foo"],
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     expect(mockRunMaterialize).toHaveBeenCalledTimes(1);
     expect(mockRunMaterialize.mock.calls[0]?.[1]).toMatchObject({
       name: "foo",
@@ -384,11 +385,11 @@ describe("handleMaterialize", () => {
   it("dispatches an in-place materialize under `--here` after fetching the remote ref", async () => {
     await handleMaterialize("foo", { here: true });
 
-    expect(mockIoExec).toHaveBeenCalledWith("git", [
-      "fetch",
-      "origin",
-      "+refs/heads/feat/foo:refs/remotes/origin/feat/foo",
-    ]);
+    expect(mockIoExec).toHaveBeenCalledWith(
+      "git",
+      ["fetch", "origin", "+refs/heads/feat/foo:refs/remotes/origin/feat/foo"],
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
     expect(mockRunMaterialize).toHaveBeenCalledTimes(1);
     expect(mockRunMaterialize.mock.calls[0]?.[1]).toEqual({
       name: "foo",

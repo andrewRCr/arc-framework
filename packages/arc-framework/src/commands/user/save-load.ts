@@ -248,8 +248,11 @@ export async function runUserLoad(
         });
       }
     }
-  } catch {
-    // User dir doesn't exist yet — nothing to back up, skip gracefully
+  } catch (err) {
+    // The active user dir may not exist yet (fresh identity / no prior notes);
+    // that ENOENT is the expected skip. Any other failure is real — surface it
+    // rather than silently swallowing a backup or subdir-removal error.
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
   }
 
   await deserializeSplitUserManifest({

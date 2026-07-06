@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
@@ -341,7 +341,7 @@ describe("getNotesLockPath", () => {
     const exec = vi.fn(async () => ({ stdout: ".git\n", stderr: "" }));
 
     await expect(getNotesLockPath(exec, "/repo", "andrew")).resolves.toBe(
-      join("/repo", ".git", "arc", "user", "andrew", ".internal", ".notes.lock"),
+      join(resolve("/repo", ".git"), "arc", "user", "andrew", ".internal", ".notes.lock"),
     );
   });
 });

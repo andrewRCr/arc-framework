@@ -111,6 +111,33 @@ describe("CompactionSeed schema", () => {
     expect(isCompactionSeed(seed({ repoRoot: "\\\\server\\share\\repo" }))).toBe(true);
   });
 
+  it("rejects Windows absolute load-set paths with traversal segments", () => {
+    const traversal = seed({
+      loadSet: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [{ path: "C:\\repo\\..\\..\\secret.md", readMode: { kind: "full" } }],
+      },
+    });
+    expect(isCompactionSeed(traversal)).toBe(false);
+
+    const canonical = seed({
+      loadSet: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [{ path: "C:\\repo\\.arc\\user\\andrew\\WORKING-MEMORY.md", readMode: { kind: "full" } }],
+      },
+    });
+    expect(isCompactionSeed(canonical)).toBe(true);
+
+    // Windows absolute paths are backslash-canonical; the forward-slash form is not accepted.
+    const forwardSlash = seed({
+      loadSet: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [{ path: "C:/repo/WORKING-MEMORY.md", readMode: { kind: "full" } }],
+      },
+    });
+    expect(isCompactionSeed(forwardSlash)).toBe(false);
+  });
+
   it("keeps currentWorkflow as soft orientation rather than a path field", () => {
     expect(isCompactionSeed(seed({ currentWorkflow: "integrate-work-unit Step 4 — review" })))
       .toBe(true);
