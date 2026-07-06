@@ -45,15 +45,13 @@ harness), not the built binary. Full loci and reproduction recipe in `notes-note
   coverage now manually reinstalls the wildcard and proves `arc user status` preserves an unpushed local note; the
   reconcile unit tests pin the same fetch shape for non-fast-forward recovery.
 
-### `[ ]` **1.4 One-time cleanup of this clone's configured refspec**
+### `[x]` **1.4 One-time cleanup of this clone's configured refspec**
 
 - _Goal:_ This repo's `remote.origin.fetch` no longer contains the notes wildcard (branch refspec intact), closing
   the residual per-clone exposure window on the dev machine.
-- _Note:_ A one-time manual git-config step, not shipped code — no migration ships (YAGNI per the spec).
-  `remote.origin.fetch` is shared across a clone's worktrees, so one unset fixes all of this clone's worktrees.
-
-    - Run `git config --unset --fixed-value remote.origin.fetch '+refs/notes/arc/user/*:refs/notes/arc/user/*'` on
-      this clone; confirm the branch refspec (`+refs/heads/*:refs/remotes/origin/*`) remains.
+- _Outcome:_ Removed this clone's `+refs/notes/arc/user/*:refs/notes/arc/user/*` fetch refspec with
+  `git config --unset --fixed-value`; `+refs/heads/*:refs/remotes/origin/*` remains as the sole
+  `remote.origin.fetch` entry.
 
 ## **Phase 2:** Verification
 
