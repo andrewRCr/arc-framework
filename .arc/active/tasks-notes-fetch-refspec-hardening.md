@@ -55,26 +55,31 @@ harness), not the built binary. Full loci and reproduction recipe in `notes-note
 
 ## **Phase 2:** Verification
 
-### `[ ]` **2.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **2.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ `npm run lint:md`, `npm run lint:sh`, `npm run typecheck:all`, `npm run lint:ts`,
+  `npm run build`, and `npm test` passed.
+- _Success criteria:_ Seven criteria met; the optional fresh adversarial verify pass returned no spec-conformance
+  findings.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` An unpushed `arc user save` survives a plain `git fetch`, a `git pull`, and a `git fetch --prune origin` —
+- `[x]` An unpushed `arc user save` survives a plain `git fetch`, a `git pull`, and a `git fetch --prune origin` —
   canonical `refs/notes/arc/user/<id>` is unchanged across each.
 
-- `[ ]` With the refspec absent, `arc user fetch` and `arc user pull` still populate canonical notes.
+- `[x]` With the refspec absent, `arc user fetch` and `arc user pull` still populate canonical notes.
 
-- `[ ]` `arc setup` on a fresh repo writes no notes wildcard into `remote.origin.fetch`; the branch refspec is
+- `[x]` `arc setup` on a fresh repo writes no notes wildcard into `remote.origin.fetch`; the branch refspec is
   unaffected.
 
-- `[ ]` No code references `configureNotesRefspec`, `detectNotesRefspec`, `NOTES_REFSPEC`, or the
+- `[x]` No code references `configureNotesRefspec`, `detectNotesRefspec`, `NOTES_REFSPEC`, or the
   `missing-notes-refspec` condition kind.
 
-- `[ ]` After the one-time cleanup, this repo's `remote.origin.fetch` no longer contains the notes wildcard (branch
+- `[x]` After the one-time cleanup, this repo's `remote.origin.fetch` no longer contains the notes wildcard (branch
   refspec intact).
 
-- `[ ]` All quality gates pass (tests, linting, type checking).
+- `[x]` All quality gates pass (tests, linting, type checking).
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.

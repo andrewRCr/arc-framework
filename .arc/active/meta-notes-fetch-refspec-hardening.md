@@ -16,7 +16,7 @@
 - **Next Task:** Task 1.1 — Stop installing the force-wildcard refspec (line ~20)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Stop installing the force-wildcard refspec
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
