@@ -16,11 +16,12 @@
 - **Next Task:** Task 3.1.b — Scaffold, spawn, and groom the synthetic fixtures in-worktree (line ~502)
 - **Blockers:** [none] — the notes base-resolution anomaly is fixed (PR #200) and `main` is merged into FP.
 
-- **Next Action:** Notes anomaly fixed (PR #200) and `main` merged into FP (fix built in this worktree) — blocker
-  cleared. First re-enable notes as a controlled step (`arc user save` to re-anchor the FP note onto the merged
-  HEAD → `arc user sync`, confirm clean convergence → sync the pending USER-INBOX captures), then resume Task
-  3.1.b: re-fix/re-spawn the two probe worktrees (they still run pre-fix `arc`; package-lock now clean so fresh
-  spawns come up clean), groom them, and drive 3.2–3.3 induction from this observer worktree. Detail in SESSION-NOTES.
+- **Next Action:** Notes-sync still deferred (by choice at handoff) — do the controlled re-enable as step 1
+  (`arc user save` to re-anchor the FP note onto merged HEAD → `arc user sync`; confirm clean convergence, no
+  resurrected tombstones → sync pending USER-INBOX captures, incl. the new `cli-test-hardening` flake capture),
+  then retire the notes-anomaly WORKING-MEMORY entry. Resume Task 3.1.b as observer: probe-a is now fixed (merged
+  `main` + rebuilt, re-probes clean) and grooming; provision/fix probe-b, and drive 3.2–3.3 induction from this
+  observer worktree. Detail in SESSION-NOTES.
 
 - **PR URL:** [none]
 - **Completed:** [none]
