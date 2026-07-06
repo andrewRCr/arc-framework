@@ -66,8 +66,10 @@ import {
 const BACKUP_TIMESTAMPED_PREFIX = ".pre-load-backup-";
 const BACKUP_TIMESTAMPED_SUFFIX = ".json";
 const BACKUP_RETENTION = 3;
+// A bare root-level `SESSION-NOTES.md` predates per-WU note subdirs and belongs to no
+// work unit. It is never materialized (nor re-saved), so it is excluded from the
+// identity-global surface and dropped from a loaded manifest by the current-WU filter.
 const LEGACY_ROOT_SESSION_NOTES = "SESSION-NOTES.md";
-const LEGACY_ROOT_SESSION_NOTES_BACKUP = "legacy-root-SESSION-NOTES.md";
 
 type ResolutionPointer = Pick<LocalSyncState, "sourceCommit" | "sourceOperation">;
 
@@ -83,23 +85,12 @@ interface ReachableNoteCandidate {
   content?: string;
 }
 
-export type LegacyRootSessionNotesAction =
-  | { kind: "none" }
-  | { kind: "migrated"; targetPath: string }
-  | { kind: "backup"; content: string; reason: "scoped-exists" | "no-current-wu"; scopedPath?: string };
-
 export interface LoadManifestSnapshot {
   search: NearestNoteSearch;
   manifest: SyncManifest | null;
   sourceCommit: string;
   fromAncestor: boolean;
   mergeWarnings: string[];
-  legacyRootSessionNotes: LegacyRootSessionNotesAction;
-}
-
-interface WuManifestSelection {
-  manifest: SyncManifest;
-  legacyRootSessionNotes: LegacyRootSessionNotesAction;
 }
 
 /**
@@ -201,8 +192,7 @@ export async function runUserLoad(
     const activeLocalFiles = (await serialize(activeUserDir, io.readDir, io.readFile)).manifest.files;
     const reconcile = await resolveReconcilableSubdirs({ cwd, exec: io.exec, localFiles: activeLocalFiles });
     const reconciledFileBackup = filesInSubdirs(activeLocalFiles, new Set(reconcile));
-    const legacyBackupFiles = legacyRootSessionNotesBackupFiles(snapshot.legacyRootSessionNotes);
-    const backupManifest = buildBackupManifest(localFiles, reconciledFileBackup, legacyBackupFiles);
+    const backupManifest = buildBackupManifest(localFiles, reconciledFileBackup);
 
     let backupFilename: string | null = null;
     if (Object.keys(backupManifest.files).length > 0) {
@@ -217,7 +207,6 @@ export async function runUserLoad(
     const backupForNotice = backupFilename ?? createTimestampedBackupFilename();
 
     notices = [
-      ...legacyRootSessionNotesNotices(snapshot.legacyRootSessionNotes, backupFilename),
       ...classifyOrphans({
         localFiles: { ...localFiles, ...reconciledFileBackup },
         manifestFiles: loadManifest.files,
@@ -355,14 +344,12 @@ export async function buildUserLoadManifestSnapshot(
       sourceCommit: NO_COMPARABLE_SOURCE_COMMIT,
       fromAncestor: false,
       mergeWarnings,
-      legacyRootSessionNotes: { kind: "none" },
     };
   }
 
   let version: SyncManifest["version"] = 2;
   let sourceCommit = NO_COMPARABLE_SOURCE_COMMIT;
   let fromAncestor = false;
-  let legacyRootSessionNotes: LegacyRootSessionNotesAction = { kind: "none" };
   const perWuFiles: Record<string, string> = {};
 
   if (search.note) {
@@ -370,9 +357,8 @@ export async function buildUserLoadManifestSnapshot(
     version = manifest.version;
     sourceCommit = search.note.commit;
     fromAncestor = search.note.fromAncestor;
-    const selection = filterManifestForWu(manifest, options.currentWuName);
-    legacyRootSessionNotes = selection.legacyRootSessionNotes;
-    for (const [path, content] of Object.entries(selection.manifest.files)) {
+    const filtered = filterManifestForWu(manifest, options.currentWuName);
+    for (const [path, content] of Object.entries(filtered.files)) {
       if (!isIdentityGlobalManifestPath(path)) perWuFiles[path] = content;
     }
   }
@@ -383,7 +369,6 @@ export async function buildUserLoadManifestSnapshot(
     sourceCommit,
     fromAncestor,
     mergeWarnings,
-    legacyRootSessionNotes,
   };
 }
 
@@ -574,22 +559,13 @@ function filesInSubdirs(
   );
 }
 
-function legacyRootSessionNotesBackupFiles(
-  action: LegacyRootSessionNotesAction,
-): Record<string, string> {
-  return action.kind === "backup"
-    ? { [LEGACY_ROOT_SESSION_NOTES_BACKUP]: action.content }
-    : {};
-}
-
 function buildBackupManifest(
   localFiles: Record<string, string>,
   reconciledFiles: Record<string, string>,
-  legacyBackupFiles: Record<string, string>,
 ): SyncManifest {
   return {
     version: 2,
-    files: { ...localFiles, ...reconciledFiles, ...legacyBackupFiles },
+    files: { ...localFiles, ...reconciledFiles },
   };
 }
 
@@ -603,31 +579,6 @@ async function writeTimestampedBackup(
   await io.writeFile(join(internalDir, backupFilename), JSON.stringify(manifest));
   await pruneTimestampedBackups(internalDir, io.readDir);
   return backupFilename;
-}
-
-function legacyRootSessionNotesNotices(
-  action: LegacyRootSessionNotesAction,
-  backupFilename: string | null,
-): LoadMessage[] {
-  switch (action.kind) {
-    case "none":
-      return [];
-    case "migrated":
-      return [{
-        level: "notice",
-        text: `Migrated legacy root-level SESSION-NOTES.md to ${action.targetPath}.`,
-      }];
-    case "backup": {
-      const backupPath = backupFilename === null ? ".internal/" : `.internal/${backupFilename}`;
-      const reason = action.reason === "scoped-exists" && action.scopedPath
-        ? `${action.scopedPath} already exists`
-        : "no current work unit resolved";
-      return [{
-        level: "notice",
-        text: `Skipped legacy root-level SESSION-NOTES.md because ${reason}; backed up to ${backupPath}`,
-      }];
-    }
-  }
 }
 
 async function verifyMaterializedSplitUserManifest(
@@ -951,7 +902,7 @@ function parseManifestFiles(noteContent: string): Record<string, unknown> | null
 function noteManifestContainsWu(noteContent: string, wuName: string): boolean {
   const files = parseManifestFiles(noteContent);
   if (!files) return false;
-  return Object.keys(files).some((path) => path === LEGACY_ROOT_SESSION_NOTES || wuNameOfPath(path) === wuName);
+  return Object.keys(files).some((path) => wuNameOfPath(path) === wuName);
 }
 
 /**
@@ -1056,60 +1007,23 @@ function renderOrphanNotice(classification: OrphanClassification, backupFilename
 }
 
 /**
- * Restrict a manifest to what the current load should materialize: cross-WU
- * flat files plus the current WU's own subdir, dropping other WUs' subdirs.
- * With no current WU the per-WU restore no-ops (only cross-WU flat survives);
- * an all-flat pre-isolation manifest is unaffected, since every entry is
- * cross-WU.
+ * Restrict a manifest to what the current load should materialize: identity-global
+ * flat files plus the current WU's own subdir, dropping other WUs' subdirs. A bare
+ * root `SESSION-NOTES.md` is not identity-global (see {@link isIdentityGlobalManifestPath}),
+ * so it is dropped rather than materialized. With no current WU the per-WU restore
+ * no-ops (only identity-global flat survives).
  */
 function filterManifestForWu(
   manifest: SyncManifest,
   currentWuName: string | undefined,
-): WuManifestSelection {
+): SyncManifest {
   const files: Record<string, string> = {};
-  const legacyRootContent = manifest.files[LEGACY_ROOT_SESSION_NOTES];
-  const scopedSessionNotesPath = currentWuName === undefined
-    ? undefined
-    : `${currentWuName}/${LEGACY_ROOT_SESSION_NOTES}`;
-  const scopedSessionNotesExists = scopedSessionNotesPath !== undefined
-    && manifest.files[scopedSessionNotesPath] !== undefined;
-
   for (const [path, content] of Object.entries(manifest.files)) {
-    if (path === LEGACY_ROOT_SESSION_NOTES) continue;
     if (isIdentityGlobalManifestPath(path) || wuNameOfPath(path) === currentWuName) {
       files[path] = content;
     }
   }
-
-  if (legacyRootContent === undefined) {
-    return { manifest: { version: manifest.version, files }, legacyRootSessionNotes: { kind: "none" } };
-  }
-
-  if (currentWuName === undefined) {
-    return {
-      manifest: { version: manifest.version, files },
-      legacyRootSessionNotes: { kind: "backup", content: legacyRootContent, reason: "no-current-wu" },
-    };
-  }
-
-  if (scopedSessionNotesPath !== undefined && scopedSessionNotesExists) {
-    return {
-      manifest: { version: manifest.version, files },
-      legacyRootSessionNotes: {
-        kind: "backup",
-        content: legacyRootContent,
-        reason: "scoped-exists",
-        scopedPath: scopedSessionNotesPath,
-      },
-    };
-  }
-
-  const targetPath = `${currentWuName}/${LEGACY_ROOT_SESSION_NOTES}`;
-  files[targetPath] = legacyRootContent;
-  return {
-    manifest: { version: manifest.version, files },
-    legacyRootSessionNotes: { kind: "migrated", targetPath },
-  };
+  return { version: manifest.version, files };
 }
 
 async function countCommitsSince(
