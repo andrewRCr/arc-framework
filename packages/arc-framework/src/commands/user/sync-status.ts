@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { getCurrentBranch, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import {
@@ -163,6 +165,10 @@ export async function runUserStatus(
     worktree: worktreeProbe ?? undefined,
     remoteSyncEnabled,
     userNotesRefExists,
+    wuScoped: currentWuName !== undefined,
+    ...(currentWuName !== undefined
+      ? { seedPresent: await sessionNotesSeedExists(cwd, io, identity, currentWuName) }
+      : {}),
     ...(verbose === undefined ? {} : { verbose }),
     ...(userSyncCause ? { userSyncCause } : {}),
   });
@@ -342,6 +348,10 @@ async function inspectSessionLocalNoteFreshness(input: {
       commit: null,
       commitShort: null,
       ancestorDistance: 0,
+      wuScoped: currentWuName !== undefined,
+      ...(currentWuName !== undefined
+        ? { seedPresent: await sessionNotesSeedExists(input.cwd, input.io, input.identity, currentWuName) }
+        : {}),
     };
   }
 
@@ -359,6 +369,27 @@ async function inspectSessionLocalNoteFreshness(input: {
     return { state: "ancestor", ...base };
   }
   return { state: "current-head", ...base };
+}
+
+/**
+ * Whether the WU's SESSION-NOTES.md is present on disk — the spawn/start seed,
+ * written to `user/{identity}/{wuName}/` before any `arc user save`. Distinguishes
+ * the benign "seeded but not yet saved" freshness state from an unexpected "no
+ * personal context anywhere for this work unit" gap.
+ */
+async function sessionNotesSeedExists(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+  wuName: string,
+): Promise<boolean> {
+  const seedPath = join(cwd, ".arc", "user", identity, wuName, "SESSION-NOTES.md");
+  try {
+    await io.readFile(seedPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 interface UserSyncRefInspection {
@@ -584,7 +615,18 @@ function renderSessionLocalNoteFreshness(
 
   switch (freshness.state) {
     case "missing":
-      return ["No local user note exists for this identity."];
+      if (!freshness.wuScoped) {
+        return ["No local user note exists for this identity."];
+      }
+      return freshness.seedPresent
+        ? [
+            "SESSION-NOTES seeded on disk for this work unit; not yet saved to the notes ref " +
+            "(saves at first handoff).",
+          ]
+        : [
+            "No SESSION-NOTES for this work unit — none on disk and none in the notes ref. " +
+            "A seed was expected at spawn/start; the workspace may not have been opened, or the seed was removed.",
+          ];
     case "current-head":
       return ["Latest local user note is current with HEAD."];
     case "ancestor":
@@ -651,6 +693,20 @@ interface BuildUserStatusInput {
    * Drives the cause-aware detail line and action-oriented headline.
    */
   userSyncCause?: { cause: UserSyncCause; confidence: UserSyncCauseConfidence };
+  /**
+   * Whether a current WU resolved (work-unit-scoped). With no current WU
+   * (identity-scoped — an errand or between-WUs), a missing note speaks to the
+   * identity's whole notes ref. Drives WU-vs-identity phrasing of the
+   * "no local user note" line.
+   */
+  wuScoped?: boolean;
+  /**
+   * For a WU-scoped missing note: whether the WU's SESSION-NOTES.md is present
+   * on disk — seeded by spawn/start but not yet saved to the notes ref.
+   * Distinguishes the benign "seeded, unsaved" state from an unexpected "no
+   * personal context anywhere" gap.
+   */
+  seedPresent?: boolean;
 }
 
 const FIRST_USE_ORIENTATION_HINT =
@@ -1023,7 +1079,17 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
       `${noteOffBranchHistoryClause(currentBranch)}.`,
     );
   } else if (!savedCommit && diskState === "different") {
-    detailLines.push("No local user note exists yet for this identity.");
+    if (input.wuScoped) {
+      detailLines.push(
+        input.seedPresent
+          ? "SESSION-NOTES seeded on disk for this work unit; not yet saved to the notes ref " +
+            "(saves at first handoff)."
+          : "No SESSION-NOTES for this work unit — none on disk and none in the notes ref. " +
+            "A seed was expected at spawn/start; the workspace may not have been opened, or the seed was removed.",
+      );
+    } else {
+      detailLines.push("No local user note exists yet for this identity.");
+    }
   }
 
   if (backupFiles.length > 0) {
