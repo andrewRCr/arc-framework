@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "resolve-fixture-class",
+  "origin": "description",
+  "intent": "Resolve Class: Light on burn-in-probe wave-1 fixture stubs",
+  "branch": "chore/resolve-fixture-class",
+  "createdAt": "2026-07-06T11:26:37.012Z"
+}
