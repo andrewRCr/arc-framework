@@ -1,8 +1,8 @@
 # Metadata: notes-fetch-refspec-hardening
 
-| **State**  | **Owner** | **Branch**                           | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------------ | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/notes-fetch-refspec-hardening` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch**                          | **Class** | **Priority** |
+| --------- | --------- | ----------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `fix/notes-fetch-refspec-hardening` | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,12 +11,12 @@
 - **Design:** `spec-notes-fetch-refspec-hardening.md`
 - **Task List:** `tasks-notes-fetch-refspec-hardening.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Stop installing the force-wildcard refspec (line ~20)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Stop installing the force-wildcard refspec
 
 - **PR URL:** [none]
 - **Completed:** [none]
