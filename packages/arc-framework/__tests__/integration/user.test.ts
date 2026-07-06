@@ -28,6 +28,7 @@ import { inferRetiredSubdirs } from "../../src/lib/session-init/recommended-acti
 import {
   runUserSave,
   runUserLoad,
+  findNearestUserNote,
   runUserAdd,
   runUserClose,
   runUserOpen,
@@ -1286,44 +1287,36 @@ describe("user save/load — split-source worktree surfaces", () => {
     }
   });
 
-  it("migrates a legacy root SESSION-NOTES entry to the current WU when no scoped notes exist", async () => {
-    const linked = await addLinkedWorktree(tempDir, "feat/legacy-load");
-    try {
-      const linkedIo = makeUserIO(linked);
-      const head = await readHead(linked);
-      await linkedIo.writeNote(
-        "arc/user/test-user",
-        JSON.stringify({
-          version: 2,
-          files: {
-            "SESSION-NOTES.md": "# Legacy notes",
-            "WORKING-MEMORY.md": "# Memory",
-          },
-        }),
-        head,
-      );
+  it("does not resolve a new WU's nearest note to an unrelated legacy root SESSION-NOTES", async () => {
+    // A note carrying a WU-less root SESSION-NOTES (and another WU's subdir) must not
+    // be adopted as the nearest note for a fresh WU that has no notes of its own —
+    // otherwise `arc user status` / session-init report a false stale-note drift.
+    const io = makeUserIO(tempDir);
+    const head = await readHead(tempDir);
+    await io.writeNote(
+      "arc/user/test-user",
+      JSON.stringify({
+        version: 2,
+        files: {
+          "SESSION-NOTES.md": "# Legacy notes from an unrelated work unit",
+          "other-wu/SESSION-NOTES.md": "# Some other WU's notes",
+        },
+      }),
+      head,
+    );
 
-      const result = expectLoaded(await runUserLoad({
-        cwd: linked,
-        io: linkedIo,
-        identity: "test-user",
-        currentWuName: "legacy-load",
-      }));
+    const { note } = await findNearestUserNote({
+      cwd: tempDir,
+      io,
+      identity: "test-user",
+      currentWuName: "fresh-wu",
+    });
 
-      expect(result.messages.some((m) => m.text.includes("Migrated legacy root-level SESSION-NOTES.md"))).toBe(true);
-      expect(await readFile(
-        join(linked, ".arc", "user", "test-user", "legacy-load", "SESSION-NOTES.md"),
-        "utf-8",
-      )).toBe("# Legacy notes");
-      await expect(readFile(join(tempDir, ".arc", "user", "test-user", "SESSION-NOTES.md"), "utf-8"))
-        .rejects.toThrow();
-    } finally {
-      await execFileAsync("git", ["-C", tempDir, "worktree", "remove", "--force", linked]);
-    }
+    expect(note).toBeNull();
   });
 
-  it("skips and backs up legacy root SESSION-NOTES when scoped notes already exist", async () => {
-    const linked = await addLinkedWorktree(tempDir, "feat/legacy-skip");
+  it("drops a stray legacy root SESSION-NOTES on load, materializing only the scoped note", async () => {
+    const linked = await addLinkedWorktree(tempDir, "feat/legacy-drop");
     try {
       const linkedIo = makeUserIO(linked);
       const head = await readHead(linked);
@@ -1332,8 +1325,8 @@ describe("user save/load — split-source worktree surfaces", () => {
         JSON.stringify({
           version: 2,
           files: {
-            "SESSION-NOTES.md": "# Legacy notes",
-            "legacy-skip/SESSION-NOTES.md": "# Scoped notes",
+            "SESSION-NOTES.md": "# Legacy root notes",
+            "legacy-drop/SESSION-NOTES.md": "# Scoped notes",
           },
         }),
         head,
@@ -1343,23 +1336,16 @@ describe("user save/load — split-source worktree surfaces", () => {
         cwd: linked,
         io: linkedIo,
         identity: "test-user",
-        currentWuName: "legacy-skip",
+        currentWuName: "legacy-drop",
       }));
 
-      const notice = result.messages.find((m) => m.text.includes("Skipped legacy root-level SESSION-NOTES.md"));
-      expect(notice?.text).toContain("backed up to .internal/");
+      // The scoped note materializes; the stray root SESSION-NOTES is dropped —
+      // not migrated into the WU subdir, not backed up, not written to the identity root.
       expect(await readFile(
-        join(linked, ".arc", "user", "test-user", "legacy-skip", "SESSION-NOTES.md"),
+        join(linked, ".arc", "user", "test-user", "legacy-drop", "SESSION-NOTES.md"),
         "utf-8",
       )).toBe("# Scoped notes");
-
-      const backups = await listBackupFiles(join(tempDir, ".arc", "user", "test-user"));
-      const backupName = backups.find((name) => /^\.pre-load-backup-.*\.json$/u.test(name));
-      expect(backupName).toBeDefined();
-      const backup = JSON.parse(
-        await readFile(join(tempDir, ".arc", "user", "test-user", ".internal", backupName!), "utf-8"),
-      ) as { files: Record<string, string> };
-      expect(backup.files["legacy-root-SESSION-NOTES.md"]).toBe("# Legacy notes");
+      expect(result.messages.some((m) => m.text.includes("legacy root-level"))).toBe(false);
       await expect(readFile(join(tempDir, ".arc", "user", "test-user", "SESSION-NOTES.md"), "utf-8"))
         .rejects.toThrow();
     } finally {
