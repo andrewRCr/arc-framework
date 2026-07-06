@@ -301,6 +301,26 @@ named detector conditions, and the playbook/doctrine closeout absorbs the accept
 - [ ] **Deterministic ROADMAP renderer:** renderer slice from `roadmap-tooling` available before wave 1; full
   Heavy WU completion is not the gate.
 
+**2.I.2 homogeneity check (2026-07-06)** — after merging `main` (post-#196) into FP, verified the base-state
+precondition the waves require:
+
+- **Build-item CLI (BI-1):** a worktree spawned off `main` resolves `npx arc` to the full lifecycle surface
+  (`start`, `materialize`, `park`/`resume`, `activate`/`deactivate`, `integrate`, `teardown`, …); provisioning is
+  present (`scripts/worktree-post-create.sh`, `src/lib/git/worktree-harness-dirs.ts` — with the reserved-dir guard
+  from the #196 review).
+- **Entry-arch (Phase 2.E):** the `--start` focused-recon arm (documented in `session-init.md` and the arc-session
+  skill) and the spawn-anchored recipe (`src/lib/harness/worktree-entry.ts`) are on base.
+- **Renderer capability / command:** the deterministic ROADMAP regeneration path resolves via `reconcileRoadmap`
+  (`src/lib/work-unit/side-effects/readiness-regen.ts`), which composes `composeProjectReadinessView`
+  (`src/lib/status/project-view.ts`) and writes + stages `.arc/backlog/ROADMAP.md` as a lifecycle-transition
+  side-effect (degrading to an advisory on render/write failure). There is no standalone `arc roadmap` command —
+  the **project** readiness view regenerates on lifecycle location moves by design; the per-developer counterpart
+  (`STATUS.USER`) renders on demand via `arc status --user`.
+
+Verified by artifact presence + CLI-surface probing (not a live `arc start` spawn, which would cut a real
+branch/PR). Merge resolved cleanly — all conflicts took `main`'s integrated version; the only test noise was the
+commit-msg-footer suite tripping the hook's `MERGE_HEAD` merge-exemption mid-merge, which cleared on commit.
+
 ### Wave evidence to collect
 
 - [ ] **Wave 1:** two doc-only WUs in worktrees; verify harness presence, identity-global user-surface visibility,

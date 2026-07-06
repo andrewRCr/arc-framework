@@ -445,20 +445,28 @@ PR, not two.
           (all three portability OSes); merged via merge commit `8371a08a`. Base carries the mechanism with the
           begin-work default still `--here`.
 
-### `[ ]` **2.I.2 Merge `main` back into FP and verify homogeneity**
+### `[x]` **2.I.2 Merge `main` back into FP and verify homogeneity**
 
 - _Goal:_ FP's branch is current with base, and a worktree spawned off `main` runs the same build-item and
   entry-arch CLI as the observer.
 
-    - `[ ]` **2.I.2.a Merge `main` into FP's branch**
-        - Expect a clean merge — the forward-ported content is byte-identical to FP's; reconcile only FP's own
-          later drift, if any.
+    - `[x]` **2.I.2.a Merge `main` into FP's branch**
+        - 13 content conflicts, all the same shape — `main` carried the integrated truth (FP's mechanism + #195
+          renderer + the #196 review fixes) while FP still held the pre-fix originals; each resolved to `main`'s
+          version. FP's `.arc/active/*` planning artifacts merged cleanly and are unaffected. Gates green
+          (typecheck / lint / build / test 3889). Merge commit `e28baf53`.
 
-    - `[ ]` **2.I.2.b Confirm CLI homogeneity and renderer availability for the waves**
+    - `[x]` **2.I.2.b Confirm CLI homogeneity and renderer availability for the waves**
         - Verify a worktree spawned off `main` provisions and resolves `npx arc` to the build-item CLI (BI-1) and
           the entry-arch (the focused-recon `--start` arm + spawn-anchored recipe), and the deterministic ROADMAP
           regeneration path resolves on FP's branch — the base-state precondition the wave gates now require. Record
           the exact renderer capability / command in `notes-finalize-parallelism.md`.
+        - Confirmed by artifact presence + `npx arc` CLI-surface probing: full lifecycle CLI, `--start` arm
+          (`session-init.md` + arc-session skill), spawn recipe (`worktree-entry.ts`), BI-1 provisioning
+          (`worktree-post-create.sh` + `worktree-harness-dirs.ts`), and the deterministic ROADMAP regen path
+          (`reconcileRoadmap` → `composeProjectReadinessView`, writing/staging `.arc/backlog/ROADMAP.md` as a
+          lifecycle side-effect). Renderer capability / command recorded in `notes-finalize-parallelism.md`
+          § Build gates before waves.
 
 ## **Phase 3:** Burn-in wave 1 — two doc-only WUs
 
