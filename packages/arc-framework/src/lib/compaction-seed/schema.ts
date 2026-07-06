@@ -306,8 +306,10 @@ function isLoadSetPath(value: unknown): value is string {
 
 function isAbsoluteLoadSetPath(value: string): boolean {
   if (value.startsWith("/")) return posix.normalize(value) === value;
-  if (/^[A-Za-z]:[\\/]/u.test(value) || value.startsWith("\\\\")) {
-    // Reject traversal / non-canonical segments the same way the POSIX branch does.
+  if (/^[A-Za-z]:\\/u.test(value) || value.startsWith("\\\\")) {
+    // Windows/UNC absolute paths use backslash separators (as Node's path ops
+    // produce them); require them backslash-canonical and reject traversal, the
+    // same way the POSIX branch rejects non-canonical POSIX paths.
     return win32.normalize(value) === value;
   }
   return false;

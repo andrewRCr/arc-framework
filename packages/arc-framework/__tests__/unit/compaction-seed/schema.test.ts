@@ -127,6 +127,15 @@ describe("CompactionSeed schema", () => {
       },
     });
     expect(isCompactionSeed(canonical)).toBe(true);
+
+    // Windows absolute paths are backslash-canonical; the forward-slash form is not accepted.
+    const forwardSlash = seed({
+      loadSet: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [{ path: "C:/repo/WORKING-MEMORY.md", readMode: { kind: "full" } }],
+      },
+    });
+    expect(isCompactionSeed(forwardSlash)).toBe(false);
   });
 
   it("keeps currentWorkflow as soft orientation rather than a path field", () => {
