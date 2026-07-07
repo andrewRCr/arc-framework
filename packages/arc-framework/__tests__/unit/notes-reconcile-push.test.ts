@@ -124,6 +124,35 @@ describe("reconcileNotesPush", () => {
     expect(calls.some((args) => args[0] === "update-ref" && args.includes(TEMP))).toBe(true);
   });
 
+  it("second non-ff during reconcile re-push → conflict and temp ref cleanup", async () => {
+    let pushCount = 0;
+    const { exec, calls } = buildExec({
+      [`rev-parse --verify ${REF}`]: { stdout: "localhash", stderr: "" },
+      [`ls-remote origin ${REF}`]: { stdout: `remotehash\t${REF}`, stderr: "" },
+      [`push origin ${REF}`]: () => {
+        pushCount += 1;
+        if (pushCount <= 2) return nonFastForward();
+        return { stdout: "", stderr: "" };
+      },
+      [`fetch --refmap= origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
+      [`notes --ref ${SHORT_REF} merge -s cat_sort_uniq ${TEMP}`]: { stdout: "", stderr: "" },
+      [`notes --ref ${SHORT_REF} list`]: { stdout: `noteobj ${NOTE_COMMIT}`, stderr: "" },
+      [`notes --ref ${SHORT_REF} show *`]: { stdout: VALID_NOTE, stderr: "" },
+      [`update-ref -d ${TEMP}`]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await reconcileNotesPush({ io, identity: "andrew", cwd: "/repo" });
+
+    expect(result.kind).toBe("conflict");
+    if (result.kind === "conflict") {
+      expect(result.message).toContain("reconcile re-push");
+    }
+    expect(calls.filter((args) => args[0] === "push")).toHaveLength(2);
+    expect(calls.some((args) => args[0] === "update-ref" && args[1] === "-d" && args[2] === TEMP)).toBe(true);
+    expect(calls.some((args) => args[0] === "update-ref" && args[1] === REF)).toBe(false);
+  });
+
   it("clean fast-forward push → no fetch or merge invoked", async () => {
     const { exec, calls } = buildExec({
       [`rev-parse --verify ${REF}`]: { stdout: "localhash", stderr: "" },

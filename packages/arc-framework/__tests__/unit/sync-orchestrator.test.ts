@@ -1064,6 +1064,7 @@ describe("--yes wiring", () => {
         tip: "f".repeat(40),
         annotatedCommits: ["a".repeat(40)],
         omittedCommits: [],
+        supersedesLocal: true,
       };
       capturedNotesContext = await o.pushNotes({
         io: {},

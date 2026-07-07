@@ -13,75 +13,45 @@ _Design decisions:_ All four fixes land in the export/reconcile pair (`lib/user-
 `commands/user/push-fetch.ts`) without restructuring them — `user-sync-module-split` owns the decomposition
 cut-map (see `notes-user-notes-retention.md` § Scope & sequencing).
 
-### `[ ]` **1.1 Adopt-if-superset push reconciliation**
+### `[x]` **1.1 Adopt-if-superset push reconciliation**
 
 - _Goal:_ A paired push whose pushed tip carries every local note adopts that tip locally, so the local ref
   stops re-diverging after every steady-state primary sync.
+- _Outcome:_ `BranchBoundedNotesExportTarget` now carries a plan-time `supersedesLocal` verdict, so
+  `adoptPushedTipIntoLocalRef` adopts temp exports that preserve every local `(blob, commit)` pair while still
+  declining genuine subsets and preserving the `priorLocalTip` CAS guard.
 
-    - Compute the superset verdict at plan time — `planBranchBoundedNotesExport` already holds the local
-      entries and the remote entry map — and thread it on `BranchBoundedNotesExportTarget` (e.g. a
-      `supersedesLocal` boolean; trivially true on the fast path). Plan-time data is race-safe because the
-      `priorLocalTip` compare-and-swap already declines on any post-plan local advance.
-    - Replace the `omittedCommits.length > 0` decline in `adoptPushedTipIntoLocalRef`
-      (`branch-bounded-notes-export.ts`) with that verdict: adopt when the pushed tip contains every local
-      `(blob, commit)` pair; keep the existing no-adopt path (next-push reconcile) on a genuine subset.
-    - Build `test-first` (one behavior at a time):
-        - adopts the pushed tip when it holds every local `(blob, commit)` pair (the primary's steady case,
-          `omitted > 0` but content-superset)
-        - declines the adopt when the pushed tip lacks a local pair (genuine branch-bounded subset)
-        - a concurrent local save between plan and push still fails the swap and is never clobbered
-
-### `[ ]` **1.2 Identical-blob skip in the export overlay**
+### `[x]` **1.2 Identical-blob skip in the export overlay**
 
 - _Goal:_ A steady-state export adds ~zero new note commits — origin's byte-identical notes are never re-added.
+- _Outcome:_ `planBranchBoundedNotesExport` skips `git notes add -f` when the remote blob already matches the
+  local blob, letting fully-identical exports collapse to a `noop` and keeping differing remote blobs on the
+  existing refusal/overlay paths.
 
-    - In the overlay loop (`planBranchBoundedNotesExport`, `branch-bounded-notes-export.ts:156-168`), skip the
-      `git notes add -f` when `remoteBlob === entry.blob` instead of only checking it for refusal.
-    - Verify the all-skipped case falls out: when every add skips, the staged ref's tip equals the fetched
-      remote tip, and `pushBranchBoundedNotesExport` already resolves `remoteTip === target.tip` as `noop` —
-      confirm rather than add code.
-    - Build `test-first` (one behavior at a time):
-        - a note whose remote blob is byte-identical is not re-added to the staged ref
-        - a note with a differing remote blob still follows the existing refuse/overlay rules
-        - a fully-identical export resolves to a no-op push
-
-### `[ ]` **1.3 Pinned-tip paired push**
+### `[x]` **1.3 Pinned-tip paired push**
 
 - _Goal:_ The notes push ships exactly the tip the plan validated — a sibling save landing in the plan→push
   window can never widen the export.
+- _Outcome:_ `pushBranchBoundedNotesExport` now pushes `${target.tip}:${destinationRef}` rather than the mutable
+  source ref name, and the real-git regression proves a later local notes-ref advance remains local.
 
-    - In `pushBranchBoundedNotesExport` (`branch-bounded-notes-export.ts:209`), push
-      `${target.tip}:${destinationRef}` instead of `${target.ref}:${destinationRef}` — the fast path
-      (`ref === destinationRef`) currently ships the ref by name, exporting whatever it points at by push time.
-
-### `[ ]` **1.4 Typed outcome for reconcile re-push failure**
+### `[x]` **1.4 Typed outcome for reconcile re-push failure**
 
 - _Goal:_ `arc sync` can never report success while `arc user status` would report diverged — a second
   non-fast-forward during the reconcile re-push is a typed outcome, not an escaped throw.
+- _Outcome:_ `reconcileAndRepush` now wraps the re-push, maps a second non-FF to the existing `conflict` outcome,
+  maps other re-push failures through the existing outcome taxonomy, and deletes the `__incoming` temp ref from a
+  `finally` path.
 
-    - Wrap the re-push inside `reconcileAndRepush` (`push-fetch.ts:284`): a second non-FF returns the
-      existing `NotesPushOutcome` `conflict` kind (message naming the reconcile path), and the `__incoming`
-      temp ref is cleaned up on every exit path (today the raw throw skips the `update-ref -d`). Other
-      re-push failures map to their existing outcome kinds (`blocked` / `no-remote` / `failed`) — only the
-      non-FF mapping is new.
-    - Verify each consumer maps `conflict` to failure — `pushNotesLeg` (`handlers/sync.ts:1201-1203`) and the
-      single-leg push/user-sync handlers already do; no new envelope wiring expected.
-    - Regression test: remote advances again mid-reconcile → typed conflict, local ref intact, no leaked
-      `__incoming`, sync verdict and status verdict agree.
-
-### `[ ]` **1.5 Live steady-state convergence validation**
+### `[x]` **1.5 Live steady-state convergence validation**
 
 - _Goal:_ Phase A's exit criterion is observed on the live repo, and the standing operational guard retires on
   its recorded trigger.
-
-    - From this worktree's own rebuilt WU branch (`npm run build` — the primary checkout hosts this WU, and
-      the notes ref is common-dir-shared, so no base-merge is needed for the live probe): run a steady-state
-      `arc sync`; verify `arc user status` reports current immediately after, and the remote notes ref gains
-      ~zero commits (vs. +886 today) — compare `git rev-list --count` on the fetched remote notes tip before
-      and after the sync.
-    - Retire the WORKING-MEMORY "notes-sync divergence/bloat" entry per its removal trigger; update the
-      tombstone-hazard entry to reflect that only the Phase B trigger remains.
-    - Tier 2 gate (full suite) closes the phase.
+- _Outcome:_ After rebuilding the CLI, the first sync settled current local-ahead notes, then a measured
+  steady-state `arc sync -y --json` returned notes `noop`; the fetched remote notes tip stayed
+  `9c362962c0c953a8628d3691582b9d7f504e5e78` and `git rev-list --count` stayed `11692` before/after. `arc user
+  status --json` reported notes up to date, the divergence/bloat WORKING-MEMORY entry was retired, and the
+  tombstone guard now names only the remaining Phase B trigger.
 
 ## **Phase 2:** Write discipline — concurrency model and ref serialization
 

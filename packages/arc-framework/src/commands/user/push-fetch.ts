@@ -252,38 +252,60 @@ async function reconcileAndRepush(
   const incoming = incomingNotesRef(fullRef);
   const preMergeTip = await readRefTip(io, fullRef);
 
-  await io.exec("git", ["fetch", "--refmap=", "origin", incomingFetchRefspec(fullRef)]);
-
   try {
-    await io.exec("git", notesMergeArgs(shortRef, incoming));
-  } catch (err) {
-    await tryExec(io, ["notes", "--ref", shortRef, "merge", "--abort"]);
-    await tryExec(io, ["update-ref", "-d", incoming]);
-    const detail = err instanceof Error ? err.message : String(err);
-    return {
-      kind: "conflict",
-      message: `Concurrent notes could not be merged (git notes merge failed): ${detail}`,
-    };
-  }
+    await io.exec("git", ["fetch", "--refmap=", "origin", incomingFetchRefspec(fullRef)]);
 
-  const corruptCommit = await findCorruptMergedNote(io, shortRef);
-  if (corruptCommit !== null) {
-    if (preMergeTip !== null) {
-      await tryExec(io, ["update-ref", fullRef, preMergeTip]);
+    try {
+      await io.exec("git", notesMergeArgs(shortRef, incoming));
+    } catch (err) {
+      await tryExec(io, ["notes", "--ref", shortRef, "merge", "--abort"]);
+      const detail = err instanceof Error ? err.message : String(err);
+      return {
+        kind: "conflict",
+        message: `Concurrent notes could not be merged (git notes merge failed): ${detail}`,
+      };
     }
+
+    const corruptCommit = await findCorruptMergedNote(io, shortRef);
+    if (corruptCommit !== null) {
+      if (preMergeTip !== null) {
+        await tryExec(io, ["update-ref", fullRef, preMergeTip]);
+      }
+      return {
+        kind: "conflict",
+        message:
+          `Concurrent notes on commit ${corruptCommit.slice(0, 8)} could not be auto-merged `
+          + "(the union produced an unparseable note). Your local notes are preserved; resolve the "
+          + "conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
+      };
+    }
+
+    try {
+      await runUserPush({ cwd, io, identity, access, worktreeBranch });
+    } catch (err) {
+      return reconcileRepushFailureOutcome(err);
+    }
+    return { kind: "reconciled" };
+  } finally {
     await tryExec(io, ["update-ref", "-d", incoming]);
+  }
+}
+
+function reconcileRepushFailureOutcome(err: unknown): NotesPushOutcome {
+  if (err instanceof UserPushBlockedError) {
+    return { kind: "blocked", conditions: err.conditions };
+  }
+  const error = err instanceof Error ? err : new Error(String(err));
+  if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
+  if (isNonFastForwardError(error.message)) {
     return {
       kind: "conflict",
       message:
-        `Concurrent notes on commit ${corruptCommit.slice(0, 8)} could not be auto-merged `
-        + "(the union produced an unparseable note). Your local notes are preserved; resolve the "
-        + "conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
+        "Concurrent notes changed again during reconcile re-push. The merged local notes are preserved; "
+        + "retry `arc user push` or `arc sync` after the other writer lands.",
     };
   }
-
-  await runUserPush({ cwd, io, identity, access, worktreeBranch });
-  await tryExec(io, ["update-ref", "-d", incoming]);
-  return { kind: "reconciled" };
+  return { kind: "failed", error };
 }
 
 /** Current tip of a ref, or `null` when it does not resolve. */
