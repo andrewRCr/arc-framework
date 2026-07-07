@@ -5,12 +5,11 @@
  * classifies.
  *
  * A per-WU user subdir under `user/{identity}/` is *retired* — reconcilable —
- * exactly when its WU has shipped (its slug is in the shipped set, read from
- * `origin/<base>`). Removal is recoverable (the caller writes an `.internal/`
- * backup first) and a shipped WU is closed, so a shipped subdir reconciles
- * unconditionally — there is no unsaved-work-at-risk gate. Whether the operator
- * stashed extra files in the subdir governs only how loudly the removal is
- * announced ({@link stashedFilesInSubdir}), not whether it happens.
+ * when its WU has shipped (its slug is in the shipped set, read from
+ * `origin/<base>`) and no same-machine worktree is still in flight for that WU.
+ * Removal is recoverable (the caller writes an `.internal/` backup first).
+ * Whether the operator stashed extra files in the subdir governs only how loudly
+ * the removal is announced ({@link stashedFilesInSubdir}), not whether it happens.
  *
  * The shipped gate is load-bearing for the no-current-WU path (an errand or
  * `main` session): there, every local subdir looks "not the current WU", so
@@ -23,8 +22,8 @@
 
 import { wuNameOfPath } from "./classifier.js";
 
-/** Why a present subdir was spared from reconciliation — only a live (not-shipped) WU is. */
-export type PreservedReason = "not-shipped";
+/** Why a present subdir was spared from reconciliation. */
+export type PreservedReason = "not-shipped" | "in-flight";
 
 /** A present subdir kept in place, with the condition that spared it. */
 export interface PreservedSubdir {
@@ -45,14 +44,16 @@ export interface RetiredSubdirPlanInput {
   localSubdirs: readonly string[];
   /** Shipped WU-name slugs (read from the `origin/<base>` `completed/` tree). */
   shipped: ReadonlySet<string>;
+  /** WU-name slugs with a same-machine worktree still in flight. */
+  inFlight?: ReadonlySet<string>;
 }
 
 /**
  * Partition present per-WU subdirs into reconcile vs. preserve.
  *
  * Pure and total over the input — no I/O, no current-WU input. Output preserves
- * `localSubdirs` iteration order. A shipped subdir reconciles unconditionally; a
- * not-shipped one (a live WU's workspace) is always preserved.
+ * `localSubdirs` iteration order. A shipped subdir reconciles unless a local
+ * worktree is still in flight for that WU; a not-shipped one is preserved.
  *
  * @param input - Local subdirs plus the shipped reference set.
  * @returns The reconcile/preserve partition.
@@ -62,10 +63,13 @@ export function planRetiredSubdirReconcile(
 ): RetiredSubdirPlan {
   const reconcile: string[] = [];
   const preserved: PreservedSubdir[] = [];
+  const inFlight = input.inFlight ?? new Set<string>();
 
   for (const subdir of input.localSubdirs) {
-    if (input.shipped.has(subdir)) {
+    if (input.shipped.has(subdir) && !inFlight.has(subdir)) {
       reconcile.push(subdir);
+    } else if (inFlight.has(subdir)) {
+      preserved.push({ subdir, reason: "in-flight" });
     } else {
       preserved.push({ subdir, reason: "not-shipped" });
     }

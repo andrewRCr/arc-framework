@@ -8,12 +8,15 @@ import { describe, it, expect } from "vitest";
 
 import {
   listAnnotatedNoteCommits,
+  mergeCrossWuFile,
   notePathToCommit,
   readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
 } from "../../src/lib/user-sync/index.js";
 import type { GitExec } from "../../src/lib/git/index.js";
 
+const NOW = "2026-05-25T12:00:00.000Z";
+const daysAgo = (n: number): string => new Date(Date.parse(NOW) - n * 86_400_000).toISOString();
 /** A 40-char hex commit from a short hex seed. */
 const annotated = (seed: string): string => seed.padEnd(40, "0");
 /** A 64-char hex commit from a short hex seed. */
@@ -24,6 +27,8 @@ const notePathFor = (commit: string): string => `${commit.slice(0, 2)}/${commit.
 interface NotesConfig {
   /** Note-history commits, most-recent first. */
   history?: string[];
+  /** History commit → commit timestamp. Defaults to `NOW`. */
+  historyDates?: Record<string, string>;
   /** History commit → note paths changed in it. */
   pathsByHistory?: Record<string, string[]>;
   /** `"<historyCommit>:<path>"` → note blob content. */
@@ -38,6 +43,7 @@ interface NotesConfig {
 function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
   const calls: string[][] = [];
   const history = cfg.history ?? [];
+  const historyDates = cfg.historyDates ?? {};
   const paths = cfg.pathsByHistory ?? {};
   const content = cfg.contentByShow ?? {};
   const annotatedContent = cfg.contentByAnnotatedCommit ?? {};
@@ -46,9 +52,15 @@ function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
     calls.push(args);
     if (args[0] === "log") {
       if (cfg.logThrows) throw new Error("no such ref");
-      const idx = args.indexOf("--max-count");
-      const max = idx >= 0 ? Number(args[idx + 1]) : history.length;
-      return { stdout: history.slice(0, max).join("\n"), stderr: "" };
+      const sinceArg = args.find((arg) => arg.startsWith("--since="));
+      const since = sinceArg ? Date.parse(sinceArg.slice("--since=".length)) : Number.NEGATIVE_INFINITY;
+      return {
+        stdout: history
+          .filter((commit) => Date.parse(historyDates[commit] ?? NOW) >= since)
+          .map((commit) => `${commit}\0${historyDates[commit] ?? NOW}`)
+          .join("\n"),
+        stderr: "",
+      };
     }
     if (args[0] === "diff-tree") {
       const historyCommit = args[args.length - 1] ?? "";
@@ -77,15 +89,19 @@ function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
 }
 
 /** Build a config where each history commit has exactly one note carrying `marker` content. */
-function oneNotePerHistory(entries: { history: string; marker: string }[]): NotesConfig {
+function oneNotePerHistory(entries: { history: string; marker: string; date?: string }[]): NotesConfig {
   const pathsByHistory: Record<string, string[]> = {};
   const contentByShow: Record<string, string> = {};
+  const historyDates: Record<string, string> = {};
   for (const { history, marker } of entries) {
     const path = notePathFor(annotated(history));
     pathsByHistory[history] = [path];
     contentByShow[`${history}:${path}`] = marker;
+    if (entries.find((entry) => entry.history === history)?.date) {
+      historyDates[history] = entries.find((entry) => entry.history === history)?.date ?? NOW;
+    }
   }
-  return { history: entries.map((e) => e.history), pathsByHistory, contentByShow };
+  return { history: entries.map((e) => e.history), historyDates, pathsByHistory, contentByShow };
 }
 
 describe("readRecentUserNotes", () => {
@@ -95,11 +111,12 @@ describe("readRecentUserNotes", () => {
     );
     const { exec, calls } = makeExec(cfg);
 
-    const notes = await readRecentUserNotes(exec, "andrew", 3);
+    const notes = await readRecentUserNotes(exec, "andrew", 3, NOW);
 
     expect(notes).toHaveLength(3);
     const log = calls.find((args) => args[0] === "log");
-    expect(log?.[log.indexOf("--max-count") + 1]).toBe("3");
+    expect(log).not.toContain("--max-count");
+    expect(log?.some((arg) => arg.startsWith("--since="))).toBe(true);
   });
 
   it("reads what exists when fewer than N notes are available", async () => {
@@ -109,7 +126,7 @@ describe("readRecentUserNotes", () => {
     ]);
     const { exec } = makeExec(cfg);
 
-    const notes = await readRecentUserNotes(exec, "andrew", 5);
+    const notes = await readRecentUserNotes(exec, "andrew", 5, NOW);
 
     expect(notes).toHaveLength(2);
   });
@@ -122,7 +139,7 @@ describe("readRecentUserNotes", () => {
     ]);
     const { exec } = makeExec(cfg);
 
-    const notes = await readRecentUserNotes(exec, "andrew");
+    const notes = await readRecentUserNotes(exec, "andrew", undefined, NOW);
 
     expect(notes.map((n) => n.content)).toEqual(["RECENT", "MIDDLE", "OLDEST"]);
   });
@@ -130,7 +147,7 @@ describe("readRecentUserNotes", () => {
   it("yields an empty sequence for an empty ref", async () => {
     const { exec } = makeExec({ history: [] });
 
-    expect(await readRecentUserNotes(exec, "andrew")).toEqual([]);
+    expect(await readRecentUserNotes(exec, "andrew", undefined, NOW)).toEqual([]);
   });
 
   it("skips changed paths that are not notes", async () => {
@@ -142,9 +159,64 @@ describe("readRecentUserNotes", () => {
     };
     const { exec } = makeExec(cfg);
 
-    const notes = await readRecentUserNotes(exec, "andrew");
+    const notes = await readRecentUserNotes(exec, "andrew", undefined, NOW);
 
     expect(notes.map((n) => n.content)).toEqual(["the-note"]);
+  });
+
+  it("excludes notes older than the tombstone TTL bound regardless of count", async () => {
+    const cfg = oneNotePerHistory([
+      { history: "a1", marker: "recent", date: daysAgo(1) },
+      { history: "b2", marker: "expired", date: daysAgo(8) },
+    ]);
+    const { exec } = makeExec(cfg);
+
+    const notes = await readRecentUserNotes(exec, "andrew", 10, NOW);
+
+    expect(notes.map((n) => n.content)).toEqual(["recent"]);
+  });
+
+  it("drops sparse pre-deletion notes with their expired tombstone", async () => {
+    const wmFile = (...entries: string[]): string =>
+      `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
+    const wmEntry = (header: string): string => `**${header}:**\n_Remove when: x._\n\nBody.`;
+    const wmTomb = (header: string, removedAt: string): string =>
+      `## Removed: **${header}:**\n\n- _Section:_ Memories\n- _Removed:_ ${removedAt}`;
+    const cfg = oneNotePerHistory([
+      { history: "a1", marker: wmFile(wmEntry("Recent")), date: daysAgo(1) },
+      { history: "b2", marker: `${wmFile()}\n${wmTomb("Dropped", daysAgo(8))}\n`, date: daysAgo(8) },
+      { history: "c3", marker: wmFile(wmEntry("Dropped")), date: daysAgo(9) },
+    ]);
+    const { exec } = makeExec(cfg);
+
+    const notes = await readRecentUserNotes(exec, "andrew", 10, NOW);
+    const merged = mergeCrossWuFile("WORKING-MEMORY.md", notes, NOW);
+
+    expect(merged.content).toContain("**Recent:**");
+    expect(merged.content).not.toContain("**Dropped:**");
+    expect(merged.content).not.toContain("## Removed: **Dropped:**");
+  });
+
+  it("does not let merge commits shrink the effective note window", async () => {
+    const noteA = notePathFor(annotated("a1"));
+    const noteB = notePathFor(annotated("b2"));
+    const cfg: NotesConfig = {
+      history: ["merge", "a1", "b2"],
+      pathsByHistory: {
+        merge: [],
+        a1: [noteA],
+        b2: [noteB],
+      },
+      contentByShow: {
+        [`a1:${noteA}`]: "note-a",
+        [`b2:${noteB}`]: "note-b",
+      },
+    };
+    const { exec } = makeExec(cfg);
+
+    const notes = await readRecentUserNotes(exec, "andrew", 2, NOW);
+
+    expect(notes.map((n) => n.content)).toEqual(["note-a", "note-b"]);
   });
 });
 

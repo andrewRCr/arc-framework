@@ -398,6 +398,12 @@ export interface PairedPushResult {
    * persisted: deferral is the no-op, a retry is a fresh push invocation.
    */
   retryOffer?: NotesPushRetryOffer;
+  /**
+   * Present on paired flows where the worktree leg landed but notes did not.
+   * `true` means the local partial-push recovery marker was durably recorded;
+   * `false` means recording was attempted but could not be written.
+   */
+  partialPushMarkerRecorded?: boolean;
 }
 
 /** Options for the paired-push helper. */

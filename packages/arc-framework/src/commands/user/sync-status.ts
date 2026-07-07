@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { getCurrentBranch, shortHash, type SyncManifest } from "../../lib/git/index.js";
+import { uniqueRefToken } from "../../lib/git/ref-tree.js";
 import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -8,11 +9,11 @@ import {
   type WorktreeSyncStatusResult,
 } from "../../lib/git/worktree-sync.js";
 import {
-  clearPartialPushMarker,
   inferUserSyncCause,
   isComparableSourceCommit,
   projectManifest,
   readLocalSyncState,
+  readMaterializedBaselineStamp,
   resolveCurrentWuName,
   type UserSyncCause,
   type UserSyncCauseConfidence,
@@ -111,8 +112,11 @@ export async function runUserStatus(
   } = options;
   const currentWuName = await resolveCurrentWuName(cwd, io.exec);
   const shouldProbeWorktree = !offline && remoteSyncEnabled;
+  const worktreeProbe = shouldProbeWorktree
+    ? await runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
+    : null;
   const [
-    diskInspection, search, backupFiles, remoteIdentities, refInspection, worktreeProbe,
+    diskInspection, search, backupFiles, remoteIdentities, refInspection,
     userNotesRefExists, localSyncState,
   ] = await Promise.all([
     inspectDiskVsLocalSnapshot(cwd, io, identity, currentWuName),
@@ -122,9 +126,6 @@ export async function runUserStatus(
     offline
       ? Promise.resolve(null)
       : inspectUserSyncRefsDetailed(io, identity, DEFAULT_FETCH_TIMEOUT_MS),
-    shouldProbeWorktree
-      ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
-      : Promise.resolve(null),
     inspectUserNotesRefExists(io, identity),
     readLocalSyncState(cwd, io, identity),
   ]);
@@ -185,7 +186,7 @@ async function classifyUserSyncCause(input: {
   offline: boolean;
   refInspection: UserSyncRefInspection | null;
   note: { commit: string } | null;
-  localSyncState: { sourceCommit: string; savedAt?: string } | null;
+  localSyncState: { sourceCommit: string; savedAt?: string; notesRefTip?: string } | null;
 }): Promise<{ cause: UserSyncCause; confidence: UserSyncCauseConfidence } | undefined> {
   const { io, offline, refInspection, note, localSyncState } = input;
 
@@ -193,6 +194,7 @@ async function classifyUserSyncCause(input: {
     ? localSyncState.sourceCommit
     : null;
   const savedAt = localSyncState?.savedAt ?? null;
+  const localSyncNotesRefTip = localSyncState?.notesRefTip ?? null;
   const latestNoteRefHistoryEntry = note?.commit ?? null;
   const headReachable = sourceCommit
     ? await isAncestor(io, sourceCommit, "HEAD")
@@ -205,6 +207,7 @@ async function classifyUserSyncCause(input: {
       remoteRefHash: null,
       sourceCommit,
       savedAt,
+      localSyncNotesRefTip,
       latestNoteRefHistoryEntry,
       headReachable,
       offline: true,
@@ -219,6 +222,7 @@ async function classifyUserSyncCause(input: {
     remoteRefHash: refInspection.remoteHash,
     sourceCommit,
     savedAt,
+    localSyncNotesRefTip,
     latestNoteRefHistoryEntry,
     headReachable,
     offline: false,
@@ -455,15 +459,18 @@ async function resolveUserSyncCoherenceState(input: {
   const marker = syncState?.partialPush;
   if (!marker) return undefined;
 
-  if (!refInspection.localHash || marker.localRefHash !== refInspection.localHash) {
-    await clearPartialPushMarker(cwd, io, identity);
+  let markerStillNamesLocalHistory = false;
+  if (refInspection.localHash) {
+    markerStillNamesLocalHistory = marker.localRefHash === refInspection.localHash
+      || await isAncestor(io, marker.localRefHash, refInspection.localHash);
+  }
+  if (!markerStillNamesLocalHistory) {
     return undefined;
   }
 
   if (refInspection.state === "local-ahead") return "partial-push";
   if (refInspection.state === "remote-unavailable") return "partial-push-unverified";
 
-  await clearPartialPushMarker(cwd, io, identity);
   return undefined;
 }
 
@@ -1308,7 +1315,7 @@ export async function inspectUserSyncRefsDetailed(
   fetchTimeoutMs?: number,
 ): Promise<UserSyncRefInspection> {
   const localRef = `refs/notes/${notesRef(identity)}`;
-  const tempRef = `${TEMP_SYNC_REF_PREFIX}/${identity}`;
+  const tempRef = `${TEMP_SYNC_REF_PREFIX}/${identity}_${uniqueRefToken()}`;
 
   const localHash = await readRefHash(io, localRef);
   const remoteProbe = await readRemoteRefHash(io, localRef);
@@ -1538,6 +1545,8 @@ async function inspectDiskVsLocalSnapshot(
   const projectedNote = projectManifest(noteSnapshot.manifest);
   const noteHash = hashSyncManifest(projectedNote);
   const localSyncState = await readLocalSyncState(cwd, io, identity);
+  const materializedBaseline = await readMaterializedBaselineStampSafe(cwd, io, identity);
+  const materializedHash = materializedBaseline?.manifestHash ?? localSyncState?.materializedManifestHash;
 
   if (!diskManifest) {
     const missingFiles = missingNoteFiles(projectedNote, null);
@@ -1546,7 +1555,7 @@ async function inspectDiskVsLocalSnapshot(
     }
     return {
       state: "different",
-      diskStatus: localSyncState?.materializedManifestHash === noteHash
+      diskStatus: materializedHash === noteHash
         ? "local unsaved"
         : "stale",
       direction: "missing",
@@ -1583,8 +1592,9 @@ async function inspectDiskVsLocalSnapshot(
     };
   }
 
-  const materializedHash = localSyncState.materializedManifestHash;
   if (
+    materializedBaseline === null
+    &&
     noteSnapshot.sourceCommit !== localSyncState.sourceCommit
     && isComparableSourceCommit(localSyncState.sourceCommit)
   ) {
@@ -1603,7 +1613,9 @@ async function inspectDiskVsLocalSnapshot(
   if (materializedHash === noteHash) {
     diskStatus = "local unsaved";
   } else if (diskHash === materializedHash) {
-    diskStatus = localSyncState.sourceOperation === "load" ? "stale" : "local unsaved";
+    diskStatus = materializedBaseline !== null || localSyncState.sourceOperation === "load"
+      ? "stale"
+      : "local unsaved";
   } else {
     diskStatus = "mixed";
   }
@@ -1614,6 +1626,18 @@ async function inspectDiskVsLocalSnapshot(
     direction,
     missingFiles,
   };
+}
+
+async function readMaterializedBaselineStampSafe(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<{ manifestHash: string } | null> {
+  try {
+    return await readMaterializedBaselineStamp(io.exec, cwd, identity);
+  } catch {
+    return null;
+  }
 }
 
 export function deriveRemoteStatus(

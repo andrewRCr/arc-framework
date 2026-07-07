@@ -1,9 +1,9 @@
 /**
  * Unit tests for `planRetiredSubdirReconcile` — the pure retired-subdir
  * reconciliation decision. A present per-WU subdir is reconcilable exactly when
- * its WU has shipped; the shipped gate is what keeps a no-current-WU session from
- * mass-reconciling in-flight subdirs. Removal is recoverable (the caller backs up
- * first), so a shipped subdir reconciles unconditionally — drift no longer gates.
+ * its WU has shipped and no same-machine worktree is still in-flight for it; the
+ * shipped gate is what keeps a no-current-WU session from mass-reconciling
+ * in-flight subdirs.
  */
 
 import { describe, it, expect } from "vitest";
@@ -35,6 +35,17 @@ describe("planRetiredSubdirReconcile", () => {
 
     expect(plan.reconcile).toEqual(["old-wu"]);
     expect(plan.preserved).toEqual([]);
+  });
+
+  it("preserves a shipped subdir when a same-machine worktree is still in flight", () => {
+    const plan = planRetiredSubdirReconcile({
+      localSubdirs: ["old-wu"],
+      shipped: new Set(["old-wu"]),
+      inFlight: new Set(["old-wu"]),
+    });
+
+    expect(plan.reconcile).toEqual([]);
+    expect(plan.preserved).toEqual([{ subdir: "old-wu", reason: "in-flight" }]);
   });
 
   it("preserves a present subdir whose WU has not shipped", () => {

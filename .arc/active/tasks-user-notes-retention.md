@@ -127,7 +127,7 @@ any worktree's load or save) and records the materialized entry set — never a 
 recency window. Both calls are the spec's (B2, with the per-worktree-scope alternative rejected as recreating
 C11); tasks below implement, not re-decide.
 
-### `[ ]` **3.1 Materialized-baseline stamp save guard**
+### `[x]` **3.1 Materialized-baseline stamp save guard**
 
 - _Goal:_ Tombstone synthesis diffs disk only against the entry set disk actually materialized — an entry
   merged into the ref but never written to disk can never read as a deletion.
@@ -137,123 +137,91 @@ C11); tasks below implement, not re-decide.
           materialized file hashes, and parsed cross-WU entry identities. Verified save/load write it under
           the notes lock, and a sibling-style load advances the same git-common-dir stamp.
 
-    - `[ ]` **3.1.b Rewire tombstone synthesis**
-        - `applyRemovalTombstones` (`save-load.ts:530`) diffs against the stamp's recorded entry set instead
-          of the recent-note window; absent stamp → synthesize nothing.
-        - Build `test-first` (one behavior at a time):
-            - an entry in the ref but absent from the stamp and disk synthesizes no tombstone
-            - an entry the stamp records as materialized and now disk-absent still earns its tombstone
-            - no stamp → no synthesis (first run after upgrade)
+    - `[x]` **3.1.b Rewire tombstone synthesis**
+        - `applyRemovalTombstones` now diffs against the materialized-baseline stamp's recorded entry identities,
+          ignores ref-only entries that disk never materialized, preserves tombstones for stamp-recorded missing
+          entries, and synthesizes nothing when the stamp is absent after upgrade.
 
-    - `[ ]` **3.1.c Atomic one-lock-span diff inputs**
-        - Move disk serialization (`serializeSplitUserManifest`, `save-load.ts:112`) inside the lock span
-          (today it runs before the acquire at `:128`), so a sibling's concurrent load can never advance the
-          stamp past the disk snapshot the diff uses. HEAD resolve moves inside the span too (C12 fold).
+    - `[x]` **3.1.c Atomic one-lock-span diff inputs**
+        - `runUserSave` now resolves `HEAD`, serializes disk, reads the stamp, synthesizes tombstones, writes
+          and verifies the note, and advances the stamp inside one notes-lock span; concurrent saves prove the
+          snapshot steps no longer overlap before lock acquisition.
 
-    - `[ ]` **3.1.d C1 interleaving tests**
-        - Build `test-first` (one behavior at a time):
-            - reconcile → save → save: the reconcile-merged, never-materialized entry survives both saves
-            - load∥save: the interleaved load cannot induce a spurious tombstone for the just-materialized
-              entry
+    - `[x]` **3.1.d C1 interleaving tests**
+        - Added real-git interleaving coverage proving reconcile-merged entries survive repeated saves before
+          disk load, and a paused save racing a load/stamp advance does not synthesize a tombstone for the
+          just-materialized entry.
 
-### `[ ]` **3.2 Atomic identity-global disk writes under lock**
+- _Outcome:_ The save guard now records a repo-shared materialized baseline, diffs tombstones only against that
+  materialized entry set, and locks save snapshot inputs with the stamp read/write so ref-only entries and
+  concurrent load materialization cannot be misread as deletions.
+
+### `[x]` **3.2 Atomic identity-global disk writes under lock**
 
 - _Goal:_ A torn read of an identity-global file is impossible — materialization is atomic and lock-covered,
   removing C1's amplifier.
 
-    - Identity-global file writes (`createUserIOContext().writeFile` — plain `fs.writeFile`,
-      `io-context.ts:153`) become temp+rename; load's materialization runs under the notes lock.
-    - Integration test: a reader mid-materialization sees either the old or the new content, never a torn mix.
+- _Outcome:_ User-sync file writes now go through a reusable temp-then-rename text writer, and `runUserLoad`
+  holds the notes lock across materialization, readback verification, and baseline-stamp advancement. The
+  integration race pins that a save cannot read a partial identity-global load write.
 
-### `[ ]` **3.3 Window/TTL alignment**
+### `[x]` **3.3 Window/TTL alignment**
 
 - _Goal:_ The tombstone TTL strictly dominates the merge window — a deletion can never resurrect because its
   tombstone expired while pre-deletion notes were still in-window.
 
-    - The cross-WU window (`CROSS_WU_NOTE_WINDOW`, `lib/user-sync/notes-ref.ts:26`) becomes time+count
-      bounded, co-designed with the `TOMBSTONE_TTL_MS` contract (`lib/user-sync/merge.ts:353`); reconcile
-      merge commits (zero note-path delta) stop consuming window slots.
-    - Build `test-first` (one behavior at a time):
-        - a note older than the TTL bound falls out of the window regardless of count
-        - sparse saves (< window-count in TTL span): expired tombstones and their pre-deletion notes leave
-          the window together — the C7 resurrection case
-        - merge commits do not shrink the effective window
+- _Outcome:_ The recent-note reader is now count- and TTL-bounded using the exported tombstone TTL, filters
+  notes older than the horizon, and skips zero-note merge commits without consuming the effective window. The
+  sparse-save regression proves expired tombstones and their pre-deletion notes fall out together.
 
-### `[ ]` **3.4 Unique temp refs**
+### `[x]` **3.4 Unique temp refs**
 
 - _Goal:_ Concurrent probes and reconciles never delete each other's temp refs — no false
   `remote-unavailable` verdicts.
 
-    - Propagate the per-call `uniqueRefToken()` pattern (already in `sync-state-merge.ts:140-145`) to the
-      remaining shared identity-scoped temp refs: `incomingNotesRef` (`notes-merge.ts:39`) and the
-      `arc-sync-temp` probe refs (`TEMP_SYNC_REF_PREFIX`, `sync-status.ts:53`); cleanup keyed to the
-      caller's own token.
-    - Integration behavior: two concurrent probes never delete each other's temp refs — pins the C8 fix
-      rather than leaving it inspection-verified.
+- _Outcome:_ Notes reconcile incoming refs and status probe refs now carry per-call `uniqueRefToken()` suffixes,
+  with cleanup targeting the caller's exact ref. Unit coverage pins tokenized fetch/merge/delete lifecycles and
+  concurrent status probes deleting only their own `arc-sync-temp` refs.
 
-### `[ ]` **3.5 Partial-push marker keying and versioned sync-state read-modify-write**
+### `[x]` **3.5 Partial-push marker keying and versioned sync-state read-modify-write**
 
 - _Goal:_ A sibling's save no longer invalidates another worktree's recovery state, and concurrent
   `.sync-state.json` writers can never drop each other's markers.
 
-    - Marker validity keyed by ancestry (marker's recorded tip is an ancestor of the current local ref)
-      rather than exact-hash match (`resolveUserSyncCoherenceState`, `sync-status.ts:458`), with
-      worktree-scoped provenance replacing bare `machineId`.
-    - The `.sync-state.json` read-modify-write gains the B1-assigned serialization (lock + version check),
-      so concurrent processes can't lose markers.
-    - Verify C10's two self-clearing mislabels (same-host divergence labeled `cross-machine`; own-host
-      marker framed as a sibling's) clear once Phase 1 lands; file a diagnostic follow-up if not.
-    - Build `test-first` (one behavior at a time):
-        - two concurrent sync-state writers each keep their marker (version-conflict retry, no lost update)
-        - an ancestry-keyed marker survives a sibling save advancing the local ref
-        - a marker whose recorded tip is no longer an ancestor (force-moved ref) still clears
+- _Outcome:_ Partial-push coherence now accepts an ancestor marker tip, while non-ancestor force-moved refs still
+  invalidate the marker. Local sync-state writes run through an adjacent lock plus raw-file version check/retry,
+  so concurrent notes and errand marker writers preserve both fields; the status copy already distinguishes
+  concurrent-local-writer and partial-push recovery without the C10 mislabels.
 
-### `[ ]` **3.6 Status purity and scope corrections**
+### `[x]` **3.6 Status purity and scope corrections**
 
 - _Goal:_ Status reads report and never mutate; verdicts scope worktree-local vs shared state truthfully; no
   status surface ever recommends a destructive action.
 
-    - `[ ]` **3.6.a Read purity**
-        - Status reads stop clearing markers (`clearPartialPushMarker` calls inside
-          `resolveUserSyncCoherenceState`, `sync-status.ts:459/466`) — clearing moves to the mutating
-          operations that resolve the condition.
+    - `[x]` **3.6.a Read purity**
+        - Status no longer clears partial-push markers while reporting; marker clearing stays with the
+          mutating operations that actually resolve recovery conditions.
 
-    - `[ ]` **3.6.b Scope and recommendation corrections**
-        - Scope `materializedManifestHash` so worktree-local state and the shared identity-global store are
-          not conflated (`sync-status.ts:1586-1609`); the post-reconcile state stops classifying
-          `"local unsaved"` and stops recommending the destructive save — recommend load/inspect instead.
-        - Attribute `local-ahead`/`diverged` to the authoring worktree rather than surfacing to every
-          sibling — derive attribution from each worktree's own sync-state tip records (the note manifest
-          does not record its authoring worktree).
+    - `[x]` **3.6.b Scope and recommendation corrections**
+        - Status now reads the repo-shared materialized-baseline stamp for identity-global disk truth, writes
+          each worktree's notes-ref tip into local sync-state, and attributes local-ahead/diverged causes to
+          the authoring worktree when the tip differs.
 
-    - `[ ]` **3.6.c Retired-subdir roster check**
-        - The retired-subdir reconcile's "shipped on origin" trust gains a same-machine roster check — an
-          in-flight sibling worktree on the WU blocks the reconcile (`lib/user-sync/retired-subdir.ts`);
-          the cross-machine case stays accepted-with-net (pre-load `.internal/` backup).
+    - `[x]` **3.6.c Retired-subdir roster check**
+        - Retired-subdir cleanup now preserves shipped subdirs when a same-machine roster entry for the WU is
+          still in flight, while cross-machine shipped cleanup keeps the recoverable backup path.
 
-    - `[ ]` **3.6.d C12 folds**
-        - Corrupt-note scan fails closed (`findCorruptMergedNote`, `push-fetch.ts:316-334` — both arms: the
-          per-note `show` catch-continue, and the `list`-failure arm, which must distinguish a genuinely
-          failed listing (fail closed) from an empty or absent ref (valid)).
-        - "Partial publish recorded" prints only when the marker write succeeded:
-          `recordPartialPushMarker` already returns `boolean` (`sync-state.ts:419`) but both
-          `paired-push.ts` call sites (`:155`, `:200`) discard it — thread success through
-          `PairedPushResult` to the renderer (six print sites, `handlers/sync.ts:866-895`); mirror for the
-          errand leg (`recordErrandPartialPushMarker`, `handlers/sync.ts:549-561`).
-        - `verifySavedNote` runs inside the lock span (`save-load.ts:138`).
+    - `[x]` **3.6.d C12 folds**
+        - Corrupt-note scans fail closed on list/show read failures, paired sync reports partial-publish
+          recording only when the marker write succeeds, the errand sync leg records marker success in its
+          outcome detail, and saved-note verification remains inside the notes-lock span.
 
-    - `[ ]` **3.6.e Worktree qualifier timeout isolation**
-        - `arc user status` must not let the identity-notes scan starve the branch-bounded worktree fetch
-          timeout: sequence or isolate the qualifier so its timeout measures the fetch, not the full
-          notes-history status workload.
-        - Live repro after Phase 1: full status spawned ~1,782 `git notes` reads and reported
-          `worktree.remote-unavailable(timeout)` while the recovery audit and direct fetch reported the
-          truthful `local-ahead` worktree state. Keep the broader N+1 note-read / batching fix with
-          `user-sync-module-split`; this task only restores qualifier truthfulness under current large
-          history.
+    - `[x]` **3.6.e Worktree qualifier timeout isolation**
+        - `arc user status` now awaits the branch-bounded worktree probe before starting the note-history
+          workload, so the qualifier timeout measures the branch fetch rather than the full status scan.
 
-    - Tier 2 gate (full suite) closes the phase; retire the WORKING-MEMORY tombstone-hazard entry per its
-      recorded trigger.
+- _Outcome:_ Status is read-only, shared-vs-worktree provenance is separated, ref-only note advances route to
+  load/inspect instead of save, and Phase B's tombstone-hazard operating guard is retired.
 
 ## **Phase 4:** Retention and compaction
 

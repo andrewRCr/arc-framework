@@ -21,6 +21,7 @@ function makeInput(overrides: Partial<InferUserSyncCauseInput> = {}): InferUserS
     remoteRefHash: "R",
     sourceCommit: "S",
     savedAt: FRESH_SAVED_AT,
+    localSyncNotesRefTip: "L",
     latestNoteRefHistoryEntry: "S",
     headReachable: true,
     offline: false,
@@ -57,6 +58,18 @@ describe("inferUserSyncCause", () => {
     expect(result.confidence).toBe("high");
   });
 
+  it("classifies diverged refs as concurrent-local-writer when local tip differs from this worktree tip", () => {
+    const result = inferUserSyncCause(
+      makeInput({
+        refRelation: "diverged",
+        localSyncNotesRefTip: "OLDER",
+      }),
+    );
+
+    expect(result.cause).toBe("concurrent-local-writer");
+    expect(result.confidence).toBe("high");
+  });
+
   it("returns offline cause and offline confidence under offline mode regardless of ref signals", () => {
     const result = inferUserSyncCause(
       makeInput({
@@ -74,6 +87,7 @@ describe("inferUserSyncCause", () => {
     const result = inferUserSyncCause(
       makeInput({
         sourceCommit: null,
+        localSyncNotesRefTip: null,
         refRelation: "diverged",
       }),
     );
@@ -87,6 +101,7 @@ describe("inferUserSyncCause", () => {
       makeInput({
         sourceCommit: null,
         savedAt: null,
+        localSyncNotesRefTip: null,
         latestNoteRefHistoryEntry: null,
         refRelation: "remote-ahead",
       }),

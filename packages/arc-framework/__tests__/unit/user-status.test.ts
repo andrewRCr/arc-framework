@@ -2704,6 +2704,26 @@ describe("runUserStatus worktree probe orchestration", () => {
     expect(calls.some((c) => c.args[0] === "fetch")).toBe(true);
   });
 
+  it("runs the worktree fetch before launching note-history status reads", async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const io = makeIO(fakeNoNotesExec(calls));
+
+    await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    const worktreeFetchIndex = calls.findIndex((c) =>
+      c.args[0] === "fetch" && c.args[1] === "origin" && c.args[2] === "main",
+    );
+    const firstNotesListIndex = calls.findIndex((c) => c.args[0] === "notes");
+
+    expect(worktreeFetchIndex).toBeGreaterThanOrEqual(0);
+    expect(firstNotesListIndex).toBeGreaterThan(worktreeFetchIndex);
+  });
+
   it("does not invoke the worktree probe when --offline is set", async () => {
     const calls: Array<{ cmd: string; args: string[] }> = [];
     const io = makeIO(fakeNoNotesExec(calls));
@@ -3057,6 +3077,29 @@ describe("runUserStatus bounded notes-ref fetch", () => {
 
     expect(inspection.state).toBe("remote-unavailable");
     expect(inspection.failureReason).toBe("error");
+  });
+
+  it("uses distinct temp refs for concurrent notes-ref probes", async () => {
+    const calls: ExecCall[] = [];
+    const io = makeIO(fakeMustFetchExec(calls, "ok"));
+
+    await Promise.all([
+      inspectUserSyncRefsDetailed(io, "andrew", 1000),
+      inspectUserSyncRefsDetailed(io, "andrew", 1000),
+    ]);
+
+    const fetchedRefs = calls
+      .filter((call) => call.args[0] === "fetch" && typeof call.args[3] === "string")
+      .map((call) => (call.args[3] ?? "").split(":")[1])
+      .filter((ref): ref is string => ref !== undefined && ref.startsWith("refs/arc-sync-temp/"));
+    const deletedRefs = calls
+      .filter((call) => call.args[0] === "update-ref" && call.args[1] === "-d")
+      .map((call) => call.args[2])
+      .filter((ref): ref is string => ref !== undefined && ref.startsWith("refs/arc-sync-temp/"));
+
+    expect(fetchedRefs).toHaveLength(2);
+    expect(new Set(fetchedRefs).size).toBe(2);
+    expect(deletedRefs.sort()).toEqual([...fetchedRefs].sort());
   });
 
   it("does not invoke the notes-ref fetch when --offline is set", async () => {

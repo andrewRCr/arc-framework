@@ -1,5 +1,5 @@
 import { rm } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { createHash } from "node:crypto";
 
 import {
@@ -14,10 +14,11 @@ import {
   type SkipWarning,
   type SyncManifest,
 } from "../../lib/git/index.js";
+import { runWorktreeRoster } from "../../lib/git/worktree-roster.js";
 import { ensureDir } from "../../lib/template/index.js";
 import {
   acquireAdvisoryLock,
-  appendRemovalTombstones,
+  appendRemovalTombstonesFromEntries,
   classifyOrphans,
   classifyUserSyncPath,
   getNotesLockPath,
@@ -27,6 +28,7 @@ import {
   NO_COMPARABLE_SOURCE_COMMIT,
   planRetiredSubdirReconcile,
   projectManifest,
+  readMaterializedBaselineStamp,
   writeMaterializedBaselineStamp,
   resolveCurrentWuName,
   stashedFilesInSubdir,
@@ -35,13 +37,13 @@ import {
   writeLocalSyncState,
   wuNameOfPath,
   type LocalSyncState,
+  type MaterializedBaselineEntry,
   type MergeNote,
   type OrphanClassification,
 } from "../../lib/user-sync/index.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
-import type { GitExec } from "../../lib/git/exec.js";
 import {
   listAnnotatedNoteCommits,
   readNoteContentAtAnnotatedCommit,
@@ -109,47 +111,61 @@ export async function runUserSave(
   const { cwd, io, identity } = options;
   const currentWuName = options.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
 
-  const { stdout: commit } = await io.exec("git", ["rev-parse", "HEAD"]);
-  const result = await serializeSplitUserManifest({
-    cwd,
-    io,
-    identity,
-    currentWuName,
-  });
-
-  if (Object.keys(result.manifest.files).length === 0) {
-    throw new UserSaveError("No eligible files found in user directory to save.");
-  }
-
   // `git notes add` does its own unguarded read-modify-write on the notes tree,
-  // so two same-identity saves racing this span silently collapse to one note.
-  // Serialize the smallest span containing that RMW — the recent-notes read,
-  // tombstone apply, and the write — under a per-identity advisory lock,
-  // releasing in `finally` so a thrown write still frees it for the next caller.
+  // so two same-identity saves racing this span silently collapse to one note;
+  // the tombstone basis is also a repo-shared disk snapshot. Serialize the HEAD
+  // resolution, disk read, tombstone apply, write, verification, and baseline
+  // stamp together so every diff input belongs to the same locked view.
+  let commit!: string;
+  let result!: SerializeResult;
+  let savedNotesRefTip!: string | null;
   const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
   try {
-    const recentNotes = await readRecentUserNotes(io.exec, identity);
-    applyRemovalTombstones(result.manifest, recentNotes, new Date().toISOString());
+    const head = await io.exec("git", ["rev-parse", "HEAD"]);
+    commit = head.stdout;
+    result = await serializeSplitUserManifest({
+      cwd,
+      io,
+      identity,
+      currentWuName,
+    });
+
+    if (Object.keys(result.manifest.files).length === 0) {
+      throw new UserSaveError("No eligible files found in user directory to save.");
+    }
+
+    const baseline = await readMaterializedBaselineStamp(io.exec, cwd, identity);
+    if (baseline !== null) {
+      applyRemovalTombstones(result.manifest, baseline.entries, new Date().toISOString());
+    }
 
     const json = JSON.stringify(result.manifest);
     await io.writeNote(notesRef(identity), json, commit);
     await verifySavedNote(io, identity, commit, result.manifest);
     const projectedSave = projectManifest(result.manifest);
+    savedNotesRefTip = await readNotesRefTip(io, identity);
     await writeMaterializedBaselineStamp({
       exec: io.exec,
       cwd,
       identity,
       manifest: projectedSave,
       manifestHash: hashSyncManifest(projectedSave),
-      notesRefTip: await readNotesRefTip(io, identity),
+      notesRefTip: savedNotesRefTip,
     });
   } finally {
     await releaseAdvisoryLock(lock);
   }
   const projectedSave = projectManifest(result.manifest);
   await writeLocalSyncState(
-    cwd, io, identity, hashSyncManifest(projectedSave), commit, "save", commit,
+    cwd,
+    io,
+    identity,
+    hashSyncManifest(projectedSave),
+    commit,
+    "save",
+    commit,
     Object.keys(projectedSave.files),
+    savedNotesRefTip,
   );
 
   return {
@@ -200,7 +216,7 @@ export async function runUserLoad(
     const localFiles = localResult.manifest.files;
     const activeUserDir = join(cwd, ".arc", "user", identity);
     const activeLocalFiles = (await serialize(activeUserDir, io.readDir, io.readFile)).manifest.files;
-    const reconcile = await resolveReconcilableSubdirs({ cwd, exec: io.exec, localFiles: activeLocalFiles });
+    const reconcile = await resolveReconcilableSubdirs({ cwd, io, localFiles: activeLocalFiles });
     const reconciledFileBackup = filesInSubdirs(activeLocalFiles, new Set(reconcile));
     const backupManifest = buildBackupManifest(localFiles, reconciledFileBackup);
 
@@ -254,37 +270,47 @@ export async function runUserLoad(
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
   }
 
-  await deserializeSplitUserManifest({
-    cwd,
-    io,
-    identity,
-    currentWuName,
-    resolver,
-  }, loadManifest);
-  await verifyMaterializedSplitUserManifest({
-    cwd,
-    io,
-    identity,
-    currentWuName,
-    resolver,
-  }, snapshot.sourceCommit, loadManifest);
-  const projectedLoad = projectManifest(loadManifest);
-  const stampLock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
+  let projectedLoad!: SyncManifest;
+  let loadedNotesRefTip!: string | null;
+  const materializeLock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
   try {
+    await deserializeSplitUserManifest({
+      cwd,
+      io,
+      identity,
+      currentWuName,
+      resolver,
+    }, loadManifest);
+    await verifyMaterializedSplitUserManifest({
+      cwd,
+      io,
+      identity,
+      currentWuName,
+      resolver,
+    }, snapshot.sourceCommit, loadManifest);
+    projectedLoad = projectManifest(loadManifest);
+    loadedNotesRefTip = await readNotesRefTip(io, identity);
     await writeMaterializedBaselineStamp({
       exec: io.exec,
       cwd,
       identity,
       manifest: projectedLoad,
       manifestHash: hashSyncManifest(projectedLoad),
-      notesRefTip: await readNotesRefTip(io, identity),
+      notesRefTip: loadedNotesRefTip,
     });
   } finally {
-    await releaseAdvisoryLock(stampLock);
+    await releaseAdvisoryLock(materializeLock);
   }
   await writeLocalSyncState(
-    cwd, io, identity, hashSyncManifest(projectedLoad), snapshot.sourceCommit, "load", snapshot.sourceCommit,
+    cwd,
+    io,
+    identity,
+    hashSyncManifest(projectedLoad),
+    snapshot.sourceCommit,
+    "load",
+    snapshot.sourceCommit,
     Object.keys(projectedLoad.files),
+    loadedNotesRefTip,
   );
 
   return {
@@ -544,29 +570,24 @@ function mergeCrossWuFromNotes(
 /**
  * Stamp removal tombstones into the cross-WU files of a to-be-saved manifest.
  *
- * Each cross-WU flat file is diffed against its prior merged state across the
- * recent-note window: an entry present before and absent now earns a
- * `## Removed:` marker (see {@link appendRemovalTombstones}). Per-WU subdir
- * files and files absent from the window are left untouched. Mutates the
- * manifest in place — the augmented content is what gets noted and verified.
+ * Each cross-WU flat file is diffed against the entry identities recorded in
+ * the materialized-baseline stamp: an entry materialized before and absent now
+ * earns a `## Removed:` marker. Per-WU subdir files and entries never
+ * materialized to disk are left untouched. Mutates the manifest in place — the
+ * augmented content is what gets noted and verified.
  */
 function applyRemovalTombstones(
   manifest: SyncManifest,
-  recentNotes: readonly RecentNote[],
+  baselineEntries: readonly MaterializedBaselineEntry[],
   now: string,
 ): void {
-  const perNoteFiles = recentNotes.map((note) => parseManifestFiles(note.content) ?? {});
   for (const [name, content] of Object.entries(manifest.files)) {
     if (!isIdentityGlobalManifestPath(name)) continue;
 
-    const priorNotes: MergeNote[] = [];
-    for (const noteFiles of perNoteFiles) {
-      const prior = noteFiles[name];
-      if (typeof prior === "string") priorNotes.push({ content: prior });
-    }
-    if (priorNotes.length === 0) continue;
+    const priorEntries = baselineEntries.filter((entry) => entry.path === name);
+    if (priorEntries.length === 0) continue;
 
-    manifest.files[name] = appendRemovalTombstones(name, content, priorNotes, now);
+    manifest.files[name] = appendRemovalTombstonesFromEntries(name, content, priorEntries, now);
   }
 }
 
@@ -951,15 +972,55 @@ function noteManifestContainsWu(noteContent: string, wuName: string): boolean {
  */
 async function resolveReconcilableSubdirs(params: {
   cwd: string;
-  exec: GitExec;
+  io: UserIOContext;
   localFiles: Record<string, string>;
 }): Promise<string[]> {
   const localSubdirs = subdirsFromPaths(Object.keys(params.localFiles));
   if (localSubdirs.length === 0) return [];
 
   const { settings } = await readConfigSettings(params.cwd);
-  const shipped = await readShippedWorkUnitsFromRef(params.exec, `origin/${settings["branch.base"]}`);
-  return planRetiredSubdirReconcile({ localSubdirs, shipped }).reconcile;
+  const shipped = await readShippedWorkUnitsFromRef(
+    params.io.exec,
+    `origin/${settings["branch.base"]}`,
+  );
+  const inFlight = await resolveSameMachineInFlightSubdirs(params.io, localSubdirs);
+  return planRetiredSubdirReconcile({ localSubdirs, shipped, inFlight }).reconcile;
+}
+
+async function resolveSameMachineInFlightSubdirs(
+  io: UserIOContext,
+  localSubdirs: readonly string[],
+): Promise<Set<string>> {
+  const candidates = new Set(localSubdirs);
+  const inFlight = new Set<string>();
+  if (candidates.size === 0) return inFlight;
+
+  let roster;
+  try {
+    roster = await runWorktreeRoster({
+      exec: io.exec,
+      fs: {
+        readdir: async (path) => (await io.readDir(path)).map((entry) => entry.name),
+        readFile: io.readFile,
+      },
+    });
+  } catch {
+    return inFlight;
+  }
+
+  for (const entry of roster.entries) {
+    if (entry.metaFilePath === undefined || entry.state === "Shipped") continue;
+    const wuName = wuNameFromMetaFilePath(entry.metaFilePath);
+    if (wuName !== null && candidates.has(wuName)) inFlight.add(wuName);
+  }
+
+  return inFlight;
+}
+
+function wuNameFromMetaFilePath(path: string): string | null {
+  const name = basename(path);
+  if (!name.startsWith("meta-") || !name.endsWith(".md")) return null;
+  return name.slice("meta-".length, -".md".length);
 }
 
 /** Recursively remove each reconciled subdir; returns the removed set. */
@@ -1005,7 +1066,7 @@ export async function reconcileRetiredSubdirsStandalone(params: {
   const localFiles = localManifest.files;
   if (Object.keys(localFiles).length === 0) return new Set();
 
-  const reconcile = await resolveReconcilableSubdirs({ cwd, exec: io.exec, localFiles });
+  const reconcile = await resolveReconcilableSubdirs({ cwd, io, localFiles });
   if (reconcile.length === 0) return new Set();
 
   // Back up only once a removal is pending: the snapshot exists to make the

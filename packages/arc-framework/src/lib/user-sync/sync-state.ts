@@ -21,14 +21,17 @@ import { atomicWriteJson, exclusiveCreateFile } from "../fs.js";
 import { ensureDir } from "../template/index.js";
 import type { CoreIO } from "../types.js";
 
+import { acquireAdvisoryLock, releaseAdvisoryLock } from "./notes-lock.js";
 import { getRepoSharedUserInternalDir } from "./repo-shared-paths.js";
 
 const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
+const LOCAL_SYNC_STATE_LOCK_FILENAME = ".sync-state.lock";
 /** Dedicated canonical machine-id store — a bare UUID, raced via exclusive create. */
 const MACHINE_ID_FILENAME = ".machine-id";
 const USER_INTERNAL_DIRNAME = ".internal";
 /** Notes ref prefix; mirrors the notes-ref module's internal `refs/notes/arc/user`. */
 const USER_NOTES_REF = "refs/notes/arc/user";
+const LOCAL_SYNC_STATE_UPDATE_ATTEMPTS = 20;
 /** Sentinel basis for loads that materialize shared context without a comparable branch commit. */
 export const NO_COMPARABLE_SOURCE_COMMIT = "no-comparable-saved-commit";
 
@@ -57,9 +60,11 @@ export interface LocalSyncState {
    * ISO-8601 timestamp when this record was written. Optional in memory because
    * v2 records on disk predate the field — they hydrate with `savedAt: undefined`
    * and pick up a populated value on the next save.
-   */
+  */
   savedAt?: string;
   verifiedAt?: string;
+  /** Local notes-ref tip observed after this worktree's save/load completed. */
+  notesRefTip?: string;
   /** This worktree's partial-push recovery marker. The `.sync-state.json` file is per-worktree. */
   partialPush?: PartialPushMarker;
   /**
@@ -97,6 +102,18 @@ export function getUserInternalDir(cwd: string, identity: string): string {
   return join(cwd, ".arc", "user", identity, USER_INTERNAL_DIRNAME);
 }
 
+function getLocalSyncStatePath(cwd: string, identity: string): string {
+  return join(getUserInternalDir(cwd, identity), LOCAL_SYNC_STATE_FILENAME);
+}
+
+function getLegacyLocalSyncStatePath(cwd: string, identity: string): string {
+  return join(cwd, ".arc", "user", identity, LOCAL_SYNC_STATE_FILENAME);
+}
+
+function getLocalSyncStateLockPath(cwd: string, identity: string): string {
+  return join(getUserInternalDir(cwd, identity), LOCAL_SYNC_STATE_LOCK_FILENAME);
+}
+
 /** Absolute path to the repo-shared dedicated `.machine-id` store. */
 async function getMachineIdPath(cwd: string, io: CoreIO, identity: string): Promise<string> {
   return join(await getRepoSharedUserInternalDir(io.exec, cwd, identity), MACHINE_ID_FILENAME);
@@ -108,8 +125,8 @@ export async function readLocalSyncState(
   identity: string,
 ): Promise<LocalSyncState | null> {
   for (const syncStatePath of [
-    join(getUserInternalDir(cwd, identity), LOCAL_SYNC_STATE_FILENAME),
-    join(cwd, ".arc", "user", identity, LOCAL_SYNC_STATE_FILENAME),
+    getLocalSyncStatePath(cwd, identity),
+    getLegacyLocalSyncStatePath(cwd, identity),
   ]) {
     let raw: string;
     try {
@@ -118,48 +135,68 @@ export async function readLocalSyncState(
       continue;
     }
 
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (typeof parsed !== "object" || parsed === null) {
-        continue;
-      }
-      const record = parsed as Record<string, unknown>;
-
-      if (
-        (record.version === 2 || record.version === 3 || record.version === 4)
-        && typeof record.materializedManifestHash === "string"
-        && record.materializedManifestHash.length > 0
-        && typeof record.sourceCommit === "string"
-        && record.sourceCommit.length > 0
-        && (record.sourceOperation === "save" || record.sourceOperation === "load")
-      ) {
-        const partialPush = parsePartialPushMarker(record.partialPush);
-        const partialPushErrand = parsePartialPushMarker(record.partialPushErrand);
-        return {
-          version: 4,
-          materializedManifestHash: record.materializedManifestHash,
-          sourceCommit: record.sourceCommit,
-          sourceOperation: record.sourceOperation,
-          ...(typeof record.savedAt === "string" && record.savedAt.length > 0
-            ? { savedAt: record.savedAt }
-            : {}),
-          ...(typeof record.verifiedAt === "string" && record.verifiedAt.length > 0
-            ? { verifiedAt: record.verifiedAt }
-            : {}),
-          ...(partialPush ? { partialPush } : {}),
-          ...(partialPushErrand ? { partialPushErrand } : {}),
-          ...(isPriorFileList(record.priorFileList) ? { priorFileList: record.priorFileList } : {}),
-          ...(isProvenanceMap(record.remoteMarkerProvenance)
-            ? { remoteMarkerProvenance: record.remoteMarkerProvenance }
-            : {}),
-        };
-      }
-    } catch {
+    const parsed = parseLocalSyncState(raw);
+    if (parsed.kind === "invalid") {
       return null;
     }
+    if (parsed.kind === "state") return parsed.state;
   }
 
   return null;
+}
+
+type LocalSyncStateParseResult =
+  | { kind: "state"; state: LocalSyncState }
+  | { kind: "skip" }
+  | { kind: "invalid" };
+
+function parseLocalSyncState(raw: string): LocalSyncStateParseResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { kind: "invalid" };
+  }
+  if (typeof parsed !== "object" || parsed === null) return { kind: "skip" };
+  const record = parsed as Record<string, unknown>;
+
+  if (
+    (record.version === 2 || record.version === 3 || record.version === 4)
+    && typeof record.materializedManifestHash === "string"
+    && record.materializedManifestHash.length > 0
+    && typeof record.sourceCommit === "string"
+    && record.sourceCommit.length > 0
+    && (record.sourceOperation === "save" || record.sourceOperation === "load")
+  ) {
+    const partialPush = parsePartialPushMarker(record.partialPush);
+    const partialPushErrand = parsePartialPushMarker(record.partialPushErrand);
+    return {
+      kind: "state",
+      state: {
+        version: 4,
+        materializedManifestHash: record.materializedManifestHash,
+        sourceCommit: record.sourceCommit,
+        sourceOperation: record.sourceOperation,
+        ...(typeof record.savedAt === "string" && record.savedAt.length > 0
+          ? { savedAt: record.savedAt }
+          : {}),
+        ...(typeof record.verifiedAt === "string" && record.verifiedAt.length > 0
+          ? { verifiedAt: record.verifiedAt }
+          : {}),
+        ...(typeof record.notesRefTip === "string" && record.notesRefTip.length > 0
+          ? { notesRefTip: record.notesRefTip }
+          : {}),
+        ...(partialPush ? { partialPush } : {}),
+        ...(partialPushErrand ? { partialPushErrand } : {}),
+        ...(isPriorFileList(record.priorFileList) ? { priorFileList: record.priorFileList } : {}),
+        ...(isProvenanceMap(record.remoteMarkerProvenance)
+          ? { remoteMarkerProvenance: record.remoteMarkerProvenance }
+          : {}),
+      },
+    };
+  }
+
+  return { kind: "skip" };
 }
 
 function parsePartialPushMarker(value: unknown): PartialPushMarker | null {
@@ -376,6 +413,7 @@ export async function writeLocalSyncState(
   sourceOperation: "save" | "load",
   verifiedAt?: string,
   priorFileList?: string[],
+  notesRefTip?: string | null,
 ): Promise<void> {
   // A save/load writes a fresh record but must not drop reserved fields a
   // downstream writer may have populated — carry them forward from the prior
@@ -385,35 +423,86 @@ export async function writeLocalSyncState(
   // `priorFileList` is the file list this sync materialized — when supplied it
   // refreshes the captured set (the drift tier's retirement-vs-arrival basis);
   // otherwise the prior record's list carries forward.
-  const prior = await readLocalSyncState(cwd, io, identity);
-  const resolvedPriorFileList = priorFileList ?? prior?.priorFileList;
-  const internalDir = getUserInternalDir(cwd, identity);
-  const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
-  await ensureDir(internalDir, io.mkdir);
-  const state: LocalSyncState = {
-    version: 4,
-    materializedManifestHash,
-    sourceCommit,
-    sourceOperation,
-    savedAt: new Date().toISOString(),
-    ...(verifiedAt ? { verifiedAt } : {}),
-    ...(prior?.partialPushErrand ? { partialPushErrand: prior.partialPushErrand } : {}),
-    ...(resolvedPriorFileList ? { priorFileList: resolvedPriorFileList } : {}),
-    ...(prior?.remoteMarkerProvenance ? { remoteMarkerProvenance: prior.remoteMarkerProvenance } : {}),
-  };
-  await atomicWriteJson(syncStatePath, state);
+  await updateLocalSyncStateRecord(cwd, io, identity, (prior) => {
+    const resolvedPriorFileList = priorFileList ?? prior?.priorFileList;
+    const resolvedNotesRefTip = notesRefTip ?? prior?.notesRefTip;
+    return {
+      version: 4,
+      materializedManifestHash,
+      sourceCommit,
+      sourceOperation,
+      savedAt: new Date().toISOString(),
+      ...(verifiedAt ? { verifiedAt } : {}),
+      ...(resolvedNotesRefTip ? { notesRefTip: resolvedNotesRefTip } : {}),
+      ...(prior?.partialPushErrand ? { partialPushErrand: prior.partialPushErrand } : {}),
+      ...(resolvedPriorFileList ? { priorFileList: resolvedPriorFileList } : {}),
+      ...(prior?.remoteMarkerProvenance ? { remoteMarkerProvenance: prior.remoteMarkerProvenance } : {}),
+    };
+  });
 }
 
-async function writeLocalSyncStateRecord(
+type LocalSyncStateMutation = (
+  state: LocalSyncState | null,
+) => LocalSyncState | null | undefined | Promise<LocalSyncState | null | undefined>;
+
+interface LocalSyncStateSnapshot {
+  state: LocalSyncState | null;
+  targetRaw: string | null;
+}
+
+async function updateLocalSyncStateRecord(
   cwd: string,
   io: CoreIO,
   identity: string,
-  state: LocalSyncState,
-): Promise<void> {
+  mutate: LocalSyncStateMutation,
+): Promise<boolean> {
   const internalDir = getUserInternalDir(cwd, identity);
-  const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
+  const syncStatePath = getLocalSyncStatePath(cwd, identity);
+  const lockPath = getLocalSyncStateLockPath(cwd, identity);
   await ensureDir(internalDir, io.mkdir);
-  await atomicWriteJson(syncStatePath, state);
+
+  for (let attempt = 0; attempt < LOCAL_SYNC_STATE_UPDATE_ATTEMPTS; attempt++) {
+    const snapshot = await readLocalSyncStateSnapshot(cwd, io, identity);
+    const next = await mutate(snapshot.state);
+    if (!next) return false;
+
+    const lock = await acquireAdvisoryLock(lockPath);
+    try {
+      const currentRaw = await readOptionalFile(io, syncStatePath);
+      if (currentRaw !== snapshot.targetRaw) continue;
+      await atomicWriteJson(syncStatePath, next);
+      return true;
+    } finally {
+      await releaseAdvisoryLock(lock);
+    }
+  }
+
+  throw new Error(`sync-state update exceeded retry attempts: ${syncStatePath}`);
+}
+
+async function readLocalSyncStateSnapshot(
+  cwd: string,
+  io: CoreIO,
+  identity: string,
+): Promise<LocalSyncStateSnapshot> {
+  const targetRaw = await readOptionalFile(io, getLocalSyncStatePath(cwd, identity));
+  if (targetRaw !== null) {
+    const parsed = parseLocalSyncState(targetRaw);
+    return { state: parsed.kind === "state" ? parsed.state : null, targetRaw };
+  }
+
+  const legacyRaw = await readOptionalFile(io, getLegacyLocalSyncStatePath(cwd, identity));
+  if (legacyRaw === null) return { state: null, targetRaw: null };
+  const parsed = parseLocalSyncState(legacyRaw);
+  return { state: parsed.kind === "state" ? parsed.state : null, targetRaw: null };
+}
+
+async function readOptionalFile(io: CoreIO, path: string): Promise<string | null> {
+  try {
+    return await io.readFile(path);
+  } catch {
+    return null;
+  }
 }
 
 export async function recordPartialPushMarker(
@@ -421,17 +510,16 @@ export async function recordPartialPushMarker(
   io: CoreIO,
   identity: string,
 ): Promise<boolean> {
-  const state = await readLocalSyncState(cwd, io, identity);
-  if (!state) return false;
-
   const localRefHash = await readLocalNotesRefHash(io, identity);
   if (!localRefHash) return false;
 
-  await writeLocalSyncStateRecord(cwd, io, identity, {
-    ...state,
-    partialPush: { localRefHash, sourceCommit: state.sourceCommit },
+  return updateLocalSyncStateRecord(cwd, io, identity, (current) => {
+    if (!current) return null;
+    return {
+      ...current,
+      partialPush: { localRefHash, sourceCommit: current.sourceCommit },
+    };
   });
-  return true;
 }
 
 export async function clearPartialPushMarker(
@@ -439,19 +527,11 @@ export async function clearPartialPushMarker(
   io: CoreIO,
   identity: string,
 ): Promise<void> {
-  const state = await readLocalSyncState(cwd, io, identity);
-  if (!state?.partialPush) return;
-
-  await writeLocalSyncStateRecord(cwd, io, identity, {
-    version: state.version,
-    materializedManifestHash: state.materializedManifestHash,
-    sourceCommit: state.sourceCommit,
-    sourceOperation: state.sourceOperation,
-    ...(state.savedAt ? { savedAt: state.savedAt } : {}),
-    ...(state.verifiedAt ? { verifiedAt: state.verifiedAt } : {}),
-    ...(state.partialPushErrand ? { partialPushErrand: state.partialPushErrand } : {}),
-    ...(state.priorFileList ? { priorFileList: state.priorFileList } : {}),
-    ...(state.remoteMarkerProvenance ? { remoteMarkerProvenance: state.remoteMarkerProvenance } : {}),
+  await updateLocalSyncStateRecord(cwd, io, identity, (state) => {
+    if (!state?.partialPush) return null;
+    const next = { ...state };
+    delete next.partialPush;
+    return next;
   });
 }
 
@@ -466,17 +546,16 @@ export async function recordErrandPartialPushMarker(
   io: CoreIO,
   identity: string,
 ): Promise<boolean> {
-  const state = await readLocalSyncState(cwd, io, identity);
-  if (!state) return false;
-
   const refHash = await readLocalErrandRefHash(io, identity);
   if (!refHash) return false;
 
-  await writeLocalSyncStateRecord(cwd, io, identity, {
-    ...state,
-    partialPushErrand: { localRefHash: refHash, sourceCommit: refHash },
+  return updateLocalSyncStateRecord(cwd, io, identity, (current) => {
+    if (!current) return null;
+    return {
+      ...current,
+      partialPushErrand: { localRefHash: refHash, sourceCommit: refHash },
+    };
   });
-  return true;
 }
 
 /** Clear the errand-ref partial-push marker, preserving every other field (incl. the notes marker). */
@@ -485,19 +564,11 @@ export async function clearErrandPartialPushMarker(
   io: CoreIO,
   identity: string,
 ): Promise<void> {
-  const state = await readLocalSyncState(cwd, io, identity);
-  if (!state?.partialPushErrand) return;
-
-  await writeLocalSyncStateRecord(cwd, io, identity, {
-    version: state.version,
-    materializedManifestHash: state.materializedManifestHash,
-    sourceCommit: state.sourceCommit,
-    sourceOperation: state.sourceOperation,
-    ...(state.savedAt ? { savedAt: state.savedAt } : {}),
-    ...(state.verifiedAt ? { verifiedAt: state.verifiedAt } : {}),
-    ...(state.partialPush ? { partialPush: state.partialPush } : {}),
-    ...(state.priorFileList ? { priorFileList: state.priorFileList } : {}),
-    ...(state.remoteMarkerProvenance ? { remoteMarkerProvenance: state.remoteMarkerProvenance } : {}),
+  await updateLocalSyncStateRecord(cwd, io, identity, (state) => {
+    if (!state?.partialPushErrand) return null;
+    const next = { ...state };
+    delete next.partialPushErrand;
+    return next;
   });
 }
 

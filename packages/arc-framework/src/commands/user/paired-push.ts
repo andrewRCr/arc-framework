@@ -152,7 +152,7 @@ export async function runPairedPush(
   const exportPlan = await planNotesExport({ io, identity, worktreeBranch: branch });
   if (exportPlan.kind !== "planned") {
     const notes = notesOutcomeForPlanMiss(exportPlan);
-    await recordPartialPushMarker(cwd, io, identity);
+    const partialPushMarkerRecorded = await recordPartialPushMarkerSafely(cwd, io, identity);
     return {
       save,
       worktree,
@@ -160,6 +160,7 @@ export async function runPairedPush(
       conditions: pushability.conditions,
       exitCode: 1,
       retryOffer: { autoRetries: 0 },
+      partialPushMarkerRecorded,
     };
   }
 
@@ -197,10 +198,22 @@ export async function runPairedPush(
   if (isNotesSuccess(notes)) {
     await clearPartialPushMarker(cwd, io, identity);
   } else {
-    await recordPartialPushMarker(cwd, io, identity);
+    const partialPushMarkerRecorded = await recordPartialPushMarkerSafely(cwd, io, identity);
+    const exitCode = 1;
+    return {
+      save,
+      worktree,
+      notes,
+      conditions: conditionsAfterResolution,
+      exitCode,
+      ...(retry.kind === "retry-offer"
+        ? { retryOffer: { autoRetries: retry.autoRetries } }
+        : {}),
+      partialPushMarkerRecorded,
+    };
   }
 
-  const exitCode = isNotesSuccess(notes) ? 0 : 1;
+  const exitCode = 0;
   return {
     save,
     worktree,
@@ -270,6 +283,18 @@ async function publishMarkerSafely(
     await publishMarker(context);
   } catch {
     // Best-effort: the marker never gates the paired push.
+  }
+}
+
+async function recordPartialPushMarkerSafely(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<boolean> {
+  try {
+    return await recordPartialPushMarker(cwd, io, identity);
+  } catch {
+    return false;
   }
 }
 

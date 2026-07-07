@@ -53,11 +53,15 @@ import {
   buildUserStatusSummary,
   type UserLoadOutcome,
   type UserLoadResult,
+  type UserIOContext,
 } from "../../src/commands/user.js";
 import { pushNotesWithReconcile } from "../../src/handlers/push-recovery.js";
 import { decideSyncAction } from "../../src/handlers/user-sync.js";
 import { createSyncOutput } from "../../src/lib/sync-output.js";
-import { NO_COMPARABLE_SOURCE_COMMIT } from "../../src/lib/user-sync/index.js";
+import {
+  getMaterializedBaselineStampPath,
+  NO_COMPARABLE_SOURCE_COMMIT,
+} from "../../src/lib/user-sync/index.js";
 
 /** Human-mode SyncOutput stub — delegates through the file-scoped clack mock above. */
 const recoveryOutput = createSyncOutput(false);
@@ -136,6 +140,27 @@ function expectLoaded(result: UserLoadOutcome | null): UserLoadResult {
   expect(result).not.toBeNull();
   expect(result?.kind).toBe("loaded");
   return result as UserLoadResult;
+}
+
+interface ManualBarrier {
+  reached: Promise<void>;
+  arrive: () => Promise<void>;
+  release: () => void;
+}
+
+function createManualBarrier(): ManualBarrier {
+  let markReached: () => void = () => {};
+  let releaseStep: () => void = () => {};
+  const reached = new Promise<void>((resolve) => { markReached = resolve; });
+  const released = new Promise<void>((resolve) => { releaseStep = resolve; });
+  return {
+    reached,
+    arrive: async () => {
+      markReached();
+      await released;
+    },
+    release: releaseStep,
+  };
 }
 
 async function writeLocalSyncStateFixture(
@@ -226,6 +251,74 @@ describe("user save and load", () => {
       join(userDir, "WORKING-MEMORY.md"), "utf-8",
     );
     expect(restored).toBe("# Working Memory\nRemember feature X");
+  });
+
+  it("prevents a save from reading a torn identity-global load materialization", async () => {
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    const wmPath = join(userDir, "WORKING-MEMORY.md");
+    const oldContent = "# Working Memory\n\nold";
+    const fullContent = "# Working Memory\n\nloaded complete";
+    const partialContent = "# Working Memory\n\nloaded";
+    await writeFile(wmPath, oldContent, "utf-8");
+
+    const head = await readHead(tempDir);
+    const seedIO = makeUserIO(tempDir);
+    await seedIO.writeNote(
+      "arc/user/test-user",
+      JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": fullContent } }),
+      head,
+    );
+
+    const barrier = createManualBarrier();
+    const loadBaseIO = makeUserIO(tempDir);
+    const loadIO: UserIOContext = {
+      ...loadBaseIO,
+      writeFile: async (path, content) => {
+        if (path === wmPath) {
+          await writeFile(path, partialContent, "utf-8");
+          await barrier.arrive();
+        }
+        await writeFile(path, content, "utf-8");
+      },
+    };
+
+    const load = runUserLoad({ cwd: tempDir, io: loadIO, identity: "test-user" });
+    await barrier.reached;
+    expect(await readFile(wmPath, "utf-8")).toBe(partialContent);
+
+    let saveReadReached = false;
+    let markSaveRead: () => void = () => {};
+    const saveRead = new Promise<void>((resolve) => {
+      markSaveRead = () => {
+        saveReadReached = true;
+        resolve();
+      };
+    });
+    const saveBaseIO = makeUserIO(tempDir);
+    const saveIO: UserIOContext = {
+      ...saveBaseIO,
+      readFile: async (path) => {
+        const content = await saveBaseIO.readFile(path);
+        if (path === wmPath) markSaveRead();
+        return content;
+      },
+    };
+    const save = runUserSave({ cwd: tempDir, io: saveIO, identity: "test-user" });
+
+    await Promise.race([
+      saveRead,
+      new Promise((resolve) => setTimeout(resolve, 100)),
+    ]);
+    expect(saveReadReached).toBe(false);
+
+    barrier.release();
+
+    await Promise.all([load, save]);
+
+    const saved = await saveIO.readNote("arc/user/test-user", head);
+    expect(saved).not.toBeNull();
+    const manifest = JSON.parse(saved ?? "{}") as { files: Record<string, string> };
+    expect(manifest.files["WORKING-MEMORY.md"]).toBe(fullContent);
   });
 
   it("load finds a reachable ancestor note when HEAD has no note", async () => {
@@ -706,6 +799,37 @@ describe("user load — retired-subdir reconciliation", () => {
     await execFileAsync("git", ["-C", tempDir, ...noHooks, "commit", "-m", `local: drop ${slug} archive`]);
   }
 
+  async function addActiveWorktreeForWu(slug: string): Promise<string> {
+    const branch = `work/${slug}`;
+    const linked = await addLinkedWorktree(tempDir, branch);
+    const activeDir = join(linked, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(
+      join(activeDir, `meta-${slug}.md`),
+      [
+        `# Metadata: ${slug}`,
+        "",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "| --------- | --------- | ---------- | --------- | ------------ |",
+        `| \`Active\` | \`test-user\` | \`${branch}\` | \`Light\` | \`P1\` |`,
+        "",
+        "- **Cohort:** [none]",
+        "- **Depends On:** [none]",
+        "",
+      ].join("\n"),
+      "utf-8",
+    );
+    return linked;
+  }
+
+  async function removeLinkedWorktree(linked: string): Promise<void> {
+    try {
+      await execFileAsync("git", ["-C", tempDir, "worktree", "remove", "--force", linked]);
+    } catch {
+      await rm(linked, { recursive: true, force: true });
+    }
+  }
+
   it("removes a shipped subdir with no drift, leaving its content recoverable from the backup", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
@@ -784,6 +908,37 @@ describe("user load — retired-subdir reconciliation", () => {
       expect(loaded.messages.some((m) => m.level === "cleanup" && m.text.includes("old-wu"))).toBe(true);
     },
   );
+
+  it("preserves a shipped subdir while a same-machine worktree is still in flight", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    let linked: string | null = null;
+
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await mkdir(join(userDir, "old-wu"), { recursive: true });
+    await writeFile(join(userDir, "old-wu", "SESSION-NOTES.md"), "# Old WU notes", "utf-8");
+    await markShippedOnOrigin("old-wu");
+
+    try {
+      linked = await addActiveWorktreeForWu("old-wu");
+      const result = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+      const loaded = expectLoaded(result);
+
+      expect(await readdir(userDir)).toContain("old-wu");
+      expect(loaded.messages.some((m) => m.text.includes("old-wu"))).toBe(false);
+      const backups = await listBackupFiles(userDir);
+      const preLoad = backups.find((name) => /^\.pre-load-backup-.*\.json$/u.test(name));
+      if (preLoad !== undefined) {
+        const backup = JSON.parse(
+          await readFile(join(userDir, ".internal", preLoad), "utf-8"),
+        ) as { files: Record<string, string> };
+        expect(backup.files["old-wu/SESSION-NOTES.md"]).toBeUndefined();
+      }
+    } finally {
+      if (linked !== null) await removeLinkedWorktree(linked);
+    }
+  });
 
   it("preserves a present subdir whose WU has not shipped", async () => {
     const io = makeUserIO(tempDir);
@@ -1975,7 +2130,7 @@ describe("user status", () => {
     expect(afterSave.localNoteFreshness?.state).toBe("current-head");
   });
 
-  it("reports local-unsaved after a later cross-WU update lands on an older commit", async () => {
+  it("reports stale after a later cross-WU update lands on an older commit", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
     const olderCommit = await readHead(tempDir);
@@ -1995,7 +2150,8 @@ describe("user status", () => {
     const state = await inspectUserSyncState({ cwd: tempDir, io, identity: "test-user" });
 
     expect(status.savedCommit).toBe(saveResult.commit);
-    expect(status.diskStatus).toBe("local unsaved");
+    expect(status.diskStatus).toBe("stale");
+    expect(status.actionHint).toBe("run `arc user load`");
     expect(status.savedFromAncestor).toBe(false);
     expect(status.ancestorDistance).toBe(0);
     expect(status.savedReachableFromHead).toBe(true);
@@ -2155,7 +2311,7 @@ describe("user status", () => {
     expect(summary).toContain("Next step: run `arc user save`");
   });
 
-  it("uses load provenance to prefer load when disk matches a previously loaded older state", async () => {
+  it("uses legacy load provenance to prefer load when no shared baseline stamp exists", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -2165,6 +2321,7 @@ describe("user status", () => {
 
     const modifiedHash = await hashUserDir(tempDir, "test-user");
     const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
+    await rm(await getMaterializedBaselineStampPath(io.exec, tempDir, "test-user"), { force: true });
     await writeLocalSyncStateFixture(tempDir, "test-user", {
       version: 2,
       materializedManifestHash: modifiedHash,
@@ -2177,6 +2334,35 @@ describe("user status", () => {
 
     expect(result.diskStatus).toBe("stale");
     expect(summary).toContain("Next step: run `arc user load`");
+  });
+
+  it("recommends load instead of save when the notes ref advanced without disk materialization", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Materialized", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    const mergedManifest = {
+      version: 2,
+      files: {
+        "WORKING-MEMORY.md": "# Materialized",
+        "USER-INBOX.md": "# Incoming",
+      },
+    };
+    await execFileAsync(
+      "git",
+      ["notes", "--ref", "arc/user/test-user", "add", "-f", "-m", JSON.stringify(mergedManifest), "HEAD"],
+      { cwd: tempDir },
+    );
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user" });
+    const summary = buildUserStatusSummary(result);
+
+    expect(result.diskStatus).toBe("stale");
+    expect(result.actionHint).toBe("run `arc user load`");
+    expect(summary).toContain("Next step: run `arc user load`");
+    expect(summary).not.toContain("Next step: run `arc user save`");
   });
 
   it("reports a validated partial-push marker when local notes are still ahead of remote", async () => {
@@ -2199,7 +2385,7 @@ describe("user status", () => {
     expect(summary).toContain("Next step: run `arc user push` to retry the notes push");
   });
 
-  it("clears a stale partial-push marker when the local notes ref has moved", async () => {
+  it("keeps an ancestor-keyed partial-push marker when a sibling save advances the local ref", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -2216,11 +2402,33 @@ describe("user status", () => {
     const syncState = await readLocalSyncStateFixture(tempDir, "test-user");
 
     expect(result.refState).toBe("local-ahead");
-    expect(result.coherenceState).toBeUndefined();
-    expect(syncState).not.toHaveProperty("partialPush");
+    expect(result.coherenceState).toBe("partial-push");
+    expect(syncState.partialPush).toEqual({ localRefHash: staleRefHash, sourceCommit: head.trim() });
   });
 
-  it("clears a partial-push marker when remote notes already match local notes", async () => {
+  it("ignores but preserves a partial-push marker whose recorded tip is no longer an ancestor", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# First save", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    const staleRefHash = await readNotesRefTip(tempDir, "test-user");
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tempDir });
+
+    await execFileAsync("git", ["update-ref", "-d", "refs/notes/arc/user/test-user"], { cwd: tempDir });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Force-moved save", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await writePartialPushMarker(tempDir, "test-user", staleRefHash, head.trim());
+
+    const result = await runUserStatus({ cwd: tempDir, io, identity: "test-user" });
+    const syncState = await readLocalSyncStateFixture(tempDir, "test-user");
+
+    expect(result.refState).toBe("local-ahead");
+    expect(result.coherenceState).toBeUndefined();
+    expect(syncState.partialPush).toEqual({ localRefHash: staleRefHash, sourceCommit: head.trim() });
+  });
+
+  it("ignores but preserves a partial-push marker when remote notes already match local notes", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -2237,7 +2445,7 @@ describe("user status", () => {
     expect(result.refState).toBe("same");
     expect(result.spineState).toBe("clean");
     expect(result.coherenceState).toBeUndefined();
-    expect(syncState).not.toHaveProperty("partialPush");
+    expect(syncState.partialPush).toEqual({ localRefHash, sourceCommit: head.trim() });
   });
 
   it("reports partial-push verification uncertainty when remote notes are unavailable", async () => {

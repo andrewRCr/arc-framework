@@ -24,7 +24,9 @@ import {
   NO_COMPARABLE_SOURCE_COMMIT,
   readMaterializedBaselineStamp,
   readLocalSyncState,
+  recordErrandPartialPushMarker,
   recordPartialPushMarker,
+  writeMaterializedBaselineStamp,
   writeLocalSyncState,
 } from "../../src/lib/user-sync/index.js";
 import {
@@ -771,6 +773,24 @@ interface CriticalSectionRecorder {
   commits: string[];
 }
 
+interface ActivityRecorder {
+  active: number;
+  maxActive: number;
+  events: string[];
+}
+
+async function recordActivity(
+  recorder: ActivityRecorder,
+  event: string,
+  ms = 5,
+): Promise<void> {
+  recorder.active += 1;
+  recorder.maxActive = Math.max(recorder.maxActive, recorder.active);
+  recorder.events.push(event);
+  await new Promise((resolve) => setTimeout(resolve, ms));
+  recorder.active -= 1;
+}
+
 /**
  * Save IO whose `writeNote` reports critical-section occupancy into a shared
  * recorder and holds the section open briefly — so two unserialized peers would
@@ -825,6 +845,44 @@ function concurrentSaveIO(
   };
 }
 
+function snapshotSaveIO(
+  head: string,
+  recorder: ActivityRecorder,
+): UserIOContext {
+  const files = { "WORKING-MEMORY.md": "# Notes" };
+  let writtenNote: string | null = null;
+
+  return {
+    exec: vi.fn(async (cmd: string, args: string[]) => {
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
+        await recordActivity(recorder, `head:${head}`);
+        return { stdout: head, stderr: "" };
+      }
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+        return { stdout: ".git\n", stderr: "" };
+      }
+      throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+    }),
+    readFile: vi.fn(async (filePath: string) => {
+      const name = basename(filePath);
+      const content = files[name as keyof typeof files];
+      if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
+      await recordActivity(recorder, `read:${head}:${name}`);
+      return content;
+    }),
+    writeFile: vi.fn(async () => undefined),
+    readDir: vi.fn(async () => (
+      Object.entries(files).map(([name, content]) => ({
+        name,
+        size: Buffer.byteLength(content, "utf-8"),
+      }))
+    )),
+    mkdir: vi.fn(async () => undefined),
+    writeNote: vi.fn(async (_ref: string, content: string) => { writtenNote = content; }),
+    readNote: vi.fn(async () => writtenNote),
+  };
+}
+
 describe("runUserSave — note-write serialization (advisory lock)", () => {
   let cwd: string;
   const headA = "aa".padEnd(40, "0");
@@ -874,6 +932,23 @@ describe("runUserSave — note-write serialization (advisory lock)", () => {
       identity: "andrew",
     });
     expect(result.fileCount).toBe(1);
+  });
+
+  it("serializes HEAD resolution and disk snapshot under the notes lock", async () => {
+    const recorder: ActivityRecorder = { active: 0, maxActive: 0, events: [] };
+
+    await Promise.all([
+      runUserSave({ cwd, io: snapshotSaveIO(headA, recorder), identity: "andrew" }),
+      runUserSave({ cwd, io: snapshotSaveIO(headB, recorder), identity: "andrew" }),
+    ]);
+
+    expect(recorder.maxActive).toBe(1);
+    expect(recorder.events).toEqual(expect.arrayContaining([
+      `head:${headA}`,
+      `read:${headA}:WORKING-MEMORY.md`,
+      `head:${headB}`,
+      `read:${headB}:WORKING-MEMORY.md`,
+    ]));
   });
 });
 
@@ -943,23 +1018,64 @@ describe("runUserSave — removal tombstones", () => {
     await rm(cwd, { recursive: true, force: true });
   });
 
-  it("stamps a Removed marker into a cross-WU file whose entry is absent since the prior note", async () => {
-    const wm = (...entries: string[]): string =>
-      `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
-    const entry = (header: string): string => `**${header}:**\n_Remove when: x._\n\nBody.`;
+  const wm = (...entries: string[]): string =>
+    `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
+  const entry = (header: string): string => `**${header}:**\n_Remove when: x._\n\nBody.`;
+  const saveNoteFiles = (note: string | null): Record<string, string> =>
+    (JSON.parse(note ?? "{}") as SyncManifest).files;
+  const stampBaseline = async (
+    io: UserIOContext,
+    identity: string,
+    files: Record<string, string>,
+  ): Promise<void> => {
+    await writeMaterializedBaselineStamp({
+      exec: io.exec,
+      cwd,
+      identity,
+      manifest: { version: 2, files },
+      manifestHash: hashSyncManifest({ version: 2, files }),
+      notesRefTip: "baseline-tip",
+    });
+  };
 
+  it("does not tombstone a ref entry absent from the materialized stamp", async () => {
     const { io, written } = mockSaveIOWithNotes({
       files: { "WORKING-MEMORY.md": wm(entry("Kept")) },
-      priorNoteFiles: { "WORKING-MEMORY.md": wm(entry("Kept"), entry("Dropped")) },
+      priorNoteFiles: { "WORKING-MEMORY.md": wm(entry("Kept"), entry("Ref Only")) },
+    });
+    await stampBaseline(io, "andrew", { "WORKING-MEMORY.md": wm(entry("Kept")) });
+
+    await runUserSave({ cwd, io, identity: "andrew" });
+
+    const saved = saveNoteFiles(written())["WORKING-MEMORY.md"] ?? "";
+    expect(saved).not.toContain("## Removed: **Ref Only:**");
+    expect(saved).not.toContain("## Removed: **Kept:**");
+  });
+
+  it("tombstones an entry the stamp records as materialized and disk now omits", async () => {
+    const { io, written } = mockSaveIOWithNotes({
+      files: { "WORKING-MEMORY.md": wm(entry("Kept")) },
+      priorNoteFiles: {},
+    });
+    await stampBaseline(io, "andrew", { "WORKING-MEMORY.md": wm(entry("Kept"), entry("Dropped")) });
+
+    await runUserSave({ cwd, io, identity: "andrew" });
+
+    const saved = saveNoteFiles(written())["WORKING-MEMORY.md"] ?? "";
+    expect(saved).toContain("## Removed: **Dropped:**");
+    expect(saved).not.toContain("## Removed: **Kept:**");
+  });
+
+  it("synthesizes no tombstones when the materialized stamp is absent", async () => {
+    const { io, written } = mockSaveIOWithNotes({
+      files: { "WORKING-MEMORY.md": wm(entry("Kept")) },
+      priorNoteFiles: { "WORKING-MEMORY.md": wm(entry("Kept"), entry("Upgrade Only")) },
     });
 
     await runUserSave({ cwd, io, identity: "andrew" });
 
-    const note = written();
-    expect(note).not.toBeNull();
-    const saved = (JSON.parse(note ?? "{}") as SyncManifest).files["WORKING-MEMORY.md"] ?? "";
-    expect(saved).toContain("## Removed: **Dropped:**");
-    expect(saved).not.toContain("## Removed: **Kept:**");
+    const saved = saveNoteFiles(written())["WORKING-MEMORY.md"] ?? "";
+    expect(saved).not.toContain("## Removed: **Upgrade Only:**");
   });
 });
 
@@ -1513,6 +1629,59 @@ describe("LocalSyncState v4 schema", () => {
     });
     expect(afterRecord!.savedAt).toBe(v3Record.savedAt);
     expect(afterRecord!.verifiedAt).toBe(v3Record.verifiedAt);
+  });
+
+  it("keeps both partial-push markers across concurrent sync-state writers", async () => {
+    const record = {
+      version: 4,
+      materializedManifestHash: "ab".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(record, null, 2)}\n`, "utf-8");
+
+    let firstTwoReads = 0;
+    let releaseReads: () => void = () => {};
+    const readsReleased = new Promise<void>((resolve) => {
+      releaseReads = resolve;
+    });
+    const io = realFsIO({
+      exec: vi.fn(async (cmd: string, args: string[]) => {
+        if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--verify") {
+          if (args[2] === "refs/notes/arc/user/andrew") {
+            return { stdout: `${"d".repeat(40)}\n`, stderr: "" };
+          }
+          if (args[2] === "refs/arc/user/andrew/errands") {
+            return { stdout: `${"e".repeat(40)}\n`, stderr: "" };
+          }
+        }
+        throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+      }),
+      readFile: vi.fn(async (path: string) => {
+        if (path === syncStatePath && firstTwoReads < 2) {
+          firstTwoReads += 1;
+          if (firstTwoReads === 2) releaseReads();
+          await readsReleased;
+        }
+        return readFile(path, "utf-8");
+      }),
+    });
+
+    await Promise.all([
+      recordPartialPushMarker(cwd, io, identity),
+      recordErrandPartialPushMarker(cwd, io, identity),
+    ]);
+
+    const state = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(state!.partialPush).toEqual({
+      localRefHash: "d".repeat(40),
+      sourceCommit: record.sourceCommit,
+    });
+    expect(state!.partialPushErrand).toEqual({
+      localRefHash: "e".repeat(40),
+      sourceCommit: "e".repeat(40),
+    });
   });
 
   it("never produces malformed JSON on disk under concurrent writes", async () => {

@@ -29,6 +29,7 @@ export {
   readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
   CROSS_WU_NOTE_WINDOW,
+  CROSS_WU_NOTE_WINDOW_MS,
   type RecentNote,
 } from "./notes-ref.js";
 
@@ -44,10 +45,13 @@ export {
 
 export {
   appendRemovalTombstones,
+  appendRemovalTombstonesFromEntries,
   mergeEntries,
   mergeCrossWuFile,
+  TOMBSTONE_TTL_MS,
   type MergeNote,
   type MergeResult,
+  type RemovalTombstoneBasisEntry,
 } from "./merge.js";
 
 export { projectManifest } from "./projection.js";

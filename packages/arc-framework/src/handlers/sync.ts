@@ -553,14 +553,39 @@ async function reconcileErrandLeg(
         return { action: "reconcile", result: "noop" };
       case "no-remote":
       case "conflict":
-      case "failed":
-        await recordErrandPartialPushMarker(cwd, io, identity);
-        return { action: "reconcile", result: "failed", detail: outcome.kind };
+      case "failed": {
+        const markerRecorded = await recordErrandPartialPushMarkerSafely(cwd, io, identity);
+        return {
+          action: "reconcile",
+          result: "failed",
+          detail: errandPartialPushDetail(outcome.kind, markerRecorded),
+        };
+      }
     }
   } catch {
-    await recordErrandPartialPushMarker(cwd, io, identity);
-    return { action: "reconcile", result: "failed", detail: "error" };
+    const markerRecorded = await recordErrandPartialPushMarkerSafely(cwd, io, identity);
+    return {
+      action: "reconcile",
+      result: "failed",
+      detail: errandPartialPushDetail("error", markerRecorded),
+    };
   }
+}
+
+async function recordErrandPartialPushMarkerSafely(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<boolean> {
+  try {
+    return await recordErrandPartialPushMarker(cwd, io, identity);
+  } catch {
+    return false;
+  }
+}
+
+function errandPartialPushDetail(detail: string, markerRecorded: boolean): string {
+  return markerRecorded ? detail : `${detail}:marker-not-recorded`;
 }
 
 interface ExecuteContext {
@@ -863,15 +888,15 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
       return;
     case "cancelled":
       output.log.info("Notes push cancelled.");
-      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn(partialPublishRecoveryLine(result, "recover with `arc user push` (idempotent)."));
       return;
     case "no-remote":
       output.log.error("No remote configured. Push requires a remote repository.");
-      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn(partialPublishRecoveryLine(result, "recover with `arc user push` (idempotent)."));
       return;
     case "refused":
       output.log.warn(notes.message);
-      output.log.warn("Partial publish recorded; retry after resolving the notes export target.");
+      output.log.warn(partialPublishRecoveryLine(result, "retry after resolving the notes export target."));
       return;
     case "failed-nontty-conflict":
       output.log.warn(
@@ -882,17 +907,17 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
         notes.message
         ?? "Resolve the conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
       );
-      output.log.warn("Partial publish recorded.");
+      output.log.warn(partialPublishRecoveryLine(result, ""));
       return;
     case "blocked":
       for (const condition of notes.conditions.filter(isRefusalCondition)) {
         output.log.error(condition.guidance);
       }
-      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn(partialPublishRecoveryLine(result, "recover with `arc user push` (idempotent)."));
       return;
     case "failed":
       output.log.error(`Notes push failed: ${notes.error.message}`);
-      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn(partialPublishRecoveryLine(result, "recover with `arc user push` (idempotent)."));
       return;
     case "skipped":
       if (notes.reason === "preceding-leg-failed") {
@@ -904,6 +929,15 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
       }
       return;
   }
+}
+
+function partialPublishRecoveryLine(result: PairedPushResult, suffix: string): string {
+  if (result.partialPushMarkerRecorded === true) {
+    return suffix === "" ? "Partial publish recorded." : `Partial publish recorded; ${suffix}`;
+  }
+  return suffix === ""
+    ? "Partial publish recovery marker could not be recorded."
+    : `Partial publish recovery marker could not be recorded; ${suffix}`;
 }
 
 async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {

@@ -327,6 +327,39 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it.each([
+    [true, "Partial publish recorded; recover with `arc user push` (idempotent)."],
+    [false, "Partial publish recovery marker could not be recorded; recover with `arc user push` (idempotent)."],
+  ])("paired-cell notes failure renders marker-recording truthfulness (%s)", async (
+    markerRecorded,
+    expectedWarning,
+  ) => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("clean");
+    mockRunPairedPush.mockResolvedValue({
+      save: {
+        status: "success",
+        result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] },
+      },
+      worktree: { status: "success" },
+      notes: { status: "failed", error: new Error("network timeout") },
+      conditions: [],
+      exitCode: 1,
+      partialPushMarkerRecorded: markerRecorded,
+    });
+
+    await handleSync();
+
+    expect(mockLog.warn).toHaveBeenCalledWith(expectedWarning);
+    if (!markerRecorded) {
+      expect(
+        mockLog.warn.mock.calls.some(([message]) => String(message).startsWith("Partial publish recorded")),
+      ).toBe(false);
+    }
+    expect(process.exitCode).toBe(1);
+  });
+
   it("paired-cell save failure reports JSON failure without a separate orchestrator save", async () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");

@@ -380,7 +380,7 @@ async function reconcileAndRepush(
   const lock = await (options.lock ?? DEFAULT_RECONCILE_LOCK).acquire({ io, cwd, identity });
   try {
     const preMergeTip = await readRefTip(io, fullRef);
-    await io.exec("git", ["fetch", "--refmap=", "origin", incomingFetchRefspec(fullRef)]);
+    await io.exec("git", ["fetch", "--refmap=", "origin", incomingFetchRefspec(fullRef, incoming)]);
 
     try {
       await io.exec("git", notesMergeArgs(shortRef, incoming));
@@ -394,14 +394,14 @@ async function reconcileAndRepush(
     }
 
     const postMergeTip = await readRefTip(io, fullRef);
-    const corruptCommit = await findCorruptMergedNote(io, shortRef);
-    if (corruptCommit !== null) {
+    const scan = await findCorruptMergedNote(io, shortRef);
+    if (scan.kind === "corrupt") {
       const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
       if (rollback.kind === "failed") {
         return {
           kind: "conflict",
           message:
-            `Concurrent notes on commit ${corruptCommit.slice(0, 8)} produced an unparseable note, `
+            `Concurrent notes on commit ${scan.commit.slice(0, 8)} produced an unparseable note, `
             + "and the rollback could not be applied safely. Nothing was pushed; inspect the local "
             + "notes ref and retry after resolving the conflict.",
         };
@@ -409,9 +409,30 @@ async function reconcileAndRepush(
       return {
         kind: "conflict",
         message:
-          `Concurrent notes on commit ${corruptCommit.slice(0, 8)} could not be auto-merged `
+          `Concurrent notes on commit ${scan.commit.slice(0, 8)} could not be auto-merged `
           + "(the union produced an unparseable note). Your local notes are preserved; resolve the "
           + "conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
+      };
+    }
+    if (scan.kind === "failed") {
+      const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
+      const scope = scan.commit === undefined
+        ? "Concurrent notes merge"
+        : `Concurrent notes on commit ${scan.commit.slice(0, 8)}`;
+      if (rollback.kind === "failed") {
+        return {
+          kind: "conflict",
+          message:
+            `${scope} could not be verified after merge (${scan.error.message}), and the rollback could not `
+            + "be applied safely. Nothing was pushed; inspect the local notes ref and retry after resolving "
+            + "the conflict.",
+        };
+      }
+      return {
+        kind: "conflict",
+        message:
+          `${scope} could not be verified after merge (${scan.error.message}). Your local notes are `
+          + "preserved; resolve the notes-ref read failure and retry.",
       };
     }
 
@@ -490,20 +511,25 @@ async function tryExec(io: UserIOContext, args: string[]): Promise<void> {
   }
 }
 
+type MergedNoteScanResult =
+  | { kind: "clean" }
+  | { kind: "corrupt"; commit: string }
+  | { kind: "failed"; commit?: string; error: Error };
+
 /**
- * First annotated commit whose merged note no longer parses as one manifest, or
- * `null` when every note is valid. Scans the post-merge ref since `cat_sort_uniq`
- * corrupts silently (exit 0) on a same-commit collision.
+ * First annotated commit whose merged note no longer parses as one manifest.
+ * Empty output is clean — the ref may be absent or carry no notes — but read
+ * failures fail closed so a possibly-corrupt merge is never re-pushed.
  */
 async function findCorruptMergedNote(
   io: UserIOContext,
   shortRef: string,
-): Promise<string | null> {
+): Promise<MergedNoteScanResult> {
   let listOut: string;
   try {
     ({ stdout: listOut } = await io.exec("git", ["notes", "--ref", shortRef, "list"]));
-  } catch {
-    return null;
+  } catch (err) {
+    return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
   }
   const commits = listOut
     .split("\n")
@@ -514,10 +540,14 @@ async function findCorruptMergedNote(
     let content: string;
     try {
       ({ stdout: content } = await io.exec("git", ["notes", "--ref", shortRef, "show", commit]));
-    } catch {
-      continue;
+    } catch (err) {
+      return {
+        kind: "failed",
+        commit,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
     }
-    if (!isResolvedNoteValid(content)) return commit;
+    if (!isResolvedNoteValid(content)) return { kind: "corrupt", commit };
   }
-  return null;
+  return { kind: "clean" };
 }
