@@ -63,7 +63,8 @@ import {
   type DecomposeOptions,
 } from "./handlers/lifecycle.js";
 import {
-  handleUserAdd, handleUserClose, handleUserInboxRemove, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
+  handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
+  handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
@@ -416,6 +417,12 @@ userCmd
   .option("--identity <name>", "Pull another developer's notes instead of your own")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
   .action(handleUserPull);
+
+userCmd
+  .command("compact")
+  .description("Compact user notes history to a retained snapshot baseline")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleUserCompact);
 
 userCmd
   .command("status")

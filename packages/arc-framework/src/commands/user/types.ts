@@ -14,6 +14,7 @@ import type {
   BranchBoundedNotesExportTarget,
   PlanBranchBoundedNotesExportResult,
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
+import type { NotesCompactionAdvisory } from "../../lib/user-sync/index.js";
 
 /** I/O dependencies for the user command. */
 export interface UserIOContext extends CoreIO {
@@ -642,6 +643,8 @@ export interface UserStatusResult {
   unsavedDirection: UserUnsavedDirection | null;
   backupFiles: string[];
   remoteIdentities: UserStatusRemoteIdentity[];
+  /** Local notes-ref history-size advisory for manual compaction. */
+  compactionAdvisory?: NotesCompactionAdvisory;
   /**
    * Worktree sync probe result, when `session.remote_sync` is enabled and the
    * caller did not pass `--offline`. Omitted when no probe was run.

@@ -1,4 +1,5 @@
 import { noteOffBranchHistoryClause } from "./ancestry-message.js";
+import type { UserCompactResult } from "./compact.js";
 import type {
   LoadMessage,
   LoadMessageLevel,
@@ -82,6 +83,37 @@ function appendMessageGroup(
 export function buildUserStatusSummary(result: UserStatusResult): string {
   const lines = [result.summary, ...result.detailLines];
   return lines.join("\n");
+}
+
+/** Build user-facing summary for `arc user compact`. */
+export function buildUserCompactSummary(result: UserCompactResult): string {
+  switch (result.kind) {
+    case "compacted": {
+      const lines = [
+        `Compacted user notes generation ${result.generation}.`,
+        `Retained ${result.retainedCount} note(s); pruned ${result.prunedCount} note(s).`,
+        `Backup ref: ${result.backupRef}`,
+        `Generation marker: ${result.marker}.`,
+      ];
+      if (result.backupPrune.deletedRefs.length > 0) {
+        lines.push(`Expired backups pruned: ${result.backupPrune.deletedRefs.join(", ")}`);
+      }
+      if (result.backupPrune.failedRefs.length > 0) {
+        lines.push(`Expired backup prune failures: ${result.backupPrune.failedRefs.length}.`);
+      }
+      return lines.join("\n");
+    }
+    case "nothing-to-prune":
+      return `Nothing to prune. Retained ${result.retainedCount} note(s).`;
+    case "lease-declined":
+      return "Compaction lease declined; local notes were restored to the pre-compaction tip.";
+    case "conflict":
+      return result.message;
+    case "no-remote":
+      return "No remote configured or reachable for compaction.";
+    case "failed":
+      return result.error.message;
+  }
 }
 
 /**

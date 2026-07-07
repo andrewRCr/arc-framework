@@ -72,6 +72,7 @@ import { runWorkUnitState } from "../lib/session-init/work-unit-state.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { runInboxState } from "../lib/session-init/inbox-state.js";
 import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-marker-surface.js";
+import { runNotesCompactionSessionAdvisory } from "../lib/session-init/notes-compaction-advisory.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
@@ -158,6 +159,7 @@ const ERRAND_NUDGE_MARKER_RELATIVE = ".internal/errand-reminder-last-nudge.txt";
  * housekeep; WU staleness clears when the WU merges / archives).
  */
 const WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE = ".internal/work-unit-stale-last-nudge.txt";
+const NOTES_COMPACTION_NUDGE_MARKER_RELATIVE = ".internal/notes-compaction-last-nudge.txt";
 
 function parsePositiveInteger(raw: string, fallback: number): number {
   const parsed = Number.parseInt(raw, 10);
@@ -553,6 +555,17 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         exec: gitExec,
         identity: id,
         now: new Date().toISOString(),
+      }),
+      compactionAdvisory: async (id) => runNotesCompactionSessionAdvisory({
+        exec: gitExec,
+        identity: id,
+        nudge: await resolveNudgeState(
+          cwd,
+          io,
+          id,
+          NOTES_COMPACTION_NUDGE_MARKER_RELATIVE,
+          userSurfacesFor,
+        ),
       }),
       cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
         cwd,

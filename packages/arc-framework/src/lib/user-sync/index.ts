@@ -25,13 +25,62 @@ export { removeInboxEntry, type RemoveInboxEntryResult } from "./inbox-writer.js
 
 export {
   listAnnotatedNoteCommits,
+  listNoteEntries,
   notePathToCommit,
   readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
   CROSS_WU_NOTE_WINDOW,
   CROSS_WU_NOTE_WINDOW_MS,
+  type NoteEntry,
   type RecentNote,
 } from "./notes-ref.js";
+
+export {
+  adoptCompactedNotesRef,
+  compactNotesRefSnapshot,
+  readNotesCompactionManifest,
+  type AdoptCompactedNotesRefInput,
+  type AdoptCompactedNotesRefResult,
+  type CompactNotesRefSnapshotInput,
+  type CompactNotesRefSnapshotResult,
+} from "./compaction.js";
+
+export {
+  NOTES_COMPACTION_MANIFEST_PATH,
+  buildNextNotesCompactionManifest,
+  deserializeNotesCompactionManifest,
+  isPairPrunedByManifest,
+  serializeNotesCompactionManifest,
+  type NotesCompactionManifest,
+  type NotesCompactionPair,
+} from "./compaction-manifest.js";
+
+export {
+  COMPACTION_ADVISORY_HISTORY_THRESHOLD,
+  COMPACTION_BACKUP_RETENTION_DAYS,
+  COMPACTION_NEWEST_RETAIN_COUNT,
+  COMPACTION_PRUNE_AGE_DAYS,
+  decideNotesCompactionRetention,
+  type DecideNotesCompactionRetentionInput,
+  type NotesCompactionRetentionDecision,
+  type RetentionPolicyNoteEntry,
+} from "./compaction-retention.js";
+
+export {
+  inspectNotesCompactionAdvisory,
+  type NotesCompactionAdvisory,
+} from "./compaction-advisory.js";
+
+export {
+  NOTES_COMPACTION_SYNC_MARKER_KEY,
+  deserializeNotesCompactionSyncMarker,
+  publishNotesCompactionSyncMarker,
+  readNotesCompactionSyncMarker,
+  serializeNotesCompactionSyncMarker,
+  writeNotesCompactionSyncMarker,
+  type NotesCompactionSyncMarker,
+  type PublishNotesCompactionMarkerOutcome,
+} from "./compaction-marker.js";
 
 export {
   isCasRejectionError,

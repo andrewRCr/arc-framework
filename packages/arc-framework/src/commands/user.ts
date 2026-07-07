@@ -39,6 +39,12 @@ export {
   type NotesPushOutcome,
   type ReconcileNotesPushOptions,
 } from "./user/push-fetch.js";
+export {
+  runUserCompact,
+  type BackupPruneResult,
+  type UserCompactOptions,
+  type UserCompactResult,
+} from "./user/compact.js";
 export { runPairedPush } from "./user/paired-push.js";
 export {
   runUserSessionInitStatus,
@@ -62,6 +68,7 @@ export {
 export {
   buildLoadSummary,
   buildSaveSummary,
+  buildUserCompactSummary,
   buildUserSessionInitStatusSummary,
   buildUserStatusSummary,
 } from "./user/format.js";

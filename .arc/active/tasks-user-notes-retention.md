@@ -233,125 +233,77 @@ _Design decisions:_ Correctness rides the in-band cumulative prune manifest, nev
 coordination; retention parameters are internal constants, not config keys. Never union-merge across a
 compaction boundary.
 
-### `[ ]` **4.1 Compaction snapshot writer with cumulative prune manifest**
+### `[x]` **4.1 Compaction snapshot writer with cumulative prune manifest**
 
 - _Goal:_ One lock-held operation compacts the ref to a snapshot whose tree itself states every pair ever
   deliberately pruned — recoverable, lease-pushed, and safe to interrupt.
-- **Additional Context:** `spec-user-notes-retention.md` § Phase C — retention/compaction (mechanism and
-  manifest rationale)
 
-    - `[ ]` **4.1.a Prune manifest format and cumulativity**
-        - Manifest at a reserved non-SHA path in the notes tree (inert to note resolution — readers filter
-          on the SHA pattern: `parseNoteListLine` in `branch-bounded-notes-export.ts` and the
-          `GIT_OBJECT_ID_PATTERN` filter in `notes-ref.ts` both drop non-SHA entries): pruned
-          `(blob, commit)` set, pre-compaction tip, monotonic generation id; each compaction unions the
-          prior manifest in.
-        - Build `test-first` (one behavior at a time):
-            - generation N's manifest contains every pair pruned in generations 1..N
-            - the manifest entry survives an ordinary post-snapshot save and a same-generation sibling
-              merge (identical blob unifies)
-            - note-resolution readers never surface the manifest as a note
+    - `[x]` **4.1.a Prune manifest format and cumulativity**
+        - Added the reserved non-SHA manifest entry with cumulative pruned `(blob, commit)` pairs,
+          pre-compaction tip, and monotonic generation; note readers continue to expose only SHA-addressed notes.
 
-    - `[ ]` **4.1.b Snapshot build and publish**
-        - The writer takes explicit retained/pruned sets as input — a pure boundary: the 4.5 policy
-          computes them, the 4.6 command composes the two.
-        - Under the notes lock: push the backup ref to origin (`refs/backup/…`), build the single squashed
-          snapshot commit (tree = retained notes + manifest; in-band tombstones survive as content), push
-          `--force-with-lease`; on any failure the local ref and origin are left pre-compaction.
-        - Integration test: interrupted publish (lease decline / push failure) leaves both refs recoverable.
+    - `[x]` **4.1.b Snapshot build and publish**
+        - Added the explicit retained/pruned snapshot writer: it backs up the pre-compaction ref, builds a
+          root snapshot tree from retained notes plus the manifest, lease-pushes it, and rolls local state back
+          on publish failure.
 
-### `[ ]` **4.2 Compaction-aware sibling adopt**
+- _Outcome:_ Compaction now has a pure snapshot boundary, cumulative in-band prune proof, backup ref, and
+  interruption-safe publish path covered by real-git regressions.
+
+### `[x]` **4.2 Compaction-aware sibling adopt**
 
 - _Goal:_ A sibling detecting a snapshot rewrite adopts it losslessly — manifest-pruned pairs drop, collisions
   union per-path, absent local notes re-export — and never union-merges across the boundary.
-- **Additional Context:** `spec-user-notes-retention.md` § Phase C — Sibling reconcile (the three
-  dispositions and the all-or-nothing rule)
 
-    - `[ ]` **4.2.a Rewrite detection and disposition engine**
-        - Detect via generation marker or snapshot-rooted non-FF; classify every local tip-tree pair:
-          manifest-pruned → drop with adopt; collision (different blob, same commit) → per-path content
-          union (`cat_sort_uniq` + corrupt-scan semantics) committed on top; absent → re-export on top.
-        - All-or-nothing: an unparseable collision union rolls the local ref back to its pre-adopt tip with
-          the existing typed conflict outcome; otherwise adopt always proceeds.
-        - Build `test-first` (one behavior at a time):
-            - local-only unpushed notes survive the adopt (content-diff verified — the spec's
-              sibling-adoption criterion)
-            - a manifest-pruned pair drops and never re-exports
-            - a collision unions per-path; an unparseable union rolls back whole with the typed conflict
-            - a sibling lagging two generations adopts without resurrecting either generation's pruned set
+    - `[x]` **4.2.a Rewrite detection and disposition engine**
+        - Added compaction-aware adopt that takes a fetched snapshot, drops manifest-pruned pairs, unions
+          same-commit JSON-manifest collisions, re-exports absent local notes, and leaves the local ref untouched
+          on unparseable collisions.
 
-    - `[ ]` **4.2.b Integrity warning**
-        - When the pre-compaction tip's tree is locally resolvable, a provably pre-compaction absent pair
-          surfaces an advisory warning naming the generation — never a gate; a sibling that never fetched
-          the pre-compaction tip skips the diagnostic silently.
+    - `[x]` **4.2.b Integrity warning**
+        - Added advisory warnings for locally-provable pre-compaction omissions while preserving marker-absent
+          adopt via the snapshot's in-band manifest.
 
-### `[ ]` **4.3 Export/push compaction-boundary guard**
+- _Outcome:_ Lagging siblings adopt compacted snapshots without crossing the history boundary, and regressions
+  cover local-only survival, pruned-pair dropping, collision conflict rollback, multi-generation lag, and
+  integrity warnings.
+
+### `[x]` **4.3 Export/push compaction-boundary guard**
 
 - _Goal:_ A stale sibling's push can never resurrect pruned notes as a clean fast-forward of the snapshot.
+- _Outcome:_ Branch-bounded export and non-fast-forward reconcile both fetch the remote generation before
+  staging, adopt newer snapshots first, then stage from the post-adopt baseline so pruned notes stay pruned.
 
-    - Every export/push path checks the fetched remote tip's generation id against the local ref's before
-      staging (`planBranchBoundedNotesExport` overlay path and `reconcileAndRepush` both); on a newer
-      generation, run the 4.2 reconcile first and stage against the post-reconcile baseline.
-    - Build `test-first` (one behavior at a time):
-        - a stale sibling's branch-bounded export across the boundary resurrects nothing
-        - a stale sibling's non-FF reconcile push across the boundary resurrects nothing
-        - same-generation pushes stage without the extra reconcile
-
-### `[ ]` **4.4 Generation marker seam on the sync-state ref**
+### `[x]` **4.4 Generation marker seam on the sync-state ref**
 
 - _Goal:_ Siblings detect a rewrite cheaply — without walking the ref — while correctness stays with the
   in-band manifest.
+- _Outcome:_ Added a typed `notes-compaction` sync-state entry plus reconcile-push publisher; `arc user compact`
+  writes the latest generation marker, while snapshot-rooted adopt remains correct if the marker is absent.
 
-    - Publish a generation/epoch marker on the sync-state ref at compaction; readers treat it as a hint
-      only (4.2's detection works with the marker absent). A deliberate seam the backend tier can upgrade —
-      no handshake machinery now.
-    - Checkable pair: the marker lands at compaction (asserted in 4.6's E2E); marker-absent detection is
-      4.2's snapshot-rooted non-FF test — cross-referenced, not duplicated.
-
-### `[ ]` **4.5 Retention policy**
+### `[x]` **4.5 Retention policy**
 
 - _Goal:_ Retain-or-prune is a pure, unit-tested rule over note entries, with the spec's parameter defaults
   as named internal constants.
+- _Outcome:_ Added pure retention partitioning with named constants for newest-K retention, 30-day prune age,
+  30-day backup retention, and the ~2,000-commit advisory threshold; tests cover newest, age-gated,
+  in-flight, and legacy root-`SESSION-NOTES` behavior.
 
-    - Retain when any of: among the newest K notes (K ≥ the 3.3 window bound); younger than the prune age
-      gate (30 days post-archival); anchor commit belongs to an in-flight WU (the retired-subdir oracle's
-      shipped-and-reconciled test). Prune everything else — subsumes the 427 pre-migration
-      root-`SESSION-NOTES` notes and retired-WU accumulation.
-    - Pure decision module: input is the note-entry set plus WU state, output the retained/pruned sets the
-      4.1.b writer consumes (composed at 4.6).
-    - Constants module carries: prune age gate (30d), backup retention (until next verified compaction,
-      min 30d), advisory threshold (~2,000 ref-history commits). No config keys.
-    - Build `test-first` (one behavior at a time):
-        - newest-K retention holds regardless of age
-        - the age gate retains a recently-archived WU's notes; past it they prune
-        - an in-flight WU's notes never prune; pre-migration root notes always prune
-
-### `[ ]` **4.6 `arc user compact` command**
+### `[x]` **4.6 `arc user compact` command**
 
 - _Goal:_ Compaction is a manual, interlock-gated command with typed outcomes and an on-demand advisory
   signal in status.
+- _Outcome:_ Added `arc user compact` with human/JSON outcomes, lock-held retention + snapshot composition,
+  backup pruning, sync-state marker publication, and `arc user status` advisory output; the command integration
+  proves compaction collapses history, lands the marker, and no-ops on a second run.
 
-    - New `commands/user/` subcommand + handler registration: lock → backup ref → retention decision (4.5)
-      → snapshot writer (4.1) → lease-push, JSON envelope outcomes (compacted / nothing-to-prune /
-      lease-declined / conflict), non-TTY safe (no interactive prompt without a flag path).
-    - Prune expired `refs/backup/…` refs — past the backup-retention constant, once a later compaction has
-      verified convergence.
-    - `arc user status` reports the advisory threshold signal (ref history > ~2,000 commits → suggest
-      compaction) on demand.
-    - E2E test: compact in a temp repo → history collapses to the snapshot baseline; the generation marker
-      lands on the sync-state ref; a second run is a no-op.
-
-### `[ ]` **4.7 Session-init compaction advisory**
+### `[x]` **4.7 Session-init compaction advisory**
 
 - _Goal:_ Orientation nudges compaction when ref history exceeds the advisory threshold — once per calendar
   day, offer-only, never auto-run.
-
-    - New `lib/session-init/` slot (pattern: `partial-push-marker-surface.ts`) emitting the advisory into
-      the probe envelope, reusing the shared nudge-marker rate limit (`nudge-rate-limit.ts`).
-    - Orientation surface in the session-init workflow (one conditional section offering the
-      interlock-gated `arc user compact`): edit the package source copy and sync to `.arc/` per
-      package-project sync discipline.
-    - Tier 2 gate (full suite) closes the phase.
+- _Outcome:_ Added the session-init compaction advisory slot with shared nudge-marker state and updated the
+  package workflow template plus installed `.arc` copy to render the once-per-day offer without auto-running
+  compaction.
 
 ## **Phase 5:** Verification
 

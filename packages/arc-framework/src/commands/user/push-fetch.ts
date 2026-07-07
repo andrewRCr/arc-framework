@@ -3,6 +3,7 @@ import type { AccessFn, PushabilityCondition } from "../../lib/git/index.js";
 import {
   clearPartialPushMarker,
   acquireAdvisoryLock,
+  adoptCompactedNotesRef,
   getNotesLockPath,
   incomingFetchRefspec,
   incomingNotesRef,
@@ -11,6 +12,7 @@ import {
   isRemoteUnavailableError,
   isResolvedNoteValid,
   notesMergeArgs,
+  readNotesCompactionManifest,
   releaseAdvisoryLock,
   type AdvisoryLockHandle,
 } from "../../lib/user-sync/index.js";
@@ -382,58 +384,64 @@ async function reconcileAndRepush(
     const preMergeTip = await readRefTip(io, fullRef);
     await io.exec("git", ["fetch", "--refmap=", "origin", incomingFetchRefspec(fullRef, incoming)]);
 
-    try {
-      await io.exec("git", notesMergeArgs(shortRef, incoming));
-    } catch (err) {
-      await tryExec(io, ["notes", "--ref", shortRef, "merge", "--abort"]);
-      const detail = err instanceof Error ? err.message : String(err);
-      return {
-        kind: "conflict",
-        message: `Concurrent notes could not be merged (git notes merge failed): ${detail}`,
-      };
-    }
+    const boundary = await adoptFetchedCompactionIfNewer({ io, fullRef, incoming });
+    if (boundary.kind === "conflict") return { kind: "conflict", message: boundary.message };
+    if (boundary.kind === "failed") return { kind: "failed", error: boundary.error };
 
-    const postMergeTip = await readRefTip(io, fullRef);
-    const scan = await findCorruptMergedNote(io, shortRef);
-    if (scan.kind === "corrupt") {
-      const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
-      if (rollback.kind === "failed") {
+    if (boundary.kind === "not-needed") {
+      try {
+        await io.exec("git", notesMergeArgs(shortRef, incoming));
+      } catch (err) {
+        await tryExec(io, ["notes", "--ref", shortRef, "merge", "--abort"]);
+        const detail = err instanceof Error ? err.message : String(err);
+        return {
+          kind: "conflict",
+          message: `Concurrent notes could not be merged (git notes merge failed): ${detail}`,
+        };
+      }
+
+      const postMergeTip = await readRefTip(io, fullRef);
+      const scan = await findCorruptMergedNote(io, shortRef);
+      if (scan.kind === "corrupt") {
+        const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
+        if (rollback.kind === "failed") {
+          return {
+            kind: "conflict",
+            message:
+              `Concurrent notes on commit ${scan.commit.slice(0, 8)} produced an unparseable note, `
+              + "and the rollback could not be applied safely. Nothing was pushed; inspect the local "
+              + "notes ref and retry after resolving the conflict.",
+          };
+        }
         return {
           kind: "conflict",
           message:
-            `Concurrent notes on commit ${scan.commit.slice(0, 8)} produced an unparseable note, `
-            + "and the rollback could not be applied safely. Nothing was pushed; inspect the local "
-            + "notes ref and retry after resolving the conflict.",
+            `Concurrent notes on commit ${scan.commit.slice(0, 8)} could not be auto-merged `
+            + "(the union produced an unparseable note). Your local notes are preserved; resolve the "
+            + "conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
         };
       }
-      return {
-        kind: "conflict",
-        message:
-          `Concurrent notes on commit ${scan.commit.slice(0, 8)} could not be auto-merged `
-          + "(the union produced an unparseable note). Your local notes are preserved; resolve the "
-          + "conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
-      };
-    }
-    if (scan.kind === "failed") {
-      const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
-      const scope = scan.commit === undefined
-        ? "Concurrent notes merge"
-        : `Concurrent notes on commit ${scan.commit.slice(0, 8)}`;
-      if (rollback.kind === "failed") {
+      if (scan.kind === "failed") {
+        const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
+        const scope = scan.commit === undefined
+          ? "Concurrent notes merge"
+          : `Concurrent notes on commit ${scan.commit.slice(0, 8)}`;
+        if (rollback.kind === "failed") {
+          return {
+            kind: "conflict",
+            message:
+              `${scope} could not be verified after merge (${scan.error.message}), and the rollback could not `
+              + "be applied safely. Nothing was pushed; inspect the local notes ref and retry after resolving "
+              + "the conflict.",
+          };
+        }
         return {
           kind: "conflict",
           message:
-            `${scope} could not be verified after merge (${scan.error.message}), and the rollback could not `
-            + "be applied safely. Nothing was pushed; inspect the local notes ref and retry after resolving "
-            + "the conflict.",
+            `${scope} could not be verified after merge (${scan.error.message}). Your local notes are `
+            + "preserved; resolve the notes-ref read failure and retry.",
         };
       }
-      return {
-        kind: "conflict",
-        message:
-          `${scope} could not be verified after merge (${scan.error.message}). Your local notes are `
-          + "preserved; resolve the notes-ref read failure and retry.",
-      };
     }
 
   } finally {
@@ -447,6 +455,43 @@ async function reconcileAndRepush(
     return reconcileRepushFailureOutcome(err);
   }
   return { kind: "reconciled" };
+}
+
+async function adoptFetchedCompactionIfNewer(input: {
+  io: UserIOContext;
+  fullRef: string;
+  incoming: string;
+}): Promise<
+  | { kind: "adopted" | "not-needed" }
+  | { kind: "conflict"; message: string }
+  | { kind: "failed"; error: Error }
+> {
+  const remoteManifest = await readNotesCompactionManifest(input.io.exec, input.incoming);
+  if (remoteManifest === null) return { kind: "not-needed" };
+  const localManifest = await readNotesCompactionManifest(input.io.exec, input.fullRef);
+  if (remoteManifest.generation <= (localManifest?.generation ?? 0)) return { kind: "not-needed" };
+  if (input.io.execInput === undefined) {
+    return {
+      kind: "conflict",
+      message: "Concurrent notes crossed a compaction boundary, but this runtime cannot build an adopt snapshot.",
+    };
+  }
+  const adopt = await adoptCompactedNotesRef({
+    exec: input.io.exec,
+    execInput: input.io.execInput,
+    fullRef: input.fullRef,
+    snapshotRef: input.incoming,
+  });
+  switch (adopt.kind) {
+    case "adopted":
+      return { kind: "adopted" };
+    case "not-newer":
+      return { kind: "not-needed" };
+    case "conflict":
+      return { kind: "conflict", message: adopt.message };
+    case "failed":
+      return { kind: "failed", error: adopt.error };
+  }
 }
 
 const DEFAULT_RECONCILE_LOCK: ReconcileNotesLock = {

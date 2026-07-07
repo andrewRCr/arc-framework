@@ -11,12 +11,15 @@ import * as p from "@clack/prompts";
 import {
   findStaleUserWuSubdirs, listUserWuSubdirContents, removeStaleUserWuSubdir,
   reconcileRetiredSubdirsStandalone,
+  runUserCompact,
   runUserClose, runUserInboxRemove, runUserOpen,
   runUserSave, runUserLoad, runUserAdd, runUserPush, runUserFetch, runUserPull,
   runUserSessionInitStatus, runUserStatus,
-  buildSaveSummary, buildLoadSummary, buildUserSessionInitStatusSummary, buildUserStatusSummary,
+  buildSaveSummary, buildLoadSummary, buildUserCompactSummary,
+  buildUserSessionInitStatusSummary, buildUserStatusSummary,
   hasLocalNotes,
   UserPushBlockedError,
+  type UserCompactResult,
   type UserIOContext,
 } from "../commands/user.js";
 import { isRefusalCondition, slugifyIdentity } from "../lib/git/index.js";
@@ -563,6 +566,86 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   spinner.stop("Pull complete.");
   p.note(buildLoadSummary(result), "Pulled");
   p.outro("Done.");
+}
+
+// --- Compact ---
+
+export interface UserCompactHandlerOptions {
+  json?: boolean;
+}
+
+export async function handleUserCompact(opts: UserCompactHandlerOptions = {}): Promise<void> {
+  const json = Boolean(opts.json);
+  const output = createSyncOutput(json);
+  output.intro("arc user compact");
+
+  let identity: string;
+  try {
+    identity = await resolveUserIdentity();
+  } catch (err) {
+    if (err instanceof UserFacingError) {
+      emitStatusError(json, output, err.code, err.message, err);
+      process.exitCode = 1;
+      return;
+    }
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
+  const cwd = json ? resolveArcRoot(process.cwd()) : requireArcProjectRoot();
+  if (!cwd) {
+    if (json) {
+      emitStatusError(json, output, "NOT_IN_ARC_PROJECT", ARC_PROJECT_ROOT_ERROR);
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  const io = createUserIOContext();
+  const result = await runWithSpinner(
+    output,
+    "Compacting user notes...",
+    () => runUserCompact({ cwd, io, identity }),
+    "Compaction check complete.",
+  );
+
+  if (json) {
+    process.stdout.write(`${JSON.stringify(toJsonSafeCompactResult(result))}\n`);
+  } else {
+    output.note(buildUserCompactSummary(result), "Compact");
+    output.outro("Done.");
+  }
+
+  if (isUserCompactFailure(result)) {
+    process.exitCode = 1;
+  }
+}
+
+function isUserCompactFailure(result: UserCompactResult): boolean {
+  return result.kind === "lease-declined"
+    || result.kind === "conflict"
+    || result.kind === "no-remote"
+    || result.kind === "failed";
+}
+
+function toJsonSafeCompactResult(result: UserCompactResult): object {
+  switch (result.kind) {
+    case "lease-declined":
+      return {
+        ...result,
+        error: { message: result.error.message },
+      };
+    case "no-remote":
+    case "failed":
+      return {
+        ...result,
+        error: { message: result.error.message },
+      };
+    case "compacted":
+    case "nothing-to-prune":
+    case "conflict":
+      return result;
+  }
 }
 
 // --- Status ---

@@ -10,6 +10,7 @@ import {
 } from "../../lib/git/worktree-sync.js";
 import {
   inferUserSyncCause,
+  inspectNotesCompactionAdvisory,
   isComparableSourceCommit,
   projectManifest,
   readLocalSyncState,
@@ -17,6 +18,7 @@ import {
   resolveCurrentWuName,
   type UserSyncCause,
   type UserSyncCauseConfidence,
+  type NotesCompactionAdvisory,
 } from "../../lib/user-sync/index.js";
 import { computeUnsavedDirection, missingFilesAreIntentionalRetirement } from "./drift.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
@@ -117,7 +119,7 @@ export async function runUserStatus(
     : null;
   const [
     diskInspection, search, backupFiles, remoteIdentities, refInspection,
-    userNotesRefExists, localSyncState,
+    userNotesRefExists, localSyncState, compactionAdvisory,
   ] = await Promise.all([
     inspectDiskVsLocalSnapshot(cwd, io, identity, currentWuName),
     findNearestUserNote({ cwd, io, identity, currentWuName }),
@@ -128,6 +130,7 @@ export async function runUserStatus(
       : inspectUserSyncRefsDetailed(io, identity, DEFAULT_FETCH_TIMEOUT_MS),
     inspectUserNotesRefExists(io, identity),
     readLocalSyncState(cwd, io, identity),
+    inspectNotesCompactionAdvisory(io.exec, `refs/notes/${notesRef(identity)}`),
   ]);
   const spine = computeUserSyncSpine({
     remoteSyncEnabled: !offline,
@@ -163,6 +166,7 @@ export async function runUserStatus(
     unsavedDirection: diskInspection.direction,
     backupFiles,
     remoteIdentities,
+    compactionAdvisory,
     worktree: worktreeProbe ?? undefined,
     remoteSyncEnabled,
     userNotesRefExists,
@@ -667,6 +671,7 @@ interface BuildUserStatusInput {
   unsavedDirection?: UserUnsavedDirection | null;
   backupFiles: string[];
   remoteIdentities: UserStatusRemoteIdentity[];
+  compactionAdvisory?: NotesCompactionAdvisory;
   /**
    * Worktree-sync probe result. Pass `undefined` when no probe was attempted
    * (e.g. `--offline`, or `session.remote_sync: disabled`).
@@ -719,6 +724,12 @@ interface BuildUserStatusInput {
 const FIRST_USE_ORIENTATION_HINT =
   "New here? Run `arc user --help` to learn about user notes.";
 
+const NO_COMPACTION_ADVISORY: NotesCompactionAdvisory = {
+  historyCommitCount: 0,
+  threshold: 0,
+  shouldSuggest: false,
+};
+
 export function buildUserStatusResult(
   input: BuildUserStatusInput,
 ): UserStatusResult {
@@ -737,6 +748,7 @@ export function buildUserStatusResult(
   const currentBranch = input.currentBranch ?? null;
   const savedAtRelative = input.savedAtRelative ?? null;
   const unsavedDirection = input.unsavedDirection ?? null;
+  const compactionAdvisory = input.compactionAdvisory ?? NO_COMPACTION_ADVISORY;
 
   const spine = input.spine ?? computeUserSyncSpine({
     remoteSyncEnabled: remoteChecked,
@@ -786,6 +798,7 @@ export function buildUserStatusResult(
       savedAtRelative,
       backupFiles,
       remoteIdentities,
+      compactionAdvisory,
       actionHint,
     })
     : buildDefaultDetailLines({
@@ -797,6 +810,7 @@ export function buildUserStatusResult(
       diskState,
       savedAtRelative,
       backupFiles,
+      compactionAdvisory,
       actionHint,
     });
 
@@ -835,6 +849,7 @@ export function buildUserStatusResult(
     unsavedDirection,
     backupFiles,
     remoteIdentities,
+    compactionAdvisory,
     ...(input.worktree ? { worktree: input.worktree } : {}),
     ...(input.userSyncCause
       ? {
@@ -1019,6 +1034,7 @@ interface VerboseDetailInput {
   savedAtRelative: string | null;
   backupFiles: string[];
   remoteIdentities: UserStatusRemoteIdentity[];
+  compactionAdvisory: NotesCompactionAdvisory;
   actionHint: string | null;
 }
 
@@ -1038,6 +1054,7 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
     savedAtRelative,
     backupFiles,
     remoteIdentities,
+    compactionAdvisory,
     actionHint,
   } = args;
   const detailLines: string[] = [];
@@ -1110,6 +1127,8 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
     detailLines.push(`Remote identities: ${identities}`);
   }
 
+  appendCompactionAdvisoryLine(detailLines, compactionAdvisory);
+
   if (actionHint) {
     detailLines.push(`Next step: ${actionHint}`);
   }
@@ -1126,6 +1145,7 @@ interface DefaultDetailInput {
   diskState: UserSyncDiskState;
   savedAtRelative: string | null;
   backupFiles: string[];
+  compactionAdvisory: NotesCompactionAdvisory;
   actionHint: string | null;
 }
 
@@ -1139,6 +1159,7 @@ function buildDefaultDetailLines(args: DefaultDetailInput): string[] {
     diskState,
     savedAtRelative,
     backupFiles,
+    compactionAdvisory,
     actionHint,
   } = args;
   const detailLines: string[] = [];
@@ -1158,11 +1179,24 @@ function buildDefaultDetailLines(args: DefaultDetailInput): string[] {
     detailLines.push(`Pre-load backup present (${backupFiles.length} files).`);
   }
 
+  appendCompactionAdvisoryLine(detailLines, compactionAdvisory);
+
   if (actionHint) {
     detailLines.push(`Next step: ${actionHint}`);
   }
 
   return detailLines;
+}
+
+function appendCompactionAdvisoryLine(
+  detailLines: string[],
+  advisory: NotesCompactionAdvisory,
+): void {
+  if (!advisory.shouldSuggest) return;
+  detailLines.push(
+    `User notes history has ${advisory.historyCommitCount} commit(s) `
+    + `(threshold ${advisory.threshold}); run \`arc user compact\` when ready.`,
+  );
 }
 
 function isHeadlineFullyClean(

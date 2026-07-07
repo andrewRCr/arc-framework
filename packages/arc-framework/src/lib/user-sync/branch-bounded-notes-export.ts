@@ -11,7 +11,11 @@
  */
 
 import { readRefTip, uniqueRefToken } from "../git/ref-tree.js";
-import type { GitExec } from "../git/exec.js";
+import type { GitExec, GitExecInput } from "../git/exec.js";
+import {
+  adoptCompactedNotesRef,
+  readNotesCompactionManifest,
+} from "./compaction.js";
 import { isRemoteUnavailableError } from "./notes-merge.js";
 
 const USER_NOTES_REF_PREFIX = "refs/notes/arc/user";
@@ -66,6 +70,7 @@ export type PushBranchBoundedNotesExportResult =
 /** Inputs for {@link planBranchBoundedNotesExport}. */
 export interface PlanBranchBoundedNotesExportInput {
   exec: GitExec;
+  execInput?: GitExecInput;
   identity: string;
   /** Branch whose push has just succeeded. */
   branch: string;
@@ -103,18 +108,44 @@ interface NoteEntry {
 export async function planBranchBoundedNotesExport(
   input: PlanBranchBoundedNotesExportInput,
 ): Promise<PlanBranchBoundedNotesExportResult> {
-  const { exec, identity, branch } = input;
+  const { exec, execInput, identity, branch } = input;
   const destinationRef = userNotesRef(identity);
   const tempRef = `${destinationRef}__branch_export_${uniqueRefToken()}`;
 
-  const localTip = await readRefTip(exec, destinationRef);
+  let localTip = await readRefTip(exec, destinationRef);
   if (localTip === null) return { kind: "skipped", reason: "no-local-notes" };
 
-  const localEntries = await listNotes(exec, destinationRef);
+  let localEntries = await listNotes(exec, destinationRef);
   if (localEntries.length === 0) return { kind: "skipped", reason: "no-local-notes" };
 
   try {
     const remoteTip = await readRemoteRefTip(exec, destinationRef);
+    let remoteFetched = false;
+    if (remoteTip !== null) {
+      await deleteRef(exec, tempRef);
+      await exec("git", ["fetch", "--refmap=", "origin", `+${destinationRef}:${tempRef}`]);
+      remoteFetched = true;
+      const boundary = await adoptRemoteCompactionIfNewer({
+        exec,
+        execInput,
+        fullRef: destinationRef,
+        snapshotRef: tempRef,
+      });
+      if (boundary.kind === "conflict") {
+        await deleteRef(exec, tempRef);
+        return { kind: "refused", message: boundary.message };
+      }
+      if (boundary.kind === "failed") {
+        await deleteRef(exec, tempRef);
+        return { kind: "failed", error: boundary.error };
+      }
+      if (boundary.kind === "adopted") {
+        localTip = await readRefTip(exec, destinationRef);
+        if (localTip === null) return { kind: "skipped", reason: "no-local-notes" };
+        localEntries = await listNotes(exec, destinationRef);
+        if (localEntries.length === 0) return { kind: "skipped", reason: "no-local-notes" };
+      }
+    }
     const localIncludesRemote = remoteTip === null || await isAncestor(exec, remoteTip, localTip);
     const annotatedCommits: string[] = [];
     const omittedCommits: string[] = [];
@@ -133,6 +164,7 @@ export async function planBranchBoundedNotesExport(
     }
 
     if (omittedCommits.length === 0 && localIncludesRemote) {
+      if (remoteFetched) await deleteRef(exec, tempRef);
       return {
         kind: "planned",
         target: {
@@ -147,8 +179,8 @@ export async function planBranchBoundedNotesExport(
       };
     }
 
-    await deleteRef(exec, tempRef);
-    if (remoteTip !== null) {
+    if (!remoteFetched) await deleteRef(exec, tempRef);
+    if (remoteTip !== null && !remoteFetched) {
       await exec("git", ["fetch", "--refmap=", "origin", `+${destinationRef}:${tempRef}`]);
     }
 
@@ -194,6 +226,44 @@ export async function planBranchBoundedNotesExport(
   } catch (err) {
     await deleteRef(exec, tempRef);
     return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
+  }
+}
+
+async function adoptRemoteCompactionIfNewer(input: {
+  exec: GitExec;
+  execInput?: GitExecInput;
+  fullRef: string;
+  snapshotRef: string;
+}): Promise<
+  | { kind: "adopted" | "not-needed" }
+  | { kind: "conflict"; message: string }
+  | { kind: "failed"; error: Error }
+> {
+  const remoteManifest = await readNotesCompactionManifest(input.exec, input.snapshotRef);
+  if (remoteManifest === null) return { kind: "not-needed" };
+  const localManifest = await readNotesCompactionManifest(input.exec, input.fullRef);
+  if (remoteManifest.generation <= (localManifest?.generation ?? 0)) return { kind: "not-needed" };
+  if (input.execInput === undefined) {
+    return {
+      kind: "conflict",
+      message: "Cannot export user notes across a compaction boundary without git plumbing support.",
+    };
+  }
+  const adopt = await adoptCompactedNotesRef({
+    exec: input.exec,
+    execInput: input.execInput,
+    fullRef: input.fullRef,
+    snapshotRef: input.snapshotRef,
+  });
+  switch (adopt.kind) {
+    case "adopted":
+      return { kind: "adopted" };
+    case "not-newer":
+      return { kind: "not-needed" };
+    case "conflict":
+      return { kind: "conflict", message: adopt.message };
+    case "failed":
+      return { kind: "failed", error: adopt.error };
   }
 }
 

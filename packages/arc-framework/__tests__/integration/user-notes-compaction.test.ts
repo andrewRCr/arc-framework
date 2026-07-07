@@ -1,0 +1,555 @@
+import { afterEach, describe, expect, it } from "vitest";
+
+import {
+  addBareRemote,
+  cleanupTempDir,
+  createTempRepo,
+  execFileAsync,
+  makeCommit,
+  makeGitExec,
+  makeGitExecInput,
+  makeUserIO,
+} from "../helpers/integration.js";
+import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
+import { reconcileNotesPush, runUserCompact } from "../../src/commands/user.js";
+import {
+  planBranchBoundedNotesExport,
+  pushBranchBoundedNotesExport,
+} from "../../src/lib/user-sync/branch-bounded-notes-export.js";
+import { listNoteEntries, readNotesCompactionSyncMarker } from "../../src/lib/user-sync/index.js";
+import {
+  adoptCompactedNotesRef,
+  compactNotesRefSnapshot,
+  readNotesCompactionManifest,
+} from "../../src/lib/user-sync/compaction.js";
+
+const IDENTITY = "test-user";
+const NOTES_REF = `refs/notes/arc/user/${IDENTITY}`;
+
+async function git(cwd: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync("git", args, { cwd });
+  return stdout.trim();
+}
+
+async function addRemoteNote(remote: string, commit: string, message: string): Promise<void> {
+  await git(remote, [
+    "-c", "user.email=test@test.com",
+    "-c", "user.name=Test User",
+    "notes", `--ref=${NOTES_REF}`, "add", "-m", message, commit,
+  ]);
+}
+
+async function noteContent(cwd: string, commit: string): Promise<string> {
+  return git(cwd, ["notes", `--ref=${NOTES_REF}`, "show", commit]);
+}
+
+describe("user notes compaction", () => {
+  let repo: string | undefined;
+  let remote: string | undefined;
+  let harness: MultiClone | undefined;
+
+  afterEach(async () => {
+    if (repo) await cleanupTempDir(repo);
+    if (remote) await cleanupTempDir(remote);
+    if (harness) await harness.cleanup();
+    repo = undefined;
+    remote = undefined;
+    harness = undefined;
+  });
+
+  it("publishes a single snapshot commit with retained notes and a cumulative prune manifest", async () => {
+    repo = await createTempRepo("arc-notes-compact-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    const keepCommit = await makeCommit(repo, "keep note");
+    const pruneCommit = await makeCommit(repo, "prune note");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "keep", keepCommit]);
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "prune", pruneCommit]);
+    await git(repo, ["push", "origin", NOTES_REF]);
+
+    const entries = await listNoteEntries(makeGitExec(repo), NOTES_REF);
+    const retained = entries.filter((entry) => entry.commit === keepCommit);
+    const pruned = entries.filter((entry) => entry.commit === pruneCommit);
+
+    const outcome = await compactNotesRefSnapshot({
+      exec: makeGitExec(repo),
+      execInput: makeGitExecInput(repo),
+      fullRef: NOTES_REF,
+      retained,
+      pruned,
+    });
+
+    expect(outcome.kind).toBe("compacted");
+    if (outcome.kind !== "compacted") return;
+    expect(await git(repo, ["rev-list", "--count", NOTES_REF])).toBe("1");
+    expect(await git(remote, ["rev-list", "--count", NOTES_REF])).toBe("1");
+    expect(await noteContent(repo, keepCommit)).toBe("keep");
+    await expect(git(repo, ["notes", `--ref=${NOTES_REF}`, "show", pruneCommit])).rejects.toThrow();
+    expect(await git(remote, ["rev-parse", outcome.backupRef])).toBe(outcome.preCompactionTip);
+
+    const manifest = await readNotesCompactionManifest(makeGitExec(repo), NOTES_REF);
+    expect(manifest).not.toBeNull();
+    expect(manifest?.generation).toBe(1);
+    expect(manifest?.preCompactionTip).toBe(outcome.preCompactionTip);
+    expect(manifest?.pruned).toEqual(pruned);
+  });
+
+  it("preserves the manifest across ordinary saves and same-generation note merges", async () => {
+    repo = await createTempRepo("arc-notes-compact-preserve-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    const keepCommit = await makeCommit(repo, "keep note");
+    const pruneCommit = await makeCommit(repo, "prune note");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "keep", keepCommit]);
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "prune", pruneCommit]);
+    await git(repo, ["push", "origin", NOTES_REF]);
+
+    const entries = await listNoteEntries(makeGitExec(repo), NOTES_REF);
+    const outcome = await compactNotesRefSnapshot({
+      exec: makeGitExec(repo),
+      execInput: makeGitExecInput(repo),
+      fullRef: NOTES_REF,
+      retained: entries.filter((entry) => entry.commit === keepCommit),
+      pruned: entries.filter((entry) => entry.commit === pruneCommit),
+    });
+    expect(outcome.kind).toBe("compacted");
+    if (outcome.kind !== "compacted") return;
+
+    const postSnapshotCommit = await makeCommit(repo, "post snapshot note");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "post snapshot", postSnapshotCommit]);
+    expect((await readNotesCompactionManifest(makeGitExec(repo), NOTES_REF))?.generation).toBe(1);
+
+    const snapshotTip = outcome.snapshotTip;
+    const localMergeRef = `${NOTES_REF}__merge_local`;
+    const siblingMergeRef = `${NOTES_REF}__merge_sibling`;
+    const localCommit = await makeCommit(repo, "local same-generation note");
+    const siblingCommit = await makeCommit(repo, "sibling same-generation note");
+    await git(repo, ["update-ref", localMergeRef, snapshotTip]);
+    await git(repo, ["update-ref", siblingMergeRef, snapshotTip]);
+    await git(repo, ["notes", `--ref=${localMergeRef}`, "add", "-m", "local", localCommit]);
+    await git(repo, ["notes", `--ref=${siblingMergeRef}`, "add", "-m", "sibling", siblingCommit]);
+    await git(repo, ["notes", `--ref=${localMergeRef}`, "merge", "-s", "cat_sort_uniq", siblingMergeRef]);
+
+    const manifest = await readNotesCompactionManifest(makeGitExec(repo), localMergeRef);
+    expect(manifest?.generation).toBe(1);
+    expect(manifest?.pruned).toEqual(entries.filter((entry) => entry.commit === pruneCommit));
+  });
+
+  it("rolls the local ref back when the lease-push is declined", async () => {
+    repo = await createTempRepo("arc-notes-compact-lease-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    const keepCommit = await makeCommit(repo, "keep note");
+    const pruneCommit = await makeCommit(repo, "prune note");
+    const concurrentCommit = await makeCommit(repo, "concurrent note");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "keep", keepCommit]);
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "prune", pruneCommit]);
+    await git(repo, ["push", "origin", NOTES_REF]);
+    const localBefore = await git(repo, ["rev-parse", NOTES_REF]);
+
+    const entries = await listNoteEntries(makeGitExec(repo), NOTES_REF);
+    const retained = entries.filter((entry) => entry.commit === keepCommit);
+    const pruned = entries.filter((entry) => entry.commit === pruneCommit);
+
+    const outcome = await compactNotesRefSnapshot({
+      exec: makeGitExec(repo),
+      execInput: makeGitExecInput(repo),
+      fullRef: NOTES_REF,
+      retained,
+      pruned,
+      onBeforePublish: async () => {
+        if (remote === undefined) throw new Error("missing remote");
+        await addRemoteNote(remote, concurrentCommit, "concurrent");
+      },
+    });
+
+    expect(outcome.kind).toBe("lease-declined");
+    expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(localBefore);
+    expect(await noteContent(repo, keepCommit)).toBe("keep");
+    expect(await noteContent(repo, pruneCommit)).toBe("prune");
+    expect(await noteContent(remote, concurrentCommit)).toBe("concurrent");
+  });
+
+  it("adopts a compacted snapshot without dropping local-only notes or resurrecting pruned notes", async () => {
+    harness = await setupMultiClone({
+      cloneA: { config: { "arc.identity": IDENTITY } },
+      cloneB: { config: { "arc.identity": IDENTITY } },
+    });
+    const { cloneA, cloneB } = harness;
+    const keepCommit = await makeCommit(cloneA, "keep");
+    const pruneCommit = await makeCommit(cloneA, "prune");
+    const localOnlyCommit = await makeCommit(cloneA, "local only");
+    await git(cloneA, ["push", "origin", "main"]);
+    await git(cloneB, ["fetch", "origin", "main"]);
+    await git(cloneB, ["reset", "--hard", "origin/main"]);
+
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "keep", keepCommit]);
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "prune", pruneCommit]);
+    await git(cloneA, ["push", "origin", NOTES_REF]);
+    await fetchNotesInto(cloneB, NOTES_REF);
+    await git(cloneB, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "local-only", localOnlyCommit]);
+
+    const entries = await listNoteEntries(makeGitExec(cloneA), NOTES_REF);
+    const compact = await compactNotesRefSnapshot({
+      exec: makeGitExec(cloneA),
+      execInput: makeGitExecInput(cloneA),
+      fullRef: NOTES_REF,
+      retained: entries.filter((entry) => entry.commit === keepCommit),
+      pruned: entries.filter((entry) => entry.commit === pruneCommit),
+    });
+    expect(compact.kind).toBe("compacted");
+
+    const incoming = `${NOTES_REF}__incoming_test`;
+    await fetchNotesInto(cloneB, incoming);
+    const adopt = await adoptCompactedNotesRef({
+      exec: makeGitExec(cloneB),
+      execInput: makeGitExecInput(cloneB),
+      fullRef: NOTES_REF,
+      snapshotRef: incoming,
+    });
+
+    expect(adopt.kind).toBe("adopted");
+    expect(await noteContent(cloneB, keepCommit)).toBe("keep");
+    expect(await noteContent(cloneB, localOnlyCommit)).toBe("local-only");
+    await expect(git(cloneB, ["notes", `--ref=${NOTES_REF}`, "show", pruneCommit])).rejects.toThrow();
+  }, 15_000);
+
+  it("unions a valid same-commit collision on top of the adopted snapshot", async () => {
+    harness = await setupMultiClone({
+      cloneA: { config: { "arc.identity": IDENTITY } },
+      cloneB: { config: { "arc.identity": IDENTITY } },
+    });
+    const { cloneA, cloneB } = harness;
+    const collisionCommit = await makeCommit(cloneA, "collision");
+    const pruneCommit = await makeCommit(cloneA, "prune");
+    await git(cloneA, ["push", "origin", "main"]);
+    await git(cloneB, ["fetch", "origin", "main"]);
+    await git(cloneB, ["reset", "--hard", "origin/main"]);
+
+    await git(cloneA, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": "remote\n" } }),
+      collisionCommit,
+    ]);
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "prune", pruneCommit]);
+    await git(cloneA, ["push", "origin", NOTES_REF]);
+    await fetchNotesInto(cloneB, NOTES_REF);
+    await git(cloneB, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-f", "-m",
+      JSON.stringify({ version: 2, files: { "USER-INBOX.md": "local\n" } }),
+      collisionCommit,
+    ]);
+
+    const entries = await listNoteEntries(makeGitExec(cloneA), NOTES_REF);
+    await compactNotesRefSnapshot({
+      exec: makeGitExec(cloneA),
+      execInput: makeGitExecInput(cloneA),
+      fullRef: NOTES_REF,
+      retained: entries.filter((entry) => entry.commit === collisionCommit),
+      pruned: entries.filter((entry) => entry.commit === pruneCommit),
+    });
+    const incoming = `${NOTES_REF}__incoming_collision`;
+    await fetchNotesInto(cloneB, incoming);
+    const adopt = await adoptCompactedNotesRef({
+      exec: makeGitExec(cloneB),
+      execInput: makeGitExecInput(cloneB),
+      fullRef: NOTES_REF,
+      snapshotRef: incoming,
+    });
+
+    expect(adopt.kind).toBe("adopted");
+    const merged = JSON.parse(await noteContent(cloneB, collisionCommit)) as { files: Record<string, string> };
+    expect(merged.files).toEqual({
+      "USER-INBOX.md": "local\n",
+      "WORKING-MEMORY.md": "remote\n",
+    });
+  }, 15_000);
+
+  it("leaves the local ref untouched when a same-commit collision cannot be parsed", async () => {
+    harness = await setupMultiClone({
+      cloneA: { config: { "arc.identity": IDENTITY } },
+      cloneB: { config: { "arc.identity": IDENTITY } },
+    });
+    const { cloneA, cloneB } = harness;
+    const collisionCommit = await makeCommit(cloneA, "collision");
+    const pruneCommit = await makeCommit(cloneA, "prune");
+    await git(cloneA, ["push", "origin", "main"]);
+    await git(cloneB, ["fetch", "origin", "main"]);
+    await git(cloneB, ["reset", "--hard", "origin/main"]);
+
+    await git(cloneA, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": "remote\n" } }),
+      collisionCommit,
+    ]);
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "prune", pruneCommit]);
+    await git(cloneA, ["push", "origin", NOTES_REF]);
+    await fetchNotesInto(cloneB, NOTES_REF);
+    await git(cloneB, ["notes", `--ref=${NOTES_REF}`, "add", "-f", "-m", "not json", collisionCommit]);
+    const localBefore = await git(cloneB, ["rev-parse", NOTES_REF]);
+
+    const entries = await listNoteEntries(makeGitExec(cloneA), NOTES_REF);
+    await compactNotesRefSnapshot({
+      exec: makeGitExec(cloneA),
+      execInput: makeGitExecInput(cloneA),
+      fullRef: NOTES_REF,
+      retained: entries.filter((entry) => entry.commit === collisionCommit),
+      pruned: entries.filter((entry) => entry.commit === pruneCommit),
+    });
+    const incoming = `${NOTES_REF}__incoming_unparseable`;
+    await fetchNotesInto(cloneB, incoming);
+    const adopt = await adoptCompactedNotesRef({
+      exec: makeGitExec(cloneB),
+      execInput: makeGitExecInput(cloneB),
+      fullRef: NOTES_REF,
+      snapshotRef: incoming,
+    });
+
+    expect(adopt.kind).toBe("conflict");
+    expect(await git(cloneB, ["rev-parse", NOTES_REF])).toBe(localBefore);
+    expect(await noteContent(cloneB, collisionCommit)).toBe("not json");
+  }, 15_000);
+
+  it("uses the cumulative manifest when adopting across multiple compaction generations", async () => {
+    harness = await setupMultiClone({
+      cloneA: { config: { "arc.identity": IDENTITY } },
+      cloneB: { config: { "arc.identity": IDENTITY } },
+    });
+    const { cloneA, cloneB } = harness;
+    const keepCommit = await makeCommit(cloneA, "keep");
+    const pruneOneCommit = await makeCommit(cloneA, "prune one");
+    const pruneTwoCommit = await makeCommit(cloneA, "prune two");
+    await git(cloneA, ["push", "origin", "main"]);
+    await git(cloneB, ["fetch", "origin", "main"]);
+    await git(cloneB, ["reset", "--hard", "origin/main"]);
+
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "keep", keepCommit]);
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "one", pruneOneCommit]);
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "two", pruneTwoCommit]);
+    await git(cloneA, ["push", "origin", NOTES_REF]);
+    await fetchNotesInto(cloneB, NOTES_REF);
+
+    let entries = await listNoteEntries(makeGitExec(cloneA), NOTES_REF);
+    await compactNotesRefSnapshot({
+      exec: makeGitExec(cloneA),
+      execInput: makeGitExecInput(cloneA),
+      fullRef: NOTES_REF,
+      retained: entries.filter((entry) => entry.commit !== pruneOneCommit),
+      pruned: entries.filter((entry) => entry.commit === pruneOneCommit),
+    });
+    entries = await listNoteEntries(makeGitExec(cloneA), NOTES_REF);
+    await compactNotesRefSnapshot({
+      exec: makeGitExec(cloneA),
+      execInput: makeGitExecInput(cloneA),
+      fullRef: NOTES_REF,
+      retained: entries.filter((entry) => entry.commit !== pruneTwoCommit),
+      pruned: entries.filter((entry) => entry.commit === pruneTwoCommit),
+    });
+
+    const incoming = `${NOTES_REF}__incoming_generation`;
+    await fetchNotesInto(cloneB, incoming);
+    const adopt = await adoptCompactedNotesRef({
+      exec: makeGitExec(cloneB),
+      execInput: makeGitExecInput(cloneB),
+      fullRef: NOTES_REF,
+      snapshotRef: incoming,
+    });
+
+    expect(adopt.kind).toBe("adopted");
+    expect(await noteContent(cloneB, keepCommit)).toBe("keep");
+    await expect(git(cloneB, ["notes", `--ref=${NOTES_REF}`, "show", pruneOneCommit])).rejects.toThrow();
+    await expect(git(cloneB, ["notes", `--ref=${NOTES_REF}`, "show", pruneTwoCommit])).rejects.toThrow();
+    expect((await readNotesCompactionManifest(makeGitExec(cloneB), NOTES_REF))?.generation).toBe(2);
+  }, 15_000);
+
+  it("warns when adoption restores a note that the pre-compaction tree proves was omitted", async () => {
+    harness = await setupMultiClone({
+      cloneA: { config: { "arc.identity": IDENTITY } },
+      cloneB: { config: { "arc.identity": IDENTITY } },
+    });
+    const { cloneA, cloneB } = harness;
+    const keepCommit = await makeCommit(cloneA, "keep");
+    const omittedCommit = await makeCommit(cloneA, "omitted");
+    const pruneCommit = await makeCommit(cloneA, "prune");
+    await git(cloneA, ["push", "origin", "main"]);
+    await git(cloneB, ["fetch", "origin", "main"]);
+    await git(cloneB, ["reset", "--hard", "origin/main"]);
+
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "keep", keepCommit]);
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "omitted", omittedCommit]);
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "prune", pruneCommit]);
+    await git(cloneA, ["push", "origin", NOTES_REF]);
+    await fetchNotesInto(cloneB, NOTES_REF);
+
+    const entries = await listNoteEntries(makeGitExec(cloneA), NOTES_REF);
+    await compactNotesRefSnapshot({
+      exec: makeGitExec(cloneA),
+      execInput: makeGitExecInput(cloneA),
+      fullRef: NOTES_REF,
+      retained: entries.filter((entry) => entry.commit === keepCommit),
+      pruned: entries.filter((entry) => entry.commit === pruneCommit),
+    });
+
+    const incoming = `${NOTES_REF}__incoming_warning`;
+    await fetchNotesInto(cloneB, incoming);
+    const adopt = await adoptCompactedNotesRef({
+      exec: makeGitExec(cloneB),
+      execInput: makeGitExecInput(cloneB),
+      fullRef: NOTES_REF,
+      snapshotRef: incoming,
+    });
+
+    expect(adopt.kind).toBe("adopted");
+    if (adopt.kind !== "adopted") return;
+    expect(adopt.warnings).toEqual([
+      expect.stringContaining(`Generation 1 snapshot omitted pre-compaction note ${omittedCommit.slice(0, 8)}`),
+    ]);
+    expect(await noteContent(cloneB, omittedCommit)).toBe("omitted");
+  }, 15_000);
+
+  it("branch-bounded export adopts a newer generation before staging, so pruned notes stay pruned", async () => {
+    harness = await setupMultiClone({
+      cloneA: { config: { "arc.identity": IDENTITY } },
+      cloneB: { config: { "arc.identity": IDENTITY } },
+    });
+    const { cloneA, cloneB } = harness;
+    const keepCommit = await makeCommit(cloneA, "keep");
+    const pruneCommit = await makeCommit(cloneA, "prune");
+    const localOnlyCommit = await makeCommit(cloneA, "local only");
+    await git(cloneA, ["push", "origin", "main"]);
+    await git(cloneB, ["fetch", "origin", "main"]);
+    await git(cloneB, ["reset", "--hard", "origin/main"]);
+
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "keep", keepCommit]);
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "prune", pruneCommit]);
+    await git(cloneA, ["push", "origin", NOTES_REF]);
+    await fetchNotesInto(cloneB, NOTES_REF);
+    await git(cloneB, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "local-only", localOnlyCommit]);
+
+    const entries = await listNoteEntries(makeGitExec(cloneA), NOTES_REF);
+    await compactNotesRefSnapshot({
+      exec: makeGitExec(cloneA),
+      execInput: makeGitExecInput(cloneA),
+      fullRef: NOTES_REF,
+      retained: entries.filter((entry) => entry.commit === keepCommit),
+      pruned: entries.filter((entry) => entry.commit === pruneCommit),
+    });
+
+    const plan = await planBranchBoundedNotesExport({
+      exec: makeGitExec(cloneB),
+      execInput: makeGitExecInput(cloneB),
+      identity: IDENTITY,
+      branch: "main",
+    });
+    expect(plan.kind).toBe("planned");
+    if (plan.kind !== "planned") return;
+    expect(plan.target.annotatedCommits).not.toContain(pruneCommit);
+    expect(plan.target.annotatedCommits).toContain(localOnlyCommit);
+
+    await pushBranchBoundedNotesExport({
+      exec: makeGitExec(cloneB),
+      identity: IDENTITY,
+      target: plan.target,
+    });
+
+    await expect(git(harness.origin, ["notes", `--ref=${NOTES_REF}`, "show", pruneCommit])).rejects.toThrow();
+    expect(await noteContent(harness.origin, localOnlyCommit)).toBe("local-only");
+  }, 15_000);
+
+  it("non-fast-forward reconcile push adopts a newer generation instead of merging across the boundary", async () => {
+    harness = await setupMultiClone({
+      cloneA: { config: { "arc.identity": IDENTITY } },
+      cloneB: { config: { "arc.identity": IDENTITY } },
+    });
+    const { cloneA, cloneB } = harness;
+    const keepCommit = await makeCommit(cloneA, "keep");
+    const pruneCommit = await makeCommit(cloneA, "prune");
+    const localOnlyCommit = await makeCommit(cloneA, "local only");
+    await git(cloneA, ["push", "origin", "main"]);
+    await git(cloneB, ["fetch", "origin", "main"]);
+    await git(cloneB, ["reset", "--hard", "origin/main"]);
+
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "keep", keepCommit]);
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "prune", pruneCommit]);
+    await git(cloneA, ["push", "origin", NOTES_REF]);
+    await fetchNotesInto(cloneB, NOTES_REF);
+    await git(cloneB, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "local-only", localOnlyCommit]);
+
+    const entries = await listNoteEntries(makeGitExec(cloneA), NOTES_REF);
+    await compactNotesRefSnapshot({
+      exec: makeGitExec(cloneA),
+      execInput: makeGitExecInput(cloneA),
+      fullRef: NOTES_REF,
+      retained: entries.filter((entry) => entry.commit === keepCommit),
+      pruned: entries.filter((entry) => entry.commit === pruneCommit),
+    });
+
+    const outcome = await reconcileNotesPush({
+      cwd: cloneB,
+      io: makeUserIO(cloneB),
+      identity: IDENTITY,
+    });
+
+    expect(outcome.kind).toBe("reconciled");
+    await expect(git(harness.origin, ["notes", `--ref=${NOTES_REF}`, "show", pruneCommit])).rejects.toThrow();
+    expect(await noteContent(harness.origin, localOnlyCommit)).toBe("local-only");
+  }, 15_000);
+
+  it("arc user compact collapses history, publishes the generation marker, and then no-ops", async () => {
+    repo = await createTempRepo("arc-notes-compact-command-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    const keepCommit = await makeCommit(repo, "keep");
+    const legacyCommit = await makeCommit(repo, "legacy root session notes");
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": "keep\n" } }),
+      keepCommit,
+    ]);
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "legacy\n" } }),
+      legacyCommit,
+    ]);
+    await git(repo, ["push", "origin", NOTES_REF]);
+    expect(await git(repo, ["rev-list", "--count", NOTES_REF])).toBe("2");
+
+    const result = await runUserCompact({
+      cwd: repo,
+      io: makeUserIO(repo),
+      identity: IDENTITY,
+      now: "2026-07-07T00:00:00.000Z",
+    });
+
+    expect(result.kind).toBe("compacted");
+    if (result.kind !== "compacted") return;
+    expect(result.prunedCount).toBe(1);
+    expect(result.retainedCount).toBe(1);
+    expect(await git(repo, ["rev-list", "--count", NOTES_REF])).toBe("1");
+    expect(await git(remote, ["rev-list", "--count", NOTES_REF])).toBe("1");
+    expect(await noteContent(repo, keepCommit)).toContain("WORKING-MEMORY.md");
+    await expect(git(repo, ["notes", `--ref=${NOTES_REF}`, "show", legacyCommit])).rejects.toThrow();
+
+    const localMarker = await readNotesCompactionSyncMarker({ exec: makeGitExec(repo), identity: IDENTITY });
+    const remoteMarker = await readNotesCompactionSyncMarker({ exec: makeGitExec(remote), identity: IDENTITY });
+    expect(localMarker?.generation).toBe(1);
+    expect(localMarker?.snapshotTip).toBe(result.snapshotTip);
+    expect(remoteMarker).toEqual(localMarker);
+
+    const second = await runUserCompact({
+      cwd: repo,
+      io: makeUserIO(repo),
+      identity: IDENTITY,
+      now: "2026-07-08T00:00:00.000Z",
+    });
+    expect(second).toMatchObject({ kind: "nothing-to-prune", retainedCount: 1, prunedCount: 0 });
+  }, 15_000);
+});
+
+async function fetchNotesInto(cwd: string, ref: string): Promise<void> {
+  await git(cwd, ["fetch", "--refmap=", "origin", `+${NOTES_REF}:${ref}`]);
+}

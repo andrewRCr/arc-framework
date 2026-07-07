@@ -7,6 +7,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  NOTES_COMPACTION_MANIFEST_PATH,
   listAnnotatedNoteCommits,
   mergeCrossWuFile,
   notePathToCommit,
@@ -217,6 +218,20 @@ describe("readRecentUserNotes", () => {
     const notes = await readRecentUserNotes(exec, "andrew", 2, NOW);
 
     expect(notes.map((n) => n.content)).toEqual(["note-a", "note-b"]);
+  });
+});
+
+describe("listAnnotatedNoteCommits", () => {
+  it("does not surface the compaction manifest path as an annotated note", async () => {
+    const commit = annotated("a1");
+    const { exec } = makeExec({
+      notesListOutput: [
+        `${annotated("b2")} ${commit}`,
+        `${annotated("c3")} ${NOTES_COMPACTION_MANIFEST_PATH}`,
+      ].join("\n"),
+    });
+
+    await expect(listAnnotatedNoteCommits(exec, "refs/notes/arc/user/andrew")).resolves.toEqual([commit]);
   });
 });
 

@@ -45,9 +45,11 @@ const mockRemoveStaleUserWuSubdir = vi.fn();
 const mockReconcileRetiredSubdirsStandalone = vi.fn();
 const mockRunUserStatus = vi.fn();
 const mockRunUserSessionInitStatus = vi.fn();
+const mockRunUserCompact = vi.fn();
 const mockHasLocalNotes = vi.fn();
 const mockBuildSaveSummary: Mock<(result: unknown) => string> = vi.fn(() => "");
 const mockBuildLoadSummary: Mock<(result: unknown) => string> = vi.fn(() => "");
+const mockBuildUserCompactSummary: Mock<(result: unknown) => string> = vi.fn(() => "");
 const mockBuildUserStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 const mockBuildUserSessionInitStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 
@@ -75,9 +77,11 @@ vi.mock("../../src/commands/user.js", () => ({
   runUserPull: (...args: unknown[]) => mockRunUserPull(...args),
   runUserStatus: (...args: unknown[]) => mockRunUserStatus(...args),
   runUserSessionInitStatus: (...args: unknown[]) => mockRunUserSessionInitStatus(...args),
+  runUserCompact: (...args: unknown[]) => mockRunUserCompact(...args),
   hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
   buildSaveSummary: (result: unknown) => mockBuildSaveSummary(result),
   buildLoadSummary: (result: unknown) => mockBuildLoadSummary(result),
+  buildUserCompactSummary: (result: unknown) => mockBuildUserCompactSummary(result),
   buildUserSessionInitStatusSummary: (result: { summary?: string }) => mockBuildUserSessionInitStatusSummary(result),
   buildUserStatusSummary: (result: { summary?: string }) => mockBuildUserStatusSummary(result),
   UserPushBlockedError: MockUserPushBlockedError,
@@ -163,7 +167,7 @@ vi.mock("../../src/handlers/push-recovery.js", () => ({
 
 const {
   handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus,
-  handleUserOpen, handleUserClose,
+  handleUserOpen, handleUserClose, handleUserCompact,
 } = await import("../../src/handlers/user.js");
 
 /**
@@ -508,6 +512,33 @@ describe("handleUserLoad empty result", () => {
       expect.stringContaining("No saved user directory"),
     );
     // Plain "no note" stays at exit 0 — unambiguous state, nothing to load.
+    expect(process.exitCode).toBeUndefined();
+  });
+});
+
+describe("handleUserCompact", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    mockRunUserCompact.mockResolvedValue({
+      kind: "nothing-to-prune",
+      identity: "andrew",
+      retainedCount: 1,
+      prunedCount: 0,
+    });
+    mockBuildUserCompactSummary.mockReturnValue("Nothing to prune. Retained 1 note(s).");
+    process.exitCode = undefined;
+  });
+
+  it("renders the compact summary from the command layer", async () => {
+    await handleUserCompact({});
+
+    expect(mockRunUserCompact).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: process.cwd(), identity: "andrew" }),
+    );
+    expect(mockNote).toHaveBeenCalledWith("Nothing to prune. Retained 1 note(s).", "Compact");
+    expect(mockOutro).toHaveBeenCalledWith("Done.");
     expect(process.exitCode).toBeUndefined();
   });
 });

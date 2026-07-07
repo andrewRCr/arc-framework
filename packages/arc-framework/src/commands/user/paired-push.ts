@@ -236,6 +236,7 @@ async function defaultPlanNotesExport(
 ): Promise<PlanBranchBoundedNotesExportResult> {
   return planBranchBoundedNotesExport({
     exec: context.io.exec,
+    execInput: context.io.execInput,
     identity: context.identity,
     branch: context.worktreeBranch,
   });

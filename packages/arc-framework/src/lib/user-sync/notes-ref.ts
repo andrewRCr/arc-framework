@@ -37,6 +37,12 @@ export interface RecentNote {
   content: string;
 }
 
+/** One note tree entry: note blob object id plus annotated commit object id. */
+export interface NoteEntry {
+  blob: string;
+  commit: string;
+}
+
 interface NotesRefHistoryEntry {
   commit: string;
   committedAt: string | null;
@@ -89,12 +95,20 @@ export async function listAnnotatedNoteCommits(
   exec: GitExec,
   fullRef: string,
 ): Promise<string[]> {
+  return (await listNoteEntries(exec, fullRef)).map((entry) => entry.commit);
+}
+
+/** Note blob/commit pairs carried by a notes ref, unordered as returned by git notes. */
+export async function listNoteEntries(
+  exec: GitExec,
+  fullRef: string,
+): Promise<NoteEntry[]> {
   try {
     const { stdout } = await exec("git", ["notes", `--ref=${fullRef}`, "list"]);
     return stdout
       .split("\n")
-      .map((line) => line.trim().split(/\s+/u)[1])
-      .filter((commit): commit is string => commit !== undefined && GIT_OBJECT_ID_PATTERN.test(commit));
+      .map(parseNoteEntry)
+      .filter((entry): entry is NoteEntry => entry !== null);
   } catch {
     return [];
   }
@@ -182,4 +196,17 @@ function parseHistoryEntry(line: string): NotesRefHistoryEntry | null {
   const [commit, committedAt] = trimmed.split("\0");
   if (!commit) return null;
   return { commit, committedAt: committedAt?.trim() || null };
+}
+
+function parseNoteEntry(line: string): NoteEntry | null {
+  const [blob, commit] = line.trim().split(/\s+/u);
+  if (
+    blob === undefined
+    || commit === undefined
+    || !GIT_OBJECT_ID_PATTERN.test(blob)
+    || !GIT_OBJECT_ID_PATTERN.test(commit)
+  ) {
+    return null;
+  }
+  return { blob, commit };
 }
