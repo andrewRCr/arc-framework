@@ -29,6 +29,13 @@ export interface BranchBoundedNotesExportTarget {
   destinationRef: string;
   /** Commit sha of the staged notes-ref target. */
   tip: string;
+  /**
+   * Local canonical notes-ref tip observed at plan time. After a successful
+   * push the local ref is fast-forwarded to {@link tip} guarded by this value
+   * (compare-and-swap), so a concurrent save that advanced the local ref
+   * between plan and push is never clobbered.
+   */
+  priorLocalTip: string;
   /** Annotated commits copied from the local notes ref into the target. */
   annotatedCommits: string[];
   /** Local annotated commits deliberately omitted because the branch cannot reach them. */
@@ -130,6 +137,7 @@ export async function planBranchBoundedNotesExport(
           ref: destinationRef,
           destinationRef,
           tip: localTip,
+          priorLocalTip: localTip,
           annotatedCommits: annotatedCommits.sort(),
           omittedCommits: [],
         },
@@ -171,6 +179,7 @@ export async function planBranchBoundedNotesExport(
         ref: tempRef,
         destinationRef,
         tip,
+        priorLocalTip: localTip,
         annotatedCommits: annotatedCommits.sort(),
         omittedCommits: omittedCommits.sort(),
       },
@@ -193,13 +202,58 @@ export async function pushBranchBoundedNotesExport(
   const { exec, target } = input;
   try {
     const remoteTip = await readRemoteRefTip(exec, target.destinationRef);
-    if (remoteTip === target.tip) return { kind: "noop" };
+    if (remoteTip === target.tip) {
+      await adoptPushedTipIntoLocalRef(exec, target);
+      return { kind: "noop" };
+    }
     await exec("git", ["push", "origin", `${target.ref}:${target.destinationRef}`]);
+    await adoptPushedTipIntoLocalRef(exec, target);
     return { kind: "pushed" };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
     return { kind: "failed", error };
+  }
+}
+
+/**
+ * After a successful push — or a no-op where origin already carries the pushed
+ * tip — fast-forward the local canonical notes ref to that tip. The rewrite
+ * path stages and pushes a fresh temporary ref but never advances the local
+ * canonical ref, so without this the local ref stays permanently behind origin:
+ * `arc user status` then reports a (benign) `diverged`, and every later push
+ * re-rewrites the whole notes history onto origin — unbounded remote-history
+ * growth.
+ *
+ * Two guards keep it safe:
+ *
+ * - **Branch-bounded subset** (`omittedCommits.length > 0`): the pushed tip is a
+ *   branch-scoped subset that omits notes the current branch cannot reach, so
+ *   adopting it would drop those notes. The local ref keeps its own lineage; a
+ *   union reconcile for that case is out of scope here.
+ * - **Concurrent local advance:** the update is a compare-and-swap against
+ *   {@link BranchBoundedNotesExportTarget.priorLocalTip} (the local tip observed
+ *   at plan time). A concurrent `arc user save` that moved the local ref between
+ *   plan and push fails the swap, so its note is never clobbered — the ref
+ *   reconciles on the next push instead.
+ *
+ * The fast-path target (`ref === destinationRef`) already pushes the canonical
+ * ref itself, so there is nothing to adopt. Best-effort: a failed swap leaves
+ * the local ref where it was (the pre-fix state), never a worse one, and never
+ * changes the already-successful push outcome.
+ */
+async function adoptPushedTipIntoLocalRef(
+  exec: GitExec,
+  target: BranchBoundedNotesExportTarget,
+): Promise<void> {
+  if (target.ref === target.destinationRef) return;
+  if (target.omittedCommits.length > 0) return;
+  try {
+    await exec("git", ["update-ref", target.destinationRef, target.tip, target.priorLocalTip]);
+  } catch {
+    // Best-effort compare-and-swap: a concurrent local advance (CAS mismatch) or
+    // transient failure leaves the local ref where it was — the push already
+    // succeeded, and the ref reconciles on the next push.
   }
 }
 
