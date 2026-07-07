@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `3e968632`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `332da987`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -17,12 +17,13 @@ _No work units in flight._
 ## Ready
 
 | Work unit                     | Priority | Owner  | Depends on | Cohort                     |
-|-------------------------------|----------|--------|------------|----------------------------|
+| ----------------------------- | -------- | ------ | ---------- | -------------------------- |
 | finalize-parallelism          | P1       | andrew | —          | agile-parallelism          |
 | interlock-release-refinement  | P1       | andrew | —          | approval-flow-refinement   |
 | pr-decomposition              | P1       | andrew | —          | —                          |
 | project-state-integrity       | P1       | andrew | —          | —                          |
 | recovery-hardening            | P1       | andrew | —          | —                          |
+| wu-lifecycle-state-model      | P1       | andrew | —          | —                          |
 | composable-workflows          | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition           | P2       | andrew | —          | agent-context-optimization |
 | commit-increments             | P2       | andrew | —          | approval-flow-refinement   |
@@ -55,6 +56,7 @@ _No work units in flight._
 | burn-in-probe-a               | P3       | andrew | —          | —                          |
 | burn-in-probe-b               | P3       | andrew | —          | —                          |
 | cohort-cut-coherence          | P3       | andrew | —          | —                          |
+| cohortless-decomposition      | P3       | andrew | —          | —                          |
 | cold-start-init-polish        | P3       | andrew | —          | —                          |
 | contributor-path              | P3       | andrew | —          | —                          |
 | external-coord-probe          | P3       | andrew | —          | —                          |
@@ -77,7 +79,7 @@ _No work units in flight._
 ### Depth 1
 
 | Work unit                     | Priority | Owner  | Depends on                    | Cohort                     |
-|-------------------------------|----------|--------|-------------------------------|----------------------------|
+| ----------------------------- | -------- | ------ | ----------------------------- | -------------------------- |
 | roadmap-tooling               | P1       | andrew | project-state-integrity       | —                          |
 | unit-scoped-review            | P2       | andrew | commit-increments             | approval-flow-refinement   |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption        | —                          |
@@ -91,7 +93,7 @@ _No work units in flight._
 ### Depth 2
 
 | Work unit          | Priority | Owner  | Depends on                                                  | Cohort            |
-|--------------------|----------|--------|-------------------------------------------------------------|-------------------|
+| ------------------ | -------- | ------ | ----------------------------------------------------------- | ----------------- |
 | wu5-public-release | P3       | andrew | docs-content-sweep                                          | release-readiness |
 | local-mode         | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
 

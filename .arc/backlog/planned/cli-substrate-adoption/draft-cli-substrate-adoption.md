@@ -31,6 +31,33 @@ post-trio architecture-remediation plans consume.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Guard self-hosting recovery against broken generated CLI bundles**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-07);
+  captured during `finalize-parallelism` Task 2.1.d recovery from a post-compaction seed-write failure, 2026-07-06.
+- *Concern:* In the self-hosting repo, `npx arc` resolves to the ignored generated bundle at
+  `packages/arc-framework/dist/cli.js`. During FP Task 2.1.d, compaction recovery seed emission failed before audit
+  because the bundle had been rebuilt from an interrupted source edit: the production adapter referenced `writeFile`
+  / `mkdir`, but the source import had not yet been completed, so the generated CLI threw a module-load
+  `ReferenceError`. The committed branch was not broken; the recovery path was blocked by a dirty generated binary.
+- *Approach:* Decide where to guard this class of failure: a harness/common-script preflight that can run before
+  invoking `npx arc`, a self-hosting rebuild / typecheck smoke check when seed emission fails at module load, or a
+  stronger local-CLI invocation contract that reports "dist is stale or broken; rebuild/typecheck first" instead of
+  leaving recovery stranded. Coordinate with `self-hosting-manifest-freshness` and `quality-gate-hooks`.
+
+### `[ ]` **Garbage-collect stale Codex compaction recovery handoffs**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-07);
+  captured during `finalize-parallelism` Task 2.3.c pre-work, 2026-07-06.
+- *Concern:* Codex recovery uses `.arc/user/.internal` as a global handoff / fallback rendezvous, while the
+  canonical `compaction-seed.json` remains identity-scoped under `.arc/user/{identity}/.internal`. A failed
+  self-hosting seed / recovery path left a stale `codex-compaction-recovery-seed-*` handoff in the global directory
+  after the identity-scoped seed had moved on, making the directory look like a standalone seed home.
+- *Approach:* Document the split in the recovery hook/admin surface and add stale handoff garbage collection.
+  session-init / recovery or pre-compact can reap expired `codex-compaction-recovery-seed-*` files from
+  `.arc/user/.internal` so one-off failures do not leave misleading residue. Keep fallback pending markers global;
+  do not move canonical seeds out of the identity-scoped directory.
+
 ### `[ ]` **Compaction seed + recovery envelopes — hand-typed now, CSA migration target**
 
 - *Routed from:* `compaction-recovery` draft-design (2026-06-28).
