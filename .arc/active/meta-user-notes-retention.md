@@ -1,8 +1,8 @@
 # Metadata: user-notes-retention
 
-| **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ---------- | --------- | --------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/user-notes-retention` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                 | **Class** | **Priority** |
+| --------- | --------- | -------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `fix/user-notes-retention` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,12 +11,12 @@
 - **Design:** `spec-user-notes-retention.md`
 - **Task List:** `tasks-user-notes-retention.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** generate-tasks — task list finalized at high depth (adversarial pass converged, minors folded)
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Adopt-if-superset push reconciliation (line ~16)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Adopt-if-superset push reconciliation
 
 - **PR URL:** [none]
 - **Completed:** [none]
