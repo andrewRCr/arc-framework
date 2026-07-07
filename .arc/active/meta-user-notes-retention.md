@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft-design — draft formalization-ready (audit-fed rescope; three design decisions settled)
+- **Last Completed:** create-spec — detailed RFC finalized (four adversarial passes folded); draft retired
 - **Next Task:** [none]
 - **Blockers:** [none]
 
