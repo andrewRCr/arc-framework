@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "regen-package-lock",
-  "origin": "inbox",
-  "intent": "Regenerate package-lock.json on main so fresh worktree spawns come up with a clean tree",
-  "branch": "chore/regen-package-lock",
-  "createdAt": "2026-07-07T02:19:57.795Z",
-  "originEntry": "Regenerate + commit `package-lock.json` on `main` so fresh spawns come up clean"
-}
