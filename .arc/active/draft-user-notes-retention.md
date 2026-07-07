@@ -16,12 +16,16 @@
 
 ## Continuity (draft-design loop state)
 
-- **Readiness:** maturing — scope and phase structure settled; open items are detail-design (§ Open).
-- **Resolved this pass (2026-07-07):** bloat root cause (identical-blob re-adds, verified by probe); the
-  critical tombstone mis-synthesis chain (verified in source); phase structure A/B/C; route-outs (§ Routed out);
-  Class `Heavy`; single-WU shape (cohort-fit re-check deferred until the design stabilizes).
-- **Next:** settle § Open items 1–3 (save-path guard shape, lock-vs-CAS assignment per mutator, compaction
-  mechanism), then re-run `assess-draft-readiness`.
+- **Readiness:** formalization-ready — all settle-able design settled (§ Settled decisions), success signal
+  stated (§ Success signal), inbound buffer drained (integrated 2026-07-07).
+- **Resolved pass 1 (2026-07-07):** bloat root cause (identical-blob re-adds, verified by probe); the critical
+  tombstone mis-synthesis chain (verified in source); phase structure A/B/C; route-outs (§ Routed out); Class
+  `Heavy`; single-WU shape (cohort-fit re-check deferred until the design stabilizes).
+- **Resolved pass 2 (2026-07-07):** save-path guard = materialized-baseline stamp; write discipline = hybrid
+  per-mutator; compaction = snapshot + superset-adopt with a backend-upgradeable marker seam (§ Settled
+  decisions 1–3); scale-harness split (§ Settled decisions 4). Adversarial pass declined for the draft stage
+  (three-track audit already fed the draft); reconsider at spec.
+- **Next:** create-spec.
 
 ## Problem / Motivation
 
@@ -141,15 +145,23 @@ verdict-coherence guard. Exit criteria: a live primary `arc sync` converges — 
 
 ### Phase B — invariant sweep (the body)
 
-One written concurrency model for the subsystem, then enforce it:
+One written concurrency model for the subsystem, then enforce it. The per-mutator write discipline (settled —
+§ Settled decisions 2): **lock-serialized** — the user-save note-write (already held), the reconcile merge
+(git's `NOTES_MERGE_*` worktree state is inherently exclusive), Phase C compaction, and the `.sync-state.json`
+read-modify-write; **CAS-guarded** — the rollback `update-ref`, the adopt (already), and fetch/pull via an
+ancestry-guarded `update-ref` replacing the force refspec; **lock-free by design** — the branch-bounded export
+plan→push (network inside the bounded-wait lock invites spurious timeouts), protected instead by pinned-tip
+push (C3) + CAS adopt, accepting stale-plan reconcile on the next push.
 
 - **Every mutation of shared state is either lock-held or CAS-guarded** (storage-evolution Principle 3 — the
   native git form: `update-ref <ref> <new> <expected-old>`). Closes C2 (rollback), C4 (lock break via
   re-verify-before-unlink or rename-based break), C6 (ancestry guard on fetch/pull), C10 (versioned sync-state
   writes).
-- **Save-path guard (C1):** save refuses (or loads first) when the recent-note window carries entries disk never
-  materialized — kill mis-synthesis at the source; correct the `"local unsaved"` post-reconcile recommendation.
-  Atomic writes (temp+rename) + lock coverage for identity-global disk materialization.
+- **Save-path guard (C1) — materialized-baseline stamp** (settled — § Settled decisions 1): sync-state records
+  the notes-ref tip whose content disk last materialized (stamped at load and at save); tombstone synthesis
+  diffs disk only against that baseline's entries, so an entry merged into the ref but never materialized can
+  never read as deleted. Absent baseline → synthesize nothing. Correct the `"local unsaved"` post-reconcile
+  recommendation. Atomic writes (temp+rename) + lock coverage for identity-global disk materialization.
 - **Window/TTL alignment (C7):** the cross-WU window becomes time+count bounded so the tombstone TTL dominates
   it; merge commits stop consuming slots.
 - **Unique temp refs (C8):** propagate `uniqueRefToken()` to `__incoming` and `arc-sync-temp`.
@@ -162,10 +174,22 @@ One written concurrency model for the subsystem, then enforce it:
 
 Designed against the **cross-machine rewrite-safety constraint first**: pruning/squashing rewrites a ref
 siblings pull, so it must not drop un-synced sibling notes nor break the partial-push/coherence machinery
-(Phase B's invariants are the substrate this leans on). Then the mechanism: prune the 427 pre-migration
-root-`SESSION-NOTES` notes and retired-WU accumulation; compact the ~11.7k-commit remote history (the C5
-re-rewrite sediment); define the steady-state retention window (full per-save history vs. compaction is an open
-backing-store policy call — see § Forward-compat).
+(Phase B's invariants are the substrate this leans on).
+
+**Mechanism (settled — § Settled decisions 3): snapshot + superset-adopt.** The writer takes the notes lock,
+drops a backup ref, builds one squashed snapshot commit (tree = the full retained notes tree; in-band tombstones
+survive as file content), and pushes `--force-with-lease`. Siblings reconcile through the same
+**adopt-if-superset** primitive Phase A ships, generalized: content-superset is verified *locally by each
+sibling* before adopting, so safety is machine-count-independent — correctness never depends on team size — and
+any local-only notes re-export after the adopt. A generation/epoch **marker seam** on the sync-state ref (which
+already carries markers) announces the rewrite for efficiency; it is a socket the backend tier can upgrade to
+real coordination (storage-evolution Principle 7), deliberately not handshake machinery built now.
+
+**Retention policy:** prunable = a per-WU subdir note family whose WU is shipped and whose subdir reconciled
+away with no unpushed local drift (the same oracle the retired-subdir sweep already trusts) — covering the 427
+pre-migration root-`SESSION-NOTES` notes and retired-WU accumulation; the ~11.7k-commit remote history (the C5
+re-rewrite sediment) compacts to the snapshot. Age thresholds and keep-last-N parameters are spec-time detail.
+The window/TTL rule (Phase B) co-designs with the snapshot so cross-WU merge semantics survive the history cut.
 
 Team framing (from the original draft, unchanged): refs are per-identity, so team size multiplies ref *count*,
 not any single ref's size — the sharp axis is per-identity accumulation (long-lived heavy user × parallelism).
@@ -197,18 +221,35 @@ not any single ref's size — the sharp axis is per-identity accumulation (long-
 - **Team/multi-writer (Principle 7):** the concurrency model treats same-machine worktrees and cross-machine
   siblings as the same multi-writer problem — no new team-mode axis.
 
-## Open (detail-design)
+## Settled decisions (2026-07-07, pass 2)
 
-1. **Save-path guard shape (C1):** refuse-and-instruct vs. auto-load-then-save vs. synthesize-only-against-
-   materialized-baseline (stamp the window tip the disk last materialized; synthesize only against that).
-   Leaning: materialized-baseline stamp — it removes the inference gap without adding an interactive step.
-2. **Lock-vs-CAS assignment per mutator:** which of the five ref mutators serialize under the advisory lock vs.
-   carry CAS; the reconcile merge likely needs the lock (git's notes-merge state is inherently exclusive).
-3. **Compaction mechanism (Phase C):** squash-to-snapshot + graft vs. rewrite-and-force-push with sibling
-   handshake vs. periodic re-root. Constraint: `arc user load`'s ancestor walk and the partial-push machinery
-   must survive it. Not yet explored — next pass.
-4. **Scale-test harness:** does Phase B's interleaving suite need a few-hundred-note fixture here, or does the
-   spawn-count harness routed to `user-sync-module-split` cover it? Decide at spec.
+1. **Save-path guard (C1) = materialized-baseline stamp** — over refuse-and-instruct (a hard stop inside
+   handoff/sync flows) and auto-load-then-save (an implicit disk mutation that can overwrite uncommitted local
+   edits — the hazard class being closed). Removes the inference gap with no new interactive step.
+2. **Write discipline = hybrid per-mutator** — lock where state is inherently exclusive or local
+   (save note-write, reconcile merge, compaction, sync-state RMW); CAS where the guard is a ref value (rollback,
+   adopt, fetch/pull); lock-free with pinned-tip + CAS adopt for the network-spanning export. Over lock-everything
+   (network inside the bounded wait → spurious timeouts) and CAS-everything (notes-merge worktree state cannot be
+   CAS'd).
+3. **Compaction = snapshot + superset-adopt, with a backend-upgradeable marker seam** — over an epoch-handshake
+   protocol (coordination machinery the backend tier owns; safety here must never depend on team size, so the
+   protocol keeps correctness local-verifiable and leaves coordination as a seam) and periodic re-root (never
+   sheds the existing sediment cleanly). Scalability posture recorded explicitly: superset-adopt is
+   machine-count-independent; the marker seam is the socket a hosted/multi-writer tier upgrades.
+4. **Scale-test split** — the spawn-count / large-fixture perf harness rides `user-sync-module-split` (it tests
+   the batching work); this WU's interleaving suite uses small deterministic fixtures (concurrency correctness
+   needs interleavings, not volume).
+
+## Success signal
+
+- **Phase A:** a live primary `arc sync` converges — `arc user status` reports current (not diverged)
+  immediately after, and the remote ref gains ~zero commits on a steady-state sync (vs. +886 today).
+- **Phase B:** the C1 scenario is impossible by construction — a save cannot tombstone an entry the disk never
+  materialized (interleaving test); the C2/C3 interleavings and the C9 verdict-coherence case are
+  regression-tested; the WORKING-MEMORY interim guard entry's removal trigger is met.
+- **Phase C:** the remote ref history is compacted to the snapshot baseline (order ~10² commits, not ~10⁴);
+  legacy/retired-WU notes pruned per the retention criterion; a sibling clone with local-only notes adopts the
+  rewritten ref losslessly (verified by content diff, the same 0-local-only check used 2026-07-07).
 
 ## Scope Estimate
 
