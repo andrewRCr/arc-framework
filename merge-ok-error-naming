@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "merge-ok-error-naming",
+  "origin": "inbox",
+  "intent": "Name the failing required job(s) in the merge-ok rollup error message",
+  "branch": "chore/merge-ok-error-naming",
+  "createdAt": "2026-07-07T13:48:02.497Z",
+  "originEntry": "Improve the CI `merge-ok` rollup: name the failing job, reconsider the name"
+}
