@@ -1,14 +1,16 @@
 # Draft: ROADMAP Tooling
 
-- **State:** Draft — **decomposition cut-map settled at the 2026-07-06 grooming (§ Decomposition).**
-  `decompose-work-unit` is the next action; the inbound-buffer items and the routed `USER-INBOX` captures
-  distribute to the two members (`project-state-integrity` + a rescoped `roadmap-tooling`) per the routing map
-  there, rather than integrating into this body.
+- **State:** Draft — rescoped at the 2026-07-06 decomposition to the **render-standard + rename slice**; the
+  FP-critical state-integrity slice split out to `project-state-integrity`, on which this WU now depends. Iterate
+  before PRD/spec promotion.
 - **Origin:** [internal] — homes the CLI helpers Work Organization Reform codified-but-deferred (the
-  rendered-view algorithm + hand-maintenance discipline shipped in WOR; the tooling that automates them did
-  not).
-- **Purpose:** Build the small CLI helpers that operate on WOR's settled meta-file shape + backlog structure,
-  starting with the deterministic ROADMAP renderer that downstream workflows already assume exists.
+  rendered-view algorithm + hand-maintenance discipline shipped in WOR; the tooling that automates them did not).
+- **Purpose:** Build the derived-view render **tooling** on top of `project-state-integrity`'s regenerate-wins
+  projection engine — the render standard (columns / tiers / overflow / naming), the `ROADMAP → STATUS.PROJECT`
+  rename cascade, the `arc cohort list` / `arc graduate` helpers + lifecycle-aware link reanchoring, and the
+  `STATUS.USER` on-disk writer completion. The projection **engine** and its correctness (regenerate-wins,
+  oracle/roster determinism, dangling-edge validation) belong to `project-state-integrity`; this WU applies the
+  render standard on top.
 
 ---
 
@@ -16,9 +18,6 @@
 
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
->
-> **Superseded by § Decomposition (2026-07-06):** these items are no longer integrated into this body — each is
-> routed to a member in the cut-map's routing map and distributes at `decompose-work-unit`.
 
 ### `[ ]` **STATUS.USER writer offline merge and document chrome**
 
@@ -216,6 +215,36 @@
   collapse — `SAP, DM, +4` — optionally paired with a plain list section below the table for overflowed rows.
   Unbounded inline lists are unsolvable under the 120-char budget by naming alone; boundedness is the rule.
 
+### `[ ]` **Make the render standard's output idempotent under `markdown-table-formatter`**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`); `roadmap-renderer-slice` errand, Pass 1
+  byte-determinism verification (2026-07-05). Folded in at the 2026-07-06 decomposition.
+- *Concern:* the readiness composer (`project-view.ts`, via `renderStatusTable` in `render.ts`) emits GFM table
+  **separator** rows padded (`| --- |`), but the repo's canonical style — `markdown-table-formatter` per
+  DEV-RULES.PROJECT § Quality Gates — is tight (`|---|`). Verified: the formatter rewrites **only** the separator
+  rows (data/alignment/columns already stable). `markdownlint` passes on both, so CI is green either way; the gap
+  is generator-vs-formatter **non-idempotence** — a composer-written ROADMAP re-dirties on the next `format:tables`
+  pass.
+- *Proposed:* criterion — **generated output must be a fixpoint of the repo's formatters.** Make
+  `renderStatusTable`'s separator emission match the tight style so a composed ROADMAP survives `format:tables`
+  unchanged. `renderStatusTable` is **shared with `STATUS.USER`**, so the fix touches that view + its render
+  tests, and diverges `render.ts` from FP — coordinate so FP adopts the same on merge. Mechanical formatting
+  conformance, not a semantic render-standard call — orthogonal to the render-standard reconciliation but lands
+  naturally with this WU's `render.ts` work.
+
+### `[ ]` **Continue the render standard on `project-state-integrity`'s projection base**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`); `finalize-parallelism` Task 2.4.a
+  (`arc start` substrate), 2026-07-04. Folded in at the 2026-07-06 decomposition — the render-**standard**
+  continuation of the FP-renderer capture whose substrate-base half routed to `project-state-integrity`.
+- *Concern:* once `project-state-integrity` audits/adopts FP's minimal renderer substrate as the regenerate-wins
+  projection engine, this WU continues on that base: reconcile it with the pending `ROADMAP → STATUS.PROJECT`
+  decision, template/scaffold shape, empty-tier convention, uniform-column and overflow policy, STATUS.USER writer
+  parity, and the final CLI surface (`arc roadmap render`). Do not re-solve the projection engine here — depend on
+  it.
+- *Scope:* lands with this WU's render-standard reconciliation; sequenced after `project-state-integrity`'s
+  substrate adoption.
+
 ---
 
 ## Problem / Motivation
@@ -227,7 +256,8 @@ hand-maintenance discipline, not the tool. WOR's Phase 7.R then reshaped the doc
 readiness view** (In Flight / Ready / Blocked, rendered by WU-name from `State` / `Owner` / `Depends On`; no
 hand-maintained content) and hand-rendered the first baseline.
 
-Three standing costs remain until this WU lands:
+Three standing costs remain until this WU lands (the state-layer correctness beneath them —
+regenerate-wins projection, oracle determinism, dangling-edge validation — is `project-state-integrity`'s):
 
 - **The renderer is assumed to exist.** `arc-plan-conductor`'s park/resume workflows treat "ROADMAP regen" as a
   one-line mechanism; the boundary workflows (`activate` / `integrate` / `archive` / `deactivate`) hand-maintain
@@ -250,20 +280,17 @@ Three standing costs remain until this WU lands:
 
 Candidate command set (final split confirmed at PRD time):
 
-- **`arc roadmap render`** — walk `active/**` and `backlog/planned/**` for `meta-*.md`, parse the canonical
-  fields (`State` / `Owner` / `Depends On` / `Cohort` / title), and emit `backlog/ROADMAP.md` per the codified
-  algorithm: In Flight / Ready (all deps shipped) / Blocked (waiting on, by dependency depth), cohort-grouped
-  within tier, WUs rendered by canonical WU-name with owner + `◂ <dep-wu-name>` pointers, header marker
-  (generated-by note + last-rendered commit hash). Target: reproduce the WOR-era hand baseline (first run is a
-  no-op diff).
-- **Dependency-edge validation** (render-time, or a `--check` mode) — resolving `**Depends On:**` by absence
-  (a dep is met once its WU leaves `active/` + `backlog/`) silently treats a *dangling* edge — a typo'd or
-  renamed target — as satisfied. Distinguish *absent-because-shipped* (target in `completed/` / archive →
-  satisfied) from *absent-everywhere* (→ warn). Surfaced during WOR's dependency-baseline pass.
+- **`arc roadmap render`** — the render **standard + CLI surface** over `project-state-integrity`'s regenerate-wins
+  projection engine: emit `backlog/ROADMAP.md` per the codified algorithm (In Flight / Ready / Blocked,
+  cohort-grouped within tier, WUs by canonical WU-name with owner + `◂ <dep-wu-name>` pointers, header marker),
+  applying the render standard (uniform columns, empty-tier, nested-cohort + multi-dep overflow, per-element
+  backticks, formatter-idempotence). Target: reproduce the WOR-era hand baseline (first run is a no-op diff). The
+  projection **engine** (glob/roster walk + regenerate-wins resolution) and **dangling-edge validation** are
+  `project-state-integrity`'s; this command applies the standard on top.
 - **`arc cohort list`** (or equivalent) — enumerate cohort members from `**Cohort:**` fields.
 - **`arc graduate <type>`** — branch-rename ergonomics for the `plan/<name>` → `<type>/<name>` graduation.
 
-Companion doc deliverable (lands with the renderer): **significantly repurpose `strategy-work-organization.md
+Companion doc deliverable (lands with the render standard): **significantly repurpose `strategy-work-organization.md
 § ROADMAP`.** Once the renderer carries the step-by-step, that section should be slimmed to the contract it
 actually governs — the tier definitions, dependency-satisfaction-by-absence and its invariants, and the
 regeneration fire-points — and point at `arc roadmap render` for the mechanics. The numbered render procedure
@@ -271,87 +298,18 @@ regeneration fire-points — and point at `arc roadmap render` for the mechanics
 procedure with no tool to carry it; landing the renderer removes that reason. Keep the contract in the strategy;
 move the mechanics to the renderer's spec/tests.
 
+The `ROADMAP → STATUS.PROJECT` rename cascade (the `roadmap` name **retires**; direction moves to
+`goal-aware-direction`'s authored `VECTOR.PROJECT`) and the `STATUS.USER` on-disk writer completion (the deferred
+canonical-file write + reconcile) also land in this WU — see the Inbound Buffer.
+
 Possible adjacent capture (decide at PRD): a Release Notes Entry validation check (e.g. `arc state set
 integrating` validates archive-phase section presence on the meta file).
 
-## Decomposition (cut-map, settled 2026-07-06)
-
-The FP-critical state-integrity concern forces the cut. `finalize-parallelism`'s wave-1 burn-in surfaced the
-in-flight state layer reporting **false facts** — roster/oracle non-determinism under concurrent worktree churn
-(phantom foreign-write overlaps) — plus the `ROADMAP` shared-mutable contention hazard (every worktree regens +
-commits one tracked file). That layer is a hard dependency of FP's remaining waves, which must consume a
-trustworthy state layer rather than characterize a broken one. It is orthogonal to — and more urgent than — the
-render-standard reconciliation + `STATUS.PROJECT` rename this WU also carries, and dependency granularity is
-WU-level: for FP to unblock on the state-integrity slice **alone**, that slice must be its own WU.
-`assess-cohort-fit` verdict: **two flat siblings + one dependency edge**, not a cohort — the coordination is a
-single linear build-on (a trustworthy renderer, then render-standard polish atop it), which a `Depends On`
-captures fully.
-
-**Members:**
-
-1. **`project-state-integrity`** (new; est. `Heavy`; `finalize-parallelism` repoints its `Depends On` here) —
-   the trustworthy, contention-free project / in-flight state layer:
-    - **(A) Oracle/roster determinism** — harden the in-flight roster derivation (`runActiveInFlight`) so
-      overlap / foreign-write reporting is correct and deterministic under concurrent worktree churn (the
-      phantom-overlap false positive FP hit).
-    - **(B1) Regenerate-wins derived projection** — `ROADMAP` / `STATUS.PROJECT` as a purely-derived projection
-      that resolves by re-render from the meta source of truth, ending the shared-mutable contention.
-    - **Dangling-dependency-edge validation** — reuse `buildLifecycleIndex` / `resolveSlugQuery` so a WU never
-      renders Ready on an unresolvable edge.
-    - Deliverables are model-agnostic to WLSM's coming readiness axis (see coordination notes).
-2. **`roadmap-tooling`** (this WU, rescoped narrower; est. `Heavy`; `Depends On: project-state-integrity`) —
-   the derived-view render tooling + the rename cascade:
-    - Render-standard reconciliation (uniform columns, empty-tier, nested-cohort + multi-dep overflow,
-      per-element backticks, formatter-idempotence) and the `strategy-work-organization § ROADMAP` repurposing.
-    - The `ROADMAP → STATUS.PROJECT` rename cascade (the `roadmap` name **retires**; direction moves to GAD's
-      authored `VECTOR.PROJECT`).
-    - `arc cohort list` / `arc graduate` helpers + lifecycle-aware link reanchoring.
-    - The STATUS.USER on-disk writer completion (the deferred canonical-file write + reconcile).
-
-**Dependency edges:** `roadmap-tooling ← project-state-integrity`; `finalize-parallelism ←
-project-state-integrity` (repointed from `roadmap-tooling`). Neither member joins the `operational-state-docs`
-cohort or inherits its `cli-substrate-adoption` gate — they are the render-before-renderer first instances the
-OSD substrate later generalizes, and FP needs `project-state-integrity` now.
-
-**Buffer + capture routing map** (consumed at `decompose-work-unit`; draft items by heading, inbox captures by
-title. The `USER-INBOX` captures stay inbox-resident and distribute to the member stubs at the decompose
-ceremony — they are not re-homed through this buffer first, to avoid a double move):
-
-- → **`project-state-integrity`**: `[inbox]` In-flight state-reporting integrity (the (A) + (B1) source);
-  `[inbox]` Add dangling-dependency-edge validation; `[inbox]` Absorb FP's minimal renderer substrate
-  (renderer-base audit / adopt — the render-standard continuation on that base → `roadmap-tooling`).
-- → **`roadmap-tooling`**: Render standard — uniform columns + Priority regen-trigger; Codify empty-tier
-  convention; Render decisions for nested cohorts + multi-dep rows; Render-standard decisions from CWC planning;
-  Honor per-element backtick convention (parse-side coordinates with OSD's `identifier-list` valueClass);
-  `[inbox]` Formatter-idempotence; Evaluate extracting a standalone STATUS render-standard doc; Rename this WU;
-  "Direction's home" resolved by `goal-aware-direction`; STATUS.USER writer offline merge + document chrome;
-  STATUS.USER on-disk write + refresh unbuilt; Lifecycle-aware link reanchoring.
-- → **elsewhere (coordination only, not this WU's scope):** `[inbox]` Always-fresh access to common hub surfaces
-  under parallelism → `parallel-surface-access` / arc-backend — the **B2** materialize-on-demand north star.
-  Not built here; `project-state-integrity`'s derived record stays storage-agnostic so it lifts to the backend
-  tier unchanged.
-
-**Coordination notes:**
-
-- **OSD (`managed-record-substrate`):** both members' renderers are ADR-022's render-before-renderer first
-  instances; the general record / reconcile engine later absorbs them. Coordinate the engine boundary; do not
-  gate on it (it is `cli-substrate-adoption`-gated, and FP needs `project-state-integrity` now).
-- **WLSM readiness-axis (forward-compat):** `wu-lifecycle-state-model` will split planning-completeness
-  (impl-ready attestation) from scheduling (`State`), adding a readiness axis distinct from today's
-  dependency-satisfaction "Ready." `roadmap-tooling`'s tier derivation must stay open to it — do not hard-bake
-  "`State` is the sole readiness signal"; `project-state-integrity`'s deliverables are already model-agnostic.
-  Additive when WLSM lands — a blocker for neither member.
-- **naming-conventions:** the WU rename, the multi-dep short-name (`Short:`) field, and any STATUS
-  render-standard doc-extraction naming are `naming-conventions`' convention calls; `roadmap-tooling` executes.
-
-**Next action:** `decompose-work-unit` (backlog-stub-source arm, its own `chore/decompose-*` branch) — mint
-`project-state-integrity`, rescope this WU's `meta` / `draft` to the render + rename slice, repoint
-`finalize-parallelism`'s `Depends On`, distribute the buffer + routed captures, and re-render the readiness view.
-
 ## Dependencies and Sequencing
 
-- **Work Organization Reform** — provides the meta-file shape, field semantics, and the derived-view algorithm
-  this tooling renders. Shipped upstream.
+- **`project-state-integrity`** (hard dependency, the one edge of the decomposition) — provides the trustworthy
+  regenerate-wins projection engine + oracle/roster determinism + dangling-edge validation this WU's render
+  standard and CLI surface build on. Render tooling atop a state layer that lies would inherit the lie.
 - **CLI Substrate Adoption** — provides the zod meta-frontmatter schema this tooling would parse against;
   preferred to sequence after CSA so parsing is typed rather than hand-rolled. Not a hard gate (a hand-rolled
   parser is viable if landing the renderer earlier is favored).
@@ -376,7 +334,7 @@ ceremony — they are not re-homed through this buffer first, to avoid a double 
   rename (per the semantics note above) — keeping the two layers discrete rather than shoehorning priority back
   into the doc WOR 7.R just stripped it from. WOR 7.R research confirms now/next/later is the standard directional
   idiom, distinct from a dependency view; ARC has no directional layer today, so whether to add one is the open
-  call.
+  call. (Now settled — see the § Unknowns "Direction's home" resolution buffer item above.)
 - **Parallel-safety — deterministic or not?** "Which Ready WUs are concurrency-safe with what's in flight" is
   high-value but likely not deterministic from ARC data (meta files don't declare file-scope/domain; predicted
   paths ≠ actual; cognitive-load is judgment). Industry leans on conventions + pick-time accounting (WIP limits,
@@ -415,15 +373,18 @@ attributions below now name it.)
 
 ## Scope Estimate
 
-Small–Medium. Three bounded commands plus tests; no new constitutional surface. Lighter if `cohort` / `graduate`
-split out. Dependencies above shape sequencing more than size.
+Small–Medium. The render standard + CLI surface (`arc roadmap render` presentation, columns, tiers, overflow,
+naming) + the rename cascade + `cohort` / `graduate` helpers + the STATUS.USER writer — bounded, no new
+constitutional surface. Lighter if `cohort` / `graduate` split out. The heavy state-layer correctness moved to
+`project-state-integrity`; sequencing behind it shapes timing more than size.
 
 ## Coordination — ADR-022
 
 `ROADMAP` / `STATUS.PROJECT` is a *derived* managed operational-state document (ADR-022): a rendered
-projection over the meta records. This WU's renderer is the first instance of the model's
-render-and-reconcile engine; coordinate the engine boundary with `operational-state-docs`. See
-`adr-022-managed-operational-state-documents.md` § Coordination.
+projection over the meta records. `project-state-integrity` owns the regenerate-wins projection **engine** (the
+first render-and-reconcile instance); this WU owns the render **standard** + CLI surface on top. Coordinate the
+engine/standard boundary with `operational-state-docs`, which later absorbs both into the general
+render-and-reconcile engine. See `adr-022-managed-operational-state-documents.md` § Coordination.
 
 When the reconcile engine absorbs mutation of managed source-doc entries (e.g. removing the slug-matched
 `USER-INBOX` line on errand completion), honor `async-merge-lifecycle`'s idempotent-removal contract — one
