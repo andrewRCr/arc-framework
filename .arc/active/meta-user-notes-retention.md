@@ -12,7 +12,7 @@
 - **Task List:** `tasks-user-notes-retention.md`
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** create-spec — detailed RFC finalized (four adversarial passes folded); draft retired
+- **Last Completed:** generate-tasks — task list finalized at high depth (adversarial pass converged, minors folded)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
