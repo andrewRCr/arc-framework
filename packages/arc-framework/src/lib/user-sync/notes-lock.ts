@@ -14,8 +14,9 @@
  * unreadable, is waited on rather than broken; the bounded wait deadline then
  * surfaces a timeout instead of evicting a process that may still be in the
  * critical section — so a reused pid that merely reads as alive costs a safe
- * timeout, never a forced break. Breaking an abandoned lock re-races the same
- * exclusive create, so concurrent breakers converge on one holder; release
+ * timeout, never a forced break. Breaking an abandoned lock is serialized by a
+ * sibling break-lock, then re-races the same exclusive create, so concurrent
+ * breakers converge on one holder; release
  * verifies ownership — pid and token — so it never drops another holder's lock,
  * including a same-pid sibling's.
  *
@@ -38,8 +39,14 @@ import type { ExclusiveCreateFn } from "./sync-state.js";
 /** Notes write lockfile name under the repo-shared git common dir. */
 const NOTES_LOCK_FILENAME = ".notes.lock";
 
+/** Suffix for the serialized stale-break coordination lock. */
+const BREAK_LOCK_SUFFIX = ".break";
+
 /** Total bounded wait for a held-and-live lock before surfacing a timeout. */
 const DEFAULT_MAX_WAIT_MS = 10_000;
+
+/** Staleness TTL for the break-lock itself; the main lock is never broken by age. */
+const DEFAULT_BREAK_LOCK_TTL_MS = 30_000;
 
 /** Backoff schedule for the held-and-live retry: starts small, doubles to a cap. */
 const BACKOFF_INITIAL_MS = 10;
@@ -112,6 +119,8 @@ export interface AdvisoryLockOptions {
   token?: string;
   /** Total bounded wait in ms; defaults to {@link DEFAULT_MAX_WAIT_MS}. */
   maxWaitMs?: number;
+  /** Staleness TTL for the break-lock itself; defaults to {@link DEFAULT_BREAK_LOCK_TTL_MS}. */
+  breakLockTtlMs?: number;
 }
 
 /** Thrown when a held-and-live lock could not be acquired within the bounded wait. */
@@ -162,6 +171,8 @@ export async function acquireAdvisoryLock(
   const pid = options.pid ?? process.pid;
   const token = options.token ?? randomUUID();
   const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
+  const breakLockTtlMs = options.breakLockTtlMs ?? DEFAULT_BREAK_LOCK_TTL_MS;
+  const breakLockPath = `${lockPath}${BREAK_LOCK_SUFFIX}`;
 
   const deadline = now() + maxWaitMs;
   let backoff = BACKOFF_INITIAL_MS;
@@ -196,14 +207,112 @@ export async function acquireAdvisoryLock(
     // slow-but-live holder must not be evicted, and a dead one is already caught by
     // the liveness check. The re-race of the create at the top of the loop — not
     // the remove — is what makes concurrent breakers converge on one holder.
-    const breakable = holder === "corrupt" || (holder !== "unreadable" && !isProcessAlive(holder.pid));
+    const breakable = isMainLockBreakable(holder, isProcessAlive);
     if (breakable) {
-      await tolerantRemove(removeFile, lockPath);
+      await attemptSerializedBreak({
+        lockPath,
+        breakLockPath,
+        observedHolder: holder,
+        exclusiveCreate,
+        readFile,
+        removeFile,
+        isProcessAlive,
+        now,
+        sleep,
+        pid,
+        token,
+        breakLockTtlMs,
+      });
     }
 
     await sleep(backoff);
     backoff = Math.min(backoff * 2, BACKOFF_CAP_MS);
   }
+}
+
+interface SerializedBreakContext {
+  lockPath: string;
+  breakLockPath: string;
+  observedHolder: LockHolder | "corrupt";
+  exclusiveCreate: ExclusiveCreateFn;
+  readFile: (path: string) => Promise<string>;
+  removeFile: (path: string) => Promise<void>;
+  isProcessAlive: IsProcessAliveFn;
+  now: () => number;
+  sleep: (ms: number) => Promise<void>;
+  pid: number;
+  token: string;
+  breakLockTtlMs: number;
+}
+
+async function attemptSerializedBreak(context: SerializedBreakContext): Promise<void> {
+  const breakHandle = await tryAcquireBreakLock(context);
+  if (!breakHandle) return;
+
+  try {
+    const currentHolder = await readHolderSettled(context.readFile, context.sleep, context.lockPath);
+    if (
+      isSameBreakTarget(context.observedHolder, currentHolder)
+      && isMainLockBreakable(currentHolder, context.isProcessAlive)
+    ) {
+      await tolerantRemove(context.removeFile, context.lockPath);
+    }
+  } finally {
+    await releaseAdvisoryLock(breakHandle, {
+      readFile: context.readFile,
+      removeFile: context.removeFile,
+    });
+  }
+}
+
+async function tryAcquireBreakLock(context: SerializedBreakContext): Promise<AdvisoryLockHandle | null> {
+  const breakToken = `${context.token}:break`;
+  try {
+    await context.exclusiveCreate(
+      context.breakLockPath,
+      JSON.stringify({ pid: context.pid, acquiredAt: context.now(), token: breakToken }),
+    );
+    return { path: context.breakLockPath, pid: context.pid, token: breakToken };
+  } catch (err) {
+    if (!isEexistError(err)) throw err;
+  }
+
+  const holder = await readHolderSettled(context.readFile, context.sleep, context.breakLockPath);
+  if (isBreakLockBreakable(holder, context.isProcessAlive, context.now, context.breakLockTtlMs)) {
+    await tolerantRemove(context.removeFile, context.breakLockPath);
+  }
+  return null;
+}
+
+function isMainLockBreakable(
+  holder: LockHolder | "absent" | "corrupt" | "unreadable",
+  isProcessAlive: IsProcessAliveFn,
+): holder is LockHolder | "corrupt" {
+  return holder === "corrupt" || (holder !== "absent" && holder !== "unreadable" && !isProcessAlive(holder.pid));
+}
+
+function isBreakLockBreakable(
+  holder: LockHolder | "absent" | "corrupt" | "unreadable",
+  isProcessAlive: IsProcessAliveFn,
+  now: () => number,
+  ttlMs: number,
+): boolean {
+  if (holder === "absent" || holder === "unreadable") return false;
+  if (holder === "corrupt") return true;
+  return !isProcessAlive(holder.pid) || now() - holder.acquiredAt >= ttlMs;
+}
+
+function isSameBreakTarget(
+  observed: LockHolder | "corrupt",
+  current: LockHolder | "absent" | "corrupt" | "unreadable",
+): boolean {
+  if (observed === "corrupt") return current === "corrupt";
+  if (current === "absent" || current === "corrupt" || current === "unreadable") return false;
+  return (
+    observed.pid === current.pid
+    && observed.acquiredAt === current.acquiredAt
+    && observed.token === current.token
+  );
 }
 
 /**

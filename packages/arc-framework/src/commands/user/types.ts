@@ -461,9 +461,15 @@ export interface UserFetchOptions {
   io: UserIOContext;
   /** Identity whose notes to fetch (may differ from caller's identity for cross-user pull). */
   identity: string;
-  /** Force-fetch even when local and remote refs conflict. */
-  force?: boolean;
 }
+
+/** Structured result of fetching remote user notes into the local notes ref. */
+export type UserFetchResult =
+  | { kind: "fast-forwarded"; localTip: string; remoteTip: string }
+  | { kind: "created"; remoteTip: string }
+  | { kind: "refused-local-ahead"; localTip: string; remoteTip: string }
+  | { kind: "refused-diverged"; localTip: string; remoteTip: string }
+  | { kind: "remote-unavailable"; error: Error };
 
 /** Options for the pull operation. */
 export interface UserPullOptions extends UserFetchOptions {
@@ -471,6 +477,9 @@ export interface UserPullOptions extends UserFetchOptions {
   /** Current WU name forwarded to the post-fetch load. See {@link UserLoadOptions.currentWuName}. */
   currentWuName?: string;
 }
+
+/** Result of a pull: a loaded note, no note after fetch, or a fetch refusal/failure. */
+export type UserPullResult = UserLoadResult | null | UserFetchResult;
 
 /**
  * Internal ref-relation state between local and remote notes.

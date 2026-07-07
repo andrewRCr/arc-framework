@@ -64,112 +64,57 @@ assignments; the enforcement tasks implement it. Interleaving tests ride each gu
 grouped by concern) rather than pooling in a test phase; 2.2 builds the shared substrate and proves it on the
 C3 interleaving.
 
-### `[ ]` **2.1 Concurrency-model document**
+### `[x]` **2.1 Concurrency-model document**
 
 - _Goal:_ Every mutator of shared user-notes state has one written, assigned discipline that a maintainer
   changing this code can check a diff against.
-- **Additional Context:** `spec-user-notes-retention.md` § Phase B (B1 — the per-mutator assignment and its
-  rationale)
+- _Outcome:_ Added `strategy-user-notes-concurrency.md` with the lock-serialized / CAS-guarded /
+  lock-free-by-design assignment for current user-notes mutators, plus the operation-triggered
+  `STRATEGY-INDEX.md` consult entry for future shared-state writes.
 
-    - Author `.arc/reference/strategies/project/strategy-user-notes-concurrency.md`: enumerate the shared
-      state (canonical notes ref, identity-global disk files, `.sync-state.json`, partial-push markers, temp
-      refs) and every mutator, each with its assigned discipline — lock-serialized, CAS-guarded, or
-      lock-free-by-design — and the accepted residuals (B3's shrunk break race; stale-plan reconcile on the
-      lock-free export).
-    - Enumerate mechanically, not from the spec alone: sweep the mutation sites (`update-ref`, fetch
-      refspecs, `writeNote`, `git notes` add/merge) and classify each — e.g.
-      `lib/session-init/dead-ref-prune.ts` sits on the read/mutate boundary and needs an explicit call.
-    - Include the Phase 4 compaction writer as an enumerated (lock-serialized) mutator so the model is
-      complete when that phase lands.
-    - Add the `STRATEGY-INDEX.md` entry authored as a directive firing condition anchored to the operation
-      ("consult before adding or modifying any mutator of shared user-notes state — ref, identity-global
-      disk, sync-state, markers, temp refs"), not a passive summary.
-
-### `[ ]` **2.2 Interleaving test harness**
+### `[x]` **2.2 Interleaving test harness**
 
 - _Goal:_ A two-writer interleaving against a temp repo is expressible as an ordinary deterministic
   integration test — no timing sleeps, no flake.
+- _Outcome:_ Extended `multi-clone.ts` with same-common-dir worktree siblings, manual step barriers, and
+  note-entry/ref-tip helpers; added `user-notes-interleaving.test.ts` proving a sibling save between plan and
+  push is neither exported by the pinned notes push nor clobbered by the best-effort adopt.
 
-    - Extend the existing multi-clone fixture (`__tests__/helpers/multi-clone.ts` — bare origin plus two
-      parameterizable clones, built for reuse) with a same-machine worktree-sibling topology and
-      step-controlled operation drivers with barrier points between git steps; the injectable seams in
-      `lib/user-sync/notes-lock.ts` (`AdvisoryLockOptions`: `exclusiveCreate`, `sleep`, `isProcessAlive`,
-      `now`) give deterministic lock scheduling.
-    - Assertion helpers: notes-ref content diff (blob-level), note listing, ref-tip comparison — the same
-      0-local-only content check the spec's success criteria use.
-    - Proving case — the C3 interleaving: a sibling save landing between plan and push is neither exported
-      (pinned tip, 1.3) nor clobbered (adopt CAS, 1.1). Validates the harness and completes B7's C3
-      coverage, which Phase 1's unit-level behaviors only half-carry.
-    - Small deterministic fixtures only — the scale/perf harness rides `user-sync-module-split`
-      (see `notes-user-notes-retention.md` § Scope & sequencing).
-
-### `[ ]` **2.3 Reconcile critical-section serialization and CAS-guarded rollback**
+### `[x]` **2.3 Reconcile critical-section serialization and CAS-guarded rollback**
 
 - _Goal:_ A sibling save can never land between merge and rollback — a known-corrupt ref never survives with a
   save on top, and a rollback never erases a concurrent lock-guarded save.
 
-    - `[ ]` **2.3.a Lock the reconcile critical section**
-        - In `reconcileAndRepush` (`push-fetch.ts`), hold the per-identity notes lock
-          (`acquireAdvisoryLock` / `getNotesLockPath`) across merge → corrupt-scan → rollback decision;
-          the re-push runs after release (network never inside the bounded wait).
-        - The advisory lock is non-reentrant (a same-pid second acquire waits into the timeout): keep the
-          span flat — no nested acquire anywhere inside merge → scan → rollback.
-        - Concurrent reconciles serialize, so the second no longer tears down the first's in-progress
-          `NOTES_MERGE_*` state via `merge --abort`.
+    - `[x]` **2.3.a Lock the reconcile critical section**
+        - `reconcileAndRepush` now acquires the repo-shared notes lock for remote-temp fetch, notes merge,
+          corrupt-note scan, rollback decision, and temp cleanup; the re-push runs only after release.
 
-    - `[ ]` **2.3.b CAS-guard the rollback**
-        - The corrupt-merge rollback (`push-fetch.ts:271-273`) becomes
-          `update-ref <ref> <preMergeTip> <postMergeTip>` — expected-old-value guarded. On CAS decline,
-          abort with a typed conflict outcome and never re-push (a known-corrupt ref is never published).
-          Preserve the existing `preMergeTip !== null` guard — a null pre-merge tip takes the
-          guarded-delete analogue (`update-ref -d <ref> <postMergeTip>`).
+    - `[x]` **2.3.b CAS-guard the rollback**
+        - Corrupt-merge rollback now uses the expected-old `postMergeTip` (`update-ref <ref> <pre> <post>`,
+          or guarded delete for a previously absent ref) and maps rollback failure to a typed conflict with
+          no re-push.
 
-    - `[ ]` **2.3.c C2 interleaving tests**
-        - Build `test-first` (one behavior at a time):
-            - a sibling save during an in-progress reconcile waits (lock held) and lands after the rollback
-              decision — never erased, never stacked on a corrupt ref
-            - a corrupt merge rolls back cleanly and reports the typed conflict
-            - CAS-declined rollback aborts without publishing anything
+    - `[x]` **2.3.c C2 interleaving tests**
+        - `notes-reconcile-push.test.ts` pins the lock span ordering, clean corrupt rollback, merge-failure
+          abort, second non-FF during re-push, and CAS-declined rollback-without-publish behavior.
 
-### `[ ]` **2.4 Ancestry-guarded fetch/pull**
+### `[x]` **2.4 Ancestry-guarded fetch/pull**
 
 - _Goal:_ `arc user fetch`/`pull` can only fast-forward the local ref — a local-ahead or diverged ref refuses
   with a typed outcome and reconcile instruction, never a silent force-reset.
+- _Outcome:_ `runUserFetch` now fetches remote notes into a per-call temp ref, classifies ancestry, and moves
+  the canonical notes ref only through an expected-old `update-ref`; local-ahead, diverged, and mid-fetch CAS
+  races return typed refusals. `runUserPull`, `arc user fetch`/`pull`, and sync pull all skip disk load on
+  declined fetches and surface the reconcile path instead of force-resetting local notes.
 
-    - Replace the force-refspec path (`runUserFetch` refspec in `push-fetch.ts:151-156`; the `force: hasLocal`
-      arm in `handlers/user.ts:475-481`) with fetch-to-temp + ancestry-guarded `update-ref <ref> <new>
-      <expected-old>` — the guard is the ref update itself, closing the inspect→fetch TOCTOU.
-    - `runUserFetch` returns `void` today — introduce a discriminated fetch outcome (`fast-forwarded` /
-      `created` / `refused-local-ahead` / `refused-diverged` / `remote-unavailable`) that `runUserPull` and
-      all three consumers map (`handlers/user.ts:480` fetch, `:557` pull, `handlers/user-sync.ts:256`).
-      Reuse the existing CAS vocabulary (`isCasRejectionError`, `notes-merge.ts:34`; the retry frame in
-      `lib/user-sync/cas-retry.ts`) rather than minting a parallel idiom.
-    - On decline (local-ahead / diverged): typed refusal naming the reconcile path (`arc user push` /
-      `arc sync`); `runUserPull` skips its load step on a declined fetch.
-    - Build `test-first` (one behavior at a time):
-        - remote-ahead fast-forwards cleanly
-        - local-ahead refuses with the typed outcome and leaves the ref untouched
-        - diverged refuses identically; a mid-fetch local advance fails the guarded update rather than
-          resetting it
-
-### `[ ]` **2.5 Break-lock serialization for stale-lock breaks**
+### `[x]` **2.5 Break-lock serialization for stale-lock breaks**
 
 - _Goal:_ Two contenders judging a dead holder breakable converge on one winner — a stale-lock break can never
   delete a freshly-won live lock.
-
-    - Add a secondary exclusive-create break-lock beside the main lockfile (`lib/user-sync/notes-lock.ts`):
-      a breaker acquires it, re-reads the main lockfile inside it, unlinks only if the stale holder record
-      is unchanged, then releases; the winner re-races the normal `O_EXCL` create.
-    - The break-lock carries its own holder record and short staleness policy (~30s TTL + dead-pid check,
-      removed via the same verify-then-unlink); wire into the breakable path at `notes-lock.ts:199-201`.
-    - Record the accepted residual (break race re-admitted one level down, milliseconds-wide) in the 2.1
-      model doc; note the `flock` upgrade path.
-    - Build `test-first` (one behavior at a time):
-        - two concurrent breakers of a dead holder: exactly one wins, the loser backs off and re-races
-        - a slower breaker re-reading inside the break-lock sees the fresh live holder and backs off
-        - a stale break-lock (dead holder or past TTL) is itself broken safely
-        - a live main-lock holder is never evicted through the break path
-    - Tier 2 gate (full suite) closes the phase.
+- _Outcome:_ Stale main-lock breaks now acquire a sibling `.notes.lock.break`, re-read the main holder inside it,
+  unlink only an unchanged breakable holder, and release by token before re-racing normal acquisition. The
+  break-lock carries its own dead-pid / TTL stale policy, with regressions for concurrent breakers, fresh-live
+  re-read backoff, dead and aged break-lock cleanup, and live-holder preservation.
 
 ## **Phase 3:** Save-path guard and state coherence
 
@@ -302,6 +247,16 @@ C11); tasks below implement, not re-decide.
           `PairedPushResult` to the renderer (six print sites, `handlers/sync.ts:866-895`); mirror for the
           errand leg (`recordErrandPartialPushMarker`, `handlers/sync.ts:549-561`).
         - `verifySavedNote` runs inside the lock span (`save-load.ts:138`).
+
+    - `[ ]` **3.6.e Worktree qualifier timeout isolation**
+        - `arc user status` must not let the identity-notes scan starve the branch-bounded worktree fetch
+          timeout: sequence or isolate the qualifier so its timeout measures the fetch, not the full
+          notes-history status workload.
+        - Live repro after Phase 1: full status spawned ~1,782 `git notes` reads and reported
+          `worktree.remote-unavailable(timeout)` while the recovery audit and direct fetch reported the
+          truthful `local-ahead` worktree state. Keep the broader N+1 note-read / batching fix with
+          `user-sync-module-split`; this task only restores qualifier truthfulness under current large
+          history.
 
     - Tier 2 gate (full suite) closes the phase; retire the WORKING-MEMORY tombstone-hazard entry per its
       recorded trigger.

@@ -1657,11 +1657,12 @@ describe("user push and pull", () => {
     // Force push should succeed
     await runUserPush({ io, identity: "test-user", force: true });
 
-    // Verify remote has our version (force pull — refs diverged)
-    await runUserPull({ cwd: cloneDir, io: cloneIO, identity: "test-user", force: true });
+    // A regular pull refuses rather than overwriting the clone's diverged local notes ref.
+    await expect(runUserPull({ cwd: cloneDir, io: cloneIO, identity: "test-user" }))
+      .resolves.toMatchObject({ kind: "refused-diverged" });
     await runUserLoad({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
     const restoredInClone = await readFile(join(cloneUserDir, "WORKING-MEMORY.md"), "utf-8");
-    expect(restoredInClone).toBe("# Version 3 local");
+    expect(restoredInClone).toBe("# Version 2 from clone");
   });
 
   it("reconciles a concurrent non-fast-forward via lossless notes-merge, preserving both sides", async () => {
@@ -1809,10 +1810,13 @@ describe("user push and pull", () => {
       runUserPush({ io, identity: "test-user" }),
     ).rejects.toThrow(/origin/);
 
-    // Pull without remote should fail with clear diagnostic
+    // Pull without remote returns a typed fetch failure with the underlying diagnostic.
     await expect(
       runUserPull({ cwd: tempDir, io, identity: "test-user" }),
-    ).rejects.toThrow(/origin/);
+    ).resolves.toMatchObject({
+      kind: "remote-unavailable",
+      error: expect.objectContaining({ message: expect.stringContaining("origin") }),
+    });
   });
 
   it("hasLocalNotes returns true after save, false before", async () => {

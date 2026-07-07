@@ -2,20 +2,28 @@ import { runPushabilityStatus } from "../../lib/git/index.js";
 import type { AccessFn, PushabilityCondition } from "../../lib/git/index.js";
 import {
   clearPartialPushMarker,
+  acquireAdvisoryLock,
+  getNotesLockPath,
   incomingFetchRefspec,
   incomingNotesRef,
+  isCasRejectionError,
   isNonFastForwardError,
   isRemoteUnavailableError,
   isResolvedNoteValid,
   notesMergeArgs,
+  releaseAdvisoryLock,
+  type AdvisoryLockHandle,
 } from "../../lib/user-sync/index.js";
+import { uniqueRefToken } from "../../lib/git/ref-tree.js";
 import { notesRef } from "./shared.js";
 import { runUserLoad } from "./save-load.js";
 import {
   UserPushBlockedError,
+  type UserFetchResult,
   type UserFetchOptions,
   type UserIOContext,
   type UserPullOptions,
+  type UserPullResult,
   type UserPushOptions,
   type UserPushResult,
 } from "./types.js";
@@ -148,11 +156,45 @@ export async function hasLocalNotes(
  *
  * @param options - Fetch options
  */
-export async function runUserFetch(options: UserFetchOptions): Promise<void> {
-  const { io, identity, force } = options;
+export async function runUserFetch(options: UserFetchOptions): Promise<UserFetchResult> {
+  const { io, identity } = options;
   const ref = `refs/notes/${notesRef(identity)}`;
-  const refspec = force ? `+${ref}:${ref}` : `${ref}:${ref}`;
-  await io.exec("git", ["fetch", "origin", refspec]);
+  const tempRef = `${ref}__fetch_${uniqueRefToken()}`;
+  const localTip = await readLocalRefHash(io, ref);
+  try {
+    await io.exec("git", ["fetch", "--refmap=", "origin", `+${ref}:${tempRef}`]);
+    const remoteTip = await readLocalRefHash(io, tempRef);
+    if (remoteTip === null) {
+      return {
+        kind: "remote-unavailable",
+        error: new Error(`Fetched user notes ref did not resolve: ${tempRef}`),
+      };
+    }
+
+    if (localTip === null) {
+      return await createFetchedNotesRef(io, ref, remoteTip);
+    }
+
+    if (localTip === remoteTip) {
+      return { kind: "fast-forwarded", localTip, remoteTip };
+    }
+
+    const remoteContainsLocal = await isAncestor(io, localTip, remoteTip);
+    if (remoteContainsLocal) {
+      return await fastForwardFetchedNotesRef(io, ref, localTip, remoteTip);
+    }
+
+    const localContainsRemote = await isAncestor(io, remoteTip, localTip);
+    if (localContainsRemote) {
+      return { kind: "refused-local-ahead", localTip, remoteTip };
+    }
+
+    return { kind: "refused-diverged", localTip, remoteTip };
+  } catch (err) {
+    return { kind: "remote-unavailable", error: err instanceof Error ? err : new Error(String(err)) };
+  } finally {
+    await tryExec(io, ["update-ref", "-d", tempRef]);
+  }
 }
 
 /**
@@ -163,10 +205,83 @@ export async function runUserFetch(options: UserFetchOptions): Promise<void> {
  */
 export async function runUserPull(
   options: UserPullOptions,
-) {
-  const { cwd, io, identity, force, currentWuName } = options;
-  await runUserFetch({ io, identity, force });
+): Promise<UserPullResult> {
+  const { cwd, io, identity, currentWuName } = options;
+  const fetch = await runUserFetch({ io, identity });
+  if (!isFetchSuccess(fetch)) return fetch;
   return runUserLoad({ cwd, io, identity, currentWuName });
+}
+
+async function createFetchedNotesRef(
+  io: UserIOContext,
+  ref: string,
+  remoteTip: string,
+): Promise<UserFetchResult> {
+  try {
+    await io.exec("git", ["update-ref", ref, remoteTip, ""]);
+    return { kind: "created", remoteTip };
+  } catch (err) {
+    return classifyGuardedFetchUpdateFailure(io, ref, null, remoteTip, err);
+  }
+}
+
+async function fastForwardFetchedNotesRef(
+  io: UserIOContext,
+  ref: string,
+  localTip: string,
+  remoteTip: string,
+): Promise<UserFetchResult> {
+  try {
+    await io.exec("git", ["update-ref", ref, remoteTip, localTip]);
+    return { kind: "fast-forwarded", localTip, remoteTip };
+  } catch (err) {
+    return classifyGuardedFetchUpdateFailure(io, ref, localTip, remoteTip, err);
+  }
+}
+
+async function classifyGuardedFetchUpdateFailure(
+  io: UserIOContext,
+  ref: string,
+  expectedLocalTip: string | null,
+  remoteTip: string,
+  err: unknown,
+): Promise<UserFetchResult> {
+  const error = err instanceof Error ? err : new Error(String(err));
+  if (!isCasRejectionError(error.message)) return { kind: "remote-unavailable", error };
+
+  const currentLocalTip = await readLocalRefHash(io, ref);
+  if (currentLocalTip === null) return { kind: "remote-unavailable", error };
+  if (currentLocalTip === remoteTip) {
+    if (expectedLocalTip === null) {
+      return { kind: "created", remoteTip };
+    }
+    return { kind: "fast-forwarded", localTip: expectedLocalTip, remoteTip };
+  }
+
+  const localContainsRemote = await isAncestor(io, remoteTip, currentLocalTip);
+  if (localContainsRemote) {
+    return { kind: "refused-local-ahead", localTip: currentLocalTip, remoteTip };
+  }
+  return { kind: "refused-diverged", localTip: currentLocalTip, remoteTip };
+}
+
+type SuccessfulUserFetchResult = Extract<UserFetchResult, { kind: "fast-forwarded" | "created" }>;
+
+function isFetchSuccess(fetch: UserFetchResult): fetch is SuccessfulUserFetchResult {
+  return fetch.kind === "fast-forwarded" || fetch.kind === "created";
+}
+
+async function isAncestor(
+  io: UserIOContext,
+  ancestor: string,
+  descendant: string,
+): Promise<boolean> {
+  try {
+    await io.exec("git", ["merge-base", "--is-ancestor", ancestor, descendant]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Discriminated outcome of {@link reconcileNotesPush}. */
@@ -189,12 +304,24 @@ export type NotesPushOutcome =
 export interface ReconcileNotesPushOptions {
   io: UserIOContext;
   identity: string;
-  /** Repository root, threaded to the partial-push marker clear inside the push. */
-  cwd?: string;
+  /** Repository root, threaded to the notes lock and partial-push marker clear. */
+  cwd: string;
   /** Path-existence check enabling the pushability pre-check matrix. */
   access?: AccessFn;
   /** Current worktree branch — threaded into the pushability matrix. */
   worktreeBranch?: string;
+  /** Injectable lock seam for deterministic tests. Defaults to the repo-shared notes lock. */
+  lock?: ReconcileNotesLock;
+}
+
+/** Lock seam used by the reconcile critical section. */
+export interface ReconcileNotesLock {
+  acquire: (input: {
+    io: UserIOContext;
+    cwd: string;
+    identity: string;
+  }) => Promise<AdvisoryLockHandle>;
+  release: (handle: AdvisoryLockHandle) => Promise<void>;
 }
 
 /**
@@ -250,9 +377,9 @@ async function reconcileAndRepush(
   const shortRef = notesRef(identity);
   const fullRef = `refs/notes/${shortRef}`;
   const incoming = incomingNotesRef(fullRef);
-  const preMergeTip = await readRefTip(io, fullRef);
-
+  const lock = await (options.lock ?? DEFAULT_RECONCILE_LOCK).acquire({ io, cwd, identity });
   try {
+    const preMergeTip = await readRefTip(io, fullRef);
     await io.exec("git", ["fetch", "--refmap=", "origin", incomingFetchRefspec(fullRef)]);
 
     try {
@@ -266,10 +393,18 @@ async function reconcileAndRepush(
       };
     }
 
+    const postMergeTip = await readRefTip(io, fullRef);
     const corruptCommit = await findCorruptMergedNote(io, shortRef);
     if (corruptCommit !== null) {
-      if (preMergeTip !== null) {
-        await tryExec(io, ["update-ref", fullRef, preMergeTip]);
+      const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
+      if (rollback.kind === "failed") {
+        return {
+          kind: "conflict",
+          message:
+            `Concurrent notes on commit ${corruptCommit.slice(0, 8)} produced an unparseable note, `
+            + "and the rollback could not be applied safely. Nothing was pushed; inspect the local "
+            + "notes ref and retry after resolving the conflict.",
+        };
       }
       return {
         kind: "conflict",
@@ -280,14 +415,42 @@ async function reconcileAndRepush(
       };
     }
 
-    try {
-      await runUserPush({ cwd, io, identity, access, worktreeBranch });
-    } catch (err) {
-      return reconcileRepushFailureOutcome(err);
-    }
-    return { kind: "reconciled" };
   } finally {
     await tryExec(io, ["update-ref", "-d", incoming]);
+    await (options.lock ?? DEFAULT_RECONCILE_LOCK).release(lock);
+  }
+
+  try {
+    await runUserPush({ cwd, io, identity, access, worktreeBranch });
+  } catch (err) {
+    return reconcileRepushFailureOutcome(err);
+  }
+  return { kind: "reconciled" };
+}
+
+const DEFAULT_RECONCILE_LOCK: ReconcileNotesLock = {
+  acquire: async ({ io, cwd, identity }) =>
+    acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity)),
+  release: (handle) => releaseAdvisoryLock(handle),
+};
+
+async function rollbackCorruptMerge(input: {
+  io: UserIOContext;
+  fullRef: string;
+  preMergeTip: string | null;
+  postMergeTip: string | null;
+}): Promise<{ kind: "rolled-back" | "no-ref" } | { kind: "failed"; error: Error }> {
+  const { io, fullRef, preMergeTip, postMergeTip } = input;
+  if (postMergeTip === null) return { kind: "no-ref" };
+
+  const args = preMergeTip === null
+    ? ["update-ref", "-d", fullRef, postMergeTip]
+    : ["update-ref", fullRef, preMergeTip, postMergeTip];
+  try {
+    await io.exec("git", args);
+    return { kind: "rolled-back" };
+  } catch (err) {
+    return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
   }
 }
 

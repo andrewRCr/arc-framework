@@ -37,6 +37,46 @@ async function readHolder(path: string): Promise<{ pid: number; acquiredAt: numb
   return JSON.parse(await readFile(path, "utf-8")) as { pid: number; acquiredAt: number; token?: string };
 }
 
+function holder(pid: number, acquiredAt: number, token?: string): string {
+  return JSON.stringify({ pid, acquiredAt, ...(token ? { token } : {}) });
+}
+
+function enoent(): Error & { code: string } {
+  return Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+}
+
+function eexist(): Error & { code: string } {
+  return Object.assign(new Error("EEXIST"), { code: "EEXIST" });
+}
+
+function buildMemoryLockFs(initial: Record<string, string>): {
+  files: Map<string, string>;
+  removes: string[];
+  exclusiveCreate: NonNullable<AdvisoryLockOptions["exclusiveCreate"]>;
+  readFile: NonNullable<AdvisoryLockOptions["readFile"]>;
+  removeFile: NonNullable<AdvisoryLockOptions["removeFile"]>;
+} {
+  const files = new Map(Object.entries(initial));
+  const removes: string[] = [];
+  return {
+    files,
+    removes,
+    exclusiveCreate: async (path, content) => {
+      if (files.has(path)) throw eexist();
+      files.set(path, content);
+    },
+    readFile: async (path) => {
+      const content = files.get(path);
+      if (content === undefined) throw enoent();
+      return content;
+    },
+    removeFile: async (path) => {
+      removes.push(path);
+      if (!files.delete(path)) throw enoent();
+    },
+  };
+}
+
 describe("acquireAdvisoryLock", () => {
   let dir: string;
   let lockPath: string;
@@ -202,6 +242,105 @@ describe("acquireAdvisoryLock", () => {
     const winnerPid = (fulfilled[0] as PromiseFulfilledResult<{ pid: number }>).value.pid;
     expect([101, 102]).toContain(winnerPid);
     expect((await readHolder(lockPath)).pid).toBe(winnerPid);
+  });
+
+  it("backs off when the protected stale-break re-read sees a fresh live holder", async () => {
+    const breakLockPath = `${lockPath}.break`;
+    const freshHolder = holder(1, 10, "fresh");
+    const memory = buildMemoryLockFs({
+      [lockPath]: holder(9999, 0, "dead"),
+    });
+    let mainReads = 0;
+    const readFile = async (path: string): Promise<string> => {
+      if (path === lockPath) {
+        mainReads += 1;
+        if (mainReads >= 2) {
+          memory.files.set(lockPath, freshHolder);
+        }
+      }
+      return memory.readFile(path);
+    };
+
+    let clock = 0;
+    await expect(
+      acquireAdvisoryLock(lockPath, {
+        pid: 2,
+        token: "contender",
+        now: () => clock,
+        isProcessAlive: (pid) => pid !== 9999,
+        exclusiveCreate: memory.exclusiveCreate,
+        readFile,
+        removeFile: memory.removeFile,
+        sleep: async () => { clock += 20; },
+        maxWaitMs: 30,
+      }),
+    ).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+
+    expect(JSON.parse(memory.files.get(lockPath) ?? "{}")).toEqual({
+      pid: 1,
+      acquiredAt: 10,
+      token: "fresh",
+    });
+    expect(memory.removes).toEqual([breakLockPath]);
+  });
+
+  it("breaks a stale break-lock with a dead holder, then serializes the main stale break", async () => {
+    const breakLockPath = `${lockPath}.break`;
+    const memory = buildMemoryLockFs({
+      [lockPath]: holder(9999, 0, "dead-main"),
+      [breakLockPath]: holder(8888, 0, "dead-break"),
+    });
+
+    let clock = 0;
+    const handle = await acquireAdvisoryLock(lockPath, {
+      pid: 2,
+      token: "winner",
+      now: () => clock,
+      isProcessAlive: (pid) => pid !== 9999 && pid !== 8888,
+      exclusiveCreate: memory.exclusiveCreate,
+      readFile: memory.readFile,
+      removeFile: memory.removeFile,
+      sleep: async () => { clock += 1; },
+      maxWaitMs: 100,
+    });
+
+    expect(handle.pid).toBe(2);
+    expect(JSON.parse(memory.files.get(lockPath) ?? "{}")).toEqual({
+      pid: 2,
+      acquiredAt: 2,
+      token: "winner",
+    });
+    expect(memory.removes).toEqual([breakLockPath, lockPath, breakLockPath]);
+  });
+
+  it("breaks a past-TTL break-lock even when its holder pid is alive", async () => {
+    const breakLockPath = `${lockPath}.break`;
+    const memory = buildMemoryLockFs({
+      [lockPath]: holder(9999, 0, "dead-main"),
+      [breakLockPath]: holder(7777, 0, "old-break"),
+    });
+
+    let clock = 31_000;
+    const handle = await acquireAdvisoryLock(lockPath, {
+      pid: 2,
+      token: "winner",
+      now: () => clock,
+      isProcessAlive: (pid) => pid === 7777,
+      exclusiveCreate: memory.exclusiveCreate,
+      readFile: memory.readFile,
+      removeFile: memory.removeFile,
+      sleep: async () => { clock += 1; },
+      maxWaitMs: 100,
+      breakLockTtlMs: 30_000,
+    });
+
+    expect(handle.pid).toBe(2);
+    expect(JSON.parse(memory.files.get(lockPath) ?? "{}")).toEqual({
+      pid: 2,
+      acquiredAt: 31_002,
+      token: "winner",
+    });
+    expect(memory.removes).toEqual([breakLockPath, lockPath, breakLockPath]);
   });
 
   it("times out instead of spinning when a stale lock can never be removed", async () => {

@@ -110,6 +110,28 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   requireArcProjectRoot: () => process.cwd(),
   resolveCurrentBranchName: async () => "feature/x",
+  isUserFetchSuccess: (result: { kind: string }) =>
+    result.kind === "fast-forwarded" || result.kind === "created",
+  isUserFetchOutcome: (result: { kind: string } | null) =>
+    result !== null && result.kind !== "loaded",
+  reportUserFetchOutcome: (
+    result: { kind: string; error?: Error },
+    identity: string,
+    operation: "fetch" | "pull",
+  ) => {
+    if (result.kind === "remote-unavailable") {
+      const message = result.error?.message ?? "";
+      if (message.includes("couldn't find remote ref")) {
+        mockLog.warn(`No notes found on remote for identity "${identity}".`);
+      } else {
+        mockLog.error(`Failed to ${operation} user notes: ${message}`);
+      }
+      process.exitCode = 1;
+      return;
+    }
+    mockLog.error(`${operation} refused for ${identity}`);
+    process.exitCode = 1;
+  },
   ARC_PROJECT_ROOT_ERROR: "Not inside an ARC project (no .arc/ directory found walking up from cwd).",
 }));
 
@@ -292,34 +314,43 @@ describe("handleUserFetch flow", () => {
     process.exitCode = undefined;
   });
 
-  it("fetches without force when no local notes exist", async () => {
+  it("fetches through the guarded fetch path without an overwrite prompt", async () => {
     mockHasLocalNotes.mockResolvedValue(false);
-    mockRunUserFetch.mockResolvedValue(undefined);
+    mockRunUserFetch.mockResolvedValue({
+      kind: "fast-forwarded",
+      localTip: "local",
+      remoteTip: "remote",
+    });
 
     await handleUserFetch({});
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserFetch).toHaveBeenCalledWith(
-      expect.objectContaining({ force: false }),
-    );
+    const callArg = mockRunUserFetch.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
+    expect(callArg).not.toHaveProperty("force");
   });
 
-  it("fetches with force when local notes exist (no overwrite prompt)", async () => {
+  it("does not prompt or force-overwrite when local notes exist", async () => {
     mockHasLocalNotes.mockResolvedValue(true);
-    mockRunUserFetch.mockResolvedValue(undefined);
+    mockRunUserFetch.mockResolvedValue({
+      kind: "fast-forwarded",
+      localTip: "local",
+      remoteTip: "remote",
+    });
 
     await handleUserFetch({});
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserFetch).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true }),
-    );
+    const callArg = mockRunUserFetch.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
+    expect(callArg).not.toHaveProperty("force");
   });
 
   it("reports missing remote ref with identity hint", async () => {
-    mockRunUserFetch.mockRejectedValueOnce(
-      new Error("couldn't find remote ref refs/notes/arc/user/andrew"),
-    );
+    mockRunUserFetch.mockResolvedValue({
+      kind: "remote-unavailable",
+      error: new Error("couldn't find remote ref refs/notes/arc/user/andrew"),
+    });
 
     await handleUserFetch({});
 
@@ -355,12 +386,14 @@ describe("handleUserPull fetch+load flow", () => {
     await handleUserPull({});
 
     expect(mockRunUserPull).toHaveBeenCalledWith(
-      expect.objectContaining({ cwd: process.cwd(), force: false }),
+      expect.objectContaining({ cwd: process.cwd() }),
     );
+    const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).not.toHaveProperty("force");
     expect(mockOutro).toHaveBeenCalledWith("Done.");
   });
 
-  it("prompts before force-pulling when local notes exist", async () => {
+  it("prompts before pulling when local notes exist", async () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockConfirm.mockResolvedValue(true);
     mockRunUserPull.mockResolvedValue({
@@ -376,9 +409,9 @@ describe("handleUserPull fetch+load flow", () => {
     await handleUserPull({});
 
     expect(mockConfirm).toHaveBeenCalledTimes(1);
-    expect(mockRunUserPull).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true }),
-    );
+    const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
+    expect(callArg).not.toHaveProperty("force");
   });
 
   it("cancels cleanly when user declines overwrite", async () => {
@@ -406,9 +439,9 @@ describe("handleUserPull fetch+load flow", () => {
     await handleUserPull({ yes: true });
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserPull).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true }),
-    );
+    const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
+    expect(callArg).not.toHaveProperty("force");
   });
 
   it("bypasses overwrite confirm in non-TTY environments", async () => {
@@ -427,9 +460,9 @@ describe("handleUserPull fetch+load flow", () => {
     await handleUserPull({});
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserPull).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true }),
-    );
+    const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
+    expect(callArg).not.toHaveProperty("force");
   });
 
   it("sets exitCode when pull returns no note after fetch", async () => {
@@ -440,6 +473,20 @@ describe("handleUserPull fetch+load flow", () => {
     expect(mockLog.warn).toHaveBeenCalledWith(
       expect.stringContaining("No saved user directory"),
     );
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("skips load rendering when guarded pull refuses local-ahead notes", async () => {
+    mockRunUserPull.mockResolvedValue({
+      kind: "refused-local-ahead",
+      localTip: "local",
+      remoteTip: "remote",
+    });
+
+    await handleUserPull({});
+
+    expect(mockLog.error).toHaveBeenCalledWith("pull refused for andrew");
+    expect(mockNote).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });

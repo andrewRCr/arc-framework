@@ -36,7 +36,7 @@ import { resolveNotesPushPolicy } from "../lib/config/resolved-settings.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import {
   isHandledError, isNonInteractiveEnvironment, requireArcProjectRoot, resolveUserIdentity,
-  resolveCurrentBranchName,
+  resolveCurrentBranchName, isUserFetchOutcome, reportUserFetchOutcome,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy shared with the user handlers. */
@@ -257,9 +257,14 @@ async function handlePullDirection(params: DirectionParams): Promise<void> {
       cwd,
       io,
       identity,
-      force: true,
       currentWuName: await resolveCurrentWuName(cwd, io.exec),
     });
+    if (isUserFetchOutcome(result)) {
+      spinner.stop(result.kind === "remote-unavailable" ? "Pull failed." : "Pull skipped.");
+      reportUserFetchOutcome(result, identity, "pull");
+      return;
+    }
+
     if (!result) {
       spinner.stop("No note found.");
       p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");

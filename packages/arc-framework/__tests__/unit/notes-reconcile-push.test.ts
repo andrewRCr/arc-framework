@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import type { ExecResult, GitExec, GitExecOptions } from "../../src/lib/git/index.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
+import type { ReconcileNotesLock } from "../../src/commands/user/push-fetch.js";
 
 const mockClearPartialPushMarker = vi.fn();
 
@@ -74,6 +75,19 @@ function buildIo(exec: GitExec): UserIOContext {
   } as unknown as UserIOContext;
 }
 
+function buildLock(events: string[] = []): ReconcileNotesLock {
+  const handle = { path: "/repo/.git/arc/user/andrew/.internal/.notes.lock", pid: 1, token: "test" };
+  return {
+    acquire: vi.fn(async () => {
+      events.push("lock:acquire");
+      return handle;
+    }),
+    release: vi.fn(async () => {
+      events.push("lock:release");
+    }),
+  };
+}
+
 const nonFastForward = (): never => {
   throw new Error("error: failed to push some refs\n ! [rejected] (non-fast-forward)");
 };
@@ -85,25 +99,46 @@ describe("reconcileNotesPush", () => {
 
   it("second push hits non-ff → fetches, notes-merges, and re-pushes successfully", async () => {
     let pushCount = 0;
+    const events: string[] = [];
     const { exec, calls } = buildExec({
       [`rev-parse --verify ${REF}`]: { stdout: "localhash", stderr: "" },
       [`ls-remote origin ${REF}`]: { stdout: `remotehash\t${REF}`, stderr: "" },
       [`push origin ${REF}`]: () => {
+        events.push(`push:${pushCount + 1}`);
         pushCount += 1;
         if (pushCount === 1) return nonFastForward();
         return { stdout: "", stderr: "" };
       },
-      [`fetch --refmap= origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
-      [`notes --ref ${SHORT_REF} merge -s cat_sort_uniq ${TEMP}`]: { stdout: "", stderr: "" },
-      [`notes --ref ${SHORT_REF} list`]: { stdout: `noteobj ${NOTE_COMMIT}`, stderr: "" },
+      [`fetch --refmap= origin +${REF}:${TEMP}`]: () => {
+        events.push("fetch");
+        return { stdout: "", stderr: "" };
+      },
+      [`notes --ref ${SHORT_REF} merge -s cat_sort_uniq ${TEMP}`]: () => {
+        events.push("merge");
+        return { stdout: "", stderr: "" };
+      },
+      [`notes --ref ${SHORT_REF} list`]: () => {
+        events.push("scan");
+        return { stdout: `noteobj ${NOTE_COMMIT}`, stderr: "" };
+      },
       [`notes --ref ${SHORT_REF} show *`]: { stdout: VALID_NOTE, stderr: "" },
       [`update-ref -d ${TEMP}`]: { stdout: "", stderr: "" },
     });
     const io = buildIo(exec);
+    const lock = buildLock(events);
 
-    const result = await reconcileNotesPush({ io, identity: "andrew", cwd: "/repo" });
+    const result = await reconcileNotesPush({ io, identity: "andrew", cwd: "/repo", lock });
 
     expect(result.kind).toBe("reconciled");
+    expect(events).toEqual([
+      "push:1",
+      "lock:acquire",
+      "fetch",
+      "merge",
+      "scan",
+      "lock:release",
+      "push:2",
+    ]);
 
     // The lossless cat_sort_uniq notes merge fired against the fetched temp ref.
     expect(
@@ -142,7 +177,12 @@ describe("reconcileNotesPush", () => {
     });
     const io = buildIo(exec);
 
-    const result = await reconcileNotesPush({ io, identity: "andrew", cwd: "/repo" });
+    const result = await reconcileNotesPush({
+      io,
+      identity: "andrew",
+      cwd: "/repo",
+      lock: buildLock(),
+    });
 
     expect(result.kind).toBe("conflict");
     if (result.kind === "conflict") {
@@ -185,8 +225,13 @@ describe("reconcileNotesPush", () => {
   it("same-commit collision yields an unparseable merged note → conflict, no re-push, ref rolled back", async () => {
     const noteA = JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "from-a" } });
     const noteB = JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "from-b" } });
+    let revParseCount = 0;
     const { exec, calls } = buildExec({
-      [`rev-parse --verify ${REF}`]: { stdout: "premerge-tip", stderr: "" },
+      [`rev-parse --verify ${REF}`]: () => {
+        revParseCount += 1;
+        if (revParseCount === 1) return { stdout: "local-tip", stderr: "" };
+        return { stdout: revParseCount === 2 ? "premerge-tip" : "postmerge-tip", stderr: "" };
+      },
       [`ls-remote origin ${REF}`]: { stdout: `remotehash\t${REF}`, stderr: "" },
       [`push origin ${REF}`]: () => nonFastForward(),
       [`fetch --refmap= origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
@@ -194,20 +239,67 @@ describe("reconcileNotesPush", () => {
       [`notes --ref ${SHORT_REF} list`]: { stdout: `noteobj ${NOTE_COMMIT}`, stderr: "" },
       // cat_sort_uniq concatenated two manifests for the same commit → invalid JSON.
       [`notes --ref ${SHORT_REF} show *`]: { stdout: `${noteA}\n${noteB}`, stderr: "" },
-      [`update-ref ${REF} premerge-tip`]: { stdout: "", stderr: "" },
+      [`update-ref ${REF} premerge-tip postmerge-tip`]: { stdout: "", stderr: "" },
       [`update-ref -d ${TEMP}`]: { stdout: "", stderr: "" },
     });
     const io = buildIo(exec);
 
-    const result = await reconcileNotesPush({ io, identity: "andrew", cwd: "/repo" });
+    const result = await reconcileNotesPush({
+      io,
+      identity: "andrew",
+      cwd: "/repo",
+      lock: buildLock(),
+    });
 
     expect(result.kind).toBe("conflict");
     // The corrupt merge was never pushed — only the initial rejected push fired.
     expect(calls.filter((args) => args[0] === "push")).toHaveLength(1);
     // Local ref rolled back to its pre-merge tip; nothing corrupt persisted.
     expect(
-      calls.some((args) => args[0] === "update-ref" && args[1] === REF && args[2] === "premerge-tip"),
+      calls.some((args) =>
+        args[0] === "update-ref"
+        && args[1] === REF
+        && args[2] === "premerge-tip"
+        && args[3] === "postmerge-tip",
+      ),
     ).toBe(true);
+  });
+
+  it("CAS-declined corrupt rollback reports conflict and does not re-push", async () => {
+    const noteA = JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "from-a" } });
+    const noteB = JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "from-b" } });
+    let revParseCount = 0;
+    const { exec, calls } = buildExec({
+      [`rev-parse --verify ${REF}`]: () => {
+        revParseCount += 1;
+        if (revParseCount === 1) return { stdout: "local-tip", stderr: "" };
+        return { stdout: revParseCount === 2 ? "premerge-tip" : "postmerge-tip", stderr: "" };
+      },
+      [`ls-remote origin ${REF}`]: { stdout: `remotehash\t${REF}`, stderr: "" },
+      [`push origin ${REF}`]: () => nonFastForward(),
+      [`fetch --refmap= origin +${REF}:${TEMP}`]: { stdout: "", stderr: "" },
+      [`notes --ref ${SHORT_REF} merge -s cat_sort_uniq ${TEMP}`]: { stdout: "", stderr: "" },
+      [`notes --ref ${SHORT_REF} list`]: { stdout: `noteobj ${NOTE_COMMIT}`, stderr: "" },
+      [`notes --ref ${SHORT_REF} show *`]: { stdout: `${noteA}\n${noteB}`, stderr: "" },
+      [`update-ref ${REF} premerge-tip postmerge-tip`]: () => {
+        throw new Error("fatal: cannot lock ref: is at newer-tip but expected postmerge-tip");
+      },
+      [`update-ref -d ${TEMP}`]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await reconcileNotesPush({
+      io,
+      identity: "andrew",
+      cwd: "/repo",
+      lock: buildLock(),
+    });
+
+    expect(result.kind).toBe("conflict");
+    if (result.kind === "conflict") {
+      expect(result.message).toContain("rollback could not be applied safely");
+    }
+    expect(calls.filter((args) => args[0] === "push")).toHaveLength(1);
   });
 
   it("notes-merge command failure → conflict, merge aborted", async () => {
@@ -224,7 +316,12 @@ describe("reconcileNotesPush", () => {
     });
     const io = buildIo(exec);
 
-    const result = await reconcileNotesPush({ io, identity: "andrew", cwd: "/repo" });
+    const result = await reconcileNotesPush({
+      io,
+      identity: "andrew",
+      cwd: "/repo",
+      lock: buildLock(),
+    });
 
     expect(result.kind).toBe("conflict");
     expect(calls.some((args) => args[0] === "notes" && args.includes("--abort"))).toBe(true);

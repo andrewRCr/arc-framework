@@ -31,6 +31,7 @@ import {
   runWithSpinner, isHandledError, isNonInteractiveEnvironment,
   requireArcProjectRoot, resolveUserIdentity, isRemoteError,
   resolveCurrentBranchName, ARC_PROJECT_ROOT_ERROR,
+  isUserFetchOutcome, isUserFetchSuccess, reportUserFetchOutcome,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy. */
@@ -469,40 +470,17 @@ export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
   }
   const io = createUserIOContext();
 
-  // Force-fetch when a local note exists for this identity so the remote ref
-  // overwrites it. Working files are untouched — pull is the operation that
-  // restores files and prompts before overwriting.
-  const hasLocal = await hasLocalNotes(io, identity);
-  try {
-    await runWithSpinner(
-      output,
-      "Fetching user notes...",
-      () => runUserFetch({ io, identity, force: hasLocal }),
-      "Fetch complete.",
-    );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+  const spinner = output.spinner();
+  spinner.start("Fetching user notes...");
 
-    // Detect missing remote
-    if (isRemoteError(msg)) {
-      p.log.error("No remote configured. Fetch requires a remote repository.");
-      p.log.info("Set up a remote with: git remote add origin <url>");
-      process.exitCode = 1;
-      return;
-    }
-
-    // Detect remote ref not found (no notes on remote for this identity)
-    if (msg.includes("couldn't find remote ref")) {
-      p.log.warn(`No notes found on remote for identity "${identity}".`);
-      p.log.info("The identity may not have pushed notes, or the name may be incorrect.");
-      process.exitCode = 1;
-      return;
-    }
-
-    if (isHandledError(err)) return;
-    throw err;
+  const result = await runUserFetch({ io, identity });
+  if (!isUserFetchSuccess(result)) {
+    spinner.stop(result.kind === "remote-unavailable" ? "Fetch failed." : "Fetch skipped.");
+    reportUserFetchOutcome(result, identity, "fetch");
+    return;
   }
 
+  spinner.stop("Fetch complete.");
   p.outro("Done.");
 }
 
@@ -558,32 +536,21 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
       cwd,
       io,
       identity,
-      force: hasLocal,
       currentWuName,
     });
   } catch (err) {
     spinner.stop("Pull failed.");
-    const msg = err instanceof Error ? err.message : String(err);
-
-    if (isRemoteError(msg)) {
-      p.log.error("No remote configured. Pull requires a remote repository.");
-      p.log.info("Set up a remote with: git remote add origin <url>");
-      process.exitCode = 1;
-      return;
-    }
-
-    if (msg.includes("couldn't find remote ref")) {
-      p.log.warn(`No notes found on remote for identity "${identity}".`);
-      p.log.info("The identity may not have pushed notes, or the name may be incorrect.");
-      process.exitCode = 1;
-      return;
-    }
-
     if (err instanceof UserFacingError) {
       p.log.error(formatError(err));
       return;
     }
     throw err;
+  }
+
+  if (isUserFetchOutcome(result)) {
+    spinner.stop(result.kind === "remote-unavailable" ? "Pull failed." : "Pull skipped.");
+    reportUserFetchOutcome(result, identity, "pull");
+    return;
   }
 
   if (!result) {
