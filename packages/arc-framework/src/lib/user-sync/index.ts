@@ -53,6 +53,15 @@ export {
 export { projectManifest } from "./projection.js";
 
 export {
+  getMaterializedBaselineStampPath,
+  readMaterializedBaselineStamp,
+  writeMaterializedBaselineStamp,
+  type MaterializedBaselineEntry,
+  type MaterializedBaselineFile,
+  type MaterializedBaselineStamp,
+} from "./materialized-baseline.js";
+
+export {
   ARC_PER_WU_FILENAMES,
   planRetiredSubdirReconcile,
   stashedFilesInSubdir,

@@ -12,14 +12,17 @@ import { hostname, tmpdir } from "node:os";
 
 import {
   findNearestUserNote,
+  hashSyncManifest,
   runUserLoad,
   runUserSave,
 } from "../../src/commands/user/save-load.js";
 import {
   clearPartialPushMarker,
+  getMaterializedBaselineStampPath,
   getNotesLockPath,
   getOrCreateMachineId,
   NO_COMPARABLE_SOURCE_COMMIT,
+  readMaterializedBaselineStamp,
   readLocalSyncState,
   recordPartialPushMarker,
   writeLocalSyncState,
@@ -32,6 +35,20 @@ import type { UserIOContext } from "../../src/commands/user/types.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
 
 const SYNC_STATE_RELATIVE = ".arc/user/andrew/.internal/.sync-state.json";
+
+function workingMemoryEntry(title: string): string {
+  return `# Working Memory
+
+## Memories
+
+**${title}:**
+_Remove when: done._
+
+Keep this note.
+
+---
+`;
+}
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -172,13 +189,17 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
 
 interface SaveMockConfig {
   head?: string;
+  gitCommonDir?: string;
   files?: Record<string, string>;
+  notesRefTip?: string;
   writeNoteRejects?: boolean;
   readback?: string | null;
 }
 
 function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
   const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const gitCommonDir = config.gitCommonDir ?? ".git";
+  const notesRefTip = config.notesRefTip ?? "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
   const files = config.files ?? { "WORKING-MEMORY.md": "# Notes" };
   let writtenNote: string | null = null;
 
@@ -187,8 +208,11 @@ function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
       if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
         return { stdout: head, stderr: "" };
       }
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--verify") {
+        return { stdout: `${notesRefTip}\n`, stderr: "" };
+      }
       if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
-        return { stdout: ".git\n", stderr: "" };
+        return { stdout: `${gitCommonDir}\n`, stderr: "" };
       }
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
@@ -708,6 +732,28 @@ describe("runUserSave — save verification", () => {
     expect(typeof onDisk.savedAt).toBe("string");
   });
 
+  it("writes the materialized-baseline stamp after a verified save", async () => {
+    const notesRefTip = "cccccccccccccccccccccccccccccccccccccccc";
+    const files = { "WORKING-MEMORY.md": workingMemoryEntry("Saved") };
+    const io = mockSaveIO({ files, notesRefTip });
+
+    await runUserSave({ cwd, io, identity: "andrew" });
+
+    const stamp = await readMaterializedBaselineStamp(io.exec, cwd, "andrew");
+    expect(stamp).toMatchObject({
+      version: 1,
+      notesRefTip,
+      manifestHash: hashSyncManifest({ version: 2, files }),
+      files: [{ path: "WORKING-MEMORY.md", contentHash: expect.any(String) }],
+      entries: [{
+        path: "WORKING-MEMORY.md",
+        section: "Memories",
+        key: "**Saved:**",
+        contentHash: expect.any(String),
+      }],
+    });
+  });
+
   it("captures the materialized file list as the prior-file-list basis for drift detection", async () => {
     const io = mockSaveIO();
 
@@ -919,7 +965,9 @@ describe("runUserSave — removal tombstones", () => {
 
 interface LoadMockConfig {
   head?: string;
+  gitCommonDir?: string;
   manifest?: SyncManifest;
+  notesRefTip?: string;
   /**
    * Per-file readback content keyed by manifest filename. `undefined` makes
    * the corresponding `io.readFile` reject (simulates a torn write or missing
@@ -930,6 +978,8 @@ interface LoadMockConfig {
 
 function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
   const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const gitCommonDir = config.gitCommonDir ?? ".git";
+  const notesRefTip = config.notesRefTip ?? "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
   const manifest: SyncManifest = config.manifest ?? {
     version: 2,
     files: { "WORKING-MEMORY.md": "# Notes" },
@@ -943,6 +993,12 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
       if (cmd !== "git") throw new Error(`unexpected exec: ${cmd}`);
       if (args[0] === "rev-parse" && args[1] === "HEAD") {
         return { stdout: head, stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+        return { stdout: `${gitCommonDir}\n`, stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--verify") {
+        return { stdout: `${notesRefTip}\n`, stderr: "" };
       }
       if (args[0] === "notes" && args[2] === "list") {
         return { stdout: `${"0".repeat(40)} ${head}`, stderr: "" };
@@ -1059,6 +1115,69 @@ describe("runUserLoad — load verification", () => {
     });
     expect(typeof onDisk.savedAt).toBe("string");
   });
+
+  it("writes the materialized-baseline stamp after a verified load", async () => {
+    const notesRefTip = "dddddddddddddddddddddddddddddddddddddddd";
+    const manifest: SyncManifest = {
+      version: 2,
+      files: { "WORKING-MEMORY.md": workingMemoryEntry("Loaded") },
+    };
+    const io = mockLoadIO({ manifest, notesRefTip });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew" });
+
+    expect(result?.kind).toBe("loaded");
+    const stamp = await readMaterializedBaselineStamp(io.exec, cwd, "andrew");
+    expect(stamp).toMatchObject({
+      version: 1,
+      notesRefTip,
+      manifestHash: hashSyncManifest(manifest),
+      files: [{ path: "WORKING-MEMORY.md", contentHash: expect.any(String) }],
+      entries: [{
+        path: "WORKING-MEMORY.md",
+        section: "Memories",
+        key: "**Loaded:**",
+        contentHash: expect.any(String),
+      }],
+    });
+  });
+
+  it("lets a sibling worktree load advance the repo-shared stamp", async () => {
+    const commonDir = join(cwd, "common.git");
+    const primary = join(cwd, "primary");
+    const sibling = join(cwd, "sibling");
+    const primaryManifest: SyncManifest = {
+      version: 2,
+      files: { "WORKING-MEMORY.md": workingMemoryEntry("Primary") },
+    };
+    const siblingManifest: SyncManifest = {
+      version: 2,
+      files: { "WORKING-MEMORY.md": workingMemoryEntry("Sibling") },
+    };
+    const primaryIO = mockLoadIO({
+      gitCommonDir: commonDir,
+      manifest: primaryManifest,
+      notesRefTip: "1111111111111111111111111111111111111111",
+    });
+    const siblingIO = mockLoadIO({
+      gitCommonDir: commonDir,
+      manifest: siblingManifest,
+      notesRefTip: "2222222222222222222222222222222222222222",
+    });
+
+    await runUserLoad({ cwd: primary, io: primaryIO, identity: "andrew" });
+    const primaryStampPath = await getMaterializedBaselineStampPath(primaryIO.exec, primary, "andrew");
+    await runUserLoad({ cwd: sibling, io: siblingIO, identity: "andrew" });
+    const siblingStampPath = await getMaterializedBaselineStampPath(siblingIO.exec, sibling, "andrew");
+
+    expect(siblingStampPath).toBe(primaryStampPath);
+    const stamp = await readMaterializedBaselineStamp(primaryIO.exec, primary, "andrew");
+    expect(stamp).toMatchObject({
+      notesRefTip: "2222222222222222222222222222222222222222",
+      manifestHash: hashSyncManifest(siblingManifest),
+      entries: [expect.objectContaining({ key: "**Sibling:**" })],
+    });
+  });
 });
 
 describe("runUserLoad — per-WU subdir materialization filtering", () => {
@@ -1093,6 +1212,8 @@ describe("runUserLoad — per-WU subdir materialization filtering", () => {
       exec: vi.fn(async (cmd: string, args: string[]) => {
         if (cmd !== "git") throw new Error(`unexpected exec: ${cmd}`);
         if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") return { stdout: ".git\n", stderr: "" };
+        if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: "e".repeat(40), stderr: "" };
         if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
           return { stdout: branch, stderr: "" };
         }

@@ -27,6 +27,7 @@ import {
   NO_COMPARABLE_SOURCE_COMMIT,
   planRetiredSubdirReconcile,
   projectManifest,
+  writeMaterializedBaselineStamp,
   resolveCurrentWuName,
   stashedFilesInSubdir,
   subdirsFromPaths,
@@ -132,10 +133,19 @@ export async function runUserSave(
 
     const json = JSON.stringify(result.manifest);
     await io.writeNote(notesRef(identity), json, commit);
+    await verifySavedNote(io, identity, commit, result.manifest);
+    const projectedSave = projectManifest(result.manifest);
+    await writeMaterializedBaselineStamp({
+      exec: io.exec,
+      cwd,
+      identity,
+      manifest: projectedSave,
+      manifestHash: hashSyncManifest(projectedSave),
+      notesRefTip: await readNotesRefTip(io, identity),
+    });
   } finally {
     await releaseAdvisoryLock(lock);
   }
-  await verifySavedNote(io, identity, commit, result.manifest);
   const projectedSave = projectManifest(result.manifest);
   await writeLocalSyncState(
     cwd, io, identity, hashSyncManifest(projectedSave), commit, "save", commit,
@@ -259,6 +269,19 @@ export async function runUserLoad(
     resolver,
   }, snapshot.sourceCommit, loadManifest);
   const projectedLoad = projectManifest(loadManifest);
+  const stampLock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
+  try {
+    await writeMaterializedBaselineStamp({
+      exec: io.exec,
+      cwd,
+      identity,
+      manifest: projectedLoad,
+      manifestHash: hashSyncManifest(projectedLoad),
+      notesRefTip: await readNotesRefTip(io, identity),
+    });
+  } finally {
+    await releaseAdvisoryLock(stampLock);
+  }
   await writeLocalSyncState(
     cwd, io, identity, hashSyncManifest(projectedLoad), snapshot.sourceCommit, "load", snapshot.sourceCommit,
     Object.keys(projectedLoad.files),
@@ -646,6 +669,18 @@ async function formatLoadSourceCommit(
 ): Promise<string> {
   if (commit === NO_COMPARABLE_SOURCE_COMMIT) return commit;
   return shortHash(io.exec, commit);
+}
+
+async function readNotesRefTip(
+  io: UserIOContext,
+  identity: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await io.exec("git", ["rev-parse", "--verify", `refs/notes/${notesRef(identity)}`]);
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 async function verifySavedNote(

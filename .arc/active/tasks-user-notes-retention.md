@@ -132,16 +132,10 @@ C11); tasks below implement, not re-decide.
 - _Goal:_ Tombstone synthesis diffs disk only against the entry set disk actually materialized — an entry
   merged into the ref but never written to disk can never read as a deletion.
 
-    - `[ ]` **3.1.a Stamp record and writers**
-        - Define the stamp — a schema-versioned record: materialized entry list + manifest hash, tip
-          alongside for cheap comparison — in the machine's repo-shared user-internal store
-          (`getRepoSharedUserInternalDir`, `lib/user-sync/repo-shared-paths.ts` — beside the notes lock
-          that covers it); every load and save writes it under that lock. The load path acquires the lock
-          for its stamp write here; 3.2 widens coverage to the full materialization span.
-        - Build `test-first` (one behavior at a time):
-            - a load writes the stamp matching what it materialized
-            - a save updates the stamp to the saved entry set
-            - a sibling worktree's load advances the shared stamp (identity-global, not per-worktree)
+    - `[x]` **3.1.a Stamp record and writers**
+        - Added the repo-shared materialized-baseline stamp with projected manifest hash, notes-ref tip,
+          materialized file hashes, and parsed cross-WU entry identities. Verified save/load write it under
+          the notes lock, and a sibling-style load advances the same git-common-dir stamp.
 
     - `[ ]` **3.1.b Rewire tombstone synthesis**
         - `applyRemovalTombstones` (`save-load.ts:530`) diffs against the stamp's recorded entry set instead
