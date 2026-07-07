@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "notes-export-local-ref-ff",
+  "origin": "description",
+  "intent": "After a successful branch-bounded notes push, fast-forward the local canonical notes ref to the pushed tip (CAS-guarded) when no notes were omitted — the reconcile the rewrite path drops, which otherwise leaves local behind and self-perpetuates remote notes-history bloat + false diverged",
+  "branch": "fix/notes-export-local-ref-ff",
+  "createdAt": "2026-07-07T02:32:20.364Z"
+}
