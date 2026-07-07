@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "harness-dirs-case-guard",
-  "origin": "inbox",
-  "intent": "Match reserved harness-dir names case-insensitively",
-  "branch": "fix/harness-dirs-case-guard",
-  "createdAt": "2026-07-07T13:35:08.444Z",
-  "originEntry": "Normalize case in the `worktree.harness_dirs` reserved-name guard"
-}
