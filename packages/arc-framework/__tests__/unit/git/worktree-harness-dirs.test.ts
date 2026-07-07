@@ -33,4 +33,10 @@ describe("parseRegisteredHarnessDirs", () => {
     expect(() => parseRegisteredHarnessDirs(".arc")).toThrow(/reserved directory/);
     expect(() => parseRegisteredHarnessDirs(".claude,.git")).toThrow(/reserved directory/);
   });
+
+  it("rejects reserved directories case-insensitively (case-insensitive filesystems)", () => {
+    for (const variant of [".Git", ".GIT", ".Arc", ".ARC"]) {
+      expect(() => parseRegisteredHarnessDirs(variant)).toThrow(/reserved directory/);
+    }
+  });
 });
