@@ -13,6 +13,21 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Harden e2e temp-repo teardown against the `rmdir` ENOTEMPTY race**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: cli-test-hardening`), housekeep drain (2026-07-07); captured
+  during integration of the unrelated errand `fix/notes-missing-message-scope`, 2026-07-06.
+- _Concern:_ `__tests__/e2e/plan.e2e.test.ts > arc plan check > proceeds as JSON on the base branch under partial
+  protection` failed on CI (PR #202, run 28808727826, ubuntu) with `Error: ENOTEMPTY: directory not empty, rmdir
+  '/tmp/arc-e2e-DCOvEu/.git/info'`. Passed clean on rerun and locally — a temp git-fixture teardown race (rmdir of a
+  non-empty `.git/info` during afterEach), not a behavior failure. **Recurrence (2026-07-07):** hit again on PR #206
+  (run 28838080399, ubuntu) — same race in `__tests__/e2e/session-init.e2e.test.ts` (a **different** e2e file),
+  confirming it's the shared temp-repo teardown, not a per-test issue. Has now flaked two unrelated PRs' merges.
+- _Approach:_ Harden the shared e2e temp-repo teardown — recursive/force removal, or a handle-drain /
+  removal-ordering fix — rather than product behavior. Distinct from the two flakes already in this WU's buffer
+  (shallow-clone git-notes timeout; save/sync notes-push concurrency race): this is a filesystem cleanup race in the
+  fixture teardown itself.
+
 ### `[ ]` **De-flake the shallow-clone git-notes integration test (under-budgeted 5000ms timeout)**
 
 - _Routed from:_ `USER-INBOX`, 2026-06-09.

@@ -27,6 +27,24 @@ the cohort layers model — see `cohort-agent-context-optimization.md`.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Guard the universal loadset as non-negotiable across all `arc-session` invocation framings**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD` — homed here at drain over `composable-workflows`; it is
+  session-init instruction hardening, an instruction bar-raise), housekeep drain (2026-07-07); captured during a
+  Codex compaction-recovery investigation session, 2026-07-04.
+- *Concern:* session-init already mandates the universal loadset on every arm, yet an ad-hoc free-text problem
+  description passed to `/arc-session` — not a canonical `--signal`, not a backlog-WU seed — led the agent to run the
+  Step 1 probe and then skip Step 3's universal context-load entirely (AGENT-BRIEFs, DEV-RULES.ARC/PROJECT,
+  STRATEGY-INDEX, QUICK-REFERENCE, WORKING-MEMORY), jumping straight into the requested investigation. Not a spec gap
+  — an agent-adherence failure: rationalizing past a mandatory load because a compelling, self-contained-feeling task
+  was provided. Same rationalization shape #190 hardened against for compaction recovery.
+- *Approach:* add an explicit bar-raise in session-init (Step 3, or a precondition) asserting the universal loadset
+  is non-negotiable regardless of invocation framing — canonical signal, positional seed, or ad-hoc free-text — and
+  naming the specific rationalization, mirroring the #190 injection language rather than the current
+  unconditional-but-easily-short-circuited phrasing. Consider whether other early steps warrant the same treatment.
+- *Infra smell:* touches load-bearing `session-init.md` (and possibly the `arc-session` skill doc) — reviewed lane;
+  watch for design hiding (instruction bar-raise vs a structural gate).
+
 ### `[ ]` **arc-modes dissolved → `local-mode`: prune the Lite probe-shape callbacks**
 
 - *Routed from:* `local-mode` re-scope groom (2026-07-03).

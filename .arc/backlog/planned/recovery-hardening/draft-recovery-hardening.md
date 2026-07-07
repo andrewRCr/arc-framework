@@ -9,6 +9,32 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concern pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`).*
+
+### `[ ]` **Reckon with the worktree-local compaction seed (FP 2.6.e)**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-07-07); captured
+  during `finalize-parallelism` Task 2.6.e (worktree-local seed re-bind), 2026-07-05.
+- *Concern:* FP Task 2.6.e re-bound the compaction-recovery seed **worktree-local** (per-session):
+  `resolveCompactionSeedPath` now roots at the active checkout
+  (`cwd/.arc/user/{id}/.internal/compaction-seed.json`), no longer accepts an identity-global root, and resolves
+  symmetrically on emit (`status --write-compaction-seed`) and audit (`recover`). This WU's draft was written before
+  this and shares the same files (`handlers/recover.ts` + the seed producers).
+- *Implications (prerequisite, not conflict):*
+    - The hard forcing-gate is only safe under concurrency *because* the seed is now per-worktree. Pre-2.6.e, a
+      shared identity-global seed let a sibling worktree's compaction clobber this one's, so `recover audit` could
+      gate on another worktree's state. Worktree-locality makes the verdict reflect the current worktree's own seed.
+    - `arm-on-seed-signal` (the leaning provenance approach) is unaffected — it reads the seed-write's per-invocation
+      signal, emitted in the current worktree regardless of path.
+    - The open `SessionStart(compact)` seed-consult alternative: if it resolves the seed *by path* at inject time, it
+      must use the worktree-local (`cwd`) path via `resolveCompactionSeedPath`, not a primary/identity-global one.
+    - git-call bounding (PR #192 follow-up) still lands in `handlers/recover.ts`; the 2.6.e edit there is small (one
+      dropped arg). Base-merge FP first; the substantive change to expect is the seed path relocation +
+      `resolveCompactionSeedPath` signature.
+
 ## Problem / Motivation
 
 ARC's compaction-recovery mechanism emits a seed before compaction and, after it, tells the agent
