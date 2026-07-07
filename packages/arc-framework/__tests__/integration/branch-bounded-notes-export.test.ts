@@ -40,6 +40,19 @@ async function git(cwd: string, args: string[]): Promise<string> {
   return stdout.trim();
 }
 
+/**
+ * Add a user note directly in the bare remote. `addBareRemote` configures no
+ * committer identity, so supply one inline — CI has no global git identity to
+ * fall back on (a bare `git notes add` there fails "committer identity unknown").
+ */
+async function addRemoteNote(remote: string, commit: string, message: string): Promise<void> {
+  await git(remote, [
+    "-c", "user.email=test@test.com",
+    "-c", "user.name=Test User",
+    "notes", `--ref=${NOTES_REF}`, "add", "-m", message, commit,
+  ]);
+}
+
 async function remoteNoteCommits(remote: string): Promise<string[]> {
   try {
     const stdout = await git(remote, ["notes", `--ref=${NOTES_REF}`, "list"]);
@@ -265,7 +278,7 @@ describe("branch-bounded paired notes export", () => {
     // conflict: origin independently notes commitB (which local hasn't noted),
     // so origin's tip is no longer an ancestor of local's. That forces the
     // rewrite path with nothing omitted — the shape that strands the local ref.
-    await git(remote, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "note B", commitB]);
+    await addRemoteNote(remote, commitB, "note B");
     const localBefore = await git(repo, ["rev-parse", NOTES_REF]);
     const remoteBefore = await git(remote, ["rev-parse", NOTES_REF]);
     expect(localBefore).not.toBe(remoteBefore);
@@ -314,7 +327,7 @@ describe("branch-bounded paired notes export", () => {
     await git(repo, ["push", "origin", NOTES_REF]);
 
     // Force the rewrite path (see the fast-forward test for the setup rationale).
-    await git(remote, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "note B", commitB]);
+    await addRemoteNote(remote, commitB, "note B");
 
     const plan = await planBranchBoundedNotesExport({
       exec: makeGitExec(repo),
