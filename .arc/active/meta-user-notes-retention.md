@@ -8,10 +8,10 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-user-notes-retention.md`
+- **Design:** `spec-user-notes-retention.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** draft-design — draft formalization-ready (audit-fed rescope; three design decisions settled)
 - **Next Task:** [none]
 - **Blockers:** [none]
