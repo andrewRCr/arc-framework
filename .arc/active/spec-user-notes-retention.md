@@ -159,8 +159,9 @@ immediately after, and the remote ref gains ~zero commits on a steady-state sync
 
 ### Phase B — invariant sweep
 
-- **B1 — Written concurrency model.** One document (location: the subsystem's own doc surface, e.g. a
-  `packages/arc-framework/src/lib/` module doc or `docs/`-adjacent internal note — resolved at task generation)
+- **B1 — Written concurrency model.** One document
+  (`.arc/reference/strategies/project/strategy-user-notes-concurrency.md` — an internal project strategy,
+  indexed with an operation-anchored consult trigger)
   enumerating every mutator of shared state (ref, identity-global disk, sync-state, markers, temp refs) and its
   assigned discipline. The per-mutator assignment:
     - **Lock-serialized** — the user-save note-write (already held), the **reconcile critical section through
@@ -180,8 +181,9 @@ immediately after, and the remote ref gains ~zero commits on a steady-state sync
       spurious timeouts), protected instead by pinned-tip push (A3) + CAS adopt (A1), accepting stale-plan
       reconcile on the next push.
 - **B2 — Save-path guard (C1): materialized-baseline stamp.** A stamp records the notes-ref state whose content
-  disk last materialized. The stamp's home is the **identity-global store itself** (co-located with the shared
-  disk it describes, lock-covered, updated by *any* worktree's load or save) — not per-worktree sync-state, which
+  disk last materialized. The stamp's home is the **machine's repo-shared user-internal store** (the
+  git-common-dir `.internal/` beside the notes lock that covers it — one stamp per machine describing the shared
+  disk, updated by *any* worktree's load or save) — not per-worktree sync-state, which
   would recreate the C11 scope conflation: a sibling's load would advance shared disk past a stale per-worktree
   baseline, silently breaking deletion propagation. The stamp records the materialized **entry set** (the
   manifest entry list + hash as materialized), not a bare tip: tombstone synthesis diffs disk only against that
@@ -367,4 +369,5 @@ sharp axis is per-identity accumulation (long-lived heavy user × parallelism).
 
 None blocking. The Phase C parameter defaults (prune age gate, backup retention, advisory threshold) are stated
 above as internal constants; tuning them against live behavior is ordinary implementation latitude, not open
-design. B1's concurrency-model doc location resolves at task generation.
+design. B1's concurrency-model doc location is settled — `strategy-user-notes-concurrency.md` under the project
+strategies.
