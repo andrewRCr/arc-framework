@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "markdownlint-lsp-parseable",
+  "origin": "inbox",
+  "intent": "Make .markdownlint-cli2.jsonc strict-JSON so markdownlint-lsp parses it",
+  "branch": "chore/markdownlint-lsp-parseable",
+  "createdAt": "2026-07-07T13:21:50.570Z",
+  "originEntry": "Make `.markdownlint-cli2.jsonc` parseable by the markdownlint LSP"
+}
