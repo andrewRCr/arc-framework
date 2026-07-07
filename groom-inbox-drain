@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "groom-inbox-drain",
-  "origin": "description",
-  "intent": "housekeep: drain USER-INBOX to authoritative homes",
-  "branch": "chore/groom-inbox-drain",
-  "createdAt": "2026-07-07T12:58:54.630Z"
-}
