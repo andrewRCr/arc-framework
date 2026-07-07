@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** [none]
+- **Last Completed:** draft-design — draft formalization-ready (audit-fed rescope; three design decisions settled)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
