@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "teardown-remote-branch-delete",
+  "origin": "inbox",
+  "intent": "Delete the live remote WU branch during post-merge teardown after merged-safe preservation is proven",
+  "branch": "fix/teardown-remote-branch-delete",
+  "createdAt": "2026-07-08T15:52:28.037Z",
+  "originEntry": "Delete live remote WU branches during post-merge teardown"
+}
