@@ -11,7 +11,7 @@ Independently shippable; closes with the live convergence check that is the phas
 
 _Design decisions:_ All four fixes land in the export/reconcile pair (`lib/user-sync/branch-bounded-notes-export.ts`,
 `commands/user/push-fetch.ts`) without restructuring them — `user-sync-module-split` owns the decomposition
-cut-map (see `notes-user-notes-retention.md` § Scope & sequencing).
+cut-map.
 
 ### `[x]` **1.1 Adopt-if-superset push reconciliation**
 
@@ -227,7 +227,7 @@ C11); tasks below implement, not re-decide.
 
 _Purpose:_ Compact accumulated history to a snapshot baseline and prune under the stated retention policy,
 safely against lagging siblings (spec Phase C) — leaning on Phase 1's adopt primitive and Phase 2/3
-invariants. Severable as its own ship if Large proves heavy (`notes-user-notes-retention.md`).
+invariants.
 
 _Design decisions:_ Correctness rides the in-band cumulative prune manifest, never the marker seam or team
 coordination; retention parameters are internal constants, not config keys. Never union-merge across a
