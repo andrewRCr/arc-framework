@@ -108,6 +108,12 @@ async function shipFeature(
      * carries the merge but the local base has not yet pulled it.
      */
     staleLocalBase?: boolean;
+    /**
+     * Leave the feature branch's live head on the bare origin — the plain-merge
+     * state on a host without delete-on-merge, where the remote branch lingers
+     * for teardown to clean.
+     */
+    keepRemoteBranch?: boolean;
   },
 ): Promise<void> {
   const { cloneA, origin } = h;
@@ -147,8 +153,11 @@ async function shipFeature(
   }
 
   // Simulate delete-on-merge from the remote side: the bare origin loses the branch
-  // while clone A keeps its (now stale) remote-tracking ref until prune.
-  await git(origin, ["update-ref", "-d", `refs/heads/${branch}`]);
+  // while clone A keeps its (now stale) remote-tracking ref until prune. With
+  // `keepRemoteBranch`, the live head stays instead — the plain-merge state.
+  if (opts?.keepRemoteBranch !== true) {
+    await git(origin, ["update-ref", "-d", `refs/heads/${branch}`]);
+  }
   if (opts?.pruneLocalRef === true) {
     // The post-`git pull`/prune state: clone A's tracking ref is gone too, so the
     // upstream containment check can no longer prove preservation.
@@ -204,6 +213,10 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
         if (result.status !== "torn-down") return;
         expect(result.branch).toBe("feat/demo");
         expect(result.branchDeleted).toBe(true);
+        // The platform already deleted the remote head (delete-on-merge), so the
+        // remote leg is the idempotent no-op — no deletion claimed, no notice.
+        expect(result.remoteBranchDeleted).toBe(false);
+        expect(result.notices.some((n) => /remote branch/i.test(n))).toBe(false);
         // No lingering local branch, and the stale tracking ref is pruned.
         expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
         const remotes = await git(h.cloneA, ["for-each-ref", "--format=%(refname)", "refs/remotes/origin"]);
@@ -213,6 +226,70 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
       }
     });
   }
+
+  it("deletes the live remote head on a plain merge where origin still has the branch", async () => {
+    const h = await setupMultiClone();
+    try {
+      // The plain-merge state on a host without delete-on-merge: the PR merged,
+      // but `refs/heads/feat/demo` is still live on origin.
+      await shipFeature(h, "demo", "merge-commit", { keepRemoteBranch: true });
+      await writeShippedMeta(h.cloneA, "demo");
+      expect(await git(h.origin, ["show-ref", "--verify", "refs/heads/feat/demo"])).toContain("feat/demo");
+
+      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+
+      expect(result.status).toBe("torn-down");
+      if (result.status !== "torn-down") return;
+      expect(result.branchDeleted).toBe(true);
+      expect(result.remoteBranchDeleted).toBe(true);
+      // Gone everywhere: local branch, the live remote head, and the tracking ref.
+      expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
+      await expect(
+        git(h.origin, ["show-ref", "--verify", "--quiet", "refs/heads/feat/demo"]),
+      ).rejects.toThrow();
+      const remotes = await git(h.cloneA, ["for-each-ref", "--format=%(refname)", "refs/remotes/origin"]);
+      expect(remotes).not.toContain("feat/demo");
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  it("leaves the live remote head when it is the sole proven preservation (multi-commit squash)", async () => {
+    const h = await setupMultiClone();
+    try {
+      // Two commits squashed into one: the members' patch-ids cannot match the
+      // squash commit, so landed-in-base is unprovable — only upstream containment
+      // proves preservation, and the remote head is where the work is kept.
+      const branch = "feat/demo";
+      await git(h.cloneA, ["checkout", "main"]);
+      await git(h.cloneA, ["checkout", "-b", branch]);
+      await writeFile(join(h.cloneA, "demo-1.txt"), "first\n");
+      await git(h.cloneA, ["add", "demo-1.txt"]);
+      await git(h.cloneA, ["commit", "-m", "feat: demo part 1"]);
+      await writeFile(join(h.cloneA, "demo-2.txt"), "second\n");
+      await git(h.cloneA, ["add", "demo-2.txt"]);
+      await git(h.cloneA, ["commit", "-m", "feat: demo part 2"]);
+      await git(h.cloneA, ["push", "-u", "origin", branch]);
+      await git(h.cloneA, ["checkout", "main"]);
+      await git(h.cloneA, ["merge", "--squash", branch]);
+      await git(h.cloneA, ["commit", "-m", "squash: demo"]);
+      await git(h.cloneA, ["push", "origin", "main"]);
+      await writeShippedMeta(h.cloneA, "demo");
+
+      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+
+      expect(result.status).toBe("torn-down");
+      if (result.status !== "torn-down") return;
+      // Local reap lands (upstream containment), but the remote head survives.
+      expect(result.branchDeleted).toBe(true);
+      expect(result.remoteBranchDeleted).toBe(false);
+      expect(result.notices.some((n) => /remote branch.*left intact/i.test(n))).toBe(true);
+      expect(await branchPresent(h.cloneA, branch)).toBe(false);
+      expect(await git(h.origin, ["show-ref", "--verify", `refs/heads/${branch}`])).toContain(branch);
+    } finally {
+      await h.cleanup();
+    }
+  });
 
   it("reaps a branch whose tip is unreachable from base (the squash/rebase false-negative)", async () => {
     const h = await setupMultiClone();

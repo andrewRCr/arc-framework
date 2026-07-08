@@ -333,9 +333,12 @@ after a partial teardown skips what is already done:
 
 - reaps the merged branch with a **merged-safe** delete, containment-checked against the upstream — so squash and
   rebase ships are handled where a reachability-from-base delete would refuse, and never a force delete;
+- deletes the live remote head too when the branch has provably landed in the base (a plain merge leaves it to
+  linger; a host's delete-on-merge already removed it — the idempotent no-op). When only the upstream copy proves
+  preservation, the remote head is left intact and surfaced;
 - removes the WU's worktree when one is distinct from the primary (the in-place arm has none to remove),
   clean-checked and never `--force`;
-- prunes the stale remote-tracking ref the delete-on-merge left behind.
+- prunes the stale remote-tracking ref a deleted remote branch left behind.
 
 A dirty worktree is refused (no `--force` escape): surface the state and resolve it before re-running. When the
 teardown removed the linked worktree the session occupied, the agent's prior cwd no longer exists — **the session
