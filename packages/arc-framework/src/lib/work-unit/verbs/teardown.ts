@@ -3,10 +3,11 @@
  * unit, in two modes (see {@link TeardownMode}).
  *
  * The deterministic cleanup hand-run today in the integration tail: reap the
- * branch, remove the worktree (worktree-kind dispatched, presence-guarded), and
+ * branch (locally, and the live remote head once the landed-in-base proof
+ * holds), remove the worktree (worktree-kind dispatched, presence-guarded), and
  * prune the stale remote-tracking ref. It composes the shared legs — a
- * `reconcile-branch` delete, the `reconcile-worktree` teardown, and the
- * `fetch-prune` leg — never re-implementing their mechanics.
+ * `reconcile-branch` delete, the remote-head delete, the `reconcile-worktree`
+ * teardown, and the `fetch-prune` leg — never re-implementing their mechanics.
  *
  * Teardown is **not** a lifecycle transition: the branch and worktree are
  * *projections*, not lifecycle state, so it does not run through the transition
@@ -45,6 +46,7 @@
  * @module
  */
 
+import { isLandedInBase } from "../../git/branch-containment.js";
 import type { GitExec } from "../../git/exec.js";
 import { refreshBase } from "../../git/refresh-base.js";
 import {
@@ -55,7 +57,7 @@ import { branchToWorkUnitSlug } from "../completed-index.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lifecycle-index.js";
 import { isShipped } from "../lifecycle-resolver.js";
 import { fetchPrune } from "../mutators/fetch-prune.js";
-import { reconcileBranch } from "../mutators/reconcile-branch.js";
+import { deleteRemoteBranch, reconcileBranch } from "../mutators/reconcile-branch.js";
 import {
   nodeReconcileWorktreeFs,
   reconcileWorktree,
@@ -80,7 +82,10 @@ export interface TeardownContext {
  *
  * - `shipped` (default) — a `completed/` WU whose branch is merged. Gate:
  *   `completed/` presence ({@link isShipped}). Branch delete: the merged-safe,
- *   containment-gated, local-only `delete-merged` — git-containment is the safety.
+ *   containment-gated `delete-merged` — git-containment is the safety — plus a
+ *   best-effort live-remote-head delete once the landed-in-base proof holds (a
+ *   plain merge leaves the head to linger; delete-on-merge hosts already
+ *   removed it, the idempotent no-op).
  * - `abandoned` — a *retired* / *parked* origin (decompose's removed origin, a
  *   `park@Planning` shelf) whose branch is **unmerged by construction**. Gate: the
  *   inverse — anything *not* shipped (a `completed/` WU must use the merged-safe
@@ -125,6 +130,13 @@ export type TeardownResult =
       branch: string | null;
       /** Whether the merged-safe delete removed the branch (false when the push-state gate refused it). */
       branchDeleted: boolean;
+      /**
+       * Whether the live remote head was deleted too — the shipped-mode leg gated
+       * on the landed-in-base proof. False when the head was already gone
+       * (delete-on-merge), was left as the sole proven preservation, or the
+       * abandoned force path handled the remote inside its own delete leg.
+       */
+      remoteBranchDeleted: boolean;
       /** The removed worktree path, or `null` for the in-place / already-absent arm. */
       worktreeRemoved: string | null;
       /** Whether the prune leg ran cleanly. */
@@ -245,8 +257,9 @@ async function teardownBranchProjection(
     }
   }
 
-  // Branch delete — mode-keyed. `shipped`: the merged-safe, containment-gated,
-  // local-only delete; a refusal (branch ahead of / no upstream) leaves the branch
+  // Branch delete — mode-keyed. `shipped`: the merged-safe, containment-gated
+  // local delete, then the landed-proof-gated remote-head delete; a refusal
+  // (branch ahead of / no upstream) leaves the branch
   // intact, surfaced rather than dropping work. `abandoned`: a caller-authorized
   // force delete (local + remote) — the retired origin's branch is unmerged by
   // construction, so containment would always refuse; the caller's conservation
@@ -254,14 +267,40 @@ async function teardownBranchProjection(
   // cleanup failure degrades to a notice (best-effort, like the prune leg) rather
   // than discarding the completed work.
   let branchDeleted = false;
+  let remoteBranchDeleted = false;
   if (branch !== null) {
     if (mode === "shipped") {
+      // The landed-in-base proof gates the remote-head delete below. The reap
+      // oracle accepts *either* preservation leg, and when only upstream
+      // containment holds (e.g. a multi-commit squash, whose patch identity
+      // cannot match), the remote head IS the preservation — deleting it would
+      // discard the work. Computed before the local delete consumes the ref.
+      const landedInBase = await isLandedInBase(exec, branch, baseRef);
       await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base: baseRef, remote });
       branchDeleted = !(await branchExists(exec, branch));
       if (!branchDeleted) {
         notices.push(
           `Branch \`${branch}\` is not contained on its upstream or landed in \`${baseRef}\` — left intact ` +
             `(unpushed, unmerged commits would be lost).`,
+        );
+      } else if (landedInBase) {
+        // The work provably lives in base, so a live remote head is hygiene, not
+        // preservation — delete it (the platform's delete-on-merge covers this on
+        // hosts configured for it; a plain merge leaves the head to linger).
+        // Best-effort like the prune leg: an already-gone head is the idempotent
+        // no-op, and other failures degrade to a notice rather than undoing the
+        // completed local teardown.
+        try {
+          remoteBranchDeleted =
+            (await deleteRemoteBranch(exec, remote ?? "origin", branch)) === "deleted";
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
+          notices.push(`Could not delete the remote branch \`${branch}\` (${detail}).`);
+        }
+      } else {
+        notices.push(
+          `Remote branch \`${remote ?? "origin"}/${branch}\` left intact — it is the only proven ` +
+            `preservation (contained on the upstream, not patch-landed in \`${baseRef}\`).`,
         );
       }
     } else {
@@ -298,6 +337,7 @@ async function teardownBranchProjection(
     status: "torn-down",
     branch,
     branchDeleted,
+    remoteBranchDeleted,
     worktreeRemoved,
     pruned,
     notices,

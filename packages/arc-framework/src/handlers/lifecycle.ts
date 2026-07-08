@@ -1017,6 +1017,12 @@ export interface TeardownOptions {
   force?: boolean;
 }
 
+/** Render a torn-down result's branch disposition for the report note. */
+function describeBranchDeletion(result: { branchDeleted: boolean; remoteBranchDeleted: boolean }): string {
+  if (!result.branchDeleted) return "(left intact)";
+  return result.remoteBranchDeleted ? "(deleted locally and on the remote)" : "(deleted)";
+}
+
 /**
  * `arc teardown <name>` — physical cleanup (branch + worktree) of a retired work
  * unit: reap the branch, remove the linked worktree (in-place is a no-op), and
@@ -1088,7 +1094,7 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
     const branchLine =
       result.branch === null
         ? `${branchArg} (already reaped)`
-        : `${result.branch} ${result.branchDeleted ? "(deleted)" : "(left intact)"}`;
+        : `${result.branch} ${describeBranchDeletion(result)}`;
     const lines = [
       `Branch:    ${branchLine}`,
       `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
@@ -1113,7 +1119,7 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
   const branchLine =
     result.branch === null
       ? "(already reaped)"
-      : `${result.branch} ${result.branchDeleted ? "(deleted)" : "(left intact)"}`;
+      : `${result.branch} ${describeBranchDeletion(result)}`;
   const lines = [
     `Work unit: ${wuName}`,
     `Branch:    ${branchLine}`,
