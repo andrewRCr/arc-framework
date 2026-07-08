@@ -342,7 +342,11 @@ function mergeManifestContent(left: string, right: string): string | null {
   }
   for (const [path, content] of Object.entries(rightManifest.files)) {
     const existing = files.get(path);
-    files.set(path, existing === undefined || existing === content ? content : unionLines(existing, content));
+    if (existing === undefined) {
+      files.set(path, content);
+    } else if (existing !== content) {
+      return null;
+    }
   }
 
   return JSON.stringify({
@@ -369,13 +373,6 @@ function parseSyncManifest(content: string): { version: 1 | 2; files: Record<str
     files[path] = value;
   }
   return { version: record.version, files };
-}
-
-function unionLines(left: string, right: string): string {
-  const hadTrailingNewline = left.endsWith("\n") || right.endsWith("\n");
-  const lines = new Set([...left.split("\n"), ...right.split("\n")].filter((line) => line.length > 0));
-  const body = [...lines].sort().join("\n");
-  return hadTrailingNewline && body.length > 0 ? `${body}\n` : body;
 }
 
 async function rollbackLocalSnapshot(

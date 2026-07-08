@@ -300,6 +300,38 @@ describe("runUserFetch — ancestry-guarded updates", () => {
     ]);
   });
 
+  it("mid-fetch local advance still fast-forwards when the new local tip remains behind remote", async () => {
+    let localReads = 0;
+    const { exec, calls } = buildExec({
+      "rev-parse --verify *": ({ 2: ref }) => {
+        if (ref !== NOTES_REF) return { stdout: `${REMOTE_TIP}\n`, stderr: "" };
+        localReads += 1;
+        return {
+          stdout: `${localReads === 1 ? LOCAL_TIP : NEW_LOCAL_TIP}\n`,
+          stderr: "",
+        };
+      },
+      [FETCH_TEMP_NOTES]: { stdout: "", stderr: "" },
+      [`merge-base --is-ancestor ${LOCAL_TIP} ${REMOTE_TIP}`]: { stdout: "", stderr: "" },
+      [`update-ref ${NOTES_REF} ${REMOTE_TIP} ${LOCAL_TIP}`]: () => {
+        throw new Error(`cannot lock ref '${NOTES_REF}': is at ${NEW_LOCAL_TIP} but expected ${LOCAL_TIP}`);
+      },
+      [`merge-base --is-ancestor ${NEW_LOCAL_TIP} ${REMOTE_TIP}`]: { stdout: "", stderr: "" },
+      [`update-ref ${NOTES_REF} ${REMOTE_TIP} ${NEW_LOCAL_TIP}`]: { stdout: "", stderr: "" },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await runUserFetch({ io, identity: "andrew" });
+
+    expect(result).toEqual({ kind: "fast-forwarded", localTip: NEW_LOCAL_TIP, remoteTip: REMOTE_TIP });
+    expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
+      ["update-ref", NOTES_REF, REMOTE_TIP, LOCAL_TIP],
+      ["update-ref", NOTES_REF, REMOTE_TIP, NEW_LOCAL_TIP],
+      ["update-ref", "-d", expect.stringMatching(/__fetch_/u)],
+    ]);
+  });
+
   it("pull skips disk load when fetch refuses", async () => {
     const { exec } = buildExec({
       "rev-parse --verify *": ({ 2: ref }) => (

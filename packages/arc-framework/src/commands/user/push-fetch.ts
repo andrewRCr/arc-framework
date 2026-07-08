@@ -260,6 +260,11 @@ async function classifyGuardedFetchUpdateFailure(
     return { kind: "fast-forwarded", localTip: expectedLocalTip, remoteTip };
   }
 
+  const remoteStillAhead = await isAncestor(io, currentLocalTip, remoteTip);
+  if (remoteStillAhead) {
+    return fastForwardFetchedNotesRef(io, ref, currentLocalTip, remoteTip);
+  }
+
   const localContainsRemote = await isAncestor(io, remoteTip, currentLocalTip);
   if (localContainsRemote) {
     return { kind: "refused-local-ahead", localTip: currentLocalTip, remoteTip };

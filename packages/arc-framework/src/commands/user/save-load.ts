@@ -122,7 +122,7 @@ export async function runUserSave(
   const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
   try {
     const head = await io.exec("git", ["rev-parse", "HEAD"]);
-    commit = head.stdout;
+    commit = head.stdout.trim();
     result = await serializeSplitUserManifest({
       cwd,
       io,

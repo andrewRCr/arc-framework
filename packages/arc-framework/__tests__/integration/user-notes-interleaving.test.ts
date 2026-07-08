@@ -165,7 +165,7 @@ describe("same-machine user-notes interleavings", () => {
 
       await planned.reached;
 
-      const userDir = join(harness.primary, ".arc", "user", IDENTITY);
+      const userDir = join(harness.sibling, ".arc", "user", IDENTITY);
       await mkdir(userDir, { recursive: true });
       await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Sibling save\n", "utf-8");
       const commitC = await makeCommit(harness.sibling, "work C");

@@ -77,14 +77,17 @@ async function noteContent(cwd: string, commit: string): Promise<string> {
 describe("user notes compaction", () => {
   let repo: string | undefined;
   let remote: string | undefined;
+  let updater: string | undefined;
   let harness: MultiClone | undefined;
 
   afterEach(async () => {
     if (repo) await cleanupTempDir(repo);
     if (remote) await cleanupTempDir(remote);
+    if (updater) await cleanupTempDir(updater);
     if (harness) await harness.cleanup();
     repo = undefined;
     remote = undefined;
+    updater = undefined;
     harness = undefined;
   });
 
@@ -297,6 +300,56 @@ describe("user notes compaction", () => {
       "USER-INBOX.md": "local\n",
       "WORKING-MEMORY.md": "remote\n",
     });
+  }, 15_000);
+
+  it("conflicts when a same-commit collision changes the same file content", async () => {
+    harness = await setupMultiClone({
+      cloneA: { config: { "arc.identity": IDENTITY } },
+      cloneB: { config: { "arc.identity": IDENTITY } },
+    });
+    const { cloneA, cloneB } = harness;
+    const collisionCommit = await makeCommit(cloneA, "collision");
+    const pruneCommit = await makeCommit(cloneA, "prune");
+    await git(cloneA, ["push", "origin", "main"]);
+    await git(cloneB, ["fetch", "origin", "main"]);
+    await git(cloneB, ["reset", "--hard", "origin/main"]);
+
+    await git(cloneA, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": "remote\n" } }),
+      collisionCommit,
+    ]);
+    await git(cloneA, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "prune", pruneCommit]);
+    await git(cloneA, ["push", "origin", NOTES_REF]);
+    await fetchNotesInto(cloneB, NOTES_REF);
+    await git(cloneB, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-f", "-m",
+      JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": "local\n" } }),
+      collisionCommit,
+    ]);
+    const localTip = await git(cloneB, ["rev-parse", NOTES_REF]);
+
+    const entries = await listNoteEntries(makeGitExec(cloneA), NOTES_REF);
+    await compactNotesRefSnapshot({
+      exec: makeGitExec(cloneA),
+      execInput: makeGitExecInput(cloneA),
+      fullRef: NOTES_REF,
+      retained: entries.filter((entry) => entry.commit === collisionCommit),
+      pruned: entries.filter((entry) => entry.commit === pruneCommit),
+    });
+    const incoming = `${NOTES_REF}__incoming_same_path`;
+    await fetchNotesInto(cloneB, incoming);
+    const adopt = await adoptCompactedNotesRef({
+      exec: makeGitExec(cloneB),
+      execInput: makeGitExecInput(cloneB),
+      fullRef: NOTES_REF,
+      snapshotRef: incoming,
+    });
+
+    expect(adopt.kind).toBe("conflict");
+    expect(await git(cloneB, ["rev-parse", NOTES_REF])).toBe(localTip);
+    const local = JSON.parse(await noteContent(cloneB, collisionCommit)) as { files: Record<string, string> };
+    expect(local.files["WORKING-MEMORY.md"]).toBe("local\n");
   }, 15_000);
 
   it("leaves the local ref untouched when a same-commit collision cannot be parsed", async () => {
@@ -631,6 +684,60 @@ describe("user notes compaction", () => {
     expect(result.prunedCount).toBe(292);
     expect(await noteContent(repo, recentCommit)).toContain("recent-archive/SESSION-NOTES.md");
     expect(await noteContent(repo, localSubdirCommit)).toContain("local-subdir/SESSION-NOTES.md");
+  }, 30_000);
+
+  it("refreshes origin base before applying retired-WU retention", async () => {
+    repo = await createTempRepo("arc-notes-compact-refresh-base-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+    updater = await createTempRepo("arc-notes-compact-updater-");
+    await cleanupTempDir(updater);
+    await execFileAsync("git", ["clone", remote, updater]);
+    await git(updater, ["config", "user.name", "Updater"]);
+    await git(updater, ["config", "user.email", "updater@example.com"]);
+    await writeCompletedMeta(updater, "01", "stale-base-shipped", "2026-05-01");
+    await git(updater, ["add", ".arc/completed"]);
+    await git(updater, ["commit", "-m", "archive shipped work"]);
+    await git(updater, ["push", "origin", "main"]);
+
+    await expect(
+      execFileAsync("git", ["cat-file", "-e", "origin/main:.arc/completed/2026-q2/01_stale-base-shipped"], {
+        cwd: repo,
+      }),
+    ).rejects.toThrow();
+
+    const shippedCommit = await makeDatedCommit(repo, "shipped note", "2026-01-01T00:00:00.000Z");
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "stale-base-shipped/SESSION-NOTES.md": "old\n" } }),
+      shippedCommit,
+    ]);
+    for (let index = 0; index < 11; index += 1) {
+      const commit = await makeDatedCommit(
+        repo,
+        `filler ${index}`,
+        `2026-07-01T00:${String(index).padStart(2, "0")}:00.000Z`,
+      );
+      await git(repo, [
+        "notes", `--ref=${NOTES_REF}`, "add", "-m",
+        JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": `filler ${index}\n` } }),
+        commit,
+      ]);
+    }
+    await git(repo, ["push", "origin", NOTES_REF]);
+
+    const result = await runUserCompact({
+      cwd: repo,
+      io: makeUserIO(repo),
+      identity: IDENTITY,
+      now: "2026-07-07T00:00:00.000Z",
+    });
+
+    expect(result.kind).toBe("compacted");
+    if (result.kind !== "compacted") return;
+    expect(result.prunedCount).toBe(2);
+    await expect(git(repo, ["notes", `--ref=${NOTES_REF}`, "show", shippedCommit])).rejects.toThrow();
+    await git(repo, ["cat-file", "-e", "origin/main:.arc/completed/2026-q2/01_stale-base-shipped"]);
   }, 30_000);
 });
 

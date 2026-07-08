@@ -16,6 +16,7 @@ import {
   compactNotesRefSnapshot,
   decideNotesCompactionRetention,
   getNotesLockPath,
+  isRemoteUnavailableError,
   listNoteEntries,
   publishNotesCompactionSyncMarker,
   readNoteContentAtAnnotatedCommit,
@@ -82,10 +83,14 @@ export async function runUserCompact(options: UserCompactOptions): Promise<UserC
 
   const now = options.now ?? new Date().toISOString();
   const fullRef = `refs/notes/${notesRef(identity)}`;
+  const baseRefresh = await refreshBaseRef({ cwd, io });
+  if (baseRefresh.kind !== "ok") {
+    return { kind: baseRefresh.kind, identity, error: baseRefresh.error };
+  }
   const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
 
   try {
-    const entries = await buildRetentionEntries({ cwd, io, identity, fullRef });
+    const entries = await buildRetentionEntries({ cwd, io, identity, fullRef, baseRef: baseRefresh.baseRef });
     const decision = decideNotesCompactionRetention({ entries, now });
     if (decision.pruned.length === 0) {
       return {
@@ -187,10 +192,10 @@ async function buildRetentionEntries(input: {
   io: UserIOContext;
   identity: string;
   fullRef: string;
+  baseRef: string;
 }): Promise<RetentionPolicyNoteEntry[]> {
-  const { cwd, io, identity, fullRef } = input;
-  const { settings } = await readConfigSettings(cwd);
-  const shipped = await readShippedWorkUnitRecordsFromRef(io.exec, `origin/${settings["branch.base"]}`);
+  const { cwd, io, identity, fullRef, baseRef } = input;
+  const shipped = await readShippedWorkUnitRecordsFromRef(io.exec, baseRef);
   const localSubdirs = await readLocalUserSubdirs({ cwd, io, identity });
   const entries = await listNoteEntries(io.exec, fullRef);
 
@@ -214,6 +219,24 @@ async function buildRetentionEntries(input: {
       preMigrationRootSessionNotes,
     };
   }));
+}
+
+async function refreshBaseRef(input: {
+  cwd: string;
+  io: UserIOContext;
+}): Promise<
+  | { kind: "ok"; baseRef: string }
+  | { kind: "no-remote" | "failed"; error: Error }
+> {
+  const { settings } = await readConfigSettings(input.cwd);
+  const baseBranch = settings["branch.base"];
+  try {
+    await input.io.exec("git", ["fetch", "origin", baseBranch]);
+    return { kind: "ok", baseRef: `origin/${baseBranch}` };
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return { kind: isRemoteUnavailableError(error.message) ? "no-remote" : "failed", error };
+  }
 }
 
 async function readLocalUserSubdirs(input: {
