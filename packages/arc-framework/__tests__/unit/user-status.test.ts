@@ -1606,6 +1606,34 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     }
   });
 
+  it("fails closed when the repo-shared materialized baseline stamp is malformed", async () => {
+    const commonDir = await mkdtemp(join(tmpdir(), "arc-status-baseline-bad-"));
+    try {
+      const stampDir = join(commonDir, "arc", "user", "andrew", ".internal");
+      await mkdir(stampDir, { recursive: true });
+      await writeFile(join(stampDir, "materialized-baseline.json"), "{bad json\n", "utf-8");
+
+      const sharedCommit = "a".repeat(40);
+      const baselineFiles = { "WORKING-MEMORY.md": "baseline" };
+      const baselineManifest: SyncManifest = { version: 2, files: baselineFiles };
+      const io = buildIO({
+        sourceCommit: sharedCommit,
+        sourceOperation: "save",
+        noteCommit: sharedCommit,
+        diskFiles: baselineFiles,
+        noteFiles: { "WORKING-MEMORY.md": "saved-note" },
+        materializedManifestHash: hashSyncManifest(baselineManifest),
+        sourceIsAncestorOfNote: true,
+        gitCommonDir: commonDir,
+      });
+
+      await expect(inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" }))
+        .rejects.toThrow("Invalid materialized-baseline stamp");
+    } finally {
+      await rm(commonDir, { recursive: true, force: true });
+    }
+  });
+
   const wmEntry = (header: string, body: string): string =>
     `**${header}:**\n_Remove when: x._\n\n${body}`;
   const wmFile = (...entries: string[]): string =>
@@ -1910,6 +1938,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -1950,6 +1981,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -1998,6 +2032,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -2052,6 +2089,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -2112,6 +2152,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -2196,6 +2239,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -2340,6 +2386,9 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
     return {
       exec: async (cmd, args) => {
         if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
           return { stdout: `${localNotesRefHash}\n`, stderr: "" };
         }
@@ -2912,6 +2961,9 @@ describe("runUserStatus saved-note projection", () => {
     return {
       exec: async (cmd, args) => {
         if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
           return { stdout: `${scenario.head}\n`, stderr: "" };
         }

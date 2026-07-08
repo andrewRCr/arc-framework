@@ -75,7 +75,7 @@ export async function writeMaterializedBaselineStamp(options: {
   );
 }
 
-/** Read the current materialized-baseline stamp, or null when missing/unknown. */
+/** Read the current materialized-baseline stamp, or null when missing. */
 export async function readMaterializedBaselineStamp(
   exec: GitExec,
   cwd: string,
@@ -84,17 +84,28 @@ export async function readMaterializedBaselineStamp(
   let raw: string;
   try {
     raw = await readFile(await getMaterializedBaselineStampPath(exec, cwd, identity), "utf-8");
-  } catch {
-    return null;
+  } catch (err) {
+    if (isErrnoCode(err, "ENOENT")) return null;
+    throw err;
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw) as unknown;
-  } catch {
-    return null;
+  } catch (err) {
+    throw new Error("Invalid materialized-baseline stamp: JSON parse failed.", { cause: err });
   }
-  return isMaterializedBaselineStamp(parsed) ? parsed : null;
+  if (!isMaterializedBaselineStamp(parsed)) {
+    throw new Error("Invalid materialized-baseline stamp: schema validation failed.");
+  }
+  return parsed;
+}
+
+function isErrnoCode(err: unknown, code: string): boolean {
+  return typeof err === "object"
+    && err !== null
+    && "code" in err
+    && (err as NodeJS.ErrnoException).code === code;
 }
 
 function buildMaterializedBaselineStamp(input: {

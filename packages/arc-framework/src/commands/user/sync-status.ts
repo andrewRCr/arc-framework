@@ -1667,11 +1667,7 @@ async function readMaterializedBaselineStampSafe(
   io: UserIOContext,
   identity: string,
 ): Promise<{ manifestHash: string } | null> {
-  try {
-    return await readMaterializedBaselineStamp(io.exec, cwd, identity);
-  } catch {
-    return null;
-  }
+  return readMaterializedBaselineStamp(io.exec, cwd, identity);
 }
 
 export function deriveRemoteStatus(

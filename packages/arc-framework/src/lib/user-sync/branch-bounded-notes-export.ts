@@ -16,6 +16,7 @@ import {
   adoptCompactedNotesRef,
   readNotesCompactionManifest,
 } from "./compaction.js";
+import type { NotesCompactionManifest } from "./compaction-manifest.js";
 import { isRemoteUnavailableError } from "./notes-merge.js";
 
 const USER_NOTES_REF_PREFIX = "refs/notes/arc/user";
@@ -242,9 +243,15 @@ async function adoptRemoteCompactionIfNewer(input: {
   | { kind: "conflict"; message: string }
   | { kind: "failed"; error: Error }
 > {
-  const remoteManifest = await readNotesCompactionManifest(input.exec, input.snapshotRef);
+  let remoteManifest: NotesCompactionManifest | null;
+  let localManifest: NotesCompactionManifest | null;
+  try {
+    remoteManifest = await readNotesCompactionManifest(input.exec, input.snapshotRef);
+    localManifest = await readNotesCompactionManifest(input.exec, input.fullRef);
+  } catch (err) {
+    return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
+  }
   if (remoteManifest === null) return { kind: "not-needed" };
-  const localManifest = await readNotesCompactionManifest(input.exec, input.fullRef);
   if (remoteManifest.generation <= (localManifest?.generation ?? 0)) return { kind: "not-needed" };
   if (input.execInput === undefined) {
     return {

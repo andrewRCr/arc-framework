@@ -96,32 +96,36 @@ export async function runUserCompact(options: UserCompactOptions): Promise<UserC
   }
 
   try {
-    const entries = await buildRetentionEntries({ cwd, io, identity, fullRef, baseRef: baseRefresh.baseRef });
-    const decision = decideNotesCompactionRetention({ entries, now });
-    if (decision.pruned.length === 0) {
-      return {
-        kind: "nothing-to-prune",
-        identity,
-        retainedCount: decision.retained.length,
-        prunedCount: decision.pruned.length,
-      };
-    }
+    try {
+      const entries = await buildRetentionEntries({ cwd, io, identity, fullRef, baseRef: baseRefresh.baseRef });
+      const decision = decideNotesCompactionRetention({ entries, now });
+      if (decision.pruned.length === 0) {
+        return {
+          kind: "nothing-to-prune",
+          identity,
+          retainedCount: decision.retained.length,
+          prunedCount: decision.pruned.length,
+        };
+      }
 
-    const snapshot = await compactNotesRefSnapshot({
-      exec: io.exec,
-      execInput: io.execInput,
-      fullRef,
-      retained: decision.retained,
-      pruned: decision.pruned,
-      backupCreatedAt: now,
-    });
-    return await completeSnapshotOutcome({
-      io,
-      identity,
-      now,
-      decision,
-      snapshot,
-    });
+      const snapshot = await compactNotesRefSnapshot({
+        exec: io.exec,
+        execInput: io.execInput,
+        fullRef,
+        retained: decision.retained,
+        pruned: decision.pruned,
+        backupCreatedAt: now,
+      });
+      return await completeSnapshotOutcome({
+        io,
+        identity,
+        now,
+        decision,
+        snapshot,
+      });
+    } catch (err) {
+      return { kind: "failed", identity, error: errorFromUnknown(err) };
+    }
   } finally {
     await releaseAdvisoryLock(lock);
   }
@@ -274,9 +278,17 @@ async function readLocalUserSubdirs(input: {
   try {
     const entries = await input.io.readDir(join(input.cwd, ".arc", "user", input.identity));
     return new Set(subdirsFromPaths(entries.map((entry) => entry.name)));
-  } catch {
-    return new Set();
+  } catch (err) {
+    if (isErrnoCode(err, "ENOENT")) return new Set();
+    throw err;
   }
+}
+
+function isErrnoCode(err: unknown, code: string): boolean {
+  return typeof err === "object"
+    && err !== null
+    && "code" in err
+    && (err as NodeJS.ErrnoException).code === code;
 }
 
 function resolveArchivedAt(

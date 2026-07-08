@@ -15,6 +15,7 @@ import {
   readNotesCompactionManifest,
   releaseAdvisoryLock,
   type AdvisoryLockHandle,
+  type NotesCompactionManifest,
 } from "../../lib/user-sync/index.js";
 import { uniqueRefToken } from "../../lib/git/ref-tree.js";
 import { notesRef } from "./shared.js";
@@ -471,9 +472,15 @@ async function adoptFetchedCompactionIfNewer(input: {
   | { kind: "conflict"; message: string }
   | { kind: "failed"; error: Error }
 > {
-  const remoteManifest = await readNotesCompactionManifest(input.io.exec, input.incoming);
+  let remoteManifest: NotesCompactionManifest | null;
+  let localManifest: NotesCompactionManifest | null;
+  try {
+    remoteManifest = await readNotesCompactionManifest(input.io.exec, input.incoming);
+    localManifest = await readNotesCompactionManifest(input.io.exec, input.fullRef);
+  } catch (err) {
+    return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
+  }
   if (remoteManifest === null) return { kind: "not-needed" };
-  const localManifest = await readNotesCompactionManifest(input.io.exec, input.fullRef);
   if (remoteManifest.generation <= (localManifest?.generation ?? 0)) return { kind: "not-needed" };
   if (input.io.execInput === undefined) {
     return {

@@ -5,7 +5,7 @@
  */
 
 import { CROSS_WU_NOTE_WINDOW } from "./notes-ref.js";
-import type { NotesCompactionPair } from "./compaction-manifest.js";
+import { pairKey, type NotesCompactionPair } from "./compaction-manifest.js";
 
 /** Newest note entries retained regardless of age. */
 export const COMPACTION_NEWEST_RETAIN_COUNT = CROSS_WU_NOTE_WINDOW;
@@ -100,8 +100,4 @@ function timestampForSort(value: string | null): number {
   if (value === null) return Number.NEGATIVE_INFINITY;
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
-}
-
-function pairKey(pair: NotesCompactionPair): string {
-  return `${pair.blob}\0${pair.commit}`;
 }

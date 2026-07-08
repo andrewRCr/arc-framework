@@ -53,8 +53,8 @@ function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
     calls.push(args);
     if (args[0] === "log") {
       if (cfg.logThrows) throw new Error("no such ref");
-      const sinceArg = args.find((arg) => arg.startsWith("--since="));
-      const since = sinceArg ? Date.parse(sinceArg.slice("--since=".length)) : Number.NEGATIVE_INFINITY;
+      const sinceArg = args.find((arg) => arg.startsWith("--since-as-filter="));
+      const since = sinceArg ? Date.parse(sinceArg.slice("--since-as-filter=".length)) : Number.NEGATIVE_INFINITY;
       return {
         stdout: history
           .filter((commit) => Date.parse(historyDates[commit] ?? NOW) >= since)
@@ -115,7 +115,8 @@ describe("readRecentUserNotes", () => {
     expect(notes).toHaveLength(3);
     const log = calls.find((args) => args[0] === "log");
     expect(log).not.toContain("--max-count");
-    expect(log?.some((arg) => arg.startsWith("--since="))).toBe(true);
+    expect(log?.some((arg) => arg.startsWith("--since-as-filter="))).toBe(true);
+    expect(log?.some((arg) => arg.startsWith("--since="))).toBe(false);
   });
 
   it("reads what exists when fewer than N notes are available", async () => {

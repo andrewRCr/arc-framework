@@ -667,6 +667,47 @@ describe("user notes compaction", () => {
     expect(second).toMatchObject({ kind: "nothing-to-prune", retainedCount: 1, prunedCount: 0 });
   }, 15_000);
 
+  it("fails closed when local user subdirs cannot be read", async () => {
+    repo = await createTempRepo("arc-notes-compact-subdir-read-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    const keepCommit = await makeCommit(repo, "keep");
+    const legacyCommit = await makeCommit(repo, "legacy root session notes");
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": "keep\n" } }),
+      keepCommit,
+    ]);
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "legacy\n" } }),
+      legacyCommit,
+    ]);
+    await git(repo, ["push", "origin", NOTES_REF]);
+
+    const io = makeUserIO(repo);
+    const result = await runUserCompact({
+      cwd: repo,
+      io: {
+        ...io,
+        readDir: async () => {
+          const err = new Error("EACCES: permission denied") as NodeJS.ErrnoException;
+          err.code = "EACCES";
+          throw err;
+        },
+      },
+      identity: IDENTITY,
+      now: "2026-07-07T00:00:00.000Z",
+    });
+
+    expect(result.kind).toBe("failed");
+    if (result.kind !== "failed") return;
+    expect(result.error.message).toContain("permission denied");
+    expect(await git(repo, ["rev-list", "--count", NOTES_REF])).toBe("2");
+    expect(await git(remote, ["rev-list", "--count", NOTES_REF])).toBe("2");
+  }, 15_000);
+
   it("prunes backup refs by encoded creation time, not target commit time", async () => {
     repo = await createTempRepo("arc-notes-compact-backup-age-");
     await makeCommit(repo, "base");

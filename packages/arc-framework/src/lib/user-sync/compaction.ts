@@ -78,12 +78,17 @@ export async function readNotesCompactionManifest(
   exec: GitExec,
   ref: string,
 ): Promise<NotesCompactionManifest | null> {
+  let stdout: string;
   try {
-    const { stdout } = await exec("git", ["show", `${ref}:${NOTES_COMPACTION_MANIFEST_PATH}`]);
-    return deserializeNotesCompactionManifest(stdout);
+    ({ stdout } = await exec("git", ["show", `${ref}:${NOTES_COMPACTION_MANIFEST_PATH}`]));
   } catch {
     return null;
   }
+  const manifest = deserializeNotesCompactionManifest(stdout);
+  if (manifest === null) {
+    throw new Error(`Invalid notes compaction manifest at ${ref}:${NOTES_COMPACTION_MANIFEST_PATH}`);
+  }
+  return manifest;
 }
 
 /** Compact a notes ref to a single snapshot commit and lease-publish it to origin. */
@@ -105,7 +110,12 @@ export async function compactNotesRefSnapshot(
     };
   }
 
-  const previous = await readNotesCompactionManifest(exec, fullRef);
+  let previous: NotesCompactionManifest | null;
+  try {
+    previous = await readNotesCompactionManifest(exec, fullRef);
+  } catch (err) {
+    return { kind: "failed", error: toError(err) };
+  }
   const manifest = buildNextNotesCompactionManifest({
     previous,
     preCompactionTip,
@@ -167,10 +177,15 @@ export async function adoptCompactedNotesRef(
   input: AdoptCompactedNotesRefInput,
 ): Promise<AdoptCompactedNotesRefResult> {
   const { exec, execInput, fullRef, snapshotRef } = input;
-  const manifest = await readNotesCompactionManifest(exec, snapshotRef);
+  let manifest: NotesCompactionManifest | null;
+  let localManifest: NotesCompactionManifest | null;
+  try {
+    manifest = await readNotesCompactionManifest(exec, snapshotRef);
+    localManifest = await readNotesCompactionManifest(exec, fullRef);
+  } catch (err) {
+    return { kind: "failed", error: toError(err) };
+  }
   if (manifest === null) return { kind: "not-newer" };
-
-  const localManifest = await readNotesCompactionManifest(exec, fullRef);
   if (manifest.generation <= (localManifest?.generation ?? 0)) return { kind: "not-newer" };
 
   const localTip = await readRefTip(exec, fullRef);

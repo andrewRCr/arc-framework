@@ -58,7 +58,7 @@ export async function readNotesRefHistory(
     const { stdout } = await exec("git", [
       "log",
       "--format=%H%x00%cI",
-      `--since=${sinceIso}`,
+      `--since-as-filter=${sinceIso}`,
       fullRef,
     ]);
     return stdout
