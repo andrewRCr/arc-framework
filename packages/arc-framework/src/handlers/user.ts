@@ -614,7 +614,7 @@ export async function handleUserCompact(opts: UserCompactHandlerOptions = {}): P
     process.stdout.write(`${JSON.stringify(toJsonSafeCompactResult(result))}\n`);
   } else {
     output.note(buildUserCompactSummary(result), "Compact");
-    output.outro("Done.");
+    output.outro(isUserCompactFailure(result) ? "Failed." : "Done.");
   }
 
   if (isUserCompactFailure(result)) {

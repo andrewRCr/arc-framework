@@ -164,6 +164,7 @@ export async function planBranchBoundedNotesExport(
         omittedCommits.push(entry.commit);
       }
     }
+    const annotatedSet = new Set(annotatedCommits);
 
     if (annotatedCommits.length === 0) {
       await deleteRef(exec, tempRef);
@@ -194,7 +195,7 @@ export async function planBranchBoundedNotesExport(
     const targetEntries = new Map(remoteEntries);
 
     for (const entry of localEntries) {
-      if (!(await isAncestor(exec, entry.commit, branch))) continue;
+      if (!annotatedSet.has(entry.commit)) continue;
       const remoteBlob = remoteEntries.get(entry.commit);
       if (remoteBlob !== undefined && remoteBlob !== entry.blob && !localIncludesRemote) {
         await deleteRef(exec, tempRef);

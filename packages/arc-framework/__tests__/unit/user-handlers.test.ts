@@ -560,6 +560,7 @@ describe("handleUserCompact", () => {
     await handleUserCompact({});
 
     expect(mockNote).toHaveBeenCalledWith("Generation marker: failed.", "Compact");
+    expect(mockOutro).toHaveBeenCalledWith("Failed.");
     expect(process.exitCode).toBe(1);
   });
 });

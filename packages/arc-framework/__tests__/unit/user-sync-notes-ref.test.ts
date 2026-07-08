@@ -121,7 +121,7 @@ describe("readRecentUserNotes", () => {
 
     expect(notes).toHaveLength(3);
     const log = calls.find((args) => args[0] === "log");
-    expect(log).not.toContain("--max-count");
+    expect(log?.some((arg) => arg.startsWith("--max-count"))).toBe(false);
     expect(log?.some((arg) => arg.startsWith("--since-as-filter="))).toBe(true);
     expect(log?.some((arg) => arg.startsWith("--since="))).toBe(false);
   });
