@@ -143,7 +143,7 @@ export async function deleteRemoteBranch(
   } catch (err) {
     const detail =
       (err as { stderr?: string }).stderr ?? (err instanceof Error ? err.message : String(err));
-    if (!/remote ref does not exist|unable to delete/i.test(detail)) throw err;
+    if (!/remote ref does not exist/i.test(detail)) throw err;
     return "absent";
   }
 }
