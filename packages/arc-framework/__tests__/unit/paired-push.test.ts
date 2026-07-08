@@ -186,6 +186,7 @@ const NOTES_EXPORT_TARGET = {
   tip: "f".repeat(40),
   annotatedCommits: ["a".repeat(40)],
   omittedCommits: [],
+  supersedesLocal: true,
 };
 
 /** No-op delay so auto-retry tests don't wait on real backoff timers. */
@@ -202,6 +203,7 @@ describe("runPairedPush", () => {
     });
     mockPlanNotesExport.mockResolvedValue({ kind: "planned", target: NOTES_EXPORT_TARGET });
     mockCleanupNotesExport.mockResolvedValue(undefined);
+    mockRecordPartialPushMarker.mockResolvedValue(true);
   });
 
   it("save and both push legs succeed → result reports success; save precedes pushes", async () => {
@@ -308,6 +310,7 @@ describe("runPairedPush", () => {
     expect(result.save?.status).toBe("success");
     expect(result.worktree).toMatchObject({ status: "success" });
     expect(result.notes).toEqual({ status: "failed", error: notesError });
+    expect(result.partialPushMarkerRecorded).toBe(true);
 
     expect(mockRecordPartialPushMarker).toHaveBeenCalledTimes(1);
     expect(mockRecordPartialPushMarker).toHaveBeenCalledWith(
@@ -315,6 +318,23 @@ describe("runPairedPush", () => {
       io,
       "andrew",
     );
+    expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+  });
+
+  it("notes failure reports when the partial-push marker could not be recorded", async () => {
+    const notesError = new Error("[remote rejected] notes/arc/user/andrew");
+    mockRecordPartialPushMarker.mockResolvedValue(false);
+    const { exec } = buildExec(cleanRepoResponses());
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+    const { pushNotes } = stubPushNotes({ status: "failed", error: notesError });
+
+    const result = await runPairedPush({ io, access, pushNotes, sleep: noopSleep, ...COMMON_OPTIONS });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.notes).toEqual({ status: "failed", error: notesError });
+    expect(result.partialPushMarkerRecorded).toBe(false);
+    expect(mockRecordPartialPushMarker).toHaveBeenCalledTimes(1);
     expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
   });
 
@@ -468,6 +488,7 @@ describe("runPairedPush", () => {
 
       expect(result.exitCode).toBe(1);
       expect(result.notes).toEqual(outcome);
+      expect(result.partialPushMarkerRecorded).toBe(true);
       expect(mockRecordPartialPushMarker).toHaveBeenCalledTimes(1);
       expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
     },
@@ -518,6 +539,30 @@ describe("runPairedPush", () => {
     // The no-upstream condition was auto-resolved by the `-u` push; it must not
     // remain in the surfaced conditions, or renderPairedResult would log its
     // "Set upstream first" guidance to stderr on a successful upstream-init sync.
+    expect(result.conditions.some((c) => c.kind === "no-upstream-branch")).toBe(false);
+  });
+
+  it("setUpstream notes-plan miss does not surface the resolved no-upstream condition", async () => {
+    const responses = cleanRepoResponses();
+    responses[REV_PARSE_UPSTREAM] = () => {
+      throw new Error("fatal: no upstream configured for branch 'main'");
+    };
+    mockPlanNotesExport.mockResolvedValue({ kind: "skipped", reason: "empty-export" });
+    const { exec } = buildExec(responses);
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+    const { pushNotes } = stubPushNotes({ status: "success" });
+
+    const result = await runPairedPush({
+      io, access, pushNotes, ...COMMON_OPTIONS, setUpstream: true,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.worktree).toMatchObject({ status: "success" });
+    expect(result.notes).toMatchObject({
+      status: "refused",
+      message: expect.stringContaining("empty-export"),
+    });
     expect(result.conditions.some((c) => c.kind === "no-upstream-branch")).toBe(false);
   });
 

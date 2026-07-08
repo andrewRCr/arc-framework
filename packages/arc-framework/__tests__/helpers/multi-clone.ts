@@ -47,6 +47,21 @@ export interface MultiCloneOptions {
   cloneB?: CloneSetupOptions;
 }
 
+/** Options controlling a same-machine sibling-worktree setup. */
+export interface WorktreeSiblingsOptions {
+  /**
+   * Seed the bare origin with one initial commit on `main` before the primary
+   * clone is created. Default: `true`.
+   */
+  initialCommit?: boolean;
+  /** Configuration for the primary worktree. */
+  primary?: CloneSetupOptions;
+  /** Configuration for the sibling worktree. */
+  sibling?: CloneSetupOptions;
+  /** Branch created for the sibling worktree. Default: `sibling`. */
+  siblingBranch?: string;
+}
+
 /** Result of a successful harness setup. */
 export interface MultiClone {
   /** Absolute path to the bare repo serving as origin. */
@@ -57,6 +72,42 @@ export interface MultiClone {
   cloneB: string;
   /** Tear down all temp directories created by the harness. Idempotent. */
   cleanup: () => Promise<void>;
+}
+
+/** Result of a successful same-machine sibling-worktree setup. */
+export interface WorktreeSiblings {
+  /** Absolute path to the bare repo serving as origin. */
+  origin: string;
+  /** Absolute path to the primary worktree. */
+  primary: string;
+  /** Absolute path to the sibling worktree sharing the primary's git common dir. */
+  sibling: string;
+  /** Tear down all temp directories created by the harness. Idempotent. */
+  cleanup: () => Promise<void>;
+}
+
+/** One git notes entry as returned by `git notes list`: blob id plus annotated commit. */
+export interface NoteEntry {
+  blob: string;
+  commit: string;
+}
+
+/** Manual barrier for deterministic step-controlled interleavings. */
+export interface ManualStepBarrier {
+  /** Resolves once the controlled step reaches the barrier. */
+  reached: Promise<void>;
+  /** Called by the controlled operation when it reaches the barrier. */
+  arrive: () => Promise<void>;
+  /** Releases the controlled operation past the barrier. */
+  release: () => void;
+}
+
+/** A step in a deterministic operation driver. */
+export interface ControlledStep {
+  name: string;
+  run: () => Promise<void>;
+  /** Optional barrier reached after this step completes. */
+  after?: ManualStepBarrier;
 }
 
 const DEFAULT_CLONE_A: Required<CloneSetupOptions> = {
@@ -115,6 +166,17 @@ async function createClone(
   return dir;
 }
 
+async function configureWorktree(
+  dir: string,
+  options: Required<CloneSetupOptions>,
+): Promise<void> {
+  await execFileAsync("git", ["config", "user.name", options.authorName], { cwd: dir });
+  await execFileAsync("git", ["config", "user.email", options.authorEmail], { cwd: dir });
+  for (const [key, value] of Object.entries(options.config)) {
+    await execFileAsync("git", ["config", key, value], { cwd: dir });
+  }
+}
+
 /**
  * Build a fresh bare-origin + two-clone topology for cross-machine tests.
  *
@@ -158,5 +220,108 @@ export async function setupMultiClone(
   } catch (err) {
     await cleanup();
     throw err;
+  }
+}
+
+/**
+ * Build a fresh bare-origin + primary/sibling-worktree topology for same-machine
+ * tests. The two worktrees share one git common dir, so notes refs and lockfiles
+ * are shared exactly as they are for concurrent local ARC worktrees.
+ */
+export async function setupWorktreeSiblings(
+  options: WorktreeSiblingsOptions = {},
+): Promise<WorktreeSiblings> {
+  if (options.initialCommit === false) {
+    throw new Error("setupWorktreeSiblings requires initialCommit because the sibling worktree branches from main.");
+  }
+  const primaryOptions = resolveCloneOptions(DEFAULT_CLONE_A, options.primary);
+  const siblingOptions = resolveCloneOptions(DEFAULT_CLONE_B, options.sibling);
+  const siblingBranch = options.siblingBranch ?? "sibling";
+
+  const createdPaths: string[] = [];
+  const cleanup = async (): Promise<void> => {
+    await Promise.allSettled(
+      createdPaths.map((path) => rm(path, { recursive: true, force: true })),
+    );
+    createdPaths.length = 0;
+  };
+
+  try {
+    const origin = await mkdtemp(join(tmpdir(), "arc-wt-origin-"));
+    createdPaths.push(origin);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
+
+    await seedOrigin(origin);
+
+    const primary = await createClone(origin, "arc-wt-primary-", primaryOptions);
+    createdPaths.push(primary);
+
+    const worktreeParent = await mkdtemp(join(tmpdir(), "arc-wt-siblings-"));
+    createdPaths.push(worktreeParent);
+    const sibling = join(worktreeParent, "sibling");
+    await execFileAsync("git", ["worktree", "add", "-b", siblingBranch, sibling, "main"], { cwd: primary });
+    await configureWorktree(sibling, siblingOptions);
+
+    return { origin, primary, sibling, cleanup };
+  } catch (err) {
+    await cleanup();
+    throw err;
+  }
+}
+
+/** Create a manual barrier for deterministic step-controlled tests. */
+export function createManualStepBarrier(): ManualStepBarrier {
+  let markReached: () => void = () => {};
+  let releaseStep: () => void = () => {};
+  const reached = new Promise<void>((resolve) => {
+    markReached = resolve;
+  });
+  const releasePromise = new Promise<void>((resolve) => {
+    releaseStep = resolve;
+  });
+  return {
+    reached,
+    arrive: async () => {
+      markReached();
+      await releasePromise;
+    },
+    release: releaseStep,
+  };
+}
+
+/** Run named async steps, pausing after any step carrying a barrier. */
+export async function runControlledSteps(steps: ControlledStep[]): Promise<void> {
+  for (const step of steps) {
+    await step.run();
+    if (step.after) {
+      await step.after.arrive();
+    }
+  }
+}
+
+/** Current tip of a ref, or `null` when it does not resolve. */
+export async function readRefTip(cwd: string, ref: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--verify", ref], { cwd });
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** List note entries on a notes ref, sorted by annotated commit. */
+export async function listNoteEntries(cwd: string, ref: string): Promise<NoteEntry[]> {
+  try {
+    const { stdout } = await execFileAsync("git", ["notes", `--ref=${ref}`, "list"], { cwd });
+    return stdout
+      .split("\n")
+      .map((line) => {
+        const [blob, commit] = line.trim().split(/\s+/u);
+        return blob && commit ? { blob, commit } : null;
+      })
+      .filter((entry): entry is NoteEntry => entry !== null)
+      .sort((a, b) => a.commit.localeCompare(b.commit));
+  } catch {
+    return [];
   }
 }

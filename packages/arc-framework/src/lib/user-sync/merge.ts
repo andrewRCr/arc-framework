@@ -22,7 +22,7 @@ function idOf(section: string, key: string): string {
 }
 
 /** Identity of an entry for union/dedupe — section-scoped key. */
-function identityOf(entry: CrossWuEntry): string {
+function identityOf(entry: Pick<CrossWuEntry, "section" | "key">): string {
   return idOf(entry.section, entry.key);
 }
 
@@ -58,6 +58,14 @@ export interface MergeResult {
   content: string;
   /** Reasons for entries that failed to parse — surfaced, never silently dropped. */
   malformed: string[];
+}
+
+/** Prior materialized entry identity used to synthesize deletion tombstones. */
+export interface RemovalTombstoneBasisEntry {
+  /** Containing H2 section of the removed entry. */
+  section: string;
+  /** Entry key within the section. */
+  key: string;
 }
 
 /** Per-note parse products feeding `resolveCrossWuState`. */
@@ -283,7 +291,7 @@ interface Tombstone {
  * the saved file already tombstones is recognized rather than re-marked.
  */
 function synthesizeTombstones(
-  prior: readonly CrossWuEntry[],
+  prior: readonly RemovalTombstoneBasisEntry[],
   accountedFor: ReadonlySet<string>,
   now: string,
 ): Tombstone[] {
@@ -329,11 +337,31 @@ export function appendRemovalTombstones(
   const priorParsed = parseNotesForResolution(priorNotes, shape);
   const prior = resolveCrossWuState(priorParsed.perNoteEntries, priorParsed.perNoteTombstones, now);
 
+  return appendRemovalTombstonesFromEntries(filename, currentContent, prior.liveEntries, now);
+}
+
+/**
+ * Append deletion tombstones for identities recorded as materialized before the
+ * current save but absent from the current file.
+ *
+ * The prior basis is identity-only: removal synthesis only needs `(section,
+ * key)`, while current-file parsing still honors existing tombstones so a
+ * repeated save does not duplicate markers.
+ */
+export function appendRemovalTombstonesFromEntries(
+  filename: string,
+  currentContent: string,
+  priorEntries: readonly RemovalTombstoneBasisEntry[],
+  now: string,
+): string {
+  const shape = shapeForFile(filename);
+  if (shape === null || priorEntries.length === 0) return currentContent;
+
   const currentParsed = parseNotesForResolution([{ content: currentContent }], shape);
   const current = resolveCrossWuState(currentParsed.perNoteEntries, currentParsed.perNoteTombstones, now);
   const accountedFor = new Set([...current.liveEntries.map(identityOf), ...current.suppressed]);
 
-  const tombstones = synthesizeTombstones(prior.liveEntries, accountedFor, now);
+  const tombstones = synthesizeTombstones(priorEntries, accountedFor, now);
   if (tombstones.length === 0) return currentContent;
 
   const block = tombstones.map(renderTombstone).join("\n\n");
@@ -350,7 +378,7 @@ export function appendRemovalTombstones(
  * out of the rendered document entirely. The contract is the mechanism
  * (time-based, filter-at-merge), not the constant.
  */
-const TOMBSTONE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const TOMBSTONE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Heading of a deletion tombstone — `## Removed: {key}`. */
 const TOMBSTONE_HEADING = /^## Removed:\s*(.+?)\s*$/;

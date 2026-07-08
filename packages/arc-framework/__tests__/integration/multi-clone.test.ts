@@ -317,6 +317,7 @@ describe("user-notes paired-push cross-clone regression", () => {
         await harness.cleanup();
       }
     },
+    15_000,
   );
 });
 

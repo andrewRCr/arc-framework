@@ -293,6 +293,9 @@ function staleLocalNoteIO(): UserIOContext {
       if (args[0] === "rev-parse" && args[1] === "--verify") {
         return { stdout: `${sameRefHash}\n`, stderr: "" };
       }
+      if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+        return { stdout: ".git\n", stderr: "" };
+      }
       if (args[0] === "ls-remote") {
         return { stdout: `${sameRefHash}\t${USER_NOTES_REF}\n`, stderr: "" };
       }

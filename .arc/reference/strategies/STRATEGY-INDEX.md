@@ -41,6 +41,9 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: editing framework files, reconciling package/project divergence, resolving sync warnings
 - `project/strategy-testing-methodology.md` - TDD decision tree, test tiers, vertical slice workflow, mocking rules
     - Consult when: writing tests, choosing test tier, selecting mocking strategy
+- `project/strategy-user-notes-concurrency.md` - User-notes shared-state write discipline and mutator checklist
+    - Consult when: adding or modifying any mutator of shared user-notes state — canonical notes ref,
+      identity-global disk, `.sync-state.json`, partial-push markers, sync-state refs, temp refs, or notes locks
 - `project/strategy-storage-evolution.md` - **In-development.** Storage tiering and forward-compat principles
   for plans / PRDs touching storage, multi-user concerns, or external-tool integration
     - Consult when: authoring or iterating plans / PRDs that affect WU-artifact storage, multi-user / multi-machine

@@ -5,6 +5,7 @@ import {
   computeArchiveDestination,
   isShippedWorkUnit,
   readShippedWorkUnits,
+  readShippedWorkUnitRecordsFromRef,
   readShippedWorkUnitsFromRef,
   type CompletedIndexFs,
 } from "../../../src/lib/work-unit/completed-index.js";
@@ -17,6 +18,23 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 function buildLsTreeExec(stdout: string): GitExec {
   return async (_cmd, args) => {
     if (args[0] === "ls-tree") return { stdout };
+    throw new Error(`unexpected git ${args.join(" ")}`);
+  };
+}
+
+function buildTreeExec(input: {
+  paths: string[];
+  blobs: Record<string, string>;
+}): GitExec {
+  return async (_cmd, args) => {
+    if (args[0] === "ls-tree") return { stdout: input.paths.join("\n") };
+    if (args[0] === "show") {
+      const spec = args[1];
+      if (typeof spec !== "string") throw new Error("missing show spec");
+      const path = spec.slice(spec.indexOf(":") + 1);
+      const blob = input.blobs[path];
+      if (blob !== undefined) return { stdout: blob };
+    }
     throw new Error(`unexpected git ${args.join(" ")}`);
   };
 }
@@ -134,6 +152,61 @@ describe("readShippedWorkUnitsFromRef", () => {
     const shipped = await readShippedWorkUnitsFromRef(exec, "origin/main");
 
     expect([...shipped]).toEqual(["doc-cascade-sweep"]);
+  });
+
+  it("reads completion dates from shipped WU meta files", async () => {
+    const metaPath = ".arc/completed/2026-q2/03_decompose-matrix/meta-decompose-matrix.md";
+    const exec = buildTreeExec({
+      paths: [
+        metaPath,
+        ".arc/completed/2026-q2/03_decompose-matrix/spec-decompose-matrix.md",
+        ".arc/completed/2026-q2/04_missing-meta/spec-missing-meta.md",
+        ".arc/completed/2026-q2/04a_cohort-demo/cohort-demo.md",
+      ],
+      blobs: {
+        [metaPath]:
+          "# Metadata: decompose-matrix\n\n"
+          + "- **State:** Shipped\n"
+          + "- **Completed:** 2026-06-20\n",
+      },
+    });
+
+    const records = await readShippedWorkUnitRecordsFromRef(exec, "origin/main");
+
+    expect(records.get("decompose-matrix")).toEqual({
+      slug: "decompose-matrix",
+      completedAt: "2026-06-20",
+    });
+    expect(records.get("missing-meta")).toEqual({
+      slug: "missing-meta",
+      completedAt: null,
+    });
+    expect(records.has("cohort-demo")).toBe(false);
+  });
+
+  it("bounds concurrent meta-file reads from a ref", async () => {
+    const paths = Array.from({ length: 33 }, (_, idx) => {
+      const seq = String(idx + 1).padStart(2, "0");
+      return `.arc/completed/2026-q2/${seq}_wu-${seq}/meta-wu-${seq}.md`;
+    });
+    let activeShows = 0;
+    let maxActiveShows = 0;
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "ls-tree") return { stdout: paths.join("\n"), stderr: "" };
+      if (args[0] === "show") {
+        activeShows += 1;
+        maxActiveShows = Math.max(maxActiveShows, activeShows);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        activeShows -= 1;
+        return { stdout: "- **Completed:** 2026-06-20\n", stderr: "" };
+      }
+      throw new Error(`unexpected git ${args.join(" ")}`);
+    };
+
+    const records = await readShippedWorkUnitRecordsFromRef(exec, "origin/main");
+
+    expect(records.size).toBe(33);
+    expect(maxActiveShows).toBeLessThanOrEqual(16);
   });
 
   it("returns an empty set when the ref does not resolve", async () => {

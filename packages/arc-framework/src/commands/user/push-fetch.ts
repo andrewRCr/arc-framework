@@ -2,23 +2,36 @@ import { runPushabilityStatus } from "../../lib/git/index.js";
 import type { AccessFn, PushabilityCondition } from "../../lib/git/index.js";
 import {
   clearPartialPushMarker,
+  acquireAdvisoryLock,
+  adoptCompactedNotesRef,
+  getNotesLockPath,
   incomingFetchRefspec,
   incomingNotesRef,
+  isCasRejectionError,
   isNonFastForwardError,
   isRemoteUnavailableError,
   isResolvedNoteValid,
   notesMergeArgs,
+  readNotesCompactionManifest,
+  releaseAdvisoryLock,
+  type AdvisoryLockHandle,
+  type NotesCompactionManifest,
 } from "../../lib/user-sync/index.js";
+import { uniqueRefToken } from "../../lib/git/ref-tree.js";
 import { notesRef } from "./shared.js";
 import { runUserLoad } from "./save-load.js";
 import {
   UserPushBlockedError,
+  type UserFetchResult,
   type UserFetchOptions,
   type UserIOContext,
   type UserPullOptions,
+  type UserPullResult,
   type UserPushOptions,
   type UserPushResult,
 } from "./types.js";
+
+const FETCH_UPDATE_CAS_ATTEMPTS = 3;
 
 /**
  * Push user notes to remote origin.
@@ -148,11 +161,45 @@ export async function hasLocalNotes(
  *
  * @param options - Fetch options
  */
-export async function runUserFetch(options: UserFetchOptions): Promise<void> {
-  const { io, identity, force } = options;
+export async function runUserFetch(options: UserFetchOptions): Promise<UserFetchResult> {
+  const { io, identity } = options;
   const ref = `refs/notes/${notesRef(identity)}`;
-  const refspec = force ? `+${ref}:${ref}` : `${ref}:${ref}`;
-  await io.exec("git", ["fetch", "origin", refspec]);
+  const tempRef = `${ref}__fetch_${uniqueRefToken()}`;
+  const localTip = await readLocalRefHash(io, ref);
+  try {
+    await io.exec("git", ["fetch", "--refmap=", "origin", `+${ref}:${tempRef}`]);
+    const remoteTip = await readLocalRefHash(io, tempRef);
+    if (remoteTip === null) {
+      return {
+        kind: "remote-unavailable",
+        error: new Error(`Fetched user notes ref did not resolve: ${tempRef}`),
+      };
+    }
+
+    if (localTip === null) {
+      return await createFetchedNotesRef(io, ref, remoteTip);
+    }
+
+    if (localTip === remoteTip) {
+      return { kind: "fast-forwarded", localTip, remoteTip };
+    }
+
+    const remoteContainsLocal = await isAncestor(io, localTip, remoteTip);
+    if (remoteContainsLocal) {
+      return await fastForwardFetchedNotesRef(io, ref, localTip, remoteTip);
+    }
+
+    const localContainsRemote = await isAncestor(io, remoteTip, localTip);
+    if (localContainsRemote) {
+      return { kind: "refused-local-ahead", localTip, remoteTip };
+    }
+
+    return { kind: "refused-diverged", localTip, remoteTip };
+  } catch (err) {
+    return { kind: "remote-unavailable", error: err instanceof Error ? err : new Error(String(err)) };
+  } finally {
+    await tryExec(io, ["update-ref", "-d", tempRef]);
+  }
 }
 
 /**
@@ -163,10 +210,97 @@ export async function runUserFetch(options: UserFetchOptions): Promise<void> {
  */
 export async function runUserPull(
   options: UserPullOptions,
-) {
-  const { cwd, io, identity, force, currentWuName } = options;
-  await runUserFetch({ io, identity, force });
+): Promise<UserPullResult> {
+  const { cwd, io, identity, currentWuName } = options;
+  const fetch = await runUserFetch({ io, identity });
+  if (!isFetchSuccess(fetch)) return fetch;
   return runUserLoad({ cwd, io, identity, currentWuName });
+}
+
+async function createFetchedNotesRef(
+  io: UserIOContext,
+  ref: string,
+  remoteTip: string,
+  attempt = 1,
+): Promise<UserFetchResult> {
+  try {
+    await io.exec("git", ["update-ref", ref, remoteTip, ""]);
+    return { kind: "created", remoteTip };
+  } catch (err) {
+    return classifyGuardedFetchUpdateFailure(io, ref, null, remoteTip, err, attempt);
+  }
+}
+
+async function fastForwardFetchedNotesRef(
+  io: UserIOContext,
+  ref: string,
+  localTip: string,
+  remoteTip: string,
+  attempt = 1,
+): Promise<UserFetchResult> {
+  try {
+    await io.exec("git", ["update-ref", ref, remoteTip, localTip]);
+    return { kind: "fast-forwarded", localTip, remoteTip };
+  } catch (err) {
+    return classifyGuardedFetchUpdateFailure(io, ref, localTip, remoteTip, err, attempt);
+  }
+}
+
+async function classifyGuardedFetchUpdateFailure(
+  io: UserIOContext,
+  ref: string,
+  expectedLocalTip: string | null,
+  remoteTip: string,
+  err: unknown,
+  attempt: number,
+): Promise<UserFetchResult> {
+  const error = err instanceof Error ? err : new Error(String(err));
+  if (!isCasRejectionError(error.message)) return { kind: "remote-unavailable", error };
+
+  const currentLocalTip = await readLocalRefHash(io, ref);
+  if (currentLocalTip === null) return { kind: "remote-unavailable", error };
+  if (currentLocalTip === remoteTip) {
+    if (expectedLocalTip === null) {
+      return { kind: "created", remoteTip };
+    }
+    return { kind: "fast-forwarded", localTip: expectedLocalTip, remoteTip };
+  }
+
+  const remoteStillAhead = await isAncestor(io, currentLocalTip, remoteTip);
+  if (remoteStillAhead) {
+    if (attempt >= FETCH_UPDATE_CAS_ATTEMPTS) {
+      return {
+        kind: "remote-unavailable",
+        error: new Error(`fetch CAS update exceeded retry attempts for ${ref}`, { cause: error }),
+      };
+    }
+    return fastForwardFetchedNotesRef(io, ref, currentLocalTip, remoteTip, attempt + 1);
+  }
+
+  const localContainsRemote = await isAncestor(io, remoteTip, currentLocalTip);
+  if (localContainsRemote) {
+    return { kind: "refused-local-ahead", localTip: currentLocalTip, remoteTip };
+  }
+  return { kind: "refused-diverged", localTip: currentLocalTip, remoteTip };
+}
+
+type SuccessfulUserFetchResult = Extract<UserFetchResult, { kind: "fast-forwarded" | "created" }>;
+
+function isFetchSuccess(fetch: UserFetchResult): fetch is SuccessfulUserFetchResult {
+  return fetch.kind === "fast-forwarded" || fetch.kind === "created";
+}
+
+async function isAncestor(
+  io: UserIOContext,
+  ancestor: string,
+  descendant: string,
+): Promise<boolean> {
+  try {
+    await io.exec("git", ["merge-base", "--is-ancestor", ancestor, descendant]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Discriminated outcome of {@link reconcileNotesPush}. */
@@ -189,12 +323,24 @@ export type NotesPushOutcome =
 export interface ReconcileNotesPushOptions {
   io: UserIOContext;
   identity: string;
-  /** Repository root, threaded to the partial-push marker clear inside the push. */
-  cwd?: string;
+  /** Repository root, threaded to the notes lock and partial-push marker clear. */
+  cwd: string;
   /** Path-existence check enabling the pushability pre-check matrix. */
   access?: AccessFn;
   /** Current worktree branch — threaded into the pushability matrix. */
   worktreeBranch?: string;
+  /** Injectable lock seam for deterministic tests. Defaults to the repo-shared notes lock. */
+  lock?: ReconcileNotesLock;
+}
+
+/** Lock seam used by the reconcile critical section. */
+export interface ReconcileNotesLock {
+  acquire: (input: {
+    io: UserIOContext;
+    cwd: string;
+    identity: string;
+  }) => Promise<AdvisoryLockHandle>;
+  release: (handle: AdvisoryLockHandle) => Promise<void>;
 }
 
 /**
@@ -250,40 +396,173 @@ async function reconcileAndRepush(
   const shortRef = notesRef(identity);
   const fullRef = `refs/notes/${shortRef}`;
   const incoming = incomingNotesRef(fullRef);
-  const preMergeTip = await readRefTip(io, fullRef);
-
-  await io.exec("git", ["fetch", "--refmap=", "origin", incomingFetchRefspec(fullRef)]);
-
+  const lock = await (options.lock ?? DEFAULT_RECONCILE_LOCK).acquire({ io, cwd, identity });
   try {
-    await io.exec("git", notesMergeArgs(shortRef, incoming));
-  } catch (err) {
-    await tryExec(io, ["notes", "--ref", shortRef, "merge", "--abort"]);
+    const preMergeTip = await readRefTip(io, fullRef);
+    await io.exec("git", ["fetch", "--refmap=", "origin", incomingFetchRefspec(fullRef, incoming)]);
+
+    const boundary = await adoptFetchedCompactionIfNewer({ io, fullRef, incoming });
+    if (boundary.kind === "conflict") return { kind: "conflict", message: boundary.message };
+    if (boundary.kind === "failed") return { kind: "failed", error: boundary.error };
+
+    if (boundary.kind === "not-needed") {
+      try {
+        await io.exec("git", notesMergeArgs(shortRef, incoming));
+      } catch (err) {
+        await tryExec(io, ["notes", "--ref", shortRef, "merge", "--abort"]);
+        const detail = err instanceof Error ? err.message : String(err);
+        return {
+          kind: "conflict",
+          message: `Concurrent notes could not be merged (git notes merge failed): ${detail}`,
+        };
+      }
+
+      const postMergeTip = await readRefTip(io, fullRef);
+      const scan = await findCorruptMergedNote(io, shortRef);
+      if (scan.kind === "corrupt") {
+        const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
+        if (rollback.kind === "failed") {
+          return {
+            kind: "conflict",
+            message:
+              `Concurrent notes on commit ${scan.commit.slice(0, 8)} produced an unparseable note, `
+              + "and the rollback could not be applied safely. Nothing was pushed; inspect the local "
+              + "notes ref and retry after resolving the conflict.",
+          };
+        }
+        return {
+          kind: "conflict",
+          message:
+            `Concurrent notes on commit ${scan.commit.slice(0, 8)} could not be auto-merged `
+            + "(the union produced an unparseable note). Your local notes are preserved; resolve the "
+            + "conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
+        };
+      }
+      if (scan.kind === "failed") {
+        const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
+        const scope = scan.commit === undefined
+          ? "Concurrent notes merge"
+          : `Concurrent notes on commit ${scan.commit.slice(0, 8)}`;
+        if (rollback.kind === "failed") {
+          return {
+            kind: "conflict",
+            message:
+              `${scope} could not be verified after merge (${scan.error.message}), and the rollback could not `
+              + "be applied safely. Nothing was pushed; inspect the local notes ref and retry after resolving "
+              + "the conflict.",
+          };
+        }
+        return {
+          kind: "conflict",
+          message:
+            `${scope} could not be verified after merge (${scan.error.message}). Your local notes are `
+            + "preserved; resolve the notes-ref read failure and retry.",
+        };
+      }
+    }
+
+  } finally {
     await tryExec(io, ["update-ref", "-d", incoming]);
-    const detail = err instanceof Error ? err.message : String(err);
-    return {
-      kind: "conflict",
-      message: `Concurrent notes could not be merged (git notes merge failed): ${detail}`,
-    };
+    await (options.lock ?? DEFAULT_RECONCILE_LOCK).release(lock);
   }
 
-  const corruptCommit = await findCorruptMergedNote(io, shortRef);
-  if (corruptCommit !== null) {
-    if (preMergeTip !== null) {
-      await tryExec(io, ["update-ref", fullRef, preMergeTip]);
-    }
-    await tryExec(io, ["update-ref", "-d", incoming]);
+  try {
+    await runUserPush({ cwd, io, identity, access, worktreeBranch });
+  } catch (err) {
+    return reconcileRepushFailureOutcome(err);
+  }
+  return { kind: "reconciled" };
+}
+
+async function adoptFetchedCompactionIfNewer(input: {
+  io: UserIOContext;
+  fullRef: string;
+  incoming: string;
+}): Promise<
+  | { kind: "adopted" | "not-needed" }
+  | { kind: "conflict"; message: string }
+  | { kind: "failed"; error: Error }
+> {
+  let remoteManifest: NotesCompactionManifest | null;
+  let localManifest: NotesCompactionManifest | null;
+  try {
+    remoteManifest = await readNotesCompactionManifest(input.io.exec, input.incoming);
+    localManifest = await readNotesCompactionManifest(input.io.exec, input.fullRef);
+  } catch (err) {
+    return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
+  }
+  if (remoteManifest === null) return { kind: "not-needed" };
+  if (remoteManifest.generation <= (localManifest?.generation ?? 0)) return { kind: "not-needed" };
+  if (input.io.execInput === undefined) {
+    return {
+      kind: "conflict",
+      message: "Concurrent notes crossed a compaction boundary, but this runtime cannot build an adopt snapshot.",
+    };
+  }
+  const adopt = await adoptCompactedNotesRef({
+    exec: input.io.exec,
+    execInput: input.io.execInput,
+    fullRef: input.fullRef,
+    snapshotRef: input.incoming,
+  });
+  switch (adopt.kind) {
+    case "adopted":
+      return { kind: "adopted" };
+    case "not-newer":
+      return { kind: "not-needed" };
+    case "conflict":
+      return { kind: "conflict", message: adopt.message };
+    case "ref-moved":
+      return {
+        kind: "conflict",
+        message: "Concurrent local notes changed during compaction adoption. Retry notes sync.",
+      };
+    case "failed":
+      return { kind: "failed", error: adopt.error };
+  }
+}
+
+const DEFAULT_RECONCILE_LOCK: ReconcileNotesLock = {
+  acquire: async ({ io, cwd, identity }) =>
+    acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity)),
+  release: (handle) => releaseAdvisoryLock(handle),
+};
+
+async function rollbackCorruptMerge(input: {
+  io: UserIOContext;
+  fullRef: string;
+  preMergeTip: string | null;
+  postMergeTip: string | null;
+}): Promise<{ kind: "rolled-back" | "no-ref" } | { kind: "failed"; error: Error }> {
+  const { io, fullRef, preMergeTip, postMergeTip } = input;
+  if (postMergeTip === null) return { kind: "no-ref" };
+
+  const args = preMergeTip === null
+    ? ["update-ref", "-d", fullRef, postMergeTip]
+    : ["update-ref", fullRef, preMergeTip, postMergeTip];
+  try {
+    await io.exec("git", args);
+    return { kind: "rolled-back" };
+  } catch (err) {
+    return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
+  }
+}
+
+function reconcileRepushFailureOutcome(err: unknown): NotesPushOutcome {
+  if (err instanceof UserPushBlockedError) {
+    return { kind: "blocked", conditions: err.conditions };
+  }
+  const error = err instanceof Error ? err : new Error(String(err));
+  if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
+  if (isNonFastForwardError(error.message)) {
     return {
       kind: "conflict",
       message:
-        `Concurrent notes on commit ${corruptCommit.slice(0, 8)} could not be auto-merged `
-        + "(the union produced an unparseable note). Your local notes are preserved; resolve the "
-        + "conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
+        "Concurrent notes changed again during reconcile re-push. The merged local notes are preserved; "
+        + "retry `arc user push` or `arc sync` after the other writer lands.",
     };
   }
-
-  await runUserPush({ cwd, io, identity, access, worktreeBranch });
-  await tryExec(io, ["update-ref", "-d", incoming]);
-  return { kind: "reconciled" };
+  return { kind: "failed", error };
 }
 
 /** Current tip of a ref, or `null` when it does not resolve. */
@@ -305,20 +584,25 @@ async function tryExec(io: UserIOContext, args: string[]): Promise<void> {
   }
 }
 
+type MergedNoteScanResult =
+  | { kind: "clean" }
+  | { kind: "corrupt"; commit: string }
+  | { kind: "failed"; commit?: string; error: Error };
+
 /**
- * First annotated commit whose merged note no longer parses as one manifest, or
- * `null` when every note is valid. Scans the post-merge ref since `cat_sort_uniq`
- * corrupts silently (exit 0) on a same-commit collision.
+ * First annotated commit whose merged note no longer parses as one manifest.
+ * Empty output is clean — the ref may be absent or carry no notes — but read
+ * failures fail closed so a possibly-corrupt merge is never re-pushed.
  */
 async function findCorruptMergedNote(
   io: UserIOContext,
   shortRef: string,
-): Promise<string | null> {
+): Promise<MergedNoteScanResult> {
   let listOut: string;
   try {
     ({ stdout: listOut } = await io.exec("git", ["notes", "--ref", shortRef, "list"]));
-  } catch {
-    return null;
+  } catch (err) {
+    return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
   }
   const commits = listOut
     .split("\n")
@@ -329,10 +613,14 @@ async function findCorruptMergedNote(
     let content: string;
     try {
       ({ stdout: content } = await io.exec("git", ["notes", "--ref", shortRef, "show", commit]));
-    } catch {
-      continue;
+    } catch (err) {
+      return {
+        kind: "failed",
+        commit,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
     }
-    if (!isResolvedNoteValid(content)) return commit;
+    if (!isResolvedNoteValid(content)) return { kind: "corrupt", commit };
   }
-  return null;
+  return { kind: "clean" };
 }

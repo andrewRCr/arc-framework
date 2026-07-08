@@ -5,6 +5,9 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   buildLoadSummary,
@@ -56,6 +59,50 @@ describe("buildUserStatusResult", () => {
     expect(buildUserStatusSummary(result)).toContain(
       "andrew: local notes match working files and remote notes",
     );
+  });
+
+  it("surfaces the compaction advisory when notes history crosses the threshold", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+      compactionAdvisory: {
+        historyCommitCount: 2001,
+        threshold: 2000,
+        shouldSuggest: true,
+      },
+    });
+
+    expect(result.compactionAdvisory?.shouldSuggest).toBe(true);
+    expect(result.detailLines).toContain(
+      "User notes history has 2001 commit(s) (threshold 2000); run `arc user compact` when ready.",
+    );
+  });
+
+  it("omits the compaction advisory when notes history stays below the threshold", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+      compactionAdvisory: {
+        historyCommitCount: 1999,
+        threshold: 2000,
+        shouldSuggest: false,
+      },
+    });
+
+    expect(result.compactionAdvisory?.shouldSuggest).toBe(false);
+    expect(result.detailLines.some((line) => line.includes("arc user compact"))).toBe(false);
   });
 
   it("reports remote-ahead state with a pull hint", () => {
@@ -1249,6 +1296,7 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     noteFilesByCommit?: Record<string, Record<string, string>>;
     reachableCommits?: string[];
     maximalCommits?: string[];
+    gitCommonDir?: string;
   }
 
   function buildIO(scenario: DirectionScenario): UserIOContext {
@@ -1274,6 +1322,9 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
         if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
         if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
           return { stdout: `${scenario.noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: `${scenario.gitCommonDir ?? "/repo/.git"}\n`, stderr: "" };
         }
         if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
           return { stdout: `${localNotesRefHash}\n`, stderr: "" };
@@ -1511,6 +1562,97 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     expect(state.unsavedDirection).toBe("modified");
     expect(state.diskStatus).toBe("stale");
     expect(actionFor(state, noteCommit)).toBe("run `arc user load`");
+  });
+
+  it("keeps legacy save-sourced materialized hashes local-unsaved when no baseline stamp exists", async () => {
+    const baselineFiles = { "WORKING-MEMORY.md": "baseline" };
+    const baselineManifest: SyncManifest = { version: 2, files: baselineFiles };
+    const sharedCommit = "a".repeat(40);
+    const io = buildIO({
+      sourceCommit: sharedCommit,
+      sourceOperation: "save",
+      noteCommit: sharedCommit,
+      diskFiles: baselineFiles,
+      noteFiles: { "WORKING-MEMORY.md": "saved-note" },
+      materializedManifestHash: hashSyncManifest(baselineManifest),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.diskStatus).toBe("local unsaved");
+    expect(state.unsavedDirection).toBe("modified");
+    expect(actionFor(state, sharedCommit)).toBe("run `arc user save`");
+  });
+
+  it("uses the repo-shared materialized baseline stamp to identify stale disk", async () => {
+    const commonDir = await mkdtemp(join(tmpdir(), "arc-status-baseline-"));
+    try {
+      const baselineFiles = { "WORKING-MEMORY.md": "baseline" };
+      const baselineManifest: SyncManifest = { version: 2, files: baselineFiles };
+      const baselineHash = hashSyncManifest(baselineManifest);
+      const stampDir = join(commonDir, "arc", "user", "andrew", ".internal");
+      await mkdir(stampDir, { recursive: true });
+      await writeFile(
+        join(stampDir, "materialized-baseline.json"),
+        `${JSON.stringify({
+          version: 1,
+          manifestHash: baselineHash,
+          notesRefTip: null,
+          files: [],
+          entries: [],
+        }, null, 2)}\n`,
+        "utf-8",
+      );
+
+      const sharedCommit = "a".repeat(40);
+      const io = buildIO({
+        sourceCommit: sharedCommit,
+        sourceOperation: "save",
+        noteCommit: sharedCommit,
+        diskFiles: baselineFiles,
+        noteFiles: { "WORKING-MEMORY.md": "saved-note" },
+        materializedManifestHash: "legacy-save-hash",
+        sourceIsAncestorOfNote: true,
+        gitCommonDir: commonDir,
+      });
+
+      const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+      expect(state.diskStatus).toBe("stale");
+      expect(state.unsavedDirection).toBe("modified");
+      expect(actionFor(state, sharedCommit)).toBe("run `arc user load`");
+    } finally {
+      await rm(commonDir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed when the repo-shared materialized baseline stamp is malformed", async () => {
+    const commonDir = await mkdtemp(join(tmpdir(), "arc-status-baseline-bad-"));
+    try {
+      const stampDir = join(commonDir, "arc", "user", "andrew", ".internal");
+      await mkdir(stampDir, { recursive: true });
+      await writeFile(join(stampDir, "materialized-baseline.json"), "{bad json\n", "utf-8");
+
+      const sharedCommit = "a".repeat(40);
+      const baselineFiles = { "WORKING-MEMORY.md": "baseline" };
+      const baselineManifest: SyncManifest = { version: 2, files: baselineFiles };
+      const io = buildIO({
+        sourceCommit: sharedCommit,
+        sourceOperation: "save",
+        noteCommit: sharedCommit,
+        diskFiles: baselineFiles,
+        noteFiles: { "WORKING-MEMORY.md": "saved-note" },
+        materializedManifestHash: hashSyncManifest(baselineManifest),
+        sourceIsAncestorOfNote: true,
+        gitCommonDir: commonDir,
+      });
+
+      await expect(inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" }))
+        .rejects.toThrow("Invalid materialized-baseline stamp");
+    } finally {
+      await rm(commonDir, { recursive: true, force: true });
+    }
   });
 
   const wmEntry = (header: string, body: string): string =>
@@ -1817,6 +1959,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -1857,6 +2002,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -1905,6 +2053,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -1959,6 +2110,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -1991,7 +2145,9 @@ describe("runUserSessionInitStatus", () => {
       },
       readFile: async (path: string) => {
         if (path === `${userDir}/SESSION-NOTES.md`) return noteFiles["SESSION-NOTES.md"];
-        throw new Error(`ENOENT: ${path}`);
+        const err = new Error(`ENOENT: ${path}`) as NodeJS.ErrnoException;
+        err.code = "ENOENT";
+        throw err;
       },
     };
 
@@ -2017,6 +2173,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -2101,6 +2260,9 @@ describe("runUserSessionInitStatus", () => {
     const probeIO = {
       ...io,
       exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify") {
           return { stdout: `${sameRefHash}\n`, stderr: "" };
         }
@@ -2245,6 +2407,9 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
     return {
       exec: async (cmd, args) => {
         if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
           return { stdout: `${localNotesRefHash}\n`, stderr: "" };
         }
@@ -2704,6 +2869,26 @@ describe("runUserStatus worktree probe orchestration", () => {
     expect(calls.some((c) => c.args[0] === "fetch")).toBe(true);
   });
 
+  it("runs the worktree fetch without suppressing note-history status reads", async () => {
+    const calls: Array<{ cmd: string; args: string[] }> = [];
+    const io = makeIO(fakeNoNotesExec(calls));
+
+    await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    const worktreeFetchIndex = calls.findIndex((c) =>
+      c.args[0] === "fetch" && c.args[1] === "origin" && c.args[2] === "main",
+    );
+    const firstNotesListIndex = calls.findIndex((c) => c.args[0] === "notes");
+
+    expect(worktreeFetchIndex).toBeGreaterThanOrEqual(0);
+    expect(firstNotesListIndex).toBeGreaterThanOrEqual(0);
+  });
+
   it("does not invoke the worktree probe when --offline is set", async () => {
     const calls: Array<{ cmd: string; args: string[] }> = [];
     const io = makeIO(fakeNoNotesExec(calls));
@@ -2797,6 +2982,9 @@ describe("runUserStatus saved-note projection", () => {
     return {
       exec: async (cmd, args) => {
         if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
         if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
           return { stdout: `${scenario.head}\n`, stderr: "" };
         }
@@ -3059,6 +3247,29 @@ describe("runUserStatus bounded notes-ref fetch", () => {
     expect(inspection.failureReason).toBe("error");
   });
 
+  it("uses distinct temp refs for concurrent notes-ref probes", async () => {
+    const calls: ExecCall[] = [];
+    const io = makeIO(fakeMustFetchExec(calls, "ok"));
+
+    await Promise.all([
+      inspectUserSyncRefsDetailed(io, "andrew", 1000),
+      inspectUserSyncRefsDetailed(io, "andrew", 1000),
+    ]);
+
+    const fetchedRefs = calls
+      .filter((call) => call.args[0] === "fetch" && typeof call.args[3] === "string")
+      .map((call) => (call.args[3] ?? "").split(":")[1])
+      .filter((ref): ref is string => ref !== undefined && ref.startsWith("refs/arc-sync-temp/"));
+    const deletedRefs = calls
+      .filter((call) => call.args[0] === "update-ref" && call.args[1] === "-d")
+      .map((call) => call.args[2])
+      .filter((ref): ref is string => ref !== undefined && ref.startsWith("refs/arc-sync-temp/"));
+
+    expect(fetchedRefs).toHaveLength(2);
+    expect(new Set(fetchedRefs).size).toBe(2);
+    expect(deletedRefs.sort()).toEqual([...fetchedRefs].sort());
+  });
+
   it("does not invoke the notes-ref fetch when --offline is set", async () => {
     const calls: ExecCall[] = [];
     const io = makeIO(fakeMustFetchExec(calls, "ok"));
@@ -3082,7 +3293,9 @@ describe("runUserStatus userSyncCause orchestration", () => {
       exec: execImpl,
       readDir: async () => [],
       readFile: async () => {
-        throw new Error("ENOENT");
+        const err = new Error("ENOENT") as NodeJS.ErrnoException;
+        err.code = "ENOENT";
+        throw err;
       },
       writeFile: async () => {},
       mkdir: async () => undefined,
