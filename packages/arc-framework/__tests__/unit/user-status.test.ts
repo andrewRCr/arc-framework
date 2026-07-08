@@ -84,6 +84,27 @@ describe("buildUserStatusResult", () => {
     );
   });
 
+  it("omits the compaction advisory when notes history stays below the threshold", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "same",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+      compactionAdvisory: {
+        historyCommitCount: 1999,
+        threshold: 2000,
+        shouldSuggest: false,
+      },
+    });
+
+    expect(result.compactionAdvisory?.shouldSuggest).toBe(false);
+    expect(result.detailLines.some((line) => line.includes("arc user compact"))).toBe(false);
+  });
+
   it("reports remote-ahead state with a pull hint", () => {
     const result = buildUserStatusResult({
       identity: "andrew",

@@ -31,6 +31,8 @@ import {
   type UserPushResult,
 } from "./types.js";
 
+const FETCH_UPDATE_CAS_ATTEMPTS = 3;
+
 /**
  * Push user notes to remote origin.
  *
@@ -219,12 +221,13 @@ async function createFetchedNotesRef(
   io: UserIOContext,
   ref: string,
   remoteTip: string,
+  attempt = 1,
 ): Promise<UserFetchResult> {
   try {
     await io.exec("git", ["update-ref", ref, remoteTip, ""]);
     return { kind: "created", remoteTip };
   } catch (err) {
-    return classifyGuardedFetchUpdateFailure(io, ref, null, remoteTip, err);
+    return classifyGuardedFetchUpdateFailure(io, ref, null, remoteTip, err, attempt);
   }
 }
 
@@ -233,12 +236,13 @@ async function fastForwardFetchedNotesRef(
   ref: string,
   localTip: string,
   remoteTip: string,
+  attempt = 1,
 ): Promise<UserFetchResult> {
   try {
     await io.exec("git", ["update-ref", ref, remoteTip, localTip]);
     return { kind: "fast-forwarded", localTip, remoteTip };
   } catch (err) {
-    return classifyGuardedFetchUpdateFailure(io, ref, localTip, remoteTip, err);
+    return classifyGuardedFetchUpdateFailure(io, ref, localTip, remoteTip, err, attempt);
   }
 }
 
@@ -248,6 +252,7 @@ async function classifyGuardedFetchUpdateFailure(
   expectedLocalTip: string | null,
   remoteTip: string,
   err: unknown,
+  attempt: number,
 ): Promise<UserFetchResult> {
   const error = err instanceof Error ? err : new Error(String(err));
   if (!isCasRejectionError(error.message)) return { kind: "remote-unavailable", error };
@@ -263,7 +268,13 @@ async function classifyGuardedFetchUpdateFailure(
 
   const remoteStillAhead = await isAncestor(io, currentLocalTip, remoteTip);
   if (remoteStillAhead) {
-    return fastForwardFetchedNotesRef(io, ref, currentLocalTip, remoteTip);
+    if (attempt >= FETCH_UPDATE_CAS_ATTEMPTS) {
+      return {
+        kind: "remote-unavailable",
+        error: new Error(`fetch CAS update exceeded retry attempts for ${ref}`, { cause: error }),
+      };
+    }
+    return fastForwardFetchedNotesRef(io, ref, currentLocalTip, remoteTip, attempt + 1);
   }
 
   const localContainsRemote = await isAncestor(io, remoteTip, currentLocalTip);
@@ -501,6 +512,11 @@ async function adoptFetchedCompactionIfNewer(input: {
       return { kind: "not-needed" };
     case "conflict":
       return { kind: "conflict", message: adopt.message };
+    case "ref-moved":
+      return {
+        kind: "conflict",
+        message: "Concurrent local notes changed during compaction adoption. Retry notes sync.",
+      };
     case "failed":
       return { kind: "failed", error: adopt.error };
   }

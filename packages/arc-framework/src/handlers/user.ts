@@ -18,6 +18,7 @@ import {
   buildSaveSummary, buildLoadSummary, buildUserCompactSummary,
   buildUserSessionInitStatusSummary, buildUserStatusSummary,
   hasLocalNotes,
+  hasSaveWarnings,
   UserPushBlockedError,
   type UserCompactResult,
   type UserIOContext,
@@ -281,8 +282,8 @@ export async function handleUserSave(): Promise<void> {
     );
     p.note(buildSaveSummary(result), "Saved");
 
-    if (result.warnings.length > 0) {
-      p.log.warn("Some files were skipped (see details above).");
+    if (hasSaveWarnings(result)) {
+      p.log.warn("Save completed with warnings (see details above).");
     }
   } catch (err) {
     if (isHandledError(err)) return;

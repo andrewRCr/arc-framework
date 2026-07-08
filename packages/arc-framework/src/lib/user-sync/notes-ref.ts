@@ -55,19 +55,49 @@ export async function readNotesRefHistory(
   sinceIso: string,
 ): Promise<NotesRefHistoryEntry[]> {
   try {
-    const { stdout } = await exec("git", [
-      "log",
-      "--format=%H%x00%cI",
-      `--since-as-filter=${sinceIso}`,
-      fullRef,
-    ]);
-    return stdout
-      .split("\n")
-      .map(parseHistoryEntry)
-      .filter((entry): entry is NotesRefHistoryEntry => entry !== null);
-  } catch {
-    return [];
+    return parseHistoryLog(await readNotesRefHistoryWithSinceArg(exec, fullRef, `--since-as-filter=${sinceIso}`));
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    if (!isUnsupportedSinceAsFilterError(error.message)) return [];
+    // `--since-as-filter` requires Git 2.37+. Older Git can only fall back to
+    // `--since`, which may stop traversal early on non-date-ordered history;
+    // returning that bounded view is still preferable to reporting no recent notes.
+    try {
+      return parseHistoryLog(await readNotesRefHistoryWithSinceArg(exec, fullRef, `--since=${sinceIso}`));
+    } catch {
+      return [];
+    }
   }
+}
+
+async function readNotesRefHistoryWithSinceArg(
+  exec: GitExec,
+  fullRef: string,
+  sinceArg: string,
+): Promise<string> {
+  const { stdout } = await exec("git", [
+    "log",
+    "--format=%H%x00%cI",
+    sinceArg,
+    fullRef,
+  ]);
+  return stdout;
+}
+
+function parseHistoryLog(stdout: string): NotesRefHistoryEntry[] {
+  return stdout
+    .split("\n")
+    .map(parseHistoryEntry)
+    .filter((entry): entry is NotesRefHistoryEntry => entry !== null);
+}
+
+function isUnsupportedSinceAsFilterError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return lower.includes("since-as-filter") && (
+    lower.includes("unknown option")
+    || lower.includes("unrecognized option")
+    || lower.includes("invalid option")
+  );
 }
 
 /** Note paths changed in a single notes-ref history commit. */

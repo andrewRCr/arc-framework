@@ -119,6 +119,7 @@ export async function runUserSave(
   let commit!: string;
   let result!: SerializeResult;
   let savedNotesRefTip!: string | null;
+  const bookkeepingWarnings: string[] = [];
   const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
   try {
     const head = await io.exec("git", ["rev-parse", "HEAD"]);
@@ -144,14 +145,19 @@ export async function runUserSave(
     await verifySavedNote(io, identity, commit, result.manifest);
     const projectedSave = projectManifest(result.manifest);
     savedNotesRefTip = await readNotesRefTip(io, identity);
-    await writeMaterializedBaselineStamp({
-      exec: io.exec,
-      cwd,
-      identity,
-      manifest: projectedSave,
-      manifestHash: hashSyncManifest(projectedSave),
-      notesRefTip: savedNotesRefTip,
-    });
+    try {
+      await writeMaterializedBaselineStamp({
+        exec: io.exec,
+        cwd,
+        identity,
+        manifest: projectedSave,
+        manifestHash: hashSyncManifest(projectedSave),
+        notesRefTip: savedNotesRefTip,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      bookkeepingWarnings.push(`materialized-baseline stamp update failed: ${message}`);
+    }
   } finally {
     await releaseAdvisoryLock(lock);
   }
@@ -173,6 +179,7 @@ export async function runUserSave(
     commit: await shortHash(io.exec, commit),
     fileCount: Object.keys(result.manifest.files).length,
     warnings: result.warnings,
+    ...(bookkeepingWarnings.length > 0 ? { bookkeepingWarnings } : {}),
   };
 }
 

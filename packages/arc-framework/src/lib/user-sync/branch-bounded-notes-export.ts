@@ -272,6 +272,11 @@ async function adoptRemoteCompactionIfNewer(input: {
       return { kind: "not-needed" };
     case "conflict":
       return { kind: "conflict", message: adopt.message };
+    case "ref-moved":
+      return {
+        kind: "conflict",
+        message: "Concurrent local notes changed during compaction adoption. Retry the paired push.",
+      };
     case "failed":
       return { kind: "failed", error: adopt.error };
   }

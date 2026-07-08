@@ -157,7 +157,7 @@ export async function runPairedPush(
       save,
       worktree,
       notes,
-      conditions: pushability.conditions,
+      conditions: conditionsAfterResolution,
       exitCode: 1,
       retryOffer: { autoRetries: 0 },
       partialPushMarkerRecorded,

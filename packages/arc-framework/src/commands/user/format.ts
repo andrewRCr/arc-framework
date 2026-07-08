@@ -28,7 +28,20 @@ export function buildSaveSummary(result: UserSaveResult): string {
     }
   }
 
+  if ((result.bookkeepingWarnings?.length ?? 0) > 0) {
+    lines.push("");
+    lines.push("Warnings:");
+    for (const warning of result.bookkeepingWarnings ?? []) {
+      lines.push(`  - ${warning}`);
+    }
+  }
+
   return lines.join("\n");
+}
+
+/** Whether a save result has details worth surfacing beyond the success line. */
+export function hasSaveWarnings(result: UserSaveResult): boolean {
+  return result.warnings.length > 0 || (result.bookkeepingWarnings?.length ?? 0) > 0;
 }
 
 /**

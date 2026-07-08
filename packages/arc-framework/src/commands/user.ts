@@ -71,6 +71,7 @@ export {
   buildUserCompactSummary,
   buildUserSessionInitStatusSummary,
   buildUserStatusSummary,
+  hasSaveWarnings,
 } from "./user/format.js";
 export {
   BACKUP_FILENAME,

@@ -23,6 +23,7 @@ import {
   buildSaveSummary,
   buildLoadSummary,
   formatWorktreeQualifierLine,
+  hasSaveWarnings,
   UserSaveError,
   type UserSyncState,
 } from "../commands/user.js";
@@ -215,7 +216,7 @@ async function degradeConflictToSaveOnly(params: DirectionParams): Promise<void>
   try {
     const result = await runUserSave({ cwd, io, identity });
     saveSpinner.stop("Save complete.");
-    if (result.warnings.length > 0) {
+    if (hasSaveWarnings(result)) {
       p.note(buildSaveSummary(result), "Saved");
     }
   } catch (err) {
@@ -338,7 +339,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
   try {
     const result = await runUserSave({ cwd, io, identity });
     saveSpinner.stop("Save complete.");
-    if (result.warnings.length > 0) {
+    if (hasSaveWarnings(result)) {
       p.note(buildSaveSummary(result), "Saved");
     }
   } catch (err) {

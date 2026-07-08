@@ -32,6 +32,8 @@ const USER_INTERNAL_DIRNAME = ".internal";
 /** Notes ref prefix; mirrors the notes-ref module's internal `refs/notes/arc/user`. */
 const USER_NOTES_REF = "refs/notes/arc/user";
 const LOCAL_SYNC_STATE_UPDATE_ATTEMPTS = 20;
+const LOCAL_SYNC_STATE_RETRY_BACKOFF_MIN_MS = 1;
+const LOCAL_SYNC_STATE_RETRY_BACKOFF_JITTER_MS = 4;
 /** Sentinel basis for loads that materialize shared context without a comparable branch commit. */
 export const NO_COMPARABLE_SOURCE_COMMIT = "no-comparable-saved-commit";
 
@@ -471,15 +473,28 @@ async function updateLocalSyncStateRecord(
     const lock = await acquireAdvisoryLock(lockPath);
     try {
       const currentRaw = await readOptionalFile(io, syncStatePath);
-      if (currentRaw !== snapshot.targetRaw) continue;
-      await atomicWriteJson(syncStatePath, next);
-      return true;
+      if (currentRaw === snapshot.targetRaw) {
+        await atomicWriteJson(syncStatePath, next);
+        return true;
+      }
     } finally {
       await releaseAdvisoryLock(lock);
+    }
+    if (attempt < LOCAL_SYNC_STATE_UPDATE_ATTEMPTS - 1) {
+      await sleep(localSyncStateRetryBackoffMs());
     }
   }
 
   throw new Error(`sync-state update exceeded retry attempts: ${syncStatePath}`);
+}
+
+function localSyncStateRetryBackoffMs(): number {
+  return LOCAL_SYNC_STATE_RETRY_BACKOFF_MIN_MS
+    + Math.floor(Math.random() * (LOCAL_SYNC_STATE_RETRY_BACKOFF_JITTER_MS + 1));
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function readLocalSyncStateSnapshot(

@@ -51,6 +51,7 @@ import { access } from "node:fs/promises";
 import {
   buildSaveSummary,
   clearErrandPartialPushMarker,
+  hasSaveWarnings,
   recordErrandPartialPushMarker,
   runPairedPush,
   runUserSave,
@@ -546,11 +547,15 @@ async function reconcileErrandLeg(
     switch (outcome.kind) {
       case "pushed":
       case "reconciled":
-        await clearErrandPartialPushMarker(cwd, io, identity);
-        return { action: "reconcile", result: "success" };
+        return reconcileErrandSuccessRecord(
+          "success",
+          await clearErrandPartialPushMarkerSafely(cwd, io, identity),
+        );
       case "noop":
-        await clearErrandPartialPushMarker(cwd, io, identity);
-        return { action: "reconcile", result: "noop" };
+        return reconcileErrandSuccessRecord(
+          "noop",
+          await clearErrandPartialPushMarkerSafely(cwd, io, identity),
+        );
       case "no-remote":
       case "conflict":
       case "failed": {
@@ -572,6 +577,19 @@ async function reconcileErrandLeg(
   }
 }
 
+async function clearErrandPartialPushMarkerSafely(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<boolean> {
+  try {
+    await clearErrandPartialPushMarker(cwd, io, identity);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function recordErrandPartialPushMarkerSafely(
   cwd: string,
   io: UserIOContext,
@@ -582,6 +600,17 @@ async function recordErrandPartialPushMarkerSafely(
   } catch {
     return false;
   }
+}
+
+function reconcileErrandSuccessRecord(
+  result: "success" | "noop",
+  markerCleared: boolean,
+): LegOutcomeRecord {
+  return {
+    action: "reconcile",
+    result,
+    ...(markerCleared ? {} : { detail: "marker-clear-failed" }),
+  };
 }
 
 function errandPartialPushDetail(detail: string, markerRecorded: boolean): string {
@@ -851,7 +880,7 @@ function renderPairedResult(
   )) {
     output.log.error(condition.guidance);
   }
-  if (result.save.status === "success" && result.save.result.warnings.length > 0) {
+  if (result.save.status === "success" && hasSaveWarnings(result.save.result)) {
     output.note(buildSaveSummary(result.save.result), "Saved");
   } else if (result.save.status === "failed") {
     output.log.error(`Save failed: ${result.save.error.message}`);
@@ -1194,7 +1223,7 @@ async function performSave(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
   try {
     const result = await runUserSave({ cwd: ctx.cwd, io: ctx.io, identity: ctx.identity });
     spinner.stop("Save complete.");
-    if (result.warnings.length > 0) {
+    if (hasSaveWarnings(result)) {
       ctx.output.note(buildSaveSummary(result), "Saved");
     }
     return { action: "save", result: "success" };

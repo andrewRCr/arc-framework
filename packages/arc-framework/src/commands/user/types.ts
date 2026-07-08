@@ -38,6 +38,8 @@ export interface UserSaveResult {
   commit: string;
   fileCount: number;
   warnings: SkipWarning[];
+  /** Non-fatal bookkeeping issues after the verified note write succeeded. */
+  bookkeepingWarnings?: string[];
 }
 
 /** Options for the save operation. */

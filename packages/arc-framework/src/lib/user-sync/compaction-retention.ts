@@ -57,9 +57,9 @@ export function decideNotesCompactionRetention(
   if (!Number.isFinite(nowMs)) {
     throw new Error(`decideNotesCompactionRetention: invalid \`now\` timestamp: ${input.now}`);
   }
+  const sorted = [...input.entries].sort(compareByRecency);
   const newest = new Set(
-    [...input.entries]
-      .sort(compareByRecency)
+    sorted
       .filter((entry) => !entry.preMigrationRootSessionNotes)
       .slice(0, newestRetainCount)
       .map(pairKey),
@@ -68,7 +68,7 @@ export function decideNotesCompactionRetention(
   const retained: RetentionPolicyNoteEntry[] = [];
   const pruned: RetentionPolicyNoteEntry[] = [];
 
-  for (const entry of [...input.entries].sort(compareByRecency)) {
+  for (const entry of sorted) {
     if (entry.preMigrationRootSessionNotes) {
       pruned.push(entry);
       continue;

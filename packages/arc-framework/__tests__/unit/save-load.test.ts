@@ -203,6 +203,7 @@ interface SaveMockConfig {
   notesRefTip?: string;
   writeNoteRejects?: boolean;
   readback?: string | null;
+  beforeNotesRefTipRead?: () => Promise<void>;
 }
 
 function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
@@ -218,6 +219,7 @@ function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
         return { stdout: head, stderr: "" };
       }
       if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--verify") {
+        await config.beforeNotesRefTipRead?.();
         return { stdout: `${notesRefTip}\n`, stderr: "" };
       }
       if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
@@ -781,6 +783,25 @@ describe("runUserSave — save verification", () => {
         contentHash: expect.any(String),
       }],
     });
+  });
+
+  it("returns success with a bookkeeping warning when the late materialized-baseline stamp fails", async () => {
+    const internalDir = join(cwd, ".git", "arc", "user", "andrew", ".internal");
+    let disrupted = false;
+    const io = mockSaveIO({
+      beforeNotesRefTipRead: async () => {
+        if (disrupted) return;
+        disrupted = true;
+        await rm(internalDir, { recursive: true, force: true });
+        await mkdir(dirname(internalDir), { recursive: true });
+        await writeFile(internalDir, "not a directory", "utf-8");
+      },
+    });
+
+    const result = await runUserSave({ cwd, io, identity: "andrew" });
+
+    expect(result.fileCount).toBe(1);
+    expect(result.bookkeepingWarnings?.[0]).toContain("materialized-baseline");
   });
 
   it("captures the materialized file list as the prior-file-list basis for drift detection", async () => {

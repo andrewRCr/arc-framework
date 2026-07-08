@@ -542,6 +542,30 @@ describe("runPairedPush", () => {
     expect(result.conditions.some((c) => c.kind === "no-upstream-branch")).toBe(false);
   });
 
+  it("setUpstream notes-plan miss does not surface the resolved no-upstream condition", async () => {
+    const responses = cleanRepoResponses();
+    responses[REV_PARSE_UPSTREAM] = () => {
+      throw new Error("fatal: no upstream configured for branch 'main'");
+    };
+    mockPlanNotesExport.mockResolvedValue({ kind: "skipped", reason: "empty-export" });
+    const { exec } = buildExec(responses);
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+    const { pushNotes } = stubPushNotes({ status: "success" });
+
+    const result = await runPairedPush({
+      io, access, pushNotes, ...COMMON_OPTIONS, setUpstream: true,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.worktree).toMatchObject({ status: "success" });
+    expect(result.notes).toMatchObject({
+      status: "refused",
+      message: expect.stringContaining("empty-export"),
+    });
+    expect(result.conditions.some((c) => c.kind === "no-upstream-branch")).toBe(false);
+  });
+
   it("setUpstream: false (default) with no-upstream → refuses before save fires", async () => {
     const responses = cleanRepoResponses();
     responses[REV_PARSE_UPSTREAM] = () => {

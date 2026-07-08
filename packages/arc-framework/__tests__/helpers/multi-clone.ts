@@ -231,8 +231,7 @@ export async function setupMultiClone(
 export async function setupWorktreeSiblings(
   options: WorktreeSiblingsOptions = {},
 ): Promise<WorktreeSiblings> {
-  const initialCommit = options.initialCommit ?? true;
-  if (!initialCommit) {
+  if (options.initialCommit === false) {
     throw new Error("setupWorktreeSiblings requires initialCommit because the sibling worktree branches from main.");
   }
   const primaryOptions = resolveCloneOptions(DEFAULT_CLONE_A, options.primary);
@@ -252,9 +251,7 @@ export async function setupWorktreeSiblings(
     createdPaths.push(origin);
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
 
-    if (initialCommit) {
-      await seedOrigin(origin);
-    }
+    await seedOrigin(origin);
 
     const primary = await createClone(origin, "arc-wt-primary-", primaryOptions);
     createdPaths.push(primary);

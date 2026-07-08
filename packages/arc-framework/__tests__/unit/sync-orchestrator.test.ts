@@ -50,6 +50,8 @@ vi.mock("@clack/prompts", () => ({
 const mockRunPairedPush = vi.fn();
 const mockRunUserSave = vi.fn();
 const mockBuildSaveSummary: Mock<(result: unknown) => string> = vi.fn(() => "save summary");
+const mockClearErrandPartialPushMarker = vi.fn();
+const mockRecordErrandPartialPushMarker = vi.fn();
 
 vi.mock("../../src/commands/user.js", async () => {
   const actual = await vi.importActual<typeof import("../../src/commands/user.js")>(
@@ -60,8 +62,15 @@ vi.mock("../../src/commands/user.js", async () => {
     runPairedPush: (opts: unknown) => mockRunPairedPush(opts),
     runUserSave: (opts: unknown) => mockRunUserSave(opts),
     buildSaveSummary: (result: unknown) => mockBuildSaveSummary(result),
+    clearErrandPartialPushMarker: (...args: unknown[]) => mockClearErrandPartialPushMarker(...args),
+    recordErrandPartialPushMarker: (...args: unknown[]) => mockRecordErrandPartialPushMarker(...args),
   };
 });
+
+const mockReconcileErrandPush = vi.fn();
+vi.mock("../../src/lib/errand/index.js", () => ({
+  reconcileErrandPush: (...args: unknown[]) => mockReconcileErrandPush(...args),
+}));
 
 const mockResolveAllSettings = vi.fn();
 vi.mock("../../src/lib/config/resolved-settings.js", () => ({
@@ -110,8 +119,14 @@ vi.mock("../../src/lib/paths.js", async () => {
 });
 
 const mockGitExec = vi.fn();
+const mockGitExecInput = vi.fn();
+let includeExecInput = false;
 vi.mock("../../src/lib/io-context.js", () => ({
-  createUserIOContext: () => ({ exec: mockGitExec, readFile: vi.fn() }),
+  createUserIOContext: () => ({
+    exec: mockGitExec,
+    readFile: vi.fn(),
+    ...(includeExecInput ? { execInput: mockGitExecInput } : {}),
+  }),
 }));
 
 const mockAppendAuditEntry = vi.fn();
@@ -214,6 +229,10 @@ function resetMockDefaults() {
   mockResolveArcRoot.mockReturnValue("/repo");
   mockSpinner.mockImplementation(() => ({ start: vi.fn(), stop: vi.fn() }));
   mockBuildSaveSummary.mockReturnValue("save summary");
+  mockClearErrandPartialPushMarker.mockResolvedValue(undefined);
+  mockRecordErrandPartialPushMarker.mockResolvedValue(true);
+  mockReconcileErrandPush.mockResolvedValue({ kind: "noop" });
+  includeExecInput = false;
   mockAppendAuditEntry.mockResolvedValue({ ok: true });
   mockResolveActiveWu.mockResolvedValue({
     status: "resolved",
@@ -482,6 +501,26 @@ describe("handleSync orchestrator matrix dispatch", () => {
       ...mockLog.warn.mock.calls.map((c) => String(c[0] ?? "")),
     ];
     expect(surfaced.some((line) => line.includes("3 unpushed commit"))).toBe(true);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("keeps errand reconcile successful when marker cleanup fails", async () => {
+    includeExecInput = true;
+    setConfig("manual");
+    setNotesPolicy("manual");
+    setWorktree("clean");
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+    mockReconcileErrandPush.mockResolvedValue({ kind: "pushed" });
+    mockClearErrandPartialPushMarker.mockRejectedValue(new Error("permission denied"));
+
+    const outcome = await captureSyncJson();
+
+    expect(outcome.errand).toEqual({
+      action: "reconcile",
+      result: "success",
+      detail: "marker-clear-failed",
+    });
+    expect(mockRecordErrandPartialPushMarker).not.toHaveBeenCalled();
     expect(process.exitCode).toBeUndefined();
   });
 

@@ -332,6 +332,44 @@ describe("runUserFetch — ancestry-guarded updates", () => {
     ]);
   });
 
+  it("bounds repeated CAS rejections when the local ref keeps moving under fetch", async () => {
+    const movingTips = [
+      LOCAL_TIP,
+      NEW_LOCAL_TIP,
+      "4444444444444444444444444444444444444444",
+      "5555555555555555555555555555555555555555",
+    ];
+    let localReads = 0;
+    const { exec, calls } = buildExec({
+      "rev-parse --verify *": ({ 2: ref }) => {
+        if (ref !== NOTES_REF) return { stdout: `${REMOTE_TIP}\n`, stderr: "" };
+        const tip = movingTips[localReads] ?? movingTips[movingTips.length - 1];
+        localReads += 1;
+        return { stdout: `${tip}\n`, stderr: "" };
+      },
+      [FETCH_TEMP_NOTES]: { stdout: "", stderr: "" },
+      "merge-base --is-ancestor * *": { stdout: "", stderr: "" },
+      [`update-ref ${NOTES_REF} ${REMOTE_TIP} *`]: (args) => {
+        const expected = args[3];
+        throw new Error(
+          `cannot lock ref '${NOTES_REF}': is at ${movingTips[localReads] ?? NEW_LOCAL_TIP} but expected ${expected}`,
+        );
+      },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await runUserFetch({ io, identity: "andrew" });
+
+    expect(result.kind).toBe("remote-unavailable");
+    if (result.kind === "remote-unavailable") {
+      expect(result.error.message).toContain("exceeded retry attempts");
+    }
+    expect(calls.map((c) => c.args).filter((args) =>
+      args[0] === "update-ref" && args[1] === NOTES_REF,
+    )).toHaveLength(3);
+  });
+
   it("pull skips disk load when fetch refuses", async () => {
     const { exec } = buildExec({
       "rev-parse --verify *": ({ 2: ref }) => (

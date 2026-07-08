@@ -16,7 +16,7 @@ import {
   type NotesCompactionPair,
 } from "./compaction-manifest.js";
 import { listNoteEntries, notePathToCommit } from "./notes-ref.js";
-import { isRemoteUnavailableError } from "./notes-merge.js";
+import { isCasRejectionError, isRemoteUnavailableError } from "./notes-merge.js";
 
 /** Inputs for publishing one compacted snapshot commit. */
 export interface CompactNotesRefSnapshotInput {
@@ -71,6 +71,7 @@ export type AdoptCompactedNotesRefResult =
   }
   | { kind: "not-newer" }
   | { kind: "conflict"; message: string }
+  | { kind: "ref-moved"; error: Error }
   | { kind: "failed"; error: Error };
 
 /** Read the in-band compaction manifest from a notes ref or commit-ish. */
@@ -248,10 +249,16 @@ export async function adoptCompactedNotesRef(
     if (adoptedTip === null) {
       return { kind: "failed", error: new Error("Compaction adopt did not produce a notes ref.") };
     }
-    if (localTip === null) {
-      await exec("git", ["update-ref", fullRef, adoptedTip, ""]);
-    } else {
-      await exec("git", ["update-ref", fullRef, adoptedTip, localTip]);
+    try {
+      if (localTip === null) {
+        await exec("git", ["update-ref", fullRef, adoptedTip, ""]);
+      } else {
+        await exec("git", ["update-ref", fullRef, adoptedTip, localTip]);
+      }
+    } catch (err) {
+      const error = toError(err);
+      if (isCasRejectionError(error.message)) return { kind: "ref-moved", error };
+      return { kind: "failed", error };
     }
     return {
       kind: "adopted",

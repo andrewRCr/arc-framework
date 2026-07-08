@@ -38,6 +38,7 @@ interface NotesConfig {
   contentByAnnotatedCommit?: Record<string, string>;
   notesListOutput?: string;
   logThrows?: boolean;
+  sinceAsFilterUnsupported?: boolean;
   notesListThrows?: boolean;
 }
 
@@ -53,8 +54,14 @@ function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
     calls.push(args);
     if (args[0] === "log") {
       if (cfg.logThrows) throw new Error("no such ref");
-      const sinceArg = args.find((arg) => arg.startsWith("--since-as-filter="));
-      const since = sinceArg ? Date.parse(sinceArg.slice("--since-as-filter=".length)) : Number.NEGATIVE_INFINITY;
+      const sinceAsFilterArg = args.find((arg) => arg.startsWith("--since-as-filter="));
+      if (cfg.sinceAsFilterUnsupported && sinceAsFilterArg) {
+        throw new Error("unknown option: since-as-filter");
+      }
+      const sinceArg = sinceAsFilterArg ?? args.find((arg) => arg.startsWith("--since="));
+      const since = sinceArg
+        ? Date.parse(sinceArg.slice(sinceArg.indexOf("=") + 1))
+        : Number.NEGATIVE_INFINITY;
       return {
         stdout: history
           .filter((commit) => Date.parse(historyDates[commit] ?? NOW) >= since)
@@ -117,6 +124,21 @@ describe("readRecentUserNotes", () => {
     expect(log).not.toContain("--max-count");
     expect(log?.some((arg) => arg.startsWith("--since-as-filter="))).toBe(true);
     expect(log?.some((arg) => arg.startsWith("--since="))).toBe(false);
+  });
+
+  it("falls back to --since when Git does not support --since-as-filter", async () => {
+    const cfg = oneNotePerHistory([
+      { history: "a1", marker: "RECENT" },
+      { history: "b2", marker: "OLD", date: daysAgo(40) },
+    ]);
+    const { exec, calls } = makeExec({ ...cfg, sinceAsFilterUnsupported: true });
+
+    const notes = await readRecentUserNotes(exec, "andrew", undefined, NOW);
+
+    expect(notes.map((n) => n.content)).toEqual(["RECENT"]);
+    const logCalls = calls.filter((args) => args[0] === "log");
+    expect(logCalls[0]?.some((arg) => arg.startsWith("--since-as-filter="))).toBe(true);
+    expect(logCalls[1]?.some((arg) => arg.startsWith("--since="))).toBe(true);
   });
 
   it("reads what exists when fewer than N notes are available", async () => {
