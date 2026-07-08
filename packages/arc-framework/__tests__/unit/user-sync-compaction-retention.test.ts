@@ -67,6 +67,14 @@ describe("notes compaction retention policy", () => {
     expect(result.pruned).toEqual([old]);
   });
 
+  it("rejects an invalid current timestamp instead of bypassing the age gate", () => {
+    expect(() => decideNotesCompactionRetention({
+      entries: [note("a", { archivedAt: "2026-06-20T00:00:00.000Z" })],
+      now: "not-a-date",
+      newestRetainCount: 0,
+    })).toThrow("invalid `now` timestamp");
+  });
+
   it("keeps in-flight work while pruning pre-migration root session notes unconditionally", () => {
     const inFlight = note("a", {
       archivedAt: null,

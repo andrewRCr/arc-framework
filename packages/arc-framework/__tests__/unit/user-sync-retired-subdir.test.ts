@@ -58,6 +58,17 @@ describe("planRetiredSubdirReconcile", () => {
     expect(plan.preserved).toEqual([{ subdir: "live-wu", reason: "not-shipped" }]);
   });
 
+  it("preserves a not-shipped subdir as not-shipped even when another worktree is in flight", () => {
+    const plan = planRetiredSubdirReconcile({
+      localSubdirs: ["live-wu"],
+      shipped: new Set(),
+      inFlight: new Set(["live-wu"]),
+    });
+
+    expect(plan.reconcile).toEqual([]);
+    expect(plan.preserved).toEqual([{ subdir: "live-wu", reason: "not-shipped" }]);
+  });
+
   it("reconciles every shipped subdir, preserving only not-shipped, with no current WU", () => {
     // Errand / main session: every local subdir looks "not the current WU". The
     // shipped gate confines the reconcile to genuinely-retired subdirs; a live WU

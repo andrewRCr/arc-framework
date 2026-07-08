@@ -141,9 +141,15 @@ export async function planBranchBoundedNotesExport(
       }
       if (boundary.kind === "adopted") {
         localTip = await readRefTip(exec, destinationRef);
-        if (localTip === null) return { kind: "skipped", reason: "no-local-notes" };
+        if (localTip === null) {
+          await deleteRef(exec, tempRef);
+          return { kind: "skipped", reason: "no-local-notes" };
+        }
         localEntries = await listNotes(exec, destinationRef);
-        if (localEntries.length === 0) return { kind: "skipped", reason: "no-local-notes" };
+        if (localEntries.length === 0) {
+          await deleteRef(exec, tempRef);
+          return { kind: "skipped", reason: "no-local-notes" };
+        }
       }
     }
     const localIncludesRemote = remoteTip === null || await isAncestor(exec, remoteTip, localTip);
@@ -180,9 +186,6 @@ export async function planBranchBoundedNotesExport(
     }
 
     if (!remoteFetched) await deleteRef(exec, tempRef);
-    if (remoteTip !== null && !remoteFetched) {
-      await exec("git", ["fetch", "--refmap=", "origin", `+${destinationRef}:${tempRef}`]);
-    }
 
     const remoteEntries = new Map(
       (remoteTip === null ? [] : await listNotes(exec, tempRef)).map((entry) => [entry.commit, entry.blob]),

@@ -500,8 +500,9 @@ async function readLocalSyncStateSnapshot(
 async function readOptionalFile(io: CoreIO, path: string): Promise<string | null> {
   try {
     return await io.readFile(path);
-  } catch {
-    return null;
+  } catch (err) {
+    if (isErrnoCode(err, "ENOENT")) return null;
+    throw err;
   }
 }
 

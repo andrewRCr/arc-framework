@@ -26,9 +26,9 @@ identity-global user files, `.sync-state.json`, partial-push markers, sync-state
 Use the per-identity notes lock when a mutator performs an unguarded read-modify-write that cannot carry a native
 expected-old ref check.
 
-- **Save note write:** `runUserSave` serializes recent-note read, tombstone synthesis, and `writeNote` /
-  `git notes add` under `.notes.lock`. The verification and sync-state write happen after the ref write; later
-  guard work moves disk serialization into the same span.
+- **Save note write:** `runUserSave` serializes disk read, tombstone synthesis, `writeNote` / `git notes add`,
+  verification, and the materialized-baseline stamp write under `.notes.lock`. Only the local `.sync-state.json`
+  write happens after lock release.
 - **Reconcile critical section:** `reconcileAndRepush` holds `.notes.lock` across remote-temp fetch,
   `git notes merge`, corrupt-note scan, and rollback decision. The network re-push runs after release so a held
   remote push cannot consume the bounded wait. A sibling save landing after a clean scan is itself lock-guarded
@@ -36,7 +36,7 @@ expected-old ref check.
 - **Compaction writer:** `arc user compact` takes the notes lock while building the snapshot, backup ref, prune
   manifest, local ref move, and lease-push preparation. It never union-merges across a compaction boundary.
 - **Identity-global materialization:** load/save operations that read or write the shared disk baseline and the
-  files it describes run under the notes lock once the materialized-baseline guard lands.
+  files it describes run under the notes lock.
 - **`.sync-state.json` read-modify-write:** local sync-state writes are serialized with a version check so two
   same-worktree writers do not drop each other's markers.
 - **Stale-lock breaks:** breaking `.notes.lock` is itself serialized by a secondary exclusive-create break-lock.

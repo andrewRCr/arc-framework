@@ -81,7 +81,12 @@ export function isHandledError(err: unknown): boolean {
 
 /** Check whether a git error message indicates a missing remote. */
 export function isRemoteError(msg: string): boolean {
-  return msg.includes("Could not read from remote") || msg.includes("No such remote");
+  return msg.includes("Could not read from remote") || isMissingRemoteError(msg);
+}
+
+/** Check whether a git error message indicates the named remote is absent. */
+export function isMissingRemoteError(msg: string): boolean {
+  return msg.includes("No such remote");
 }
 
 /** True when a pull result stopped at the fetch boundary rather than loading disk. */
@@ -116,9 +121,16 @@ export function reportUserFetchOutcome(
       return;
     case "remote-unavailable": {
       const msg = result.error.message;
-      if (isRemoteError(msg)) {
+      if (isMissingRemoteError(msg)) {
         p.log.error(`No remote configured. ${capitalize(operation)} requires a remote repository.`);
         p.log.info("Set up a remote with: git remote add origin <url>");
+        process.exitCode = 1;
+        return;
+      }
+
+      if (isRemoteError(msg)) {
+        p.log.error(`Remote unavailable. ${capitalize(operation)} requires access to the remote repository.`);
+        p.log.info("Check network, authentication, and repository permissions, then retry.");
         process.exitCode = 1;
         return;
       }

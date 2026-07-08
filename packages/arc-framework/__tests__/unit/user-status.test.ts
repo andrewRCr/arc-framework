@@ -5,6 +5,9 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   buildLoadSummary,
@@ -1272,6 +1275,7 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     noteFilesByCommit?: Record<string, Record<string, string>>;
     reachableCommits?: string[];
     maximalCommits?: string[];
+    gitCommonDir?: string;
   }
 
   function buildIO(scenario: DirectionScenario): UserIOContext {
@@ -1297,6 +1301,9 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
         if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
         if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
           return { stdout: `${scenario.noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: `${scenario.gitCommonDir ?? "/repo/.git"}\n`, stderr: "" };
         }
         if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
           return { stdout: `${localNotesRefHash}\n`, stderr: "" };
@@ -1534,6 +1541,69 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     expect(state.unsavedDirection).toBe("modified");
     expect(state.diskStatus).toBe("stale");
     expect(actionFor(state, noteCommit)).toBe("run `arc user load`");
+  });
+
+  it("keeps legacy save-sourced materialized hashes local-unsaved when no baseline stamp exists", async () => {
+    const baselineFiles = { "WORKING-MEMORY.md": "baseline" };
+    const baselineManifest: SyncManifest = { version: 2, files: baselineFiles };
+    const sharedCommit = "a".repeat(40);
+    const io = buildIO({
+      sourceCommit: sharedCommit,
+      sourceOperation: "save",
+      noteCommit: sharedCommit,
+      diskFiles: baselineFiles,
+      noteFiles: { "WORKING-MEMORY.md": "saved-note" },
+      materializedManifestHash: hashSyncManifest(baselineManifest),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.diskStatus).toBe("local unsaved");
+    expect(state.unsavedDirection).toBe("modified");
+    expect(actionFor(state, sharedCommit)).toBe("run `arc user save`");
+  });
+
+  it("uses the repo-shared materialized baseline stamp to identify stale disk", async () => {
+    const commonDir = await mkdtemp(join(tmpdir(), "arc-status-baseline-"));
+    try {
+      const baselineFiles = { "WORKING-MEMORY.md": "baseline" };
+      const baselineManifest: SyncManifest = { version: 2, files: baselineFiles };
+      const baselineHash = hashSyncManifest(baselineManifest);
+      const stampDir = join(commonDir, "arc", "user", "andrew", ".internal");
+      await mkdir(stampDir, { recursive: true });
+      await writeFile(
+        join(stampDir, "materialized-baseline.json"),
+        `${JSON.stringify({
+          version: 1,
+          manifestHash: baselineHash,
+          notesRefTip: null,
+          files: [],
+          entries: [],
+        }, null, 2)}\n`,
+        "utf-8",
+      );
+
+      const sharedCommit = "a".repeat(40);
+      const io = buildIO({
+        sourceCommit: sharedCommit,
+        sourceOperation: "save",
+        noteCommit: sharedCommit,
+        diskFiles: baselineFiles,
+        noteFiles: { "WORKING-MEMORY.md": "saved-note" },
+        materializedManifestHash: "legacy-save-hash",
+        sourceIsAncestorOfNote: true,
+        gitCommonDir: commonDir,
+      });
+
+      const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+      expect(state.diskStatus).toBe("stale");
+      expect(state.unsavedDirection).toBe("modified");
+      expect(actionFor(state, sharedCommit)).toBe("run `arc user load`");
+    } finally {
+      await rm(commonDir, { recursive: true, force: true });
+    }
   });
 
   const wmEntry = (header: string, body: string): string =>

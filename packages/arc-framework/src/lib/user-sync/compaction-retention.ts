@@ -54,6 +54,9 @@ export function decideNotesCompactionRetention(
   const newestRetainCount = input.newestRetainCount ?? COMPACTION_NEWEST_RETAIN_COUNT;
   const pruneAgeMs = (input.pruneAgeDays ?? COMPACTION_PRUNE_AGE_DAYS) * 24 * 60 * 60 * 1000;
   const nowMs = Date.parse(input.now);
+  if (!Number.isFinite(nowMs)) {
+    throw new Error(`decideNotesCompactionRetention: invalid \`now\` timestamp: ${input.now}`);
+  }
   const newest = new Set(
     [...input.entries]
       .sort(compareByRecency)
@@ -82,7 +85,7 @@ export function decideNotesCompactionRetention(
 function isWithinAgeGate(entry: RetentionPolicyNoteEntry, nowMs: number, pruneAgeMs: number): boolean {
   if (entry.archivedAt === null) return false;
   const archivedAtMs = Date.parse(entry.archivedAt);
-  if (!Number.isFinite(nowMs) || Number.isNaN(archivedAtMs)) return false;
+  if (Number.isNaN(archivedAtMs)) return false;
   return nowMs - archivedAtMs < pruneAgeMs;
 }
 

@@ -31,6 +31,7 @@ import {
   planBranchBoundedNotesExport,
   pushBranchBoundedNotesExport,
 } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
+import { serializeNotesCompactionManifest } from "../../src/lib/user-sync/index.js";
 
 const IDENTITY = "test-user";
 const NOTES_REF = `refs/notes/arc/user/${IDENTITY}`;
@@ -113,6 +114,81 @@ describe("branch-bounded paired notes export", () => {
       target: plan.target,
     });
     expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(localTip);
+  });
+
+  it("cleans up the fetched temp ref when compaction adoption leaves no local notes", async () => {
+    const localTip = "1".repeat(40);
+    const remoteTip = "2".repeat(40);
+    const blob = "3".repeat(40);
+    const commit = "4".repeat(40);
+    const manifest = serializeNotesCompactionManifest({
+      version: 1,
+      generation: 1,
+      preCompactionTip: null,
+      pruned: [{ blob, commit }],
+    });
+    const calls: string[][] = [];
+    let tempRef: string | undefined;
+    let adoptRef: string | undefined;
+    let localRefMissingAfterAdopt = false;
+
+    const exec = async (_cmd: string, args: string[]) => {
+      calls.push(args);
+      if (args[0] === "rev-parse" && args[1] === "--verify") {
+        const ref = args[2];
+        if (ref === NOTES_REF) {
+          if (localRefMissingAfterAdopt) throw new Error("missing local ref after adopt");
+          return { stdout: `${localTip}\n`, stderr: "" };
+        }
+        if (ref === tempRef || ref === adoptRef) return { stdout: `${remoteTip}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-remote" && args[1] === "origin" && args[2] === NOTES_REF) {
+        return { stdout: `${remoteTip}\t${NOTES_REF}\n`, stderr: "" };
+      }
+      if (args[0] === "update-ref" && args[1] === "-d") {
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "fetch" && args[1] === "--refmap=" && args[2] === "origin") {
+        const refspec = args[3] ?? "";
+        tempRef = refspec.split(":")[1];
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "show" && args[1] === `${tempRef}:.arc-user-notes-compaction-manifest.json`) {
+        return { stdout: manifest, stderr: "" };
+      }
+      if (args[0] === "show" && args[1] === `${NOTES_REF}:.arc-user-notes-compaction-manifest.json`) {
+        throw new Error("no local manifest");
+      }
+      if (args[0] === "notes" && args[2] === "list") {
+        if (args[1] === `--ref=${NOTES_REF}`) return { stdout: `${blob} ${commit}\n`, stderr: "" };
+        if (args[1] === `--ref=${tempRef}` || args[1] === `--ref=${adoptRef}`) {
+          return { stdout: "", stderr: "" };
+        }
+      }
+      if (args[0] === "update-ref" && args[1]?.startsWith(`${NOTES_REF}__compact_adopt_`)) {
+        adoptRef = args[1];
+        return { stdout: "", stderr: "" };
+      }
+      if (args[0] === "update-ref" && args[1] === NOTES_REF && args[2] === remoteTip && args[3] === localTip) {
+        localRefMissingAfterAdopt = true;
+        return { stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    };
+
+    const plan = await planBranchBoundedNotesExport({
+      exec,
+      execInput: async () => {
+        throw new Error("execInput should not be called");
+      },
+      identity: IDENTITY,
+      branch: "main",
+    });
+
+    expect(plan).toEqual({ kind: "skipped", reason: "no-local-notes" });
+    expect(tempRef).toBeDefined();
+    expect(calls.filter((args) => args[0] === "update-ref" && args[1] === "-d" && args[2] === tempRef))
+      .toHaveLength(2);
   });
 
   it("exports the landed branch note without publishing a sibling branch note", async () => {

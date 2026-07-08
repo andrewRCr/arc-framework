@@ -14,7 +14,7 @@ import {
   writeFile,
 } from "../helpers/integration.js";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
-import { reconcileNotesPush, runUserCompact } from "../../src/commands/user.js";
+import { reconcileNotesPush, runUserCompact, type UserIOContext } from "../../src/commands/user.js";
 import {
   planBranchBoundedNotesExport,
   pushBranchBoundedNotesExport,
@@ -89,6 +89,40 @@ describe("user notes compaction", () => {
     remote = undefined;
     updater = undefined;
     harness = undefined;
+  });
+
+  it("returns a failed result when the notes lock cannot be acquired", async () => {
+    const io: UserIOContext = {
+      exec: async (cmd, args) => {
+        if (cmd === "git" && args[0] === "fetch" && args[1] === "origin") {
+          return { stdout: "", stderr: "" };
+        }
+        if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          throw new Error("common dir unavailable");
+        }
+        throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+      },
+      execInput: async () => "",
+      readFile: async () => {
+        throw new Error("unexpected readFile");
+      },
+      writeFile: async () => undefined,
+      mkdir: async () => undefined,
+      readDir: async () => [],
+      writeNote: async () => undefined,
+      readNote: async () => null,
+    };
+
+    const result = await runUserCompact({
+      cwd: "/repo",
+      io,
+      identity: IDENTITY,
+      now: "2026-07-07T00:00:00.000Z",
+    });
+
+    expect(result.kind).toBe("failed");
+    if (result.kind !== "failed") return;
+    expect(result.error.message).toContain("common dir unavailable");
   });
 
   it("publishes a single snapshot commit with retained notes and a cumulative prune manifest", async () => {
@@ -685,6 +719,61 @@ describe("user notes compaction", () => {
     expect(second.generation).toBe(2);
     expect(second.backupPrune.deletedRefs).not.toContain(first.backupRef);
     expect(await git(repo, ["rev-parse", first.backupRef])).toBe(oldTarget);
+  }, 30_000);
+
+  it("prunes a local backup ref when the remote side is already missing", async () => {
+    repo = await createTempRepo("arc-notes-compact-backup-retry-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    const keepCommit = await makeCommit(repo, "keep");
+    const legacyCommit = await makeCommit(repo, "legacy root session notes");
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": "keep\n" } }),
+      keepCommit,
+    ]);
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "legacy\n" } }),
+      legacyCommit,
+    ]);
+    await git(repo, ["push", "origin", NOTES_REF]);
+
+    const first = await runUserCompact({
+      cwd: repo,
+      io: makeUserIO(repo),
+      identity: IDENTITY,
+      now: "2026-06-01T00:00:00.000Z",
+    });
+    expect(first.kind).toBe("compacted");
+    if (first.kind !== "compacted") return;
+
+    const staleBackupRef = `refs/backup/arc-user-${IDENTITY}-compaction-g0-created-`
+      + `${Date.parse("2026-06-01T00:00:00.000Z")}-retry`;
+    await git(repo, ["update-ref", staleBackupRef, first.preCompactionTip]);
+    expect(await git(repo, ["rev-parse", staleBackupRef])).toBe(first.preCompactionTip);
+
+    const secondLegacyCommit = await makeCommit(repo, "second legacy root session notes");
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "legacy 2\n" } }),
+      secondLegacyCommit,
+    ]);
+    await git(repo, ["push", "origin", NOTES_REF]);
+
+    const second = await runUserCompact({
+      cwd: repo,
+      io: makeUserIO(repo),
+      identity: IDENTITY,
+      now: "2026-07-07T00:00:00.000Z",
+    });
+
+    expect(second.kind).toBe("compacted");
+    if (second.kind !== "compacted") return;
+    expect(second.backupPrune.deletedRefs).toContain(staleBackupRef);
+    expect(second.backupPrune.failedRefs).toEqual([]);
+    await expect(git(repo, ["rev-parse", staleBackupRef])).rejects.toThrow();
   }, 30_000);
 
   it("retains old shipped-WU notes until the archive age and local-subdir gates clear", async () => {

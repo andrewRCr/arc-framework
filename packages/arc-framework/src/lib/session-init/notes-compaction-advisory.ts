@@ -13,6 +13,7 @@ import {
   inspectNotesCompactionAdvisory,
   type NotesCompactionAdvisory,
 } from "../user-sync/index.js";
+import { notesRef } from "../../commands/user/shared.js";
 import type { NudgeMarkerState } from "./nudge-rate-limit.js";
 
 /** Session-init slot payload for the compaction advisory. */
@@ -33,7 +34,7 @@ export async function runNotesCompactionSessionAdvisory(
 ): Promise<NotesCompactionSessionAdvisoryResult> {
   const advisory = await inspectNotesCompactionAdvisory(
     options.exec,
-    `refs/notes/arc/user/${options.identity}`,
+    `refs/notes/${notesRef(options.identity)}`,
   );
   return { ...advisory, nudge: options.nudge };
 }

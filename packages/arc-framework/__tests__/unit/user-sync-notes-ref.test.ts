@@ -94,13 +94,11 @@ function oneNotePerHistory(entries: { history: string; marker: string; date?: st
   const pathsByHistory: Record<string, string[]> = {};
   const contentByShow: Record<string, string> = {};
   const historyDates: Record<string, string> = {};
-  for (const { history, marker } of entries) {
+  for (const { history, marker, date } of entries) {
     const path = notePathFor(annotated(history));
     pathsByHistory[history] = [path];
     contentByShow[`${history}:${path}`] = marker;
-    if (entries.find((entry) => entry.history === history)?.date) {
-      historyDates[history] = entries.find((entry) => entry.history === history)?.date ?? NOW;
-    }
+    if (date) historyDates[history] = date;
   }
   return { history: entries.map((e) => e.history), historyDates, pathsByHistory, contentByShow };
 }

@@ -66,12 +66,12 @@ export function planRetiredSubdirReconcile(
   const inFlight = input.inFlight ?? new Set<string>();
 
   for (const subdir of input.localSubdirs) {
-    if (input.shipped.has(subdir) && !inFlight.has(subdir)) {
-      reconcile.push(subdir);
+    if (!input.shipped.has(subdir)) {
+      preserved.push({ subdir, reason: "not-shipped" });
     } else if (inFlight.has(subdir)) {
       preserved.push({ subdir, reason: "in-flight" });
     } else {
-      preserved.push({ subdir, reason: "not-shipped" });
+      reconcile.push(subdir);
     }
   }
 

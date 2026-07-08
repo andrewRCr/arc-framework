@@ -61,6 +61,12 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+function enoent(path: string): Error & { code: string } {
+  const err = new Error(`ENOENT: ${path}`) as Error & { code: string };
+  err.code = "ENOENT";
+  return err;
+}
+
 interface GitMockConfig {
   head?: string;
   annotatedNoteCommits?: string[];
@@ -222,6 +228,7 @@ function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
       const name = basename(filePath);
       const content = files[name];
       if (content === undefined) {
+        if (filePath.endsWith(".sync-state.json")) throw enoent(filePath);
         throw new Error(`unexpected file read: ${filePath}`);
       }
       return content;
@@ -817,6 +824,7 @@ function concurrentSaveIO(
     readFile: vi.fn(async (filePath: string) => {
       const name = basename(filePath);
       const content = files[name as keyof typeof files];
+      if (content === undefined && filePath.endsWith(".sync-state.json")) throw enoent(filePath);
       if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
       return content;
     }),
@@ -866,6 +874,7 @@ function snapshotSaveIO(
     readFile: vi.fn(async (filePath: string) => {
       const name = basename(filePath);
       const content = files[name as keyof typeof files];
+      if (content === undefined && filePath.endsWith(".sync-state.json")) throw enoent(filePath);
       if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
       await recordActivity(recorder, `read:${head}:${name}`);
       return content;
@@ -990,6 +999,7 @@ function mockSaveIOWithNotes(
     readFile: vi.fn(async (filePath: string) => {
       const name = basename(filePath);
       const content = config.files[name];
+      if (content === undefined && filePath.endsWith(".sync-state.json")) throw enoent(filePath);
       if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
       return content;
     }),
@@ -1150,10 +1160,11 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
       if (Object.hasOwn(readback, name)) {
         const content = readback[name];
         if (content === undefined) {
-          throw new Error(`ENOENT: ${filePath}`);
+          throw enoent(filePath);
         }
         return content;
       }
+      if (filePath.endsWith(".sync-state.json")) throw enoent(filePath);
       throw new Error(`unexpected readFile: ${filePath}`);
     }),
     writeFile: vi.fn(async () => undefined),
@@ -1629,6 +1640,37 @@ describe("LocalSyncState v4 schema", () => {
     });
     expect(afterRecord!.savedAt).toBe(v3Record.savedAt);
     expect(afterRecord!.verifiedAt).toBe(v3Record.verifiedAt);
+  });
+
+  it("does not treat sync-state read failures as missing records", async () => {
+    const record = {
+      version: 4,
+      materializedManifestHash: "ab".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(record, null, 2)}\n`, "utf-8");
+
+    const io = realFsIO({
+      exec: vi.fn(async (cmd: string, args: string[]) => {
+        if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${"d".repeat(40)}\n`, stderr: "" };
+        }
+        throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+      }),
+      readFile: vi.fn(async (path: string) => {
+        if (path === syncStatePath) {
+          const err = new Error("EACCES: permission denied") as Error & { code?: string };
+          err.code = "EACCES";
+          throw err;
+        }
+        return readFile(path, "utf-8");
+      }),
+    });
+
+    await expect(recordPartialPushMarker(cwd, io, identity)).rejects.toThrow("EACCES");
+    expect(JSON.parse(await readFile(syncStatePath, "utf-8"))).toMatchObject(record);
   });
 
   it("keeps both partial-push markers across concurrent sync-state writers", async () => {

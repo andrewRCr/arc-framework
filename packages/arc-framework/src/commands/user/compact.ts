@@ -73,6 +73,7 @@ interface SyncManifestShape {
 }
 
 const LEGACY_ROOT_SESSION_NOTES = "SESSION-NOTES.md";
+const RETENTION_ENTRY_READ_CONCURRENCY = 16;
 
 /** Run user-notes compaction under the per-identity notes lock. */
 export async function runUserCompact(options: UserCompactOptions): Promise<UserCompactResult> {
@@ -87,7 +88,12 @@ export async function runUserCompact(options: UserCompactOptions): Promise<UserC
   if (baseRefresh.kind !== "ok") {
     return { kind: baseRefresh.kind, identity, error: baseRefresh.error };
   }
-  const lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
+  let lock;
+  try {
+    lock = await acquireAdvisoryLock(await getNotesLockPath(io.exec, cwd, identity));
+  } catch (err) {
+    return { kind: "failed", identity, error: errorFromUnknown(err) };
+  }
 
   try {
     const entries = await buildRetentionEntries({ cwd, io, identity, fullRef, baseRef: baseRefresh.baseRef });
@@ -200,26 +206,46 @@ async function buildRetentionEntries(input: {
   const localSubdirs = await readLocalUserSubdirs({ cwd, io, identity });
   const entries = await listNoteEntries(io.exec, fullRef);
 
-  return Promise.all(entries.map(async (entry): Promise<RetentionPolicyNoteEntry> => {
-    const [committedAt, content] = await Promise.all([
-      readCommitTimestamp(io, entry.commit),
-      readNoteContentAtAnnotatedCommit(io.exec, fullRef, entry.commit),
-    ]);
-    const manifest = content === null ? null : parseManifest(content);
-    const paths = manifest === null ? [] : Object.keys(manifest.files);
-    const workUnitNames = subdirsFromPaths(paths);
-    const preMigrationRootSessionNotes = manifest?.files[LEGACY_ROOT_SESSION_NOTES] !== undefined;
-    const inFlight = workUnitNames.some((wuName) => !shipped.has(wuName) || localSubdirs.has(wuName));
+  const results: RetentionPolicyNoteEntry[] = [];
+  for (let i = 0; i < entries.length; i += RETENTION_ENTRY_READ_CONCURRENCY) {
+    const batch = entries.slice(i, i + RETENTION_ENTRY_READ_CONCURRENCY);
+    results.push(...await Promise.all(batch.map((entry) => buildRetentionEntry({
+      entry,
+      io,
+      fullRef,
+      shipped,
+      localSubdirs,
+    }))));
+  }
+  return results;
+}
 
-    return {
-      ...entry,
-      committedAt,
-      workUnitNames,
-      archivedAt: inFlight ? null : resolveArchivedAt(workUnitNames, shipped),
-      inFlight,
-      preMigrationRootSessionNotes,
-    };
-  }));
+async function buildRetentionEntry(input: {
+  entry: Awaited<ReturnType<typeof listNoteEntries>>[number];
+  io: UserIOContext;
+  fullRef: string;
+  shipped: ReadonlyMap<string, ShippedWorkUnitRecord>;
+  localSubdirs: ReadonlySet<string>;
+}): Promise<RetentionPolicyNoteEntry> {
+  const { entry, io, fullRef, shipped, localSubdirs } = input;
+  const [committedAt, content] = await Promise.all([
+    readCommitTimestamp(io, entry.commit),
+    readNoteContentAtAnnotatedCommit(io.exec, fullRef, entry.commit),
+  ]);
+  const manifest = content === null ? null : parseManifest(content);
+  const paths = manifest === null ? [] : Object.keys(manifest.files);
+  const workUnitNames = subdirsFromPaths(paths);
+  const preMigrationRootSessionNotes = manifest?.files[LEGACY_ROOT_SESSION_NOTES] !== undefined;
+  const inFlight = workUnitNames.some((wuName) => !shipped.has(wuName) || localSubdirs.has(wuName));
+
+  return {
+    ...entry,
+    committedAt,
+    workUnitNames,
+    archivedAt: inFlight ? null : resolveArchivedAt(workUnitNames, shipped),
+    inFlight,
+    preMigrationRootSessionNotes,
+  };
 }
 
 async function refreshBaseRef(input: {
@@ -310,7 +336,7 @@ async function pruneExpiredBackupRefs(input: {
   keepRef: string;
 }): Promise<BackupPruneResult> {
   const prefix = `refs/backup/arc-user-${input.identity}-compaction-g`;
-  const refs = await listCompactionBackupRefs(input.io, prefix);
+  const refs = await listCompactionBackupRefs(input.io, `${prefix}*`);
   const deletedRefs: string[] = [];
   const failedRefs: { ref: string; message: string }[] = [];
   const nowMs = Date.parse(input.now);
@@ -323,10 +349,17 @@ async function pruneExpiredBackupRefs(input: {
     if (generationFromBackupRef(ref.ref) >= input.currentGeneration) continue;
     try {
       await input.io.exec("git", ["push", "origin", `:${ref.ref}`]);
+    } catch (err) {
+      if (!isMissingRemoteRefDeleteError(errorFromUnknown(err).message)) {
+        failedRefs.push({ ref: ref.ref, message: errorFromUnknown(err).message });
+        continue;
+      }
+    }
+    try {
       await input.io.exec("git", ["update-ref", "-d", ref.ref]);
       deletedRefs.push(ref.ref);
     } catch (err) {
-      failedRefs.push({ ref: ref.ref, message: err instanceof Error ? err.message : String(err) });
+      failedRefs.push({ ref: ref.ref, message: errorFromUnknown(err).message });
     }
   }
 
@@ -366,4 +399,12 @@ function backupCreatedAtMsFromRef(ref: string): number | null {
   if (value === undefined) return null;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isMissingRemoteRefDeleteError(message: string): boolean {
+  return message.includes("remote ref does not exist");
+}
+
+function errorFromUnknown(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
 }
