@@ -1,0 +1,582 @@
+# Task List: Project State Integrity
+
+- **Design:** `spec-project-state-integrity.md`
+
+---
+
+## **Phase 1:** Roster identity re-key and input union
+
+_Purpose:_ Rebuild the in-flight derivation's identity model so the roster is keyed on WU identity read from
+content (meta presence at a ref; life-phase from the meta record's `State` field), sees the full input set
+(remote-tracking refs ∪ local branches with worktrees), dedupes branch candidates per WU with provenance, and
+degrades loudly through a warnings channel. Delivers the deterministic roster every consumer inherits.
+
+_Design decisions:_ Identity is content, never branch-name semantics — the branch is location only. The result
+contract is fixed here by Task 1.1.a — `{ entries, warnings, reachable }` with per-entry provenance — and
+Phase 2's agreed snapshot (Task 2.1) is its one sanctioned extension, so the mutation-window and
+consumer-split work lands on a known shape. Roster membership derives from active-meta presence
+at a ref, never from a State-value predicate; `State` rides as validated data and each consumer applies its own
+filter. This is the WLSM-compatible cut (`draft-wu-lifecycle-state-model.md`): post-reform, grooming stops
+carrying `active/` metas, so Planning entries thin out of the roster with no oracle change — while the
+spawn-then-plan escape hatch (a Planning meta in a real worktree) stays correctly visible. Compile-level
+consumer adaptation rides each contract-changing task (typecheck stays green per commit); Task 1.5.a is the
+per-consumer behavioral audit and warnings pass-through, not the compile fix-up.
+
+### `[ ]` **1.1 Content-derived WU identity in the derivation**
+
+- _Goal:_ A branch is a WU iff it carries a meta, and its life-phase is the meta record's `State` — branch
+  naming supplies no identity and no phase.
+
+    - `[ ]` **1.1.a Result shape and mark taxonomy**
+        - Derivation result widens to `{ entries, warnings, reachable }`. Exported contract types land
+          here: the entry mark enum (`degraded` / `indeterminate` / `location-ambiguous`) and structured
+          warning objects (code + branch + WU + rendered string) — the vocabulary Phase 2's consumer split
+          and Phase 6's determinacy-reading assert consume; warnings are structured because the sweep
+          surfaces filter on them.
+        - `reachable` is a first-class result fact (network-verified membership vs last-known local refs),
+          never a warning: four call sites hard-gate on it today (materialize refuses, session-init returns
+          empty, the user view falls back to its cache, the errand gate's `--json` emits it), and those
+          gating semantics carry over unchanged through Task 1.2's migration.
+        - Build `test-first` (one behavior at a time):
+            - A healthy derivation returns entries with no marks, empty warnings, `reachable: true`
+            - An unreachable remote yields `reachable: false` with last-known-refs entries
+            - A warning renders to a stable string while keeping its structured fields
+
+    - `[ ]` **1.1.b Meta enumeration at a ref**
+        - New remote-ref-reader primitive listing `meta-*.md` paths a ref carries
+          (`git ls-tree <ref> .arc/active/`), replacing the name-derived candidate-path probe
+          (`metaPathForWu` + `readMetaAtRef` in `src/lib/git/in-flight-derivation.ts`).
+        - Build `test-first` (one behavior at a time):
+            - Returns the meta paths present at the ref
+            - Empty result when the ref carries no `.arc/active/` metas
+            - Enumeration failure is distinguishable from an empty result (feeds the warnings channel)
+
+    - `[ ]` **1.1.c Content-keyed classification**
+        - Rework `classifyBranch`: WU name from the meta filename slug; drop the `branch.indexOf("/")` name
+          mint and `PLANNING_BRANCH_PREFIX` phase proxy entirely. Roster membership is meta presence; the
+          entry carries the full validated `WorkUnitState` as data (retiring the two-value `InFlightState`),
+          and State-based filtering stays consumer-owned (the overlap detector keeps its non-`Shipped` rule).
+        - The configured base branch (`branch.base`, local and remote-tracking) is never a WU-location
+          candidate: lifecycle residue transits its `active/` (a merged WU's meta lingers there until
+          archival — the name heuristic being deleted is what shields it today), so classifying it would
+          mint phantom entries located at the base.
+        - A meta whose `**Branch:**` field names a different branch than the ref carrying it classifies as
+          a stale-location candidate — dedupe input for Task 1.3 only, never a standalone entry. In-flight
+          membership requires at least one location-consistent candidate (own-branch meta or worktree
+          checkout): a group of only stale-location candidates yields no entry, and the derivation emits a
+          quiet provenance code for the dropped group. Whether it stays quiet is the consumer's call with the
+          lifecycle index in hand (Task 4.2): silent when the WU resolves `shipped` (routine tree residue —
+          carrier branches cut during a sibling's merge window hold its meta forever), elevated to a visible
+          warning when it does not (a live WU whose `Branch` field drifted under manual git churn must not
+          vanish silently). Stale-location candidates additionally warn as shadow provenance when grouped
+          with a real entry.
+        - A meta whose `**Branch:**` field is `[none]` or absent at a ref is anomalous in `active/` —
+          degraded entry + warning (the unrecognized-`State` posture), never silently dropped and never
+          location-consistent.
+          Multi-meta refs disambiguate by `**Branch:**` field match, mirroring `worktree-roster.ts`'s
+          candidate rule; the non-matching metas classify as stale-location candidates for their own WUs.
+        - Build `test-first` (one behavior at a time):
+            - A `plan/`-named ref whose meta says `Active` carries state Active (no prefix proxy)
+            - A type-renamed branch and its stale `plan/` twin both resolve to the same WU identity
+            - A merged WU's meta in the base's `active/` (merged-but-not-archived window) mints no entry
+              located at the base
+            - A single-meta ref whose Branch field points elsewhere feeds dedupe as a stale-location
+              candidate, not a healthy entry
+            - A WU presenting only stale-location candidates yields no entry and a quiet provenance code
+            - A `[none]`-Branch meta at a ref yields a degraded entry + warning
+            - A ref with no meta and no errand record is not in flight
+            - An `Integrating` meta stays a roster entry with its State intact (membership by presence)
+            - An unrecognized `State` value yields a marked entry + warning, not a silent drop
+            - Multi-meta ref resolves by Branch-field match; unmatched multi-meta warns
+
+    - `[ ]` **1.1.d Errand identity unchanged**
+        - Errand entries keep the record-index source (`errandSlugByBranch`); promoted-errand fall-through
+          (record removed → meta-backed WU path) retained. Regression tests only — no behavior change.
+
+### `[ ]` **1.2 Input union: remote-tracking refs plus local worktree branches**
+
+- _Goal:_ An unpushed in-flight WU — a local worktree branch with no remote ref — is visible to the oracle.
+
+    - Candidate set = pruned remote-tracking branches ∪ branches from `resolveWorktreePathsByBranch`
+      (`src/lib/git/worktree-roster.ts`); a local-only candidate reads its meta at the local branch ref.
+    - Identity reads committed content at a ref: a mid-ceremony uncommitted meta is invisible here until its
+      ceremony commits (disk-only state stays the worktree roster's surface, not this oracle's).
+    - Input acquisition moves inside the derivation: `deriveInFlight` takes the ref readers, the
+      `localOnly` mode, and `baseBranch` (injected by the wrapper layers from `settings["branch.base"]`,
+      the same way `identity` / `teamMode` arrive — Task 1.1.c's base exclusion consumes it) and resolves
+      its own input set, retiring the pre-resolved `branches` argument — the double-read discipline
+      (Task 2.1) requires the derivation to own these reads. All four direct call sites migrate:
+      `src/commands/active/in-flight.ts` ~61, `src/handlers/status.ts` ~386, `src/handlers/lifecycle.ts`
+      ~668 (materialize resolution), `src/lib/status/user-view.ts` ~166.
+    - Build `test-first` (one behavior at a time):
+        - A worktree branch absent from the remote yields a roster entry (not `remoteOnly`)
+        - A branch present in both sources derives once (dedupe seam for 1.3)
+        - Remote-only behavior unchanged for refs with no local worktree
+
+### `[ ]` **1.3 Candidate dedupe with provenance**
+
+- _Goal:_ One roster entry per WU no matter how many branches carry it; shadowed or stale candidates surface
+  as warnings, never as entries.
+
+    - `[ ]` **1.3.a Precedence dedupe**
+        - Group candidates by WU identity; pick by precedence local worktree checkout > live remote branch >
+          stale tracking ref; entry carries its full branch-set provenance; shadowed candidates emit
+          warnings shaped for the sweep surfaces.
+        - Location-consistent candidates always outrank stale-location candidates: a stale-location
+          candidate never wins a group containing a location-consistent one, whatever the tiers or content
+          ordering say (Task 1.1.c's carrier-branch residue must not relocate a live WU's entry).
+        - A within-tier tie (e.g. two live remote branches carrying the same WU, seen from a machine with no
+          local worktree) resolves by Task 1.3.b's content ordering — ancestry first, then State for genuine
+          forks, then newest commit, then lexicographic branch name as the total-order backstop (a location
+          pick, not name semantics) — so the pick is deterministic online as well as offline.
+        - Build `test-first` (one behavior at a time):
+            - Stale `plan/<name>` remote ref + local `chore/<name>` worktree → one entry at the worktree,
+              stale ref in provenance + warning (the standing live repro, spec § Introduction)
+            - Two remote refs carrying the same WU → one entry, shadowed ref warned
+            - A branch in both sources with divergent content resolves to the worktree candidate's content
+            - Distinct WUs on similarly-named branches stay distinct entries
+
+    - `[ ]` **1.3.b Offline collapse**
+        - When the remote is unreachable (no fresh prune), live-vs-stale is unknowable: multiple tracking
+          refs with the same WU and no local worktree dedupe by content — ancestry first
+          (`git merge-base --is-ancestor`: a candidate whose tip is an ancestor of another's loses; renames
+          and fast-forwards are decided exactly), then meta `State` furthest along for genuine forks only
+          (backward transitions like `deactivate` make State non-monotonic, so it never leads), then newest
+          commit, then lexicographic branch name — and the entry is marked location-ambiguous in the
+          warnings channel.
+        - "Furthest along" needs a named lifecycle-`State` ordering constant (Planning → Active →
+          Integrating → Shipped) beside `validateState` — the ordering exists nowhere in code today.
+        - Build `test-first` (one behavior at a time):
+            - An ancestor tip loses to its descendant regardless of State (a deactivated WU's lingering
+              `<type>/` ref loses to the live `plan/` ref despite carrying the further-along State)
+            - Genuine forks (no ancestry) dedupe by furthest-along `State`
+            - A full tie resolves by newest commit, then lexicographic branch name
+            - The surviving entry is marked location-ambiguous (Phase 2's hook input)
+
+### `[ ]` **1.4 Warnings channel and loud degradation**
+
+- _Goal:_ Degraded inputs produce marked entries and warnings — never shape-identical healthy-looking facts.
+
+    - Degradation lands in the Task 1.1 contract shapes: marked entries plus structured warnings, per input
+      failure class.
+    - `resolveWorktreePathsByBranch`'s silent empty-map degrade (`worktree-roster.ts` ~142–153) becomes a
+      surfaced failure: the every-entry-turns-`remoteOnly` failure mode ends. The failure-distinguishing
+      form lands as a result-bearing variant beside the existing map shape — `src/lib/work-unit/verbs/`
+      `teardown.ts` ~223 and `src/handlers/lifecycle.ts` ~455 also consume the primitive and either adapt
+      knowingly or keep the simple shape.
+    - Unreadable or malformed meta at a ref → warning + marked handling (today's silent `null` drop in
+      `parseRecord` ends).
+    - Build `test-first` (one behavior at a time):
+        - Worktree-list failure marks all entries degraded + warning (no silent `remoteOnly` flip)
+        - Unreadable meta at ref warns and marks rather than silently dropping
+        - Healthy derivation emits empty warnings
+
+### `[ ]` **1.5 Consumer adaptation to the re-keyed roster shape**
+
+- _Goal:_ Every oracle consumer compiles against the widened result and passes warnings through, and the
+  user view's redundant local-merge seam retires onto the union.
+
+    - `[ ]` **1.5.a Per-consumer state-handling audit and warnings pass-through**
+        - Consumers: the session-init oracle slice (`errand-state`, `in-flight-errand-sweep`,
+          `materializable-errands`, `materializable-work-units`, `handlers/status.ts`), the materialize
+          resolution (`src/handlers/lifecycle.ts` ~668), the status views (`in-flight-mine`, `user-view` /
+          `assemble-user-view`), the activation scope check (`handlers/active.ts`), the errand overlap gate
+          (`handlers/errand.ts`), and `src/scripts/check-foreign-writes.ts` (compile-level only; behavioral
+          splits are Task 2.4). `work-unit-state` and `in-flight-work-unit-sweep` consume the worktree
+          roster, not this oracle — out of scope here.
+        - Per-consumer state-handling audit: entries now carry the full validated `WorkUnitState` plus
+          marks, so each consumer's filter is checked against values it never received before
+          (`Integrating` / `Shipped` / marked) — today's prefix proxy misclassifies a Shipped-meta surviving
+          ref as Active, so behavior deltas here are corrections, verified per consumer.
+        - Warnings propagate to each consumer's existing warnings surface; no new rendering yet.
+        - Existing suites stay green; add pass-through assertions where a consumer exposes warnings.
+
+    - `[ ]` **1.5.b Retire the user view's parallel local-merge seam**
+        - `mergeInFlightEntries` / `localRosterEntryToInFlight` (`src/lib/status/user-view.ts` ~118–126,
+          `src/lib/status/assemble-user-view.ts` ~70–87) merge a separate local-worktree slice keyed by
+          branch — the non-bijection this WU removes — and clamp state through the retired two-value shape.
+          The oracle's input union subsumes the local slice; the view consumes the union directly.
+        - Committed-ref truth replaces the disk-fresh override: meta writes are ceremony-commit-bundled, so
+          the disk≠ref window is brief, and the worktree roster remains the disk-truth surface.
+        - Build `test-first` (one behavior at a time):
+            - A local worktree WU appears once in the user view via the union (no branch-keyed second copy)
+            - A WU on a renamed branch with a stale twin ref renders one row, not two
+            - Roster-only states (`Integrating`, `unknown`) render as themselves, never clamped to Active
+
+## **Phase 2:** Mutation-window discipline and overlap hardening
+
+_Purpose:_ Layer the double-read snapshot discipline over the rebuilt derivation and its fire-time probes, fix
+the overlap detector's self-exclusion, and split degraded-state behavior by consumer (advisory hook
+skips-with-note; roster and live views tolerate-with-provenance). Ends silent assertion over mid-transition
+reads.
+
+### `[ ]` **2.1 Double-read snapshot agreement in the derivation**
+
+- _Goal:_ An open mutation window is detected and marked — the derivation never asserts confidently over a
+  mid-transition read.
+
+    - Read the mutable input set (ref listing + worktree list) twice; require agreement. Whole-set mismatch →
+      derivation result marked indeterminate; per-entry disagreement → affected entries marked.
+    - Agreement is defined over pinned comparison keys: the ref listing compares name → SHA maps; the
+      worktree list compares branch → path maps.
+    - The ref readers (`src/lib/git/remote-ref-reader.ts`) extend to return name → SHA maps — both existing
+      listings read names only (`%(refname:short)`), so the SHA-bearing form both the agreement compare and
+      the probe snapshot need is new.
+    - Per-entry meta reads retry once against the agreed snapshot; a still-failing read marks that entry.
+    - The derivation result carries the agreed snapshot (ref → SHA map + worktree list) so fire-time probes
+      (Task 2.3) consume the same pinned inputs rather than re-reading live state.
+    - Session-init must not manufacture its own mutation window: `src/handlers/status.ts` ~508 currently
+      runs `pruneRemoteTrackingRefs` and the oracle concurrently (`Promise.all`) — sequence the prune before
+      the derivation so ordinary session-inits don't self-trip the double-read into indeterminate marks.
+    - Build `test-first` (one behavior at a time):
+        - Agreeing double-read derives normally with no marks
+        - Ref-listing disagreement marks the affected entries indeterminate
+        - Worktree-list disagreement marks the affected entries indeterminate
+        - Whole-set disagreement marks the derivation result indeterminate
+        - Meta-read failure retries once, then marks the entry
+
+### `[ ]` **2.2 Identity-keyed self-exclusion in overlap detection**
+
+- _Goal:_ A WU never reports overlap with itself — including via its own stale duplicate refs — inside or
+  outside ceremony windows.
+
+    - `detectForeignArtifactOverlap` (`src/lib/git/foreign-artifact-detection.ts` ~101–106) excludes by WU
+      name: candidates carry the roster's content-derived name; every candidate matching the originating WU's
+      name drops, not just path-equal ones.
+    - Originating WU name resolves from the roster entry matching the originating worktree (content-keyed),
+      so a ceremony window where `resolveActiveWu` returns `undefined` still self-excludes.
+    - When no roster entry matches the originating worktree (a pre-first-commit WU — its meta at no ref yet),
+      self-exclusion degrades to worktree-path exclusion with a note.
+    - Build `test-first` (one behavior at a time):
+        - The originating WU's stale remote-only duplicate ref is not reported as foreign
+        - Ceremony window (unresolvable active meta) still self-excludes by worktree-matched name
+        - No matching roster entry degrades to path-based self-exclusion with a note
+        - A genuinely foreign WU touching the target still reports
+
+### `[ ]` **2.3 Fire-time probe snapshot discipline**
+
+- _Goal:_ Overlap probes read immutable or agreement-checked inputs — a sibling ceremony mid-commit cannot
+  flip a probe result undetected.
+- _Note:_ Residual, consciously accepted (spec § A): the hook is offline, so a stale local base ref can
+  over-approximate the committed diff — bounded because the consumer is advisory.
+
+    - `committedMatches`: diff SHA-to-SHA (immutable, reproducible), replacing the mutable-ref
+      `base...branch` diff. Candidate SHAs come from the derivation's agreed snapshot when supplied,
+      resolve-once locally otherwise; the base ref is outside the derivation snapshot, so its SHA always
+      resolves once at probe start.
+    - `uncommittedMatches` (live read inside a sibling worktree by construction): double-read and require
+      agreement; disagreement marks that entry's probe result indeterminate.
+    - Probe results get a shape with an indeterminacy slot (matches + per-entry indeterminate flag),
+      replacing the bare matched-path lists — the input Task 2.4's skip-with-note reads.
+    - Build `test-first` (one behavior at a time):
+        - Committed probe diffs pinned SHAs, not ref names
+        - Uncommitted-probe disagreement yields an indeterminate probe result, not a false overlap
+        - Agreeing probes report overlaps exactly as before
+
+### `[ ]` **2.4 Per-consumer degraded-state split**
+
+- _Goal:_ Indeterminate state degrades per consumer — the advisory hook skips-with-note; roster and live
+  views tolerate-with-provenance.
+
+    - `check-foreign-writes`: an indeterminate entry, indeterminate probe result, or location-ambiguous entry
+      is skipped with an advisory note line — never asserted as overlap (the wave-1 failure shape).
+    - CHECK 19's shell wrapper (`arc/system/.internal/githooks/pre-commit` ~500–524) treats any stdout as a
+      foreign-write warning under its "Foreign-owned write" header — the wrapper text is in scope here (both
+      copies, per two-copy discipline) so skip-with-note lines render neutrally, not as apparent overlaps.
+    - Roster / live views: marked entries surface with their provenance in the warnings channel; nothing is
+      hidden or blocked.
+    - The errand advisory gate (`src/handlers/errand.ts` ~74–92) — the third probe consumer —
+      tolerates-with-provenance: an interactive advisory with a human in the loop, so indeterminate /
+      location-ambiguous entries and indeterminate probe results surface as caveat lines, and its `--json`
+      output carries the new mark fields.
+    - Build `test-first` (one behavior at a time):
+        - Hook skips-with-note on an indeterminate entry and says so on stdout
+        - Hook skips-with-note on an indeterminate probe result
+        - Hook skips-with-note on a location-ambiguous entry
+        - Views surface the same entries marked, with warnings intact
+        - Errand gate renders caveat lines for marked entries and its `--json` carries the mark fields
+
+## **Phase 3:** Concurrency repro harness
+
+_Purpose:_ The falsifiable acceptance for the oracle work: a harness racing derivation against a scripted
+`arc start` reshuffle, asserting stable warning-marked output; pins the wave-1 phantom-overlap mechanism and
+fixture-izes the standing live repro topology.
+
+### `[ ]` **3.1 Scripted-reshuffle harness fixture**
+
+- _Goal:_ The churn topologies the oracle must stay stable under — including the standing stale-`plan/`
+  repro — exist as deterministic integration fixtures.
+
+- **Additional Context:** `notes-project-state-integrity.md` § Live repro evidence
+
+    - `[ ]` **3.1.a Reshuffle fixture infrastructure**
+        - Integration-tier fixture: bare origin + worktree topology from the `multi-clone.ts` harness
+          (worktree-siblings setup) with `makeGitExec`-bound executors, plus scripted reshuffle steps
+          (spawn a worktree, local-only `plan/ → <type>/` rename, remote branch delete / recreate, push).
+        - Reshuffle steps are git-level emulations of the ceremony's ref / worktree effects — the oracle
+          consumes git state, not the CLI path that produced it; real-CLI ceremony coverage stays at the
+          e2e tier.
+        - The fixture exposes an exec-wrapper injection point that fires reshuffle steps at chosen git-call
+          boundaries — the deterministic mutation-window mechanism Task 3.3 builds its acceptance on.
+
+    - `[ ]` **3.1.b Standing-repro topology fixture**
+        - Recreate the live evidence as a fixture: stale `plan/<name>` on the remote + real `chore/<name>`
+          checked out locally with its meta; assert no phantom remote-only materialize candidate and the
+          local in-flight worktree visible (the two standing false facts, spec § Introduction / SC 1).
+        - The deliverable is the fixture; once it reproduces the topology, the live `plan/burn-in-probe-a`
+          branch is released for hygiene — a dev-repo act outside this WU's diff, recorded in the notes file
+          when the fixture lands (per the notes' preserve-until-used instruction).
+
+### `[ ]` **3.2 Pin the wave-1 phantom-overlap mechanism**
+
+- _Goal:_ The wave-1 phantom-overlap mechanism is identified and pinned by a regression case, not guessed.
+- _Note:_ If the pinned mechanism implicates a vector the Phase 1–2 design doesn't address, it routes
+  through spec-propagation (or the re-entry valve for genuinely new design) — never a patch local to the
+  harness.
+- **Additional Context:** `notes-project-state-integrity.md` § Live repro evidence
+
+    - Author the failure-vector inventory in `notes-project-state-integrity.md` first — enumerating the
+      spec's § A mutation classes (ref churn, worktree churn, sibling mid-commit writes, stale refs,
+      unpushed branches) crossed with Task 3.1.a's reshuffle-step catalog — then drive harness permutations
+      over it until the phantom overlap reproduces; document the pinned mechanism there; land the
+      reproducing topology as a named regression assertion.
+
+### `[ ]` **3.3 Determinism acceptance assertions**
+
+- _Goal:_ Derivation racing the scripted reshuffle yields stable, warning-marked output — the WU's
+  determinism acceptance (SC 1).
+
+    - Deterministic interleaving acceptance: the exec-wrapper injection point (Task 3.1.a) fires each
+      reshuffle step at a chosen git-call boundary — including exactly between a double-read's two reads —
+      so every mutation window is reproducible by construction; assert the entry set stays stable or
+      degrades to marked-indeterminate — never a phantom entry, never a silent flip.
+    - Assert warning-marked degradation shapes match the Phase 1/2 contract per churn step, and quiescent
+      derivations between churn steps come back clean (stable means clean when calm, marked when churning).
+    - Include an offline (`localOnly`) churn permutation exercising the content-dedupe collapse under
+      mutation.
+    - An optional wall-clock stress loop may ride as non-gating; the interleaving assertions are the
+      acceptance.
+
+## **Phase 4:** Pure composer and lifecycle-backed dependency resolution
+
+_Purpose:_ Rework the readiness composer into a pure function over an injected slug-keyed record set
+(active-meta-at-a-known-ref > backlog stub > completed index) with an injectable sink; move dependency
+satisfaction onto the lifecycle index (dangling edges warn); add the readiness-provider socket with the
+deps-only provider; retire the title read-back.
+
+### `[ ]` **4.1 Composer input model: injected slug-keyed record union**
+
+- _Goal:_ The composer is a pure function over resolved records — no disk scans, no raw markdown globs, no
+  assumption that readiness is a field parsed out of `meta-*`.
+
+    - `[ ]` **4.1.a Record-set type and precedence merge**
+        - Slug-keyed union type with source precedence active-meta-at-a-known-ref > backlog stub > completed
+          index; each record carries its source provenance (feeds the supersede tier and dep resolution).
+        - One unified record shape reconciles the composer's current row fields (slug, location, state,
+          owner, priority, dependsOn, cohort) with the oracle's in-flight facts — oracle entries project
+          into it, so a superseded stub's In Flight row renders owner / priority / cohort from the at-ref
+          meta.
+        - Build `test-first` (one behavior at a time):
+            - An at-ref active meta supersedes the same slug's backlog stub
+            - A superseded slug's record carries the at-ref meta's fields, not the stub's
+            - A backlog-only slug resolves from its stub
+            - Precedence is total and deterministic for any source combination
+
+    - `[ ]` **4.1.b Composer purification**
+        - `composeProjectReadinessView` (`src/lib/status/project-view.ts`) takes the injected record set;
+          `loadProjectMetas` / `collectMetaFiles` move out to a resolver layer that assembles the set; the
+          write sink stays injected (`readiness-regen` seam).
+        - Green-commit staging: this task's resolver reproduces today's tree-only inputs
+          (behavior-identical render); the local-refs slice and supersede tier arrive in Task 5.1. The
+          `resolveTitle` read-back relocates into the resolver here (so the compose path is fs-free) and is
+          deleted by Task 4.4.
+        - Both regen call sites (`src/lib/work-unit/executor-context.ts` ~263, `src/handlers/start.ts`
+          ~579) adapt mechanically to the new signature here; Task 5.3 verifies the enriched flow.
+        - Existing `project-view` unit tests move onto injected records (no fs seam in the compose path).
+
+### `[ ]` **4.2 Dependency resolution via the lifecycle primitive**
+
+- _Goal:_ Dependency satisfaction classifies through the lifecycle index — a dangling edge warns instead of
+  silently reading as satisfied.
+
+- **Additional Context:** `notes-project-state-integrity.md` § Implementation loci (filesystem-free index
+  construction)
+
+    - Build the index from the same injected slug-keyed union — including active-metas-at-known-refs and
+      the completed records — never a fresh disk scan. `buildLifecycleIndexFromMetas`
+      (`src/lib/work-unit/lifecycle-index.ts` ~231) takes raw `{ path, content }`, which the union's
+      resolved records don't carry: add a record-fed builder beside it that constructs entries from
+      resolved fields (slug, state, location, dependsOn, cohort) through the same canonical
+      `(phase, location)` map — records never re-carry raw meta text. Completed metas must ride the union:
+      an index fed only active + backlog would classify every shipped dep `nonexistent` and warn falsely.
+    - Classification through the canonical predicates (`resolveSlugQuery`,
+      `src/lib/work-unit/lifecycle-query.ts`; `deriveState` / `isShipped`,
+      `src/lib/work-unit/lifecycle-resolver.ts`): `nonexistent` → dangling (composer warnings channel),
+      `shipped` → satisfied, pending → blocks. The pending-set-absence rule in `project-view.ts`
+      (`pendingNames`) is retired.
+    - Composer gains a warnings output rendered into the view header and the live view — no standalone
+      `--check` command. Composer warnings (dep-edge domain) are a distinct list from the oracle's
+      derivation warnings; the render layer merges the two.
+    - The composer elevates the derivation's sole-stale-location provenance codes against the same index:
+      quiet when the slug resolves `shipped`, a visible warning otherwise — a live WU with a drifted
+      `Branch` field must not silently read `Ready` on `main`.
+    - Build `test-first` (one behavior at a time):
+        - A typo'd / renamed dep target warns as dangling and does not satisfy
+        - A dep on a completed WU resolves satisfied from the union's completed records
+        - A sole-stale-location provenance code stays quiet for a shipped slug and warns for an unshipped one
+        - A pending dep blocks
+        - On a `main`-checkout record set, an in-flight WU's dep edge classifies pending via its at-ref
+          active meta even absent its backlog stub
+
+### `[ ]` **4.3 Readiness-provider socket with deps-only provider**
+
+- _Goal:_ Readiness arrives through a provider interface computed independently of dependency satisfaction —
+  WLSM's coming axis lands as a new provider, with no composer-logic change.
+
+    - Provider interface + the deps-only implementation (returns dependency-satisfaction); the composer
+      computes dependency-satisfaction and readiness independently and hands both to the render layer
+      (decomposed tier predicate); today's render collapses them to deps-only.
+    - Provider contract: the record set in, per-slug readiness verdicts out — the batch shape a future
+      attestation-backed provider needs.
+    - Stored-`State` enum untouched; derived displays stay projection-time compositions
+      (resolve-don't-store).
+    - Build `test-first` (one behavior at a time):
+        - Composer output carries deps-satisfaction and readiness as independent facts
+        - Swapping the provider changes readiness without touching dep resolution
+        - Default render is behavior-identical to deps-only collapse
+
+### `[ ]` **4.4 Retire the title read-back**
+
+- _Goal:_ No consumer reads `ROADMAP.md` back as data (terminal-render invariant).
+
+    - The render layer supplies the title (constant / config); delete `resolveTitle`'s H1 read-back
+      (`project-view.ts` ~159–168) — the only `ROADMAP.md` data read-back in `src/`.
+
+## **Phase 5:** Two render surfaces
+
+_Purpose:_ Wire the composer into its two consumers: the tracked `ROADMAP.md` render (tree plus local refs,
+gaining the in-flight supersede tier, stamped with rendered-against SHA and scope) at the existing ceremony
+triggers, and the live network-verified CLI view computed fresh per call.
+
+### `[ ]` **5.1 Tracked render: local-refs input and in-flight supersede tier**
+
+- _Goal:_ A `main`-checkout render is checkout-deterministic over tree plus local refs and shows in-flight
+  WUs as in flight — no false `Ready` facts from stale backlog stubs (SC 2).
+
+    - Record-set assembly for the tracked surface: tree scan plus local refs carrying active metas
+      (worktrees + remote-tracking refs; local data, no network) through the oracle's local slice — the
+      resolver from Task 4.1.b, extended here.
+    - The In Flight tier populates from at-ref active metas on any checkout; superseded stubs leave `Ready`.
+    - Header stamp: the existing `renderedRef` param extends with scope, where scope names the source set
+      fed to the render ("tree + local refs"), plus the pointer at the live view; the committed artifact
+      reads as scoped truth (a cache by construction).
+    - Determinism: byte-stability rides the render core's total sort (`compareStatusRows`,
+      `src/lib/status/render.ts` — priority, cohort, wu-name), so the union needs deterministic membership,
+      not pre-sorted order.
+    - Build `test-first` (one behavior at a time):
+        - A `main`-checkout record set renders in-flight WUs In Flight, not Ready
+        - Same checkout, same refs → byte-identical render (determinism)
+        - A degraded oracle slice renders with its degradation qualifier — never a silently healthy-looking
+          tree-only render
+        - Header carries the rendered-against stamp, scope, and live-view pointer
+
+### `[ ]` **5.2 Live view CLI surface**
+
+- _Goal:_ Live truth on demand — the network-verified, oracle-composed project view computed fresh per call,
+  never committed.
+
+    - `arc status --project`: joins the mutually-exclusive mode dispatch in `src/handlers/status.ts`
+      (alongside `<slug>` / `--session-init` / `--user`), mirroring `--user`'s wiring; renders composer
+      warnings (dangling edges, degraded marks) inline.
+    - Network by default; the oracle's `reachable: false` degrades to a noted refs-only view, matching
+      `runActiveInFlight`'s existing contract.
+    - Integration test: live view reflects a ref-only change with no commit — the consumption-relocation
+      property.
+
+### `[ ]` **5.3 Regen-trigger verification and `renderedRef` consolidation**
+
+- _Goal:_ Ceremony regen fires the new render unchanged — same-commit, deterministic per checkout, with no
+  per-site render plumbing left behind.
+
+    - Both regen call sites — the lifecycle side-effect binding (`src/lib/work-unit/executor-context.ts`
+      ~263, via `reconcileRoadmap`) and the start ceremony's `refreshRoadmapForStartCeremony`
+      (`src/handlers/start.ts` ~579, which bypasses `reconcileRoadmap`) — consume the shared resolver; Task
+      4.1.b already adapted them mechanically, so this task verifies the enriched record set flows to both
+      and removes any residual inline fs seams.
+    - Consolidate the two divergent rendered-ref computations (`renderedRef()` in `executor-context`,
+      `startRenderedRef` in `start.ts`) into the resolver's stamp.
+    - Integration coverage at one lifecycle-transition edge: the regenerated file matches a direct
+      resolver+composer render of the same checkout.
+
+## **Phase 6:** Regenerate-wins pre-commit assert
+
+_Purpose:_ Enforce the never-hand-merged conflict rule: when `ROADMAP.md` is staged, re-render from sources and
+exact-compare; reject on mismatch or surviving conflict markers, with the compare degrading to warn-and-allow on
+an indeterminate snapshot (the conflict-marker reject stays unconditional).
+
+### `[ ]` **6.1 The assert: re-render exact-compare and conflict-marker scan**
+
+- _Goal:_ A staged `ROADMAP.md` that hand-diverges from a source re-render — or carries conflict markers — is
+  rejected before commit; a mismatch on an indeterminate snapshot degrades to warn-and-allow.
+
+- **Additional Context:** `notes-project-state-integrity.md` § Rationale detail (hook assert vs merge driver)
+
+    - Pure check core: staged content + re-render result (with its determinacy marks) → verdict:
+      reject-mismatch / reject-markers / warn-and-allow / pass.
+    - Both compare sides are index-pinned: the staged blob (`git show :.arc/backlog/ROADMAP.md`) on one
+      side, and a re-render whose tree-side inputs read from the staged index (`git show :<path>` per meta /
+      backlog source) on the other — the assert certifies the commit being made, so neither a dirty worktree
+      ROADMAP nor an unstaged dirty meta may flip the verdict. Local-refs inputs are index-independent and
+      read as usual.
+    - The conflict-marker reject is unconditional (static scan of staged content — hand-merge evidence
+      regardless of roster state); the exact-compare consumes the determinacy marks of the hook's own fresh
+      re-render run (its resolver's double-read) and degrades to warn-and-allow with a re-run instruction
+      when that snapshot is indeterminate.
+    - Reject messages carry the re-render instruction (regenerate-wins corrects any slip-through at the next
+      determinate regen).
+    - Build `test-first` (one behavior at a time):
+        - Staged hand-edit vs determinate re-render → reject with re-render instruction
+        - Surviving conflict markers → reject, even on an indeterminate snapshot
+        - Indeterminate-snapshot mismatch → warn-and-allow with re-run instruction
+        - An unstaged dirty meta does not affect the verdict (index-side re-render)
+        - Byte-identical staged content → pass
+
+### `[ ]` **6.2 Hook wiring and hook-level tests**
+
+- _Goal:_ The assert runs as a blockable pre-commit check scoped to staged `ROADMAP.md` changes, wired like
+  the existing staged-path checks.
+
+    - Script entry under `src/scripts/` following the blockable `validate-cohort-consistency.ts` pattern
+      (CHECK 18's error-increment wrapper), not the advisory fail-open shape; fires only when `ROADMAP.md`
+      is staged.
+    - Three-way shell contract: exit nonzero → error (reject); exit 0 with output → warning
+      (warn-and-allow); exit 0 silent → pass.
+    - New numbered check in the shipped pre-commit chain, complementary to CHECK 17 (which stays as the
+      render-fields-changed-without-regen nudge; instruction texts agree on the same re-render command);
+      document the GitHub-side merge bound (no local hook fires there; conflict resolution falls to a local
+      commit, where it does).
+    - Two-copy discipline: hook edits land in the package source
+      (`packages/arc-framework/arc/system/.internal/githooks/pre-commit`) and sync to the `.arc/` copy.
+    - Hook-level tests under `__tests__/unit/scripts/`: staged-mismatch rejection, conflict-marker
+      rejection, clean pass-through, indeterminate degrade (spec § Testing).
+
+## **Phase 7:** Verification
+
+### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+---
+
+## Success Criteria
+
+- `[ ]` The concurrency harness passes: derivation racing a scripted `arc start` reshuffle produces stable,
+  warning-marked output
+- `[ ]` Both standing false facts resolve: a stale `plan/<name>` ref mints no phantom remote-only WU, and an
+  unpushed in-flight worktree is visible to the oracle
+- `[ ]` A `main`-checkout render shows in-flight WUs as in flight (supersede tier), asserting no false `Ready`
+  facts from stale backlog stubs
+- `[ ]` Dangling dependency edges surface through the warnings channel instead of rendering satisfied
+- `[ ]` A manufactured `ROADMAP.md` conflict resolves by re-render; the pre-commit assert rejects a staged
+  hand-edit and surviving conflict markers
+- `[ ]` No consumer reads `ROADMAP.md` back as data
+- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[ ]` Ready for integration

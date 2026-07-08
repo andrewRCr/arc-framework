@@ -96,8 +96,11 @@ checkout > live remote branch > stale tracking ref — emitting one roster entry
 provenance. Shadowed/stale candidates surface as warnings (feeding the sweep surfaces), never as roster
 entries. Offline, the lower two tiers collapse: without a fresh remote prune (the commit-time hook is
 `localOnly`; the tracked render reads local data only), live-vs-stale is unknowable, so multiple tracking refs
-carrying the same WU with no local worktree dedupe by content — the candidate whose meta `State` is furthest
-along, then the newest commit — never by branch-name semantics. Such an entry keeps its full branch-set
+carrying the same WU with no local worktree dedupe by content — ancestry first (a candidate whose tip is an
+ancestor of another's loses; renames and fast-forwards are decided exactly), then the meta `State` furthest
+along for genuine forks only (backward transitions such as `deactivate` make `State` non-monotonic, so it
+never leads), then the newest commit, then lexicographic branch name as the total-order backstop — never by
+branch-name semantics. Such an entry keeps its full branch-set
 provenance and is marked location-ambiguous in the warnings channel; the advisory hook treats
 location-ambiguous entries as indeterminate (skips-with-note, below).
 
@@ -268,3 +271,11 @@ network cost, on demand only.
 - **The exact wave-1 phantom-overlap mechanism** is pinned during the (A) harness work, not guessed now — an
   implementation-time investigation inside a settled design (the failure-vector inventory bounds it), not
   deferred design.
+- **Parked-WU topology (open — pending a design reckoning).** park@Active produces an at-ref `Active` meta
+  shadowing a deliberate `backlog/planned/` pointer record, so the § B precedence as stated would render
+  every parked WU In Flight; the oracle roster and materialize surface inherit the same blindness. This
+  topology (and the shipped backward transitions `deactivate` / `reopen` generally) was not considered at
+  draft/spec time; the cheap discriminator reads `parked` off the `(Active, planned)` derivation
+  `wu-lifecycle-state-model` may rework, so the resolution is deferred to a dedicated reckoning rather than
+  patched. Full findings and the reckoning scope: `notes-project-state-integrity.md` § Deferred design
+  reckoning.
