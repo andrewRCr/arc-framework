@@ -4,11 +4,14 @@ import {
   addBareRemote,
   cleanupTempDir,
   createTempRepo,
+  ensureDir,
   execFileAsync,
+  join,
   makeCommit,
   makeGitExec,
   makeGitExecInput,
   makeUserIO,
+  writeFile,
 } from "../helpers/integration.js";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import { reconcileNotesPush, runUserCompact } from "../../src/commands/user.js";
@@ -37,6 +40,34 @@ async function addRemoteNote(remote: string, commit: string, message: string): P
     "-c", "user.name=Test User",
     "notes", `--ref=${NOTES_REF}`, "add", "-m", message, commit,
   ]);
+}
+
+async function makeDatedCommit(cwd: string, message: string, date: string): Promise<string> {
+  await execFileAsync(
+    "git",
+    ["-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "-m", message],
+    {
+      cwd,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_DATE: date,
+        GIT_COMMITTER_DATE: date,
+      },
+    },
+  );
+  return git(cwd, ["rev-parse", "HEAD"]);
+}
+
+async function writeCompletedMeta(cwd: string, sequence: string, slug: string, completedAt: string): Promise<void> {
+  const dir = join(cwd, ".arc", "completed", "2026-q2", `${sequence}_${slug}`);
+  await ensureDir(dir);
+  await writeFile(
+    join(dir, `meta-${slug}.md`),
+    "# Metadata: test\n\n"
+    + "- **State:** Shipped\n"
+    + `- **Completed:** ${completedAt}\n`,
+    "utf-8",
+  );
 }
 
 async function noteContent(cwd: string, commit: string): Promise<string> {
@@ -548,6 +579,59 @@ describe("user notes compaction", () => {
     });
     expect(second).toMatchObject({ kind: "nothing-to-prune", retainedCount: 1, prunedCount: 0 });
   }, 15_000);
+
+  it("retains old shipped-WU notes until the archive age and local-subdir gates clear", async () => {
+    repo = await createTempRepo("arc-notes-compact-retention-inputs-");
+    await writeCompletedMeta(repo, "01", "recent-archive", "2026-06-20");
+    await writeCompletedMeta(repo, "02", "local-subdir", "2026-05-01");
+    await git(repo, ["add", ".arc/completed"]);
+    await git(repo, ["commit", "-m", "archive shipped work"]);
+    remote = await addBareRemote(repo);
+
+    const recentCommit = await makeDatedCommit(repo, "recent archive note", "2026-01-01T00:00:00.000Z");
+    const localSubdirCommit = await makeDatedCommit(repo, "local subdir note", "2026-01-02T00:00:00.000Z");
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "recent-archive/SESSION-NOTES.md": "recent\n" } }),
+      recentCommit,
+    ]);
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "local-subdir/SESSION-NOTES.md": "local\n" } }),
+      localSubdirCommit,
+    ]);
+
+    for (let index = 0; index < 302; index += 1) {
+      const commit = await makeDatedCommit(
+        repo,
+        `filler ${index}`,
+        `2026-07-01T00:${String(index % 60).padStart(2, "0")}:00.000Z`,
+      );
+      await git(repo, [
+        "notes", `--ref=${NOTES_REF}`, "add", "-m",
+        JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": `filler ${index}\n` } }),
+        commit,
+      ]);
+    }
+
+    await ensureDir(join(repo, ".arc", "user", IDENTITY, "local-subdir"));
+    await writeFile(join(repo, ".arc", "user", IDENTITY, "local-subdir", "SESSION-NOTES.md"), "local\n", "utf-8");
+    await git(repo, ["push", "origin", NOTES_REF]);
+
+    const result = await runUserCompact({
+      cwd: repo,
+      io: makeUserIO(repo),
+      identity: IDENTITY,
+      now: "2026-07-07T00:00:00.000Z",
+    });
+
+    expect(result.kind).toBe("compacted");
+    if (result.kind !== "compacted") return;
+    expect(result.retainedCount).toBe(12);
+    expect(result.prunedCount).toBe(292);
+    expect(await noteContent(repo, recentCommit)).toContain("recent-archive/SESSION-NOTES.md");
+    expect(await noteContent(repo, localSubdirCommit)).toContain("local-subdir/SESSION-NOTES.md");
+  }, 30_000);
 });
 
 async function fetchNotesInto(cwd: string, ref: string): Promise<void> {

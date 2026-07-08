@@ -307,23 +307,45 @@ compaction boundary.
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint, TypeScript lint, shell lint, source/test typecheck, build, and full Vitest suite
+  passed; full suite result was `3970` passed, `1` skipped. The adversarial-pass fix additionally passed
+  focused compaction/archive-index tests, source/test typecheck, and TypeScript lint.
+
+- _Success criteria:_ All 9 criteria are met. Live compaction published generation 1, backed up the
+  pre-compaction ref, pruned the expanded root-session-note set, and collapsed local/origin notes history to 1
+  commit; the original 427 root-note count had grown to 429 by verification time. Fresh adversarial verification
+  found one major retention-input gap; it was fixed, and the pre-compaction backup checked clean against the
+  corrected policy with 0 wrongly-pruned retained pairs.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A live steady-state primary `arc sync` converges: `arc user status` reports current immediately after,
+- `[x]` A live steady-state primary `arc sync` converges: `arc user status` reports current immediately after,
   and the remote ref gains ~zero commits (vs. +886 today)
-- `[ ]` C1 is impossible by construction: interleaving tests prove a save cannot tombstone an entry the disk
+- `[x]` C1 is impossible by construction: interleaving tests prove a save cannot tombstone an entry the disk
   never materialized (reconcile→save→save and load∥save both)
-- `[ ]` The C2, C3, and C4 interleavings and the C9 verdict-coherence case are regression-tested
-- `[ ]` `arc user fetch`/`pull` refuse with a typed outcome + reconcile instruction on a local-ahead/diverged
+- `[x]` The C2, C3, and C4 interleavings and the C9 verdict-coherence case are regression-tested
+- `[x]` `arc user fetch`/`pull` refuse with a typed outcome + reconcile instruction on a local-ahead/diverged
   ref — no silent force-reset
-- `[ ]` Remote ref history is compacted to the snapshot baseline (order ~10² commits, not ~10⁴); the 427
+- `[x]` Remote ref history is compacted to the snapshot baseline (order ~10² commits, not ~10⁴); the 427
   pre-migration root-`SESSION-NOTES` notes and retired-WU accumulation prune per the retention criterion
-- `[ ]` A sibling clone with local-only notes adopts a compacted ref losslessly (verified by content diff)
-- `[ ]` The WORKING-MEMORY interim guard entries (avoid notes-pushing syncs; never save over an un-materialized
+    - **Deviation:** The live root-`SESSION-NOTES.md` prune set had grown to 429 entries by verification; live
+      `arc user compact --json` retained 300 notes, pruned 609, published generation 1, wrote the origin backup
+      ref `refs/backup/arc-user-andrew-compaction-g1-1758473-1`, and collapsed local/origin notes history to 1
+      commit. A fresh adversarial pass found that retired-WU retention inputs used note timestamps instead of
+      archive completion dates and did not protect lingering local subdirs; the command now reads completed-meta
+      dates from `origin/<base>` and treats local per-WU subdirs as still in-flight. The live backup ref was
+      checked against the corrected policy with 0 retained-pair violations.
+
+- `[x]` A sibling clone with local-only notes adopts a compacted ref losslessly (verified by content diff)
+- `[x]` The WORKING-MEMORY interim guard entries (avoid notes-pushing syncs; never save over an un-materialized
   reconcile) have their recorded removal triggers met
-- `[ ]` All quality gates pass (tests, linting, type checking, build)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking, build)
+    - Verified with `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`, `npm run typecheck:all`,
+      `npm run build`, and `npm run test -w packages/arc-framework -- --reporter=dot --maxWorkers=2`
+      (`3970` passed, `1` skipped).
+
+- `[x]` Ready for integration

@@ -38,6 +38,14 @@ export interface ReadShippedWorkUnitsOptions {
   fs: CompletedIndexFs;
 }
 
+/** Archive facts for one shipped work unit read from a `completed/` tree. */
+export interface ShippedWorkUnitRecord {
+  /** WU-name slug from the `NN_<slug>` archive directory. */
+  slug: string;
+  /** Completion date from `meta-<slug>.md`, or null when absent/unparseable. */
+  completedAt: string | null;
+}
+
 /** `NN_<slug>` archive-directory shape; capture group 1 is the WU-name slug. */
 const ARCHIVE_DIR_RE = /^\d+_(.+)$/u;
 const COHORT_ARCHIVE_PREFIX = "cohort-";
@@ -130,24 +138,60 @@ export async function readShippedWorkUnitsFromRef(
   exec: GitExec,
   ref: string,
 ): Promise<Set<string>> {
+  return new Set((await readShippedWorkUnitRecordsFromRef(exec, ref)).keys());
+}
+
+/** Read shipped WU archive facts from a git ref's `.arc/completed/` tree. */
+export async function readShippedWorkUnitRecordsFromRef(
+  exec: GitExec,
+  ref: string,
+): Promise<Map<string, ShippedWorkUnitRecord>> {
   let stdout: string;
   try {
     ({ stdout } = await exec("git", ["ls-tree", "-r", "--name-only", ref, "--", COMPLETED_PATH_PREFIX]));
   } catch {
-    return new Set();
+    return new Map();
   }
 
-  const slugs = new Set<string>();
+  const records = new Map<string, ShippedWorkUnitRecord>();
+  const metaPaths = new Map<string, string>();
   for (const line of stdout.split("\n")) {
     const path = line.trim();
     if (!path.startsWith(COMPLETED_PATH_PREFIX)) continue;
     // `<quarter>/<NN_slug>/<file...>` — segment 1 is the archive directory.
-    const entry = path.slice(COMPLETED_PATH_PREFIX.length).split("/")[1];
+    const segments = path.slice(COMPLETED_PATH_PREFIX.length).split("/");
+    const entry = segments[1];
     if (entry === undefined) continue;
     const slug = slugFromArchiveDir(entry);
-    if (slug !== null) slugs.add(slug);
+    if (slug === null) continue;
+    records.set(slug, { slug, completedAt: null });
+    if (segments.slice(2).join("/") === `meta-${slug}.md`) {
+      metaPaths.set(slug, path);
+    }
   }
-  return slugs;
+
+  await Promise.all([...metaPaths.entries()].map(async ([slug, path]) => {
+    const completedAt = await readCompletedDateFromMeta(exec, ref, path);
+    records.set(slug, { slug, completedAt });
+  }));
+
+  return records;
+}
+
+async function readCompletedDateFromMeta(
+  exec: GitExec,
+  ref: string,
+  path: string,
+): Promise<string | null> {
+  let stdout: string;
+  try {
+    ({ stdout } = await exec("git", ["show", `${ref}:${path}`]));
+  } catch {
+    return null;
+  }
+  const value = /^- \*\*Completed:\*\* (.+)$/mu.exec(stdout)?.[1]?.trim();
+  if (value === undefined || value === "[none]") return null;
+  return Number.isNaN(Date.parse(value)) ? null : value;
 }
 
 /**

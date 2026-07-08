@@ -8,6 +8,8 @@
  * @module
  */
 
+import { join } from "node:path";
+
 import {
   acquireAdvisoryLock,
   COMPACTION_BACKUP_RETENTION_DAYS,
@@ -23,7 +25,10 @@ import {
   type RetentionPolicyNoteEntry,
 } from "../../lib/user-sync/index.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
-import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index.js";
+import {
+  readShippedWorkUnitRecordsFromRef,
+  type ShippedWorkUnitRecord,
+} from "../../lib/work-unit/completed-index.js";
 import { notesRef } from "./shared.js";
 import type { UserIOContext } from "./types.js";
 
@@ -183,9 +188,10 @@ async function buildRetentionEntries(input: {
   identity: string;
   fullRef: string;
 }): Promise<RetentionPolicyNoteEntry[]> {
-  const { cwd, io, fullRef } = input;
+  const { cwd, io, identity, fullRef } = input;
   const { settings } = await readConfigSettings(cwd);
-  const shipped = await readShippedWorkUnitsFromRef(io.exec, `origin/${settings["branch.base"]}`);
+  const shipped = await readShippedWorkUnitRecordsFromRef(io.exec, `origin/${settings["branch.base"]}`);
+  const localSubdirs = await readLocalUserSubdirs({ cwd, io, identity });
   const entries = await listNoteEntries(io.exec, fullRef);
 
   return Promise.all(entries.map(async (entry): Promise<RetentionPolicyNoteEntry> => {
@@ -197,17 +203,50 @@ async function buildRetentionEntries(input: {
     const paths = manifest === null ? [] : Object.keys(manifest.files);
     const workUnitNames = subdirsFromPaths(paths);
     const preMigrationRootSessionNotes = manifest?.files[LEGACY_ROOT_SESSION_NOTES] !== undefined;
-    const inFlight = workUnitNames.some((wuName) => !shipped.has(wuName));
+    const inFlight = workUnitNames.some((wuName) => !shipped.has(wuName) || localSubdirs.has(wuName));
 
     return {
       ...entry,
       committedAt,
       workUnitNames,
-      archivedAt: workUnitNames.length === 0 || inFlight ? null : committedAt,
+      archivedAt: inFlight ? null : resolveArchivedAt(workUnitNames, shipped),
       inFlight,
       preMigrationRootSessionNotes,
     };
   }));
+}
+
+async function readLocalUserSubdirs(input: {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+}): Promise<Set<string>> {
+  try {
+    const entries = await input.io.readDir(join(input.cwd, ".arc", "user", input.identity));
+    return new Set(subdirsFromPaths(entries.map((entry) => entry.name)));
+  } catch {
+    return new Set();
+  }
+}
+
+function resolveArchivedAt(
+  workUnitNames: readonly string[],
+  shipped: ReadonlyMap<string, ShippedWorkUnitRecord>,
+): string | null {
+  if (workUnitNames.length === 0) return null;
+  let latest: string | null = null;
+  let latestMs = Number.NEGATIVE_INFINITY;
+  for (const wuName of workUnitNames) {
+    const completedAt = shipped.get(wuName)?.completedAt ?? null;
+    if (completedAt === null) return null;
+    const completedAtMs = Date.parse(completedAt);
+    if (Number.isNaN(completedAtMs)) return null;
+    if (completedAtMs > latestMs) {
+      latest = completedAt;
+      latestMs = completedAtMs;
+    }
+  }
+  return latest;
 }
 
 async function readCommitTimestamp(io: UserIOContext, commit: string): Promise<string | null> {
