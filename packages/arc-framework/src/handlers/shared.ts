@@ -146,6 +146,10 @@ export function reportUserFetchOutcome(
       process.exitCode = 1;
       return;
     }
+    default: {
+      const _exhaustive: never = result;
+      return _exhaustive;
+    }
   }
 }
 

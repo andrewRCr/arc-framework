@@ -429,7 +429,7 @@ export async function writeLocalSyncState(
   // otherwise the prior record's list carries forward.
   await updateLocalSyncStateRecord(cwd, io, identity, (prior) => {
     const resolvedPriorFileList = priorFileList ?? prior?.priorFileList;
-    const resolvedNotesRefTip = notesRefTip ?? prior?.notesRefTip;
+    const resolvedNotesRefTip = notesRefTip === undefined ? prior?.notesRefTip : notesRefTip;
     return {
       version: 4,
       materializedManifestHash,

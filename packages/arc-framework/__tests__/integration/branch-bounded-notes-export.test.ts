@@ -31,7 +31,10 @@ import {
   planBranchBoundedNotesExport,
   pushBranchBoundedNotesExport,
 } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
-import { serializeNotesCompactionManifest } from "../../src/lib/user-sync/index.js";
+import {
+  NOTES_COMPACTION_MANIFEST_PATH,
+  serializeNotesCompactionManifest,
+} from "../../src/lib/user-sync/compaction-manifest.js";
 
 const IDENTITY = "test-user";
 const NOTES_REF = `refs/notes/arc/user/${IDENTITY}`;
@@ -153,10 +156,10 @@ describe("branch-bounded paired notes export", () => {
         tempRef = refspec.split(":")[1];
         return { stdout: "", stderr: "" };
       }
-      if (args[0] === "show" && args[1] === `${tempRef}:.arc-user-notes-compaction-manifest.json`) {
+      if (args[0] === "show" && args[1] === `${tempRef}:${NOTES_COMPACTION_MANIFEST_PATH}`) {
         return { stdout: manifest, stderr: "" };
       }
-      if (args[0] === "show" && args[1] === `${NOTES_REF}:.arc-user-notes-compaction-manifest.json`) {
+      if (args[0] === "show" && args[1] === `${NOTES_REF}:${NOTES_COMPACTION_MANIFEST_PATH}`) {
         throw new Error("no local manifest");
       }
       if (args[0] === "notes" && args[2] === "list") {

@@ -51,6 +51,18 @@ describe("inferUserSyncCause", () => {
     expect(result.confidence).toBe("high");
   });
 
+  it("classifies local-ahead as concurrent-local-writer when local tip differs from this worktree tip", () => {
+    const result = inferUserSyncCause(
+      makeInput({
+        refRelation: "local-ahead",
+        localSyncNotesRefTip: "OLDER",
+      }),
+    );
+
+    expect(result.cause).toBe("concurrent-local-writer");
+    expect(result.confidence).toBe("high");
+  });
+
   it("classifies diverged refs as cross-machine", () => {
     const result = inferUserSyncCause(makeInput({ refRelation: "diverged" }));
 

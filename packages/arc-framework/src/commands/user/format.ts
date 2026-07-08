@@ -129,6 +129,10 @@ export function buildUserCompactSummary(result: UserCompactResult): string {
       return "No remote configured or reachable for compaction.";
     case "failed":
       return result.error.message;
+    default: {
+      const _exhaustive: never = result;
+      return _exhaustive;
+    }
   }
 }
 

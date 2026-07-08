@@ -1927,6 +1927,27 @@ describe("LocalSyncState v4 schema", () => {
     expect(afterSave!.remoteMarkerProvenance).toEqual(reserved.remoteMarkerProvenance);
   });
 
+  it("distinguishes omitted notesRefTip from an explicitly absent notes ref", async () => {
+    const priorTip = "1".repeat(40);
+    const record = {
+      version: 4,
+      materializedManifestHash: "5d".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+      notesRefTip: priorTip,
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(record)}\n`, "utf-8");
+
+    await writeLocalSyncState(cwd, realFsIO(), identity, "66".repeat(8), "d".repeat(40), "save");
+    const afterOmittedTip = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(afterOmittedTip!.notesRefTip).toBe(priorTip);
+
+    await writeLocalSyncState(cwd, realFsIO(), identity, "77".repeat(8), "e".repeat(40), "load", undefined, undefined, null);
+    const afterAbsentRef = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(afterAbsentRef!.notesRefTip).toBeUndefined();
+  });
+
   it("keeps remote-marker provenance pluralizable — multiple worktree entries survive a round-trip", async () => {
     const record = {
       version: 4,

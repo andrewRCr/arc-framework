@@ -566,6 +566,10 @@ async function reconcileErrandLeg(
           detail: errandPartialPushDetail(outcome.kind, markerRecorded),
         };
       }
+      default: {
+        const _exhaustive: never = outcome;
+        throw new Error(`unhandled reconcile outcome: ${JSON.stringify(_exhaustive)}`);
+      }
     }
   } catch {
     const markerRecorded = await recordErrandPartialPushMarkerSafely(cwd, io, identity);
