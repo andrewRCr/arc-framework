@@ -633,6 +633,60 @@ describe("user notes compaction", () => {
     expect(second).toMatchObject({ kind: "nothing-to-prune", retainedCount: 1, prunedCount: 0 });
   }, 15_000);
 
+  it("prunes backup refs by encoded creation time, not target commit time", async () => {
+    repo = await createTempRepo("arc-notes-compact-backup-age-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    const keepCommit = await makeCommit(repo, "keep");
+    const legacyCommit = await makeCommit(repo, "legacy root session notes");
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": "keep\n" } }),
+      keepCommit,
+    ]);
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "legacy\n" } }),
+      legacyCommit,
+    ]);
+    await git(repo, ["push", "origin", NOTES_REF]);
+
+    const first = await runUserCompact({
+      cwd: repo,
+      io: makeUserIO(repo),
+      identity: IDENTITY,
+      now: "2026-07-01T00:00:00.000Z",
+    });
+    expect(first.kind).toBe("compacted");
+    if (first.kind !== "compacted") return;
+    expect(first.backupRef).toContain(`-created-${Date.parse("2026-07-01T00:00:00.000Z")}-`);
+
+    const oldTarget = await makeDatedCommit(repo, "old backup target", "2026-01-01T00:00:00.000Z");
+    await git(repo, ["update-ref", first.backupRef, oldTarget]);
+
+    const secondLegacyCommit = await makeCommit(repo, "second legacy root session notes");
+    await git(repo, [
+      "notes", `--ref=${NOTES_REF}`, "add", "-m",
+      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "legacy 2\n" } }),
+      secondLegacyCommit,
+    ]);
+    await git(repo, ["push", "origin", NOTES_REF]);
+
+    const second = await runUserCompact({
+      cwd: repo,
+      io: makeUserIO(repo),
+      identity: IDENTITY,
+      now: "2026-07-07T00:00:00.000Z",
+    });
+
+    expect(second.kind).toBe("compacted");
+    if (second.kind !== "compacted") return;
+    expect(second.generation).toBe(2);
+    expect(second.backupPrune.deletedRefs).not.toContain(first.backupRef);
+    expect(await git(repo, ["rev-parse", first.backupRef])).toBe(oldTarget);
+  }, 30_000);
+
   it("retains old shipped-WU notes until the archive age and local-subdir gates clear", async () => {
     repo = await createTempRepo("arc-notes-compact-retention-inputs-");
     await writeCompletedMeta(repo, "01", "recent-archive", "2026-06-20");

@@ -28,6 +28,8 @@ export interface CompactNotesRefSnapshotInput {
   retained: readonly NotesCompactionPair[];
   /** Note entries to add to the cumulative pruned manifest. */
   pruned: readonly NotesCompactionPair[];
+  /** Creation timestamp encoded into the backup ref for retention pruning. */
+  backupCreatedAt?: string;
   /** Test seam for simulating a concurrent remote writer after local snapshot staging. */
   onBeforePublish?: () => Promise<void>;
 }
@@ -109,7 +111,7 @@ export async function compactNotesRefSnapshot(
     preCompactionTip,
     pruned,
   });
-  const backupRef = backupRefFor(fullRef, manifest.generation);
+  const backupRef = backupRefFor(fullRef, manifest.generation, input.backupCreatedAt ?? new Date().toISOString());
   const snapshotTip = await buildSnapshotCommit({
     exec,
     execInput,
@@ -396,9 +398,11 @@ async function deleteRef(exec: GitExec, ref: string): Promise<void> {
   }
 }
 
-function backupRefFor(fullRef: string, generation: number): string {
+function backupRefFor(fullRef: string, generation: number, createdAt: string): string {
   const safe = fullRef.replace(/^refs\/notes\//u, "").replaceAll("/", "-");
-  return `refs/backup/${safe}-compaction-g${generation}-${uniqueRefToken()}`;
+  const createdAtMs = Date.parse(createdAt);
+  const createdToken = Number.isNaN(createdAtMs) ? Date.now() : Math.trunc(createdAtMs);
+  return `refs/backup/${safe}-compaction-g${generation}-created-${createdToken}-${uniqueRefToken()}`;
 }
 
 function isLeaseDecline(message: string): boolean {

@@ -107,6 +107,7 @@ export async function runUserCompact(options: UserCompactOptions): Promise<UserC
       fullRef,
       retained: decision.retained,
       pruned: decision.pruned,
+      backupCreatedAt: now,
     });
     return await completeSnapshotOutcome({
       io,
@@ -317,8 +318,8 @@ async function pruneExpiredBackupRefs(input: {
 
   for (const ref of refs) {
     if (ref.ref === input.keepRef) continue;
-    if (!Number.isFinite(nowMs) || Number.isNaN(ref.committedAtMs)) continue;
-    if (nowMs - ref.committedAtMs < minAgeMs) continue;
+    if (!Number.isFinite(nowMs) || ref.createdAtMs === null) continue;
+    if (nowMs - ref.createdAtMs < minAgeMs) continue;
     if (generationFromBackupRef(ref.ref) >= input.currentGeneration) continue;
     try {
       await input.io.exec("git", ["push", "origin", `:${ref.ref}`]);
@@ -335,21 +336,21 @@ async function pruneExpiredBackupRefs(input: {
 async function listCompactionBackupRefs(
   io: UserIOContext,
   prefix: string,
-): Promise<{ ref: string; committedAtMs: number }[]> {
+): Promise<{ ref: string; createdAtMs: number | null }[]> {
   try {
     const { stdout } = await io.exec("git", [
       "for-each-ref",
-      "--format=%(refname)%00%(committerdate:unix)",
+      "--format=%(refname)",
       prefix,
     ]);
     return stdout
       .split("\n")
       .map((line) => {
-        const [ref, timestamp] = line.split("\0");
-        if (!ref || !timestamp) return null;
-        return { ref, committedAtMs: Number.parseInt(timestamp, 10) * 1000 };
+        const ref = line.trim();
+        if (!ref) return null;
+        return { ref, createdAtMs: backupCreatedAtMsFromRef(ref) };
       })
-      .filter((entry): entry is { ref: string; committedAtMs: number } => entry !== null);
+      .filter((entry): entry is { ref: string; createdAtMs: number | null } => entry !== null);
   } catch {
     return [];
   }
@@ -358,4 +359,11 @@ async function listCompactionBackupRefs(
 function generationFromBackupRef(ref: string): number {
   const generation = /-compaction-g(\d+)-/u.exec(ref)?.[1];
   return generation === undefined ? Number.POSITIVE_INFINITY : Number.parseInt(generation, 10);
+}
+
+function backupCreatedAtMsFromRef(ref: string): number | null {
+  const value = /-created-(\d+)-/u.exec(ref)?.[1];
+  if (value === undefined) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
 }
