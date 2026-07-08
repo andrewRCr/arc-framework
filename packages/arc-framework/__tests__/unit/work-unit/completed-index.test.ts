@@ -184,6 +184,31 @@ describe("readShippedWorkUnitsFromRef", () => {
     expect(records.has("cohort-demo")).toBe(false);
   });
 
+  it("bounds concurrent meta-file reads from a ref", async () => {
+    const paths = Array.from({ length: 33 }, (_, idx) => {
+      const seq = String(idx + 1).padStart(2, "0");
+      return `.arc/completed/2026-q2/${seq}_wu-${seq}/meta-wu-${seq}.md`;
+    });
+    let activeShows = 0;
+    let maxActiveShows = 0;
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "ls-tree") return { stdout: paths.join("\n"), stderr: "" };
+      if (args[0] === "show") {
+        activeShows += 1;
+        maxActiveShows = Math.max(maxActiveShows, activeShows);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        activeShows -= 1;
+        return { stdout: "- **Completed:** 2026-06-20\n", stderr: "" };
+      }
+      throw new Error(`unexpected git ${args.join(" ")}`);
+    };
+
+    const records = await readShippedWorkUnitRecordsFromRef(exec, "origin/main");
+
+    expect(records.size).toBe(33);
+    expect(maxActiveShows).toBeLessThanOrEqual(16);
+  });
+
   it("returns an empty set when the ref does not resolve", async () => {
     const exec: GitExec = async () => {
       throw new Error("fatal: not a valid object name origin/main");

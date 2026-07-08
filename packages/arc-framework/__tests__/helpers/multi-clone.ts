@@ -232,6 +232,9 @@ export async function setupWorktreeSiblings(
   options: WorktreeSiblingsOptions = {},
 ): Promise<WorktreeSiblings> {
   const initialCommit = options.initialCommit ?? true;
+  if (!initialCommit) {
+    throw new Error("setupWorktreeSiblings requires initialCommit because the sibling worktree branches from main.");
+  }
   const primaryOptions = resolveCloneOptions(DEFAULT_CLONE_A, options.primary);
   const siblingOptions = resolveCloneOptions(DEFAULT_CLONE_B, options.sibling);
   const siblingBranch = options.siblingBranch ?? "sibling";

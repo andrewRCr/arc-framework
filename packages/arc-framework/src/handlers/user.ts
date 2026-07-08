@@ -622,6 +622,7 @@ export async function handleUserCompact(opts: UserCompactHandlerOptions = {}): P
 }
 
 function isUserCompactFailure(result: UserCompactResult): boolean {
+  if (result.kind === "compacted" && result.marker === "failed") return true;
   return result.kind === "lease-declined"
     || result.kind === "conflict"
     || result.kind === "no-remote"
@@ -645,6 +646,10 @@ function toJsonSafeCompactResult(result: UserCompactResult): object {
     case "nothing-to-prune":
     case "conflict":
       return result;
+    default: {
+      const _exhaustive: never = result;
+      return _exhaustive;
+    }
   }
 }
 

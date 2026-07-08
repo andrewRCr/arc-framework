@@ -114,12 +114,9 @@ export async function runUserStatus(
   } = options;
   const currentWuName = await resolveCurrentWuName(cwd, io.exec);
   const shouldProbeWorktree = !offline && remoteSyncEnabled;
-  const worktreeProbe = shouldProbeWorktree
-    ? await runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
-    : null;
   const [
     diskInspection, search, backupFiles, remoteIdentities, refInspection,
-    userNotesRefExists, localSyncState, compactionAdvisory,
+    userNotesRefExists, localSyncState, compactionAdvisory, worktreeProbe,
   ] = await Promise.all([
     inspectDiskVsLocalSnapshot(cwd, io, identity, currentWuName),
     findNearestUserNote({ cwd, io, identity, currentWuName }),
@@ -131,6 +128,9 @@ export async function runUserStatus(
     inspectUserNotesRefExists(io, identity),
     readLocalSyncState(cwd, io, identity),
     inspectNotesCompactionAdvisory(io.exec, `refs/notes/${notesRef(identity)}`),
+    shouldProbeWorktree
+      ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
+      : Promise.resolve(null),
   ]);
   const spine = computeUserSyncSpine({
     remoteSyncEnabled: !offline,

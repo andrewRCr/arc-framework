@@ -60,6 +60,7 @@ const SEQUENCE_PREFIX_RE = /^(\d+)[a-z]?_/u;
 
 /** `.arc/completed/` path prefix the ref-tree reader strips to reach `<quarter>/<entry>/...`. */
 const COMPLETED_PATH_PREFIX = ".arc/completed/";
+const COMPLETED_META_READ_CONCURRENCY = 16;
 
 /**
  * The shipped WU-name slug an archive-directory name carries, or `null` when the
@@ -170,10 +171,14 @@ export async function readShippedWorkUnitRecordsFromRef(
     }
   }
 
-  await Promise.all([...metaPaths.entries()].map(async ([slug, path]) => {
-    const completedAt = await readCompletedDateFromMeta(exec, ref, path);
-    records.set(slug, { slug, completedAt });
-  }));
+  const metaEntries = [...metaPaths.entries()];
+  for (let i = 0; i < metaEntries.length; i += COMPLETED_META_READ_CONCURRENCY) {
+    const batch = metaEntries.slice(i, i + COMPLETED_META_READ_CONCURRENCY);
+    await Promise.all(batch.map(async ([slug, path]) => {
+      const completedAt = await readCompletedDateFromMeta(exec, ref, path);
+      records.set(slug, { slug, completedAt });
+    }));
+  }
 
   return records;
 }

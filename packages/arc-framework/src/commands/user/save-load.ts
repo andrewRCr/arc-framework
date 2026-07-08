@@ -156,7 +156,7 @@ export async function runUserSave(
     await releaseAdvisoryLock(lock);
   }
   const projectedSave = projectManifest(result.manifest);
-  await writeLocalSyncState(
+  await writeLocalSyncStateBestEffort(
     cwd,
     io,
     identity,
@@ -301,7 +301,7 @@ export async function runUserLoad(
   } finally {
     await releaseAdvisoryLock(materializeLock);
   }
-  await writeLocalSyncState(
+  await writeLocalSyncStateBestEffort(
     cwd,
     io,
     identity,
@@ -332,6 +332,16 @@ export async function runUserLoad(
       ...snapshot.mergeWarnings.map((text): LoadMessage => ({ level: "warning", text })),
     ],
   };
+}
+
+async function writeLocalSyncStateBestEffort(
+  ...args: Parameters<typeof writeLocalSyncState>
+): Promise<void> {
+  try {
+    await writeLocalSyncState(...args);
+  } catch {
+    // Best-effort bookkeeping: note/baseline writes are already durable.
+  }
 }
 
 /**
@@ -1005,7 +1015,7 @@ async function resolveSameMachineInFlightSubdirs(
       },
     });
   } catch {
-    return inFlight;
+    return candidates;
   }
 
   for (const entry of roster.entries) {

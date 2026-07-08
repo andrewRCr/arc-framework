@@ -541,6 +541,27 @@ describe("handleUserCompact", () => {
     expect(mockOutro).toHaveBeenCalledWith("Done.");
     expect(process.exitCode).toBeUndefined();
   });
+
+  it("sets a failure exit code when compaction succeeds but marker publication fails", async () => {
+    mockRunUserCompact.mockResolvedValue({
+      kind: "compacted",
+      identity: "andrew",
+      generation: 3,
+      preCompactionTip: "a".repeat(40),
+      snapshotTip: "b".repeat(40),
+      backupRef: "refs/backup/arc-user-andrew-compaction-g2",
+      retainedCount: 5,
+      prunedCount: 10,
+      marker: "failed",
+      backupPrune: { deletedRefs: [], failedRefs: [] },
+    });
+    mockBuildUserCompactSummary.mockReturnValue("Generation marker: failed.");
+
+    await handleUserCompact({});
+
+    expect(mockNote).toHaveBeenCalledWith("Generation marker: failed.", "Compact");
+    expect(process.exitCode).toBe(1);
+  });
 });
 
 describe("handleUserStatus", () => {

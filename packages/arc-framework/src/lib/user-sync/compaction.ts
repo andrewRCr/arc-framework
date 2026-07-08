@@ -208,7 +208,6 @@ export async function adoptCompactedNotesRef(
           rightBlob: entry.blob,
         });
         if (merged.kind === "conflict") {
-          await deleteRef(exec, adoptRef);
           return {
             kind: "conflict",
             message:

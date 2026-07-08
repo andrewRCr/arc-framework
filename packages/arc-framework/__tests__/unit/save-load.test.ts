@@ -13,6 +13,7 @@ import { hostname, tmpdir } from "node:os";
 import {
   findNearestUserNote,
   hashSyncManifest,
+  reconcileRetiredSubdirsStandalone,
   runUserLoad,
   runUserSave,
 } from "../../src/commands/user/save-load.js";
@@ -741,6 +742,25 @@ describe("runUserSave — save verification", () => {
     expect(typeof onDisk.savedAt).toBe("string");
   });
 
+  it("still returns success when late sync-state bookkeeping exhausts CAS retries", async () => {
+    const io = mockSaveIO();
+    const readFileOriginal = io.readFile;
+    let syncStateReads = 0;
+    io.readFile = vi.fn(async (filePath: string) => {
+      if (filePath.endsWith(".sync-state.json")) {
+        syncStateReads += 1;
+        return `${syncStateReads}\n`;
+      }
+      return readFileOriginal(filePath);
+    });
+
+    const result = await runUserSave({ cwd, io, identity: "andrew" });
+
+    expect(result.fileCount).toBe(1);
+    expect(io.writeNote).toHaveBeenCalled();
+    expect(await exists(syncStatePath)).toBe(false);
+  });
+
   it("writes the materialized-baseline stamp after a verified save", async () => {
     const notesRefTip = "cccccccccccccccccccccccccccccccccccccccc";
     const files = { "WORKING-MEMORY.md": workingMemoryEntry("Saved") };
@@ -1243,6 +1263,24 @@ describe("runUserLoad — load verification", () => {
     expect(typeof onDisk.savedAt).toBe("string");
   });
 
+  it("still returns loaded when late sync-state bookkeeping exhausts CAS retries", async () => {
+    const io = mockLoadIO();
+    const readFileOriginal = io.readFile;
+    let syncStateReads = 0;
+    io.readFile = vi.fn(async (filePath: string) => {
+      if (filePath.endsWith(".sync-state.json")) {
+        syncStateReads += 1;
+        return `${syncStateReads}\n`;
+      }
+      return readFileOriginal(filePath);
+    });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew" });
+
+    expect(result?.kind).toBe("loaded");
+    expect(await exists(syncStatePath)).toBe(false);
+  });
+
   it("writes the materialized-baseline stamp after a verified load", async () => {
     const notesRefTip = "dddddddddddddddddddddddddddddddddddddddd";
     const manifest: SyncManifest = {
@@ -1673,6 +1711,19 @@ describe("LocalSyncState v4 schema", () => {
     expect(JSON.parse(await readFile(syncStatePath, "utf-8"))).toMatchObject(record);
   });
 
+  it("rethrows non-ENOENT sync-state reads instead of treating them as missing", async () => {
+    const eacces: NodeJS.ErrnoException = new Error("EACCES: permission denied");
+    eacces.code = "EACCES";
+    const io = realFsIO({
+      readFile: vi.fn(async (path: string) => {
+        if (path === syncStatePath) throw eacces;
+        return readFile(path, "utf-8");
+      }),
+    });
+
+    await expect(readLocalSyncState(cwd, io, identity)).rejects.toThrow("EACCES");
+  });
+
   it("keeps both partial-push markers across concurrent sync-state writers", async () => {
     const record = {
       version: 4,
@@ -2035,5 +2086,49 @@ describe("LocalSyncState v4 schema", () => {
     const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
     expect(onDisk.machineId).toBeUndefined();
     expect(onDisk.partialPush).toBeUndefined();
+  });
+});
+
+describe("reconcileRetiredSubdirsStandalone — same-machine roster failures", () => {
+  let cwd: string;
+  const identity = "andrew";
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-retired-subdir-test-"));
+    await mkdir(join(cwd, ".arc", "user", identity, "old-wu"), { recursive: true });
+    await writeFile(join(cwd, ".arc", "user", identity, "old-wu", "SESSION-NOTES.md"), "old notes", "utf-8");
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it("fails closed when the worktree roster cannot be read", async () => {
+    const userDir = join(cwd, ".arc", "user", identity);
+    const io: UserIOContext = {
+      exec: vi.fn(async (cmd: string, args: string[]) => {
+        if (cmd === "git" && args[0] === "ls-tree") {
+          return { stdout: ".arc/completed/2026-q2/01_old-wu/SESSION-NOTES.md\n", stderr: "" };
+        }
+        if (cmd === "git" && args[0] === "worktree") {
+          throw new Error("worktree roster unavailable");
+        }
+        throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+      }),
+      readFile: vi.fn(async (path: string) => readFile(path, "utf-8")),
+      writeFile: vi.fn(async (path: string, content: string) => writeFile(path, content, "utf-8")),
+      readDir: vi.fn(async (path: string) => {
+        if (path === userDir) return [{ name: "old-wu/SESSION-NOTES.md", size: 9 }];
+        return [];
+      }),
+      mkdir: vi.fn(async (path: string) => mkdir(path, { recursive: true })),
+      writeNote: vi.fn(async () => undefined),
+      readNote: vi.fn(async () => null),
+    };
+
+    const reconciled = await reconcileRetiredSubdirsStandalone({ cwd, io, identity });
+
+    expect(reconciled.size).toBe(0);
+    expect(await exists(join(cwd, ".arc", "user", identity, "old-wu", "SESSION-NOTES.md"))).toBe(true);
   });
 });

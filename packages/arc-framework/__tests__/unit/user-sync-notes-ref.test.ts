@@ -175,7 +175,7 @@ describe("readRecentUserNotes", () => {
     expect(notes.map((n) => n.content)).toEqual(["recent"]);
   });
 
-  it("drops sparse pre-deletion notes with their expired tombstone", async () => {
+  it("drops sparse pre-deletion notes at the same TTL boundary as their tombstone", async () => {
     const wmFile = (...entries: string[]): string =>
       `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
     const wmEntry = (header: string): string => `**${header}:**\n_Remove when: x._\n\nBody.`;

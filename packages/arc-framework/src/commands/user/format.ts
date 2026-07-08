@@ -95,6 +95,9 @@ export function buildUserCompactSummary(result: UserCompactResult): string {
         `Backup ref: ${result.backupRef}`,
         `Generation marker: ${result.marker}.`,
       ];
+      if (result.marker === "failed") {
+        lines.push("Generation marker publication failed; compaction succeeded but the advisory marker did not.");
+      }
       if (result.backupPrune.deletedRefs.length > 0) {
         lines.push(`Expired backups pruned: ${result.backupPrune.deletedRefs.join(", ")}`);
       }

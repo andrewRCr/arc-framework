@@ -8,8 +8,8 @@
  *
  * The file lives under `user/{identity}/.internal/`. Reads tolerate a legacy
  * copy at the identity root and a `version: 2` record (pre-`savedAt`), and
- * return a parsed record or `null` — never throwing — so a later schema
- * validator can swap in mechanically.
+ * return a parsed record or `null` for absent/malformed records. Non-ENOENT
+ * read failures still throw so permission or busy-file issues are visible.
  *
  * @module
  */
@@ -131,7 +131,8 @@ export async function readLocalSyncState(
     let raw: string;
     try {
       raw = await io.readFile(syncStatePath);
-    } catch {
+    } catch (err) {
+      if (!isErrnoCode(err, "ENOENT")) throw err;
       continue;
     }
 
@@ -389,7 +390,8 @@ async function readSyncStateRaw(
     let raw: string;
     try {
       raw = await io.readFile(syncStatePath);
-    } catch {
+    } catch (err) {
+      if (!isErrnoCode(err, "ENOENT")) throw err;
       continue;
     }
     try {

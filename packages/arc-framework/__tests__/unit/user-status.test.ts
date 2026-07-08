@@ -2084,7 +2084,9 @@ describe("runUserSessionInitStatus", () => {
       },
       readFile: async (path: string) => {
         if (path === `${userDir}/SESSION-NOTES.md`) return noteFiles["SESSION-NOTES.md"];
-        throw new Error(`ENOENT: ${path}`);
+        const err = new Error(`ENOENT: ${path}`) as NodeJS.ErrnoException;
+        err.code = "ENOENT";
+        throw err;
       },
     };
 
@@ -2797,7 +2799,7 @@ describe("runUserStatus worktree probe orchestration", () => {
     expect(calls.some((c) => c.args[0] === "fetch")).toBe(true);
   });
 
-  it("runs the worktree fetch before launching note-history status reads", async () => {
+  it("runs the worktree fetch without suppressing note-history status reads", async () => {
     const calls: Array<{ cmd: string; args: string[] }> = [];
     const io = makeIO(fakeNoNotesExec(calls));
 
@@ -2814,7 +2816,7 @@ describe("runUserStatus worktree probe orchestration", () => {
     const firstNotesListIndex = calls.findIndex((c) => c.args[0] === "notes");
 
     expect(worktreeFetchIndex).toBeGreaterThanOrEqual(0);
-    expect(firstNotesListIndex).toBeGreaterThan(worktreeFetchIndex);
+    expect(firstNotesListIndex).toBeGreaterThanOrEqual(0);
   });
 
   it("does not invoke the worktree probe when --offline is set", async () => {
@@ -3218,7 +3220,9 @@ describe("runUserStatus userSyncCause orchestration", () => {
       exec: execImpl,
       readDir: async () => [],
       readFile: async () => {
-        throw new Error("ENOENT");
+        const err = new Error("ENOENT") as NodeJS.ErrnoException;
+        err.code = "ENOENT";
+        throw err;
       },
       writeFile: async () => {},
       mkdir: async () => undefined,
