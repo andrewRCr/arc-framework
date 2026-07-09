@@ -12,8 +12,8 @@
 - **Task List:** `tasks-burn-in-probe-a.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.1 — Create the burn-in evidence log
-- **Next Task:** Task 1.2 — Exercise handoff and resume evidence (line ~20)
+- **Last Completed:** Task 2.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
 - **Next Action:** integrate-work-unit Step 1 — verify completion
