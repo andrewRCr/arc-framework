@@ -18,6 +18,12 @@ export interface CreateRemotePlanWorkUnitOptions {
   state?: string;
 }
 
+export interface CreateRemoteWorkUnitOptions extends CreateRemotePlanWorkUnitOptions {
+  branch: string;
+}
+
+export type CreateLocalWorkUnitOptions = CreateRemoteWorkUnitOptions;
+
 export interface SpawnWorktreeOptions {
   branch: string;
   fromRef: string;
@@ -43,6 +49,10 @@ export interface RemoteBranchOptions {
 
 export interface RecreateRemoteBranchOptions extends RemoteBranchOptions {
   sourceRef: string;
+}
+
+export interface AdvanceRemoteBranchOptions extends RemoteBranchOptions {
+  markerPath?: string;
 }
 
 export interface StandingStalePlanTopologyOptions {
@@ -80,6 +90,7 @@ export interface InFlightReshuffleSteps {
   deleteRemoteBranch(options: RemoteBranchOptions): Promise<void>;
   recreateRemoteBranch(options: RecreateRemoteBranchOptions): Promise<void>;
   pushBranch(options: PushBranchOptions): Promise<void>;
+  advanceRemoteBranch(options: AdvanceRemoteBranchOptions): Promise<void>;
 }
 
 export interface InFlightReshuffleFixture {
@@ -89,7 +100,9 @@ export interface InFlightReshuffleFixture {
   primaryExec: GitExec;
   siblingExec: GitExec;
   steps: InFlightReshuffleSteps;
+  createRemoteWorkUnit(options: CreateRemoteWorkUnitOptions): Promise<void>;
   createRemotePlanWorkUnit(options: CreateRemotePlanWorkUnitOptions): Promise<void>;
+  createLocalWorkUnit(options: CreateLocalWorkUnitOptions): Promise<string>;
   createStandingStalePlanTopology(
     options: StandingStalePlanTopologyOptions,
   ): Promise<StandingStalePlanTopology>;
@@ -109,6 +122,7 @@ export async function setupInFlightReshuffleFixture(): Promise<InFlightReshuffle
     sibling: { config: { "arc.identity": "andrew" } },
   });
   const ownedPaths: string[] = [];
+  let advanceCounter = 0;
   const primaryExec = makeGitExec(base.primary);
   const siblingExec = makeGitExec(base.sibling);
 
@@ -156,23 +170,40 @@ export async function setupInFlightReshuffleFixture(): Promise<InFlightReshuffle
     );
   };
 
-  const createRemotePlanWorkUnit = async (
-    options: CreateRemotePlanWorkUnitOptions,
+  const createRemoteWorkUnit = async (
+    options: CreateRemoteWorkUnitOptions,
   ): Promise<void> => {
-    const branch = `plan/${options.name}`;
     await execFileAsync("git", ["switch", "main"], { cwd: base.primary });
-    await execFileAsync("git", ["switch", "-c", branch], { cwd: base.primary });
+    await execFileAsync("git", ["switch", "-c", options.branch], { cwd: base.primary });
     await writeMeta(base.primary, {
       name: options.name,
-      branch,
+      branch: options.branch,
       owner: options.owner,
       state: options.state,
     });
     await commitAll(base.primary, `add ${options.name} plan work unit`);
-    await execFileAsync("git", ["push", "origin", `HEAD:refs/heads/${branch}`], { cwd: base.primary });
-    await refreshRemoteTracking(branch);
+    await execFileAsync("git", ["push", "origin", `HEAD:refs/heads/${options.branch}`], { cwd: base.primary });
+    await refreshRemoteTracking(options.branch);
     await execFileAsync("git", ["switch", "main"], { cwd: base.primary });
-    await execFileAsync("git", ["branch", "-D", branch], { cwd: base.primary });
+    await execFileAsync("git", ["branch", "-D", options.branch], { cwd: base.primary });
+  };
+
+  const createRemotePlanWorkUnit = async (
+    options: CreateRemotePlanWorkUnitOptions,
+  ): Promise<void> => {
+    await createRemoteWorkUnit({ ...options, branch: `plan/${options.name}` });
+  };
+
+  const createLocalWorkUnit = async (
+    options: CreateLocalWorkUnitOptions,
+  ): Promise<string> => {
+    const worktreePath = await steps.spawnWorktree({
+      branch: options.branch,
+      fromRef: "main",
+    });
+    await writeMeta(worktreePath, options);
+    await commitAll(worktreePath, `add ${options.name} local work unit`);
+    return worktreePath;
   };
 
   const steps: InFlightReshuffleSteps = {
@@ -228,6 +259,23 @@ export async function setupInFlightReshuffleFixture(): Promise<InFlightReshuffle
       );
       await refreshRemoteTracking(options.branch);
     },
+
+    async advanceRemoteBranch(options): Promise<void> {
+      const tempBranch = `tmp/advance-${sanitizeBranchForPath(options.branch)}-${++advanceCounter}`;
+      const markerPath = options.markerPath ?? `.arc/reshuffle-${sanitizeBranchForPath(options.branch)}.txt`;
+      await execFileAsync("git", ["switch", "-c", tempBranch, `origin/${options.branch}`], { cwd: base.primary });
+      await writeFile(join(base.primary, markerPath), `advanced ${options.branch}\n`, "utf-8");
+      await execFileAsync("git", ["add", markerPath], { cwd: base.primary });
+      await execFileAsync(
+        "git",
+        ["-c", "core.hooksPath=/dev/null", "commit", "-m", `advance ${options.branch}`],
+        { cwd: base.primary },
+      );
+      await execFileAsync("git", ["push", "origin", `HEAD:refs/heads/${options.branch}`], { cwd: base.primary });
+      await refreshRemoteTracking(options.branch);
+      await execFileAsync("git", ["switch", "main"], { cwd: base.primary });
+      await execFileAsync("git", ["branch", "-D", tempBranch], { cwd: base.primary });
+    },
   };
 
   const createStandingStalePlanTopology = async (
@@ -262,7 +310,9 @@ export async function setupInFlightReshuffleFixture(): Promise<InFlightReshuffle
     primaryExec,
     siblingExec,
     steps,
+    createRemoteWorkUnit,
     createRemotePlanWorkUnit,
+    createLocalWorkUnit,
     createStandingStalePlanTopology,
     withGitCallBoundaryInjections,
     cleanup,

@@ -337,6 +337,35 @@ describe("deriveInFlight", () => {
     );
   });
 
+  it("marks raw ref churn indeterminate even when live membership prunes the late branch", async () => {
+    const exec = makeExec({
+      refSnapshots: [
+        { remoteTracking: { "feat/x": "aaa111" } },
+        { remoteTracking: { "feat/x": "aaa111", "feat/late": "bbb222" } },
+      ],
+      liveBranches: ["feat/x"],
+      metas: {
+        "origin/feat/x:.arc/active/meta-x.md": metaContent({ branch: "feat/x" }),
+      },
+    });
+
+    const result = await deriveInFlight({
+      exec,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result.marks).toEqual(["indeterminate"]);
+    expect(result.entries).toEqual([
+      expect.objectContaining({ kind: "work-unit", name: "x" }),
+    ]);
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "input-snapshot-disagreement" }),
+      ]),
+    );
+  });
+
   it("derives an in-flight work unit with Active state from a meta on a type-prefixed remote branch", async () => {
     const exec = makeExec({
       metas: {

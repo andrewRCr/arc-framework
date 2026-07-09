@@ -103,6 +103,176 @@ describe("in-flight reshuffle fixture", () => {
     }
   });
 
+  it("returns clean local worktree facts after reshuffle activity settles", async () => {
+    const fixture = await setupInFlightReshuffleFixture();
+    try {
+      const worktreePath = await fixture.createLocalWorkUnit({
+        name: "calm-local",
+        branch: "chore/calm-local",
+      });
+
+      const result = await deriveInFlight({
+        exec: fixture.primaryExec,
+        identity: null,
+        teamMode: false,
+        localOnly: false,
+      });
+      const workUnits = result.entries.filter((entry) => entry.kind === "work-unit");
+
+      expect(result.marks).toBeUndefined();
+      expect(result.warnings).toEqual([]);
+      expect(workUnits).toHaveLength(1);
+      expect(workUnits[0]).toMatchObject({
+        name: "calm-local",
+        branch: "chore/calm-local",
+        remoteOnly: false,
+        worktreePath,
+      });
+      expect(workUnits[0]).not.toHaveProperty("marks");
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("marks ref-set churn indeterminate without surfacing the late branch", async () => {
+    const fixture = await setupInFlightReshuffleFixture();
+    try {
+      await fixture.createRemoteWorkUnit({
+        name: "stable-remote",
+        branch: "feat/stable-remote",
+      });
+      const exec = fixture.withGitCallBoundaryInjections(fixture.primaryExec, [
+        {
+          timing: "before",
+          occurrence: 2,
+          match: gitArgsStartWith(["for-each-ref"]),
+          run: () =>
+            fixture.createRemoteWorkUnit({
+              name: "late-remote",
+              branch: "feat/late-remote",
+            }),
+        },
+      ]);
+
+      const result = await deriveInFlight({
+        exec,
+        identity: null,
+        teamMode: false,
+        localOnly: false,
+      });
+      const names = result.entries
+        .filter((entry) => entry.kind === "work-unit")
+        .map((entry) => entry.name);
+
+      expect(result.marks).toEqual(["indeterminate"]);
+      expect(result.warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "input-snapshot-disagreement" }),
+        ]),
+      );
+      expect(names).toEqual(["stable-remote"]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("marks worktree-set churn indeterminate without surfacing the late worktree", async () => {
+    const fixture = await setupInFlightReshuffleFixture();
+    try {
+      await fixture.createLocalWorkUnit({
+        name: "stable-local",
+        branch: "chore/stable-local",
+      });
+      const exec = fixture.withGitCallBoundaryInjections(fixture.primaryExec, [
+        {
+          timing: "before",
+          occurrence: 2,
+          match: gitArgsStartWith(["worktree", "list"]),
+          run: async () => {
+            await fixture.createLocalWorkUnit({
+              name: "late-local",
+              branch: "chore/late-local",
+            });
+          },
+        },
+      ]);
+
+      const result = await deriveInFlight({
+        exec,
+        identity: null,
+        teamMode: false,
+        localOnly: false,
+      });
+      const names = result.entries
+        .filter((entry) => entry.kind === "work-unit")
+        .map((entry) => entry.name);
+
+      expect(result.marks).toEqual(["indeterminate"]);
+      expect(result.warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "input-snapshot-disagreement" }),
+        ]),
+      );
+      expect(names).toEqual(["stable-local"]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("collapses offline duplicate refs while marking a changed winner indeterminate", async () => {
+    const fixture = await setupInFlightReshuffleFixture();
+    try {
+      await fixture.createRemoteWorkUnit({
+        name: "offline-dedupe",
+        branch: "chore/offline-dedupe",
+      });
+      await fixture.createRemoteWorkUnit({
+        name: "offline-dedupe",
+        branch: "feat/offline-dedupe",
+      });
+      const exec = fixture.withGitCallBoundaryInjections(fixture.primaryExec, [
+        {
+          timing: "before",
+          occurrence: 2,
+          match: gitArgsStartWith(["for-each-ref"]),
+          run: () =>
+            fixture.steps.advanceRemoteBranch({
+              branch: "chore/offline-dedupe",
+            }),
+        },
+      ]);
+
+      const result = await deriveInFlight({
+        exec,
+        identity: null,
+        teamMode: false,
+        localOnly: true,
+      });
+      const workUnits = result.entries.filter((entry) => entry.kind === "work-unit");
+
+      expect(result.marks).toBeUndefined();
+      expect(workUnits).toHaveLength(1);
+      expect(workUnits[0]).toMatchObject({
+        name: "offline-dedupe",
+        marks: expect.arrayContaining(["indeterminate", "location-ambiguous"]),
+      });
+      expect(result.warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: "input-snapshot-disagreement",
+            branch: "chore/offline-dedupe",
+          }),
+          expect.objectContaining({
+            code: "location-ambiguous",
+            workUnit: "offline-dedupe",
+          }),
+        ]),
+      );
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
   it("does not report a foreign overlap from a stale remote twin when originating metadata is unavailable", async () => {
     const fixture = await setupInFlightReshuffleFixture();
     try {

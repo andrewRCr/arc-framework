@@ -200,21 +200,17 @@ fixture-izes the standing live repro topology.
 - Added an integration regression that routes the fixture-backed topology through `detectForeignArtifactOverlap`
   with originating metadata unavailable and asserts no overlap, skipped entry, or indeterminate probe.
 
-### `[ ]` **3.3 Determinism acceptance assertions**
+### `[x]` **3.3 Determinism acceptance assertions**
 
 - _Goal:_ Derivation racing the scripted reshuffle yields stable, warning-marked output — the WU's
   determinism acceptance (SC 1).
 
-    - Deterministic interleaving acceptance: the exec-wrapper injection point (Task 3.1.a) fires each
-      reshuffle step at a chosen git-call boundary — including exactly between a double-read's two reads —
-      so every mutation window is reproducible by construction; assert the entry set stays stable or
-      degrades to marked-indeterminate — never a phantom entry, never a silent flip.
-    - Assert warning-marked degradation shapes match the Phase 1/2 contract per churn step, and quiescent
-      derivations between churn steps come back clean (stable means clean when calm, marked when churning).
-    - Include an offline (`localOnly`) churn permutation exercising the content-dedupe collapse under
-      mutation.
-    - An optional wall-clock stress loop may ride as non-gating; the interleaving assertions are the
-      acceptance.
+- Added deterministic integration assertions for calm local worktree reads, remote-ref key churn, worktree
+  key churn, and offline duplicate-ref collapse under a changed ref tip. Churned reads now assert stable
+  first-snapshot entries plus explicit indeterminate/location-ambiguous marks, never late phantom entries.
+- The acceptance harness exposed a raw local-ref comparison gap in online derivation: a late remote-tracking ref
+  pruned by the first live-membership read was silently ignored. The derivation now compares raw local ref
+  snapshots in addition to the selected branch/worktree snapshot, with a unit regression pinning that behavior.
 
 ## **Phase 4:** Pure composer and lifecycle-backed dependency resolution
 

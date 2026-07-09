@@ -336,7 +336,10 @@ async function resolveAgreedInputs(input: {
 
   const firstSnapshot = snapshotFor(firstBranchSet, firstWorktree.paths, firstRefs, input.remote);
   const secondSnapshot = snapshotFor(secondBranchSet, secondWorktree.paths, secondRefs, input.remote);
-  const comparison = compareSnapshots(firstSnapshot, secondSnapshot);
+  const comparison = mergeSnapshotComparisons(
+    compareSnapshots(firstSnapshot, secondSnapshot),
+    compareLocalRefSnapshots(firstRefs, secondRefs, input.remote),
+  );
   const warnings = snapshotWarnings(comparison);
 
   return {
@@ -422,6 +425,37 @@ function compareSnapshots(left: InFlightInputSnapshot, right: InFlightInputSnaps
   const changedRefs = new Set(leftRefKeys.filter((key) => left.refs[key] !== right.refs[key]));
   const changedWorktrees = new Set(leftWorktreeKeys.filter((key) => left.worktrees[key] !== right.worktrees[key]));
   return { wholeResult: false, changedRefs, changedWorktrees };
+}
+
+function compareLocalRefSnapshots(
+  left: LocalInFlightRefSnapshot,
+  right: LocalInFlightRefSnapshot,
+  remote: string,
+): SnapshotComparison {
+  return compareSnapshots(
+    { refs: rawLocalRefSnapshot(left, remote), worktrees: {} },
+    { refs: rawLocalRefSnapshot(right, remote), worktrees: {} },
+  );
+}
+
+function rawLocalRefSnapshot(refs: LocalInFlightRefSnapshot, remote: string): RefTipMap {
+  return sortRecord({
+    ...Object.fromEntries(
+      Object.entries(refs.remoteTracking).map(([branch, sha]) => [`${remote}/${branch}`, sha]),
+    ),
+    ...refs.localHeads,
+  });
+}
+
+function mergeSnapshotComparisons(...comparisons: readonly SnapshotComparison[]): SnapshotComparison {
+  if (comparisons.some((comparison) => comparison.wholeResult)) {
+    return { wholeResult: true, changedRefs: new Set(), changedWorktrees: new Set() };
+  }
+  return {
+    wholeResult: false,
+    changedRefs: new Set(comparisons.flatMap((comparison) => [...comparison.changedRefs])),
+    changedWorktrees: new Set(comparisons.flatMap((comparison) => [...comparison.changedWorktrees])),
+  };
 }
 
 function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
