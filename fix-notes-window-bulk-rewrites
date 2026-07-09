@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "fix-notes-window-bulk-rewrites",
-  "origin": "inbox",
-  "intent": "Recent-notes window treats bulk notes-ref rewrites (fanout restructure, compaction snapshot) as recent saves, resurrecting deleted cross-WU entries into status/load basis",
-  "branch": "fix/fix-notes-window-bulk-rewrites",
-  "createdAt": "2026-07-09T17:31:19.331Z",
-  "originEntry": "Fix false stale `arc user status` verdict after byte-identical save"
-}
