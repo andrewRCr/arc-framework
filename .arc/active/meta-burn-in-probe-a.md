@@ -1,8 +1,8 @@
 # Metadata: burn-in-probe-a
 
-| **State** | **Owner** | **Branch**              | **Class** | **Priority** |
-| --------- | --------- | ----------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `chore/burn-in-probe-a` | `Light`   | `P3`         |
+| **State**     | **Owner** | **Branch**              | **Class** | **Priority** |
+| ------------- | --------- | ----------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `chore/burn-in-probe-a` | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,7 +16,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** Open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
