@@ -237,10 +237,22 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
       classifyInput(exec, candidate, baseBranch, worktreePaths, errandSlugByBranch),
     ),
   );
+  // A checked-out branch with no active meta is still authoritative for that
+  // branch location; its stale upstream twin must not resurrect old in-flight state.
+  const locallyTombstonedBranches = new Set(
+    classified
+      .filter((classification) => classification.shadowsSameBranchRemote)
+      .map((classification) => classification.input.branch),
+  );
+  const workUnitCandidates = classified
+    .flatMap((classification) => classification.workUnits)
+    .filter((candidate) =>
+      candidate.input.source === "worktree" || !locallyTombstonedBranches.has(candidate.input.branch),
+    );
 
   const deduped = await dedupeWorkUnitCandidates({
     exec,
-    candidates: classified.flatMap((classification) => classification.workUnits),
+    candidates: workUnitCandidates,
     parkedSlugs,
     reachable: branchSet.reachable,
   });
@@ -583,9 +595,11 @@ interface IndexedEntry {
 }
 
 interface InputClassification {
+  input: InputCandidate;
   errand: IndexedEntry | null;
   workUnits: WorkUnitCandidate[];
   warnings: InFlightWarning[];
+  shadowsSameBranchRemote: boolean;
 }
 
 type MetaLocationRelation = InFlightCandidateRelation;
@@ -634,6 +648,7 @@ async function classifyInput(
     // A record marks this branch an errand. A promoted errand → WU removed its
     // record, so it falls through to the meta-backed work-unit path below.
     return {
+      input,
       errand: {
         entry: {
           kind: "errand",
@@ -645,14 +660,18 @@ async function classifyInput(
       },
       workUnits: [],
       warnings: [],
+      shadowsSameBranchRemote: false,
     };
   }
 
-  if (branch === baseBranch) return { errand: null, workUnits: [], warnings: [] };
+  if (branch === baseBranch) {
+    return { input, errand: null, workUnits: [], warnings: [], shadowsSameBranchRemote: false };
+  }
 
   const listed = await listMetaPathsAtRef({ exec, ref });
   if (!listed.ok) {
     return {
+      input,
       errand: null,
       workUnits: [],
       warnings: [
@@ -662,9 +681,18 @@ async function classifyInput(
           rendered: `Unable to enumerate active metas at \`${ref}\`.`,
         }),
       ],
+      shadowsSameBranchRemote: false,
     };
   }
-  if (listed.paths.length === 0) return { errand: null, workUnits: [], warnings: [] };
+  if (listed.paths.length === 0) {
+    return {
+      input,
+      errand: null,
+      workUnits: [],
+      warnings: [],
+      shadowsSameBranchRemote: input.source === "worktree",
+    };
+  }
 
   const metas: MetaCandidate[] = [];
   const warnings: InFlightWarning[] = [];
@@ -686,7 +714,7 @@ async function classifyInput(
     shadowedByLocationMatch: hasLocationMatch && meta.relation === "stale",
   }));
 
-  return { errand: null, workUnits, warnings };
+  return { input, errand: null, workUnits, warnings, shadowsSameBranchRemote: false };
 }
 
 interface DedupeWorkUnitCandidatesOptions {

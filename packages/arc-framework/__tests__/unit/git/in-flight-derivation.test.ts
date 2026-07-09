@@ -1005,6 +1005,27 @@ describe("deriveInFlight input union", () => {
     });
   });
 
+  it("drops a stale same-branch remote meta when the checked-out branch has no active meta", async () => {
+    const exec = makeExec({
+      worktrees: [{ path: "/repo.done", branch: "feat/done" }],
+      localRefs: ["feat/done"],
+      liveBranches: ["feat/done"],
+      metas: {
+        "origin/feat/done:.arc/active/meta-done.md": metaContent({ branch: "feat/done" }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
   it("keeps remote-only behavior for refs with no local worktree", async () => {
     const exec = makeExec({
       localRefs: ["feat/remote"],

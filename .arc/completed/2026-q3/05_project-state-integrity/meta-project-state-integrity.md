@@ -52,6 +52,8 @@ ambiguous state now surfaces as warnings rather than silently becoming false fac
 
 - Stale planning refs no longer mint phantom remote-only work units when the real branch has been renamed or is
   only present in a local worktree.
+- Stale same-branch upstream refs no longer keep a work unit in flight after the checked-out branch has removed
+  its active meta during archive or similar lifecycle windows.
 - Unpushed in-flight worktree branches are visible to status and overlap detection.
 - The foreign-write advisory no longer reports a work unit's own stale duplicate ref as a foreign overlap.
 - Parked work units render and filter as parked rather than appearing in flight or materializable.
@@ -93,5 +95,8 @@ Verification completed with markdown lint, TypeScript lint, shell lint, source a
 the full Vitest suite passing locally before integration. Review iteration fixed status warning propagation,
 oracle pruning order, project-status errand classification, a discovery-disabled warning drop, and several small
 test/documentation cleanups. Performance and helper-extraction follow-ups from review were captured for
-roadmap-tooling rather than widening this PR. CI is green on PR #213, CodeRabbit's final incremental pass produced
-no new actionable findings, and all review threads are resolved.
+roadmap-tooling rather than widening this PR. Archive-time verification also found and fixed a stale upstream
+same-branch shadow case: a checked-out branch that had removed its active meta now suppresses its old
+remote-tracking twin, so the archived WU drops out of the tracked project-status render before merge. CI is green
+on PR #213, CodeRabbit's final incremental pass produced no new actionable findings, and all review threads are
+resolved.
