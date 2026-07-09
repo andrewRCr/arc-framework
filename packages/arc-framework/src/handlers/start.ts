@@ -38,13 +38,8 @@ import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { ensureDir } from "../lib/template/files.js";
-import {
-  composeProjectReadinessView,
-  resolveProjectReadinessRenderStamp,
-  resolveProjectReadinessViewInput,
-} from "../lib/status/project-view.js";
+import { renderTrackedProjectReadinessView } from "../lib/status/project-roadmap-render.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
-import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { runResume } from "../lib/work-unit/verbs/park-resume.js";
@@ -599,31 +594,15 @@ async function refreshRoadmapForStartCeremony(
   try {
     const { settings } = await readConfigSettings(cwd);
     const exec: GitExec = (cmd, args, opts) => ctx.io.exec(cmd, args, { cwd, ...opts });
-    const parkedSlugs = listParkedSlugs(
-      await buildLifecycleIndex({
-        cwd,
-        fs: {
-          readFile: (p) => ctx.io.readFile(p),
-          readdir: (p) => readdir(p, { withFileTypes: true }),
-        },
-      }),
-    );
-    const input = await resolveProjectReadinessViewInput({
+    const fs = {
+      readFile: (p: string) => ctx.io.readFile(p),
+      readdir: (p: string) => readdir(p, { withFileTypes: true }),
+    };
+    const view = await renderTrackedProjectReadinessView({
       cwd,
-      fs: {
-        readFile: (p) => ctx.io.readFile(p),
-        readdir: (p) => readdir(p, { withFileTypes: true }),
-      },
-      localRefs: { exec, baseBranch: settings["branch.base"], parkedSlugs },
-    });
-    const view = composeProjectReadinessView({
-      ...input,
-      renderedRef: await resolveProjectReadinessRenderStamp({
-        exec,
-        cwd,
-        scope: "tree + local refs",
-        liveView: "arc status --project",
-      }),
+      exec,
+      fs,
+      baseBranch: settings["branch.base"],
     });
     const dir = join(cwd, ".arc", "backlog");
     await ensureDir(dir, ctx.io.mkdir);

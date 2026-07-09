@@ -22,6 +22,7 @@
  * @module
  */
 
+import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { runActiveInFlight } from "../commands/active.js";
@@ -43,7 +44,9 @@ import {
   type InFlightWarning,
 } from "../lib/git/in-flight-derivation.js";
 import { gitExec } from "../lib/io-context.js";
-import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
+import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 
 import type { GitExec } from "../lib/git/exec.js";
 
@@ -132,12 +135,6 @@ export function formatForeignWriteAdvisories(
   ];
 }
 
-/** Resolve the committing WU's active meta path for remote-only self-exclusion. */
-export async function resolveOriginatingMetaPath(cwd: string): Promise<string | undefined> {
-  const activeWu = await resolveActiveWu({ cwd });
-  return activeWu.status === "resolved" ? activeWu.path : undefined;
-}
-
 // --- CLI entry ---
 
 /** The committing worktree's root, in `git worktree list` path form (for self-exclusion). */
@@ -168,6 +165,15 @@ async function main(): Promise<void> {
 
   const identity = await resolveIdentity({ exec: gitExec });
   const teamMode = settings["team.mode"] === "true";
+  const parkedSlugs = listParkedSlugs(
+    await buildLifecycleIndex({
+      cwd,
+      fs: {
+        readdir: (path) => readdir(path, { withFileTypes: true }),
+        readFile: (path) => readFile(path, "utf8"),
+      },
+    }),
+  );
 
   // Local-only: derive the in-flight set from local refs — no network read at commit time.
   const { entries, warnings, snapshot } = await runActiveInFlight({
@@ -176,6 +182,7 @@ async function main(): Promise<void> {
     teamMode,
     localOnly: true,
     baseBranch,
+    parkedSlugs,
   });
 
   const result = await detectStagedForeignWrites({

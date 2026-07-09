@@ -47,11 +47,7 @@ import {
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
-import {
-  composeProjectReadinessView,
-  resolveProjectReadinessRenderStamp,
-  resolveProjectReadinessViewInput,
-} from "../status/project-view.js";
+import { renderTrackedProjectReadinessView } from "../status/project-roadmap-render.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
@@ -256,30 +252,13 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       "reconcile-roadmap": ({ slug, from, to }) =>
         reconcileRoadmap(
           {
-            composeView: async () => {
-              const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd, fs: indexFs }));
-              const input = await resolveProjectReadinessViewInput({
+            composeView: async () =>
+              renderTrackedProjectReadinessView({
                 cwd,
-                fs: {
-                  readFile: (p) => io.readFile(p),
-                  readdir: (p) => readdir(p, { withFileTypes: true }),
-                },
-                localRefs: {
-                  exec,
-                  ...(baseBranch !== undefined ? { baseBranch } : {}),
-                  parkedSlugs,
-                },
-              });
-              return composeProjectReadinessView({
-                ...input,
-                renderedRef: await resolveProjectReadinessRenderStamp({
-                  exec,
-                  cwd,
-                  scope: "tree + local refs",
-                  liveView: "arc status --project",
-                }),
-              });
-            },
+                exec,
+                fs: indexFs,
+                ...(baseBranch !== undefined ? { baseBranch } : {}),
+              }),
             mkdir: io.mkdir,
             writeFile: io.writeFile,
             stageFile: async (path) => {

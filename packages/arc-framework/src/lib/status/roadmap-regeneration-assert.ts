@@ -27,7 +27,7 @@ import {
 export const ROADMAP_PATH = ".arc/backlog/ROADMAP.md";
 
 /** Command users can run to recreate the tracked readiness view. */
-export const ROADMAP_RERENDER_COMMAND = "arc status --project --local > .arc/backlog/ROADMAP.md";
+export const ROADMAP_RERENDER_COMMAND = `arc status --project --local > ${ROADMAP_PATH}`;
 
 /** Shared remediation instruction for hook diagnostics. */
 export const ROADMAP_RERENDER_INSTRUCTION =

@@ -16,11 +16,11 @@ import {
   detectStagedForeignWrites,
   formatForeignWriteAdvisories,
   formatForeignWriteWarnings,
-  resolveOriginatingMetaPath,
   selectForeignWriteCandidates,
 } from "../../../src/scripts/check-foreign-writes.js";
 import type { OverlapRoster } from "../../../src/lib/git/foreign-artifact-detection.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
+import { resolveOriginatingMetaPath } from "../../../src/lib/release/wu-resolution.js";
 
 type ResponseFn = (args: string[]) => ExecResult | Promise<ExecResult>;
 

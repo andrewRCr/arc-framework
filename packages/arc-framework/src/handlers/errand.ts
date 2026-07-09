@@ -13,9 +13,23 @@
  * @module
  */
 
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+
 import * as p from "@clack/prompts";
 
 import { runActiveInFlight } from "../commands/active.js";
+import { runUserInboxRemove } from "../commands/user.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
+import {
+  DEFAULT_ERRAND_BRANCH_TYPE,
+  ERRAND_BRANCH_TYPES,
+  closeErrand,
+  isErrandBranchType,
+  linkErrandToInbox,
+  openErrand,
+  promoteErrand,
+  retireErrand,
+} from "../lib/errand/index.js";
 import {
   detectForeignArtifactOverlap,
   projectInFlightToOverlapRoster,
@@ -25,26 +39,14 @@ import {
   renderInFlightWarning,
   type InFlightWarning,
 } from "../lib/git/in-flight-derivation.js";
-import { readConfigSettings } from "../lib/config/status-reader.js";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-
-import {
-  openErrand,
-  linkErrandToInbox,
-  closeErrand,
-  retireErrand,
-  promoteErrand,
-  isErrandBranchType,
-  ERRAND_BRANCH_TYPES,
-  DEFAULT_ERRAND_BRANCH_TYPE,
-} from "../lib/errand/index.js";
+import { gitExec, createUserIOContext } from "../lib/io-context.js";
+import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
   clearErrandPartialPushMarker,
   recordErrandPartialPushMarker,
 } from "../lib/user-sync/index.js";
-import { runUserInboxRemove } from "../commands/user.js";
-import { gitExec, createUserIOContext } from "../lib/io-context.js";
-import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 
 export interface ErrandCheckOptions {
@@ -100,6 +102,15 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
   const teamMode = settings["team.mode"] === "true";
   const baseBranch = settings["branch.base"];
   const localOnly = Boolean(opts.local) || opts.fetch === false;
+  const parkedSlugs = listParkedSlugs(
+    await buildLifecycleIndex({
+      cwd,
+      fs: {
+        readdir: (path) => readdir(path, { withFileTypes: true }),
+        readFile: (path) => readFile(path, "utf8"),
+      },
+    }),
+  );
 
   const { entries, warnings, snapshot, reachable } = await runActiveInFlight({
     exec: gitExec,
@@ -107,6 +118,7 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     teamMode,
     localOnly,
     baseBranch,
+    parkedSlugs,
   });
 
   const result = await detectForeignArtifactOverlap({
@@ -697,9 +709,4 @@ async function currentWorktreePath(fallback: string): Promise<string> {
   } catch {
     return fallback;
   }
-}
-
-async function resolveOriginatingMetaPath(cwd: string): Promise<string | undefined> {
-  const activeWu = await resolveActiveWu({ cwd });
-  return activeWu.status === "resolved" ? activeWu.path : undefined;
 }
