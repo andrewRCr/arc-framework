@@ -11,11 +11,14 @@
 
 ## Notes Save/Load Convergence
 
-- Current baseline before the first handoff: `SESSION-NOTES.md` is seeded on disk for this work unit
-  but has not yet been saved to the notes ref.
-- Session-init reported: "SESSION-NOTES seeded on disk for this work unit; not yet saved to the
-  notes ref (saves at first handoff)."
-- Convergence after handoff/resume is not yet exercised.
+- Baseline before the first handoff: `SESSION-NOTES.md` was seeded on disk for this work unit
+  but had not yet been saved to the notes ref.
+- After the July 9 resume and notes/sync fixes merged from `main`, `npx arc status --session-init --json`
+  reported `state: clean`, `refState: same`, `localNoteFreshness.state: current-head`, and latest local
+  user note `edc952d9`.
+- Session-init detail lines: "Remote notes match local notes." and "Latest local user note is current with HEAD."
+- `SESSION-NOTES.md` records that the notes-clobber fix is present in this worktree and a controlled
+  `arc user save` -> `arc user sync` converged clean, with no resurrected tombstones.
 
 ## ROADMAP/Base Contention
 
@@ -23,6 +26,9 @@
   In Flight table.
 - Base drift had already been reconciled by merging `main` before planning continued; no current
   base-overlap conflict was observed at activation.
+- A later `main` merge into `chore/burn-in-probe-b` landed at `edc952d9` after project-state and notes/sync
+  fixes. The merge reported a `ROADMAP.md` conflict, which was resolved before this resume; the worktree is
+  currently clean and tracking `origin/chore/burn-in-probe-b`.
 
 ## Integration Ordering
 
@@ -34,6 +40,5 @@
 
 ## Observations Not Exercised
 
-- Handoff-to-resume notes convergence remains open for Task 1.2.
 - Integration ordering remains open until the WU enters integration.
 - Archival and worktree cleanup remain open until after integration.

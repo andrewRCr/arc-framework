@@ -18,17 +18,13 @@ ROADMAP/base contention, integration ordering, and cleanup readiness.
   the current baseline: spawned worktree active, planning artifacts present, ROADMAP activation render recorded,
   and `SESSION-NOTES.md` still in the expected seeded-but-not-yet-saved state before first handoff.
 
-### `[ ]` **1.2 Record the handoff-to-resume evidence pass**
+### `[x]` **1.2 Record the handoff-to-resume evidence pass**
 
 - _Goal:_ The evidence log records at least one session handoff-to-resume cycle and the resulting notes behavior.
 
-    - Run or resume across one real handoff boundary for this work unit.
-    - After resume, record the observed `npx arc status --session-init --json` notes state in
-      `notes-burn-in-probe-b.md`.
-    - Confirm whether notes save/load converged, or record the exact non-converged state and recovery action.
-    - Record any ROADMAP/base contention, integration-ordering, or archival/worktree-cleanup observations that
-      surface during the lifecycle; if a condition was not observed, call that out explicitly in the
-      observations-not-exercised section.
+- _Outcome:_ Recorded the July 9 resume evidence in `notes-burn-in-probe-b.md`: session-init now reports local
+  notes matching remote notes with latest local user note current at `edc952d9`; the evidence log also records
+  the later `main` merge's `ROADMAP.md` conflict and keeps integration/cleanup items explicitly unexercised.
 
 ## **Phase 2:** Verification
 
