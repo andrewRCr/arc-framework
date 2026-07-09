@@ -12,7 +12,8 @@
 - **Task List:** `tasks-project-state-integrity.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Drafted `tasks-project-state-integrity.md` (grounded, four-pass adversarial audit; unfinalized)
+- **Last Completed:** Finalized `tasks-project-state-integrity.md` (five-pass adversarial audit) and activated the
+  work unit
 - **Next Task:** Task 1.1 — Content-derived WU identity in the derivation (line ~28)
 - **Blockers:** [none]
 
