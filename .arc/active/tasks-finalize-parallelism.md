@@ -546,8 +546,11 @@ well as paths; gating + coordination detail in § Sequencing.
           recovered pushes never fulfill their recorded intents, leaving false "notes lag" lines until TTL.
           Evidence in `notes-finalize-parallelism.md` § Wave-1 induction evidence.
 
-    - `[ ]` **3.2.c ROADMAP concurrent regen**
-        - Induce concurrent regens from different base states; confirm conflict (loud) vs. stale-render (silent).
+    - `[x]` **3.2.c ROADMAP concurrent regen**
+        - Same-instant renders from FP + both probes produced one normalized projection (`3055f9e0`) across three
+          distinct branch states; the earlier merge cascade supplied the loud `both modified` half, and a staged
+          stale render was rejected by `assert-roadmap-regenerated` before commit. Full evidence in
+          `notes-finalize-parallelism.md` § Cell 3.2.c.
 
     - `[ ]` **3.2.d Base-branch reconcile gate re-verify**
         - Confirm the behind-base reconcile gate fires as landed.

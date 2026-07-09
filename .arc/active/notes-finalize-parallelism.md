@@ -378,6 +378,26 @@ Cell verdict: predicted classification **confirmed** — loud/aware with every l
 silent key-collapse failure mode did not reproduce (BI-3's intent-keying holds); residue is TTL-bounded and
 presentation-only, now with the over-report seam sharpened into 7.2.
 
+### Cell 3.2.c — ROADMAP concurrent regeneration (2026-07-09) — CONFIRMED HOLDING
+
+Induced the remaining same-instant half across FP and both probe worktrees from three clean, distinct branch
+states (`94068a6f`, `08a4b10d`, `506a8a8a`; 81 / 14 / 12 commits ahead of `origin/main`). All three
+`npx arc status --project --local` renders started in one concurrent batch, completed in 0.39–0.40 seconds, and
+returned success. After normalizing only the intentional `Last rendered against <HEAD>` stamp, all three outputs
+had the same Git blob hash (`3055f9e0`) — deterministic projection under simultaneous local-ref reads.
+
+The command is the renderer half of the documented shell redirection, so the concurrent invocations left all
+three worktrees clean. Each committed ROADMAP was independently stale against the fresh projection (old render
+stamp + retired shadow-ref warning + missing live slug-state WU), supplying three different-base stale inputs.
+The previously harvested `main` merge cascade already proved the collision half loud (`both modified` in every
+worktree), with a post-merge regeneration accepted by the hook. For the silent-stale half, an intentionally stale
+ROADMAP delta was staged in FP and the shipped `assert-roadmap-regenerated` entry point rejected it with exit 1
+and the expected re-render instruction; the staged probe was then removed and every worktree re-verified clean.
+
+Cell verdict: the renderer is deterministic across concurrent worktrees, textual contention fails loud at merge,
+and a stale derived render cannot be committed silently when ROADMAP is staged. The predicted pre-fix
+`loud with silent stale-render residue` classification is closed by the regenerate assertion; no new seam.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
