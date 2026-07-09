@@ -15,7 +15,7 @@ import {
   type NotesCompactionManifest,
   type NotesCompactionPair,
 } from "./compaction-manifest.js";
-import { listNoteEntries, notePathToCommit } from "./notes-ref.js";
+import { NOTES_COMPACTION_SNAPSHOT_MESSAGE, listNoteEntries, notePathToCommit } from "./notes-ref.js";
 import { isCasRejectionError, isRemoteUnavailableError } from "./notes-merge.js";
 
 /** Inputs for publishing one compacted snapshot commit. */
@@ -292,7 +292,7 @@ async function buildSnapshotCommit(input: {
     .map(([path, blob]) => `100644 blob ${blob}\t${path}`)
     .join("\n") + "\n";
   const treeSha = (await input.execInput(["mktree"], treeInput)).trim();
-  const { stdout } = await input.exec("git", ["commit-tree", treeSha, "-m", "user notes compaction snapshot"]);
+  const { stdout } = await input.exec("git", ["commit-tree", treeSha, "-m", NOTES_COMPACTION_SNAPSHOT_MESSAGE]);
   return stdout.trim();
 }
 

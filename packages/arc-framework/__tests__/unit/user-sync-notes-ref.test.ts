@@ -8,6 +8,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   NOTES_COMPACTION_MANIFEST_PATH,
+  NOTES_COMPACTION_SNAPSHOT_MESSAGE,
   listAnnotatedNoteCommits,
   mergeCrossWuFile,
   notePathToCommit,
@@ -30,6 +31,8 @@ interface NotesConfig {
   history?: string[];
   /** History commit → commit timestamp. Defaults to `NOW`. */
   historyDates?: Record<string, string>;
+  /** History commit → commit subject. Defaults to a plain notes-add subject. */
+  historySubjects?: Record<string, string>;
   /** History commit → note paths changed in it. */
   pathsByHistory?: Record<string, string[]>;
   /** `"<historyCommit>:<path>"` → note blob content. */
@@ -46,6 +49,7 @@ function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
   const calls: string[][] = [];
   const history = cfg.history ?? [];
   const historyDates = cfg.historyDates ?? {};
+  const historySubjects = cfg.historySubjects ?? {};
   const paths = cfg.pathsByHistory ?? {};
   const content = cfg.contentByShow ?? {};
   const annotatedContent = cfg.contentByAnnotatedCommit ?? {};
@@ -65,7 +69,8 @@ function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
       return {
         stdout: history
           .filter((commit) => Date.parse(historyDates[commit] ?? NOW) >= since)
-          .map((commit) => `${commit}\0${historyDates[commit] ?? NOW}`)
+          .map((commit) =>
+            `${commit}\0${historyDates[commit] ?? NOW}\0${historySubjects[commit] ?? "Notes added by 'git notes add'"}`)
           .join("\n"),
         stderr: "",
       };
@@ -217,6 +222,41 @@ describe("readRecentUserNotes", () => {
     expect(merged.content).toContain("**Recent:**");
     expect(merged.content).not.toContain("**Dropped:**");
     expect(merged.content).not.toContain("## Removed: **Dropped:**");
+  });
+
+  it("excludes fanout renames and deletions when listing a commit's note events", async () => {
+    const cfg = oneNotePerHistory([{ history: "a1", marker: "note-a1" }]);
+    const { exec, calls } = makeExec(cfg);
+
+    await readRecentUserNotes(exec, "andrew", undefined, NOW);
+
+    const diffTree = calls.find((args) => args[0] === "diff-tree");
+    expect(diffTree).toContain("-M100%");
+    expect(diffTree).toContain("--diff-filter=AM");
+  });
+
+  it("skips compaction snapshot commits so their bulk tree earns no recency", async () => {
+    const recentPath = notePathFor(annotated("a1"));
+    const stalePath = notePathFor(annotated("b2"));
+    const cfg: NotesConfig = {
+      history: ["save1", "snapshot"],
+      historySubjects: { snapshot: NOTES_COMPACTION_SNAPSHOT_MESSAGE },
+      pathsByHistory: {
+        save1: [recentPath],
+        snapshot: [stalePath],
+      },
+      contentByShow: {
+        [`save1:${recentPath}`]: "genuine-save",
+        [`snapshot:${stalePath}`]: "stale-bulk-note",
+      },
+    };
+    const { exec, calls } = makeExec(cfg);
+
+    const notes = await readRecentUserNotes(exec, "andrew", undefined, NOW);
+
+    expect(notes.map((n) => n.content)).toEqual(["genuine-save"]);
+    const diffTreeTargets = calls.filter((args) => args[0] === "diff-tree").map((args) => args.at(-1));
+    expect(diffTreeTargets).not.toContain("snapshot");
   });
 
   it("does not let merge commits shrink the effective note window", async () => {
