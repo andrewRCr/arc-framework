@@ -21,7 +21,7 @@
  * @module
  */
 
-import { validateState, type WorkUnitState } from "../../commands/active/types.js";
+import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../../commands/active/types.js";
 import { parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
 
 import type { GitExec } from "./exec.js";
@@ -40,6 +40,21 @@ export type InFlightEntryMark = "degraded" | "indeterminate" | "location-ambiguo
 /** Scheduling-axis classification, independent from degradation marks. */
 export type InFlightScheduling = "parked";
 
+/** Where one candidate for an in-flight work unit came from. */
+export type InFlightCandidateSource = "remote-live" | "remote-tracking" | "worktree";
+
+/** Whether the candidate meta's `Branch` field agrees with the candidate branch. */
+export type InFlightCandidateRelation = "consistent" | "missing-branch" | "stale";
+
+/** One branch/ref that contributed to a work unit's candidate set. */
+export interface InFlightBranchProvenance {
+  branch: string;
+  ref: string;
+  source: InFlightCandidateSource;
+  relation: InFlightCandidateRelation;
+  selected: boolean;
+}
+
 /** Structured warning codes emitted by the in-flight derivation. */
 export type InFlightWarningCode =
   | "meta-enumeration-failed"
@@ -48,7 +63,9 @@ export type InFlightWarningCode =
   | "state-unrecognized"
   | "branch-field-missing"
   | "stale-location-dropped"
-  | "stale-location-shadow";
+  | "stale-location-shadow"
+  | "candidate-shadowed"
+  | "location-ambiguous";
 
 /** Structured warning surfaced by in-flight derivation consumers. */
 export interface InFlightWarning {
@@ -119,6 +136,8 @@ export interface InFlightWorkUnit extends InFlightLocation {
   dependsOn: readonly string[];
   /** Scheduling-axis overlay; absent for normal in-flight work. */
   scheduling?: InFlightScheduling;
+  /** Candidate branches carrying this WU, including shadowed/stale candidates. */
+  provenance?: readonly InFlightBranchProvenance[];
 }
 
 /** An errand in flight — a branch keyed by an errand record. */
@@ -188,21 +207,35 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   const branchSet = branches === undefined
     ? await resolveInFlightBranchSet({ exec, localOnly: options.localOnly ?? false, timeoutMs: options.timeoutMs })
     : { branches: [...branches], reachable: options.reachable ?? true };
-  const inputs = buildInputCandidates(branchSet.branches, worktreePaths, remote);
+  const inputs = buildInputCandidates(branchSet.branches, worktreePaths, remote, branchSet.reachable);
 
   const classified = await Promise.all(
     inputs.map((input) =>
-      classifyBranch(exec, input, baseBranch, worktreePaths, errandSlugByBranch, parkedSlugs),
+      classifyInput(exec, input, baseBranch, worktreePaths, errandSlugByBranch),
     ),
   );
 
-  const kept = classified
-    .map((classification) => classification.entry)
-    .filter((entry): entry is InFlightEntry => entry !== null)
+  const deduped = await dedupeWorkUnitCandidates({
+    exec,
+    candidates: classified.flatMap((classification) => classification.workUnits),
+    parkedSlugs,
+    reachable: branchSet.reachable,
+  });
+  const candidateEntries = [
+    ...classified
+      .map((classification) => classification.errand)
+      .filter((entry): entry is IndexedEntry => entry !== null),
+    ...deduped.entries,
+  ]
+    .sort((a, b) => a.index - b.index)
+    .map(({ entry }) => entry);
+  const warnings = classified
+    .flatMap((classification) => classification.warnings)
+    .concat(deduped.warnings);
+  const entriesForIdentity = candidateEntries
     .filter((entry) => keepForIdentity(entry, identity, teamMode));
-  const warnings = classified.flatMap((classification) => classification.warnings);
 
-  const entries = prSource === undefined ? kept : await enrichWithPrState(kept, prSource);
+  const entries = prSource === undefined ? entriesForIdentity : await enrichWithPrState(entriesForIdentity, prSource);
   return { entries, warnings, reachable: branchSet.reachable };
 }
 
@@ -234,35 +267,42 @@ function locationOf(branch: string, worktreePaths: Map<string, string>): InFligh
     : { branch, worktreePath, remoteOnly: false };
 }
 
-type CandidateSource = "remote" | "worktree";
-
 interface InputCandidate {
+  index: number;
   branch: string;
   ref: string;
-  source: CandidateSource;
+  source: InFlightCandidateSource;
 }
 
 function buildInputCandidates(
   remoteBranches: readonly string[],
   worktreePaths: ReadonlyMap<string, string>,
   remote: string,
+  reachable: boolean,
 ): InputCandidate[] {
-  const byBranch = new Map<string, InputCandidate>();
+  const out: InputCandidate[] = [];
+  const remoteSource: InFlightCandidateSource = reachable ? "remote-live" : "remote-tracking";
   for (const branch of remoteBranches) {
-    byBranch.set(branch, { branch, ref: `${remote}/${branch}`, source: "remote" });
+    out.push({ index: out.length, branch, ref: `${remote}/${branch}`, source: remoteSource });
   }
   for (const branch of worktreePaths.keys()) {
-    byBranch.set(branch, { branch, ref: branch, source: "worktree" });
+    out.push({ index: out.length, branch, ref: branch, source: "worktree" });
   }
-  return [...byBranch.values()];
+  return out;
 }
 
-interface BranchClassification {
-  entry: InFlightEntry | null;
+interface IndexedEntry {
+  entry: InFlightEntry;
+  index: number;
+}
+
+interface InputClassification {
+  errand: IndexedEntry | null;
+  workUnits: WorkUnitCandidate[];
   warnings: InFlightWarning[];
 }
 
-type MetaLocationRelation = "consistent" | "missing-branch" | "stale";
+type MetaLocationRelation = InFlightCandidateRelation;
 
 interface MetaCandidate {
   name: string;
@@ -273,6 +313,13 @@ interface MetaCandidate {
   warnings: InFlightWarning[];
 }
 
+interface WorkUnitCandidate {
+  input: InputCandidate;
+  location: InFlightLocation;
+  meta: MetaCandidate;
+  shadowedByLocationMatch: boolean;
+}
+
 /** Extract the WU slug from `.arc/active/meta-<slug>.md`. */
 function nameFromMetaPath(metaPath: string): string {
   const filename = metaPath.split("/").pop() ?? metaPath;
@@ -280,19 +327,18 @@ function nameFromMetaPath(metaPath: string): string {
 }
 
 /**
- * Classify one branch into a work unit, an errand, or nothing. Errand-ness is a
+ * Classify one input into work-unit candidates, an errand, or nothing. Errand-ness is a
  * record property — a branch carrying an errand record is an errand (slug from
  * the record), whatever its prefix. A record-less branch is decided by content:
  * read its candidate meta off the remote-tracking ref; present → work unit.
  */
-async function classifyBranch(
+async function classifyInput(
   exec: GitExec,
   input: InputCandidate,
   baseBranch: string,
   worktreePaths: Map<string, string>,
   errandSlugByBranch: ReadonlyMap<string, string>,
-  parkedSlugs: ReadonlySet<string>,
-): Promise<BranchClassification> {
+): Promise<InputClassification> {
   const { branch, ref } = input;
   const location = locationOf(branch, worktreePaths);
 
@@ -300,15 +346,20 @@ async function classifyBranch(
   if (errandSlug !== undefined) {
     // A record marks this branch an errand. A promoted errand → WU removed its
     // record, so it falls through to the meta-backed work-unit path below.
-    return { entry: { kind: "errand", slug: errandSlug, ...location }, warnings: [] };
+    return {
+      errand: { entry: { kind: "errand", slug: errandSlug, ...location }, index: input.index },
+      workUnits: [],
+      warnings: [],
+    };
   }
 
-  if (branch === baseBranch) return { entry: null, warnings: [] };
+  if (branch === baseBranch) return { errand: null, workUnits: [], warnings: [] };
 
   const listed = await listMetaPathsAtRef({ exec, ref });
   if (!listed.ok) {
     return {
-      entry: null,
+      errand: null,
+      workUnits: [],
       warnings: [
         warning({
           code: "meta-enumeration-failed",
@@ -318,42 +369,228 @@ async function classifyBranch(
       ],
     };
   }
-  if (listed.paths.length === 0) return { entry: null, warnings: [] };
+  if (listed.paths.length === 0) return { errand: null, workUnits: [], warnings: [] };
 
-  const candidates: MetaCandidate[] = [];
+  const metas: MetaCandidate[] = [];
   const warnings: InFlightWarning[] = [];
   for (const metaPath of listed.paths) {
     const candidate = await readMetaCandidate(exec, ref, branch, metaPath);
     warnings.push(...candidate.warnings);
-    if (candidate.candidate !== null) candidates.push(candidate.candidate);
+    if (candidate.candidate !== null) {
+      warnings.push(...candidate.candidate.warnings);
+      metas.push(candidate.candidate);
+    }
+  }
+  const hasLocationMatch = metas.some((candidate) => candidate.relation === "consistent");
+  const workUnits = metas.map((meta) => ({
+    input,
+    location,
+    meta,
+    shadowedByLocationMatch: hasLocationMatch && meta.relation === "stale",
+  }));
+
+  return { errand: null, workUnits, warnings };
+}
+
+interface DedupeWorkUnitCandidatesOptions {
+  exec: GitExec;
+  candidates: WorkUnitCandidate[];
+  parkedSlugs: ReadonlySet<string>;
+  reachable: boolean;
+}
+
+interface DedupeWorkUnitCandidatesResult {
+  entries: IndexedEntry[];
+  warnings: InFlightWarning[];
+}
+
+async function dedupeWorkUnitCandidates(
+  options: DedupeWorkUnitCandidatesOptions,
+): Promise<DedupeWorkUnitCandidatesResult> {
+  const groups = new Map<string, WorkUnitCandidate[]>();
+  for (const candidate of options.candidates) {
+    const group = groups.get(candidate.meta.name) ?? [];
+    group.push(candidate);
+    groups.set(candidate.meta.name, group);
   }
 
-  const consistent = candidates.filter((candidate) => candidate.relation === "consistent");
-  const missingBranch = candidates.filter((candidate) => candidate.relation === "missing-branch");
-  const stale = candidates.filter((candidate) => candidate.relation === "stale");
+  const commitTimeCache = new Map<string, number>();
+  const entries: IndexedEntry[] = [];
+  const warnings: InFlightWarning[] = [];
+  for (const group of groups.values()) {
+    const winner = await chooseWorkUnitCandidate(options.exec, group, commitTimeCache);
+    if (winner === null) {
+      warnings.push(
+        ...group.map((candidate) =>
+          staleLocationWarning(
+            candidate.meta,
+            candidate.input.branch,
+            candidate.shadowedByLocationMatch ? "stale-location-shadow" : "stale-location-dropped",
+          ),
+        ),
+      );
+      continue;
+    }
 
-  const consistentCandidate = consistent[0];
-  if (consistentCandidate !== undefined) {
-    warnings.push(...stale.map((candidate) => staleLocationWarning(candidate, branch, "stale-location-shadow")));
-    const built = buildWorkUnit(
-      consistentCandidate,
-      location,
-      parkedSlugs.has(consistentCandidate.name),
-      branch,
-      ref,
+    const shadowed = group.filter((candidate) => candidate !== winner);
+    warnings.push(
+      ...shadowed.map((candidate) =>
+        candidate.meta.relation === "stale"
+          ? staleLocationWarning(candidate.meta, candidate.input.branch, "stale-location-shadow")
+          : candidateShadowedWarning(candidate, winner),
+      ),
     );
-    return { entry: built.entry, warnings: [...warnings, ...built.warnings] };
-  }
 
-  const missingBranchCandidate = missingBranch[0];
-  if (missingBranchCandidate !== undefined) {
-    const candidate = missingBranchCandidate;
-    const built = buildWorkUnit(candidate, location, parkedSlugs.has(candidate.name), branch, ref);
-    return { entry: built.entry, warnings: [...warnings, ...built.warnings] };
-  }
+    const built = buildWorkUnit(
+      winner.meta,
+      winner.location,
+      options.parkedSlugs.has(winner.meta.name),
+      winner.input.branch,
+      winner.input.ref,
+    );
+    warnings.push(...built.warnings);
 
-  warnings.push(...stale.map((candidate) => staleLocationWarning(candidate, branch, "stale-location-dropped")));
-  return { entry: null, warnings };
+    const provenance = provenanceForGroup(group, winner);
+    let entry: InFlightWorkUnit = { ...built.entry, provenance };
+    if (shouldMarkLocationAmbiguous(options.reachable, group, winner)) {
+      entry = { ...entry, marks: appendMark(entry.marks ?? [], "location-ambiguous") };
+      warnings.push(locationAmbiguousWarning(winner));
+    }
+    entries.push({ entry, index: winner.input.index });
+  }
+  return { entries, warnings };
+}
+
+function candidateSourceRank(candidate: WorkUnitCandidate): number {
+  switch (candidate.input.source) {
+    case "worktree":
+      return 3;
+    case "remote-live":
+      return 2;
+    case "remote-tracking":
+      return 1;
+  }
+}
+
+function candidateRelationRank(candidate: WorkUnitCandidate): number {
+  switch (candidate.meta.relation) {
+    case "consistent":
+      return 2;
+    case "missing-branch":
+      return 1;
+    case "stale":
+      return 0;
+  }
+}
+
+async function chooseWorkUnitCandidate(
+  exec: GitExec,
+  group: readonly WorkUnitCandidate[],
+  commitTimeCache: Map<string, number>,
+): Promise<WorkUnitCandidate | null> {
+  const eligible = group.filter((candidate) => candidate.meta.relation !== "stale");
+  if (eligible.length === 0) return null;
+
+  const bestSourceRank = Math.max(...eligible.map(candidateSourceRank));
+  const sourceTier = eligible.filter((candidate) => candidateSourceRank(candidate) === bestSourceRank);
+  const bestRelationRank = Math.max(...sourceTier.map(candidateRelationRank));
+  const relationTier = sourceTier.filter((candidate) => candidateRelationRank(candidate) === bestRelationRank);
+  return pickByContentOrder(exec, relationTier, commitTimeCache);
+}
+
+async function pickByContentOrder(
+  exec: GitExec,
+  candidates: readonly WorkUnitCandidate[],
+  commitTimeCache: Map<string, number>,
+): Promise<WorkUnitCandidate> {
+  let best = candidates[0];
+  if (best === undefined) throw new Error("candidate ordering requires at least one candidate");
+  for (const candidate of candidates.slice(1)) {
+    if ((await compareContentOrder(exec, candidate, best, commitTimeCache)) > 0) {
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+async function compareContentOrder(
+  exec: GitExec,
+  left: WorkUnitCandidate,
+  right: WorkUnitCandidate,
+  commitTimeCache: Map<string, number>,
+): Promise<number> {
+  const leftAncestor = await isAncestor(exec, left.input.ref, right.input.ref);
+  const rightAncestor = await isAncestor(exec, right.input.ref, left.input.ref);
+  if (leftAncestor && !rightAncestor) return -1;
+  if (rightAncestor && !leftAncestor) return 1;
+
+  const stateDiff = stateOrder(left) - stateOrder(right);
+  if (stateDiff !== 0) return stateDiff;
+
+  const timeDiff = (await commitTime(exec, left.input.ref, commitTimeCache)) -
+    (await commitTime(exec, right.input.ref, commitTimeCache));
+  if (timeDiff !== 0) return timeDiff;
+
+  return right.input.branch.localeCompare(left.input.branch);
+}
+
+async function isAncestor(exec: GitExec, ancestor: string, descendant: string): Promise<boolean> {
+  if (ancestor === descendant) return true;
+  try {
+    await exec("git", ["merge-base", "--is-ancestor", ancestor, descendant]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function stateOrder(candidate: WorkUnitCandidate): number {
+  const state = validateState(candidate.meta.record.State);
+  return state === "unknown" ? -1 : WORK_UNIT_STATE_ORDER[state];
+}
+
+async function commitTime(
+  exec: GitExec,
+  ref: string,
+  cache: Map<string, number>,
+): Promise<number> {
+  const cached = cache.get(ref);
+  if (cached !== undefined) return cached;
+  let value: number;
+  try {
+    const { stdout } = await exec("git", ["show", "-s", "--format=%ct", ref]);
+    value = Number.parseInt(stdout.trim(), 10);
+    if (!Number.isFinite(value)) value = 0;
+  } catch {
+    value = 0;
+  }
+  cache.set(ref, value);
+  return value;
+}
+
+function provenanceForGroup(
+  group: readonly WorkUnitCandidate[],
+  winner: WorkUnitCandidate,
+): InFlightBranchProvenance[] {
+  return [...group]
+    .sort((a, b) => a.input.index - b.input.index)
+    .map((candidate) => ({
+      branch: candidate.input.branch,
+      ref: candidate.input.ref,
+      source: candidate.input.source,
+      relation: candidate.meta.relation,
+      selected: candidate === winner,
+    }));
+}
+
+function shouldMarkLocationAmbiguous(
+  reachable: boolean,
+  group: readonly WorkUnitCandidate[],
+  winner: WorkUnitCandidate,
+): boolean {
+  if (reachable || winner.input.source !== "remote-tracking") return false;
+  if (group.some((candidate) => candidate.input.source === "worktree")) return false;
+  return group.filter((candidate) => candidate.input.source === "remote-tracking").length > 1;
 }
 
 async function readMetaCandidate(
@@ -445,6 +682,26 @@ function staleLocationWarning(
   });
 }
 
+function candidateShadowedWarning(candidate: WorkUnitCandidate, winner: WorkUnitCandidate): InFlightWarning {
+  return warning({
+    code: "candidate-shadowed",
+    branch: candidate.input.branch,
+    workUnit: candidate.meta.name,
+    rendered: `Candidate \`${candidate.input.ref}\` for \`${candidate.meta.name}\` was shadowed by ` +
+      `\`${winner.input.ref}\`.`,
+  });
+}
+
+function locationAmbiguousWarning(candidate: WorkUnitCandidate): InFlightWarning {
+  return warning({
+    code: "location-ambiguous",
+    branch: candidate.input.branch,
+    workUnit: candidate.meta.name,
+    rendered: `Location for \`${candidate.meta.name}\` is ambiguous across unverified tracking refs; ` +
+      `selected \`${candidate.input.ref}\`.`,
+  });
+}
+
 function warning(input: {
   code: InFlightWarningCode;
   branch?: string;
@@ -489,7 +746,7 @@ function buildWorkUnit(
   const { Owner: owner, Design: design, Cohort: cohort, Class: workClass, Priority: priority } = fields;
   const state = validateState(fields.State);
   const marks = state === "unknown" ? appendMark(candidate.marks, "degraded") : [...candidate.marks];
-  const warnings = [...candidate.warnings];
+  const warnings: InFlightWarning[] = [];
   if (state === "unknown") {
     warnings.push(
       warning({

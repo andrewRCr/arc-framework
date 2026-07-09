@@ -66,45 +66,26 @@ per-consumer behavioral audit and warnings pass-through, not the compile fix-up.
   branch appears in both sources. The active/status/materialize/user-view wrappers inject `branch.base` and the
   checkout's lifecycle-derived parked-slug set, so normal oracle consumers inherit local-only and parked facts.
 
-### `[ ]` **1.3 Candidate dedupe with provenance**
+### `[x]` **1.3 Candidate dedupe with provenance**
 
 - _Goal:_ One roster entry per WU no matter how many branches carry it; shadowed or stale candidates surface
   as warnings, never as entries.
 
-    - `[ ]` **1.3.a Precedence dedupe**
-        - Group candidates by WU identity; pick by precedence local worktree checkout > live remote branch >
-          stale tracking ref; entry carries its full branch-set provenance; shadowed candidates emit
-          warnings shaped for the sweep surfaces.
-        - Location-consistent candidates always outrank stale-location candidates: a stale-location
-          candidate never wins a group containing a location-consistent one, whatever the tiers or content
-          ordering say (Task 1.1.c's carrier-branch residue must not relocate a live WU's entry).
-        - A within-tier tie (e.g. two live remote branches carrying the same WU, seen from a machine with no
-          local worktree) resolves by Task 1.3.b's content ordering — ancestry first, then State for genuine
-          forks, then newest commit, then lexicographic branch name as the total-order backstop (a location
-          pick, not name semantics) — so the pick is deterministic online as well as offline.
-        - Build `test-first` (one behavior at a time):
-            - Stale `plan/<name>` remote ref + local `chore/<name>` worktree → one entry at the worktree,
-              stale ref in provenance + warning (the standing live repro, spec § Introduction)
-            - Two remote refs carrying the same WU → one entry, shadowed ref warned
-            - A branch in both sources with divergent content resolves to the worktree candidate's content
-            - Distinct WUs on similarly-named branches stay distinct entries
+    - `[x]` **1.3.a Precedence dedupe**
+        - The derivation now groups work-unit candidates by meta slug, selects local worktree content before
+          live remote refs before unverified tracking refs, and attaches source/relation/selected provenance to
+          the surviving entry. Stale-location candidates cannot win over a location-consistent candidate, and
+          shadowed candidates emit structured warnings.
 
-    - `[ ]` **1.3.b Offline collapse**
-        - When the remote is unreachable (no fresh prune), live-vs-stale is unknowable: multiple tracking
-          refs with the same WU and no local worktree dedupe by content — ancestry first
-          (`git merge-base --is-ancestor`: a candidate whose tip is an ancestor of another's loses; renames
-          and fast-forwards are decided exactly), then meta `State` furthest along for genuine forks only
-          (backward transitions like `deactivate` make State non-monotonic, so it never leads), then newest
-          commit, then lexicographic branch name — and the entry is marked location-ambiguous in the
-          warnings channel.
-        - "Furthest along" needs a named lifecycle-`State` ordering constant (Planning → Active →
-          Integrating → Shipped) beside `validateState` — the ordering exists nowhere in code today.
-        - Build `test-first` (one behavior at a time):
-            - An ancestor tip loses to its descendant regardless of State (a deactivated WU's lingering
-              `<type>/` ref loses to the live `plan/` ref despite carrying the further-along State)
-            - Genuine forks (no ancestry) dedupe by furthest-along `State`
-            - A full tie resolves by newest commit, then lexicographic branch name
-            - The surviving entry is marked location-ambiguous (Phase 2's hook input)
+    - `[x]` **1.3.b Offline collapse**
+        - Added a named lifecycle State order beside `validateState` and use it only after ancestry cannot
+          choose between unverified tracking refs. Offline duplicates collapse by ancestry, then State, newest
+          commit, and lexicographic branch name, with the survivor marked and warned as location-ambiguous.
+
+- _Outcome:_ In-flight WU identity is now unique per content-derived slug even when multiple refs carry the
+  same meta. The roster preserves the whole candidate set as provenance, warns on every shadowed/stale duplicate,
+  and degrades offline duplicate picks through an explicit `location-ambiguous` mark instead of emitting
+  competing entries.
 
 ### `[ ]` **1.4 Warnings channel and loud degradation**
 

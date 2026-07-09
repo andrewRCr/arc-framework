@@ -47,11 +47,15 @@ function makeExec(opts: {
   worktrees?: Array<{ path: string; branch: string }>;
   localRefs?: string[];
   liveBranches?: string[] | "unreachable";
+  ancestors?: Array<[ancestor: string, descendant: string]>;
+  commitTimes?: Record<string, number>;
   /** Keyed by the `git show` target `"<ref>:<path>"`; present keys resolve, absent keys throw. */
   metas?: Record<string, string>;
 }): GitExec {
   const worktrees = opts.worktrees ?? [];
   const localRefs = opts.localRefs ?? [];
+  const ancestors = new Set((opts.ancestors ?? []).map(([ancestor, descendant]) => `${ancestor}\0${descendant}`));
+  const commitTimes = opts.commitTimes ?? {};
   const metas = opts.metas ?? {};
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
     if (args[0] === "for-each-ref") {
@@ -70,7 +74,17 @@ function makeExec(opts: {
         .join("\n");
       return { stdout, stderr: "" };
     }
+    if (args[0] === "merge-base" && args[1] === "--is-ancestor") {
+      const ancestor = args[2] ?? "";
+      const descendant = args[3] ?? "";
+      if (ancestors.has(`${ancestor}\0${descendant}`)) return { stdout: "", stderr: "" };
+      throw new Error(`${ancestor} is not an ancestor of ${descendant}`);
+    }
     if (args[0] === "show") {
+      if (args[1] === "-s" && args[2] === "--format=%ct") {
+        const ref = args[3] ?? "";
+        return { stdout: `${commitTimes[ref] ?? 0}\n`, stderr: "" };
+      }
       const target = args[1] ?? "";
       if (target in metas) {
         const ref = target.slice(0, target.indexOf(":"));
@@ -88,6 +102,12 @@ function makeExec(opts: {
     }
     throw new Error(`unexpected git ${args.join(" ")}`);
   });
+}
+
+function expectWorkUnit(entries: Awaited<ReturnType<typeof deriveInFlight>>["entries"], name: string) {
+  const entry = entries.find((item) => item.kind === "work-unit" && item.name === name);
+  expect(entry).toBeDefined();
+  return entry as Extract<(typeof entries)[number], { kind: "work-unit" }>;
 }
 
 describe("deriveInFlight", () => {
@@ -187,17 +207,16 @@ describe("deriveInFlight", () => {
       teamMode: false,
     });
 
-    expect(entries).toEqual([
-      {
-        kind: "work-unit",
-        branch: "feat/in-flight-awareness",
-        name: "in-flight-awareness",
-        state: "Active",
-        owner: "andrew",
-        remoteOnly: true,
-        dependsOn: [],
-      },
-    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "feat/in-flight-awareness",
+      name: "in-flight-awareness",
+      state: "Active",
+      owner: "andrew",
+      remoteOnly: true,
+      dependsOn: [],
+    });
   });
 
   it("surfaces the raw Class field on a work unit, keeping [TBD] but dropping an absent field", async () => {
@@ -260,17 +279,16 @@ describe("deriveInFlight", () => {
       teamMode: false,
     });
 
-    expect(entries).toEqual([
-      {
-        kind: "work-unit",
-        branch: "feat/review-me",
-        name: "review-me",
-        state: "Integrating",
-        owner: "andrew",
-        remoteOnly: true,
-        dependsOn: [],
-      },
-    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "feat/review-me",
+      name: "review-me",
+      state: "Integrating",
+      owner: "andrew",
+      remoteOnly: true,
+      dependsOn: [],
+    });
   });
 
   it("excludes the configured base branch even when lifecycle residue carries active metas", async () => {
@@ -486,17 +504,16 @@ describe("deriveInFlight", () => {
       errandSlugByBranch: new Map(),
     });
 
-    expect(entries).toEqual([
-      {
-        kind: "work-unit",
-        branch: "chore/promoted",
-        name: "promoted",
-        state: "Active",
-        owner: "andrew",
-        remoteOnly: true,
-        dependsOn: [],
-      },
-    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "chore/promoted",
+      name: "promoted",
+      state: "Active",
+      owner: "andrew",
+      remoteOnly: true,
+      dependsOn: [],
+    });
   });
 
   it("drops a branch with neither an errand record nor a backing meta (not in flight)", async () => {
@@ -749,18 +766,17 @@ describe("deriveInFlight input union", () => {
     });
 
     expect(reachable).toBe(true);
-    expect(entries).toEqual([
-      {
-        kind: "work-unit",
-        branch: "feat/local-only",
-        name: "local-only",
-        state: "Active",
-        owner: "andrew",
-        worktreePath: "/repo.local-only",
-        remoteOnly: false,
-        dependsOn: [],
-      },
-    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "feat/local-only",
+      name: "local-only",
+      state: "Active",
+      owner: "andrew",
+      worktreePath: "/repo.local-only",
+      remoteOnly: false,
+      dependsOn: [],
+    });
   });
 
   it("derives a branch present in both sources once", async () => {
@@ -842,6 +858,265 @@ describe("deriveInFlight input union", () => {
       scheduling: "parked",
       remoteOnly: false,
     });
+  });
+});
+
+describe("deriveInFlight candidate dedupe", () => {
+  it("prefers a location-consistent local worktree over a stale remote ref with provenance", async () => {
+    const exec = makeExec({
+      worktrees: [{ path: "/repo.renamed", branch: "chore/renamed" }],
+      localRefs: ["plan/renamed"],
+      liveBranches: ["plan/renamed"],
+      metas: {
+        "origin/plan/renamed:.arc/active/meta-renamed.md": metaContent({
+          branch: "chore/renamed",
+        }),
+        "chore/renamed:.arc/active/meta-renamed.md": metaContent({
+          branch: "chore/renamed",
+        }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    const entry = expectWorkUnit(entries, "renamed");
+    expect(entry).toMatchObject({
+      branch: "chore/renamed",
+      worktreePath: "/repo.renamed",
+      remoteOnly: false,
+      provenance: [
+        {
+          branch: "plan/renamed",
+          ref: "origin/plan/renamed",
+          source: "remote-live",
+          relation: "stale",
+          selected: false,
+        },
+        {
+          branch: "chore/renamed",
+          ref: "chore/renamed",
+          source: "worktree",
+          relation: "consistent",
+          selected: true,
+        },
+      ],
+    });
+    expect(warnings).toMatchObject([
+      {
+        code: "stale-location-shadow",
+        branch: "plan/renamed",
+        workUnit: "renamed",
+      },
+    ]);
+  });
+
+  it("dedupes two live remote refs for the same WU and warns on the shadowed ref", async () => {
+    const exec = makeExec({
+      localRefs: ["feat/old", "feat/new"],
+      liveBranches: ["feat/old", "feat/new"],
+      commitTimes: {
+        "origin/feat/old": 10,
+        "origin/feat/new": 20,
+      },
+      metas: {
+        "origin/feat/old:.arc/active/meta-widget.md": metaContent({ branch: "feat/old" }),
+        "origin/feat/new:.arc/active/meta-widget.md": metaContent({ branch: "feat/new" }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    const entry = expectWorkUnit(entries, "widget");
+    expect(entry.branch).toBe("feat/new");
+    expect(entry.provenance?.map((candidate) => ({
+      branch: candidate.branch,
+      source: candidate.source,
+      selected: candidate.selected,
+    }))).toEqual([
+      { branch: "feat/old", source: "remote-live", selected: false },
+      { branch: "feat/new", source: "remote-live", selected: true },
+    ]);
+    expect(warnings).toMatchObject([
+      {
+        code: "candidate-shadowed",
+        branch: "feat/old",
+        workUnit: "widget",
+      },
+    ]);
+  });
+
+  it("uses worktree content when a branch is present in both sources with divergent metas", async () => {
+    const exec = makeExec({
+      worktrees: [{ path: "/repo.x", branch: "feat/x" }],
+      localRefs: ["feat/x"],
+      liveBranches: ["feat/x"],
+      metas: {
+        "origin/feat/x:.arc/active/meta-x.md": metaContent({
+          state: "Planning",
+          branch: "feat/x",
+          owner: "remote-owner",
+        }),
+        "feat/x:.arc/active/meta-x.md": metaContent({
+          state: "Active",
+          branch: "feat/x",
+          owner: "local-owner",
+        }),
+      },
+    });
+
+    const { entries } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "feat/x",
+      state: "Active",
+      owner: "local-owner",
+      worktreePath: "/repo.x",
+      remoteOnly: false,
+    });
+  });
+
+  it("keeps distinct WUs on similarly named branches as separate entries", async () => {
+    const exec = makeExec({
+      localRefs: ["feat/shared", "plan/shared"],
+      liveBranches: ["feat/shared", "plan/shared"],
+      metas: {
+        "origin/feat/shared:.arc/active/meta-alpha.md": metaContent({ branch: "feat/shared" }),
+        "origin/plan/shared:.arc/active/meta-beta.md": metaContent({ branch: "plan/shared" }),
+      },
+    });
+
+    const { entries } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries.map((entry) => entry.kind === "work-unit" ? entry.name : entry.slug)).toEqual([
+      "alpha",
+      "beta",
+    ]);
+  });
+});
+
+describe("deriveInFlight offline candidate collapse", () => {
+  it("prefers a descendant tip before State and marks the survivor location-ambiguous", async () => {
+    const exec = makeExec({
+      localRefs: ["feat/widget", "plan/widget"],
+      liveBranches: "unreachable",
+      ancestors: [["origin/feat/widget", "origin/plan/widget"]],
+      metas: {
+        "origin/feat/widget:.arc/active/meta-widget.md": metaContent({
+          state: "Active",
+          branch: "feat/widget",
+        }),
+        "origin/plan/widget:.arc/active/meta-widget.md": metaContent({
+          state: "Planning",
+          branch: "plan/widget",
+        }),
+      },
+    });
+
+    const { entries, warnings, reachable } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(reachable).toBe(false);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "plan/widget",
+      state: "Planning",
+      marks: ["location-ambiguous"],
+    });
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "location-ambiguous",
+          branch: "plan/widget",
+          workUnit: "widget",
+        }),
+      ]),
+    );
+  });
+
+  it("uses furthest-along State for genuine offline forks", async () => {
+    const exec = makeExec({
+      localRefs: ["plan/widget", "feat/widget"],
+      liveBranches: "unreachable",
+      metas: {
+        "origin/plan/widget:.arc/active/meta-widget.md": metaContent({
+          state: "Planning",
+          branch: "plan/widget",
+        }),
+        "origin/feat/widget:.arc/active/meta-widget.md": metaContent({
+          state: "Active",
+          branch: "feat/widget",
+        }),
+      },
+    });
+
+    const { entries } = await deriveInFlight({
+      localOnly: false,
+      exec,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ kind: "work-unit", branch: "feat/widget", state: "Active" });
+  });
+
+  it("breaks full offline ties by newest commit and then lexicographic branch name", async () => {
+    const exec = makeExec({
+      localRefs: ["feat/older", "feat/newer", "feat/zulu", "feat/alpha"],
+      liveBranches: "unreachable",
+      commitTimes: {
+        "origin/feat/older": 10,
+        "origin/feat/newer": 20,
+        "origin/feat/zulu": 30,
+        "origin/feat/alpha": 30,
+      },
+      metas: {
+        "origin/feat/older:.arc/active/meta-clock.md": metaContent({ branch: "feat/older" }),
+        "origin/feat/newer:.arc/active/meta-clock.md": metaContent({ branch: "feat/newer" }),
+        "origin/feat/zulu:.arc/active/meta-name.md": metaContent({ branch: "feat/zulu" }),
+        "origin/feat/alpha:.arc/active/meta-name.md": metaContent({ branch: "feat/alpha" }),
+      },
+    });
+
+    const { entries } = await deriveInFlight({
+      localOnly: false,
+      exec,
+      identity: null,
+      teamMode: false,
+    });
+
+    const byName = new Map(entries.map((entry) => [entry.kind === "work-unit" ? entry.name : entry.slug, entry]));
+    expect(byName.get("clock")).toMatchObject({ branch: "feat/newer" });
+    expect(byName.get("name")).toMatchObject({ branch: "feat/alpha" });
   });
 });
 

@@ -222,7 +222,11 @@ beforeEach(() => {
   });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({ branches: ["feat/foo"], reachable: true });
-  mockDeriveInFlight.mockResolvedValue([{ kind: "work-unit", name: "foo", branch: "feat/foo", remoteOnly: true }]);
+  mockDeriveInFlight.mockResolvedValue({
+    entries: [{ kind: "work-unit", name: "foo", branch: "feat/foo", remoteOnly: true }],
+    warnings: [],
+    reachable: true,
+  });
   mockFindMaterializableWorkUnits.mockReturnValue({ candidates: [{ name: "foo", branch: "feat/foo" }] });
 });
 

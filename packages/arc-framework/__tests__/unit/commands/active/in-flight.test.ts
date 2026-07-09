@@ -102,19 +102,18 @@ describe("runActiveInFlight", () => {
     const result = await runActiveInFlight({ exec, identity: "andrew", teamMode: false, localOnly: false });
 
     expect(result.reachable).toBe(true);
-    expect(result.entries).toEqual([
-      {
-        kind: "work-unit",
-        branch: "feat/x",
-        name: "x",
-        state: "Active",
-        owner: "andrew",
-        design: "spec-x.md",
-        remoteOnly: true,
-        dependsOn: [],
-      },
-      { kind: "errand", branch: "chore/fix-typo", slug: "fix-typo", remoteOnly: true },
-    ]);
+    expect(result.entries).toHaveLength(2);
+    expect(result.entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "feat/x",
+      name: "x",
+      state: "Active",
+      owner: "andrew",
+      design: "spec-x.md",
+      remoteOnly: true,
+      dependsOn: [],
+    });
+    expect(result.entries[1]).toEqual({ kind: "errand", branch: "chore/fix-typo", slug: "fix-typo", remoteOnly: true });
   });
 
   it("prunes a dead local ref absent from live membership", async () => {
