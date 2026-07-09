@@ -58,6 +58,27 @@ describe("findMaterializableWorkUnits", () => {
     expect(result.candidates).toEqual([]);
   });
 
+  it("excludes parked WUs because resume is their sanctioned verb", () => {
+    const result = findMaterializableWorkUnits({
+      entries: [wu({ scheduling: "parked" })],
+      identity: "andrew",
+    });
+
+    expect(result.candidates).toEqual([]);
+  });
+
+  it("excludes shipped or marked WUs from the materialize surface", () => {
+    const result = findMaterializableWorkUnits({
+      entries: [
+        wu({ name: "shipped", state: "Shipped" }),
+        wu({ name: "degraded", marks: ["degraded"] }),
+      ],
+      identity: "andrew",
+    });
+
+    expect(result.candidates).toEqual([]);
+  });
+
   it("excludes an errand entry (only work units are materialize-WU candidates)", () => {
     const result = findMaterializableWorkUnits({ entries: [errand()], identity: "andrew" });
 

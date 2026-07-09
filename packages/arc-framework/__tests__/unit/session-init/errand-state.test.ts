@@ -253,6 +253,7 @@ describe("runErrandState", () => {
       hasBackingMeta: false,
       includeDiscovery: true,
       entries: null,
+      oracleWarnings: ["Meta `.arc/active/meta-x.md` at `origin/feat/x` has unrecognized State `Paused`."],
       records: [],
       baseBranch: "main",
       staleThresholdDays: 1,
@@ -262,6 +263,9 @@ describe("runErrandState", () => {
 
     expect(result.inFlight.errands).toEqual([]);
     expect(result.materializable.candidates).toEqual([]);
+    expect(result.warnings).toContain(
+      "Meta `.arc/active/meta-x.md` at `origin/feat/x` has unrecognized State `Paused`.",
+    );
     expect(result.warnings).toContain(
       "Errand discovery skipped because the in-flight oracle was unavailable.",
     );
@@ -277,6 +281,7 @@ describe("runErrandState", () => {
       hasBackingMeta: false,
       includeDiscovery: true,
       entries: [wu()],
+      oracleWarnings: ["Unable to list git worktrees; local checkout status is degraded."],
       records: [],
       baseBranch: "main",
       staleThresholdDays: 1,
@@ -286,6 +291,9 @@ describe("runErrandState", () => {
 
     expect(result.inFlight.errands).toEqual([]);
     expect(result.materializable.candidates).toEqual([]);
+    expect(result.warnings).toEqual([
+      "Unable to list git worktrees; local checkout status is degraded.",
+    ]);
     expect(exec).not.toHaveBeenCalled();
   });
 });

@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 
 import { runStatusUserView } from "../../../src/lib/status/user-view.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
-import type { InFlightEntry } from "../../../src/lib/git/in-flight-derivation.js";
 import type { StatusViewRow } from "../../../src/lib/status/render.js";
 
 /** Default ready-slice source — empty unless a test injects one. */
@@ -10,14 +9,22 @@ const noReady = (): Promise<StatusViewRow[]> => Promise.resolve([]);
 
 /** A meta body carrying the fields the oracle reads. */
 function metaContent(
-  fields: { cohort?: string; class?: string; priority?: string; dependsOn?: string } = {},
+  fields: {
+    state?: string;
+    owner?: string;
+    branch?: string;
+    cohort?: string;
+    class?: string;
+    priority?: string;
+    dependsOn?: string;
+  } = {},
 ): string {
   return [
     "# Metadata: x",
     "",
-    "- **State:** Active",
-    "- **Owner:** andrew",
-    "- **Branch:** __BRANCH__",
+    `- **State:** ${fields.state ?? "Active"}`,
+    `- **Owner:** ${fields.owner ?? "andrew"}`,
+    `- **Branch:** ${fields.branch ?? "__BRANCH__"}`,
     `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
     `- **Cohort:** ${fields.cohort ?? "[none]"}`,
     ...(fields.class !== undefined ? [`- **Class:** ${fields.class}`] : []),
@@ -35,15 +42,23 @@ function makeExec(opts: {
   lsRemote?: string | "throw";
   forEachRef?: string;
   metas?: Record<string, string>;
+  worktrees?: Array<{ path: string; branch: string }>;
 }): GitExec {
   const metas = opts.metas ?? {};
+  const worktreeList = (opts.worktrees ?? [])
+    .map((wt) => [
+      `worktree ${wt.path}`,
+      "HEAD 1111111111111111111111111111111111111111",
+      `branch refs/heads/${wt.branch}`,
+    ].join("\n"))
+    .join("\n\n");
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
     if (args[0] === "ls-remote") {
       if (opts.lsRemote === "throw") throw new Error("fatal: could not read from remote");
       return { stdout: opts.lsRemote ?? "", stderr: "" };
     }
     if (args[0] === "for-each-ref") return { stdout: opts.forEachRef ?? "", stderr: "" };
-    if (args[0] === "worktree") return { stdout: "", stderr: "" };
+    if (args[0] === "worktree") return { stdout: worktreeList, stderr: "" };
     if (args[0] === "ls-tree" && args[1] === "-r") {
       const ref = args[3] ?? "";
       const paths = Object.keys(metas)
@@ -62,6 +77,15 @@ function makeExec(opts: {
     }
     throw new Error(`unexpected git ${args.join(" ")}`);
   });
+}
+
+function renderedRowCount(output: string, workUnit: string): number {
+  const row = new RegExp(`^\\|\\s+${workUnit}\\s+\\|`, "u");
+  return output.split("\n").filter((line) => row.test(line)).length;
+}
+
+function renderedRow(workUnit: string, state: string): RegExp {
+  return new RegExp(`\\|\\s+${workUnit}\\s+\\|\\s+${state}\\s+\\|`, "u");
 }
 
 describe("runStatusUserView", () => {
@@ -126,31 +150,15 @@ describe("runStatusUserView", () => {
     expect(result.output).toContain("| ready-thing | Light");
   });
 
-  it("prefers fresh local in-flight meta over a stale remote-tracking row", async () => {
+  it("renders a local worktree WU once through the oracle input union", async () => {
     const exec = makeExec({
-      forEachRef: "origin/feat/in-flight-awareness",
-      lsRemote: "sha\trefs/heads/feat/in-flight-awareness",
+      forEachRef: "",
+      lsRemote: "",
+      worktrees: [{ path: "/repo-local", branch: "feat/local" }],
       metas: {
-        "origin/feat/in-flight-awareness:.arc/active/meta-in-flight-awareness.md": metaContent({
-          cohort: "agile-parallelism",
-          class: "heavy",
-        }),
+        "feat/local:.arc/active/meta-local.md": metaContent(),
       },
     });
-    const local: InFlightEntry[] = [
-      {
-        kind: "work-unit",
-        name: "in-flight-awareness",
-        state: "Active",
-        branch: "feat/in-flight-awareness",
-        worktreePath: "/repo",
-        remoteOnly: false,
-        cohort: "agile-parallelism",
-        class: "Novel",
-        priority: "P1",
-        dependsOn: [],
-      },
-    ];
 
     const result = await runStatusUserView({
       exec,
@@ -158,13 +166,82 @@ describe("runStatusUserView", () => {
       teamMode: false,
       localOnly: false,
       readLastRendered: () => Promise.resolve(null),
-      readLocalInFlight: () => Promise.resolve(local),
       readReadyMine: noReady,
     });
 
     expect(result.source).toBe("rendered");
-    expect(result.output).toContain("| in-flight-awareness | Active | Novel | P1");
-    expect(result.output).not.toContain("| in-flight-awareness | Active | Heavy");
+    expect(renderedRowCount(result.output, "local")).toBe(1);
+  });
+
+  it("renders one row when a renamed local branch shadows a stale tracking twin", async () => {
+    const exec = makeExec({
+      forEachRef: "origin/plan/renamed",
+      lsRemote: "sha\trefs/heads/plan/renamed",
+      worktrees: [{ path: "/repo-renamed", branch: "chore/renamed" }],
+      metas: {
+        "origin/plan/renamed:.arc/active/meta-renamed.md": metaContent({
+          branch: "chore/renamed",
+          class: "Heavy",
+        }),
+        "chore/renamed:.arc/active/meta-renamed.md": metaContent({
+          class: "Novel",
+        }),
+      },
+    });
+
+    const result = await runStatusUserView({
+      exec,
+      identity: "andrew",
+      teamMode: false,
+      localOnly: false,
+      readLastRendered: () => Promise.resolve(null),
+      readReadyMine: noReady,
+    });
+
+    expect(result.source).toBe("rendered");
+    expect(renderedRowCount(result.output, "renamed")).toBe(1);
+    expect(result.output).toMatch(renderedRow("renamed", "Active"));
+    expect(result.output).toContain("Novel");
+    expect(result.output).not.toContain("Heavy");
+  });
+
+  it("renders parked, integrating, and unknown roster states without clamping them to Active", async () => {
+    const exec = makeExec({
+      forEachRef: [
+        "origin/feat/shelved",
+        "origin/feat/integrating",
+        "origin/feat/mystery",
+      ].join("\n"),
+      lsRemote: [
+        "sha\trefs/heads/feat/shelved",
+        "sha\trefs/heads/feat/integrating",
+        "sha\trefs/heads/feat/mystery",
+      ].join("\n"),
+      metas: {
+        "origin/feat/shelved:.arc/active/meta-shelved.md": metaContent(),
+        "origin/feat/integrating:.arc/active/meta-integrating.md": metaContent({ state: "Integrating" }),
+        "origin/feat/mystery:.arc/active/meta-mystery.md": metaContent({ state: "Paused" }),
+      },
+    });
+
+    const result = await runStatusUserView({
+      exec,
+      identity: "andrew",
+      teamMode: false,
+      localOnly: false,
+      parkedSlugs: new Set(["shelved"]),
+      readLastRendered: () => Promise.resolve(null),
+      readReadyMine: noReady,
+    });
+
+    expect(result.source).toBe("rendered");
+    expect(result.output).toMatch(renderedRow("shelved", "Parked"));
+    expect(result.output).toMatch(renderedRow("integrating", "Integrating"));
+    expect(result.output).toMatch(renderedRow("mystery", "unknown"));
+    expect(result.output).not.toMatch(renderedRow("shelved", "Active"));
+    expect(result.output).not.toMatch(renderedRow("integrating", "Active"));
+    expect(result.output).not.toMatch(renderedRow("mystery", "Active"));
+    expect(result.warnings.some((line) => line.includes("unrecognized State"))).toBe(true);
   });
 
   it("renders the Ready section even when no work is in flight", async () => {

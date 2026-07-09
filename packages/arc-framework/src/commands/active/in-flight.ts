@@ -16,6 +16,7 @@ import type { GitExec } from "../../lib/git/exec.js";
 import {
   deriveInFlight,
   type InFlightEntry,
+  type InFlightWarning,
   type PrSource,
 } from "../../lib/git/in-flight-derivation.js";
 import { readErrandSlugByBranch } from "../../lib/errand/record.js";
@@ -41,6 +42,8 @@ export interface ActiveInFlightOptions {
 export interface ActiveInFlightResult {
   /** Identity-filtered in-flight work units and errands, in oracle (input-branch) order. */
   entries: InFlightEntry[];
+  /** Structured diagnostics emitted while deriving the in-flight set. */
+  warnings: InFlightWarning[];
   /**
    * True only when live remote membership was read and pruned against (online).
    * `false` on `--local` / unreachable — entries derive from last-known local
@@ -71,5 +74,5 @@ export async function runActiveInFlight(
     parkedSlugs,
     prSource,
   });
-  return { entries: result.entries, reachable: result.reachable };
+  return { entries: result.entries, warnings: result.warnings, reachable: result.reachable };
 }

@@ -96,42 +96,23 @@ per-consumer behavioral audit and warnings pass-through, not the compile fix-up.
   returned entry degraded, while unreadable or malformed at-ref metas produce degraded WU entries keyed by the
   meta filename with structured warnings instead of disappearing.
 
-### `[ ]` **1.5 Consumer adaptation to the re-keyed roster shape**
+### `[x]` **1.5 Consumer adaptation to the re-keyed roster shape**
 
 - _Goal:_ Every oracle consumer compiles against the widened result and passes warnings through, and the
   user view's redundant local-merge seam retires onto the union.
 
-    - `[ ]` **1.5.a Per-consumer state-handling audit and warnings pass-through**
-        - Consumers: the session-init oracle slice (`errand-state`, `in-flight-errand-sweep`,
-          `materializable-errands`, `materializable-work-units`, `handlers/status.ts`), the materialize
-          resolution (`src/handlers/lifecycle.ts` ~668), the status views (`in-flight-mine`, `user-view` /
-          `assemble-user-view`), the activation scope check (`handlers/active.ts`), the errand overlap gate
-          (`handlers/errand.ts`), and `src/scripts/check-foreign-writes.ts` (compile-level only; behavioral
-          splits are Task 2.4). `work-unit-state` and `in-flight-work-unit-sweep` consume the worktree
-          roster, not this oracle — out of scope here.
-        - Per-consumer state-handling audit: entries now carry the full validated `WorkUnitState` plus
-          marks, so each consumer's filter is checked against values it never received before
-          (`Integrating` / `Shipped` / marked) — today's prefix proxy misclassifies a Shipped-meta surviving
-          ref as Active, so behavior deltas here are corrections, verified per consumer.
-        - Parked exclusion on the materialize surfaces: the materialize resolution and the session-init
-          `materializable-work-units` slice drop parked-classified entries — a parked WU's sanctioned verb
-          is `arc resume`, and today's surface offers it for materialize (a pre-existing false offer this
-          filter ends). Views render parked as parked, never silently as in-flight.
-        - Warnings propagate to each consumer's existing warnings surface; no new rendering yet.
-        - Existing suites stay green; add pass-through assertions where a consumer exposes warnings, and
-          materialize-exclusion / parked-rendering assertions in the respective consumer suites.
+    - `[x]` **1.5.a Per-consumer state-handling audit and warnings pass-through**
+        - Materialize surfaces now drop parked, Shipped, and marked WUs; status views render parked as
+          `Parked`; active/user/session-init/materialize/errand-check consumers carry oracle warnings through
+          their existing structured or string warning channels, while compile-only consumers stay type-clean.
 
-    - `[ ]` **1.5.b Retire the user view's parallel local-merge seam**
-        - `mergeInFlightEntries` / `localRosterEntryToInFlight` (`src/lib/status/user-view.ts` ~118–126,
-          `src/lib/status/assemble-user-view.ts` ~70–87) merge a separate local-worktree slice keyed by
-          branch — the non-bijection this WU removes — and clamp state through the retired two-value shape.
-          The oracle's input union subsumes the local slice; the view consumes the union directly.
-        - Committed-ref truth replaces the disk-fresh override: meta writes are ceremony-commit-bundled, so
-          the disk≠ref window is brief, and the worktree roster remains the disk-truth surface.
-        - Build `test-first` (one behavior at a time):
-            - A local worktree WU appears once in the user view via the union (no branch-keyed second copy)
-            - A WU on a renamed branch with a stale twin ref renders one row, not two
-            - Roster-only states (`Integrating`, `unknown`) render as themselves, never clamped to Active
+    - `[x]` **1.5.b Retire the user view's parallel local-merge seam**
+        - `STATUS.USER` now consumes the unified in-flight oracle directly: local worktree branches enter via
+          the derivation union, renamed stale twins collapse to one WU row, and `Integrating` / `unknown`
+          states survive projection without the old branch-keyed local override.
+
+- _Outcome:_ Consumer surfaces now honor the widened oracle state/mark contract, and the `STATUS.USER`
+  assembler no longer reads or merges a separate worktree roster slice.
 
 ## **Phase 2:** Mutation-window discipline and overlap hardening
 

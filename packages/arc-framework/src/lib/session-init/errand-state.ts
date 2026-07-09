@@ -68,6 +68,8 @@ export interface RunErrandStateOptions {
    * leave in-flight/materialize empty.
    */
   entries: readonly InFlightEntry[] | null;
+  /** Soft diagnostics already emitted by the in-flight oracle. */
+  oracleWarnings?: readonly string[];
   /**
    * Errand records (identity-scoped) — the identity oracle for resume and
    * discovery. Empty when identity is absent or the errand ref is unborn; a
@@ -91,6 +93,7 @@ export interface RunErrandStateOptions {
  * @returns Composite errand state for the session-init envelope.
  */
 export async function runErrandState(options: RunErrandStateOptions): Promise<ErrandStateResult> {
+  const oracleWarnings = [...(options.oracleWarnings ?? [])];
   // Branch→slug index: the record-derived identity oracle the probes resolve against.
   const slugByBranch = new Map(options.records.map((record) => [record.branch, record.slug]));
 
@@ -107,7 +110,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
     return emptyDiscovery(
       resume,
       options.nudge,
-      ["Errand discovery skipped because the in-flight oracle was unavailable."],
+      [...oracleWarnings, "Errand discovery skipped because the in-flight oracle was unavailable."],
     );
   }
 
@@ -116,7 +119,13 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
     (entry): entry is InFlightErrand => entry.kind === "errand",
   );
   if (errands.length === 0) {
-    return { resume, inFlight: { errands: [] }, materializable, nudge: options.nudge, warnings: [] };
+    return {
+      resume,
+      inFlight: { errands: [] },
+      materializable,
+      nudge: options.nudge,
+      warnings: oracleWarnings,
+    };
   }
 
   const timestamps = await readErrandTimestamps(options.exec);
@@ -142,7 +151,13 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
     })),
   });
 
-  return { resume, inFlight, materializable, nudge: options.nudge, warnings: timestamps.warnings };
+  return {
+    resume,
+    inFlight,
+    materializable,
+    nudge: options.nudge,
+    warnings: [...oracleWarnings, ...timestamps.warnings],
+  };
 }
 
 /** Ref the merge check runs against — `origin/<branch>` for remote-only, the local branch otherwise. */

@@ -55,7 +55,12 @@ import {
   runWorktreeRoster,
 } from "../lib/git/index.js";
 import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
-import { deriveInFlight, type InFlightEntry } from "../lib/git/in-flight-derivation.js";
+import {
+  deriveInFlight,
+  renderInFlightWarning,
+  type InFlightEntry,
+  type InFlightWarning,
+} from "../lib/git/in-flight-derivation.js";
 import { findMaterializableWorkUnits } from "../lib/session-init/materializable-work-units.js";
 import { pruneRemoteTrackingRefs } from "../lib/session-init/dead-ref-prune.js";
 import {
@@ -362,7 +367,11 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // materializable-WU probes. Both gate on the no-active-WU arm, so when one
     // fires the other does too; memoizing keeps it a single read. Lazy: a resume
     // session forces neither probe, so the network read never runs there.
-    let oraclePromise: Promise<{ entries: InFlightEntry[]; reachable: boolean }> | undefined;
+    let oraclePromise: Promise<{
+      entries: InFlightEntry[];
+      warnings: InFlightWarning[];
+      reachable: boolean;
+    }> | undefined;
     // Errand records — the errand-identity oracle, shared by the in-flight
     // derivation (errand-vs-WU classification) and the errand-state probe
     // (resume + discovery). Identity-scoped and local, so read once and reused;
@@ -374,7 +383,11 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         : listErrandRecords({ exec: gitExec, identity });
       return errandRecordsPromise;
     };
-    const getOracle = (): Promise<{ entries: InFlightEntry[]; reachable: boolean }> => {
+    const getOracle = (): Promise<{
+      entries: InFlightEntry[];
+      warnings: InFlightWarning[];
+      reachable: boolean;
+    }> => {
       oraclePromise ??= (async () => {
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
@@ -394,8 +407,8 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
         // Unreachable: derive nothing rather than a half-resolved view over
         // un-pruned local refs. Consumers surface no candidates / skip discovery.
-        if (!result.reachable) return { entries: [], reachable: false };
-        return { entries: result.entries, reachable: result.reachable };
+        if (!result.reachable) return { entries: [], warnings: result.warnings, reachable: false };
+        return { entries: result.entries, warnings: result.warnings, reachable: result.reachable };
       })();
       return oraclePromise;
     };
@@ -506,6 +519,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         // with the in-flight derivation); empty when no identity resolved.
         const records = await getErrandRecords();
         let entries: InFlightEntry[] | null = null;
+        let oracleWarnings: string[] = [];
         if (input.includeDiscovery) {
           // Fire the dead-ref prune (hygiene backstop) alongside — not feeding —
           // the oracle: the oracle is prune-independent, so classification never
@@ -515,6 +529,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
             getOracle(),
           ]);
           entries = oracle.reachable ? oracle.entries : null;
+          oracleWarnings = oracle.warnings.map(renderInFlightWarning);
         }
         return runErrandState({
           exec: gitExec,
@@ -522,6 +537,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           hasBackingMeta: input.hasBackingMeta,
           includeDiscovery: input.includeDiscovery,
           entries,
+          oracleWarnings,
           records,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
@@ -529,9 +545,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
       },
       materializableWorkUnits: async () => {
-        const { entries, reachable } = await getOracle();
-        if (!reachable) return { candidates: [] };
-        return findMaterializableWorkUnits({ entries, identity });
+        const { entries, warnings, reachable } = await getOracle();
+        const renderedWarnings = warnings.map(renderInFlightWarning);
+        if (!reachable) return { candidates: [], warnings: renderedWarnings };
+        return { ...findMaterializableWorkUnits({ entries, identity }), warnings: renderedWarnings };
       },
       workUnitState: async (input) => {
         const resolved = await resolvedSettingsP;
@@ -631,7 +648,6 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       readFile: io.readFile,
       writeFile: io.writeFile,
       mkdir: (path, options) => io.mkdir(path, options).then(() => undefined),
-      readdir: (path) => readdir(path),
     });
     if (json) {
       process.stdout.write(`${JSON.stringify(view)}\n`);

@@ -9,8 +9,7 @@
  * The view has two sources, merged into an In Flight section and a Ready section:
  *
  * - **In Flight** — the git-derived in-flight-mine slice (your WUs in flight
- *   anywhere), merged with fresh local-worktree meta so local ceremony changes
- *   win over stale remote-tracking content for the same branch.
+ *   anywhere), including local worktree branches through the oracle's input union.
  * - **Ready** — the local ready-mine slice (your owned, unblocked planned work).
  *   It reads only local metas, so it is always available — it never degrades when
  *   the remote is unreachable.
@@ -18,10 +17,10 @@
  * Two offline behaviors, kept distinct:
  *
  * - **`--local` / `--no-fetch`** skips the network read and renders from the
- *   last-known local remote-tracking refs plus fresh local-worktree meta — a
- *   fast offline view the caller explicitly asked for. It cannot prune dead
- *   refs, so a lingering merged-and-deleted branch may surface; the online path
- *   prunes correctly.
+ *   last-known local remote-tracking refs plus local worktree branches — a fast
+ *   offline view the caller explicitly asked for. It cannot prune dead refs, so
+ *   a lingering merged-and-deleted branch may surface; the online path prunes
+ *   correctly.
  * - **Online but unreachable** degrades to the last-rendered `STATUS.USER` cache
  *   rather than rendering a half-resolved in-flight view — the file is the cache.
  *   Only the in-flight half degrades this way; the structured merge of the fresh
@@ -37,7 +36,7 @@
 import type { GitExec } from "../git/exec.js";
 import {
   deriveInFlight,
-  type InFlightEntry,
+  renderInFlightWarning,
   type PrSource,
 } from "../git/in-flight-derivation.js";
 import { readErrandSlugByBranch } from "../errand/record.js";
@@ -59,6 +58,8 @@ export interface StatusUserViewResult {
   output: string;
   /** Which path produced {@link output}. */
   source: StatusUserViewSource;
+  /** Soft diagnostics emitted by the in-flight oracle. */
+  warnings: string[];
 }
 
 /** Inputs for {@link runStatusUserView}. */
@@ -81,12 +82,6 @@ export interface RunStatusUserViewOptions {
   prSource?: PrSource;
   /** Read the last-rendered `STATUS.USER` cache; `null` when absent. */
   readLastRendered: () => Promise<string | null>;
-  /**
-   * Resolve local worktree-backed in-flight WUs. These override stale
-   * remote-tracking rows for the same branch and append when a local WU has no
-   * remote row yet.
-   */
-  readLocalInFlight?: () => Promise<InFlightEntry[]>;
   /**
    * Resolve the local ready-mine slice (owned, unblocked planned work). Network-
    * independent, so it is awaited regardless of remote reachability.
@@ -112,23 +107,6 @@ function composeUserView(
 }
 
 /**
- * Merge remote-oracle entries with local worktree entries.
- *
- * Remote order is preserved. When a local worktree exists for the same branch,
- * the local parsed meta wins (fresh local truth beats stale remote-tracking
- * content). Local-only entries append after the remote set.
- */
-function mergeInFlightEntries(
-  remote: readonly InFlightEntry[],
-  local: readonly InFlightEntry[],
-): InFlightEntry[] {
-  const byBranch = new Map<string, InFlightEntry>();
-  for (const entry of remote) byBranch.set(entry.branch, entry);
-  for (const entry of local) byBranch.set(entry.branch, entry);
-  return [...byBranch.values()];
-}
-
-/**
  * Run the explicit in-flight-mine view request.
  *
  * @param options - Git adapter, identity, mode flags, and the cache reader.
@@ -143,6 +121,7 @@ export async function runStatusUserView(
     return {
       output: "Status (User) requires `arc.identity` to be set in git config.",
       source: "no-identity",
+      warnings: [],
     };
   }
 
@@ -151,31 +130,30 @@ export async function runStatusUserView(
   const ready = await options.readReadyMine();
 
   const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
-  const [remoteResult, localEntries] = await Promise.all([
-    deriveInFlight({
-      exec,
-      localOnly,
-      baseBranch,
-      timeoutMs,
-      identity,
-      teamMode,
-      errandSlugByBranch,
-      parkedSlugs,
-      prSource,
-    }),
-    options.readLocalInFlight?.() ?? Promise.resolve([]),
-  ]);
+  const remoteResult = await deriveInFlight({
+    exec,
+    localOnly,
+    baseBranch,
+    timeoutMs,
+    identity,
+    teamMode,
+    errandSlugByBranch,
+    parkedSlugs,
+    prSource,
+  });
+  const warnings = remoteResult.warnings.map(renderInFlightWarning);
   // Online but unreachable: the in-flight half can't be refreshed, so degrade to
   // the last-rendered cache rather than render a half-resolved view. `--local`
   // never degrades — it rendered from local refs by request.
   if (!localOnly && !remoteResult.reachable) {
     const cached = await options.readLastRendered();
-    if (cached !== null) return { output: cached.trimEnd(), source: "cache" };
+    if (cached !== null) return { output: cached.trimEnd(), source: "cache", warnings };
     return {
       output: "Remote unreachable and no cached STATUS.USER view to fall back on.",
       source: "cache-missing",
+      warnings,
     };
   }
-  const inFlight = buildInFlightMineSlice(mergeInFlightEntries(remoteResult.entries, localEntries));
-  return { output: composeUserView(identity, inFlight, ready), source: "rendered" };
+  const inFlight = buildInFlightMineSlice(remoteResult.entries);
+  return { output: composeUserView(identity, inFlight, ready), source: "rendered", warnings };
 }

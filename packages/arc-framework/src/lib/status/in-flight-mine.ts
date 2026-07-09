@@ -44,7 +44,7 @@ export function buildInFlightMineSlice(entries: readonly InFlightEntry[]): Statu
 
   return workUnits.map((wu) => ({
     workUnit: wu.name,
-    state: wu.state,
+    state: wu.scheduling === "parked" ? "Parked" : wu.state,
     ...(wu.class !== undefined ? { class: validateClass(wu.class) } : {}),
     ...(wu.priority !== undefined ? { priority: validatePriority(wu.priority) } : {}),
     dependsOn: wu.dependsOn.filter((dep) => inFlightNames.has(dep)),

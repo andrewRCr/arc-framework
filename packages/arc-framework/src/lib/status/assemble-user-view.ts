@@ -10,13 +10,10 @@
  *   in local-only mode and writes the result to `STATUS.USER.md` on a location
  *   move.
  *
- * The assembly binds three reads: the last-rendered cache (the degrade target
- * when the remote is unreachable), the local worktree-backed in-flight slice
- * (fresh local truth that overrides stale remote-tracking rows), and the local
- * ready-mine slice. The ready slice reads the filesystem directly through
- * {@link loadReadyMineSlice} (it is always-local by design); the cache and roster
- * reads stay injectable so the assembly carries no hard filesystem dependency of
- * its own.
+ * The assembly binds two reads: the last-rendered cache (the degrade target
+ * when the remote is unreachable) and the local ready-mine slice. The ready
+ * slice reads the filesystem directly through {@link loadReadyMineSlice}; the
+ * in-flight half comes entirely from the oracle, including local worktree branches.
  *
  * @module
  */
@@ -24,12 +21,6 @@
 import { dirname } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
-import {
-  filterRosterByIdentity,
-  runWorktreeRoster,
-  type WorktreeRosterEntry,
-} from "../git/index.js";
-import type { InFlightEntry } from "../git/in-flight-derivation.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 
 import { loadReadyMineSlice } from "./ready-mine-source.js";
@@ -51,48 +42,17 @@ export interface AssembleStatusUserViewDeps {
   baseBranch?: string;
   /** Slugs whose checkout lifecycle record classifies them as parked. */
   parkedSlugs?: ReadonlySet<string>;
-  /** Read a file as UTF-8 — used for the `STATUS.USER` cache and roster meta reads. */
+  /** Read a file as UTF-8 — used for the `STATUS.USER` cache. */
   readFile: (path: string) => Promise<string>;
-  /** Read directory entry names — used by the worktree roster scan. */
-  readdir: (path: string) => Promise<string[]>;
   /** Optional writer for persisting a freshly rendered STATUS.USER cache. */
   writeFile?: (path: string, content: string) => Promise<void>;
   /** Optional directory creator paired with {@link writeFile}. */
   mkdir?: (path: string, options: { recursive: boolean }) => Promise<void>;
 }
 
-const META_FILE_RE = /^meta-(.+)\.md$/;
-
-/** The canonical WU-name from a `meta-<name>.md` path, falling back to the branch leaf. */
-function workUnitNameFromMetaPath(metaFilePath: string, branch: string): string {
-  const match = META_FILE_RE.exec(metaFilePath.replace(/^.*[/\\]/u, ""));
-  if (match?.[1] !== undefined) return match[1];
-  return branch.replace(/^(feat|fix|chore|plan)\//u, "");
-}
-
-/** Project a local worktree roster entry into the in-flight slice's shape (meta-bearing only). */
-function localRosterEntryToInFlight(entry: WorktreeRosterEntry): InFlightEntry[] {
-  if (entry.metaFilePath === undefined) return [];
-  return [
-    {
-      kind: "work-unit",
-      name: workUnitNameFromMetaPath(entry.metaFilePath, entry.branch),
-      state: entry.state === "Planning" ? "Planning" : "Active",
-      branch: entry.branch,
-      worktreePath: entry.worktreePath,
-      remoteOnly: false,
-      ...(entry.identity !== undefined ? { owner: entry.identity } : {}),
-      ...(entry.cohort !== undefined ? { cohort: entry.cohort } : {}),
-      ...(entry.class !== undefined ? { class: entry.class } : {}),
-      ...(entry.priority !== undefined ? { priority: entry.priority } : {}),
-      dependsOn: entry.dependsOn ?? [],
-    },
-  ];
-}
-
 /**
- * Assemble and run the `STATUS.USER` view — bind the cache, local-in-flight, and
- * ready-mine reads, then delegate to {@link runStatusUserView}.
+ * Assemble and run the `STATUS.USER` view — bind the cache and ready-mine reads,
+ * then delegate to {@link runStatusUserView}.
  *
  * @param deps - Repository root, git executor, identity, mode flags, and the I/O seams.
  * @returns The rendered view result (rendered table, degraded cache, or status message).
@@ -109,7 +69,6 @@ export async function assembleStatusUserView(
     baseBranch,
     parkedSlugs,
     readFile,
-    readdir,
     writeFile,
     mkdir,
   } = deps;
@@ -129,13 +88,6 @@ export async function assembleStatusUserView(
       statusUserPath === null
         ? Promise.resolve(null)
         : readFile(statusUserPath).then((content) => content, () => null),
-    readLocalInFlight: async () => {
-      const roster = filterRosterByIdentity(
-        await runWorktreeRoster({ exec, fs: { readdir, readFile } }),
-        { identity, teamMode },
-      );
-      return roster.entries.flatMap(localRosterEntryToInFlight);
-    },
     readReadyMine: () => loadReadyMineSlice({ cwd, identity }),
   });
 

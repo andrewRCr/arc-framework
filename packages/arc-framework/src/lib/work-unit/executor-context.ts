@@ -290,7 +290,6 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
                   localOnly: true,
                   parkedSlugs: listParkedSlugs(await buildLifecycleIndex({ cwd, fs: indexFs })),
                   readFile: io.readFile,
-                  readdir: (p) => readdir(p),
                 })
               ).output,
             mkdir: io.mkdir,

@@ -39,7 +39,7 @@ import {
   resolveWorktreePathsByBranch,
   runWorktreeRoster,
 } from "../lib/git/worktree-roster.js";
-import { deriveInFlight } from "../lib/git/in-flight-derivation.js";
+import { deriveInFlight, renderInFlightWarning } from "../lib/git/in-flight-derivation.js";
 import { DEFAULT_NETWORK_TIMEOUT_MS } from "../lib/git/remote-ref-reader.js";
 import { resolveWriteContext, type WriteContext } from "../lib/git/write-context.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
@@ -669,6 +669,9 @@ async function resolveMaterializeCandidate(
     teamMode: settings["team.mode"] === "true",
     parkedSlugs,
   });
+  for (const warning of result.warnings) {
+    p.log.warn(renderInFlightWarning(warning));
+  }
   if (!result.reachable) {
     refuse("could not refresh remote materialize candidates from `origin` — retry when the remote is reachable.");
     return null;

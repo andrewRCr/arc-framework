@@ -71,7 +71,7 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
   const baseBranch = settings["branch.base"];
   const localOnly = Boolean(opts.local) || opts.fetch === false;
 
-  const { entries, reachable } = await runActiveInFlight({
+  const { entries, warnings, reachable } = await runActiveInFlight({
     exec: gitExec,
     identity,
     teamMode,
@@ -87,7 +87,7 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
   });
 
   if (opts.json) {
-    process.stdout.write(`${JSON.stringify({ ...result, reachable })}\n`);
+    process.stdout.write(`${JSON.stringify({ ...result, warnings, reachable })}\n`);
     return;
   }
 
