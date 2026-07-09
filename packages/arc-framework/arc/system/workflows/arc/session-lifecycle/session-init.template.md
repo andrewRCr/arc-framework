@@ -608,8 +608,8 @@ planning session, assess readiness for the next unit. When a **positional seed**
 **pre-focus** it as the candidate and offer to init it — confirm-only, never auto-init. Absent such a seed:
 
 <!-- arc:if pm.mode == arc-in-git -->
-1. Read `.arc/backlog/ROADMAP.md` — identify the next queued or suggested item
-2. Check `.arc/backlog/` for existing artifacts (PRDs, `draft-*` docs) matching that item
+1. Render the live project status view with `arc status --project` — identify the next queued or suggested item
+2. Check `.arc/backlog/` for the candidate's source artifacts (PRDs, `draft-*` docs, meta)
 3. Report what exists and its readiness state in orientation
 4. Propose next steps (typically `arc start` to initialize the chosen unit, or continue drafting); ask for
    confirmation before proceeding

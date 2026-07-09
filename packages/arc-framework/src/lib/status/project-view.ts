@@ -199,7 +199,7 @@ interface DependencyClassification {
 }
 
 const META_FILE_RE = /^meta-(.+)\.md$/u;
-const DEFAULT_TITLE = "Roadmap: Project Readiness";
+const DEFAULT_TITLE = "Roadmap: Project Status";
 
 export const PROJECT_IN_FLIGHT_COLUMNS = [
   "state",
@@ -670,12 +670,14 @@ function renderWarnings(warnings: readonly ProjectReadinessWarning[]): string[] 
 
 function renderStamp(stamp: string | ProjectReadinessRenderStamp): string {
   const resolved = typeof stamp === "string" ? { ref: stamp } : stamp;
-  const parts = [
+  const lines = [
     `**Generated from meta files — re-render at ceremony boundaries.** Last rendered against \`${resolved.ref}\`.`,
   ];
-  if (resolved.scope !== undefined) parts.push(`Source scope: ${resolved.scope}.`);
-  if (resolved.liveView !== undefined) parts.push(`Live view: \`${resolved.liveView}\`.`);
-  return `> ${parts.join(" ")}`;
+  const details: string[] = [];
+  if (resolved.scope !== undefined) details.push(`Source scope: ${resolved.scope}.`);
+  if (resolved.liveView !== undefined) details.push(`Live view: \`${resolved.liveView}\`.`);
+  if (details.length > 0) lines.push(details.join(" "));
+  return lines.map((line) => `> ${line}`).join("\n");
 }
 
 /**

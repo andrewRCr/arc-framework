@@ -16,7 +16,7 @@
 - **Next Task:** Task 7.1 — Complete verification (line ~344)
 - **Blockers:** [none]
 
-- **Next Action:** Inspect `arc status --project` warnings, evaluate shadowing semantics, then start Task 7.1
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

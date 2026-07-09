@@ -341,21 +341,30 @@ an indeterminate snapshot (the conflict-marker reject stays unconditional).
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ markdown lint, TypeScript lint, shell lint, full typecheck, full Vitest suite
+  (301 files / 4116 tests passed; 1 skipped), and build — all passed.
+- _Success criteria:_ 8 criteria met after self-verification and one adversarial pass. The pass surfaced a
+  ROADMAP read-back workflow wording gap; package source and `.arc` mirrors now route current-state consumers
+  to `arc status --project` plus backlog source artifacts.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The concurrency harness passes: derivation racing a scripted `arc start` reshuffle produces stable,
+- `[x]` The concurrency harness passes: derivation racing a scripted `arc start` reshuffle produces stable,
   warning-marked output
-- `[ ]` Both standing false facts resolve: a stale `plan/<name>` ref mints no phantom remote-only WU, and an
+- `[x]` Both standing false facts resolve: a stale `plan/<name>` ref mints no phantom remote-only WU, and an
   unpushed in-flight worktree is visible to the oracle
-- `[ ]` A `main`-checkout render shows in-flight WUs as in flight (supersede tier) and parked WUs as parked
+- `[x]` A `main`-checkout render shows in-flight WUs as in flight (supersede tier) and parked WUs as parked
   (per-axis precedence), asserting no false `Ready` facts from stale backlog stubs
-- `[ ]` Dangling dependency edges surface through the warnings channel instead of rendering satisfied
-- `[ ]` A manufactured `ROADMAP.md` conflict resolves by re-render; the pre-commit assert rejects a staged
+- `[x]` Dangling dependency edges surface through the warnings channel instead of rendering satisfied
+- `[x]` A manufactured `ROADMAP.md` conflict resolves by re-render; the pre-commit assert rejects a staged
   hand-edit and surviving conflict markers
-- `[ ]` No consumer reads `ROADMAP.md` back as data
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` No consumer reads `ROADMAP.md` back as data
+    - **Verification:** The adversarial pass found stale workflow read-back wording. Source and `.arc` mirror
+      searches now leave project-state discovery routed through `arc status --project`, with ROADMAP treated as a
+      regenerated cache.
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration

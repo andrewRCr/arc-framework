@@ -98,7 +98,7 @@ describe("arc status --project", () => {
       }
     })();
 
-    expect(result.output).toContain("# Roadmap: Project Readiness");
+    expect(result.output).toContain("# Roadmap: Project Status");
     expect(result.output).toContain("Source scope: tree + live refs.");
     expect(result.output).toContain("| `Active` | ref-only");
     expect(result.output).toContain("| ref-only  | P1");

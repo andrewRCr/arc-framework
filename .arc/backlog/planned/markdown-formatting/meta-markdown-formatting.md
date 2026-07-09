@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none] (coordinates with quality-gate-hooks for enforcement — soft, downstream)
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-markdown-formatting.md`

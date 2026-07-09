@@ -186,7 +186,7 @@ describe("composeProjectReadinessView", () => {
       },
     });
 
-    expect(input.title).toBe("Roadmap: Project Readiness");
+    expect(input.title).toBe("Roadmap: Project Status");
     expect(readPaths).toEqual([]);
   });
 
@@ -385,6 +385,11 @@ describe("composeProjectReadinessView", () => {
     expect(view).toContain("Last rendered against `abc1234`");
     expect(view).toContain("Source scope: tree + local refs.");
     expect(view).toContain("Live view: `arc status --project`.");
+    expect(view.split("\n").filter((line) => line.startsWith("> "))).toEqual([
+      "> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `abc1234`.",
+      "> Source scope: tree + local refs. Live view: `arc status --project`.",
+    ]);
+    expect(view.split("\n").every((line) => line.length <= 120)).toBe(true);
   });
 });
 

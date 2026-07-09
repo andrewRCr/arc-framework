@@ -716,11 +716,12 @@ async function dedupeWorkUnitCandidates(
 
     const shadowed = group.filter((candidate) => candidate !== winner);
     warnings.push(
-      ...shadowed.map((candidate) =>
-        candidate.meta.relation === "stale"
-          ? staleLocationWarning(candidate.meta, candidate.input.branch, "stale-location-shadow")
-          : candidateShadowedWarning(candidate, winner),
-      ),
+      ...shadowed.flatMap((candidate) => {
+        if (candidate.meta.relation === "stale") {
+          return [staleLocationWarning(candidate.meta, candidate.input.branch, "stale-location-shadow")];
+        }
+        return isWorktreeRemoteMirror(candidate, winner) ? [] : [candidateShadowedWarning(candidate, winner)];
+      }),
     );
 
     const built = buildWorkUnit(
@@ -873,6 +874,13 @@ function shouldMarkLocationAmbiguous(
   if (reachable || winner.input.source !== "remote-tracking") return false;
   if (group.some((candidate) => candidate.input.source === "worktree")) return false;
   return group.filter((candidate) => candidate.input.source === "remote-tracking").length > 1;
+}
+
+function isWorktreeRemoteMirror(left: WorkUnitCandidate, right: WorkUnitCandidate): boolean {
+  if (left.input.branch !== right.input.branch) return false;
+  if (left.meta.relation !== "consistent" || right.meta.relation !== "consistent") return false;
+  const sources = new Set([left.input.source, right.input.source]);
+  return sources.has("worktree") && (sources.has("remote-live") || sources.has("remote-tracking"));
 }
 
 function degradedMetaRecord(): MetaRecord {

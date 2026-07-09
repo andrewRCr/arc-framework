@@ -530,7 +530,7 @@ program
   .addOption(
     new Option(
       "--project",
-      "Render the live project readiness view",
+      "Render the live project status view",
     ).conflicts(["session-init", "session-handoff", "recover", "user"]),
   )
   .option("--local", "With --user/--project: skip the network read; render from local refs (alias: --no-fetch)")

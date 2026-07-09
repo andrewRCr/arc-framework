@@ -328,7 +328,7 @@ Constitutional documents (PROJECT-PRD, TECHNICAL-OVERVIEW, AGENT-BRIEF.PROJECT, 
 QUICK-REFERENCE) already exist. Read them for project context rather than creating them —
 skip [02_define-project.md](02_define-project.md) unless documents need updating.
 
-> **With arc-in-git PM** (`pm.mode: arc-in-git`) — Review ROADMAP.md for current project state.
+> **With arc-in-git PM** (`pm.mode: arc-in-git`) — Run `arc status --project` for current project state.
 
 ---
 

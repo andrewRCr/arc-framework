@@ -1132,7 +1132,7 @@ describe("deriveInFlight candidate dedupe", () => {
     ]);
   });
 
-  it("uses worktree content when a branch is present in both sources with divergent metas", async () => {
+  it("uses worktree content without warning when a branch is present in both sources", async () => {
     const exec = makeExec({
       worktrees: [{ path: "/repo.x", branch: "feat/x" }],
       localRefs: ["feat/x"],
@@ -1151,7 +1151,7 @@ describe("deriveInFlight candidate dedupe", () => {
       },
     });
 
-    const { entries } = await deriveInFlight({
+    const { entries, warnings } = await deriveInFlight({
       exec,
       localOnly: false,
       identity: null,
@@ -1159,7 +1159,8 @@ describe("deriveInFlight candidate dedupe", () => {
     });
 
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({
+    const entry = expectWorkUnit(entries, "x");
+    expect(entry).toMatchObject({
       kind: "work-unit",
       branch: "feat/x",
       state: "Active",
@@ -1167,6 +1168,15 @@ describe("deriveInFlight candidate dedupe", () => {
       worktreePath: "/repo.x",
       remoteOnly: false,
     });
+    expect(entry.provenance?.map((candidate) => ({
+      branch: candidate.branch,
+      source: candidate.source,
+      selected: candidate.selected,
+    }))).toEqual([
+      { branch: "feat/x", source: "remote-live", selected: false },
+      { branch: "feat/x", source: "worktree", selected: true },
+    ]);
+    expect(warnings).toEqual([]);
   });
 
   it("keeps distinct WUs on similarly named branches as separate entries", async () => {

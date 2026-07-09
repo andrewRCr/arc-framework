@@ -1,6 +1,11 @@
-# Roadmap: ARC Framework Development
+# Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `e95e4b3b`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `5a3b1621`.
+> Source scope: tree + local refs. Live view: `arc status --project`.
+
+## Warnings
+
+- Candidate `origin/plan/burn-in-probe-a` for `burn-in-probe-a` was shadowed by `chore/burn-in-probe-a`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,15 +17,17 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State    | Work unit               | Priority | Owner  | Depends on | Cohort |
-| -------- | ----------------------- | -------- | ------ | ---------- | ------ |
-| `Active` | project-state-integrity | P1       | andrew | —          | —      |
+| State    | Work unit               | Priority | Owner  | Depends on      | Cohort            |
+| -------- | ----------------------- | -------- | ------ | --------------- | ----------------- |
+| `Active` | finalize-parallelism    | P1       | andrew | roadmap-tooling | agile-parallelism |
+| `Active` | project-state-integrity | P1       | andrew | —               | —                 |
+| `Active` | burn-in-probe-a         | P3       | andrew | —               | —                 |
+| `Active` | burn-in-probe-b         | P3       | andrew | —               | —                 |
 
 ## Ready
 
 | Work unit                     | Priority | Owner  | Depends on | Cohort                     |
 | ----------------------------- | -------- | ------ | ---------- | -------------------------- |
-| finalize-parallelism          | P1       | andrew | —          | agile-parallelism          |
 | interlock-release-refinement  | P1       | andrew | —          | approval-flow-refinement   |
 | pr-decomposition              | P1       | andrew | —          | —                          |
 | recovery-hardening            | P1       | andrew | —          | —                          |
@@ -54,8 +61,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | adopter-content-aware-ci      | P3       | andrew | —          | —                          |
 | adr-accept-timing             | P3       | andrew | —          | —                          |
 | arc-reinforce                 | P3       | andrew | —          | —                          |
-| burn-in-probe-a               | P3       | andrew | —          | —                          |
-| burn-in-probe-b               | P3       | andrew | —          | —                          |
 | cohort-cut-coherence          | P3       | andrew | —          | —                          |
 | cohortless-decomposition      | P3       | andrew | —          | —                          |
 | cold-start-init-polish        | P3       | andrew | —          | —                          |

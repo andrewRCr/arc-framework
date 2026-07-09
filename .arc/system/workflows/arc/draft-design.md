@@ -108,10 +108,10 @@ usual.
 1. **Start.** If a `draft-*` already exists (a prior idea or session), read it as the continuity artifact — do
    not rediscover from scratch. Otherwise start from the problem framing.
 2. **Gather context** as the design needs it; note relevance and skip what doesn't apply: project direction
-   (where this fits against `ROADMAP.md`); related prior work (active and archived work units touching this area
-   — decisions made, what was deferred); captured ideas (backlog or inbox entries, other drafts); design context
-   (ADRs and project strategies that constrain the approach); codebase state (modules and patterns the work
-   would touch).
+   (where this fits in the live project status view and backlog source artifacts); related prior work (active
+   and archived work units touching this area — decisions made, what was deferred); captured ideas (backlog or
+   inbox entries, other drafts); design context (ADRs and project strategies that constrain the approach);
+   codebase state (modules and patterns the work would touch).
 3. **Facilitate.** Surface ambiguity, assumptions, alternatives, risks, and scope boundaries — and follow the
    ambiguity rather than force a sequence: when something is underspecified or contradictory, work it through
    before moving on. Prompt material, not a questionnaire: problem and motivation; success and boundaries;
