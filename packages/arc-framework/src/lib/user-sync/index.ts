@@ -31,6 +31,7 @@ export {
   readRecentUserNotes,
   CROSS_WU_NOTE_WINDOW,
   CROSS_WU_NOTE_WINDOW_MS,
+  NOTES_COMPACTION_SNAPSHOT_MESSAGE,
   type NoteEntry,
   type RecentNote,
 } from "./notes-ref.js";

@@ -21,6 +21,13 @@ const USER_NOTES_REF = "refs/notes/arc/user";
 const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
 /**
+ * Commit subject of a compaction snapshot — the in-band marker recent-note
+ * reads use to recognize the snapshot's bulk tree as history rewriting, not
+ * note authorship.
+ */
+export const NOTES_COMPACTION_SNAPSHOT_MESSAGE = "user notes compaction snapshot";
+
+/**
  * Maximum number of recent note versions the cross-WU merge reads after the
  * time horizon is applied.
  */
@@ -46,6 +53,7 @@ export interface NoteEntry {
 interface NotesRefHistoryEntry {
   commit: string;
   committedAt: string | null;
+  subject: string | null;
 }
 
 /** Notes-ref history commits, most-recent first, bounded by `sinceIso`. */
@@ -77,7 +85,7 @@ async function readNotesRefHistoryWithSinceArg(
 ): Promise<string> {
   const { stdout } = await exec("git", [
     "log",
-    "--format=%H%x00%cI",
+    "--format=%H%x00%cI%x00%s",
     sinceArg,
     fullRef,
   ]);
@@ -100,7 +108,13 @@ function isUnsupportedSinceAsFilterError(message: string): boolean {
   );
 }
 
-/** Note paths changed in a single notes-ref history commit. */
+/**
+ * Note paths whose content a single notes-ref history commit added or
+ * modified. Exact renames and deletions are excluded (`-M100%` +
+ * `--diff-filter=AM`): git's automatic notes-tree fanout restructure rewrites
+ * every note path as a pure rename in one commit, and treating those as note
+ * events would grant stale notes fresh recency in the cross-WU merge window.
+ */
 export async function listChangedNotePaths(
   exec: GitExec,
   historyCommit: string,
@@ -112,6 +126,8 @@ export async function listChangedNotePaths(
       "--name-only",
       "-r",
       "--root",
+      "-M100%",
+      "--diff-filter=AM",
       historyCommit,
     ]);
     return stdout.split("\n").map((entry) => entry.trim()).filter(Boolean);
@@ -186,7 +202,9 @@ export async function readNoteContentAtHistoryCommit(
  * annotated-commit resolution, this returns an ordered sequence (most-recent
  * first) so the merge can resolve divergent entries by recency. History commits
  * that do not change note paths are skipped and do not consume the count bound.
- * An empty or absent ref yields an empty sequence.
+ * Compaction snapshot commits are skipped entirely — their bulk tree is
+ * history rewriting, not note authorship, and reading it would fill the window
+ * with arbitrary old notes. An empty or absent ref yields an empty sequence.
  *
  * @param exec - Git runner.
  * @param identity - The user identity whose notes ref to read.
@@ -206,9 +224,10 @@ export async function readRecentUserNotes(
   const history = await readNotesRefHistory(exec, fullRef, new Date(sinceMs).toISOString());
 
   const notes: RecentNote[] = [];
-  for (const { commit: historyCommit, committedAt } of history) {
+  for (const { commit: historyCommit, committedAt, subject } of history) {
     if (notes.length >= limit) break;
     if (committedAt !== null && Date.parse(committedAt) < sinceMs) continue;
+    if (subject === NOTES_COMPACTION_SNAPSHOT_MESSAGE) continue;
     for (const path of await listChangedNotePaths(exec, historyCommit)) {
       if (notes.length >= limit) break;
       if (notePathToCommit(path) === null) continue;
@@ -223,9 +242,9 @@ export async function readRecentUserNotes(
 function parseHistoryEntry(line: string): NotesRefHistoryEntry | null {
   const trimmed = line.trim();
   if (!trimmed) return null;
-  const [commit, committedAt] = trimmed.split("\0");
+  const [commit, committedAt, subject] = trimmed.split("\0");
   if (!commit) return null;
-  return { commit, committedAt: committedAt?.trim() || null };
+  return { commit, committedAt: committedAt?.trim() || null, subject: subject?.trim() || null };
 }
 
 function parseNoteEntry(line: string): NoteEntry | null {
