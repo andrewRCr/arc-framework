@@ -53,28 +53,100 @@ checkout rendered both `Active`.
 
 ### 2. Foreign-write advisory reads divergence as authored overlap
 
-`detectForeignArtifactOverlap` (pre-commit `check-foreign-writes`) can surface the two-dot divergence set
-(`base..candidate`) where the authored three-dot overlap (`base...candidate`, merge-base) is meant — flagging
-files the *other* branch has simply never seen as "also touched." Deterministically reproduced in **both**
-directions: behind-base (probes lagging `main` flagged ~20 backlog drafts they never authored, 2026-07-09
-cascade) and forward (FP's own-artifact commit `4c05c455` flagged FP-side files as probe overlaps). Distinct
-from the 2026-07-06 phantom-meta roster misfire (fixed by `project-state-integrity`); this is the diff-base
-selection in the overlap primitive itself.
+The pre-commit advisory (`check-foreign-writes` → `detectForeignArtifactOverlap`,
+`lib/git/foreign-artifact-detection.ts`) surfaced divergence-shaped lists — files the other branch has simply
+never seen flagged as "also touched." Deterministically reproduced in **both** directions: behind-base (probes
+lagging `main` flagged ~20 backlog drafts they never authored, 2026-07-09 cascade) and forward (FP's
+own-artifact commit `4c05c455` flagged FP-side files as probe overlaps). Distinct from the 2026-07-06
+phantom-meta roster misfire (fixed by `project-state-integrity`).
 
-## Fix shape (to settle at grooming)
+**Grounding correction (2026-07-09 code read):** the committed probe is *already coded three-dot* —
+`git diff ${baseSha}...${candidateSha} --name-only -- <targetPaths>` with SHAs frozen up-front
+(`committedMatches`, `foreign-artifact-detection.ts` ~242–268). So the defect is not a naive diff-base literal;
+the divergence-shaped output must enter through what *feeds* the primitive — candidate branch/SHA pairs from the
+in-flight roster snapshot, stale remote-tracking or shadow refs resolved as candidates, the `baseSha` fallback,
+the uncommitted-status probe, or **local-base-ref staleness**: `baseSha` resolves the *local* base ref
+(`check-foreign-writes.ts` passes `branch.base`, not `origin/<base>`), so when local `main` lags origin and a
+candidate has merged the fresher base, merge-base falls at the old fork point and the three-dot diff lists every
+base-side change the candidate merged — a divergence-shaped list from a correctly-coded three-dot primitive, and
+consistent with "went clean once the probes were current." This half is **reproduce-first**: reproduce at
+`4c05c455` (forward) and against a deliberately behind-base branch (cell 3.2.e's induction — the stale-local-base
+channel is cheap to induce: hold local `main` behind while a sibling merges `origin/main`), trace the actual list
+to its producing path, then fix that path. Regression coverage for both observed directions.
 
-- Overlay the oracle — or minimally a `worktree-roster` read covering the local-sibling case — onto the
-  slug-query/dispatch consumers, while keeping `buildLifecycleIndex` itself pure (its locality is a deliberate
-  `arc-backend` commitment).
-- Per-consumer degradation postures differ: a status query can warn-and-degrade offline; `start` dispatch fails
-  safe — refuse or confirm when the oracle is unreachable, never silently graduate.
-- Correct `detectForeignArtifactOverlap`'s diff-base selection so divergence in either direction never renders
-  as authored overlap; regression coverage for both observed directions.
+## Design decisions (leanings — settle at review)
 
-Open questions for the brief spec: oracle vs. roster-only overlay (network cost on the query path vs. covering
-only local siblings), where the overlay composes (per-consumer vs. a shared resolution layer above the index),
-`occupied`'s contract (state-derived vs. roster-derived), and whether dep-edge reads (`discharge-dep-edges` /
-`ready-mine`) take the same overlay or a narrower in-flight check.
+**D1 — Truth source for the overlay: in-flight oracle, not roster-only.** `worktree-roster` (one local
+`git worktree list --porcelain` + meta reads) covers only *checked-out local siblings*; a live branch whose
+worktree was removed stays invisible, and `start` would still double-launch it. The in-flight oracle
+(`deriveInFlight`, `lib/git/in-flight-derivation.ts`) covers strictly more at a proven cost profile: `localOnly`
+mode is ~4 fixed git calls + 2–3 per in-flight WU, **no network**; live mode adds a single `git ls-remote`
+bounded by a timeout (~0.45 s measured, 5 s cap). Lean: oracle overlay, with `localOnly` defaulting per
+consumer (D3).
+
+**Coverage boundary (adversarial pass, source-verified):** the oracle's candidate set is *local remote-tracking
+refs ∩ live membership* (`resolveInFlightBranchSetFromLocalRefs`, `remote-ref-reader.ts`) — live mode **prunes,
+never expands**, so a sibling branch this machine has *never fetched* (the cross-machine mint) is invisible even
+with a reachable oracle. `fetchRefBounded` exists for exactly this and is currently unwired. Settled: the
+**start-dispatch path wires live-only candidate expansion** — branches in live membership but absent locally
+(`liveRefs − local`) get a bounded `fetchRefBounded` + meta classification before the graduate arm may fire; the
+status query does **not** expand (it defaults `localOnly` anyway) and its never-fetched blindness is an accepted
+residual, recorded here.
+
+**D2 — Composition point: one shared composed-index helper, not per-consumer merges.** The pieces already
+exist: `mergeProjectReadinessRecords` (slug-grouped precedence, at-ref active metas win) and
+`buildLifecycleIndexFromRecords` (index from pre-resolved records). Lean: a `resolveComposedLifecycleIndex`
+(name TBD) that builds the tree index, derives oracle candidates, merges, and returns a plain `LifecycleIndex` —
+so `resolveSlugQuery`, `isOccupied`, and `resolveStartDispatch` run **unchanged** over composed truth, and
+`buildLifecycleIndex` stays pure (the `arc-backend` locality commitment). Consumers opt in by swapping index
+construction, not by learning new APIs.
+
+**D3 — Per-consumer posture.**
+
+- `arc status <slug>`: composed index in `localOnly` mode by default; live upgrade via a new positive `--fetch`
+  flag on the slug query. This **deliberately inverts** the view modes' default (`--project` is live unless
+  `--local`/`--no-fetch`): the slug query is a hot-path interactive primitive (agent loops, session-init Tier-1
+  recon) that must not expose every call to a network timeout, while the destructive edge — `start` — is live by
+  default instead. Asymmetry recorded here as a conscious call. On degraded oracle input, render with the
+  existing degraded-warning pattern — warn-and-degrade, never block.
+- `arc start` dispatch: **live** oracle (one bounded network read is cheap insurance against minting a second
+  branch), with the D1 live-only candidate expansion wired on this path. "Possibly stale" is keyed on **oracle
+  quality, not reachability alone** (adversarial pass, source-verified: a failed/malformed sibling meta read
+  yields an unknown-state entry that `inFlightEntryToCandidate` silently drops while the oracle reports
+  reachable). The graduate arm treats the target as indeterminate — never silently graduates — when *any* of:
+  the oracle is unreachable; the derivation emits an `oracle-degraded` warning or degraded/unknown-state entry
+  naming the target slug; or a live-only expansion fetch for a candidate ref fails. Indeterminate → confirm
+  interactively (reuse `skipConfirm` / `confirmStep`, `handlers/start.ts`); under `--yes` / non-TTY, **refuse**
+  rather than auto-confirm (fail safe beats fail convenient). For dispatch, a dropped/degraded target entry must
+  surface as indeterminate, not read as absent.
+- The worktree-occupancy guard (`lifecycle-guards.ts`) keeps its current-checkout scope — the composed dispatch
+  upstream is what gains sibling sight; the guard stays the last-line local check.
+
+**D4 — `occupied` contract: state-derived over the composed index.** `isOccupied` stays
+`state ∈ {planning, active, integrating}` — unchanged predicate, now truthful because the index it reads is
+composed. No re-keying to roster-derived; optionally enrich the *rendered* query output with the sibling
+worktree path when the roster knows it (display, not contract).
+
+**D5 — Dep-edge reads: split by read/write.** Both consumers take a pre-built index, so composition is a
+construction-site swap at their sources — but they differ in consequence class:
+
+- `buildReadyMineSlice` (read-only render; gates on `shipped`, which the in-flight view doesn't change
+  materially) may take the composed-`localOnly` index if it falls out free from D2; otherwise defer.
+- `dischargeDepEdges` **stays tree-only in this WU** (conscious acceptance of today's conservative-wrong read).
+  It is the one consumer where a stale oracle answer causes a wrong *write*, not a wrong render: it one-shot
+  rewrites the tracked `Depends On` bullet at `landed ∨ integrating`, and meta state is read at the **local**
+  remote-tracking ref even in live mode — an unfetched tip still saying `Integrating` after a sibling ran
+  `arc reopen` reads stale-*forward* and would over-discharge. Giving discharge composed truth needs its own
+  freshness posture (clean, reachable, warning-free derivation covering the edge's slug, or an explicit fetch)
+  — out of scope here; re-evaluate when a consumer actually needs earlier `integrating` sight.
+
+## Non-goals
+
+- No change to `buildLifecycleIndex`'s purity or locality (the `arc-backend` commitment) — composition happens
+  above it.
+- No park-record or backward-transition redesign, and no activation-rename hygiene (stale upstream / shadow
+  `plan/` ref) — both are `wu-lifecycle-state-model`'s, per the standing capture routing.
+- No render/columns work on ROADMAP / STATUS surfaces — `roadmap-tooling`'s.
 
 ## Constraints
 
