@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `7bd82aed`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `f6d3107f`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 ## Warnings
