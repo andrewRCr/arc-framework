@@ -12,11 +12,11 @@
 - **Task List:** `tasks-burn-in-probe-b.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Create the evidence log scaffold (line ~13)
+- **Last Completed:** Task 2.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** integrate-work-unit Step 1 — pre-conditions + entry mode
 
 - **PR URL:** [none]
 - **Completed:** [none]
