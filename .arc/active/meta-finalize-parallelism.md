@@ -12,7 +12,9 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 2.I — Mid-flight build-items integration (Tasks 2.I.1–2.I.2 complete; Phase 2 complete)
+- **Last Completed:** Task 3.1.a — Confirm the wave-1 slate (synthetic-fixture pivot). Since then, a maintenance
+  session unblocked FP: merged `main` (both gates shipped), re-enabled notes, and brought both probe worktrees
+  current — see SESSION-NOTES.
 - **Next Task:** Task 3.1.b — Scaffold, spawn, and groom the synthetic fixtures in-worktree (line ~502)
 - **Blockers:** [none] — both prior gates shipped and are now merged into FP + rebuilt:
   (1) `notes-fetch-refspec-hardening` (the notes-clobber fix, PR #203) and (2) `project-state-integrity` (the
@@ -20,10 +22,11 @@
   derived projection). `roadmap-tooling`'s remaining render/rename scope is **not** an FP dependency and was
   never the FP-critical slice; FP no longer depends on or blocks on it.
 
-- **Next Action:** Unblocked. Notes-sync re-enabled on FP's fixed build this session (`main` merged at
-  `aa264201`, rebuilt, `arc user save` → `arc user sync` converged clean). On resume: continue Task 3.1.b as
-  observer, bring the two paused probe worktrees current (merge `main` / rebuild / lift their FROZEN guards), and
-  drive 3.2–3.3 induction from this observer worktree. Detail in SESSION-NOTES.
+- **Next Action:** Observer resume, gated on the operator advancing both probes to integration-ready (paused
+  **before** merge — the integration-time races are wave-1's signal). Then: verify Task 3.1.c (spawn-anchored
+  launch model), drive 3.2 matrix-cell / 3.3 detector induction live as the two probes integrate concurrently, and
+  record 3.4 findings. New cell 3.2.e added (behind-base foreign-write false-positive); 3.2.a/3.2.c part-evidenced
+  this session. Detail in SESSION-NOTES.
 
 - **PR URL:** [none]
 - **Completed:** [none]
