@@ -12,7 +12,7 @@ import { readdir, stat, writeFile, rename, unlink, mkdir } from "node:fs/promise
 import { randomBytes } from "node:crypto";
 
 /**
- * Write a JSON value to a file atomically using temp-file-then-rename.
+ * Write text to a file atomically using temp-file-then-rename.
  *
  * Creates a unique `.tmp` sibling in the same directory as the target, writes
  * the serialized content there, then renames over the target. On POSIX systems
@@ -25,22 +25,32 @@ import { randomBytes } from "node:crypto";
  * promotes a fully-formed payload, so the target only ever transitions
  * between two valid records.
  *
- * @param targetPath - Absolute path to the JSON file
- * @param data - Value to serialize (pretty-printed with 2-space indent + trailing newline)
+ * @param targetPath - Absolute path to the file
+ * @param content - Complete text content to write
  */
-export async function atomicWriteJson(targetPath: string, data: unknown): Promise<void> {
+export async function atomicWriteFile(targetPath: string, content: string): Promise<void> {
   const dir = dirname(targetPath);
   await mkdir(dir, { recursive: true });
   const tmpPath = join(dir, `.${basename(targetPath)}.${randomBytes(8).toString("hex")}.tmp`);
 
   try {
-    await writeFile(tmpPath, JSON.stringify(data, null, 2) + "\n", "utf-8");
+    await writeFile(tmpPath, content, "utf-8");
     await rename(tmpPath, targetPath);
   } catch (err) {
     // Clean up temp file if it was created before the failure
     await unlink(tmpPath).catch(() => {});
     throw err;
   }
+}
+
+/**
+ * Write a JSON value to a file atomically using temp-file-then-rename.
+ *
+ * @param targetPath - Absolute path to the JSON file
+ * @param data - Value to serialize (pretty-printed with 2-space indent + trailing newline)
+ */
+export async function atomicWriteJson(targetPath: string, data: unknown): Promise<void> {
+  await atomicWriteFile(targetPath, JSON.stringify(data, null, 2) + "\n");
 }
 
 /**

@@ -23,6 +23,7 @@ import {
   buildSaveSummary,
   buildLoadSummary,
   formatWorktreeQualifierLine,
+  hasSaveWarnings,
   UserSaveError,
   type UserSyncState,
 } from "../commands/user.js";
@@ -36,7 +37,7 @@ import { resolveNotesPushPolicy } from "../lib/config/resolved-settings.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
 import {
   isHandledError, isNonInteractiveEnvironment, requireArcProjectRoot, resolveUserIdentity,
-  resolveCurrentBranchName,
+  resolveCurrentBranchName, isUserFetchOutcome, reportUserFetchOutcome,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy shared with the user handlers. */
@@ -215,7 +216,7 @@ async function degradeConflictToSaveOnly(params: DirectionParams): Promise<void>
   try {
     const result = await runUserSave({ cwd, io, identity });
     saveSpinner.stop("Save complete.");
-    if (result.warnings.length > 0) {
+    if (hasSaveWarnings(result)) {
       p.note(buildSaveSummary(result), "Saved");
     }
   } catch (err) {
@@ -257,9 +258,14 @@ async function handlePullDirection(params: DirectionParams): Promise<void> {
       cwd,
       io,
       identity,
-      force: true,
       currentWuName: await resolveCurrentWuName(cwd, io.exec),
     });
+    if (isUserFetchOutcome(result)) {
+      spinner.stop(result.kind === "remote-unavailable" ? "Pull failed." : "Pull skipped.");
+      reportUserFetchOutcome(result, identity, "pull");
+      return;
+    }
+
     if (!result) {
       spinner.stop("No note found.");
       p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
@@ -333,7 +339,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
   try {
     const result = await runUserSave({ cwd, io, identity });
     saveSpinner.stop("Save complete.");
-    if (result.warnings.length > 0) {
+    if (hasSaveWarnings(result)) {
       p.note(buildSaveSummary(result), "Saved");
     }
   } catch (err) {

@@ -357,7 +357,11 @@ describe("classify-change.sh decide (pure arms)", () => {
     base: string,
     head: string,
   ): Promise<{ weight: string | undefined; reason: string | undefined }> {
-    const result = await runScript(CLASSIFY_SCRIPT, ["decide", event, base, head], { cwd: repo });
+    const result = await runScript(
+      CLASSIFY_SCRIPT,
+      ["decide", event, base, head],
+      { cwd: repo, env: { CLASSIFY_CHECK_RUNS_DIR: repo } },
+    );
     expect(result.exitCode).toBe(0);
     const lines = result.stdout.trimEnd().split("\n");
     expect(lines).toHaveLength(2);

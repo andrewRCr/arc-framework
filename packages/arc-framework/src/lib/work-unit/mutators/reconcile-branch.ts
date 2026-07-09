@@ -47,8 +47,10 @@ export interface ReconcileBranchContext {
  *   when its commits are provably preserved — contained in its upstream
  *   (`remote`/`branch`, pushed) or landed in `base` (merged), via the shared
  *   {@link assessReapSafety} oracle. The base leg holds even when the
- *   remote-tracking ref was pruned at merge. The post-merge teardown path; never
- *   touches the remote ref (that is where the work is kept).
+ *   remote-tracking ref was pruned at merge. The post-merge teardown path; it
+ *   never touches the remote ref itself, since preservation may rest on that ref
+ *   alone — the teardown verb owns the remote-head cleanup, gated on the
+ *   stricter landed-in-base proof (see {@link deleteRemoteBranch}).
  * - `preserve` — leave the branch untouched (`park@Active` keeps the pushed
  *   branch as the durable shelf).
  * - `create` — a no-op here; `reconcile-worktree` creates the branch (spawn via
@@ -86,19 +88,7 @@ export async function reconcileBranch(
       return;
     case "delete": {
       await ctx.exec("git", ["branch", "-D", op.branch]);
-      const remote = op.remote ?? DEFAULT_REMOTE;
-      try {
-        await ctx.exec("git", ["push", remote, "--delete", op.branch]);
-      } catch (err) {
-        // Swallow only the benign case: a never-pushed branch has no remote ref
-        // to delete (git reports "remote ref does not exist"), and the local
-        // force-delete above is the authoritative teardown. Actionable failures
-        // (auth, connectivity, wrong remote) must propagate so the executor
-        // reports partial application instead of silently orphaning a remote ref.
-        const detail =
-          (err as { stderr?: string }).stderr ?? (err instanceof Error ? err.message : String(err));
-        if (!/remote ref does not exist|unable to delete/i.test(detail)) throw err;
-      }
+      await deleteRemoteBranch(ctx.exec, op.remote ?? DEFAULT_REMOTE, op.branch);
       return;
     }
     case "delete-merged": {
@@ -121,5 +111,39 @@ export async function reconcileBranch(
     case "preserve":
     case "create":
       return;
+  }
+}
+
+/** Outcome of a live-remote-head delete attempt. */
+export type RemoteBranchDeleteOutcome = "deleted" | "absent";
+
+/**
+ * Delete `branch`'s live head on `remote` (`git push <remote> --delete`),
+ * treating an already-gone ref as the idempotent no-op.
+ *
+ * `absent` covers the benign cases — a never-pushed branch, or a head the
+ * platform already removed at merge (delete-on-merge); git reports "remote ref
+ * does not exist" for both. Actionable failures (auth, connectivity, wrong
+ * remote) propagate so the caller reports partial application instead of
+ * silently orphaning a remote ref.
+ *
+ * @param exec - Injected git executor.
+ * @param remote - The remote whose head is deleted.
+ * @param branch - The branch name whose remote head is deleted.
+ * @returns Whether the head was deleted, or was already absent.
+ */
+export async function deleteRemoteBranch(
+  exec: GitExec,
+  remote: string,
+  branch: string,
+): Promise<RemoteBranchDeleteOutcome> {
+  try {
+    await exec("git", ["push", remote, "--delete", branch]);
+    return "deleted";
+  } catch (err) {
+    const detail =
+      (err as { stderr?: string }).stderr ?? (err instanceof Error ? err.message : String(err));
+    if (!/remote ref does not exist/i.test(detail)) throw err;
+    return "absent";
   }
 }

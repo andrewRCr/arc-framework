@@ -53,6 +53,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `cohortDocPath`             | Pre-resolved path to the active WU's coordinating `cohort-<leaf>.md` (relative to cwd). Present only when the active meta carries a `Cohort` value and the backing doc exists under `backlog/planned/`; omitted otherwise. Read in Step 3's context-load (item 11) to surface cross-member coordination                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `inboxState`                | Pre-computed inbox-state probe. `value.routableCount`: count of routable (well-formed) `USER-INBOX` entries; `value.housekeepNeeded`: true when that count > 0. Present whenever identity resolved (the source is identity-scoped); omitted only when identity is absent. Read by the Orient arm's housekeep intent (Step 2) and surfaced as the Step 6 soft-offer                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `partialPushMarker`         | Pre-computed partial-push-marker surface — consumer of the cohort sibling's sync-state ref. `value.markers`: live, non-expired markers, each a sibling notes push not yet arrived at origin (lag, not loss), carrying `machineId`, `lastAttemptedCommit`, `attemptTimestamp`. Present whenever identity resolved; omitted only when identity is absent. Rendered as Step 6's Aware advisory line, co-located with the base-ref surface; the agent proceeds-with-context and never auto-resolves                                                                                                                                                                                                                                                                                                                       |
+| `compactionAdvisory`        | Pre-computed user-notes compaction advisory. `value.historyCommitCount` / `value.threshold` / `value.shouldSuggest` compare the local notes-ref history size to the internal advisory threshold. `value.nudge` carries the once-per-calendar-day marker state gating the orientation offer. Present whenever identity resolved; omitted only when identity is absent. Offer-only — render `arc user compact` when over threshold and nudgable; never auto-run                                                                                                                                                                                                                                                                                                                                                         |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
 pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
@@ -607,8 +608,8 @@ planning session, assess readiness for the next unit. When a **positional seed**
 **pre-focus** it as the candidate and offer to init it — confirm-only, never auto-init. Absent such a seed:
 
 <!-- arc:if pm.mode == arc-in-git -->
-1. Read `.arc/backlog/ROADMAP.md` — identify the next queued or suggested item
-2. Check `.arc/backlog/` for existing artifacts (PRDs, `draft-*` docs) matching that item
+1. Render the live project status view with `arc status --project` — identify the next queued or suggested item
+2. Check `.arc/backlog/` for the candidate's source artifacts (PRDs, `draft-*` docs, meta)
 3. Report what exists and its readiness state in orientation
 4. Propose next steps (typically `arc start` to initialize the chosen unit, or continue drafting); ask for
    confirmation before proceeding
@@ -770,6 +771,17 @@ tracked source documents the work.
   ```text
   **Notes lag:** {N} sibling notes push(es) attempted but not yet at origin (lag, not loss):
   - `{sha}` attempted {when} by machine `{whose}` — proceed with context; don't force-push to resolve.
+  ```
+
+- `compactionAdvisory.value.shouldSuggest` AND `compactionAdvisory.value.nudge.shouldNudge`: local user-notes ref
+  history exceeds the advisory threshold. Surface one offer-only line for the interlock-gated command; never run
+  compaction automatically. After surfacing, write `compactionAdvisory.value.nudge.today` to
+  `compactionAdvisory.value.nudge.markerPath` (create the parent directory if needed) so the offer batches to
+  once per calendar day.
+
+  ```text
+  **Notes compaction:** user-notes history has {historyCommitCount} commit(s) (threshold {threshold}); run
+  `arc user compact` when ready.
   ```
 
 - `user.value.state == "clean"` AND `user.value.refState == "local-ahead"`:

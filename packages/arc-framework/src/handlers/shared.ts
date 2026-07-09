@@ -12,7 +12,11 @@ import * as p from "@clack/prompts";
 import { resolveIdentity, isGitRepo, type GitExec } from "../lib/git/index.js";
 import { resolveArcRoot } from "../lib/paths.js";
 import { formatError, UserFacingError } from "../lib/errors.js";
-import { UserSaveError } from "../commands/user.js";
+import {
+  UserSaveError,
+  type UserFetchResult,
+  type UserPullResult,
+} from "../commands/user.js";
 import { gitExec } from "../lib/io-context.js";
 import type { SyncOutput } from "../lib/sync-output.js";
 
@@ -77,7 +81,80 @@ export function isHandledError(err: unknown): boolean {
 
 /** Check whether a git error message indicates a missing remote. */
 export function isRemoteError(msg: string): boolean {
-  return msg.includes("Could not read from remote") || msg.includes("No such remote");
+  return msg.includes("Could not read from remote") || isMissingRemoteError(msg);
+}
+
+/** Check whether a git error message indicates the named remote is absent. */
+export function isMissingRemoteError(msg: string): boolean {
+  return msg.includes("No such remote");
+}
+
+/** True when a pull result stopped at the fetch boundary rather than loading disk. */
+export function isUserFetchOutcome(result: UserPullResult): result is UserFetchResult {
+  return result !== null && result.kind !== "loaded";
+}
+
+/** True when a fetch outcome means the remote ref was applied locally. */
+export function isUserFetchSuccess(result: UserFetchResult): boolean {
+  return result.kind === "fast-forwarded" || result.kind === "created";
+}
+
+/** Surface a typed fetch refusal/failure and set the process exit code. */
+export function reportUserFetchOutcome(
+  result: UserFetchResult,
+  identity: string,
+  operation: "fetch" | "pull",
+): void {
+  switch (result.kind) {
+    case "fast-forwarded":
+    case "created":
+      return;
+    case "refused-local-ahead":
+      p.log.error(`Local notes for "${identity}" are ahead of remote; ${operation} would discard them.`);
+      p.log.info("Run `arc user push` or `arc sync` to reconcile, then retry.");
+      process.exitCode = 1;
+      return;
+    case "refused-diverged":
+      p.log.error(`Local and remote notes for "${identity}" have diverged; ${operation} would discard local notes.`);
+      p.log.info("Run `arc user push` or `arc sync` to reconcile, then retry.");
+      process.exitCode = 1;
+      return;
+    case "remote-unavailable": {
+      const msg = result.error.message;
+      if (isMissingRemoteError(msg)) {
+        p.log.error(`No remote configured. ${capitalize(operation)} requires a remote repository.`);
+        p.log.info("Set up a remote with: git remote add origin <url>");
+        process.exitCode = 1;
+        return;
+      }
+
+      if (isRemoteError(msg)) {
+        p.log.error(`Remote unavailable. ${capitalize(operation)} requires access to the remote repository.`);
+        p.log.info("Check network, authentication, and repository permissions, then retry.");
+        process.exitCode = 1;
+        return;
+      }
+
+      if (msg.includes("couldn't find remote ref")) {
+        p.log.warn(`No notes found on remote for identity "${identity}".`);
+        p.log.info("The identity may not have pushed notes, or the name may be incorrect.");
+        process.exitCode = 1;
+        return;
+      }
+
+      p.log.error(`Failed to ${operation} user notes: ${msg}`);
+      process.exitCode = 1;
+      return;
+    }
+    default: {
+      const _exhaustive: never = result;
+      return _exhaustive;
+    }
+  }
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 // --- Identity ---

@@ -11,7 +11,12 @@
  */
 
 import { readRefTip, uniqueRefToken } from "../git/ref-tree.js";
-import type { GitExec } from "../git/exec.js";
+import type { GitExec, GitExecInput } from "../git/exec.js";
+import {
+  adoptCompactedNotesRef,
+  readNotesCompactionManifest,
+} from "./compaction.js";
+import type { NotesCompactionManifest } from "./compaction-manifest.js";
 import { isRemoteUnavailableError } from "./notes-merge.js";
 
 const USER_NOTES_REF_PREFIX = "refs/notes/arc/user";
@@ -29,10 +34,19 @@ export interface BranchBoundedNotesExportTarget {
   destinationRef: string;
   /** Commit sha of the staged notes-ref target. */
   tip: string;
+  /**
+   * Local canonical notes-ref tip observed at plan time. After a successful
+   * push the local ref is fast-forwarded to {@link tip} guarded by this value
+   * (compare-and-swap), so a concurrent save that advanced the local ref
+   * between plan and push is never clobbered.
+   */
+  priorLocalTip: string;
   /** Annotated commits copied from the local notes ref into the target. */
   annotatedCommits: string[];
   /** Local annotated commits deliberately omitted because the branch cannot reach them. */
   omittedCommits: string[];
+  /** Whether the staged tip carries every local `(blob, commit)` pair observed at plan time. */
+  supersedesLocal: boolean;
 }
 
 /** Why planning could not produce an export target. */
@@ -57,6 +71,7 @@ export type PushBranchBoundedNotesExportResult =
 /** Inputs for {@link planBranchBoundedNotesExport}. */
 export interface PlanBranchBoundedNotesExportInput {
   exec: GitExec;
+  execInput?: GitExecInput;
   identity: string;
   /** Branch whose push has just succeeded. */
   branch: string;
@@ -94,18 +109,50 @@ interface NoteEntry {
 export async function planBranchBoundedNotesExport(
   input: PlanBranchBoundedNotesExportInput,
 ): Promise<PlanBranchBoundedNotesExportResult> {
-  const { exec, identity, branch } = input;
+  const { exec, execInput, identity, branch } = input;
   const destinationRef = userNotesRef(identity);
   const tempRef = `${destinationRef}__branch_export_${uniqueRefToken()}`;
 
-  const localTip = await readRefTip(exec, destinationRef);
+  let localTip = await readRefTip(exec, destinationRef);
   if (localTip === null) return { kind: "skipped", reason: "no-local-notes" };
 
-  const localEntries = await listNotes(exec, destinationRef);
+  let localEntries = await listNotes(exec, destinationRef);
   if (localEntries.length === 0) return { kind: "skipped", reason: "no-local-notes" };
 
   try {
     const remoteTip = await readRemoteRefTip(exec, destinationRef);
+    let remoteFetched = false;
+    if (remoteTip !== null) {
+      await deleteRef(exec, tempRef);
+      await exec("git", ["fetch", "--refmap=", "origin", `+${destinationRef}:${tempRef}`]);
+      remoteFetched = true;
+      const boundary = await adoptRemoteCompactionIfNewer({
+        exec,
+        execInput,
+        fullRef: destinationRef,
+        snapshotRef: tempRef,
+      });
+      if (boundary.kind === "conflict") {
+        await deleteRef(exec, tempRef);
+        return { kind: "refused", message: boundary.message };
+      }
+      if (boundary.kind === "failed") {
+        await deleteRef(exec, tempRef);
+        return { kind: "failed", error: boundary.error };
+      }
+      if (boundary.kind === "adopted") {
+        localTip = await readRefTip(exec, destinationRef);
+        if (localTip === null) {
+          await deleteRef(exec, tempRef);
+          return { kind: "skipped", reason: "no-local-notes" };
+        }
+        localEntries = await listNotes(exec, destinationRef);
+        if (localEntries.length === 0) {
+          await deleteRef(exec, tempRef);
+          return { kind: "skipped", reason: "no-local-notes" };
+        }
+      }
+    }
     const localIncludesRemote = remoteTip === null || await isAncestor(exec, remoteTip, localTip);
     const annotatedCommits: string[] = [];
     const omittedCommits: string[] = [];
@@ -117,6 +164,7 @@ export async function planBranchBoundedNotesExport(
         omittedCommits.push(entry.commit);
       }
     }
+    const annotatedSet = new Set(annotatedCommits);
 
     if (annotatedCommits.length === 0) {
       await deleteRef(exec, tempRef);
@@ -124,29 +172,30 @@ export async function planBranchBoundedNotesExport(
     }
 
     if (omittedCommits.length === 0 && localIncludesRemote) {
+      if (remoteFetched) await deleteRef(exec, tempRef);
       return {
         kind: "planned",
         target: {
           ref: destinationRef,
           destinationRef,
           tip: localTip,
+          priorLocalTip: localTip,
           annotatedCommits: annotatedCommits.sort(),
           omittedCommits: [],
+          supersedesLocal: true,
         },
       };
     }
 
-    await deleteRef(exec, tempRef);
-    if (remoteTip !== null) {
-      await exec("git", ["fetch", "origin", `+${destinationRef}:${tempRef}`]);
-    }
+    if (!remoteFetched) await deleteRef(exec, tempRef);
 
     const remoteEntries = new Map(
       (remoteTip === null ? [] : await listNotes(exec, tempRef)).map((entry) => [entry.commit, entry.blob]),
     );
+    const targetEntries = new Map(remoteEntries);
 
     for (const entry of localEntries) {
-      if (!(await isAncestor(exec, entry.commit, branch))) continue;
+      if (!annotatedSet.has(entry.commit)) continue;
       const remoteBlob = remoteEntries.get(entry.commit);
       if (remoteBlob !== undefined && remoteBlob !== entry.blob && !localIncludesRemote) {
         await deleteRef(exec, tempRef);
@@ -157,7 +206,9 @@ export async function planBranchBoundedNotesExport(
             + `${entry.commit.slice(0, 8)} and the local notes ref does not contain origin's notes tip.`,
         };
       }
+      if (remoteBlob === entry.blob) continue;
       await exec("git", ["notes", `--ref=${tempRef}`, "add", "-f", "-C", entry.blob, entry.commit]);
+      targetEntries.set(entry.commit, entry.blob);
     }
 
     const tip = await readRefTip(exec, tempRef);
@@ -171,13 +222,64 @@ export async function planBranchBoundedNotesExport(
         ref: tempRef,
         destinationRef,
         tip,
+        priorLocalTip: localTip,
         annotatedCommits: annotatedCommits.sort(),
         omittedCommits: omittedCommits.sort(),
+        supersedesLocal: containsAllEntries(targetEntries, localEntries),
       },
     };
   } catch (err) {
     await deleteRef(exec, tempRef);
     return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
+  }
+}
+
+async function adoptRemoteCompactionIfNewer(input: {
+  exec: GitExec;
+  execInput?: GitExecInput;
+  fullRef: string;
+  snapshotRef: string;
+}): Promise<
+  | { kind: "adopted" | "not-needed" }
+  | { kind: "conflict"; message: string }
+  | { kind: "failed"; error: Error }
+> {
+  let remoteManifest: NotesCompactionManifest | null;
+  let localManifest: NotesCompactionManifest | null;
+  try {
+    remoteManifest = await readNotesCompactionManifest(input.exec, input.snapshotRef);
+    localManifest = await readNotesCompactionManifest(input.exec, input.fullRef);
+  } catch (err) {
+    return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
+  }
+  if (remoteManifest === null) return { kind: "not-needed" };
+  if (remoteManifest.generation <= (localManifest?.generation ?? 0)) return { kind: "not-needed" };
+  if (input.execInput === undefined) {
+    return {
+      kind: "conflict",
+      message: "Cannot export user notes across a compaction boundary without git plumbing support.",
+    };
+  }
+  const adopt = await adoptCompactedNotesRef({
+    exec: input.exec,
+    execInput: input.execInput,
+    fullRef: input.fullRef,
+    snapshotRef: input.snapshotRef,
+  });
+  switch (adopt.kind) {
+    case "adopted":
+      return { kind: "adopted" };
+    case "not-newer":
+      return { kind: "not-needed" };
+    case "conflict":
+      return { kind: "conflict", message: adopt.message };
+    case "ref-moved":
+      return {
+        kind: "conflict",
+        message: "Concurrent local notes changed during compaction adoption. Retry the paired push.",
+      };
+    case "failed":
+      return { kind: "failed", error: adopt.error };
   }
 }
 
@@ -193,13 +295,58 @@ export async function pushBranchBoundedNotesExport(
   const { exec, target } = input;
   try {
     const remoteTip = await readRemoteRefTip(exec, target.destinationRef);
-    if (remoteTip === target.tip) return { kind: "noop" };
-    await exec("git", ["push", "origin", `${target.ref}:${target.destinationRef}`]);
+    if (remoteTip === target.tip) {
+      await adoptPushedTipIntoLocalRef(exec, target);
+      return { kind: "noop" };
+    }
+    await exec("git", ["push", "origin", `${target.tip}:${target.destinationRef}`]);
+    await adoptPushedTipIntoLocalRef(exec, target);
     return { kind: "pushed" };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
     return { kind: "failed", error };
+  }
+}
+
+/**
+ * After a successful push — or a no-op where origin already carries the pushed
+ * tip — fast-forward the local canonical notes ref to that tip. The rewrite
+ * path stages and pushes a fresh temporary ref but never advances the local
+ * canonical ref, so without this the local ref stays permanently behind origin:
+ * `arc user status` then reports a (benign) `diverged`, and every later push
+ * re-rewrites the whole notes history onto origin — unbounded remote-history
+ * growth.
+ *
+ * Two guards keep it safe:
+ *
+ * - **Content subset** (`supersedesLocal === false`): the pushed tip omits at
+ *   least one local `(blob, commit)` pair, so adopting it would drop notes.
+ *   The local ref keeps its own lineage; a union reconcile for that case is
+ *   out of scope here.
+ * - **Concurrent local advance:** the update is a compare-and-swap against
+ *   {@link BranchBoundedNotesExportTarget.priorLocalTip} (the local tip observed
+ *   at plan time). A concurrent `arc user save` that moved the local ref between
+ *   plan and push fails the swap, so its note is never clobbered — the ref
+ *   reconciles on the next push instead.
+ *
+ * The fast-path target (`ref === destinationRef`) already pushes the canonical
+ * ref itself, so there is nothing to adopt. Best-effort: a failed swap leaves
+ * the local ref where it was (the pre-fix state), never a worse one, and never
+ * changes the already-successful push outcome.
+ */
+async function adoptPushedTipIntoLocalRef(
+  exec: GitExec,
+  target: BranchBoundedNotesExportTarget,
+): Promise<void> {
+  if (target.ref === target.destinationRef) return;
+  if (!target.supersedesLocal) return;
+  try {
+    await exec("git", ["update-ref", target.destinationRef, target.tip, target.priorLocalTip]);
+  } catch {
+    // Best-effort compare-and-swap: a concurrent local advance (CAS mismatch) or
+    // transient failure leaves the local ref where it was — the push already
+    // succeeded, and the ref reconciles on the next push.
   }
 }
 
@@ -270,4 +417,8 @@ async function deleteRef(exec: GitExec, ref: string): Promise<void> {
   } catch {
     // Cleanup is best-effort.
   }
+}
+
+function containsAllEntries(targetEntries: Map<string, string>, localEntries: NoteEntry[]): boolean {
+  return localEntries.every((entry) => targetEntries.get(entry.commit) === entry.blob);
 }

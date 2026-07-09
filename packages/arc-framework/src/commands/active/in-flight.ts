@@ -16,9 +16,10 @@ import type { GitExec } from "../../lib/git/exec.js";
 import {
   deriveInFlight,
   type InFlightEntry,
+  type InFlightInputSnapshot,
+  type InFlightWarning,
   type PrSource,
 } from "../../lib/git/in-flight-derivation.js";
-import { resolveInFlightBranchSet } from "../../lib/git/remote-ref-reader.js";
 import { readErrandSlugByBranch } from "../../lib/errand/record.js";
 
 export interface ActiveInFlightOptions {
@@ -29,6 +30,10 @@ export interface ActiveInFlightOptions {
   teamMode: boolean;
   /** `--local` / `--no-fetch`: skip the network read, derive from local refs. */
   localOnly: boolean;
+  /** Configured base branch; excluded from in-flight classification. */
+  baseBranch?: string;
+  /** Slugs whose checkout lifecycle record classifies them as parked. */
+  parkedSlugs?: ReadonlySet<string>;
   /** Per-read network timeout in ms; defaults to the reader's bound. */
   timeoutMs?: number;
   /** Open-PR enrichment seam; omitted → refs-only. */
@@ -38,6 +43,10 @@ export interface ActiveInFlightOptions {
 export interface ActiveInFlightResult {
   /** Identity-filtered in-flight work units and errands, in oracle (input-branch) order. */
   entries: InFlightEntry[];
+  /** Structured diagnostics emitted while deriving the in-flight set. */
+  warnings: InFlightWarning[];
+  /** Agreed mutable input snapshot used by fire-time probes. */
+  snapshot: InFlightInputSnapshot;
   /**
    * True only when live remote membership was read and pruned against (online).
    * `false` on `--local` / unreachable — entries derive from last-known local
@@ -55,9 +64,23 @@ export interface ActiveInFlightResult {
 export async function runActiveInFlight(
   options: ActiveInFlightOptions,
 ): Promise<ActiveInFlightResult> {
-  const { exec, identity, teamMode, localOnly, timeoutMs, prSource } = options;
-  const { branches, reachable } = await resolveInFlightBranchSet({ exec, localOnly, timeoutMs });
+  const { exec, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
   const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
-  const entries = await deriveInFlight({ exec, branches, identity, teamMode, errandSlugByBranch, prSource });
-  return { entries, reachable };
+  const result = await deriveInFlight({
+    exec,
+    localOnly,
+    baseBranch,
+    timeoutMs,
+    identity,
+    teamMode,
+    errandSlugByBranch,
+    parkedSlugs,
+    prSource,
+  });
+  return {
+    entries: result.entries,
+    warnings: result.warnings,
+    snapshot: result.snapshot,
+    reachable: result.reachable,
+  };
 }

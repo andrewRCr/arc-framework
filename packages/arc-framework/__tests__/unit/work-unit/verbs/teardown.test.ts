@@ -99,6 +99,8 @@ interface ExecOptions {
   branchSurvivesDelete?: boolean;
   /** Whether the local `git branch -D` throws (simulates a force-delete failure). */
   branchDeleteThrows?: boolean;
+  /** `git cherry` body — default empty (every commit landed in base). */
+  cherryOutput?: string;
 }
 
 function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] } {
@@ -112,6 +114,7 @@ function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] }
     if (sub === "worktree" && args[1] === "list") return { stdout: opts.worktreePorcelain ?? "" };
     if (sub === "rev-parse") return { stdout: "deadbeef\n" };
     if (sub === "rev-list") return { stdout: "" }; // contained → safe
+    if (sub === "cherry") return { stdout: opts.cherryOutput ?? "" }; // default: landed in base
     if (sub === "branch" && args[1] === "-D") {
       if (opts.branchDeleteThrows) throw new Error("git branch -D failed");
       const deleted = args[2];
@@ -295,6 +298,78 @@ describe("runTeardown — base refresh before the reap-safety check", () => {
   });
 });
 
+describe("runTeardown — remote-head cleanup (shipped)", () => {
+  it("deletes the live remote head when the landed-in-base proof holds", async () => {
+    const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.branchDeleted).toBe(true);
+    expect(result.remoteBranchDeleted).toBe(true);
+    expect(calls).toContainEqual(["git", "push", "origin", "--delete", "feat/demo"]);
+    // The landed proof is read before the local delete consumes the branch ref.
+    const cherryIdx = calls.findIndex((c) => c[1] === "cherry");
+    const deleteIdx = calls.findIndex((c) => c[1] === "branch" && c[2] === "-D");
+    expect(cherryIdx).toBeGreaterThanOrEqual(0);
+    expect(cherryIdx).toBeLessThan(deleteIdx);
+  });
+
+  it("leaves the remote head when it is the sole proven preservation (upstream-only)", async () => {
+    // `cherry` reports an unlanded commit (the multi-commit-squash shape), while
+    // upstream containment still proves preservation → local delete lands, but
+    // the remote head is where the work is kept — never deleted.
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["feat/demo"],
+      cherryOutput: "+ deadbeef",
+    });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.branchDeleted).toBe(true);
+    expect(result.remoteBranchDeleted).toBe(false);
+    expect(calls.some((c) => c[1] === "push" && c.includes("--delete"))).toBe(false);
+    expect(result.notices.some((n) => /remote branch.*left intact/i.test(n))).toBe(true);
+  });
+
+  it("treats an already-gone remote head as the idempotent no-op (delete-on-merge)", async () => {
+    const { ctx } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
+    const baseExec = ctx.exec;
+    ctx.exec = async (cmd, args) => {
+      if (args[0] === "push" && args.includes("--delete")) throw new Error("remote ref does not exist");
+      return baseExec(cmd, args);
+    };
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.branchDeleted).toBe(true);
+    expect(result.remoteBranchDeleted).toBe(false);
+    expect(result.notices.some((n) => /remote/i.test(n))).toBe(false);
+  });
+
+  it("degrades an actionable remote-head delete failure to a notice, still torn-down", async () => {
+    const { ctx } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
+    const baseExec = ctx.exec;
+    ctx.exec = async (cmd, args) => {
+      if (args[0] === "push" && args.includes("--delete")) throw new Error("connection refused");
+      return baseExec(cmd, args);
+    };
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.branchDeleted).toBe(true);
+    expect(result.remoteBranchDeleted).toBe(false);
+    expect(result.notices.some((n) => /could not delete the remote branch/i.test(n))).toBe(true);
+  });
+});
+
 describe("runTeardown — abandoned mode (un-shipped / force)", () => {
   const PRIMARY_PORCELAIN = "worktree /repo\nHEAD abc\nbranch refs/heads/main\n";
 
@@ -383,9 +458,11 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "shipped" });
 
     expect(result.status).toBe("torn-down");
-    // The merged-safe path consults containment and never force-deletes the remote ref.
+    // The merged-safe path consults containment before any delete; the force path
+    // never does. The remote head is deleted here only because the landed-in-base
+    // proof holds (the spy's `cherry` reports every commit landed).
     expect(calls.some((c) => c[1] === "rev-list" || c[1] === "cherry")).toBe(true);
-    expect(calls.some((c) => c[1] === "push" && c.includes("--delete"))).toBe(false);
+    expect(calls.some((c) => c[1] === "push" && c.includes("--delete"))).toBe(true);
   });
 
   it("in-place arm under abandoned mode: switches the primary to base, no worktree removal", async () => {
@@ -440,6 +517,9 @@ describe("runBranchTeardown — recordless cheap branches", () => {
     expect(result.branch).toBe("chore/groom-demo");
     expect(result.branchDeleted).toBe(true);
     expect(calls).toContainEqual(["git", "branch", "-D", "chore/groom-demo"]);
+    // The cheap-branch path shares the shipped arm, so a lingering live remote
+    // head is cleaned under the same landed-in-base proof.
+    expect(calls).toContainEqual(["git", "push", "origin", "--delete", "chore/groom-demo"]);
     // No lifecycle-index gate: this path is for branch projections with no WU meta.
     expect(calls.some((c) => c[1] === "for-each-ref")).toBe(false);
   });

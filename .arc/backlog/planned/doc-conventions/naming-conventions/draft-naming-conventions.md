@@ -21,6 +21,20 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Include `arc start` ceremony commits in the init/activate footer split**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-07);
+  captured during `finalize-parallelism` Task 2.4.a (`arc start` substrate), 2026-07-04.
+- *Concern:* This WU already carries the `(activation)` init/activate split: `init-work-unit` creates a
+  Planning-state WU, while `activate-work-unit` advances Planning → Active. FP Task 2.4.a adds a formulaic shell
+  `arc start` ceremony commit path that currently stamps `Context: meta-<slug>.md (activation)` for the init/start
+  ceremony, so the split is no longer only workflow prose and hook documentation; it is becoming encoded in CLI
+  helper output and its tests.
+- *Approach:* when reconciling the footer meta-category set, update the `arc start` ceremony message builders /
+  tests in parity with the chosen decision: distinct init context, renamed `activation`, or clarified activation
+  scope. Treat create-new start and graduation/start paths together so the CLI, method docs, commit-msg hook,
+  workflow guidance, and tests stay aligned.
+
 ### `[ ]` **Name extensions by fire-point, not intended action**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-03);

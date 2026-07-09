@@ -14,6 +14,35 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Compose worktree harness-dir registration with harness/tool selection**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: agent-platform-support`), housekeep drain (2026-07-07);
+  captured during `finalize-parallelism` Task 2.1.b review, 2026-07-04.
+- *Concern:* FP added `worktree.harness_dirs` as the immediate copy-from-primary registration list for fresh
+  worktrees. ARC already has rough per-developer harness/tool awareness via `arc.tools`, init/join/reconfigure skill
+  generation, `detectExistingSkillDirs`, and the add-agent / verify-and-configure surfaces. When this WU overhauls
+  that model, decide how the final harness registry composes with `worktree.harness_dirs`: whether the copy list
+  remains explicit config, derives from selected/detected harnesses, or is reconciled by an add-agent / installer
+  workflow.
+- *Approach:* Preserve FP's universal default and zero-per-harness copy behavior for the current flip, but route the
+  longer-term regeneration / registration design into the same per-harness skill-generation and installer planning
+  seam already named in this draft.
+
+### `[ ]` **Cover editor config (`.zed/`) in worktree provisioning, or make it unnecessary**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: finalize-parallelism` — **re-homed here at drain**: this is
+  the same `worktree.harness_dirs` / harness-registry composition concern above, and keeping it off FP avoids
+  expanding the throughput-critical WU), housekeep drain (2026-07-07); captured during session-init tooling
+  diagnosis of Zed markdown warnings in the FP worktree, 2026-07-05.
+- *Concern:* FP's `worktree.harness_dirs` copies agent-harness dirs (`.claude/`, `.codex/`, `.gemini/`) into a
+  spawned worktree, but not editor config like `.zed/`. The repo's markdownlint LSP overrides currently live only in
+  gitignored `.zed/settings.json`, so a spawned worktree lints markdown with stock defaults and floods standard ARC
+  surfaces with MD013/MD007 noise. A DX papercut, not a quality-gate blocker (`npm run -s lint:md` works fine).
+- *Approach:* decide the durable shape — add `.zed/` (an editor-config class) to the default `worktree.harness_dirs`,
+  and/or rely on the LSP-parseability errand (executed in this same housekeep batch — makes the tracked lint config
+  LSP-parseable), which removes the lint-specific need to copy `.zed/` at all and leaves editor-copy for genuinely
+  un-trackable prefs. Reconcile with the harness-registry composition entry above.
+
 ### `[ ]` **Reframe the init-recipe `tools` prompt as harness/tooling, not agent selection**
 
 - *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02).

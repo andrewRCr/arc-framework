@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildLifecycleIndex,
   buildLifecycleIndexFromMetas,
+  buildLifecycleIndexFromRecords,
   type DirEntry,
   type LifecycleIndexFs,
 } from "../../../src/lib/work-unit/lifecycle-index.js";
@@ -263,5 +264,59 @@ describe("buildLifecycleIndexFromMetas — files-in (sync, fs-free)", () => {
     ]);
 
     expect([...index.keys()]).toEqual(["good"]);
+  });
+});
+
+describe("buildLifecycleIndexFromRecords — record-fed (sync, fs-free)", () => {
+  it("indexes resolved lifecycle fields without raw meta text", () => {
+    const index = buildLifecycleIndexFromRecords([
+      {
+        slug: "active-alpha",
+        state: "Active",
+        location: "active",
+        cohort: "ops",
+        dependsOn: ["done-dep"],
+        path: ".arc/active/meta-active-alpha.md",
+      },
+      {
+        slug: "parked-beta",
+        state: "Active",
+        location: "planned",
+        cohort: null,
+        dependsOn: [],
+      },
+      {
+        slug: "shipped-gamma",
+        state: "Shipped",
+        location: "completed",
+        cohort: "archive",
+        dependsOn: [],
+      },
+      {
+        slug: "legacy",
+        state: "Paused",
+        location: "active",
+        cohort: null,
+        dependsOn: [],
+      },
+    ]);
+
+    expect(index.get("active-alpha")).toEqual({
+      slug: "active-alpha",
+      phase: "Active",
+      location: "active",
+      cohort: "ops",
+      dependsOn: ["done-dep"],
+      path: ".arc/active/meta-active-alpha.md",
+    });
+    expect(index.get("parked-beta")).toMatchObject({
+      phase: "Active",
+      location: "planned",
+      cohort: null,
+      dependsOn: [],
+    });
+    expect(index.get("parked-beta")?.path).toContain("meta-parked-beta.md");
+    expect(index.get("shipped-gamma")?.location).toBe("completed");
+    expect(index.has("legacy")).toBe(false);
   });
 });

@@ -40,6 +40,8 @@ export interface FindMaterializableWorkUnitsOptions {
 export interface MaterializableWorkUnitsResult {
   /** Remote-only owned work units materializable as cross-machine pickups. */
   candidates: MaterializableWorkUnit[];
+  /** Soft diagnostics emitted by the in-flight oracle feeding this slice. */
+  warnings?: string[];
 }
 
 /**
@@ -60,6 +62,9 @@ export function findMaterializableWorkUnits(
   for (const entry of entries) {
     if (entry.kind !== "work-unit") continue;
     if (!entry.remoteOnly) continue;
+    if (entry.scheduling === "parked") continue;
+    if (entry.state === "Shipped") continue;
+    if (entry.marks !== undefined && entry.marks.length > 0) continue;
     if (identity !== null && entry.owner !== undefined && entry.owner !== identity) continue;
     candidates.push({ name: entry.name, branch: entry.branch });
   }

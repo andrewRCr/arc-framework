@@ -4,9 +4,9 @@
  * The ready slice is the second source behind the user view (alongside the
  * git-derived in-flight slice): the work that is *ready to start now*. A planned
  * work unit qualifies when it is **owned by the identity** and **unblocked** —
- * every listed dependency has shipped, resolved by absence from the still-pending
- * pipeline (active + planned + provisional), per the readiness model the project
- * readiness view renders from.
+ * every listed dependency resolves shipped through the lifecycle index, per the
+ * readiness model the project readiness view renders from. Missing targets do
+ * not satisfy an edge.
  *
  * Two resolutions happen here, the boundary between the raw planned facts and the
  * view contract:
@@ -25,6 +25,8 @@
  */
 
 import { validateClass, validatePriority } from "../../commands/active/types.js";
+import type { LifecycleIndex } from "../work-unit/lifecycle-index.js";
+import { resolveSlugQuery } from "../work-unit/lifecycle-query.js";
 
 import type { StatusViewRow } from "./render.js";
 
@@ -53,24 +55,23 @@ function isMine(owner: string | undefined, identity: string | null): boolean {
  * Build the ready-mine slice from parsed planned work units.
  *
  * Filters to the identity's unblocked planned work: owned (or unattributed) and
- * carrying no dependency still present in `pendingNames` (the active + planned +
- * provisional pipeline). A dependency absent from that set has shipped, so it is
- * satisfied. Ready rows carry no dependency cell (every dep is satisfied) and a
- * constant `Planning` state.
+ * carrying only dependencies that resolve shipped through the lifecycle index.
+ * Ready rows carry no dependency cell (every dep is satisfied) and a constant
+ * `Planning` state.
  *
  * @param planned - Parsed planned work units (one per `backlog/planned/` meta).
- * @param pendingNames - WU-names still in the active + planned + provisional pipeline.
+ * @param lifecycleIndex - Lifecycle-complete slug index for dependency classification.
  * @param identity - Owner to filter to; `null` keeps every planned WU.
  * @returns Render rows for the identity's ready planned work units.
  */
 export function buildReadyMineSlice(
   planned: readonly PlannedWorkUnit[],
-  pendingNames: ReadonlySet<string>,
+  lifecycleIndex: LifecycleIndex,
   identity: string | null,
 ): StatusViewRow[] {
   return planned
     .filter((wu) => isMine(wu.owner, identity))
-    .filter((wu) => wu.dependsOn.every((dep) => !pendingNames.has(dep)))
+    .filter((wu) => wu.dependsOn.every((dep) => resolveSlugQuery(lifecycleIndex, dep).shipped))
     .map((wu) => ({
       workUnit: wu.name,
       state: "Planning" as const,

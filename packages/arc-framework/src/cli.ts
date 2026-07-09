@@ -63,7 +63,8 @@ import {
   type DecomposeOptions,
 } from "./handlers/lifecycle.js";
 import {
-  handleUserAdd, handleUserClose, handleUserInboxRemove, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
+  handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
+  handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
@@ -418,6 +419,12 @@ userCmd
   .action(handleUserPull);
 
 userCmd
+  .command("compact")
+  .description("Compact user notes history to a retained snapshot baseline")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleUserCompact);
+
+userCmd
   .command("status")
   .description("Inspect local, remote, and on-disk user sync state (includes worktree-drift qualifier)")
   .option("--offline", "Skip remote and worktree probes; inspect only local snapshot vs disk")
@@ -518,15 +525,21 @@ program
     new Option(
       "--user",
       "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
-    ).conflicts(["session-init", "session-handoff", "recover"]),
+    ).conflicts(["session-init", "session-handoff", "recover", "project"]),
   )
-  .option("--local", "With --user: skip the network read; render from local refs (alias: --no-fetch)")
-  .option("--no-fetch", "With --user: skip the network read; render from local refs")
+  .addOption(
+    new Option(
+      "--project",
+      "Render the live project status view",
+    ).conflicts(["session-init", "session-handoff", "recover", "user"]),
+  )
+  .option("--local", "With --user/--project: skip the network read; render from local refs (alias: --no-fetch)")
+  .option("--no-fetch", "With --user/--project: skip the network read; render from local refs")
   .addOption(
     new Option(
       "--write-compaction-seed",
       "With --session-init: write the machine-local compaction recovery seed",
-    ).conflicts(["recover", "session-handoff", "user"]),
+    ).conflicts(["recover", "session-handoff", "user", "project"]),
   )
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);

@@ -51,3 +51,27 @@
 
 - _Captured during:_ dependency/audit follow-up errand (`USER-INBOX § Atomic`, 2026-06-05); re-homed to the shared
   inbox as a homeless, trigger-gated project concern.
+
+### `[ ]` **Pin the two-copy parity of Framework hook recipes in tests**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-07) — homeless atomic, deferred; captured during
+  PR #189 CodeRabbit review (compaction-recovery hook-resolution hardening errand).
+- _Observation:_ `codex-cli.test.ts` reads only the authoritative
+  `packages/arc-framework/arc/system/.internal/harness-hooks/codex-cli/hooks.json` copy (`hookRoot`), so the shipped
+  `.arc/system/...` mirror can silently drift out of parity — no automated test catches a divergence between the two
+  copies. The copies are currently byte-identical; the gap is the missing guard, not a live drift.
+- _Approach:_ add a byte-for-byte parity assertion between the two copies to the harness-hooks unit suite — or, more
+  broadly, a shared Framework-file two-copy parity check if other `.arc/**` mirrors share the same test-side
+  exposure. Scope to whichever check is cheap and general.
+
+### `[ ]` **Add progress feedback (spinners) to `arc start`'s slow legs**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-07) — self-contained UX, deferred; captured during
+  `finalize-parallelism` wave-1 spawn, 2026-07-06 (perceived-hang observed live).
+- _Observation:_ `arc start`'s spawn runs several multi-second legs silently between the clack intro and the final
+  "Graduated" note — `git worktree add`, `post_create` provisioning (`npm install`), harness-dir copy, ROADMAP regen,
+  ceremony commit + push. The handler uses only `p.intro` / `p.log` / `p.note` (no `p.spinner`), so it reads as a
+  hang for several seconds.
+- _Approach:_ Wrap each slow leg in a clack `p.spinner()` with a label ("Spawning worktree…", "Provisioning
+  dependencies…", "Copying harness layer…", "Graduating…", "Committing & pushing…"). Generalize the pass to other
+  long-running commands with the same silence (`materialize`, `sync`).
