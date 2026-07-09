@@ -105,6 +105,31 @@ describe("runErrandState", () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
+  it("preserves oracle warnings when discovery is disabled", async () => {
+    const exec = buildExec();
+
+    const result = await runErrandState({
+      exec,
+      currentBranch: "main",
+      hasBackingMeta: false,
+      includeDiscovery: false,
+      entries: null,
+      oracleWarnings: ["Unable to list git worktrees; local checkout status is degraded."],
+      records: [],
+      baseBranch: "main",
+      staleThresholdDays: 1,
+      nudge: nudge(false),
+      now: NOW,
+    });
+
+    expect(result.inFlight.errands).toEqual([]);
+    expect(result.materializable.candidates).toEqual([]);
+    expect(result.warnings).toEqual([
+      "Unable to list git worktrees; local checkout status is degraded.",
+    ]);
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it("does not flag a record-less current branch as resumable (identity is record-only)", async () => {
     const exec = buildExec();
 

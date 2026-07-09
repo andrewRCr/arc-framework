@@ -1,7 +1,7 @@
 # Notes: Project State Integrity
 
 Reference context for task generation and execution — implementation loci, verified evidence, and rationale
-detail the spec summarizes.
+detail that the spec summarizes.
 
 ## Implementation loci (verified 2026-07-08; paths re-verified at task generation)
 

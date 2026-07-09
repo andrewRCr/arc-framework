@@ -6,7 +6,13 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { handleStatus } from "../../src/handlers/status.js";
-import { cleanupTempDir, createTempRepo } from "../helpers/integration.js";
+import { writeErrandRecord } from "../../src/lib/errand/record.js";
+import {
+  cleanupTempDir,
+  createTempRepo,
+  makeGitExec,
+  makeGitExecInput,
+} from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -82,6 +88,21 @@ describe("arc status --project", () => {
     await writeFile(join(repo, ".arc", "active", "meta-ref-only.md"), meta("ref-only", "Active", "plan/ref-only"));
     await commitAll(repo, "activate ref-only");
     await execFileAsync("git", ["push", "-u", "origin", "plan/ref-only"], { cwd: repo });
+
+    await execFileAsync("git", ["checkout", "-b", "chore/ref-only-errand", "main"], { cwd: repo });
+    await execFileAsync("git", ["push", "-u", "origin", "chore/ref-only-errand"], { cwd: repo });
+    await writeErrandRecord(
+      { exec: makeGitExec(repo), execInput: makeGitExecInput(repo), identity: "andrew" },
+      {
+        version: 1,
+        slug: "ref-only-errand",
+        origin: "description",
+        intent: "verify project status ignores errand refs",
+        branch: "chore/ref-only-errand",
+        createdAt: "2026-07-09T00:00:00.000Z",
+      },
+    );
+
     await execFileAsync("git", ["checkout", "main"], { cwd: repo });
 
     const originalCwd = process.cwd();
@@ -101,7 +122,8 @@ describe("arc status --project", () => {
     expect(result.output).toContain("# Roadmap: Project Status");
     expect(result.output).toContain("Source scope: tree + live refs.");
     expect(result.output).toContain("| `Active` | ref-only");
-    expect(result.output).toContain("| ref-only  | P1");
+    expect(result.output).toMatch(/\|\s*ref-only\s*\|\s*P1\b/u);
+    expect(result.output).not.toContain("ref-only-errand");
     expect(sectionBetween(result.output, "## Ready", "## Blocked")).not.toContain("ref-only");
     expect(result.exitCode).toBeUndefined();
   });

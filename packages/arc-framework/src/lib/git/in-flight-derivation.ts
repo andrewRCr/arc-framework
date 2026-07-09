@@ -670,12 +670,11 @@ async function classifyInput(
   const warnings: InFlightWarning[] = [];
   for (const metaPath of listed.paths) {
     const candidate = await readMetaCandidate(exec, ref, branch, metaPath);
-    warnings.push(...candidate.warnings);
-    if (candidate.candidate !== null) {
-      warnings.push(...candidate.candidate.warnings);
+    if (candidate !== null) {
+      warnings.push(...candidate.warnings);
       metas.push({
-        ...candidate.candidate,
-        marks: [...(input.marks ?? []), ...candidate.candidate.marks],
+        ...candidate,
+        marks: [...(input.marks ?? []), ...candidate.marks],
       });
     }
   }
@@ -932,70 +931,58 @@ async function readMetaCandidate(
   ref: string,
   branch: string,
   metaPath: string,
-): Promise<{ candidate: MetaCandidate | null; warnings: InFlightWarning[] }> {
+): Promise<MetaCandidate | null> {
   const name = nameFromMetaPath(metaPath);
   let content = await readMetaAtRef({ exec, ref, metaPath });
   if (content === null) {
     content = await readMetaAtRef({ exec, ref, metaPath });
   }
   if (content === null) {
-    return {
-      candidate: degradedMetaCandidate({
-        name,
-        metaPath,
-        branch,
-        code: "meta-read-failed",
-        rendered: `Unable to read \`${metaPath}\` at \`${ref}\`.`,
-      }),
-      warnings: [],
-    };
+    return degradedMetaCandidate({
+      name,
+      metaPath,
+      branch,
+      code: "meta-read-failed",
+      rendered: `Unable to read \`${metaPath}\` at \`${ref}\`.`,
+    });
   }
 
   const record = parseRecord(content);
   if (record === null) {
-    return {
-      candidate: degradedMetaCandidate({
-        name,
-        metaPath,
-        branch,
-        code: "meta-malformed",
-        rendered: `Malformed meta \`${metaPath}\` at \`${ref}\`.`,
-      }),
-      warnings: [],
-    };
+    return degradedMetaCandidate({
+      name,
+      metaPath,
+      branch,
+      code: "meta-malformed",
+      rendered: `Malformed meta \`${metaPath}\` at \`${ref}\`.`,
+    });
   }
 
   const branchField = record.Branch;
   if (branchField === null || branchField === "[none]" || branchField.trim() === "") {
     return {
-      candidate: {
-        name,
-        metaPath,
-        record,
-        relation: "missing-branch",
-        marks: ["degraded"],
-        warnings: [
-          warning({
-            code: "branch-field-missing",
-            branch,
-            workUnit: name,
-            rendered: `Meta \`${metaPath}\` at \`${ref}\` has no usable Branch field.`,
-          }),
-        ],
-      },
-      warnings: [],
+      name,
+      metaPath,
+      record,
+      relation: "missing-branch",
+      marks: ["degraded"],
+      warnings: [
+        warning({
+          code: "branch-field-missing",
+          branch,
+          workUnit: name,
+          rendered: `Meta \`${metaPath}\` at \`${ref}\` has no usable Branch field.`,
+        }),
+      ],
     };
   }
 
   return {
-    candidate: {
-      name,
-      metaPath,
-      record,
-      relation: branchField === branch ? "consistent" : "stale",
-      marks: [],
-      warnings: [],
-    },
+    name,
+    metaPath,
+    record,
+    relation: branchField === branch ? "consistent" : "stale",
+    marks: [],
     warnings: [],
   };
 }

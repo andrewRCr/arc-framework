@@ -104,7 +104,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
   });
 
   if (!options.includeDiscovery) {
-    return emptyDiscovery(resume, options.nudge, []);
+    return emptyDiscovery(resume, options.nudge, oracleWarnings);
   }
   if (options.entries === null) {
     return emptyDiscovery(

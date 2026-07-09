@@ -396,6 +396,9 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       reachable: boolean;
     }> => {
       oraclePromise ??= (async () => {
+        // Fire the dead-ref prune before derivation so every oracle caller
+        // observes the same pruned ref set, regardless of call order.
+        await pruneRemoteTrackingRefs(gitExec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
         const [records, parkedSlugs] = await Promise.all([
@@ -528,9 +531,6 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         let entries: InFlightEntry[] | null = null;
         let oracleWarnings: string[] = [];
         if (input.includeDiscovery) {
-          // Fire the dead-ref prune (hygiene backstop) before the oracle so the
-          // derivation's double-read never observes our own prune in progress.
-          await pruneRemoteTrackingRefs(gitExec);
           const oracle = await getOracle();
           entries = oracle.reachable ? oracle.entries : null;
           oracleWarnings = oracle.warnings.map(renderInFlightWarning);
@@ -664,7 +664,11 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
   if (opts.project) {
     const resolved = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
     const localOnly = Boolean(opts.local) || opts.fetch === false;
-    const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd, fs: lifecycleFs }));
+    const [parkedSlugs, errandRecords] = await Promise.all([
+      buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
+      identity === null ? Promise.resolve([]) : listErrandRecords({ exec: gitExec, identity }),
+    ]);
+    const errandSlugByBranch = new Map(errandRecords.map((record) => [record.branch, record.slug]));
     const input = await resolveProjectReadinessViewInput({
       cwd,
       fs: lifecycleFs,
@@ -673,6 +677,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         localOnly,
         baseBranch: resolved.settings["branch.base"],
         parkedSlugs,
+        errandSlugByBranch,
       },
     });
     const result = composeProjectReadinessViewResult({

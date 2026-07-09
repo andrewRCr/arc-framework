@@ -128,6 +128,7 @@ export interface ProjectReadinessOracleOptions {
   /** `true` skips the network read and renders from last-known local refs. */
   localOnly?: boolean;
   baseBranch?: string;
+  errandSlugByBranch?: ReadonlyMap<string, string>;
   parkedSlugs?: ReadonlySet<string>;
   timeoutMs?: number;
 }
@@ -473,6 +474,7 @@ async function resolveOracleCandidates(
     timeoutMs: options.timeoutMs,
     identity: null,
     teamMode: false,
+    errandSlugByBranch: options.errandSlugByBranch,
     parkedSlugs: options.parkedSlugs,
   });
   const candidates = result.entries
