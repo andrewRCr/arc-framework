@@ -17,14 +17,13 @@ _Purpose:_ Capture the lifecycle evidence this disposable Wave 1 fixture exists 
 - _Outcome:_ Created `notes-burn-in-probe-a.md` with the observed spawn/session-init facts, PR #201/#202
   notes-status reprobes, artifact-placement correction, stale-upstream recovery, and sibling-touch warnings.
 
-### `[ ]` **1.2 Exercise handoff and resume evidence**
+### `[x]` **1.2 Exercise handoff and resume evidence**
 
 - _Goal:_ The evidence log shows whether first-handoff notes save/load works for this work unit.
 
-    - Run the normal handoff/resume path far enough to trigger the first save of this work unit's
-      `SESSION-NOTES`.
-    - After resume, re-run the session-init probe and record whether it loads the saved notes without false drift.
-    - Route any unexpected notes behavior to the owning work unit or capture surface rather than fixing it here.
+- _Outcome:_ Ran the active-WU handoff path, synced the handoff note via a paired worktree/notes push, and
+  recorded the post-handoff session-init result in `notes-burn-in-probe-a.md`: saved notes were current at
+  `f29419c9`, with no false drift or reconcile prompt.
 
 ### `[ ]` **1.3 Capture sibling coordination and integration evidence**
 

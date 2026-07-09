@@ -21,6 +21,23 @@
   `SESSION-NOTES seeded on disk for this work unit; not yet saved to the notes ref (saves at first handoff).`
 - Later reprobes after planning finalization and activation continued to report the same seeded-on-disk /
   not-yet-saved status, with no false notes-drift advisory.
+- After merging current `main` through PR #214 into this branch, session-init reported
+  `andrew: session-init local notes match remote notes` and `Latest local user note is current with HEAD` at
+  `aa682027`. The earlier seeded-on-disk / not-yet-saved message was gone because the notes ref had been
+  re-anchored during the interim notes-sync recovery work.
+
+### First Handoff Save And Resume Reprobe
+
+- Ran the active-WU handoff path from a clean `chore/burn-in-probe-a` worktree. The handoff meta commit
+  `f29419c9` advanced the next-session pointer from Task 1.1 to Task 1.2.
+- Replaced the per-WU `SESSION-NOTES.md` with a minimal execution handoff anchored to `f29419c9`; no
+  uncommitted work or extra step-zero context was needed.
+- `npx arc sync --json` returned `cell: paired-push`; the worktree leg was `push/success` and the notes leg was
+  `save+push/success`.
+- The post-handoff session-init reprobe reported `andrew: session-init local notes match remote notes`, with
+  local note freshness `current-head` at `f29419c9`, `recommendedCombinedPrompt: null`, and no false notes-drift
+  or reconcile prompt. The recovered load set included
+  `.arc/user/andrew/burn-in-probe-a/SESSION-NOTES.md` as a full read.
 
 ### Base Merge And Reprobe History
 
