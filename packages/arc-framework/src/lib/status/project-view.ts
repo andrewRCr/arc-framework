@@ -112,7 +112,7 @@ export interface ProjectReadinessViewInput {
 export interface ResolveProjectReadinessViewInputOptions {
   /** Repository root containing `.arc/`. */
   cwd: string;
-  /** Optional H1 text without the leading `#`; existing ROADMAP title is preserved when omitted. */
+  /** Optional H1 text without the leading `#`; omitted uses the renderer default. */
   title?: string;
   /** Injectable filesystem for tests and handler-owned I/O contexts. */
   fs?: ProjectViewFs;
@@ -324,16 +324,9 @@ export function mergeProjectReadinessRecords(
     });
 }
 
-/** Preserve a project-specific ROADMAP H1 when one already exists. */
-async function resolveTitle(cwd: string, fs: ProjectViewFs, title: string | undefined): Promise<string> {
-  if (title !== undefined) return title;
-  try {
-    const firstLine = (await fs.readFile(join(cwd, ".arc", "backlog", "ROADMAP.md"))).split(/\r?\n/, 1)[0];
-    if (firstLine?.startsWith("# ")) return firstLine.slice(2).trim();
-  } catch {
-    // No existing ROADMAP: fall through to the generated default.
-  }
-  return DEFAULT_TITLE;
+/** Resolve the project-readiness view title from render inputs only. */
+function resolveTitle(title: string | undefined): string {
+  return title ?? DEFAULT_TITLE;
 }
 
 /** Resolve tree-backed records and the title read into a compose-ready input. */
@@ -342,7 +335,7 @@ export async function resolveProjectReadinessViewInput(
 ): Promise<ProjectReadinessViewInput> {
   const fs = options.fs ?? DEFAULT_FS;
   return {
-    title: await resolveTitle(options.cwd, fs, options.title),
+    title: resolveTitle(options.title),
     records: mergeProjectReadinessRecords(await loadProjectRecords(options.cwd, fs)),
     derivationWarnings: [],
   };

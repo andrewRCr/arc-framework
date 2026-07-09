@@ -265,12 +265,13 @@ seams; reground them against the codebase as it exists then.
   provider behavior-identical to the prior collapse. Tier membership now composes both facts without storing any
   new `State` value.
 
-### `[ ]` **4.4 Retire the title read-back**
+### `[x]` **4.4 Retire the title read-back**
 
 - _Goal:_ No consumer reads `ROADMAP.md` back as data (terminal-render invariant).
 
-    - The render layer supplies the title (constant / config); delete `resolveTitle`'s H1 read-back
-      (`project-view.ts` ~159–168) — the only `ROADMAP.md` data read-back in `src/`.
+- _Outcome:_ `resolveProjectReadinessViewInput` now resolves the project-readiness title from the supplied render
+  input or the renderer default only. The former H1 preservation path no longer reads `ROADMAP.md`; remaining
+  source references are writes, staging paths, or templates.
 
 ## **Phase 5:** Two render surfaces
 

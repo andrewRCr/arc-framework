@@ -107,6 +107,24 @@ describe("composeProjectReadinessView", () => {
     expect(view).toContain("| ready-beta | P2");
     expect(view).toContain("| blocked-gamma | P3");
   });
+
+  it("uses the default title without reading the existing ROADMAP", async () => {
+    const readPaths: string[] = [];
+
+    const input = await resolveProjectReadinessViewInput({
+      cwd: "/repo",
+      fs: {
+        readdir: async () => [],
+        readFile: async (path) => {
+          readPaths.push(path);
+          throw new Error(`unexpected read: ${path}`);
+        },
+      },
+    });
+
+    expect(input.title).toBe("Roadmap: Project Readiness");
+    expect(readPaths).toEqual([]);
+  });
 });
 
 describe("mergeProjectReadinessRecords", () => {
