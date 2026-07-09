@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "init-pull-base-always",
-  "origin": "description",
-  "intent": "set session.init_pull.base to always so the local base ref auto-fast-forwards at session-init",
-  "branch": "chore/init-pull-base-always",
-  "createdAt": "2026-07-09T23:42:17.870Z"
-}
