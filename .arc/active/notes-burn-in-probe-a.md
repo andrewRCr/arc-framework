@@ -1,5 +1,16 @@
 # Notes: burn-in-probe-a
 
+## Contents
+
+- [Evidence Log](#evidence-log)
+    - [Spawned Worktree And Session Bootstrap](#spawned-worktree-and-session-bootstrap)
+    - [Notes Status Reprobes](#notes-status-reprobes)
+    - [First Handoff Save And Resume Reprobe](#first-handoff-save-and-resume-reprobe)
+    - [Base Merge And Reprobe History](#base-merge-and-reprobe-history)
+    - [Sibling Coordination Observations](#sibling-coordination-observations)
+    - [Final Base And Coordination Reprobe](#final-base-and-coordination-reprobe)
+    - [Integration Entry And PR Readiness](#integration-entry-and-pr-readiness)
+
 ## Evidence Log
 
 ### Spawned Worktree And Session Bootstrap
@@ -52,17 +63,17 @@
   `origin/plan/burn-in-probe-a` upstream. Clearing the stale upstream changed the session-init surface from
   `branch-gone` to the expected no-upstream state for an unpushed activated branch.
 
-### Sibling Coordination Observations So Far
+### Sibling Coordination Observations
 
 - Planning and activation commits triggered foreign-owned-write warnings for surfaces also touched by
   `feat/finalize-parallelism` and `burn-in-probe-b`. The warnings were advisory and expected for this burn-in
-  setup; later integration should record whether they remain loud and recoverable.
+  setup; the integration transition later confirmed that they remained loud and recoverable.
 - The handoff meta commit `f29419c9` warned that `chore/burn-in-probe-b` and `feat/finalize-parallelism` also
   touch `meta-burn-in-probe-a.md`; the Task 1.2 evidence commit `39d3d505` warned that the same siblings also
   touch `notes-burn-in-probe-a.md` and `tasks-burn-in-probe-a.md`. Both checks passed and the warnings stayed
   advisory, explicit, and recoverable.
 
-### Final Base And Coordination Reprobe Before Verification
+### Final Base And Coordination Reprobe
 
 - Refreshed `origin/main`; it still pointed at PR #214 (`fix/fix-notes-window-bulk-rewrites`) and was already
   contained in `HEAD`, so no base merge was needed. The ancestry check reported `HEAD...origin/main` as `11 0`.
@@ -73,3 +84,16 @@
   handoff save; this is expected until the next handoff or explicit sync.
 - No silent lifecycle/state contention surfaced: sibling overlap was visible through pre-commit advisories, base
   freshness was explicit, and session-init recovered the current task cursor without ambiguity.
+
+### Integration Entry And PR Readiness
+
+- `npx arc integrate burn-in-probe-a` flipped the fixture from `Active` to `Integrating`, regenerated ROADMAP,
+  and landed the integration pointer at `cf364aca` with no uncommitted residue.
+- A concurrent primary-checkout transition introduced `notes-export-state-coherence` between the initial render
+  and commit. The staged-index ROADMAP assertion rejected the stale projection; re-rendering against the updated
+  local-ref roster produced the correct two-Planning-WU view and the integration commit then passed. The failure
+  was loud, safe, and directly recoverable.
+- PR #215 opened mergeable. The full local Tier 3 gate passed (4,132 tests across 301 test files, lint, shellcheck,
+  source + test typecheck, build, and Markdown lint), and both required GitHub checks completed successfully.
+- Foreign-write overlap remained an explicit advisory during the integration transition; it did not block or
+  silently rewrite any fixture, sibling, or observer artifact.
