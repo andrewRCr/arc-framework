@@ -184,6 +184,17 @@ classification. The deterministic renderer shipped by `project-state-integrity` 
 across all three worktrees, and the pre-commit regen assert (`assert-roadmap-regenerated`) passed on each merge
 commit. First field validation that the state-integrity slice closes cell 3.2.c's silent-stale-render hazard.
 
+**Foreign-write advisory vs. behind-base divergence (new — feeds cell 3.2.e):** the pre-commit foreign-write
+advisory fired throughout the cascade, listing ~20 backlog drafts as "also touched" by each probe — but those are
+files `main` changed in the 105 commits the probes lagged, not files the probes authored. The committed-overlap
+primitive is *coded* three-dot (`base...candidate`, merge-base — probe-a's own changes since fork = 3 files), yet
+the surfaced list matched the two-dot divergence (`main..probe` = 192 files). Whichever internal path produced the
+two-dot-shaped list, the advisory can false-positive on a badly-behind-base branch; it went clean once the probes
+were current + the stale `origin/plan/burn-in-probe-a` shadow ref was deleted. This is **distinct from** the
+2026-07-06 phantom *meta*-overlap (roster derivation), which `project-state-integrity` fixed — separately
+re-verified here: the detector is clean against `meta-finalize-parallelism.md`. Captured as task 3.2.e for
+deliberate induction; if it reproduces, it is a `detectForeignArtifactOverlap` defect routed as a discovered seam.
+
 **Caveat:** opportunistic, not the full induced interleaving — the deliberate A-save/B-save/A-paired-push ordering
 (3.2.a) and concurrent same-instant regen (3.2.c) still run under 3.2 induction. But the invariants held under real
 concurrent load, and nothing observed contradicts the predicted classifications.

@@ -531,6 +531,18 @@ well as paths; gating + coordination detail in § Sequencing.
     - `[ ]` **3.2.d Base-branch reconcile gate re-verify**
         - Confirm the behind-base reconcile gate fires as landed.
 
+    - `[ ]` **3.2.e Foreign-write advisory under behind-base divergence**
+        - Induce a foreign-write check on a commit while a sibling in-flight WU's branch is well behind base, and
+          confirm the advisory reports only the sibling's _authored_ overlap (three-dot merge-base diff), not its
+          whole behind-base _divergence_ (two-dot). Observed 2026-07-09 during the `main`→probes cascade: with the
+          probes 105 commits behind `main`, the advisory listed ~20 backlog drafts the probes never authored
+          (two-dot = 192 files vs. three-dot = 3); it went clean once the probes were current. Distinct from — and
+          not a regression of — the 2026-07-06 phantom _meta_-overlap, which `project-state-integrity` fixed
+          (verified: detector clean against `meta-finalize-parallelism.md`). If the false-positive reproduces under
+          induction, it is a `detectForeignArtifactOverlap` defect: route as a discovered seam (Phase 7 /
+          follow-up to the roster work), not a silent accept. Detail in `notes-finalize-parallelism.md`
+          § 2026-07-09 finding.
+
 ### `[ ]` **3.3 Induce and confirm the wave-1 detector-tests fire**
 
 - _Goal:_ The session-init detectors this wave can exercise (base drift, notes lag, stale worktree) fire when
