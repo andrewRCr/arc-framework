@@ -118,6 +118,7 @@ const rawGitExec: GitExec = async (cmd, args, options) => {
     cwd: options?.cwd,
     signal: options?.signal,
     encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
   });
   return { stdout, stderr };
 };
