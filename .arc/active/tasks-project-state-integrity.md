@@ -190,19 +190,15 @@ fixture-izes the standing live repro topology.
 - _Outcome:_ The live repro topology is now reproducible in temp git fixtures, and the notes file releases the
   preserved `plan/burn-in-probe-a` branch from its special "do not prune" hold.
 
-### `[ ]` **3.2 Pin the wave-1 phantom-overlap mechanism**
+### `[x]` **3.2 Pin the wave-1 phantom-overlap mechanism**
 
 - _Goal:_ The wave-1 phantom-overlap mechanism is identified and pinned by a regression case, not guessed.
-- _Note:_ If the pinned mechanism implicates a vector the Phase 1–2 design doesn't address, it routes
-  through spec-propagation (or the re-entry valve for genuinely new design) — never a patch local to the
-  harness.
-- **Additional Context:** `notes-project-state-integrity.md` § Live repro evidence
 
-    - Author the failure-vector inventory in `notes-project-state-integrity.md` first — enumerating the
-      spec's § A mutation classes (ref churn, worktree churn, sibling mid-commit writes, stale refs,
-      unpushed branches) crossed with Task 3.1.a's reshuffle-step catalog — then drive harness permutations
-      over it until the phantom overlap reproduces; document the pinned mechanism there; land the
-      reproducing topology as a named regression assertion.
+- The notes file now records the failure-vector inventory and pinned mechanism: a stale remote `plan/` twin
+  plus invisible unpushed local rename could evade self-exclusion during ceremony windows and surface the
+  originating meta diff as a foreign overlap.
+- Added an integration regression that routes the fixture-backed topology through `detectForeignArtifactOverlap`
+  with originating metadata unavailable and asserts no overlap, skipped entry, or indeterminate probe.
 
 ### `[ ]` **3.3 Determinism acceptance assertions**
 

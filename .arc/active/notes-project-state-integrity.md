@@ -49,6 +49,37 @@ topology is now fixture-backed by the integration harness, so the live branch is
 preservation hold and may be pruned during normal branch hygiene. The wave-1 phantom-overlap signature remains:
 the detector's own probes return empty on re-run — transient truth, unreproducible minutes later.
 
+## Failure-vector inventory — overlap harness
+
+**Reshuffle-step catalog.** The integration harness exposes the git-level effects the oracle consumes: spawn a
+linked worktree from a ref, rename a checked-out local `plan/<name>` branch to `<type>/<name>` while updating its
+meta, delete or recreate a remote branch with matching remote-tracking ref churn, push a branch, and inject any
+of those steps at a selected git-call boundary.
+
+**Mutation-class crossing.**
+
+- **Ref churn:** remote delete/recreate/push can land before either ref snapshot or exactly before the second
+  ref snapshot. Expected outcome: clean quiescent reads; marked indeterminate reads when the snapshot changes.
+- **Worktree churn:** spawn and local branch rename can land before either worktree-list snapshot or before the
+  second local-ref snapshot. Expected outcome: clean local-worktree visibility when calm; marked indeterminate
+  reads when the worktree branch set changes mid-derivation.
+- **Sibling mid-commit writes:** a checked-out sibling can change target paths between the overlap detector's
+  two status reads. Expected outcome: an indeterminate probe note, never a foreign overlap assertion.
+- **Stale refs:** a stale remote `plan/<name>` can coexist with the local renamed `<type>/<name>` worktree.
+  Expected outcome: content-keyed dedupe selects the local worktree candidate; the stale ref stays provenance,
+  not a materialize candidate or overlap candidate.
+- **Unpushed branches:** a local worktree branch absent from `origin` must enter through the worktree/local-ref
+  union. Expected outcome: the local entry is visible without requiring a push.
+
+**Pinned wave-1 mechanism.** The reproduced mechanism is stale remote twin plus invisible local rename:
+`origin/plan/<name>` carried the same meta slug while the real `<type>/<name>` branch was checked out locally
+and unpushed. The old branch-keyed, remote-only derivation minted a separate candidate from the stale `plan/`
+ref and missed the local worktree. During ceremony windows, originating meta/name resolution could be absent,
+so overlap self-exclusion fell back to path equality and failed to recognize the stale remote twin as self. Its
+committed diff against base touched `.arc/active/meta-<name>.md`, producing the transient phantom overlap. The
+fixture-backed regression now routes that topology through the overlap detector with the originating meta path
+absent and asserts no overlap.
+
 ## Parked-WU topology — design reckoning (settled 2026-07-08)
 
 Task generation ran a four-pass adversarial-review loop (task-audit rubric, full depth); passes 1–3 plus

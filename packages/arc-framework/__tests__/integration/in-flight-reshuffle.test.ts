@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { runActiveInFlight } from "../../src/commands/active/in-flight.js";
+import {
+  detectForeignArtifactOverlap,
+  projectInFlightToOverlapRoster,
+} from "../../src/lib/git/foreign-artifact-detection.js";
 import { deriveInFlight } from "../../src/lib/git/in-flight-derivation.js";
 import { findMaterializableWorkUnits } from "../../src/lib/session-init/materializable-work-units.js";
 import {
@@ -94,6 +98,35 @@ describe("in-flight reshuffle fixture", () => {
           (entry) => entry.kind === "work-unit" && entry.branch === topology.staleBranch && entry.remoteOnly,
         ),
       ).toBeUndefined();
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("does not report a foreign overlap from a stale remote twin when originating metadata is unavailable", async () => {
+    const fixture = await setupInFlightReshuffleFixture();
+    try {
+      const topology = await fixture.createStandingStalePlanTopology({ name: "burn-in-probe-a" });
+      const inFlight = await runActiveInFlight({
+        exec: fixture.primaryExec,
+        identity: "andrew",
+        teamMode: false,
+        localOnly: false,
+      });
+
+      const result = await detectForeignArtifactOverlap({
+        exec: fixture.primaryExec,
+        roster: projectInFlightToOverlapRoster(inFlight.entries),
+        targetPaths: [`.arc/active/meta-${topology.name}.md`],
+        baseBranch: "main",
+        originatingWorktreePath: topology.worktreePath,
+        snapshot: inFlight.snapshot,
+      });
+
+      expect(result.overlaps).toEqual([]);
+      expect(result.indeterminate).toBeUndefined();
+      expect(result.skipped).toBeUndefined();
+      expect(result.notes).toBeUndefined();
     } finally {
       await fixture.cleanup();
     }
