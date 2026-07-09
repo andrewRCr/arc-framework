@@ -82,6 +82,25 @@ export interface ProjectReadinessWarning {
   rendered: string;
 }
 
+/** Dependency satisfaction fact computed from lifecycle classification. */
+export type ProjectDependencySatisfaction = "satisfied" | "unsatisfied";
+
+/** Readiness verdict supplied by the configured readiness provider. */
+export type ProjectReadinessVerdict = "ready" | "blocked";
+
+/** Batch readiness provider contract: records in, per-slug verdicts out. */
+export interface ProjectReadinessProvider {
+  resolve(records: readonly ProjectReadinessRecord[]): ReadonlyMap<string, ProjectReadinessVerdict>;
+}
+
+/** Per-record facts the render layer consumes to build readiness tiers. */
+export interface ProjectReadinessFact {
+  slug: string;
+  dependencySatisfaction: ProjectDependencySatisfaction;
+  readiness: ProjectReadinessVerdict;
+  unsatisfiedDependencies: readonly string[];
+}
+
 /** Resolver output consumed by {@link composeProjectReadinessView}. */
 export interface ProjectReadinessViewInput {
   title: string;
@@ -109,12 +128,15 @@ export interface ComposeProjectReadinessViewOptions {
   records: readonly ProjectReadinessRecord[];
   /** Derivation warnings to classify against the same lifecycle index. */
   derivationWarnings?: readonly ProjectReadinessDerivationWarning[];
+  /** Readiness provider; omitted uses dependency satisfaction as readiness. */
+  readinessProvider?: ProjectReadinessProvider;
 }
 
 /** Render result plus the structured warnings displayed in the header. */
 export interface ProjectReadinessViewResult {
   markdown: string;
   warnings: ProjectReadinessWarning[];
+  facts: ProjectReadinessFact[];
 }
 
 /** A blocked planned row plus the unresolved edges it displays. */
@@ -391,6 +413,19 @@ function elevatedDerivationWarnings(
   });
 }
 
+/** Default provider: a record is ready exactly when all dependency edges are satisfied. */
+export const depsOnlyReadinessProvider: ProjectReadinessProvider = {
+  resolve(records) {
+    const classification = classifyDependencies(records, lifecycleIndexFromRecords(records));
+    return new Map(
+      records.map((record) => [
+        record.slug,
+        unsatisfiedFor(classification, record.slug).length === 0 ? "ready" : "blocked",
+      ]),
+    );
+  },
+};
+
 /** Build a render row from a resolved record, filtering dependency display to unsatisfied edges. */
 function rowOf(
   record: ProjectReadinessRecord,
@@ -409,6 +444,29 @@ function rowOf(
 
 function unsatisfiedFor(classification: DependencyClassification, slug: string): readonly string[] {
   return classification.unsatisfiedBySlug.get(slug) ?? [];
+}
+
+function readinessFor(
+  verdicts: ReadonlyMap<string, ProjectReadinessVerdict>,
+  slug: string,
+): ProjectReadinessVerdict {
+  return verdicts.get(slug) ?? "blocked";
+}
+
+function factsFor(
+  records: readonly ProjectReadinessRecord[],
+  classification: DependencyClassification,
+  readiness: ReadonlyMap<string, ProjectReadinessVerdict>,
+): ProjectReadinessFact[] {
+  return records.map((record) => {
+    const unsatisfiedDependencies = unsatisfiedFor(classification, record.slug);
+    return {
+      slug: record.slug,
+      dependencySatisfaction: unsatisfiedDependencies.length === 0 ? "satisfied" : "unsatisfied",
+      readiness: readinessFor(readiness, record.slug),
+      unsatisfiedDependencies: [...unsatisfiedDependencies],
+    };
+  });
 }
 
 /** Depth-band blocked rows by longest unresolved blocked-dependency chain. */
@@ -464,6 +522,9 @@ export function composeProjectReadinessViewResult(
     ...classification.warnings,
     ...elevatedDerivationWarnings(options.derivationWarnings ?? [], index),
   ];
+  const readiness = (options.readinessProvider ?? depsOnlyReadinessProvider).resolve(records);
+  const facts = factsFor(records, classification, readiness);
+  const factsBySlug = new Map(facts.map((fact) => [fact.slug, fact]));
 
   const active = records
     .filter((record) => record.location === "active" && record.scheduling !== "parked")
@@ -472,15 +533,18 @@ export function composeProjectReadinessViewResult(
   const planned = records.filter((record) => record.location === "planned" && record.scheduling !== "parked");
   const ready = planned
     .filter((record) => record.state === "Planning")
-    .filter((record) => unsatisfiedFor(classification, record.slug).length === 0)
+    .filter((record) => {
+      const fact = factsBySlug.get(record.slug);
+      return fact?.dependencySatisfaction === "satisfied" && fact.readiness === "ready";
+    })
     .map((record) => rowOf(record, [], false));
 
   const blocked = new Map<string, BlockedRow>();
   for (const record of planned.filter((item) => item.state === "Planning")) {
+    const fact = factsBySlug.get(record.slug);
+    if (fact?.dependencySatisfaction === "satisfied" && fact.readiness === "ready") continue;
     const unsatisfied = unsatisfiedFor(classification, record.slug);
-    if (unsatisfied.length > 0) {
-      blocked.set(record.slug, { row: rowOf(record, unsatisfied, false), unsatisfied: [...unsatisfied] });
-    }
+    blocked.set(record.slug, { row: rowOf(record, unsatisfied, false), unsatisfied: [...unsatisfied] });
   }
 
   const parked = records
@@ -528,7 +592,7 @@ export function composeProjectReadinessViewResult(
 
   lines.push("---", "", "_Pre-commitment thinking that hasn't been sequenced yet lives in `backlog/provisional/`._");
 
-  return { markdown: lines.join("\n"), warnings };
+  return { markdown: lines.join("\n"), warnings, facts };
 }
 
 /**

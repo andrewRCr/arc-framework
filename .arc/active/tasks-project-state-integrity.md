@@ -255,22 +255,15 @@ seams; reground them against the codebase as it exists then.
   rendered project view instead of silently reading ready. The user ready slice uses the same lifecycle predicates
   over its local disk-built index, so typo edges no longer qualify as Ready there either.
 
-### `[ ]` **4.3 Readiness-provider socket with deps-only provider**
+### `[x]` **4.3 Readiness-provider socket with deps-only provider**
 
 - _Goal:_ Readiness arrives through a provider interface computed independently of dependency satisfaction —
   WLSM's coming axis lands as a new provider, with no composer-logic change.
 
-    - Provider interface + the deps-only implementation (returns dependency-satisfaction); the composer
-      computes dependency-satisfaction and readiness independently and hands both to the render layer
-      (decomposed tier predicate); today's render collapses them to deps-only.
-    - Provider contract: the record set in, per-slug readiness verdicts out — the batch shape a future
-      attestation-backed provider needs.
-    - Stored-`State` enum untouched; derived displays stay projection-time compositions
-      (resolve-don't-store).
-    - Build `test-first` (one behavior at a time):
-        - Composer output carries deps-satisfaction and readiness as independent facts
-        - Swapping the provider changes readiness without touching dep resolution
-        - Default render is behavior-identical to deps-only collapse
+- _Outcome:_ The project-readiness composer now accepts a batch readiness provider (`records` in, per-slug verdicts
+  out), exposes dependency satisfaction and readiness as separate result facts, and keeps the default deps-only
+  provider behavior-identical to the prior collapse. Tier membership now composes both facts without storing any
+  new `State` value.
 
 ### `[ ]` **4.4 Retire the title read-back**
 

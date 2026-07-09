@@ -7,8 +7,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import {
   composeProjectReadinessView,
   composeProjectReadinessViewResult,
+  depsOnlyReadinessProvider,
   mergeProjectReadinessRecords,
   resolveProjectReadinessViewInput,
+  type ProjectReadinessProvider,
   type ProjectReadinessRecordCandidate,
 } from "../../../src/lib/status/project-view.js";
 
@@ -330,6 +332,92 @@ describe("project-readiness dependency classification", () => {
     ]);
     expect(result.markdown).toContain("live-drift");
     expect(result.markdown).not.toContain("shipped-drift.md");
+  });
+});
+
+describe("project-readiness provider socket", () => {
+  it("carries dependency satisfaction and readiness as independent facts", () => {
+    const readyProvider: ProjectReadinessProvider = {
+      resolve: (records) => new Map(records.map((item) => [item.slug, "ready" as const])),
+    };
+
+    const result = composeProjectReadinessViewResult({
+      renderedRef: "abc1234",
+      title: "Roadmap",
+      records: mergeProjectReadinessRecords([
+        record("independent-facts", { location: "planned", dependsOn: ["ghost-dep"] }),
+      ]),
+      readinessProvider: readyProvider,
+    });
+
+    expect(result.facts).toEqual([
+      {
+        slug: "independent-facts",
+        dependencySatisfaction: "unsatisfied",
+        readiness: "ready",
+        unsatisfiedDependencies: ["ghost-dep"],
+      },
+    ]);
+    const readySection = sectionBetween(result.markdown, "## Ready", "## Blocked");
+    expect(readySection).not.toContain("independent-facts");
+    expect(result.markdown).toContain("independent-facts");
+  });
+
+  it("lets a provider change readiness without changing dependency satisfaction", () => {
+    const blockingProvider: ProjectReadinessProvider = {
+      resolve: (records) =>
+        new Map(records.map((item) => [item.slug, item.slug === "provider-blocked" ? "blocked" as const : "ready" as const])),
+    };
+
+    const result = composeProjectReadinessViewResult({
+      renderedRef: "abc1234",
+      title: "Roadmap",
+      records: mergeProjectReadinessRecords([
+        record("provider-ready", { location: "planned" }),
+        record("provider-blocked", { location: "planned" }),
+      ]),
+      readinessProvider: blockingProvider,
+    });
+
+    expect(result.facts).toEqual([
+      {
+        slug: "provider-blocked",
+        dependencySatisfaction: "satisfied",
+        readiness: "blocked",
+        unsatisfiedDependencies: [],
+      },
+      {
+        slug: "provider-ready",
+        dependencySatisfaction: "satisfied",
+        readiness: "ready",
+        unsatisfiedDependencies: [],
+      },
+    ]);
+    const readySection = sectionBetween(result.markdown, "## Ready", "## Blocked");
+    expect(readySection).toContain("provider-ready");
+    expect(readySection).not.toContain("provider-blocked");
+    const blockedSection = result.markdown.slice(result.markdown.indexOf("## Blocked"));
+    expect(blockedSection).toContain("provider-blocked");
+  });
+
+  it("defaults to the deps-only provider", () => {
+    const options = {
+      renderedRef: "abc1234",
+      title: "Roadmap",
+      records: mergeProjectReadinessRecords([
+        record("ready", { location: "planned" }),
+        record("blocked", { location: "planned", dependsOn: ["ready"] }),
+      ]),
+    };
+
+    const defaultResult = composeProjectReadinessViewResult(options);
+    const explicitResult = composeProjectReadinessViewResult({
+      ...options,
+      readinessProvider: depsOnlyReadinessProvider,
+    });
+
+    expect(defaultResult).toEqual(explicitResult);
+    expect(composeProjectReadinessView(options)).toEqual(defaultResult.markdown);
   });
 });
 
