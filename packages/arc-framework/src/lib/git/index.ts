@@ -69,7 +69,10 @@ export {
   projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionOptions,
   type ForeignArtifactDetectionResult,
+  type ForeignArtifactIndeterminateProbe,
   type ForeignArtifactOverlap,
+  type ForeignArtifactSkippedEntry,
+  type ForeignArtifactSkippedReason,
   type OverlapCandidateEntry,
   type OverlapRoster,
 } from "./foreign-artifact-detection.js";
@@ -91,6 +94,7 @@ export {
   type InFlightEntry,
   type InFlightWorkUnit,
   type InFlightErrand,
+  type InFlightInputSnapshot,
   type InFlightState,
   type OpenPrSignal,
   type PrSource,

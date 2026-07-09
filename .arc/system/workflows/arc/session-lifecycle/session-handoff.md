@@ -106,7 +106,7 @@ WORKING-MEMORY review; checkpoint and push the branch. Use
 [Errand-Session Handoff Path](#errand-session-handoff-path).
 
 **Between-WUs handoff** — no active meta file or SESSION-NOTES write. Review WORKING-MEMORY, route any durable
-captures to existing surfaces (`USER-INBOX`, `WORKING-MEMORY`, ROADMAP / backlog artifacts as applicable), then
+captures to existing surfaces (`USER-INBOX`, `WORKING-MEMORY`, backlog artifacts as applicable), then
 sync + confirm. Use
 [Between-WUs Handoff Path](#between-wus-handoff-path).
 
@@ -174,7 +174,7 @@ Use this path when `active.value.resolution === "none"`.
    is absent, skip user-state reads and surface the degraded state.
 2. **Route durable handoff context** — if anything must survive the handoff, write it to an existing
    authoritative surface: `USER-INBOX` for deferred personal captures, `WORKING-MEMORY` for cross-WU
-   persistent context, or ROADMAP / backlog artifacts when the project document is already the clear home.
+   persistent context, or backlog artifacts when the project document is already the clear home.
    Do not create a per-WU SESSION-NOTES home or a placeholder marker.
 3. **Refresh probe** — after WORKING-MEMORY edits or durable context routing, re-run the composite probe:
 

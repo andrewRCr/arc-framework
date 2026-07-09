@@ -5,7 +5,7 @@ import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 
 /**
  * Exec stub answering the reads the assembled view makes in local-only mode:
- * `for-each-ref` (local tracking refs) and `worktree list` (the roster scan).
+ * `for-each-ref` (local tracking refs) and `worktree list` (local branch union).
  * `ls-remote` is never reached on the local-only path.
  */
 function makeExec(overrides: { forEachRef?: string; worktreeList?: string } = {}): GitExec {
@@ -26,7 +26,6 @@ describe("assembleStatusUserView", () => {
       teamMode: false,
       localOnly: true,
       readFile: () => Promise.reject(new Error("no cache")),
-      readdir: () => Promise.resolve([]),
     });
 
     expect(view.source).toBe("rendered");
@@ -45,7 +44,6 @@ describe("assembleStatusUserView", () => {
       teamMode: false,
       localOnly: true,
       readFile: () => Promise.reject(new Error("unused")),
-      readdir: () => Promise.resolve([]),
     });
 
     expect(view.source).toBe("no-identity");
@@ -75,7 +73,6 @@ describe("assembleStatusUserView", () => {
         paths.push(path);
         return Promise.reject(new Error("no cache"));
       },
-      readdir: () => Promise.resolve([]),
     });
 
     expect(view.source).toBe("cache-missing");
@@ -104,7 +101,6 @@ describe("assembleStatusUserView", () => {
       teamMode: false,
       localOnly: true,
       readFile: () => Promise.reject(new Error("no cache")),
-      readdir: () => Promise.resolve([]),
       mkdir: (path) => {
         mkdirs.push(path);
         return Promise.resolve();

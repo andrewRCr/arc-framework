@@ -14,20 +14,69 @@ import { tmpdir } from "node:os";
 
 import {
   detectStagedForeignWrites,
+  formatForeignWriteAdvisories,
   formatForeignWriteWarnings,
-  resolveOriginatingMetaPath,
   selectForeignWriteCandidates,
 } from "../../../src/scripts/check-foreign-writes.js";
 import type { OverlapRoster } from "../../../src/lib/git/foreign-artifact-detection.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
+import { resolveOriginatingMetaPath } from "../../../src/lib/release/wu-resolution.js";
+
+type ResponseFn = (args: string[]) => ExecResult | Promise<ExecResult>;
 
 /** Keyed-arg exec stub: positional tokens, `*` wildcard (mirrors the detection tests). */
-function buildExec(responses: Record<string, ExecResult>): GitExec {
-  return async (cmd, args) => {
+function buildExec(responses: Record<string, ExecResult | ResponseFn>): GitExec {
+  const shaByRef = new Map<string, string>();
+  const refBySha = new Map<string, string>();
+
+  function fakeShaFor(ref: string): string {
+    const existing = shaByRef.get(ref);
+    if (existing !== undefined) return existing;
+    const hex = ((shaByRef.size + 1) % 15 + 1).toString(16);
+    const sha = hex.repeat(40);
+    shaByRef.set(ref, sha);
+    refBySha.set(sha, ref);
+    return sha;
+  }
+
+  function lookup(args: string[]): ExecResult | ResponseFn | undefined {
     for (const key of Object.keys(responses)) {
       const tokens = key.split(" ");
       if (tokens.every((token, i) => token === "*" || args[i] === token)) {
-        return responses[key] as ExecResult;
+        return responses[key];
+      }
+    }
+    return undefined;
+  }
+
+  return async (cmd, args) => {
+    const direct = lookup(args);
+    if (direct !== undefined) {
+      const result = typeof direct === "function" ? await direct(args) : direct;
+      if (args[0] === "rev-parse" && args[1] === "--verify") {
+        const ref = args[2] ?? "";
+        const sha = result.stdout.trim().split(/\s+/u)[0] ?? "";
+        if (ref !== "" && sha !== "") {
+          shaByRef.set(ref, sha);
+          refBySha.set(sha, ref);
+        }
+      }
+      return result;
+    }
+    if (args[0] === "rev-parse" && args[1] === "--verify") {
+      return { stdout: `${fakeShaFor(args[2] ?? "")}\n`, stderr: "" };
+    }
+    if (args[0] === "diff" && args[1]?.includes("...")) {
+      const [leftSha, rightSha] = args[1].split("...");
+      const leftRef = leftSha === undefined ? undefined : refBySha.get(leftSha);
+      const rightRef = rightSha === undefined ? undefined : refBySha.get(rightSha);
+      if (leftRef !== undefined && rightRef !== undefined) {
+        const refArgs = [...args];
+        refArgs[1] = `${leftRef}...${rightRef}`;
+        const refResponse = lookup(refArgs);
+        if (refResponse !== undefined) {
+          return typeof refResponse === "function" ? refResponse(refArgs) : refResponse;
+        }
       }
     }
     throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
@@ -97,6 +146,27 @@ describe("formatForeignWriteWarnings", () => {
   });
 });
 
+describe("formatForeignWriteAdvisories", () => {
+  it("surfaces oracle warnings before overlap advisories", () => {
+    expect(formatForeignWriteAdvisories(
+      {
+        overlaps: [
+          { branch: "feat/wu-a", worktreePath: "/repo.wu-a", matchedPaths: [".arc/active/meta-wu-a.md"] },
+        ],
+      },
+      [
+        {
+          code: "input-snapshot-disagreement",
+          rendered: "Input snapshot changed during derivation.",
+        },
+      ],
+    )).toEqual([
+      "Input snapshot changed during derivation.",
+      "feat/wu-a also touches .arc/active/meta-wu-a.md (/repo.wu-a)",
+    ]);
+  });
+});
+
 describe("resolveOriginatingMetaPath", () => {
   it("returns the active WU meta path when exactly one active meta resolves", async () => {
     const root = await createActiveFixture("self");
@@ -117,6 +187,241 @@ function rosterOf(...entries: OverlapRoster["entries"]): OverlapRoster {
 }
 
 describe("detectStagedForeignWrites", () => {
+  it("skips an indeterminate entry with an advisory note", async () => {
+    const result = await detectStagedForeignWrites({
+      exec: throwingExec,
+      roster: rosterOf(
+        {
+          branch: "feat/self",
+          name: "self",
+          worktreePath: "/repo.self",
+          metaFilePath: ".arc/active/meta-self.md",
+          state: "Active",
+        },
+        {
+          branch: "feat/wu-a",
+          name: "wu-a",
+          worktreePath: "/repo.wu-a",
+          metaFilePath: ".arc/active/meta-wu-a.md",
+          state: "Active",
+          marks: ["indeterminate"],
+        },
+      ),
+      paths: [".arc/active/meta-wu-a.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.skipped).toEqual([
+      {
+        branch: "feat/wu-a",
+        worktreePath: "/repo.wu-a",
+        marks: ["indeterminate"],
+        reason: "entry-marked-indeterminate",
+      },
+    ]);
+    expect(formatForeignWriteAdvisories(result)).toEqual([
+      "feat/wu-a skipped: entry marked indeterminate (/repo.wu-a)",
+    ]);
+  });
+
+  it("skips an indeterminate probe with an advisory note", async () => {
+    let statusReads = 0;
+    const exec = buildExec({
+      "diff main...feat/wu-a --name-only -- .arc/active/meta-wu-a.md": { stdout: "" },
+      "status --porcelain -- .arc/active/meta-wu-a.md": () => {
+        statusReads += 1;
+        return { stdout: statusReads === 1 ? " M .arc/active/meta-wu-a.md\n" : "" };
+      },
+    });
+
+    const result = await detectStagedForeignWrites({
+      exec,
+      roster: rosterOf(
+        {
+          branch: "feat/self",
+          name: "self",
+          worktreePath: "/repo.self",
+          metaFilePath: ".arc/active/meta-self.md",
+          state: "Active",
+        },
+        {
+          branch: "feat/wu-a",
+          name: "wu-a",
+          worktreePath: "/repo.wu-a",
+          metaFilePath: ".arc/active/meta-wu-a.md",
+          state: "Active",
+        },
+      ),
+      paths: [".arc/active/meta-wu-a.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.indeterminate).toEqual([
+      {
+        branch: "feat/wu-a",
+        worktreePath: "/repo.wu-a",
+        matchedPaths: [],
+        reason: "uncommitted-probe-disagreement",
+      },
+    ]);
+    expect(formatForeignWriteAdvisories(result)).toEqual([
+      "feat/wu-a skipped: probe indeterminate (/repo.wu-a)",
+    ]);
+  });
+
+  it("marks the committed probe indeterminate when the base ref cannot be resolved", async () => {
+    const exec = buildExec({
+      "rev-parse --verify main": () => {
+        throw new Error("fatal: bad revision");
+      },
+      "rev-parse --verify feat/wu-a": { stdout: `${"b".repeat(40)}\n`, stderr: "" },
+    });
+
+    const result = await detectStagedForeignWrites({
+      exec,
+      roster: rosterOf(
+        {
+          branch: "feat/self",
+          name: "self",
+          worktreePath: "/repo.self",
+          metaFilePath: ".arc/active/meta-self.md",
+          state: "Active",
+        },
+        {
+          branch: "feat/wu-a",
+          name: "wu-a",
+          metaFilePath: ".arc/active/meta-wu-a.md",
+          state: "Active",
+        },
+      ),
+      paths: [".arc/active/meta-wu-a.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.indeterminate).toEqual([
+      {
+        branch: "feat/wu-a",
+        matchedPaths: [],
+        reason: "committed-probe-unresolved",
+      },
+    ]);
+  });
+
+  it("marks the committed probe indeterminate when a candidate ref cannot be resolved", async () => {
+    const exec = buildExec({
+      "rev-parse --verify main": { stdout: `${"a".repeat(40)}\n`, stderr: "" },
+      "rev-parse --verify feat/wu-a": () => {
+        throw new Error("fatal: bad revision");
+      },
+    });
+
+    const result = await detectStagedForeignWrites({
+      exec,
+      roster: rosterOf(
+        {
+          branch: "feat/self",
+          name: "self",
+          worktreePath: "/repo.self",
+          metaFilePath: ".arc/active/meta-self.md",
+          state: "Active",
+        },
+        {
+          branch: "feat/wu-a",
+          name: "wu-a",
+          metaFilePath: ".arc/active/meta-wu-a.md",
+          state: "Active",
+        },
+      ),
+      paths: [".arc/active/meta-wu-a.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.indeterminate).toEqual([
+      {
+        branch: "feat/wu-a",
+        matchedPaths: [],
+        reason: "committed-probe-unresolved",
+      },
+    ]);
+  });
+
+  it("skips a location-ambiguous entry with an advisory note", async () => {
+    const result = await detectStagedForeignWrites({
+      exec: throwingExec,
+      roster: rosterOf(
+        {
+          branch: "feat/self",
+          name: "self",
+          worktreePath: "/repo.self",
+          metaFilePath: ".arc/active/meta-self.md",
+          state: "Active",
+        },
+        {
+          branch: "feat/wu-a",
+          name: "wu-a",
+          worktreePath: "/repo.wu-a",
+          metaFilePath: ".arc/active/meta-wu-a.md",
+          state: "Active",
+          marks: ["location-ambiguous"],
+        },
+      ),
+      paths: [".arc/active/meta-wu-a.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.skipped).toEqual([
+      {
+        branch: "feat/wu-a",
+        worktreePath: "/repo.wu-a",
+        marks: ["location-ambiguous"],
+        reason: "entry-location-ambiguous",
+      },
+    ]);
+    expect(formatForeignWriteAdvisories(result)).toEqual([
+      "feat/wu-a skipped: entry marked location-ambiguous (/repo.wu-a)",
+    ]);
+  });
+
+  it("ignores parked entries without reporting overlap", async () => {
+    const result = await detectStagedForeignWrites({
+      exec: throwingExec,
+      roster: rosterOf(
+        {
+          branch: "feat/self",
+          name: "self",
+          worktreePath: "/repo.self",
+          metaFilePath: ".arc/active/meta-self.md",
+          state: "Active",
+        },
+        {
+          branch: "feat/shelf",
+          name: "shelf",
+          worktreePath: "/repo.shelf",
+          metaFilePath: ".arc/active/meta-shelf.md",
+          state: "Active",
+          scheduling: "parked",
+        },
+      ),
+      paths: [".arc/active/meta-shelf.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.skipped).toBeUndefined();
+    expect(formatForeignWriteAdvisories(result)).toEqual([]);
+  });
+
   it("reports a staged work-unit path another in-flight WU touches", async () => {
     const roster = rosterOf({
       branch: "feat/wu-a",
@@ -189,5 +494,95 @@ describe("detectStagedForeignWrites", () => {
       originatingMetaPath: ".arc/active/meta-self.md",
     });
     expect(overlaps).toEqual([]);
+  });
+
+  it("self-excludes by the worktree-matched WU name during active-meta resolution gaps", async () => {
+    const roster = rosterOf(
+      {
+        branch: "feat/self",
+        name: "self",
+        worktreePath: "/repo.self",
+        metaFilePath: ".arc/active/meta-self.md",
+        state: "Active",
+      },
+      {
+        branch: "origin/plan/self",
+        name: "self",
+        metaFilePath: ".arc/active/meta-self.md",
+        state: "Planning",
+      },
+    );
+
+    const { overlaps } = await detectStagedForeignWrites({
+      exec: throwingExec,
+      roster,
+      paths: [".arc/active/meta-self.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+    expect(overlaps).toEqual([]);
+  });
+
+  it("still reports a genuinely foreign WU after name-keyed self-exclusion", async () => {
+    const roster = rosterOf(
+      {
+        branch: "feat/self",
+        name: "self",
+        worktreePath: "/repo.self",
+        metaFilePath: ".arc/active/meta-self.md",
+        state: "Active",
+      },
+      {
+        branch: "feat/other",
+        name: "other",
+        worktreePath: "/repo.other",
+        metaFilePath: ".arc/active/meta-other.md",
+        state: "Active",
+      },
+    );
+    const exec = buildExec({
+      "diff main...feat/other --name-only -- .arc/active/meta-self.md": {
+        stdout: ".arc/active/meta-self.md\n",
+      },
+      "status --porcelain -- .arc/active/meta-self.md": { stdout: "" },
+    });
+
+    const { overlaps } = await detectStagedForeignWrites({
+      exec,
+      roster,
+      paths: [".arc/active/meta-self.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+    expect(overlaps).toEqual([
+      { branch: "feat/other", worktreePath: "/repo.other", matchedPaths: [".arc/active/meta-self.md"] },
+    ]);
+  });
+
+  it("notes when self-exclusion has only the worktree/meta path fallback", async () => {
+    const roster = rosterOf({
+      branch: "feat/other",
+      name: "other",
+      worktreePath: "/repo.other",
+      metaFilePath: ".arc/active/meta-other.md",
+      state: "Active",
+    });
+    const exec = buildExec({
+      "diff main...feat/other --name-only -- .arc/active/meta-self.md": { stdout: "" },
+      "status --porcelain -- .arc/active/meta-self.md": { stdout: "" },
+    });
+
+    const result = await detectStagedForeignWrites({
+      exec,
+      roster,
+      paths: [".arc/active/meta-self.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+      originatingMetaPath: ".arc/active/meta-self.md",
+    });
+    expect(result.overlaps).toEqual([]);
+    expect(result.notes).toEqual([
+      "Originating work unit name was unavailable; self-exclusion fell back to worktree/meta path matching.",
+    ]);
   });
 });

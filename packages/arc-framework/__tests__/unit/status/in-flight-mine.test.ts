@@ -73,6 +73,12 @@ describe("buildInFlightMineSlice", () => {
     expect(alpha?.class).toBe("[TBD]");
   });
 
+  it("renders parked work units as Parked instead of their meta lifecycle state", () => {
+    const [alpha] = buildInFlightMineSlice([wu("alpha", { state: "Active", scheduling: "parked" })]);
+
+    expect(alpha?.state).toBe("Parked");
+  });
+
   it("omits Class when the entry carries no field", () => {
     const [alpha] = buildInFlightMineSlice([wu("alpha")]);
 

@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+
+import { buildErrandCheckJsonEnvelope, formatErrandCheckCaveats } from "../../../src/handlers/errand.js";
+
+describe("formatErrandCheckCaveats", () => {
+  it("renders caveat lines for skipped marked entries and indeterminate probes", () => {
+    const lines = formatErrandCheckCaveats({
+      overlaps: [],
+      skipped: [
+        {
+          branch: "feat/wu-a",
+          worktreePath: "/repo.wu-a",
+          marks: ["location-ambiguous"],
+          reason: "entry-location-ambiguous",
+        },
+      ],
+      indeterminate: [
+        {
+          branch: "feat/wu-b",
+          worktreePath: "/repo.wu-b",
+          matchedPaths: [],
+          reason: "uncommitted-probe-disagreement",
+        },
+      ],
+      notes: ["Originating work unit name was unavailable; self-exclusion fell back to worktree/meta path matching."],
+    });
+
+    expect(lines).toEqual([
+      "feat/wu-a  skipped  marked location-ambiguous  (/repo.wu-a)",
+      "feat/wu-b  caveat  probe indeterminate  (/repo.wu-b)",
+      "Originating work unit name was unavailable; self-exclusion fell back to worktree/meta path matching.",
+    ]);
+  });
+});
+
+describe("buildErrandCheckJsonEnvelope", () => {
+  it("carries skipped-entry mark fields for JSON consumers", () => {
+    const envelope = buildErrandCheckJsonEnvelope(
+      {
+        overlaps: [],
+        skipped: [
+          {
+            branch: "feat/wu-a",
+            marks: ["location-ambiguous"],
+            reason: "entry-location-ambiguous",
+          },
+        ],
+      },
+      [],
+      true,
+    );
+
+    expect(envelope.skipped?.[0]?.marks).toEqual(["location-ambiguous"]);
+    expect(envelope).toMatchObject({ warnings: [], reachable: true });
+  });
+});

@@ -33,13 +33,14 @@
 
 import { basename, join, relative, sep } from "node:path";
 
+import { validateState } from "../../commands/active/types.js";
 import { metaCohortField } from "../active/cohort-consistency.js";
 import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
 import {
   resolveLifecyclePosition,
-  type LifecyclePosition,
   type Location,
   type Phase,
+  type LifecyclePosition,
 } from "./lifecycle-state.js";
 
 /** `meta-<slug>.md` filename shape; capture group 1 is the slug. */
@@ -74,6 +75,22 @@ export interface BuildLifecycleIndexOptions {
   /** Repository root containing `.arc/`. */
   cwd: string;
   fs: LifecycleIndexFs;
+}
+
+/** A resolved lifecycle record for callers that already parsed the work-unit fields. */
+export interface LifecycleRecordInput {
+  /** WU-name slug, from the logical work-unit identity. */
+  slug: string;
+  /** Raw or validated `State` field value; unrecognized values are skipped. */
+  state: string | null;
+  /** Logical lifecycle tier for the record. */
+  location: Location;
+  /** Cohort path, `[none]` / empty / null when standalone. */
+  cohort?: string | null;
+  /** Dependency slugs from `Depends On`; omitted means no dependencies. */
+  dependsOn?: readonly string[];
+  /** Optional cwd-relative source path for diagnostics. */
+  path?: string;
 }
 
 /** One resolved work unit in the index. */
@@ -235,6 +252,56 @@ export function buildLifecycleIndexFromMetas(
   for (const { path, content } of metas) {
     const entry = entryFromMeta(path, content);
     if (entry !== null) index.set(entry.slug, entry);
+  }
+  return index;
+}
+
+function fallbackRecordPath(record: LifecycleRecordInput): string {
+  switch (record.location) {
+    case "active":
+      return `.arc/active/meta-${record.slug}.md`;
+    case "planned":
+      return `.arc/backlog/planned/meta-${record.slug}.md`;
+    case "provisional":
+      return `.arc/backlog/provisional/meta-${record.slug}.md`;
+    case "completed":
+      return `.arc/completed/meta-${record.slug}.md`;
+  }
+}
+
+function normalizeRecordCohort(cohort: string | null | undefined): string | null {
+  if (cohort === undefined || cohort === null || cohort === "" || cohort === "[none]") {
+    return null;
+  }
+  return cohort;
+}
+
+/**
+ * Build the lifecycle-complete index from already-resolved records.
+ *
+ * This is the record-backed counterpart to {@link buildLifecycleIndexFromMetas}:
+ * callers supply slug, state, location, cohort, and dependency fields directly
+ * instead of raw meta text. Invalid state values are skipped so degraded records
+ * cannot poison the whole projection.
+ *
+ * @param records - Resolved lifecycle records.
+ * @returns The slug→entry index for every resolvable record in the set.
+ */
+export function buildLifecycleIndexFromRecords(
+  records: readonly LifecycleRecordInput[],
+): LifecycleIndex {
+  const index: LifecycleIndex = new Map();
+  for (const record of records) {
+    const phase = validateState(record.state);
+    if (phase === "unknown") continue;
+    index.set(record.slug, {
+      slug: record.slug,
+      phase,
+      location: record.location,
+      cohort: normalizeRecordCohort(record.cohort),
+      dependsOn: [...(record.dependsOn ?? [])],
+      path: record.path ?? fallbackRecordPath(record),
+    });
   }
   return index;
 }

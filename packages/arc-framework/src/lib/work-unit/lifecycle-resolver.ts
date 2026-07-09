@@ -116,6 +116,22 @@ export function resolveSlugState(index: LifecycleIndex, slug: string): Lifecycle
   return deriveState(resolveSlugPosition(index, slug));
 }
 
+/**
+ * List slugs whose lifecycle record derives to the parked scheduling state.
+ *
+ * @param index - The lifecycle-complete index from `buildLifecycleIndex`.
+ * @returns A fresh slug set for `(Active, planned)` work units.
+ */
+export function listParkedSlugs(index: LifecycleIndex): Set<string> {
+  const parked = new Set<string>();
+  for (const entry of index.values()) {
+    if (deriveState({ phase: entry.phase, location: entry.location }) === "parked") {
+      parked.add(entry.slug);
+    }
+  }
+  return parked;
+}
+
 /** The derived states for which a slug is live on a branch / worktree. */
 const OCCUPYING: ReadonlySet<LifecycleState> = new Set(["planning", "active", "integrating"]);
 

@@ -31,13 +31,14 @@ import {
 } from "../commands/start.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import type { GitExec } from "../lib/git/exec.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { ensureDir } from "../lib/template/files.js";
-import { composeProjectReadinessView } from "../lib/status/project-view.js";
+import { renderTrackedProjectReadinessView } from "../lib/status/project-roadmap-render.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
@@ -270,7 +271,12 @@ async function graduate(
       }
     }
     const result = await runGraduate(
-      buildExecutorContext({ ...ctx, teamMode: settings["team.mode"] === "true", internalTemplateDir: getInternalTemplatePath() }),
+      buildExecutorContext({
+        ...ctx,
+        teamMode: settings["team.mode"] === "true",
+        baseBranch: settings["branch.base"],
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
       { name: wuName, cls, inPlace: true },
     );
     if (result.status === "rejected") {
@@ -303,7 +309,12 @@ async function graduate(
   }
 
   const result = await runGraduate(
-    buildExecutorContext({ ...ctx, teamMode: config.teamMode, internalTemplateDir: getInternalTemplatePath() }),
+    buildExecutorContext({
+      ...ctx,
+      teamMode: config.teamMode,
+      baseBranch: config.baseBranch,
+      internalTemplateDir: getInternalTemplatePath(),
+    }),
     {
       name: wuName,
       cls,
@@ -382,7 +393,12 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
     }
     const result = await runResume(
       {
-        executor: buildExecutorContext({ ...ctx, teamMode: settings["team.mode"] === "true", internalTemplateDir: getInternalTemplatePath() }),
+        executor: buildExecutorContext({
+          ...ctx,
+          teamMode: settings["team.mode"] === "true",
+          baseBranch: settings["branch.base"],
+          internalTemplateDir: getInternalTemplatePath(),
+        }),
         fs: {
           writeFile: (path, content) => ctx.io.writeFile(path, content),
           mkdir: (path, opts) => ctx.io.mkdir(path, opts),
@@ -419,6 +435,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
       executor: buildExecutorContext({
         ...ctx,
         teamMode: config.teamMode,
+        baseBranch: config.baseBranch,
         internalTemplateDir: getInternalTemplatePath(),
       }),
       fs: {
@@ -575,14 +592,17 @@ async function refreshRoadmapForStartCeremony(
   cwd: string,
 ): Promise<RefreshRoadmapResult> {
   try {
-    const renderedRef = await startRenderedRef(ctx, cwd);
-    const view = await composeProjectReadinessView({
+    const { settings } = await readConfigSettings(cwd);
+    const exec: GitExec = (cmd, args, opts) => ctx.io.exec(cmd, args, { cwd, ...opts });
+    const fs = {
+      readFile: (p: string) => ctx.io.readFile(p),
+      readdir: (p: string) => readdir(p, { withFileTypes: true }),
+    };
+    const view = await renderTrackedProjectReadinessView({
       cwd,
-      renderedRef,
-      fs: {
-        readFile: (p) => ctx.io.readFile(p),
-        readdir: (p) => readdir(p, { withFileTypes: true }),
-      },
+      exec,
+      fs,
+      baseBranch: settings["branch.base"],
     });
     const dir = join(cwd, ".arc", "backlog");
     await ensureDir(dir, ctx.io.mkdir);
@@ -591,15 +611,6 @@ async function refreshRoadmapForStartCeremony(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `ROADMAP regen failed: ${message}` };
-  }
-}
-
-async function startRenderedRef(ctx: ArmContext, cwd: string): Promise<string> {
-  try {
-    const { stdout } = await ctx.io.exec("git", ["rev-parse", "--short", "HEAD"], { cwd });
-    return stdout.trim() || "working tree";
-  } catch {
-    return "working tree";
   }
 }
 

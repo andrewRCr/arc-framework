@@ -15,12 +15,17 @@ import type { ExecResult, GitExec } from "../../../../src/lib/git/exec.js";
 const META = [
   "# Metadata: x",
   "",
-  "- **State:** Active",
+  "- **State:** __STATE__",
   "- **Owner:** andrew",
+  "- **Branch:** __BRANCH__",
   "- **Design:** spec-x.md",
   "",
   "---",
 ].join("\n");
+
+function meta(state = "Active"): string {
+  return META.replaceAll("__STATE__", state);
+}
 
 /**
  * Exec stub answering the reads the command makes: local remote-tracking refs
@@ -39,7 +44,10 @@ function makeExec(opts: {
   const DUMMY_SHA = "0".repeat(40);
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
     if (args[0] === "for-each-ref") {
-      return { stdout: opts.localRefs.map((b) => `origin/${b}`).join("\n"), stderr: "" };
+      return {
+        stdout: opts.localRefs.map((b) => `refs/remotes/origin/${b}\t${DUMMY_SHA}`).join("\n"),
+        stderr: "",
+      };
     }
     if (args[0] === "ls-remote") {
       if (opts.liveBranches === "unreachable") throw new Error("fatal: unreachable");
@@ -49,6 +57,13 @@ function makeExec(opts: {
       };
     }
     if (args[0] === "worktree" && args[1] === "list") return { stdout: "", stderr: "" };
+    if (args[0] === "ls-tree" && args[1] === "-r") {
+      const ref = args[3] ?? "";
+      const paths = Object.keys(metas)
+        .filter((target) => target.startsWith(`${ref}:`))
+        .map((target) => target.slice(target.indexOf(":") + 1));
+      return { stdout: paths.join("\n"), stderr: "" };
+    }
     if (args[0] === "ls-tree") {
       return { stdout: errandRecords.map((r) => `100644 blob ${DUMMY_SHA}\t${r.slug}`).join("\n"), stderr: "" };
     }
@@ -71,7 +86,11 @@ function makeExec(opts: {
     }
     if (args[0] === "show") {
       const target = args[1] ?? "";
-      if (target in metas) return { stdout: metas[target] ?? "", stderr: "" };
+      if (target in metas) {
+        const ref = target.slice(0, target.indexOf(":"));
+        const branch = ref.startsWith("origin/") ? ref.slice("origin/".length) : ref;
+        return { stdout: (metas[target] ?? "").replaceAll("__BRANCH__", branch), stderr: "" };
+      }
       throw new Error(`fatal: path does not exist in '${target}'`);
     }
     throw new Error(`unexpected git ${args.join(" ")}`);
@@ -83,26 +102,30 @@ describe("runActiveInFlight", () => {
     const exec = makeExec({
       localRefs: ["feat/x", "chore/fix-typo"],
       liveBranches: ["feat/x", "chore/fix-typo"],
-      metas: { "origin/feat/x:.arc/active/meta-x.md": META },
+      metas: { "origin/feat/x:.arc/active/meta-x.md": meta() },
       errandRecords: [{ slug: "fix-typo", branch: "chore/fix-typo" }],
     });
 
     const result = await runActiveInFlight({ exec, identity: "andrew", teamMode: false, localOnly: false });
 
     expect(result.reachable).toBe(true);
-    expect(result.entries).toEqual([
-      {
-        kind: "work-unit",
-        branch: "feat/x",
-        name: "x",
-        state: "Active",
-        owner: "andrew",
-        design: "spec-x.md",
-        remoteOnly: true,
-        dependsOn: [],
-      },
-      { kind: "errand", branch: "chore/fix-typo", slug: "fix-typo", remoteOnly: true },
-    ]);
+    expect(result.entries).toHaveLength(2);
+    expect(result.entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "feat/x",
+      name: "x",
+      state: "Active",
+      owner: "andrew",
+      design: "spec-x.md",
+      remoteOnly: true,
+      dependsOn: [],
+    });
+    expect(result.entries[1]).toEqual({ kind: "errand", branch: "chore/fix-typo", slug: "fix-typo", remoteOnly: true });
+    expect(result.warnings).toEqual([]);
+    expect(result.snapshot.refs).toMatchObject({
+      "origin/feat/x": "0".repeat(40),
+      "origin/chore/fix-typo": "0".repeat(40),
+    });
   });
 
   it("prunes a dead local ref absent from live membership", async () => {
@@ -110,8 +133,8 @@ describe("runActiveInFlight", () => {
       localRefs: ["feat/x", "feat/shipped"],
       liveBranches: ["feat/x"],
       metas: {
-        "origin/feat/x:.arc/active/meta-x.md": META,
-        "origin/feat/shipped:.arc/active/meta-shipped.md": META,
+        "origin/feat/x:.arc/active/meta-x.md": meta(),
+        "origin/feat/shipped:.arc/active/meta-shipped.md": meta(),
       },
     });
 
@@ -120,11 +143,29 @@ describe("runActiveInFlight", () => {
     expect(result.entries.map((e) => e.branch)).toEqual(["feat/x"]);
   });
 
+  it("passes oracle warnings through with the in-flight result", async () => {
+    const exec = makeExec({
+      localRefs: ["feat/x"],
+      liveBranches: ["feat/x"],
+      metas: { "origin/feat/x:.arc/active/meta-x.md": meta("Paused") },
+    });
+
+    const result = await runActiveInFlight({ exec, identity: "andrew", teamMode: false, localOnly: false });
+
+    expect(result.entries[0]).toMatchObject({ kind: "work-unit", state: "unknown" });
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toMatchObject({
+      code: "state-unrecognized",
+      branch: "feat/x",
+      workUnit: "x",
+    });
+  });
+
   it("skips the network read under localOnly and reports reachable=false", async () => {
     const exec = makeExec({
       localRefs: ["feat/x"],
       liveBranches: "unreachable",
-      metas: { "origin/feat/x:.arc/active/meta-x.md": META },
+      metas: { "origin/feat/x:.arc/active/meta-x.md": meta() },
     });
 
     const result = await runActiveInFlight({ exec, identity: null, teamMode: false, localOnly: true });

@@ -1,6 +1,11 @@
-# Roadmap: ARC Framework Development
+# Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `74925313`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `9ed8a802`.
+> Source scope: tree + local refs. Live view: `arc status --project`.
+
+## Warnings
+
+- Candidate `origin/plan/burn-in-probe-a` for `burn-in-probe-a` was shadowed by `chore/burn-in-probe-a`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,17 +17,20 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-_No work units in flight._
+| State    | Work unit            | Priority | Owner  | Depends on      | Cohort            |
+| -------- | -------------------- | -------- | ------ | --------------- | ----------------- |
+| `Active` | finalize-parallelism | P1       | andrew | roadmap-tooling | agile-parallelism |
+| `Active` | burn-in-probe-a      | P3       | andrew | —               | —                 |
+| `Active` | burn-in-probe-b      | P3       | andrew | —               | —                 |
 
 ## Ready
 
 | Work unit                     | Priority | Owner  | Depends on | Cohort                     |
 | ----------------------------- | -------- | ------ | ---------- | -------------------------- |
-| finalize-parallelism          | P1       | andrew | —          | agile-parallelism          |
 | interlock-release-refinement  | P1       | andrew | —          | approval-flow-refinement   |
 | pr-decomposition              | P1       | andrew | —          | —                          |
-| project-state-integrity       | P1       | andrew | —          | —                          |
 | recovery-hardening            | P1       | andrew | —          | —                          |
+| roadmap-tooling               | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model      | P1       | andrew | —          | —                          |
 | composable-workflows          | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition           | P2       | andrew | —          | agent-context-optimization |
@@ -53,8 +61,6 @@ _No work units in flight._
 | adopter-content-aware-ci      | P3       | andrew | —          | —                          |
 | adr-accept-timing             | P3       | andrew | —          | —                          |
 | arc-reinforce                 | P3       | andrew | —          | —                          |
-| burn-in-probe-a               | P3       | andrew | —          | —                          |
-| burn-in-probe-b               | P3       | andrew | —          | —                          |
 | cohort-cut-coherence          | P3       | andrew | —          | —                          |
 | cohortless-decomposition      | P3       | andrew | —          | —                          |
 | cold-start-init-polish        | P3       | andrew | —          | —                          |
@@ -79,7 +85,6 @@ _No work units in flight._
 
 | Work unit                     | Priority | Owner  | Depends on                    | Cohort                     |
 | ----------------------------- | -------- | ------ | ----------------------------- | -------------------------- |
-| roadmap-tooling               | P1       | andrew | project-state-integrity       | —                          |
 | unit-scoped-review            | P2       | andrew | commit-increments             | approval-flow-refinement   |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption        | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization          | agent-context-optimization |

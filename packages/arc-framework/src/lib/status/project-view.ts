@@ -1,11 +1,11 @@
 /**
  * Project readiness view composer — renders `.arc/backlog/ROADMAP.md` from the
- * local meta-file graph.
+ * resolved project-readiness record graph.
  *
- * This is the file-writing counterpart to the shared status render primitive:
- * scan `active/`, `backlog/planned/`, and `backlog/provisional/`; resolve
- * dependency satisfaction by pending-set presence; group rows into In Flight,
- * Ready, Blocked depth bands, and Parked; then render canonical markdown tables.
+ * This is the file-writing counterpart to the shared status render primitive.
+ * Resolved records feed a lifecycle index; dependency satisfaction then follows
+ * canonical lifecycle predicates before rows group into In Flight, Ready,
+ * Blocked depth bands, and Parked.
  *
  * @module
  */
@@ -15,6 +15,15 @@ import { basename, join } from "node:path";
 
 import { validatePriority, validateState, type Priority, type WorkUnitState } from "../../commands/active/types.js";
 import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
+import type { GitExec } from "../git/exec.js";
+import {
+  deriveInFlight,
+  type InFlightEntry,
+  type InFlightWarning,
+  type InFlightWorkUnit,
+} from "../git/in-flight-derivation.js";
+import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "../work-unit/lifecycle-index.js";
+import { resolveSlugQuery } from "../work-unit/lifecycle-query.js";
 
 import { renderStatusTable, type StatusColumn, type StatusViewRow } from "./render.js";
 
@@ -30,27 +39,155 @@ export interface ProjectViewFs {
   readFile: (path: string) => Promise<string>;
 }
 
-/** Options for {@link composeProjectReadinessView}. */
-export interface ComposeProjectReadinessViewOptions {
-  /** Repository root containing `.arc/`. */
-  cwd: string;
-  /** Freshness marker to print in the header. */
-  renderedRef: string;
-  /** Optional H1 text without the leading `#`; existing ROADMAP title is preserved when omitted. */
-  title?: string;
-  /** Injectable filesystem for tests and handler-owned I/O contexts. */
-  fs?: ProjectViewFs;
+/** Lifecycle tier represented by a project-readiness record. */
+export type ProjectReadinessLocation = "active" | "planned" | "provisional" | "completed";
+
+/** Source family that contributed a project-readiness record. */
+export type ProjectReadinessSourceKind = "active-meta" | "backlog-stub" | "completed-index";
+
+/** Provenance for one source candidate that contributed to a merged record. */
+export interface ProjectReadinessRecordSource {
+  kind: ProjectReadinessSourceKind;
+  location: ProjectReadinessLocation;
+  path?: string;
 }
 
-/** A parsed meta row with enough lifecycle and render facts for the project view. */
-interface ProjectMeta {
+/** A candidate record before slug-keyed source precedence is applied. */
+export interface ProjectReadinessRecordCandidate {
   slug: string;
-  location: "active" | "planned" | "provisional";
+  location: ProjectReadinessLocation;
   state: WorkUnitState;
   owner?: string;
   priority: Priority;
   dependsOn: string[];
   cohort?: string;
+  source?: ProjectReadinessRecordSource;
+  scheduling?: "parked";
+}
+
+/** One resolved project-readiness record after source precedence is applied. */
+export interface ProjectReadinessRecord extends ProjectReadinessRecordCandidate {
+  source: ProjectReadinessRecordSource;
+  sources: readonly ProjectReadinessRecordSource[];
+  scheduling?: "parked";
+}
+
+/** Derivation warning facts the pure composer can elevate into the render. */
+export interface ProjectReadinessDerivationWarning {
+  code: "stale-location-dropped" | "stale-location-shadow";
+  workUnit?: string;
+  rendered: string;
+}
+
+/** Structured composer warning codes rendered with the project view. */
+export type ProjectReadinessWarningCode =
+  | "dangling-dependency"
+  | "oracle-degraded"
+  | "stale-location-unshipped";
+
+/** A project-readiness warning produced from dependency or provenance classification. */
+export interface ProjectReadinessWarning {
+  code: ProjectReadinessWarningCode;
+  workUnit?: string;
+  dependency?: string;
+  rendered: string;
+}
+
+/** Dependency satisfaction fact computed from lifecycle classification. */
+export type ProjectDependencySatisfaction = "satisfied" | "unsatisfied";
+
+/** Readiness verdict supplied by the configured readiness provider. */
+export type ProjectReadinessVerdict = "ready" | "blocked";
+
+/** Batch readiness provider contract: records in, per-slug verdicts out. */
+export interface ProjectReadinessProvider {
+  resolve(records: readonly ProjectReadinessRecord[]): ReadonlyMap<string, ProjectReadinessVerdict>;
+}
+
+/** Per-record facts the render layer consumes to build readiness tiers. */
+export interface ProjectReadinessFact {
+  slug: string;
+  dependencySatisfaction: ProjectDependencySatisfaction;
+  readiness: ProjectReadinessVerdict;
+  unsatisfiedDependencies: readonly string[];
+}
+
+/** Resolver output consumed by {@link composeProjectReadinessView}. */
+export interface ProjectReadinessViewInput {
+  title: string;
+  records: ProjectReadinessRecord[];
+  derivationWarnings: ProjectReadinessDerivationWarning[];
+  sourceWarnings: ProjectReadinessWarning[];
+  /** Whether the resolver observed changing in-flight inputs during derivation. */
+  indeterminate: boolean;
+}
+
+/** In-flight oracle inputs for project-readiness renders. */
+export interface ProjectReadinessOracleOptions {
+  exec: GitExec;
+  /** `true` skips the network read and renders from last-known local refs. */
+  localOnly?: boolean;
+  baseBranch?: string;
+  errandSlugByBranch?: ReadonlyMap<string, string>;
+  parkedSlugs?: ReadonlySet<string>;
+  timeoutMs?: number;
+}
+
+/** Local-ref oracle inputs for tracked project-readiness renders. */
+export type ProjectReadinessLocalRefsOptions = Omit<ProjectReadinessOracleOptions, "localOnly">;
+
+/** Options for the tree-backed resolver. */
+export interface ResolveProjectReadinessViewInputOptions {
+  /** Repository root containing `.arc/`. */
+  cwd: string;
+  /** Optional H1 text without the leading `#`; omitted uses the renderer default. */
+  title?: string;
+  /** Injectable filesystem for tests and handler-owned I/O contexts. */
+  fs?: ProjectViewFs;
+  /** Optional local-ref oracle input to merge at-ref active metas into the record set. */
+  localRefs?: ProjectReadinessLocalRefsOptions;
+  /** Optional in-flight oracle input to merge at-ref active metas into the record set. */
+  oracle?: ProjectReadinessOracleOptions;
+}
+
+/** Structured freshness stamp rendered in the view header. */
+export interface ProjectReadinessRenderStamp {
+  ref: string;
+  scope?: string;
+  liveView?: string;
+}
+
+/** Options for resolving a project-readiness freshness stamp. */
+export interface ResolveProjectReadinessRenderStampOptions {
+  exec: GitExec;
+  cwd: string;
+  scope?: string;
+  liveView?: string;
+}
+
+/** Options for {@link composeProjectReadinessView}. */
+export interface ComposeProjectReadinessViewOptions {
+  /** Freshness marker to print in the header. */
+  renderedRef: string | ProjectReadinessRenderStamp;
+  /** H1 text without the leading `#`. */
+  title: string;
+  /** Already-resolved project-readiness records. */
+  records: readonly ProjectReadinessRecord[];
+  /** Source warnings from the resolver or oracle. */
+  sourceWarnings?: readonly ProjectReadinessWarning[];
+  /** Derivation warnings to classify against the same lifecycle index. */
+  derivationWarnings?: readonly ProjectReadinessDerivationWarning[];
+  /** Whether the source snapshot was indeterminate even if no source warning was supplied. */
+  indeterminate?: boolean;
+  /** Readiness provider; omitted uses dependency satisfaction as readiness. */
+  readinessProvider?: ProjectReadinessProvider;
+}
+
+/** Render result plus the structured warnings displayed in the header. */
+export interface ProjectReadinessViewResult {
+  markdown: string;
+  warnings: ProjectReadinessWarning[];
+  facts: ProjectReadinessFact[];
 }
 
 /** A blocked planned row plus the unresolved edges it displays. */
@@ -59,8 +196,17 @@ interface BlockedRow {
   unsatisfied: string[];
 }
 
+interface DependencyClassification {
+  unsatisfiedBySlug: ReadonlyMap<string, readonly string[]>;
+  warnings: ProjectReadinessWarning[];
+}
+
 const META_FILE_RE = /^meta-(.+)\.md$/u;
-const DEFAULT_TITLE = "Roadmap: Project Readiness";
+const DEFAULT_TITLE = "Roadmap: Project Status";
+const INDETERMINATE_ORACLE_WARNING: ProjectReadinessWarning = {
+  code: "oracle-degraded",
+  rendered: "In-flight inputs were indeterminate during derivation; rendering project view from a degraded snapshot.",
+};
 
 export const PROJECT_IN_FLIGHT_COLUMNS = [
   "state",
@@ -83,6 +229,24 @@ const DEFAULT_FS: ProjectViewFs = {
   readdir: (path) => readdir(path, { withFileTypes: true }),
   readFile: (path) => readFile(path, "utf8"),
 };
+
+/** Resolve the standard render stamp for tracked and live project-readiness views. */
+export async function resolveProjectReadinessRenderStamp(
+  options: ResolveProjectReadinessRenderStampOptions,
+): Promise<ProjectReadinessRenderStamp> {
+  let ref: string;
+  try {
+    const { stdout } = await options.exec("git", ["rev-parse", "--short", "HEAD"], { cwd: options.cwd });
+    ref = stdout.trim() || "working tree";
+  } catch {
+    ref = "working tree";
+  }
+  return {
+    ref,
+    ...(options.scope !== undefined ? { scope: options.scope } : {}),
+    ...(options.liveView !== undefined ? { liveView: options.liveView } : {}),
+  };
+}
 
 /** Collect `meta-*.md` files recursively under `dir`; a missing directory yields none. */
 async function collectMetaFiles(dir: string, fs: ProjectViewFs): Promise<string[]> {
@@ -110,12 +274,32 @@ function slugOf(path: string): string {
   return META_FILE_RE.exec(basename(path))?.[1] ?? basename(path);
 }
 
+function sourceKindFor(location: ProjectReadinessLocation): ProjectReadinessSourceKind {
+  switch (location) {
+    case "active":
+      return "active-meta";
+    case "planned":
+    case "provisional":
+      return "backlog-stub";
+    case "completed":
+      return "completed-index";
+  }
+}
+
+function sourceFor(location: ProjectReadinessLocation, path: string | undefined): ProjectReadinessRecordSource {
+  return {
+    kind: sourceKindFor(location),
+    location,
+    ...(path !== undefined ? { path } : {}),
+  };
+}
+
 /** Parse one meta into the renderer's compact project-view row shape. */
 async function readProjectMeta(
   fs: ProjectViewFs,
-  location: ProjectMeta["location"],
+  location: ProjectReadinessLocation,
   path: string,
-): Promise<ProjectMeta | null> {
+): Promise<ProjectReadinessRecordCandidate | null> {
   let record;
   try {
     record = parseMetaRecord(await fs.readFile(path));
@@ -134,18 +318,20 @@ async function readProjectMeta(
     priority: validatePriority(record.Priority),
     dependsOn: parseIdentifierList(record["Depends On"]),
     ...(record.Cohort !== null && record.Cohort !== "[none]" ? { cohort: record.Cohort } : {}),
+    source: sourceFor(location, path),
   };
 }
 
-/** Load active/planned/provisional metas from disk. */
-async function loadProjectMetas(cwd: string, fs: ProjectViewFs): Promise<ProjectMeta[]> {
+/** Load lifecycle-tier metas from disk into unmerged record candidates. */
+async function loadProjectRecords(cwd: string, fs: ProjectViewFs): Promise<ProjectReadinessRecordCandidate[]> {
   const roots = [
     { location: "active" as const, dir: join(cwd, ".arc", "active") },
     { location: "planned" as const, dir: join(cwd, ".arc", "backlog", "planned") },
     { location: "provisional" as const, dir: join(cwd, ".arc", "backlog", "provisional") },
+    { location: "completed" as const, dir: join(cwd, ".arc", "completed") },
   ];
 
-  const metas: ProjectMeta[] = [];
+  const metas: ProjectReadinessRecordCandidate[] = [];
   for (const root of roots) {
     for (const path of await collectMetaFiles(root.dir, fs)) {
       const meta = await readProjectMeta(fs, root.location, path);
@@ -155,29 +341,319 @@ async function loadProjectMetas(cwd: string, fs: ProjectViewFs): Promise<Project
   return metas;
 }
 
-/** Preserve a project-specific ROADMAP H1 when one already exists. */
-async function resolveTitle(cwd: string, fs: ProjectViewFs, title: string | undefined): Promise<string> {
-  if (title !== undefined) return title;
-  try {
-    const firstLine = (await fs.readFile(join(cwd, ".arc", "backlog", "ROADMAP.md"))).split(/\r?\n/, 1)[0];
-    if (firstLine?.startsWith("# ")) return firstLine.slice(2).trim();
-  } catch {
-    // No existing ROADMAP: fall through to the generated default.
-  }
-  return DEFAULT_TITLE;
+const SOURCE_PRECEDENCE: Record<ProjectReadinessLocation, number> = {
+  active: 3,
+  planned: 2,
+  provisional: 1,
+  completed: 0,
+};
+
+function compareCandidates(
+  left: ProjectReadinessRecordCandidate,
+  right: ProjectReadinessRecordCandidate,
+): number {
+  const precedence = SOURCE_PRECEDENCE[right.location] - SOURCE_PRECEDENCE[left.location];
+  if (precedence !== 0) return precedence;
+  return sourcePathOf(left).localeCompare(sourcePathOf(right));
 }
 
-/** Build a render row from a parsed meta, filtering dependency display to pending edges. */
-function rowOf(meta: ProjectMeta, pendingNames: ReadonlySet<string>, includeState: boolean): StatusViewRow {
-  const pendingDeps = meta.dependsOn.filter((dep) => pendingNames.has(dep));
+function sourcePathOf(candidate: ProjectReadinessRecordCandidate): string {
+  return candidate.source?.path ?? `${candidate.location}/${candidate.slug}`;
+}
+
+function isParkedPointer(candidate: ProjectReadinessRecordCandidate): boolean {
+  return candidate.scheduling === "parked" || (candidate.location === "planned" && candidate.state === "Active");
+}
+
+/**
+ * Merge source candidates into one slug-keyed project-readiness record set.
+ *
+ * At-ref active metas win the row-field precedence over backlog stubs and completed
+ * records. Parking is an axis overlay: a planned Active pointer owns scheduling
+ * tier membership even when an active meta supplies the row fields.
+ */
+export function mergeProjectReadinessRecords(
+  candidates: readonly ProjectReadinessRecordCandidate[],
+): ProjectReadinessRecord[] {
+  const groups = new Map<string, ProjectReadinessRecordCandidate[]>();
+  for (const candidate of candidates) {
+    groups.set(candidate.slug, [...(groups.get(candidate.slug) ?? []), candidate]);
+  }
+
+  return [...groups.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([, group]) => {
+      const ordered = [...group].sort(compareCandidates);
+      const winner = ordered[0];
+      if (winner === undefined) throw new Error("project-readiness merge requires a non-empty group");
+      const parked = group.some(isParkedPointer);
+      const source = winner.source ?? sourceFor(winner.location, undefined);
+      return {
+        ...winner,
+        source,
+        sources: ordered.map((candidate) => candidate.source ?? sourceFor(candidate.location, undefined)),
+        ...(parked ? { location: "planned" as const, scheduling: "parked" as const } : {}),
+      };
+    });
+}
+
+/** Resolve the project-readiness view title from render inputs only. */
+function resolveTitle(title: string | undefined): string {
+  return title ?? DEFAULT_TITLE;
+}
+
+function selectedRefFor(entry: InFlightWorkUnit): string {
+  return entry.provenance?.find((candidate) => candidate.selected)?.ref ?? entry.branch;
+}
+
+function inFlightEntryToCandidate(entry: InFlightEntry): ProjectReadinessRecordCandidate | null {
+  if (entry.kind !== "work-unit") return null;
+  const state = validateState(entry.state);
+  if (state === "unknown") return null;
+  const ref = selectedRefFor(entry);
   return {
-    workUnit: meta.slug,
-    ...(includeState ? { state: `\`${meta.state}\`` } : {}),
-    priority: meta.priority,
-    ...(meta.owner !== undefined ? { owner: meta.owner } : {}),
-    dependsOn: pendingDeps,
-    ...(meta.cohort !== undefined ? { cohort: meta.cohort } : {}),
+    slug: entry.name,
+    location: "active",
+    state,
+    ...(entry.owner !== undefined ? { owner: entry.owner } : {}),
+    priority: validatePriority(entry.priority ?? null),
+    dependsOn: [...entry.dependsOn],
+    ...(entry.cohort !== undefined ? { cohort: entry.cohort } : {}),
+    source: sourceFor("active", `${ref}:.arc/active/meta-${entry.name}.md`),
+    ...(entry.scheduling === "parked" ? { scheduling: "parked" as const } : {}),
   };
+}
+
+function sourceWarningFromInFlight(warning: InFlightWarning): ProjectReadinessWarning {
+  return {
+    code: "oracle-degraded",
+    ...(warning.workUnit !== undefined ? { workUnit: warning.workUnit } : {}),
+    rendered: warning.rendered,
+  };
+}
+
+function staleWarningFromInFlight(warning: InFlightWarning): ProjectReadinessDerivationWarning | null {
+  if (warning.code !== "stale-location-dropped" && warning.code !== "stale-location-shadow") {
+    return null;
+  }
+  return {
+    code: warning.code,
+    ...(warning.workUnit !== undefined ? { workUnit: warning.workUnit } : {}),
+    rendered: warning.rendered,
+  };
+}
+
+function appendIndeterminateOracleWarning(
+  warnings: readonly ProjectReadinessWarning[],
+  indeterminate: boolean,
+  hasSpecificIndeterminateWarning: boolean,
+): ProjectReadinessWarning[] {
+  const renderedAlready = warnings.some((warning) =>
+    warning.rendered === INDETERMINATE_ORACLE_WARNING.rendered
+    || /indeterminate|changed during derivation/iu.test(warning.rendered));
+  return indeterminate && !hasSpecificIndeterminateWarning && !renderedAlready
+    ? [...warnings, INDETERMINATE_ORACLE_WARNING]
+    : [...warnings];
+}
+
+async function resolveOracleCandidates(
+  options: ProjectReadinessOracleOptions | undefined,
+): Promise<{
+  candidates: ProjectReadinessRecordCandidate[];
+  derivationWarnings: ProjectReadinessDerivationWarning[];
+  sourceWarnings: ProjectReadinessWarning[];
+  indeterminate: boolean;
+}> {
+  if (options === undefined) {
+    return { candidates: [], derivationWarnings: [], sourceWarnings: [], indeterminate: false };
+  }
+  const result = await deriveInFlight({
+    exec: options.exec,
+    localOnly: options.localOnly ?? false,
+    baseBranch: options.baseBranch,
+    timeoutMs: options.timeoutMs,
+    identity: null,
+    teamMode: false,
+    errandSlugByBranch: options.errandSlugByBranch,
+    parkedSlugs: options.parkedSlugs,
+  });
+  const candidates = result.entries
+    .map(inFlightEntryToCandidate)
+    .filter((candidate): candidate is ProjectReadinessRecordCandidate => candidate !== null);
+  const derivationWarnings: ProjectReadinessDerivationWarning[] = [];
+  const sourceWarnings: ProjectReadinessWarning[] = [];
+  let hasIndeterminateSourceWarning = false;
+  for (const warning of result.warnings) {
+    if (warning.code === "input-snapshot-disagreement") hasIndeterminateSourceWarning = true;
+    const stale = staleWarningFromInFlight(warning);
+    if (stale === null) sourceWarnings.push(sourceWarningFromInFlight(warning));
+    else derivationWarnings.push(stale);
+  }
+  if (!options.localOnly && !result.reachable) {
+    sourceWarnings.unshift({
+      code: "oracle-degraded",
+      rendered: "Remote unreachable; rendering project view from local refs only.",
+    });
+  }
+  const indeterminate = inFlightResultIndeterminate(result);
+  return {
+    candidates,
+    derivationWarnings,
+    sourceWarnings: appendIndeterminateOracleWarning(sourceWarnings, indeterminate, hasIndeterminateSourceWarning),
+    indeterminate,
+  };
+}
+
+function inFlightResultIndeterminate(result: Awaited<ReturnType<typeof deriveInFlight>>): boolean {
+  return Boolean(result.marks?.includes("indeterminate"))
+    || result.entries.some((entry) => entry.marks?.includes("indeterminate") ?? false)
+    || result.warnings.some((warning) => warning.code === "input-snapshot-disagreement");
+}
+
+function oracleOptionsFor(options: ResolveProjectReadinessViewInputOptions): ProjectReadinessOracleOptions | undefined {
+  // `oracle` is the full live/local input contract; `localRefs` is only the tracked-render shorthand.
+  if (options.oracle !== undefined) return options.oracle;
+  if (options.localRefs === undefined) return undefined;
+  return { ...options.localRefs, localOnly: true };
+}
+
+/** Resolve tree-backed records and the title read into a compose-ready input. */
+export async function resolveProjectReadinessViewInput(
+  options: ResolveProjectReadinessViewInputOptions,
+): Promise<ProjectReadinessViewInput> {
+  const fs = options.fs ?? DEFAULT_FS;
+  const [treeRecords, localRefs] = await Promise.all([
+    loadProjectRecords(options.cwd, fs),
+    resolveOracleCandidates(oracleOptionsFor(options)),
+  ]);
+  return {
+    title: resolveTitle(options.title),
+    records: mergeProjectReadinessRecords([...treeRecords, ...localRefs.candidates]),
+    derivationWarnings: localRefs.derivationWarnings,
+    sourceWarnings: localRefs.sourceWarnings,
+    indeterminate: localRefs.indeterminate,
+  };
+}
+
+function lifecycleIndexFromRecords(records: readonly ProjectReadinessRecord[]): LifecycleIndex {
+  return buildLifecycleIndexFromRecords(
+    records.map((record) => ({
+      slug: record.slug,
+      state: record.state,
+      location: record.location,
+      cohort: record.cohort ?? null,
+      dependsOn: record.dependsOn,
+      path: record.source.path,
+    })),
+  );
+}
+
+function classifyDependencies(
+  records: readonly ProjectReadinessRecord[],
+  index: LifecycleIndex,
+): DependencyClassification {
+  const warnings: ProjectReadinessWarning[] = [];
+  const warned = new Set<string>();
+  const unsatisfiedBySlug = new Map<string, string[]>();
+
+  for (const record of records) {
+    const unsatisfied: string[] = [];
+    for (const dep of record.dependsOn) {
+      const query = resolveSlugQuery(index, dep);
+      if (query.state === "nonexistent") {
+        unsatisfied.push(dep);
+        const key = `${record.slug}\0${dep}`;
+        if (!warned.has(key)) {
+          warned.add(key);
+          warnings.push({
+            code: "dangling-dependency",
+            workUnit: record.slug,
+            dependency: dep,
+            rendered: `\`${record.slug}\` depends on missing work unit \`${dep}\`; treating the edge as blocked.`,
+          });
+        }
+      } else if (!query.shipped) {
+        unsatisfied.push(dep);
+      }
+    }
+    if (unsatisfied.length > 0) unsatisfiedBySlug.set(record.slug, unsatisfied);
+  }
+
+  return { unsatisfiedBySlug, warnings };
+}
+
+function elevatedDerivationWarnings(
+  warnings: readonly ProjectReadinessDerivationWarning[],
+  index: LifecycleIndex,
+): ProjectReadinessWarning[] {
+  return warnings.flatMap((warning): ProjectReadinessWarning[] => {
+    if (warning.workUnit === undefined) return [];
+    const query = resolveSlugQuery(index, warning.workUnit);
+    if (query.shipped) return [];
+    return [
+      {
+        code: "stale-location-unshipped",
+        workUnit: warning.workUnit,
+        rendered: `${warning.rendered} Work unit \`${warning.workUnit}\` has not shipped; treating the view as degraded.`,
+      },
+    ];
+  });
+}
+
+/** Default provider: a record is ready exactly when all dependency edges are satisfied. */
+export const depsOnlyReadinessProvider: ProjectReadinessProvider = {
+  resolve(records) {
+    const classification = classifyDependencies(records, lifecycleIndexFromRecords(records));
+    return new Map(
+      records.map((record) => [
+        record.slug,
+        unsatisfiedFor(classification, record.slug).length === 0 ? "ready" : "blocked",
+      ]),
+    );
+  },
+};
+
+/** Build a render row from a resolved record, filtering dependency display to unsatisfied edges. */
+function rowOf(
+  record: ProjectReadinessRecord,
+  unsatisfiedDeps: readonly string[],
+  includeState: boolean,
+): StatusViewRow {
+  return {
+    workUnit: record.slug,
+    ...(includeState ? { state: `\`${record.state}\`` } : {}),
+    priority: record.priority,
+    ...(record.owner !== undefined ? { owner: record.owner } : {}),
+    dependsOn: [...unsatisfiedDeps],
+    ...(record.cohort !== undefined ? { cohort: record.cohort } : {}),
+  };
+}
+
+function unsatisfiedFor(classification: DependencyClassification, slug: string): readonly string[] {
+  return classification.unsatisfiedBySlug.get(slug) ?? [];
+}
+
+function readinessFor(
+  verdicts: ReadonlyMap<string, ProjectReadinessVerdict>,
+  slug: string,
+): ProjectReadinessVerdict {
+  return verdicts.get(slug) ?? "blocked";
+}
+
+function factsFor(
+  records: readonly ProjectReadinessRecord[],
+  classification: DependencyClassification,
+  readiness: ReadonlyMap<string, ProjectReadinessVerdict>,
+): ProjectReadinessFact[] {
+  return records.map((record) => {
+    const unsatisfiedDependencies = unsatisfiedFor(classification, record.slug);
+    return {
+      slug: record.slug,
+      dependencySatisfaction: unsatisfiedDependencies.length === 0 ? "satisfied" : "unsatisfied",
+      readiness: readinessFor(readiness, record.slug),
+      unsatisfiedDependencies: [...unsatisfiedDependencies],
+    };
+  });
 }
 
 /** Depth-band blocked rows by longest unresolved blocked-dependency chain. */
@@ -212,47 +688,76 @@ function renderTier(rows: readonly StatusViewRow[], columns: readonly StatusColu
   return rows.length === 0 ? empty : renderStatusTable(rows, columns);
 }
 
+function renderWarnings(warnings: readonly ProjectReadinessWarning[]): string[] {
+  if (warnings.length === 0) return [];
+  return ["", "## Warnings", "", ...warnings.map((warning) => `- ${warning.rendered}`)];
+}
+
+function renderStamp(stamp: string | ProjectReadinessRenderStamp): string {
+  const resolved = typeof stamp === "string" ? { ref: stamp } : stamp;
+  const lines = [
+    `**Generated from meta files — re-render at ceremony boundaries.** Last rendered against \`${resolved.ref}\`.`,
+  ];
+  const details: string[] = [];
+  if (resolved.scope !== undefined) details.push(`Source scope: ${resolved.scope}.`);
+  if (resolved.liveView !== undefined) details.push(`Live view: \`${resolved.liveView}\`.`);
+  if (details.length > 0) lines.push(details.join(" "));
+  return lines.map((line) => `> ${line}`).join("\n");
+}
+
 /**
- * Compose the project readiness view from local meta files.
+ * Compose the project readiness view from resolved records.
  *
- * @param options - Repository root, header freshness marker, and optional I/O seams.
- * @returns The complete markdown body, without requiring a trailing newline.
+ * @param options - Header freshness marker, title, and resolved records.
+ * @returns The markdown body plus structured warnings, without requiring a trailing newline.
  */
-export async function composeProjectReadinessView(
+export function composeProjectReadinessViewResult(
   options: ComposeProjectReadinessViewOptions,
-): Promise<string> {
-  const fs = options.fs ?? DEFAULT_FS;
-  const title = await resolveTitle(options.cwd, fs, options.title);
-  const metas = await loadProjectMetas(options.cwd, fs);
-  const pendingNames = new Set(metas.map((meta) => meta.slug));
+): ProjectReadinessViewResult {
+  const records = [...options.records];
+  const index = lifecycleIndexFromRecords(records);
+  const classification = classifyDependencies(records, index);
+  const sourceWarnings = appendIndeterminateOracleWarning(options.sourceWarnings ?? [], options.indeterminate === true, false);
+  const warnings = [
+    ...sourceWarnings,
+    ...classification.warnings,
+    ...elevatedDerivationWarnings(options.derivationWarnings ?? [], index),
+  ];
+  const readiness = (options.readinessProvider ?? depsOnlyReadinessProvider).resolve(records);
+  const facts = factsFor(records, classification, readiness);
+  const factsBySlug = new Map(facts.map((fact) => [fact.slug, fact]));
 
-  const active = metas
-    .filter((meta) => meta.location === "active")
-    .map((meta) => rowOf(meta, pendingNames, true));
+  const active = records
+    .filter((record) => record.location === "active" && record.scheduling !== "parked")
+    .map((record) => rowOf(record, unsatisfiedFor(classification, record.slug), true));
 
-  const planned = metas.filter((meta) => meta.location === "planned");
+  const planned = records.filter((record) => record.location === "planned" && record.scheduling !== "parked");
   const ready = planned
-    .filter((meta) => meta.state === "Planning")
-    .filter((meta) => meta.dependsOn.every((dep) => !pendingNames.has(dep)))
-    .map((meta) => rowOf(meta, pendingNames, false));
+    .filter((record) => record.state === "Planning")
+    .filter((record) => {
+      const fact = factsBySlug.get(record.slug);
+      return fact?.dependencySatisfaction === "satisfied" && fact.readiness === "ready";
+    })
+    .map((record) => rowOf(record, [], false));
 
   const blocked = new Map<string, BlockedRow>();
-  for (const meta of planned.filter((item) => item.state === "Planning")) {
-    const unsatisfied = meta.dependsOn.filter((dep) => pendingNames.has(dep));
-    if (unsatisfied.length > 0) {
-      blocked.set(meta.slug, { row: rowOf(meta, pendingNames, false), unsatisfied });
-    }
+  for (const record of planned.filter((item) => item.state === "Planning")) {
+    const fact = factsBySlug.get(record.slug);
+    if (fact?.dependencySatisfaction === "satisfied" && fact.readiness === "ready") continue;
+    const unsatisfied = unsatisfiedFor(classification, record.slug);
+    blocked.set(record.slug, { row: rowOf(record, unsatisfied, false), unsatisfied: [...unsatisfied] });
   }
 
-  const parked = planned
-    .filter((meta) => meta.state === "Active")
-    .map((meta) => rowOf(meta, pendingNames, false));
+  const parked = records
+    .filter((record) => record.scheduling === "parked" || (record.location === "planned" && record.state === "Active"))
+    .map((record) => rowOf(record, unsatisfiedFor(classification, record.slug), false));
   const blockedGroups = blockedDepths(blocked);
 
   const lines = [
-    `# ${title}`,
+    `# ${options.title}`,
     "",
-    `> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against \`${options.renderedRef}\`.`,
+    renderStamp(options.renderedRef),
+    ...renderWarnings(warnings),
     "",
     "This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a",
     "unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many",
@@ -288,5 +793,17 @@ export async function composeProjectReadinessView(
 
   lines.push("---", "", "_Pre-commitment thinking that hasn't been sequenced yet lives in `backlog/provisional/`._");
 
-  return lines.join("\n");
+  return { markdown: lines.join("\n"), warnings, facts };
+}
+
+/**
+ * Compose only the project readiness markdown body.
+ *
+ * @param options - Header freshness marker, title, and resolved records.
+ * @returns The complete markdown body, without requiring a trailing newline.
+ */
+export function composeProjectReadinessView(
+  options: ComposeProjectReadinessViewOptions,
+): string {
+  return composeProjectReadinessViewResult(options).markdown;
 }

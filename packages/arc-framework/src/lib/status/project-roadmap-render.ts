@@ -1,0 +1,56 @@
+/**
+ * Shared renderer for the tracked project readiness file.
+ *
+ * This is the local-ref counterpart to the live `arc status --project` path:
+ * lifecycle ceremonies regenerate the tracked ROADMAP from the tree plus local
+ * refs so the commit captures a reproducible project-status snapshot.
+ *
+ * @module
+ */
+
+import type { GitExec } from "../git/exec.js";
+import { buildLifecycleIndex, type LifecycleIndexFs } from "../work-unit/lifecycle-index.js";
+import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
+
+import {
+  composeProjectReadinessView,
+  resolveProjectReadinessRenderStamp,
+  resolveProjectReadinessViewInput,
+} from "./project-view.js";
+
+/** Inputs for rendering the tracked project readiness view. */
+export interface RenderTrackedProjectReadinessViewOptions {
+  /** Repository root containing `.arc/`. */
+  cwd: string;
+  /** Git executor used for local-ref derivation and the render stamp. */
+  exec: GitExec;
+  /** Filesystem seam for tree-backed records and lifecycle classification. */
+  fs: LifecycleIndexFs;
+  /** Resolved base branch for the in-flight oracle. */
+  baseBranch?: string;
+}
+
+/** Render the tracked ROADMAP view from tree files plus local refs. */
+export async function renderTrackedProjectReadinessView(
+  options: RenderTrackedProjectReadinessViewOptions,
+): Promise<string> {
+  const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: options.cwd, fs: options.fs }));
+  const input = await resolveProjectReadinessViewInput({
+    cwd: options.cwd,
+    fs: options.fs,
+    localRefs: {
+      exec: options.exec,
+      ...(options.baseBranch !== undefined ? { baseBranch: options.baseBranch } : {}),
+      parkedSlugs,
+    },
+  });
+  return composeProjectReadinessView({
+    ...input,
+    renderedRef: await resolveProjectReadinessRenderStamp({
+      exec: options.exec,
+      cwd: options.cwd,
+      scope: "tree + local refs",
+      liveView: "arc status --project",
+    }),
+  });
+}

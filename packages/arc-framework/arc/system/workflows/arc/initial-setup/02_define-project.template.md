@@ -111,13 +111,13 @@ rules, and any project-specific protocols.
 
 <!-- arc:if pm.mode == arc-in-git -->
 
-### Step 6: Plan ROADMAP
+### Step 6: Plan Backlog
 
-Your execution strategy — what gets built in what order, and why. The ROADMAP captures
-sequencing decisions and dependency chains so you can plan work deliberately rather than
-reactively.
+Your execution strategy — what gets built in what order, and why. Backlog source artifacts capture sequencing
+decisions and dependency chains so you can plan work deliberately rather than reactively. ROADMAP renders a
+project status cache from those sources.
 
-**Template**: [ROADMAP.md][roadmap] → goes in `backlog/`
+**Generated view**: [ROADMAP.md][roadmap] → goes in `backlog/`
 
 **Think through**:
 
@@ -150,8 +150,8 @@ say. When they drift from reality, the agent works from wrong assumptions.
 - **PROJECT-PRD** — when the project's documented problem, scope, or principles shift. A
   pivot, a scope boundary redrawn, or a new constraint changes what work gets planned.
 <!-- arc:if pm.mode == arc-in-git -->
-- **ROADMAP** — when sequencing shifts, phases complete, or new work emerges. Stale
-  roadmaps misguide next-work-unit discovery.
+- **ROADMAP** — regenerated at ceremony boundaries as the project status cache. Stale
+  backlog metadata misguides next-work-unit discovery; use `arc status --project` for live state.
 <!-- arc:endif -->
 
 TECHNICAL-OVERVIEW evolves naturally alongside the code — update it when architectural
@@ -165,8 +165,8 @@ Project definition is complete. Three of these documents — AGENT-BRIEF.PROJECT
 QUICK-REFERENCE, and DEV-RULES.PROJECT — are loaded by the agent at the start of every
 session.
 <!-- arc:if pm.mode == arc-in-git -->
-The rest (PROJECT-PRD, TECHNICAL-OVERVIEW, ROADMAP) are reference
-material for consulting during planning and architecture decisions.
+The rest (PROJECT-PRD, TECHNICAL-OVERVIEW) are reference material for consulting during planning and
+architecture decisions. Use `arc status --project` plus backlog source artifacts for live project status.
 <!-- arc:endif -->
 <!-- arc:if pm.mode != arc-in-git -->
 The rest (PROJECT-PRD, TECHNICAL-OVERVIEW) are reference material for consulting during
@@ -176,8 +176,8 @@ planning and architecture decisions.
 <!-- arc:if pm.mode == arc-in-git -->
 Clear your context and start a fresh session by invoking the `arc-session` skill (invocation
 syntax is agent-specific). With no active work unit yet, session initialization enters
-discovery mode: the agent checks your ROADMAP for the next queued item and helps you create
-a PRD and task list for your first work unit. From there, the normal session rhythm —
+discovery mode: the agent renders the live project status view, checks the matching backlog
+artifacts, and helps you create a PRD and task list for your first work unit. From there, the normal session rhythm —
 `arc-session`, task execution, `arc-commit`, `arc-handoff` — takes over.
 <!-- arc:endif -->
 

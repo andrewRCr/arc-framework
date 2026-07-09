@@ -54,9 +54,25 @@ vi.mock("../../../src/lib/work-unit/verbs/park-resume.js", () => ({
   runResume: (...args: unknown[]) => mockRunResume(...args),
 }));
 
-vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
-  buildLifecycleIndex: async () => new Map([["widget", { path: ".arc/backlog/planned/widget/meta-widget.md" }]]),
-}));
+vi.mock("../../../src/lib/work-unit/lifecycle-index.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../src/lib/work-unit/lifecycle-index.js")>();
+  return {
+    ...actual,
+    buildLifecycleIndex: async () => new Map([
+      [
+        "widget",
+        {
+          slug: "widget",
+          phase: "Planning",
+          location: "planned",
+          cohort: null,
+          dependsOn: [],
+          path: ".arc/backlog/planned/widget/meta-widget.md",
+        },
+      ],
+    ]),
+  };
+});
 
 vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({
   buildExecutorContext: () => ({}),
@@ -77,9 +93,13 @@ vi.mock("../../../src/lib/config/status-reader.js", () => ({
   }),
 }));
 
-vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
-  resolvePrimaryWorktreePath: async () => "/repos/myrepo",
-}));
+vi.mock("../../../src/lib/git/worktree-roster.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../src/lib/git/worktree-roster.js")>();
+  return {
+    ...actual,
+    resolvePrimaryWorktreePath: async () => "/repos/myrepo",
+  };
+});
 
 const mockIsNonInteractive = vi.fn(() => true);
 
