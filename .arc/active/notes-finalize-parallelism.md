@@ -199,6 +199,70 @@ deliberate induction; if it reproduces, it is a `detectForeignArtifactOverlap` d
 (3.2.a) and concurrent same-instant regen (3.2.c) still run under 3.2 induction. But the invariants held under real
 concurrent load, and nothing observed contradicts the predicted classifications.
 
+### Dogfood finding (2026-07-09): slug-state surfaces are checkout-local — blind to in-flight siblings
+
+Surfaced at FP's observer resume: both probes sat integration-ready (meta `State: Active` in their own worktrees'
+`active/`, task lists complete through verification, local = remote on both branches), yet `arc status
+burn-in-probe-a` / `-b` run from FP's worktree reported `planned · Planning · occupied: false`. In the same
+checkout, `arc status --project` rendered both probes `Active` / In Flight. One CLI, two answers about the same
+work units.
+
+**Mechanism.** The slug query (`arc status <slug>` → `buildLifecycleIndex` → `resolveSlugQuery`;
+`lib/work-unit/lifecycle-index.ts` / `lifecycle-query.ts`) is a pure walk of the *current checkout's* four
+lifecycle directories — deliberately no git or network on the path. Under single-branch-per-WU, a sibling WU's
+activation (`backlog/planned/ → active/` move + `State` flip) exists only on its own branch until merge, so every
+other checkout still carries the pre-graduation stub, and the local index faithfully — but falsely — reports
+`planned`. `occupied` is not a `git worktree list` check: it derives from the same state enum (`isOccupied`,
+`lifecycle-resolver.ts`), so it inherits the stale answer even though the local-sibling case is answerable
+locally and correctly via `worktree-roster.ts`. The predicate's doc contract ("live on a branch / worktree — the
+worktree-occupancy guard's boolean") promises more than the read performs.
+
+**Why `project-state-integrity` didn't cover it.** That WU chartered "a `main`-checkout render shows in-flight
+WUs as in flight (superseding their stale backlog stubs)" and delivered it for the *view path*: the readiness
+projection merges tree records with oracle candidates (`deriveInFlight` → `mergeProjectReadinessRecords`,
+`lib/status/project-view.ts`) — verified live above (cell 3.2.c validation), and the probes render correctly
+there. But its spec kept `buildLifecycleIndex` / `resolveSlugQuery` as the "shared slug→identity substrate" (an
+*input* to the oracle), and the slug-query *surface* appears in neither its Goals nor its Non-Goals — the gap
+fell through the seam rather than being consciously deferred. The oracle sees the truth; the slug query never
+consults the oracle.
+
+**Blast radius** (consumers of the checkout-local resolver, from source):
+
+1. **Agent doctrine points at the blind surface.** DEV-RULES.ARC § Verify before assuming names
+   `arc status <slug>` as *the* lifecycle resolver ("never infer"), and session-init's `--start` focused-recon
+   arm resolves Tier-1 dependency edges through it. Any agent operating outside a WU's own worktree inherits the
+   false facts — this session's own orientation did (reported both probes `Planning · planned`, unoccupied).
+2. **`arc start` dispatch — the sharp edge.** `resolveStartDispatch` (`commands/start.ts`) routes `planned` →
+   **graduate**. From `main`, `arc start burn-in-probe-a` would graduate the stale stub and mint a second branch
+   for a WU already live in a sibling worktree; the refuse arms (`planning` / `active` / `integrating`) cannot
+   fire because the local index cannot see the sibling. The foot-gun guards (`lifecycle-guards.ts`) check only
+   the *current checkout's* `active/`; no guard asks "is this slug live on a sibling branch / worktree". A
+   silent double-launch recreates exactly the one-to-many branch⇄WU condition the `project-state-integrity`
+   spec named as the root disease.
+3. **Dep-edge reads.** `discharge-dep-edges` (satisfied at `landed ∨ integrating`) and `ready-mine`
+   (deps-shipped filter) read stale for edges onto in-flight siblings — an `integrating` dep reads `planned`.
+   Conservative-wrong (under-reports readiness, never over-reports), lower severity, same root.
+4. **`occupied` reporting.** No code consumer beyond the query surface today, but agents read it; a
+   false-negative occupancy invites exactly the double-launch in (2).
+
+**Why it matters (GA blocker):** the sanctioned slug-state read is truthful only in the WU's own worktree —
+wrong precisely in the concurrent case parallelism GA certifies. And unlike a latent seam, these surfaces are
+*consumed by the waves themselves*: every wave session resolves lifecycle states, gates dependencies, and
+launches WUs through them.
+
+**Fix shape (for the owning fix, not settled here):** give the query/dispatch surfaces the same oracle overlay
+the project view got — or minimally a `worktree-roster` overlay covering the local-sibling case — while keeping
+`buildLifecycleIndex` itself pure (its locality is a deliberate arc-backend commitment). The two consumers
+likely want different degradation postures: a status query can warn-and-degrade offline; a launch dispatch
+should fail safe (refuse or confirm when the oracle is unreachable, never silently graduate).
+
+**Resolution routing — split-out recommended over Phase 7.** Decision heuristic: route by whether the remaining
+waves *consume* the broken surface (fix lands off `main` before the wave that needs it, FP merges it in — the
+`project-state-integrity` precedent) vs. merely *observe* it (Phase 7, ships at FP integration — the 7.1
+latent-defect pattern). These surfaces are consumed (blast radius 1–2 above), wave 2 launches real WUs through
+`arc start` while the probes and FP are in flight, and a Phase 7 fix would reach `main` only at FP's own
+integration — after all waves. Lean: extract as a dedicated fix WU off `main` before wave 2.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification

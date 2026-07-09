@@ -484,7 +484,7 @@ ceremony), each producing its own evidence log as its deliverable; matrix-cell /
 the observer. Rationale in `notes-finalize-parallelism.md` § Wave-1 workload. Every wave verifies detectors as
 well as paths; gating + coordination detail in § Sequencing.
 
-### `[ ]` **3.1 Prepare and launch the wave-1 sacrificial workload**
+### `[x]` **3.1 Prepare and launch the wave-1 sacrificial workload**
 
 - _Goal:_ Two Light doc WUs run concurrently in spawned worktrees alongside FP, groomed in-worktree during the
   wave — Class and lifecycle stage confirmed at pickup, spec-readiness deliberately not a precondition.
@@ -499,18 +499,28 @@ well as paths; gating + coordination detail in § Sequencing.
           lifecycle over synthetic content; FP observes and drives cell/detector induction. Finding recorded in
           `notes-finalize-parallelism.md` § Wave-1 workload.
 
-    - `[ ]` **3.1.b Scaffold, spawn, and groom the synthetic fixtures in-worktree**
-        - Scaffold the two fixture stubs onto `main`, then spawn both into worktrees via the spawn-anchored entry
-          (a fresh session in each), and groom each draft→spec→tasks→execution in its own worktree, concurrently
-          with FP — real ceremony over synthetic content. Exercises planning ceremony under concurrency and yields
-          evidence for `wu-lifecycle-state-model` (the captured lifecycle reform), whose "activation-ready is not a
-          clean state" gap this surfaces — sharpened by the workload finding itself (see § Wave-1 workload note).
+    - `[x]` **3.1.b Scaffold, spawn, and groom the synthetic fixtures in-worktree**
+        - Operator-driven since the prior handoff: both fixture stubs scaffolded onto `main`, spawned via the
+          spawn-anchored entry (fresh session in each worktree), groomed draft→spec→tasks and executed through
+          verification concurrently with FP — real ceremony over synthetic content, task lists complete, both
+          paused integration-ready before merge. Each produced its evidence log (`notes-burn-in-probe-{a,b}.md`);
+          planning-under-concurrency friction (backlog-path artifact placement, activation-rename stale upstream)
+          is recorded there and routed to `wu-lifecycle-state-model` via USER-INBOX captures.
 
-    - `[ ]` **3.1.c Verify the spawn-anchored launch model**
-        - Confirm each worktree is entered by a fresh in-worktree session that boots rich via the BI-4 mini-handoff
-          and has the harness layer present (BI-1), with no step depending on live relocate (`EnterWorktree`) — the
-          as-built Phase 2.E entry-arch (on base via the forward-port) verified in practice. Record any residual
-          launch-ergonomics friction as input to `wu-lifecycle-state-model`, not back into 2.E (now upstream).
+    - `[x]` **3.1.c Verify the spawn-anchored launch model**
+        - Verified from both probes' evidence logs plus live worktree state: each worktree was entered by a fresh
+          in-worktree session through the normal linked-worktree session-init path, booted rich off the BI-4
+          seeded SESSION-NOTES (probe-a's first-handoff save/resume reprobe clean end-to-end), with the BI-1
+          harness layer present (`.claude/` agents/skills/settings; hooks resolve per-worktree to the tracked
+          `.arc/system/.internal/harness-hooks/` scripts) and no step depending on live relocate. Residual
+          launch-ergonomics friction (activation-rename stale upstream + lingering remote `plan/` shadow ref)
+          captured to USER-INBOX → `wu-lifecycle-state-model`, not back into 2.E.
+
+- _Outcome:_ Wave-1 workload is live and holding at the observation point: both probes integration-ready, paused
+  before merge, launch model verified — 3.2/3.3 induction is unblocked and gated only on driving the concurrent
+  integration. Verification also surfaced a new GA-blocking seam (slug-state surfaces checkout-local — blind to
+  in-flight siblings; `notes-finalize-parallelism.md` § 2026-07-09 finding), routing decision pending
+  (split-out fix off `main` pre-wave-2 recommended vs. Phase 7).
 
 ### `[ ]` **3.2 Verify the wave-1 matrix cells**
 
