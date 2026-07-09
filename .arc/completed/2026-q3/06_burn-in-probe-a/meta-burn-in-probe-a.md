@@ -1,8 +1,8 @@
 # Metadata: burn-in-probe-a
 
-| **State**     | **Owner** | **Branch**              | **Class** | **Priority** |
-| ------------- | --------- | ----------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `chore/burn-in-probe-a` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/215>
+- **Completed:** 2026-07-09
 
 ---
 
