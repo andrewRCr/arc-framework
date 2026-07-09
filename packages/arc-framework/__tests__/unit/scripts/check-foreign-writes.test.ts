@@ -146,6 +146,27 @@ describe("formatForeignWriteWarnings", () => {
   });
 });
 
+describe("formatForeignWriteAdvisories", () => {
+  it("surfaces oracle warnings before overlap advisories", () => {
+    expect(formatForeignWriteAdvisories(
+      {
+        overlaps: [
+          { branch: "feat/wu-a", worktreePath: "/repo.wu-a", matchedPaths: [".arc/active/meta-wu-a.md"] },
+        ],
+      },
+      [
+        {
+          code: "input-snapshot-disagreement",
+          rendered: "Input snapshot changed during derivation.",
+        },
+      ],
+    )).toEqual([
+      "Input snapshot changed during derivation.",
+      "feat/wu-a also touches .arc/active/meta-wu-a.md (/repo.wu-a)",
+    ]);
+  });
+});
+
 describe("resolveOriginatingMetaPath", () => {
   it("returns the active WU meta path when exactly one active meta resolves", async () => {
     const root = await createActiveFixture("self");

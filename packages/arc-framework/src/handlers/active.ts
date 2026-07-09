@@ -22,6 +22,7 @@ import {
   runActiveStatus,
 } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { renderInFlightWarning } from "../lib/git/in-flight-derivation.js";
 import { gitExec } from "../lib/io-context.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
@@ -150,6 +151,9 @@ export async function handleActiveInFlight(opts: ActiveInFlightCliOptions): Prom
         : `${e.branch}  (errand)  ${where}`;
     });
     p.note(`${lines.join("\n")}${degradedNotice}`, "In-flight");
+  }
+  for (const warning of result.warnings) {
+    p.log.warn(renderInFlightWarning(warning));
   }
   p.outro("Done.");
 }

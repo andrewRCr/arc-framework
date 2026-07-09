@@ -137,11 +137,7 @@ function parseLocalRefSnapshot(stdout: string, remote: string): LocalInFlightRef
     if (refName.startsWith("refs/heads/")) {
       const branch = refName.slice("refs/heads/".length);
       if (branch !== "") localHeads[branch] = sha;
-      continue;
     }
-    // Backward-compatible parser path for older tests / injected stubs using
-    // `%(refname:short)` over only the remote-tracking namespace.
-    if (refName !== "") remoteTracking[refName] = sha;
   }
   return { remoteTracking, localHeads };
 }

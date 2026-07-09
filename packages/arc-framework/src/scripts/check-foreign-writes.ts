@@ -38,6 +38,10 @@ import {
   type InFlightInputSnapshot,
   type OverlapRoster,
 } from "../lib/git/index.js";
+import {
+  renderInFlightWarning,
+  type InFlightWarning,
+} from "../lib/git/in-flight-derivation.js";
 import { gitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 
@@ -115,8 +119,12 @@ function formatIndeterminateProbe(entry: ForeignArtifactIndeterminateProbe): str
 }
 
 /** Word every advisory line the hook should print to stdout. */
-export function formatForeignWriteAdvisories(result: ForeignArtifactDetectionResult): string[] {
+export function formatForeignWriteAdvisories(
+  result: ForeignArtifactDetectionResult,
+  oracleWarnings: readonly InFlightWarning[] = [],
+): string[] {
   return [
+    ...oracleWarnings.map(renderInFlightWarning),
     ...(result.skipped ?? []).map(formatSkippedEntry),
     ...(result.indeterminate ?? []).map(formatIndeterminateProbe),
     ...(result.notes ?? []),
@@ -162,7 +170,7 @@ async function main(): Promise<void> {
   const teamMode = settings["team.mode"] === "true";
 
   // Local-only: derive the in-flight set from local refs — no network read at commit time.
-  const { entries, snapshot } = await runActiveInFlight({
+  const { entries, warnings, snapshot } = await runActiveInFlight({
     exec: gitExec,
     identity,
     teamMode,
@@ -180,7 +188,7 @@ async function main(): Promise<void> {
     originatingMetaPath: await resolveOriginatingMetaPath(cwd),
   });
 
-  for (const line of formatForeignWriteAdvisories(result)) {
+  for (const line of formatForeignWriteAdvisories(result, warnings)) {
     process.stdout.write(`${line}\n`);
   }
 }

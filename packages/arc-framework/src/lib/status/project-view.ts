@@ -176,6 +176,8 @@ export interface ComposeProjectReadinessViewOptions {
   sourceWarnings?: readonly ProjectReadinessWarning[];
   /** Derivation warnings to classify against the same lifecycle index. */
   derivationWarnings?: readonly ProjectReadinessDerivationWarning[];
+  /** Whether the source snapshot was indeterminate even if no source warning was supplied. */
+  indeterminate?: boolean;
   /** Readiness provider; omitted uses dependency satisfaction as readiness. */
   readinessProvider?: ProjectReadinessProvider;
 }
@@ -200,6 +202,10 @@ interface DependencyClassification {
 
 const META_FILE_RE = /^meta-(.+)\.md$/u;
 const DEFAULT_TITLE = "Roadmap: Project Status";
+const INDETERMINATE_ORACLE_WARNING: ProjectReadinessWarning = {
+  code: "oracle-degraded",
+  rendered: "In-flight inputs were indeterminate during derivation; rendering project view from a degraded snapshot.",
+};
 
 export const PROJECT_IN_FLIGHT_COLUMNS = [
   "state",
@@ -436,6 +442,19 @@ function staleWarningFromInFlight(warning: InFlightWarning): ProjectReadinessDer
   };
 }
 
+function appendIndeterminateOracleWarning(
+  warnings: readonly ProjectReadinessWarning[],
+  indeterminate: boolean,
+  hasSpecificIndeterminateWarning: boolean,
+): ProjectReadinessWarning[] {
+  const renderedAlready = warnings.some((warning) =>
+    warning.rendered === INDETERMINATE_ORACLE_WARNING.rendered
+    || /indeterminate|changed during derivation/iu.test(warning.rendered));
+  return indeterminate && !hasSpecificIndeterminateWarning && !renderedAlready
+    ? [...warnings, INDETERMINATE_ORACLE_WARNING]
+    : [...warnings];
+}
+
 async function resolveOracleCandidates(
   options: ProjectReadinessOracleOptions | undefined,
 ): Promise<{
@@ -461,7 +480,9 @@ async function resolveOracleCandidates(
     .filter((candidate): candidate is ProjectReadinessRecordCandidate => candidate !== null);
   const derivationWarnings: ProjectReadinessDerivationWarning[] = [];
   const sourceWarnings: ProjectReadinessWarning[] = [];
+  let hasIndeterminateSourceWarning = false;
   for (const warning of result.warnings) {
+    if (warning.code === "input-snapshot-disagreement") hasIndeterminateSourceWarning = true;
     const stale = staleWarningFromInFlight(warning);
     if (stale === null) sourceWarnings.push(sourceWarningFromInFlight(warning));
     else derivationWarnings.push(stale);
@@ -472,11 +493,12 @@ async function resolveOracleCandidates(
       rendered: "Remote unreachable; rendering project view from local refs only.",
     });
   }
+  const indeterminate = inFlightResultIndeterminate(result);
   return {
     candidates,
     derivationWarnings,
-    sourceWarnings,
-    indeterminate: inFlightResultIndeterminate(result),
+    sourceWarnings: appendIndeterminateOracleWarning(sourceWarnings, indeterminate, hasIndeterminateSourceWarning),
+    indeterminate,
   };
 }
 
@@ -693,8 +715,9 @@ export function composeProjectReadinessViewResult(
   const records = [...options.records];
   const index = lifecycleIndexFromRecords(records);
   const classification = classifyDependencies(records, index);
+  const sourceWarnings = appendIndeterminateOracleWarning(options.sourceWarnings ?? [], options.indeterminate === true, false);
   const warnings = [
-    ...(options.sourceWarnings ?? []),
+    ...sourceWarnings,
     ...classification.warnings,
     ...elevatedDerivationWarnings(options.derivationWarnings ?? [], index),
   ];

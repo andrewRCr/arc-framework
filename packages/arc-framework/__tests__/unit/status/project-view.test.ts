@@ -346,6 +346,23 @@ describe("composeProjectReadinessView", () => {
     expect(input.sourceWarnings.some((warning) => warning.rendered.includes("changed during"))).toBe(true);
   });
 
+  it("renders a generic degraded warning when the source only marks indeterminate", () => {
+    const result = composeProjectReadinessViewResult({
+      renderedRef: "abc1234",
+      title: "Roadmap",
+      records: [],
+      indeterminate: true,
+    });
+
+    expect(result.markdown).toContain("In-flight inputs were indeterminate during derivation");
+    expect(result.warnings).toEqual([
+      expect.objectContaining({
+        code: "oracle-degraded",
+        rendered: expect.stringContaining("indeterminate"),
+      }),
+    ]);
+  });
+
   it("notes live-oracle fallback when the remote is unreachable", async () => {
     const exec = makeInFlightExec({
       remoteRefs: ["feat/ref-only"],

@@ -21,7 +21,10 @@ import {
   projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionResult,
 } from "../lib/git/index.js";
-import type { InFlightWarning } from "../lib/git/in-flight-derivation.js";
+import {
+  renderInFlightWarning,
+  type InFlightWarning,
+} from "../lib/git/in-flight-derivation.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
@@ -41,6 +44,7 @@ import {
 } from "../lib/user-sync/index.js";
 import { runUserInboxRemove } from "../commands/user.js";
 import { gitExec, createUserIOContext } from "../lib/io-context.js";
+import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 
 export interface ErrandCheckOptions {
@@ -111,6 +115,7 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     targetPaths,
     baseBranch,
     originatingWorktreePath: await currentWorktreePath(cwd),
+    originatingMetaPath: await resolveOriginatingMetaPath(cwd),
     snapshot,
   });
 
@@ -136,6 +141,9 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
   }
   if (!reachable && !localOnly) {
     p.log.warn("Remote unreachable — checked local refs only; work in flight on another machine may be missed.");
+  }
+  for (const warning of warnings) {
+    p.log.warn(renderInFlightWarning(warning));
   }
   p.outro("Done.");
 }
@@ -689,4 +697,9 @@ async function currentWorktreePath(fallback: string): Promise<string> {
   } catch {
     return fallback;
   }
+}
+
+async function resolveOriginatingMetaPath(cwd: string): Promise<string | undefined> {
+  const activeWu = await resolveActiveWu({ cwd });
+  return activeWu.status === "resolved" ? activeWu.path : undefined;
 }

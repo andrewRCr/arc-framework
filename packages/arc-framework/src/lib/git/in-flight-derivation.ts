@@ -616,7 +616,8 @@ function nameFromMetaPath(metaPath: string): string {
  * Classify one input into work-unit candidates, an errand, or nothing. Errand-ness is a
  * record property — a branch carrying an errand record is an errand (slug from
  * the record), whatever its prefix. A record-less branch is decided by content:
- * read its candidate meta off the remote-tracking ref; present → work unit.
+ * enumerate active metas at the candidate ref; every readable meta becomes a
+ * work-unit candidate keyed by its meta filename.
  */
 async function classifyInput(
   exec: GitExec,

@@ -274,6 +274,24 @@ describe("readLocalInFlightRefSnapshot", () => {
       },
     });
   });
+
+  it("ignores unexpected bare ref names instead of treating them as remote-tracking refs", async () => {
+    const exec = execReturning([
+      "feat/legacy\t1111",
+      "refs/tags/v1.0.0\t2222",
+      "refs/remotes/origin/feat/a\t3333",
+    ].join("\n"));
+
+    const result = await readLocalInFlightRefSnapshot(exec);
+
+    expect(result).toEqual({
+      ok: true,
+      refs: {
+        remoteTracking: { "feat/a": "3333" },
+        localHeads: {},
+      },
+    });
+  });
 });
 
 describe("resolveInFlightBranchSet", () => {
