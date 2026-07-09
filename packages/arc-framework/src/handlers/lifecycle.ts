@@ -39,8 +39,8 @@ import {
   resolveWorktreePathsByBranch,
   runWorktreeRoster,
 } from "../lib/git/worktree-roster.js";
-import { deriveInFlight } from "../lib/git/in-flight-derivation.js";
-import { DEFAULT_NETWORK_TIMEOUT_MS, resolveInFlightBranchSet } from "../lib/git/remote-ref-reader.js";
+import { deriveInFlight, renderInFlightWarning } from "../lib/git/in-flight-derivation.js";
+import { DEFAULT_NETWORK_TIMEOUT_MS } from "../lib/git/remote-ref-reader.js";
 import { resolveWriteContext, type WriteContext } from "../lib/git/write-context.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
@@ -81,6 +81,7 @@ import {
   type MaterializableWorkUnit,
 } from "../lib/session-init/materializable-work-units.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
+import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 
 // ---------------------------------------------------------------------------
@@ -174,6 +175,7 @@ async function buildExecutor(
     io: base.io,
     identity: base.identity,
     teamMode: settings["team.mode"] === "true",
+    baseBranch: settings["branch.base"],
     internalTemplateDir: getInternalTemplatePath(),
   });
   return { executor, settings };
@@ -659,18 +661,23 @@ async function resolveMaterializeCandidate(
   slug: string | undefined,
 ): Promise<MaterializableWorkUnit | null> {
   const target = slug?.trim();
-  const branchSet = await resolveInFlightBranchSet({ exec: base.io.exec, localOnly: false });
-  if (!branchSet.reachable) {
+  const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs }));
+  const result = await deriveInFlight({
+    exec: base.io.exec,
+    localOnly: false,
+    baseBranch: settings["branch.base"],
+    identity: base.identity,
+    teamMode: settings["team.mode"] === "true",
+    parkedSlugs,
+  });
+  for (const warning of result.warnings) {
+    p.log.warn(renderInFlightWarning(warning));
+  }
+  if (!result.reachable) {
     refuse("could not refresh remote materialize candidates from `origin` — retry when the remote is reachable.");
     return null;
   }
-
-  const entries = await deriveInFlight({
-    exec: base.io.exec,
-    branches: branchSet.branches,
-    identity: base.identity,
-    teamMode: settings["team.mode"] === "true",
-  });
+  const { entries } = result;
   const { candidates } = findMaterializableWorkUnits({ entries, identity: base.identity });
   if (!target) {
     refuse(`\`arc materialize <slug>\` requires a work-unit name.\n\n${formatMaterializeCandidates(candidates)}`);
@@ -1017,6 +1024,12 @@ export interface TeardownOptions {
   force?: boolean;
 }
 
+/** Render a torn-down result's branch disposition for the report note. */
+function describeBranchDeletion(result: { branchDeleted: boolean; remoteBranchDeleted: boolean }): string {
+  if (!result.branchDeleted) return "(left intact)";
+  return result.remoteBranchDeleted ? "(deleted locally and on the remote)" : "(deleted)";
+}
+
 /**
  * `arc teardown <name>` — physical cleanup (branch + worktree) of a retired work
  * unit: reap the branch, remove the linked worktree (in-place is a no-op), and
@@ -1088,7 +1101,7 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
     const branchLine =
       result.branch === null
         ? `${branchArg} (already reaped)`
-        : `${result.branch} ${result.branchDeleted ? "(deleted)" : "(left intact)"}`;
+        : `${result.branch} ${describeBranchDeletion(result)}`;
     const lines = [
       `Branch:    ${branchLine}`,
       `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
@@ -1113,7 +1126,7 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
   const branchLine =
     result.branch === null
       ? "(already reaped)"
-      : `${result.branch} ${result.branchDeleted ? "(deleted)" : "(left intact)"}`;
+      : `${result.branch} ${describeBranchDeletion(result)}`;
   const lines = [
     `Work unit: ${wuName}`,
     `Branch:    ${branchLine}`,

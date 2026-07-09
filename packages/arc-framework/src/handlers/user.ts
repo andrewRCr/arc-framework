@@ -11,12 +11,16 @@ import * as p from "@clack/prompts";
 import {
   findStaleUserWuSubdirs, listUserWuSubdirContents, removeStaleUserWuSubdir,
   reconcileRetiredSubdirsStandalone,
+  runUserCompact,
   runUserClose, runUserInboxRemove, runUserOpen,
   runUserSave, runUserLoad, runUserAdd, runUserPush, runUserFetch, runUserPull,
   runUserSessionInitStatus, runUserStatus,
-  buildSaveSummary, buildLoadSummary, buildUserSessionInitStatusSummary, buildUserStatusSummary,
+  buildSaveSummary, buildLoadSummary, buildUserCompactSummary,
+  buildUserSessionInitStatusSummary, buildUserStatusSummary,
   hasLocalNotes,
+  hasSaveWarnings,
   UserPushBlockedError,
+  type UserCompactResult,
   type UserIOContext,
 } from "../commands/user.js";
 import { isRefusalCondition, slugifyIdentity } from "../lib/git/index.js";
@@ -31,6 +35,7 @@ import {
   runWithSpinner, isHandledError, isNonInteractiveEnvironment,
   requireArcProjectRoot, resolveUserIdentity, isRemoteError,
   resolveCurrentBranchName, ARC_PROJECT_ROOT_ERROR,
+  isUserFetchOutcome, isUserFetchSuccess, reportUserFetchOutcome,
 } from "./shared.js";
 
 /** Uniform overwrite-confirm prompt copy. */
@@ -277,8 +282,8 @@ export async function handleUserSave(): Promise<void> {
     );
     p.note(buildSaveSummary(result), "Saved");
 
-    if (result.warnings.length > 0) {
-      p.log.warn("Some files were skipped (see details above).");
+    if (hasSaveWarnings(result)) {
+      p.log.warn("Save completed with warnings (see details above).");
     }
   } catch (err) {
     if (isHandledError(err)) return;
@@ -469,40 +474,17 @@ export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
   }
   const io = createUserIOContext();
 
-  // Force-fetch when a local note exists for this identity so the remote ref
-  // overwrites it. Working files are untouched — pull is the operation that
-  // restores files and prompts before overwriting.
-  const hasLocal = await hasLocalNotes(io, identity);
-  try {
-    await runWithSpinner(
-      output,
-      "Fetching user notes...",
-      () => runUserFetch({ io, identity, force: hasLocal }),
-      "Fetch complete.",
-    );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+  const spinner = output.spinner();
+  spinner.start("Fetching user notes...");
 
-    // Detect missing remote
-    if (isRemoteError(msg)) {
-      p.log.error("No remote configured. Fetch requires a remote repository.");
-      p.log.info("Set up a remote with: git remote add origin <url>");
-      process.exitCode = 1;
-      return;
-    }
-
-    // Detect remote ref not found (no notes on remote for this identity)
-    if (msg.includes("couldn't find remote ref")) {
-      p.log.warn(`No notes found on remote for identity "${identity}".`);
-      p.log.info("The identity may not have pushed notes, or the name may be incorrect.");
-      process.exitCode = 1;
-      return;
-    }
-
-    if (isHandledError(err)) return;
-    throw err;
+  const result = await runUserFetch({ io, identity });
+  if (!isUserFetchSuccess(result)) {
+    spinner.stop(result.kind === "remote-unavailable" ? "Fetch failed." : "Fetch skipped.");
+    reportUserFetchOutcome(result, identity, "fetch");
+    return;
   }
 
+  spinner.stop("Fetch complete.");
   p.outro("Done.");
 }
 
@@ -558,32 +540,21 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
       cwd,
       io,
       identity,
-      force: hasLocal,
       currentWuName,
     });
   } catch (err) {
     spinner.stop("Pull failed.");
-    const msg = err instanceof Error ? err.message : String(err);
-
-    if (isRemoteError(msg)) {
-      p.log.error("No remote configured. Pull requires a remote repository.");
-      p.log.info("Set up a remote with: git remote add origin <url>");
-      process.exitCode = 1;
-      return;
-    }
-
-    if (msg.includes("couldn't find remote ref")) {
-      p.log.warn(`No notes found on remote for identity "${identity}".`);
-      p.log.info("The identity may not have pushed notes, or the name may be incorrect.");
-      process.exitCode = 1;
-      return;
-    }
-
     if (err instanceof UserFacingError) {
       p.log.error(formatError(err));
       return;
     }
     throw err;
+  }
+
+  if (isUserFetchOutcome(result)) {
+    spinner.stop(result.kind === "remote-unavailable" ? "Pull failed." : "Pull skipped.");
+    reportUserFetchOutcome(result, identity, "pull");
+    return;
   }
 
   if (!result) {
@@ -596,6 +567,91 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   spinner.stop("Pull complete.");
   p.note(buildLoadSummary(result), "Pulled");
   p.outro("Done.");
+}
+
+// --- Compact ---
+
+export interface UserCompactHandlerOptions {
+  json?: boolean;
+}
+
+export async function handleUserCompact(opts: UserCompactHandlerOptions = {}): Promise<void> {
+  const json = Boolean(opts.json);
+  const output = createSyncOutput(json);
+  output.intro("arc user compact");
+
+  let identity: string;
+  try {
+    identity = await resolveUserIdentity();
+  } catch (err) {
+    if (err instanceof UserFacingError) {
+      emitStatusError(json, output, err.code, err.message, err);
+      process.exitCode = 1;
+      return;
+    }
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
+  const cwd = json ? resolveArcRoot(process.cwd()) : requireArcProjectRoot();
+  if (!cwd) {
+    if (json) {
+      emitStatusError(json, output, "NOT_IN_ARC_PROJECT", ARC_PROJECT_ROOT_ERROR);
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  const io = createUserIOContext();
+  const result = await runWithSpinner(
+    output,
+    "Compacting user notes...",
+    () => runUserCompact({ cwd, io, identity }),
+    "Compaction check complete.",
+  );
+
+  if (json) {
+    process.stdout.write(`${JSON.stringify(toJsonSafeCompactResult(result))}\n`);
+  } else {
+    output.note(buildUserCompactSummary(result), "Compact");
+    output.outro(isUserCompactFailure(result) ? "Failed." : "Done.");
+  }
+
+  if (isUserCompactFailure(result)) {
+    process.exitCode = 1;
+  }
+}
+
+function isUserCompactFailure(result: UserCompactResult): boolean {
+  if (result.kind === "compacted" && result.marker === "failed") return true;
+  return result.kind === "lease-declined"
+    || result.kind === "conflict"
+    || result.kind === "no-remote"
+    || result.kind === "failed";
+}
+
+function toJsonSafeCompactResult(result: UserCompactResult): object {
+  switch (result.kind) {
+    case "lease-declined":
+      return {
+        ...result,
+        error: { message: result.error.message },
+      };
+    case "no-remote":
+    case "failed":
+      return {
+        ...result,
+        error: { message: result.error.message },
+      };
+    case "compacted":
+    case "nothing-to-prune":
+    case "conflict":
+      return result;
+    default: {
+      const _exhaustive: never = result;
+      return _exhaustive;
+    }
+  }
 }
 
 // --- Status ---

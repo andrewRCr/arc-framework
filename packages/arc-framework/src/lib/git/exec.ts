@@ -219,44 +219,6 @@ export async function gitConfigUnset(
   await exec("git", ["config", "--unset", key]);
 }
 
-/**
- * Configure the git notes fetch refspec for ARC user directory portability.
- *
- * Adds `+refs/notes/arc/user/*:refs/notes/arc/user/*` to `remote.origin.fetch`
- * so that `git fetch` automatically pulls ARC user notes. Idempotent — skips
- * if the refspec is already present. Skips silently if no remote origin exists
- * (fresh repos without a remote yet).
- *
- * @param exec - Injectable command executor
- * @returns true if refspec was configured (or already present), false if no remote
- */
-export async function configureNotesRefspec(exec: GitExec): Promise<boolean> {
-  const url = await gitConfigGet(exec, "remote.origin.url");
-  if (!url) return false;
-
-  const refspec = "+refs/notes/arc/user/*:refs/notes/arc/user/*";
-
-  // Check if already configured
-  try {
-    const { stdout } = await exec("git", [
-      "config",
-      "--get-all",
-      "remote.origin.fetch",
-    ]);
-    if (stdout.includes(refspec)) return true;
-  } catch {
-    // No fetch entries exist yet — proceed to add
-  }
-
-  await exec("git", [
-    "config",
-    "--add",
-    "remote.origin.fetch",
-    refspec,
-  ]);
-  return true;
-}
-
 /** Result of a three-way merge operation. */
 export interface MergeResult {
   content: string;

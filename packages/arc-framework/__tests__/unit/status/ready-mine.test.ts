@@ -2,10 +2,15 @@ import { describe, it, expect } from "vitest";
 
 import { buildReadyMineSlice, type PlannedWorkUnit } from "../../../src/lib/status/ready-mine.js";
 import { classComposition } from "../../../src/lib/status/class-composition.js";
+import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "../../../src/lib/work-unit/lifecycle-index.js";
 
 /** A minimal planned work unit, overridable per field. */
 function planned(name: string, over: Partial<PlannedWorkUnit> = {}): PlannedWorkUnit {
   return { name, owner: "andrew", dependsOn: [], ...over };
+}
+
+function lifecycle(records: Parameters<typeof buildLifecycleIndexFromRecords>[0] = []): LifecycleIndex {
+  return buildLifecycleIndexFromRecords(records);
 }
 
 describe("buildReadyMineSlice", () => {
@@ -16,7 +21,7 @@ describe("buildReadyMineSlice", () => {
       planned("charlie", { class: "novel" }),
     ];
 
-    const slice = buildReadyMineSlice(wus, new Set(["alpha", "bravo"]), "andrew");
+    const slice = buildReadyMineSlice(wus, lifecycle(), "andrew");
 
     expect(slice).toEqual([
       { workUnit: "alpha", state: "Planning", class: "Heavy", cohort: "ranger", dependsOn: [] },
@@ -33,7 +38,29 @@ describe("buildReadyMineSlice", () => {
 
     // `pending-dep` is still in the pipeline (blocks alpha); `shipped-dep` is
     // absent (shipped → satisfied), so only bravo is ready.
-    const slice = buildReadyMineSlice(wus, new Set(["alpha", "bravo", "pending-dep"]), "andrew");
+    const slice = buildReadyMineSlice(
+      wus,
+      lifecycle([
+        { slug: "pending-dep", state: "Active", location: "active" },
+        { slug: "shipped-dep", state: "Shipped", location: "completed" },
+      ]),
+      "andrew",
+    );
+
+    expect(slice.map((r) => r.workUnit)).toEqual(["bravo"]);
+  });
+
+  it("excludes blocked WUs when a dependency target is dangling", () => {
+    const wus = [
+      planned("alpha", { dependsOn: ["typo-dep"] }),
+      planned("bravo", { dependsOn: ["shipped-dep"] }),
+    ];
+
+    const slice = buildReadyMineSlice(
+      wus,
+      lifecycle([{ slug: "shipped-dep", state: "Shipped", location: "completed" }]),
+      "andrew",
+    );
 
     expect(slice.map((r) => r.workUnit)).toEqual(["bravo"]);
   });
@@ -45,7 +72,7 @@ describe("buildReadyMineSlice", () => {
       planned("orphan", { owner: undefined }),
     ];
 
-    const slice = buildReadyMineSlice(wus, new Set(["mine", "theirs", "orphan"]), "andrew");
+    const slice = buildReadyMineSlice(wus, lifecycle(), "andrew");
 
     expect(slice.map((r) => r.workUnit)).toEqual(["mine", "orphan"]);
   });
@@ -53,7 +80,7 @@ describe("buildReadyMineSlice", () => {
   it("keeps every planned WU when identity is null", () => {
     const wus = [planned("a", { owner: "andrew" }), planned("b", { owner: "blair" })];
 
-    const slice = buildReadyMineSlice(wus, new Set(["a", "b"]), null);
+    const slice = buildReadyMineSlice(wus, lifecycle(), null);
 
     expect(slice.map((r) => r.workUnit)).toEqual(["a", "b"]);
   });
@@ -70,7 +97,7 @@ describe("classComposition", () => {
       planned("u1"), // no Class field
     ];
 
-    const slice = buildReadyMineSlice(wus, new Set(wus.map((w) => w.name)), "andrew");
+    const slice = buildReadyMineSlice(wus, lifecycle(), "andrew");
 
     expect(classComposition(slice)).toEqual({ heavy: 2, light: 1, novel: 1 });
   });

@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   filterRosterByIdentity,
   resolvePrimaryWorktreePath,
+  resolveWorktreePathsByBranchResult,
   runWorktreeRoster,
 } from "../../../src/lib/git/worktree-roster.js";
 import type {
@@ -502,6 +503,40 @@ describe("resolvePrimaryWorktreePath", () => {
     const { exec } = buildExec({ [WORKTREE_LIST]: { stdout: "" } });
 
     expect(await resolvePrimaryWorktreePath(exec)).toBeNull();
+  });
+});
+
+describe("resolveWorktreePathsByBranchResult", () => {
+  it("returns branch paths with ok=true when worktree listing succeeds", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: {
+        stdout:
+          "worktree /home/dev/repo\nHEAD aaa\nbranch refs/heads/main\n\n"
+          + "worktree /home/dev/repo.wu-a\nHEAD bbb\nbranch refs/heads/feat/wu-a\n\n",
+        stderr: "",
+      },
+    });
+
+    const result = await resolveWorktreePathsByBranchResult(exec);
+
+    expect(result.ok).toBe(true);
+    expect([...result.paths.entries()]).toEqual([
+      ["main", "/home/dev/repo"],
+      ["feat/wu-a", "/home/dev/repo.wu-a"],
+    ]);
+  });
+
+  it("returns ok=false with an empty map when worktree listing fails", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: () => {
+        throw new Error("fatal: cannot list worktrees");
+      },
+    });
+
+    const result = await resolveWorktreePathsByBranchResult(exec);
+
+    expect(result.ok).toBe(false);
+    expect([...result.paths.entries()]).toEqual([]);
   });
 });
 

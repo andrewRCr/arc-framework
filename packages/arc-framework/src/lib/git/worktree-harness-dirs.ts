@@ -15,6 +15,9 @@ export const DEFAULT_WORKTREE_HARNESS_DIRS = ".claude,.codex,.gemini,.opencode";
 /**
  * Repo-critical top-level names that must never be registered — copying `.git`
  * or `.arc` into a linked worktree would corrupt its git linkage or ARC state.
+ * Matched case-insensitively (below): on a case-insensitive filesystem a variant
+ * like `.Git` / `.ARC` still resolves to `.git` / `.arc` on disk, so it must be
+ * rejected too. Keep entries lowercase.
  */
 const RESERVED_HARNESS_DIRS = new Set([".git", ".arc"]);
 
@@ -34,7 +37,7 @@ export function parseRegisteredHarnessDirs(value: string | undefined): string[] 
     if (entry === "." || entry === ".." || isAbsolute(entry) || entry.includes("/") || entry.includes("\\")) {
       throw new Error(`worktree.harness_dirs contains an invalid top-level directory: ${rawEntry.trim()}`);
     }
-    if (RESERVED_HARNESS_DIRS.has(entry)) {
+    if (RESERVED_HARNESS_DIRS.has(entry.toLowerCase())) {
       throw new Error(`worktree.harness_dirs contains a reserved directory: ${rawEntry.trim()}`);
     }
     if (seen.has(entry)) continue;

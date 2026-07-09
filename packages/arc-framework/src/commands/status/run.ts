@@ -235,6 +235,9 @@ export async function runSessionInitStatus(
   type RawPartialPushMarker =
     | { ok: true; value: import("../../lib/session-init/partial-push-marker-surface.js").PartialPushMarkerSurfaceResult }
     | ProbeErrorSlot;
+  type RawCompactionAdvisory =
+    | { ok: true; value: import("../../lib/session-init/notes-compaction-advisory.js").NotesCompactionSessionAdvisoryResult }
+    | ProbeErrorSlot;
 
   const shared = buildSessionSharedSlots({ identity, role, probes });
   const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
@@ -264,11 +267,16 @@ export async function runSessionInitStatus(
   const partialPushMarkerTask: Promise<RawPartialPushMarker | null> = identity === null
     ? Promise.resolve(null)
     : safeProbe(() => probes.partialPushMarker(identity));
+  const compactionAdvisoryProbe = probes.compactionAdvisory;
+  const compactionAdvisoryTask: Promise<RawCompactionAdvisory | null> = identity === null
+    || compactionAdvisoryProbe === undefined
+    ? Promise.resolve(null)
+    : safeProbe(() => compactionAdvisoryProbe(identity));
 
   const [
     user, worktree, dirty, active, releaseRouting,
     worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
-    retiredSubdirs, errandSweep, inboxState, partialPushMarker,
+    retiredSubdirs, errandSweep, inboxState, partialPushMarker, compactionAdvisory,
   ] = await Promise.all([
     shared.user,
     shared.worktree,
@@ -285,6 +293,7 @@ export async function runSessionInitStatus(
     errandSweepTask,
     inboxStateTask,
     partialPushMarkerTask,
+    compactionAdvisoryTask,
   ]);
 
   // Worktree identity is non-critical and always-on: a failed probe degrades
@@ -564,6 +573,7 @@ export async function runSessionInitStatus(
     ...(materializableWorkUnits !== undefined ? { materializableWorkUnits } : {}),
     ...(inboxState !== null ? { inboxState } : {}),
     ...(partialPushMarker !== null ? { partialPushMarker } : {}),
+    ...(compactionAdvisory !== null ? { compactionAdvisory } : {}),
     ...(inFlightComposition !== undefined ? { inFlightComposition } : {}),
     ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     loadSet,

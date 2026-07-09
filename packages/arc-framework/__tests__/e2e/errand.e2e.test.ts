@@ -56,7 +56,7 @@ describe("arc errand check", () => {
     expect(result.exitCode).toBe(0);
     // `reachable` reflects the oracle's remote read; the sandbox repo has no
     // reachable remote, so the no-overlap result carries `reachable: false`.
-    expect(JSON.parse(result.stdout.trim())).toEqual({ overlaps: [], reachable: false });
+    expect(JSON.parse(result.stdout.trim())).toEqual({ overlaps: [], warnings: [], reachable: false });
   });
 });
 

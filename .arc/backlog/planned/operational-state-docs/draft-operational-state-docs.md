@@ -13,6 +13,18 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Upgrade the linked-worktree user-surface signpost to the OSD content view**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-07-07);
+  captured during `finalize-parallelism` Task 2.6.d (linked-worktree signpost) design discussion, 2026-07-05.
+- _Concern:_ FP Task 2.6.d ships an interim per-surface signpost stub in linked worktrees (standing in for the
+  removed identity-global `WORKING-MEMORY` / `USER-INBOX` copies). Because no content-projection CLI exists yet, the
+  stub points at the raw primary-worktree path for content plus `arc user status` for drift.
+- _Approach:_ When this WU ships the records-canonical → rendered-projection view (e.g. an `arc <surface> show`
+  that renders any identity-global surface, and eventually fetches it when content is no longer a local file),
+  upgrade the signpost to point at that view instead of the raw primary path. Socket now, projection later — FP
+  deliberately mints no content CLI.
+
 ### `[ ]` **Shared inbox staleness nudge supersedes the "nudge-free" assumption**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain

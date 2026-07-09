@@ -24,15 +24,27 @@ describe("notes-merge pure helpers", () => {
   });
 
   it("incomingFetchRefspec force-fetches the remote ref into the temp tracking ref", () => {
-    expect(incomingFetchRefspec("refs/notes/arc/user/andrew")).toBe(
-      "+refs/notes/arc/user/andrew:refs/notes/arc/user/andrew__incoming",
+    expect(incomingFetchRefspec(
+      "refs/notes/arc/user/andrew",
+      "refs/notes/arc/user/andrew__incoming_test",
+    )).toBe(
+      "+refs/notes/arc/user/andrew:refs/notes/arc/user/andrew__incoming_test",
     );
   });
 
-  it("incomingNotesRef derives the temp ref from the full notes ref", () => {
-    expect(incomingNotesRef("refs/notes/arc/user/andrew")).toBe(
-      "refs/notes/arc/user/andrew__incoming",
+  it("incomingNotesRef derives a tokenized temp ref from the full notes ref", () => {
+    expect(incomingNotesRef("refs/notes/arc/user/andrew", "test")).toBe(
+      "refs/notes/arc/user/andrew__incoming_test",
     );
+  });
+
+  it("incomingNotesRef mints a unique default token", () => {
+    const first = incomingNotesRef("refs/notes/arc/user/andrew");
+    const second = incomingNotesRef("refs/notes/arc/user/andrew");
+
+    expect(first).toMatch(/^refs\/notes\/arc\/user\/andrew__incoming_/u);
+    expect(second).toMatch(/^refs\/notes\/arc\/user\/andrew__incoming_/u);
+    expect(first).not.toBe(second);
   });
 
   it("isNonFastForwardError matches rejection and non-fast-forward signals only", () => {

@@ -1,25 +1,23 @@
 {
-    // markdownlint-cli2 configuration
-
     "config": {
         "default": true,
         "MD007": {
-            "indent": 4,
+            "indent": 4
         },
         "MD013": {
             "line_length": 120,
             "code_blocks": false,
-            "tables": false,
+            "tables": false
         },
         "MD024": {
-            "siblings_only": true,
+            "siblings_only": true
         },
         "MD025": false,
         "MD029": false,
         "MD033": false,
         "MD036": false,
         "MD040": false,
-        "MD041": false,
+        "MD041": false
     },
 
     "gitignore": false,
@@ -27,7 +25,7 @@
     "globs": [
         "**/*.md",
         "!packages/arc-framework/arc/**/*.md",
-        "packages/arc-framework/arc/**/*.template.md",
+        "packages/arc-framework/arc/**/*.template.md"
     ],
 
     "ignores": [
@@ -35,16 +33,11 @@
         "**/.venv*/**",
         "**/venv/**",
         ".arc/completed/**",
-        // Cross-WU managed records — tooling-merged (tombstone headers, append /
-        // merge churn), gitignored, never published. Their structural noise is a
-        // known artifact slated for an at-source fix, not keepable clean by hand;
-        // silence it here meanwhile. SESSION-NOTES is deliberately NOT excluded —
-        // it is hand-authored fresh each handoff, which verifies it lints clean.
         ".arc/user/**/WORKING-MEMORY.md",
         ".arc/user/**/USER-INBOX.md",
         ".arc/**/temp-*.md",
-        "arc/**",
+        "arc/**"
     ],
 
-    "customRules": [],
+    "customRules": []
 }

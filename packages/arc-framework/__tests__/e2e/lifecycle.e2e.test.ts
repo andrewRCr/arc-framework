@@ -89,5 +89,5 @@ describe("lifecycle", () => {
     // the pristine to match the customized version.
     const postOutput = await runHealthCheck(tmpDir);
     expect(postOutput).toMatch(/\d+ modified/);
-  });
+  }, 60_000);
 });

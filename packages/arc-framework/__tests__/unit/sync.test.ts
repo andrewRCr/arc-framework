@@ -82,6 +82,12 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   requireArcProjectRoot: () => process.cwd(),
   resolveCurrentBranchName: async () => "feature/x",
+  isUserFetchOutcome: (result: { kind: string } | null) =>
+    result !== null && result.kind !== "loaded",
+  reportUserFetchOutcome: (result: { kind: string; error?: Error }) => {
+    mockLog.error(result.error?.message ?? result.kind);
+    process.exitCode = 1;
+  },
 }));
 
 vi.mock("../../src/lib/io-context.js", () => ({
@@ -313,8 +319,10 @@ describe("handleUserSync direction handling", () => {
       "→ Pulling the newer remote git note and restoring it to working files.",
     );
     expect(mockRunUserPull).toHaveBeenCalledWith(
-      expect.objectContaining({ cwd: process.cwd(), force: true }),
+      expect.objectContaining({ cwd: process.cwd() }),
     );
+    const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).not.toHaveProperty("force");
     expect(mockRunUserSave).not.toHaveBeenCalled();
   });
 
@@ -522,6 +530,21 @@ describe("handleUserSync push policy", () => {
     await handleUserSync();
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("couldn't find remote ref"));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("stops pull direction without rendering load output when guarded fetch refuses", async () => {
+    setSyncState("remote-ahead", "same");
+    mockRunUserPull.mockResolvedValue({
+      kind: "refused-local-ahead",
+      localTip: "local",
+      remoteTip: "remote",
+    });
+
+    await handleUserSync();
+
+    expect(mockLog.error).toHaveBeenCalledWith("refused-local-ahead");
+    expect(mockBuildLoadSummary).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 

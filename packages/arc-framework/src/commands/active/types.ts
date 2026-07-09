@@ -34,6 +34,14 @@ export type ActiveSessionInitResolution = "none" | "single" | "multiple";
  */
 export type WorkUnitState = "Planning" | "Active" | "Integrating" | "Shipped";
 
+/** Lifecycle `State` progression used only after ancestry cannot order two candidates. */
+export const WORK_UNIT_STATE_ORDER: Readonly<Record<WorkUnitState, number>> = {
+  Planning: 0,
+  Active: 1,
+  Integrating: 2,
+  Shipped: 3,
+};
+
 /**
  * Narrow a raw `**State:**` field value to the codified `WorkUnitState`
  * enum. Anything unrecognized — including `null`, the empty string, and

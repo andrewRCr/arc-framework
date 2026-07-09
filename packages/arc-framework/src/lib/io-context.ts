@@ -16,6 +16,7 @@ import { promisify } from "node:util";
 import type { IOContext } from "../commands/init.js";
 import type { UserIOContext } from "../commands/user.js";
 import type { GitExec, GitExecInput, DirEntry } from "../lib/git/index.js";
+import { atomicWriteFile } from "./fs.js";
 
 export const execFileAsync = promisify(execFile);
 
@@ -150,7 +151,7 @@ export function createUserIOContext(): UserIOContext {
     exec: gitExec,
     execInput: gitExecInput,
     readFile: (path) => readFile(path, "utf-8"),
-    writeFile: (path, content) => writeFile(path, content, "utf-8"),
+    writeFile: atomicWriteFile,
     mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
     readDir: readUserDir,
     writeNote: writeGitNote,

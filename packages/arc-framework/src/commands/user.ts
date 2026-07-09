@@ -39,6 +39,12 @@ export {
   type NotesPushOutcome,
   type ReconcileNotesPushOptions,
 } from "./user/push-fetch.js";
+export {
+  runUserCompact,
+  type BackupPruneResult,
+  type UserCompactOptions,
+  type UserCompactResult,
+} from "./user/compact.js";
 export { runPairedPush } from "./user/paired-push.js";
 export {
   runUserSessionInitStatus,
@@ -62,8 +68,10 @@ export {
 export {
   buildLoadSummary,
   buildSaveSummary,
+  buildUserCompactSummary,
   buildUserSessionInitStatusSummary,
   buildUserStatusSummary,
+  hasSaveWarnings,
 } from "./user/format.js";
 export {
   BACKUP_FILENAME,
@@ -73,6 +81,7 @@ export {
   type InspectUserSyncOptions,
   type UserAddOptions,
   type UserFetchOptions,
+  type UserFetchResult,
   type UserIOContext,
   type UserLoadOutcome,
   type UserLoadOptions,
@@ -91,6 +100,7 @@ export {
   type PairedPushSkipReason,
   type RunPairedPushOptions,
   type UserPullOptions,
+  type UserPullResult,
   type UserPushOptions,
   type UserPushResult,
   type UserSaveOptions,

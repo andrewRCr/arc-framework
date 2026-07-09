@@ -465,7 +465,8 @@ if [ "$pm_mode" = "arc-in-git" ]; then
             echo -e "${YELLOW}Warning: ROADMAP render fields changed without re-rendering backlog/ROADMAP.md:${NC}"
             echo "$roadmap_field_changes" | sed 's/^/   /'
             echo "   Depends On / Owner / Cohort feed the ROADMAP render."
-            echo "   Re-render per strategy-work-organization.md § ROADMAP and stage backlog/ROADMAP.md."
+            echo "   Re-render with: arc status --project --local > .arc/backlog/ROADMAP.md"
+            echo "   Then stage .arc/backlog/ROADMAP.md."
             echo "   (Lifecycle ceremonies regen via their own step — disregard if this is one.)"
             warnings=$((warnings + 1))
         fi
@@ -497,7 +498,32 @@ if [ -n "$cohort_consistency_candidates" ]; then
 fi
 
 # ============================================================================
-# CHECK 19: Foreign-write advisory backstop
+# CHECK 19: ROADMAP regenerated assert (arc-in-git only)
+# ============================================================================
+# Validates a staged ROADMAP as a derived artifact: staged blob versus a fresh
+# staged-index render, plus an unconditional conflict-marker scan. Mismatch
+# rejects when the render snapshot is determinate; an indeterminate snapshot
+# warns and allows. GitHub-side conflict resolution does not run local hooks;
+# the next local commit that stages ROADMAP does.
+if [ "$pm_mode" = "arc-in-git" ]; then
+    roadmap_assert_candidate=$(git diff --cached --name-only --diff-filter=ACMR | \
+        grep -E '^\.arc/backlog/ROADMAP\.md$' || true)
+
+    if [ -n "$roadmap_assert_candidate" ]; then
+        if ! roadmap_assert_output=$(npx tsx packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts 2>&1); then
+            echo -e "${RED}Error: ROADMAP is not regenerated from sources:${NC}"
+            echo "$roadmap_assert_output" | sed 's/^/   /'
+            errors=$((errors + 1))
+        elif [ -n "$roadmap_assert_output" ]; then
+            echo -e "${YELLOW}Warning: ROADMAP regeneration check is indeterminate:${NC}"
+            echo "$roadmap_assert_output" | sed 's/^/   /'
+            warnings=$((warnings + 1))
+        fi
+    fi
+fi
+
+# ============================================================================
+# CHECK 20: Foreign-write advisory backstop
 # ============================================================================
 # Surfaces a staged per-WU artifact that another in-flight work unit also
 # touches — a foreign-owned write about to land on the wrong branch. Reuses the
@@ -513,11 +539,11 @@ if [ -n "$foreign_write_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
     foreign_write_output=$(npx tsx packages/arc-framework/src/scripts/check-foreign-writes.ts $foreign_write_candidates 2>/dev/null || true)
     if [ -n "$foreign_write_output" ]; then
-        echo -e "${YELLOW}Warning: Foreign-owned write among staged artifacts:${NC}"
+        echo -e "${YELLOW}Warning: In-flight artifact advisory:${NC}"
         echo "$foreign_write_output" | sed 's/^/   /'
         echo ""
-        echo "   Another in-flight work unit touches these paths. Coordinate or"
-        echo "   sequence after it integrates — advisory only, the commit proceeds."
+        echo "   Review the advisory lines above. Coordinate or sequence when needed;"
+        echo "   advisory only, the commit proceeds."
         warnings=$((warnings + 1))
     fi
 fi

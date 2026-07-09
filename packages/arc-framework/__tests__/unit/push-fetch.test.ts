@@ -19,9 +19,10 @@ import type { UserIOContext } from "../../src/commands/user/types.js";
 
 const mockClearPartialPushMarker = vi.fn();
 const mockRecordPartialPushMarker = vi.fn();
+const mockRunUserLoad = vi.fn();
 
 vi.mock("../../src/commands/user/save-load.js", () => ({
-  runUserLoad: vi.fn(),
+  runUserLoad: (...args: unknown[]) => mockRunUserLoad(...args),
 }));
 
 vi.mock("../../src/lib/user-sync/index.js", async (importOriginal) => ({
@@ -30,7 +31,7 @@ vi.mock("../../src/lib/user-sync/index.js", async (importOriginal) => ({
   recordPartialPushMarker: (...args: unknown[]) => mockRecordPartialPushMarker(...args),
 }));
 
-const { runUserPush } = await import("../../src/commands/user/push-fetch.js");
+const { runUserFetch, runUserPull, runUserPush } = await import("../../src/commands/user/push-fetch.js");
 
 // --- Test fixtures ---
 
@@ -68,7 +69,7 @@ function matchKey(
 ): string | null {
   for (const key of Object.keys(responses)) {
     const tokens = key.split(" ");
-    if (tokens.every((token, i) => token === "*" || args[i] === token)) {
+    if (tokens.length === args.length && tokens.every((token, i) => token === "*" || args[i] === token)) {
       return key;
     }
   }
@@ -91,6 +92,11 @@ const NOTES_REF = "refs/notes/arc/user/andrew";
 const REV_PARSE_LOCAL = `rev-parse --verify ${NOTES_REF}`;
 const LS_REMOTE_NOTES = `ls-remote origin ${NOTES_REF}`;
 const PUSH_NOTES = `push origin ${NOTES_REF}`;
+const FETCH_TEMP_NOTES = "fetch --refmap= origin *";
+const DELETE_TEMP_REF = "update-ref -d *";
+const LOCAL_TIP = "1111111111111111111111111111111111111111";
+const REMOTE_TIP = "2222222222222222222222222222222222222222";
+const NEW_LOCAL_TIP = "3333333333333333333333333333333333333333";
 
 describe("runUserPush — idempotent no-op recovery", () => {
   beforeEach(() => {
@@ -162,5 +168,227 @@ describe("runUserPush — idempotent no-op recovery", () => {
       .filter((args) => args[0] === "push");
     expect(pushCalls).toEqual([["push", "--force", "origin", NOTES_REF]]);
     expect(mockClearPartialPushMarker).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("runUserFetch — ancestry-guarded updates", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("remote-ahead fetch fast-forwards the local notes ref with an expected-old guard", async () => {
+    const { exec, calls } = buildExec({
+      "rev-parse --verify *": ({ 2: ref }) => (
+        ref === NOTES_REF
+          ? { stdout: `${LOCAL_TIP}\n`, stderr: "" }
+          : { stdout: `${REMOTE_TIP}\n`, stderr: "" }
+      ),
+      [FETCH_TEMP_NOTES]: { stdout: "", stderr: "" },
+      [`merge-base --is-ancestor ${LOCAL_TIP} ${REMOTE_TIP}`]: { stdout: "", stderr: "" },
+      [`update-ref ${NOTES_REF} ${REMOTE_TIP} ${LOCAL_TIP}`]: { stdout: "", stderr: "" },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await runUserFetch({ io, identity: "andrew" });
+
+    expect(result).toEqual({ kind: "fast-forwarded", localTip: LOCAL_TIP, remoteTip: REMOTE_TIP });
+    expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
+      ["update-ref", NOTES_REF, REMOTE_TIP, LOCAL_TIP],
+      ["update-ref", "-d", expect.stringMatching(/__fetch_/u)],
+    ]);
+  });
+
+  it("local-ahead fetch refuses and leaves the local notes ref untouched", async () => {
+    const { exec, calls } = buildExec({
+      "rev-parse --verify *": ({ 2: ref }) => (
+        ref === NOTES_REF
+          ? { stdout: `${LOCAL_TIP}\n`, stderr: "" }
+          : { stdout: `${REMOTE_TIP}\n`, stderr: "" }
+      ),
+      [FETCH_TEMP_NOTES]: { stdout: "", stderr: "" },
+      [`merge-base --is-ancestor ${LOCAL_TIP} ${REMOTE_TIP}`]: () => {
+        throw new Error("not ancestor");
+      },
+      [`merge-base --is-ancestor ${REMOTE_TIP} ${LOCAL_TIP}`]: { stdout: "", stderr: "" },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await runUserFetch({ io, identity: "andrew" });
+
+    expect(result).toEqual({ kind: "refused-local-ahead", localTip: LOCAL_TIP, remoteTip: REMOTE_TIP });
+    expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
+      ["update-ref", "-d", expect.stringMatching(/__fetch_/u)],
+    ]);
+  });
+
+  it("diverged fetch refuses and leaves the local notes ref untouched", async () => {
+    const { exec, calls } = buildExec({
+      "rev-parse --verify *": ({ 2: ref }) => (
+        ref === NOTES_REF
+          ? { stdout: `${LOCAL_TIP}\n`, stderr: "" }
+          : { stdout: `${REMOTE_TIP}\n`, stderr: "" }
+      ),
+      [FETCH_TEMP_NOTES]: { stdout: "", stderr: "" },
+      [`merge-base --is-ancestor ${LOCAL_TIP} ${REMOTE_TIP}`]: () => {
+        throw new Error("not ancestor");
+      },
+      [`merge-base --is-ancestor ${REMOTE_TIP} ${LOCAL_TIP}`]: () => {
+        throw new Error("not ancestor");
+      },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await runUserFetch({ io, identity: "andrew" });
+
+    expect(result).toEqual({ kind: "refused-diverged", localTip: LOCAL_TIP, remoteTip: REMOTE_TIP });
+    expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
+      ["update-ref", "-d", expect.stringMatching(/__fetch_/u)],
+    ]);
+  });
+
+  it("remote-only fetch creates the local notes ref with an absent-ref guard", async () => {
+    const { exec, calls } = buildExec({
+      "rev-parse --verify *": ({ 2: ref }) => {
+        if (ref === NOTES_REF) throw new Error("missing ref");
+        return { stdout: `${REMOTE_TIP}\n`, stderr: "" };
+      },
+      [FETCH_TEMP_NOTES]: { stdout: "", stderr: "" },
+      [`update-ref ${NOTES_REF} ${REMOTE_TIP} *`]: { stdout: "", stderr: "" },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await runUserFetch({ io, identity: "andrew" });
+
+    expect(result).toEqual({ kind: "created", remoteTip: REMOTE_TIP });
+    expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
+      ["update-ref", NOTES_REF, REMOTE_TIP, ""],
+      ["update-ref", "-d", expect.stringMatching(/__fetch_/u)],
+    ]);
+  });
+
+  it("mid-fetch local advance fails the guarded update rather than resetting the ref", async () => {
+    let localReads = 0;
+    const { exec, calls } = buildExec({
+      "rev-parse --verify *": ({ 2: ref }) => {
+        if (ref !== NOTES_REF) return { stdout: `${REMOTE_TIP}\n`, stderr: "" };
+        localReads += 1;
+        return {
+          stdout: `${localReads === 1 ? LOCAL_TIP : NEW_LOCAL_TIP}\n`,
+          stderr: "",
+        };
+      },
+      [FETCH_TEMP_NOTES]: { stdout: "", stderr: "" },
+      [`merge-base --is-ancestor ${LOCAL_TIP} ${REMOTE_TIP}`]: { stdout: "", stderr: "" },
+      [`update-ref ${NOTES_REF} ${REMOTE_TIP} ${LOCAL_TIP}`]: () => {
+        throw new Error(`cannot lock ref '${NOTES_REF}': is at ${NEW_LOCAL_TIP} but expected ${LOCAL_TIP}`);
+      },
+      [`merge-base --is-ancestor ${REMOTE_TIP} ${NEW_LOCAL_TIP}`]: { stdout: "", stderr: "" },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await runUserFetch({ io, identity: "andrew" });
+
+    expect(result).toEqual({ kind: "refused-local-ahead", localTip: NEW_LOCAL_TIP, remoteTip: REMOTE_TIP });
+    expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
+      ["update-ref", NOTES_REF, REMOTE_TIP, LOCAL_TIP],
+      ["update-ref", "-d", expect.stringMatching(/__fetch_/u)],
+    ]);
+  });
+
+  it("mid-fetch local advance still fast-forwards when the new local tip remains behind remote", async () => {
+    let localReads = 0;
+    const { exec, calls } = buildExec({
+      "rev-parse --verify *": ({ 2: ref }) => {
+        if (ref !== NOTES_REF) return { stdout: `${REMOTE_TIP}\n`, stderr: "" };
+        localReads += 1;
+        return {
+          stdout: `${localReads === 1 ? LOCAL_TIP : NEW_LOCAL_TIP}\n`,
+          stderr: "",
+        };
+      },
+      [FETCH_TEMP_NOTES]: { stdout: "", stderr: "" },
+      [`merge-base --is-ancestor ${LOCAL_TIP} ${REMOTE_TIP}`]: { stdout: "", stderr: "" },
+      [`update-ref ${NOTES_REF} ${REMOTE_TIP} ${LOCAL_TIP}`]: () => {
+        throw new Error(`cannot lock ref '${NOTES_REF}': is at ${NEW_LOCAL_TIP} but expected ${LOCAL_TIP}`);
+      },
+      [`merge-base --is-ancestor ${NEW_LOCAL_TIP} ${REMOTE_TIP}`]: { stdout: "", stderr: "" },
+      [`update-ref ${NOTES_REF} ${REMOTE_TIP} ${NEW_LOCAL_TIP}`]: { stdout: "", stderr: "" },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await runUserFetch({ io, identity: "andrew" });
+
+    expect(result).toEqual({ kind: "fast-forwarded", localTip: NEW_LOCAL_TIP, remoteTip: REMOTE_TIP });
+    expect(calls.map((c) => c.args).filter((args) => args[0] === "update-ref")).toEqual([
+      ["update-ref", NOTES_REF, REMOTE_TIP, LOCAL_TIP],
+      ["update-ref", NOTES_REF, REMOTE_TIP, NEW_LOCAL_TIP],
+      ["update-ref", "-d", expect.stringMatching(/__fetch_/u)],
+    ]);
+  });
+
+  it("bounds repeated CAS rejections when the local ref keeps moving under fetch", async () => {
+    const movingTips = [
+      LOCAL_TIP,
+      NEW_LOCAL_TIP,
+      "4444444444444444444444444444444444444444",
+      "5555555555555555555555555555555555555555",
+    ];
+    let localReads = 0;
+    const { exec, calls } = buildExec({
+      "rev-parse --verify *": ({ 2: ref }) => {
+        if (ref !== NOTES_REF) return { stdout: `${REMOTE_TIP}\n`, stderr: "" };
+        const tip = movingTips[localReads] ?? movingTips[movingTips.length - 1];
+        localReads += 1;
+        return { stdout: `${tip}\n`, stderr: "" };
+      },
+      [FETCH_TEMP_NOTES]: { stdout: "", stderr: "" },
+      "merge-base --is-ancestor * *": { stdout: "", stderr: "" },
+      [`update-ref ${NOTES_REF} ${REMOTE_TIP} *`]: (args) => {
+        const expected = args[3];
+        throw new Error(
+          `cannot lock ref '${NOTES_REF}': is at ${movingTips[localReads] ?? NEW_LOCAL_TIP} but expected ${expected}`,
+        );
+      },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await runUserFetch({ io, identity: "andrew" });
+
+    expect(result.kind).toBe("remote-unavailable");
+    if (result.kind === "remote-unavailable") {
+      expect(result.error.message).toContain("exceeded retry attempts");
+    }
+    expect(calls.map((c) => c.args).filter((args) =>
+      args[0] === "update-ref" && args[1] === NOTES_REF,
+    )).toHaveLength(3);
+  });
+
+  it("pull skips disk load when fetch refuses", async () => {
+    const { exec } = buildExec({
+      "rev-parse --verify *": ({ 2: ref }) => (
+        ref === NOTES_REF
+          ? { stdout: `${LOCAL_TIP}\n`, stderr: "" }
+          : { stdout: `${REMOTE_TIP}\n`, stderr: "" }
+      ),
+      [FETCH_TEMP_NOTES]: { stdout: "", stderr: "" },
+      [`merge-base --is-ancestor ${LOCAL_TIP} ${REMOTE_TIP}`]: () => {
+        throw new Error("not ancestor");
+      },
+      [`merge-base --is-ancestor ${REMOTE_TIP} ${LOCAL_TIP}`]: { stdout: "", stderr: "" },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await runUserPull({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result).toEqual({ kind: "refused-local-ahead", localTip: LOCAL_TIP, remoteTip: REMOTE_TIP });
+    expect(mockRunUserLoad).not.toHaveBeenCalled();
   });
 });

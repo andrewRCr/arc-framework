@@ -50,12 +50,45 @@ describe("foreign-write advisory backstop wiring", () => {
   });
 
   it("treats the backstop as advisory — increments warnings, never errors", () => {
-    // The CHECK 19 block runs between cohort-consistency (CHECK 18) and the Summary.
+    // The foreign-write block runs between the ROADMAP assert and the Summary.
     const block = preCommitSource.slice(
-      preCommitSource.indexOf("CHECK 19"),
+      preCommitSource.indexOf("CHECK 20"),
       preCommitSource.indexOf("# Summary"),
     );
     expect(block).toContain("warnings=$((warnings + 1))");
     expect(block).not.toContain("errors=$((errors + 1))");
+  });
+
+  it("uses neutral wording for foreign-write and skip-note output", () => {
+    expect(preCommitSource).toContain("Warning: In-flight artifact advisory:");
+    expect(preCommitSource).not.toContain("Warning: Foreign-owned write among staged artifacts:");
+  });
+});
+
+describe("ROADMAP regeneration assert wiring", () => {
+  it("invokes the ROADMAP assert entry point via npx tsx", () => {
+    expect(preCommitSource).toContain(
+      "npx tsx packages/arc-framework/src/scripts/assert-roadmap-regenerated.ts",
+    );
+  });
+
+  it("treats rejection output as an error and indeterminate output as a warning", () => {
+    const block = preCommitSource.slice(
+      preCommitSource.indexOf("CHECK 19"),
+      preCommitSource.indexOf("CHECK 20"),
+    );
+
+    expect(block).toContain("errors=$((errors + 1))");
+    expect(block).toContain("warnings=$((warnings + 1))");
+    expect(block).toContain("roadmap_assert_output");
+  });
+
+  it("documents the local-hook boundary for GitHub-side merges", () => {
+    const block = preCommitSource.slice(
+      preCommitSource.indexOf("CHECK 19"),
+      preCommitSource.indexOf("CHECK 20"),
+    );
+
+    expect(block).toContain("GitHub-side conflict resolution does not run local hooks");
   });
 });

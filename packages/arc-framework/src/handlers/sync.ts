@@ -51,6 +51,7 @@ import { access } from "node:fs/promises";
 import {
   buildSaveSummary,
   clearErrandPartialPushMarker,
+  hasSaveWarnings,
   recordErrandPartialPushMarker,
   runPairedPush,
   runUserSave,
@@ -546,21 +547,78 @@ async function reconcileErrandLeg(
     switch (outcome.kind) {
       case "pushed":
       case "reconciled":
-        await clearErrandPartialPushMarker(cwd, io, identity);
-        return { action: "reconcile", result: "success" };
+        return reconcileErrandSuccessRecord(
+          "success",
+          await clearErrandPartialPushMarkerSafely(cwd, io, identity),
+        );
       case "noop":
-        await clearErrandPartialPushMarker(cwd, io, identity);
-        return { action: "reconcile", result: "noop" };
+        return reconcileErrandSuccessRecord(
+          "noop",
+          await clearErrandPartialPushMarkerSafely(cwd, io, identity),
+        );
       case "no-remote":
       case "conflict":
-      case "failed":
-        await recordErrandPartialPushMarker(cwd, io, identity);
-        return { action: "reconcile", result: "failed", detail: outcome.kind };
+      case "failed": {
+        const markerRecorded = await recordErrandPartialPushMarkerSafely(cwd, io, identity);
+        return {
+          action: "reconcile",
+          result: "failed",
+          detail: errandPartialPushDetail(outcome.kind, markerRecorded),
+        };
+      }
+      default: {
+        const _exhaustive: never = outcome;
+        throw new Error(`unhandled reconcile outcome: ${JSON.stringify(_exhaustive)}`);
+      }
     }
   } catch {
-    await recordErrandPartialPushMarker(cwd, io, identity);
-    return { action: "reconcile", result: "failed", detail: "error" };
+    const markerRecorded = await recordErrandPartialPushMarkerSafely(cwd, io, identity);
+    return {
+      action: "reconcile",
+      result: "failed",
+      detail: errandPartialPushDetail("error", markerRecorded),
+    };
   }
+}
+
+async function clearErrandPartialPushMarkerSafely(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<boolean> {
+  try {
+    await clearErrandPartialPushMarker(cwd, io, identity);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function recordErrandPartialPushMarkerSafely(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<boolean> {
+  try {
+    return await recordErrandPartialPushMarker(cwd, io, identity);
+  } catch {
+    return false;
+  }
+}
+
+function reconcileErrandSuccessRecord(
+  result: "success" | "noop",
+  markerCleared: boolean,
+): LegOutcomeRecord {
+  return {
+    action: "reconcile",
+    result,
+    ...(markerCleared ? {} : { detail: "marker-clear-failed" }),
+  };
+}
+
+function errandPartialPushDetail(detail: string, markerRecorded: boolean): string {
+  return markerRecorded ? detail : `${detail}:marker-not-recorded`;
 }
 
 interface ExecuteContext {
@@ -826,7 +884,7 @@ function renderPairedResult(
   )) {
     output.log.error(condition.guidance);
   }
-  if (result.save.status === "success" && result.save.result.warnings.length > 0) {
+  if (result.save.status === "success" && hasSaveWarnings(result.save.result)) {
     output.note(buildSaveSummary(result.save.result), "Saved");
   } else if (result.save.status === "failed") {
     output.log.error(`Save failed: ${result.save.error.message}`);
@@ -863,15 +921,15 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
       return;
     case "cancelled":
       output.log.info("Notes push cancelled.");
-      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn(partialPublishRecoveryLine(result, "recover with `arc user push` (idempotent)."));
       return;
     case "no-remote":
       output.log.error("No remote configured. Push requires a remote repository.");
-      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn(partialPublishRecoveryLine(result, "recover with `arc user push` (idempotent)."));
       return;
     case "refused":
       output.log.warn(notes.message);
-      output.log.warn("Partial publish recorded; retry after resolving the notes export target.");
+      output.log.warn(partialPublishRecoveryLine(result, "retry after resolving the notes export target."));
       return;
     case "failed-nontty-conflict":
       output.log.warn(
@@ -882,17 +940,17 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
         notes.message
         ?? "Resolve the conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
       );
-      output.log.warn("Partial publish recorded.");
+      output.log.warn(partialPublishRecoveryLine(result, ""));
       return;
     case "blocked":
       for (const condition of notes.conditions.filter(isRefusalCondition)) {
         output.log.error(condition.guidance);
       }
-      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn(partialPublishRecoveryLine(result, "recover with `arc user push` (idempotent)."));
       return;
     case "failed":
       output.log.error(`Notes push failed: ${notes.error.message}`);
-      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn(partialPublishRecoveryLine(result, "recover with `arc user push` (idempotent)."));
       return;
     case "skipped":
       if (notes.reason === "preceding-leg-failed") {
@@ -904,6 +962,15 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
       }
       return;
   }
+}
+
+function partialPublishRecoveryLine(result: PairedPushResult, suffix: string): string {
+  if (result.partialPushMarkerRecorded === true) {
+    return suffix === "" ? "Partial publish recorded." : `Partial publish recorded; ${suffix}`;
+  }
+  return suffix === ""
+    ? "Partial publish recovery marker could not be recorded."
+    : `Partial publish recovery marker could not be recorded; ${suffix}`;
 }
 
 async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
@@ -1160,7 +1227,7 @@ async function performSave(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
   try {
     const result = await runUserSave({ cwd: ctx.cwd, io: ctx.io, identity: ctx.identity });
     spinner.stop("Save complete.");
-    if (result.warnings.length > 0) {
+    if (hasSaveWarnings(result)) {
       ctx.output.note(buildSaveSummary(result), "Saved");
     }
     return { action: "save", result: "success" };

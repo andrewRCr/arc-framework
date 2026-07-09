@@ -12,16 +12,22 @@ import { hostname, tmpdir } from "node:os";
 
 import {
   findNearestUserNote,
+  hashSyncManifest,
+  reconcileRetiredSubdirsStandalone,
   runUserLoad,
   runUserSave,
 } from "../../src/commands/user/save-load.js";
 import {
   clearPartialPushMarker,
+  getMaterializedBaselineStampPath,
   getNotesLockPath,
   getOrCreateMachineId,
   NO_COMPARABLE_SOURCE_COMMIT,
+  readMaterializedBaselineStamp,
   readLocalSyncState,
+  recordErrandPartialPushMarker,
   recordPartialPushMarker,
+  writeMaterializedBaselineStamp,
   writeLocalSyncState,
 } from "../../src/lib/user-sync/index.js";
 import {
@@ -33,6 +39,20 @@ import type { SyncManifest } from "../../src/lib/git/index.js";
 
 const SYNC_STATE_RELATIVE = ".arc/user/andrew/.internal/.sync-state.json";
 
+function workingMemoryEntry(title: string): string {
+  return `# Working Memory
+
+## Memories
+
+**${title}:**
+_Remove when: done._
+
+Keep this note.
+
+---
+`;
+}
+
 async function exists(path: string): Promise<boolean> {
   try {
     await stat(path);
@@ -40,6 +60,12 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function enoent(path: string): Error & { code: string } {
+  const err = new Error(`ENOENT: ${path}`) as Error & { code: string };
+  err.code = "ENOENT";
+  return err;
 }
 
 interface GitMockConfig {
@@ -172,13 +198,18 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
 
 interface SaveMockConfig {
   head?: string;
+  gitCommonDir?: string;
   files?: Record<string, string>;
+  notesRefTip?: string;
   writeNoteRejects?: boolean;
   readback?: string | null;
+  beforeNotesRefTipRead?: () => Promise<void>;
 }
 
 function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
   const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const gitCommonDir = config.gitCommonDir ?? ".git";
+  const notesRefTip = config.notesRefTip ?? "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
   const files = config.files ?? { "WORKING-MEMORY.md": "# Notes" };
   let writtenNote: string | null = null;
 
@@ -187,8 +218,12 @@ function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
       if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
         return { stdout: head, stderr: "" };
       }
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--verify") {
+        await config.beforeNotesRefTipRead?.();
+        return { stdout: `${notesRefTip}\n`, stderr: "" };
+      }
       if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
-        return { stdout: ".git\n", stderr: "" };
+        return { stdout: `${gitCommonDir}\n`, stderr: "" };
       }
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
@@ -196,6 +231,7 @@ function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
       const name = basename(filePath);
       const content = files[name];
       if (content === undefined) {
+        if (filePath.endsWith(".sync-state.json")) throw enoent(filePath);
         throw new Error(`unexpected file read: ${filePath}`);
       }
       return content;
@@ -708,6 +744,66 @@ describe("runUserSave — save verification", () => {
     expect(typeof onDisk.savedAt).toBe("string");
   });
 
+  it("still returns success when late sync-state bookkeeping exhausts CAS retries", async () => {
+    const io = mockSaveIO();
+    const readFileOriginal = io.readFile;
+    let syncStateReads = 0;
+    io.readFile = vi.fn(async (filePath: string) => {
+      if (filePath.endsWith(".sync-state.json")) {
+        syncStateReads += 1;
+        return `${syncStateReads}\n`;
+      }
+      return readFileOriginal(filePath);
+    });
+
+    const result = await runUserSave({ cwd, io, identity: "andrew" });
+
+    expect(result.fileCount).toBe(1);
+    expect(io.writeNote).toHaveBeenCalled();
+    expect(await exists(syncStatePath)).toBe(false);
+  });
+
+  it("writes the materialized-baseline stamp after a verified save", async () => {
+    const notesRefTip = "cccccccccccccccccccccccccccccccccccccccc";
+    const files = { "WORKING-MEMORY.md": workingMemoryEntry("Saved") };
+    const io = mockSaveIO({ files, notesRefTip });
+
+    await runUserSave({ cwd, io, identity: "andrew" });
+
+    const stamp = await readMaterializedBaselineStamp(io.exec, cwd, "andrew");
+    expect(stamp).toMatchObject({
+      version: 1,
+      notesRefTip,
+      manifestHash: hashSyncManifest({ version: 2, files }),
+      files: [{ path: "WORKING-MEMORY.md", contentHash: expect.any(String) }],
+      entries: [{
+        path: "WORKING-MEMORY.md",
+        section: "Memories",
+        key: "**Saved:**",
+        contentHash: expect.any(String),
+      }],
+    });
+  });
+
+  it("returns success with a bookkeeping warning when the late materialized-baseline stamp fails", async () => {
+    const internalDir = join(cwd, ".git", "arc", "user", "andrew", ".internal");
+    let disrupted = false;
+    const io = mockSaveIO({
+      beforeNotesRefTipRead: async () => {
+        if (disrupted) return;
+        disrupted = true;
+        await rm(internalDir, { recursive: true, force: true });
+        await mkdir(dirname(internalDir), { recursive: true });
+        await writeFile(internalDir, "not a directory", "utf-8");
+      },
+    });
+
+    const result = await runUserSave({ cwd, io, identity: "andrew" });
+
+    expect(result.fileCount).toBe(1);
+    expect(result.bookkeepingWarnings?.[0]).toContain("materialized-baseline");
+  });
+
   it("captures the materialized file list as the prior-file-list basis for drift detection", async () => {
     const io = mockSaveIO();
 
@@ -723,6 +819,24 @@ interface CriticalSectionRecorder {
   active: number;
   maxActive: number;
   commits: string[];
+}
+
+interface ActivityRecorder {
+  active: number;
+  maxActive: number;
+  events: string[];
+}
+
+async function recordActivity(
+  recorder: ActivityRecorder,
+  event: string,
+  ms = 5,
+): Promise<void> {
+  recorder.active += 1;
+  recorder.maxActive = Math.max(recorder.maxActive, recorder.active);
+  recorder.events.push(event);
+  await new Promise((resolve) => setTimeout(resolve, ms));
+  recorder.active -= 1;
 }
 
 /**
@@ -751,6 +865,7 @@ function concurrentSaveIO(
     readFile: vi.fn(async (filePath: string) => {
       const name = basename(filePath);
       const content = files[name as keyof typeof files];
+      if (content === undefined && filePath.endsWith(".sync-state.json")) throw enoent(filePath);
       if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
       return content;
     }),
@@ -775,6 +890,45 @@ function concurrentSaveIO(
       recorder.commits.push(commit ?? "");
       recorder.active -= 1;
     }),
+    readNote: vi.fn(async () => writtenNote),
+  };
+}
+
+function snapshotSaveIO(
+  head: string,
+  recorder: ActivityRecorder,
+): UserIOContext {
+  const files = { "WORKING-MEMORY.md": "# Notes" };
+  let writtenNote: string | null = null;
+
+  return {
+    exec: vi.fn(async (cmd: string, args: string[]) => {
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
+        await recordActivity(recorder, `head:${head}`);
+        return { stdout: head, stderr: "" };
+      }
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+        return { stdout: ".git\n", stderr: "" };
+      }
+      throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+    }),
+    readFile: vi.fn(async (filePath: string) => {
+      const name = basename(filePath);
+      const content = files[name as keyof typeof files];
+      if (content === undefined && filePath.endsWith(".sync-state.json")) throw enoent(filePath);
+      if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
+      await recordActivity(recorder, `read:${head}:${name}`);
+      return content;
+    }),
+    writeFile: vi.fn(async () => undefined),
+    readDir: vi.fn(async () => (
+      Object.entries(files).map(([name, content]) => ({
+        name,
+        size: Buffer.byteLength(content, "utf-8"),
+      }))
+    )),
+    mkdir: vi.fn(async () => undefined),
+    writeNote: vi.fn(async (_ref: string, content: string) => { writtenNote = content; }),
     readNote: vi.fn(async () => writtenNote),
   };
 }
@@ -829,6 +983,23 @@ describe("runUserSave — note-write serialization (advisory lock)", () => {
     });
     expect(result.fileCount).toBe(1);
   });
+
+  it("serializes HEAD resolution and disk snapshot under the notes lock", async () => {
+    const recorder: ActivityRecorder = { active: 0, maxActive: 0, events: [] };
+
+    await Promise.all([
+      runUserSave({ cwd, io: snapshotSaveIO(headA, recorder), identity: "andrew" }),
+      runUserSave({ cwd, io: snapshotSaveIO(headB, recorder), identity: "andrew" }),
+    ]);
+
+    expect(recorder.maxActive).toBe(1);
+    expect(recorder.events).toEqual(expect.arrayContaining([
+      `head:${headA}`,
+      `read:${headA}:WORKING-MEMORY.md`,
+      `head:${headB}`,
+      `read:${headB}:WORKING-MEMORY.md`,
+    ]));
+  });
 });
 
 interface SaveNotesMockConfig {
@@ -869,6 +1040,7 @@ function mockSaveIOWithNotes(
     readFile: vi.fn(async (filePath: string) => {
       const name = basename(filePath);
       const content = config.files[name];
+      if (content === undefined && filePath.endsWith(".sync-state.json")) throw enoent(filePath);
       if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
       return content;
     }),
@@ -897,29 +1069,72 @@ describe("runUserSave — removal tombstones", () => {
     await rm(cwd, { recursive: true, force: true });
   });
 
-  it("stamps a Removed marker into a cross-WU file whose entry is absent since the prior note", async () => {
-    const wm = (...entries: string[]): string =>
-      `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
-    const entry = (header: string): string => `**${header}:**\n_Remove when: x._\n\nBody.`;
+  const wm = (...entries: string[]): string =>
+    `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
+  const entry = (header: string): string => `**${header}:**\n_Remove when: x._\n\nBody.`;
+  const saveNoteFiles = (note: string | null): Record<string, string> =>
+    (JSON.parse(note ?? "{}") as SyncManifest).files;
+  const stampBaseline = async (
+    io: UserIOContext,
+    identity: string,
+    files: Record<string, string>,
+  ): Promise<void> => {
+    await writeMaterializedBaselineStamp({
+      exec: io.exec,
+      cwd,
+      identity,
+      manifest: { version: 2, files },
+      manifestHash: hashSyncManifest({ version: 2, files }),
+      notesRefTip: "baseline-tip",
+    });
+  };
 
+  it("does not tombstone a ref entry absent from the materialized stamp", async () => {
     const { io, written } = mockSaveIOWithNotes({
       files: { "WORKING-MEMORY.md": wm(entry("Kept")) },
-      priorNoteFiles: { "WORKING-MEMORY.md": wm(entry("Kept"), entry("Dropped")) },
+      priorNoteFiles: { "WORKING-MEMORY.md": wm(entry("Kept"), entry("Ref Only")) },
+    });
+    await stampBaseline(io, "andrew", { "WORKING-MEMORY.md": wm(entry("Kept")) });
+
+    await runUserSave({ cwd, io, identity: "andrew" });
+
+    const saved = saveNoteFiles(written())["WORKING-MEMORY.md"] ?? "";
+    expect(saved).not.toContain("## Removed: **Ref Only:**");
+    expect(saved).not.toContain("## Removed: **Kept:**");
+  });
+
+  it("tombstones an entry the stamp records as materialized and disk now omits", async () => {
+    const { io, written } = mockSaveIOWithNotes({
+      files: { "WORKING-MEMORY.md": wm(entry("Kept")) },
+      priorNoteFiles: {},
+    });
+    await stampBaseline(io, "andrew", { "WORKING-MEMORY.md": wm(entry("Kept"), entry("Dropped")) });
+
+    await runUserSave({ cwd, io, identity: "andrew" });
+
+    const saved = saveNoteFiles(written())["WORKING-MEMORY.md"] ?? "";
+    expect(saved).toContain("## Removed: **Dropped:**");
+    expect(saved).not.toContain("## Removed: **Kept:**");
+  });
+
+  it("synthesizes no tombstones when the materialized stamp is absent", async () => {
+    const { io, written } = mockSaveIOWithNotes({
+      files: { "WORKING-MEMORY.md": wm(entry("Kept")) },
+      priorNoteFiles: { "WORKING-MEMORY.md": wm(entry("Kept"), entry("Upgrade Only")) },
     });
 
     await runUserSave({ cwd, io, identity: "andrew" });
 
-    const note = written();
-    expect(note).not.toBeNull();
-    const saved = (JSON.parse(note ?? "{}") as SyncManifest).files["WORKING-MEMORY.md"] ?? "";
-    expect(saved).toContain("## Removed: **Dropped:**");
-    expect(saved).not.toContain("## Removed: **Kept:**");
+    const saved = saveNoteFiles(written())["WORKING-MEMORY.md"] ?? "";
+    expect(saved).not.toContain("## Removed: **Upgrade Only:**");
   });
 });
 
 interface LoadMockConfig {
   head?: string;
+  gitCommonDir?: string;
   manifest?: SyncManifest;
+  notesRefTip?: string;
   /**
    * Per-file readback content keyed by manifest filename. `undefined` makes
    * the corresponding `io.readFile` reject (simulates a torn write or missing
@@ -930,6 +1145,8 @@ interface LoadMockConfig {
 
 function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
   const head = config.head ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const gitCommonDir = config.gitCommonDir ?? ".git";
+  const notesRefTip = config.notesRefTip ?? "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
   const manifest: SyncManifest = config.manifest ?? {
     version: 2,
     files: { "WORKING-MEMORY.md": "# Notes" },
@@ -943,6 +1160,12 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
       if (cmd !== "git") throw new Error(`unexpected exec: ${cmd}`);
       if (args[0] === "rev-parse" && args[1] === "HEAD") {
         return { stdout: head, stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+        return { stdout: `${gitCommonDir}\n`, stderr: "" };
+      }
+      if (args[0] === "rev-parse" && args[1] === "--verify") {
+        return { stdout: `${notesRefTip}\n`, stderr: "" };
       }
       if (args[0] === "notes" && args[2] === "list") {
         return { stdout: `${"0".repeat(40)} ${head}`, stderr: "" };
@@ -978,10 +1201,11 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
       if (Object.hasOwn(readback, name)) {
         const content = readback[name];
         if (content === undefined) {
-          throw new Error(`ENOENT: ${filePath}`);
+          throw enoent(filePath);
         }
         return content;
       }
+      if (filePath.endsWith(".sync-state.json")) throw enoent(filePath);
       throw new Error(`unexpected readFile: ${filePath}`);
     }),
     writeFile: vi.fn(async () => undefined),
@@ -1059,6 +1283,87 @@ describe("runUserLoad — load verification", () => {
     });
     expect(typeof onDisk.savedAt).toBe("string");
   });
+
+  it("still returns loaded when late sync-state bookkeeping exhausts CAS retries", async () => {
+    const io = mockLoadIO();
+    const readFileOriginal = io.readFile;
+    let syncStateReads = 0;
+    io.readFile = vi.fn(async (filePath: string) => {
+      if (filePath.endsWith(".sync-state.json")) {
+        syncStateReads += 1;
+        return `${syncStateReads}\n`;
+      }
+      return readFileOriginal(filePath);
+    });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew" });
+
+    expect(result?.kind).toBe("loaded");
+    expect(await exists(syncStatePath)).toBe(false);
+  });
+
+  it("writes the materialized-baseline stamp after a verified load", async () => {
+    const notesRefTip = "dddddddddddddddddddddddddddddddddddddddd";
+    const manifest: SyncManifest = {
+      version: 2,
+      files: { "WORKING-MEMORY.md": workingMemoryEntry("Loaded") },
+    };
+    const io = mockLoadIO({ manifest, notesRefTip });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew" });
+
+    expect(result?.kind).toBe("loaded");
+    const stamp = await readMaterializedBaselineStamp(io.exec, cwd, "andrew");
+    expect(stamp).toMatchObject({
+      version: 1,
+      notesRefTip,
+      manifestHash: hashSyncManifest(manifest),
+      files: [{ path: "WORKING-MEMORY.md", contentHash: expect.any(String) }],
+      entries: [{
+        path: "WORKING-MEMORY.md",
+        section: "Memories",
+        key: "**Loaded:**",
+        contentHash: expect.any(String),
+      }],
+    });
+  });
+
+  it("lets a sibling worktree load advance the repo-shared stamp", async () => {
+    const commonDir = join(cwd, "common.git");
+    const primary = join(cwd, "primary");
+    const sibling = join(cwd, "sibling");
+    const primaryManifest: SyncManifest = {
+      version: 2,
+      files: { "WORKING-MEMORY.md": workingMemoryEntry("Primary") },
+    };
+    const siblingManifest: SyncManifest = {
+      version: 2,
+      files: { "WORKING-MEMORY.md": workingMemoryEntry("Sibling") },
+    };
+    const primaryIO = mockLoadIO({
+      gitCommonDir: commonDir,
+      manifest: primaryManifest,
+      notesRefTip: "1111111111111111111111111111111111111111",
+    });
+    const siblingIO = mockLoadIO({
+      gitCommonDir: commonDir,
+      manifest: siblingManifest,
+      notesRefTip: "2222222222222222222222222222222222222222",
+    });
+
+    await runUserLoad({ cwd: primary, io: primaryIO, identity: "andrew" });
+    const primaryStampPath = await getMaterializedBaselineStampPath(primaryIO.exec, primary, "andrew");
+    await runUserLoad({ cwd: sibling, io: siblingIO, identity: "andrew" });
+    const siblingStampPath = await getMaterializedBaselineStampPath(siblingIO.exec, sibling, "andrew");
+
+    expect(siblingStampPath).toBe(primaryStampPath);
+    const stamp = await readMaterializedBaselineStamp(primaryIO.exec, primary, "andrew");
+    expect(stamp).toMatchObject({
+      notesRefTip: "2222222222222222222222222222222222222222",
+      manifestHash: hashSyncManifest(siblingManifest),
+      entries: [expect.objectContaining({ key: "**Sibling:**" })],
+    });
+  });
 });
 
 describe("runUserLoad — per-WU subdir materialization filtering", () => {
@@ -1093,6 +1398,8 @@ describe("runUserLoad — per-WU subdir materialization filtering", () => {
       exec: vi.fn(async (cmd: string, args: string[]) => {
         if (cmd !== "git") throw new Error(`unexpected exec: ${cmd}`);
         if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") return { stdout: ".git\n", stderr: "" };
+        if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: "e".repeat(40), stderr: "" };
         if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
           return { stdout: branch, stderr: "" };
         }
@@ -1394,6 +1701,103 @@ describe("LocalSyncState v4 schema", () => {
     expect(afterRecord!.verifiedAt).toBe(v3Record.verifiedAt);
   });
 
+  it("does not treat sync-state read failures as missing records", async () => {
+    const record = {
+      version: 4,
+      materializedManifestHash: "ab".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(record, null, 2)}\n`, "utf-8");
+
+    const io = realFsIO({
+      exec: vi.fn(async (cmd: string, args: string[]) => {
+        if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${"d".repeat(40)}\n`, stderr: "" };
+        }
+        throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+      }),
+      readFile: vi.fn(async (path: string) => {
+        if (path === syncStatePath) {
+          const err = new Error("EACCES: permission denied") as Error & { code?: string };
+          err.code = "EACCES";
+          throw err;
+        }
+        return readFile(path, "utf-8");
+      }),
+    });
+
+    await expect(recordPartialPushMarker(cwd, io, identity)).rejects.toThrow("EACCES");
+    expect(JSON.parse(await readFile(syncStatePath, "utf-8"))).toMatchObject(record);
+  });
+
+  it("rethrows non-ENOENT sync-state reads instead of treating them as missing", async () => {
+    const eacces: NodeJS.ErrnoException = new Error("EACCES: permission denied");
+    eacces.code = "EACCES";
+    const io = realFsIO({
+      readFile: vi.fn(async (path: string) => {
+        if (path === syncStatePath) throw eacces;
+        return readFile(path, "utf-8");
+      }),
+    });
+
+    await expect(readLocalSyncState(cwd, io, identity)).rejects.toThrow("EACCES");
+  });
+
+  it("keeps both partial-push markers across concurrent sync-state writers", async () => {
+    const record = {
+      version: 4,
+      materializedManifestHash: "ab".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(record, null, 2)}\n`, "utf-8");
+
+    let firstTwoReads = 0;
+    let releaseReads: () => void = () => {};
+    const readsReleased = new Promise<void>((resolve) => {
+      releaseReads = resolve;
+    });
+    const io = realFsIO({
+      exec: vi.fn(async (cmd: string, args: string[]) => {
+        if (cmd === "git" && args[0] === "rev-parse" && args[1] === "--verify") {
+          if (args[2] === "refs/notes/arc/user/andrew") {
+            return { stdout: `${"d".repeat(40)}\n`, stderr: "" };
+          }
+          if (args[2] === "refs/arc/user/andrew/errands") {
+            return { stdout: `${"e".repeat(40)}\n`, stderr: "" };
+          }
+        }
+        throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+      }),
+      readFile: vi.fn(async (path: string) => {
+        if (path === syncStatePath && firstTwoReads < 2) {
+          firstTwoReads += 1;
+          if (firstTwoReads === 2) releaseReads();
+          await readsReleased;
+        }
+        return readFile(path, "utf-8");
+      }),
+    });
+
+    await Promise.all([
+      recordPartialPushMarker(cwd, io, identity),
+      recordErrandPartialPushMarker(cwd, io, identity),
+    ]);
+
+    const state = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(state!.partialPush).toEqual({
+      localRefHash: "d".repeat(40),
+      sourceCommit: record.sourceCommit,
+    });
+    expect(state!.partialPushErrand).toEqual({
+      localRefHash: "e".repeat(40),
+      sourceCommit: "e".repeat(40),
+    });
+  });
+
   it("never produces malformed JSON on disk under concurrent writes", async () => {
     const head = "f".repeat(40);
     const userDir = join(cwd, ".arc", "user", identity);
@@ -1521,6 +1925,27 @@ describe("LocalSyncState v4 schema", () => {
     const afterSave = await readLocalSyncState(cwd, realFsIO(), identity);
     expect(afterSave!.priorFileList).toEqual(reserved.priorFileList);
     expect(afterSave!.remoteMarkerProvenance).toEqual(reserved.remoteMarkerProvenance);
+  });
+
+  it("distinguishes omitted notesRefTip from an explicitly absent notes ref", async () => {
+    const priorTip = "1".repeat(40);
+    const record = {
+      version: 4,
+      materializedManifestHash: "5d".repeat(8),
+      sourceCommit: "c".repeat(40),
+      sourceOperation: "save" as const,
+      savedAt: "2026-05-06T10:30:00.000Z",
+      notesRefTip: priorTip,
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(record)}\n`, "utf-8");
+
+    await writeLocalSyncState(cwd, realFsIO(), identity, "66".repeat(8), "d".repeat(40), "save");
+    const afterOmittedTip = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(afterOmittedTip!.notesRefTip).toBe(priorTip);
+
+    await writeLocalSyncState(cwd, realFsIO(), identity, "77".repeat(8), "e".repeat(40), "load", undefined, undefined, null);
+    const afterAbsentRef = await readLocalSyncState(cwd, realFsIO(), identity);
+    expect(afterAbsentRef!.notesRefTip).toBeUndefined();
   });
 
   it("keeps remote-marker provenance pluralizable — multiple worktree entries survive a round-trip", async () => {
@@ -1703,5 +2128,49 @@ describe("LocalSyncState v4 schema", () => {
     const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
     expect(onDisk.machineId).toBeUndefined();
     expect(onDisk.partialPush).toBeUndefined();
+  });
+});
+
+describe("reconcileRetiredSubdirsStandalone — same-machine roster failures", () => {
+  let cwd: string;
+  const identity = "andrew";
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-retired-subdir-test-"));
+    await mkdir(join(cwd, ".arc", "user", identity, "old-wu"), { recursive: true });
+    await writeFile(join(cwd, ".arc", "user", identity, "old-wu", "SESSION-NOTES.md"), "old notes", "utf-8");
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it("fails closed when the worktree roster cannot be read", async () => {
+    const userDir = join(cwd, ".arc", "user", identity);
+    const io: UserIOContext = {
+      exec: vi.fn(async (cmd: string, args: string[]) => {
+        if (cmd === "git" && args[0] === "ls-tree") {
+          return { stdout: ".arc/completed/2026-q2/01_old-wu/SESSION-NOTES.md\n", stderr: "" };
+        }
+        if (cmd === "git" && args[0] === "worktree") {
+          throw new Error("worktree roster unavailable");
+        }
+        throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+      }),
+      readFile: vi.fn(async (path: string) => readFile(path, "utf-8")),
+      writeFile: vi.fn(async (path: string, content: string) => writeFile(path, content, "utf-8")),
+      readDir: vi.fn(async (path: string) => {
+        if (path === userDir) return [{ name: "old-wu/SESSION-NOTES.md", size: 9 }];
+        return [];
+      }),
+      mkdir: vi.fn(async (path: string) => mkdir(path, { recursive: true })),
+      writeNote: vi.fn(async () => undefined),
+      readNote: vi.fn(async () => null),
+    };
+
+    const reconciled = await reconcileRetiredSubdirsStandalone({ cwd, io, identity });
+
+    expect(reconciled.size).toBe(0);
+    expect(await exists(join(cwd, ".arc", "user", identity, "old-wu", "SESSION-NOTES.md"))).toBe(true);
   });
 });

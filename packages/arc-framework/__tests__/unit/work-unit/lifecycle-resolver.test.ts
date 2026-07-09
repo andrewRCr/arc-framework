@@ -5,6 +5,7 @@ import {
   deriveState,
   isOccupied,
   isShipped,
+  listParkedSlugs,
   resolveSlugPosition,
   resolveSlugState,
 } from "../../../src/lib/work-unit/lifecycle-resolver.js";
@@ -87,6 +88,12 @@ describe("resolveSlugState", () => {
     expect(resolveSlugState(index, "gamma")).toBe("integrating");
     expect(resolveSlugState(index, "delta")).toBe("shipped");
     expect(resolveSlugState(index, "missing")).toBe("nonexistent");
+  });
+});
+
+describe("listParkedSlugs", () => {
+  it("returns only slugs whose lifecycle position derives to parked", () => {
+    expect([...listParkedSlugs(everyState)].sort()).toEqual(["parked"]);
   });
 });
 

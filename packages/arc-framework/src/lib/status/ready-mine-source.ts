@@ -1,17 +1,16 @@
 /**
  * Filesystem source for the ready-mine slice — scans local planned metas and
- * resolves dependency satisfaction by absence, producing the render rows the user
- * view's ready section consumes.
+ * resolves dependency satisfaction through the lifecycle index, producing the
+ * render rows the user view's ready section consumes.
  *
  * Two reads, both local:
  *
  * - **Planned set** — every `meta-*.md` under `backlog/planned/**` (recursive, so
  *   both standalone and cohort-wrapped subdirs are covered), parsed into the
  *   render-relevant fields.
- * - **Pending pipeline** — the WU-names still present anywhere in the
- *   `active/** + backlog/planned/** + backlog/provisional/**` pipeline. A planned
- *   WU's dependency is satisfied exactly when its target is *absent* from this set
- *   (it has shipped to `completed/`), per the readiness model.
+ * - **Lifecycle index** — the local lifecycle-complete index, including
+ *   `completed/`, so dependency satisfaction can distinguish shipped targets
+ *   from dangling edges.
  *
  * The pure {@link buildReadyMineSlice} applies the identity and unblocked filters.
  * Because every read is local, this source is always available — it never depends
@@ -24,6 +23,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
+import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 
 import { buildReadyMineSlice, type PlannedWorkUnit } from "./ready-mine.js";
 import type { StatusViewRow } from "./render.js";
@@ -33,13 +33,6 @@ const META_FILE_RE = /^meta-(.+)\.md$/;
 
 /** Planned-work root, relative to the repo. */
 const PLANNED_SEGMENTS = [".arc", "backlog", "planned"] as const;
-
-/** Pipeline roots whose presence marks a WU-name as still pending (unshipped). */
-const PIPELINE_ROOTS: readonly (readonly string[])[] = [
-  [".arc", "active"],
-  [".arc", "backlog", "planned"],
-  [".arc", "backlog", "provisional"],
-];
 
 /** Options for {@link loadReadyMineSlice}. */
 export interface LoadReadyMineSliceOptions {
@@ -109,13 +102,13 @@ export async function loadReadyMineSlice(
 
   const plannedFiles = await collectMetaFiles(join(cwd, ...PLANNED_SEGMENTS));
   const planned = await Promise.all(plannedFiles.map(parsePlanned));
+  const lifecycleIndex = await buildLifecycleIndex({
+    cwd,
+    fs: {
+      readdir: (p) => readdir(p, { withFileTypes: true }),
+      readFile: (p) => readFile(p, "utf8"),
+    },
+  });
 
-  const pendingNames = new Set<string>();
-  for (const root of PIPELINE_ROOTS) {
-    for (const file of await collectMetaFiles(join(cwd, ...root))) {
-      pendingNames.add(wuNameOf(file));
-    }
-  }
-
-  return buildReadyMineSlice(planned, pendingNames, identity);
+  return buildReadyMineSlice(planned, lifecycleIndex, identity);
 }
