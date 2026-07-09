@@ -107,6 +107,7 @@ import {
 import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
 import {
   composeProjectReadinessViewResult,
+  resolveProjectReadinessRenderStamp,
   resolveProjectReadinessViewInput,
 } from "../lib/status/project-view.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
@@ -676,11 +677,12 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     });
     const result = composeProjectReadinessViewResult({
       ...input,
-      renderedRef: {
-        ref: await resolveRenderedRef(cwd),
+      renderedRef: await resolveProjectReadinessRenderStamp({
+        exec: gitExec,
+        cwd,
         scope: localOnly ? "tree + local refs" : "tree + live refs",
         liveView: "arc status --project",
-      },
+      }),
     });
     if (json) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -717,15 +719,6 @@ async function readCompactionSeedGitSnapshot(cwd: string): Promise<CompactionSee
     head: headResult.stdout.trim(),
     uncommittedFiles: parseUncommittedFiles(statusResult.stdout),
   };
-}
-
-async function resolveRenderedRef(cwd: string): Promise<string> {
-  try {
-    const { stdout } = await gitExec("git", ["rev-parse", "--short", "HEAD"], { cwd });
-    return stdout.trim() || "working tree";
-  } catch {
-    return "working tree";
-  }
 }
 
 function dirtyStateFromCompactionSeedSnapshot(snapshot: CompactionSeedGitSnapshot) {

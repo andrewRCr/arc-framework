@@ -154,6 +154,14 @@ export interface ProjectReadinessRenderStamp {
   liveView?: string;
 }
 
+/** Options for resolving a project-readiness freshness stamp. */
+export interface ResolveProjectReadinessRenderStampOptions {
+  exec: GitExec;
+  cwd: string;
+  scope?: string;
+  liveView?: string;
+}
+
 /** Options for {@link composeProjectReadinessView}. */
 export interface ComposeProjectReadinessViewOptions {
   /** Freshness marker to print in the header. */
@@ -212,6 +220,24 @@ const DEFAULT_FS: ProjectViewFs = {
   readdir: (path) => readdir(path, { withFileTypes: true }),
   readFile: (path) => readFile(path, "utf8"),
 };
+
+/** Resolve the standard render stamp for tracked and live project-readiness views. */
+export async function resolveProjectReadinessRenderStamp(
+  options: ResolveProjectReadinessRenderStampOptions,
+): Promise<ProjectReadinessRenderStamp> {
+  let ref: string;
+  try {
+    const { stdout } = await options.exec("git", ["rev-parse", "--short", "HEAD"], { cwd: options.cwd });
+    ref = stdout.trim() || "working tree";
+  } catch {
+    ref = "working tree";
+  }
+  return {
+    ref,
+    ...(options.scope !== undefined ? { scope: options.scope } : {}),
+    ...(options.liveView !== undefined ? { liveView: options.liveView } : {}),
+  };
+}
 
 /** Collect `meta-*.md` files recursively under `dir`; a missing directory yields none. */
 async function collectMetaFiles(dir: string, fs: ProjectViewFs): Promise<string[]> {

@@ -303,19 +303,14 @@ against the codebase as it exists then; Phase 4's landed shapes are this phase's
       force the local-ref path, unreachable remotes emit an inline refs-only warning, and integration coverage
       proves a `main` checkout sees an active meta that exists only on a pushed branch ref.
 
-### `[ ]` **5.3 Regen-trigger verification and `renderedRef` consolidation**
+### `[x]` **5.3 Regen-trigger verification and `renderedRef` consolidation**
 
 - _Goal:_ Ceremony regen fires the new render unchanged — same-commit, deterministic per checkout, with no
   per-site render plumbing left behind.
 
-    - Both regen call sites — the lifecycle side-effect binding (`src/lib/work-unit/executor-context.ts`
-      ~263, via `reconcileRoadmap`) and the start ceremony's `refreshRoadmapForStartCeremony`
-      (`src/handlers/start.ts` ~579, which bypasses `reconcileRoadmap`) — consume the shared resolver; Task
-      4.1.b already adapted them mechanically, so this task verifies the enriched record set flows to both
-      and removes any residual inline fs seams.
-    - Consolidate the two divergent rendered-ref computations (`renderedRef()` in `executor-context`,
-      `startRenderedRef` in `start.ts`) into the resolver's stamp.
-    - Integration coverage at one lifecycle-transition edge: the regenerated file matches a direct
+    - _Outcome:_ Project-readiness stamps now resolve through the shared composer module, so lifecycle,
+      start-ceremony, and live status renders share one short-HEAD fallback and stamp shape. Park@Active
+      integration coverage now compares the lifecycle-regenerated `ROADMAP.md` byte-for-byte with a direct
       resolver+composer render of the same checkout.
 
 ## **Phase 6:** Regenerate-wins pre-commit assert

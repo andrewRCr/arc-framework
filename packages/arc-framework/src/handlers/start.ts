@@ -38,7 +38,11 @@ import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { ensureDir } from "../lib/template/files.js";
-import { composeProjectReadinessView, resolveProjectReadinessViewInput } from "../lib/status/project-view.js";
+import {
+  composeProjectReadinessView,
+  resolveProjectReadinessRenderStamp,
+  resolveProjectReadinessViewInput,
+} from "../lib/status/project-view.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
@@ -594,7 +598,6 @@ async function refreshRoadmapForStartCeremony(
 ): Promise<RefreshRoadmapResult> {
   try {
     const { settings } = await readConfigSettings(cwd);
-    const renderedRef = await startRenderedRef(ctx, cwd);
     const exec: GitExec = (cmd, args, opts) => ctx.io.exec(cmd, args, { cwd, ...opts });
     const parkedSlugs = listParkedSlugs(
       await buildLifecycleIndex({
@@ -615,11 +618,12 @@ async function refreshRoadmapForStartCeremony(
     });
     const view = composeProjectReadinessView({
       ...input,
-      renderedRef: {
-        ref: renderedRef,
+      renderedRef: await resolveProjectReadinessRenderStamp({
+        exec,
+        cwd,
         scope: "tree + local refs",
         liveView: "arc status --project",
-      },
+      }),
     });
     const dir = join(cwd, ".arc", "backlog");
     await ensureDir(dir, ctx.io.mkdir);
@@ -628,15 +632,6 @@ async function refreshRoadmapForStartCeremony(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `ROADMAP regen failed: ${message}` };
-  }
-}
-
-async function startRenderedRef(ctx: ArmContext, cwd: string): Promise<string> {
-  try {
-    const { stdout } = await ctx.io.exec("git", ["rev-parse", "--short", "HEAD"], { cwd });
-    return stdout.trim() || "working tree";
-  } catch {
-    return "working tree";
   }
 }
 

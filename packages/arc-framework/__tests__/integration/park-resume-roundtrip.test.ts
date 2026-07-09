@@ -24,7 +24,14 @@ import { parseMetaRecord, type MetaFieldName } from "../../src/lib/active/meta-r
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
+import {
+  composeProjectReadinessView,
+  resolveProjectReadinessRenderStamp,
+  resolveProjectReadinessViewInput,
+} from "../../src/lib/status/project-view.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
+import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";
+import { listParkedSlugs } from "../../src/lib/work-unit/lifecycle-resolver.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 
@@ -108,6 +115,29 @@ function executorFor(h: Harness): ReturnType<typeof buildExecutorContext> {
     teamMode: false,
     internalTemplateDir: getInternalTemplatePath(),
   });
+}
+
+async function renderExpectedRoadmap(h: Harness): Promise<string> {
+  const fs = {
+    readdir: (path: string) => readdir(path, { withFileTypes: true }),
+    readFile: (path: string) => readFile(path, "utf8"),
+  };
+  const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: h.repo, fs }));
+  const input = await resolveProjectReadinessViewInput({
+    cwd: h.repo,
+    fs,
+    localRefs: { exec: h.io.exec, baseBranch: "main", parkedSlugs },
+  });
+  const view = composeProjectReadinessView({
+    ...input,
+    renderedRef: await resolveProjectReadinessRenderStamp({
+      exec: h.io.exec,
+      cwd: h.repo,
+      scope: "tree + local refs",
+      liveView: "arc status --project",
+    }),
+  });
+  return view.endsWith("\n") ? view : `${view}\n`;
 }
 
 /**
@@ -204,6 +234,8 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
     expect(await showAtBranch(h.repo, BRANCH, ACTIVE_REL)).not.toBeNull();
     // Only the worktree was torn down.
     expect(await pathExists(h.wuWorktree)).toBe(false);
+    await expect(readFile(join(h.repo, ".arc", "backlog", "ROADMAP.md"), "utf8"))
+      .resolves.toBe(await renderExpectedRoadmap(h));
   });
 
   it("round-trip (spawn): resume re-attaches in a fresh worktree and removes the pointer", async () => {

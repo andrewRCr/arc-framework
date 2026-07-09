@@ -47,7 +47,11 @@ import {
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
-import { composeProjectReadinessView, resolveProjectReadinessViewInput } from "../status/project-view.js";
+import {
+  composeProjectReadinessView,
+  resolveProjectReadinessRenderStamp,
+  resolveProjectReadinessViewInput,
+} from "../status/project-view.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
@@ -102,16 +106,6 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
   // guard checks the *target worktree*, not the base repo). Order matters: `cwd`
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
-
-  /** Best-effort freshness marker for generated readiness views. */
-  const renderedRef = async (): Promise<string> => {
-    try {
-      const { stdout } = await exec("git", ["rev-parse", "--short", "HEAD"]);
-      return stdout.trim() || "working tree";
-    } catch {
-      return "working tree";
-    }
-  };
 
   /** The lifecycle-index scan seam — shared by the executor's entry build and the discharge side-effect. */
   const indexFs: LifecycleIndexFs = {
@@ -278,11 +272,12 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
               });
               return composeProjectReadinessView({
                 ...input,
-                renderedRef: {
-                  ref: await renderedRef(),
+                renderedRef: await resolveProjectReadinessRenderStamp({
+                  exec,
+                  cwd,
                   scope: "tree + local refs",
                   liveView: "arc status --project",
-                },
+                }),
               });
             },
             mkdir: io.mkdir,
