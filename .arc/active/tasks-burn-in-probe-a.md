@@ -36,16 +36,20 @@ _Purpose:_ Capture the lifecycle evidence this disposable Wave 1 fixture exists 
 
 ## **Phase 2:** Verification
 
-### `[ ]` **2.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **2.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`,
+  `npm run typecheck:all`, `npm test`, and `npm run build` all passed.
+- _Success criteria:_ 7 criteria checked against `spec-burn-in-probe-a.md`; all 7 met.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `notes-burn-in-probe-a.md` records seeded `SESSION-NOTES` boot evidence.
-- `[ ]` `notes-burn-in-probe-a.md` records first-handoff notes save/load evidence.
-- `[ ]` `notes-burn-in-probe-a.md` records a clean post-merge reprobe.
-- `[ ]` `notes-burn-in-probe-a.md` records sibling coordination during integration.
-- `[ ]` `notes-burn-in-probe-a.md` records no false notes drift or silent state contention.
-- `[ ]` All quality gates pass.
-- `[ ]` Ready for integration.
+- `[x]` `notes-burn-in-probe-a.md` records seeded `SESSION-NOTES` boot evidence.
+- `[x]` `notes-burn-in-probe-a.md` records first-handoff notes save/load evidence.
+- `[x]` `notes-burn-in-probe-a.md` records a clean post-merge reprobe.
+- `[x]` `notes-burn-in-probe-a.md` records sibling coordination during integration.
+- `[x]` `notes-burn-in-probe-a.md` records no false notes drift or silent state contention.
+- `[x]` All quality gates pass.
+- `[x]` Ready for integration.

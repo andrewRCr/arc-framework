@@ -16,7 +16,7 @@
 - **Next Task:** Task 1.2 — Exercise handoff and resume evidence (line ~20)
 - **Blockers:** [none]
 
-- **Next Action:** Resume Task 1.2 — re-run session-init and record first-handoff notes save/load evidence.
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
