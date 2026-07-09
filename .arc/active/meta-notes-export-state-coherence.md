@@ -12,7 +12,10 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** [none]
+- **Last Completed:** Draft captured (2026-07-09) — A+B design settled at medium depth (producer safe-join +
+  content-relation classification + guidance fix) with one converged adversarial pass (one blocker + three
+  majors fixed in place: contested-entry join rule, temp-ref mislisting, projection threading, `arc user sync`
+  conflict select); stage advanced to `create-spec`.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
