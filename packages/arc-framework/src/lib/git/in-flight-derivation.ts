@@ -6,12 +6,10 @@
  * units and errands with no checkout. Errand-ness is a **record** property: a
  * branch carrying an errand record (supplied as a branch→slug index) is an
  * errand whatever its prefix, decoupling errand-ness from the `chore/` name. A
- * record-less branch is then classified by reading its candidate meta off the
- * remote-tracking ref (`git show origin/<branch>:<path>`): a branch whose meta
- * is present is a work unit. Classification is record- and content-driven, never
- * branch-name → WU — the branch name only supplies the candidate meta path and
- * the life-phase State proxy (`plan/` = planning, any other type-prefix =
- * activated).
+ * record-less branch is then classified by enumerating the active metas carried
+ * at that ref: meta filename supplies WU identity, the meta `Branch` field
+ * supplies location consistency, and the meta `State` field supplies lifecycle
+ * phase. Classification is record- and content-driven, never branch-name → WU.
  *
  * Worktree paths are not stored: they resolve live from `git worktree list`, so
  * a WU in flight only on the remote (no local worktree) is flagged `remoteOnly`
@@ -23,21 +21,18 @@
  * @module
  */
 
-import type { WorkUnitState } from "../../commands/active/types.js";
+import { validateState, type WorkUnitState } from "../../commands/active/types.js";
 import { parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
 
 import type { GitExec } from "./exec.js";
-import { readMetaAtRef } from "./remote-ref-reader.js";
+import { listMetaPathsAtRef, readMetaAtRef } from "./remote-ref-reader.js";
 import { resolveWorktreePathsByBranch } from "./worktree-roster.js";
 
 /** Default remote whose tracking refs back the no-checkout meta reads. */
 const DEFAULT_REMOTE = "origin";
 
-/** Branch prefix marking live-mutating planning — the `Planning` State proxy. */
-const PLANNING_BRANCH_PREFIX = "plan/";
-
-/** State proxied off the branch life-phase prefix — coarse by design. */
-export type InFlightState = Extract<WorkUnitState, "Planning" | "Active">;
+/** Validated lifecycle state read from the meta, plus a degraded unknown sentinel. */
+export type InFlightState = WorkUnitState | "unknown";
 
 /** Per-entry quality marker. Healthy entries omit marks. */
 export type InFlightEntryMark = "degraded" | "indeterminate" | "location-ambiguous";
@@ -91,7 +86,7 @@ export type PrSource = (branches: readonly string[]) => Promise<Map<string, Open
 
 /** Fields shared by every in-flight entry, work unit or errand. */
 interface InFlightLocation {
-  /** The remote branch the entry derives from. */
+  /** The branch/ref candidate the entry derives from. */
   branch: string;
   /** Local worktree path; present only when the branch is checked out here. */
   worktreePath?: string;
@@ -103,12 +98,12 @@ interface InFlightLocation {
   marks?: readonly InFlightEntryMark[];
 }
 
-/** A work unit in flight — a remote branch backed by an `active/` meta. */
+/** A work unit in flight — a branch/ref candidate backed by an active meta. */
 export interface InFlightWorkUnit extends InFlightLocation {
   kind: "work-unit";
-  /** WU name — the meta filename stem / branch segment after the life-phase prefix. */
+  /** WU name — the meta filename stem. */
   name: string;
-  /** Life-phase State proxied off the branch prefix: `plan/` → Planning, else Active. */
+  /** Lifecycle State read from the meta record. */
   state: InFlightState;
   /** `**Owner:**` from the meta; absent when unattributed. */
   owner?: string;
@@ -126,10 +121,10 @@ export interface InFlightWorkUnit extends InFlightLocation {
   scheduling?: InFlightScheduling;
 }
 
-/** An errand in flight — a `chore/<slug>` branch with no backing meta. */
+/** An errand in flight — a branch keyed by an errand record. */
 export interface InFlightErrand extends InFlightLocation {
   kind: "errand";
-  /** The `<slug>` after `chore/`. */
+  /** Errand slug from the record. */
   slug: string;
 }
 
@@ -154,6 +149,8 @@ export interface DeriveInFlightOptions {
   branches: readonly string[];
   /** Whether live network membership backed `branches`. Defaults to true for direct unit callers. */
   reachable?: boolean;
+  /** Configured base branch; excluded because lifecycle residue there is not an in-flight location. */
+  baseBranch?: string;
   /** Owner to filter to; `null` disables filtering. */
   identity: string | null;
   /** Team mode — identity filtering applies only when `true`. */
@@ -180,7 +177,7 @@ export interface DeriveInFlightOptions {
  * @returns In-flight entries in input-branch order, identity-filtered.
  */
 export async function deriveInFlight(options: DeriveInFlightOptions): Promise<DeriveInFlightResult> {
-  const { exec, branches, identity, teamMode, remote = DEFAULT_REMOTE, prSource } = options;
+  const { exec, branches, identity, teamMode, remote = DEFAULT_REMOTE, prSource, baseBranch = "main" } = options;
   const reachable = options.reachable ?? true;
   const errandSlugByBranch = options.errandSlugByBranch ?? new Map<string, string>();
   const parkedSlugs = options.parkedSlugs ?? new Set<string>();
@@ -188,16 +185,18 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
 
   const classified = await Promise.all(
     branches.map((branch) =>
-      classifyBranch(exec, remote, branch, worktreePaths, errandSlugByBranch, parkedSlugs),
+      classifyBranch(exec, remote, branch, baseBranch, worktreePaths, errandSlugByBranch, parkedSlugs),
     ),
   );
 
   const kept = classified
+    .map((classification) => classification.entry)
     .filter((entry): entry is InFlightEntry => entry !== null)
     .filter((entry) => keepForIdentity(entry, identity, teamMode));
+  const warnings = classified.flatMap((classification) => classification.warnings);
 
   const entries = prSource === undefined ? kept : await enrichWithPrState(kept, prSource);
-  return { entries, warnings: [], reachable };
+  return { entries, warnings, reachable };
 }
 
 /**
@@ -228,9 +227,26 @@ function locationOf(branch: string, worktreePaths: Map<string, string>): InFligh
     : { branch, worktreePath, remoteOnly: false };
 }
 
-/** Repo-relative meta path for a WU name, by `meta-<name>.md` convention. */
-function metaPathForWu(name: string): string {
-  return `.arc/active/meta-${name}.md`;
+interface BranchClassification {
+  entry: InFlightEntry | null;
+  warnings: InFlightWarning[];
+}
+
+type MetaLocationRelation = "consistent" | "missing-branch" | "stale";
+
+interface MetaCandidate {
+  name: string;
+  metaPath: string;
+  record: MetaRecord;
+  relation: MetaLocationRelation;
+  marks: InFlightEntryMark[];
+  warnings: InFlightWarning[];
+}
+
+/** Extract the WU slug from `.arc/active/meta-<slug>.md`. */
+function nameFromMetaPath(metaPath: string): string {
+  const filename = metaPath.split("/").pop() ?? metaPath;
+  return filename.replace(/^meta-/u, "").replace(/\.md$/u, "");
 }
 
 /**
@@ -243,10 +259,11 @@ async function classifyBranch(
   exec: GitExec,
   remote: string,
   branch: string,
+  baseBranch: string,
   worktreePaths: Map<string, string>,
   errandSlugByBranch: ReadonlyMap<string, string>,
   parkedSlugs: ReadonlySet<string>,
-): Promise<InFlightEntry | null> {
+): Promise<BranchClassification> {
   const ref = `${remote}/${branch}`;
   const location = locationOf(branch, worktreePaths);
 
@@ -254,25 +271,167 @@ async function classifyBranch(
   if (errandSlug !== undefined) {
     // A record marks this branch an errand. A promoted errand → WU removed its
     // record, so it falls through to the meta-backed work-unit path below.
-    return { kind: "errand", slug: errandSlug, ...location };
+    return { entry: { kind: "errand", slug: errandSlug, ...location }, warnings: [] };
   }
 
-  // A WU branch is `<type>/<wu-name>`; without a `/` it carries no WU name
-  // (main, release branches) and is not in flight.
-  const sep = branch.indexOf("/");
-  if (sep === -1) return null;
-  const name = branch.slice(sep + 1);
-  if (name === "") return null;
+  if (branch === baseBranch) return { entry: null, warnings: [] };
 
-  const content = await readMetaAtRef({ exec, ref, metaPath: metaPathForWu(name) });
-  if (content === null) return null; // No errand record and no active meta — not in flight.
-  return buildWorkUnit(
-    name,
-    content,
-    location,
-    branch.startsWith(PLANNING_BRANCH_PREFIX),
-    parkedSlugs.has(name),
-  );
+  const listed = await listMetaPathsAtRef({ exec, ref });
+  if (!listed.ok) {
+    return {
+      entry: null,
+      warnings: [
+        warning({
+          code: "meta-enumeration-failed",
+          branch,
+          rendered: `Unable to enumerate active metas at \`${ref}\`.`,
+        }),
+      ],
+    };
+  }
+  if (listed.paths.length === 0) return { entry: null, warnings: [] };
+
+  const candidates: MetaCandidate[] = [];
+  const warnings: InFlightWarning[] = [];
+  for (const metaPath of listed.paths) {
+    const candidate = await readMetaCandidate(exec, ref, branch, metaPath);
+    warnings.push(...candidate.warnings);
+    if (candidate.candidate !== null) candidates.push(candidate.candidate);
+  }
+
+  const consistent = candidates.filter((candidate) => candidate.relation === "consistent");
+  const missingBranch = candidates.filter((candidate) => candidate.relation === "missing-branch");
+  const stale = candidates.filter((candidate) => candidate.relation === "stale");
+
+  const consistentCandidate = consistent[0];
+  if (consistentCandidate !== undefined) {
+    warnings.push(...stale.map((candidate) => staleLocationWarning(candidate, branch, "stale-location-shadow")));
+    const built = buildWorkUnit(
+      consistentCandidate,
+      location,
+      parkedSlugs.has(consistentCandidate.name),
+      branch,
+      ref,
+    );
+    return { entry: built.entry, warnings: [...warnings, ...built.warnings] };
+  }
+
+  const missingBranchCandidate = missingBranch[0];
+  if (missingBranchCandidate !== undefined) {
+    const candidate = missingBranchCandidate;
+    const built = buildWorkUnit(candidate, location, parkedSlugs.has(candidate.name), branch, ref);
+    return { entry: built.entry, warnings: [...warnings, ...built.warnings] };
+  }
+
+  warnings.push(...stale.map((candidate) => staleLocationWarning(candidate, branch, "stale-location-dropped")));
+  return { entry: null, warnings };
+}
+
+async function readMetaCandidate(
+  exec: GitExec,
+  ref: string,
+  branch: string,
+  metaPath: string,
+): Promise<{ candidate: MetaCandidate | null; warnings: InFlightWarning[] }> {
+  const name = nameFromMetaPath(metaPath);
+  const content = await readMetaAtRef({ exec, ref, metaPath });
+  if (content === null) {
+    return {
+      candidate: null,
+      warnings: [
+        warning({
+          code: "meta-read-failed",
+          branch,
+          workUnit: name,
+          rendered: `Unable to read \`${metaPath}\` at \`${ref}\`.`,
+        }),
+      ],
+    };
+  }
+
+  const record = parseRecord(content);
+  if (record === null) {
+    return {
+      candidate: null,
+      warnings: [
+        warning({
+          code: "meta-malformed",
+          branch,
+          workUnit: name,
+          rendered: `Malformed meta \`${metaPath}\` at \`${ref}\`.`,
+        }),
+      ],
+    };
+  }
+
+  const branchField = record.Branch;
+  if (branchField === null || branchField === "[none]" || branchField.trim() === "") {
+    return {
+      candidate: {
+        name,
+        metaPath,
+        record,
+        relation: "missing-branch",
+        marks: ["degraded"],
+        warnings: [
+          warning({
+            code: "branch-field-missing",
+            branch,
+            workUnit: name,
+            rendered: `Meta \`${metaPath}\` at \`${ref}\` has no usable Branch field.`,
+          }),
+        ],
+      },
+      warnings: [],
+    };
+  }
+
+  return {
+    candidate: {
+      name,
+      metaPath,
+      record,
+      relation: branchField === branch ? "consistent" : "stale",
+      marks: [],
+      warnings: [],
+    },
+    warnings: [],
+  };
+}
+
+function staleLocationWarning(
+  candidate: MetaCandidate,
+  branch: string,
+  code: "stale-location-dropped" | "stale-location-shadow",
+): InFlightWarning {
+  const pointsTo = candidate.record.Branch ?? "[missing]";
+  const rendered = code === "stale-location-dropped"
+    ? `Meta \`${candidate.metaPath}\` at \`${branch}\` points to \`${pointsTo}\`; dropped stale location.`
+    : `Meta \`${candidate.metaPath}\` at \`${branch}\` points to \`${pointsTo}\`; shadowed by location match.`;
+  return warning({
+    code,
+    branch,
+    workUnit: candidate.name,
+    rendered,
+  });
+}
+
+function warning(input: {
+  code: InFlightWarningCode;
+  branch?: string;
+  workUnit?: string;
+  rendered: string;
+}): InFlightWarning {
+  return {
+    code: input.code,
+    ...(input.branch !== undefined ? { branch: input.branch } : {}),
+    ...(input.workUnit !== undefined ? { workUnit: input.workUnit } : {}),
+    rendered: input.rendered,
+  };
+}
+
+function appendMark(marks: readonly InFlightEntryMark[], mark: InFlightEntryMark): InFlightEntryMark[] {
+  return marks.includes(mark) ? [...marks] : [...marks, mark];
 }
 
 /**
@@ -291,29 +450,46 @@ function parseRecord(content: string): MetaRecord | null {
 
 /** Assemble a work-unit entry from its meta content, location, and life-phase. */
 function buildWorkUnit(
-  name: string,
-  content: string,
+  candidate: MetaCandidate,
   location: InFlightLocation,
-  planning: boolean,
   parked: boolean,
-): InFlightWorkUnit | null {
-  const fields = parseRecord(content);
-  if (fields === null) return null;
+  branch: string,
+  ref: string,
+): { entry: InFlightWorkUnit; warnings: InFlightWarning[] } {
+  const { name, record: fields } = candidate;
   const { Owner: owner, Design: design, Cohort: cohort, Class: workClass, Priority: priority } = fields;
+  const state = validateState(fields.State);
+  const marks = state === "unknown" ? appendMark(candidate.marks, "degraded") : [...candidate.marks];
+  const warnings = [...candidate.warnings];
+  if (state === "unknown") {
+    warnings.push(
+      warning({
+        code: "state-unrecognized",
+        branch,
+        workUnit: name,
+        rendered: `Meta \`${candidate.metaPath}\` at \`${ref}\` has unrecognized State ` +
+          `\`${fields.State ?? "[missing]"}\`.`,
+      }),
+    );
+  }
   return {
-    kind: "work-unit",
-    name,
-    state: planning ? "Planning" : "Active",
-    ...location,
-    ...(owner !== null ? { owner } : {}),
-    ...(design !== null && design !== "[none]" ? { design } : {}),
-    ...(cohort !== null && cohort !== "[none]" ? { cohort } : {}),
-    // Keep `[TBD]`: it is a real value the view renders, unlike the `[none]`
-    // absences above. Drop only a genuinely field-absent (`null`) Class.
-    ...(workClass !== null ? { class: workClass } : {}),
-    ...(priority !== null && priority !== "[none]" ? { priority } : {}),
-    dependsOn: parseIdentifierList(fields["Depends On"]),
-    ...(parked ? { scheduling: "parked" as const } : {}),
+    entry: {
+      kind: "work-unit",
+      name,
+      state,
+      ...location,
+      ...(marks.length > 0 ? { marks } : {}),
+      ...(owner !== null ? { owner } : {}),
+      ...(design !== null && design !== "[none]" ? { design } : {}),
+      ...(cohort !== null && cohort !== "[none]" ? { cohort } : {}),
+      // Keep `[TBD]`: it is a real value the view renders, unlike the `[none]`
+      // absences above. Drop only a genuinely field-absent (`null`) Class.
+      ...(workClass !== null ? { class: workClass } : {}),
+      ...(priority !== null && priority !== "[none]" ? { priority } : {}),
+      dependsOn: parseIdentifierList(fields["Depends On"]),
+      ...(parked ? { scheduling: "parked" as const } : {}),
+    },
+    warnings,
   };
 }
 

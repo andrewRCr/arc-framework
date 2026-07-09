@@ -11,6 +11,8 @@ import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 /** A meta-file body carrying the fields the derivation reads (Owner, Design, Cohort, Class, Priority, Depends On). */
 function metaContent(
   fields: {
+    state?: string;
+    branch?: string;
     owner?: string;
     design?: string;
     cohort?: string;
@@ -22,8 +24,9 @@ function metaContent(
   return [
     "# Metadata: x",
     "",
-    "- **State:** Active",
+    `- **State:** ${fields.state ?? "Active"}`,
     `- **Owner:** ${fields.owner ?? "andrew"}`,
+    `- **Branch:** ${fields.branch ?? "__BRANCH__"}`,
     `- **Design:** ${fields.design ?? "[none]"}`,
     `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
     `- **Cohort:** ${fields.cohort ?? "[none]"}`,
@@ -56,8 +59,19 @@ function makeExec(opts: {
     }
     if (args[0] === "show") {
       const target = args[1] ?? "";
-      if (target in metas) return { stdout: metas[target] ?? "", stderr: "" };
+      if (target in metas) {
+        const ref = target.slice(0, target.indexOf(":"));
+        const branch = ref.startsWith("origin/") ? ref.slice("origin/".length) : ref;
+        return { stdout: (metas[target] ?? "").replaceAll("__BRANCH__", branch), stderr: "" };
+      }
       throw new Error(`fatal: path does not exist in '${target}'`);
+    }
+    if (args[0] === "ls-tree") {
+      const ref = args[3] ?? "";
+      const paths = Object.keys(metas)
+        .filter((target) => target.startsWith(`${ref}:`))
+        .map((target) => target.slice(target.indexOf(":") + 1));
+      return { stdout: paths.join("\n"), stderr: "" };
     }
     throw new Error(`unexpected git ${args.join(" ")}`);
   });
@@ -195,10 +209,13 @@ describe("deriveInFlight", () => {
     expect(byName.get("bare-wu")).not.toHaveProperty("class");
   });
 
-  it("derives a plan/-prefixed branch as an in-flight planning work unit", async () => {
+  it("uses the meta State field instead of the plan/ branch prefix for work-unit state", async () => {
     const exec = makeExec({
       metas: {
-        "origin/plan/new-thing:.arc/active/meta-new-thing.md": metaContent(),
+        "origin/plan/new-thing:.arc/active/meta-new-thing.md": metaContent({
+          state: "Active",
+          branch: "plan/new-thing",
+        }),
       },
     });
 
@@ -210,11 +227,203 @@ describe("deriveInFlight", () => {
     });
 
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ kind: "work-unit", name: "new-thing", state: "Planning" });
+    expect(entries[0]).toMatchObject({ kind: "work-unit", name: "new-thing", state: "Active" });
+  });
+
+  it("keeps an Integrating meta as a roster entry with its State intact", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/review-me:.arc/active/meta-review-me.md": metaContent({
+          state: "Integrating",
+          branch: "feat/review-me",
+        }),
+      },
+    });
+
+    const { entries } = await deriveInFlight({
+      exec,
+      branches: ["feat/review-me"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toEqual([
+      {
+        kind: "work-unit",
+        branch: "feat/review-me",
+        name: "review-me",
+        state: "Integrating",
+        owner: "andrew",
+        remoteOnly: true,
+        dependsOn: [],
+      },
+    ]);
+  });
+
+  it("excludes the configured base branch even when lifecycle residue carries active metas", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/main:.arc/active/meta-merged.md": metaContent({
+          state: "Active",
+          branch: "feat/merged",
+        }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      branches: ["main"],
+      identity: null,
+      teamMode: false,
+      baseBranch: "main",
+    });
+
+    expect(entries).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it("treats a single meta whose Branch points elsewhere as a stale-location candidate, not an entry", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/plan/renamed:.arc/active/meta-renamed.md": metaContent({
+          branch: "feat/renamed",
+        }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      branches: ["plan/renamed"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toEqual([]);
+    expect(warnings).toMatchObject([
+      {
+        code: "stale-location-dropped",
+        branch: "plan/renamed",
+        workUnit: "renamed",
+      },
+    ]);
+  });
+
+  it("keeps a degraded entry when a meta has no usable Branch field", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/no-branch:.arc/active/meta-no-branch.md": metaContent({
+          branch: "[none]",
+        }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      branches: ["feat/no-branch"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      name: "no-branch",
+      branch: "feat/no-branch",
+      marks: ["degraded"],
+    });
+    expect(warnings).toMatchObject([
+      {
+        code: "branch-field-missing",
+        branch: "feat/no-branch",
+        workUnit: "no-branch",
+      },
+    ]);
+  });
+
+  it("marks an unrecognized State value instead of silently dropping the work unit", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/odd-state:.arc/active/meta-odd-state.md": metaContent({
+          state: "Paused",
+          branch: "feat/odd-state",
+        }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      branches: ["feat/odd-state"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      name: "odd-state",
+      state: "unknown",
+      marks: ["degraded"],
+    });
+    expect(warnings).toMatchObject([
+      {
+        code: "state-unrecognized",
+        branch: "feat/odd-state",
+        workUnit: "odd-state",
+      },
+    ]);
+  });
+
+  it("resolves a multi-meta ref by Branch field match and warns on unmatched metas", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/live:.arc/active/meta-live.md": metaContent({
+          branch: "feat/live",
+        }),
+        "origin/feat/live:.arc/active/meta-shadow.md": metaContent({
+          branch: "feat/shadow",
+        }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      branches: ["feat/live"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries.map((entry) => entry.kind === "work-unit" ? entry.name : entry.slug)).toEqual(["live"]);
+    expect(warnings).toMatchObject([
+      {
+        code: "stale-location-shadow",
+        branch: "feat/live",
+        workUnit: "shadow",
+      },
+    ]);
   });
 
   it("classifies a branch carrying an errand record as an in-flight errand (slug from the record)", async () => {
     const exec = makeExec({ metas: {} });
+
+    const { entries } = await deriveInFlight({
+      exec,
+      branches: ["chore/fix-typo"],
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([["chore/fix-typo", "fix-typo"]]),
+    });
+
+    expect(entries).toEqual([
+      { kind: "errand", branch: "chore/fix-typo", slug: "fix-typo", remoteOnly: true },
+    ]);
+  });
+
+  it("keeps errand-record identity authoritative even when the branch carries a meta", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/chore/fix-typo:.arc/active/meta-fix-typo.md": metaContent(),
+      },
+    });
 
     const { entries } = await deriveInFlight({
       exec,
@@ -512,6 +721,7 @@ describe("deriveInFlight — shared-reader field recovery", () => {
         "origin/feat/x:.arc/active/meta-x.md": renderMetaFile("x", {
           State: "Active",
           Owner: "andrew",
+          Branch: "feat/x",
           Cohort: "core/sub",
           Priority: "P1",
           Design: "spec-x.md",

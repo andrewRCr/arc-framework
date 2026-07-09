@@ -17,6 +17,7 @@ const META = [
   "",
   "- **State:** Active",
   "- **Owner:** andrew",
+  "- **Branch:** __BRANCH__",
   "- **Design:** spec-x.md",
   "",
   "---",
@@ -49,6 +50,13 @@ function makeExec(opts: {
       };
     }
     if (args[0] === "worktree" && args[1] === "list") return { stdout: "", stderr: "" };
+    if (args[0] === "ls-tree" && args[1] === "-r") {
+      const ref = args[3] ?? "";
+      const paths = Object.keys(metas)
+        .filter((target) => target.startsWith(`${ref}:`))
+        .map((target) => target.slice(target.indexOf(":") + 1));
+      return { stdout: paths.join("\n"), stderr: "" };
+    }
     if (args[0] === "ls-tree") {
       return { stdout: errandRecords.map((r) => `100644 blob ${DUMMY_SHA}\t${r.slug}`).join("\n"), stderr: "" };
     }
@@ -71,7 +79,11 @@ function makeExec(opts: {
     }
     if (args[0] === "show") {
       const target = args[1] ?? "";
-      if (target in metas) return { stdout: metas[target] ?? "", stderr: "" };
+      if (target in metas) {
+        const ref = target.slice(0, target.indexOf(":"));
+        const branch = ref.startsWith("origin/") ? ref.slice("origin/".length) : ref;
+        return { stdout: (metas[target] ?? "").replaceAll("__BRANCH__", branch), stderr: "" };
+      }
       throw new Error(`fatal: path does not exist in '${target}'`);
     }
     throw new Error(`unexpected git ${args.join(" ")}`);

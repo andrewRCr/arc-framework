@@ -25,7 +25,7 @@ spawn-then-plan escape hatch (a Planning meta in a real worktree) stays correctl
 consumer adaptation rides each contract-changing task (typecheck stays green per commit); Task 1.5.a is the
 per-consumer behavioral audit and warnings pass-through, not the compile fix-up.
 
-### `[ ]` **1.1 Content-derived WU identity in the derivation**
+### `[x]` **1.1 Content-derived WU identity in the derivation**
 
 - _Goal:_ A branch is a WU iff it carries a meta, and its life-phase is the meta record's `State` — branch
   naming supplies no identity and no phase.
@@ -36,56 +36,26 @@ per-consumer behavioral audit and warnings pass-through, not the compile fix-up.
           callers as a first-class fact, warning rendering is stable and structured, and parked entries classify
           via `parkedSlugs` without degradation marks.
 
-    - `[ ]` **1.1.b Meta enumeration at a ref**
-        - New remote-ref-reader primitive listing `meta-*.md` paths a ref carries
-          (`git ls-tree <ref> .arc/active/`), replacing the name-derived candidate-path probe
-          (`metaPathForWu` + `readMetaAtRef` in `src/lib/git/in-flight-derivation.ts`).
-        - Build `test-first` (one behavior at a time):
-            - Returns the meta paths present at the ref
-            - Empty result when the ref carries no `.arc/active/` metas
-            - Enumeration failure is distinguishable from an empty result (feeds the warnings channel)
+    - `[x]` **1.1.b Meta enumeration at a ref**
+        - Added `listMetaPathsAtRef`, which enumerates flat `.arc/active/meta-*.md` paths through
+          `git ls-tree -r --name-only` and distinguishes empty active dirs from enumeration failure via an
+          explicit `ok` bit. The derivation now consumes this primitive instead of synthesizing
+          `meta-<branch-leaf>.md`.
 
-    - `[ ]` **1.1.c Content-keyed classification**
-        - Rework `classifyBranch`: WU name from the meta filename slug; drop the `branch.indexOf("/")` name
-          mint and `PLANNING_BRANCH_PREFIX` phase proxy entirely. Roster membership is meta presence; the
-          entry carries the full validated `WorkUnitState` as data (retiring the two-value `InFlightState`),
-          and State-based filtering stays consumer-owned (the overlap detector keeps its non-`Shipped` rule).
-        - The configured base branch (`branch.base`, local and remote-tracking) is never a WU-location
-          candidate: lifecycle residue transits its `active/` (a merged WU's meta lingers there until
-          archival — the name heuristic being deleted is what shields it today), so classifying it would
-          mint phantom entries located at the base.
-        - A meta whose `**Branch:**` field names a different branch than the ref carrying it classifies as
-          a stale-location candidate — dedupe input for Task 1.3 only, never a standalone entry. In-flight
-          membership requires at least one location-consistent candidate (own-branch meta or worktree
-          checkout): a group of only stale-location candidates yields no entry, and the derivation emits a
-          quiet provenance code for the dropped group. Whether it stays quiet is the consumer's call with the
-          lifecycle index in hand (Task 4.2): silent when the WU resolves `shipped` (routine tree residue —
-          carrier branches cut during a sibling's merge window hold its meta forever), elevated to a visible
-          warning when it does not (a live WU whose `Branch` field drifted under manual git churn must not
-          vanish silently). Stale-location candidates additionally warn as shadow provenance when grouped
-          with a real entry.
-        - A meta whose `**Branch:**` field is `[none]` or absent at a ref is anomalous in `active/` —
-          degraded entry + warning (the unrecognized-`State` posture), never silently dropped and never
-          location-consistent.
-          Multi-meta refs disambiguate by `**Branch:**` field match, mirroring `worktree-roster.ts`'s
-          candidate rule; the non-matching metas classify as stale-location candidates for their own WUs.
-        - Build `test-first` (one behavior at a time):
-            - A `plan/`-named ref whose meta says `Active` carries state Active (no prefix proxy)
-            - A type-renamed branch and its stale `plan/` twin both resolve to the same WU identity
-            - A merged WU's meta in the base's `active/` (merged-but-not-archived window) mints no entry
-              located at the base
-            - A single-meta ref whose Branch field points elsewhere feeds dedupe as a stale-location
-              candidate, not a healthy entry
-            - A WU presenting only stale-location candidates yields no entry and a quiet provenance code
-            - A `[none]`-Branch meta at a ref yields a degraded entry + warning
-            - A ref with no meta and no errand record is not in flight
-            - An `Integrating` meta stays a roster entry with its State intact (membership by presence)
-            - An unrecognized `State` value yields a marked entry + warning, not a silent drop
-            - Multi-meta ref resolves by Branch-field match; unmatched multi-meta warns
+    - `[x]` **1.1.c Content-keyed classification**
+        - `classifyBranch` now keys WU identity from enumerated meta filenames, reads lifecycle state from
+          the meta `State` field, excludes the configured base branch, treats mismatched `Branch` fields as
+          stale-location candidates, and emits marked/warned entries for missing `Branch` or unrecognized
+          `State`. Multi-meta refs resolve by `Branch` match with stale-shadow warnings.
 
-    - `[ ]` **1.1.d Errand identity unchanged**
-        - Errand entries keep the record-index source (`errandSlugByBranch`); promoted-errand fall-through
-          (record removed → meta-backed WU path) retained. Regression tests only — no behavior change.
+    - `[x]` **1.1.d Errand identity unchanged**
+        - Errand record identity still wins before meta enumeration, including nature-typed branches and a
+          branch that also carries a meta; record removal still falls through to the meta-backed WU path.
+
+- _Outcome:_ In-flight derivation no longer mints WU identity or lifecycle phase from branch names: it
+  enumerates active metas at each ref, keys entries from meta filenames, reads `State` / `Branch` from content,
+  excludes base-branch residue, and surfaces structured warnings/marks for stale or degraded meta facts while
+  preserving errand-record identity.
 
 ### `[ ]` **1.2 Input union: remote-tracking refs plus local worktree branches**
 

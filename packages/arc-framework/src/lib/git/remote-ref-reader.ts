@@ -258,3 +258,49 @@ export async function readMetaAtRef(options: ReadMetaAtRefOptions): Promise<stri
     return null;
   }
 }
+
+/** Inputs for {@link listMetaPathsAtRef}. */
+export interface ListMetaPathsAtRefOptions {
+  /** Injectable git executor. */
+  exec: GitExec;
+  /** Ref to enumerate — a remote-tracking ref, local branch ref, or `FETCH_HEAD`. */
+  ref: string;
+}
+
+/** Result of enumerating active meta files at a ref. */
+export interface ListMetaPathsAtRefResult {
+  /** False when the tree could not be enumerated; true even when no metas are present. */
+  ok: boolean;
+  /** Repo-relative `.arc/active/meta-*.md` paths present directly under active/. */
+  paths: string[];
+}
+
+const ACTIVE_META_RE = /^\.arc\/active\/meta-[^/]+\.md$/u;
+
+/**
+ * List active meta paths present at a ref without checking it out.
+ *
+ * Empty success means the ref carries no active metas. Failure is distinct
+ * because derivation consumers need to warn rather than treat an unreadable ref
+ * as definitively meta-less.
+ *
+ * @param options - Executor and ref to inspect.
+ * @returns Enumeration result with an explicit success bit.
+ */
+export async function listMetaPathsAtRef(
+  options: ListMetaPathsAtRefOptions,
+): Promise<ListMetaPathsAtRefResult> {
+  const { exec, ref } = options;
+  try {
+    const { stdout } = await exec("git", ["ls-tree", "-r", "--name-only", ref, ".arc/active/"]);
+    return {
+      ok: true,
+      paths: stdout
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((path) => ACTIVE_META_RE.test(path)),
+    };
+  } catch {
+    return { ok: false, paths: [] };
+  }
+}

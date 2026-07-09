@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   fetchRefBounded,
   listLiveRemoteBranches,
+  listMetaPathsAtRef,
   listPrunedRemoteTrackingBranches,
   readMetaAtRef,
   resolveInFlightBranchSet,
@@ -113,6 +114,48 @@ describe("readMetaAtRef", () => {
     });
 
     expect(result).toBeNull();
+  });
+});
+
+describe("listMetaPathsAtRef", () => {
+  it("lists active meta paths present at a ref", async () => {
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      expect(args).toEqual(["ls-tree", "-r", "--name-only", "origin/feat/x", ".arc/active/"]);
+      return {
+        stdout: [
+          ".arc/active/meta-x.md",
+          ".arc/active/notes-x.md",
+          ".arc/active/meta-y.md",
+          ".arc/active/nested/meta-z.md",
+        ].join("\n"),
+        stderr: "",
+      };
+    });
+
+    const result = await listMetaPathsAtRef({ exec, ref: "origin/feat/x" });
+
+    expect(result).toEqual({
+      ok: true,
+      paths: [".arc/active/meta-x.md", ".arc/active/meta-y.md"],
+    });
+  });
+
+  it("returns an empty successful result when the ref carries no active metas", async () => {
+    const exec = execReturning(".arc/active/notes-x.md\n");
+
+    const result = await listMetaPathsAtRef({ exec, ref: "origin/chore/no-meta" });
+
+    expect(result).toEqual({ ok: true, paths: [] });
+  });
+
+  it("distinguishes enumeration failure from an empty active directory", async () => {
+    const exec: GitExec = vi.fn(async () => {
+      throw new Error("fatal: not a tree object");
+    });
+
+    const result = await listMetaPathsAtRef({ exec, ref: "origin/feat/x" });
+
+    expect(result).toEqual({ ok: false, paths: [] });
   });
 });
 
