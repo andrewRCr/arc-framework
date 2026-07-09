@@ -121,34 +121,16 @@ the overlap detector's self-exclusion, and split degraded-state behavior by cons
 skips-with-note; roster and live views tolerate-with-provenance). Ends silent assertion over mid-transition
 reads.
 
-### `[ ]` **2.1 Double-read snapshot agreement in the derivation**
+### `[x]` **2.1 Double-read snapshot agreement in the derivation**
 
 - _Goal:_ An open mutation window is detected and marked — the derivation never asserts confidently over a
   mid-transition read.
 
-    - Read the mutable input set (ref listing + worktree list) twice; require agreement. Whole-set mismatch →
-      derivation result marked indeterminate; per-entry disagreement → affected entries marked.
-    - Agreement is defined over pinned comparison keys: the ref listing compares name → SHA maps; the
-      worktree list compares branch → path maps.
-    - The ref readers (`src/lib/git/remote-ref-reader.ts`) extend to return name → SHA maps — the local
-      listing reads names only (`%(refname:short)`) and the `ls-remote` parser discards the SHAs it already
-      receives, so the SHA-bearing form the agreement compare and the probe snapshot need is new.
-    - The agreement covers the _local_ mutable inputs only — the local ref DB listing and the worktree list
-      (spec § A). The `ls-remote` membership read stays a single bounded network read whose result is pinned
-      into the agreed snapshot: network flakiness degrades through `reachable`, never as an indeterminate
-      mutation-window mark.
-    - Per-entry meta reads retry once against the agreed snapshot; a still-failing read marks that entry.
-    - The derivation result carries the agreed snapshot (ref → SHA map + worktree list) so fire-time probes
-      (Task 2.3) consume the same pinned inputs rather than re-reading live state.
-    - Session-init must not manufacture its own mutation window: `src/handlers/status.ts` ~508 currently
-      runs `pruneRemoteTrackingRefs` and the oracle concurrently (`Promise.all`) — sequence the prune before
-      the derivation so ordinary session-inits don't self-trip the double-read into indeterminate marks.
-    - Build `test-first` (one behavior at a time):
-        - Agreeing double-read derives normally with no marks
-        - Ref-listing disagreement marks the affected entries indeterminate
-        - Worktree-list disagreement marks the affected entries indeterminate
-        - Whole-set disagreement marks the derivation result indeterminate
-        - Meta-read failure retries once, then marks the entry
+- The ref reader now returns SHA-bearing local snapshots, and the production derivation path double-reads the
+  local ref/worktree inputs into a carried `{ refs, worktrees }` snapshot. Key-set changes mark the whole result
+  `indeterminate`; same-key ref-tip or worktree-path changes mark the affected entries; meta read failures retry
+  once before degrading. Session-init now runs the dead-ref prune before the oracle so it cannot self-trip the
+  double-read.
 
 ### `[ ]` **2.2 Identity-keyed self-exclusion in overlap detection**
 

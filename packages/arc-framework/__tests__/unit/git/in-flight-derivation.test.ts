@@ -45,23 +45,43 @@ function metaContent(
  */
 function makeExec(opts: {
   worktrees?: Array<{ path: string; branch: string }>;
+  worktreeSnapshots?: Array<Array<{ path: string; branch: string }>>;
   worktreeError?: boolean;
   localRefs?: string[];
+  refSnapshots?: Array<{
+    remoteTracking?: Record<string, string>;
+    localHeads?: Record<string, string>;
+  }>;
   liveBranches?: string[] | "unreachable";
   ancestors?: Array<[ancestor: string, descendant: string]>;
   commitTimes?: Record<string, number>;
   listedPaths?: Record<string, string[]>;
   /** Keyed by the `git show` target `"<ref>:<path>"`; present keys resolve, absent keys throw. */
   metas?: Record<string, string>;
+  transientMetaReadFailures?: Record<string, number>;
 }): GitExec {
   const worktrees = opts.worktrees ?? [];
+  const worktreeSnapshots = opts.worktreeSnapshots ?? null;
   const localRefs = opts.localRefs ?? [];
+  const refSnapshots = opts.refSnapshots ?? null;
   const ancestors = new Set((opts.ancestors ?? []).map(([ancestor, descendant]) => `${ancestor}\0${descendant}`));
   const commitTimes = opts.commitTimes ?? {};
   const listedPaths = opts.listedPaths ?? {};
   const metas = opts.metas ?? {};
+  const transientMetaReadFailures = { ...(opts.transientMetaReadFailures ?? {}) };
+  let refReadCount = 0;
+  let worktreeReadCount = 0;
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
     if (args[0] === "for-each-ref") {
+      if (refSnapshots !== null) {
+        const snapshot = refSnapshots[Math.min(refReadCount, refSnapshots.length - 1)] ?? {};
+        refReadCount += 1;
+        const remote = Object.entries(snapshot.remoteTracking ?? {})
+          .map(([branch, sha]) => `refs/remotes/origin/${branch}\t${sha}`);
+        const local = Object.entries(snapshot.localHeads ?? {})
+          .map(([branch, sha]) => `refs/heads/${branch}\t${sha}`);
+        return { stdout: [...remote, ...local].join("\n"), stderr: "" };
+      }
       return { stdout: localRefs.map((branch) => `origin/${branch}`).join("\n"), stderr: "" };
     }
     if (args[0] === "ls-remote") {
@@ -73,7 +93,11 @@ function makeExec(opts: {
     }
     if (args[0] === "worktree" && args[1] === "list") {
       if (opts.worktreeError) throw new Error("fatal: cannot list worktrees");
-      const stdout = worktrees
+      const selected = worktreeSnapshots === null
+        ? worktrees
+        : (worktreeSnapshots[Math.min(worktreeReadCount, worktreeSnapshots.length - 1)] ?? []);
+      worktreeReadCount += 1;
+      const stdout = selected
         .map((wt) => `worktree ${wt.path}\nbranch refs/heads/${wt.branch}\n`)
         .join("\n");
       return { stdout, stderr: "" };
@@ -90,6 +114,11 @@ function makeExec(opts: {
         return { stdout: `${commitTimes[ref] ?? 0}\n`, stderr: "" };
       }
       const target = args[1] ?? "";
+      const remainingFailures = transientMetaReadFailures[target] ?? 0;
+      if (remainingFailures > 0) {
+        transientMetaReadFailures[target] = remainingFailures - 1;
+        throw new Error(`fatal: transient read failure for '${target}'`);
+      }
       if (target in metas) {
         const ref = target.slice(0, target.indexOf(":"));
         const branch = ref.startsWith("origin/") ? ref.slice("origin/".length) : ref;
@@ -193,6 +222,119 @@ describe("deriveInFlight", () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({ kind: "work-unit", name: "shelved", scheduling: "parked" });
     expect(entries[0]).not.toHaveProperty("marks");
+  });
+
+  it("derives normally from an agreeing double-read input snapshot", async () => {
+    const refs = { remoteTracking: { "feat/x": "aaa111" } };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: ["feat/x"],
+      metas: {
+        "origin/feat/x:.arc/active/meta-x.md": metaContent({ branch: "feat/x" }),
+      },
+    });
+
+    const result = await deriveInFlight({
+      exec,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result.snapshot).toEqual({
+      refs: { "origin/feat/x": "aaa111" },
+      worktrees: {},
+    });
+    expect(result).not.toHaveProperty("marks");
+    expect(result.entries[0]).not.toHaveProperty("marks");
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("marks the affected entry indeterminate when a ref tip changes between reads", async () => {
+    const exec = makeExec({
+      refSnapshots: [
+        { remoteTracking: { "feat/x": "aaa111" } },
+        { remoteTracking: { "feat/x": "bbb222" } },
+      ],
+      liveBranches: ["feat/x"],
+      metas: {
+        "origin/feat/x:.arc/active/meta-x.md": metaContent({ branch: "feat/x" }),
+      },
+    });
+
+    const result = await deriveInFlight({
+      exec,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result).not.toHaveProperty("marks");
+    expect(result.entries[0]).toMatchObject({ kind: "work-unit", name: "x", marks: ["indeterminate"] });
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "input-snapshot-disagreement", branch: "feat/x" }),
+      ]),
+    );
+  });
+
+  it("marks the affected entry indeterminate when a worktree path changes between reads", async () => {
+    const refs = { localHeads: { "feat/local": "ccc333" } };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      worktreeSnapshots: [
+        [{ path: "/repo-a", branch: "feat/local" }],
+        [{ path: "/repo-b", branch: "feat/local" }],
+      ],
+      liveBranches: [],
+      metas: {
+        "feat/local:.arc/active/meta-local.md": metaContent({ branch: "feat/local" }),
+      },
+    });
+
+    const result = await deriveInFlight({
+      exec,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result).not.toHaveProperty("marks");
+    expect(result.entries[0]).toMatchObject({
+      kind: "work-unit",
+      name: "local",
+      worktreePath: "/repo-a",
+      marks: ["indeterminate"],
+    });
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "input-snapshot-disagreement", branch: "feat/local" }),
+      ]),
+    );
+  });
+
+  it("marks the whole result indeterminate when the input key set changes between reads", async () => {
+    const exec = makeExec({
+      refSnapshots: [
+        { remoteTracking: { "feat/x": "aaa111" } },
+        { remoteTracking: { "feat/x": "aaa111", "feat/y": "bbb222" } },
+      ],
+      liveBranches: ["feat/x", "feat/y"],
+      metas: {
+        "origin/feat/x:.arc/active/meta-x.md": metaContent({ branch: "feat/x" }),
+      },
+    });
+
+    const result = await deriveInFlight({
+      exec,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result.marks).toEqual(["indeterminate"]);
+    expect(result.entries[0]).not.toHaveProperty("marks");
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "input-snapshot-disagreement" }),
+      ]),
+    );
   });
 
   it("derives an in-flight work unit with Active state from a meta on a type-prefixed remote branch", async () => {
@@ -1153,6 +1295,31 @@ describe("deriveInFlight degradation warnings", () => {
         }),
       ]),
     );
+  });
+
+  it("retries a failed meta read once before degrading the entry", async () => {
+    const target = "origin/feat/flaky:.arc/active/meta-flaky.md";
+    const exec = makeExec({
+      metas: {
+        [target]: metaContent({ branch: "feat/flaky" }),
+      },
+      transientMetaReadFailures: {
+        [target]: 1,
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      branches: ["feat/flaky"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).not.toHaveProperty("marks");
+    expect(warnings).toEqual([]);
+    const metaReads = vi.mocked(exec).mock.calls.filter(([, args]) => args[0] === "show" && args[1] === target);
+    expect(metaReads).toHaveLength(2);
   });
 
   it("warns and marks an unreadable meta at a ref instead of dropping it", async () => {

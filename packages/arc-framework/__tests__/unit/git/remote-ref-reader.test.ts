@@ -5,6 +5,7 @@ import {
   listLiveRemoteBranches,
   listMetaPathsAtRef,
   listPrunedRemoteTrackingBranches,
+  readLocalInFlightRefSnapshot,
   readMetaAtRef,
   resolveInFlightBranchSet,
 } from "../../../src/lib/git/remote-ref-reader.js";
@@ -192,16 +193,41 @@ describe("listPrunedRemoteTrackingBranches", () => {
   });
 });
 
+describe("readLocalInFlightRefSnapshot", () => {
+  it("reads remote-tracking and local branch tips into separate maps", async () => {
+    const exec = execReturning([
+      "refs/remotes/origin/HEAD\tignored",
+      "refs/remotes/origin/feat/a\t1111",
+      "refs/heads/feat/local\t2222",
+    ].join("\n"));
+
+    const result = await readLocalInFlightRefSnapshot(exec);
+
+    expect(result).toEqual({
+      remoteTracking: { "feat/a": "1111" },
+      localHeads: { "feat/local": "2222" },
+    });
+  });
+});
+
 describe("resolveInFlightBranchSet", () => {
   it("returns the pruned set and reachable: true when live membership is read", async () => {
     const exec = execBySubcommand({
-      forEachRef: ["origin/feat/a", "origin/chore/old-merged"].join("\n"),
-      lsRemote: ["sha1\trefs/heads/feat/a", "sha2\trefs/heads/feat/b"].join("\n"),
+      forEachRef: [
+        "refs/remotes/origin/feat/a\tlocal-a",
+        "refs/remotes/origin/chore/old-merged\tlocal-old",
+      ].join("\n"),
+      lsRemote: ["live-a\trefs/heads/feat/a", "live-b\trefs/heads/feat/b"].join("\n"),
     });
 
     const result = await resolveInFlightBranchSet({ exec });
 
-    expect(result).toEqual({ branches: ["feat/a"], reachable: true });
+    expect(result).toEqual({
+      branches: ["feat/a"],
+      refs: { "origin/feat/a": "local-a" },
+      liveRefs: { "origin/feat/a": "live-a", "origin/feat/b": "live-b" },
+      reachable: true,
+    });
   });
 
   it("degrades to local refs with reachable: false when live membership is unreachable", async () => {
@@ -215,7 +241,12 @@ describe("resolveInFlightBranchSet", () => {
 
     const result = await resolveInFlightBranchSet({ exec });
 
-    expect(result).toEqual({ branches: ["feat/a", "chore/old"], reachable: false });
+    expect(result).toEqual({
+      branches: ["feat/a", "chore/old"],
+      refs: { "origin/feat/a": "", "origin/chore/old": "" },
+      liveRefs: {},
+      reachable: false,
+    });
   });
 
   it("skips the network read entirely in localOnly mode", async () => {
@@ -225,7 +256,12 @@ describe("resolveInFlightBranchSet", () => {
 
     const result = await resolveInFlightBranchSet({ exec, localOnly: true });
 
-    expect(result).toEqual({ branches: ["feat/a", "feat/b"], reachable: false });
+    expect(result).toEqual({
+      branches: ["feat/a", "feat/b"],
+      refs: { "origin/feat/a": "", "origin/feat/b": "" },
+      liveRefs: {},
+      reachable: false,
+    });
     // No `ls-remote` call — the offline view never touches the network.
     const calledLsRemote = vi.mocked(exec).mock.calls.some(([, args]) => args[0] === "ls-remote");
     expect(calledLsRemote).toBe(false);

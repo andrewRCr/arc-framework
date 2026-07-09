@@ -521,13 +521,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         let entries: InFlightEntry[] | null = null;
         let oracleWarnings: string[] = [];
         if (input.includeDiscovery) {
-          // Fire the dead-ref prune (hygiene backstop) alongside — not feeding —
-          // the oracle: the oracle is prune-independent, so classification never
-          // depends on the prune completing.
-          const [, oracle] = await Promise.all([
-            pruneRemoteTrackingRefs(gitExec),
-            getOracle(),
-          ]);
+          // Fire the dead-ref prune (hygiene backstop) before the oracle so the
+          // derivation's double-read never observes our own prune in progress.
+          await pruneRemoteTrackingRefs(gitExec);
+          const oracle = await getOracle();
           entries = oracle.reachable ? oracle.entries : null;
           oracleWarnings = oracle.warnings.map(renderInFlightWarning);
         }

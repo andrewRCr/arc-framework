@@ -221,10 +221,16 @@ beforeEach(() => {
     },
   });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
-  mockResolveInFlightBranchSet.mockResolvedValue({ branches: ["feat/foo"], reachable: true });
+  mockResolveInFlightBranchSet.mockResolvedValue({
+    branches: ["feat/foo"],
+    refs: { "origin/feat/foo": "abc123" },
+    liveRefs: { "origin/feat/foo": "abc123" },
+    reachable: true,
+  });
   mockDeriveInFlight.mockResolvedValue({
     entries: [{ kind: "work-unit", name: "foo", branch: "feat/foo", remoteOnly: true }],
     warnings: [],
+    snapshot: { refs: { "origin/feat/foo": "abc123" }, worktrees: {} },
     reachable: true,
   });
   mockFindMaterializableWorkUnits.mockReturnValue({ candidates: [{ name: "foo", branch: "feat/foo" }] });

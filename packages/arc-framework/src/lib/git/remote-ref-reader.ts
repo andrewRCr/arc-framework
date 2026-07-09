@@ -18,6 +18,17 @@
 
 import type { GitExec } from "./exec.js";
 
+/** Ref → commit object id snapshot, serialized as a plain object for JSON callers. */
+export type RefTipMap = Record<string, string>;
+
+/** Local refs that can contribute to the in-flight input set. */
+export interface LocalInFlightRefSnapshot {
+  /** Remote-tracking branches, keyed by short branch name (no `origin/`). */
+  remoteTracking: RefTipMap;
+  /** Local branch heads, keyed by short branch name. */
+  localHeads: RefTipMap;
+}
+
 /**
  * Default bound for a single network read. The spec measured `ls-remote` ≈
  * 0.45s on a good link; the budget covers the slow-link tail while keeping a
@@ -55,17 +66,18 @@ async function runBounded(
   }
 }
 
-/** Parse `git ls-remote --heads` output into short branch names. */
-function parseLiveMembership(stdout: string): string[] {
-  const branches: string[] = [];
+/** Parse `git ls-remote --heads` output into short branch → sha tips. */
+function parseLiveMembership(stdout: string): RefTipMap {
+  const tips: RefTipMap = {};
   for (const line of stdout.split("\n")) {
     const tab = line.indexOf("\t");
     if (tab === -1) continue;
+    const sha = line.slice(0, tab).trim();
     const ref = line.slice(tab + 1).trim();
     if (!ref.startsWith("refs/heads/")) continue;
-    branches.push(ref.slice("refs/heads/".length));
+    tips[ref.slice("refs/heads/".length)] = sha;
   }
-  return branches;
+  return tips;
 }
 
 /**
@@ -75,34 +87,61 @@ function parseLiveMembership(stdout: string): string[] {
 async function readLiveMembership(
   exec: GitExec,
   timeoutMs: number,
-): Promise<{ ok: boolean; branches: string[] }> {
+): Promise<{ ok: boolean; tips: RefTipMap }> {
   const res = await runBounded(exec, ["ls-remote", "--heads", "origin"], timeoutMs);
-  if (!res.ok) return { ok: false, branches: [] };
-  return { ok: true, branches: parseLiveMembership(res.stdout) };
+  if (!res.ok) return { ok: false, tips: {} };
+  return { ok: true, tips: parseLiveMembership(res.stdout) };
 }
 
-/** Read local `refs/remotes/origin/*` branch names; `[]` on read failure. */
-async function readLocalTrackingBranches(exec: GitExec): Promise<string[]> {
+function parseLocalRefSnapshot(stdout: string): LocalInFlightRefSnapshot {
+  const remoteTracking: RefTipMap = {};
+  const localHeads: RefTipMap = {};
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    const [refNameRaw, shaRaw] = trimmed.split("\t");
+    if (refNameRaw === undefined) continue;
+    const refName = refNameRaw.trim();
+    const sha = shaRaw?.trim() ?? "";
+
+    if (refName.startsWith("refs/remotes/origin/")) {
+      const branch = refName.slice("refs/remotes/origin/".length);
+      if (branch !== "" && branch !== "HEAD") remoteTracking[branch] = sha;
+      continue;
+    }
+    if (refName.startsWith("origin/")) {
+      const branch = refName.slice("origin/".length);
+      if (branch !== "" && branch !== "HEAD") remoteTracking[branch] = sha;
+      continue;
+    }
+    if (refName === "origin" || refName.endsWith("/HEAD")) continue;
+
+    if (refName.startsWith("refs/heads/")) {
+      const branch = refName.slice("refs/heads/".length);
+      if (branch !== "") localHeads[branch] = sha;
+      continue;
+    }
+    // Backward-compatible parser path for older tests / injected stubs using
+    // `%(refname:short)` over only the remote-tracking namespace.
+    if (refName !== "") remoteTracking[refName] = sha;
+  }
+  return { remoteTracking, localHeads };
+}
+
+/** Read local remote-tracking and branch-head tips; empty maps on read failure. */
+export async function readLocalInFlightRefSnapshot(exec: GitExec): Promise<LocalInFlightRefSnapshot> {
   let stdout: string;
   try {
     ({ stdout } = await exec("git", [
       "for-each-ref",
-      "--format=%(refname:short)",
+      "--format=%(refname)\t%(objectname)",
       "refs/remotes/origin",
+      "refs/heads",
     ]));
   } catch {
-    return [];
+    return { remoteTracking: {}, localHeads: {} };
   }
-
-  const branches: string[] = [];
-  for (const line of stdout.split("\n")) {
-    const refName = line.trim();
-    if (refName === "") continue;
-    // `origin/HEAD` shortens to `origin`; both forms are the symbolic ref, not a branch.
-    if (refName === "origin" || refName.endsWith("/HEAD")) continue;
-    branches.push(refName.startsWith("origin/") ? refName.slice("origin/".length) : refName);
-  }
-  return branches;
+  return parseLocalRefSnapshot(stdout);
 }
 
 /** Inputs for {@link listLiveRemoteBranches}. */
@@ -128,7 +167,7 @@ export async function listLiveRemoteBranches(
   options: ListLiveRemoteBranchesOptions,
 ): Promise<string[]> {
   const { exec, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
-  return (await readLiveMembership(exec, timeoutMs)).branches;
+  return Object.keys((await readLiveMembership(exec, timeoutMs)).tips);
 }
 
 /** Inputs for {@link listPrunedRemoteTrackingBranches}. */
@@ -172,6 +211,10 @@ export interface ResolveInFlightBranchSetOptions {
 export interface InFlightBranchSet {
   /** Branch short-names — pruned to live membership when reachable, local-only otherwise. */
   branches: string[];
+  /** Candidate ref tips keyed as `origin/<branch>` for the selected branch set. */
+  refs: RefTipMap;
+  /** Live remote tips from the single bounded membership read; empty when unreachable/local-only. */
+  liveRefs: RefTipMap;
   /**
    * True only when live membership was read and pruned against (online and
    * reachable). False both when the remote is unreachable and in `localOnly`
@@ -195,12 +238,35 @@ export async function resolveInFlightBranchSet(
   options: ResolveInFlightBranchSetOptions,
 ): Promise<InFlightBranchSet> {
   const { exec, localOnly = false, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
-  const local = await readLocalTrackingBranches(exec);
-  if (localOnly) return { branches: local, reachable: false };
+  const local = await readLocalInFlightRefSnapshot(exec);
+  return resolveInFlightBranchSetFromLocalRefs({ exec, refs: local, localOnly, timeoutMs });
+}
+
+/** Inputs for resolving the branch set from an already-read local ref snapshot. */
+export interface ResolveInFlightBranchSetFromLocalRefsOptions extends ResolveInFlightBranchSetOptions {
+  /** Pre-read local ref snapshot, so callers can compare it for mutation-window agreement. */
+  refs: LocalInFlightRefSnapshot;
+}
+
+/** Resolve the in-flight branch set from a pinned local ref snapshot. */
+export async function resolveInFlightBranchSetFromLocalRefs(
+  options: ResolveInFlightBranchSetFromLocalRefsOptions,
+): Promise<InFlightBranchSet> {
+  const { exec, refs, localOnly = false, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
+  const local = Object.keys(refs.remoteTracking);
+  const refTipsFor = (branches: readonly string[]): RefTipMap =>
+    Object.fromEntries(branches.map((branch) => [`origin/${branch}`, refs.remoteTracking[branch] ?? ""]));
+  if (localOnly) return { branches: local, refs: refTipsFor(local), liveRefs: {}, reachable: false };
   const membership = await readLiveMembership(exec, timeoutMs);
-  if (!membership.ok) return { branches: local, reachable: false };
-  const live = new Set(membership.branches);
-  return { branches: local.filter((branch) => live.has(branch)), reachable: true };
+  if (!membership.ok) return { branches: local, refs: refTipsFor(local), liveRefs: {}, reachable: false };
+  const live = new Set(Object.keys(membership.tips));
+  const branches = local.filter((branch) => live.has(branch));
+  return {
+    branches,
+    refs: refTipsFor(branches),
+    liveRefs: Object.fromEntries(Object.entries(membership.tips).map(([branch, sha]) => [`origin/${branch}`, sha])),
+    reachable: true,
+  };
 }
 
 /** Inputs for {@link fetchRefBounded}. */
