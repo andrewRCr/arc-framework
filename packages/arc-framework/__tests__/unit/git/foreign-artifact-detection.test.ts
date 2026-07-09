@@ -178,6 +178,45 @@ describe("detectForeignArtifactOverlap", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("excludes the originating WU's stale remote-only duplicate by name", async () => {
+    const roster: OverlapRoster = {
+      entries: [
+        {
+          branch: "feat/self",
+          worktreePath: "/repo.wu-self",
+          name: "self",
+          metaFilePath: ".arc/active/meta-self.md",
+          state: "Active",
+        },
+        {
+          branch: "origin/plan/self",
+          name: "self",
+          metaFilePath: ".arc/active/meta-self.md",
+          state: "Planning",
+        },
+      ],
+      warnings: [],
+    };
+    // No originatingMetaPath: this mirrors a ceremony window where the active
+    // meta resolver is unavailable and the roster identity must carry self-exclusion.
+    const { exec, calls } = buildExec({
+      "diff main...origin/plan/self --name-only -- .arc/active/meta-self.md": {
+        stdout: ".arc/active/meta-self.md\n",
+      },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: [".arc/active/meta-self.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(calls).toHaveLength(0);
+  });
+
   it("reports no overlap when no other in-flight WU touches the target", async () => {
     const roster = rosterOf({
       worktreePath: "/repo.wu-a",
@@ -377,7 +416,13 @@ describe("projectInFlightToOverlapRoster", () => {
     const roster = projectInFlightToOverlapRoster([oracleWu("feat/x", "x", "/repo.x")]);
 
     expect(roster.entries).toEqual([
-      { branch: "feat/x", worktreePath: "/repo.x", metaFilePath: ".arc/active/meta-x.md", state: "Active" },
+      {
+        branch: "feat/x",
+        name: "x",
+        worktreePath: "/repo.x",
+        metaFilePath: ".arc/active/meta-x.md",
+        state: "Active",
+      },
     ]);
   });
 
@@ -385,7 +430,7 @@ describe("projectInFlightToOverlapRoster", () => {
     const roster = projectInFlightToOverlapRoster([oracleWu("feat/y", "y")]);
 
     expect(roster.entries).toEqual([
-      { branch: "origin/feat/y", metaFilePath: ".arc/active/meta-y.md", state: "Active" },
+      { branch: "origin/feat/y", name: "y", metaFilePath: ".arc/active/meta-y.md", state: "Active" },
     ]);
     expect(roster.entries[0]).not.toHaveProperty("worktreePath");
   });

@@ -132,23 +132,16 @@ reads.
   once before degrading. Session-init now runs the dead-ref prune before the oracle so it cannot self-trip the
   double-read.
 
-### `[ ]` **2.2 Identity-keyed self-exclusion in overlap detection**
+### `[x]` **2.2 Identity-keyed self-exclusion in overlap detection**
 
 - _Goal:_ A WU never reports overlap with itself — including via its own stale duplicate refs — inside or
   outside ceremony windows.
 
-    - `detectForeignArtifactOverlap` (`src/lib/git/foreign-artifact-detection.ts` ~101–106) excludes by WU
-      name: candidates carry the roster's content-derived name; every candidate matching the originating WU's
-      name drops, not just path-equal ones.
-    - Originating WU name resolves from the roster entry matching the originating worktree (content-keyed),
-      so a ceremony window where `resolveActiveWu` returns `undefined` still self-excludes.
-    - When no roster entry matches the originating worktree (a pre-first-commit WU — its meta at no ref yet),
-      self-exclusion degrades to worktree-path exclusion with a note.
-    - Build `test-first` (one behavior at a time):
-        - The originating WU's stale remote-only duplicate ref is not reported as foreign
-        - Ceremony window (unresolvable active meta) still self-excludes by worktree-matched name
-        - No matching roster entry degrades to path-based self-exclusion with a note
-        - A genuinely foreign WU touching the target still reports
+- _Outcome:_ Overlap candidates now carry the roster's content-derived WU name. The detector resolves the
+  originating name from the matching worktree entry, excludes every candidate with that name before
+  worktree/meta fallback checks, and emits an advisory note when only the fallback path is available; hook and
+  errand tests cover stale self-shadows, ceremony-window self-exclusion, fallback notes, and genuine foreign
+  overlaps.
 
 ### `[ ]` **2.3 Fire-time probe snapshot discipline**
 

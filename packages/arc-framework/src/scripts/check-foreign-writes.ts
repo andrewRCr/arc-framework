@@ -11,9 +11,9 @@
  * **work-unit** path surface — a per-WU movable artifact, the single-owner
  * surface the foreign-write reasoning keys on; cohort docs (the deliberate
  * multi-owner exception) and code fall to the behind-base net, not this gate.
- * The current worktree and active meta path self-exclude, so a write to the
- * *current* WU's own artifacts never trips it — including a remote-only stale
- * planning ref during activation.
+ * The current WU's roster name self-excludes first, with worktree/meta paths as
+ * the fallback, so its own artifacts never trip the advisory — including a
+ * remote-only stale planning ref during activation.
  *
  * **Advisory throughout.** It warns and always exits 0 — it never refuses a
  * commit, and any failure (degraded git state, missing config) fails open with

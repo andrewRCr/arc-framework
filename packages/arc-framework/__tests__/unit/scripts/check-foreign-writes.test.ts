@@ -190,4 +190,94 @@ describe("detectStagedForeignWrites", () => {
     });
     expect(overlaps).toEqual([]);
   });
+
+  it("self-excludes by the worktree-matched WU name during active-meta resolution gaps", async () => {
+    const roster = rosterOf(
+      {
+        branch: "feat/self",
+        name: "self",
+        worktreePath: "/repo.self",
+        metaFilePath: ".arc/active/meta-self.md",
+        state: "Active",
+      },
+      {
+        branch: "origin/plan/self",
+        name: "self",
+        metaFilePath: ".arc/active/meta-self.md",
+        state: "Planning",
+      },
+    );
+
+    const { overlaps } = await detectStagedForeignWrites({
+      exec: throwingExec,
+      roster,
+      paths: [".arc/active/meta-self.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+    expect(overlaps).toEqual([]);
+  });
+
+  it("still reports a genuinely foreign WU after name-keyed self-exclusion", async () => {
+    const roster = rosterOf(
+      {
+        branch: "feat/self",
+        name: "self",
+        worktreePath: "/repo.self",
+        metaFilePath: ".arc/active/meta-self.md",
+        state: "Active",
+      },
+      {
+        branch: "feat/other",
+        name: "other",
+        worktreePath: "/repo.other",
+        metaFilePath: ".arc/active/meta-other.md",
+        state: "Active",
+      },
+    );
+    const exec = buildExec({
+      "diff main...feat/other --name-only -- .arc/active/meta-self.md": {
+        stdout: ".arc/active/meta-self.md\n",
+      },
+      "status --porcelain -- .arc/active/meta-self.md": { stdout: "" },
+    });
+
+    const { overlaps } = await detectStagedForeignWrites({
+      exec,
+      roster,
+      paths: [".arc/active/meta-self.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+    expect(overlaps).toEqual([
+      { branch: "feat/other", worktreePath: "/repo.other", matchedPaths: [".arc/active/meta-self.md"] },
+    ]);
+  });
+
+  it("notes when self-exclusion has only the worktree/meta path fallback", async () => {
+    const roster = rosterOf({
+      branch: "feat/other",
+      name: "other",
+      worktreePath: "/repo.other",
+      metaFilePath: ".arc/active/meta-other.md",
+      state: "Active",
+    });
+    const exec = buildExec({
+      "diff main...feat/other --name-only -- .arc/active/meta-self.md": { stdout: "" },
+      "status --porcelain -- .arc/active/meta-self.md": { stdout: "" },
+    });
+
+    const result = await detectStagedForeignWrites({
+      exec,
+      roster,
+      paths: [".arc/active/meta-self.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+      originatingMetaPath: ".arc/active/meta-self.md",
+    });
+    expect(result.overlaps).toEqual([]);
+    expect(result.notes).toEqual([
+      "Originating work unit name was unavailable; self-exclusion fell back to worktree/meta path matching.",
+    ]);
+  });
 });

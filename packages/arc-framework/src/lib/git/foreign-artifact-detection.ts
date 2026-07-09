@@ -25,13 +25,14 @@ import type { WorktreeRosterState } from "./worktree-roster.js";
 
 /**
  * The minimal in-flight entry the overlap core needs. A {@link WorktreeRosterEntry}
- * satisfies it directly; an oracle projection supplies `branch` as the diffable
- * ref (`origin/<branch>` for a remote-only entry) and omits `worktreePath` when
- * the WU has no local worktree.
+ * satisfies it directly; an oracle projection also supplies the content-derived
+ * WU name used for self-excluding stale duplicate refs.
  */
 export interface OverlapCandidateEntry {
   /** Diffable branch ref — a local branch, or `origin/<branch>` for a remote-only entry. */
   branch: string;
+  /** Content-derived WU name from the in-flight roster; absent for legacy/local roster callers. */
+  name?: string;
   /** Local worktree path; absent for a remote-only entry (no uncommitted probe runs). */
   worktreePath?: string;
   /** Present marks a meta-bearing work unit (in-flight); absent → admin/main checkout. */
@@ -58,6 +59,8 @@ export interface ForeignArtifactDetectionOptions {
   baseBranch: string;
   /** The originating WU's worktree path — never reported (self-excluded). */
   originatingWorktreePath: string;
+  /** The originating WU's content-derived name — never reported when known. */
+  originatingWorkUnitName?: string;
   /** The originating WU's meta path — never reported when present (remote-only self-exclusion). */
   originatingMetaPath?: string;
 }
@@ -74,7 +77,12 @@ export interface ForeignArtifactOverlap {
 export interface ForeignArtifactDetectionResult {
   /** Foreign in-flight overlaps (possibly empty); advisory, never a block. */
   overlaps: ForeignArtifactOverlap[];
+  /** Advisory caveats about degraded self-exclusion or probe certainty. */
+  notes?: string[];
 }
+
+const SELF_EXCLUSION_FALLBACK_NOTE =
+  "Originating work unit name was unavailable; self-exclusion fell back to worktree/meta path matching.";
 
 /**
  * In-flight = a meta-bearing worktree whose WU has not shipped. A `Shipped` WU
@@ -96,11 +104,29 @@ function isInFlight(entry: OverlapCandidateEntry): boolean {
 export async function detectForeignArtifactOverlap(
   options: ForeignArtifactDetectionOptions,
 ): Promise<ForeignArtifactDetectionResult> {
-  const { exec, roster, targetPaths, baseBranch, originatingWorktreePath, originatingMetaPath } = options;
+  const {
+    exec,
+    roster,
+    targetPaths,
+    baseBranch,
+    originatingWorktreePath,
+    originatingWorkUnitName,
+    originatingMetaPath,
+  } = options;
+  const selfName =
+    originatingWorkUnitName ?? roster.entries.find(
+      (entry) => isInFlight(entry) && entry.worktreePath === originatingWorktreePath
+        && entry.name !== undefined,
+    )?.name;
+  const notes =
+    selfName === undefined && roster.entries.some((entry) => isInFlight(entry))
+      ? [SELF_EXCLUSION_FALLBACK_NOTE]
+      : [];
 
   const candidates = roster.entries.filter(
     (entry) =>
       isInFlight(entry) &&
+      (selfName === undefined || entry.name !== selfName) &&
       entry.worktreePath !== originatingWorktreePath &&
       (originatingMetaPath === undefined || entry.metaFilePath !== originatingMetaPath),
   );
@@ -125,7 +151,10 @@ export async function detectForeignArtifactOverlap(
     }
   }
 
-  return { overlaps };
+  return {
+    overlaps,
+    ...(notes.length > 0 ? { notes } : {}),
+  };
 }
 
 /** Target paths an in-flight branch changed (committed) vs. the base, by prefix. */
@@ -184,7 +213,9 @@ function underPath(file: string, target: string): boolean {
  * locally-checked-out WU keeps its branch and worktree, so the core runs its
  * full committed + uncommitted probe; a remote-only WU projects its branch as
  * `origin/<branch>` with no worktree, so the committed diff against the remote
- * ref is its overlap signal.
+ * ref is its overlap signal. The content-derived WU name stays on each
+ * candidate so stale duplicate refs of the originating WU self-exclude by
+ * identity instead of by path equality.
  *
  * @param entries - Oracle output (identity-filtered in-flight WUs and errands).
  * @returns The overlap roster the detection core consumes.
@@ -195,6 +226,7 @@ export function projectInFlightToOverlapRoster(entries: readonly InFlightEntry[]
     if (entry.kind !== "work-unit") continue;
     projected.push({
       branch: entry.worktreePath !== undefined ? entry.branch : `origin/${entry.branch}`,
+      name: entry.name,
       ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
       metaFilePath: `.arc/active/meta-${entry.name}.md`,
       state: entry.state,
