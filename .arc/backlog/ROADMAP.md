@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `cbf0446f`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `aa264201`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 ## Warnings
@@ -17,11 +17,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State    | Work unit            | Priority | Owner  | Depends on      | Cohort            |
-| -------- | -------------------- | -------- | ------ | --------------- | ----------------- |
-| `Active` | finalize-parallelism | P1       | andrew | roadmap-tooling | agile-parallelism |
-| `Active` | burn-in-probe-a      | P3       | andrew | —               | —                 |
-| `Active` | burn-in-probe-b      | P3       | andrew | —               | —                 |
+| State    | Work unit            | Priority | Owner  | Depends on | Cohort            |
+| -------- | -------------------- | -------- | ------ | ---------- | ----------------- |
+| `Active` | finalize-parallelism | P1       | andrew | —          | agile-parallelism |
+| `Active` | burn-in-probe-a      | P3       | andrew | —          | —                 |
+| `Active` | burn-in-probe-b      | P3       | andrew | —          | —                 |
 
 ## Ready
 
