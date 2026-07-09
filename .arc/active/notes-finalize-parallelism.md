@@ -156,6 +156,38 @@ ROADMAP/STATUS render a concurrency-guarded single-source-of-truth model — is 
 `notes-fetch-refspec-hardening` → `roadmap-tooling` (groomed with this concern) → resume FP waves against the
 resolved state layer. FP holds the GA gate closed until it lands.
 
+**Update (2026-07-09) — RESOLVED.** The state-integrity slice was extracted from `roadmap-tooling` and shipped as
+its own WU, `project-state-integrity` (roster-derivation hardening + `ROADMAP` as a verified *derived* projection
+with a pre-commit regen assert), merged to `main`. FP's hard `Depends On` is cleared — the render/rename remainder
+still owned by `roadmap-tooling` was never the FP-critical slice. First field validation of the fix is the
+2026-07-09 finding below (cell 3.2.c). FP's GA gate no longer blocks on this.
+
+### Dogfood finding (2026-07-09): opportunistic wave-1 evidence — cross-worktree notes + ROADMAP regen under load
+
+Not deliberate induction (that stays Tasks 3.2.a / 3.2.c) — live evidence harvested from the maintenance session
+that merged `main` into FP and both probe worktrees, rebuilt each, and re-enabled notes across all three. Three
+worktrees (`feat/finalize-parallelism`, `chore/burn-in-probe-a`, `chore/burn-in-probe-b`) exercised the shared
+surfaces concurrently on the fixed build.
+
+**Notes cross-worktree writer/export (cell 3.2.a — BI-3 in practice):** each worktree ran `arc user save` →
+`arc user sync` against the shared identity-scoped ref (`refs/notes/arc/user/andrew`), anchoring its note at its
+own HEAD (FP `293eb1bb`, probe-a `aa682027`, probe-b `edc952d9`). Observed: (1) every notes push was gated by a
+pre-check that **refuses to export while the worktree's branch has unpushed commits** ("push the worktree first")
+— no sibling note exported before its branch landed, exactly the BI-3 invariant; (2) all four identity surfaces
+stayed **byte-identical** across every save→sync (verified against a snapshot) — no dropped save, no resurrected
+tombstone, clean convergence to `Up to date` in all three worktrees.
+
+**ROADMAP concurrent regen (cell 3.2.c):** each worktree regenerated `.arc/backlog/ROADMAP.md` via
+`arc status --project --local` from a **different base state**, and each `git merge main` conflicted **loudly** on
+ROADMAP (content conflict, `both modified`) rather than silently accepting a stale render — the predicted loud
+classification. The deterministic renderer shipped by `project-state-integrity` produced identical, stable output
+across all three worktrees, and the pre-commit regen assert (`assert-roadmap-regenerated`) passed on each merge
+commit. First field validation that the state-integrity slice closes cell 3.2.c's silent-stale-render hazard.
+
+**Caveat:** opportunistic, not the full induced interleaving — the deliberate A-save/B-save/A-paired-push ordering
+(3.2.a) and concurrent same-instant regen (3.2.c) still run under 3.2 induction. But the invariants held under real
+concurrent load, and nothing observed contradicts the predicted classifications.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
