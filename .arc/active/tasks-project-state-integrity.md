@@ -283,28 +283,15 @@ _Note:_ Run the full-depth `task-audit` over this phase at implementation entry 
 wiring (both regen call sites, the status-handler mode dispatch, the identity-unfiltered project scope)
 against the codebase as it exists then; Phase 4's landed shapes are this phase's inputs.
 
-### `[ ]` **5.1 Tracked render: local-refs input and in-flight supersede tier**
+### `[x]` **5.1 Tracked render: local-refs input and in-flight supersede tier**
 
 - _Goal:_ A `main`-checkout render is checkout-deterministic over tree plus local refs and shows in-flight
   WUs as in flight — no false `Ready` facts from stale backlog stubs (SC 2).
 
-    - Record-set assembly for the tracked surface: tree scan plus local refs carrying active metas
-      (worktrees + remote-tracking refs; local data, no network) through the oracle's local slice — the
-      resolver from Task 4.1.b, extended here.
-    - The In Flight tier populates from at-ref active metas on any checkout; superseded stubs leave `Ready`.
-    - Header stamp: the existing `renderedRef` param extends with scope, where scope names the source set
-      fed to the render ("tree + local refs"), plus the pointer at the live view; the committed artifact
-      reads as scoped truth (a cache by construction).
-    - Determinism: byte-stability rides the render core's total sort (`compareStatusRows`,
-      `src/lib/status/render.ts` — priority, cohort, wu-name), so the union needs deterministic membership,
-      not pre-sorted order.
-    - Build `test-first` (one behavior at a time):
-        - A `main`-checkout record set renders in-flight WUs In Flight, not Ready
-        - A checkout carrying a park pointer record renders that WU Parked, never In Flight
-        - Same checkout, same refs → byte-identical render (determinism)
-        - A degraded oracle slice renders with its degradation qualifier — never a silently healthy-looking
-          tree-only render
-        - Header carries the rendered-against stamp, scope, and live-view pointer
+    - _Outcome:_ The project-readiness resolver now merges tree records with the oracle's local-only slice,
+      adapting valid work-unit entries into active candidates, preserving parked scheduling, and surfacing
+      oracle degradation warnings. ROADMAP regen call sites now feed parked slugs and configured base branch,
+      and the shared render stamp records the source scope plus the live `arc status --project` pointer.
 
 ### `[ ]` **5.2 Live view CLI surface**
 
@@ -315,6 +302,9 @@ against the codebase as it exists then; Phase 4's landed shapes are this phase's
       (alongside `<slug>` / `--session-init` / `--user`), mirroring `--user`'s mode-dispatch wiring only —
       the project view consumes the identity-unfiltered slice, unlike `--user`'s identity-scoped one;
       renders composer warnings (dangling edges, degraded marks) inline.
+    - Audit carry-forward: status mode exclusivity is counted manually in `handleStatus` and the CLI option
+      surface has no `project` flag yet; update both together and pass `identity: null`, `teamMode: false`
+      to the oracle so project scope stays identity-unfiltered.
     - Network by default; the oracle's `reachable: false` degrades to a noted refs-only view, matching
       `runActiveInFlight`'s existing contract.
     - Integration test: live view reflects a ref-only change with no commit — the consumption-relocation

@@ -31,6 +31,7 @@ import {
 } from "../commands/start.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import type { GitExec } from "../lib/git/exec.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
@@ -39,6 +40,7 @@ import { createUserIOContext } from "../lib/io-context.js";
 import { ensureDir } from "../lib/template/files.js";
 import { composeProjectReadinessView, resolveProjectReadinessViewInput } from "../lib/status/project-view.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { runResume } from "../lib/work-unit/verbs/park-resume.js";
@@ -270,7 +272,12 @@ async function graduate(
       }
     }
     const result = await runGraduate(
-      buildExecutorContext({ ...ctx, teamMode: settings["team.mode"] === "true", internalTemplateDir: getInternalTemplatePath() }),
+      buildExecutorContext({
+        ...ctx,
+        teamMode: settings["team.mode"] === "true",
+        baseBranch: settings["branch.base"],
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
       { name: wuName, cls, inPlace: true },
     );
     if (result.status === "rejected") {
@@ -303,7 +310,12 @@ async function graduate(
   }
 
   const result = await runGraduate(
-    buildExecutorContext({ ...ctx, teamMode: config.teamMode, internalTemplateDir: getInternalTemplatePath() }),
+    buildExecutorContext({
+      ...ctx,
+      teamMode: config.teamMode,
+      baseBranch: config.baseBranch,
+      internalTemplateDir: getInternalTemplatePath(),
+    }),
     {
       name: wuName,
       cls,
@@ -382,7 +394,12 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
     }
     const result = await runResume(
       {
-        executor: buildExecutorContext({ ...ctx, teamMode: settings["team.mode"] === "true", internalTemplateDir: getInternalTemplatePath() }),
+        executor: buildExecutorContext({
+          ...ctx,
+          teamMode: settings["team.mode"] === "true",
+          baseBranch: settings["branch.base"],
+          internalTemplateDir: getInternalTemplatePath(),
+        }),
         fs: {
           writeFile: (path, content) => ctx.io.writeFile(path, content),
           mkdir: (path, opts) => ctx.io.mkdir(path, opts),
@@ -419,6 +436,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
       executor: buildExecutorContext({
         ...ctx,
         teamMode: config.teamMode,
+        baseBranch: config.baseBranch,
         internalTemplateDir: getInternalTemplatePath(),
       }),
       fs: {
@@ -575,17 +593,33 @@ async function refreshRoadmapForStartCeremony(
   cwd: string,
 ): Promise<RefreshRoadmapResult> {
   try {
+    const { settings } = await readConfigSettings(cwd);
     const renderedRef = await startRenderedRef(ctx, cwd);
+    const exec: GitExec = (cmd, args, opts) => ctx.io.exec(cmd, args, { cwd, ...opts });
+    const parkedSlugs = listParkedSlugs(
+      await buildLifecycleIndex({
+        cwd,
+        fs: {
+          readFile: (p) => ctx.io.readFile(p),
+          readdir: (p) => readdir(p, { withFileTypes: true }),
+        },
+      }),
+    );
     const input = await resolveProjectReadinessViewInput({
       cwd,
       fs: {
         readFile: (p) => ctx.io.readFile(p),
         readdir: (p) => readdir(p, { withFileTypes: true }),
       },
+      localRefs: { exec, baseBranch: settings["branch.base"], parkedSlugs },
     });
     const view = composeProjectReadinessView({
       ...input,
-      renderedRef,
+      renderedRef: {
+        ref: renderedRef,
+        scope: "tree + local refs",
+        liveView: "arc status --project",
+      },
     });
     const dir = join(cwd, ".arc", "backlog");
     await ensureDir(dir, ctx.io.mkdir);

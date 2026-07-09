@@ -175,6 +175,7 @@ async function buildExecutor(
     io: base.io,
     identity: base.identity,
     teamMode: settings["team.mode"] === "true",
+    baseBranch: settings["branch.base"],
     internalTemplateDir: getInternalTemplatePath(),
   });
   return { executor, settings };

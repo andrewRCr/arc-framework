@@ -15,6 +15,13 @@ import { basename, join } from "node:path";
 
 import { validatePriority, validateState, type Priority, type WorkUnitState } from "../../commands/active/types.js";
 import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
+import type { GitExec } from "../git/exec.js";
+import {
+  deriveInFlight,
+  type InFlightEntry,
+  type InFlightWarning,
+  type InFlightWorkUnit,
+} from "../git/in-flight-derivation.js";
 import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { resolveSlugQuery } from "../work-unit/lifecycle-query.js";
 
@@ -55,6 +62,7 @@ export interface ProjectReadinessRecordCandidate {
   dependsOn: string[];
   cohort?: string;
   source?: ProjectReadinessRecordSource;
+  scheduling?: "parked";
 }
 
 /** One resolved project-readiness record after source precedence is applied. */
@@ -72,7 +80,10 @@ export interface ProjectReadinessDerivationWarning {
 }
 
 /** Structured composer warning codes rendered with the project view. */
-export type ProjectReadinessWarningCode = "dangling-dependency" | "stale-location-unshipped";
+export type ProjectReadinessWarningCode =
+  | "dangling-dependency"
+  | "oracle-degraded"
+  | "stale-location-unshipped";
 
 /** A project-readiness warning produced from dependency or provenance classification. */
 export interface ProjectReadinessWarning {
@@ -106,6 +117,14 @@ export interface ProjectReadinessViewInput {
   title: string;
   records: ProjectReadinessRecord[];
   derivationWarnings: ProjectReadinessDerivationWarning[];
+  sourceWarnings: ProjectReadinessWarning[];
+}
+
+/** Local-ref oracle inputs for tracked project-readiness renders. */
+export interface ProjectReadinessLocalRefsOptions {
+  exec: GitExec;
+  baseBranch?: string;
+  parkedSlugs?: ReadonlySet<string>;
 }
 
 /** Options for the tree-backed resolver. */
@@ -116,16 +135,27 @@ export interface ResolveProjectReadinessViewInputOptions {
   title?: string;
   /** Injectable filesystem for tests and handler-owned I/O contexts. */
   fs?: ProjectViewFs;
+  /** Optional local-ref oracle input to merge at-ref active metas into the record set. */
+  localRefs?: ProjectReadinessLocalRefsOptions;
+}
+
+/** Structured freshness stamp rendered in the view header. */
+export interface ProjectReadinessRenderStamp {
+  ref: string;
+  scope?: string;
+  liveView?: string;
 }
 
 /** Options for {@link composeProjectReadinessView}. */
 export interface ComposeProjectReadinessViewOptions {
   /** Freshness marker to print in the header. */
-  renderedRef: string;
+  renderedRef: string | ProjectReadinessRenderStamp;
   /** H1 text without the leading `#`. */
   title: string;
   /** Already-resolved project-readiness records. */
   records: readonly ProjectReadinessRecord[];
+  /** Source warnings from the resolver or oracle. */
+  sourceWarnings?: readonly ProjectReadinessWarning[];
   /** Derivation warnings to classify against the same lifecycle index. */
   derivationWarnings?: readonly ProjectReadinessDerivationWarning[];
   /** Readiness provider; omitted uses dependency satisfaction as readiness. */
@@ -289,7 +319,7 @@ function sourcePathOf(candidate: ProjectReadinessRecordCandidate): string {
 }
 
 function isParkedPointer(candidate: ProjectReadinessRecordCandidate): boolean {
-  return candidate.location === "planned" && candidate.state === "Active";
+  return candidate.scheduling === "parked" || (candidate.location === "planned" && candidate.state === "Active");
 }
 
 /**
@@ -329,15 +359,90 @@ function resolveTitle(title: string | undefined): string {
   return title ?? DEFAULT_TITLE;
 }
 
+function selectedRefFor(entry: InFlightWorkUnit): string {
+  return entry.provenance?.find((candidate) => candidate.selected)?.ref ?? entry.branch;
+}
+
+function inFlightEntryToCandidate(entry: InFlightEntry): ProjectReadinessRecordCandidate | null {
+  if (entry.kind !== "work-unit") return null;
+  const state = validateState(entry.state);
+  if (state === "unknown") return null;
+  const ref = selectedRefFor(entry);
+  return {
+    slug: entry.name,
+    location: "active",
+    state,
+    ...(entry.owner !== undefined ? { owner: entry.owner } : {}),
+    priority: validatePriority(entry.priority ?? null),
+    dependsOn: [...entry.dependsOn],
+    ...(entry.cohort !== undefined ? { cohort: entry.cohort } : {}),
+    source: sourceFor("active", `${ref}:.arc/active/meta-${entry.name}.md`),
+    ...(entry.scheduling === "parked" ? { scheduling: "parked" as const } : {}),
+  };
+}
+
+function sourceWarningFromInFlight(warning: InFlightWarning): ProjectReadinessWarning {
+  return {
+    code: "oracle-degraded",
+    ...(warning.workUnit !== undefined ? { workUnit: warning.workUnit } : {}),
+    rendered: warning.rendered,
+  };
+}
+
+function staleWarningFromInFlight(warning: InFlightWarning): ProjectReadinessDerivationWarning | null {
+  if (warning.code !== "stale-location-dropped" && warning.code !== "stale-location-shadow") {
+    return null;
+  }
+  return {
+    code: warning.code,
+    ...(warning.workUnit !== undefined ? { workUnit: warning.workUnit } : {}),
+    rendered: warning.rendered,
+  };
+}
+
+async function resolveLocalRefCandidates(
+  options: ProjectReadinessLocalRefsOptions | undefined,
+): Promise<{
+  candidates: ProjectReadinessRecordCandidate[];
+  derivationWarnings: ProjectReadinessDerivationWarning[];
+  sourceWarnings: ProjectReadinessWarning[];
+}> {
+  if (options === undefined) return { candidates: [], derivationWarnings: [], sourceWarnings: [] };
+  const result = await deriveInFlight({
+    exec: options.exec,
+    localOnly: true,
+    baseBranch: options.baseBranch,
+    identity: null,
+    teamMode: false,
+    parkedSlugs: options.parkedSlugs,
+  });
+  const candidates = result.entries
+    .map(inFlightEntryToCandidate)
+    .filter((candidate): candidate is ProjectReadinessRecordCandidate => candidate !== null);
+  const derivationWarnings: ProjectReadinessDerivationWarning[] = [];
+  const sourceWarnings: ProjectReadinessWarning[] = [];
+  for (const warning of result.warnings) {
+    const stale = staleWarningFromInFlight(warning);
+    if (stale === null) sourceWarnings.push(sourceWarningFromInFlight(warning));
+    else derivationWarnings.push(stale);
+  }
+  return { candidates, derivationWarnings, sourceWarnings };
+}
+
 /** Resolve tree-backed records and the title read into a compose-ready input. */
 export async function resolveProjectReadinessViewInput(
   options: ResolveProjectReadinessViewInputOptions,
 ): Promise<ProjectReadinessViewInput> {
   const fs = options.fs ?? DEFAULT_FS;
+  const [treeRecords, localRefs] = await Promise.all([
+    loadProjectRecords(options.cwd, fs),
+    resolveLocalRefCandidates(options.localRefs),
+  ]);
   return {
     title: resolveTitle(options.title),
-    records: mergeProjectReadinessRecords(await loadProjectRecords(options.cwd, fs)),
-    derivationWarnings: [],
+    records: mergeProjectReadinessRecords([...treeRecords, ...localRefs.candidates]),
+    derivationWarnings: localRefs.derivationWarnings,
+    sourceWarnings: localRefs.sourceWarnings,
   };
 }
 
@@ -499,6 +604,16 @@ function renderWarnings(warnings: readonly ProjectReadinessWarning[]): string[] 
   return ["", "## Warnings", "", ...warnings.map((warning) => `- ${warning.rendered}`)];
 }
 
+function renderStamp(stamp: string | ProjectReadinessRenderStamp): string {
+  const resolved = typeof stamp === "string" ? { ref: stamp } : stamp;
+  const parts = [
+    `**Generated from meta files — re-render at ceremony boundaries.** Last rendered against \`${resolved.ref}\`.`,
+  ];
+  if (resolved.scope !== undefined) parts.push(`Source scope: ${resolved.scope}.`);
+  if (resolved.liveView !== undefined) parts.push(`Live view: \`${resolved.liveView}\`.`);
+  return `> ${parts.join(" ")}`;
+}
+
 /**
  * Compose the project readiness view from resolved records.
  *
@@ -512,6 +627,7 @@ export function composeProjectReadinessViewResult(
   const index = lifecycleIndexFromRecords(records);
   const classification = classifyDependencies(records, index);
   const warnings = [
+    ...(options.sourceWarnings ?? []),
     ...classification.warnings,
     ...elevatedDerivationWarnings(options.derivationWarnings ?? [], index),
   ];
@@ -548,7 +664,7 @@ export function composeProjectReadinessViewResult(
   const lines = [
     `# ${options.title}`,
     "",
-    `> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against \`${options.renderedRef}\`.`,
+    renderStamp(options.renderedRef),
     ...renderWarnings(warnings),
     "",
     "This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a",

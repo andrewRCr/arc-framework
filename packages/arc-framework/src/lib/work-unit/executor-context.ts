@@ -77,6 +77,8 @@ export interface ExecutorContextDeps {
   identity: string | null;
   /** Team mode — gates the `STATUS.USER` in-flight oracle's identity filtering. */
   teamMode: boolean;
+  /** Resolved `branch.base` for the in-flight oracle; omitted falls back to the oracle default. */
+  baseBranch?: string;
   /** Internal template directory for the user-workspace SESSION-NOTES seed. */
   internalTemplateDir: string;
 }
@@ -90,7 +92,7 @@ export interface ExecutorContextDeps {
  * @returns The bound executor context, ready to pass to {@link executeTransition}.
  */
 export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransitionContext {
-  const { cwd, io, identity, teamMode, internalTemplateDir } = deps;
+  const { cwd, io, identity, teamMode, baseBranch, internalTemplateDir } = deps;
 
   /** Resolve a cwd-relative path (the shape the executor passes) to an absolute one. */
   const at = (p: string): string => (isAbsolute(p) ? p : join(cwd, p));
@@ -261,16 +263,26 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
         reconcileRoadmap(
           {
             composeView: async () => {
+              const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd, fs: indexFs }));
               const input = await resolveProjectReadinessViewInput({
                 cwd,
                 fs: {
                   readFile: (p) => io.readFile(p),
                   readdir: (p) => readdir(p, { withFileTypes: true }),
                 },
+                localRefs: {
+                  exec,
+                  ...(baseBranch !== undefined ? { baseBranch } : {}),
+                  parkedSlugs,
+                },
               });
               return composeProjectReadinessView({
                 ...input,
-                renderedRef: await renderedRef(),
+                renderedRef: {
+                  ref: await renderedRef(),
+                  scope: "tree + local refs",
+                  liveView: "arc status --project",
+                },
               });
             },
             mkdir: io.mkdir,

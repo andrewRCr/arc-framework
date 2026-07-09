@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 
 import {
   composeProjectReadinessView,
@@ -13,6 +13,7 @@ import {
   type ProjectReadinessProvider,
   type ProjectReadinessRecordCandidate,
 } from "../../../src/lib/status/project-view.js";
+import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 
 let root: string | undefined;
 
@@ -39,6 +40,69 @@ function meta(slug: string, state: string, fields: { owner?: string; priority?: 
     "---",
     "",
   ].join("\n");
+}
+
+function oracleMeta(
+  fields: {
+    state?: string;
+    owner?: string;
+    branch: string;
+    priority?: string;
+    cohort?: string;
+    dependsOn?: string;
+  },
+): string {
+  return [
+    "# Metadata: oracle",
+    "",
+    `- **State:** ${fields.state ?? "Active"}`,
+    `- **Owner:** ${fields.owner ?? "andrew"}`,
+    `- **Branch:** ${fields.branch}`,
+    `- **Priority:** ${fields.priority ?? "[none]"}`,
+    `- **Cohort:** ${fields.cohort ?? "[none]"}`,
+    `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
+    "",
+    "---",
+  ].join("\n");
+}
+
+function makeInFlightExec(opts: {
+  remoteRefs?: string[];
+  worktrees?: Array<{ path: string; branch: string }>;
+  metas?: Record<string, string>;
+}): GitExec {
+  const metas = opts.metas ?? {};
+  const remoteRefs = opts.remoteRefs ?? [];
+  const worktreeList = (opts.worktrees ?? [])
+    .map((worktree) => [
+      `worktree ${worktree.path}`,
+      "HEAD 1111111111111111111111111111111111111111",
+      `branch refs/heads/${worktree.branch}`,
+    ].join("\n"))
+    .join("\n\n");
+  return vi.fn(async (_cmd, args): Promise<ExecResult> => {
+    if (args[0] === "for-each-ref") {
+      return {
+        stdout: remoteRefs.map((branch) => `refs/remotes/origin/${branch}\tsha-${branch}`).join("\n"),
+        stderr: "",
+      };
+    }
+    if (args[0] === "worktree") return { stdout: worktreeList, stderr: "" };
+    if (args[0] === "ls-remote") throw new Error("local-ref project render must not read the network");
+    if (args[0] === "ls-tree" && args[1] === "-r") {
+      const ref = args[3] ?? "";
+      const paths = Object.keys(metas)
+        .filter((target) => target.startsWith(`${ref}:`))
+        .map((target) => target.slice(target.indexOf(":") + 1));
+      return { stdout: paths.join("\n"), stderr: "" };
+    }
+    if (args[0] === "show") {
+      const target = args[1] ?? "";
+      if (target in metas) return { stdout: metas[target] ?? "", stderr: "" };
+      return { stdout: "", stderr: "" };
+    }
+    return { stdout: "", stderr: "" };
+  });
 }
 
 describe("composeProjectReadinessView", () => {
@@ -124,6 +188,136 @@ describe("composeProjectReadinessView", () => {
 
     expect(input.title).toBe("Roadmap: Project Readiness");
     expect(readPaths).toEqual([]);
+  });
+
+  it("resolves local-ref active metas ahead of planned tree stubs", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    await writeMeta(
+      join(root, ".arc", "backlog", "planned", "local-live", "meta-local-live.md"),
+      meta("local-live", "Planning", { priority: "P3" }),
+    );
+    const exec = makeInFlightExec({
+      worktrees: [{ path: root, branch: "feat/local-live" }],
+      metas: {
+        "feat/local-live:.arc/active/meta-local-live.md": oracleMeta({
+          branch: "feat/local-live",
+          priority: "P1",
+        }),
+      },
+    });
+
+    const input = await resolveProjectReadinessViewInput({
+      cwd: root,
+      title: "Roadmap",
+      localRefs: { exec, baseBranch: "main" },
+    });
+    const view = composeProjectReadinessView({
+      ...input,
+      renderedRef: "abc1234",
+    });
+
+    expect(view).toContain("| `Active` | local-live | P1");
+    expect(sectionBetween(view, "## Ready", "## Blocked")).not.toContain("local-live");
+  });
+
+  it("keeps a local-ref work unit parked when the tree carries a park pointer", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    await writeMeta(
+      join(root, ".arc", "backlog", "planned", "shelved", "meta-shelved.md"),
+      meta("shelved", "Active", { priority: "P3" }),
+    );
+    const exec = makeInFlightExec({
+      worktrees: [{ path: root, branch: "feat/shelved" }],
+      metas: {
+        "feat/shelved:.arc/active/meta-shelved.md": oracleMeta({
+          branch: "feat/shelved",
+          priority: "P1",
+        }),
+      },
+    });
+
+    const input = await resolveProjectReadinessViewInput({
+      cwd: root,
+      title: "Roadmap",
+      localRefs: { exec, baseBranch: "main", parkedSlugs: new Set(["shelved"]) },
+    });
+    const view = composeProjectReadinessView({ ...input, renderedRef: "abc1234" });
+
+    expect(view).toContain("## Parked");
+    expect(view).toContain("| shelved   | P1");
+    expect(view).not.toContain("| `Active` | shelved");
+  });
+
+  it("renders byte-identical output for the same tree and local refs", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    await writeMeta(
+      join(root, ".arc", "backlog", "planned", "ready", "meta-ready.md"),
+      meta("ready", "Planning", { priority: "P2" }),
+    );
+    const exec = makeInFlightExec({
+      worktrees: [{ path: root, branch: "feat/local" }],
+      metas: {
+        "feat/local:.arc/active/meta-local.md": oracleMeta({
+          branch: "feat/local",
+          priority: "P1",
+        }),
+      },
+    });
+
+    const first = await resolveProjectReadinessViewInput({
+      cwd: root,
+      title: "Roadmap",
+      localRefs: { exec, baseBranch: "main" },
+    });
+    const second = await resolveProjectReadinessViewInput({
+      cwd: root,
+      title: "Roadmap",
+      localRefs: { exec, baseBranch: "main" },
+    });
+
+    expect(composeProjectReadinessView({ ...first, renderedRef: "abc1234" }))
+      .toEqual(composeProjectReadinessView({ ...second, renderedRef: "abc1234" }));
+  });
+
+  it("renders degraded local-ref warnings instead of a silently tree-only view", async () => {
+    const exec = makeInFlightExec({
+      worktrees: [{ path: "/repo", branch: "feat/bad-state" }],
+      metas: {
+        "feat/bad-state:.arc/active/meta-bad-state.md": oracleMeta({
+          branch: "feat/bad-state",
+          state: "Paused",
+        }),
+      },
+    });
+
+    const input = await resolveProjectReadinessViewInput({
+      cwd: "/repo",
+      title: "Roadmap",
+      fs: { readdir: async () => [], readFile: async () => "" },
+      localRefs: { exec, baseBranch: "main" },
+    });
+    const result = composeProjectReadinessViewResult({ ...input, renderedRef: "abc1234" });
+
+    expect(result.markdown).toContain("## Warnings");
+    expect(result.markdown).toContain("unrecognized State");
+    expect(result.markdown).not.toContain("bad-state |");
+  });
+
+  it("renders the source scope and live-view pointer in the header", () => {
+    const view = composeProjectReadinessView({
+      renderedRef: {
+        ref: "abc1234",
+        scope: "tree + local refs",
+        liveView: "arc status --project",
+      },
+      title: "Roadmap",
+      records: [],
+      derivationWarnings: [],
+    });
+
+    expect(view).toContain("Last rendered against `abc1234`");
+    expect(view).toContain("Source scope: tree + local refs.");
+    expect(view).toContain("Live view: `arc status --project`.");
   });
 });
 
