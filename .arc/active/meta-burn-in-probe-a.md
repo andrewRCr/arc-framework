@@ -12,11 +12,11 @@
 - **Task List:** `tasks-burn-in-probe-a.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Create the burn-in evidence log (line ~12)
+- **Last Completed:** Task 1.1 — Create the burn-in evidence log
+- **Next Task:** Task 1.2 — Exercise handoff and resume evidence (line ~20)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Create the burn-in evidence log
+- **Next Action:** Resume Task 1.2 — re-run session-init and record first-handoff notes save/load evidence.
 
 - **PR URL:** [none]
 - **Completed:** [none]
