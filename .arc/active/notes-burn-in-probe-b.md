@@ -34,6 +34,12 @@
 
 - Not yet exercised.
 
+## Cross-Worktree Notes Interleave (Wave-1 Induction)
+
+- This commit is the deliberately-unpushed branch anchor for the wave-1 cross-worktree notes interleave: a
+  probe-b note is saved at this commit while it exists only locally, the sibling worktree then runs its paired
+  push, and the export gate's treatment of the unpushed-anchored note is observed before this branch pushes.
+
 ## Archival/Worktree Cleanup
 
 - Not yet exercised.
