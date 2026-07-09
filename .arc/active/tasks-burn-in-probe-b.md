@@ -10,15 +10,13 @@ _Purpose:_ Produce the disposable Wave 1 evidence log for this spawned worktree.
 records the lifecycle observations the fixture exists to exercise: boot-rich startup, notes save/load behavior,
 ROADMAP/base contention, integration ordering, and cleanup readiness.
 
-### `[ ]` **1.1 Create the evidence log scaffold**
+### `[x]` **1.1 Create the evidence log scaffold**
 
 - _Goal:_ `notes-burn-in-probe-b.md` exists with a clear structure for every required burn-in observation.
 
-    - Create `notes-burn-in-probe-b.md` beside the spec and task list.
-    - Include sections for spawned-worktree boot, notes save/load convergence, ROADMAP/base contention,
-      integration ordering, archival/worktree cleanup, and observations not exercised.
-    - Seed the current baseline: this worktree launched, the spec/task planning artifacts exist under
-      `.arc/active/`, and `SESSION-NOTES` is seeded on disk but not yet saved to the notes ref.
+- _Outcome:_ Created `notes-burn-in-probe-b.md` with sections for every required burn-in observation and seeded
+  the current baseline: spawned worktree active, planning artifacts present, ROADMAP activation render recorded,
+  and `SESSION-NOTES.md` still in the expected seeded-but-not-yet-saved state before first handoff.
 
 ### `[ ]` **1.2 Record the handoff-to-resume evidence pass**
 
