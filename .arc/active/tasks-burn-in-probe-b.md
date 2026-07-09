@@ -28,16 +28,21 @@ ROADMAP/base contention, integration ordering, and cleanup readiness.
 
 ## **Phase 2:** Verification
 
-### `[ ]` **2.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **2.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Full Tier 3 passed: markdown lint, TypeScript lint, shell lint, source/test typechecks,
+  4132 tests passed / 1 skipped across 302 files, and build succeeded.
+- _Success criteria:_ 5 criteria met; integration ordering and archival/worktree cleanup are explicitly recorded
+  as not yet exercised in `notes-burn-in-probe-b.md`, satisfying the fixture's observation requirement.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `notes-burn-in-probe-b.md` records spawned-worktree boot evidence.
-- `[ ]` `notes-burn-in-probe-b.md` records notes save/load convergence evidence after at least one
+- `[x]` `notes-burn-in-probe-b.md` records spawned-worktree boot evidence.
+- `[x]` `notes-burn-in-probe-b.md` records notes save/load convergence evidence after at least one
   handoff-to-resume cycle.
-- `[ ]` `notes-burn-in-probe-b.md` records ROADMAP/base contention, integration ordering, and
+- `[x]` `notes-burn-in-probe-b.md` records ROADMAP/base contention, integration ordering, and
   archival/worktree-cleanup observations, or explicitly says each was not observed.
-- `[ ]` All quality gates pass.
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass.
+- `[x]` Ready for integration.

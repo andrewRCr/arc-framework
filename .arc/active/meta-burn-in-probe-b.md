@@ -16,7 +16,7 @@
 - **Next Task:** Task 1.1 — Create the evidence log scaffold (line ~13)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Create the evidence log scaffold
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
