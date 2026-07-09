@@ -12,6 +12,8 @@
  * @module
  */
 
+import { uniqueRefToken } from "../git/ref-tree.js";
+
 /** True when a push error message signals a non-fast-forward / rejected divergence. */
 export function isNonFastForwardError(message: string): boolean {
   return message.includes("non-fast-forward") || message.includes("[rejected]");
@@ -36,13 +38,16 @@ export function isCasRejectionError(message: string): boolean {
 }
 
 /** Temp tracking ref a remote notes ref is fetched into before merging. */
-export function incomingNotesRef(fullNotesRef: string): string {
-  return `${fullNotesRef}__incoming`;
+export function incomingNotesRef(fullNotesRef: string, token: string = uniqueRefToken()): string {
+  return `${fullNotesRef}__incoming_${token}`;
 }
 
 /** Force-fetch refspec pulling a remote notes ref into its temp tracking ref. */
-export function incomingFetchRefspec(fullNotesRef: string): string {
-  return `+${fullNotesRef}:${incomingNotesRef(fullNotesRef)}`;
+export function incomingFetchRefspec(
+  fullNotesRef: string,
+  incomingRef: string = incomingNotesRef(fullNotesRef),
+): string {
+  return `+${fullNotesRef}:${incomingRef}`;
 }
 
 /**

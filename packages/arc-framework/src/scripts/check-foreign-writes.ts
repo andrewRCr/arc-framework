@@ -11,9 +11,9 @@
  * **work-unit** path surface — a per-WU movable artifact, the single-owner
  * surface the foreign-write reasoning keys on; cohort docs (the deliberate
  * multi-owner exception) and code fall to the behind-base net, not this gate.
- * The current worktree and active meta path self-exclude, so a write to the
- * *current* WU's own artifacts never trips it — including a remote-only stale
- * planning ref during activation.
+ * The current WU's roster name self-excludes first, with worktree/meta paths as
+ * the fallback, so its own artifacts never trip the advisory — including a
+ * remote-only stale planning ref during activation.
  *
  * **Advisory throughout.** It warns and always exits 0 — it never refuses a
  * commit, and any failure (degraded git state, missing config) fails open with
@@ -22,6 +22,7 @@
  * @module
  */
 
+import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { runActiveInFlight } from "../commands/active.js";
@@ -33,10 +34,19 @@ import {
   resolveIdentity,
   type ForeignArtifactDetectionResult,
   type ForeignArtifactOverlap,
+  type ForeignArtifactSkippedEntry,
+  type ForeignArtifactIndeterminateProbe,
+  type InFlightInputSnapshot,
   type OverlapRoster,
 } from "../lib/git/index.js";
+import {
+  renderInFlightWarning,
+  type InFlightWarning,
+} from "../lib/git/in-flight-derivation.js";
 import { gitExec } from "../lib/io-context.js";
-import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
+import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 
 import type { GitExec } from "../lib/git/exec.js";
 
@@ -59,6 +69,8 @@ export interface StagedForeignWriteOptions {
   paths: string[];
   /** Base branch to diff against — resolved from `branch.base`, never hardcoded. */
   baseBranch: string;
+  /** Agreed in-flight input snapshot; candidate ref SHAs are reused from it when present. */
+  snapshot?: InFlightInputSnapshot;
   /** The committing worktree's root — self-excluded so its own writes never trip. */
   originatingWorktreePath: string;
   /** The committing WU's meta path — self-excludes remote-only projections of the same WU. */
@@ -76,7 +88,7 @@ export interface StagedForeignWriteOptions {
 export async function detectStagedForeignWrites(
   options: StagedForeignWriteOptions,
 ): Promise<ForeignArtifactDetectionResult> {
-  const { exec, roster, paths, baseBranch, originatingWorktreePath, originatingMetaPath } = options;
+  const { exec, roster, paths, baseBranch, snapshot, originatingWorktreePath, originatingMetaPath } = options;
   const candidates = selectForeignWriteCandidates(paths);
   if (candidates.length === 0) return { overlaps: [] };
   return detectForeignArtifactOverlap({
@@ -84,6 +96,7 @@ export async function detectStagedForeignWrites(
     roster,
     targetPaths: candidates,
     baseBranch,
+    ...(snapshot !== undefined ? { snapshot } : {}),
     originatingWorktreePath,
     ...(originatingMetaPath !== undefined ? { originatingMetaPath } : {}),
   });
@@ -99,10 +112,27 @@ export function formatForeignWriteWarnings(overlaps: ForeignArtifactOverlap[]): 
   );
 }
 
-/** Resolve the committing WU's active meta path for remote-only self-exclusion. */
-export async function resolveOriginatingMetaPath(cwd: string): Promise<string | undefined> {
-  const activeWu = await resolveActiveWu({ cwd });
-  return activeWu.status === "resolved" ? activeWu.path : undefined;
+function formatSkippedEntry(entry: ForeignArtifactSkippedEntry): string {
+  const marks = entry.marks.join(", ");
+  return `${entry.branch} skipped: entry marked ${marks} (${entry.worktreePath ?? "remote-only"})`;
+}
+
+function formatIndeterminateProbe(entry: ForeignArtifactIndeterminateProbe): string {
+  return `${entry.branch} skipped: probe indeterminate (${entry.worktreePath ?? "remote-only"})`;
+}
+
+/** Word every advisory line the hook should print to stdout. */
+export function formatForeignWriteAdvisories(
+  result: ForeignArtifactDetectionResult,
+  oracleWarnings: readonly InFlightWarning[] = [],
+): string[] {
+  return [
+    ...oracleWarnings.map(renderInFlightWarning),
+    ...(result.skipped ?? []).map(formatSkippedEntry),
+    ...(result.indeterminate ?? []).map(formatIndeterminateProbe),
+    ...(result.notes ?? []),
+    ...formatForeignWriteWarnings(result.overlaps),
+  ];
 }
 
 // --- CLI entry ---
@@ -135,20 +165,37 @@ async function main(): Promise<void> {
 
   const identity = await resolveIdentity({ exec: gitExec });
   const teamMode = settings["team.mode"] === "true";
+  const parkedSlugs = listParkedSlugs(
+    await buildLifecycleIndex({
+      cwd,
+      fs: {
+        readdir: (path) => readdir(path, { withFileTypes: true }),
+        readFile: (path) => readFile(path, "utf8"),
+      },
+    }),
+  );
 
   // Local-only: derive the in-flight set from local refs — no network read at commit time.
-  const { entries } = await runActiveInFlight({ exec: gitExec, identity, teamMode, localOnly: true });
+  const { entries, warnings, snapshot } = await runActiveInFlight({
+    exec: gitExec,
+    identity,
+    teamMode,
+    localOnly: true,
+    baseBranch,
+    parkedSlugs,
+  });
 
-  const { overlaps } = await detectStagedForeignWrites({
+  const result = await detectStagedForeignWrites({
     exec: gitExec,
     roster: projectInFlightToOverlapRoster(entries),
     paths,
     baseBranch,
     originatingWorktreePath: await currentWorktreePath(gitExec, cwd),
+    snapshot,
     originatingMetaPath: await resolveOriginatingMetaPath(cwd),
   });
 
-  for (const line of formatForeignWriteWarnings(overlaps)) {
+  for (const line of formatForeignWriteAdvisories(result, warnings)) {
     process.stdout.write(`${line}\n`);
   }
 }

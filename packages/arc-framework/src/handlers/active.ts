@@ -22,7 +22,10 @@ import {
   runActiveStatus,
 } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { renderInFlightWarning } from "../lib/git/in-flight-derivation.js";
 import { gitExec } from "../lib/io-context.js";
+import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 
 export interface ActiveStatusCliOptions {
@@ -112,12 +115,23 @@ export async function handleActiveInFlight(opts: ActiveInFlightCliOptions): Prom
   const { settings } = await readConfigSettings(cwd);
   const teamMode = settings["team.mode"] === "true";
   const localOnly = Boolean(opts.local) || opts.fetch === false;
+  const parkedSlugs = listParkedSlugs(
+    await buildLifecycleIndex({
+      cwd,
+      fs: {
+        readdir: (path) => readdir(path, { withFileTypes: true }),
+        readFile: (path) => readFile(path, "utf8"),
+      },
+    }),
+  );
 
   const result = await runActiveInFlight({
     exec: gitExec,
     identity,
     teamMode,
     localOnly,
+    baseBranch: settings["branch.base"],
+    parkedSlugs,
   });
 
   if (opts.json) {
@@ -137,6 +151,9 @@ export async function handleActiveInFlight(opts: ActiveInFlightCliOptions): Prom
         : `${e.branch}  (errand)  ${where}`;
     });
     p.note(`${lines.join("\n")}${degradedNotice}`, "In-flight");
+  }
+  for (const warning of result.warnings) {
+    p.log.warn(renderInFlightWarning(warning));
   }
   p.outro("Done.");
 }

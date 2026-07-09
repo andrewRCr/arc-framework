@@ -14,6 +14,7 @@ import type {
   BranchBoundedNotesExportTarget,
   PlanBranchBoundedNotesExportResult,
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
+import type { NotesCompactionAdvisory } from "../../lib/user-sync/index.js";
 
 /** I/O dependencies for the user command. */
 export interface UserIOContext extends CoreIO {
@@ -37,6 +38,8 @@ export interface UserSaveResult {
   commit: string;
   fileCount: number;
   warnings: SkipWarning[];
+  /** Non-fatal bookkeeping issues after the verified note write succeeded. */
+  bookkeepingWarnings?: string[];
 }
 
 /** Options for the save operation. */
@@ -398,6 +401,12 @@ export interface PairedPushResult {
    * persisted: deferral is the no-op, a retry is a fresh push invocation.
    */
   retryOffer?: NotesPushRetryOffer;
+  /**
+   * Present on paired flows where the worktree leg landed but notes did not.
+   * `true` means the local partial-push recovery marker was durably recorded;
+   * `false` means recording was attempted but could not be written.
+   */
+  partialPushMarkerRecorded?: boolean;
 }
 
 /** Options for the paired-push helper. */
@@ -461,9 +470,15 @@ export interface UserFetchOptions {
   io: UserIOContext;
   /** Identity whose notes to fetch (may differ from caller's identity for cross-user pull). */
   identity: string;
-  /** Force-fetch even when local and remote refs conflict. */
-  force?: boolean;
 }
+
+/** Structured result of fetching remote user notes into the local notes ref. */
+export type UserFetchResult =
+  | { kind: "fast-forwarded"; localTip: string; remoteTip: string }
+  | { kind: "created"; remoteTip: string }
+  | { kind: "refused-local-ahead"; localTip: string; remoteTip: string }
+  | { kind: "refused-diverged"; localTip: string; remoteTip: string }
+  | { kind: "remote-unavailable"; error: Error };
 
 /** Options for the pull operation. */
 export interface UserPullOptions extends UserFetchOptions {
@@ -471,6 +486,9 @@ export interface UserPullOptions extends UserFetchOptions {
   /** Current WU name forwarded to the post-fetch load. See {@link UserLoadOptions.currentWuName}. */
   currentWuName?: string;
 }
+
+/** Result of a pull: a loaded note, no note after fetch, or a fetch refusal/failure. */
+export type UserPullResult = UserLoadResult | null | UserFetchResult;
 
 /**
  * Internal ref-relation state between local and remote notes.
@@ -627,6 +645,8 @@ export interface UserStatusResult {
   unsavedDirection: UserUnsavedDirection | null;
   backupFiles: string[];
   remoteIdentities: UserStatusRemoteIdentity[];
+  /** Local notes-ref history-size advisory for manual compaction. */
+  compactionAdvisory?: NotesCompactionAdvisory;
   /**
    * Worktree sync probe result, when `session.remote_sync` is enabled and the
    * caller did not pass `--offline`. Omitted when no probe was run.
@@ -698,6 +718,21 @@ export interface UserSessionLocalNoteFreshness {
    * states that don't surface ancestry context.
    */
   currentBranch?: string | null;
+  /**
+   * For the `missing` state: whether the freshness query was work-unit-scoped
+   * (a current WU resolved). `false` means identity-scoped (no current WU — an
+   * errand or between-WUs), where `missing` speaks to the identity's whole
+   * notes ref. Omitted on the non-`missing` states.
+   */
+  wuScoped?: boolean;
+  /**
+   * For a WU-scoped `missing` state: whether the WU's SESSION-NOTES.md is
+   * present on disk — seeded by spawn/start but not yet saved to the notes ref.
+   * `true` is the expected fresh-spawn state; `false` means no personal context
+   * exists for the WU on disk or in the ref (an unexpected gap). Omitted when
+   * not WU-scoped or not `missing`.
+   */
+  seedPresent?: boolean;
 }
 
 /**

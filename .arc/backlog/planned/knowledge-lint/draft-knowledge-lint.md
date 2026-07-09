@@ -18,6 +18,18 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Refresh the stale `user/README.md` template**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: knowledge-lint`), housekeep drain (2026-07-07); captured
+  during `finalize-parallelism` Task 2.6.d (linked-worktree signpost) design discussion, 2026-07-05.
+- *Concern:* The tracked `.arc/user/README.md` (the user-dir template that ships to adopters) is out of date — it
+  predates the identity-global vs. per-WU surface split and the resolver-backed materialization binding, so a
+  direct reader (human or agent) opening it gets a stale picture of what lives under `user/{identity}/`.
+- *Approach:* Reconcile it to the current user-surface model (per-WU `SESSION-NOTES` vs. identity-global
+  `WORKING-MEMORY` / `USER-INBOX` / `STATUS.USER`, canonical materialization via the resolver). Adopter-facing
+  doc-drift is the class `knowledge-lint` exists to catch, so route it here rather than a one-off hand-edit a later
+  lint/regenerate pass would redo.
+
 ### `[ ]` **Align with the knowledge-architecture model: orphan semantics, incoming families, registry posture**
 
 - *Routed from:* `knowledge-architecture` grooming (2026-07-03), direct-edit routing on its grooming branch.

@@ -1,4 +1,7 @@
+import { join } from "node:path";
+
 import { getCurrentBranch, shortHash, type SyncManifest } from "../../lib/git/index.js";
+import { uniqueRefToken } from "../../lib/git/ref-tree.js";
 import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -6,14 +9,16 @@ import {
   type WorktreeSyncStatusResult,
 } from "../../lib/git/worktree-sync.js";
 import {
-  clearPartialPushMarker,
   inferUserSyncCause,
+  inspectNotesCompactionAdvisory,
   isComparableSourceCommit,
   projectManifest,
   readLocalSyncState,
+  readMaterializedBaselineStamp,
   resolveCurrentWuName,
   type UserSyncCause,
   type UserSyncCauseConfidence,
+  type NotesCompactionAdvisory,
 } from "../../lib/user-sync/index.js";
 import { computeUnsavedDirection, missingFilesAreIntentionalRetirement } from "./drift.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
@@ -110,8 +115,8 @@ export async function runUserStatus(
   const currentWuName = await resolveCurrentWuName(cwd, io.exec);
   const shouldProbeWorktree = !offline && remoteSyncEnabled;
   const [
-    diskInspection, search, backupFiles, remoteIdentities, refInspection, worktreeProbe,
-    userNotesRefExists, localSyncState,
+    diskInspection, search, backupFiles, remoteIdentities, refInspection,
+    userNotesRefExists, localSyncState, compactionAdvisory, worktreeProbe,
   ] = await Promise.all([
     inspectDiskVsLocalSnapshot(cwd, io, identity, currentWuName),
     findNearestUserNote({ cwd, io, identity, currentWuName }),
@@ -120,11 +125,12 @@ export async function runUserStatus(
     offline
       ? Promise.resolve(null)
       : inspectUserSyncRefsDetailed(io, identity, DEFAULT_FETCH_TIMEOUT_MS),
+    inspectUserNotesRefExists(io, identity),
+    readLocalSyncState(cwd, io, identity),
+    inspectNotesCompactionAdvisory(io.exec, `refs/notes/${notesRef(identity)}`),
     shouldProbeWorktree
       ? runWorktreeSyncStatus({ exec: io.exec, remoteSyncEnabled: true })
       : Promise.resolve(null),
-    inspectUserNotesRefExists(io, identity),
-    readLocalSyncState(cwd, io, identity),
   ]);
   const spine = computeUserSyncSpine({
     remoteSyncEnabled: !offline,
@@ -160,9 +166,14 @@ export async function runUserStatus(
     unsavedDirection: diskInspection.direction,
     backupFiles,
     remoteIdentities,
+    compactionAdvisory,
     worktree: worktreeProbe ?? undefined,
     remoteSyncEnabled,
     userNotesRefExists,
+    wuScoped: currentWuName !== undefined,
+    ...(currentWuName !== undefined
+      ? { seedPresent: await sessionNotesSeedExists(cwd, io, identity, currentWuName) }
+      : {}),
     ...(verbose === undefined ? {} : { verbose }),
     ...(userSyncCause ? { userSyncCause } : {}),
   });
@@ -179,7 +190,7 @@ async function classifyUserSyncCause(input: {
   offline: boolean;
   refInspection: UserSyncRefInspection | null;
   note: { commit: string } | null;
-  localSyncState: { sourceCommit: string; savedAt?: string } | null;
+  localSyncState: { sourceCommit: string; savedAt?: string; notesRefTip?: string } | null;
 }): Promise<{ cause: UserSyncCause; confidence: UserSyncCauseConfidence } | undefined> {
   const { io, offline, refInspection, note, localSyncState } = input;
 
@@ -187,6 +198,7 @@ async function classifyUserSyncCause(input: {
     ? localSyncState.sourceCommit
     : null;
   const savedAt = localSyncState?.savedAt ?? null;
+  const localSyncNotesRefTip = localSyncState?.notesRefTip ?? null;
   const latestNoteRefHistoryEntry = note?.commit ?? null;
   const headReachable = sourceCommit
     ? await isAncestor(io, sourceCommit, "HEAD")
@@ -199,6 +211,7 @@ async function classifyUserSyncCause(input: {
       remoteRefHash: null,
       sourceCommit,
       savedAt,
+      localSyncNotesRefTip,
       latestNoteRefHistoryEntry,
       headReachable,
       offline: true,
@@ -213,6 +226,7 @@ async function classifyUserSyncCause(input: {
     remoteRefHash: refInspection.remoteHash,
     sourceCommit,
     savedAt,
+    localSyncNotesRefTip,
     latestNoteRefHistoryEntry,
     headReachable,
     offline: false,
@@ -342,6 +356,10 @@ async function inspectSessionLocalNoteFreshness(input: {
       commit: null,
       commitShort: null,
       ancestorDistance: 0,
+      wuScoped: currentWuName !== undefined,
+      ...(currentWuName !== undefined
+        ? { seedPresent: await sessionNotesSeedExists(input.cwd, input.io, input.identity, currentWuName) }
+        : {}),
     };
   }
 
@@ -359,6 +377,27 @@ async function inspectSessionLocalNoteFreshness(input: {
     return { state: "ancestor", ...base };
   }
   return { state: "current-head", ...base };
+}
+
+/**
+ * Whether the WU's SESSION-NOTES.md is present on disk — the spawn/start seed,
+ * written to `user/{identity}/{wuName}/` before any `arc user save`. Distinguishes
+ * the benign "seeded but not yet saved" freshness state from an unexpected "no
+ * personal context anywhere for this work unit" gap.
+ */
+async function sessionNotesSeedExists(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+  wuName: string,
+): Promise<boolean> {
+  const seedPath = join(cwd, ".arc", "user", identity, wuName, "SESSION-NOTES.md");
+  try {
+    await io.readFile(seedPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 interface UserSyncRefInspection {
@@ -424,15 +463,18 @@ async function resolveUserSyncCoherenceState(input: {
   const marker = syncState?.partialPush;
   if (!marker) return undefined;
 
-  if (!refInspection.localHash || marker.localRefHash !== refInspection.localHash) {
-    await clearPartialPushMarker(cwd, io, identity);
+  let markerStillNamesLocalHistory = false;
+  if (refInspection.localHash) {
+    markerStillNamesLocalHistory = marker.localRefHash === refInspection.localHash
+      || await isAncestor(io, marker.localRefHash, refInspection.localHash);
+  }
+  if (!markerStillNamesLocalHistory) {
     return undefined;
   }
 
   if (refInspection.state === "local-ahead") return "partial-push";
   if (refInspection.state === "remote-unavailable") return "partial-push-unverified";
 
-  await clearPartialPushMarker(cwd, io, identity);
   return undefined;
 }
 
@@ -584,7 +626,18 @@ function renderSessionLocalNoteFreshness(
 
   switch (freshness.state) {
     case "missing":
-      return ["No local user note exists for this identity."];
+      if (!freshness.wuScoped) {
+        return ["No local user note exists for this identity."];
+      }
+      return freshness.seedPresent
+        ? [
+            "SESSION-NOTES seeded on disk for this work unit; not yet saved to the notes ref " +
+            "(saves at first handoff).",
+          ]
+        : [
+            "No SESSION-NOTES for this work unit — none on disk and none in the notes ref. " +
+            "A seed was expected at spawn/start; the workspace may not have been opened, or the seed was removed.",
+          ];
     case "current-head":
       return ["Latest local user note is current with HEAD."];
     case "ancestor":
@@ -618,6 +671,7 @@ interface BuildUserStatusInput {
   unsavedDirection?: UserUnsavedDirection | null;
   backupFiles: string[];
   remoteIdentities: UserStatusRemoteIdentity[];
+  compactionAdvisory?: NotesCompactionAdvisory;
   /**
    * Worktree-sync probe result. Pass `undefined` when no probe was attempted
    * (e.g. `--offline`, or `session.remote_sync: disabled`).
@@ -651,10 +705,30 @@ interface BuildUserStatusInput {
    * Drives the cause-aware detail line and action-oriented headline.
    */
   userSyncCause?: { cause: UserSyncCause; confidence: UserSyncCauseConfidence };
+  /**
+   * Whether a current WU resolved (work-unit-scoped). With no current WU
+   * (identity-scoped — an errand or between-WUs), a missing note speaks to the
+   * identity's whole notes ref. Drives WU-vs-identity phrasing of the
+   * "no local user note" line.
+   */
+  wuScoped?: boolean;
+  /**
+   * For a WU-scoped missing note: whether the WU's SESSION-NOTES.md is present
+   * on disk — seeded by spawn/start but not yet saved to the notes ref.
+   * Distinguishes the benign "seeded, unsaved" state from an unexpected "no
+   * personal context anywhere" gap.
+   */
+  seedPresent?: boolean;
 }
 
 const FIRST_USE_ORIENTATION_HINT =
   "New here? Run `arc user --help` to learn about user notes.";
+
+const NO_COMPACTION_ADVISORY: NotesCompactionAdvisory = {
+  historyCommitCount: 0,
+  threshold: 0,
+  shouldSuggest: false,
+};
 
 export function buildUserStatusResult(
   input: BuildUserStatusInput,
@@ -674,6 +748,7 @@ export function buildUserStatusResult(
   const currentBranch = input.currentBranch ?? null;
   const savedAtRelative = input.savedAtRelative ?? null;
   const unsavedDirection = input.unsavedDirection ?? null;
+  const compactionAdvisory = input.compactionAdvisory ?? NO_COMPACTION_ADVISORY;
 
   const spine = input.spine ?? computeUserSyncSpine({
     remoteSyncEnabled: remoteChecked,
@@ -723,6 +798,7 @@ export function buildUserStatusResult(
       savedAtRelative,
       backupFiles,
       remoteIdentities,
+      compactionAdvisory,
       actionHint,
     })
     : buildDefaultDetailLines({
@@ -734,6 +810,7 @@ export function buildUserStatusResult(
       diskState,
       savedAtRelative,
       backupFiles,
+      compactionAdvisory,
       actionHint,
     });
 
@@ -772,6 +849,7 @@ export function buildUserStatusResult(
     unsavedDirection,
     backupFiles,
     remoteIdentities,
+    compactionAdvisory,
     ...(input.worktree ? { worktree: input.worktree } : {}),
     ...(input.userSyncCause
       ? {
@@ -956,6 +1034,7 @@ interface VerboseDetailInput {
   savedAtRelative: string | null;
   backupFiles: string[];
   remoteIdentities: UserStatusRemoteIdentity[];
+  compactionAdvisory: NotesCompactionAdvisory;
   actionHint: string | null;
 }
 
@@ -975,6 +1054,7 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
     savedAtRelative,
     backupFiles,
     remoteIdentities,
+    compactionAdvisory,
     actionHint,
   } = args;
   const detailLines: string[] = [];
@@ -1023,7 +1103,17 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
       `${noteOffBranchHistoryClause(currentBranch)}.`,
     );
   } else if (!savedCommit && diskState === "different") {
-    detailLines.push("No local user note exists yet for this identity.");
+    if (input.wuScoped) {
+      detailLines.push(
+        input.seedPresent
+          ? "SESSION-NOTES seeded on disk for this work unit; not yet saved to the notes ref " +
+            "(saves at first handoff)."
+          : "No SESSION-NOTES for this work unit — none on disk and none in the notes ref. " +
+            "A seed was expected at spawn/start; the workspace may not have been opened, or the seed was removed.",
+      );
+    } else {
+      detailLines.push("No local user note exists yet for this identity.");
+    }
   }
 
   if (backupFiles.length > 0) {
@@ -1036,6 +1126,8 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
       .join(", ");
     detailLines.push(`Remote identities: ${identities}`);
   }
+
+  appendCompactionAdvisoryLine(detailLines, compactionAdvisory);
 
   if (actionHint) {
     detailLines.push(`Next step: ${actionHint}`);
@@ -1053,6 +1145,7 @@ interface DefaultDetailInput {
   diskState: UserSyncDiskState;
   savedAtRelative: string | null;
   backupFiles: string[];
+  compactionAdvisory: NotesCompactionAdvisory;
   actionHint: string | null;
 }
 
@@ -1066,6 +1159,7 @@ function buildDefaultDetailLines(args: DefaultDetailInput): string[] {
     diskState,
     savedAtRelative,
     backupFiles,
+    compactionAdvisory,
     actionHint,
   } = args;
   const detailLines: string[] = [];
@@ -1085,11 +1179,24 @@ function buildDefaultDetailLines(args: DefaultDetailInput): string[] {
     detailLines.push(`Pre-load backup present (${backupFiles.length} files).`);
   }
 
+  appendCompactionAdvisoryLine(detailLines, compactionAdvisory);
+
   if (actionHint) {
     detailLines.push(`Next step: ${actionHint}`);
   }
 
   return detailLines;
+}
+
+function appendCompactionAdvisoryLine(
+  detailLines: string[],
+  advisory: NotesCompactionAdvisory,
+): void {
+  if (!advisory.shouldSuggest) return;
+  detailLines.push(
+    `User notes history has ${advisory.historyCommitCount} commit(s) `
+    + `(threshold ${advisory.threshold}); run \`arc user compact\` when ready.`,
+  );
 }
 
 function isHeadlineFullyClean(
@@ -1242,7 +1349,7 @@ export async function inspectUserSyncRefsDetailed(
   fetchTimeoutMs?: number,
 ): Promise<UserSyncRefInspection> {
   const localRef = `refs/notes/${notesRef(identity)}`;
-  const tempRef = `${TEMP_SYNC_REF_PREFIX}/${identity}`;
+  const tempRef = `${TEMP_SYNC_REF_PREFIX}/${identity}_${uniqueRefToken()}`;
 
   const localHash = await readRefHash(io, localRef);
   const remoteProbe = await readRemoteRefHash(io, localRef);
@@ -1338,7 +1445,7 @@ async function boundedNotesRefFetch(
   tempRef: string,
   timeoutMs?: number,
 ): Promise<void> {
-  const args = ["fetch", "origin", `+${localRef}:${tempRef}`];
+  const args = ["fetch", "--refmap=", "origin", `+${localRef}:${tempRef}`];
   if (timeoutMs === undefined) {
     await io.exec("git", args);
     return;
@@ -1472,6 +1579,8 @@ async function inspectDiskVsLocalSnapshot(
   const projectedNote = projectManifest(noteSnapshot.manifest);
   const noteHash = hashSyncManifest(projectedNote);
   const localSyncState = await readLocalSyncState(cwd, io, identity);
+  const materializedBaseline = await readMaterializedBaselineStampSafe(cwd, io, identity);
+  const materializedHash = materializedBaseline?.manifestHash ?? localSyncState?.materializedManifestHash;
 
   if (!diskManifest) {
     const missingFiles = missingNoteFiles(projectedNote, null);
@@ -1480,7 +1589,7 @@ async function inspectDiskVsLocalSnapshot(
     }
     return {
       state: "different",
-      diskStatus: localSyncState?.materializedManifestHash === noteHash
+      diskStatus: materializedHash === noteHash
         ? "local unsaved"
         : "stale",
       direction: "missing",
@@ -1517,8 +1626,9 @@ async function inspectDiskVsLocalSnapshot(
     };
   }
 
-  const materializedHash = localSyncState.materializedManifestHash;
   if (
+    materializedBaseline === null
+    &&
     noteSnapshot.sourceCommit !== localSyncState.sourceCommit
     && isComparableSourceCommit(localSyncState.sourceCommit)
   ) {
@@ -1537,7 +1647,9 @@ async function inspectDiskVsLocalSnapshot(
   if (materializedHash === noteHash) {
     diskStatus = "local unsaved";
   } else if (diskHash === materializedHash) {
-    diskStatus = localSyncState.sourceOperation === "load" ? "stale" : "local unsaved";
+    diskStatus = materializedBaseline !== null || localSyncState.sourceOperation === "load"
+      ? "stale"
+      : "local unsaved";
   } else {
     diskStatus = "mixed";
   }
@@ -1548,6 +1660,14 @@ async function inspectDiskVsLocalSnapshot(
     direction,
     missingFiles,
   };
+}
+
+async function readMaterializedBaselineStampSafe(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+): Promise<{ manifestHash: string } | null> {
+  return readMaterializedBaselineStamp(io.exec, cwd, identity);
 }
 
 export function deriveRemoteStatus(

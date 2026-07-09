@@ -6,11 +6,13 @@ import { tmpdir } from "node:os";
 import { loadReadyMineSlice } from "../../../src/lib/status/ready-mine-source.js";
 
 /** A minimal meta-file body with the readiness fields the source parses. */
-function meta(fields: { owner?: string; dependsOn?: string; cohort?: string; class?: string } = {}): string {
+function meta(
+  fields: { state?: string; owner?: string; dependsOn?: string; cohort?: string; class?: string } = {},
+): string {
   return [
     "# Metadata: x",
     "",
-    "- **State:** Planning",
+    `- **State:** ${fields.state ?? "Planning"}`,
     `- **Owner:** ${fields.owner ?? "andrew"}`,
     `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
     `- **Cohort:** ${fields.cohort ?? "[none]"}`,
@@ -59,12 +61,21 @@ describe("loadReadyMineSlice", () => {
     ]);
   });
 
-  it("treats a dependency on a shipped (absent) WU as satisfied", async () => {
+  it("treats a dependency on a completed WU as satisfied", async () => {
+    await seed(["completed"], "long-gone", meta({ state: "Shipped" }));
     await seed(["backlog", "planned"], "alpha", meta({ dependsOn: "long-gone", class: "light" }));
 
     const slice = await loadReadyMineSlice({ cwd: root, identity: "andrew" });
 
     expect(slice.map((r) => r.workUnit)).toEqual(["alpha"]);
+  });
+
+  it("does not treat a missing dependency target as satisfied", async () => {
+    await seed(["backlog", "planned"], "alpha", meta({ dependsOn: "typo-target", class: "light" }));
+
+    const slice = await loadReadyMineSlice({ cwd: root, identity: "andrew" });
+
+    expect(slice).toEqual([]);
   });
 
   it("returns an empty slice when there is no planned directory", async () => {

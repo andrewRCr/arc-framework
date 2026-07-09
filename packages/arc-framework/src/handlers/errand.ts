@@ -13,29 +13,40 @@
  * @module
  */
 
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+
 import * as p from "@clack/prompts";
 
 import { runActiveInFlight } from "../commands/active.js";
-import { detectForeignArtifactOverlap, projectInFlightToOverlapRoster } from "../lib/git/index.js";
+import { runUserInboxRemove } from "../commands/user.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-
 import {
-  openErrand,
-  linkErrandToInbox,
-  closeErrand,
-  retireErrand,
-  promoteErrand,
-  isErrandBranchType,
-  ERRAND_BRANCH_TYPES,
   DEFAULT_ERRAND_BRANCH_TYPE,
+  ERRAND_BRANCH_TYPES,
+  closeErrand,
+  isErrandBranchType,
+  linkErrandToInbox,
+  openErrand,
+  promoteErrand,
+  retireErrand,
 } from "../lib/errand/index.js";
+import {
+  detectForeignArtifactOverlap,
+  projectInFlightToOverlapRoster,
+  type ForeignArtifactDetectionResult,
+} from "../lib/git/index.js";
+import {
+  renderInFlightWarning,
+  type InFlightWarning,
+} from "../lib/git/in-flight-derivation.js";
+import { gitExec, createUserIOContext } from "../lib/io-context.js";
+import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
   clearErrandPartialPushMarker,
   recordErrandPartialPushMarker,
 } from "../lib/user-sync/index.js";
-import { runUserInboxRemove } from "../commands/user.js";
-import { gitExec, createUserIOContext } from "../lib/io-context.js";
+import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 
 export interface ErrandCheckOptions {
@@ -47,6 +58,27 @@ export interface ErrandCheckOptions {
   local?: boolean;
   /** `--no-fetch`: Commander sets `fetch === false` — same effect as `--local`. */
   fetch?: boolean;
+}
+
+export function formatErrandCheckCaveats(result: ForeignArtifactDetectionResult): string[] {
+  return [
+    ...(result.skipped ?? []).map(
+      (entry) =>
+        `${entry.branch}  skipped  marked ${entry.marks.join(", ")}  (${entry.worktreePath ?? "remote-only"})`,
+    ),
+    ...(result.indeterminate ?? []).map(
+      (entry) => `${entry.branch}  caveat  probe indeterminate  (${entry.worktreePath ?? "remote-only"})`,
+    ),
+    ...(result.notes ?? []),
+  ];
+}
+
+export function buildErrandCheckJsonEnvelope(
+  result: ForeignArtifactDetectionResult,
+  warnings: readonly InFlightWarning[],
+  reachable: boolean,
+): ForeignArtifactDetectionResult & { warnings: readonly InFlightWarning[]; reachable: boolean } {
+  return { ...result, warnings, reachable };
 }
 
 export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void> {
@@ -70,12 +102,23 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
   const teamMode = settings["team.mode"] === "true";
   const baseBranch = settings["branch.base"];
   const localOnly = Boolean(opts.local) || opts.fetch === false;
+  const parkedSlugs = listParkedSlugs(
+    await buildLifecycleIndex({
+      cwd,
+      fs: {
+        readdir: (path) => readdir(path, { withFileTypes: true }),
+        readFile: (path) => readFile(path, "utf8"),
+      },
+    }),
+  );
 
-  const { entries, reachable } = await runActiveInFlight({
+  const { entries, warnings, snapshot, reachable } = await runActiveInFlight({
     exec: gitExec,
     identity,
     teamMode,
     localOnly,
+    baseBranch,
+    parkedSlugs,
   });
 
   const result = await detectForeignArtifactOverlap({
@@ -84,24 +127,35 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     targetPaths,
     baseBranch,
     originatingWorktreePath: await currentWorktreePath(cwd),
+    originatingMetaPath: await resolveOriginatingMetaPath(cwd),
+    snapshot,
   });
 
   if (opts.json) {
-    process.stdout.write(`${JSON.stringify({ ...result, reachable })}\n`);
+    process.stdout.write(`${JSON.stringify(buildErrandCheckJsonEnvelope(result, warnings, reachable))}\n`);
     return;
   }
 
   p.intro("arc errand check");
-  if (result.overlaps.length === 0) {
+  const caveats = formatErrandCheckCaveats(result);
+  if (result.overlaps.length === 0 && caveats.length === 0) {
     p.note("No in-flight work unit touches the target — proceed without a caveat.", "Advisory");
   } else {
     const lines = result.overlaps.map(
       (o) => `${o.branch}  touches  ${o.matchedPaths.join(", ")}  (${o.worktreePath ?? "remote-only"})`,
     );
-    p.note(lines.join("\n"), "Foreign overlap — coordinate or sequence after it integrates");
+    p.note(
+      [...lines, ...caveats].join("\n"),
+      result.overlaps.length > 0
+        ? "Foreign overlap — coordinate or sequence after it integrates"
+        : "Advisory caveat — review before proceeding",
+    );
   }
   if (!reachable && !localOnly) {
     p.log.warn("Remote unreachable — checked local refs only; work in flight on another machine may be missed.");
+  }
+  for (const warning of warnings) {
+    p.log.warn(renderInFlightWarning(warning));
   }
   p.outro("Done.");
 }

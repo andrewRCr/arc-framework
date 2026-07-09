@@ -83,6 +83,15 @@ export async function resolveActiveWu(
 }
 
 /**
+ * Resolve the current work unit's active meta path, when a single active WU is
+ * available. Callers use this as a remote-only self-exclusion key.
+ */
+export async function resolveOriginatingMetaPath(cwd: string): Promise<string | undefined> {
+  const activeWu = await resolveActiveWu({ cwd });
+  return activeWu.status === "resolved" ? activeWu.path : undefined;
+}
+
+/**
  * Parse the WU name from the resolved meta-file path. Reads the basename
  * and matches the `meta-{name}.md` shape; anything else — e.g. the
  * lite-layout `status.md` — yields the empty string.

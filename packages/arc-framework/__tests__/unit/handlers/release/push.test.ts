@@ -479,7 +479,7 @@ describe("runReleasePush — code 14 (pushability-precheck-failed)", () => {
   it("does not refuse on auto-fixed disposition (matrix self-resolved)", async () => {
     await writeStatus(fixture.root, "sample");
     const condition: PushabilityCondition = {
-      kind: "missing-notes-refspec",
+      kind: "detached-head",
       disposition: "auto-fixed",
       guidance: "Auto-configured.",
     };

@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** `work-organization-reform`
+- **Depends On:** `project-state-integrity`
 
 - **Origin:** [internal]
 - **Design:** `draft-roadmap-tooling.md`

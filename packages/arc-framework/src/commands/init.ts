@@ -243,7 +243,7 @@ export async function runInit(
   // Set role — init is always the maintainer (contributors use arc join)
   await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);
 
-  // Identity, user directory, and notes refspec setup
+  // Identity and user directory setup
   await runPostInitSetup({
     arcDir, internalTemplateDir, io, identityResult,
   });

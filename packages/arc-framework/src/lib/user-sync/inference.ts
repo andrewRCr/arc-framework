@@ -45,6 +45,8 @@ export interface InferUserSyncCauseInput {
   sourceCommit: string | null;
   /** `LocalSyncState.savedAt` (ISO-8601). Null for v2 pre-savedAt records or when sync-state is missing. */
   savedAt: string | null;
+  /** Local notes-ref tip recorded by this worktree's last save/load. Null for legacy sync-state records. */
+  localSyncNotesRefTip: string | null;
   /** Latest annotated commit in the local notes-ref history walk; null when history is empty. */
   latestNoteRefHistoryEntry: string | null;
   /** Whether `sourceCommit` is reachable from current HEAD. */
@@ -97,9 +99,15 @@ export function inferUserSyncCause(
       return { cause: "unfetched-local", confidence };
 
     case "diverged":
+      if (localTipAdvancedPastThisWorktree(input)) {
+        return { cause: "concurrent-local-writer", confidence };
+      }
       return { cause: "cross-machine", confidence };
 
     case "local-ahead": {
+      if (localTipAdvancedPastThisWorktree(input)) {
+        return { cause: "concurrent-local-writer", confidence };
+      }
       const concurrentWriter =
         !input.headReachable
         && input.latestNoteRefHistoryEntry !== null
@@ -116,6 +124,12 @@ export function inferUserSyncCause(
     default:
       return { cause: "unknown", confidence: "low" };
   }
+}
+
+function localTipAdvancedPastThisWorktree(input: InferUserSyncCauseInput): boolean {
+  return input.localSyncNotesRefTip !== null
+    && input.localRefHash !== null
+    && input.localSyncNotesRefTip !== input.localRefHash;
 }
 
 function recencyConfidence(

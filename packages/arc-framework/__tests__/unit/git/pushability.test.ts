@@ -160,7 +160,7 @@ describe("runPushabilityStatus", () => {
     expect(result.conditions.find((c) => c.kind === "no-upstream-branch")).toBeUndefined();
   });
 
-  it("notes-ref refspec missing on target 'notes' auto-configures and re-probe shows installed", async () => {
+  it("notes target does not install a fetch refspec when the notes wildcard is absent", async () => {
     const fetchOutputs = ["+refs/heads/*:refs/remotes/origin/*"];
     const { exec, calls } = buildExec({
       [REBASE_MERGE_PATH]: { stdout: "/repo/.git/rebase-merge", stderr: "" },
@@ -180,9 +180,7 @@ describe("runPushabilityStatus", () => {
     const first = await runPushabilityStatus({ exec, access, target: "notes" });
 
     expect(first.allowed).toBe(true);
-    const refspec = first.conditions.find((c) => c.kind === "missing-notes-refspec");
-    expect(refspec?.disposition).toBe("auto-fixed");
-    expect(refspec?.guidance).toContain("auto-configured");
+    expect(first.conditions).toEqual([]);
 
     expect(
       calls.some((c) =>
@@ -191,10 +189,10 @@ describe("runPushabilityStatus", () => {
           && c.args[2] === "remote.origin.fetch"
           && c.args[3] === "+refs/notes/arc/user/*:refs/notes/arc/user/*",
       ),
-    ).toBe(true);
+    ).toBe(false);
 
     const second = await runPushabilityStatus({ exec, access, target: "notes" });
-    expect(second.conditions.find((c) => c.kind === "missing-notes-refspec")).toBeUndefined();
+    expect(second.conditions).toEqual([]);
   });
 
   it("force-push required (diverged worktree) surfaces advisory condition", async () => {

@@ -45,9 +45,11 @@ const mockRemoveStaleUserWuSubdir = vi.fn();
 const mockReconcileRetiredSubdirsStandalone = vi.fn();
 const mockRunUserStatus = vi.fn();
 const mockRunUserSessionInitStatus = vi.fn();
+const mockRunUserCompact = vi.fn();
 const mockHasLocalNotes = vi.fn();
 const mockBuildSaveSummary: Mock<(result: unknown) => string> = vi.fn(() => "");
 const mockBuildLoadSummary: Mock<(result: unknown) => string> = vi.fn(() => "");
+const mockBuildUserCompactSummary: Mock<(result: unknown) => string> = vi.fn(() => "");
 const mockBuildUserStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 const mockBuildUserSessionInitStatusSummary = vi.fn((result: { summary?: string }) => result.summary ?? "");
 
@@ -75,9 +77,11 @@ vi.mock("../../src/commands/user.js", () => ({
   runUserPull: (...args: unknown[]) => mockRunUserPull(...args),
   runUserStatus: (...args: unknown[]) => mockRunUserStatus(...args),
   runUserSessionInitStatus: (...args: unknown[]) => mockRunUserSessionInitStatus(...args),
+  runUserCompact: (...args: unknown[]) => mockRunUserCompact(...args),
   hasLocalNotes: (...args: unknown[]) => mockHasLocalNotes(...args),
   buildSaveSummary: (result: unknown) => mockBuildSaveSummary(result),
   buildLoadSummary: (result: unknown) => mockBuildLoadSummary(result),
+  buildUserCompactSummary: (result: unknown) => mockBuildUserCompactSummary(result),
   buildUserSessionInitStatusSummary: (result: { summary?: string }) => mockBuildUserSessionInitStatusSummary(result),
   buildUserStatusSummary: (result: { summary?: string }) => mockBuildUserStatusSummary(result),
   UserPushBlockedError: MockUserPushBlockedError,
@@ -110,6 +114,28 @@ vi.mock("../../src/handlers/shared.js", () => ({
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   requireArcProjectRoot: () => process.cwd(),
   resolveCurrentBranchName: async () => "feature/x",
+  isUserFetchSuccess: (result: { kind: string }) =>
+    result.kind === "fast-forwarded" || result.kind === "created",
+  isUserFetchOutcome: (result: { kind: string } | null) =>
+    result !== null && result.kind !== "loaded",
+  reportUserFetchOutcome: (
+    result: { kind: string; error?: Error },
+    identity: string,
+    operation: "fetch" | "pull",
+  ) => {
+    if (result.kind === "remote-unavailable") {
+      const message = result.error?.message ?? "";
+      if (message.includes("couldn't find remote ref")) {
+        mockLog.warn(`No notes found on remote for identity "${identity}".`);
+      } else {
+        mockLog.error(`Failed to ${operation} user notes: ${message}`);
+      }
+      process.exitCode = 1;
+      return;
+    }
+    mockLog.error(`${operation} refused for ${identity}`);
+    process.exitCode = 1;
+  },
   ARC_PROJECT_ROOT_ERROR: "Not inside an ARC project (no .arc/ directory found walking up from cwd).",
 }));
 
@@ -141,7 +167,7 @@ vi.mock("../../src/handlers/push-recovery.js", () => ({
 
 const {
   handleUserPush, handleUserFetch, handleUserPull, handleUserLoad, handleUserStatus,
-  handleUserOpen, handleUserClose,
+  handleUserOpen, handleUserClose, handleUserCompact,
 } = await import("../../src/handlers/user.js");
 
 /**
@@ -292,34 +318,43 @@ describe("handleUserFetch flow", () => {
     process.exitCode = undefined;
   });
 
-  it("fetches without force when no local notes exist", async () => {
+  it("fetches through the guarded fetch path without an overwrite prompt", async () => {
     mockHasLocalNotes.mockResolvedValue(false);
-    mockRunUserFetch.mockResolvedValue(undefined);
+    mockRunUserFetch.mockResolvedValue({
+      kind: "fast-forwarded",
+      localTip: "local",
+      remoteTip: "remote",
+    });
 
     await handleUserFetch({});
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserFetch).toHaveBeenCalledWith(
-      expect.objectContaining({ force: false }),
-    );
+    const callArg = mockRunUserFetch.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
+    expect(callArg).not.toHaveProperty("force");
   });
 
-  it("fetches with force when local notes exist (no overwrite prompt)", async () => {
+  it("does not prompt or force-overwrite when local notes exist", async () => {
     mockHasLocalNotes.mockResolvedValue(true);
-    mockRunUserFetch.mockResolvedValue(undefined);
+    mockRunUserFetch.mockResolvedValue({
+      kind: "fast-forwarded",
+      localTip: "local",
+      remoteTip: "remote",
+    });
 
     await handleUserFetch({});
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserFetch).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true }),
-    );
+    const callArg = mockRunUserFetch.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
+    expect(callArg).not.toHaveProperty("force");
   });
 
   it("reports missing remote ref with identity hint", async () => {
-    mockRunUserFetch.mockRejectedValueOnce(
-      new Error("couldn't find remote ref refs/notes/arc/user/andrew"),
-    );
+    mockRunUserFetch.mockResolvedValue({
+      kind: "remote-unavailable",
+      error: new Error("couldn't find remote ref refs/notes/arc/user/andrew"),
+    });
 
     await handleUserFetch({});
 
@@ -355,12 +390,14 @@ describe("handleUserPull fetch+load flow", () => {
     await handleUserPull({});
 
     expect(mockRunUserPull).toHaveBeenCalledWith(
-      expect.objectContaining({ cwd: process.cwd(), force: false }),
+      expect.objectContaining({ cwd: process.cwd() }),
     );
+    const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).not.toHaveProperty("force");
     expect(mockOutro).toHaveBeenCalledWith("Done.");
   });
 
-  it("prompts before force-pulling when local notes exist", async () => {
+  it("prompts before pulling when local notes exist", async () => {
     mockHasLocalNotes.mockResolvedValue(true);
     mockConfirm.mockResolvedValue(true);
     mockRunUserPull.mockResolvedValue({
@@ -376,9 +413,9 @@ describe("handleUserPull fetch+load flow", () => {
     await handleUserPull({});
 
     expect(mockConfirm).toHaveBeenCalledTimes(1);
-    expect(mockRunUserPull).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true }),
-    );
+    const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
+    expect(callArg).not.toHaveProperty("force");
   });
 
   it("cancels cleanly when user declines overwrite", async () => {
@@ -406,9 +443,9 @@ describe("handleUserPull fetch+load flow", () => {
     await handleUserPull({ yes: true });
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserPull).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true }),
-    );
+    const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
+    expect(callArg).not.toHaveProperty("force");
   });
 
   it("bypasses overwrite confirm in non-TTY environments", async () => {
@@ -427,9 +464,9 @@ describe("handleUserPull fetch+load flow", () => {
     await handleUserPull({});
 
     expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserPull).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true }),
-    );
+    const callArg = mockRunUserPull.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(callArg).toEqual(expect.objectContaining({ identity: "andrew" }));
+    expect(callArg).not.toHaveProperty("force");
   });
 
   it("sets exitCode when pull returns no note after fetch", async () => {
@@ -440,6 +477,20 @@ describe("handleUserPull fetch+load flow", () => {
     expect(mockLog.warn).toHaveBeenCalledWith(
       expect.stringContaining("No saved user directory"),
     );
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("skips load rendering when guarded pull refuses local-ahead notes", async () => {
+    mockRunUserPull.mockResolvedValue({
+      kind: "refused-local-ahead",
+      localTip: "local",
+      remoteTip: "remote",
+    });
+
+    await handleUserPull({});
+
+    expect(mockLog.error).toHaveBeenCalledWith("pull refused for andrew");
+    expect(mockNote).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });
@@ -462,6 +513,55 @@ describe("handleUserLoad empty result", () => {
     );
     // Plain "no note" stays at exit 0 — unambiguous state, nothing to load.
     expect(process.exitCode).toBeUndefined();
+  });
+});
+
+describe("handleUserCompact", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    mockRunUserCompact.mockResolvedValue({
+      kind: "nothing-to-prune",
+      identity: "andrew",
+      retainedCount: 1,
+      prunedCount: 0,
+    });
+    mockBuildUserCompactSummary.mockReturnValue("Nothing to prune. Retained 1 note(s).");
+    process.exitCode = undefined;
+  });
+
+  it("renders the compact summary from the command layer", async () => {
+    await handleUserCompact({});
+
+    expect(mockRunUserCompact).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: process.cwd(), identity: "andrew" }),
+    );
+    expect(mockNote).toHaveBeenCalledWith("Nothing to prune. Retained 1 note(s).", "Compact");
+    expect(mockOutro).toHaveBeenCalledWith("Done.");
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("sets a failure exit code when compaction succeeds but marker publication fails", async () => {
+    mockRunUserCompact.mockResolvedValue({
+      kind: "compacted",
+      identity: "andrew",
+      generation: 3,
+      preCompactionTip: "a".repeat(40),
+      snapshotTip: "b".repeat(40),
+      backupRef: "refs/backup/arc-user-andrew-compaction-g2",
+      retainedCount: 5,
+      prunedCount: 10,
+      marker: "failed",
+      backupPrune: { deletedRefs: [], failedRefs: [] },
+    });
+    mockBuildUserCompactSummary.mockReturnValue("Generation marker: failed.");
+
+    await handleUserCompact({});
+
+    expect(mockNote).toHaveBeenCalledWith("Generation marker: failed.", "Compact");
+    expect(mockOutro).toHaveBeenCalledWith("Failed.");
+    expect(process.exitCode).toBe(1);
   });
 });
 

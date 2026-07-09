@@ -8,7 +8,8 @@
 
 import { describe, it, expect } from "vitest";
 
-import { buildLoadSummary } from "../../src/commands/user/format.js";
+import { buildLoadSummary, buildUserCompactSummary } from "../../src/commands/user/format.js";
+import type { UserCompactResult } from "../../src/commands/user/compact.js";
 import type { LoadMessage, UserLoadResult } from "../../src/commands/user/types.js";
 
 function baseResult(overrides: Partial<UserLoadResult>): UserLoadResult {
@@ -131,5 +132,27 @@ describe("buildLoadSummary — message register grouping", () => {
     expect(summary).not.toContain("Cleaned up:");
     expect(summary).not.toContain("Notices:");
     expect(summary).not.toContain("Warnings:");
+  });
+});
+
+describe("buildUserCompactSummary", () => {
+  it("surfaces a failed generation marker on an otherwise compacted result", () => {
+    const result: UserCompactResult = {
+      kind: "compacted",
+      identity: "andrew",
+      generation: 3,
+      preCompactionTip: "a".repeat(40),
+      snapshotTip: "b".repeat(40),
+      backupRef: "refs/backup/arc-user-andrew-compaction-g2",
+      retainedCount: 5,
+      prunedCount: 10,
+      marker: "failed",
+      backupPrune: { deletedRefs: [], failedRefs: [] },
+    };
+
+    const summary = buildUserCompactSummary(result);
+
+    expect(summary).toContain("Generation marker: failed.");
+    expect(summary).toContain("Generation marker publication failed");
   });
 });

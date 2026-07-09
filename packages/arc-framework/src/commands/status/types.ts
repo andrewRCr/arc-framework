@@ -46,6 +46,7 @@ import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retire
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
 import type { PartialPushMarkerSurfaceResult } from "../../lib/session-init/partial-push-marker-surface.js";
+import type { NotesCompactionSessionAdvisoryResult } from "../../lib/session-init/notes-compaction-advisory.js";
 import type { MaterializableWorkUnitsResult } from "../../lib/session-init/materializable-work-units.js";
 import type { WorkUnitStateResult } from "../../lib/session-init/work-unit-state.js";
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
@@ -316,6 +317,14 @@ export interface SessionInitProbeResult {
    * degrade-silent).
    */
   partialPushMarker?: Probe<PartialPushMarkerSurfaceResult>;
+  /**
+   * Pre-computed user-notes compaction advisory — local notes-ref history size
+   * compared to the internal threshold, plus a once-per-calendar-day nudge
+   * marker. Present whenever identity resolved; omitted only when identity is
+   * absent. Workflow renders it as offer-only guidance and never auto-runs
+   * compaction.
+   */
+  compactionAdvisory?: Probe<NotesCompactionSessionAdvisoryResult>;
   /**
    * Pre-computed plate-balance signal — the resolved `Class` composition
    * (`Novel` / `Heavy` / `Light` counts) of the in-flight work units the roster
@@ -634,6 +643,8 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * eager phase whenever identity resolved; read-only, network-free.
    */
   partialPushMarker: (identity: string) => Promise<PartialPushMarkerSurfaceResult>;
+  /** User-notes compaction advisory resolver. Fired eagerly whenever identity resolved when provided. */
+  compactionAdvisory?: (identity: string) => Promise<NotesCompactionSessionAdvisoryResult>;
   /**
    * Active-WU cohort-doc resolver. Receives the resolved active meta path; the
    * handler binds the cwd and filesystem ops. Reads the meta's `Cohort` value

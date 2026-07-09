@@ -1,4 +1,4 @@
-# Metadata: user-notes-retention
+# Metadata: parallel-surface-access
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -8,7 +8,7 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-user-notes-retention.md`
+- **Design:** `draft-parallel-surface-access.md`
 - **Task List:** [none]
 
 - **Current Workflow:** [none]

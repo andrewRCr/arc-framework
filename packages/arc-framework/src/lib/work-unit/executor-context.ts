@@ -47,12 +47,13 @@ import {
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
-import { composeProjectReadinessView } from "../status/project-view.js";
+import { renderTrackedProjectReadinessView } from "../status/project-roadmap-render.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
+import { listParkedSlugs } from "./lifecycle-resolver.js";
 import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-executor.js";
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
@@ -76,6 +77,8 @@ export interface ExecutorContextDeps {
   identity: string | null;
   /** Team mode — gates the `STATUS.USER` in-flight oracle's identity filtering. */
   teamMode: boolean;
+  /** Resolved `branch.base` for the in-flight oracle; omitted falls back to the oracle default. */
+  baseBranch?: string;
   /** Internal template directory for the user-workspace SESSION-NOTES seed. */
   internalTemplateDir: string;
 }
@@ -89,7 +92,7 @@ export interface ExecutorContextDeps {
  * @returns The bound executor context, ready to pass to {@link executeTransition}.
  */
 export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransitionContext {
-  const { cwd, io, identity, teamMode, internalTemplateDir } = deps;
+  const { cwd, io, identity, teamMode, baseBranch, internalTemplateDir } = deps;
 
   /** Resolve a cwd-relative path (the shape the executor passes) to an absolute one. */
   const at = (p: string): string => (isAbsolute(p) ? p : join(cwd, p));
@@ -99,16 +102,6 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
   // guard checks the *target worktree*, not the base repo). Order matters: `cwd`
   // first as the default, `...opts` last so a supplied `opts.cwd` overrides it.
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
-
-  /** Best-effort freshness marker for generated readiness views. */
-  const renderedRef = async (): Promise<string> => {
-    try {
-      const { stdout } = await exec("git", ["rev-parse", "--short", "HEAD"]);
-      return stdout.trim() || "working tree";
-    } catch {
-      return "working tree";
-    }
-  };
 
   /** The lifecycle-index scan seam — shared by the executor's entry build and the discharge side-effect. */
   const indexFs: LifecycleIndexFs = {
@@ -260,13 +253,11 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
         reconcileRoadmap(
           {
             composeView: async () =>
-              composeProjectReadinessView({
+              renderTrackedProjectReadinessView({
                 cwd,
-                renderedRef: await renderedRef(),
-                fs: {
-                  readFile: (p) => io.readFile(p),
-                  readdir: (p) => readdir(p, { withFileTypes: true }),
-                },
+                exec,
+                fs: indexFs,
+                ...(baseBranch !== undefined ? { baseBranch } : {}),
               }),
             mkdir: io.mkdir,
             writeFile: io.writeFile,
@@ -287,8 +278,8 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
                   identity,
                   teamMode,
                   localOnly: true,
+                  parkedSlugs: listParkedSlugs(await buildLifecycleIndex({ cwd, fs: indexFs })),
                   readFile: io.readFile,
-                  readdir: (p) => readdir(p),
                 })
               ).output,
             mkdir: io.mkdir,
