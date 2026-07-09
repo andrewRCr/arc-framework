@@ -49,47 +49,50 @@ worktree). Do not prune it during branch hygiene until the concurrency-harness w
 it. The wave-1 phantom-overlap signature: the detector's own probes return empty on re-run — transient truth,
 unreproducible minutes later.
 
-## Deferred design reckoning — parked-WU topology (recorded 2026-07-08)
+## Parked-WU topology — design reckoning (settled 2026-07-08)
 
-Task generation ran a four-pass adversarial-review loop (task-audit rubric, full depth). Passes 1–3 plus
-three pass-4 findings are folded into the suite; one pass-4 major is **deliberately deferred, not patched** —
-it needs design consideration the draft/spec never gave it, and its cheap fix would deepen a derivation
-`wu-lifecycle-state-model` may rework.
+Task generation ran a four-pass adversarial-review loop (task-audit rubric, full depth); passes 1–3 plus
+three pass-4 findings are folded into the suite. The remaining pass-4 major — parked-WU topology — got a
+dedicated design reckoning rather than a patch; the outcome is folded into spec § A (parked classification)
+and § B (per-axis precedence) and the corresponding tasks. This section keeps the finding record and the
+rationale detail the spec summarizes.
 
 **The finding (verified against source).** park@Active leaves the WU's authoritative meta (`State: Active`,
 matching `Branch`) on the preserved, pushed branch and writes a pointer record to
 `.arc/backlog/planned/<name>/` that also stores the literal `State: Active` (`pointer-record.ts` ~53–65);
 `parked` is derived from the `(Active, planned)` position (`lifecycle-resolver.ts` ~52), and today's composer
-renders that pair as the Parked tier (`project-view.ts` ~247). The spec's § B composer precedence
-(active-meta-at-a-known-ref > backlog stub) is stated unconditionally, so as designed the preserved branch's
-at-ref meta would supersede the park pointer and every parked WU would render **In Flight** — a false-fact
-class on the tier SC 2 protects. The oracle side inherits the same blindness: entry data alone cannot
-distinguish parked from in-flight (both are Active metas at live refs), and the materialize surface would
-offer a parked WU whose sanctioned verb is `arc resume` (pre-existing today). Related: `deactivate` /
-`reopen` are shipped backward lifecycle edges the draft/spec also never weighed (their dedupe-ordering
-consequence is already folded — ancestry-first — but their interaction with parked semantics is not).
+renders that pair as the Parked tier (`project-view.ts` ~247). A state-blind
+active-meta-over-stub precedence would have the preserved branch's at-ref meta supersede the park pointer and
+render every parked WU **In Flight** — a false-fact class on the tier SC 2 protects. The oracle side
+inherited the same blindness: entry data alone cannot distinguish parked from in-flight (both are Active
+metas at live refs), and the materialize surface would offer a parked WU whose sanctioned verb is
+`arc resume` (pre-existing today).
 
-**Proposed-but-deferred resolution (the cheap discriminator).** Precedence becomes state-aware: a backlog
-record deriving `parked` (`(Active, planned)` via the lifecycle map Task 4.2 wires in) is authoritative over
-the at-ref active meta; the In Flight supersede applies only to `planning`-derived stubs. Plus a materialize
-parked-exclusion via the same index.
+**Settled design — per-axis precedence behind one classifier.** The rule is axis-shaped and survives WLSM's
+reform: a park pointer record is authoritative for *scheduling-tier membership* (Parked, never In Flight;
+the In Flight supersede applies only to non-parked slugs); the at-ref branch meta stays authoritative for
+*progress facts* (row fields, dep classification — a parked WU's dep edges classify pending). "Is this
+parked" resolves only through the lifecycle classifier's canonical `(Active, planned)` → `parked` map —
+unambiguous today, since that pair arises solely via park@Active — so WLSM's scheduling-axis reform swaps
+the classifier while the rule and its consumers stay put. The oracle stamps entries from an injected
+parked-slug set resolved through the same classifier (a domain classification, not a degradation mark);
+materialize surfaces exclude parked, the foreign-write advisory drops parked candidates (a shelf is frozen —
+collision resolves at resume), and views render parked as parked. **No interim park-model change**: an
+explicit stored scheduling field would build WLSM's axis ahead of its design, and parking has never been
+exercised (zero parked WUs), so migration stays free whenever WLSM lands.
 
-**Why deferred.** The discriminator reads truth off the exact `(State, location)` conflation — a stored
-false `State: Active` disambiguated by directory — that `wu-lifecycle-state-model`'s two-axis reform exists
-to unwind; parking is a scheduling-axis act under that model and may be re-modeled entirely. Parking and
-backward transitions are built but never exercised, so the risk is latent, not live. Codifying the
-discriminator now creates day-one reconciliation debt; deciding the topology fresh may instead yield an
-interim park-record change, a different precedence model, or an explicit charter boundary deferring parked
-semantics to WLSM.
-
-**The reckoning (next session's resume point).** Give parked + backward transitions the design consideration
-they never got — with `draft-wu-lifecycle-state-model.md` open beside the spec — and settle: (a) the
-composer-precedence rule for park pointers; (b) whether the oracle roster carries parked WUs and how
-consumers (materialize, foreign-write, views) treat them; (c) whether any interim park-model change is
-warranted before WLSM. Then: fold the outcome into spec + tasks, re-run the final suite-coherence pass,
-optionally run adversarial pass 5 (the agreed stopping check), and finalize
-(`arc finalize generate-tasks --class Heavy` + ceremony commit). A coordination capture for WLSM's side of
-the seam is in `USER-INBOX` (`WU_Target: wu-lifecycle-state-model`).
+**Grounding — the pause-is-orthogonal idiom.** Convergent across domains: OS process suspension
+(suspended-ready / suspended-blocked composite states), statechart history states, BPMN instance suspension,
+kanban's blocked-as-annotation and parking-lot, scrum's de-scoping (sprint removal leaves refinement
+untouched). Interruption lives on an orthogonal scheduling axis that preserves progress-axis position — it
+is never modeled as a backward move. Backward moves on the progress axis are their own deliberate acts
+(issue-tracker reopen, Definition-of-Ready decay and re-attestation); under an event log they stop being
+"backward" at all (append-only log, non-monotonic projection) — the shape the ancestry-first dedupe already
+assumes ("`State` never leads"). park@Active had the concept right (State preserved, only the shelf changes)
+and the encoding wrong (directory position doubling as the scheduling bit). The axis-decomposition framing
+for the backward verbs (`deactivate` ≈ readiness-revocation ± de-schedule; `park` = pure de-schedule;
+`reopen` a genuine progress-axis retreat) is captured to WLSM's seam in `USER-INBOX`
+(`WU_Target: wu-lifecycle-state-model`).
 
 ## Rationale detail
 

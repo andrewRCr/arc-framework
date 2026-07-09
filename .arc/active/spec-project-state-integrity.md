@@ -50,7 +50,8 @@ on `main`, verified).
 1. **Deterministic roster.** In-flight roster derivation reports correct, stable facts under concurrent
    worktree churn — no phantom overlaps, no phantom remote-only WUs, no invisible unpushed in-flight WUs.
 2. **True readiness facts.** A `main`-checkout render shows in-flight WUs as in flight (superseding their stale
-   backlog stubs) and flags dangling dependency edges instead of rendering them satisfied.
+   backlog stubs), parked WUs as parked (never In Flight), and flags dangling dependency edges instead of
+   rendering them satisfied.
 3. **Contention ends.** The readiness view is a purely-derived projection: never hand-merged, any conflict
    resolves by re-render from sources (regenerate-wins), asserted by hook.
 4. **Forward-compatible seams, nothing built ahead.** The design stays model-agnostic to WLSM's coming
@@ -66,7 +67,8 @@ on `main`, verified).
 - **Always-fresh passive-file access** (materialize-on-demand, hub-window DX) — `parallel-surface-access` /
   arc-backend tier. Untracking or materializing `ROADMAP.md` is deliberately not built here.
 - **WLSM's readiness signal** — no attestation model, no new stored `State` values; only the provider socket
-  (deps-only implementation) ships here.
+  (deps-only implementation) ships here. Likewise no interim park-record re-model: parked stays derived
+  behind the single lifecycle classifier — giving parking an explicit scheduling-axis home is WLSM's.
 - **Corpus-wide gate validation of dependency edges** — `corpus-conformance-gate`'s (OSD cohort); this WU
   surfaces dangling edges through the composer's warnings channel only.
 
@@ -108,12 +110,23 @@ location-ambiguous entries as indeterminate (skips-with-note, below).
 warnings channel and marks affected entries. Degraded facts are *marked*, never shape-identical to healthy
 ones; consumers qualify ("derived degraded") instead of asserting false facts confidently.
 
+**Parked classification — the scheduling overlay, one classifier.** A parked WU (park@Active) is two sources:
+the preserved branch whose at-ref meta still reads `State: Active`, and a pointer record on the tracked tree
+deriving `parked` from its `(Active, planned)` position. Meta presence alone would roster it in-flight — a
+false fact on the scheduling axis. The derivation therefore takes an injected parked-slug set (resolved by the
+wrapper layers from the checkout's backlog records through the existing lifecycle classifier — the one place
+the `(Active, planned)` conflation is read; WLSM's reform swaps that classifier, not its consumers) and stamps
+matching entries with a `parked` scheduling classification — a domain fact, distinct from the degradation
+marks. Consumers filter by axis: the materialize surfaces exclude parked entries (the sanctioned verb is
+`arc resume`), the foreign-write advisory drops parked candidates (a shelf is frozen; collision with it
+resolves at resume time, not at a sibling's commit), and the views render parked as parked.
+
 **Identity-keyed self-exclusion.** The overlap detector excludes the originating WU by WU name, not
 worktree-path/meta-path equality — immune to ceremony windows (where `originatingMetaPath` is `undefined`) and
 to the WU's own stale duplicate refs.
 
 **Mutation-window discipline — double-read snapshot agreement.** The derivation reads its mutable input set
-(the ref listing and the worktree list) twice and requires agreement; disagreement means a mutation window is
+(the *local* ref listing and the worktree list) twice and requires agreement; disagreement means a mutation window is
 open, and the affected entries (or, on a whole-set mismatch, the derivation result) are marked indeterminate.
 Per-entry meta reads retry once against the agreed snapshot; a read that still fails marks that entry. The
 response splits by consumer:
@@ -145,13 +158,25 @@ identical across `main`, FP's branch, and this branch (2026-07-08), so no copy r
 **Composer input model.** A slug-keyed union with precedence — active-meta-at-a-known-ref > backlog stub >
 completed index. The composer is a **pure function over an injected slug-keyed record set** with an injectable
 sink: inputs are *resolved records* (the roster oracle + the meta record model), never raw markdown globs, and
-never an assumption that readiness is a field parsed out of `meta-*`.
+never an assumption that readiness is a field parsed out of `meta-*`. The union's oracle slice is
+**identity-unfiltered** — project surfaces render every owner's in-flight WUs; identity filtering is a
+consumer-side act only the user-scope view applies.
+
+**Per-axis precedence — the parked cut.** Precedence is per-axis, not per-record: a backlog record whose
+position derives `parked` is authoritative for **scheduling-tier membership** — the WU renders Parked, never
+In Flight — while the at-ref active meta stays authoritative for **progress facts** (it supplies the union
+record's row fields when present). The In Flight supersede applies only to slugs with no parked
+classification. On the dependency axis a parked WU classifies pending (its at-ref meta is `Active`, not
+`Shipped`), so deps on parked work block rather than read satisfied.
 
 **Dependency resolution — lifecycle primitive, not pending-set absence.** Dep satisfaction moves onto
 `buildLifecycleIndex` / `resolveSlugQuery`: `nonexistent` → dangling (warn), `shipped` → satisfied, pending →
 blocks. This closes the dangling-edge hole and the stale-stub luck-dependency in one move. No bespoke
-`completed/` scan. Dangling edges surface through the composer's warnings channel, rendered into the view
-header and the live view — no standalone `--check` command. The index backing this resolution is constructed
+`completed/` scan — and no second copy: the user view's ready slice (`ready-mine-source.ts`) resolves dep
+satisfaction by the same pipeline-absence rule today and moves onto the same classification; surfacing
+dangling edges in `STATUS.USER` chrome stays `roadmap-tooling`'s. Dangling edges surface through the
+composer's warnings channel, rendered into the view header and the live view — no standalone `--check`
+command. The index backing this resolution is constructed
 from the composer's injected record set — the filesystem-free construction (`buildLifecycleIndexFromMetas`)
 fed by the same slug-keyed union, including active-metas-at-known-refs — never a fresh disk scan. On a `main`
 checkout an in-flight WU therefore classifies as pending via its at-ref active meta even absent its backlog
@@ -209,6 +234,17 @@ network-verified oracle-composed view was rejected: renders become network/ref-s
 hazard this WU ends. Untracking/materializing the file is the deferred `parallel-surface-access` / arc-backend
 tier — this WU's pure composer deliberately makes that later slice thin, but does not build it.
 
+**Parked topology — per-axis precedence over a state-blind rule or an interim re-model.** The
+active-meta-over-stub precedence, applied state-blind, would render every parked WU In Flight — park@Active
+leaves an at-ref `Active` meta on the preserved branch that would shadow the deliberate pointer record. Two
+alternatives were rejected: a state-blind precedence flip (backlog record always wins) breaks the supersede
+tier's whole purpose, and an interim park-record re-model (an explicit stored scheduling field) builds WLSM's
+scheduling axis ahead of its design — parking has never been exercised, so migration stays free whenever WLSM
+lands. The per-axis rule survives the reform because the rule is axis-shaped; only the `(Active, planned)`
+classifier — quarantined as the single parked-classification read — gets swapped. The shape follows the
+convergent pause-is-orthogonal idiom (process suspension, statechart history states, kanban's
+blocked-as-annotation): interruption preserves progress-axis position; it is never a backward move.
+
 **Dependency resolution — lifecycle primitive over a bespoke scan.** `buildLifecycleIndex` /
 `resolveSlugQuery` already classifies a slug as `nonexistent` / `shipped` / pending and backs `arc status
 <slug>`; wiring the composer to it reuses the single identity substrate rather than minting a second
@@ -228,7 +264,10 @@ commits, and only sync distributes commits. The answer is the live read-time sur
   — keep this WU open to WLSM's axis without building any of it. The reciprocal commitment (WLSM mints no new
   stored `State` values; readiness lands as an orthogonal signal) is captured to `USER-INBOX` under
   `WU_Target: wu-lifecycle-state-model`. WLSM's landing is additive: a new provider plus a render-standard
-  decision elsewhere, with no composer-logic change.
+  decision elsewhere, with no composer-logic change. The parked seam rides the same contract: parked
+  classification is quarantined in the one lifecycle classifier (`(Active, planned)` → `parked` today), so
+  WLSM's scheduling-axis home for parking swaps the classifier, not its consumers; the reciprocal capture
+  also carries the axis-decomposition framing for the backward verbs (`deactivate` / `reopen`).
 - **OSD / ADR-022 (`managed-record-substrate`).** The readiness view is a *derived* managed operational-state
   document; this WU's regenerate-wins engine is a render-before-renderer first instance the general
   record/reconcile engine later absorbs. Coordinate the engine boundary; do **not** gate on it.
@@ -262,7 +301,8 @@ network cost, on demand only.
    reshuffle — produces stable, warning-marked output; and the two standing live false facts resolve (a stale
    `plan/<name>` ref no longer mints a phantom remote-only WU; an unpushed in-flight worktree is visible).
 2. **No false `Ready` facts:** a `main`-checkout render shows in-flight WUs as in flight (superseding their
-   stale backlog stubs) and flags dangling dependency edges instead of rendering them satisfied.
+   stale backlog stubs), parked WUs as parked (never In Flight), and flags dangling dependency edges instead
+   of rendering them satisfied.
 3. **Contention ends:** `ROADMAP.md` is never hand-merged — a manufactured conflict resolves by re-render
    (regenerate-wins), asserted by the pre-commit hook.
 
@@ -271,11 +311,3 @@ network cost, on demand only.
 - **The exact wave-1 phantom-overlap mechanism** is pinned during the (A) harness work, not guessed now — an
   implementation-time investigation inside a settled design (the failure-vector inventory bounds it), not
   deferred design.
-- **Parked-WU topology (open — pending a design reckoning).** park@Active produces an at-ref `Active` meta
-  shadowing a deliberate `backlog/planned/` pointer record, so the § B precedence as stated would render
-  every parked WU In Flight; the oracle roster and materialize surface inherit the same blindness. This
-  topology (and the shipped backward transitions `deactivate` / `reopen` generally) was not considered at
-  draft/spec time; the cheap discriminator reads `parked` off the `(Active, planned)` derivation
-  `wu-lifecycle-state-model` may rework, so the resolution is deferred to a dedicated reckoning rather than
-  patched. Full findings and the reckoning scope: `notes-project-state-integrity.md` § Deferred design
-  reckoning.

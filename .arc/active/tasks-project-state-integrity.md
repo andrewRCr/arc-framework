@@ -16,7 +16,10 @@ contract is fixed here by Task 1.1.a — `{ entries, warnings, reachable }` with
 Phase 2's agreed snapshot (Task 2.1) is its one sanctioned extension, so the mutation-window and
 consumer-split work lands on a known shape. Roster membership derives from active-meta presence
 at a ref, never from a State-value predicate; `State` rides as validated data and each consumer applies its own
-filter. This is the WLSM-compatible cut (`draft-wu-lifecycle-state-model.md`): post-reform, grooming stops
+filter. Parked is the one scheduling-axis overlay: entries matching the injected parked-slug set (the checkout's
+backlog records read through the existing lifecycle classifier — the single `(Active, planned)` read) carry a
+`parked` classification, and axis-aware consumers filter on it. This is the WLSM-compatible cut
+(`draft-wu-lifecycle-state-model.md`): post-reform, grooming stops
 carrying `active/` metas, so Planning entries thin out of the roster with no oracle change — while the
 spawn-then-plan escape hatch (a Planning meta in a real worktree) stays correctly visible. Compile-level
 consumer adaptation rides each contract-changing task (typecheck stays green per commit); Task 1.5.a is the
@@ -37,10 +40,14 @@ per-consumer behavioral audit and warnings pass-through, not the compile fix-up.
           never a warning: four call sites hard-gate on it today (materialize refuses, session-init returns
           empty, the user view falls back to its cache, the errand gate's `--json` emits it), and those
           gating semantics carry over unchanged through Task 1.2's migration.
+        - Entries also carry a `parked` scheduling classification — a domain fact distinct from the mark
+          enum, stamped from Task 1.2's injected parked-slug set. Consumers filter by axis; parked is never
+          inferred from `State` (a parked WU's at-ref meta reads `Active`).
         - Build `test-first` (one behavior at a time):
             - A healthy derivation returns entries with no marks, empty warnings, `reachable: true`
             - An unreachable remote yields `reachable: false` with last-known-refs entries
             - A warning renders to a stable string while keeping its structured fields
+            - A parked-classified entry stays unmarked — parked is a classification, not a degradation
 
     - `[ ]` **1.1.b Meta enumeration at a ref**
         - New remote-ref-reader primitive listing `meta-*.md` paths a ref carries
@@ -108,10 +115,16 @@ per-consumer behavioral audit and warnings pass-through, not the compile fix-up.
       (Task 2.1) requires the derivation to own these reads. All four direct call sites migrate:
       `src/commands/active/in-flight.ts` ~61, `src/handlers/status.ts` ~386, `src/handlers/lifecycle.ts`
       ~668 (materialize resolution), `src/lib/status/user-view.ts` ~166.
+    - The parked-slug set arrives the same way (injected, like `errandSlugByBranch`): the wrapper layers
+      resolve it from the checkout's backlog records through the existing lifecycle classifier
+      (`(Active, planned)` → `parked` via the canonical map) — the single conflation read WLSM's reform
+      later swaps. Checkout-scoped truth, consistent with `baseBranch`.
     - Build `test-first` (one behavior at a time):
         - A worktree branch absent from the remote yields a roster entry (not `remoteOnly`)
         - A branch present in both sources derives once (dedupe seam for 1.3)
         - Remote-only behavior unchanged for refs with no local worktree
+        - A preserved parked branch (at-ref `Active` meta + injected parked slug) derives one entry
+          classified parked
 
 ### `[ ]` **1.3 Candidate dedupe with provenance**
 
@@ -188,8 +201,13 @@ per-consumer behavioral audit and warnings pass-through, not the compile fix-up.
           marks, so each consumer's filter is checked against values it never received before
           (`Integrating` / `Shipped` / marked) — today's prefix proxy misclassifies a Shipped-meta surviving
           ref as Active, so behavior deltas here are corrections, verified per consumer.
+        - Parked exclusion on the materialize surfaces: the materialize resolution and the session-init
+          `materializable-work-units` slice drop parked-classified entries — a parked WU's sanctioned verb
+          is `arc resume`, and today's surface offers it for materialize (a pre-existing false offer this
+          filter ends). Views render parked as parked, never silently as in-flight.
         - Warnings propagate to each consumer's existing warnings surface; no new rendering yet.
-        - Existing suites stay green; add pass-through assertions where a consumer exposes warnings.
+        - Existing suites stay green; add pass-through assertions where a consumer exposes warnings, and
+          materialize-exclusion / parked-rendering assertions in the respective consumer suites.
 
     - `[ ]` **1.5.b Retire the user view's parallel local-merge seam**
         - `mergeInFlightEntries` / `localRosterEntryToInFlight` (`src/lib/status/user-view.ts` ~118–126,
@@ -219,9 +237,13 @@ reads.
       derivation result marked indeterminate; per-entry disagreement → affected entries marked.
     - Agreement is defined over pinned comparison keys: the ref listing compares name → SHA maps; the
       worktree list compares branch → path maps.
-    - The ref readers (`src/lib/git/remote-ref-reader.ts`) extend to return name → SHA maps — both existing
-      listings read names only (`%(refname:short)`), so the SHA-bearing form both the agreement compare and
-      the probe snapshot need is new.
+    - The ref readers (`src/lib/git/remote-ref-reader.ts`) extend to return name → SHA maps — the local
+      listing reads names only (`%(refname:short)`) and the `ls-remote` parser discards the SHAs it already
+      receives, so the SHA-bearing form the agreement compare and the probe snapshot need is new.
+    - The agreement covers the _local_ mutable inputs only — the local ref DB listing and the worktree list
+      (spec § A). The `ls-remote` membership read stays a single bounded network read whose result is pinned
+      into the agreed snapshot: network flakiness degrades through `reachable`, never as an indeterminate
+      mutation-window mark.
     - Per-entry meta reads retry once against the agreed snapshot; a still-failing read marks that entry.
     - The derivation result carries the agreed snapshot (ref → SHA map + worktree list) so fire-time probes
       (Task 2.3) consume the same pinned inputs rather than re-reading live state.
@@ -280,6 +302,9 @@ reads.
 
     - `check-foreign-writes`: an indeterminate entry, indeterminate probe result, or location-ambiguous entry
       is skipped with an advisory note line — never asserted as overlap (the wave-1 failure shape).
+    - The detector's candidate filter also drops parked-classified entries, beside its non-`Shipped` rule —
+      the scheduling-axis filter (spec § A): a parked shelf is frozen, so collision with it resolves at
+      resume time, not at a sibling's commit.
     - CHECK 19's shell wrapper (`arc/system/.internal/githooks/pre-commit` ~500–524) treats any stdout as a
       foreign-write warning under its "Foreign-owned write" header — the wrapper text is in scope here (both
       copies, per two-copy discipline) so skip-with-note lines render neutrally, not as apparent overlaps.
@@ -293,6 +318,7 @@ reads.
         - Hook skips-with-note on an indeterminate entry and says so on stdout
         - Hook skips-with-note on an indeterminate probe result
         - Hook skips-with-note on a location-ambiguous entry
+        - Hook reports no overlap against a parked-classified entry's preserved-branch artifacts
         - Views surface the same entries marked, with warnings intact
         - Errand gate renders caveat lines for marked entries and its `--json` carries the mark fields
 
@@ -364,6 +390,11 @@ _Purpose:_ Rework the readiness composer into a pure function over an injected s
 satisfaction onto the lifecycle index (dangling edges warn); add the readiness-provider socket with the
 deps-only provider; retire the title read-back.
 
+_Note:_ Run the full-depth `task-audit` over this phase at implementation entry. Generation may sit several
+sessions behind this phase's start, and the composer's cross-cutting contracts — identity scope, the record
+union, the lifecycle classification and its two consumers (`project-view`, `ready-mine-source`) — are dense
+seams; reground them against the codebase as it exists then.
+
 ### `[ ]` **4.1 Composer input model: injected slug-keyed record union**
 
 - _Goal:_ The composer is a pure function over resolved records — no disk scans, no raw markdown globs, no
@@ -372,6 +403,13 @@ deps-only provider; retire the title read-back.
     - `[ ]` **4.1.a Record-set type and precedence merge**
         - Slug-keyed union type with source precedence active-meta-at-a-known-ref > backlog stub > completed
           index; each record carries its source provenance (feeds the supersede tier and dep resolution).
+        - The union's oracle slice is identity-unfiltered (spec § B): project surfaces render every owner's
+          in-flight WUs — `keepForIdentity` scoping stays a user-view concern, never applied in the
+          record-set assembly.
+        - Precedence is per-axis for parked slugs (spec § B): a backlog record deriving `parked` (via the
+          same canonical `(phase, location)` map) is authoritative for scheduling-tier membership — the
+          In Flight supersede applies only to non-parked slugs — while the at-ref active meta still supplies
+          the union record's row fields when present.
         - One unified record shape reconciles the composer's current row fields (slug, location, state,
           owner, priority, dependsOn, cohort) with the oracle's in-flight facts — oracle entries project
           into it, so a superseded stub's In Flight row renders owner / priority / cohort from the at-ref
@@ -380,6 +418,10 @@ deps-only provider; retire the title read-back.
             - An at-ref active meta supersedes the same slug's backlog stub
             - A superseded slug's record carries the at-ref meta's fields, not the stub's
             - A backlog-only slug resolves from its stub
+            - A parked slug (pointer record + at-ref `Active` meta) resolves to the Parked tier, never
+              In Flight, with row fields from the at-ref meta
+            - In team mode, another identity's at-ref active meta still enters the union and supersedes its
+              stub (no identity filter on project surfaces)
             - Precedence is total and deterministic for any source combination
 
     - `[ ]` **4.1.b Composer purification**
@@ -420,13 +462,22 @@ deps-only provider; retire the title read-back.
     - The composer elevates the derivation's sole-stale-location provenance codes against the same index:
       quiet when the slug resolves `shipped`, a visible warning otherwise — a live WU with a drifted
       `Branch` field must not silently read `Ready` on `main`.
+    - The same predicates retire the second pending-set-absence copy: `src/lib/status/ready-mine-source.ts`
+      (`pendingNames` over `PIPELINE_ROOTS`) resolves dep satisfaction by pipeline absence for the user
+      view's Ready slice. Its dep read moves onto the lifecycle classification (`nonexistent` / dangling
+      does not satisfy; `shipped` satisfies; pending blocks); the slice's index may stay disk-built (a
+      local, always-available surface), but classification goes through the same canonical predicates. New
+      dangling-edge chrome in `STATUS.USER` stays `roadmap-tooling`'s.
     - Build `test-first` (one behavior at a time):
         - A typo'd / renamed dep target warns as dangling and does not satisfy
         - A dep on a completed WU resolves satisfied from the union's completed records
         - A sole-stale-location provenance code stays quiet for a shipped slug and warns for an unshipped one
         - A pending dep blocks
+        - A dep on a parked WU blocks (parked classifies pending, never satisfied)
         - On a `main`-checkout record set, an in-flight WU's dep edge classifies pending via its at-ref
           active meta even absent its backlog stub
+        - The ready slice no longer renders a WU Ready on a typo'd dep edge (pipeline absence stops
+          satisfying)
 
 ### `[ ]` **4.3 Readiness-provider socket with deps-only provider**
 
@@ -458,6 +509,10 @@ _Purpose:_ Wire the composer into its two consumers: the tracked `ROADMAP.md` re
 gaining the in-flight supersede tier, stamped with rendered-against SHA and scope) at the existing ceremony
 triggers, and the live network-verified CLI view computed fresh per call.
 
+_Note:_ Run the full-depth `task-audit` over this phase at implementation entry — reground the two-surface
+wiring (both regen call sites, the status-handler mode dispatch, the identity-unfiltered project scope)
+against the codebase as it exists then; Phase 4's landed shapes are this phase's inputs.
+
 ### `[ ]` **5.1 Tracked render: local-refs input and in-flight supersede tier**
 
 - _Goal:_ A `main`-checkout render is checkout-deterministic over tree plus local refs and shows in-flight
@@ -475,6 +530,7 @@ triggers, and the live network-verified CLI view computed fresh per call.
       not pre-sorted order.
     - Build `test-first` (one behavior at a time):
         - A `main`-checkout record set renders in-flight WUs In Flight, not Ready
+        - A checkout carrying a park pointer record renders that WU Parked, never In Flight
         - Same checkout, same refs → byte-identical render (determinism)
         - A degraded oracle slice renders with its degradation qualifier — never a silently healthy-looking
           tree-only render
@@ -486,8 +542,9 @@ triggers, and the live network-verified CLI view computed fresh per call.
   never committed.
 
     - `arc status --project`: joins the mutually-exclusive mode dispatch in `src/handlers/status.ts`
-      (alongside `<slug>` / `--session-init` / `--user`), mirroring `--user`'s wiring; renders composer
-      warnings (dangling edges, degraded marks) inline.
+      (alongside `<slug>` / `--session-init` / `--user`), mirroring `--user`'s mode-dispatch wiring only —
+      the project view consumes the identity-unfiltered slice, unlike `--user`'s identity-scoped one;
+      renders composer warnings (dangling edges, degraded marks) inline.
     - Network by default; the oracle's `reachable: false` degrades to a noted refs-only view, matching
       `runActiveInFlight`'s existing contract.
     - Integration test: live view reflects a ref-only change with no commit — the consumption-relocation
@@ -572,8 +629,8 @@ an indeterminate snapshot (the conflict-marker reject stays unconditional).
   warning-marked output
 - `[ ]` Both standing false facts resolve: a stale `plan/<name>` ref mints no phantom remote-only WU, and an
   unpushed in-flight worktree is visible to the oracle
-- `[ ]` A `main`-checkout render shows in-flight WUs as in flight (supersede tier), asserting no false `Ready`
-  facts from stale backlog stubs
+- `[ ]` A `main`-checkout render shows in-flight WUs as in flight (supersede tier) and parked WUs as parked
+  (per-axis precedence), asserting no false `Ready` facts from stale backlog stubs
 - `[ ]` Dangling dependency edges surface through the warnings channel instead of rendering satisfied
 - `[ ]` A manufactured `ROADMAP.md` conflict resolves by re-render; the pre-commit assert rejects a staged
   hand-edit and surviving conflict markers
