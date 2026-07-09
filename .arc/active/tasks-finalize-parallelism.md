@@ -527,9 +527,14 @@ well as paths; gating + coordination detail in § Sequencing.
 - _Goal:_ Each wave-1 cell's predicted failure is induced and observed, confirming (or correcting) its
   loud/silent classification.
 
-    - `[ ]` **3.2.a Notes-ref cross-worktree writer/export race (BI-3 in practice)**
-        - Induce two same-machine worktree notes writes plus the A-save/B-save/A-paired-push interleaving; confirm
-          serialization holds, no note is dropped, and no sibling note is exported before its branch lands.
+    - `[x]` **3.2.a Notes-ref cross-worktree writer/export race (BI-3 in practice)**
+        - Induced truly-concurrent saves from both probe worktrees plus the A-save/B-save/A-paired-push
+          interleave, with B's note anchored at a deliberately-unpushed commit. All three invariants held:
+          saves serialized by the notes lock (sequential ref commits, zero of 315 baseline notes dropped),
+          A's paired push filtered exactly the sibling's unpushed-anchored note from an otherwise-full export
+          (silent-safe branch-bounded filter, not a refusal), and the filtered note followed automatically at
+          B's own paired push — full local ≡ origin convergence. Evidence in `notes-finalize-parallelism.md`
+          § Wave-1 induction evidence.
 
     - `[ ]` **3.2.b Sync-state marker shared-key ordering**
         - Exercise misordered sibling publishes with multiple unresolved marker intents; confirm no earlier live
@@ -552,6 +557,11 @@ well as paths; gating + coordination detail in § Sequencing.
           induction, it is a `detectForeignArtifactOverlap` defect: route as a discovered seam (Phase 7 /
           follow-up to the roster work), not a silent accept. Detail in `notes-finalize-parallelism.md`
           § 2026-07-09 finding.
+        - Update (2026-07-09): defect confirmed without induction — reproduced deterministically in the
+          _forward_ direction at FP's own Task 3.1 commit (three-dot-verified false; both directions now
+          observed). Fix split out per the seam-routing rule, riding `slug-state-oracle-alignment` on `main`;
+          this cell's remaining work is verifying the **fixed** detector under the behind-base condition once
+          the fix merges in (naturally available at probe-b's behind-base integration or wave 2).
 
 ### `[ ]` **3.3 Induce and confirm the wave-1 detector-tests fire**
 
@@ -572,7 +582,10 @@ well as paths; gating + coordination detail in § Sequencing.
 
 _Purpose:_ First real off-primary code exercise — worktree dependency provisioning + per-task quality gates
 off-primary — and a re-graduation that verifies BI-4's ceremony-locus fix. Adds BI-1's node-deps leg to the
-wave-1 gating set.
+wave-1 gating set. **Additional gate:** `slug-state-oracle-alignment` merged to `main` and into FP — wave
+sessions consume the slug-state/dispatch surfaces it fixes (checkout-local blindness to in-flight siblings +
+the foreign-write divergence false positive; split out per the seam-routing rule,
+`notes-finalize-parallelism.md` § Burn-in seam-routing rule — in progress on `main` as of 2026-07-09).
 
 ### `[ ]` **4.1 Prepare and launch the wave-2 workload**
 

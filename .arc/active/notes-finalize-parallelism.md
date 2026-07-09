@@ -6,6 +6,7 @@ the spec's design body doesn't carry.
 ## Contents
 
 - [Sequencing & coordination](#sequencing--coordination)
+- [Wave-1 induction evidence](#wave-1-induction-evidence)
 - [Shared-mutable-surface matrix](#shared-mutable-surface-matrix)
 - [Seam trace-throughs](#seam-trace-throughs)
 - [Adversarial pass](#adversarial-pass)
@@ -51,6 +52,27 @@ drain-time check landed in the rules + strategy). The edges that remain live dur
   `origin/main`. Coordinate with any concurrent base writer (sibling WU integration, errand / housekeep PRs) as a
   normal base merge; FP then merges `main` back. Defaults stay unflipped — the mechanism lands, the `--here`→spawn
   default does not (Task 8.3).
+
+### Burn-in seam-routing rule (2026-07-09)
+
+Standing decision tree for defects and seams the burn-in waves surface — settled at the 3.1 close, after the
+slug-state finding forced the call twice in one session. WORKING-MEMORY carries the live pointer for FP sessions.
+
+1. **Observation, induction, and verification work is FP's — never routes out.** Matrix cells, detector
+   inductions, and evidence records stay in FP even when their subject's *fix* leaves: a split-out fix ships the
+   change, FP proves it under concurrency (the verifying re-run returns to a wave after the fix merges in).
+2. **Actionable fixes route by consumed-vs-observed:**
+    - **Consumed** — remaining waves (or wave sessions' own tooling) rely on the surface's answers, or its
+      behavior can corrupt wave operations (not merely misreport to an observer who knows better) → **split
+      out**: USER-INBOX capture (WU_Target an existing owner or a new stub), fix lands on `main` ahead of the
+      wave that consumes it, FP merges it in. Precedents: `project-state-integrity`; the slug-state fix.
+    - **Observed only** — latent; waves complete truthfully without it → absorb into **Phase 7** when atomic
+      enough and it must not outlive FP's own integration (precedent: 7.1); otherwise route to the owning WU via
+      USER-INBOX with no FP gate (precedent: the `wu-lifecycle-state-model` launch-ergonomics captures).
+3. **Record the gate where it bites.** A split-out fix that gates a wave or cell is recorded at that cell / wave
+   preamble, so re-entry conditions are legible at resume; it reaches meta `Blockers` / `Depends On` only when it
+   gates FP's critical path as a whole. Advisory-only noise the observer can discount is a recorded caveat,
+   never a gate.
 
 ### Dogfood finding (2026-07-05): worktree launch model
 
@@ -195,6 +217,16 @@ were current + the stale `origin/plan/burn-in-probe-a` shadow ref was deleted. T
 re-verified here: the detector is clean against `meta-finalize-parallelism.md`. Captured as task 3.2.e for
 deliberate induction; if it reproduces, it is a `detectForeignArtifactOverlap` defect routed as a discovered seam.
 
+**Update (2026-07-09, Task 3.1 completion commit `4c05c455`) — reproduced in the *forward* direction.** The
+advisory fired on FP's own-artifact commit, claiming both probes "also touch" `notes-finalize-parallelism.md` +
+`tasks-finalize-parallelism.md`. Verified false by three-dot: neither probe authored any FP file since merge-base
+(`HEAD...chore/burn-in-probe-{a,b}` = their own artifacts + `ROADMAP.md` + their stub removal only); the flagged
+files are FP-side edits the probes have never seen (FP ahead of the probes' merge-base — divergence read as
+authored overlap, mirror image of the behind-base case). Deterministic at commit time on one machine, no stale
+shadow refs in play this time. Strengthens 3.2.e from "induce and see if it reproduces" to a live defect with two
+observed directions; still routed as a discovered seam (candidate to fold into the slug-state fix WU below —
+same state-layer family, `detectForeignArtifactOverlap` / its diff-base selection).
+
 **Caveat:** opportunistic, not the full induced interleaving — the deliberate A-save/B-save/A-paired-push ordering
 (3.2.a) and concurrent same-instant regen (3.2.c) still run under 3.2 induction. But the invariants held under real
 concurrent load, and nothing observed contradicts the predicted classifications.
@@ -262,6 +294,36 @@ waves *consume* the broken surface (fix lands off `main` before the wave that ne
 latent-defect pattern). These surfaces are consumed (blast radius 1–2 above), wave 2 launches real WUs through
 `arc start` while the probes and FP are in flight, and a Phase 7 fix would reach `main` only at FP's own
 integration — after all waves. Lean: extract as a dedicated fix WU off `main` before wave 2.
+
+## Wave-1 induction evidence
+
+Deliberate 3.2 matrix-cell inductions (distinct from the opportunistic 2026-07-09 harvest above). Raw command
+outputs and note-set snapshots for each run live in the observer session's scratch captures; the durable facts
+are recorded here.
+
+### Cell 3.2.a — notes-ref cross-worktree writer/export race (2026-07-09) — CONFIRMED HOLDING
+
+Induced the full A-save / B-save / A-paired-push interleave across the two probe worktrees on one machine,
+with B's note deliberately anchored at an unpushed commit (`506a8a8a`, an evidence-log commit held local):
+
+- **Serialization held under truly concurrent saves.** Both `arc user save` invocations ran simultaneously
+  (backgrounded, single machine, shared `refs/notes/arc/user/andrew`); no lock error, no clobber — the ref log
+  shows the two saves as clean sequential commits, A's existing note at `08a4b10d` updated in place, B's new
+  note added. 315 baseline notes → 316, zero dropped.
+- **No sibling note exported before its branch landed.** A's paired push (`arc sync`: worktree + notes legs both
+  `success`) exported the full note set **except exactly** B's unpushed-anchored note — verified by set
+  difference of origin's fetched notes tree vs local (`506a8a8a` the sole local-only entry; A's updated note
+  present at origin). The gate is a silent-but-correct **filtered export** (branch-bounded), not a loud refusal —
+  a refinement of probe-a's earlier "refuses while the worktree's own branch has unpushed commits" observation:
+  the *sibling's* unpushed-anchored note is filtered from a healthy push rather than blocking it.
+- **The filtered note followed its branch automatically.** B's own paired push landed branch + note together;
+  final state fully converged (local ≡ origin note-sets; 317 total incl. both probes' final saves; all 315
+  baseline notes intact).
+
+Classification confirmed as predicted: serialization loud-safe (lock), export gating silent-safe (filter +
+deferred export). No recovery path needed. Advisory-noise side note: the induction's anchor commit drew the
+foreign-write divergence false positive again (third instance, forward direction, siblings flagged on probe-b's
+*own* evidence log) — evidence continues to accrue to 3.2.e / `slug-state-oracle-alignment`.
 
 ## Shared-mutable-surface matrix
 
