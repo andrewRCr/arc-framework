@@ -12,9 +12,9 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Stub created (2026-07-09), draining the `finalize-parallelism` Task 3.1.c USER-INBOX
-  capture — checkout-local slug-state blindness + the foreign-write divergence-as-overlap defect, consolidated
-  per FP's split-out routing (waves consume these surfaces).
+- **Last Completed:** Draft captured (2026-07-09) — design settled at medium depth (D1–D5) with one converged
+  adversarial pass (three majors fixed in place: never-fetched coverage boundary, quality-keyed graduate
+  fail-safe, discharge held tree-only); stage advanced to `create-spec`.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
