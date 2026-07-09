@@ -47,6 +47,7 @@ function makeExec(opts: {
   worktrees?: Array<{ path: string; branch: string }>;
   worktreeSnapshots?: Array<Array<{ path: string; branch: string }>>;
   worktreeError?: boolean;
+  refError?: boolean;
   localRefs?: string[];
   refSnapshots?: Array<{
     remoteTracking?: Record<string, string>;
@@ -69,10 +70,12 @@ function makeExec(opts: {
   const listedPaths = opts.listedPaths ?? {};
   const metas = opts.metas ?? {};
   const transientMetaReadFailures = { ...(opts.transientMetaReadFailures ?? {}) };
+  const defaultSha = "0".repeat(40);
   let refReadCount = 0;
   let worktreeReadCount = 0;
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
     if (args[0] === "for-each-ref") {
+      if (opts.refError) throw new Error("fatal: cannot list refs");
       if (refSnapshots !== null) {
         const snapshot = refSnapshots[Math.min(refReadCount, refSnapshots.length - 1)] ?? {};
         refReadCount += 1;
@@ -82,7 +85,10 @@ function makeExec(opts: {
           .map(([branch, sha]) => `refs/heads/${branch}\t${sha}`);
         return { stdout: [...remote, ...local].join("\n"), stderr: "" };
       }
-      return { stdout: localRefs.map((branch) => `origin/${branch}`).join("\n"), stderr: "" };
+      return {
+        stdout: localRefs.map((branch) => `refs/remotes/origin/${branch}\t${defaultSha}`).join("\n"),
+        stderr: "",
+      };
     }
     if (args[0] === "ls-remote") {
       if (opts.liveBranches === "unreachable") throw new Error("fatal: unreachable");
@@ -359,6 +365,24 @@ describe("deriveInFlight", () => {
     expect(result.entries).toEqual([
       expect.objectContaining({ kind: "work-unit", name: "x" }),
     ]);
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "input-snapshot-disagreement" }),
+      ]),
+    );
+  });
+
+  it("marks the whole result indeterminate when local refs cannot be read", async () => {
+    const exec = makeExec({ refError: true });
+
+    const result = await deriveInFlight({
+      exec,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(result.marks).toEqual(["indeterminate"]);
+    expect(result.entries).toEqual([]);
     expect(result.warnings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ code: "input-snapshot-disagreement" }),

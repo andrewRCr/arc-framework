@@ -93,7 +93,7 @@ export interface ForeignArtifactIndeterminateProbe {
   /** Determinate matched paths, when any survived before indeterminacy was detected. */
   matchedPaths: string[];
   /** Why the probe cannot be asserted as overlap or no-overlap. */
-  reason: "uncommitted-probe-disagreement";
+  reason: "committed-probe-unresolved" | "uncommitted-probe-disagreement";
 }
 
 export type ForeignArtifactSkippedReason =
@@ -198,7 +198,7 @@ export async function detectForeignArtifactOverlap(
     }
     candidates.push(entry);
   }
-  const baseSha = candidates.length > 0 ? await resolveRefSha(exec, baseBranch) : null;
+  const baseSha = candidates.length > 0 ? await tryResolveRefSha(exec, baseBranch) : null;
 
   const overlaps: ForeignArtifactOverlap[] = [];
   const indeterminate: ForeignArtifactIndeterminateProbe[] = [];
@@ -246,18 +246,26 @@ async function committedMatches(
   targetPaths: string[],
   snapshot?: InFlightInputSnapshot,
 ): Promise<PathProbeResult> {
-  const candidateSha = snapshot?.refs[branch]?.trim() || await resolveRefSha(exec, branch);
-  const { stdout } = await exec("git", [
-    "diff",
-    `${baseSha}...${candidateSha}`,
-    "--name-only",
-    "--",
-    ...targetPaths,
-  ]);
-  const changed = stdout.split("\n").map((l) => l.trim()).filter((l) => l !== "");
-  return {
-    matchedPaths: targetPaths.filter((target) => changed.some((file) => underPath(file, target))),
-  };
+  try {
+    const candidateSha = snapshot?.refs[branch]?.trim() || await resolveRefSha(exec, branch);
+    const { stdout } = await exec("git", [
+      "diff",
+      `${baseSha}...${candidateSha}`,
+      "--name-only",
+      "--",
+      ...targetPaths,
+    ]);
+    const changed = stdout.split("\n").map((l) => l.trim()).filter((l) => l !== "");
+    return {
+      matchedPaths: targetPaths.filter((target) => changed.some((file) => underPath(file, target))),
+    };
+  } catch {
+    return {
+      matchedPaths: [],
+      indeterminate: true,
+      reason: "committed-probe-unresolved",
+    };
+  }
 }
 
 /** Resolve a ref to a commit SHA once so later probes operate on immutable inputs. */
@@ -266,6 +274,14 @@ async function resolveRefSha(exec: GitExec, ref: string): Promise<string> {
   const sha = stdout.trim().split(/\s+/u)[0] ?? "";
   if (sha === "") throw new Error(`Unable to resolve ref: ${ref}`);
   return sha;
+}
+
+async function tryResolveRefSha(exec: GitExec, ref: string): Promise<string | null> {
+  try {
+    return await resolveRefSha(exec, ref);
+  } catch {
+    return null;
+  }
 }
 
 /** Target paths with uncommitted edits in the in-flight WU's own worktree, by prefix. */

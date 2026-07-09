@@ -487,6 +487,7 @@ function inFlightResultIndeterminate(result: Awaited<ReturnType<typeof deriveInF
 }
 
 function oracleOptionsFor(options: ResolveProjectReadinessViewInputOptions): ProjectReadinessOracleOptions | undefined {
+  // `oracle` is the full live/local input contract; `localRefs` is only the tracked-render shorthand.
   if (options.oracle !== undefined) return options.oracle;
   if (options.localRefs === undefined) return undefined;
   return { ...options.localRefs, localOnly: true };

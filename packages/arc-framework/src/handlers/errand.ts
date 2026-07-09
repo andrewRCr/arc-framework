@@ -102,6 +102,7 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     identity,
     teamMode,
     localOnly,
+    baseBranch,
   });
 
   const result = await detectForeignArtifactOverlap({

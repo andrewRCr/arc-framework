@@ -18,15 +18,25 @@
 
 import type { GitExec } from "./exec.js";
 
+/** Default remote whose tracking refs back the no-checkout in-flight reads. */
+const DEFAULT_REMOTE = "origin";
+
 /** Ref → commit object id snapshot, serialized as a plain object for JSON callers. */
 export type RefTipMap = Record<string, string>;
 
 /** Local refs that can contribute to the in-flight input set. */
 export interface LocalInFlightRefSnapshot {
-  /** Remote-tracking branches, keyed by short branch name (no `origin/`). */
+  /** Remote-tracking branches, keyed by short branch name (no remote prefix). */
   remoteTracking: RefTipMap;
   /** Local branch heads, keyed by short branch name. */
   localHeads: RefTipMap;
+}
+
+/** Outcome of reading local in-flight refs. */
+export interface LocalInFlightRefSnapshotResult {
+  /** False when `git for-each-ref` failed and `refs` is an empty degrade value. */
+  ok: boolean;
+  refs: LocalInFlightRefSnapshot;
 }
 
 /**
@@ -81,21 +91,28 @@ function parseLiveMembership(stdout: string): RefTipMap {
 }
 
 /**
- * Read live `origin` membership, bounded. `ok` distinguishes "unreachable"
+ * Read live remote membership, bounded. `ok` distinguishes "unreachable"
  * (degrade target decided by the caller) from a genuinely empty remote.
  */
 async function readLiveMembership(
   exec: GitExec,
   timeoutMs: number,
+  remote: string,
 ): Promise<{ ok: boolean; tips: RefTipMap }> {
-  const res = await runBounded(exec, ["ls-remote", "--heads", "origin"], timeoutMs);
+  const res = await runBounded(exec, ["ls-remote", "--heads", remote], timeoutMs);
   if (!res.ok) return { ok: false, tips: {} };
   return { ok: true, tips: parseLiveMembership(res.stdout) };
 }
 
-function parseLocalRefSnapshot(stdout: string): LocalInFlightRefSnapshot {
+function emptyLocalRefSnapshot(): LocalInFlightRefSnapshot {
+  return { remoteTracking: {}, localHeads: {} };
+}
+
+function parseLocalRefSnapshot(stdout: string, remote: string): LocalInFlightRefSnapshot {
   const remoteTracking: RefTipMap = {};
   const localHeads: RefTipMap = {};
+  const fullRemotePrefix = `refs/remotes/${remote}/`;
+  const shortRemotePrefix = `${remote}/`;
   for (const line of stdout.split("\n")) {
     const trimmed = line.trim();
     if (trimmed === "") continue;
@@ -104,17 +121,18 @@ function parseLocalRefSnapshot(stdout: string): LocalInFlightRefSnapshot {
     const refName = refNameRaw.trim();
     const sha = shaRaw?.trim() ?? "";
 
-    if (refName.startsWith("refs/remotes/origin/")) {
-      const branch = refName.slice("refs/remotes/origin/".length);
+    if (refName.startsWith(fullRemotePrefix)) {
+      const branch = refName.slice(fullRemotePrefix.length);
       if (branch !== "" && branch !== "HEAD") remoteTracking[branch] = sha;
       continue;
     }
-    if (refName.startsWith("origin/")) {
-      const branch = refName.slice("origin/".length);
+    if (refName.startsWith(shortRemotePrefix)) {
+      const branch = refName.slice(shortRemotePrefix.length);
       if (branch !== "" && branch !== "HEAD") remoteTracking[branch] = sha;
       continue;
     }
-    if (refName === "origin" || refName.endsWith("/HEAD")) continue;
+    if (refName.startsWith("refs/remotes/")) continue;
+    if (refName === remote || refName.endsWith("/HEAD")) continue;
 
     if (refName.startsWith("refs/heads/")) {
       const branch = refName.slice("refs/heads/".length);
@@ -128,32 +146,37 @@ function parseLocalRefSnapshot(stdout: string): LocalInFlightRefSnapshot {
   return { remoteTracking, localHeads };
 }
 
-/** Read local remote-tracking and branch-head tips; empty maps on read failure. */
-export async function readLocalInFlightRefSnapshot(exec: GitExec): Promise<LocalInFlightRefSnapshot> {
+/** Read local remote-tracking and branch-head tips. */
+export async function readLocalInFlightRefSnapshot(
+  exec: GitExec,
+  remote = DEFAULT_REMOTE,
+): Promise<LocalInFlightRefSnapshotResult> {
   let stdout: string;
   try {
     ({ stdout } = await exec("git", [
       "for-each-ref",
       "--format=%(refname)\t%(objectname)",
-      "refs/remotes/origin",
+      `refs/remotes/${remote}`,
       "refs/heads",
     ]));
   } catch {
-    return { remoteTracking: {}, localHeads: {} };
+    return { ok: false, refs: emptyLocalRefSnapshot() };
   }
-  return parseLocalRefSnapshot(stdout);
+  return { ok: true, refs: parseLocalRefSnapshot(stdout, remote) };
 }
 
 /** Inputs for {@link listLiveRemoteBranches}. */
 export interface ListLiveRemoteBranchesOptions {
   /** Injectable git executor. */
   exec: GitExec;
+  /** Remote to inspect. Defaults to `origin`. */
+  remote?: string;
   /** Per-read network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
   timeoutMs?: number;
 }
 
 /**
- * Enumerate live remote branch names via `git ls-remote --heads origin`.
+ * Enumerate live remote branch names via `git ls-remote --heads <remote>`.
  *
  * This is the membership truth — what branches exist on `origin` right now,
  * read with no checkout. Names are returned short (no `refs/heads/` prefix).
@@ -166,14 +189,16 @@ export interface ListLiveRemoteBranchesOptions {
 export async function listLiveRemoteBranches(
   options: ListLiveRemoteBranchesOptions,
 ): Promise<string[]> {
-  const { exec, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
-  return Object.keys((await readLiveMembership(exec, timeoutMs)).tips);
+  const { exec, remote = DEFAULT_REMOTE, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
+  return Object.keys((await readLiveMembership(exec, timeoutMs, remote)).tips);
 }
 
 /** Inputs for {@link listPrunedRemoteTrackingBranches}. */
 export interface ListPrunedRemoteTrackingBranchesOptions {
   /** Injectable git executor. */
   exec: GitExec;
+  /** Remote to inspect. Defaults to `origin`. */
+  remote?: string;
   /** Per-read network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
   timeoutMs?: number;
 }
@@ -201,6 +226,8 @@ export async function listPrunedRemoteTrackingBranches(
 export interface ResolveInFlightBranchSetOptions {
   /** Injectable git executor. */
   exec: GitExec;
+  /** Remote to inspect. Defaults to `origin`. */
+  remote?: string;
   /** Skip the live-membership network read; use local remote-tracking refs as-is. */
   localOnly?: boolean;
   /** Per-read network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
@@ -211,7 +238,7 @@ export interface ResolveInFlightBranchSetOptions {
 export interface InFlightBranchSet {
   /** Branch short-names — pruned to live membership when reachable, local-only otherwise. */
   branches: string[];
-  /** Candidate ref tips keyed as `origin/<branch>` for the selected branch set. */
+  /** Candidate ref tips keyed as `<remote>/<branch>` for the selected branch set. */
   refs: RefTipMap;
   /** Live remote tips from the single bounded membership read; empty when unreachable/local-only. */
   liveRefs: RefTipMap;
@@ -237,9 +264,10 @@ export interface InFlightBranchSet {
 export async function resolveInFlightBranchSet(
   options: ResolveInFlightBranchSetOptions,
 ): Promise<InFlightBranchSet> {
-  const { exec, localOnly = false, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
-  const local = await readLocalInFlightRefSnapshot(exec);
-  return resolveInFlightBranchSetFromLocalRefs({ exec, refs: local, localOnly, timeoutMs });
+  const { exec, remote = DEFAULT_REMOTE, localOnly = false, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
+  const local = await readLocalInFlightRefSnapshot(exec, remote);
+  if (!local.ok) return { branches: [], refs: {}, liveRefs: {}, reachable: false };
+  return resolveInFlightBranchSetFromLocalRefs({ exec, refs: local.refs, remote, localOnly, timeoutMs });
 }
 
 /** Inputs for resolving the branch set from an already-read local ref snapshot. */
@@ -252,19 +280,19 @@ export interface ResolveInFlightBranchSetFromLocalRefsOptions extends ResolveInF
 export async function resolveInFlightBranchSetFromLocalRefs(
   options: ResolveInFlightBranchSetFromLocalRefsOptions,
 ): Promise<InFlightBranchSet> {
-  const { exec, refs, localOnly = false, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
+  const { exec, refs, remote = DEFAULT_REMOTE, localOnly = false, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
   const local = Object.keys(refs.remoteTracking);
   const refTipsFor = (branches: readonly string[]): RefTipMap =>
-    Object.fromEntries(branches.map((branch) => [`origin/${branch}`, refs.remoteTracking[branch] ?? ""]));
+    Object.fromEntries(branches.map((branch) => [`${remote}/${branch}`, refs.remoteTracking[branch] ?? ""]));
   if (localOnly) return { branches: local, refs: refTipsFor(local), liveRefs: {}, reachable: false };
-  const membership = await readLiveMembership(exec, timeoutMs);
+  const membership = await readLiveMembership(exec, timeoutMs, remote);
   if (!membership.ok) return { branches: local, refs: refTipsFor(local), liveRefs: {}, reachable: false };
   const live = new Set(Object.keys(membership.tips));
   const branches = local.filter((branch) => live.has(branch));
   return {
     branches,
     refs: refTipsFor(branches),
-    liveRefs: Object.fromEntries(Object.entries(membership.tips).map(([branch, sha]) => [`origin/${branch}`, sha])),
+    liveRefs: Object.fromEntries(Object.entries(membership.tips).map(([branch, sha]) => [`${remote}/${branch}`, sha])),
     reachable: true,
   };
 }
@@ -273,6 +301,8 @@ export async function resolveInFlightBranchSetFromLocalRefs(
 export interface FetchRefBoundedOptions {
   /** Injectable git executor. */
   exec: GitExec;
+  /** Remote to fetch from. Defaults to `origin`. */
+  remote?: string;
   /** Remote branch to fetch so its objects become readable via `git show`. */
   branch: string;
   /** Network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
@@ -289,8 +319,8 @@ export interface FetchRefBoundedOptions {
  * @returns `true` when the fetch succeeded, `false` on timeout/unreachable.
  */
 export async function fetchRefBounded(options: FetchRefBoundedOptions): Promise<boolean> {
-  const { exec, branch, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
-  return (await runBounded(exec, ["fetch", "origin", branch], timeoutMs)).ok;
+  const { exec, remote = DEFAULT_REMOTE, branch, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
+  return (await runBounded(exec, ["fetch", remote, branch], timeoutMs)).ok;
 }
 
 /** Inputs for {@link readMetaAtRef}. */

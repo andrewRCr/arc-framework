@@ -162,7 +162,13 @@ async function main(): Promise<void> {
   const teamMode = settings["team.mode"] === "true";
 
   // Local-only: derive the in-flight set from local refs — no network read at commit time.
-  const { entries, snapshot } = await runActiveInFlight({ exec: gitExec, identity, teamMode, localOnly: true });
+  const { entries, snapshot } = await runActiveInFlight({
+    exec: gitExec,
+    identity,
+    teamMode,
+    localOnly: true,
+    baseBranch,
+  });
 
   const result = await detectStagedForeignWrites({
     exec: gitExec,

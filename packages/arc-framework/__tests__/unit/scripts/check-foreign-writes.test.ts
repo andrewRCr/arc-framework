@@ -252,6 +252,86 @@ describe("detectStagedForeignWrites", () => {
     ]);
   });
 
+  it("marks the committed probe indeterminate when the base ref cannot be resolved", async () => {
+    const exec = buildExec({
+      "rev-parse --verify main": () => {
+        throw new Error("fatal: bad revision");
+      },
+      "rev-parse --verify feat/wu-a": { stdout: `${"b".repeat(40)}\n`, stderr: "" },
+    });
+
+    const result = await detectStagedForeignWrites({
+      exec,
+      roster: rosterOf(
+        {
+          branch: "feat/self",
+          name: "self",
+          worktreePath: "/repo.self",
+          metaFilePath: ".arc/active/meta-self.md",
+          state: "Active",
+        },
+        {
+          branch: "feat/wu-a",
+          name: "wu-a",
+          metaFilePath: ".arc/active/meta-wu-a.md",
+          state: "Active",
+        },
+      ),
+      paths: [".arc/active/meta-wu-a.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.indeterminate).toEqual([
+      {
+        branch: "feat/wu-a",
+        matchedPaths: [],
+        reason: "committed-probe-unresolved",
+      },
+    ]);
+  });
+
+  it("marks the committed probe indeterminate when a candidate ref cannot be resolved", async () => {
+    const exec = buildExec({
+      "rev-parse --verify main": { stdout: `${"a".repeat(40)}\n`, stderr: "" },
+      "rev-parse --verify feat/wu-a": () => {
+        throw new Error("fatal: bad revision");
+      },
+    });
+
+    const result = await detectStagedForeignWrites({
+      exec,
+      roster: rosterOf(
+        {
+          branch: "feat/self",
+          name: "self",
+          worktreePath: "/repo.self",
+          metaFilePath: ".arc/active/meta-self.md",
+          state: "Active",
+        },
+        {
+          branch: "feat/wu-a",
+          name: "wu-a",
+          metaFilePath: ".arc/active/meta-wu-a.md",
+          state: "Active",
+        },
+      ),
+      paths: [".arc/active/meta-wu-a.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.indeterminate).toEqual([
+      {
+        branch: "feat/wu-a",
+        matchedPaths: [],
+        reason: "committed-probe-unresolved",
+      },
+    ]);
+  });
+
   it("skips a location-ambiguous entry with an advisory note", async () => {
     const result = await detectStagedForeignWrites({
       exec: throwingExec,

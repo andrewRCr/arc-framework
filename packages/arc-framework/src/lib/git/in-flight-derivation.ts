@@ -317,30 +317,33 @@ async function resolveAgreedInputs(input: {
   timeoutMs?: number;
   remote: string;
 }): Promise<InputResolution> {
-  const firstRefs = await readLocalInFlightRefSnapshot(input.exec);
+  const firstRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const firstWorktree = await resolveWorktreePathsByBranchResult(input.exec);
-  const firstBranchSet = await resolveInFlightBranchSetFromLocalRefs({
+  const firstBranchSet = firstRefs.ok ? await resolveInFlightBranchSetFromLocalRefs({
     exec: input.exec,
-    refs: firstRefs,
+    refs: firstRefs.refs,
+    remote: input.remote,
     localOnly: input.localOnly,
     timeoutMs: input.timeoutMs,
-  });
+  }) : emptyInFlightBranchSet();
 
-  const secondRefs = await readLocalInFlightRefSnapshot(input.exec);
+  const secondRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const secondWorktree = await resolveWorktreePathsByBranchResult(input.exec);
   const secondBranchSet = branchSetFromMembership({
-    refs: secondRefs,
+    refs: secondRefs.refs,
     firstBranchSet,
     localOnly: input.localOnly,
+    remote: input.remote,
   });
 
-  const firstSnapshot = snapshotFor(firstBranchSet, firstWorktree.paths, firstRefs, input.remote);
-  const secondSnapshot = snapshotFor(secondBranchSet, secondWorktree.paths, secondRefs, input.remote);
+  const firstSnapshot = snapshotFor(firstBranchSet, firstWorktree.paths, firstRefs.refs, input.remote);
+  const secondSnapshot = snapshotFor(secondBranchSet, secondWorktree.paths, secondRefs.refs, input.remote);
   const comparison = mergeSnapshotComparisons(
     compareSnapshots(firstSnapshot, secondSnapshot),
-    compareLocalRefSnapshots(firstRefs, secondRefs, input.remote),
+    compareLocalRefSnapshots(firstRefs.refs, secondRefs.refs, input.remote),
+    compareRefReadResults(firstRefs.ok, secondRefs.ok),
   );
-  const warnings = snapshotWarnings(comparison);
+  const warnings = snapshotWarnings(comparison, input.remote);
 
   return {
     branchSet: firstBranchSet,
@@ -355,14 +358,19 @@ async function resolveAgreedInputs(input: {
   };
 }
 
+function emptyInFlightBranchSet(): InFlightBranchSet {
+  return { branches: [], refs: {}, liveRefs: {}, reachable: false };
+}
+
 function branchSetFromMembership(input: {
   refs: LocalInFlightRefSnapshot;
   firstBranchSet: InFlightBranchSet;
   localOnly: boolean;
+  remote: string;
 }): InFlightBranchSet {
   const local = Object.keys(input.refs.remoteTracking);
   const refTipsFor = (branches: readonly string[]): RefTipMap =>
-    Object.fromEntries(branches.map((branch) => [`origin/${branch}`, input.refs.remoteTracking[branch] ?? ""]));
+    Object.fromEntries(branches.map((branch) => [`${input.remote}/${branch}`, input.refs.remoteTracking[branch] ?? ""]));
   if (input.localOnly || !input.firstBranchSet.reachable) {
     return {
       branches: local,
@@ -372,7 +380,8 @@ function branchSetFromMembership(input: {
     };
   }
   const live = new Set(
-    Object.keys(input.firstBranchSet.liveRefs).map((ref) => ref.startsWith("origin/") ? ref.slice("origin/".length) : ref),
+    Object.keys(input.firstBranchSet.liveRefs)
+      .map((ref) => ref.startsWith(`${input.remote}/`) ? ref.slice(`${input.remote}/`.length) : ref),
   );
   const branches = local.filter((branch) => live.has(branch));
   return {
@@ -438,6 +447,12 @@ function compareLocalRefSnapshots(
   );
 }
 
+function compareRefReadResults(leftOk: boolean, rightOk: boolean): SnapshotComparison {
+  return leftOk && rightOk
+    ? { wholeResult: false, changedRefs: new Set(), changedWorktrees: new Set() }
+    : { wholeResult: true, changedRefs: new Set(), changedWorktrees: new Set() };
+}
+
 function rawLocalRefSnapshot(refs: LocalInFlightRefSnapshot, remote: string): RefTipMap {
   return sortRecord({
     ...Object.fromEntries(
@@ -464,7 +479,7 @@ function sameStringSet(left: readonly string[], right: readonly string[]): boole
   return left.every((item) => rightSet.has(item));
 }
 
-function snapshotWarnings(comparison: SnapshotComparison): InFlightWarning[] {
+function snapshotWarnings(comparison: SnapshotComparison, remote: string): InFlightWarning[] {
   if (comparison.wholeResult) {
     return [
       warning({
@@ -478,7 +493,7 @@ function snapshotWarnings(comparison: SnapshotComparison): InFlightWarning[] {
     warnings.push(
       warning({
         code: "input-snapshot-disagreement",
-        branch: branchFromInputRef(ref),
+        branch: branchFromInputRef(ref, remote),
         rendered: `Ref \`${ref}\` changed during in-flight derivation; affected entry marked indeterminate.`,
       }),
     );
@@ -495,8 +510,8 @@ function snapshotWarnings(comparison: SnapshotComparison): InFlightWarning[] {
   return warnings;
 }
 
-function branchFromInputRef(ref: string): string {
-  return ref.startsWith(`${DEFAULT_REMOTE}/`) ? ref.slice(`${DEFAULT_REMOTE}/`.length) : ref;
+function branchFromInputRef(ref: string, remote: string): string {
+  return ref.startsWith(`${remote}/`) ? ref.slice(`${remote}/`.length) : ref;
 }
 
 function markInputCandidate(

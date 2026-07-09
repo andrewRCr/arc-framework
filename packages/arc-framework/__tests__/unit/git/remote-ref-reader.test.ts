@@ -51,6 +51,17 @@ describe("listLiveRemoteBranches", () => {
     expect(result).toEqual(["main", "feat/in-flight-awareness", "chore/fix-typo"]);
   });
 
+  it("uses the configured remote for live membership", async () => {
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      expect(args).toEqual(["ls-remote", "--heads", "upstream"]);
+      return { stdout: "abc123\trefs/heads/feat/x\n", stderr: "" };
+    });
+
+    const result = await listLiveRemoteBranches({ exec, remote: "upstream" });
+
+    expect(result).toEqual(["feat/x"]);
+  });
+
   it("degrades to an empty membership list when ls-remote is unreachable", async () => {
     const exec: GitExec = vi.fn(async () => {
       throw new Error("fatal: could not read from remote repository");
@@ -71,6 +82,17 @@ describe("fetchRefBounded", () => {
     });
 
     const result = await fetchRefBounded({ exec, branch: "feat/remote-only", timeoutMs: 2000 });
+
+    expect(result).toBe(true);
+  });
+
+  it("uses the configured remote for bounded fetches", async () => {
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      expect(args).toEqual(["fetch", "upstream", "feat/remote-only"]);
+      return { stdout: "", stderr: "" };
+    });
+
+    const result = await fetchRefBounded({ exec, remote: "upstream", branch: "feat/remote-only" });
 
     expect(result).toBe(true);
   });
@@ -204,8 +226,52 @@ describe("readLocalInFlightRefSnapshot", () => {
     const result = await readLocalInFlightRefSnapshot(exec);
 
     expect(result).toEqual({
-      remoteTracking: { "feat/a": "1111" },
-      localHeads: { "feat/local": "2222" },
+      ok: true,
+      refs: {
+        remoteTracking: { "feat/a": "1111" },
+        localHeads: { "feat/local": "2222" },
+      },
+    });
+  });
+
+  it("reports read failure distinctly from an empty local snapshot", async () => {
+    const exec: GitExec = vi.fn(async () => {
+      throw new Error("fatal: bad ref namespace");
+    });
+
+    const result = await readLocalInFlightRefSnapshot(exec);
+
+    expect(result).toEqual({
+      ok: false,
+      refs: { remoteTracking: {}, localHeads: {} },
+    });
+  });
+
+  it("uses the configured remote namespace", async () => {
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      expect(args).toEqual([
+        "for-each-ref",
+        "--format=%(refname)\t%(objectname)",
+        "refs/remotes/upstream",
+        "refs/heads",
+      ]);
+      return {
+        stdout: [
+          "refs/remotes/upstream/feat/a\t1111",
+          "refs/remotes/origin/feat/ignored\t2222",
+        ].join("\n"),
+        stderr: "",
+      };
+    });
+
+    const result = await readLocalInFlightRefSnapshot(exec, "upstream");
+
+    expect(result).toEqual({
+      ok: true,
+      refs: {
+        remoteTracking: { "feat/a": "1111" },
+        localHeads: {},
+      },
     });
   });
 });
@@ -226,6 +292,22 @@ describe("resolveInFlightBranchSet", () => {
       branches: ["feat/a"],
       refs: { "origin/feat/a": "local-a" },
       liveRefs: { "origin/feat/a": "live-a", "origin/feat/b": "live-b" },
+      reachable: true,
+    });
+  });
+
+  it("keys selected refs and live refs with the configured remote", async () => {
+    const exec = execBySubcommand({
+      forEachRef: "refs/remotes/upstream/feat/a\tlocal-a",
+      lsRemote: "live-a\trefs/heads/feat/a",
+    });
+
+    const result = await resolveInFlightBranchSet({ exec, remote: "upstream" });
+
+    expect(result).toEqual({
+      branches: ["feat/a"],
+      refs: { "upstream/feat/a": "local-a" },
+      liveRefs: { "upstream/feat/a": "live-a" },
       reachable: true,
     });
   });
