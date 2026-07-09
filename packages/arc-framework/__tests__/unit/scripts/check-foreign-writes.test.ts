@@ -23,11 +23,54 @@ import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
 
 /** Keyed-arg exec stub: positional tokens, `*` wildcard (mirrors the detection tests). */
 function buildExec(responses: Record<string, ExecResult>): GitExec {
-  return async (cmd, args) => {
+  const shaByRef = new Map<string, string>();
+  const refBySha = new Map<string, string>();
+
+  function fakeShaFor(ref: string): string {
+    const existing = shaByRef.get(ref);
+    if (existing !== undefined) return existing;
+    const hex = ((shaByRef.size + 1) % 15 + 1).toString(16);
+    const sha = hex.repeat(40);
+    shaByRef.set(ref, sha);
+    refBySha.set(sha, ref);
+    return sha;
+  }
+
+  function lookup(args: string[]): ExecResult | undefined {
     for (const key of Object.keys(responses)) {
       const tokens = key.split(" ");
       if (tokens.every((token, i) => token === "*" || args[i] === token)) {
-        return responses[key] as ExecResult;
+        return responses[key];
+      }
+    }
+    return undefined;
+  }
+
+  return async (cmd, args) => {
+    const direct = lookup(args);
+    if (direct !== undefined) {
+      if (args[0] === "rev-parse" && args[1] === "--verify") {
+        const ref = args[2] ?? "";
+        const sha = direct.stdout.trim().split(/\s+/u)[0] ?? "";
+        if (ref !== "" && sha !== "") {
+          shaByRef.set(ref, sha);
+          refBySha.set(sha, ref);
+        }
+      }
+      return direct;
+    }
+    if (args[0] === "rev-parse" && args[1] === "--verify") {
+      return { stdout: `${fakeShaFor(args[2] ?? "")}\n`, stderr: "" };
+    }
+    if (args[0] === "diff" && args[1]?.includes("...")) {
+      const [leftSha, rightSha] = args[1].split("...");
+      const leftRef = leftSha === undefined ? undefined : refBySha.get(leftSha);
+      const rightRef = rightSha === undefined ? undefined : refBySha.get(rightSha);
+      if (leftRef !== undefined && rightRef !== undefined) {
+        const refArgs = [...args];
+        refArgs[1] = `${leftRef}...${rightRef}`;
+        const refResponse = lookup(refArgs);
+        if (refResponse !== undefined) return refResponse;
       }
     }
     throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);

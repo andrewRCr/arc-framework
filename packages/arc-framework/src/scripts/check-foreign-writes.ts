@@ -33,6 +33,7 @@ import {
   resolveIdentity,
   type ForeignArtifactDetectionResult,
   type ForeignArtifactOverlap,
+  type InFlightInputSnapshot,
   type OverlapRoster,
 } from "../lib/git/index.js";
 import { gitExec } from "../lib/io-context.js";
@@ -59,6 +60,8 @@ export interface StagedForeignWriteOptions {
   paths: string[];
   /** Base branch to diff against — resolved from `branch.base`, never hardcoded. */
   baseBranch: string;
+  /** Agreed in-flight input snapshot; candidate ref SHAs are reused from it when present. */
+  snapshot?: InFlightInputSnapshot;
   /** The committing worktree's root — self-excluded so its own writes never trip. */
   originatingWorktreePath: string;
   /** The committing WU's meta path — self-excludes remote-only projections of the same WU. */
@@ -76,7 +79,7 @@ export interface StagedForeignWriteOptions {
 export async function detectStagedForeignWrites(
   options: StagedForeignWriteOptions,
 ): Promise<ForeignArtifactDetectionResult> {
-  const { exec, roster, paths, baseBranch, originatingWorktreePath, originatingMetaPath } = options;
+  const { exec, roster, paths, baseBranch, snapshot, originatingWorktreePath, originatingMetaPath } = options;
   const candidates = selectForeignWriteCandidates(paths);
   if (candidates.length === 0) return { overlaps: [] };
   return detectForeignArtifactOverlap({
@@ -84,6 +87,7 @@ export async function detectStagedForeignWrites(
     roster,
     targetPaths: candidates,
     baseBranch,
+    ...(snapshot !== undefined ? { snapshot } : {}),
     originatingWorktreePath,
     ...(originatingMetaPath !== undefined ? { originatingMetaPath } : {}),
   });
@@ -137,7 +141,7 @@ async function main(): Promise<void> {
   const teamMode = settings["team.mode"] === "true";
 
   // Local-only: derive the in-flight set from local refs — no network read at commit time.
-  const { entries } = await runActiveInFlight({ exec: gitExec, identity, teamMode, localOnly: true });
+  const { entries, snapshot } = await runActiveInFlight({ exec: gitExec, identity, teamMode, localOnly: true });
 
   const { overlaps } = await detectStagedForeignWrites({
     exec: gitExec,
@@ -145,6 +149,7 @@ async function main(): Promise<void> {
     paths,
     baseBranch,
     originatingWorktreePath: await currentWorktreePath(gitExec, cwd),
+    snapshot,
     originatingMetaPath: await resolveOriginatingMetaPath(cwd),
   });
 

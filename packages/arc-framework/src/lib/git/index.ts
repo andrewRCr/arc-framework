@@ -91,6 +91,7 @@ export {
   type InFlightEntry,
   type InFlightWorkUnit,
   type InFlightErrand,
+  type InFlightInputSnapshot,
   type InFlightState,
   type OpenPrSignal,
   type PrSource,

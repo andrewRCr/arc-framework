@@ -16,6 +16,7 @@ import type { GitExec } from "../../lib/git/exec.js";
 import {
   deriveInFlight,
   type InFlightEntry,
+  type InFlightInputSnapshot,
   type InFlightWarning,
   type PrSource,
 } from "../../lib/git/in-flight-derivation.js";
@@ -44,6 +45,8 @@ export interface ActiveInFlightResult {
   entries: InFlightEntry[];
   /** Structured diagnostics emitted while deriving the in-flight set. */
   warnings: InFlightWarning[];
+  /** Agreed mutable input snapshot used by fire-time probes. */
+  snapshot: InFlightInputSnapshot;
   /**
    * True only when live remote membership was read and pruned against (online).
    * `false` on `--local` / unreachable — entries derive from last-known local
@@ -74,5 +77,10 @@ export async function runActiveInFlight(
     parkedSlugs,
     prSource,
   });
-  return { entries: result.entries, warnings: result.warnings, reachable: result.reachable };
+  return {
+    entries: result.entries,
+    warnings: result.warnings,
+    snapshot: result.snapshot,
+    reachable: result.reachable,
+  };
 }

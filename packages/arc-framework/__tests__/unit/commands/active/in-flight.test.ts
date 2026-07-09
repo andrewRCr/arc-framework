@@ -44,7 +44,10 @@ function makeExec(opts: {
   const DUMMY_SHA = "0".repeat(40);
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
     if (args[0] === "for-each-ref") {
-      return { stdout: opts.localRefs.map((b) => `origin/${b}`).join("\n"), stderr: "" };
+      return {
+        stdout: opts.localRefs.map((b) => `refs/remotes/origin/${b}\t${DUMMY_SHA}`).join("\n"),
+        stderr: "",
+      };
     }
     if (args[0] === "ls-remote") {
       if (opts.liveBranches === "unreachable") throw new Error("fatal: unreachable");
@@ -119,6 +122,10 @@ describe("runActiveInFlight", () => {
     });
     expect(result.entries[1]).toEqual({ kind: "errand", branch: "chore/fix-typo", slug: "fix-typo", remoteOnly: true });
     expect(result.warnings).toEqual([]);
+    expect(result.snapshot.refs).toMatchObject({
+      "origin/feat/x": "0".repeat(40),
+      "origin/chore/fix-typo": "0".repeat(40),
+    });
   });
 
   it("prunes a dead local ref absent from live membership", async () => {

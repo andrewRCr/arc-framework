@@ -25,14 +25,58 @@ function buildExec(responses: Record<string, ExecResult | ResponseFn>): {
   calls: Array<{ cmd: string; args: string[]; cwd?: string }>;
 } {
   const calls: Array<{ cmd: string; args: string[]; cwd?: string }> = [];
-  const exec: GitExec = async (cmd, args, options) => {
-    calls.push({ cmd, args, cwd: options?.cwd });
+  const shaByRef = new Map<string, string>();
+  const refBySha = new Map<string, string>();
+
+  function fakeShaFor(ref: string): string {
+    const existing = shaByRef.get(ref);
+    if (existing !== undefined) return existing;
+    const hex = ((shaByRef.size + 1) % 15 + 1).toString(16);
+    const sha = hex.repeat(40);
+    shaByRef.set(ref, sha);
+    refBySha.set(sha, ref);
+    return sha;
+  }
+
+  function lookup(args: string[]): ExecResult | ResponseFn | undefined {
     for (const key of Object.keys(responses)) {
       const tokens = key.split(" ");
       if (tokens.every((token, i) => token === "*" || args[i] === token)) {
-        const entry = responses[key];
-        if (entry === undefined) break;
-        return typeof entry === "function" ? entry(args, options) : entry;
+        return responses[key];
+      }
+    }
+    return undefined;
+  }
+
+  const exec: GitExec = async (cmd, args, options) => {
+    calls.push({ cmd, args, cwd: options?.cwd });
+    const direct = lookup(args);
+    if (direct !== undefined) {
+      const result = typeof direct === "function" ? await direct(args, options) : direct;
+      if (args[0] === "rev-parse" && args[1] === "--verify") {
+        const ref = args[2] ?? "";
+        const sha = result.stdout.trim().split(/\s+/u)[0] ?? "";
+        if (ref !== "" && sha !== "") {
+          shaByRef.set(ref, sha);
+          refBySha.set(sha, ref);
+        }
+      }
+      return result;
+    }
+    if (args[0] === "rev-parse" && args[1] === "--verify") {
+      return { stdout: `${fakeShaFor(args[2] ?? "")}\n`, stderr: "" };
+    }
+    if (args[0] === "diff" && args[1]?.includes("...")) {
+      const [leftSha, rightSha] = args[1].split("...");
+      const leftRef = leftSha === undefined ? undefined : refBySha.get(leftSha);
+      const rightRef = rightSha === undefined ? undefined : refBySha.get(rightSha);
+      if (leftRef !== undefined && rightRef !== undefined) {
+        const refArgs = [...args];
+        refArgs[1] = `${leftRef}...${rightRef}`;
+        const refResponse = lookup(refArgs);
+        if (refResponse !== undefined) {
+          return typeof refResponse === "function" ? refResponse(refArgs, options) : refResponse;
+        }
       }
     }
     throw new Error(`unmatched git invocation: ${cmd} ${args.join(" ")}`);
@@ -97,8 +141,46 @@ describe("detectForeignArtifactOverlap", () => {
       { branch: "feat/wu-a", worktreePath: "/repo.wu-a", matchedPaths: ["docs/x.md"] },
     ]);
     // The uncommitted probe runs in the foreign worktree, not the originating one.
-    const status = calls.find((c) => c.args[0] === "status");
-    expect(status?.cwd).toBe("/repo.wu-a");
+    const statusCalls = calls.filter((c) => c.args[0] === "status");
+    expect(statusCalls).toHaveLength(2);
+    expect(statusCalls.every((c) => c.cwd === "/repo.wu-a")).toBe(true);
+  });
+
+  it("marks a changing uncommitted probe indeterminate without reporting overlap", async () => {
+    const roster = rosterOf({
+      worktreePath: "/repo.wu-a",
+      branch: "feat/wu-a",
+      metaFilePath: "/repo.wu-a/.arc/active/meta-wu-a.md",
+      state: "Active",
+      identity: "andrew",
+    });
+    let statusReads = 0;
+    const { exec, calls } = buildExec({
+      "diff main...feat/wu-a --name-only -- docs/x.md": { stdout: "" },
+      "status --porcelain -- docs/x.md": () => {
+        statusReads += 1;
+        return { stdout: statusReads === 1 ? " M docs/x.md\n" : "" };
+      },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: ["docs/x.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.indeterminate).toEqual([
+      {
+        branch: "feat/wu-a",
+        worktreePath: "/repo.wu-a",
+        matchedPaths: [],
+        reason: "uncommitted-probe-disagreement",
+      },
+    ]);
+    expect(calls.filter((c) => c.args[0] === "status")).toHaveLength(2);
   });
 
   it("detects a target renamed into place in another WU's worktree (porcelain `old -> new`)", async () => {
@@ -338,6 +420,39 @@ describe("detectForeignArtifactOverlap", () => {
     expect(calls.some((c) => c.args[0] === "status")).toBe(false);
   });
 
+  it("pins committed probes to base and candidate SHAs", async () => {
+    const baseSha = "a".repeat(40);
+    const branchSha = "b".repeat(40);
+    const roster: OverlapRoster = {
+      entries: [{
+        branch: "origin/feat/remote",
+        name: "remote",
+        metaFilePath: ".arc/active/meta-remote.md",
+        state: "Active",
+      }],
+      warnings: [],
+    };
+    const { exec, calls } = buildExec({
+      [`rev-parse --verify main`]: { stdout: `${baseSha}\n` },
+      [`diff ${baseSha}...${branchSha} --name-only -- docs/x.md`]: { stdout: "docs/x.md\n" },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: ["docs/x.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+      snapshot: { refs: { "origin/feat/remote": branchSha }, worktrees: {} },
+    });
+
+    expect(result.overlaps).toEqual([
+      { branch: "origin/feat/remote", matchedPaths: ["docs/x.md"] },
+    ]);
+    expect(calls.some((c) => c.args.includes("main...origin/feat/remote"))).toBe(false);
+    expect(calls.some((c) => c.args[0] === "rev-parse" && c.args.includes("origin/feat/remote"))).toBe(false);
+  });
+
   it("diffs against the configured base branch, not a hardcoded main", async () => {
     const roster = rosterOf({
       worktreePath: "/repo.wu-a",
@@ -360,7 +475,8 @@ describe("detectForeignArtifactOverlap", () => {
     });
 
     expect(result.overlaps).toHaveLength(1);
-    expect(calls.some((c) => c.args.includes("develop...feat/wu-a"))).toBe(true);
+    expect(calls.some((c) => c.args[0] === "rev-parse" && c.args[2] === "develop")).toBe(true);
+    expect(calls.some((c) => c.args[0] === "rev-parse" && c.args[2] === "main")).toBe(false);
   });
 
   it("returns all overlaps as facts without blocking (advisory, no short-circuit)", async () => {

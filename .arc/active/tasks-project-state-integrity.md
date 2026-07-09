@@ -143,25 +143,15 @@ reads.
   errand tests cover stale self-shadows, ceremony-window self-exclusion, fallback notes, and genuine foreign
   overlaps.
 
-### `[ ]` **2.3 Fire-time probe snapshot discipline**
+### `[x]` **2.3 Fire-time probe snapshot discipline**
 
 - _Goal:_ Overlap probes read immutable or agreement-checked inputs — a sibling ceremony mid-commit cannot
   flip a probe result undetected.
-- _Note:_ Residual, consciously accepted (spec § A): the hook is offline, so a stale local base ref can
-  over-approximate the committed diff — bounded because the consumer is advisory.
 
-    - `committedMatches`: diff SHA-to-SHA (immutable, reproducible), replacing the mutable-ref
-      `base...branch` diff. Candidate SHAs come from the derivation's agreed snapshot when supplied,
-      resolve-once locally otherwise; the base ref is outside the derivation snapshot, so its SHA always
-      resolves once at probe start.
-    - `uncommittedMatches` (live read inside a sibling worktree by construction): double-read and require
-      agreement; disagreement marks that entry's probe result indeterminate.
-    - Probe results get a shape with an indeterminacy slot (matches + per-entry indeterminate flag),
-      replacing the bare matched-path lists — the input Task 2.4's skip-with-note reads.
-    - Build `test-first` (one behavior at a time):
-        - Committed probe diffs pinned SHAs, not ref names
-        - Uncommitted-probe disagreement yields an indeterminate probe result, not a false overlap
-        - Agreeing probes report overlaps exactly as before
+- _Outcome:_ Committed probes now resolve the base ref once and diff pinned SHAs, reusing candidate SHAs from
+  the derivation snapshot when available. Sibling-worktree status probes double-read and produce
+  `indeterminate` probe records on disagreement instead of overlaps, while agreeing probes still report the
+  same matched paths.
 
 ### `[ ]` **2.4 Per-consumer degraded-state split**
 

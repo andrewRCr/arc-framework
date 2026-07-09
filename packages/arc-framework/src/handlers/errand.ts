@@ -71,7 +71,7 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
   const baseBranch = settings["branch.base"];
   const localOnly = Boolean(opts.local) || opts.fetch === false;
 
-  const { entries, warnings, reachable } = await runActiveInFlight({
+  const { entries, warnings, snapshot, reachable } = await runActiveInFlight({
     exec: gitExec,
     identity,
     teamMode,
@@ -84,6 +84,7 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     targetPaths,
     baseBranch,
     originatingWorktreePath: await currentWorktreePath(cwd),
+    snapshot,
   });
 
   if (opts.json) {
