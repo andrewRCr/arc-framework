@@ -13,7 +13,7 @@ import {
   projectInFlightToOverlapRoster,
   type OverlapRoster,
 } from "../../../src/lib/git/foreign-artifact-detection.js";
-import type { InFlightEntry } from "../../../src/lib/git/in-flight-derivation.js";
+import type { InFlightEntry, InFlightWorkUnit } from "../../../src/lib/git/in-flight-derivation.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { ExecResult, GitExec, GitExecOptions } from "../../../src/lib/git/index.js";
 
@@ -549,6 +549,29 @@ describe("projectInFlightToOverlapRoster", () => {
       { branch: "origin/feat/y", name: "y", metaFilePath: ".arc/active/meta-y.md", state: "Active" },
     ]);
     expect(roster.entries[0]).not.toHaveProperty("worktreePath");
+  });
+
+  it("projects roster marks and parked scheduling for advisory filtering", async () => {
+    const entry: InFlightWorkUnit = {
+      kind: "work-unit",
+      branch: "feat/shelf",
+      name: "shelf",
+      state: "Active",
+      remoteOnly: false,
+      dependsOn: [],
+      worktreePath: "/repo.shelf",
+      marks: ["location-ambiguous"],
+      scheduling: "parked",
+    };
+
+    const roster = projectInFlightToOverlapRoster([entry]);
+
+    expect(roster.entries[0]).toMatchObject({
+      branch: "feat/shelf",
+      name: "shelf",
+      marks: ["location-ambiguous"],
+      scheduling: "parked",
+    });
   });
 
   it("drops errands — they carry no meta and aren't WU-overlap candidates", async () => {

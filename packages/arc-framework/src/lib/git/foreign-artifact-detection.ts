@@ -20,7 +20,12 @@
  */
 
 import type { GitExec } from "./exec.js";
-import type { InFlightEntry, InFlightInputSnapshot } from "./in-flight-derivation.js";
+import type {
+  InFlightEntry,
+  InFlightEntryMark,
+  InFlightInputSnapshot,
+  InFlightScheduling,
+} from "./in-flight-derivation.js";
 import type { WorktreeRosterState } from "./worktree-roster.js";
 
 /**
@@ -39,6 +44,10 @@ export interface OverlapCandidateEntry {
   metaFilePath?: string;
   /** Roster-entry state; a `Shipped` WU has merged and is excluded. */
   state?: WorktreeRosterState;
+  /** Degradation/indeterminacy marks from the in-flight roster. */
+  marks?: readonly InFlightEntryMark[];
+  /** Scheduling-axis classification; parked entries are ignored by the advisory detector. */
+  scheduling?: InFlightScheduling;
 }
 
 /** The roster-shaped in-flight input — local roster or oracle projection. */
@@ -87,9 +96,26 @@ export interface ForeignArtifactIndeterminateProbe {
   reason: "uncommitted-probe-disagreement";
 }
 
+export type ForeignArtifactSkippedReason =
+  | "entry-marked-indeterminate"
+  | "entry-location-ambiguous";
+
+/** One entry skipped because its roster state is too uncertain for advisory overlap assertions. */
+export interface ForeignArtifactSkippedEntry {
+  branch: string;
+  /** The WU's worktree path; absent for a remote-only entry. */
+  worktreePath?: string;
+  /** Entry marks that caused the skip. */
+  marks: readonly InFlightEntryMark[];
+  /** Stable machine-readable skip reason. */
+  reason: ForeignArtifactSkippedReason;
+}
+
 export interface ForeignArtifactDetectionResult {
   /** Foreign in-flight overlaps (possibly empty); advisory, never a block. */
   overlaps: ForeignArtifactOverlap[];
+  /** Entries skipped before probing because their roster state cannot be asserted safely. */
+  skipped?: ForeignArtifactSkippedEntry[];
   /** Entries skipped because their fire-time probe was indeterminate. */
   indeterminate?: ForeignArtifactIndeterminateProbe[];
   /** Advisory caveats about degraded self-exclusion or probe certainty. */
@@ -112,8 +138,14 @@ const SELF_EXCLUSION_FALLBACK_NOTE =
  * still occupies a branch that will merge, so it counts. Meta-less admin/main
  * checkouts carry no WU and never count.
  */
-function isInFlight(entry: OverlapCandidateEntry): boolean {
+function isUnshippedWorkUnit(entry: OverlapCandidateEntry): boolean {
   return entry.metaFilePath !== undefined && entry.state !== "Shipped";
+}
+
+function skipReasonForMarks(marks: readonly InFlightEntryMark[] | undefined): ForeignArtifactSkippedReason | null {
+  if (marks?.includes("indeterminate") === true) return "entry-marked-indeterminate";
+  if (marks?.includes("location-ambiguous") === true) return "entry-location-ambiguous";
+  return null;
 }
 
 /**
@@ -137,21 +169,35 @@ export async function detectForeignArtifactOverlap(
   } = options;
   const selfName =
     originatingWorkUnitName ?? roster.entries.find(
-      (entry) => isInFlight(entry) && entry.worktreePath === originatingWorktreePath
+      (entry) => isUnshippedWorkUnit(entry) && entry.worktreePath === originatingWorktreePath
         && entry.name !== undefined,
     )?.name;
   const notes =
-    selfName === undefined && roster.entries.some((entry) => isInFlight(entry))
+    selfName === undefined && roster.entries.some((entry) => isUnshippedWorkUnit(entry))
       ? [SELF_EXCLUSION_FALLBACK_NOTE]
       : [];
 
-  const candidates = roster.entries.filter(
-    (entry) =>
-      isInFlight(entry) &&
-      (selfName === undefined || entry.name !== selfName) &&
-      entry.worktreePath !== originatingWorktreePath &&
-      (originatingMetaPath === undefined || entry.metaFilePath !== originatingMetaPath),
-  );
+  const candidates: OverlapCandidateEntry[] = [];
+  const skipped: ForeignArtifactSkippedEntry[] = [];
+  for (const entry of roster.entries) {
+    if (!isUnshippedWorkUnit(entry)) continue;
+    if (selfName !== undefined && entry.name === selfName) continue;
+    if (entry.worktreePath === originatingWorktreePath) continue;
+    if (originatingMetaPath !== undefined && entry.metaFilePath === originatingMetaPath) continue;
+    if (entry.scheduling === "parked") continue;
+
+    const skipReason = skipReasonForMarks(entry.marks);
+    if (skipReason !== null) {
+      skipped.push({
+        branch: entry.branch,
+        ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
+        marks: [...(entry.marks ?? [])],
+        reason: skipReason,
+      });
+      continue;
+    }
+    candidates.push(entry);
+  }
   const baseSha = candidates.length > 0 ? await resolveRefSha(exec, baseBranch) : null;
 
   const overlaps: ForeignArtifactOverlap[] = [];
@@ -186,6 +232,7 @@ export async function detectForeignArtifactOverlap(
 
   return {
     overlaps,
+    ...(skipped.length > 0 ? { skipped } : {}),
     ...(indeterminate.length > 0 ? { indeterminate } : {}),
     ...(notes.length > 0 ? { notes } : {}),
   };
@@ -299,6 +346,8 @@ export function projectInFlightToOverlapRoster(entries: readonly InFlightEntry[]
       ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
       metaFilePath: `.arc/active/meta-${entry.name}.md`,
       state: entry.state,
+      ...(entry.marks !== undefined ? { marks: entry.marks } : {}),
+      ...(entry.scheduling !== undefined ? { scheduling: entry.scheduling } : {}),
     });
   }
   return { entries: projected, warnings: [] };

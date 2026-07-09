@@ -33,6 +33,8 @@ import {
   resolveIdentity,
   type ForeignArtifactDetectionResult,
   type ForeignArtifactOverlap,
+  type ForeignArtifactSkippedEntry,
+  type ForeignArtifactIndeterminateProbe,
   type InFlightInputSnapshot,
   type OverlapRoster,
 } from "../lib/git/index.js";
@@ -103,6 +105,25 @@ export function formatForeignWriteWarnings(overlaps: ForeignArtifactOverlap[]): 
   );
 }
 
+function formatSkippedEntry(entry: ForeignArtifactSkippedEntry): string {
+  const marks = entry.marks.join(", ");
+  return `${entry.branch} skipped: entry marked ${marks} (${entry.worktreePath ?? "remote-only"})`;
+}
+
+function formatIndeterminateProbe(entry: ForeignArtifactIndeterminateProbe): string {
+  return `${entry.branch} skipped: probe indeterminate (${entry.worktreePath ?? "remote-only"})`;
+}
+
+/** Word every advisory line the hook should print to stdout. */
+export function formatForeignWriteAdvisories(result: ForeignArtifactDetectionResult): string[] {
+  return [
+    ...(result.skipped ?? []).map(formatSkippedEntry),
+    ...(result.indeterminate ?? []).map(formatIndeterminateProbe),
+    ...(result.notes ?? []),
+    ...formatForeignWriteWarnings(result.overlaps),
+  ];
+}
+
 /** Resolve the committing WU's active meta path for remote-only self-exclusion. */
 export async function resolveOriginatingMetaPath(cwd: string): Promise<string | undefined> {
   const activeWu = await resolveActiveWu({ cwd });
@@ -143,7 +164,7 @@ async function main(): Promise<void> {
   // Local-only: derive the in-flight set from local refs — no network read at commit time.
   const { entries, snapshot } = await runActiveInFlight({ exec: gitExec, identity, teamMode, localOnly: true });
 
-  const { overlaps } = await detectStagedForeignWrites({
+  const result = await detectStagedForeignWrites({
     exec: gitExec,
     roster: projectInFlightToOverlapRoster(entries),
     paths,
@@ -153,7 +174,7 @@ async function main(): Promise<void> {
     originatingMetaPath: await resolveOriginatingMetaPath(cwd),
   });
 
-  for (const line of formatForeignWriteWarnings(overlaps)) {
+  for (const line of formatForeignWriteAdvisories(result)) {
     process.stdout.write(`${line}\n`);
   }
 }

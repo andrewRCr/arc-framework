@@ -153,32 +153,15 @@ reads.
   `indeterminate` probe records on disagreement instead of overlaps, while agreeing probes still report the
   same matched paths.
 
-### `[ ]` **2.4 Per-consumer degraded-state split**
+### `[x]` **2.4 Per-consumer degraded-state split**
 
 - _Goal:_ Indeterminate state degrades per consumer — the advisory hook skips-with-note; roster and live
   views tolerate-with-provenance.
 
-    - `check-foreign-writes`: an indeterminate entry, indeterminate probe result, or location-ambiguous entry
-      is skipped with an advisory note line — never asserted as overlap (the wave-1 failure shape).
-    - The detector's candidate filter also drops parked-classified entries, beside its non-`Shipped` rule —
-      the scheduling-axis filter (spec § A): a parked shelf is frozen, so collision with it resolves at
-      resume time, not at a sibling's commit.
-    - CHECK 19's shell wrapper (`arc/system/.internal/githooks/pre-commit` ~500–524) treats any stdout as a
-      foreign-write warning under its "Foreign-owned write" header — the wrapper text is in scope here (both
-      copies, per two-copy discipline) so skip-with-note lines render neutrally, not as apparent overlaps.
-    - Roster / live views: marked entries surface with their provenance in the warnings channel; nothing is
-      hidden or blocked.
-    - The errand advisory gate (`src/handlers/errand.ts` ~74–92) — the third probe consumer —
-      tolerates-with-provenance: an interactive advisory with a human in the loop, so indeterminate /
-      location-ambiguous entries and indeterminate probe results surface as caveat lines, and its `--json`
-      output carries the new mark fields.
-    - Build `test-first` (one behavior at a time):
-        - Hook skips-with-note on an indeterminate entry and says so on stdout
-        - Hook skips-with-note on an indeterminate probe result
-        - Hook skips-with-note on a location-ambiguous entry
-        - Hook reports no overlap against a parked-classified entry's preserved-branch artifacts
-        - Views surface the same entries marked, with warnings intact
-        - Errand gate renders caveat lines for marked entries and its `--json` carries the mark fields
+- _Outcome:_ The overlap detector now preserves entry marks/scheduling, skips indeterminate and
+  location-ambiguous candidates with advisory notes, ignores parked candidates, and reports indeterminate probes
+  as caveats instead of overlaps. CHECK 19's hook copy now frames stdout neutrally, and `arc errand check`
+  renders caveat lines interactively while preserving skipped-entry mark fields in `--json`.
 
 ## **Phase 3:** Concurrency repro harness
 

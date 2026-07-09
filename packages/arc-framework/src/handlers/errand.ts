@@ -16,7 +16,12 @@
 import * as p from "@clack/prompts";
 
 import { runActiveInFlight } from "../commands/active.js";
-import { detectForeignArtifactOverlap, projectInFlightToOverlapRoster } from "../lib/git/index.js";
+import {
+  detectForeignArtifactOverlap,
+  projectInFlightToOverlapRoster,
+  type ForeignArtifactDetectionResult,
+} from "../lib/git/index.js";
+import type { InFlightWarning } from "../lib/git/in-flight-derivation.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
@@ -47,6 +52,27 @@ export interface ErrandCheckOptions {
   local?: boolean;
   /** `--no-fetch`: Commander sets `fetch === false` — same effect as `--local`. */
   fetch?: boolean;
+}
+
+export function formatErrandCheckCaveats(result: ForeignArtifactDetectionResult): string[] {
+  return [
+    ...(result.skipped ?? []).map(
+      (entry) =>
+        `${entry.branch}  skipped  marked ${entry.marks.join(", ")}  (${entry.worktreePath ?? "remote-only"})`,
+    ),
+    ...(result.indeterminate ?? []).map(
+      (entry) => `${entry.branch}  caveat  probe indeterminate  (${entry.worktreePath ?? "remote-only"})`,
+    ),
+    ...(result.notes ?? []),
+  ];
+}
+
+export function buildErrandCheckJsonEnvelope(
+  result: ForeignArtifactDetectionResult,
+  warnings: readonly InFlightWarning[],
+  reachable: boolean,
+): ForeignArtifactDetectionResult & { warnings: readonly InFlightWarning[]; reachable: boolean } {
+  return { ...result, warnings, reachable };
 }
 
 export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void> {
@@ -88,18 +114,24 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
   });
 
   if (opts.json) {
-    process.stdout.write(`${JSON.stringify({ ...result, warnings, reachable })}\n`);
+    process.stdout.write(`${JSON.stringify(buildErrandCheckJsonEnvelope(result, warnings, reachable))}\n`);
     return;
   }
 
   p.intro("arc errand check");
-  if (result.overlaps.length === 0) {
+  const caveats = formatErrandCheckCaveats(result);
+  if (result.overlaps.length === 0 && caveats.length === 0) {
     p.note("No in-flight work unit touches the target — proceed without a caveat.", "Advisory");
   } else {
     const lines = result.overlaps.map(
       (o) => `${o.branch}  touches  ${o.matchedPaths.join(", ")}  (${o.worktreePath ?? "remote-only"})`,
     );
-    p.note(lines.join("\n"), "Foreign overlap — coordinate or sequence after it integrates");
+    p.note(
+      [...lines, ...caveats].join("\n"),
+      result.overlaps.length > 0
+        ? "Foreign overlap — coordinate or sequence after it integrates"
+        : "Advisory caveat — review before proceeding",
+    );
   }
   if (!reachable && !localOnly) {
     p.log.warn("Remote unreachable — checked local refs only; work in flight on another machine may be missed.");

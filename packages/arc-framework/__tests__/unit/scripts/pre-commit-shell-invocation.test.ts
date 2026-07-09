@@ -58,4 +58,9 @@ describe("foreign-write advisory backstop wiring", () => {
     expect(block).toContain("warnings=$((warnings + 1))");
     expect(block).not.toContain("errors=$((errors + 1))");
   });
+
+  it("uses neutral wording for foreign-write and skip-note output", () => {
+    expect(preCommitSource).toContain("Warning: In-flight artifact advisory:");
+    expect(preCommitSource).not.toContain("Warning: Foreign-owned write among staged artifacts:");
+  });
 });

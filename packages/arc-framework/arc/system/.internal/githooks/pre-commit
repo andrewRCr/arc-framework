@@ -513,11 +513,11 @@ if [ -n "$foreign_write_candidates" ]; then
     # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
     foreign_write_output=$(npx tsx packages/arc-framework/src/scripts/check-foreign-writes.ts $foreign_write_candidates 2>/dev/null || true)
     if [ -n "$foreign_write_output" ]; then
-        echo -e "${YELLOW}Warning: Foreign-owned write among staged artifacts:${NC}"
+        echo -e "${YELLOW}Warning: In-flight artifact advisory:${NC}"
         echo "$foreign_write_output" | sed 's/^/   /'
         echo ""
-        echo "   Another in-flight work unit touches these paths. Coordinate or"
-        echo "   sequence after it integrates — advisory only, the commit proceeds."
+        echo "   Review the advisory lines above. Coordinate or sequence when needed;"
+        echo "   advisory only, the commit proceeds."
         warnings=$((warnings + 1))
     fi
 fi
