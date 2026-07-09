@@ -3,6 +3,14 @@
 Reference context for task generation and execution — implementation loci, verified evidence, and rationale
 detail that the spec summarizes.
 
+## Contents
+
+- [Implementation loci](#implementation-loci-verified-2026-07-08-paths-re-verified-at-task-generation)
+- [Live repro evidence](#live-repro-evidence--fixture-backed)
+- [Failure-vector inventory](#failure-vector-inventory--overlap-harness)
+- [Parked-WU topology](#parked-wu-topology--design-reckoning-settled-2026-07-08)
+- [Rationale detail](#rationale-detail)
+
 ## Implementation loci (verified 2026-07-08; paths re-verified at task generation)
 
 All paths below are under `packages/arc-framework/`.
