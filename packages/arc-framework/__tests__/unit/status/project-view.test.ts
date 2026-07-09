@@ -303,6 +303,30 @@ describe("composeProjectReadinessView", () => {
     expect(result.markdown).not.toContain("bad-state |");
   });
 
+  it("notes live-oracle fallback when the remote is unreachable", async () => {
+    const exec = makeInFlightExec({
+      remoteRefs: ["feat/ref-only"],
+      metas: {
+        "origin/feat/ref-only:.arc/active/meta-ref-only.md": oracleMeta({
+          branch: "feat/ref-only",
+          priority: "P1",
+        }),
+      },
+    });
+
+    const input = await resolveProjectReadinessViewInput({
+      cwd: "/repo",
+      title: "Roadmap",
+      fs: { readdir: async () => [], readFile: async () => "" },
+      oracle: { exec, baseBranch: "main" },
+    });
+    const result = composeProjectReadinessViewResult({ ...input, renderedRef: "abc1234" });
+
+    expect(result.markdown).toContain("Remote unreachable; rendering project view from local refs only.");
+    expect(result.markdown).toContain("| `Active` | ref-only");
+    expect(result.markdown).toContain("| ref-only  | P1");
+  });
+
   it("renders the source scope and live-view pointer in the header", () => {
     const view = composeProjectReadinessView({
       renderedRef: {

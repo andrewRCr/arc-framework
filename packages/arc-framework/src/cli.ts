@@ -525,15 +525,21 @@ program
     new Option(
       "--user",
       "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
-    ).conflicts(["session-init", "session-handoff", "recover"]),
+    ).conflicts(["session-init", "session-handoff", "recover", "project"]),
   )
-  .option("--local", "With --user: skip the network read; render from local refs (alias: --no-fetch)")
-  .option("--no-fetch", "With --user: skip the network read; render from local refs")
+  .addOption(
+    new Option(
+      "--project",
+      "Render the live project readiness view",
+    ).conflicts(["session-init", "session-handoff", "recover", "user"]),
+  )
+  .option("--local", "With --user/--project: skip the network read; render from local refs (alias: --no-fetch)")
+  .option("--no-fetch", "With --user/--project: skip the network read; render from local refs")
   .addOption(
     new Option(
       "--write-compaction-seed",
       "With --session-init: write the machine-local compaction recovery seed",
-    ).conflicts(["recover", "session-handoff", "user"]),
+    ).conflicts(["recover", "session-handoff", "user", "project"]),
   )
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);

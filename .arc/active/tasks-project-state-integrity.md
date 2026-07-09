@@ -293,22 +293,15 @@ against the codebase as it exists then; Phase 4's landed shapes are this phase's
       oracle degradation warnings. ROADMAP regen call sites now feed parked slugs and configured base branch,
       and the shared render stamp records the source scope plus the live `arc status --project` pointer.
 
-### `[ ]` **5.2 Live view CLI surface**
+### `[x]` **5.2 Live view CLI surface**
 
 - _Goal:_ Live truth on demand — the network-verified, oracle-composed project view computed fresh per call,
   never committed.
 
-    - `arc status --project`: joins the mutually-exclusive mode dispatch in `src/handlers/status.ts`
-      (alongside `<slug>` / `--session-init` / `--user`), mirroring `--user`'s mode-dispatch wiring only —
-      the project view consumes the identity-unfiltered slice, unlike `--user`'s identity-scoped one;
-      renders composer warnings (dangling edges, degraded marks) inline.
-    - Audit carry-forward: status mode exclusivity is counted manually in `handleStatus` and the CLI option
-      surface has no `project` flag yet; update both together and pass `identity: null`, `teamMode: false`
-      to the oracle so project scope stays identity-unfiltered.
-    - Network by default; the oracle's `reachable: false` degrades to a noted refs-only view, matching
-      `runActiveInFlight`'s existing contract.
-    - Integration test: live view reflects a ref-only change with no commit — the consumption-relocation
-      property.
+    - _Outcome:_ `arc status --project` now joins the mutually-exclusive status modes and renders the shared
+      project-readiness composer from the identity-unfiltered live oracle by default. `--local` / `--no-fetch`
+      force the local-ref path, unreachable remotes emit an inline refs-only warning, and integration coverage
+      proves a `main` checkout sees an active meta that exists only on a pushed branch ref.
 
 ### `[ ]` **5.3 Regen-trigger verification and `renderedRef` consolidation**
 

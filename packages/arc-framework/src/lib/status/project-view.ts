@@ -120,12 +120,18 @@ export interface ProjectReadinessViewInput {
   sourceWarnings: ProjectReadinessWarning[];
 }
 
-/** Local-ref oracle inputs for tracked project-readiness renders. */
-export interface ProjectReadinessLocalRefsOptions {
+/** In-flight oracle inputs for project-readiness renders. */
+export interface ProjectReadinessOracleOptions {
   exec: GitExec;
+  /** `true` skips the network read and renders from last-known local refs. */
+  localOnly?: boolean;
   baseBranch?: string;
   parkedSlugs?: ReadonlySet<string>;
+  timeoutMs?: number;
 }
+
+/** Local-ref oracle inputs for tracked project-readiness renders. */
+export type ProjectReadinessLocalRefsOptions = Omit<ProjectReadinessOracleOptions, "localOnly">;
 
 /** Options for the tree-backed resolver. */
 export interface ResolveProjectReadinessViewInputOptions {
@@ -137,6 +143,8 @@ export interface ResolveProjectReadinessViewInputOptions {
   fs?: ProjectViewFs;
   /** Optional local-ref oracle input to merge at-ref active metas into the record set. */
   localRefs?: ProjectReadinessLocalRefsOptions;
+  /** Optional in-flight oracle input to merge at-ref active metas into the record set. */
+  oracle?: ProjectReadinessOracleOptions;
 }
 
 /** Structured freshness stamp rendered in the view header. */
@@ -400,8 +408,8 @@ function staleWarningFromInFlight(warning: InFlightWarning): ProjectReadinessDer
   };
 }
 
-async function resolveLocalRefCandidates(
-  options: ProjectReadinessLocalRefsOptions | undefined,
+async function resolveOracleCandidates(
+  options: ProjectReadinessOracleOptions | undefined,
 ): Promise<{
   candidates: ProjectReadinessRecordCandidate[];
   derivationWarnings: ProjectReadinessDerivationWarning[];
@@ -410,8 +418,9 @@ async function resolveLocalRefCandidates(
   if (options === undefined) return { candidates: [], derivationWarnings: [], sourceWarnings: [] };
   const result = await deriveInFlight({
     exec: options.exec,
-    localOnly: true,
+    localOnly: options.localOnly ?? false,
     baseBranch: options.baseBranch,
+    timeoutMs: options.timeoutMs,
     identity: null,
     teamMode: false,
     parkedSlugs: options.parkedSlugs,
@@ -426,7 +435,19 @@ async function resolveLocalRefCandidates(
     if (stale === null) sourceWarnings.push(sourceWarningFromInFlight(warning));
     else derivationWarnings.push(stale);
   }
+  if (!options.localOnly && !result.reachable) {
+    sourceWarnings.unshift({
+      code: "oracle-degraded",
+      rendered: "Remote unreachable; rendering project view from local refs only.",
+    });
+  }
   return { candidates, derivationWarnings, sourceWarnings };
+}
+
+function oracleOptionsFor(options: ResolveProjectReadinessViewInputOptions): ProjectReadinessOracleOptions | undefined {
+  if (options.oracle !== undefined) return options.oracle;
+  if (options.localRefs === undefined) return undefined;
+  return { ...options.localRefs, localOnly: true };
 }
 
 /** Resolve tree-backed records and the title read into a compose-ready input. */
@@ -436,7 +457,7 @@ export async function resolveProjectReadinessViewInput(
   const fs = options.fs ?? DEFAULT_FS;
   const [treeRecords, localRefs] = await Promise.all([
     loadProjectRecords(options.cwd, fs),
-    resolveLocalRefCandidates(options.localRefs),
+    resolveOracleCandidates(oracleOptionsFor(options)),
   ]);
   return {
     title: resolveTitle(options.title),

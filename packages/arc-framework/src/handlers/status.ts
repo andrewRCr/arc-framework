@@ -105,6 +105,10 @@ import {
   type EmitCompactionSeedResult,
 } from "../lib/compaction-seed/emitter.js";
 import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
+import {
+  composeProjectReadinessViewResult,
+  resolveProjectReadinessViewInput,
+} from "../lib/status/project-view.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -118,7 +122,8 @@ export interface StatusCliOptions {
   sessionHandoff?: boolean;
   recover?: boolean;
   user?: boolean;
-  /** `--local`: render the user view from local refs without a network read. */
+  project?: boolean;
+  /** `--local`: render explicit user/project views from local refs without a network read. */
   local?: boolean;
   /** Commander's negation of `--no-fetch` (defaults to `true`); `false` skips the network read. */
   fetch?: boolean;
@@ -211,10 +216,11 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     opts.sessionHandoff,
     opts.recover,
     opts.user,
+    opts.project,
   ].filter(Boolean).length;
   if (modeCount > 1) {
     process.stderr.write(
-      "Error: a status <slug> query, --session-init, --session-handoff, --recover, and --user are mutually exclusive.\n",
+      "Error: a status <slug> query, --session-init, --session-handoff, --recover, --user, and --project are mutually exclusive.\n",
     );
     process.exitCode = 1;
     return;
@@ -654,6 +660,36 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     return;
   }
 
+  if (opts.project) {
+    const resolved = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const localOnly = Boolean(opts.local) || opts.fetch === false;
+    const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd, fs: lifecycleFs }));
+    const input = await resolveProjectReadinessViewInput({
+      cwd,
+      fs: lifecycleFs,
+      oracle: {
+        exec: gitExec,
+        localOnly,
+        baseBranch: resolved.settings["branch.base"],
+        parkedSlugs,
+      },
+    });
+    const result = composeProjectReadinessViewResult({
+      ...input,
+      renderedRef: {
+        ref: await resolveRenderedRef(cwd),
+        scope: localOnly ? "tree + local refs" : "tree + live refs",
+        liveView: "arc status --project",
+      },
+    });
+    if (json) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return;
+    }
+    process.stdout.write(`${result.markdown}\n`);
+    return;
+  }
+
   const probes: StatusProbes = {
     user: (id) => runUserStatus({ cwd, io, identity: id }),
     extensions: () => runExtensionsStatus({ cwd }),
@@ -681,6 +717,15 @@ async function readCompactionSeedGitSnapshot(cwd: string): Promise<CompactionSee
     head: headResult.stdout.trim(),
     uncommittedFiles: parseUncommittedFiles(statusResult.stdout),
   };
+}
+
+async function resolveRenderedRef(cwd: string): Promise<string> {
+  try {
+    const { stdout } = await gitExec("git", ["rev-parse", "--short", "HEAD"], { cwd });
+    return stdout.trim() || "working tree";
+  } catch {
+    return "working tree";
+  }
 }
 
 function dirtyStateFromCompactionSeedSnapshot(snapshot: CompactionSeedGitSnapshot) {
