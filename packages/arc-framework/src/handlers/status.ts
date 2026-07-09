@@ -55,7 +55,6 @@ import {
   runWorktreeRoster,
 } from "../lib/git/index.js";
 import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
-import { resolveInFlightBranchSet } from "../lib/git/remote-ref-reader.js";
 import { deriveInFlight, type InFlightEntry } from "../lib/git/in-flight-derivation.js";
 import { findMaterializableWorkUnits } from "../lib/session-init/materializable-work-units.js";
 import { pruneRemoteTrackingRefs } from "../lib/session-init/dead-ref-prune.js";
@@ -105,6 +104,7 @@ import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
+import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
 import { requireArcProjectRoot } from "./shared.js";
 
@@ -246,6 +246,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     return;
   }
 
+  const lifecycleFs = {
+    readdir: (path: string) => readdir(path, { withFileTypes: true }),
+    readFile: (path: string) => readFile(path, "utf8"),
+  };
   const io = createUserIOContext();
   const { identity, role } = await readIdentityPointers();
   const userSurfaceResolvers = new Map<string, ReturnType<typeof resolveUserSurfaceResolver>>();
@@ -374,23 +378,23 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       oraclePromise ??= (async () => {
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const { branches, reachable } = await resolveInFlightBranchSet({
-          exec: gitExec,
-          localOnly: false,
-        });
-        // Unreachable: derive nothing rather than a half-resolved view over
-        // un-pruned local refs. Consumers surface no candidates / skip discovery.
-        if (!reachable) return { entries: [], reachable: false };
-        const records = await getErrandRecords();
+        const [records, parkedSlugs] = await Promise.all([
+          getErrandRecords(),
+          buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
+        ]);
         const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
         const result = await deriveInFlight({
           exec: gitExec,
-          branches,
-          reachable,
+          localOnly: false,
+          baseBranch: resolved.settings["branch.base"],
           identity,
           teamMode,
           errandSlugByBranch,
+          parkedSlugs,
         });
+        // Unreachable: derive nothing rather than a half-resolved view over
+        // un-pruned local refs. Consumers surface no candidates / skip discovery.
+        if (!result.reachable) return { entries: [], reachable: false };
         return { entries: result.entries, reachable: result.reachable };
       })();
       return oraclePromise;
@@ -615,12 +619,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     const resolved = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
     const teamMode = resolved.settings["team.mode"] === "true";
     const localOnly = Boolean(opts.local) || opts.fetch === false;
+    const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd, fs: lifecycleFs }));
     const view = await assembleStatusUserView({
       cwd,
       exec: gitExec,
       identity,
       teamMode,
       localOnly,
+      baseBranch: resolved.settings["branch.base"],
+      parkedSlugs,
       readFile: io.readFile,
       writeFile: io.writeFile,
       mkdir: (path, options) => io.mkdir(path, options).then(() => undefined),

@@ -45,12 +45,25 @@ function metaContent(
  */
 function makeExec(opts: {
   worktrees?: Array<{ path: string; branch: string }>;
+  localRefs?: string[];
+  liveBranches?: string[] | "unreachable";
   /** Keyed by the `git show` target `"<ref>:<path>"`; present keys resolve, absent keys throw. */
   metas?: Record<string, string>;
 }): GitExec {
   const worktrees = opts.worktrees ?? [];
+  const localRefs = opts.localRefs ?? [];
   const metas = opts.metas ?? {};
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
+    if (args[0] === "for-each-ref") {
+      return { stdout: localRefs.map((branch) => `origin/${branch}`).join("\n"), stderr: "" };
+    }
+    if (args[0] === "ls-remote") {
+      if (opts.liveBranches === "unreachable") throw new Error("fatal: unreachable");
+      return {
+        stdout: (opts.liveBranches ?? []).map((branch) => `deadbeef\trefs/heads/${branch}`).join("\n"),
+        stderr: "",
+      };
+    }
     if (args[0] === "worktree" && args[1] === "list") {
       const stdout = worktrees
         .map((wt) => `worktree ${wt.path}\nbranch refs/heads/${wt.branch}\n`)
@@ -524,6 +537,7 @@ describe("deriveInFlight", () => {
     const exec = makeExec({
       worktrees: [{ path: "/repos/local", branch: "feat/local" }],
       metas: {
+        "feat/local:.arc/active/meta-local.md": metaContent({ branch: "feat/local" }),
         "origin/feat/local:.arc/active/meta-local.md": metaContent(),
         "origin/feat/remote:.arc/active/meta-remote.md": metaContent(),
       },
@@ -711,6 +725,123 @@ describe("deriveInFlight", () => {
 
     const materializable = entries.filter((e) => e.kind === "work-unit" && e.remoteOnly);
     expect(materializable.map((e) => e.branch)).toEqual(["feat/elsewhere"]);
+  });
+});
+
+describe("deriveInFlight input union", () => {
+  it("derives a local worktree branch that is absent from the remote", async () => {
+    const exec = makeExec({
+      worktrees: [{ path: "/repo.local-only", branch: "feat/local-only" }],
+      localRefs: [],
+      liveBranches: [],
+      metas: {
+        "feat/local-only:.arc/active/meta-local-only.md": metaContent({
+          branch: "feat/local-only",
+        }),
+      },
+    });
+
+    const { entries, reachable } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(reachable).toBe(true);
+    expect(entries).toEqual([
+      {
+        kind: "work-unit",
+        branch: "feat/local-only",
+        name: "local-only",
+        state: "Active",
+        owner: "andrew",
+        worktreePath: "/repo.local-only",
+        remoteOnly: false,
+        dependsOn: [],
+      },
+    ]);
+  });
+
+  it("derives a branch present in both sources once", async () => {
+    const exec = makeExec({
+      worktrees: [{ path: "/repo.x", branch: "feat/x" }],
+      localRefs: ["feat/x"],
+      liveBranches: ["feat/x"],
+      metas: {
+        "feat/x:.arc/active/meta-x.md": metaContent({ branch: "feat/x" }),
+        "origin/feat/x:.arc/active/meta-x.md": metaContent({ branch: "feat/x" }),
+      },
+    });
+
+    const { entries } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "feat/x",
+      worktreePath: "/repo.x",
+      remoteOnly: false,
+    });
+  });
+
+  it("keeps remote-only behavior for refs with no local worktree", async () => {
+    const exec = makeExec({
+      localRefs: ["feat/remote"],
+      liveBranches: ["feat/remote"],
+      metas: {
+        "origin/feat/remote:.arc/active/meta-remote.md": metaContent({
+          branch: "feat/remote",
+        }),
+      },
+    });
+
+    const { entries } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "feat/remote",
+      remoteOnly: true,
+    });
+  });
+
+  it("classifies a preserved parked branch through the injected parked slug set", async () => {
+    const exec = makeExec({
+      worktrees: [{ path: "/repo.shelved", branch: "feat/shelved" }],
+      metas: {
+        "feat/shelved:.arc/active/meta-shelved.md": metaContent({
+          state: "Active",
+          branch: "feat/shelved",
+        }),
+      },
+    });
+
+    const { entries } = await deriveInFlight({
+      exec,
+      localOnly: true,
+      identity: null,
+      teamMode: false,
+      parkedSlugs: new Set(["shelved"]),
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      name: "shelved",
+      scheduling: "parked",
+      remoteOnly: false,
+    });
   });
 });
 

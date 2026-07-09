@@ -57,31 +57,14 @@ per-consumer behavioral audit and warnings pass-through, not the compile fix-up.
   excludes base-branch residue, and surfaces structured warnings/marks for stale or degraded meta facts while
   preserving errand-record identity.
 
-### `[ ]` **1.2 Input union: remote-tracking refs plus local worktree branches**
+### `[x]` **1.2 Input union: remote-tracking refs plus local worktree branches**
 
 - _Goal:_ An unpushed in-flight WU — a local worktree branch with no remote ref — is visible to the oracle.
 
-    - Candidate set = pruned remote-tracking branches ∪ branches from `resolveWorktreePathsByBranch`
-      (`src/lib/git/worktree-roster.ts`); a local-only candidate reads its meta at the local branch ref.
-    - Identity reads committed content at a ref: a mid-ceremony uncommitted meta is invisible here until its
-      ceremony commits (disk-only state stays the worktree roster's surface, not this oracle's).
-    - Input acquisition moves inside the derivation: `deriveInFlight` takes the ref readers, the
-      `localOnly` mode, and `baseBranch` (injected by the wrapper layers from `settings["branch.base"]`,
-      the same way `identity` / `teamMode` arrive — Task 1.1.c's base exclusion consumes it) and resolves
-      its own input set, retiring the pre-resolved `branches` argument — the double-read discipline
-      (Task 2.1) requires the derivation to own these reads. All four direct call sites migrate:
-      `src/commands/active/in-flight.ts` ~61, `src/handlers/status.ts` ~386, `src/handlers/lifecycle.ts`
-      ~668 (materialize resolution), `src/lib/status/user-view.ts` ~166.
-    - The parked-slug set arrives the same way (injected, like `errandSlugByBranch`): the wrapper layers
-      resolve it from the checkout's backlog records through the existing lifecycle classifier
-      (`(Active, planned)` → `parked` via the canonical map) — the single conflation read WLSM's reform
-      later swaps. Checkout-scoped truth, consistent with `baseBranch`.
-    - Build `test-first` (one behavior at a time):
-        - A worktree branch absent from the remote yields a roster entry (not `remoteOnly`)
-        - A branch present in both sources derives once (dedupe seam for 1.3)
-        - Remote-only behavior unchanged for refs with no local worktree
-        - A preserved parked branch (at-ref `Active` meta + injected parked slug) derives one entry
-          classified parked
+- _Outcome:_ `deriveInFlight` now owns input acquisition, unions live/pruned remote refs with local worktree
+  branches, reads local-only metas from the local branch ref, and lets the worktree candidate win when the same
+  branch appears in both sources. The active/status/materialize/user-view wrappers inject `branch.base` and the
+  checkout's lifecycle-derived parked-slug set, so normal oracle consumers inherit local-only and parked facts.
 
 ### `[ ]` **1.3 Candidate dedupe with provenance**
 

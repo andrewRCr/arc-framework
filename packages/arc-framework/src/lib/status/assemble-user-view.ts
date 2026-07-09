@@ -47,6 +47,10 @@ export interface AssembleStatusUserViewDeps {
   teamMode: boolean;
   /** `--local` / `--no-fetch`: skip the network read, render from local refs. */
   localOnly: boolean;
+  /** Configured base branch; excluded from in-flight classification. */
+  baseBranch?: string;
+  /** Slugs whose checkout lifecycle record classifies them as parked. */
+  parkedSlugs?: ReadonlySet<string>;
   /** Read a file as UTF-8 — used for the `STATUS.USER` cache and roster meta reads. */
   readFile: (path: string) => Promise<string>;
   /** Read directory entry names — used by the worktree roster scan. */
@@ -96,7 +100,19 @@ function localRosterEntryToInFlight(entry: WorktreeRosterEntry): InFlightEntry[]
 export async function assembleStatusUserView(
   deps: AssembleStatusUserViewDeps,
 ): Promise<StatusUserViewResult> {
-  const { cwd, exec, identity, teamMode, localOnly, readFile, readdir, writeFile, mkdir } = deps;
+  const {
+    cwd,
+    exec,
+    identity,
+    teamMode,
+    localOnly,
+    baseBranch,
+    parkedSlugs,
+    readFile,
+    readdir,
+    writeFile,
+    mkdir,
+  } = deps;
 
   const statusUserPath = identity === null
     ? null
@@ -107,6 +123,8 @@ export async function assembleStatusUserView(
     identity,
     teamMode,
     localOnly,
+    baseBranch,
+    parkedSlugs,
     readLastRendered: () =>
       statusUserPath === null
         ? Promise.resolve(null)

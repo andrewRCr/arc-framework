@@ -25,7 +25,7 @@ import { validateState, type WorkUnitState } from "../../commands/active/types.j
 import { parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
 
 import type { GitExec } from "./exec.js";
-import { listMetaPathsAtRef, readMetaAtRef } from "./remote-ref-reader.js";
+import { listMetaPathsAtRef, readMetaAtRef, resolveInFlightBranchSet } from "./remote-ref-reader.js";
 import { resolveWorktreePathsByBranch } from "./worktree-roster.js";
 
 /** Default remote whose tracking refs back the no-checkout meta reads. */
@@ -145,10 +145,14 @@ export interface DeriveInFlightResult {
 export interface DeriveInFlightOptions {
   /** Injectable git executor — used for `git worktree list` and `git show`. */
   exec: GitExec;
-  /** Pruned remote-ref branch set (short names) — from `listPrunedRemoteTrackingBranches`. */
-  branches: readonly string[];
-  /** Whether live network membership backed `branches`. Defaults to true for direct unit callers. */
+  /** Pre-resolved remote branch set, retained for low-level tests and compatibility during migration. */
+  branches?: readonly string[];
+  /** Whether live network membership backed `branches`. Defaults to true when `branches` is supplied. */
   reachable?: boolean;
+  /** `--local` / `--no-fetch`: skip the network read while resolving branches internally. */
+  localOnly?: boolean;
+  /** Per-read network timeout in ms; defaults to the branch-set reader's bound. */
+  timeoutMs?: number;
   /** Configured base branch; excluded because lifecycle residue there is not an in-flight location. */
   baseBranch?: string;
   /** Owner to filter to; `null` disables filtering. */
@@ -178,14 +182,17 @@ export interface DeriveInFlightOptions {
  */
 export async function deriveInFlight(options: DeriveInFlightOptions): Promise<DeriveInFlightResult> {
   const { exec, branches, identity, teamMode, remote = DEFAULT_REMOTE, prSource, baseBranch = "main" } = options;
-  const reachable = options.reachable ?? true;
   const errandSlugByBranch = options.errandSlugByBranch ?? new Map<string, string>();
   const parkedSlugs = options.parkedSlugs ?? new Set<string>();
   const worktreePaths = await resolveWorktreePathsByBranch(exec);
+  const branchSet = branches === undefined
+    ? await resolveInFlightBranchSet({ exec, localOnly: options.localOnly ?? false, timeoutMs: options.timeoutMs })
+    : { branches: [...branches], reachable: options.reachable ?? true };
+  const inputs = buildInputCandidates(branchSet.branches, worktreePaths, remote);
 
   const classified = await Promise.all(
-    branches.map((branch) =>
-      classifyBranch(exec, remote, branch, baseBranch, worktreePaths, errandSlugByBranch, parkedSlugs),
+    inputs.map((input) =>
+      classifyBranch(exec, input, baseBranch, worktreePaths, errandSlugByBranch, parkedSlugs),
     ),
   );
 
@@ -196,7 +203,7 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   const warnings = classified.flatMap((classification) => classification.warnings);
 
   const entries = prSource === undefined ? kept : await enrichWithPrState(kept, prSource);
-  return { entries, warnings, reachable };
+  return { entries, warnings, reachable: branchSet.reachable };
 }
 
 /**
@@ -225,6 +232,29 @@ function locationOf(branch: string, worktreePaths: Map<string, string>): InFligh
   return worktreePath === undefined
     ? { branch, remoteOnly: true }
     : { branch, worktreePath, remoteOnly: false };
+}
+
+type CandidateSource = "remote" | "worktree";
+
+interface InputCandidate {
+  branch: string;
+  ref: string;
+  source: CandidateSource;
+}
+
+function buildInputCandidates(
+  remoteBranches: readonly string[],
+  worktreePaths: ReadonlyMap<string, string>,
+  remote: string,
+): InputCandidate[] {
+  const byBranch = new Map<string, InputCandidate>();
+  for (const branch of remoteBranches) {
+    byBranch.set(branch, { branch, ref: `${remote}/${branch}`, source: "remote" });
+  }
+  for (const branch of worktreePaths.keys()) {
+    byBranch.set(branch, { branch, ref: branch, source: "worktree" });
+  }
+  return [...byBranch.values()];
 }
 
 interface BranchClassification {
@@ -257,14 +287,13 @@ function nameFromMetaPath(metaPath: string): string {
  */
 async function classifyBranch(
   exec: GitExec,
-  remote: string,
-  branch: string,
+  input: InputCandidate,
   baseBranch: string,
   worktreePaths: Map<string, string>,
   errandSlugByBranch: ReadonlyMap<string, string>,
   parkedSlugs: ReadonlySet<string>,
 ): Promise<BranchClassification> {
-  const ref = `${remote}/${branch}`;
+  const { branch, ref } = input;
   const location = locationOf(branch, worktreePaths);
 
   const errandSlug = errandSlugByBranch.get(branch);

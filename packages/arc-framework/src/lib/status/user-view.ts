@@ -40,7 +40,6 @@ import {
   type InFlightEntry,
   type PrSource,
 } from "../git/in-flight-derivation.js";
-import { resolveInFlightBranchSet } from "../git/remote-ref-reader.js";
 import { readErrandSlugByBranch } from "../errand/record.js";
 
 import { buildInFlightMineSlice } from "./in-flight-mine.js";
@@ -72,6 +71,10 @@ export interface RunStatusUserViewOptions {
   teamMode: boolean;
   /** `--local` / `--no-fetch`: skip the network read, render from local refs. */
   localOnly: boolean;
+  /** Configured base branch; excluded from in-flight classification. */
+  baseBranch?: string;
+  /** Slugs whose checkout lifecycle record classifies them as parked. */
+  parkedSlugs?: ReadonlySet<string>;
   /** Per-read network timeout in ms; defaults to the reader's bound. */
   timeoutMs?: number;
   /** Open-PR enrichment seam; omitted → refs-only. */
@@ -134,7 +137,7 @@ function mergeInFlightEntries(
 export async function runStatusUserView(
   options: RunStatusUserViewOptions,
 ): Promise<StatusUserViewResult> {
-  const { exec, identity, teamMode, localOnly, timeoutMs, prSource } = options;
+  const { exec, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
 
   if (identity === null) {
     return {
@@ -147,12 +150,25 @@ export async function runStatusUserView(
   // remote reachability so the unreachable path below never has to recompute it.
   const ready = await options.readReadyMine();
 
-  const { branches, reachable } = await resolveInFlightBranchSet({ exec, localOnly, timeoutMs });
-
+  const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
+  const [remoteResult, localEntries] = await Promise.all([
+    deriveInFlight({
+      exec,
+      localOnly,
+      baseBranch,
+      timeoutMs,
+      identity,
+      teamMode,
+      errandSlugByBranch,
+      parkedSlugs,
+      prSource,
+    }),
+    options.readLocalInFlight?.() ?? Promise.resolve([]),
+  ]);
   // Online but unreachable: the in-flight half can't be refreshed, so degrade to
   // the last-rendered cache rather than render a half-resolved view. `--local`
   // never degrades — it rendered from local refs by request.
-  if (!localOnly && !reachable) {
+  if (!localOnly && !remoteResult.reachable) {
     const cached = await options.readLastRendered();
     if (cached !== null) return { output: cached.trimEnd(), source: "cache" };
     return {
@@ -160,12 +176,6 @@ export async function runStatusUserView(
       source: "cache-missing",
     };
   }
-
-  const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
-  const [remoteResult, localEntries] = await Promise.all([
-    deriveInFlight({ exec, branches, reachable, identity, teamMode, errandSlugByBranch, prSource }),
-    options.readLocalInFlight?.() ?? Promise.resolve([]),
-  ]);
   const inFlight = buildInFlightMineSlice(mergeInFlightEntries(remoteResult.entries, localEntries));
   return { output: composeUserView(identity, inFlight, ready), source: "rendered" };
 }

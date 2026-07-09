@@ -18,7 +18,6 @@ import {
   type InFlightEntry,
   type PrSource,
 } from "../../lib/git/in-flight-derivation.js";
-import { resolveInFlightBranchSet } from "../../lib/git/remote-ref-reader.js";
 import { readErrandSlugByBranch } from "../../lib/errand/record.js";
 
 export interface ActiveInFlightOptions {
@@ -29,6 +28,10 @@ export interface ActiveInFlightOptions {
   teamMode: boolean;
   /** `--local` / `--no-fetch`: skip the network read, derive from local refs. */
   localOnly: boolean;
+  /** Configured base branch; excluded from in-flight classification. */
+  baseBranch?: string;
+  /** Slugs whose checkout lifecycle record classifies them as parked. */
+  parkedSlugs?: ReadonlySet<string>;
   /** Per-read network timeout in ms; defaults to the reader's bound. */
   timeoutMs?: number;
   /** Open-PR enrichment seam; omitted → refs-only. */
@@ -55,16 +58,17 @@ export interface ActiveInFlightResult {
 export async function runActiveInFlight(
   options: ActiveInFlightOptions,
 ): Promise<ActiveInFlightResult> {
-  const { exec, identity, teamMode, localOnly, timeoutMs, prSource } = options;
-  const { branches, reachable } = await resolveInFlightBranchSet({ exec, localOnly, timeoutMs });
+  const { exec, identity, teamMode, localOnly, baseBranch, parkedSlugs, timeoutMs, prSource } = options;
   const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
   const result = await deriveInFlight({
     exec,
-    branches,
-    reachable,
+    localOnly,
+    baseBranch,
+    timeoutMs,
     identity,
     teamMode,
     errandSlugByBranch,
+    parkedSlugs,
     prSource,
   });
   return { entries: result.entries, reachable: result.reachable };

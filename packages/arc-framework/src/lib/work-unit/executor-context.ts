@@ -53,6 +53,7 @@ import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
+import { listParkedSlugs } from "./lifecycle-resolver.js";
 import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-executor.js";
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
@@ -287,6 +288,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
                   identity,
                   teamMode,
                   localOnly: true,
+                  parkedSlugs: listParkedSlugs(await buildLifecycleIndex({ cwd, fs: indexFs })),
                   readFile: io.readFile,
                   readdir: (p) => readdir(p),
                 })
