@@ -57,3 +57,19 @@
 - Planning and activation commits triggered foreign-owned-write warnings for surfaces also touched by
   `feat/finalize-parallelism` and `burn-in-probe-b`. The warnings were advisory and expected for this burn-in
   setup; later integration should record whether they remain loud and recoverable.
+- The handoff meta commit `f29419c9` warned that `chore/burn-in-probe-b` and `feat/finalize-parallelism` also
+  touch `meta-burn-in-probe-a.md`; the Task 1.2 evidence commit `39d3d505` warned that the same siblings also
+  touch `notes-burn-in-probe-a.md` and `tasks-burn-in-probe-a.md`. Both checks passed and the warnings stayed
+  advisory, explicit, and recoverable.
+
+### Final Base And Coordination Reprobe Before Verification
+
+- Refreshed `origin/main`; it still pointed at PR #214 (`fix/fix-notes-window-bulk-rewrites`) and was already
+  contained in `HEAD`, so no base merge was needed. The ancestry check reported `HEAD...origin/main` as `11 0`.
+- Final session-init reprobe for Task 1.3 resolved Task 1.3 as the active cursor, reported
+  `baseBranchSync.state: clean`, `dirty.state: clean`, and `recommendedCombinedPrompt: null`.
+- User notes state remained clean (`refState: same`) with no false drift or reconcile prompt. The saved user note
+  was an ancestor at `f29419c9`, one commit behind `HEAD`, because the Task 1.2 evidence commit landed after the
+  handoff save; this is expected until the next handoff or explicit sync.
+- No silent lifecycle/state contention surfaced: sibling overlap was visible through pre-commit advisories, base
+  freshness was explicit, and session-init recovered the current task cursor without ambiguity.

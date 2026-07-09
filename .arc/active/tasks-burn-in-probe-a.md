@@ -25,15 +25,14 @@ _Purpose:_ Capture the lifecycle evidence this disposable Wave 1 fixture exists 
   recorded the post-handoff session-init result in `notes-burn-in-probe-a.md`: saved notes were current at
   `f29419c9`, with no false drift or reconcile prompt.
 
-### `[ ]` **1.3 Capture sibling coordination and integration evidence**
+### `[x]` **1.3 Capture sibling coordination and integration evidence**
 
 - _Goal:_ The evidence log shows whether this fixture coordinated cleanly with sibling burn-in work through
   integration.
 
-    - Record any sibling-touch warnings or ROADMAP/meta contention surfaced during planning or integration.
-    - Before integration, merge the current base if needed and record the final reprobe result.
-    - Summarize whether the fixture reached integration with no false notes-drift report and no silent
-      lifecycle/state contention.
+- _Outcome:_ Recorded the final base and coordination reprobe in `notes-burn-in-probe-a.md`: current `main` was
+  already contained, session-init resolved Task 1.3 cleanly, sibling overlap stayed visible through advisory
+  warnings, and no false notes-drift or silent state contention surfaced.
 
 ## **Phase 2:** Verification
 
