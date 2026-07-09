@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 
 import { describe, it, expect, afterEach } from "vitest";
 
-import { composeProjectReadinessView } from "../../../src/lib/status/project-view.js";
+import {
+  composeProjectReadinessView,
+  mergeProjectReadinessRecords,
+  resolveProjectReadinessViewInput,
+  type ProjectReadinessRecordCandidate,
+} from "../../../src/lib/status/project-view.js";
 
 let root: string | undefined;
 
@@ -58,10 +63,13 @@ describe("composeProjectReadinessView", () => {
       meta("blocked-delta", "Planning", { dependsOn: "`blocked-gamma`" }),
     );
 
-    const view = await composeProjectReadinessView({
+    const input = await resolveProjectReadinessViewInput({
       cwd: root,
-      renderedRef: "abc1234",
       title: "Roadmap: Test Project",
+    });
+    const view = composeProjectReadinessView({
+      ...input,
+      renderedRef: "abc1234",
     });
 
     expect(view).toContain("# Roadmap: Test Project");
@@ -79,4 +87,156 @@ describe("composeProjectReadinessView", () => {
     expect(depth2Section).toContain("| blocked-delta | P3");
     expect(depth2Section).toContain("blocked-gamma");
   });
+
+  it("renders from injected records without reading the filesystem", () => {
+    const view = composeProjectReadinessView({
+      renderedRef: "abc1234",
+      title: "Roadmap: Injected",
+      records: mergeProjectReadinessRecords([
+        record("active-alpha", { location: "active", state: "Active", priority: "P1" }),
+        record("ready-beta", { location: "planned", dependsOn: [], priority: "P2" }),
+        record("blocked-gamma", { location: "planned", dependsOn: ["active-alpha"] }),
+      ]),
+    });
+
+    expect(view).toContain("# Roadmap: Injected");
+    expect(view).toContain("| `Active` | active-alpha | P1");
+    expect(view).toContain("| ready-beta | P2");
+    expect(view).toContain("| blocked-gamma | P3");
+  });
 });
+
+describe("mergeProjectReadinessRecords", () => {
+  it("lets an at-ref active meta supersede a backlog stub", () => {
+    const records = mergeProjectReadinessRecords([
+      record("superseded", {
+        location: "planned",
+        owner: "stub-owner",
+        priority: "P3",
+        cohort: "old-cohort",
+      }),
+      record("superseded", {
+        location: "active",
+        owner: "active-owner",
+        priority: "P1",
+        cohort: "new-cohort",
+      }),
+    ]);
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        slug: "superseded",
+        location: "active",
+        owner: "active-owner",
+        priority: "P1",
+        cohort: "new-cohort",
+        source: expect.objectContaining({ kind: "active-meta" }),
+        sources: expect.arrayContaining([
+          expect.objectContaining({ kind: "active-meta" }),
+          expect.objectContaining({ kind: "backlog-stub" }),
+        ]),
+      }),
+    ]);
+  });
+
+  it("keeps backlog-only records from their stub", () => {
+    const records = mergeProjectReadinessRecords([
+      record("backlog-only", { location: "planned", owner: "andrew", priority: "P2" }),
+    ]);
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        slug: "backlog-only",
+        location: "planned",
+        owner: "andrew",
+        priority: "P2",
+        source: expect.objectContaining({ kind: "backlog-stub" }),
+      }),
+    ]);
+  });
+
+  it("uses backlog parking for tier membership while keeping active row fields", () => {
+    const records = mergeProjectReadinessRecords([
+      record("shelved", {
+        location: "planned",
+        state: "Active",
+        owner: "stub-owner",
+        priority: "P3",
+      }),
+      record("shelved", {
+        location: "active",
+        state: "Active",
+        owner: "active-owner",
+        priority: "P1",
+      }),
+    ]);
+    const view = composeProjectReadinessView({
+      renderedRef: "abc1234",
+      title: "Roadmap",
+      records,
+    });
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        slug: "shelved",
+        location: "planned",
+        scheduling: "parked",
+        owner: "active-owner",
+        priority: "P1",
+      }),
+    ]);
+    expect(view).toContain("## Parked");
+    expect(view).toContain("| shelved   | P1       | active-owner");
+    expect(view).not.toContain("| `Active` | shelved");
+  });
+
+  it("does not filter another identity's active meta from project scope", () => {
+    const records = mergeProjectReadinessRecords([
+      record("theirs", { location: "planned", owner: "andrew" }),
+      record("theirs", { location: "active", owner: "blair" }),
+    ]);
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        slug: "theirs",
+        location: "active",
+        owner: "blair",
+      }),
+    ]);
+  });
+
+  it("uses deterministic precedence for any source combination", () => {
+    const records = mergeProjectReadinessRecords([
+      record("combo", { location: "completed", state: "Shipped", priority: "P3" }),
+      record("combo", { location: "provisional", priority: "P2" }),
+      record("combo", { location: "planned", priority: "P1" }),
+    ]);
+
+    expect(records).toEqual([
+      expect.objectContaining({
+        slug: "combo",
+        location: "planned",
+        priority: "P1",
+        sources: [
+          expect.objectContaining({ location: "planned" }),
+          expect.objectContaining({ location: "provisional" }),
+          expect.objectContaining({ location: "completed" }),
+        ],
+      }),
+    ]);
+  });
+});
+
+function record(
+  slug: string,
+  fields: Partial<ProjectReadinessRecordCandidate> = {},
+): ProjectReadinessRecordCandidate {
+  return {
+    slug,
+    location: "planned",
+    state: "Planning",
+    priority: "P3",
+    dependsOn: [],
+    ...fields,
+  };
+}

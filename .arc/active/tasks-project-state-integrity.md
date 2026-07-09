@@ -224,46 +224,26 @@ sessions behind this phase's start, and the composer's cross-cutting contracts �
 union, the lifecycle classification and its two consumers (`project-view`, `ready-mine-source`) — are dense
 seams; reground them against the codebase as it exists then.
 
-### `[ ]` **4.1 Composer input model: injected slug-keyed record union**
+### `[x]` **4.1 Composer input model: injected slug-keyed record union**
 
 - _Goal:_ The composer is a pure function over resolved records — no disk scans, no raw markdown globs, no
   assumption that readiness is a field parsed out of `meta-*`.
 
-    - `[ ]` **4.1.a Record-set type and precedence merge**
-        - Slug-keyed union type with source precedence active-meta-at-a-known-ref > backlog stub > completed
-          index; each record carries its source provenance (feeds the supersede tier and dep resolution).
-        - The union's oracle slice is identity-unfiltered (spec § B): project surfaces render every owner's
-          in-flight WUs — `keepForIdentity` scoping stays a user-view concern, never applied in the
-          record-set assembly.
-        - Precedence is per-axis for parked slugs (spec § B): a backlog record deriving `parked` (via the
-          same canonical `(phase, location)` map) is authoritative for scheduling-tier membership — the
-          In Flight supersede applies only to non-parked slugs — while the at-ref active meta still supplies
-          the union record's row fields when present.
-        - One unified record shape reconciles the composer's current row fields (slug, location, state,
-          owner, priority, dependsOn, cohort) with the oracle's in-flight facts — oracle entries project
-          into it, so a superseded stub's In Flight row renders owner / priority / cohort from the at-ref
-          meta.
-        - Build `test-first` (one behavior at a time):
-            - An at-ref active meta supersedes the same slug's backlog stub
-            - A superseded slug's record carries the at-ref meta's fields, not the stub's
-            - A backlog-only slug resolves from its stub
-            - A parked slug (pointer record + at-ref `Active` meta) resolves to the Parked tier, never
-              In Flight, with row fields from the at-ref meta
-            - In team mode, another identity's at-ref active meta still enters the union and supersedes its
-              stub (no identity filter on project surfaces)
-            - Precedence is total and deterministic for any source combination
+    - `[x]` **4.1.a Record-set type and precedence merge**
+        - Added the exported project-readiness candidate/record/source types and a slug-keyed merge with
+          deterministic precedence: active meta > planned stub > provisional stub > completed record.
+          Merged records preserve all source provenance and keep project scope identity-unfiltered.
+        - Parking is now an explicit scheduling overlay on merged records: a planned `Active` pointer keeps a
+          slug out of In Flight while active-meta fields still supply row values.
 
-    - `[ ]` **4.1.b Composer purification**
-        - `composeProjectReadinessView` (`src/lib/status/project-view.ts`) takes the injected record set;
-          `loadProjectMetas` / `collectMetaFiles` move out to a resolver layer that assembles the set; the
-          write sink stays injected (`readiness-regen` seam).
-        - Green-commit staging: this task's resolver reproduces today's tree-only inputs
-          (behavior-identical render); the local-refs slice and supersede tier arrive in Task 5.1. The
-          `resolveTitle` read-back relocates into the resolver here (so the compose path is fs-free) and is
-          deleted by Task 4.4.
-        - Both regen call sites (`src/lib/work-unit/executor-context.ts` ~263, `src/handlers/start.ts`
-          ~579) adapt mechanically to the new signature here; Task 5.3 verifies the enriched flow.
-        - Existing `project-view` unit tests move onto injected records (no fs seam in the compose path).
+    - `[x]` **4.1.b Composer purification**
+        - `composeProjectReadinessView` now renders from injected records only. The disk scan and current H1
+          read moved into `resolveProjectReadinessViewInput`, and both ROADMAP regen call sites resolve input
+          before invoking the pure composer.
+        - Existing project-view tests now exercise the resolver separately from the injected-record composer.
+
+- _Outcome:_ The project readiness composer is filesystem-free over a resolved record set while the tree-backed
+  resolver preserves today's render behavior for lifecycle ceremony callers.
 
 ### `[ ]` **4.2 Dependency resolution via the lifecycle primitive**
 

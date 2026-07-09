@@ -47,7 +47,7 @@ import {
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
-import { composeProjectReadinessView } from "../status/project-view.js";
+import { composeProjectReadinessView, resolveProjectReadinessViewInput } from "../status/project-view.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
@@ -260,15 +260,19 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       "reconcile-roadmap": ({ slug, from, to }) =>
         reconcileRoadmap(
           {
-            composeView: async () =>
-              composeProjectReadinessView({
+            composeView: async () => {
+              const input = await resolveProjectReadinessViewInput({
                 cwd,
-                renderedRef: await renderedRef(),
                 fs: {
                   readFile: (p) => io.readFile(p),
                   readdir: (p) => readdir(p, { withFileTypes: true }),
                 },
-              }),
+              });
+              return composeProjectReadinessView({
+                ...input,
+                renderedRef: await renderedRef(),
+              });
+            },
             mkdir: io.mkdir,
             writeFile: io.writeFile,
             stageFile: async (path) => {

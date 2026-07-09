@@ -37,7 +37,7 @@ import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { ensureDir } from "../lib/template/files.js";
-import { composeProjectReadinessView } from "../lib/status/project-view.js";
+import { composeProjectReadinessView, resolveProjectReadinessViewInput } from "../lib/status/project-view.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
@@ -576,13 +576,16 @@ async function refreshRoadmapForStartCeremony(
 ): Promise<RefreshRoadmapResult> {
   try {
     const renderedRef = await startRenderedRef(ctx, cwd);
-    const view = await composeProjectReadinessView({
+    const input = await resolveProjectReadinessViewInput({
       cwd,
-      renderedRef,
       fs: {
         readFile: (p) => ctx.io.readFile(p),
         readdir: (p) => readdir(p, { withFileTypes: true }),
       },
+    });
+    const view = composeProjectReadinessView({
+      ...input,
+      renderedRef,
     });
     const dir = join(cwd, ".arc", "backlog");
     await ensureDir(dir, ctx.io.mkdir);

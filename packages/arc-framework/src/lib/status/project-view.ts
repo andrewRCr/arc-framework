@@ -30,27 +30,62 @@ export interface ProjectViewFs {
   readFile: (path: string) => Promise<string>;
 }
 
-/** Options for {@link composeProjectReadinessView}. */
-export interface ComposeProjectReadinessViewOptions {
+/** Lifecycle tier represented by a project-readiness record. */
+export type ProjectReadinessLocation = "active" | "planned" | "provisional" | "completed";
+
+/** Source family that contributed a project-readiness record. */
+export type ProjectReadinessSourceKind = "active-meta" | "backlog-stub" | "completed-index";
+
+/** Provenance for one source candidate that contributed to a merged record. */
+export interface ProjectReadinessRecordSource {
+  kind: ProjectReadinessSourceKind;
+  location: ProjectReadinessLocation;
+  path?: string;
+}
+
+/** A candidate record before slug-keyed source precedence is applied. */
+export interface ProjectReadinessRecordCandidate {
+  slug: string;
+  location: ProjectReadinessLocation;
+  state: WorkUnitState;
+  owner?: string;
+  priority: Priority;
+  dependsOn: string[];
+  cohort?: string;
+  source?: ProjectReadinessRecordSource;
+}
+
+/** One resolved project-readiness record after source precedence is applied. */
+export interface ProjectReadinessRecord extends ProjectReadinessRecordCandidate {
+  source: ProjectReadinessRecordSource;
+  sources: readonly ProjectReadinessRecordSource[];
+  scheduling?: "parked";
+}
+
+/** Resolver output consumed by {@link composeProjectReadinessView}. */
+export interface ProjectReadinessViewInput {
+  title: string;
+  records: ProjectReadinessRecord[];
+}
+
+/** Options for the tree-backed resolver. */
+export interface ResolveProjectReadinessViewInputOptions {
   /** Repository root containing `.arc/`. */
   cwd: string;
-  /** Freshness marker to print in the header. */
-  renderedRef: string;
   /** Optional H1 text without the leading `#`; existing ROADMAP title is preserved when omitted. */
   title?: string;
   /** Injectable filesystem for tests and handler-owned I/O contexts. */
   fs?: ProjectViewFs;
 }
 
-/** A parsed meta row with enough lifecycle and render facts for the project view. */
-interface ProjectMeta {
-  slug: string;
-  location: "active" | "planned" | "provisional";
-  state: WorkUnitState;
-  owner?: string;
-  priority: Priority;
-  dependsOn: string[];
-  cohort?: string;
+/** Options for {@link composeProjectReadinessView}. */
+export interface ComposeProjectReadinessViewOptions {
+  /** Freshness marker to print in the header. */
+  renderedRef: string;
+  /** H1 text without the leading `#`. */
+  title: string;
+  /** Already-resolved project-readiness records. */
+  records: readonly ProjectReadinessRecord[];
 }
 
 /** A blocked planned row plus the unresolved edges it displays. */
@@ -110,12 +145,32 @@ function slugOf(path: string): string {
   return META_FILE_RE.exec(basename(path))?.[1] ?? basename(path);
 }
 
+function sourceKindFor(location: ProjectReadinessLocation): ProjectReadinessSourceKind {
+  switch (location) {
+    case "active":
+      return "active-meta";
+    case "planned":
+    case "provisional":
+      return "backlog-stub";
+    case "completed":
+      return "completed-index";
+  }
+}
+
+function sourceFor(location: ProjectReadinessLocation, path: string | undefined): ProjectReadinessRecordSource {
+  return {
+    kind: sourceKindFor(location),
+    location,
+    ...(path !== undefined ? { path } : {}),
+  };
+}
+
 /** Parse one meta into the renderer's compact project-view row shape. */
 async function readProjectMeta(
   fs: ProjectViewFs,
-  location: ProjectMeta["location"],
+  location: ProjectReadinessLocation,
   path: string,
-): Promise<ProjectMeta | null> {
+): Promise<ProjectReadinessRecordCandidate | null> {
   let record;
   try {
     record = parseMetaRecord(await fs.readFile(path));
@@ -134,18 +189,20 @@ async function readProjectMeta(
     priority: validatePriority(record.Priority),
     dependsOn: parseIdentifierList(record["Depends On"]),
     ...(record.Cohort !== null && record.Cohort !== "[none]" ? { cohort: record.Cohort } : {}),
+    source: sourceFor(location, path),
   };
 }
 
-/** Load active/planned/provisional metas from disk. */
-async function loadProjectMetas(cwd: string, fs: ProjectViewFs): Promise<ProjectMeta[]> {
+/** Load lifecycle-tier metas from disk into unmerged record candidates. */
+async function loadProjectRecords(cwd: string, fs: ProjectViewFs): Promise<ProjectReadinessRecordCandidate[]> {
   const roots = [
     { location: "active" as const, dir: join(cwd, ".arc", "active") },
     { location: "planned" as const, dir: join(cwd, ".arc", "backlog", "planned") },
     { location: "provisional" as const, dir: join(cwd, ".arc", "backlog", "provisional") },
+    { location: "completed" as const, dir: join(cwd, ".arc", "completed") },
   ];
 
-  const metas: ProjectMeta[] = [];
+  const metas: ProjectReadinessRecordCandidate[] = [];
   for (const root of roots) {
     for (const path of await collectMetaFiles(root.dir, fs)) {
       const meta = await readProjectMeta(fs, root.location, path);
@@ -153,6 +210,62 @@ async function loadProjectMetas(cwd: string, fs: ProjectViewFs): Promise<Project
     }
   }
   return metas;
+}
+
+const SOURCE_PRECEDENCE: Record<ProjectReadinessLocation, number> = {
+  active: 3,
+  planned: 2,
+  provisional: 1,
+  completed: 0,
+};
+
+function compareCandidates(
+  left: ProjectReadinessRecordCandidate,
+  right: ProjectReadinessRecordCandidate,
+): number {
+  const precedence = SOURCE_PRECEDENCE[right.location] - SOURCE_PRECEDENCE[left.location];
+  if (precedence !== 0) return precedence;
+  return sourcePathOf(left).localeCompare(sourcePathOf(right));
+}
+
+function sourcePathOf(candidate: ProjectReadinessRecordCandidate): string {
+  return candidate.source?.path ?? `${candidate.location}/${candidate.slug}`;
+}
+
+function isParkedPointer(candidate: ProjectReadinessRecordCandidate): boolean {
+  return candidate.location === "planned" && candidate.state === "Active";
+}
+
+/**
+ * Merge source candidates into one slug-keyed project-readiness record set.
+ *
+ * At-ref active metas win the row-field precedence over backlog stubs and completed
+ * records. Parking is an axis overlay: a planned Active pointer owns scheduling
+ * tier membership even when an active meta supplies the row fields.
+ */
+export function mergeProjectReadinessRecords(
+  candidates: readonly ProjectReadinessRecordCandidate[],
+): ProjectReadinessRecord[] {
+  const groups = new Map<string, ProjectReadinessRecordCandidate[]>();
+  for (const candidate of candidates) {
+    groups.set(candidate.slug, [...(groups.get(candidate.slug) ?? []), candidate]);
+  }
+
+  return [...groups.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([, group]) => {
+      const ordered = [...group].sort(compareCandidates);
+      const winner = ordered[0];
+      if (winner === undefined) throw new Error("project-readiness merge requires a non-empty group");
+      const parked = group.some(isParkedPointer);
+      const source = winner.source ?? sourceFor(winner.location, undefined);
+      return {
+        ...winner,
+        source,
+        sources: ordered.map((candidate) => candidate.source ?? sourceFor(candidate.location, undefined)),
+        ...(parked ? { location: "planned" as const, scheduling: "parked" as const } : {}),
+      };
+    });
 }
 
 /** Preserve a project-specific ROADMAP H1 when one already exists. */
@@ -167,16 +280,31 @@ async function resolveTitle(cwd: string, fs: ProjectViewFs, title: string | unde
   return DEFAULT_TITLE;
 }
 
-/** Build a render row from a parsed meta, filtering dependency display to pending edges. */
-function rowOf(meta: ProjectMeta, pendingNames: ReadonlySet<string>, includeState: boolean): StatusViewRow {
-  const pendingDeps = meta.dependsOn.filter((dep) => pendingNames.has(dep));
+/** Resolve tree-backed records and the title read into a compose-ready input. */
+export async function resolveProjectReadinessViewInput(
+  options: ResolveProjectReadinessViewInputOptions,
+): Promise<ProjectReadinessViewInput> {
+  const fs = options.fs ?? DEFAULT_FS;
   return {
-    workUnit: meta.slug,
-    ...(includeState ? { state: `\`${meta.state}\`` } : {}),
-    priority: meta.priority,
-    ...(meta.owner !== undefined ? { owner: meta.owner } : {}),
+    title: await resolveTitle(options.cwd, fs, options.title),
+    records: mergeProjectReadinessRecords(await loadProjectRecords(options.cwd, fs)),
+  };
+}
+
+/** Build a render row from a resolved record, filtering dependency display to pending edges. */
+function rowOf(
+  record: ProjectReadinessRecord,
+  pendingNames: ReadonlySet<string>,
+  includeState: boolean,
+): StatusViewRow {
+  const pendingDeps = record.dependsOn.filter((dep) => pendingNames.has(dep));
+  return {
+    workUnit: record.slug,
+    ...(includeState ? { state: `\`${record.state}\`` } : {}),
+    priority: record.priority,
+    ...(record.owner !== undefined ? { owner: record.owner } : {}),
     dependsOn: pendingDeps,
-    ...(meta.cohort !== undefined ? { cohort: meta.cohort } : {}),
+    ...(record.cohort !== undefined ? { cohort: record.cohort } : {}),
   };
 }
 
@@ -213,44 +341,46 @@ function renderTier(rows: readonly StatusViewRow[], columns: readonly StatusColu
 }
 
 /**
- * Compose the project readiness view from local meta files.
+ * Compose the project readiness view from resolved records.
  *
- * @param options - Repository root, header freshness marker, and optional I/O seams.
+ * @param options - Header freshness marker, title, and resolved records.
  * @returns The complete markdown body, without requiring a trailing newline.
  */
-export async function composeProjectReadinessView(
+export function composeProjectReadinessView(
   options: ComposeProjectReadinessViewOptions,
-): Promise<string> {
-  const fs = options.fs ?? DEFAULT_FS;
-  const title = await resolveTitle(options.cwd, fs, options.title);
-  const metas = await loadProjectMetas(options.cwd, fs);
-  const pendingNames = new Set(metas.map((meta) => meta.slug));
+): string {
+  const records = [...options.records];
+  const pendingNames = new Set(
+    records
+      .filter((record) => record.location !== "completed")
+      .map((record) => record.slug),
+  );
 
-  const active = metas
-    .filter((meta) => meta.location === "active")
-    .map((meta) => rowOf(meta, pendingNames, true));
+  const active = records
+    .filter((record) => record.location === "active" && record.scheduling !== "parked")
+    .map((record) => rowOf(record, pendingNames, true));
 
-  const planned = metas.filter((meta) => meta.location === "planned");
+  const planned = records.filter((record) => record.location === "planned" && record.scheduling !== "parked");
   const ready = planned
-    .filter((meta) => meta.state === "Planning")
-    .filter((meta) => meta.dependsOn.every((dep) => !pendingNames.has(dep)))
-    .map((meta) => rowOf(meta, pendingNames, false));
+    .filter((record) => record.state === "Planning")
+    .filter((record) => record.dependsOn.every((dep) => !pendingNames.has(dep)))
+    .map((record) => rowOf(record, pendingNames, false));
 
   const blocked = new Map<string, BlockedRow>();
-  for (const meta of planned.filter((item) => item.state === "Planning")) {
-    const unsatisfied = meta.dependsOn.filter((dep) => pendingNames.has(dep));
+  for (const record of planned.filter((item) => item.state === "Planning")) {
+    const unsatisfied = record.dependsOn.filter((dep) => pendingNames.has(dep));
     if (unsatisfied.length > 0) {
-      blocked.set(meta.slug, { row: rowOf(meta, pendingNames, false), unsatisfied });
+      blocked.set(record.slug, { row: rowOf(record, pendingNames, false), unsatisfied });
     }
   }
 
-  const parked = planned
-    .filter((meta) => meta.state === "Active")
-    .map((meta) => rowOf(meta, pendingNames, false));
+  const parked = records
+    .filter((record) => record.scheduling === "parked" || (record.location === "planned" && record.state === "Active"))
+    .map((record) => rowOf(record, pendingNames, false));
   const blockedGroups = blockedDepths(blocked);
 
   const lines = [
-    `# ${title}`,
+    `# ${options.title}`,
     "",
     `> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against \`${options.renderedRef}\`.`,
     "",
