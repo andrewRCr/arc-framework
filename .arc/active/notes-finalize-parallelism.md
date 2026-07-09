@@ -325,6 +325,22 @@ deferred export). No recovery path needed. Advisory-noise side note: the inducti
 foreign-write divergence false positive again (third instance, forward direction, siblings flagged on probe-b's
 *own* evidence log) — evidence continues to accrue to 3.2.e / `slug-state-oracle-alignment`.
 
+**Session-entry follow-up — expected projection residue misclassified as a conflict.** A later real handoff from
+`slug-state-oracle-alignment` exercised the same branch-bounded path against GitHub after the scratch-clone
+induction had left four notes on deliberately unpushed synthetic commits in the shared local canonical ref. The
+export correctly preserved origin and overlaid only branch-reachable notes; the local ref correctly retained all
+four omitted notes. The resulting tips (`0fdd01af` local / `232b131f` remote) were graph-diverged but
+content-compatible: every remote `(annotated commit, blob)` pair was byte-identical locally, and local was a
+strict content superset. The FP handoff note, slug-state handoff note, and all four on-disk user surfaces matched.
+
+The session-init ref detector compares ancestry only, so it mapped this expected projection residue to `conflict`
+and offered `arc user pull` to "replace local notes." That action cannot resolve the state — `runUserPull`
+deliberately refuses diverged refs — and actual replacement would discard the four intentionally retained notes.
+No data was lost; the pull was skipped. This is a consumed GA seam rather than a failure of 3.2.a's writer/export
+invariants: route the fix through split-out WU `notes-export-state-coherence` after the already-active slug-state
+fix ships, gate wave 2 on both, merge the fix back into FP, and re-run this exact entry induction. The durable
+capture is in USER-INBOX; FP owns this observation and its eventual verification.
+
 ### Cell 3.2.b — sync-state marker shared-key ordering (2026-07-09) — CONFIRMED + one seam
 
 Method: two scratch clones (own git dirs → genuinely distinct machineIds `7647ac4c` / `2f8bb305`) with the

@@ -588,10 +588,11 @@ well as paths; gating + coordination detail in § Sequencing.
 
 _Purpose:_ First real off-primary code exercise — worktree dependency provisioning + per-task quality gates
 off-primary — and a re-graduation that verifies BI-4's ceremony-locus fix. Adds BI-1's node-deps leg to the
-wave-1 gating set. **Additional gate:** `slug-state-oracle-alignment` merged to `main` and into FP — wave
-sessions consume the slug-state/dispatch surfaces it fixes (checkout-local blindness to in-flight siblings +
-the foreign-write divergence false positive; split out per the seam-routing rule,
-`notes-finalize-parallelism.md` § Burn-in seam-routing rule — in progress on `main` as of 2026-07-09).
+wave-1 gating set. **Additional gates:** `slug-state-oracle-alignment` and `notes-export-state-coherence` merged
+to `main` and into FP — wave sessions consume the slug-state/dispatch and notes-entry surfaces they fix. The
+slug-state fix owns checkout-local blindness + the foreign-write divergence false positive and is already in
+flight; notes coherence follows it as a split-out WU. Both route per the burn-in seam rule in
+`notes-finalize-parallelism.md`.
 
 ### `[ ]` **4.1 Prepare and launch the wave-2 workload**
 
