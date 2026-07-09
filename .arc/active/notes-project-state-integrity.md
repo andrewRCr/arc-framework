@@ -40,14 +40,14 @@ All paths below are under `packages/arc-framework/`.
   CHECK 18 (`src/scripts/validate-cohort-consistency.ts`) is the blockable-check precedent; CHECK 19
   (`src/scripts/check-foreign-writes.ts`) is the advisory precedent.
 
-## Live repro evidence — preserve until used
+## Live repro evidence — fixture-backed
 
 The stale `plan/burn-in-probe-a` branch on `origin` (with the WU's real `chore/burn-in-probe-a` checked out
-locally, absent from the remote) is deliberately left in place as deterministic repro for the (A) work: it
-exhibits both standing false facts (phantom remote-only materialize candidate; invisible local in-flight
-worktree). Do not prune it during branch hygiene until the concurrency-harness work has used or fixture-ized
-it. The wave-1 phantom-overlap signature: the detector's own probes return empty on re-run — transient truth,
-unreproducible minutes later.
+locally, absent from the remote) supplied the deterministic standing repro for the (A) work: it exhibited both
+standing false facts (phantom remote-only materialize candidate; invisible local in-flight worktree). That
+topology is now fixture-backed by the integration harness, so the live branch is released from its special
+preservation hold and may be pruned during normal branch hygiene. The wave-1 phantom-overlap signature remains:
+the detector's own probes return empty on re-run — transient truth, unreproducible minutes later.
 
 ## Parked-WU topology — design reckoning (settled 2026-07-08)
 

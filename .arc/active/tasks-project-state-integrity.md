@@ -169,30 +169,26 @@ _Purpose:_ The falsifiable acceptance for the oracle work: a harness racing deri
 `arc start` reshuffle, asserting stable warning-marked output; pins the wave-1 phantom-overlap mechanism and
 fixture-izes the standing live repro topology.
 
-### `[ ]` **3.1 Scripted-reshuffle harness fixture**
+### `[x]` **3.1 Scripted-reshuffle harness fixture**
 
 - _Goal:_ The churn topologies the oracle must stay stable under — including the standing stale-`plan/`
   repro — exist as deterministic integration fixtures.
 
-- **Additional Context:** `notes-project-state-integrity.md` § Live repro evidence
+    - `[x]` **3.1.a Reshuffle fixture infrastructure**
+        - Added an integration helper that builds a bare-origin plus same-machine sibling-worktree topology,
+          exposes `makeGitExec`-bound executors, and scripts git-level worktree spawn, local branch rename,
+          remote delete/recreate, and push steps.
+        - The helper's exec wrapper can fire a scripted step at a selected git-call boundary; the smoke
+          integration case proves a boundary-fired worktree spawn trips the derivation's indeterminate
+          snapshot warning.
 
-    - `[ ]` **3.1.a Reshuffle fixture infrastructure**
-        - Integration-tier fixture: bare origin + worktree topology from the `multi-clone.ts` harness
-          (worktree-siblings setup) with `makeGitExec`-bound executors, plus scripted reshuffle steps
-          (spawn a worktree, local-only `plan/ → <type>/` rename, remote branch delete / recreate, push).
-        - Reshuffle steps are git-level emulations of the ceremony's ref / worktree effects — the oracle
-          consumes git state, not the CLI path that produced it; real-CLI ceremony coverage stays at the
-          e2e tier.
-        - The fixture exposes an exec-wrapper injection point that fires reshuffle steps at chosen git-call
-          boundaries — the deterministic mutation-window mechanism Task 3.3 builds its acceptance on.
+    - `[x]` **3.1.b Standing-repro topology fixture**
+        - Added a fixture-backed stale-`plan/` topology with a checked-out renamed `chore/` worktree. The
+          integration assertion verifies the oracle reports the local worktree entry and materialize sees no
+          remote-only candidate for the stale branch.
 
-    - `[ ]` **3.1.b Standing-repro topology fixture**
-        - Recreate the live evidence as a fixture: stale `plan/<name>` on the remote + real `chore/<name>`
-          checked out locally with its meta; assert no phantom remote-only materialize candidate and the
-          local in-flight worktree visible (the two standing false facts, spec § Introduction / SC 1).
-        - The deliverable is the fixture; once it reproduces the topology, the live `plan/burn-in-probe-a`
-          branch is released for hygiene — a dev-repo act outside this WU's diff, recorded in the notes file
-          when the fixture lands (per the notes' preserve-until-used instruction).
+- _Outcome:_ The live repro topology is now reproducible in temp git fixtures, and the notes file releases the
+  preserved `plan/burn-in-probe-a` branch from its special "do not prune" hold.
 
 ### `[ ]` **3.2 Pin the wave-1 phantom-overlap mechanism**
 
