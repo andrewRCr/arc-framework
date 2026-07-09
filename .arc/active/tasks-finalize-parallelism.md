@@ -536,9 +536,15 @@ well as paths; gating + coordination detail in § Sequencing.
           B's own paired push — full local ≡ origin convergence. Evidence in `notes-finalize-parallelism.md`
           § Wave-1 induction evidence.
 
-    - `[ ]` **3.2.b Sync-state marker shared-key ordering**
-        - Exercise misordered sibling publishes with multiple unresolved marker intents; confirm no earlier live
-          marker is hidden, and any remaining shared-key residue is TTL-bounded / presentation-only.
+    - `[x]` **3.2.b Sync-state marker shared-key ordering**
+        - Exercised misordered publishes from two genuinely-distinct writers (scratch clones with own machineIds,
+          local repo as origin, temporary pre-receive rejecting only the notes ref) with two unresolved intents
+          live simultaneously. Confirmed: keyed union retained every entry under misordered CAS writes (no
+          earlier live marker hidden), the session-init surface rendered exactly the live intents cross-worktree,
+          BI-3's shared per-machine id and intent-keying hold (no key collapse; retries mint fresh keys), and
+          residue is TTL-bounded (14d) / presentation-only. One seam sharpened and routed to Phase 7 (7.2):
+          recovered pushes never fulfill their recorded intents, leaving false "notes lag" lines until TTL.
+          Evidence in `notes-finalize-parallelism.md` § Wave-1 induction evidence.
 
     - `[ ]` **3.2.c ROADMAP concurrent regen**
         - Induce concurrent regens from different base states; confirm conflict (loud) vs. stale-render (silent).
@@ -723,6 +729,18 @@ the waves run rather than authored up front.
   `reconcileLinkedIdentityGlobalUserSurfaces({ signpost: true })` call and the `blocked` → `throw`) and its call
   sites.
 - _Surfaced by:_ CodeRabbit review of the Phase 2.I forward-port (PR #196), 2026-07-05.
+
+### `[ ]` **7.2 Key marker self-invalidation on content fulfillment, not export-commit reachability**
+
+- _Goal:_ A failed-then-recovered notes push stops rendering a false "notes lag" Aware line: the liveness
+  predicate treats an intent as fulfilled when its content has landed (e.g., a note for the marker's
+  `sourceCommit` is reachable at the notes tip), not only when the exact recorded export commit is reachable —
+  recovered pushes land a different export commit, so today's predicate leaves stale-live markers for the full
+  14-day TTL.
+- _Verification bait:_ three deliberately-left stale-live markers from the 3.2.b induction (machineIds
+  `2f8bb305` ×2 / `7647ac4c` ×1) must read fulfilled once the fix lands.
+- _Surfaced by:_ wave-1 cell 3.2.b induction, 2026-07-09 — see `notes-finalize-parallelism.md` § Wave-1
+  induction evidence.
 
 ## **Phase 8:** GA closeout
 

@@ -325,6 +325,43 @@ deferred export). No recovery path needed. Advisory-noise side note: the inducti
 foreign-write divergence false positive again (third instance, forward direction, siblings flagged on probe-b's
 *own* evidence log) — evidence continues to accrue to 3.2.e / `slug-state-oracle-alignment`.
 
+### Cell 3.2.b — sync-state marker shared-key ordering (2026-07-09) — CONFIRMED + one seam
+
+Method: two scratch clones (own git dirs → genuinely distinct machineIds `7647ac4c` / `2f8bb305`) with the
+**local** repo as their origin, so every publish exercised the real keyed-union path into the real
+`refs/arc/user/andrew/sync-state` and the real session-init surface — no GitHub side effects, no shared-config
+mutation. Failed notes legs induced by a temporary pre-receive hook on the local repo rejecting only the
+user-notes ref (only scratch-clone pushes ever traverse it). Quirk worth keeping: for local-transport receives,
+the relative `core.hooksPath` resolves against the **git dir**, not the worktree — the hook fires from
+`.git/.husky/_/`, not `.husky/_/`.
+
+- **Misordered multi-intent publishes retained everything.** Intents created C1-then-C2, published C2-then-C1;
+  the second (CAS-retried) union write kept the first entry, both live intents coexisted under distinct keys,
+  and all ~20 pre-existing entries survived every write. No earlier live marker was hidden at any point.
+- **BI-3's shared machine id verified in passing:** every real-worktree entry (17 historical + this session's)
+  carries the one repo-shared machineId; the clones' distinct ids confirm the id is genuinely per-git-dir.
+- **Marker precedes the notes leg and rides only the paired cell.** Markers were present after the notes legs
+  were rejected (publish-first confirmed live); a `notes-only` sync (clone without `pushInterlock:
+  on-workflow`) published no marker at all. Two defense-in-depth observations en route: an upstream-less branch
+  blocks the notes leg *before* marker publish (`notes-blocked-by-worktree:branch-gone`), and a diverged notes
+  push auto-recovers via merge silently under `--json` (`recovered:merge`).
+- **Cross-worktree detector read confirmed.** FP's session-init `partialPushMarker` surfaced exactly the live
+  intents (correct machineId / head / timestamp per line) while every fulfilled historical entry stayed silent.
+- **No shared-key collapse exists post-BI-3 — retries mint fresh intent keys.** A retry re-plans a fresh export
+  commit → new key; superseded intents linger as entries rather than being overwritten. Residue confirmed
+  TTL-bounded (14d) and presentation-only.
+- **Seam (routed → Phase 7, task 7.2):** self-invalidation keys on exact export-commit reachability, but a
+  failed-then-recovered push lands a *different* export commit than the recorded intent — so recovered pushes
+  leave **false "notes lag" Aware lines for up to 14 days** (observed: 3 stale-live markers after all content
+  landed). Silent-safe over-report — nothing hidden, never gates — but it trains operators to discount the
+  Aware line (alarm-fatigue class). Per the seam-routing rule: latent + atomic + shouldn't outlive FP → Phase 7
+  absorption. The 3 induction markers are left live deliberately — real bait for 3.3's detector pass and a
+  regression check for the 7.2 fix.
+
+Cell verdict: predicted classification **confirmed** — loud/aware with every live intent represented; the
+silent key-collapse failure mode did not reproduce (BI-3's intent-keying holds); residue is TTL-bounded and
+presentation-only, now with the over-report seam sharpened into 7.2.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
