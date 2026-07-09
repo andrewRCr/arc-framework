@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
 import { describe, it, expect, vi } from "vitest";
 
 import {
@@ -99,6 +103,25 @@ function makeIndexExec(
   });
 }
 
+function makeBaseBranchProbeExec(stagedRoadmap: string): GitExec {
+  return vi.fn(async (_cmd, args): Promise<ExecResult> => {
+    if (args[0] === "diff") return { stdout: `${ROADMAP_PATH}\n`, stderr: "" };
+    if (args[0] === "show" && args[1] === `:${ROADMAP_PATH}`) return { stdout: stagedRoadmap, stderr: "" };
+    if (args[0] === "ls-files") return { stdout: "", stderr: "" };
+    if (args[0] === "for-each-ref") {
+      return { stdout: "refs/heads/trunk\t1111111", stderr: "" };
+    }
+    if (args[0] === "worktree") return { stdout: "", stderr: "" };
+    if (args[0] === "ls-tree") {
+      return { stdout: ".arc/active/meta-trunk.md", stderr: "" };
+    }
+    if (args[0] === "show" && args[1] === "trunk:.arc/active/meta-trunk.md") {
+      return { stdout: oracleMeta("trunk"), stderr: "" };
+    }
+    throw new Error(`unexpected git args: ${args.join(" ")}`);
+  });
+}
+
 describe("runRoadmapRegenerationAssert", () => {
   it("rejects a staged ROADMAP mismatch", async () => {
     const exec = makeIndexExec({
@@ -159,6 +182,31 @@ describe("runRoadmapRegenerationAssert", () => {
     });
 
     expect(result).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+  });
+
+  it("resolves the base branch from config when options omit baseBranch", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-roadmap-regeneration-"));
+    try {
+      await mkdir(join(root, ".arc", "system"), { recursive: true });
+      await writeFile(join(root, ".arc", "system", "arc-config.yml"), "branch.base: trunk\n", "utf8");
+
+      const rendered = await renderRoadmapFromIndex({
+        cwd: root,
+        exec: makeBaseBranchProbeExec(""),
+        baseBranch: "trunk",
+        renderedRef: "abc1234",
+      });
+      const result = await runRoadmapRegenerationAssert({
+        cwd: root,
+        exec: makeBaseBranchProbeExec(rendered),
+        renderedRef: "abc1234",
+        stagedPaths: [ROADMAP_PATH],
+      });
+
+      expect(result).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("warns and allows an indeterminate mismatch", async () => {
