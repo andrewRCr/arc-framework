@@ -1,11 +1,11 @@
 /**
  * Project readiness view composer — renders `.arc/backlog/ROADMAP.md` from the
- * local meta-file graph.
+ * resolved project-readiness record graph.
  *
- * This is the file-writing counterpart to the shared status render primitive:
- * scan `active/`, `backlog/planned/`, and `backlog/provisional/`; resolve
- * dependency satisfaction by pending-set presence; group rows into In Flight,
- * Ready, Blocked depth bands, and Parked; then render canonical markdown tables.
+ * This is the file-writing counterpart to the shared status render primitive.
+ * Resolved records feed a lifecycle index; dependency satisfaction then follows
+ * canonical lifecycle predicates before rows group into In Flight, Ready,
+ * Blocked depth bands, and Parked.
  *
  * @module
  */
@@ -15,6 +15,8 @@ import { basename, join } from "node:path";
 
 import { validatePriority, validateState, type Priority, type WorkUnitState } from "../../commands/active/types.js";
 import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
+import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "../work-unit/lifecycle-index.js";
+import { resolveSlugQuery } from "../work-unit/lifecycle-query.js";
 
 import { renderStatusTable, type StatusColumn, type StatusViewRow } from "./render.js";
 
@@ -62,10 +64,29 @@ export interface ProjectReadinessRecord extends ProjectReadinessRecordCandidate 
   scheduling?: "parked";
 }
 
+/** Derivation warning facts the pure composer can elevate into the render. */
+export interface ProjectReadinessDerivationWarning {
+  code: "stale-location-dropped" | "stale-location-shadow";
+  workUnit?: string;
+  rendered: string;
+}
+
+/** Structured composer warning codes rendered with the project view. */
+export type ProjectReadinessWarningCode = "dangling-dependency" | "stale-location-unshipped";
+
+/** A project-readiness warning produced from dependency or provenance classification. */
+export interface ProjectReadinessWarning {
+  code: ProjectReadinessWarningCode;
+  workUnit?: string;
+  dependency?: string;
+  rendered: string;
+}
+
 /** Resolver output consumed by {@link composeProjectReadinessView}. */
 export interface ProjectReadinessViewInput {
   title: string;
   records: ProjectReadinessRecord[];
+  derivationWarnings: ProjectReadinessDerivationWarning[];
 }
 
 /** Options for the tree-backed resolver. */
@@ -86,12 +107,25 @@ export interface ComposeProjectReadinessViewOptions {
   title: string;
   /** Already-resolved project-readiness records. */
   records: readonly ProjectReadinessRecord[];
+  /** Derivation warnings to classify against the same lifecycle index. */
+  derivationWarnings?: readonly ProjectReadinessDerivationWarning[];
+}
+
+/** Render result plus the structured warnings displayed in the header. */
+export interface ProjectReadinessViewResult {
+  markdown: string;
+  warnings: ProjectReadinessWarning[];
 }
 
 /** A blocked planned row plus the unresolved edges it displays. */
 interface BlockedRow {
   row: StatusViewRow;
   unsatisfied: string[];
+}
+
+interface DependencyClassification {
+  unsatisfiedBySlug: ReadonlyMap<string, readonly string[]>;
+  warnings: ProjectReadinessWarning[];
 }
 
 const META_FILE_RE = /^meta-(.+)\.md$/u;
@@ -288,24 +322,93 @@ export async function resolveProjectReadinessViewInput(
   return {
     title: await resolveTitle(options.cwd, fs, options.title),
     records: mergeProjectReadinessRecords(await loadProjectRecords(options.cwd, fs)),
+    derivationWarnings: [],
   };
 }
 
-/** Build a render row from a resolved record, filtering dependency display to pending edges. */
+function lifecycleIndexFromRecords(records: readonly ProjectReadinessRecord[]): LifecycleIndex {
+  return buildLifecycleIndexFromRecords(
+    records.map((record) => ({
+      slug: record.slug,
+      state: record.state,
+      location: record.location,
+      cohort: record.cohort ?? null,
+      dependsOn: record.dependsOn,
+      path: record.source.path,
+    })),
+  );
+}
+
+function classifyDependencies(
+  records: readonly ProjectReadinessRecord[],
+  index: LifecycleIndex,
+): DependencyClassification {
+  const warnings: ProjectReadinessWarning[] = [];
+  const warned = new Set<string>();
+  const unsatisfiedBySlug = new Map<string, string[]>();
+
+  for (const record of records) {
+    const unsatisfied: string[] = [];
+    for (const dep of record.dependsOn) {
+      const query = resolveSlugQuery(index, dep);
+      if (query.state === "nonexistent") {
+        unsatisfied.push(dep);
+        const key = `${record.slug}\0${dep}`;
+        if (!warned.has(key)) {
+          warned.add(key);
+          warnings.push({
+            code: "dangling-dependency",
+            workUnit: record.slug,
+            dependency: dep,
+            rendered: `\`${record.slug}\` depends on missing work unit \`${dep}\`; treating the edge as blocked.`,
+          });
+        }
+      } else if (!query.shipped) {
+        unsatisfied.push(dep);
+      }
+    }
+    if (unsatisfied.length > 0) unsatisfiedBySlug.set(record.slug, unsatisfied);
+  }
+
+  return { unsatisfiedBySlug, warnings };
+}
+
+function elevatedDerivationWarnings(
+  warnings: readonly ProjectReadinessDerivationWarning[],
+  index: LifecycleIndex,
+): ProjectReadinessWarning[] {
+  return warnings.flatMap((warning): ProjectReadinessWarning[] => {
+    if (warning.workUnit === undefined) return [];
+    const query = resolveSlugQuery(index, warning.workUnit);
+    if (query.shipped) return [];
+    return [
+      {
+        code: "stale-location-unshipped",
+        workUnit: warning.workUnit,
+        rendered: `${warning.rendered} Work unit \`${warning.workUnit}\` has not shipped; treating the view as degraded.`,
+      },
+    ];
+  });
+}
+
+/** Build a render row from a resolved record, filtering dependency display to unsatisfied edges. */
 function rowOf(
   record: ProjectReadinessRecord,
-  pendingNames: ReadonlySet<string>,
+  unsatisfiedDeps: readonly string[],
   includeState: boolean,
 ): StatusViewRow {
-  const pendingDeps = record.dependsOn.filter((dep) => pendingNames.has(dep));
   return {
     workUnit: record.slug,
     ...(includeState ? { state: `\`${record.state}\`` } : {}),
     priority: record.priority,
     ...(record.owner !== undefined ? { owner: record.owner } : {}),
-    dependsOn: pendingDeps,
+    dependsOn: [...unsatisfiedDeps],
     ...(record.cohort !== undefined ? { cohort: record.cohort } : {}),
   };
+}
+
+function unsatisfiedFor(classification: DependencyClassification, slug: string): readonly string[] {
+  return classification.unsatisfiedBySlug.get(slug) ?? [];
 }
 
 /** Depth-band blocked rows by longest unresolved blocked-dependency chain. */
@@ -340,49 +443,56 @@ function renderTier(rows: readonly StatusViewRow[], columns: readonly StatusColu
   return rows.length === 0 ? empty : renderStatusTable(rows, columns);
 }
 
+function renderWarnings(warnings: readonly ProjectReadinessWarning[]): string[] {
+  if (warnings.length === 0) return [];
+  return ["", "## Warnings", "", ...warnings.map((warning) => `- ${warning.rendered}`)];
+}
+
 /**
  * Compose the project readiness view from resolved records.
  *
  * @param options - Header freshness marker, title, and resolved records.
- * @returns The complete markdown body, without requiring a trailing newline.
+ * @returns The markdown body plus structured warnings, without requiring a trailing newline.
  */
-export function composeProjectReadinessView(
+export function composeProjectReadinessViewResult(
   options: ComposeProjectReadinessViewOptions,
-): string {
+): ProjectReadinessViewResult {
   const records = [...options.records];
-  const pendingNames = new Set(
-    records
-      .filter((record) => record.location !== "completed")
-      .map((record) => record.slug),
-  );
+  const index = lifecycleIndexFromRecords(records);
+  const classification = classifyDependencies(records, index);
+  const warnings = [
+    ...classification.warnings,
+    ...elevatedDerivationWarnings(options.derivationWarnings ?? [], index),
+  ];
 
   const active = records
     .filter((record) => record.location === "active" && record.scheduling !== "parked")
-    .map((record) => rowOf(record, pendingNames, true));
+    .map((record) => rowOf(record, unsatisfiedFor(classification, record.slug), true));
 
   const planned = records.filter((record) => record.location === "planned" && record.scheduling !== "parked");
   const ready = planned
     .filter((record) => record.state === "Planning")
-    .filter((record) => record.dependsOn.every((dep) => !pendingNames.has(dep)))
-    .map((record) => rowOf(record, pendingNames, false));
+    .filter((record) => unsatisfiedFor(classification, record.slug).length === 0)
+    .map((record) => rowOf(record, [], false));
 
   const blocked = new Map<string, BlockedRow>();
   for (const record of planned.filter((item) => item.state === "Planning")) {
-    const unsatisfied = record.dependsOn.filter((dep) => pendingNames.has(dep));
+    const unsatisfied = unsatisfiedFor(classification, record.slug);
     if (unsatisfied.length > 0) {
-      blocked.set(record.slug, { row: rowOf(record, pendingNames, false), unsatisfied });
+      blocked.set(record.slug, { row: rowOf(record, unsatisfied, false), unsatisfied: [...unsatisfied] });
     }
   }
 
   const parked = records
     .filter((record) => record.scheduling === "parked" || (record.location === "planned" && record.state === "Active"))
-    .map((record) => rowOf(record, pendingNames, false));
+    .map((record) => rowOf(record, unsatisfiedFor(classification, record.slug), false));
   const blockedGroups = blockedDepths(blocked);
 
   const lines = [
     `# ${options.title}`,
     "",
     `> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against \`${options.renderedRef}\`.`,
+    ...renderWarnings(warnings),
     "",
     "This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a",
     "unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many",
@@ -418,5 +528,17 @@ export function composeProjectReadinessView(
 
   lines.push("---", "", "_Pre-commitment thinking that hasn't been sequenced yet lives in `backlog/provisional/`._");
 
-  return lines.join("\n");
+  return { markdown: lines.join("\n"), warnings };
+}
+
+/**
+ * Compose only the project readiness markdown body.
+ *
+ * @param options - Header freshness marker, title, and resolved records.
+ * @returns The complete markdown body, without requiring a trailing newline.
+ */
+export function composeProjectReadinessView(
+  options: ComposeProjectReadinessViewOptions,
+): string {
+  return composeProjectReadinessViewResult(options).markdown;
 }

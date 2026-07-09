@@ -245,48 +245,15 @@ seams; reground them against the codebase as it exists then.
 - _Outcome:_ The project readiness composer is filesystem-free over a resolved record set while the tree-backed
   resolver preserves today's render behavior for lifecycle ceremony callers.
 
-### `[ ]` **4.2 Dependency resolution via the lifecycle primitive**
+### `[x]` **4.2 Dependency resolution via the lifecycle primitive**
 
 - _Goal:_ Dependency satisfaction classifies through the lifecycle index — a dangling edge warns instead of
   silently reading as satisfied.
 
-- **Additional Context:** `notes-project-state-integrity.md` § Implementation loci (filesystem-free index
-  construction)
-
-    - Build the index from the same injected slug-keyed union — including active-metas-at-known-refs and
-      the completed records — never a fresh disk scan. `buildLifecycleIndexFromMetas`
-      (`src/lib/work-unit/lifecycle-index.ts` ~231) takes raw `{ path, content }`, which the union's
-      resolved records don't carry: add a record-fed builder beside it that constructs entries from
-      resolved fields (slug, state, location, dependsOn, cohort) through the same canonical
-      `(phase, location)` map — records never re-carry raw meta text. Completed metas must ride the union:
-      an index fed only active + backlog would classify every shipped dep `nonexistent` and warn falsely.
-    - Classification through the canonical predicates (`resolveSlugQuery`,
-      `src/lib/work-unit/lifecycle-query.ts`; `deriveState` / `isShipped`,
-      `src/lib/work-unit/lifecycle-resolver.ts`): `nonexistent` → dangling (composer warnings channel),
-      `shipped` → satisfied, pending → blocks. The pending-set-absence rule in `project-view.ts`
-      (`pendingNames`) is retired.
-    - Composer gains a warnings output rendered into the view header and the live view — no standalone
-      `--check` command. Composer warnings (dep-edge domain) are a distinct list from the oracle's
-      derivation warnings; the render layer merges the two.
-    - The composer elevates the derivation's sole-stale-location provenance codes against the same index:
-      quiet when the slug resolves `shipped`, a visible warning otherwise — a live WU with a drifted
-      `Branch` field must not silently read `Ready` on `main`.
-    - The same predicates retire the second pending-set-absence copy: `src/lib/status/ready-mine-source.ts`
-      (`pendingNames` over `PIPELINE_ROOTS`) resolves dep satisfaction by pipeline absence for the user
-      view's Ready slice. Its dep read moves onto the lifecycle classification (`nonexistent` / dangling
-      does not satisfy; `shipped` satisfies; pending blocks); the slice's index may stay disk-built (a
-      local, always-available surface), but classification goes through the same canonical predicates. New
-      dangling-edge chrome in `STATUS.USER` stays `roadmap-tooling`'s.
-    - Build `test-first` (one behavior at a time):
-        - A typo'd / renamed dep target warns as dangling and does not satisfy
-        - A dep on a completed WU resolves satisfied from the union's completed records
-        - A sole-stale-location provenance code stays quiet for a shipped slug and warns for an unshipped one
-        - A pending dep blocks
-        - A dep on a parked WU blocks (parked classifies pending, never satisfied)
-        - On a `main`-checkout record set, an in-flight WU's dep edge classifies pending via its at-ref
-          active meta even absent its backlog stub
-        - The ready slice no longer renders a WU Ready on a typo'd dep edge (pipeline absence stops
-          satisfying)
+- _Outcome:_ Dependency satisfaction now flows through a lifecycle index built from resolved project records:
+  completed records satisfy, pending / parked / at-ref active records block, and dangling targets warn in the
+  rendered project view instead of silently reading ready. The user ready slice uses the same lifecycle predicates
+  over its local disk-built index, so typo edges no longer qualify as Ready there either.
 
 ### `[ ]` **4.3 Readiness-provider socket with deps-only provider**
 

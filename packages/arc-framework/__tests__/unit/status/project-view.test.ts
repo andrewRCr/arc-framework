@@ -6,6 +6,7 @@ import { describe, it, expect, afterEach } from "vitest";
 
 import {
   composeProjectReadinessView,
+  composeProjectReadinessViewResult,
   mergeProjectReadinessRecords,
   resolveProjectReadinessViewInput,
   type ProjectReadinessRecordCandidate,
@@ -226,6 +227,117 @@ describe("mergeProjectReadinessRecords", () => {
     ]);
   });
 });
+
+describe("project-readiness dependency classification", () => {
+  it("warns for a dangling dependency and treats it as unsatisfied", () => {
+    const result = composeProjectReadinessViewResult({
+      renderedRef: "abc1234",
+      title: "Roadmap",
+      records: mergeProjectReadinessRecords([
+        record("ready-control", { location: "planned", dependsOn: [] }),
+        record("typo-blocked", { location: "planned", dependsOn: ["ghost-dep"] }),
+      ]),
+    });
+
+    expect(result.warnings).toEqual([
+      expect.objectContaining({
+        code: "dangling-dependency",
+        workUnit: "typo-blocked",
+        dependency: "ghost-dep",
+      }),
+    ]);
+    expect(result.markdown).toContain("## Warnings");
+    expect(result.markdown).toContain("ghost-dep");
+    const readySection = sectionBetween(result.markdown, "## Ready", "## Blocked");
+    expect(readySection).toContain("ready-control");
+    expect(readySection).not.toContain("typo-blocked");
+    const blockedSection = result.markdown.slice(result.markdown.indexOf("## Blocked"));
+    expect(blockedSection).toContain("typo-blocked");
+    expect(blockedSection).toContain("ghost-dep");
+  });
+
+  it("satisfies dependencies that resolve shipped from completed records", () => {
+    const result = composeProjectReadinessViewResult({
+      renderedRef: "abc1234",
+      title: "Roadmap",
+      records: mergeProjectReadinessRecords([
+        record("done-dep", { location: "completed", state: "Shipped" }),
+        record("ready-after-ship", { location: "planned", dependsOn: ["done-dep"] }),
+      ]),
+    });
+
+    expect(result.warnings).toEqual([]);
+    const readySection = sectionBetween(result.markdown, "## Ready", "## Blocked");
+    expect(readySection).toContain("ready-after-ship");
+    expect(readySection).not.toContain("done-dep");
+    expect(result.markdown).not.toContain("### Depth 1");
+  });
+
+  it("keeps pending, parked, and at-ref active dependencies unsatisfied", () => {
+    const result = composeProjectReadinessViewResult({
+      renderedRef: "abc1234",
+      title: "Roadmap",
+      records: mergeProjectReadinessRecords([
+        record("pending-dep", { location: "planned", state: "Planning" }),
+        record("parked-dep", { location: "planned", state: "Active" }),
+        record("active-dep", { location: "active", state: "Active" }),
+        record("waits-pending", { location: "planned", dependsOn: ["pending-dep"] }),
+        record("waits-parked", { location: "planned", dependsOn: ["parked-dep"] }),
+        record("waits-active", { location: "planned", dependsOn: ["active-dep"] }),
+      ]),
+    });
+
+    const readySection = sectionBetween(result.markdown, "## Ready", "## Blocked");
+    expect(readySection).not.toContain("waits-pending");
+    expect(readySection).not.toContain("waits-parked");
+    expect(readySection).not.toContain("waits-active");
+    const blockedSection = sectionBetween(result.markdown, "## Blocked", "## Parked");
+    expect(blockedSection).toContain("waits-pending");
+    expect(blockedSection).toContain("pending-dep");
+    expect(blockedSection).toContain("waits-parked");
+    expect(blockedSection).toContain("parked-dep");
+    expect(blockedSection).toContain("waits-active");
+    expect(blockedSection).toContain("active-dep");
+  });
+
+  it("elevates stale-location derivation warnings only for unshipped work", () => {
+    const result = composeProjectReadinessViewResult({
+      renderedRef: "abc1234",
+      title: "Roadmap",
+      records: mergeProjectReadinessRecords([
+        record("live-drift", { location: "active", state: "Active" }),
+        record("shipped-drift", { location: "completed", state: "Shipped" }),
+      ]),
+      derivationWarnings: [
+        {
+          code: "stale-location-dropped",
+          workUnit: "live-drift",
+          rendered: "Meta `meta-live-drift.md` at `main` points to `feat/live-drift`; dropped stale location.",
+        },
+        {
+          code: "stale-location-dropped",
+          workUnit: "shipped-drift",
+          rendered: "Meta `meta-shipped-drift.md` at `main` points to `feat/shipped-drift`; dropped stale location.",
+        },
+      ],
+    });
+
+    expect(result.warnings).toEqual([
+      expect.objectContaining({
+        code: "stale-location-unshipped",
+        workUnit: "live-drift",
+      }),
+    ]);
+    expect(result.markdown).toContain("live-drift");
+    expect(result.markdown).not.toContain("shipped-drift.md");
+  });
+});
+
+function sectionBetween(markdown: string, start: string, end: string): string {
+  const startIndex = markdown.indexOf(start);
+  const endIndex = markdown.indexOf(end, startIndex + start.length);
+  return markdown.slice(startIndex, endIndex === -1 ? undefined : endIndex);
+}
 
 function record(
   slug: string,
