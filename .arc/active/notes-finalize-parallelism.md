@@ -398,6 +398,22 @@ Cell verdict: the renderer is deterministic across concurrent worktrees, textual
 and a stale derived render cannot be committed silently when ROADMAP is staged. The predicted pre-fix
 `loud with silent stale-render residue` classification is closed by the regenerate assertion; no new seam.
 
+### Cell 3.2.d — base-branch reconcile gate (2026-07-09) — CONFIRMED HOLDING
+
+Probe-a completed the real integration path through archive composition, the deterministic sweep, green CI, and
+PR #215's merge (`2cfbee3e`). That merge advanced `origin/main` while probe-b remained untouched at `506a8a8a`,
+creating the intended behind-base condition without synthetic ref manipulation.
+
+From probe-b, the exact Step 13 gate sequence (`git fetch origin main` followed by
+`git rev-list --left-right --count HEAD...origin/main`) returned `12 18`: 12 branch-only commits and 18
+base-only commits. The non-zero behind count therefore took the workflow's mandatory-stop arm before any
+reconcile or merge. Probe-b remained clean and unreconciled, preserving the same real behind-base state for the
+fixed foreign-write-advisory verification in 3.2.e.
+
+Cell verdict: the integration gate detects a genuine remote-base advance and fails loud before merge. Its surface
+is the non-zero distance plus the workflow stop, not a standalone CLI error; no silent stale-premise merge was
+possible once the gate ran.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification

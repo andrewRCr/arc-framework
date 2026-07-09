@@ -552,8 +552,11 @@ well as paths; gating + coordination detail in § Sequencing.
           stale render was rejected by `assert-roadmap-regenerated` before commit. Full evidence in
           `notes-finalize-parallelism.md` § Cell 3.2.c.
 
-    - `[ ]` **3.2.d Base-branch reconcile gate re-verify**
-        - Confirm the behind-base reconcile gate fires as landed.
+    - `[x]` **3.2.d Base-branch reconcile gate re-verify**
+        - Probe-a's real PR #215 merge advanced `origin/main`; the exact integration gate on untouched probe-b
+          returned `12 18` for `HEAD...origin/main` and took the mandatory-stop arm before reconcile or merge.
+          Probe-b remains clean and behind for 3.2.e. Full evidence in `notes-finalize-parallelism.md`
+          § Cell 3.2.d.
 
     - `[ ]` **3.2.e Foreign-write advisory under behind-base divergence**
         - Induce a foreign-write check on a commit while a sibling in-flight WU's branch is well behind base, and
