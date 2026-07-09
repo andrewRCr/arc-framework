@@ -1,11 +1,7 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `9ed8a802`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `2d5f8de6`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
-
-## Warnings
-
-- Candidate `origin/plan/burn-in-probe-a` for `burn-in-probe-a` was shadowed by `chore/burn-in-probe-a`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -17,11 +13,13 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State    | Work unit            | Priority | Owner  | Depends on      | Cohort            |
-| -------- | -------------------- | -------- | ------ | --------------- | ----------------- |
-| `Active` | finalize-parallelism | P1       | andrew | roadmap-tooling | agile-parallelism |
-| `Active` | burn-in-probe-a      | P3       | andrew | —               | —                 |
-| `Active` | burn-in-probe-b      | P3       | andrew | —               | —                 |
+| State      | Work unit                    | Priority | Owner  | Depends on | Cohort            |
+| ---------- | ---------------------------- | -------- | ------ | ---------- | ----------------- |
+| `Active`   | finalize-parallelism         | P1       | andrew | —          | agile-parallelism |
+| `Planning` | notes-export-state-coherence | P1       | andrew | —          | —                 |
+| `Planning` | slug-state-oracle-alignment  | P1       | andrew | —          | —                 |
+| `Active`   | burn-in-probe-a              | P3       | andrew | —          | —                 |
+| `Active`   | burn-in-probe-b              | P3       | andrew | —          | —                 |
 
 ## Ready
 
