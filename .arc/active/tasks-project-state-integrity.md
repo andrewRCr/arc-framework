@@ -30,24 +30,11 @@ per-consumer behavioral audit and warnings pass-through, not the compile fix-up.
 - _Goal:_ A branch is a WU iff it carries a meta, and its life-phase is the meta record's `State` — branch
   naming supplies no identity and no phase.
 
-    - `[ ]` **1.1.a Result shape and mark taxonomy**
-        - Derivation result widens to `{ entries, warnings, reachable }`. Exported contract types land
-          here: the entry mark enum (`degraded` / `indeterminate` / `location-ambiguous`) and structured
-          warning objects (code + branch + WU + rendered string) — the vocabulary Phase 2's consumer split
-          and Phase 6's determinacy-reading assert consume; warnings are structured because the sweep
-          surfaces filter on them.
-        - `reachable` is a first-class result fact (network-verified membership vs last-known local refs),
-          never a warning: four call sites hard-gate on it today (materialize refuses, session-init returns
-          empty, the user view falls back to its cache, the errand gate's `--json` emits it), and those
-          gating semantics carry over unchanged through Task 1.2's migration.
-        - Entries also carry a `parked` scheduling classification — a domain fact distinct from the mark
-          enum, stamped from Task 1.2's injected parked-slug set. Consumers filter by axis; parked is never
-          inferred from `State` (a parked WU's at-ref meta reads `Active`).
-        - Build `test-first` (one behavior at a time):
-            - A healthy derivation returns entries with no marks, empty warnings, `reachable: true`
-            - An unreachable remote yields `reachable: false` with last-known-refs entries
-            - A warning renders to a stable string while keeping its structured fields
-            - A parked-classified entry stays unmarked — parked is a classification, not a degradation
+    - `[x]` **1.1.a Result shape and mark taxonomy**
+        - `deriveInFlight` now returns `{ entries, warnings, reachable }`, with exported entry-mark,
+          warning, and parked-scheduling contract types. `reachable` flows from the existing branch-set
+          callers as a first-class fact, warning rendering is stable and structured, and parked entries classify
+          via `parkedSlugs` without degradation marks.
 
     - `[ ]` **1.1.b Meta enumeration at a ref**
         - New remote-ref-reader primitive listing `meta-*.md` paths a ref carries

@@ -665,9 +665,10 @@ async function resolveMaterializeCandidate(
     return null;
   }
 
-  const entries = await deriveInFlight({
+  const { entries } = await deriveInFlight({
     exec: base.io.exec,
     branches: branchSet.branches,
+    reachable: branchSet.reachable,
     identity: base.identity,
     teamMode: settings["team.mode"] === "true",
   });

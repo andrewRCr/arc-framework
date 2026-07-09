@@ -58,6 +58,14 @@ export async function runActiveInFlight(
   const { exec, identity, teamMode, localOnly, timeoutMs, prSource } = options;
   const { branches, reachable } = await resolveInFlightBranchSet({ exec, localOnly, timeoutMs });
   const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
-  const entries = await deriveInFlight({ exec, branches, identity, teamMode, errandSlugByBranch, prSource });
-  return { entries, reachable };
+  const result = await deriveInFlight({
+    exec,
+    branches,
+    reachable,
+    identity,
+    teamMode,
+    errandSlugByBranch,
+    prSource,
+  });
+  return { entries: result.entries, reachable: result.reachable };
 }

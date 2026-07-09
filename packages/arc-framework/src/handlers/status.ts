@@ -383,14 +383,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         if (!reachable) return { entries: [], reachable: false };
         const records = await getErrandRecords();
         const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
-        const entries = await deriveInFlight({
+        const result = await deriveInFlight({
           exec: gitExec,
           branches,
+          reachable,
           identity,
           teamMode,
           errandSlugByBranch,
         });
-        return { entries, reachable: true };
+        return { entries: result.entries, reachable: result.reachable };
       })();
       return oraclePromise;
     };

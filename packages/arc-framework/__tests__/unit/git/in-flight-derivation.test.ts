@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { deriveInFlight } from "../../../src/lib/git/in-flight-derivation.js";
+import {
+  deriveInFlight,
+  renderInFlightWarning,
+  type InFlightWarning,
+} from "../../../src/lib/git/in-flight-derivation.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 
@@ -60,6 +64,86 @@ function makeExec(opts: {
 }
 
 describe("deriveInFlight", () => {
+  it("returns entries with no warnings and reachable true for a healthy derivation", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/in-flight-awareness:.arc/active/meta-in-flight-awareness.md": metaContent({
+          owner: "andrew",
+        }),
+      },
+    });
+
+    const result = await deriveInFlight({
+      exec,
+      branches: ["feat/in-flight-awareness"],
+      identity: null,
+      teamMode: false,
+      reachable: true,
+    });
+
+    expect(result.reachable).toBe(true);
+    expect(result.warnings).toEqual([]);
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).not.toHaveProperty("marks");
+  });
+
+  it("keeps reachability as a result fact instead of warning on an unreachable branch set", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/last-known:.arc/active/meta-last-known.md": metaContent(),
+      },
+    });
+
+    const result = await deriveInFlight({
+      exec,
+      branches: ["feat/last-known"],
+      identity: null,
+      teamMode: false,
+      reachable: false,
+    });
+
+    expect(result.reachable).toBe(false);
+    expect(result.warnings).toEqual([]);
+    expect(result.entries).toHaveLength(1);
+  });
+
+  it("renders warnings to a stable string while keeping structured fields", () => {
+    const warning: InFlightWarning = {
+      code: "meta-enumeration-failed",
+      branch: "feat/x",
+      workUnit: "x",
+      rendered: "Unable to enumerate active metas at `origin/feat/x`.",
+    };
+
+    expect(renderInFlightWarning(warning)).toBe("Unable to enumerate active metas at `origin/feat/x`.");
+    expect(warning).toMatchObject({
+      code: "meta-enumeration-failed",
+      branch: "feat/x",
+      workUnit: "x",
+    });
+  });
+
+  it("classifies parked work units without marking them as degraded", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/shelved:.arc/active/meta-shelved.md": metaContent(),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      branches: ["feat/shelved"],
+      identity: null,
+      teamMode: false,
+      parkedSlugs: new Set(["shelved"]),
+    });
+
+    expect(warnings).toEqual([]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ kind: "work-unit", name: "shelved", scheduling: "parked" });
+    expect(entries[0]).not.toHaveProperty("marks");
+  });
+
   it("derives an in-flight work unit with Active state from a meta on a type-prefixed remote branch", async () => {
     const exec = makeExec({
       metas: {
@@ -69,7 +153,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/in-flight-awareness"],
       identity: null,
@@ -98,7 +182,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/heavy-wu", "feat/tbd-wu", "feat/bare-wu"],
       identity: null,
@@ -118,7 +202,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["plan/new-thing"],
       identity: null,
@@ -132,7 +216,7 @@ describe("deriveInFlight", () => {
   it("classifies a branch carrying an errand record as an in-flight errand (slug from the record)", async () => {
     const exec = makeExec({ metas: {} });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["chore/fix-typo"],
       identity: null,
@@ -148,7 +232,7 @@ describe("deriveInFlight", () => {
   it("classifies a nature-typed branch (fix/, refactor/) with a record as an errand, not a work unit", async () => {
     const exec = makeExec({ metas: {} });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["fix/login-bug", "refactor/extract-helper"],
       identity: null,
@@ -172,7 +256,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["chore/promoted"],
       identity: null,
@@ -196,7 +280,7 @@ describe("deriveInFlight", () => {
   it("drops a branch with neither an errand record nor a backing meta (not in flight)", async () => {
     const exec = makeExec({ metas: {} });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["chore/orphan"],
       identity: null,
@@ -216,7 +300,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/mine", "feat/theirs", "chore/loose"],
       identity: "andrew",
@@ -236,7 +320,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/local", "feat/remote"],
       identity: null,
@@ -255,7 +339,7 @@ describe("deriveInFlight", () => {
       metas: { "origin/feat/x:.arc/active/meta-x.md": metaContent() },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/x"],
       identity: null,
@@ -278,7 +362,7 @@ describe("deriveInFlight", () => {
       return new Map([["feat/has-pr", { number: 42, url: "https://example/pr/42" }]]);
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/has-pr", "feat/no-pr"],
       identity: null,
@@ -300,7 +384,7 @@ describe("deriveInFlight", () => {
       throw new Error("gh: rate limited");
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/x"],
       identity: null,
@@ -323,7 +407,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/x"],
       identity: null,
@@ -340,7 +424,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/x"],
       identity: null,
@@ -355,7 +439,7 @@ describe("deriveInFlight", () => {
       metas: { "origin/feat/x:.arc/active/meta-x.md": metaContent() },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/x"],
       identity: null,
@@ -372,7 +456,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/x"],
       identity: null,
@@ -389,7 +473,7 @@ describe("deriveInFlight", () => {
       metas: { "origin/feat/x:.arc/active/meta-x.md": metaContent() },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/x"],
       identity: null,
@@ -409,7 +493,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/here", "feat/elsewhere"],
       identity: null,
@@ -435,7 +519,7 @@ describe("deriveInFlight — shared-reader field recovery", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/x"],
       identity: null,
@@ -459,7 +543,7 @@ describe("deriveInFlight — shared-reader field recovery", () => {
       },
     });
 
-    const entries = await deriveInFlight({
+    const { entries } = await deriveInFlight({
       exec,
       branches: ["feat/x"],
       identity: null,

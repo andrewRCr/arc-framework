@@ -162,10 +162,10 @@ export async function runStatusUserView(
   }
 
   const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
-  const [remoteEntries, localEntries] = await Promise.all([
-    deriveInFlight({ exec, branches, identity, teamMode, errandSlugByBranch, prSource }),
+  const [remoteResult, localEntries] = await Promise.all([
+    deriveInFlight({ exec, branches, reachable, identity, teamMode, errandSlugByBranch, prSource }),
     options.readLocalInFlight?.() ?? Promise.resolve([]),
   ]);
-  const inFlight = buildInFlightMineSlice(mergeInFlightEntries(remoteEntries, localEntries));
+  const inFlight = buildInFlightMineSlice(mergeInFlightEntries(remoteResult.entries, localEntries));
   return { output: composeUserView(identity, inFlight, ready), source: "rendered" };
 }

@@ -39,6 +39,39 @@ const PLANNING_BRANCH_PREFIX = "plan/";
 /** State proxied off the branch life-phase prefix — coarse by design. */
 export type InFlightState = Extract<WorkUnitState, "Planning" | "Active">;
 
+/** Per-entry quality marker. Healthy entries omit marks. */
+export type InFlightEntryMark = "degraded" | "indeterminate" | "location-ambiguous";
+
+/** Scheduling-axis classification, independent from degradation marks. */
+export type InFlightScheduling = "parked";
+
+/** Structured warning codes emitted by the in-flight derivation. */
+export type InFlightWarningCode =
+  | "meta-enumeration-failed"
+  | "meta-read-failed"
+  | "meta-malformed"
+  | "state-unrecognized"
+  | "branch-field-missing"
+  | "stale-location-dropped"
+  | "stale-location-shadow";
+
+/** Structured warning surfaced by in-flight derivation consumers. */
+export interface InFlightWarning {
+  /** Stable machine-readable warning code. */
+  code: InFlightWarningCode;
+  /** Branch/ref candidate the warning came from, when branch-scoped. */
+  branch?: string;
+  /** Work-unit slug the warning applies to, when known. */
+  workUnit?: string;
+  /** Stable human-readable rendering. */
+  rendered: string;
+}
+
+/** Render a structured in-flight warning for CLI/advisory output. */
+export function renderInFlightWarning(warning: InFlightWarning): string {
+  return warning.rendered;
+}
+
 /** Open-PR signal for one branch, surfaced by a coordination adapter. */
 export interface OpenPrSignal {
   /** PR number, when the adapter surfaces it. */
@@ -66,6 +99,8 @@ interface InFlightLocation {
   remoteOnly: boolean;
   /** Open-PR enrichment; present only when a PR source resolved one for this branch (refs-only otherwise). */
   pr?: OpenPrSignal;
+  /** Degradation/indeterminacy marks; absent on healthy entries. */
+  marks?: readonly InFlightEntryMark[];
 }
 
 /** A work unit in flight — a remote branch backed by an `active/` meta. */
@@ -87,6 +122,8 @@ export interface InFlightWorkUnit extends InFlightLocation {
   priority?: string;
   /** Parsed `**Depends On:**` WU-names; empty when independent (`[none]`). */
   dependsOn: readonly string[];
+  /** Scheduling-axis overlay; absent for normal in-flight work. */
+  scheduling?: InFlightScheduling;
 }
 
 /** An errand in flight — a `chore/<slug>` branch with no backing meta. */
@@ -99,12 +136,24 @@ export interface InFlightErrand extends InFlightLocation {
 /** One derived in-flight entry. */
 export type InFlightEntry = InFlightWorkUnit | InFlightErrand;
 
+/** Result of the in-flight derivation. */
+export interface DeriveInFlightResult {
+  /** Identity-filtered in-flight work units and errands. */
+  entries: InFlightEntry[];
+  /** Structured warning channel; empty for healthy derivations. */
+  warnings: InFlightWarning[];
+  /** Whether live network membership backed the branch set. */
+  reachable: boolean;
+}
+
 /** Inputs for {@link deriveInFlight}. */
 export interface DeriveInFlightOptions {
   /** Injectable git executor — used for `git worktree list` and `git show`. */
   exec: GitExec;
   /** Pruned remote-ref branch set (short names) — from `listPrunedRemoteTrackingBranches`. */
   branches: readonly string[];
+  /** Whether live network membership backed `branches`. Defaults to true for direct unit callers. */
+  reachable?: boolean;
   /** Owner to filter to; `null` disables filtering. */
   identity: string | null;
   /** Team mode — identity filtering applies only when `true`. */
@@ -118,6 +167,8 @@ export interface DeriveInFlightOptions {
    * meta presence alone.
    */
   errandSlugByBranch?: ReadonlyMap<string, string>;
+  /** Work-unit slugs parked in the scheduling axis; matching entries are classified, not marked. */
+  parkedSlugs?: ReadonlySet<string>;
   /** Open-PR enrichment seam. Absent → refs-only; a rejecting adapter degrades to refs-only. */
   prSource?: PrSource;
 }
@@ -128,20 +179,25 @@ export interface DeriveInFlightOptions {
  * @param options - Executor, the pruned branch set, and the identity filter.
  * @returns In-flight entries in input-branch order, identity-filtered.
  */
-export async function deriveInFlight(options: DeriveInFlightOptions): Promise<InFlightEntry[]> {
+export async function deriveInFlight(options: DeriveInFlightOptions): Promise<DeriveInFlightResult> {
   const { exec, branches, identity, teamMode, remote = DEFAULT_REMOTE, prSource } = options;
+  const reachable = options.reachable ?? true;
   const errandSlugByBranch = options.errandSlugByBranch ?? new Map<string, string>();
+  const parkedSlugs = options.parkedSlugs ?? new Set<string>();
   const worktreePaths = await resolveWorktreePathsByBranch(exec);
 
   const classified = await Promise.all(
-    branches.map((branch) => classifyBranch(exec, remote, branch, worktreePaths, errandSlugByBranch)),
+    branches.map((branch) =>
+      classifyBranch(exec, remote, branch, worktreePaths, errandSlugByBranch, parkedSlugs),
+    ),
   );
 
   const kept = classified
     .filter((entry): entry is InFlightEntry => entry !== null)
     .filter((entry) => keepForIdentity(entry, identity, teamMode));
 
-  return prSource === undefined ? kept : enrichWithPrState(kept, prSource);
+  const entries = prSource === undefined ? kept : await enrichWithPrState(kept, prSource);
+  return { entries, warnings: [], reachable };
 }
 
 /**
@@ -189,6 +245,7 @@ async function classifyBranch(
   branch: string,
   worktreePaths: Map<string, string>,
   errandSlugByBranch: ReadonlyMap<string, string>,
+  parkedSlugs: ReadonlySet<string>,
 ): Promise<InFlightEntry | null> {
   const ref = `${remote}/${branch}`;
   const location = locationOf(branch, worktreePaths);
@@ -209,7 +266,13 @@ async function classifyBranch(
 
   const content = await readMetaAtRef({ exec, ref, metaPath: metaPathForWu(name) });
   if (content === null) return null; // No errand record and no active meta — not in flight.
-  return buildWorkUnit(name, content, location, branch.startsWith(PLANNING_BRANCH_PREFIX));
+  return buildWorkUnit(
+    name,
+    content,
+    location,
+    branch.startsWith(PLANNING_BRANCH_PREFIX),
+    parkedSlugs.has(name),
+  );
 }
 
 /**
@@ -232,6 +295,7 @@ function buildWorkUnit(
   content: string,
   location: InFlightLocation,
   planning: boolean,
+  parked: boolean,
 ): InFlightWorkUnit | null {
   const fields = parseRecord(content);
   if (fields === null) return null;
@@ -249,6 +313,7 @@ function buildWorkUnit(
     ...(workClass !== null ? { class: workClass } : {}),
     ...(priority !== null && priority !== "[none]" ? { priority } : {}),
     dependsOn: parseIdentifierList(fields["Depends On"]),
+    ...(parked ? { scheduling: "parked" as const } : {}),
   };
 }
 
