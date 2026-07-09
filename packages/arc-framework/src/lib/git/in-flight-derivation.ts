@@ -22,11 +22,11 @@
  */
 
 import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../../commands/active/types.js";
-import { parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
+import { META_FIELDS, parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
 
 import type { GitExec } from "./exec.js";
 import { listMetaPathsAtRef, readMetaAtRef, resolveInFlightBranchSet } from "./remote-ref-reader.js";
-import { resolveWorktreePathsByBranch } from "./worktree-roster.js";
+import { resolveWorktreePathsByBranchResult } from "./worktree-roster.js";
 
 /** Default remote whose tracking refs back the no-checkout meta reads. */
 const DEFAULT_REMOTE = "origin";
@@ -62,6 +62,7 @@ export type InFlightWarningCode =
   | "meta-malformed"
   | "state-unrecognized"
   | "branch-field-missing"
+  | "worktree-list-failed"
   | "stale-location-dropped"
   | "stale-location-shadow"
   | "candidate-shadowed"
@@ -203,7 +204,8 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   const { exec, branches, identity, teamMode, remote = DEFAULT_REMOTE, prSource, baseBranch = "main" } = options;
   const errandSlugByBranch = options.errandSlugByBranch ?? new Map<string, string>();
   const parkedSlugs = options.parkedSlugs ?? new Set<string>();
-  const worktreePaths = await resolveWorktreePathsByBranch(exec);
+  const worktreeResult = await resolveWorktreePathsByBranchResult(exec);
+  const worktreePaths = worktreeResult.paths;
   const branchSet = branches === undefined
     ? await resolveInFlightBranchSet({ exec, localOnly: options.localOnly ?? false, timeoutMs: options.timeoutMs })
     : { branches: [...branches], reachable: options.reachable ?? true };
@@ -232,7 +234,11 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   const warnings = classified
     .flatMap((classification) => classification.warnings)
     .concat(deduped.warnings);
-  const entriesForIdentity = candidateEntries
+  if (!worktreeResult.ok) {
+    warnings.unshift(worktreeListFailedWarning());
+  }
+  const entriesWithWorktreeMarks = worktreeResult.ok ? candidateEntries : candidateEntries.map(markEntryDegraded);
+  const entriesForIdentity = entriesWithWorktreeMarks
     .filter((entry) => keepForIdentity(entry, identity, teamMode));
 
   const entries = prSource === undefined ? entriesForIdentity : await enrichWithPrState(entriesForIdentity, prSource);
@@ -593,6 +599,34 @@ function shouldMarkLocationAmbiguous(
   return group.filter((candidate) => candidate.input.source === "remote-tracking").length > 1;
 }
 
+function degradedMetaRecord(): MetaRecord {
+  return Object.fromEntries(META_FIELDS.map((field) => [field.name, null])) as MetaRecord;
+}
+
+function degradedMetaCandidate(input: {
+  name: string;
+  metaPath: string;
+  branch: string;
+  code: "meta-read-failed" | "meta-malformed";
+  rendered: string;
+}): MetaCandidate {
+  return {
+    name: input.name,
+    metaPath: input.metaPath,
+    record: degradedMetaRecord(),
+    relation: "missing-branch",
+    marks: ["degraded"],
+    warnings: [
+      warning({
+        code: input.code,
+        branch: input.branch,
+        workUnit: input.name,
+        rendered: input.rendered,
+      }),
+    ],
+  };
+}
+
 async function readMetaCandidate(
   exec: GitExec,
   ref: string,
@@ -603,30 +637,28 @@ async function readMetaCandidate(
   const content = await readMetaAtRef({ exec, ref, metaPath });
   if (content === null) {
     return {
-      candidate: null,
-      warnings: [
-        warning({
-          code: "meta-read-failed",
-          branch,
-          workUnit: name,
-          rendered: `Unable to read \`${metaPath}\` at \`${ref}\`.`,
-        }),
-      ],
+      candidate: degradedMetaCandidate({
+        name,
+        metaPath,
+        branch,
+        code: "meta-read-failed",
+        rendered: `Unable to read \`${metaPath}\` at \`${ref}\`.`,
+      }),
+      warnings: [],
     };
   }
 
   const record = parseRecord(content);
   if (record === null) {
     return {
-      candidate: null,
-      warnings: [
-        warning({
-          code: "meta-malformed",
-          branch,
-          workUnit: name,
-          rendered: `Malformed meta \`${metaPath}\` at \`${ref}\`.`,
-        }),
-      ],
+      candidate: degradedMetaCandidate({
+        name,
+        metaPath,
+        branch,
+        code: "meta-malformed",
+        rendered: `Malformed meta \`${metaPath}\` at \`${ref}\`.`,
+      }),
+      warnings: [],
     };
   }
 
@@ -718,6 +750,17 @@ function warning(input: {
 
 function appendMark(marks: readonly InFlightEntryMark[], mark: InFlightEntryMark): InFlightEntryMark[] {
   return marks.includes(mark) ? [...marks] : [...marks, mark];
+}
+
+function markEntryDegraded(entry: InFlightEntry): InFlightEntry {
+  return { ...entry, marks: appendMark(entry.marks ?? [], "degraded") };
+}
+
+function worktreeListFailedWarning(): InFlightWarning {
+  return warning({
+    code: "worktree-list-failed",
+    rendered: "Unable to list git worktrees; local checkout status is degraded.",
+  });
 }
 
 /**

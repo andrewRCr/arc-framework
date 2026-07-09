@@ -87,23 +87,14 @@ per-consumer behavioral audit and warnings pass-through, not the compile fix-up.
   and degrades offline duplicate picks through an explicit `location-ambiguous` mark instead of emitting
   competing entries.
 
-### `[ ]` **1.4 Warnings channel and loud degradation**
+### `[x]` **1.4 Warnings channel and loud degradation**
 
 - _Goal:_ Degraded inputs produce marked entries and warnings — never shape-identical healthy-looking facts.
 
-    - Degradation lands in the Task 1.1 contract shapes: marked entries plus structured warnings, per input
-      failure class.
-    - `resolveWorktreePathsByBranch`'s silent empty-map degrade (`worktree-roster.ts` ~142–153) becomes a
-      surfaced failure: the every-entry-turns-`remoteOnly` failure mode ends. The failure-distinguishing
-      form lands as a result-bearing variant beside the existing map shape — `src/lib/work-unit/verbs/`
-      `teardown.ts` ~223 and `src/handlers/lifecycle.ts` ~455 also consume the primitive and either adapt
-      knowingly or keep the simple shape.
-    - Unreadable or malformed meta at a ref → warning + marked handling (today's silent `null` drop in
-      `parseRecord` ends).
-    - Build `test-first` (one behavior at a time):
-        - Worktree-list failure marks all entries degraded + warning (no silent `remoteOnly` flip)
-        - Unreadable meta at ref warns and marks rather than silently dropping
-        - Healthy derivation emits empty warnings
+- _Outcome:_ Added a result-bearing worktree branch-map lookup so the oracle can distinguish a successful empty
+  roster from a failed `git worktree list`. Worktree-list failures now emit `worktree-list-failed` and mark every
+  returned entry degraded, while unreadable or malformed at-ref metas produce degraded WU entries keyed by the
+  meta filename with structured warnings instead of disappearing.
 
 ### `[ ]` **1.5 Consumer adaptation to the re-keyed roster shape**
 

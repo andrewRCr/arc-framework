@@ -140,17 +140,36 @@ export async function resolvePrimaryWorktreePath(exec: GitExec): Promise<string 
  * @returns Branch → worktree path for every branched worktree.
  */
 export async function resolveWorktreePathsByBranch(exec: GitExec): Promise<Map<string, string>> {
+  return (await resolveWorktreePathsByBranchResult(exec)).paths;
+}
+
+/** Result-bearing branch→worktree path lookup for callers that surface degraded reads. */
+export interface WorktreePathsByBranchResult {
+  ok: boolean;
+  paths: Map<string, string>;
+}
+
+/**
+ * Map each branched worktree to its local filesystem path, preserving whether
+ * the `git worktree list` read succeeded.
+ *
+ * @param exec - Injectable command executor (local only — no remote).
+ * @returns The branch map plus an `ok` bit for warning/marking consumers.
+ */
+export async function resolveWorktreePathsByBranchResult(
+  exec: GitExec,
+): Promise<WorktreePathsByBranchResult> {
   let worktrees: RawWorktree[];
   try {
     worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
   } catch {
-    return new Map();
+    return { ok: false, paths: new Map() };
   }
   const byBranch = new Map<string, string>();
   for (const wt of worktrees) {
     if (wt.branch !== null) byBranch.set(wt.branch, wt.path);
   }
-  return byBranch;
+  return { ok: true, paths: byBranch };
 }
 
 interface EntryResolution {

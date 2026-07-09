@@ -45,10 +45,12 @@ function metaContent(
  */
 function makeExec(opts: {
   worktrees?: Array<{ path: string; branch: string }>;
+  worktreeError?: boolean;
   localRefs?: string[];
   liveBranches?: string[] | "unreachable";
   ancestors?: Array<[ancestor: string, descendant: string]>;
   commitTimes?: Record<string, number>;
+  listedPaths?: Record<string, string[]>;
   /** Keyed by the `git show` target `"<ref>:<path>"`; present keys resolve, absent keys throw. */
   metas?: Record<string, string>;
 }): GitExec {
@@ -56,6 +58,7 @@ function makeExec(opts: {
   const localRefs = opts.localRefs ?? [];
   const ancestors = new Set((opts.ancestors ?? []).map(([ancestor, descendant]) => `${ancestor}\0${descendant}`));
   const commitTimes = opts.commitTimes ?? {};
+  const listedPaths = opts.listedPaths ?? {};
   const metas = opts.metas ?? {};
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
     if (args[0] === "for-each-ref") {
@@ -69,6 +72,7 @@ function makeExec(opts: {
       };
     }
     if (args[0] === "worktree" && args[1] === "list") {
+      if (opts.worktreeError) throw new Error("fatal: cannot list worktrees");
       const stdout = worktrees
         .map((wt) => `worktree ${wt.path}\nbranch refs/heads/${wt.branch}\n`)
         .join("\n");
@@ -95,7 +99,7 @@ function makeExec(opts: {
     }
     if (args[0] === "ls-tree") {
       const ref = args[3] ?? "";
-      const paths = Object.keys(metas)
+      const paths = listedPaths[ref] ?? Object.keys(metas)
         .filter((target) => target.startsWith(`${ref}:`))
         .map((target) => target.slice(target.indexOf(":") + 1));
       return { stdout: paths.join("\n"), stderr: "" };
@@ -1120,6 +1124,70 @@ describe("deriveInFlight offline candidate collapse", () => {
   });
 });
 
+describe("deriveInFlight degradation warnings", () => {
+  it("marks entries degraded when the worktree list cannot be read", async () => {
+    const exec = makeExec({
+      worktreeError: true,
+      metas: {
+        "origin/feat/x:.arc/active/meta-x.md": metaContent({ branch: "feat/x" }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      branches: ["feat/x"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      name: "x",
+      marks: ["degraded"],
+    });
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "worktree-list-failed",
+        }),
+      ]),
+    );
+  });
+
+  it("warns and marks an unreadable meta at a ref instead of dropping it", async () => {
+    const exec = makeExec({
+      listedPaths: {
+        "origin/feat/broken": [".arc/active/meta-broken.md"],
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      branches: ["feat/broken"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      name: "broken",
+      state: "unknown",
+      marks: ["degraded"],
+    });
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "meta-read-failed",
+          branch: "feat/broken",
+          workUnit: "broken",
+        }),
+      ]),
+    );
+  });
+});
+
 describe("deriveInFlight — shared-reader field recovery", () => {
   it("recovers fields from a table-rendered, backticked meta", async () => {
     const exec = makeExec({
@@ -1151,7 +1219,7 @@ describe("deriveInFlight — shared-reader field recovery", () => {
     });
   });
 
-  it("skips a malformed-core-table meta rather than treating it as unattributed", async () => {
+  it("warns and marks a malformed-core-table meta rather than dropping it", async () => {
     const exec = makeExec({
       metas: {
         "origin/feat/x:.arc/active/meta-x.md":
@@ -1159,13 +1227,28 @@ describe("deriveInFlight — shared-reader field recovery", () => {
       },
     });
 
-    const { entries } = await deriveInFlight({
+    const { entries, warnings } = await deriveInFlight({
       exec,
       branches: ["feat/x"],
       identity: null,
       teamMode: false,
     });
 
-    expect(entries).toEqual([]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      name: "x",
+      state: "unknown",
+      marks: ["degraded"],
+    });
+    expect(warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "meta-malformed",
+          branch: "feat/x",
+          workUnit: "x",
+        }),
+      ]),
+    );
   });
 });
