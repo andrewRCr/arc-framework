@@ -329,24 +329,15 @@ an indeterminate snapshot (the conflict-marker reject stays unconditional).
   filesystem so dirty worktree meta files cannot affect the verdict. The project-view resolver now carries the
   oracle's indeterminate signal for hook consumers.
 
-### `[ ]` **6.2 Hook wiring and hook-level tests**
+### `[x]` **6.2 Hook wiring and hook-level tests**
 
 - _Goal:_ The assert runs as a blockable pre-commit check scoped to staged `ROADMAP.md` changes, wired like
   the existing staged-path checks.
 
-    - Script entry under `src/scripts/` following the blockable `validate-cohort-consistency.ts` pattern
-      (CHECK 18's error-increment wrapper), not the advisory fail-open shape; fires only when `ROADMAP.md`
-      is staged.
-    - Three-way shell contract: exit nonzero → error (reject); exit 0 with output → warning
-      (warn-and-allow); exit 0 silent → pass.
-    - New numbered check in the shipped pre-commit chain, complementary to CHECK 17 (which stays as the
-      render-fields-changed-without-regen nudge; instruction texts agree on the same re-render command);
-      document the GitHub-side merge bound (no local hook fires there; conflict resolution falls to a local
-      commit, where it does).
-    - Two-copy discipline: hook edits land in the package source
-      (`packages/arc-framework/arc/system/.internal/githooks/pre-commit`) and sync to the `.arc/` copy.
-    - Hook-level tests under `__tests__/unit/scripts/`: staged-mismatch rejection, conflict-marker
-      rejection, clean pass-through, indeterminate degrade (spec § Testing).
+- _Outcome:_ Added the blockable `assert-roadmap-regenerated.ts` pre-commit entry point and wired it into both
+  pre-commit hook copies as the new CHECK 19. The shell contract now rejects determinate mismatch/markers,
+  warns on indeterminate mismatch, passes silently on clean staged content, and documents that GitHub-side
+  conflict resolution is outside the local-hook boundary.
 
 ## **Phase 7:** Verification
 
