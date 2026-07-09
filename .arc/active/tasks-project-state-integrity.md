@@ -319,32 +319,15 @@ _Purpose:_ Enforce the never-hand-merged conflict rule: when `ROADMAP.md` is sta
 exact-compare; reject on mismatch or surviving conflict markers, with the compare degrading to warn-and-allow on
 an indeterminate snapshot (the conflict-marker reject stays unconditional).
 
-### `[ ]` **6.1 The assert: re-render exact-compare and conflict-marker scan**
+### `[x]` **6.1 The assert: re-render exact-compare and conflict-marker scan**
 
 - _Goal:_ A staged `ROADMAP.md` that hand-diverges from a source re-render — or carries conflict markers — is
   rejected before commit; a mismatch on an indeterminate snapshot degrades to warn-and-allow.
 
-- **Additional Context:** `notes-project-state-integrity.md` § Rationale detail (hook assert vs merge driver)
-
-    - Pure check core: staged content + re-render result (with its determinacy marks) → verdict:
-      reject-mismatch / reject-markers / warn-and-allow / pass.
-    - Both compare sides are index-pinned: the staged blob (`git show :.arc/backlog/ROADMAP.md`) on one
-      side, and a re-render whose tree-side inputs read from the staged index (`git show :<path>` per meta /
-      backlog source) on the other — the assert certifies the commit being made, so neither a dirty worktree
-      ROADMAP nor an unstaged dirty meta may flip the verdict. Local-refs inputs are index-independent and
-      read as usual.
-    - The conflict-marker reject is unconditional (static scan of staged content — hand-merge evidence
-      regardless of roster state); the exact-compare consumes the determinacy marks of the hook's own fresh
-      re-render run (its resolver's double-read) and degrades to warn-and-allow with a re-run instruction
-      when that snapshot is indeterminate.
-    - Reject messages carry the re-render instruction (regenerate-wins corrects any slip-through at the next
-      determinate regen).
-    - Build `test-first` (one behavior at a time):
-        - Staged hand-edit vs determinate re-render → reject with re-render instruction
-        - Surviving conflict markers → reject, even on an indeterminate snapshot
-        - Indeterminate-snapshot mismatch → warn-and-allow with re-run instruction
-        - An unstaged dirty meta does not affect the verdict (index-side re-render)
-        - Byte-identical staged content → pass
+- _Outcome:_ Added the ROADMAP regeneration assert core, including conflict-marker precedence, exact
+  staged-vs-rendered comparison, indeterminate warn-and-allow behavior, and an index-backed project-view
+  filesystem so dirty worktree meta files cannot affect the verdict. The project-view resolver now carries the
+  oracle's indeterminate signal for hook consumers.
 
 ### `[ ]` **6.2 Hook wiring and hook-level tests**
 

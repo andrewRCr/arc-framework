@@ -303,6 +303,49 @@ describe("composeProjectReadinessView", () => {
     expect(result.markdown).not.toContain("bad-state |");
   });
 
+  it("marks the resolver input indeterminate when local refs move mid-derivation", async () => {
+    let refReads = 0;
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (args[0] === "for-each-ref") {
+        refReads += 1;
+        return {
+          stdout: `refs/heads/feat/moving\t${refReads === 1 ? "1111111" : "2222222"}`,
+          stderr: "",
+        };
+      }
+      if (args[0] === "worktree") {
+        return {
+          stdout: [
+            "worktree /repo",
+            "HEAD 1111111111111111111111111111111111111111",
+            "branch refs/heads/feat/moving",
+          ].join("\n"),
+          stderr: "",
+        };
+      }
+      if (args[0] === "ls-tree") {
+        return { stdout: ".arc/active/meta-moving.md", stderr: "" };
+      }
+      if (args[0] === "show") {
+        return {
+          stdout: oracleMeta({ branch: "feat/moving" }),
+          stderr: "",
+        };
+      }
+      return { stdout: "", stderr: "" };
+    });
+
+    const input = await resolveProjectReadinessViewInput({
+      cwd: "/repo",
+      title: "Roadmap",
+      fs: { readdir: async () => [], readFile: async () => "" },
+      localRefs: { exec, baseBranch: "main" },
+    });
+
+    expect(input.indeterminate).toBe(true);
+    expect(input.sourceWarnings.some((warning) => warning.rendered.includes("changed during"))).toBe(true);
+  });
+
   it("notes live-oracle fallback when the remote is unreachable", async () => {
     const exec = makeInFlightExec({
       remoteRefs: ["feat/ref-only"],

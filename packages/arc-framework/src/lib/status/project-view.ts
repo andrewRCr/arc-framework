@@ -118,6 +118,8 @@ export interface ProjectReadinessViewInput {
   records: ProjectReadinessRecord[];
   derivationWarnings: ProjectReadinessDerivationWarning[];
   sourceWarnings: ProjectReadinessWarning[];
+  /** Whether the resolver observed changing in-flight inputs during derivation. */
+  indeterminate: boolean;
 }
 
 /** In-flight oracle inputs for project-readiness renders. */
@@ -440,8 +442,11 @@ async function resolveOracleCandidates(
   candidates: ProjectReadinessRecordCandidate[];
   derivationWarnings: ProjectReadinessDerivationWarning[];
   sourceWarnings: ProjectReadinessWarning[];
+  indeterminate: boolean;
 }> {
-  if (options === undefined) return { candidates: [], derivationWarnings: [], sourceWarnings: [] };
+  if (options === undefined) {
+    return { candidates: [], derivationWarnings: [], sourceWarnings: [], indeterminate: false };
+  }
   const result = await deriveInFlight({
     exec: options.exec,
     localOnly: options.localOnly ?? false,
@@ -467,7 +472,18 @@ async function resolveOracleCandidates(
       rendered: "Remote unreachable; rendering project view from local refs only.",
     });
   }
-  return { candidates, derivationWarnings, sourceWarnings };
+  return {
+    candidates,
+    derivationWarnings,
+    sourceWarnings,
+    indeterminate: inFlightResultIndeterminate(result),
+  };
+}
+
+function inFlightResultIndeterminate(result: Awaited<ReturnType<typeof deriveInFlight>>): boolean {
+  return Boolean(result.marks?.includes("indeterminate"))
+    || result.entries.some((entry) => entry.marks?.includes("indeterminate") ?? false)
+    || result.warnings.some((warning) => warning.code === "input-snapshot-disagreement");
 }
 
 function oracleOptionsFor(options: ResolveProjectReadinessViewInputOptions): ProjectReadinessOracleOptions | undefined {
@@ -490,6 +506,7 @@ export async function resolveProjectReadinessViewInput(
     records: mergeProjectReadinessRecords([...treeRecords, ...localRefs.candidates]),
     derivationWarnings: localRefs.derivationWarnings,
     sourceWarnings: localRefs.sourceWarnings,
+    indeterminate: localRefs.indeterminate,
   };
 }
 
