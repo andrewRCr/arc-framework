@@ -809,6 +809,7 @@ async function pairedNotesAdapter(
 ): Promise<PairedPushNotesPusherResult> {
   const outcome = await pushBranchBoundedNotesExport({
     exec: context.io.exec,
+    execInput: context.io.execInput,
     identity: context.identity,
     target: context.notesExportTarget,
   });

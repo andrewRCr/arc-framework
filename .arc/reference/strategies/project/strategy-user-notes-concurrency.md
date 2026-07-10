@@ -50,8 +50,10 @@ Use a native expected-old ref move when the mutator can name the exact state it 
 - **Corrupt-merge rollback:** rollback uses `git update-ref <ref> <preMergeTip> <postMergeTip>` or the guarded
   delete analogue for a previously absent ref. On CAS decline, the operation returns a typed conflict and never
   publishes the known-corrupt ref.
-- **Branch-bounded adopt:** `pushBranchBoundedNotesExport` adopts a temp export with `update-ref <ref> <new>
-  <expected-old>` only when the temp tree is a content superset of local notes.
+- **Branch-bounded adopt:** `pushBranchBoundedNotesExport` adopts a content-superset temp export directly, or
+  builds a two-parent local-wins union when the trees are uncontested or local ancestry resolves a contest.
+  Both paths move the canonical ref with `update-ref <ref> <new> <expected-old>`; a genuine unresolvable contest,
+  failed read, or declined compare-and-swap leaves the successful remote push intact for the next reconcile.
 - **Fetch/pull:** `runUserFetch` fetches remote notes into a temp ref, classifies ancestry, then moves the
   canonical notes ref with an expected-old guard. Local-ahead, diverged, and mid-fetch local advances refuse with
   typed outcomes; `runUserPull` loads disk only after a successful fetch.

@@ -16,11 +16,22 @@ import {
   adoptCompactedNotesRef,
   readNotesCompactionManifest,
 } from "./compaction.js";
-import type { NotesCompactionManifest } from "./compaction-manifest.js";
+import {
+  NOTES_COMPACTION_MANIFEST_PATH,
+  pairKey,
+  type NotesCompactionManifest,
+} from "./compaction-manifest.js";
+import {
+  classifyNoteSetRelation,
+  resolveExcludedNotePairKeys,
+  type NoteSetSnapshot,
+} from "./note-set-relation.js";
 import { isRemoteUnavailableError } from "./notes-merge.js";
+import { listNoteTreeEntries } from "./notes-ref.js";
 
 const USER_NOTES_REF_PREFIX = "refs/notes/arc/user";
 const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const BRANCH_BOUNDED_NOTES_JOIN_MESSAGE = "user notes branch-bounded export join";
 
 /** Planned temporary notes ref whose tip is safe to push to origin. */
 export interface BranchBoundedNotesExportTarget {
@@ -35,10 +46,9 @@ export interface BranchBoundedNotesExportTarget {
   /** Commit sha of the staged notes-ref target. */
   tip: string;
   /**
-   * Local canonical notes-ref tip observed at plan time. After a successful
-   * push the local ref is fast-forwarded to {@link tip} guarded by this value
-   * (compare-and-swap), so a concurrent save that advanced the local ref
-   * between plan and push is never clobbered.
+   * Local canonical notes-ref tip observed at plan time. Any direct adoption
+   * or two-parent join is compare-and-swapped against this value, so a save
+   * landing between plan and push is never clobbered.
    */
   priorLocalTip: string;
   /** Annotated commits copied from the local notes ref into the target. */
@@ -47,6 +57,8 @@ export interface BranchBoundedNotesExportTarget {
   omittedCommits: string[];
   /** Whether the staged tip carries every local `(blob, commit)` pair observed at plan time. */
   supersedesLocal: boolean;
+  /** Whether the plan-time local notes tip contains the fetched remote tip in its ancestry. */
+  localIncludesRemote: boolean;
 }
 
 /** Why planning could not produce an export target. */
@@ -80,8 +92,23 @@ export interface PlanBranchBoundedNotesExportInput {
 /** Inputs for {@link pushBranchBoundedNotesExport}. */
 export interface PushBranchBoundedNotesExportInput {
   exec: GitExec;
+  execInput?: GitExecInput;
   identity: string;
   target: BranchBoundedNotesExportTarget;
+}
+
+/** Inputs for building a two-parent union of local and pushed notes trees. */
+export interface BuildBranchBoundedNotesUnionCommitInput {
+  exec: GitExec;
+  execInput: GitExecInput;
+  priorLocalTip: string;
+  pushedTip: string;
+}
+
+/** A staged notes union commit and its deterministic tree. */
+export interface BranchBoundedNotesUnionCommit {
+  tip: string;
+  tree: string;
 }
 
 /** Inputs for {@link cleanupBranchBoundedNotesExport}. */
@@ -93,6 +120,95 @@ export interface CleanupBranchBoundedNotesExportInput {
 interface NoteEntry {
   blob: string;
   commit: string;
+}
+
+interface NotesUnionState {
+  local: NoteSetSnapshot;
+  pushed: NoteSetSnapshot;
+}
+
+/**
+ * Build a deterministic local-wins union commit over two notes trees.
+ *
+ * @param input - Git plumbing and the two notes-ref tips to join.
+ * @returns The two-parent commit tip and deterministic union tree id.
+ */
+export async function buildBranchBoundedNotesUnionCommit(
+  input: BuildBranchBoundedNotesUnionCommitInput,
+): Promise<BranchBoundedNotesUnionCommit> {
+  const state = await loadNotesUnionState(input.exec, input.priorLocalTip, input.pushedTip);
+  const tree = await buildBranchBoundedNotesUnionTree(input, state);
+  const tip = await commitBranchBoundedNotesUnionTree(input.exec, tree, input.priorLocalTip, input.pushedTip);
+  return { tip, tree };
+}
+
+async function buildBranchBoundedNotesUnionTree(
+  input: BuildBranchBoundedNotesUnionCommitInput,
+  state: NotesUnionState,
+): Promise<string> {
+  const excluded = resolveExcludedNotePairKeys(state.local.manifest, state.pushed.manifest);
+  const treeEntries = new Map<string, string>();
+  for (const entry of state.pushed.entries) {
+    if (!excluded.has(pairKey(entry))) treeEntries.set(entry.commit, entry.blob);
+  }
+  for (const entry of state.local.entries) {
+    if (!excluded.has(pairKey(entry))) treeEntries.set(entry.commit, entry.blob);
+  }
+
+  const manifestSource = selectUnionManifest({
+    localManifest: state.local.manifest,
+    localTip: input.priorLocalTip,
+    pushedManifest: state.pushed.manifest,
+    pushedTip: input.pushedTip,
+  });
+  if (manifestSource !== null) {
+    treeEntries.set(
+      NOTES_COMPACTION_MANIFEST_PATH,
+      await readTreeBlob(input.exec, manifestSource.tip, NOTES_COMPACTION_MANIFEST_PATH),
+    );
+  }
+
+  const treeInput = [...treeEntries.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([path, blob]) => `100644 blob ${blob}\t${path}`)
+    .join("\n") + "\n";
+  return (await input.execInput(["mktree"], treeInput)).trim();
+}
+
+async function commitBranchBoundedNotesUnionTree(
+  exec: GitExec,
+  tree: string,
+  priorLocalTip: string,
+  pushedTip: string,
+): Promise<string> {
+  const { stdout } = await exec("git", [
+    "commit-tree",
+    tree,
+    "-p",
+    priorLocalTip,
+    "-p",
+    pushedTip,
+    "-m",
+    BRANCH_BOUNDED_NOTES_JOIN_MESSAGE,
+  ]);
+  return stdout.trim();
+}
+
+async function loadNotesUnionState(
+  exec: GitExec,
+  priorLocalTip: string,
+  pushedTip: string,
+): Promise<NotesUnionState> {
+  const [localEntries, pushedEntries, localManifest, pushedManifest] = await Promise.all([
+    listNoteTreeEntries(exec, priorLocalTip),
+    listNoteTreeEntries(exec, pushedTip),
+    readNotesCompactionManifest(exec, priorLocalTip),
+    readNotesCompactionManifest(exec, pushedTip),
+  ]);
+  return {
+    local: { entries: localEntries, manifest: localManifest },
+    pushed: { entries: pushedEntries, manifest: pushedManifest },
+  };
 }
 
 /**
@@ -183,6 +299,7 @@ export async function planBranchBoundedNotesExport(
           annotatedCommits: annotatedCommits.sort(),
           omittedCommits: [],
           supersedesLocal: true,
+          localIncludesRemote,
         },
       };
     }
@@ -226,6 +343,7 @@ export async function planBranchBoundedNotesExport(
         annotatedCommits: annotatedCommits.sort(),
         omittedCommits: omittedCommits.sort(),
         supersedesLocal: containsAllEntries(targetEntries, localEntries),
+        localIncludesRemote,
       },
     };
   } catch (err) {
@@ -292,15 +410,15 @@ async function adoptRemoteCompactionIfNewer(input: {
 export async function pushBranchBoundedNotesExport(
   input: PushBranchBoundedNotesExportInput,
 ): Promise<PushBranchBoundedNotesExportResult> {
-  const { exec, target } = input;
+  const { exec, execInput, target } = input;
   try {
     const remoteTip = await readRemoteRefTip(exec, target.destinationRef);
     if (remoteTip === target.tip) {
-      await adoptPushedTipIntoLocalRef(exec, target);
+      await adoptPushedTipIntoLocalRef(exec, execInput, target);
       return { kind: "noop" };
     }
     await exec("git", ["push", "origin", `${target.tip}:${target.destinationRef}`]);
-    await adoptPushedTipIntoLocalRef(exec, target);
+    await adoptPushedTipIntoLocalRef(exec, execInput, target);
     return { kind: "pushed" };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
@@ -311,19 +429,17 @@ export async function pushBranchBoundedNotesExport(
 
 /**
  * After a successful push — or a no-op where origin already carries the pushed
- * tip — fast-forward the local canonical notes ref to that tip. The rewrite
- * path stages and pushes a fresh temporary ref but never advances the local
- * canonical ref, so without this the local ref stays permanently behind origin:
- * `arc user status` then reports a (benign) `diverged`, and every later push
- * re-rewrites the whole notes history onto origin — unbounded remote-history
- * growth.
+ * tip — reconcile the local canonical notes ref with that tip. A staged target
+ * that supersedes local can be adopted directly. Otherwise, git plumbing builds
+ * a two-parent local-wins union when the trees are uncontested or local ancestry
+ * resolves a contest.
  *
  * Two guards keep it safe:
  *
- * - **Content subset** (`supersedesLocal === false`): the pushed tip omits at
- *   least one local `(blob, commit)` pair, so adopting it would drop notes.
- *   The local ref keeps its own lineage; a union reconcile for that case is
- *   out of scope here.
+ * - **No-op:** an already-ancestral pushed tip or an uncontested union tree
+ *   identical to local mints no join commit.
+ * - **Contested entries:** local wins only when plan-time ancestry proves it
+ *   contains the fetched remote tip; otherwise the join is refused.
  * - **Concurrent local advance:** the update is a compare-and-swap against
  *   {@link BranchBoundedNotesExportTarget.priorLocalTip} (the local tip observed
  *   at plan time). A concurrent `arc user save` that moved the local ref between
@@ -331,18 +447,47 @@ export async function pushBranchBoundedNotesExport(
  *   reconciles on the next push instead.
  *
  * The fast-path target (`ref === destinationRef`) already pushes the canonical
- * ref itself, so there is nothing to adopt. Best-effort: a failed swap leaves
- * the local ref where it was (the pre-fix state), never a worse one, and never
- * changes the already-successful push outcome.
+ * ref itself, so there is nothing to adopt. Missing stdin plumbing, read
+ * failures, and failed swaps leave the local ref where it was and never change
+ * the already-successful push outcome.
  */
 async function adoptPushedTipIntoLocalRef(
   exec: GitExec,
+  execInput: GitExecInput | undefined,
   target: BranchBoundedNotesExportTarget,
 ): Promise<void> {
   if (target.ref === target.destinationRef) return;
-  if (!target.supersedesLocal) return;
   try {
-    await exec("git", ["update-ref", target.destinationRef, target.tip, target.priorLocalTip]);
+    if (target.supersedesLocal) {
+      await exec("git", ["update-ref", target.destinationRef, target.tip, target.priorLocalTip]);
+      return;
+    }
+    if (execInput === undefined) return;
+    if (await isAncestor(exec, target.tip, target.priorLocalTip)) return;
+
+    const state = await loadNotesUnionState(exec, target.priorLocalTip, target.tip);
+    const relation = classifyNoteSetRelation(state.local, state.pushed);
+    if (relation === "conflicting" && !target.localIncludesRemote) return;
+
+    const unionInput = {
+      exec,
+      execInput,
+      priorLocalTip: target.priorLocalTip,
+      pushedTip: target.tip,
+    };
+    const unionTree = await buildBranchBoundedNotesUnionTree(unionInput, state);
+    if (
+      relation !== "conflicting"
+      && unionTree === await readTreeId(exec, target.priorLocalTip)
+    ) return;
+
+    const unionTip = await commitBranchBoundedNotesUnionTree(
+      exec,
+      unionTree,
+      target.priorLocalTip,
+      target.tip,
+    );
+    await exec("git", ["update-ref", target.destinationRef, unionTip, target.priorLocalTip]);
   } catch {
     // Best-effort compare-and-swap: a concurrent local advance (CAS mismatch) or
     // transient failure leaves the local ref where it was — the push already
@@ -389,6 +534,41 @@ function parseNoteListLine(line: string): NoteEntry | null {
     return null;
   }
   return { blob, commit };
+}
+
+function selectUnionManifest(input: {
+  localManifest: NotesCompactionManifest | null;
+  localTip: string;
+  pushedManifest: NotesCompactionManifest | null;
+  pushedTip: string;
+}): { manifest: NotesCompactionManifest; tip: string } | null {
+  if (
+    input.pushedManifest !== null
+    && input.pushedManifest.generation > (input.localManifest?.generation ?? 0)
+  ) {
+    return { manifest: input.pushedManifest, tip: input.pushedTip };
+  }
+  return input.localManifest === null
+    ? null
+    : { manifest: input.localManifest, tip: input.localTip };
+}
+
+async function readTreeBlob(exec: GitExec, commitish: string, path: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", `${commitish}:${path}`]);
+  const blob = stdout.trim();
+  if (!GIT_OBJECT_ID_PATTERN.test(blob)) {
+    throw new Error(`Tree entry did not resolve to a git object: ${commitish}:${path}`);
+  }
+  return blob;
+}
+
+async function readTreeId(exec: GitExec, commitish: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", `${commitish}^{tree}`]);
+  const tree = stdout.trim();
+  if (!GIT_OBJECT_ID_PATTERN.test(tree)) {
+    throw new Error(`Commit-ish did not resolve to a tree: ${commitish}`);
+  }
+  return tree;
 }
 
 async function readRemoteRefTip(exec: GitExec, ref: string): Promise<string | null> {

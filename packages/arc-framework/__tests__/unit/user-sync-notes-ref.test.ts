@@ -10,6 +10,7 @@ import {
   NOTES_COMPACTION_MANIFEST_PATH,
   NOTES_COMPACTION_SNAPSHOT_MESSAGE,
   listAnnotatedNoteCommits,
+  listNoteTreeEntries,
   mergeCrossWuFile,
   notePathToCommit,
   readNoteContentAtAnnotatedCommit,
@@ -40,9 +41,11 @@ interface NotesConfig {
   /** Annotated commit → note blob content. */
   contentByAnnotatedCommit?: Record<string, string>;
   notesListOutput?: string;
+  lsTreeOutput?: string;
   logThrows?: boolean;
   sinceAsFilterUnsupported?: boolean;
   notesListThrows?: boolean;
+  lsTreeThrows?: boolean;
 }
 
 function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
@@ -95,11 +98,46 @@ function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
       if (value === undefined) throw new Error(`missing annotated note content: ${commit}`);
       return { stdout: value, stderr: "" };
     }
+    if (args[0] === "ls-tree") {
+      if (cfg.lsTreeThrows) throw new Error("ls-tree failed");
+      return { stdout: cfg.lsTreeOutput ?? "", stderr: "" };
+    }
     throw new Error(`unexpected git call: ${args.join(" ")}`);
   };
 
   return { exec, calls };
 }
+
+describe("listNoteTreeEntries", () => {
+  it("flattens fan-out paths into annotated commit ids", async () => {
+    const blob = annotated("11");
+    const commit = annotated("a1");
+    const fanoutPath = `${commit.slice(0, 2)}/${commit.slice(2, 4)}/${commit.slice(4)}`;
+    const { exec } = makeExec({
+      lsTreeOutput: `100644 blob ${blob}\t${fanoutPath}`,
+    });
+
+    await expect(listNoteTreeEntries(exec, "refs/arc-sync-temp/incoming"))
+      .resolves.toEqual([{ blob, commit }]);
+  });
+
+  it("excludes the fixed-path compaction manifest", async () => {
+    const blob = annotated("11");
+    const { exec } = makeExec({
+      lsTreeOutput: `100644 blob ${blob}\t${NOTES_COMPACTION_MANIFEST_PATH}`,
+    });
+
+    await expect(listNoteTreeEntries(exec, "refs/arc-sync-temp/incoming"))
+      .resolves.toEqual([]);
+  });
+
+  it("propagates ls-tree failures", async () => {
+    const { exec } = makeExec({ lsTreeThrows: true });
+
+    await expect(listNoteTreeEntries(exec, "refs/arc-sync-temp/incoming"))
+      .rejects.toThrow("ls-tree failed");
+  });
+});
 
 /** Build a config where each history commit has exactly one note carrying `marker` content. */
 function oneNotePerHistory(entries: { history: string; marker: string; date?: string }[]): NotesConfig {
