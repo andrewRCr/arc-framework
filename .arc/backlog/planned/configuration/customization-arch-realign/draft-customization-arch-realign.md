@@ -55,6 +55,11 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
   reads → Config" row)? Either resolution adopts the errand type-set hardcode as its worked example; coordinate with
   `config-storage-architecture` (resolver substrate, already cross-referenced from this draft) for the projection
   mechanism.
+- _Second consumer routed 2026-07-10:_ the session-init orphan-branch sweep currently treats every slash-carrying
+  branch as type-prefixed because the same projected type set is unavailable. Keep that intentionally-wide,
+  advisory-only gate until this WU resolves the projection; then consume the resolved `branch-format` set plus
+  invariant `plan/` there as well. The wide gate's current failure is a visible, `git branch -d`-only false
+  offer, not a destructive action.
 
 ### `[ ]` **New method override disposition: `override-mode: replace | extend` (compose, not just substitute)**
 

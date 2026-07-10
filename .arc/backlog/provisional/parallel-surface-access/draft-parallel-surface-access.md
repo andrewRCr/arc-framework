@@ -34,3 +34,12 @@
 - *Coordinate with:* `operational-state-docs` (render / projection engine, STATUS.PROJECT / ROADMAP shape),
   `strategy-storage-evolution` + `arc-backend` (backing store / materialization substrate), `roadmap-tooling`
   (ROADMAP renderer), `goal-aware-direction` (`VECTOR.USER` is part of this surface set).
+
+### `[ ]` **Use PSI's composer as the thin render-on-demand sink**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: parallel-surface-access`), housekeep drain
+  (2026-07-10); surfaced during `project-state-integrity` design.
+- *Concern:* PSI now supplies a pure readiness composer plus a live read-time project view. The remaining
+  passively-opened-file gap can therefore be a gitignored render-on-demand sink rather than a second state engine.
+- *Promotion test:* when this WU is next weighed, compare that thin independently deliverable slice with waiting
+  for the backing-store substrate, and coordinate naming/render standards with `roadmap-tooling`.

@@ -462,6 +462,28 @@
   contract, gets narrowed to non-shape guidance, or is deprecated entirely in favor of this WU's managed-record
   documentation.
 
+### `[ ]` **Treat deletion as an explicit record event, not a state diff**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain
+  (2026-07-10); captured during the `user-notes-retention` audit.
+- _Evidence:_ tombstone synthesis currently infers deletion intent from disk-vs-window absence. That is sound only
+  for one writer that always loads first; ref-only reconciliation plus shared identity-global disk breaks the
+  premise under parallelism.
+- _Fold-in:_ carry this as motivating evidence for entry-granular records where deletion is an explicit event,
+  and verify the model closes the reconcile-without-materialize hole. FP may ship the documented same-entry
+  limitation and interim load-before-save/locking guards; this is the durable model.
+
+### `[ ]` **Own the durable integration-resume directive**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain
+  (2026-07-10); captured during PR #217 review.
+- _Interim pulled forward:_ a standalone workflow Errand will replace transient `open the PR` prose with a
+  stable “resume from the first incomplete observable integration step” pointer.
+- _Fold-in:_ make the directive code-owned and storage-agnostic rather than arbitrary caller prose, derive precise
+  continuation from live PR/worktree state, and keep `PR URL` / `Completed` as archive-time durable facts.
+  Coordinate agenda-derived precision with `composable-workflows`; do not mint a second PR-open lifecycle verb
+  by default.
+
 ---
 
 ## Purpose

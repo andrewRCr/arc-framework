@@ -52,6 +52,10 @@
   repo, so the initial review and each post-push re-review are requested via `@coderabbitai review`. When
   the trigger extension lands it owns that decision; remove/subsume the interim instruction from
   `address-pr-review.md` at that point.
+- _Operational split (housekeep drain 2026-07-10):_ keep the repo's long-standing manual-trigger posture —
+  `auto_review` remains disabled and `address-pr-review.md` remains the interim entry. A standalone
+  repo-internal Errand owns restoring CodeRabbit's visible in-progress/failing review surface after that check
+  disappeared; it does not pre-empt this WU's post-PR-open extension design.
 
 ### `[ ]` **Content/lane-gate review extensions for doc-only lifecycle ceremonies**
 
@@ -64,6 +68,11 @@
 - _Scope:_ decide whether review extensions should key on change kind at their fire-point, and if so whether the
   gating belongs in the extension contract, the fire-site, or a review-method abstraction. Coordinate with
   `rules-restructure`'s extension-definition breadth and the auto-merge-lane "no human review" classification.
+- _2026-07-10 evidence:_ this repo's CI already computes a generic `reviewed | auto` lane, while CodeRabbit's
+  GitHub check stopped appearing even on manually-triggered passes. The repo-local recovery is being pulled
+  forward, but the reusable ARC question remains here: how a post-PR review extension consumes a generic lane
+  signal and holds integration while its review is active, without turning a project-specific tool into
+  framework policy.
 
 ### `[ ]` **`arc-design-audit` → departed to `adversarial-review` (2026-07-01 drain)**
 

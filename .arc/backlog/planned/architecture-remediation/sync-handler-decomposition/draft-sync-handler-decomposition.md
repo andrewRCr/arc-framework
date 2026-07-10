@@ -16,6 +16,17 @@
   this WU extracts. Authoring it as a pure matrix-outcome + isolated execution lets the two compose regardless of
   land-order; the decomposition should expect the added cell.
 
+### `[ ]` **Unify the two user-sync decision engines**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: sync-handler-decomposition`), housekeep drain
+  (2026-07-10); captured during the `user-notes-retention` audit.
+- _Concern:_ `decideSyncAction` branches on presentation-flavored strings while
+  `computeUserSyncSpine` / `determineUserStatusAction` encode overlapping policy over structured state. The
+  notes-vs-worktree block matrix likewise lives in the handler, and save-with-spinner flows repeat across
+  commands.
+- _Fold-in:_ converge on one structured decision spine, derive display strings at render time, and weigh the
+  audit's `sync-matrix` / `sync-render` / `sync-audit` cut while splitting the handler.
+
 ---
 
 ## Problem / Motivation
