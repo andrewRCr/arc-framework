@@ -8,15 +8,15 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-reviewed-lane-review-gate.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Errand promoted to work unit
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resolve the design before further implementation.
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
