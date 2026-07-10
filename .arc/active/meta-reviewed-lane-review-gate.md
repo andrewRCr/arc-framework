@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Errand promoted to work unit
+- **Last Completed:** Finalized `spec-reviewed-lane-review-gate.md`
 - **Next Task:** [none]
 - **Blockers:** [none]
 
