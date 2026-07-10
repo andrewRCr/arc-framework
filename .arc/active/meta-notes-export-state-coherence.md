@@ -12,10 +12,10 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Draft captured (2026-07-09) — A+B design settled at medium depth (producer safe-join +
-  content-relation classification + guidance fix) with one converged adversarial pass (one blocker + three
-  majors fixed in place: contested-entry join rule, temp-ref mislisting, projection threading, `arc user sync`
-  conflict select); stage advanced to `create-spec`.
+- **Last Completed:** Spec created (2026-07-09) — `spec-notes-export-state-coherence.md` at `outline` form;
+  draft retired to `notes-notes-export-state-coherence.md`; one converged adversarial pass folded (two majors
+  fixed in place: compaction pruned-pair exclusion in join + classifier, join no-op guard with corrected
+  steady-state); five-relation classification (added `mixed-uncontested`); stage advanced to `generate-tasks`.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
