@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "route-operational-captures",
-  "origin": "description",
-  "intent": "Route the confirmed July operational captures to their authoritative work-unit and shared-inbox homes",
-  "branch": "chore/route-operational-captures",
-  "createdAt": "2026-07-10T15:10:51.283Z"
-}
