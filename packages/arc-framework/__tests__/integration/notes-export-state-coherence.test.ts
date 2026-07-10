@@ -335,7 +335,7 @@ describe("notes export state coherence", () => {
       contentRelation: "remote-subset",
     });
     expect(afterJoinStatus.userSyncCause).toBeUndefined();
-    expect(afterJoinStatus.actionHint).not.toMatch(/push|sync/u);
+    expect(afterJoinStatus.actionHint ?? "").not.toMatch(/push|sync/u);
     expect(afterJoinStatus.detailLines.join(" ")).toContain("branch-export residue");
     expect(decideSyncAction(await inspectUserSyncState({ cwd: repo, io, identity: IDENTITY })))
       .toBe("load");
