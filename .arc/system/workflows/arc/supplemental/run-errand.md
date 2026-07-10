@@ -161,11 +161,13 @@ follows the project's normal base-push discipline.
 
 On merge (full) or final commit (partial), close out:
 
-- **Full protection** — `arc errand close <slug>` reaps the branch, prunes its tracking ref, removes the record,
-  and drops the originating `USER-INBOX` capture (the entry its record back-points to). The reap is
-  containment-safe: if the branch's commits aren't provably preserved (pushed or merged), it **refuses** and keeps
-  the record — push/merge then retry, or `--force` if you've verified it shipped. The remote PR branch is the
-  host's to delete on merge.
+- **Full protection** — `arc errand close <slug>` reaps the branch, deletes its remote head when the work
+  provably landed in base (a host's delete-on-merge having already removed it is the idempotent no-op), prunes
+  its tracking ref, removes the record, and drops the originating `USER-INBOX` capture (the entry its record
+  back-points to). The reap is containment-safe: if the branch's commits aren't provably preserved (pushed or
+  merged), it **refuses** and keeps the record — push/merge then retry, or `--force` if you've verified it
+  shipped. A remote head that is the only proven preservation (e.g. a multi-commit squash) is kept and surfaced,
+  never deleted.
 - **Partial protection** — nothing to close; the errand is already a direct base commit.
 
 **Unattended merge (auto-merge lane).** If the merge lands after the session ends, `arc errand close` is replayed

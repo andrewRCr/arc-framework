@@ -9,11 +9,15 @@
  * abandoned errand stays recoverable rather than orphaning its intent.
  *
  * The reap is **atomic with the record removal**: safety is checked first, so a
- * refusal never removes the record. The remote branch is never deleted (the PR
- * merge owns that); the stale remote-tracking refs it left are pruned, and the
- * local `base` is fast-forwarded to the freshly-fetched remote base so the primary
- * lands current after the merge rather than on a stale base. The inbox drop is the
- * caller's composition (file I/O over the gitignored inbox,
+ * refusal never removes the record. The close owns the **remote-head cleanup**
+ * (host delete-on-merge is tolerated, never relied on): the remote branch is
+ * deleted when the landed-in-base proof holds — strictly stronger than the reap
+ * gate, because when only upstream containment proved the reap (pushed but not
+ * provably merged, e.g. a multi-commit squash or a not-yet-merged PR) the remote
+ * head IS the preservation and is kept. Stale remote-tracking refs are pruned,
+ * and the local `base` is fast-forwarded to the freshly-fetched remote base so
+ * the primary lands current after the merge rather than on a stale base. The
+ * inbox drop is the caller's composition (file I/O over the gitignored inbox,
  * keyed by the record's origin back-pointer) and lands only on a successful close.
  *
  * The git seams and identity are injected (three-layer architecture).
@@ -24,10 +28,11 @@
 import { reconcileErrandPush, type ErrandPushOutcome } from "./merge.js";
 import { readErrandRecord, removeErrandRecord, type ErrandRecord } from "./record.js";
 import type { ErrandRecordIO } from "./ref-tree.js";
-import { assessReapSafety } from "../git/branch-containment.js";
+import { assessReapSafety, isLandedInBase } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
 import { refreshBase } from "../git/refresh-base.js";
 import { fetchPrune } from "../work-unit/mutators/fetch-prune.js";
+import { deleteRemoteBranch } from "../work-unit/mutators/reconcile-branch.js";
 
 /** The default remote whose upstream containment proves preservation. */
 const DEFAULT_REMOTE = "origin";
@@ -48,9 +53,33 @@ export interface CloseErrandParams {
   force?: boolean;
 }
 
+/**
+ * Outcome of the remote-head cleanup leg of a close.
+ *
+ * - `deleted` — the head provably landed in base and was deleted.
+ * - `absent` — already gone: the head provably landed but origin no longer has
+ *   it (never pushed, or host delete-on-merge got there first), or a record-only
+ *   residue close found nothing anywhere after a prune-fetch; the no-op.
+ * - `kept` — landing could not be proven, so the head (if any) may be the only
+ *   preservation of the work and is deliberately left intact.
+ * - `failed` — landing was proven but the delete failed (auth, connectivity);
+ *   best-effort degrade, the completed local close stands.
+ */
+export type RemoteHeadCleanup =
+  | { kind: "deleted" }
+  | { kind: "absent" }
+  | { kind: "kept" }
+  | { kind: "failed"; detail: string };
+
 /** Outcome of {@link closeErrand}. */
 export type CloseErrandResult =
-  | { kind: "closed"; record: ErrandRecord; branchReaped: boolean; push: ErrandPushOutcome }
+  | {
+    kind: "closed";
+    record: ErrandRecord;
+    branchReaped: boolean;
+    remoteHead: RemoteHeadCleanup;
+    push: ErrandPushOutcome;
+  }
   | { kind: "no-record"; slug: string }
   | { kind: "unsafe-reap"; record: ErrandRecord; reason: string };
 
@@ -63,8 +92,10 @@ export type CloseErrandResult =
  * preserved it returns `unsafe-reap` without removing the record. Otherwise
  * fetches the authoritative remote base (so containment and the base fast-forward
  * evaluate against the post-merge remote), hops off the branch if occupied,
- * force-deletes it, prunes stale remote-tracking refs, fast-forwards local `base`,
- * removes the record, and pushes the removal.
+ * force-deletes it, deletes the remote head when the landed-in-base proof holds
+ * (kept otherwise — it may be the only preservation), prunes stale
+ * remote-tracking refs, fast-forwards local `base`, removes the record, and
+ * pushes the removal.
  *
  * @param io - Injected git seams and identity.
  * @param params - The errand slug, base, remote, and force override.
@@ -120,6 +151,17 @@ export async function closeErrand(
     if (!safety.safe) return { kind: "unsafe-reap", record, reason: safety.reason };
   }
 
+  // The landed-in-base proof gates the remote-head delete below — strictly
+  // stronger than the reap-safety union, because when only upstream containment
+  // holds (pushed but not provably merged: a multi-commit squash, or a PR that
+  // hasn't landed yet) the remote head IS the preservation and deleting it would
+  // discard the work. Checked against the local base first, then the refreshed
+  // remote base — the same union as the reap gate. Computed before the local
+  // delete consumes the ref.
+  const localProofLanded = branchPresent
+    && ((await isLandedInBase(io.exec, record.branch, params.base))
+      || (baseRef !== params.base && (await isLandedInBase(io.exec, record.branch, baseRef))));
+
   if (branchPresent) {
     // Hop off the branch before deleting it — `git branch -D` refuses the current branch.
     if (current === record.branch) {
@@ -131,13 +173,43 @@ export async function closeErrand(
     await io.exec("git", ["branch", "-D", record.branch]);
   }
 
-  // Prune the stale remote-tracking refs a delete-on-merge leaves — the same
-  // `fetch --prune` leg teardown composes. Best-effort: a prune failure (offline)
-  // does not undo the completed reap.
+  // Prune ahead of the remote-head leg: after a prune-fetch the remote-tracking
+  // refs mirror the live remote heads, so the branch-absent arm below can tell
+  // "head still live" from "nothing left to clean". Best-effort: a prune failure
+  // (offline) does not undo the completed reap. The delete leg cleans up its own
+  // tracking ref (`git push --delete` drops both), so nothing goes stale here.
+  let pruned = false;
   try {
     await fetchPrune({ exec: io.exec }, { remote });
+    pruned = true;
   } catch {
     // Offline / no remote — nothing to prune.
+  }
+
+  // Remote-head cleanup — the close owns it (host delete-on-merge covers this on
+  // remotes configured for it; a plain merge leaves the head to linger). Fires
+  // only under a landed-in-base proof; when the local branch is already gone
+  // (force path), the freshly-fetched remote-tracking ref stands in as the proof
+  // ref. Best-effort like the prune leg: an already-gone head is the idempotent
+  // no-op, and other failures degrade to a reported outcome rather than undoing
+  // the completed local reap.
+  let remoteHead: RemoteHeadCleanup;
+  if (localProofLanded) {
+    remoteHead = await removeRemoteHead(io.exec, remote, record.branch);
+  } else if (branchPresent) {
+    // The branch existed but its landing is unprovable — the pushed head (if
+    // any) may be the only preservation of the work.
+    remoteHead = { kind: "kept" };
+  } else if (await remoteTrackingRefExists(io.exec, remote, record.branch)) {
+    const trackingRef = `${remote}/${record.branch}`;
+    const landed = (await isLandedInBase(io.exec, trackingRef, params.base))
+      || (baseRef !== params.base && (await isLandedInBase(io.exec, trackingRef, baseRef)));
+    remoteHead = landed ? await removeRemoteHead(io.exec, remote, record.branch) : { kind: "kept" };
+  } else {
+    // No local branch and no tracking ref. After a successful prune-fetch that
+    // is authoritative — nothing is left to clean; without one the tracking ref
+    // may merely be stale locally, so stay conservative.
+    remoteHead = pruned ? { kind: "absent" } : { kind: "kept" };
   }
 
   // Land the developer on a current base: fast-forward local `base` to the
@@ -155,7 +227,7 @@ export async function closeErrand(
   await removeErrandRecord(io, slug);
   const push = await reconcileErrandPush(io);
 
-  return { kind: "closed", record, branchReaped: branchPresent, push };
+  return { kind: "closed", record, branchReaped: branchPresent, remoteHead, push };
 }
 
 /** The current branch name, including a symbolic HEAD whose branch ref was deleted. */
@@ -179,5 +251,30 @@ async function localBranchExists(exec: GitExec, branch: string): Promise<boolean
     const code = (err as { code?: unknown }).code;
     if (code === 1) return false;
     throw err;
+  }
+}
+
+/** Whether the remote-tracking ref for `branch` on `remote` exists. */
+async function remoteTrackingRefExists(exec: GitExec, remote: string, branch: string): Promise<boolean> {
+  try {
+    await exec("git", ["rev-parse", "--verify", "--quiet", `refs/remotes/${remote}/${branch}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Delete the remote head, mapping the outcome (a push failure degrades to `failed`). */
+async function removeRemoteHead(
+  exec: GitExec,
+  remote: string,
+  branch: string,
+): Promise<RemoteHeadCleanup> {
+  try {
+    return { kind: await deleteRemoteBranch(exec, remote, branch) };
+  } catch (err) {
+    const detail =
+      (err as { stderr?: string }).stderr ?? (err instanceof Error ? err.message : String(err));
+    return { kind: "failed", detail: detail.trim() };
   }
 }

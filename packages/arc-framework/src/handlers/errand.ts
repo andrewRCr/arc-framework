@@ -377,14 +377,17 @@ export interface ErrandCloseOptions {
 }
 
 /**
- * Close an errand: reap its branch (containment-safe), remove the identity
- * record and push the removal, then drop the originating inbox capture.
+ * Close an errand: reap its branch (containment-safe), delete its remote head
+ * when the work provably landed in base, remove the identity record and push
+ * the removal, then drop the originating inbox capture.
  *
  * A full-protection verb, like `open`. The reap refuses (record kept) when the
  * branch's commits are not provably preserved, so an abandoned errand stays
  * recoverable; `--force` is the explicit override for the deliberate shipped /
- * abandon case. The inbox drop targets the record's originating entry — present
- * only for inbox-promoted errands — and is an idempotent no-op otherwise.
+ * abandon case. A remote head that may be the only preservation (pushed but not
+ * provably merged) is kept and surfaced, never deleted. The inbox drop targets
+ * the record's originating entry — present only for inbox-promoted errands —
+ * and is an idempotent no-op otherwise.
  */
 export async function handleErrandClose(slug: string, opts: ErrandCloseOptions): Promise<void> {
   p.intro("arc errand close");
@@ -471,7 +474,27 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
   // idempotent — an absent entry or missing inbox file is a clean no-op.
   await dropOriginatingInboxCapture(cwd, io, identity, result.record.originEntry);
 
-  p.log.success(`Closed errand '${slug}' — reaped ${result.record.branch}, record removed.`);
+  switch (result.remoteHead.kind) {
+    case "kept":
+      p.log.warn(
+        `Remote head origin/${result.record.branch} left intact — not provably landed in base, so it may be `
+        + "the only preservation of the work (e.g. a multi-commit squash, or a PR that hasn't merged yet). "
+        + "Delete it manually once you've verified it shipped.",
+      );
+      break;
+    case "failed":
+      p.log.warn(
+        `Could not delete the remote head origin/${result.record.branch} (${result.remoteHead.detail}) — `
+        + "delete it manually.",
+      );
+      break;
+    case "deleted":
+    case "absent":
+      break;
+  }
+
+  const remoteNote = result.remoteHead.kind === "deleted" ? " (local + remote head)" : "";
+  p.log.success(`Closed errand '${slug}' — reaped ${result.record.branch}${remoteNote}, record removed.`);
   p.outro("Done.");
 }
 
