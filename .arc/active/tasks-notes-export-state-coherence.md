@@ -149,40 +149,31 @@ _Purpose:_ The spec's mandated not-unit-only regressions, driven through the rea
 the mislisting failure shape is invisible to unit-level classifier coverage, and projection coherence only proves
 out end-to-end.
 
-### `[ ]` **4.1 End-to-end regression suite**
+### `[x]` **4.1 End-to-end regression suite**
 
 - _Goal:_ The originating induction and its evolved live topology both read non-blocking on every projection,
   a true conflict driven through the real temp-ref path classifies `conflicting`, and the three projections
   never split clean-here-conflict-there.
-- _Approach:_ Integration tier with real refs — reuse the existing repo + bare-remote fixture pattern
-  (`addBareRemote` in `branch-bounded-notes-export.test.ts`; `multi-clone.test.ts` for cross-clone shapes).
-  That satisfies "end-to-end" here (the real inspection path, real temp refs); no CLI-process e2e tier or
-  new harness.
-- **Additional Context:** `notes-notes-export-state-coherence.md` § Implementation notes — live
-  mixed-uncontested fixture material (609 remote-only / 31 local-only / 0 contested, manifest on one side only)
-  and the listing-mechanism regression requirement.
 
-    - `[ ]` **4.1.a Originating induction (remote-subset)**
-        - Branch-bounded subset export → diverged-but-remote-subset topology → `arc user status` and
-          session-init recommendations read non-blocking (spine `clean`, informational line, no pull offer).
+    - `[x]` **4.1.a Originating induction (remote-subset)**
+        - Reproduced the branch-bounded subset-export residue through real refs and verified clean spine,
+          informational branch-export detail, surface-only recommendation, and push-oriented sync dispatch.
 
-    - `[ ]` **4.1.b Mixed-uncontested full cycle**
-        - Both-sides-unique, zero-contested fixture — a representative miniature of the live 2026-07-09
-          _shape_ (entries unique to each side, zero contested, compaction manifest on one side only), at
-          handful scale, not the live cardinality — classifies `mixed-uncontested`, renders
-          reconciles-at-next-push guidance with no pull offer on all three projections, then unions cleanly
-          at the next paired push — origin tip becomes ancestor, all entries preserved, false-conflict
-          surface clears.
+    - `[x]` **4.1.b Mixed-uncontested full cycle**
+        - Modeled both-side uniqueness with a one-sided compaction manifest, then verified next-push guidance,
+          a lossless paired-push union, origin-tip ancestry, complete entry preservation, and cleared residue.
 
-    - `[ ]` **4.1.c Mislisting guard**
-        - A true same-commit-different-blob conflict driven through the real inspection path (real
-          `refs/arc-sync-temp/…` temp ref) classifies `conflicting` — the regression that fails if entry
-          listing silently returns empty.
+    - `[x]` **4.1.c Mislisting guard**
+        - Drove a same-commit/different-blob conflict through the fetched temporary ref and verified
+          `conflicting` classification, temp-ref cleanup, pull refusal, and an unchanged local notes tip.
 
-    - `[ ]` **4.1.d Projection coherence sweep**
-        - Per relation, session-init envelope, `arc user status` headline/cause, and `arc user sync`
-          dispatch agree; `conflicting` renders truthful guidance on all three with no pull offer;
-          the pull-refusal contract stands (`refused-diverged` unchanged).
+    - `[x]` **4.1.d Projection coherence sweep**
+        - Exercised all five relations through real local/remote note trees; session-init, full status, and sync
+          dispatch preserve the same relation and treatment, while every diverged state suppresses pull offers.
+
+- _Outcome:_ Real-repository coverage now closes the original remote-subset induction, the evolved
+  mixed-uncontested topology, the temporary-ref mislisting failure mode, and cross-projection coherence without
+  weakening the existing diverged-pull refusal contract.
 
 ## **Phase 5:** Verification
 
