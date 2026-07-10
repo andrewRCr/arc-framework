@@ -126,6 +126,22 @@ describe("runOrphanBranchSweep", () => {
     expect(result.orphans).toEqual([]);
   });
 
+  it("declines to run when errand records are unreadable (null exclusion set)", async () => {
+    const exec: GitExec = vi.fn(async () => {
+      throw new Error("git should not be invoked when the errand-record index is unavailable");
+    });
+
+    const result = await runOrphanBranchSweep({
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      errandBranches: null,
+      exec,
+    });
+
+    expect(result.orphans).toEqual([]);
+    expect(exec).not.toHaveBeenCalled();
+  });
+
   it("does not run outside the primary worktree", async () => {
     const exec: GitExec = vi.fn(async () => {
       throw new Error("git should not be invoked outside the primary worktree");

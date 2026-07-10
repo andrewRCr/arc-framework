@@ -71,9 +71,11 @@ export interface RunOrphanBranchSweepOptions {
   baseBranch: string;
   /**
    * Branches carrying an errand record — excluded from the sweep; the errand
-   * surfaces (resume, close replay) own their cleanup.
+   * surfaces (resume, close replay) own their cleanup. `null` when the records
+   * could not be read (no resolved identity): the sweep then declines to run
+   * rather than offer a delete that could orphan an errand record.
    */
-  errandBranches: ReadonlySet<string>;
+  errandBranches: ReadonlySet<string> | null;
   exec: GitExec;
 }
 
@@ -94,6 +96,12 @@ export async function runOrphanBranchSweep(
 ): Promise<OrphanBranchSweepResult> {
   const { worktreeIdentity, baseBranch, errandBranches, exec } = options;
   if (worktreeIdentity.kind !== "primary") {
+    return { orphans: [] };
+  }
+  // Without the errand-record index an errand branch is indistinguishable from
+  // a WU branch, and a `git branch -d` offer on one would orphan its record —
+  // decline the whole advisory rather than risk it.
+  if (errandBranches === null) {
     return { orphans: [] };
   }
 

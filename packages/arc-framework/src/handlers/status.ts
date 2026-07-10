@@ -500,12 +500,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       orphanBranchSweep: async (worktreeIdentity) => {
         const resolved = await resolvedSettingsP;
         // Record-carrying errand branches are excluded — the errand surfaces
-        // (resume, close replay) own their cleanup.
-        const errandRecords = await getErrandRecords();
+        // (resume, close replay) own their cleanup. With no resolved identity
+        // the records are unreadable, so pass `null` and the sweep declines
+        // rather than offering deletes that could orphan a record.
+        const errandRecords = identity === null ? null : await getErrandRecords();
         return runOrphanBranchSweep({
           worktreeIdentity,
           baseBranch: resolved.settings["branch.base"],
-          errandBranches: new Set(errandRecords.map((record) => record.branch)),
+          errandBranches:
+            errandRecords === null ? null : new Set(errandRecords.map((record) => record.branch)),
           exec: gitExec,
         });
       },
