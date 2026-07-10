@@ -62,8 +62,8 @@ export interface CloseErrandParams {
  * - `absent` — no live head after a prune-fetch (never pushed, or host
  *   delete-on-merge got there first); nothing to clean, the no-op.
  * - `kept` — the head's tip could not be proven landed — it may be the only
- *   preservation of the work — or the remote was unreachable; deliberately
- *   left intact.
+ *   preservation of the work — or it moved since it was proven (the leased
+ *   delete refused), or the remote was unreachable; deliberately left intact.
  * - `failed` — landing was proven but the delete failed (auth, connectivity);
  *   best-effort degrade, the completed local close stands.
  */
@@ -187,11 +187,17 @@ export async function closeErrand(
   // the prune leg: failures degrade to a reported outcome rather than undoing
   // the completed local reap.
   let remoteHead: RemoteHeadCleanup;
-  if (await remoteTrackingRefExists(io.exec, remote, record.branch)) {
-    const trackingRef = `${remote}/${record.branch}`;
-    const landed = (await isLandedInBase(io.exec, trackingRef, params.base))
-      || (baseRef !== params.base && (await isLandedInBase(io.exec, trackingRef, baseRef)));
-    remoteHead = landed ? await removeRemoteHead(io.exec, remote, record.branch) : { kind: "kept" };
+  const trackingOid = await resolveRemoteTrackingOid(io.exec, remote, record.branch);
+  if (trackingOid !== null) {
+    // Bind the proof and the delete to one snapshot: landing is proven over the
+    // resolved OID and the delete is leased on that same OID, so a head advanced
+    // by a concurrent push after the proof is refused by the lease (→ kept)
+    // rather than deleted unproven.
+    const landed = (await isLandedInBase(io.exec, trackingOid, params.base))
+      || (baseRef !== params.base && (await isLandedInBase(io.exec, trackingOid, baseRef)));
+    remoteHead = landed
+      ? await removeRemoteHead(io.exec, remote, record.branch, trackingOid)
+      : { kind: "kept" };
   } else {
     // No tracking ref. After a successful prune-fetch that is authoritative —
     // nothing is left to clean; without one the remote is unreachable and its
@@ -241,24 +247,37 @@ async function localBranchExists(exec: GitExec, branch: string): Promise<boolean
   }
 }
 
-/** Whether the remote-tracking ref for `branch` on `remote` exists. */
-async function remoteTrackingRefExists(exec: GitExec, remote: string, branch: string): Promise<boolean> {
+/** The remote-tracking ref's OID for `branch` on `remote`, or `null` when absent. */
+async function resolveRemoteTrackingOid(
+  exec: GitExec,
+  remote: string,
+  branch: string,
+): Promise<string | null> {
   try {
-    await exec("git", ["rev-parse", "--verify", "--quiet", `refs/remotes/${remote}/${branch}`]);
-    return true;
+    const { stdout } = await exec(
+      "git",
+      ["rev-parse", "--verify", "--quiet", `refs/remotes/${remote}/${branch}`],
+    );
+    return stdout.trim() || null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-/** Delete the remote head, mapping the outcome (a push failure degrades to `failed`). */
+/**
+ * Delete the remote head with the proof-bound lease, mapping the outcome — a
+ * stale lease (the head moved since it was proven) maps to `kept`, and a push
+ * failure degrades to `failed`.
+ */
 async function removeRemoteHead(
   exec: GitExec,
   remote: string,
   branch: string,
+  expectedOid: string,
 ): Promise<RemoteHeadCleanup> {
   try {
-    return { kind: await deleteRemoteBranch(exec, remote, branch) };
+    const outcome = await deleteRemoteBranch(exec, remote, branch, expectedOid);
+    return outcome === "stale" ? { kind: "kept" } : { kind: outcome };
   } catch (err) {
     const detail =
       (err as { stderr?: string }).stderr || (err instanceof Error ? err.message : String(err));

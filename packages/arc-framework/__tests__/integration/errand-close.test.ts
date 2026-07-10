@@ -292,6 +292,52 @@ describe("closeErrand", () => {
     expect(await remoteHeadExists(dir, "chore/remote-ahead")).toBe(true);
   });
 
+  it("keeps a head advanced by a concurrent push after the proof — the lease refuses the delete", async () => {
+    await openErrand(io, { slug: "lease-race", base: "main", createdAt: CREATED_AT });
+    await commitFile(dir, "lease-race.txt", "landed\n", "landed change");
+    await git(dir, ["push", "origin", "chore/lease-race"]);
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["merge", "--no-ff", "chore/lease-race", "-m", "merge errand"]);
+    // The concurrent racer's commit: park it on a side ref so the bare remote
+    // holds the object, ready to be swung onto the errand head mid-close.
+    await git(dir, ["switch", "chore/lease-race"]);
+    await commitFile(dir, "lease-race-b.txt", "unlanded\n", "concurrent change");
+    const racerTip = (await git(dir, ["rev-parse", "HEAD"])).trim();
+    await git(dir, ["push", "origin", "HEAD:refs/heads/lease-race-side"]);
+    await git(dir, ["reset", "--hard", "HEAD~1"]);
+    await git(dir, ["switch", "main"]);
+    const racingIo: ErrandRecordIO = {
+      ...io,
+      exec: async (cmd, args, options) => {
+        // Advance the remote head between close's proof (over the fetched
+        // tracking OID) and its leased delete — the concurrent-push race.
+        if (args[0] === "push" && args.some((a) => a.startsWith("--force-with-lease"))) {
+          await execFileAsync(
+            "git",
+            ["update-ref", "refs/heads/chore/lease-race", racerTip],
+            { cwd: remoteDir },
+          );
+        }
+        return io.exec(cmd, args, options);
+      },
+    };
+
+    const result = await closeErrand(racingIo, { slug: "lease-race", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.remoteHead).toEqual({ kind: "kept" });
+    }
+    expect(await branchExists(dir, "chore/lease-race")).toBe(false);
+    // The racer's head survives — its commit never landed anywhere else.
+    const { stdout } = await execFileAsync(
+      "git",
+      ["ls-remote", "--heads", "origin", "chore/lease-race"],
+      { cwd: dir },
+    );
+    expect(stdout).toContain(racerTip);
+  });
+
   it("degrades a remote-head delete failure to a reported outcome without undoing the close", async () => {
     await openErrand(io, { slug: "delete-fails", base: "main", createdAt: CREATED_AT });
     await commitFile(dir, "delete-fails.txt", "change\n", "errand change");
@@ -301,7 +347,7 @@ describe("closeErrand", () => {
     const brokenIo: ErrandRecordIO = {
       ...io,
       exec: async (cmd, args, options) => {
-        if (args[0] === "push" && args.includes("--delete")) {
+        if (args[0] === "push" && args.some((a) => a.startsWith("--force-with-lease"))) {
           throw Object.assign(new Error("push failed"), { stderr: "fatal: simulated auth failure" });
         }
         return io.exec(cmd, args, options);
