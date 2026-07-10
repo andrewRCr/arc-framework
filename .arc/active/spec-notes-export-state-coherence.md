@@ -74,7 +74,8 @@ originating handoff-resume induction.
 3. **B — content-relation classification at ref inspection.** `inspectUserSyncRefsDetailed` already fetches
    the remote notes ref to a local temp ref; on the diverged arm, derive
    `contentRelation ∈ {remote-subset, local-subset, equal, mixed-uncontested, conflicting}` by set math over
-   `(annotated commit, blob)` pairs — two extra git reads, only when already diverged.
+   `(annotated commit, blob)` pairs — a handful of extra git reads (two tree listings plus the two
+   compaction-manifest reads the exclusions need), only when already diverged.
     - **Listing mechanism:** the inspection temp ref lives at `refs/arc-sync-temp/…`, which
       `git notes --ref` DWIM-expands and lists empty — naive listing classifies every divergence
       `remote-subset`. Read entries via `git ls-tree -r <sha>` with notes-fanout path flattening.
@@ -95,7 +96,11 @@ originating handoff-resume induction.
       while `arc user status` headlines a false conflict. The relation rides the spine so every projection
       agrees: `remote-subset` renders existing `local ahead` vocabulary with an export-residue cause line;
       `mixed-uncontested` renders divergence-reconciles-at-next-push guidance; `conflicting` keeps conflict
-      vocabulary with truthful guidance. No headline-union growth.
+      vocabulary with truthful guidance. The spine enum stays fixed; the typed `UserStatusHeadline` union
+      gains at most one truthful member for conflict-spine zero-contested divergence (its own contract
+      extends the union rather than overloading an existing term — no existing member truthfully names
+      "diverged, reconciles at next push", and `notes conflict` is exactly the vocabulary this relation
+      must not render).
     - **Classifier shape:** a standalone pure module (`lib/user-sync/note-set-relation.ts`) taking two entry
       lists, so `user-sync-module-split` relocates it freely — `sync-status.ts`'s monolith does not deepen.
     - **Session-init workflow doc:** the session-init workflow's clean-arm collapse note (and its package

@@ -1,0 +1,347 @@
+# Task List: Notes Export State Coherence
+
+- **Design:** `spec-notes-export-state-coherence.md`
+
+---
+
+## **Phase 1:** Note-set relation classifier
+
+_Purpose:_ Land the pure five-relation classifier and the entry-set exclusions both halves consume — the
+classification substrate (Decision 3) and the compaction-boundary exclusions (Decision 4) as shared, unit-testable
+set math, before any consumer wires in.
+
+_Design decisions:_ The classifier is a standalone pure module (`lib/user-sync/note-set-relation.ts`) taking two
+entry sets with their manifests, so `user-sync-module-split` can relocate it freely and the `sync-status.ts`
+monolith does not deepen.
+Entry listing reads `git ls-tree -r <sha>` with notes-fanout path flattening — never `git notes --ref` against a
+`refs/arc-sync-temp/…` ref, which DWIM-mislists as empty. See `notes-notes-export-state-coherence.md`
+§ Implementation notes for the fallback mechanism if `ls-tree` flattening proves awkward.
+
+### `[ ]` **1.1 Sha-addressed note-entry listing helper**
+
+- _Goal:_ Any commit-ish — including an inspection temp ref at `refs/arc-sync-temp/…` — yields an accurate
+  `(annotated commit, blob)` entry list, immune to the `git notes --ref` DWIM mislisting.
+- _Context:_ `listNoteTreeEntries` in `lib/user-sync/compaction.ts` already parses `ls-tree -r` output through
+  `notePathToCommit` fanout flattening. Relocate it into `notes-ref.ts` (exported, sha-addressed) — that
+  module's charter holds each git command shape in one named function — and import it back into
+  `compaction.ts`; no third copy.
+
+    - The lister returns note entries only: non-SHA paths (the fixed-path compaction manifest) stay excluded,
+      as the current parser already behaves — manifest reads go through the existing
+      `readNotesCompactionManifest(exec, <commit-ish>)`, which accepts any sha.
+
+    - Error contract — the relocated lister is strict: a failed `ls-tree` propagates, never a silent `[]`.
+      Silent-empty listing is the concentrated risk shape (spec § Consequences & Risks) — on the join path it
+      would union away local-only entries. The existing compaction call site keeps its own local
+      `catch → []` degrade if that behavior is still wanted there; the shared lister itself never degrades.
+
+    - The unit tier asserts parsing only; the real-temp-ref DWIM regression lives in Phase 4 (4.1.c).
+
+    - Build `test-first` (one behavior at a time):
+        - Flattened fanout paths (`ab/cd/…` segments) resolve to full annotated-commit shas
+        - The fixed-path compaction manifest entry (`.arc-user-notes-compaction-manifest.json`) is excluded
+          from the entry list, not mistaken for an annotated commit
+        - A failing `ls-tree` propagates (no silent empty list)
+
+### `[ ]` **1.2 `note-set-relation.ts` five-relation classifier**
+
+- _Goal:_ Two sides classify into exactly one of
+  `remote-subset | local-subset | equal | mixed-uncontested | conflicting`, with manifest-pruned pairs
+  excluded from the relation set — so classification is truthful even against a legacy or scratch-clone
+  remote carrying already-pruned entries.
+- _Shape:_ The module takes `{entries, manifest: NotesCompactionManifest | null}` per side and exports a
+  shared excluded-pairs resolver (newer-generation manifest wins the pruned set) that Phase 2's union
+  builder consumes too — one exclusion authority. The fixed-path manifest never enters the entry sets
+  (excluded by the 1.1 lister), so differing manifest blobs are structurally incapable of contesting.
+- _Note:_ Resolve exclusions to a `Set` keyed by `pairKey` (`compaction-manifest.ts`) once per
+  classification — `isPairPrunedByManifest` is a linear scan per call, and the live remote shape carries
+  ~10k entries.
+
+    - Pure module `lib/user-sync/note-set-relation.ts`: set math over `(annotated commit, blob)` pairs;
+      a contested pair is same-commit-different-blob.
+
+    - Build `test-first` (one behavior at a time — `__tests__/unit/user-sync-note-set-relation.test.ts`):
+        - All five relations, including the true same-commit-different-blob `conflicting` case
+        - Zero contested pairs with both-sides-unique entries → `mixed-uncontested` (never `conflicting`)
+        - Pruned-pair exclusion follows the newer-generation side's manifest; a pruned pair neither counts
+          as a unique entry nor shifts the relation toward `local-subset` / `mixed-uncontested`
+        - Empty-side edge cases (one side empty → subset, both empty → `equal`)
+
+## **Phase 2:** Producer-side safe-join
+
+_Purpose:_ Replace the `supersedesLocal === false` skip in `adoptPushedTipIntoLocalRef`
+(`branch-bounded-notes-export.ts`) with the union join (Decision 2), so deliberate branch-bounded export residue
+reconciles at the source and the refs converge instead of staying permanently diverged.
+
+_Design decisions:_ The join is a new shared-ref mutator — `strategy-user-notes-concurrency.md`'s mutator
+checklist governs (CAS-guarded against `priorLocalTip`, best-effort, never degrades the already-successful push).
+The union commit is built deterministically with plumbing (`mktree` / `commit-tree` with two parents), never
+`git notes merge` — `buildSnapshotCommit` in `compaction.ts` is the in-repo pattern. Contested entries resolve by
+ancestry: `localIncludesRemote` → local-wins; otherwise any contested pair refuses (today's skip stands). Zero
+contested pairs → the join proceeds regardless of ancestry.
+
+### `[ ]` **2.1 Two-parent union commit builder**
+
+- _Goal:_ A deterministic union commit exists whose tree carries all local + all pushed entries, whose parents
+  are the prior local tip and the pushed export tip, with the manifest resolved by compaction generation and
+  pruned pairs excluded from the union tree.
+
+    - Stage the union tree from the tree at `priorLocalTip` and the tree at `target.tip` (Phase 1 lister) —
+      never the current local ref, whose state the CAS in 2.2.c validates separately; `mktree` over sorted
+      entries, `commit-tree` with `-p <priorLocalTip> -p <pushedTip>`. Plumbing runs on `execInput`
+      (`buildSnapshotCommit` in `compaction.ts` is the pattern).
+
+    - Manifest resolution: newer generation wins (reuse the comparison `adoptRemoteCompactionIfNewer`
+      performs); local-wins on tie or absence. The excluded-pairs resolver from `note-set-relation.ts` (1.2)
+      supplies the pruned set — pairs pruned by the newer-generation manifest never enter the union tree, so
+      a compacted local ref is never re-inflated.
+
+    - Build `test-first` (one behavior at a time):
+        - Union tree = local entries ∪ pushed entries; contested pairs resolve local-wins (ancestry arm)
+        - Newer-generation manifest lands in the union tree; pruned pairs absent
+        - Deterministic output (same inputs → same tree sha)
+
+### `[ ]` **2.2 Join arm in `adoptPushedTipIntoLocalRef`**
+
+- _Goal:_ Divergence from branch-bounded export residue self-heals at the paired push: on any zero-contested or
+  ancestry-resolvable topology where the union adds content, local ancestry gains the pushed tip (`refState`
+  reads `local-ahead`) and the false-conflict surface clears; unions that would add nothing no-op instead of
+  minting redundant commits.
+
+    - `[ ]` **2.2.a Join dispatch and refusal rule**
+        - Extend `BranchBoundedNotesExportTarget` with the plan-time `localIncludesRemote` verdict
+          (`planBranchBoundedNotesExport` already computes it and drops it) — the join cannot recompute
+          ancestry at adopt time, and carrying it is sound: the CAS re-validates the local side, and the
+          remote side just received this push. Thread `execInput` into `PushBranchBoundedNotesExportInput`
+          (optional; callers — `pairedNotesAdapter` in `handlers/sync.ts`, the paired-push context — have
+          `io.execInput` in scope); absent plumbing support degrades to today's skip, never a refused push.
+        - At `supersedesLocal === false`: classify contested state over the `priorLocalTip`-tree and
+          `target.tip`-tree entry sets (Phase 1 module). Zero contested pairs → join. Contested +
+          `localIncludesRemote` → join (local-wins). Contested without ancestry → refuse; today's skip
+          stands and Phase 3 classifies `conflicting`.
+
+    - `[ ]` **2.2.b No-op guard**
+        - Skip the join when the pushed tip is already in local ancestry, and when the union tree equals
+          the current local tree — in the equal-tree case the adopt no-ops entirely (no ref move: advancing
+          to the pushed tip would drop local-only entries, and the shape classifies `remote-subset`, which
+          Phase 3's spine mapping already renders clean). Covers the push flow's `remoteTip === target.tip`
+          no-op arm and every post-join re-push while omitted notes persist.
+
+    - `[ ]` **2.2.c CAS and failure containment**
+        - Commit the union against `priorLocalTip` via `update-ref <ref> <unionTip> <priorLocalTip>`;
+          a failed CAS (concurrent `arc user save`) leaves today's behavior. Best-effort: a failed join
+          never changes the push outcome. No retry loop.
+        - A listing or manifest-read failure while staging the union refuses the join (today's skip
+          stands) — a union is never built from a possibly-silently-empty side.
+
+    - Build `test-first` (one behavior at a time — integration tier, `branch-bounded-notes-export.test.ts`):
+        - Mixed-uncontested topology unions cleanly at the next paired push; origin tip becomes ancestor;
+          all entries preserved
+        - Contested + ancestry → local-wins join; contested without ancestry → refusal, refs stay diverged
+        - Repeated paired pushes with unchanged notes after the first join: no new commits on the local ref
+        - CAS-failure arm (ref advanced between plan and adopt) leaves prior behavior
+        - Compaction boundary: older-generation remote with pruned pairs does not re-inflate the local ref
+
+### `[ ]` **2.3 Mutator-checklist review and strategy invariant update**
+
+- _Goal:_ The join's write discipline is recorded: `strategy-user-notes-concurrency.md`'s CAS-Guarded
+  branch-bounded-adopt invariant sentence covers the ancestry-resolvable join, and the checklist passes.
+
+    - Walk the § Review Checklist against the join (shared state written, discipline class, temp-ref
+      lifetime, recoverability on declined CAS / failed fetch, no durable mutation from status reads).
+
+    - Update the CAS-Guarded bullet ("adopts … only when the temp tree is a content superset") to state the
+      join condition. Project strategy — `.arc/` copy only, no package mirror.
+
+## **Phase 3:** Relation threading across projections
+
+_Purpose:_ Compute the content relation once at ref inspection and thread it through every projection
+(Decisions 3 and 5), so session-init, `arc user status`, and `arc user sync` agree — truthful vocabulary,
+reconciles-at-next-push guidance on zero-contested relations, and no pull offer that cannot succeed.
+
+_Design decisions:_ The 5-state `UserSessionInitState` enum does not grow; the relation rides the envelope.
+Spine mapping: `diverged + remote-subset` → spine `clean` (the collapse `local-ahead` already gets), raw
+topology + relation preserved. Every other relation stays on the `conflict` spine value; rendering keys on
+contested-or-not.
+
+### `[ ]` **3.1 Diverged-arm relation computation at inspection**
+
+- _Goal:_ `inspectUserSyncRefsDetailed` (`commands/user/sync-status.ts`) carries a content relation on every
+  diverged result, derived from both locally-readable trees — a handful of extra reads, fired only when
+  already diverged.
+
+    - On the diverged arm (before the temp-ref `finally` cleanup), list both entry sets via the Phase 1
+      lister and read both sides' manifests via `readNotesCompactionManifest` (local ref + fetched sha) —
+      the classifier's per-side `{entries, manifest}` input — then classify via `note-set-relation.ts`;
+      extend `UserSyncRefInspection` with the relation.
+
+    - On a listing or manifest-read failure, omit the relation — the result renders today's conflict arm
+      rather than risking a silent-empty subset misclassification.
+
+    - Build `test-first` (one behavior at a time):
+        - Diverged inspection returns the relation computed from the real temp ref's tree
+        - Manifests reach the classifier (a pruned pair on the fetched side is excluded at inspection)
+        - Non-diverged arms carry no relation (field absent, not defaulted)
+        - Listing failure → no relation on the result (conflict arm preserved)
+
+### `[ ]` **3.2 Spine mapping and envelope threading**
+
+- _Goal:_ `diverged + remote-subset` reads as spine `clean` everywhere the spine is consumed, rendered with the
+  same informational vocabulary `local-ahead` gets; all other relations keep the `conflict` spine value with the
+  relation available to renderers.
+
+    - `computeUserSyncSpine` / `computeUserSyncSpineState` accept the relation; thread through
+      `UserSyncSpine`, `buildUserSessionInitStatusResult`, and the session-init envelope types
+      (`commands/user/types.ts`, `commands/status/types.ts`).
+
+    - `shouldPromptToPull` drops its conflict term (`state === "remote-ahead" || state === "conflict"`,
+      `sync-status.ts` spine assembly) — the conflict arm stops promising pull on every relation; only
+      `remote-ahead` prompts.
+
+    - Conflict-arm `summary` / `detailLines` / `actionHint` key on contested-or-not: zero-contested relations
+      state expected residue reconciling at the next paired push (no pull direction); `conflicting` states
+      that genuine divergence cannot be resolved by pull and directs to `arc user status`.
+
+    - Build `test-first` (one behavior at a time):
+        - `diverged + remote-subset` → spine `clean`, `refState: "diverged"` + relation preserved on the result
+        - `mixed-uncontested` / `local-subset` / `equal` → spine `conflict`, reconcile guidance, no pull promise
+        - `conflicting` → spine `conflict`, truthful no-pull guidance
+
+### `[ ]` **3.3 Status, sync dispatch, and pull-offer guidance**
+
+- _Goal:_ On every non-`conflicting` relation, no surface offers or auto-fires a pull that
+  `runUserPull` would refuse; `conflicting` renders truthful guidance on all three projections.
+
+    - `[ ]` **3.3.a `arc user status` headline and cause lines**
+        - `deriveRemoteStatus` / `determineUserStatusHeadline` / cause rendering read the relation:
+          `remote-subset` renders existing `local ahead` vocabulary with an export-residue cause line;
+          `mixed-uncontested` renders divergence-reconciles-at-next-push; `conflicting` keeps conflict
+          vocabulary with truthful guidance.
+        - Extend `UserStatusHeadline` with one truthful member for conflict-spine zero-contested
+          divergence (e.g. `notes diverged (reconciling)`) — the union's own doc contract extends rather
+          than overloads, no existing member is truthful for this shape, and `notes conflict` is exactly
+          the banned vocabulary. The spine enum stays fixed.
+        - The relation-aware inventory covers every conflict-arm render site: also
+          `determineUserStatusAction`'s conflict arm, `renderActionOrientedHeadline`, and
+          `renderCauseAwareActionHeadline` — not only the headline/cause pair.
+        - The export-residue cause line renders from the relation at the rendering site — a divergence
+          _shape_ fact, not a _why_ attribution. `inferUserSyncCause` (`lib/user-sync/inference.ts`) and
+          its five-value taxonomy stay untouched.
+
+    - `[ ]` **3.3.b `arc user sync` dispatch and conflict select**
+        - Thread the relation onto `UserSyncState` via `inspectUserSyncState` so the handler layer can read
+          it. `decideSyncAction` (`handlers/user-sync.ts`) routes only `conflicting` to `handleConflict`;
+          the conflict-spine zero-contested relations (`local-subset` / `equal` / `mixed-uncontested`)
+          return a new guidance-only action — info lines stating the divergence reconciles at the next
+          paired push, then outro; no select, no destructive action (explicit `arc user push` remains the
+          manual path). `remote-subset` is not on this arm: it follows local-ahead semantics and dispatches
+          `push` (viable — the push path's `git notes merge` reconcile handles the non-fast-forward). The
+          conflict select drops the impossible "Pull remote state" option and offers
+          push / inspect / cancel.
+
+    - `[ ]` **3.3.c Session-init recommendation and refusal-message truthfulness**
+        - `inferUser` (`lib/session-init/recommended-action.ts`): the conflict spine never prompts or
+          pulls on any relation — pull refuses diverged refs, so the arm reduces to `surface` under every
+          policy (`always` included), with the relation selecting the surfaced guidance. The conflict
+          branches of `composeNotesPromptText` and `composeCombinedPrompt` become unreachable — delete
+          them rather than leaving dead vocabulary. The clean-arm informational surface covers
+          `remote-subset`. `runUserPull`'s `refused-diverged` copy renders in `reportUserFetchOutcome`
+          (`handlers/shared.ts`) — `push-fetch.ts` only returns the typed kind; the wording is shared with
+          `arc user fetch`, so the edit covers both operations. It states that pull refuses diverged refs
+          and directs to inspection — pull behavior itself unchanged (Scope boundary: no content-superset
+          replace).
+
+    - Build `test-first` (one behavior at a time — `decideSyncAction` / `inferUser` units):
+        - Conflict spine → `surface` under every policy (`always` included), never `pull`, never `prompt`
+        - Zero-contested relations → no pull offer on any projection's composed text
+        - `conflicting` → `handleConflict` route with pull option absent; zero-contested → the
+          guidance-only action, never the conflict select
+
+### `[ ]` **3.4 Session-init workflow doc wording**
+
+- _Goal:_ The session-init workflow's clean-arm collapse note names the `remote-subset` case, and orientation
+  guidance names the zero-contested reconciles-at-next-push wording — no new dispatch arms.
+
+    - The package copy is the template variant: edit the framework section in
+      `session-init.template.md` (package source, `arc/system/workflows/arc/session-lifecycle/`) and sync
+      the project instance `.arc/system/workflows/arc/session-lifecycle/session-init.md` per the two-copy
+      discipline. The wording states expected divergence reconciling at the next paired push, without
+      conflict vocabulary.
+
+    - The Step 6 informational arm keys on `clean` + `refState == "local-ahead"`; widen its condition to
+      also fire on `clean` + `refState == "diverged"` with the `remote-subset` relation, rendering the same
+      informational line — a dispatch-condition edit on the existing arm, still no new arms. Without it the
+      collapsed case renders nothing at orientation.
+
+## **Phase 4:** End-to-end regressions
+
+_Purpose:_ The spec's mandated not-unit-only regressions, driven through the real inspection path and real refs —
+the mislisting failure shape is invisible to unit-level classifier coverage, and projection coherence only proves
+out end-to-end.
+
+### `[ ]` **4.1 End-to-end regression suite**
+
+- _Goal:_ The originating induction and its evolved live topology both read non-blocking on every projection,
+  a true conflict driven through the real temp-ref path classifies `conflicting`, and the three projections
+  never split clean-here-conflict-there.
+- _Approach:_ Integration tier with real refs — reuse the existing repo + bare-remote fixture pattern
+  (`addBareRemote` in `branch-bounded-notes-export.test.ts`; `multi-clone.test.ts` for cross-clone shapes).
+  That satisfies "end-to-end" here (the real inspection path, real temp refs); no CLI-process e2e tier or
+  new harness.
+- **Additional Context:** `notes-notes-export-state-coherence.md` § Implementation notes — live
+  mixed-uncontested fixture material (609 remote-only / 31 local-only / 0 contested, manifest on one side only)
+  and the listing-mechanism regression requirement.
+
+    - `[ ]` **4.1.a Originating induction (remote-subset)**
+        - Branch-bounded subset export → diverged-but-remote-subset topology → `arc user status` and
+          session-init recommendations read non-blocking (spine `clean`, informational line, no pull offer).
+
+    - `[ ]` **4.1.b Mixed-uncontested full cycle**
+        - Both-sides-unique, zero-contested fixture — a representative miniature of the live 2026-07-09
+          _shape_ (entries unique to each side, zero contested, compaction manifest on one side only), at
+          handful scale, not the live cardinality — classifies `mixed-uncontested`, renders
+          reconciles-at-next-push guidance with no pull offer on all three projections, then unions cleanly
+          at the next paired push — origin tip becomes ancestor, all entries preserved, false-conflict
+          surface clears.
+
+    - `[ ]` **4.1.c Mislisting guard**
+        - A true same-commit-different-blob conflict driven through the real inspection path (real
+          `refs/arc-sync-temp/…` temp ref) classifies `conflicting` — the regression that fails if entry
+          listing silently returns empty.
+
+    - `[ ]` **4.1.d Projection coherence sweep**
+        - Per relation, session-init envelope, `arc user status` headline/cause, and `arc user sync`
+          dispatch agree; `conflicting` renders truthful guidance on all three with no pull offer;
+          the pull-refusal contract stands (`refused-diverged` unchanged).
+
+## **Phase 5:** Verification
+
+### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+---
+
+## Success Criteria
+
+- `[ ]` Branch-bounded subset export → diverged-but-remote-subset topology reads non-blocking on user-status
+  and session-init (originating induction, end-to-end)
+- `[ ]` A both-sides-unique, zero-contested topology classifies `mixed-uncontested`, renders
+  reconciles-at-next-push guidance with no pull offer on all three projections, and unions cleanly at the next
+  paired push with origin tip as ancestor and all entries preserved
+- `[ ]` A true same-commit-different-blob conflict driven through the real inspection path (real temp ref)
+  classifies `conflicting` (mislisting guard, end-to-end)
+- `[ ]` Union commit carries all local + all pushed entries with origin tip as ancestor; contested arms follow
+  the rule (local-wins under ancestry; refusal otherwise with refs diverged and classified `conflicting`);
+  CAS-failure arm leaves prior behavior; compaction-boundary interaction holds
+- `[ ]` After the first join, repeated paired pushes with unchanged notes mint no further commits on the local
+  canonical ref
+- `[ ]` Differing compaction manifests neither read as contested nor block the join; the union tree carries the
+  newer-generation manifest
+- `[ ]` A remote ref at an older compaction generation carrying manifest-pruned pairs neither re-inflates the
+  local ref at join nor shifts classification
+- `[ ]` Classifier unit coverage spans all five relations, including the true same-commit-different-blob conflict
+- `[ ]` On every non-`conflicting` relation, session-init, `arc user status` headline/cause, and `arc user sync`
+  dispatch agree — no clean-here-conflict-there split; `conflicting` renders truthful guidance on all three with
+  no pull offer
+- `[ ]` The pull-refusal contract stands; the `always`-policy conflict arm no longer invokes pull
+- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[ ]` Ready for integration

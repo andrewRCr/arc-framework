@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-notes-export-state-coherence.md`
-- **Task List:** [none]
+- **Task List:** `tasks-notes-export-state-coherence.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** Spec created (2026-07-09) — `spec-notes-export-state-coherence.md` at `outline` form;
@@ -19,7 +19,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
