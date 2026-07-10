@@ -19,7 +19,7 @@
 - **Next Task:** Task 1.1 — Sha-addressed note-entry listing helper (line ~20)
 - **Blockers:** [none]
 
-- **Next Action:** Begin task execution (process-task-loop) — Task 1.1
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

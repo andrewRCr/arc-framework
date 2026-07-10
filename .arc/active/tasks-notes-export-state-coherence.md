@@ -177,32 +177,37 @@ out end-to-end.
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown lint (441 files), TypeScript lint, shell lint, source and test typechecks,
+  4,173 passing tests across 303 passing files, and build — all passed; one test and one test file skipped.
+- _Success criteria:_ 12 criteria met (10 implementation criteria plus quality-gate and integration readiness);
+  none superseded.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Branch-bounded subset export → diverged-but-remote-subset topology reads non-blocking on user-status
+- `[x]` Branch-bounded subset export → diverged-but-remote-subset topology reads non-blocking on user-status
   and session-init (originating induction, end-to-end)
-- `[ ]` A both-sides-unique, zero-contested topology classifies `mixed-uncontested`, renders
+- `[x]` A both-sides-unique, zero-contested topology classifies `mixed-uncontested`, renders
   reconciles-at-next-push guidance with no pull offer on all three projections, and unions cleanly at the next
   paired push with origin tip as ancestor and all entries preserved
-- `[ ]` A true same-commit-different-blob conflict driven through the real inspection path (real temp ref)
+- `[x]` A true same-commit-different-blob conflict driven through the real inspection path (real temp ref)
   classifies `conflicting` (mislisting guard, end-to-end)
-- `[ ]` Union commit carries all local + all pushed entries with origin tip as ancestor; contested arms follow
+- `[x]` Union commit carries all local + all pushed entries with origin tip as ancestor; contested arms follow
   the rule (local-wins under ancestry; refusal otherwise with refs diverged and classified `conflicting`);
   CAS-failure arm leaves prior behavior; compaction-boundary interaction holds
-- `[ ]` After the first join, repeated paired pushes with unchanged notes mint no further commits on the local
+- `[x]` After the first join, repeated paired pushes with unchanged notes mint no further commits on the local
   canonical ref
-- `[ ]` Differing compaction manifests neither read as contested nor block the join; the union tree carries the
+- `[x]` Differing compaction manifests neither read as contested nor block the join; the union tree carries the
   newer-generation manifest
-- `[ ]` A remote ref at an older compaction generation carrying manifest-pruned pairs neither re-inflates the
+- `[x]` A remote ref at an older compaction generation carrying manifest-pruned pairs neither re-inflates the
   local ref at join nor shifts classification
-- `[ ]` Classifier unit coverage spans all five relations, including the true same-commit-different-blob conflict
-- `[ ]` On every non-`conflicting` relation, session-init, `arc user status` headline/cause, and `arc user sync`
+- `[x]` Classifier unit coverage spans all five relations, including the true same-commit-different-blob conflict
+- `[x]` On every non-`conflicting` relation, session-init, `arc user status` headline/cause, and `arc user sync`
   dispatch agree — no clean-here-conflict-there split; `conflicting` renders truthful guidance on all three with
   no pull offer
-- `[ ]` The pull-refusal contract stands; the `always`-policy conflict arm no longer invokes pull
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` The pull-refusal contract stands; the `always`-policy conflict arm no longer invokes pull
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
