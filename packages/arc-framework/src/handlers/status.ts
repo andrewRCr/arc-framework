@@ -68,7 +68,7 @@ import {
   RECOVERY_RECENCY_DAYS,
 } from "../lib/session-init/branch-gone-recovery.js";
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
-import { runPlanOrphanSweep } from "../lib/session-init/plan-orphan-sweep.js";
+import { runOrphanBranchSweep } from "../lib/session-init/orphan-branch-sweep.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
 import { runErrandState } from "../lib/session-init/errand-state.js";
@@ -497,11 +497,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           exec: gitExec,
         });
       },
-      planOrphanSweep: async (worktreeIdentity) => {
+      orphanBranchSweep: async (worktreeIdentity) => {
         const resolved = await resolvedSettingsP;
-        return runPlanOrphanSweep({
+        // Record-carrying errand branches are excluded — the errand surfaces
+        // (resume, close replay) own their cleanup.
+        const errandRecords = await getErrandRecords();
+        return runOrphanBranchSweep({
           worktreeIdentity,
           baseBranch: resolved.settings["branch.base"],
+          errandBranches: new Set(errandRecords.map((record) => record.branch)),
           exec: gitExec,
         });
       },
