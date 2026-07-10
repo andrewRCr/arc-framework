@@ -3216,6 +3216,116 @@ describe("runUserStatus bounded notes-ref fetch", () => {
     );
   }
 
+  function fakeRelationExec(options: {
+    localEntries: { blob: string; commit: string }[];
+    remoteEntries: { blob: string; commit: string }[];
+    localManifest?: string;
+    remoteManifest?: string;
+    listingFails?: boolean;
+  }) {
+    return async (cmd: string, args: string[]) => {
+      if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+      if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === notesRef) {
+        return { stdout: `${localHash}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-remote") {
+        return { stdout: `${remoteHash}\t${notesRef}\n`, stderr: "" };
+      }
+      if (args[0] === "fetch") return { stdout: "", stderr: "" };
+      if (
+        args[0] === "rev-parse"
+        && args[1] === "--verify"
+        && args[2]?.startsWith("refs/arc-sync-temp/")
+      ) {
+        return { stdout: `${remoteHash}\n`, stderr: "" };
+      }
+      if (args[0] === "merge-base") throw new Error("not an ancestor");
+      if (args[0] === "ls-tree") {
+        if (options.listingFails) throw new Error("listing failed");
+        const entries = args[2] === localHash ? options.localEntries : options.remoteEntries;
+        return {
+          stdout: entries.map((entry) => `100644 blob ${entry.blob}\t${entry.commit}`).join("\n"),
+          stderr: "",
+        };
+      }
+      if (args[0] === "show") {
+        const manifest = args[1]?.startsWith(`${localHash}:`)
+          ? options.localManifest
+          : options.remoteManifest;
+        if (manifest === undefined) throw new Error("manifest absent");
+        return { stdout: manifest, stderr: "" };
+      }
+      if (args[0] === "update-ref" && args[1] === "-d") {
+        return { stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    };
+  }
+
+  it("computes a content relation from the fetched temp ref tree", async () => {
+    const shared = { blob: "1".repeat(40), commit: "c".repeat(40) };
+    const localOnly = { blob: "2".repeat(40), commit: "d".repeat(40) };
+    const calls: string[][] = [];
+    const exec = fakeRelationExec({ localEntries: [shared, localOnly], remoteEntries: [shared] });
+    const io = makeIO(async (cmd, args) => {
+      calls.push(args);
+      return exec(cmd, args);
+    });
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection).toMatchObject({ state: "diverged", contentRelation: "remote-subset" });
+    expect(calls.some((args) =>
+      args[0] === "ls-tree" && args[2]?.startsWith("refs/arc-sync-temp/"),
+    )).toBe(true);
+  });
+
+  it("applies fetched compaction manifests before classifying entries", async () => {
+    const shared = { blob: "1".repeat(40), commit: "c".repeat(40) };
+    const pruned = { blob: "2".repeat(40), commit: "d".repeat(40) };
+    const remoteManifest = JSON.stringify({
+      version: 1,
+      generation: 1,
+      preCompactionTip: null,
+      pruned: [pruned],
+    });
+    const io = makeIO(fakeRelationExec({
+      localEntries: [shared],
+      remoteEntries: [shared, pruned],
+      remoteManifest,
+    }));
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection).toMatchObject({ state: "diverged", contentRelation: "equal" });
+  });
+
+  it("omits content relation when entry listing fails", async () => {
+    const io = makeIO(fakeRelationExec({
+      localEntries: [],
+      remoteEntries: [],
+      listingFails: true,
+    }));
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection.state).toBe("diverged");
+    expect("contentRelation" in inspection).toBe(false);
+  });
+
+  it("does not attach a content relation to a non-diverged fast result", async () => {
+    const io = makeIO(async (_cmd, args) => {
+      if (args[0] === "rev-parse") return { stdout: `${localHash}\n`, stderr: "" };
+      if (args[0] === "ls-remote") return { stdout: `${localHash}\t${notesRef}\n`, stderr: "" };
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    });
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection.state).toBe("same");
+    expect("contentRelation" in inspection).toBe(false);
+  });
+
   it("invokes the notes-ref fetch with an AbortSignal in full-mode `arc status`", async () => {
     const calls: ExecCall[] = [];
     const io = makeIO(fakeMustFetchExec(calls, "ok"));

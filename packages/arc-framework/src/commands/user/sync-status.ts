@@ -9,16 +9,20 @@ import {
   type WorktreeSyncStatusResult,
 } from "../../lib/git/worktree-sync.js";
 import {
+  classifyNoteSetRelation,
   inferUserSyncCause,
   inspectNotesCompactionAdvisory,
   isComparableSourceCommit,
   projectManifest,
+  listNoteTreeEntries,
+  readNotesCompactionManifest,
   readLocalSyncState,
   readMaterializedBaselineStamp,
   resolveCurrentWuName,
   type UserSyncCause,
   type UserSyncCauseConfidence,
   type NotesCompactionAdvisory,
+  type NoteSetRelation,
 } from "../../lib/user-sync/index.js";
 import { computeUnsavedDirection, missingFilesAreIntentionalRetirement } from "./drift.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
@@ -405,6 +409,8 @@ interface UserSyncRefInspection {
   comparison: "full" | "read-only" | "comparison-unavailable" | "remote-unavailable";
   localHash: string | null;
   remoteHash: string | null;
+  /** Content relation between local and fetched trees when topology diverges. */
+  contentRelation?: NoteSetRelation;
   /**
    * Distinguishes failure modes when `state` is `remote-unavailable` from the
    * notes-ref fetch path. Mirrors the worktree-sync vocabulary
@@ -1415,14 +1421,41 @@ export async function inspectUserSyncRefsDetailed(
         remoteHash: fetchedRemoteHash,
       };
     }
+    const contentRelation = await inspectDivergedNoteSetRelation(
+      io,
+      classification.localHash,
+      tempRef,
+    );
     return {
       state: "diverged",
       comparison: "full",
       localHash: classification.localHash,
       remoteHash: fetchedRemoteHash,
+      ...(contentRelation === undefined ? {} : { contentRelation }),
     };
   } finally {
     await deleteRef(io, tempRef);
+  }
+}
+
+async function inspectDivergedNoteSetRelation(
+  io: UserIOContext,
+  localCommitish: string,
+  fetchedRemoteRef: string,
+): Promise<NoteSetRelation | undefined> {
+  try {
+    const [localEntries, remoteEntries, localManifest, remoteManifest] = await Promise.all([
+      listNoteTreeEntries(io.exec, localCommitish),
+      listNoteTreeEntries(io.exec, fetchedRemoteRef),
+      readNotesCompactionManifest(io.exec, localCommitish),
+      readNotesCompactionManifest(io.exec, fetchedRemoteRef),
+    ]);
+    return classifyNoteSetRelation(
+      { entries: localEntries, manifest: localManifest },
+      { entries: remoteEntries, manifest: remoteManifest },
+    );
+  } catch {
+    return undefined;
   }
 }
 

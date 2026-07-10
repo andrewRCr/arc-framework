@@ -95,25 +95,14 @@ Spine mapping: `diverged + remote-subset` → spine `clean` (the collapse `local
 topology + relation preserved. Every other relation stays on the `conflict` spine value; rendering keys on
 contested-or-not.
 
-### `[ ]` **3.1 Diverged-arm relation computation at inspection**
+### `[x]` **3.1 Diverged-arm relation computation at inspection**
 
 - _Goal:_ `inspectUserSyncRefsDetailed` (`commands/user/sync-status.ts`) carries a content relation on every
   diverged result, derived from both locally-readable trees — a handful of extra reads, fired only when
   already diverged.
 
-    - On the diverged arm (before the temp-ref `finally` cleanup), list both entry sets via the Phase 1
-      lister and read both sides' manifests via `readNotesCompactionManifest` (local ref + fetched sha) —
-      the classifier's per-side `{entries, manifest}` input — then classify via `note-set-relation.ts`;
-      extend `UserSyncRefInspection` with the relation.
-
-    - On a listing or manifest-read failure, omit the relation — the result renders today's conflict arm
-      rather than risking a silent-empty subset misclassification.
-
-    - Build `test-first` (one behavior at a time):
-        - Diverged inspection returns the relation computed from the real temp ref's tree
-        - Manifests reach the classifier (a pruned pair on the fetched side is excluded at inspection)
-        - Non-diverged arms carry no relation (field absent, not defaulted)
-        - Listing failure → no relation on the result (conflict arm preserved)
+- _Outcome:_ Diverged inspection now classifies the local tip against the fetched temp ref with both compaction
+  manifests, omitting the relation on strict-read failure and on every non-diverged arm.
 
 ### `[ ]` **3.2 Spine mapping and envelope threading**
 
