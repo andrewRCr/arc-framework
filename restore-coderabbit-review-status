@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "restore-coderabbit-review-status",
-  "origin": "inbox",
-  "intent": "Restore an observable merge-blocking CodeRabbit status for manually triggered reviews while keeping automatic review disabled",
-  "branch": "chore/restore-coderabbit-review-status",
-  "createdAt": "2026-07-10T15:24:06.068Z",
-  "originEntry": "Resolve the review-trigger architecture — lane-scoped CodeRabbit reviews with merge-blocking while active"
-}
