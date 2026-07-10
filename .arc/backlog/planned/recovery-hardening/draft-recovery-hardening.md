@@ -35,6 +35,20 @@
       dropped arg). Base-merge FP first; the substantive change to expect is the seed path relocation +
       `resolveCompactionSeedPath` signature.
 
+### `[ ]` **Distinguish committed task-cursor advancement for fresh verifiers**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain
+  (2026-07-10); reproduced by the `notes-export-state-coherence` verification pass.
+- *Concern:* a fresh verifier can inherit a seed anchored to the prior implementation task; recovery correctly
+  explains the worktree delta as committed progress but still emits an unconditional `task-cursor-mismatch`
+  stop after the task list has advanced monotonically.
+- *Fold-in:* settle whether committed-progress explanation covers monotonic cursor advance or the verification
+  fire point must emit a fresh verifier-local seed. Preserve fail-closed behavior for uncommitted, reordered, or
+  otherwise unexplained drift and add a spawned-verifier regression. Coordinate the handoff contract with
+  `execution-delegation-doctrine`.
+- *FP boundary:* Phase 9 should refresh/preflight the worktree-local seed before its adversarial verifier; a
+  repeated false stop becomes an FP Phase 7 blocker rather than a deferred surprise.
+
 ## Problem / Motivation
 
 ARC's compaction-recovery mechanism emits a seed before compaction and, after it, tells the agent

@@ -245,6 +245,18 @@
 - *Scope:* lands with this WU's render-standard reconciliation; sequenced after `project-state-integrity`'s
   substrate adoption.
 
+### `[ ]` **Re-evaluate status/render performance after the surfaces settle**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-10);
+  captured during `project-state-integrity` review.
+- *Concern:* several independent local/network reads are serialized, project-readiness metas load sequentially,
+  tracked renders may scan the same tree twice, and one transition can rebuild the lifecycle index for multiple
+  side effects.
+- *Fold-in:* after STATUS.PROJECT/STATUS.USER writer contracts settle, parallelize independent reads, batch meta
+  loads, reuse already-loaded render records, and memoize lifecycle-index construction per side-effect execution
+  where measurements still justify it. Route any surviving general transition-engine cache debt to
+  `architecture-remediation`.
+
 ---
 
 ## Problem / Motivation
