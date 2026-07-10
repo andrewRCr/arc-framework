@@ -4,16 +4,18 @@
   Task 3.1.c observer resume — the probes' `planned/unoccupied` misreport investigation. Full mechanism and
   source anchors: `notes-finalize-parallelism.md` § Dogfood finding (2026-07-09): slug-state surfaces are
   checkout-local.
-- **Purpose:** Give the slug-state query/dispatch surfaces in-flight-sibling truth, and fix the foreign-write
-  advisory reading base divergence as authored overlap. Both are "the state layer reports false facts about
-  what is in flight under parallelism" — the family the parallelism GA gate certifies. Lands on `main` before
+- **Purpose:** Make slug/state projection honest across concurrent and prospective state: give the slug-state
+  query/dispatch surfaces in-flight-sibling truth, fix the foreign-write advisory reading base divergence as
+  authored overlap, make staged lifecycle transitions win for their own branch, and surface branch/record residue
+  instead of silently misclassifying it. All are "the state layer reports false facts about what is in flight
+  under parallelism" — the family the parallelism GA gate certifies. Lands on `main` before
   `finalize-parallelism` wave 2; FP merges it in.
 
 ---
 
 ## Problem
 
-Two confirmed defects, one state-layer family:
+Four confirmed defects, one state-layer family:
 
 ### 1. Slug-state surfaces are checkout-local — blind to in-flight siblings
 
@@ -73,6 +75,30 @@ consistent with "went clean once the probes were current." This half is **reprod
 `4c05c455` (forward) and against a deliberately behind-base branch (cell 3.2.e's induction — the stale-local-base
 channel is cheap to induce: hold local `main` behind while a sibling merges `origin/main`), trace the actual list
 to its producing path, then fix that path. Regression coverage for both observed directions.
+
+### 3. Prospective lifecycle renders lose to the checked-out branch's pre-commit tip
+
+Archive-time ROADMAP regeneration composes staged-index records with the local-ref in-flight oracle. During the
+archive commit, the index already carries the WU's prospective `Shipped` record while the checked-out branch ref
+still points to its pre-commit `Integrating` tree. The at-ref active candidate wins, so the pre-commit guard
+rejects the correct render and its prescribed local CLI remediation reproduces the stale row. Confirmed during
+the archive commits for `project-state-integrity`, `burn-in-probe-a`, and `notes-export-state-coherence`.
+
+The composed oracle needs a prospective-source rule: for the checked-out branch only, staged lifecycle state is
+the branch's authoritative candidate during a transition; sibling local/remote refs remain ordinary oracle input.
+The CLI remediation and hook must render from the same source, with regressions covering archive removal,
+sibling visibility, byte parity, and activation/integration.
+
+### 4. Residue is silently dropped or misreported as remote-only
+
+`classifyInput` silently drops a no-record + no-meta branch. Merged Errand heads whose records were already
+closed therefore disappear from every session-init cleanup surface; ten such remote branches were observed live.
+Branch-less stale Errand records likewise have no residue surface.
+
+Separately, `remoteOnly` keys only on worktree presence. A local branch with no current worktree — the live
+`plan/slug-state-oracle-alignment` case — is advertised as a cross-machine materialization candidate even though
+the branch is already local. The classifier must distinguish local parked/unoccupied state from genuine
+remote-only state and emit a warning or residue classification instead of silently dropping unknown topology.
 
 ## Design decisions (leanings — settle at review)
 
@@ -139,6 +165,18 @@ construction-site swap at their sources — but they differ in consequence class
   `arc reopen` reads stale-*forward* and would over-discharge. Giving discharge composed truth needs its own
   freshness posture (clean, reachable, warning-free derivation covering the edge's slug, or an explicit fetch)
   — out of scope here; re-evaluate when a consumer actually needs earlier `integrating` sight.
+
+**D6 — Prospective state overrides only its own checked-out branch candidate.** Extend the composed-index input
+model so a staged lifecycle record substitutes for the current branch's at-ref record during transition
+rendering. Do not globally rank `completed/` above active candidates: sibling refs still need normal oracle
+precedence, and a global rule would hide genuine live branches. The hook and CLI writer share this explicit
+prospective mode rather than reconstructing different trees.
+
+**D7 — Classify residue explicitly; `remoteOnly` means absent locally.** No-record/no-meta branches and
+branch-less Errand records produce visible residue/warning entries with branch-derived identity where available.
+`remoteOnly` requires absence of both a local worktree *and* a local branch; a local unoccupied branch is a
+distinct state and must not enter the cross-machine materialize candidate set. Preserve degraded-but-visible
+behavior when remote or record reads fail.
 
 ## Non-goals
 
