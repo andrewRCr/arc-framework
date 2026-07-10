@@ -104,28 +104,15 @@ contested-or-not.
 - _Outcome:_ Diverged inspection now classifies the local tip against the fetched temp ref with both compaction
   manifests, omitting the relation on strict-read failure and on every non-diverged arm.
 
-### `[ ]` **3.2 Spine mapping and envelope threading**
+### `[x]` **3.2 Spine mapping and envelope threading**
 
 - _Goal:_ `diverged + remote-subset` reads as spine `clean` everywhere the spine is consumed, rendered with the
   same informational vocabulary `local-ahead` gets; all other relations keep the `conflict` spine value with the
   relation available to renderers.
 
-    - `computeUserSyncSpine` / `computeUserSyncSpineState` accept the relation; thread through
-      `UserSyncSpine`, `buildUserSessionInitStatusResult`, and the session-init envelope types
-      (`commands/user/types.ts`, `commands/status/types.ts`).
-
-    - `shouldPromptToPull` drops its conflict term (`state === "remote-ahead" || state === "conflict"`,
-      `sync-status.ts` spine assembly) — the conflict arm stops promising pull on every relation; only
-      `remote-ahead` prompts.
-
-    - Conflict-arm `summary` / `detailLines` / `actionHint` key on contested-or-not: zero-contested relations
-      state expected residue reconciling at the next paired push (no pull direction); `conflicting` states
-      that genuine divergence cannot be resolved by pull and directs to `arc user status`.
-
-    - Build `test-first` (one behavior at a time):
-        - `diverged + remote-subset` → spine `clean`, `refState: "diverged"` + relation preserved on the result
-        - `mixed-uncontested` / `local-subset` / `equal` → spine `conflict`, reconcile guidance, no pull promise
-        - `conflicting` → spine `conflict`, truthful no-pull guidance
+- _Outcome:_ Threaded content relation through sync state, status, and session-init envelopes; remote-subset now
+  collapses to clean, every other diverged relation preserves the conflict spine, and only remote-ahead prompts
+  for pull while zero-contested and genuine-conflict guidance remain distinct.
 
 ### `[ ]` **3.3 Status, sync dispatch, and pull-offer guidance**
 

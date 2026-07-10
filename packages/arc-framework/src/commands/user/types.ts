@@ -15,6 +15,7 @@ import type {
   PlanBranchBoundedNotesExportResult,
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
 import type { NotesCompactionAdvisory } from "../../lib/user-sync/index.js";
+import type { NoteSetRelation } from "../../lib/user-sync/note-set-relation.js";
 
 /** I/O dependencies for the user command. */
 export interface UserIOContext extends CoreIO {
@@ -544,6 +545,8 @@ export interface UserSyncSpine {
   state: UserSessionInitState;
   /** Raw notes-ref topology feeding the spine, or `null` when remote probing is disabled. */
   refState: UserSyncRefState | null;
+  /** Content relation carried only when raw topology is diverged. */
+  contentRelation?: NoteSetRelation;
   /** Coherence condition layered on the ref topology, when recovery context exists. */
   coherenceState?: UserSyncCoherenceState;
   /** Full-mode remote-status projection derived from the same ref topology. */
@@ -556,6 +559,7 @@ export interface UserSyncState {
   /** Session-init-compatible five-state verdict for the inspected refs. */
   spineState: UserSessionInitState;
   refState: UserSyncRefState;
+  contentRelation?: NoteSetRelation;
   coherenceState?: UserSyncCoherenceState;
   diskState: UserSyncDiskState;
   remoteStatus: UserRemoteStatus;
@@ -632,6 +636,7 @@ export interface UserStatusResult {
   detailLines: string[];
   remoteChecked: boolean;
   refState: UserSyncRefState | null;
+  contentRelation?: NoteSetRelation;
   diskState: UserSyncDiskState;
   savedCommit: string | null;
   savedFromAncestor: boolean;
@@ -769,6 +774,8 @@ export interface UserSessionInitStatusResult {
    * (`state === "disabled"`); present on every other arm.
    */
   refState?: UserSyncRefState;
+  /** Content relation carried only when the raw notes refs diverge. */
+  contentRelation?: NoteSetRelation;
   /** Coherence detail preserved without expanding the five-state session-init surface. */
   coherenceState?: UserSyncCoherenceState;
   summary: string;

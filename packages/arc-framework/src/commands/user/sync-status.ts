@@ -83,12 +83,14 @@ export async function inspectUserSyncState(
   const spine = computeUserSyncSpine({
     remoteSyncEnabled: true,
     refState: refInspection.state,
+    contentRelation: refInspection.contentRelation,
     coherenceState,
   });
 
   return {
     spineState: spine.state,
     refState: refInspection.state,
+    ...(spine.contentRelation ? { contentRelation: spine.contentRelation } : {}),
     ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
     diskState: diskInspection.state,
     remoteStatus: spine.remoteStatus,
@@ -139,6 +141,7 @@ export async function runUserStatus(
   const spine = computeUserSyncSpine({
     remoteSyncEnabled: !offline,
     refState: refInspection?.state ?? null,
+    contentRelation: refInspection?.contentRelation,
     coherenceState: refInspection
       ? await resolveUserSyncCoherenceState({ cwd, io, identity, refInspection })
       : undefined,
@@ -291,6 +294,7 @@ export async function runUserSessionInitStatus(
     spine: computeUserSyncSpine({
       remoteSyncEnabled: true,
       refState: refInspection.state,
+      contentRelation: refInspection.contentRelation,
     }),
     comparison: refInspection.comparison,
     localNoteFreshness,
@@ -431,17 +435,20 @@ interface UserSyncRefInspection {
 export function computeUserSyncSpine(input: {
   remoteSyncEnabled: boolean;
   refState: UserSyncRefState | null;
+  contentRelation?: NoteSetRelation;
   coherenceState?: UserSyncCoherenceState;
 }): UserSyncSpine {
   const refState = input.remoteSyncEnabled ? input.refState : null;
+  const contentRelation = refState === "diverged" ? input.contentRelation : undefined;
   const coherenceState = normalizeCoherenceState(refState, input.coherenceState);
-  const state = computeUserSyncSpineState(input.remoteSyncEnabled, refState);
+  const state = computeUserSyncSpineState(input.remoteSyncEnabled, refState, contentRelation);
   return {
     state,
     refState,
+    ...(contentRelation ? { contentRelation } : {}),
     ...(coherenceState ? { coherenceState } : {}),
-    remoteStatus: deriveRemoteStatus(refState),
-    shouldPromptToPull: state === "remote-ahead" || state === "conflict",
+    remoteStatus: deriveRemoteStatus(refState, contentRelation),
+    shouldPromptToPull: state === "remote-ahead",
   };
 }
 
@@ -487,6 +494,7 @@ async function resolveUserSyncCoherenceState(input: {
 function computeUserSyncSpineState(
   remoteSyncEnabled: boolean,
   refState: UserSyncRefState | null,
+  contentRelation: NoteSetRelation | undefined,
 ): UserSyncSpine["state"] {
   if (!remoteSyncEnabled) return "disabled";
 
@@ -494,7 +502,7 @@ function computeUserSyncSpineState(
     case "remote-ahead":
       return "remote-ahead";
     case "diverged":
-      return "conflict";
+      return contentRelation === "remote-subset" ? "clean" : "conflict";
     case "remote-unavailable":
       return "remote-unavailable";
     case "same":
@@ -517,14 +525,17 @@ function buildUserSessionInitStatusResult(input: {
     ? "run `arc user save` or `arc sync` before relying on handoff"
     : null;
 
-  const refStateSpread = spine.refState ? { refState: spine.refState } : {};
+  const refDetailSpread = {
+    ...(spine.refState ? { refState: spine.refState } : {}),
+    ...(spine.contentRelation ? { contentRelation: spine.contentRelation } : {}),
+  };
 
   switch (spine.state) {
     case "disabled":
       return {
         identity,
         state: spine.state,
-        ...refStateSpread,
+        ...refDetailSpread,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init remote sync disabled`,
         detailLines: [
@@ -538,11 +549,15 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
-        ...refStateSpread,
+        ...refDetailSpread,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
-        summary: `${identity}: session-init local notes match remote notes`,
+        summary: spine.contentRelation === "remote-subset"
+          ? `${identity}: session-init local notes contain remote notes`
+          : `${identity}: session-init local notes match remote notes`,
         detailLines: [
-          ...(spine.refState === "local-ahead"
+          ...(spine.contentRelation === "remote-subset"
+            ? ["Expected branch-export residue: local notes contain every remote note and need no pull."]
+            : spine.refState === "local-ahead"
             ? ["Local notes are newer than remote notes, but no pull is needed before continuing."]
             : ["Remote notes match local notes."]),
           ...renderSessionLocalNoteFreshness(input.localNoteFreshness),
@@ -558,7 +573,7 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
-        ...refStateSpread,
+        ...refDetailSpread,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init remote notes ahead of local notes`,
         detailLines: [
@@ -570,17 +585,40 @@ function buildUserSessionInitStatusResult(input: {
         ...(input.localNoteFreshness ? { localNoteFreshness: input.localNoteFreshness } : {}),
       };
     case "conflict":
+      if (
+        spine.contentRelation === "local-subset"
+        || spine.contentRelation === "equal"
+        || spine.contentRelation === "mixed-uncontested"
+      ) {
+        return {
+          identity,
+          state: spine.state,
+          ...refDetailSpread,
+          summary: `${identity}: session-init notes diverged without contested entries`,
+          detailLines: [
+            "Expected notes residue is safe and will reconcile at the next paired push.",
+            "Next step: continue with local context; no pull is needed.",
+          ],
+          actionHint: "continue; notes reconcile at the next paired push",
+          shouldPromptToPull: spine.shouldPromptToPull,
+          ...(input.localNoteFreshness ? { localNoteFreshness: input.localNoteFreshness } : {}),
+        };
+      }
       return {
         identity,
         state: spine.state,
-        ...refStateSpread,
+        ...refDetailSpread,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
-        summary: `${identity}: session-init local and remote notes conflict`,
+        summary: spine.contentRelation === "conflicting"
+          ? `${identity}: session-init local and remote notes genuinely conflict`
+          : `${identity}: session-init local and remote notes diverged`,
         detailLines: [
-          "Local and remote notes conflict (both moved since common ancestor).",
-          "Next step: ask whether to run `arc user pull` and replace local notes before continuing.",
+          spine.contentRelation === "conflicting"
+            ? "Local and remote notes contain different content for the same annotated commit."
+            : "Local and remote notes diverged, but content comparison was unavailable.",
+          "Pull cannot resolve diverged notes refs; inspect with `arc user status`.",
         ],
-        actionHint: "run `arc user pull` to replace local notes before continuing session-init",
+        actionHint: "run `arc user status` to inspect the diverged notes refs",
         shouldPromptToPull: spine.shouldPromptToPull,
         ...(input.localNoteFreshness ? { localNoteFreshness: input.localNoteFreshness } : {}),
       };
@@ -589,7 +627,7 @@ function buildUserSessionInitStatusResult(input: {
         return {
           identity,
           state: spine.state,
-          ...refStateSpread,
+          ...refDetailSpread,
           ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
           summary: `${identity}: session-init local-to-remote notes comparison unavailable here`,
           detailLines: [
@@ -604,7 +642,7 @@ function buildUserSessionInitStatusResult(input: {
       return {
         identity,
         state: spine.state,
-        ...refStateSpread,
+        ...refDetailSpread,
         ...(spine.coherenceState ? { coherenceState: spine.coherenceState } : {}),
         summary: `${identity}: session-init remote notes unavailable for comparison with local notes`,
         detailLines: [
@@ -665,6 +703,7 @@ interface BuildUserStatusInput {
   diskState: UserSyncDiskState;
   diskStatus?: UserDiskStatus;
   refState: UserSyncRefState | null;
+  contentRelation?: NoteSetRelation;
   coherenceState?: UserSyncCoherenceState;
   remoteChecked: boolean;
   savedCommit: string | null;
@@ -759,6 +798,7 @@ export function buildUserStatusResult(
   const spine = input.spine ?? computeUserSyncSpine({
     remoteSyncEnabled: remoteChecked,
     refState,
+    contentRelation: input.contentRelation,
     coherenceState: input.coherenceState,
   });
   const remoteStatus = spine.remoteStatus;
@@ -846,6 +886,7 @@ export function buildUserStatusResult(
     detailLines,
     remoteChecked,
     refState: spine.refState,
+    ...(spine.contentRelation ? { contentRelation: spine.contentRelation } : {}),
     diskState,
     savedCommit,
     savedFromAncestor,
@@ -1705,12 +1746,13 @@ async function readMaterializedBaselineStampSafe(
 
 export function deriveRemoteStatus(
   refState: UserSyncRefState | null,
+  contentRelation?: NoteSetRelation,
 ): UserRemoteStatus {
   switch (refState) {
     case "remote-unavailable":
       return "remote unavailable";
     case "diverged":
-      return "conflict";
+      return contentRelation === "remote-subset" ? "local ahead" : "conflict";
     case "remote-ahead":
       return "remote ahead";
     case "local-ahead":

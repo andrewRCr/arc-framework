@@ -1720,6 +1720,38 @@ describe("user sync spine", () => {
     }
   });
 
+  it("collapses diverged remote-subset content to clean while preserving raw detail", () => {
+    const spine = computeUserSyncSpine({
+      remoteSyncEnabled: true,
+      refState: "diverged",
+      contentRelation: "remote-subset",
+    });
+
+    expect(spine).toMatchObject({
+      state: "clean",
+      refState: "diverged",
+      contentRelation: "remote-subset",
+      shouldPromptToPull: false,
+    });
+  });
+
+  it("keeps every other diverged content relation on the conflict spine without pull prompts", () => {
+    const relations = ["local-subset", "equal", "mixed-uncontested", "conflicting"] as const;
+
+    for (const contentRelation of relations) {
+      expect(computeUserSyncSpine({
+        remoteSyncEnabled: true,
+        refState: "diverged",
+        contentRelation,
+      })).toMatchObject({
+        state: "conflict",
+        refState: "diverged",
+        contentRelation,
+        shouldPromptToPull: false,
+      });
+    }
+  });
+
   it("keeps remote-ahead recovery pull-directed even when working files have local edits", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
@@ -1880,6 +1912,67 @@ describe("runUserSessionInitStatus", () => {
     readNote: async () => null,
   };
 
+  function relationProbeIO(contentRelation: "remote-subset" | "local-subset" | "equal" | "mixed-uncontested" | "conflicting") {
+    const localHash = "1".repeat(40);
+    const remoteHash = "2".repeat(40);
+    const sharedCommit = "3".repeat(40);
+    const localCommit = "4".repeat(40);
+    const remoteCommit = "5".repeat(40);
+    const shared = { blob: "6".repeat(40), commit: sharedCommit };
+    const localOnly = { blob: "7".repeat(40), commit: localCommit };
+    const remoteOnly = { blob: "8".repeat(40), commit: remoteCommit };
+    const contestedLocal = { blob: "9".repeat(40), commit: sharedCommit };
+    const contestedRemote = { blob: "a".repeat(40), commit: sharedCommit };
+    const entries = {
+      "remote-subset": { local: [shared, localOnly], remote: [shared] },
+      "local-subset": { local: [shared], remote: [shared, remoteOnly] },
+      equal: { local: [shared], remote: [shared] },
+      "mixed-uncontested": { local: [localOnly], remote: [remoteOnly] },
+      conflicting: { local: [contestedLocal], remote: [contestedRemote] },
+    }[contentRelation];
+    return {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === notesRef) {
+          return { stdout: `${localHash}\n`, stderr: "" };
+        }
+        if (
+          args[0] === "rev-parse"
+          && args[1] === "--verify"
+          && args[2]?.startsWith("refs/arc-sync-temp/")
+        ) {
+          return { stdout: `${remoteHash}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${headCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${remoteHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "fetch") return { stdout: "", stderr: "" };
+        if (args[0] === "merge-base") throw new Error("not an ancestor");
+        if (args[0] === "ls-tree") {
+          const selected = args[2] === localHash ? entries.local : entries.remote;
+          return {
+            stdout: selected.map((entry) => `100644 blob ${entry.blob}\t${entry.commit}`).join("\n"),
+            stderr: "",
+          };
+        }
+        if (args[0] === "show" && args[1]?.includes(".arc-user-notes-compaction-manifest.json")) {
+          throw new Error("manifest absent");
+        }
+        if (args[0] === "update-ref" && args[1] === "-d") return { stdout: "", stderr: "" };
+        if (args[0] === "notes" || args[0] === "log" || args[0] === "diff-tree" || args[0] === "rev-list") {
+          return { stdout: "", stderr: "" };
+        }
+        return { stdout: "", stderr: "" };
+      },
+    };
+  }
+
   it("returns disabled when session.remote_sync is off", async () => {
     const result = await runUserSessionInitStatus({
       cwd: "/repo",
@@ -1893,6 +1986,57 @@ describe("runUserSessionInitStatus", () => {
     expect(result.shouldPromptToPull).toBe(false);
     expect(result.loadNeeded).toBeUndefined();
     expect(buildUserSessionInitStatusSummary(result)).toContain("session-init remote sync disabled");
+  });
+
+  it("renders diverged remote-subset content as clean informational state", async () => {
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: relationProbeIO("remote-subset"),
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result).toMatchObject({
+      state: "clean",
+      refState: "diverged",
+      contentRelation: "remote-subset",
+      shouldPromptToPull: false,
+    });
+    expect(result.summary).toContain("local notes contain remote notes");
+  });
+
+  it("renders zero-contested divergence as next-push residue without a pull prompt", async () => {
+    for (const contentRelation of ["local-subset", "equal", "mixed-uncontested"] as const) {
+      const result = await runUserSessionInitStatus({
+        cwd: "/repo",
+        io: relationProbeIO(contentRelation),
+        identity: "andrew",
+        remoteSyncEnabled: true,
+      });
+
+      expect(result).toMatchObject({ state: "conflict", contentRelation, shouldPromptToPull: false });
+      expect(result.actionHint).toContain("next paired push");
+      expect(result.detailLines.join(" ")).not.toContain("run `arc user pull`");
+    }
+  });
+
+  it("renders contested divergence as an inspect-only genuine conflict", async () => {
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: relationProbeIO("conflicting"),
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result).toMatchObject({
+      state: "conflict",
+      contentRelation: "conflicting",
+      shouldPromptToPull: false,
+    });
+    expect(result.actionHint).toContain("arc user status");
+    expect(result.detailLines).toContain(
+      "Pull cannot resolve diverged notes refs; inspect with `arc user status`.",
+    );
   });
 
   it("uses the read-only remote probe for matching refs without fetch", async () => {
