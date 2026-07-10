@@ -58,6 +58,13 @@ export {
 } from "./compaction-manifest.js";
 
 export {
+  classifyNoteSetRelation,
+  resolveExcludedNotePairKeys,
+  type NoteSetRelation,
+  type NoteSetSnapshot,
+} from "./note-set-relation.js";
+
+export {
   COMPACTION_ADVISORY_HISTORY_THRESHOLD,
   COMPACTION_BACKUP_RETENTION_DAYS,
   COMPACTION_NEWEST_RETAIN_COUNT,

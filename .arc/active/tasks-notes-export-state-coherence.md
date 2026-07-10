@@ -24,29 +24,14 @@ Entry listing reads `git ls-tree -r <sha>` with notes-fanout path flattening —
 - _Outcome:_ Relocated the strict SHA-addressed `ls-tree` lister into `notes-ref.ts`, preserving fanout flattening
   and manifest exclusion while keeping compaction's prior empty-list degradation local to its existing call site.
 
-### `[ ]` **1.2 `note-set-relation.ts` five-relation classifier**
+### `[x]` **1.2 `note-set-relation.ts` five-relation classifier**
 
 - _Goal:_ Two sides classify into exactly one of
   `remote-subset | local-subset | equal | mixed-uncontested | conflicting`, with manifest-pruned pairs
   excluded from the relation set — so classification is truthful even against a legacy or scratch-clone
   remote carrying already-pruned entries.
-- _Shape:_ The module takes `{entries, manifest: NotesCompactionManifest | null}` per side and exports a
-  shared excluded-pairs resolver (newer-generation manifest wins the pruned set) that Phase 2's union
-  builder consumes too — one exclusion authority. The fixed-path manifest never enters the entry sets
-  (excluded by the 1.1 lister), so differing manifest blobs are structurally incapable of contesting.
-- _Note:_ Resolve exclusions to a `Set` keyed by `pairKey` (`compaction-manifest.ts`) once per
-  classification — `isPairPrunedByManifest` is a linear scan per call, and the live remote shape carries
-  ~10k entries.
-
-    - Pure module `lib/user-sync/note-set-relation.ts`: set math over `(annotated commit, blob)` pairs;
-      a contested pair is same-commit-different-blob.
-
-    - Build `test-first` (one behavior at a time — `__tests__/unit/user-sync-note-set-relation.test.ts`):
-        - All five relations, including the true same-commit-different-blob `conflicting` case
-        - Zero contested pairs with both-sides-unique entries → `mixed-uncontested` (never `conflicting`)
-        - Pruned-pair exclusion follows the newer-generation side's manifest; a pruned pair neither counts
-          as a unique entry nor shifts the relation toward `local-subset` / `mixed-uncontested`
-        - Empty-side edge cases (one side empty → subset, both empty → `equal`)
+- _Outcome:_ Added the pure five-way classifier and a shared generation-aware pruned-pair resolver, using
+  deduplicated pair sets and commit-indexed contest detection across mixed, conflicting, and empty-side cases.
 
 ## **Phase 2:** Producer-side safe-join
 
