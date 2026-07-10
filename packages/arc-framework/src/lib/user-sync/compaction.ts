@@ -15,7 +15,7 @@ import {
   type NotesCompactionManifest,
   type NotesCompactionPair,
 } from "./compaction-manifest.js";
-import { NOTES_COMPACTION_SNAPSHOT_MESSAGE, listNoteEntries, notePathToCommit } from "./notes-ref.js";
+import { NOTES_COMPACTION_SNAPSHOT_MESSAGE, listNoteEntries, listNoteTreeEntries } from "./notes-ref.js";
 import { isCasRejectionError, isRemoteUnavailableError } from "./notes-merge.js";
 
 /** Inputs for publishing one compacted snapshot commit. */
@@ -200,7 +200,7 @@ export async function adoptCompactedNotesRef(
   const localEntries = localTip === null ? [] : await listNoteEntries(exec, fullRef);
   const preCompactionEntries = manifest.preCompactionTip === null
     ? new Map<string, string>()
-    : new Map((await listNoteTreeEntries(exec, manifest.preCompactionTip)).map((entry) => [entry.commit, entry.blob]));
+    : await listNoteTreeEntryMapOrEmpty(exec, manifest.preCompactionTip);
 
   let restoredCount = 0;
   let droppedPrunedCount = 0;
@@ -313,25 +313,12 @@ async function readRemoteRefTip(
   }
 }
 
-async function listNoteTreeEntries(exec: GitExec, ref: string): Promise<NotesCompactionPair[]> {
+async function listNoteTreeEntryMapOrEmpty(exec: GitExec, commitish: string): Promise<Map<string, string>> {
   try {
-    const { stdout } = await exec("git", ["ls-tree", "-r", ref]);
-    return stdout
-      .split("\n")
-      .map(parseLsTreeNoteEntry)
-      .filter((entry): entry is NotesCompactionPair => entry !== null);
+    return new Map((await listNoteTreeEntries(exec, commitish)).map((entry) => [entry.commit, entry.blob]));
   } catch {
-    return [];
+    return new Map();
   }
-}
-
-function parseLsTreeNoteEntry(line: string): NotesCompactionPair | null {
-  const match = /^\d{6} blob ([0-9a-f]{40}|[0-9a-f]{64})\t(.+)$/u.exec(line.trimEnd());
-  if (!match) return null;
-  const [, blob, path] = match;
-  if (blob === undefined || path === undefined) return null;
-  const commit = notePathToCommit(path);
-  return commit === null ? null : { blob, commit };
 }
 
 async function mergeCollisionNoteBlobs(input: {

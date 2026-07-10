@@ -17,31 +17,12 @@ Entry listing reads `git ls-tree -r <sha>` with notes-fanout path flattening —
 `refs/arc-sync-temp/…` ref, which DWIM-mislists as empty. See `notes-notes-export-state-coherence.md`
 § Implementation notes for the fallback mechanism if `ls-tree` flattening proves awkward.
 
-### `[ ]` **1.1 Sha-addressed note-entry listing helper**
+### `[x]` **1.1 Sha-addressed note-entry listing helper**
 
 - _Goal:_ Any commit-ish — including an inspection temp ref at `refs/arc-sync-temp/…` — yields an accurate
   `(annotated commit, blob)` entry list, immune to the `git notes --ref` DWIM mislisting.
-- _Context:_ `listNoteTreeEntries` in `lib/user-sync/compaction.ts` already parses `ls-tree -r` output through
-  `notePathToCommit` fanout flattening. Relocate it into `notes-ref.ts` (exported, sha-addressed) — that
-  module's charter holds each git command shape in one named function — and import it back into
-  `compaction.ts`; no third copy.
-
-    - The lister returns note entries only: non-SHA paths (the fixed-path compaction manifest) stay excluded,
-      as the current parser already behaves — manifest reads go through the existing
-      `readNotesCompactionManifest(exec, <commit-ish>)`, which accepts any sha.
-
-    - Error contract — the relocated lister is strict: a failed `ls-tree` propagates, never a silent `[]`.
-      Silent-empty listing is the concentrated risk shape (spec § Consequences & Risks) — on the join path it
-      would union away local-only entries. The existing compaction call site keeps its own local
-      `catch → []` degrade if that behavior is still wanted there; the shared lister itself never degrades.
-
-    - The unit tier asserts parsing only; the real-temp-ref DWIM regression lives in Phase 4 (4.1.c).
-
-    - Build `test-first` (one behavior at a time):
-        - Flattened fanout paths (`ab/cd/…` segments) resolve to full annotated-commit shas
-        - The fixed-path compaction manifest entry (`.arc-user-notes-compaction-manifest.json`) is excluded
-          from the entry list, not mistaken for an annotated commit
-        - A failing `ls-tree` propagates (no silent empty list)
+- _Outcome:_ Relocated the strict SHA-addressed `ls-tree` lister into `notes-ref.ts`, preserving fanout flattening
+  and manifest exclusion while keeping compaction's prior empty-list degradation local to its existing call site.
 
 ### `[ ]` **1.2 `note-set-relation.ts` five-relation classifier**
 

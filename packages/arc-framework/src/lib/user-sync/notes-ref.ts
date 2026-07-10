@@ -160,6 +160,18 @@ export async function listNoteEntries(
   }
 }
 
+/** Note blob/commit pairs carried by any commit-ish notes tree. */
+export async function listNoteTreeEntries(
+  exec: GitExec,
+  commitish: string,
+): Promise<NoteEntry[]> {
+  const { stdout } = await exec("git", ["ls-tree", "-r", commitish]);
+  return stdout
+    .split("\n")
+    .map(parseLsTreeNoteEntry)
+    .filter((entry): entry is NoteEntry => entry !== null);
+}
+
 /** A note blob's content for an annotated commit, or `null` when unreadable. */
 export async function readNoteContentAtAnnotatedCommit(
   exec: GitExec,
@@ -258,4 +270,13 @@ function parseNoteEntry(line: string): NoteEntry | null {
     return null;
   }
   return { blob, commit };
+}
+
+function parseLsTreeNoteEntry(line: string): NoteEntry | null {
+  const match = /^\d{6} blob ([0-9a-f]{40}|[0-9a-f]{64})\t(.+)$/u.exec(line.trimEnd());
+  if (!match) return null;
+  const [, blob, path] = match;
+  if (blob === undefined || path === undefined) return null;
+  const commit = notePathToCommit(path);
+  return commit === null ? null : { blob, commit };
 }

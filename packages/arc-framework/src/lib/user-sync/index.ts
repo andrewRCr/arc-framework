@@ -26,6 +26,7 @@ export { removeInboxEntry, type RemoveInboxEntryResult } from "./inbox-writer.js
 export {
   listAnnotatedNoteCommits,
   listNoteEntries,
+  listNoteTreeEntries,
   notePathToCommit,
   readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
