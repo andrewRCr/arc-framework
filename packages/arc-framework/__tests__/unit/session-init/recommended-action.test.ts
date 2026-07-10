@@ -205,14 +205,17 @@ describe("inferSessionInitRecommendations — notes channel", () => {
     expect(result.user.recommendedPromptText).toContain("Pull?");
   });
 
-  it("conflict + prompt → action=prompt with channel-named prompt text", () => {
-    const result = inferSessionInitRecommendations(
-      input({ user: user({ state: "conflict" }) }),
-    );
-    expect(result.user.recommendedAction).toBe("prompt");
-    expect(result.user.recommendedPromptText).toContain("Notes");
-    expect(result.user.recommendedPromptText).toContain("conflict");
-  });
+  it.each([["manual"], ["prompt"], ["always"]] as const)(
+    "conflict + %s → action=surface without pull or prompt text",
+    (policy) => {
+      const result = inferSessionInitRecommendations(input({
+        user: user({ state: "conflict", contentRelation: "conflicting" }),
+        notesPullPolicy: policy,
+      }));
+      expect(result.user.recommendedAction).toBe("surface");
+      expect(result.user.recommendedPromptText).toBe("");
+    },
+  );
 
   it("remote-ahead + always → action=pull; no prompt text", () => {
     const result = inferSessionInitRecommendations(
@@ -257,6 +260,18 @@ describe("inferSessionInitRecommendations — notes channel", () => {
     const result = inferSessionInitRecommendations(
       input({ user: user({ state: "clean", refState: "local-ahead" }) }),
     );
+    expect(result.user.recommendedAction).toBe("surface");
+    expect(result.user.recommendedPromptText).toBe("");
+  });
+
+  it("clean + diverged remote-subset → action=surface for informational orientation", () => {
+    const result = inferSessionInitRecommendations(input({
+      user: user({
+        state: "clean",
+        refState: "diverged",
+        contentRelation: "remote-subset",
+      }),
+    }));
     expect(result.user.recommendedAction).toBe("surface");
     expect(result.user.recommendedPromptText).toBe("");
   });

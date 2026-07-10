@@ -243,6 +243,28 @@ describe("decideSyncAction", () => {
     }
     expect(decideSyncAction(base)).toBe("noop");
   });
+
+  it("routes zero-contested divergence to guidance and genuine conflict to the conflict select", () => {
+    const base = {
+      spineState: "conflict",
+      refState: "diverged",
+      diskState: "same",
+      remoteStatus: "conflict",
+      diskStatus: "current",
+      unsavedDirection: null,
+    } as const;
+
+    for (const contentRelation of ["local-subset", "equal", "mixed-uncontested"] as const) {
+      expect(decideSyncAction({ ...base, contentRelation })).toBe("guidance");
+    }
+    expect(decideSyncAction({ ...base, contentRelation: "conflicting" })).toBe("conflict");
+    expect(decideSyncAction({
+      ...base,
+      spineState: "clean",
+      remoteStatus: "local ahead",
+      contentRelation: "remote-subset",
+    })).toBe("push");
+  });
 });
 
 describe("handleUserSync direction handling", () => {
@@ -263,6 +285,25 @@ describe("handleUserSync direction handling", () => {
     expect(mockRunUserPull).not.toHaveBeenCalled();
     expect(mockLog.info).toHaveBeenCalledWith("Local git note and working files are already up to date.");
     expect(mockOutro).toHaveBeenCalledWith("Done.");
+  });
+
+  it("renders guidance-only output for zero-contested diverged notes", async () => {
+    mockInspectUserSyncState.mockResolvedValue({
+      spineState: "conflict",
+      refState: "diverged",
+      contentRelation: "mixed-uncontested",
+      diskState: "same",
+      remoteStatus: "conflict",
+      diskStatus: "current",
+      unsavedDirection: null,
+    });
+
+    await handleUserSync();
+
+    expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining("next paired push"));
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockRunUserPull).not.toHaveBeenCalled();
+    expect(mockRunUserSave).not.toHaveBeenCalled();
   });
 
   it("chooses push when disk has local unsaved files", async () => {
@@ -399,39 +440,9 @@ describe("handleUserSync direction handling", () => {
     expect(mockRunUserPull).toHaveBeenCalledTimes(1);
   });
 
-  it("skips overwrite confirm after conflict pull resolution (already acknowledged)", async () => {
+  it("offers push, inspect, or cancel for conflict without a pull option", async () => {
     setSyncState("diverged", "same");
-    mockHasLocalNotes.mockResolvedValue(true);
-    mockSelect.mockResolvedValue("pull");
-    mockRunUserPull.mockResolvedValue({
-      kind: "loaded",
-      identity: "andrew",
-      commit: "abc1234",
-      fileCount: 1,
-      fromAncestor: false,
-      ancestorDistance: 0,
-      warnings: [],
-    });
-
-    await handleUserSync();
-
-    expect(mockSelect).toHaveBeenCalledTimes(1);
-    expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunUserPull).toHaveBeenCalledTimes(1);
-  });
-
-  it("prompts on conflict and respects pull resolution", async () => {
-    setSyncState("diverged", "same");
-    mockSelect.mockResolvedValue("pull");
-    mockRunUserPull.mockResolvedValue({
-      kind: "loaded",
-      identity: "andrew",
-      commit: "abc1234",
-      fileCount: 1,
-      fromAncestor: false,
-      ancestorDistance: 0,
-      warnings: [],
-    });
+    mockSelect.mockResolvedValue("inspect");
 
     await handleUserSync();
 
@@ -439,8 +450,13 @@ describe("handleUserSync direction handling", () => {
       "Local and remote git notes conflict (both moved since common ancestor).",
     );
     expect(mockSelect).toHaveBeenCalledTimes(1);
-    expect(mockRunUserPull).toHaveBeenCalledTimes(1);
+    const selectOptions = mockSelect.mock.calls[0]?.[0] as {
+      options: { value: string }[];
+    };
+    expect(selectOptions.options.map((option) => option.value)).toEqual(["push", "inspect", "cancel"]);
+    expect(mockRunUserPull).not.toHaveBeenCalled();
     expect(mockRunUserSave).not.toHaveBeenCalled();
+    expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining("arc user status --verbose"));
   });
 
   it("prompts on conflict and respects push resolution", async () => {

@@ -56,9 +56,10 @@ The probe returns a single JSON envelope the agent consumes:
 | `compactionAdvisory`        | Pre-computed user-notes compaction advisory. `value.historyCommitCount` / `value.threshold` / `value.shouldSuggest` compare the local notes-ref history size to the internal advisory threshold. `value.nudge` carries the once-per-calendar-day marker state gating the orientation offer. Present whenever identity resolved; omitted only when identity is absent. Offer-only — render `arc user compact` when over threshold and nudgable; never auto-run                                                                                                                                                                                                                                                                                                                                                         |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
-pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
-parallel `value.refState?` field preserves raw topology (`same` / `local-ahead` / `remote-ahead` / `diverged` /
-`remote-unavailable`; omitted only when `state == "disabled"`). Step 6 reads it inside the `clean` arm to
+pull-direction dispatch and collapses `same`, `local-ahead`, and diverged `remote-subset` content into `clean`
+(all mean "no pull needed"). The parallel `value.refState?` field preserves raw topology (`same` /
+`local-ahead` / `remote-ahead` / `diverged` / `remote-unavailable`; omitted only when `state == "disabled"`),
+while `value.contentRelation?` preserves the diverged tree relation. Step 6 reads both inside the `clean` arm to
 distinguish the collapsed cases for orientation surfacing.
 
 **Interlock-mode keys on `config.value.settings.{commit.interlock, push.interlock}`**: Both are
@@ -784,7 +785,17 @@ tracked source documents the work.
   `arc user compact` when ready.
   ```
 
-- `user.value.state == "clean"` AND `user.value.refState == "local-ahead"`:
+- `user.value.state == "conflict"` AND `user.value.contentRelation ∈ {local-subset, equal,
+  mixed-uncontested}`: the refs diverged without contested note content. Surface expected residue that reconciles
+  at the next paired push; never offer pull.
+
+  ```text
+  **Notes reconciling:** local and remote notes diverged without contested entries; expected residue will
+  reconcile at the next paired push. No pull action is needed.
+  ```
+
+- `user.value.state == "clean"` AND (`user.value.refState == "local-ahead"` OR
+  (`user.value.refState == "diverged"` AND `user.value.contentRelation == "remote-subset"`)):
 
   ```text
   **Local-ahead notes:** local user-notes ref is ahead of remote. Push (or `arc sync`) when ready; non-blocking.

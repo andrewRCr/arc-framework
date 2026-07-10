@@ -115,8 +115,11 @@ export function reportUserFetchOutcome(
       process.exitCode = 1;
       return;
     case "refused-diverged":
-      p.log.error(`Local and remote notes for "${identity}" have diverged; ${operation} would discard local notes.`);
-      p.log.info("Run `arc user push` or `arc sync` to reconcile, then retry.");
+      p.log.error(
+        `Local and remote notes for "${identity}" have diverged; `
+        + `${operation} refuses diverged notes refs to preserve local notes.`,
+      );
+      p.log.info("Inspect with `arc user status`, then choose an explicit push or repair.");
       process.exitCode = 1;
       return;
     case "remote-unavailable": {

@@ -588,6 +588,7 @@ export interface InspectUserSyncOptions {
  * - `local note ahead`  — local git note is newer than remote.
  * - `git note out of date` — working files do not match the latest local git note.
  * - `notes conflict`    — local and remote notes both moved from a common ancestor.
+ * - `notes diverged (reconciling)` — refs diverged without contested note content.
  * - `remote unavailable` — remote could not be reached for comparison.
  *
  * These terms must round-trip cleanly from user mental model to behavior — if
@@ -599,6 +600,7 @@ export type UserStatusHeadline =
   | "remote note ahead"
   | "local note ahead"
   | "git note out of date"
+  | "notes diverged (reconciling)"
   | "notes conflict"
   | "remote unavailable";
 

@@ -263,6 +263,62 @@ describe("buildUserStatusResult", () => {
     expect(result.actionHint).toContain("arc user fetch");
   });
 
+  it("renders remote-subset divergence with local-ahead export-residue guidance", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "diverged",
+      contentRelation: "remote-subset",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.headline).toBe("local note ahead");
+    expect(result.remoteStatus).toBe("local ahead");
+    expect(result.actionHint).toContain("arc user push");
+    expect(result.detailLines.join(" ")).toContain("branch-export residue");
+  });
+
+  it("renders zero-contested divergence as reconciling rather than conflicting", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "diverged",
+      contentRelation: "mixed-uncontested",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.headline).toBe("notes diverged (reconciling)");
+    expect(result.summary).not.toContain("conflict");
+    expect(result.actionHint).toContain("next paired push");
+    expect(result.detailLines.join(" ")).not.toContain("arc user pull");
+  });
+
+  it("renders contested divergence with genuine-conflict inspection guidance", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "diverged",
+      contentRelation: "conflicting",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.headline).toBe("notes conflict");
+    expect(result.actionHint).toContain("contested notes");
+    expect(result.detailLines.join(" ")).not.toContain("arc user pull");
+  });
+
   it("renders save timestamp detail line when savedAtRelative is provided", () => {
     const result = buildUserStatusResult({
       identity: "andrew",

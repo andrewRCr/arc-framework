@@ -114,71 +114,34 @@ contested-or-not.
   collapses to clean, every other diverged relation preserves the conflict spine, and only remote-ahead prompts
   for pull while zero-contested and genuine-conflict guidance remain distinct.
 
-### `[ ]` **3.3 Status, sync dispatch, and pull-offer guidance**
+### `[x]` **3.3 Status, sync dispatch, and pull-offer guidance**
 
 - _Goal:_ On every non-`conflicting` relation, no surface offers or auto-fires a pull that
   `runUserPull` would refuse; `conflicting` renders truthful guidance on all three projections.
 
-    - `[ ]` **3.3.a `arc user status` headline and cause lines**
-        - `deriveRemoteStatus` / `determineUserStatusHeadline` / cause rendering read the relation:
-          `remote-subset` renders existing `local ahead` vocabulary with an export-residue cause line;
-          `mixed-uncontested` renders divergence-reconciles-at-next-push; `conflicting` keeps conflict
-          vocabulary with truthful guidance.
-        - Extend `UserStatusHeadline` with one truthful member for conflict-spine zero-contested
-          divergence (e.g. `notes diverged (reconciling)`) — the union's own doc contract extends rather
-          than overloads, no existing member is truthful for this shape, and `notes conflict` is exactly
-          the banned vocabulary. The spine enum stays fixed.
-        - The relation-aware inventory covers every conflict-arm render site: also
-          `determineUserStatusAction`'s conflict arm, `renderActionOrientedHeadline`, and
-          `renderCauseAwareActionHeadline` — not only the headline/cause pair.
-        - The export-residue cause line renders from the relation at the rendering site — a divergence
-          _shape_ fact, not a _why_ attribution. `inferUserSyncCause` (`lib/user-sync/inference.ts`) and
-          its five-value taxonomy stay untouched.
+    - `[x]` **3.3.a `arc user status` headline and cause lines**
+        - Added relation-aware headline, action, verbose/detail, and cause-aware rendering: remote-subset uses
+          local-ahead/export-residue vocabulary, zero-contested divergence reconciles, and conflicts stay genuine.
 
-    - `[ ]` **3.3.b `arc user sync` dispatch and conflict select**
-        - Thread the relation onto `UserSyncState` via `inspectUserSyncState` so the handler layer can read
-          it. `decideSyncAction` (`handlers/user-sync.ts`) routes only `conflicting` to `handleConflict`;
-          the conflict-spine zero-contested relations (`local-subset` / `equal` / `mixed-uncontested`)
-          return a new guidance-only action — info lines stating the divergence reconciles at the next
-          paired push, then outro; no select, no destructive action (explicit `arc user push` remains the
-          manual path). `remote-subset` is not on this arm: it follows local-ahead semantics and dispatches
-          `push` (viable — the push path's `git notes merge` reconcile handles the non-fast-forward). The
-          conflict select drops the impossible "Pull remote state" option and offers
-          push / inspect / cancel.
+    - `[x]` **3.3.b `arc user sync` dispatch and conflict select**
+        - Zero-contested divergence now exits through guidance only, remote-subset follows push semantics, and
+          the genuine-conflict select offers push / inspect / cancel with no impossible pull route.
 
-    - `[ ]` **3.3.c Session-init recommendation and refusal-message truthfulness**
-        - `inferUser` (`lib/session-init/recommended-action.ts`): the conflict spine never prompts or
-          pulls on any relation — pull refuses diverged refs, so the arm reduces to `surface` under every
-          policy (`always` included), with the relation selecting the surfaced guidance. The conflict
-          branches of `composeNotesPromptText` and `composeCombinedPrompt` become unreachable — delete
-          them rather than leaving dead vocabulary. The clean-arm informational surface covers
-          `remote-subset`. `runUserPull`'s `refused-diverged` copy renders in `reportUserFetchOutcome`
-          (`handlers/shared.ts`) — `push-fetch.ts` only returns the typed kind; the wording is shared with
-          `arc user fetch`, so the edit covers both operations. It states that pull refuses diverged refs
-          and directs to inspection — pull behavior itself unchanged (Scope boundary: no content-superset
-          replace).
+    - `[x]` **3.3.c Session-init recommendation and refusal-message truthfulness**
+        - Conflict recommendations surface under every policy, clean remote-subset surfaces informationally,
+          dead conflict prompt copy was removed, and fetch/pull refusal directs to status inspection.
 
-    - Build `test-first` (one behavior at a time — `decideSyncAction` / `inferUser` units):
-        - Conflict spine → `surface` under every policy (`always` included), never `pull`, never `prompt`
-        - Zero-contested relations → no pull offer on any projection's composed text
-        - `conflicting` → `handleConflict` route with pull option absent; zero-contested → the
-          guidance-only action, never the conflict select
+- _Outcome:_ All three projections consume the same content relation and avoid pull actions for diverged refs,
+  while preserving actionable local-ahead, next-push reconciliation, and genuine-conflict paths.
 
-### `[ ]` **3.4 Session-init workflow doc wording**
+### `[x]` **3.4 Session-init workflow doc wording**
 
 - _Goal:_ The session-init workflow's clean-arm collapse note names the `remote-subset` case, and orientation
   guidance names the zero-contested reconciles-at-next-push wording — no new dispatch arms.
 
-    - The package copy is the template variant: edit the framework section in
-      `session-init.template.md` (package source, `arc/system/workflows/arc/session-lifecycle/`) and sync
-      the project instance `.arc/system/workflows/arc/session-lifecycle/session-init.md` per the two-copy
-      discipline. The wording states expected divergence reconciling at the next paired push, without
-      conflict vocabulary.
-
-    - The Step 6 informational arm keys on `clean` + `refState == "local-ahead"`; widen its condition to
-      also fire on `clean` + `refState == "diverged"` with the `remote-subset` relation, rendering the same
-      informational line — a dispatch-condition edit on the existing arm, still no new arms. Without it the
-      collapsed case renders nothing at orientation.
+- _Outcome:_ Updated the package template and rendered project workflow in lockstep: the clean collapse names
+  remote-subset, Step 6 widens its local-ahead informational condition, and zero-contested divergence explicitly
+  reconciles at the next paired push without a pull offer.
 
 ## **Phase 4:** End-to-end regressions
 
