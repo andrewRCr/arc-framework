@@ -16,11 +16,18 @@ import {
   adoptCompactedNotesRef,
   readNotesCompactionManifest,
 } from "./compaction.js";
-import type { NotesCompactionManifest } from "./compaction-manifest.js";
+import {
+  NOTES_COMPACTION_MANIFEST_PATH,
+  pairKey,
+  type NotesCompactionManifest,
+} from "./compaction-manifest.js";
+import { resolveExcludedNotePairKeys } from "./note-set-relation.js";
 import { isRemoteUnavailableError } from "./notes-merge.js";
+import { listNoteTreeEntries } from "./notes-ref.js";
 
 const USER_NOTES_REF_PREFIX = "refs/notes/arc/user";
 const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const BRANCH_BOUNDED_NOTES_JOIN_MESSAGE = "user notes branch-bounded export join";
 
 /** Planned temporary notes ref whose tip is safe to push to origin. */
 export interface BranchBoundedNotesExportTarget {
@@ -84,6 +91,20 @@ export interface PushBranchBoundedNotesExportInput {
   target: BranchBoundedNotesExportTarget;
 }
 
+/** Inputs for building a two-parent union of local and pushed notes trees. */
+export interface BuildBranchBoundedNotesUnionCommitInput {
+  exec: GitExec;
+  execInput: GitExecInput;
+  priorLocalTip: string;
+  pushedTip: string;
+}
+
+/** A staged notes union commit and its deterministic tree. */
+export interface BranchBoundedNotesUnionCommit {
+  tip: string;
+  tree: string;
+}
+
 /** Inputs for {@link cleanupBranchBoundedNotesExport}. */
 export interface CleanupBranchBoundedNotesExportInput {
   exec: GitExec;
@@ -93,6 +114,61 @@ export interface CleanupBranchBoundedNotesExportInput {
 interface NoteEntry {
   blob: string;
   commit: string;
+}
+
+/**
+ * Build a deterministic local-wins union commit over two notes trees.
+ *
+ * @param input - Git plumbing and the two notes-ref tips to join.
+ * @returns The two-parent commit tip and deterministic union tree id.
+ */
+export async function buildBranchBoundedNotesUnionCommit(
+  input: BuildBranchBoundedNotesUnionCommitInput,
+): Promise<BranchBoundedNotesUnionCommit> {
+  const [localEntries, pushedEntries, localManifest, pushedManifest] = await Promise.all([
+    listNoteTreeEntries(input.exec, input.priorLocalTip),
+    listNoteTreeEntries(input.exec, input.pushedTip),
+    readNotesCompactionManifest(input.exec, input.priorLocalTip),
+    readNotesCompactionManifest(input.exec, input.pushedTip),
+  ]);
+  const excluded = resolveExcludedNotePairKeys(localManifest, pushedManifest);
+  const treeEntries = new Map<string, string>();
+  for (const entry of pushedEntries) {
+    if (!excluded.has(pairKey(entry))) treeEntries.set(entry.commit, entry.blob);
+  }
+  for (const entry of localEntries) {
+    if (!excluded.has(pairKey(entry))) treeEntries.set(entry.commit, entry.blob);
+  }
+
+  const manifestSource = selectUnionManifest({
+    localManifest,
+    localTip: input.priorLocalTip,
+    pushedManifest,
+    pushedTip: input.pushedTip,
+  });
+  if (manifestSource !== null) {
+    treeEntries.set(
+      NOTES_COMPACTION_MANIFEST_PATH,
+      await readTreeBlob(input.exec, manifestSource.tip, NOTES_COMPACTION_MANIFEST_PATH),
+    );
+  }
+
+  const treeInput = [...treeEntries.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([path, blob]) => `100644 blob ${blob}\t${path}`)
+    .join("\n") + "\n";
+  const tree = (await input.execInput(["mktree"], treeInput)).trim();
+  const { stdout } = await input.exec("git", [
+    "commit-tree",
+    tree,
+    "-p",
+    input.priorLocalTip,
+    "-p",
+    input.pushedTip,
+    "-m",
+    BRANCH_BOUNDED_NOTES_JOIN_MESSAGE,
+  ]);
+  return { tip: stdout.trim(), tree };
 }
 
 /**
@@ -389,6 +465,32 @@ function parseNoteListLine(line: string): NoteEntry | null {
     return null;
   }
   return { blob, commit };
+}
+
+function selectUnionManifest(input: {
+  localManifest: NotesCompactionManifest | null;
+  localTip: string;
+  pushedManifest: NotesCompactionManifest | null;
+  pushedTip: string;
+}): { manifest: NotesCompactionManifest; tip: string } | null {
+  if (
+    input.pushedManifest !== null
+    && input.pushedManifest.generation > (input.localManifest?.generation ?? 0)
+  ) {
+    return { manifest: input.pushedManifest, tip: input.pushedTip };
+  }
+  return input.localManifest === null
+    ? null
+    : { manifest: input.localManifest, tip: input.localTip };
+}
+
+async function readTreeBlob(exec: GitExec, commitish: string, path: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", `${commitish}:${path}`]);
+  const blob = stdout.trim();
+  if (!GIT_OBJECT_ID_PATTERN.test(blob)) {
+    throw new Error(`Tree entry did not resolve to a git object: ${commitish}:${path}`);
+  }
+  return blob;
 }
 
 async function readRemoteRefTip(exec: GitExec, ref: string): Promise<string | null> {

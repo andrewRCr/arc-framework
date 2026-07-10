@@ -18,6 +18,7 @@ import {
   execFileAsync,
   makeCommit,
   makeGitExec,
+  makeGitExecInput,
   makeUserIO,
 } from "../helpers/integration.js";
 import { runPairedPush, runUserSave } from "../../src/commands/user.js";
@@ -26,14 +27,17 @@ import type {
   PairedPushNotesPusherResult,
 } from "../../src/commands/user.js";
 import {
+  buildBranchBoundedNotesUnionCommit,
   cleanupBranchBoundedNotesExport,
   type BranchBoundedNotesExportTarget,
   planBranchBoundedNotesExport,
   pushBranchBoundedNotesExport,
 } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
+import { listNoteTreeEntries } from "../../src/lib/user-sync/notes-ref.js";
 import {
   NOTES_COMPACTION_MANIFEST_PATH,
   serializeNotesCompactionManifest,
+  type NotesCompactionManifest,
 } from "../../src/lib/user-sync/compaction-manifest.js";
 
 const IDENTITY = "test-user";
@@ -73,6 +77,131 @@ async function remoteNoteCommits(remote: string): Promise<string[]> {
 async function noteContent(cwd: string, commit: string): Promise<string> {
   return git(cwd, ["notes", `--ref=${NOTES_REF}`, "show", commit]);
 }
+
+const oid = (seed: string): string => seed.padEnd(40, "0");
+
+async function makeNotesTreeCommit(
+  cwd: string,
+  entries: { commit: string; content: string }[],
+  manifest?: NotesCompactionManifest,
+): Promise<{ blobs: Map<string, string>; manifestBlob: string | null; tip: string }> {
+  const execInput = makeGitExecInput(cwd);
+  const blobs = new Map<string, string>();
+  for (const entry of entries) {
+    blobs.set(entry.commit, (await execInput(["hash-object", "-w", "--stdin"], entry.content)).trim());
+  }
+  const manifestBlob = manifest === undefined
+    ? null
+    : (await execInput(["hash-object", "-w", "--stdin"], serializeNotesCompactionManifest(manifest))).trim();
+  const treeEntries = new Map(blobs);
+  if (manifestBlob !== null) treeEntries.set(NOTES_COMPACTION_MANIFEST_PATH, manifestBlob);
+  const treeInput = [...treeEntries.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([path, blob]) => `100644 blob ${blob}\t${path}`)
+    .join("\n") + "\n";
+  const tree = (await execInput(["mktree"], treeInput)).trim();
+  const tip = await git(cwd, ["commit-tree", tree, "-m", "test notes tree"]);
+  return { blobs, manifestBlob, tip };
+}
+
+describe("branch-bounded notes union commit", () => {
+  it("unions both trees with local blobs winning contested commits", async () => {
+    const repo = await createTempRepo("arc-branch-notes-union-");
+    try {
+      const localOnly = oid("a1");
+      const pushedOnly = oid("b2");
+      const contested = oid("c3");
+      const local = await makeNotesTreeCommit(repo, [
+        { commit: localOnly, content: "local only" },
+        { commit: contested, content: "local wins" },
+      ]);
+      const pushed = await makeNotesTreeCommit(repo, [
+        { commit: pushedOnly, content: "pushed only" },
+        { commit: contested, content: "pushed loses" },
+      ]);
+
+      const result = await buildBranchBoundedNotesUnionCommit({
+        exec: makeGitExec(repo),
+        execInput: makeGitExecInput(repo),
+        priorLocalTip: local.tip,
+        pushedTip: pushed.tip,
+      });
+
+      expect(await git(repo, ["show", "-s", "--format=%P", result.tip]))
+        .toBe(`${local.tip} ${pushed.tip}`);
+      expect(new Map(
+        (await listNoteTreeEntries(makeGitExec(repo), result.tip))
+          .map((entry) => [entry.commit, entry.blob]),
+      )).toEqual(new Map([
+        [localOnly, local.blobs.get(localOnly)],
+        [pushedOnly, pushed.blobs.get(pushedOnly)],
+        [contested, local.blobs.get(contested)],
+      ]));
+    } finally {
+      await cleanupTempDir(repo);
+    }
+  });
+
+  it("carries the newer manifest and excludes its pruned pairs", async () => {
+    const repo = await createTempRepo("arc-branch-notes-union-manifest-");
+    try {
+      const kept = oid("a1");
+      const pruned = oid("b2");
+      const local = await makeNotesTreeCommit(repo, [
+        { commit: kept, content: "kept" },
+        { commit: pruned, content: "pruned" },
+      ], {
+        version: 1,
+        generation: 1,
+        preCompactionTip: null,
+        pruned: [],
+      });
+      const prunedBlob = local.blobs.get(pruned);
+      expect(prunedBlob).toBeDefined();
+      const pushed = await makeNotesTreeCommit(repo, [], {
+        version: 1,
+        generation: 2,
+        preCompactionTip: local.tip,
+        pruned: [{ blob: prunedBlob ?? "", commit: pruned }],
+      });
+
+      const result = await buildBranchBoundedNotesUnionCommit({
+        exec: makeGitExec(repo),
+        execInput: makeGitExecInput(repo),
+        priorLocalTip: local.tip,
+        pushedTip: pushed.tip,
+      });
+
+      expect(await listNoteTreeEntries(makeGitExec(repo), result.tip))
+        .toEqual([{ blob: local.blobs.get(kept), commit: kept }]);
+      expect(await git(repo, ["rev-parse", `${result.tip}:${NOTES_COMPACTION_MANIFEST_PATH}`]))
+        .toBe(pushed.manifestBlob);
+    } finally {
+      await cleanupTempDir(repo);
+    }
+  });
+
+  it("builds the same tree for the same input tips", async () => {
+    const repo = await createTempRepo("arc-branch-notes-union-deterministic-");
+    try {
+      const local = await makeNotesTreeCommit(repo, [{ commit: oid("a1"), content: "local" }]);
+      const pushed = await makeNotesTreeCommit(repo, [{ commit: oid("b2"), content: "pushed" }]);
+      const input = {
+        exec: makeGitExec(repo),
+        execInput: makeGitExecInput(repo),
+        priorLocalTip: local.tip,
+        pushedTip: pushed.tip,
+      };
+
+      const first = await buildBranchBoundedNotesUnionCommit(input);
+      const second = await buildBranchBoundedNotesUnionCommit(input);
+
+      expect(second.tree).toBe(first.tree);
+    } finally {
+      await cleanupTempDir(repo);
+    }
+  });
+});
 
 describe("branch-bounded paired notes export", () => {
   let repo: string | undefined;

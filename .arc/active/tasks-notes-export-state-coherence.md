@@ -46,26 +46,13 @@ The union commit is built deterministically with plumbing (`mktree` / `commit-tr
 ancestry: `localIncludesRemote` → local-wins; otherwise any contested pair refuses (today's skip stands). Zero
 contested pairs → the join proceeds regardless of ancestry.
 
-### `[ ]` **2.1 Two-parent union commit builder**
+### `[x]` **2.1 Two-parent union commit builder**
 
 - _Goal:_ A deterministic union commit exists whose tree carries all local + all pushed entries, whose parents
   are the prior local tip and the pushed export tip, with the manifest resolved by compaction generation and
   pruned pairs excluded from the union tree.
-
-    - Stage the union tree from the tree at `priorLocalTip` and the tree at `target.tip` (Phase 1 lister) —
-      never the current local ref, whose state the CAS in 2.2.c validates separately; `mktree` over sorted
-      entries, `commit-tree` with `-p <priorLocalTip> -p <pushedTip>`. Plumbing runs on `execInput`
-      (`buildSnapshotCommit` in `compaction.ts` is the pattern).
-
-    - Manifest resolution: newer generation wins (reuse the comparison `adoptRemoteCompactionIfNewer`
-      performs); local-wins on tie or absence. The excluded-pairs resolver from `note-set-relation.ts` (1.2)
-      supplies the pruned set — pairs pruned by the newer-generation manifest never enter the union tree, so
-      a compacted local ref is never re-inflated.
-
-    - Build `test-first` (one behavior at a time):
-        - Union tree = local entries ∪ pushed entries; contested pairs resolve local-wins (ancestry arm)
-        - Newer-generation manifest lands in the union tree; pruned pairs absent
-        - Deterministic output (same inputs → same tree sha)
+- _Outcome:_ Added a deterministic two-parent union builder with sorted local-wins entries, authoritative
+  generation-based manifest selection, pruned-pair filtering, and an exposed tree id for the later no-op guard.
 
 ### `[ ]` **2.2 Join arm in `adoptPushedTipIntoLocalRef`**
 
