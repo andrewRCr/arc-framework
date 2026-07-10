@@ -12,11 +12,11 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Finalized `spec-reviewed-lane-review-gate.md`
+- **Last Completed:** Completed task grounding and suite coherence through Phase 7
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Continue `generate-tasks` — offer adversarial review, then run the pre-save checklist
 
 - **PR URL:** [none]
 - **Completed:** [none]
