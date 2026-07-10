@@ -14,8 +14,7 @@ _Design decisions:_ The classifier is a standalone pure module (`lib/user-sync/n
 entry sets with their manifests, so `user-sync-module-split` can relocate it freely and the `sync-status.ts`
 monolith does not deepen.
 Entry listing reads `git ls-tree -r <sha>` with notes-fanout path flattening — never `git notes --ref` against a
-`refs/arc-sync-temp/…` ref, which DWIM-mislists as empty. See `notes-notes-export-state-coherence.md`
-§ Implementation notes for the fallback mechanism if `ls-tree` flattening proves awkward.
+`refs/arc-sync-temp/…` ref, which DWIM-mislists as empty.
 
 ### `[x]` **1.1 Sha-addressed note-entry listing helper**
 
