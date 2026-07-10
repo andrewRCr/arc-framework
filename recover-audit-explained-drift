@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "recover-audit-explained-drift",
-  "origin": "inbox",
-  "intent": "Gate recover-audit stop on unexplained drift only; fully-explained committed-progress drift resolves to ready (binary verdict preserved)",
-  "branch": "fix/recover-audit-explained-drift",
-  "createdAt": "2026-07-04T22:31:00.466Z",
-  "originEntry": "Make the recovery-audit verdict distinguish expected drift from alarming drift"
-}
