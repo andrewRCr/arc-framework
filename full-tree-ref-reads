@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "full-tree-ref-reads",
+  "origin": "description",
+  "intent": "git ls-tree reads are CWD-path-scoped, silently no-oping record removals and blinding ref-tree/oracle reads from subdirectories; pin with --full-tree",
+  "branch": "fix/full-tree-ref-reads",
+  "createdAt": "2026-07-10T12:48:24.308Z"
+}
