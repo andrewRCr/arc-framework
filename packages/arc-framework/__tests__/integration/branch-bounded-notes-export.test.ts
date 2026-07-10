@@ -22,6 +22,7 @@ import {
   makeUserIO,
 } from "../helpers/integration.js";
 import { runPairedPush, runUserSave } from "../../src/commands/user.js";
+import type { GitExec } from "../../src/lib/git/index.js";
 import type {
   PairedPushNotesPusher,
   PairedPushNotesPusherResult,
@@ -370,6 +371,303 @@ describe("branch-bounded paired notes export", () => {
         exec: makeGitExec(repo),
         target: plan.target,
       });
+    }
+  });
+
+  it("joins mixed-uncontested local and pushed note trees after export", async () => {
+    repo = await createTempRepo("arc-branch-notes-mixed-join-");
+    const base = await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    await git(repo, ["checkout", "-b", "work-a"]);
+    const commitA = await makeCommit(repo, "work A");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "note A", commitA]);
+
+    await git(repo, ["checkout", "main"]);
+    await git(repo, ["checkout", "-b", "work-b"]);
+    const commitB = await makeCommit(repo, "work B");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "note B", commitB]);
+
+    await addRemoteNote(remote, base, "remote base note");
+    await git(repo, ["checkout", "work-a"]);
+    await git(repo, ["push", "-u", "origin", "work-a"]);
+
+    const plan = await planBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      identity: IDENTITY,
+      branch: "work-a",
+    });
+    expect(plan.kind).toBe("planned");
+    if (plan.kind !== "planned") return;
+    expect(plan.target).toMatchObject({
+      localIncludesRemote: false,
+      supersedesLocal: false,
+    });
+
+    const outcome = await pushBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      execInput: makeGitExecInput(repo),
+      identity: IDENTITY,
+      target: plan.target,
+    });
+    expect(outcome).toEqual({ kind: "pushed" });
+
+    const localAfter = await git(repo, ["rev-parse", NOTES_REF]);
+    await git(repo, ["merge-base", "--is-ancestor", plan.target.tip, localAfter]);
+    expect(await noteContent(repo, base)).toBe("remote base note");
+    expect(await noteContent(repo, commitA)).toBe("note A");
+    expect(await noteContent(repo, commitB)).toBe("note B");
+
+    const countAfterJoin = await git(repo, ["rev-list", "--count", NOTES_REF]);
+    const repeatPlan = await planBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      identity: IDENTITY,
+      branch: "work-a",
+    });
+    expect(repeatPlan.kind).toBe("planned");
+    if (repeatPlan.kind !== "planned") return;
+    const repeatOutcome = await pushBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      execInput: makeGitExecInput(repo),
+      identity: IDENTITY,
+      target: repeatPlan.target,
+    });
+    expect(repeatOutcome).toEqual({ kind: "noop" });
+    expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(localAfter);
+    expect(await git(repo, ["rev-list", "--count", NOTES_REF])).toBe(countAfterJoin);
+  });
+
+  it("joins contested omitted notes with local winning when local contains remote ancestry", async () => {
+    repo = await createTempRepo("arc-branch-notes-contested-ancestor-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    await git(repo, ["checkout", "-b", "work-b"]);
+    const commitB = await makeCommit(repo, "work B");
+    await git(repo, ["push", "-u", "origin", "work-b"]);
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "old note B", commitB]);
+    await git(repo, ["push", "origin", NOTES_REF]);
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-f", "-m", "local note B", commitB]);
+
+    await git(repo, ["checkout", "main"]);
+    await git(repo, ["checkout", "-b", "work-a"]);
+    const commitA = await makeCommit(repo, "work A");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "note A", commitA]);
+    await git(repo, ["push", "-u", "origin", "work-a"]);
+
+    const plan = await planBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      identity: IDENTITY,
+      branch: "work-a",
+    });
+    expect(plan.kind).toBe("planned");
+    if (plan.kind !== "planned") return;
+    expect(plan.target).toMatchObject({
+      localIncludesRemote: true,
+      omittedCommits: [commitB],
+      supersedesLocal: false,
+    });
+
+    const outcome = await pushBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      execInput: makeGitExecInput(repo),
+      identity: IDENTITY,
+      target: plan.target,
+    });
+    expect(outcome).toEqual({ kind: "pushed" });
+
+    const localAfter = await git(repo, ["rev-parse", NOTES_REF]);
+    await git(repo, ["merge-base", "--is-ancestor", plan.target.tip, localAfter]);
+    expect(await noteContent(repo, commitA)).toBe("note A");
+    expect(await noteContent(repo, commitB)).toBe("local note B");
+  });
+
+  it("refuses a contested join without ancestry and leaves the refs diverged", async () => {
+    repo = await createTempRepo("arc-branch-notes-contested-refusal-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    await git(repo, ["checkout", "-b", "work-b"]);
+    const commitB = await makeCommit(repo, "work B");
+    await git(repo, ["push", "-u", "origin", "work-b"]);
+    await addRemoteNote(remote, commitB, "remote note B");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "local note B", commitB]);
+
+    await git(repo, ["checkout", "main"]);
+    await git(repo, ["checkout", "-b", "work-a"]);
+    const commitA = await makeCommit(repo, "work A");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "note A", commitA]);
+    await git(repo, ["push", "-u", "origin", "work-a"]);
+
+    const plan = await planBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      identity: IDENTITY,
+      branch: "work-a",
+    });
+    expect(plan.kind).toBe("planned");
+    if (plan.kind !== "planned") return;
+    expect(plan.target).toMatchObject({
+      localIncludesRemote: false,
+      omittedCommits: [commitB],
+      supersedesLocal: false,
+    });
+
+    const outcome = await pushBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      execInput: makeGitExecInput(repo),
+      identity: IDENTITY,
+      target: plan.target,
+    });
+    expect(outcome).toEqual({ kind: "pushed" });
+
+    expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(plan.target.priorLocalTip);
+    expect(await git(remote, ["rev-parse", NOTES_REF])).toBe(plan.target.tip);
+    expect(await noteContent(repo, commitB)).toBe("local note B");
+    expect(await noteContent(remote, commitB)).toBe("remote note B");
+  });
+
+  it("contains a join CAS failure after a concurrent local notes advance", async () => {
+    repo = await createTempRepo("arc-branch-notes-join-cas-");
+    const base = await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    await git(repo, ["checkout", "-b", "work-a"]);
+    const commitA = await makeCommit(repo, "work A");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "note A", commitA]);
+
+    await git(repo, ["checkout", "main"]);
+    await git(repo, ["checkout", "-b", "work-b"]);
+    const commitB = await makeCommit(repo, "work B");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "note B", commitB]);
+    await addRemoteNote(remote, base, "remote base note");
+
+    await git(repo, ["checkout", "work-a"]);
+    await git(repo, ["push", "-u", "origin", "work-a"]);
+    const plan = await planBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      identity: IDENTITY,
+      branch: "work-a",
+    });
+    expect(plan.kind).toBe("planned");
+    if (plan.kind !== "planned") return;
+    expect(plan.target.supersedesLocal).toBe(false);
+
+    const commitC = await makeCommit(repo, "work C");
+    await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "note C", commitC]);
+    const localAdvanced = await git(repo, ["rev-parse", NOTES_REF]);
+
+    const outcome = await pushBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      execInput: makeGitExecInput(repo),
+      identity: IDENTITY,
+      target: plan.target,
+    });
+    expect(outcome).toEqual({ kind: "pushed" });
+    expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(localAdvanced);
+    expect(await noteContent(repo, commitC)).toBe("note C");
+  });
+
+  it("does not restore pairs pruned by a newer local compaction manifest", async () => {
+    repo = await createTempRepo("arc-branch-notes-join-compaction-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+
+    const prunedCommit = oid("a1");
+    const remoteOnly = oid("b2");
+    const keptLocal = oid("c3");
+    const pushed = await makeNotesTreeCommit(repo, [
+      { commit: prunedCommit, content: "old pruned note" },
+      { commit: remoteOnly, content: "remote only" },
+    ], {
+      version: 1,
+      generation: 1,
+      preCompactionTip: null,
+      pruned: [],
+    });
+    const prunedBlob = pushed.blobs.get(prunedCommit);
+    expect(prunedBlob).toBeDefined();
+    const local = await makeNotesTreeCommit(repo, [
+      { commit: keptLocal, content: "kept local" },
+    ], {
+      version: 1,
+      generation: 2,
+      preCompactionTip: pushed.tip,
+      pruned: [{ blob: prunedBlob ?? "", commit: prunedCommit }],
+    });
+    const tempRef = `${NOTES_REF}__branch_export_compaction`;
+    await git(repo, ["update-ref", NOTES_REF, local.tip]);
+    await git(repo, ["update-ref", tempRef, pushed.tip]);
+    await git(repo, ["push", "origin", `${pushed.tip}:${NOTES_REF}`]);
+
+    const outcome = await pushBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      execInput: makeGitExecInput(repo),
+      identity: IDENTITY,
+      target: {
+        ref: tempRef,
+        destinationRef: NOTES_REF,
+        tip: pushed.tip,
+        priorLocalTip: local.tip,
+        annotatedCommits: [remoteOnly],
+        omittedCommits: [keptLocal],
+        supersedesLocal: false,
+        localIncludesRemote: false,
+      },
+    });
+    expect(outcome).toEqual({ kind: "noop" });
+
+    const localAfter = await git(repo, ["rev-parse", NOTES_REF]);
+    await git(repo, ["merge-base", "--is-ancestor", pushed.tip, localAfter]);
+    expect((await listNoteTreeEntries(makeGitExec(repo), localAfter)).map((entry) => entry.commit).sort())
+      .toEqual([keptLocal, remoteOnly].sort());
+    expect(await git(repo, ["rev-parse", `${localAfter}:${NOTES_COMPACTION_MANIFEST_PATH}`]))
+      .toBe(local.manifestBlob);
+  });
+
+  it("contains listing and manifest-read failures without changing the pushed outcome", async () => {
+    repo = await createTempRepo("arc-branch-notes-join-read-failure-");
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+    const local = await makeNotesTreeCommit(repo, [{ commit: oid("a1"), content: "local" }]);
+    const pushed = await makeNotesTreeCommit(repo, [{ commit: oid("b2"), content: "pushed" }]);
+    const tempRef = `${NOTES_REF}__branch_export_read_failure`;
+    await git(repo, ["update-ref", NOTES_REF, local.tip]);
+    await git(repo, ["update-ref", tempRef, pushed.tip]);
+    await git(repo, ["push", "origin", `${pushed.tip}:${NOTES_REF}`]);
+    const target: BranchBoundedNotesExportTarget = {
+      ref: tempRef,
+      destinationRef: NOTES_REF,
+      tip: pushed.tip,
+      priorLocalTip: local.tip,
+      annotatedCommits: [oid("b2")],
+      omittedCommits: [oid("a1")],
+      supersedesLocal: false,
+      localIncludesRemote: false,
+    };
+
+    for (const failure of ["listing", "manifest"] as const) {
+      const baseExec = makeGitExec(repo);
+      const exec: GitExec = async (cmd, args, options) => {
+        if (failure === "listing" && args[0] === "ls-tree" && args[2] === local.tip) {
+          throw new Error("listing failed");
+        }
+        if (
+          failure === "manifest"
+          && args[0] === "show"
+          && args[1] === `${local.tip}:${NOTES_COMPACTION_MANIFEST_PATH}`
+        ) {
+          return { stdout: "{invalid manifest", stderr: "" };
+        }
+        return baseExec(cmd, args, options);
+      };
+      const outcome = await pushBranchBoundedNotesExport({
+        exec,
+        execInput: makeGitExecInput(repo),
+        identity: IDENTITY,
+        target,
+      });
+      expect(outcome).toEqual({ kind: "noop" });
+      expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(local.tip);
     }
   });
 

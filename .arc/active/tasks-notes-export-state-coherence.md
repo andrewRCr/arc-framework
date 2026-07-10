@@ -54,57 +54,35 @@ contested pairs → the join proceeds regardless of ancestry.
 - _Outcome:_ Added a deterministic two-parent union builder with sorted local-wins entries, authoritative
   generation-based manifest selection, pruned-pair filtering, and an exposed tree id for the later no-op guard.
 
-### `[ ]` **2.2 Join arm in `adoptPushedTipIntoLocalRef`**
+### `[x]` **2.2 Join arm in `adoptPushedTipIntoLocalRef`**
 
 - _Goal:_ Divergence from branch-bounded export residue self-heals at the paired push: on any zero-contested or
   ancestry-resolvable topology where the union adds content, local ancestry gains the pushed tip (`refState`
   reads `local-ahead`) and the false-conflict surface clears; unions that would add nothing no-op instead of
   minting redundant commits.
 
-    - `[ ]` **2.2.a Join dispatch and refusal rule**
-        - Extend `BranchBoundedNotesExportTarget` with the plan-time `localIncludesRemote` verdict
-          (`planBranchBoundedNotesExport` already computes it and drops it) — the join cannot recompute
-          ancestry at adopt time, and carrying it is sound: the CAS re-validates the local side, and the
-          remote side just received this push. Thread `execInput` into `PushBranchBoundedNotesExportInput`
-          (optional; callers — `pairedNotesAdapter` in `handlers/sync.ts`, the paired-push context — have
-          `io.execInput` in scope); absent plumbing support degrades to today's skip, never a refused push.
-        - At `supersedesLocal === false`: classify contested state over the `priorLocalTip`-tree and
-          `target.tip`-tree entry sets (Phase 1 module). Zero contested pairs → join. Contested +
-          `localIncludesRemote` → join (local-wins). Contested without ancestry → refuse; today's skip
-          stands and Phase 3 classifies `conflicting`.
+    - `[x]` **2.2.a Join dispatch and refusal rule**
+        - Threaded plan-time ancestry and optional stdin plumbing into adoption; zero-contested trees join,
+          ancestry-resolvable contests use local-wins, and unresolvable contests preserve the diverged refs.
 
-    - `[ ]` **2.2.b No-op guard**
-        - Skip the join when the pushed tip is already in local ancestry, and when the union tree equals
-          the current local tree — in the equal-tree case the adopt no-ops entirely (no ref move: advancing
-          to the pushed tip would drop local-only entries, and the shape classifies `remote-subset`, which
-          Phase 3's spine mapping already renders clean). Covers the push flow's `remoteTip === target.tip`
-          no-op arm and every post-join re-push while omitted notes persist.
+    - `[x]` **2.2.b No-op guard**
+        - Already-ancestral pushed tips and identical uncontested union trees no-op; repeated paired pushes
+          retain the first join tip without minting further canonical-ref commits.
 
-    - `[ ]` **2.2.c CAS and failure containment**
-        - Commit the union against `priorLocalTip` via `update-ref <ref> <unionTip> <priorLocalTip>`;
-          a failed CAS (concurrent `arc user save`) leaves today's behavior. Best-effort: a failed join
-          never changes the push outcome. No retry loop.
-        - A listing or manifest-read failure while staging the union refuses the join (today's skip
-          stands) — a union is never built from a possibly-silently-empty side.
+    - `[x]` **2.2.c CAS and failure containment**
+        - The union moves the canonical ref only through an expected-old update; concurrent advances, missing
+          plumbing, strict listing failures, and invalid manifests preserve the successful remote push.
 
-    - Build `test-first` (one behavior at a time — integration tier, `branch-bounded-notes-export.test.ts`):
-        - Mixed-uncontested topology unions cleanly at the next paired push; origin tip becomes ancestor;
-          all entries preserved
-        - Contested + ancestry → local-wins join; contested without ancestry → refusal, refs stay diverged
-        - Repeated paired pushes with unchanged notes after the first join: no new commits on the local ref
-        - CAS-failure arm (ref advanced between plan and adopt) leaves prior behavior
-        - Compaction boundary: older-generation remote with pruned pairs does not re-inflate the local ref
+- _Outcome:_ Branch-bounded export now self-heals mixed and ancestry-resolvable residue with a two-parent join,
+  while no-op, conflict, compaction, read-failure, and concurrent-save paths remain lossless and bounded.
 
-### `[ ]` **2.3 Mutator-checklist review and strategy invariant update**
+### `[x]` **2.3 Mutator-checklist review and strategy invariant update**
 
 - _Goal:_ The join's write discipline is recorded: `strategy-user-notes-concurrency.md`'s CAS-Guarded
   branch-bounded-adopt invariant sentence covers the ancestry-resolvable join, and the checklist passes.
 
-    - Walk the § Review Checklist against the join (shared state written, discipline class, temp-ref
-      lifetime, recoverability on declined CAS / failed fetch, no durable mutation from status reads).
-
-    - Update the CAS-Guarded bullet ("adopts … only when the temp tree is a content superset") to state the
-      join condition. Project strategy — `.arc/` copy only, no package mirror.
+- _Outcome:_ Updated the project strategy's CAS-Guarded invariant after confirming the join writes only the
+  canonical ref, adds no temp-ref lifetime, preserves both sides on read/CAS failure, and leaves status read-only.
 
 ## **Phase 3:** Relation threading across projections
 

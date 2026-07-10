@@ -187,6 +187,7 @@ const NOTES_EXPORT_TARGET = {
   annotatedCommits: ["a".repeat(40)],
   omittedCommits: [],
   supersedesLocal: true,
+  localIncludesRemote: true,
 };
 
 /** No-op delay so auto-retry tests don't wait on real backoff timers. */
