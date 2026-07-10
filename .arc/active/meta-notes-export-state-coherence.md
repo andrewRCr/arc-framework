@@ -12,11 +12,11 @@
 - **Task List:** `tasks-notes-export-state-coherence.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Spec created (2026-07-09) — `spec-notes-export-state-coherence.md` at `outline` form;
-  draft retired to `notes-notes-export-state-coherence.md`; one converged adversarial pass folded (two majors
-  fixed in place: compaction pruned-pair exclusion in join + classifier, join no-op guard with corrected
-  steady-state); five-relation classification (added `mixed-uncontested`); stage advanced to `generate-tasks`.
-- **Next Task:** Begin Task 1.1 — Sha-addressed note-entry listing helper
+- **Last Completed:** Task list generated + WU activated (2026-07-10) — `tasks-notes-export-state-coherence.md`
+  finalized at `medium` depth (per-phase grounding audit + one adversarial pass folded: lister error contract,
+  headline-union member, remote-subset dispatch, three pointer fixes); base merged in (`5a09d5ae`); activated
+  onto `fix/notes-export-state-coherence`, `Class` confirmed `Light`.
+- **Next Task:** Task 1.1 — Sha-addressed note-entry listing helper (line ~20)
 - **Blockers:** [none]
 
 - **Next Action:** Begin task execution (process-task-loop) — Task 1.1
