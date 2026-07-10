@@ -266,6 +266,21 @@ describe("decideSyncAction", () => {
       remoteStatus: "local ahead",
       contentRelation: "remote-subset",
     })).toBe("push");
+    expect(decideSyncAction({
+      ...base,
+      spineState: "clean",
+      refState: "local-ahead",
+      remoteStatus: "local ahead",
+      contentRelation: "remote-subset",
+    })).toBe("guidance");
+    expect(decideSyncAction({
+      ...base,
+      spineState: "clean",
+      refState: "local-ahead",
+      remoteStatus: "local ahead",
+      contentRelation: "remote-subset",
+      diskStatus: "stale",
+    })).toBe("load");
   });
 });
 

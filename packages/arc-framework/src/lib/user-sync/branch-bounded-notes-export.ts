@@ -31,7 +31,8 @@ import { listNoteTreeEntries } from "./notes-ref.js";
 
 const USER_NOTES_REF_PREFIX = "refs/notes/arc/user";
 const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-const BRANCH_BOUNDED_NOTES_JOIN_MESSAGE = "user notes branch-bounded export join";
+/** Stable subject identifying the local union commit produced after a bounded export. */
+export const BRANCH_BOUNDED_NOTES_JOIN_MESSAGE = "user notes branch-bounded export join";
 
 /** Planned temporary notes ref whose tip is safe to push to origin. */
 export interface BranchBoundedNotesExportTarget {

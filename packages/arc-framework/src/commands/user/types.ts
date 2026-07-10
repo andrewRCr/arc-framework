@@ -545,7 +545,7 @@ export interface UserSyncSpine {
   state: UserSessionInitState;
   /** Raw notes-ref topology feeding the spine, or `null` when remote probing is disabled. */
   refState: UserSyncRefState | null;
-  /** Content relation carried only when raw topology is diverged. */
+  /** Content relation carried for divergence or recognized local-ahead branch-export residue. */
   contentRelation?: NoteSetRelation;
   /** Coherence condition layered on the ref topology, when recovery context exists. */
   coherenceState?: UserSyncCoherenceState;
@@ -776,7 +776,7 @@ export interface UserSessionInitStatusResult {
    * (`state === "disabled"`); present on every other arm.
    */
   refState?: UserSyncRefState;
-  /** Content relation carried only when the raw notes refs diverge. */
+  /** Content relation carried for divergence or recognized local-ahead branch-export residue. */
   contentRelation?: NoteSetRelation;
   /** Coherence detail preserved without expanding the five-state session-init surface. */
   coherenceState?: UserSyncCoherenceState;
