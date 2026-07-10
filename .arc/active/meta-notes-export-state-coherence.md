@@ -8,10 +8,10 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-notes-export-state-coherence.md`
+- **Design:** `spec-notes-export-state-coherence.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Draft captured (2026-07-09) — A+B design settled at medium depth (producer safe-join +
   content-relation classification + guidance fix) with one converged adversarial pass (one blocker + three
   majors fixed in place: contested-entry join rule, temp-ref mislisting, projection threading, `arc user sync`
