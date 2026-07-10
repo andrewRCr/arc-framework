@@ -136,8 +136,13 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
       });
       return;
     case "guidance":
-      p.log.info("Local and remote notes diverged without contested note content.");
-      p.log.info("The next paired push will reconcile them; no pull action is needed.");
+      if (state.refState === "local-ahead" && state.contentRelation === "remote-subset") {
+        p.log.info("Local notes contain expected branch-export residue.");
+        p.log.info("No additional push is needed; a later paired push will reconcile it safely.");
+      } else {
+        p.log.info("Local and remote notes diverged without contested note content.");
+        p.log.info("The next paired push will reconcile them; no pull action is needed.");
+      }
       p.outro("Done.");
       return;
     case "conflict":
@@ -159,6 +164,10 @@ export function decideSyncAction(state: UserSyncState): SyncAction {
         ? "pull"
         : "conflict";
     case "local ahead":
+      if (state.refState === "local-ahead" && state.contentRelation === "remote-subset") {
+        if (state.diskStatus === "current") return "guidance";
+        if (state.diskStatus === "stale") return "load";
+      }
       if (state.diskStatus === "current") return "push";
       if (state.diskStatus === "stale") return "push-load";
       if (state.diskStatus === "local unsaved") return "push";

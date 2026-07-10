@@ -282,6 +282,28 @@ describe("buildUserStatusResult", () => {
     expect(result.detailLines.join(" ")).toContain("branch-export residue");
   });
 
+  it("treats a branch-export join left locally ahead as settled residue", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "local-ahead",
+      contentRelation: "remote-subset",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result).toMatchObject({
+      spineState: "clean",
+      refState: "local-ahead",
+      contentRelation: "remote-subset",
+      actionHint: null,
+    });
+    expect(result.detailLines.join(" ")).toContain("branch-export residue");
+  });
+
   it("renders zero-contested divergence as reconciling rather than conflicting", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
@@ -1786,6 +1808,21 @@ describe("user sync spine", () => {
     expect(spine).toMatchObject({
       state: "clean",
       refState: "diverged",
+      contentRelation: "remote-subset",
+      shouldPromptToPull: false,
+    });
+  });
+
+  it("preserves remote-subset detail on a local-ahead branch-export join", () => {
+    const spine = computeUserSyncSpine({
+      remoteSyncEnabled: true,
+      refState: "local-ahead",
+      contentRelation: "remote-subset",
+    });
+
+    expect(spine).toMatchObject({
+      state: "clean",
+      refState: "local-ahead",
       contentRelation: "remote-subset",
       shouldPromptToPull: false,
     });

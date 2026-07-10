@@ -2,6 +2,9 @@ import { join } from "node:path";
 
 import { getCurrentBranch, shortHash, type SyncManifest } from "../../lib/git/index.js";
 import { uniqueRefToken } from "../../lib/git/ref-tree.js";
+import {
+  BRANCH_BOUNDED_NOTES_JOIN_MESSAGE,
+} from "../../lib/user-sync/branch-bounded-notes-export.js";
 import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -200,6 +203,15 @@ async function classifyUserSyncCause(input: {
   localSyncState: { sourceCommit: string; savedAt?: string; notesRefTip?: string } | null;
 }): Promise<{ cause: UserSyncCause; confidence: UserSyncCauseConfidence } | undefined> {
   const { io, offline, refInspection, note, localSyncState } = input;
+
+  // A branch-bounded push can intentionally leave the canonical local notes
+  // ref ahead of origin: the local two-parent join preserves notes omitted
+  // from this branch's export. That topology is already explained by the
+  // content relation and must not be reclassified as a concurrent writer.
+  if (
+    refInspection?.state === "local-ahead"
+    && refInspection.contentRelation === "remote-subset"
+  ) return undefined;
 
   const sourceCommit = isComparableSourceCommit(localSyncState?.sourceCommit)
     ? localSyncState.sourceCommit
@@ -413,7 +425,7 @@ interface UserSyncRefInspection {
   comparison: "full" | "read-only" | "comparison-unavailable" | "remote-unavailable";
   localHash: string | null;
   remoteHash: string | null;
-  /** Content relation between local and fetched trees when topology diverges. */
+  /** Content relation for divergence or recognized local-ahead branch-export residue. */
   contentRelation?: NoteSetRelation;
   /**
    * Distinguishes failure modes when `state` is `remote-unavailable` from the
@@ -439,7 +451,10 @@ export function computeUserSyncSpine(input: {
   coherenceState?: UserSyncCoherenceState;
 }): UserSyncSpine {
   const refState = input.remoteSyncEnabled ? input.refState : null;
-  const contentRelation = refState === "diverged" ? input.contentRelation : undefined;
+  const contentRelation = refState === "diverged"
+    || (refState === "local-ahead" && input.contentRelation === "remote-subset")
+    ? input.contentRelation
+    : undefined;
   const coherenceState = normalizeCoherenceState(refState, input.coherenceState);
   const state = computeUserSyncSpineState(input.remoteSyncEnabled, refState, contentRelation);
   return {
@@ -1076,6 +1091,9 @@ function renderActionOrientedHeadline(
   if (spine.coherenceState === "partial-push-unverified") {
     return "Partial-push state unverified — remote notes unavailable.";
   }
+  if (spine.refState === "local-ahead" && spine.contentRelation === "remote-subset") {
+    return "Local notes ahead — expected branch-export residue.";
+  }
   switch (spine.state) {
     case "conflict":
       return spine.contentRelation === "conflicting"
@@ -1503,11 +1521,19 @@ export async function inspectUserSyncRefsDetailed(
       };
     }
     if (await isAncestor(io, fetchedRemoteHash, classification.localHash)) {
+      const contentRelation = await isBranchBoundedExportResidue(
+        io,
+        classification.localHash,
+        fetchedRemoteHash,
+      )
+        ? "remote-subset" as const
+        : undefined;
       return {
         state: "local-ahead",
         comparison: "full",
         localHash: classification.localHash,
         remoteHash: fetchedRemoteHash,
+        ...(contentRelation ? { contentRelation } : {}),
       };
     }
     const contentRelation = await inspectDivergedNoteSetRelation(
@@ -1524,6 +1550,34 @@ export async function inspectUserSyncRefsDetailed(
     };
   } finally {
     await deleteRef(io, tempRef);
+  }
+}
+
+/**
+ * Recognize the local-only union commit created after a branch-bounded notes
+ * export. Its second parent is the exact origin tip just pushed; the first
+ * parent preserves the canonical local notes that this branch could not
+ * export. A later save advances past this signature and remains actionable.
+ */
+async function isBranchBoundedExportResidue(
+  io: UserIOContext,
+  localHash: string,
+  remoteHash: string,
+): Promise<boolean> {
+  try {
+    const { stdout } = await io.exec("git", [
+      "show",
+      "-s",
+      "--format=%s%x00%P",
+      localHash,
+    ]);
+    const [subject, parentLine] = stdout.trim().split("\0");
+    const parents = parentLine?.trim().split(/\s+/u) ?? [];
+    return subject === BRANCH_BOUNDED_NOTES_JOIN_MESSAGE
+      && parents.length === 2
+      && parents[1] === remoteHash;
+  } catch {
+    return false;
   }
 }
 
@@ -1916,6 +1970,9 @@ function determineUserStatusAction(
       if (diskStatus === "local unsaved") return "run `arc user save`";
       if (spine.coherenceState === "partial-push") {
         return "run `arc user push` to retry the notes push";
+      }
+      if (spine.refState === "local-ahead" && spine.contentRelation === "remote-subset") {
+        return null;
       }
       if (spine.state === "clean" && spine.remoteStatus === "local ahead") {
         return "run `arc user push` (or `arc sync`)";

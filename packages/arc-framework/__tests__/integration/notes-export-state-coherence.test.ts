@@ -305,8 +305,40 @@ describe("notes export state coherence", () => {
     await git(repo, ["merge-base", "--is-ancestor", plan.target.tip, localAfter]);
     expect((await listNoteTreeEntries(makeGitExec(repo), localAfter)).map((entry) => entry.commit).sort())
       .toEqual([base, commitA, commitB].sort());
-    expect(await inspectUserSyncRefsDetailed(io, IDENTITY))
-      .toMatchObject({ state: "local-ahead" });
+    expect(await inspectUserSyncRefsDetailed(io, IDENTITY)).toMatchObject({
+      state: "local-ahead",
+      contentRelation: "remote-subset",
+    });
+
+    const afterJoinSessionInit = await runUserSessionInitStatus({
+      cwd: repo,
+      io,
+      identity: IDENTITY,
+      remoteSyncEnabled: true,
+    });
+    expect(afterJoinSessionInit).toMatchObject({
+      state: "clean",
+      refState: "local-ahead",
+      contentRelation: "remote-subset",
+      actionHint: null,
+    });
+
+    const afterJoinStatus = await runUserStatus({
+      cwd: repo,
+      io,
+      identity: IDENTITY,
+      remoteSyncEnabled: true,
+    });
+    expect(afterJoinStatus).toMatchObject({
+      spineState: "clean",
+      refState: "local-ahead",
+      contentRelation: "remote-subset",
+    });
+    expect(afterJoinStatus.userSyncCause).toBeUndefined();
+    expect(afterJoinStatus.actionHint).not.toMatch(/push|sync/u);
+    expect(afterJoinStatus.detailLines.join(" ")).toContain("branch-export residue");
+    expect(decideSyncAction(await inspectUserSyncState({ cwd: repo, io, identity: IDENTITY })))
+      .toBe("load");
   });
 
   it("classifies a real same-commit conflict without temp-ref mislisting", async () => {
