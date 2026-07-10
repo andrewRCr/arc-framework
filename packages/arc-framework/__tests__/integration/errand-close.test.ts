@@ -9,7 +9,15 @@
  * (merged). An unsafe branch is refused with the record left intact, so an
  * abandoned errand stays recoverable. The slug-matched inbox drop is the handler's
  * composition (file I/O over the gitignored inbox), covered at the e2e layer.
+ *
+ * The remote-head cleanup is landed-proof-gated: the remote branch is deleted
+ * only when the work provably landed in base (an already-gone head is the
+ * idempotent `absent` no-op); a head that may be the only preservation — pushed
+ * but not provably merged, e.g. a multi-commit squash — is `kept`.
  */
+
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
@@ -46,6 +54,19 @@ async function git(dir: string, args: string[]): Promise<string> {
 /** Add an empty commit on the current branch. */
 async function commitOn(dir: string, message: string): Promise<void> {
   await execFileAsync("git", ["commit", "--allow-empty", "--no-verify", "-m", message], { cwd: dir });
+}
+
+/** Commit a real file change — patch-identity (`git cherry`) needs a non-empty diff. */
+async function commitFile(dir: string, name: string, content: string, message: string): Promise<void> {
+  await writeFile(join(dir, name), content);
+  await execFileAsync("git", ["add", name], { cwd: dir });
+  await execFileAsync("git", ["commit", "--no-verify", "-m", message], { cwd: dir });
+}
+
+/** Whether `branch`'s head is live on the bare remote. */
+async function remoteHeadExists(dir: string, branch: string): Promise<boolean> {
+  const { stdout } = await execFileAsync("git", ["ls-remote", "--heads", "origin", branch], { cwd: dir });
+  return stdout.trim() !== "";
 }
 
 async function currentBranch(dir: string): Promise<string> {
@@ -174,6 +195,193 @@ describe("closeErrand", () => {
     expect((await git(dir, ["rev-parse", "main"])).trim()).not.toBe(staleMain);
   });
 
+  it("deletes the remote head when the errand provably landed in base", async () => {
+    await openErrand(io, { slug: "landed", base: "main", createdAt: CREATED_AT });
+    await commitFile(dir, "landed.txt", "change\n", "errand change");
+    await git(dir, ["push", "origin", "chore/landed"]);
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["merge", "--no-ff", "chore/landed", "-m", "merge errand"]);
+    expect(await remoteHeadExists(dir, "chore/landed")).toBe(true);
+
+    const result = await closeErrand(io, { slug: "landed", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.remoteHead).toEqual({ kind: "deleted" });
+    }
+    expect(await branchExists(dir, "chore/landed")).toBe(false);
+    expect(await remoteHeadExists(dir, "chore/landed")).toBe(false);
+  });
+
+  it("treats an already-gone remote head as the idempotent absent outcome", async () => {
+    await openErrand(io, { slug: "gone-head", base: "main", createdAt: CREATED_AT });
+    await commitFile(dir, "gone-head.txt", "change\n", "errand change");
+    await git(dir, ["push", "origin", "chore/gone-head"]);
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["merge", "--no-ff", "chore/gone-head", "-m", "merge errand"]);
+    // Simulate a host's delete-on-merge: the head is gone before close runs.
+    await execFileAsync("git", ["update-ref", "-d", "refs/heads/chore/gone-head"], { cwd: remoteDir });
+
+    const result = await closeErrand(io, { slug: "gone-head", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.remoteHead).toEqual({ kind: "absent" });
+    }
+    expect(await branchExists(dir, "chore/gone-head")).toBe(false);
+  });
+
+  it("keeps a pushed head that has not provably landed — it may be the only preservation", async () => {
+    await openErrand(io, { slug: "pushed-unmerged", base: "main", createdAt: CREATED_AT });
+    await commitFile(dir, "pushed-unmerged.txt", "change\n", "errand change");
+    await git(dir, ["push", "origin", "chore/pushed-unmerged"]);
+    await git(dir, ["switch", "main"]); // never merged — reap safety rests on upstream containment alone
+
+    const result = await closeErrand(io, { slug: "pushed-unmerged", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.remoteHead).toEqual({ kind: "kept" });
+    }
+    expect(await branchExists(dir, "chore/pushed-unmerged")).toBe(false);
+    expect(await remoteHeadExists(dir, "chore/pushed-unmerged")).toBe(true);
+  });
+
+  it("keeps the head of a multi-commit squash — landing is unprovable by patch identity", async () => {
+    await openErrand(io, { slug: "multi-squash", base: "main", createdAt: CREATED_AT });
+    await commitFile(dir, "squash-a.txt", "a\n", "first change");
+    await commitFile(dir, "squash-b.txt", "b\n", "second change");
+    await git(dir, ["push", "origin", "chore/multi-squash"]);
+    await git(dir, ["switch", "main"]);
+    // A multi-commit squash collapses both patch-ids into one — `git cherry`
+    // cannot match the members, so the pushed head is the only proven preservation.
+    await git(dir, ["merge", "--squash", "chore/multi-squash"]);
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "squash-merge errand"], { cwd: dir });
+
+    const result = await closeErrand(io, { slug: "multi-squash", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.remoteHead).toEqual({ kind: "kept" });
+    }
+    expect(await branchExists(dir, "chore/multi-squash")).toBe(false);
+    expect(await remoteHeadExists(dir, "chore/multi-squash")).toBe(true);
+  });
+
+  it("keeps a remote head pushed ahead from another clone — the proof covers the remote tip", async () => {
+    await openErrand(io, { slug: "remote-ahead", base: "main", createdAt: CREATED_AT });
+    await commitFile(dir, "remote-ahead-a.txt", "a\n", "landed change");
+    await git(dir, ["push", "origin", "chore/remote-ahead"]);
+    // A second clone pushes a further commit, then this clone's branch goes stale:
+    // simulate by pushing the extra commit and rewinding the local branch under it.
+    await commitFile(dir, "remote-ahead-b.txt", "b\n", "remote-only change");
+    await git(dir, ["push", "origin", "chore/remote-ahead"]);
+    await git(dir, ["reset", "--hard", "HEAD~1"]);
+    // Only the local tip's change lands in base; the remote head still carries the other.
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["merge", "--no-ff", "chore/remote-ahead", "-m", "merge local tip"]);
+
+    const result = await closeErrand(io, { slug: "remote-ahead", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.remoteHead).toEqual({ kind: "kept" });
+    }
+    expect(await branchExists(dir, "chore/remote-ahead")).toBe(false);
+    // The unlanded remote-only commit survives — deleting the head would discard it.
+    expect(await remoteHeadExists(dir, "chore/remote-ahead")).toBe(true);
+  });
+
+  it("keeps a head advanced by a concurrent push after the proof — the lease refuses the delete", async () => {
+    await openErrand(io, { slug: "lease-race", base: "main", createdAt: CREATED_AT });
+    await commitFile(dir, "lease-race.txt", "landed\n", "landed change");
+    await git(dir, ["push", "origin", "chore/lease-race"]);
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["merge", "--no-ff", "chore/lease-race", "-m", "merge errand"]);
+    // The concurrent racer's commit: park it on a side ref so the bare remote
+    // holds the object, ready to be swung onto the errand head mid-close.
+    await git(dir, ["switch", "chore/lease-race"]);
+    await commitFile(dir, "lease-race-b.txt", "unlanded\n", "concurrent change");
+    const racerTip = (await git(dir, ["rev-parse", "HEAD"])).trim();
+    await git(dir, ["push", "origin", "HEAD:refs/heads/lease-race-side"]);
+    await git(dir, ["reset", "--hard", "HEAD~1"]);
+    await git(dir, ["switch", "main"]);
+    const racingIo: ErrandRecordIO = {
+      ...io,
+      exec: async (cmd, args, options) => {
+        // Advance the remote head between close's proof (over the fetched
+        // tracking OID) and its leased delete — the concurrent-push race.
+        if (args[0] === "push" && args.some((a) => a.startsWith("--force-with-lease"))) {
+          await execFileAsync(
+            "git",
+            ["update-ref", "refs/heads/chore/lease-race", racerTip],
+            { cwd: remoteDir },
+          );
+        }
+        return io.exec(cmd, args, options);
+      },
+    };
+
+    const result = await closeErrand(racingIo, { slug: "lease-race", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.remoteHead).toEqual({ kind: "kept" });
+    }
+    expect(await branchExists(dir, "chore/lease-race")).toBe(false);
+    // The racer's head survives — its commit never landed anywhere else.
+    const { stdout } = await execFileAsync(
+      "git",
+      ["ls-remote", "--heads", "origin", "chore/lease-race"],
+      { cwd: dir },
+    );
+    expect(stdout).toContain(racerTip);
+  });
+
+  it("degrades a remote-head delete failure to a reported outcome without undoing the close", async () => {
+    await openErrand(io, { slug: "delete-fails", base: "main", createdAt: CREATED_AT });
+    await commitFile(dir, "delete-fails.txt", "change\n", "errand change");
+    await git(dir, ["push", "origin", "chore/delete-fails"]);
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["merge", "--no-ff", "chore/delete-fails", "-m", "merge errand"]);
+    const brokenIo: ErrandRecordIO = {
+      ...io,
+      exec: async (cmd, args, options) => {
+        if (args[0] === "push" && args.some((a) => a.startsWith("--force-with-lease"))) {
+          throw Object.assign(new Error("push failed"), { stderr: "fatal: simulated auth failure" });
+        }
+        return io.exec(cmd, args, options);
+      },
+    };
+
+    const result = await closeErrand(brokenIo, { slug: "delete-fails", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.remoteHead).toEqual({ kind: "failed", detail: "fatal: simulated auth failure" });
+    }
+    // The local close stands: branch reaped, record removed, head still live for manual cleanup.
+    expect(await branchExists(dir, "chore/delete-fails")).toBe(false);
+    expect(await readErrandRecord(io, "delete-fails")).toBeNull();
+    expect(await remoteHeadExists(dir, "chore/delete-fails")).toBe(true);
+  });
+
+  it("reports absent when force-abandoning a never-pushed branch — no spurious kept warning", async () => {
+    await openErrand(io, { slug: "abandoned", base: "main", type: "fix", createdAt: CREATED_AT });
+    await commitFile(dir, "abandoned.txt", "discarded\n", "abandoned work");
+    await git(dir, ["switch", "main"]);
+
+    const result = await closeErrand(io, { slug: "abandoned", base: "main", force: true });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      // Nothing was ever pushed and the prune-fetch makes that authoritative.
+      expect(result.remoteHead).toEqual({ kind: "absent" });
+    }
+    expect(await branchExists(dir, "fix/abandoned")).toBe(false);
+    expect(await readErrandRecord(io, "abandoned")).toBeNull();
+  });
+
   it("refuses to reap an unmerged, unpushed branch and keeps the record recoverable", async () => {
     await openErrand(io, { slug: "wip", base: "main", type: "fix", createdAt: CREATED_AT });
     await commitOn(dir, "unfinished work"); // chore/... ahead of base, never pushed
@@ -210,6 +418,9 @@ describe("closeErrand", () => {
     expect(result.kind).toBe("closed");
     if (result.kind === "closed") {
       expect(result.branchReaped).toBe(false);
+      // Record-only residue: nothing exists anywhere, and the prune-fetch makes
+      // that authoritative — reported as the absent no-op, not a kept head.
+      expect(result.remoteHead).toEqual({ kind: "absent" });
     }
     expect(await branchExists(dir, opened.record.branch)).toBe(false);
     expect(await readErrandRecord(io, "host-deleted")).toBeNull();

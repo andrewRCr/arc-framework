@@ -53,6 +53,7 @@ export {
   closeErrand,
   type CloseErrandParams,
   type CloseErrandResult,
+  type RemoteHeadCleanup,
 } from "./close.js";
 
 export {
