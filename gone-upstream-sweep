@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "gone-upstream-sweep",
-  "origin": "inbox",
-  "intent": "Generalize session-init's gone-upstream branch sweep beyond plan/ to all type-prefixed local branches",
-  "branch": "fix/gone-upstream-sweep",
-  "createdAt": "2026-07-10T13:35:05.426Z",
-  "originEntry": "Generalize the gone-upstream branch sweep beyond `plan/` — shipped-WU locals on sibling machines are invisible"
-}
