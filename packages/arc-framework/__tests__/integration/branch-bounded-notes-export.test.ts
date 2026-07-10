@@ -648,7 +648,10 @@ describe("branch-bounded paired notes export", () => {
     for (const failure of ["listing", "manifest"] as const) {
       const baseExec = makeGitExec(repo);
       const exec: GitExec = async (cmd, args, options) => {
-        if (failure === "listing" && args[0] === "ls-tree" && args[args.length - 1] === local.tip) {
+        if (
+          failure === "listing" && args[0] === "ls-tree" && args.includes("-r")
+          && args[args.length - 1] === local.tip
+        ) {
           throw new Error("listing failed");
         }
         if (
