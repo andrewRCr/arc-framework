@@ -1513,7 +1513,7 @@ export async function inspectUserSyncRefsDetailed(
     const contentRelation = await inspectDivergedNoteSetRelation(
       io,
       classification.localHash,
-      tempRef,
+      fetchedRemoteHash,
     );
     return {
       state: "diverged",
@@ -1530,14 +1530,14 @@ export async function inspectUserSyncRefsDetailed(
 async function inspectDivergedNoteSetRelation(
   io: UserIOContext,
   localCommitish: string,
-  fetchedRemoteRef: string,
+  fetchedRemoteCommitish: string,
 ): Promise<NoteSetRelation | undefined> {
   try {
     const [localEntries, remoteEntries, localManifest, remoteManifest] = await Promise.all([
       listNoteTreeEntries(io.exec, localCommitish),
-      listNoteTreeEntries(io.exec, fetchedRemoteRef),
+      listNoteTreeEntries(io.exec, fetchedRemoteCommitish),
       readNotesCompactionManifest(io.exec, localCommitish),
-      readNotesCompactionManifest(io.exec, fetchedRemoteRef),
+      readNotesCompactionManifest(io.exec, fetchedRemoteCommitish),
     ]);
     return classifyNoteSetRelation(
       { entries: localEntries, manifest: localManifest },

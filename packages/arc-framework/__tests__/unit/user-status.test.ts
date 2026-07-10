@@ -3462,7 +3462,7 @@ describe("runUserStatus bounded notes-ref fetch", () => {
     };
   }
 
-  it("computes a content relation from the fetched temp ref tree", async () => {
+  it("computes a content relation from the fetched remote SHA", async () => {
     const shared = { blob: "1".repeat(40), commit: "c".repeat(40) };
     const localOnly = { blob: "2".repeat(40), commit: "d".repeat(40) };
     const calls: string[][] = [];
@@ -3475,9 +3475,8 @@ describe("runUserStatus bounded notes-ref fetch", () => {
     const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
 
     expect(inspection).toMatchObject({ state: "diverged", contentRelation: "remote-subset" });
-    expect(calls.some((args) =>
-      args[0] === "ls-tree" && args[2]?.startsWith("refs/arc-sync-temp/"),
-    )).toBe(true);
+    expect(calls).toContainEqual(["ls-tree", "-r", remoteHash]);
+    expect(calls.some((args) => args[0] === "show" && args[1]?.startsWith(`${remoteHash}:`))).toBe(true);
   });
 
   it("applies fetched compaction manifests before classifying entries", async () => {
