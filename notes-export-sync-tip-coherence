@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "notes-export-sync-tip-coherence",
+  "origin": "description",
+  "intent": "Keep persisted user sync state aligned when branch-bounded notes export advances the canonical local notes ref.",
+  "branch": "fix/notes-export-sync-tip-coherence",
+  "createdAt": "2026-07-10T18:47:41.039Z"
+}
