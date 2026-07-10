@@ -268,6 +268,74 @@ describe("closeErrand", () => {
     expect(await remoteHeadExists(dir, "chore/multi-squash")).toBe(true);
   });
 
+  it("keeps a remote head pushed ahead from another clone — the proof covers the remote tip", async () => {
+    await openErrand(io, { slug: "remote-ahead", base: "main", createdAt: CREATED_AT });
+    await commitFile(dir, "remote-ahead-a.txt", "a\n", "landed change");
+    await git(dir, ["push", "origin", "chore/remote-ahead"]);
+    // A second clone pushes a further commit, then this clone's branch goes stale:
+    // simulate by pushing the extra commit and rewinding the local branch under it.
+    await commitFile(dir, "remote-ahead-b.txt", "b\n", "remote-only change");
+    await git(dir, ["push", "origin", "chore/remote-ahead"]);
+    await git(dir, ["reset", "--hard", "HEAD~1"]);
+    // Only the local tip's change lands in base; the remote head still carries the other.
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["merge", "--no-ff", "chore/remote-ahead", "-m", "merge local tip"]);
+
+    const result = await closeErrand(io, { slug: "remote-ahead", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.remoteHead).toEqual({ kind: "kept" });
+    }
+    expect(await branchExists(dir, "chore/remote-ahead")).toBe(false);
+    // The unlanded remote-only commit survives — deleting the head would discard it.
+    expect(await remoteHeadExists(dir, "chore/remote-ahead")).toBe(true);
+  });
+
+  it("degrades a remote-head delete failure to a reported outcome without undoing the close", async () => {
+    await openErrand(io, { slug: "delete-fails", base: "main", createdAt: CREATED_AT });
+    await commitFile(dir, "delete-fails.txt", "change\n", "errand change");
+    await git(dir, ["push", "origin", "chore/delete-fails"]);
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["merge", "--no-ff", "chore/delete-fails", "-m", "merge errand"]);
+    const brokenIo: ErrandRecordIO = {
+      ...io,
+      exec: async (cmd, args, options) => {
+        if (args[0] === "push" && args.includes("--delete")) {
+          throw Object.assign(new Error("push failed"), { stderr: "fatal: simulated auth failure" });
+        }
+        return io.exec(cmd, args, options);
+      },
+    };
+
+    const result = await closeErrand(brokenIo, { slug: "delete-fails", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.remoteHead).toEqual({ kind: "failed", detail: "fatal: simulated auth failure" });
+    }
+    // The local close stands: branch reaped, record removed, head still live for manual cleanup.
+    expect(await branchExists(dir, "chore/delete-fails")).toBe(false);
+    expect(await readErrandRecord(io, "delete-fails")).toBeNull();
+    expect(await remoteHeadExists(dir, "chore/delete-fails")).toBe(true);
+  });
+
+  it("reports absent when force-abandoning a never-pushed branch — no spurious kept warning", async () => {
+    await openErrand(io, { slug: "abandoned", base: "main", type: "fix", createdAt: CREATED_AT });
+    await commitFile(dir, "abandoned.txt", "discarded\n", "abandoned work");
+    await git(dir, ["switch", "main"]);
+
+    const result = await closeErrand(io, { slug: "abandoned", base: "main", force: true });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      // Nothing was ever pushed and the prune-fetch makes that authoritative.
+      expect(result.remoteHead).toEqual({ kind: "absent" });
+    }
+    expect(await branchExists(dir, "fix/abandoned")).toBe(false);
+    expect(await readErrandRecord(io, "abandoned")).toBeNull();
+  });
+
   it("refuses to reap an unmerged, unpushed branch and keeps the record recoverable", async () => {
     await openErrand(io, { slug: "wip", base: "main", type: "fix", createdAt: CREATED_AT });
     await commitOn(dir, "unfinished work"); // chore/... ahead of base, never pushed

@@ -11,10 +11,12 @@
  * The reap is **atomic with the record removal**: safety is checked first, so a
  * refusal never removes the record. The close owns the **remote-head cleanup**
  * (host delete-on-merge is tolerated, never relied on): the remote branch is
- * deleted when the landed-in-base proof holds — strictly stronger than the reap
- * gate, because when only upstream containment proved the reap (pushed but not
- * provably merged, e.g. a multi-commit squash or a not-yet-merged PR) the remote
- * head IS the preservation and is kept. Stale remote-tracking refs are pruned,
+ * deleted when the landed-in-base proof holds over the head's own tip — strictly
+ * stronger than the reap gate, because when only upstream containment proved the
+ * reap (pushed but not provably merged, e.g. a multi-commit squash or a
+ * not-yet-merged PR) the remote head IS the preservation and is kept; proving
+ * the remote tip rather than the local one also protects a head pushed ahead
+ * from another clone. Stale remote-tracking refs are pruned,
  * and the local `base` is fast-forwarded to the freshly-fetched remote base so
  * the primary lands current after the merge rather than on a stale base. The
  * inbox drop is the caller's composition (file I/O over the gitignored inbox,
@@ -56,12 +58,12 @@ export interface CloseErrandParams {
 /**
  * Outcome of the remote-head cleanup leg of a close.
  *
- * - `deleted` — the head provably landed in base and was deleted.
- * - `absent` — already gone: the head provably landed but origin no longer has
- *   it (never pushed, or host delete-on-merge got there first), or a record-only
- *   residue close found nothing anywhere after a prune-fetch; the no-op.
- * - `kept` — landing could not be proven, so the head (if any) may be the only
- *   preservation of the work and is deliberately left intact.
+ * - `deleted` — the live head's tip provably landed in base and was deleted.
+ * - `absent` — no live head after a prune-fetch (never pushed, or host
+ *   delete-on-merge got there first); nothing to clean, the no-op.
+ * - `kept` — the head's tip could not be proven landed — it may be the only
+ *   preservation of the work — or the remote was unreachable; deliberately
+ *   left intact.
  * - `failed` — landing was proven but the delete failed (auth, connectivity);
  *   best-effort degrade, the completed local close stands.
  */
@@ -151,17 +153,6 @@ export async function closeErrand(
     if (!safety.safe) return { kind: "unsafe-reap", record, reason: safety.reason };
   }
 
-  // The landed-in-base proof gates the remote-head delete below — strictly
-  // stronger than the reap-safety union, because when only upstream containment
-  // holds (pushed but not provably merged: a multi-commit squash, or a PR that
-  // hasn't landed yet) the remote head IS the preservation and deleting it would
-  // discard the work. Checked against the local base first, then the refreshed
-  // remote base — the same union as the reap gate. Computed before the local
-  // delete consumes the ref.
-  const localProofLanded = branchPresent
-    && ((await isLandedInBase(io.exec, record.branch, params.base))
-      || (baseRef !== params.base && (await isLandedInBase(io.exec, record.branch, baseRef))));
-
   if (branchPresent) {
     // Hop off the branch before deleting it — `git branch -D` refuses the current branch.
     if (current === record.branch) {
@@ -187,28 +178,24 @@ export async function closeErrand(
   }
 
   // Remote-head cleanup — the close owns it (host delete-on-merge covers this on
-  // remotes configured for it; a plain merge leaves the head to linger). Fires
-  // only under a landed-in-base proof; when the local branch is already gone
-  // (force path), the freshly-fetched remote-tracking ref stands in as the proof
-  // ref. Best-effort like the prune leg: an already-gone head is the idempotent
-  // no-op, and other failures degrade to a reported outcome rather than undoing
+  // remotes configured for it; a plain merge leaves the head to linger). The
+  // landed-in-base proof is computed over the POST-PRUNE remote-tracking ref: the
+  // remote tip is what the delete discards, so the proof must cover it, not the
+  // local tip — a head pushed ahead from another clone carries commits a
+  // local-tip proof never saw. Checked against the local base first, then the
+  // refreshed remote base — the same union as the reap gate. Best-effort like
+  // the prune leg: failures degrade to a reported outcome rather than undoing
   // the completed local reap.
   let remoteHead: RemoteHeadCleanup;
-  if (localProofLanded) {
-    remoteHead = await removeRemoteHead(io.exec, remote, record.branch);
-  } else if (branchPresent) {
-    // The branch existed but its landing is unprovable — the pushed head (if
-    // any) may be the only preservation of the work.
-    remoteHead = { kind: "kept" };
-  } else if (await remoteTrackingRefExists(io.exec, remote, record.branch)) {
+  if (await remoteTrackingRefExists(io.exec, remote, record.branch)) {
     const trackingRef = `${remote}/${record.branch}`;
     const landed = (await isLandedInBase(io.exec, trackingRef, params.base))
       || (baseRef !== params.base && (await isLandedInBase(io.exec, trackingRef, baseRef)));
     remoteHead = landed ? await removeRemoteHead(io.exec, remote, record.branch) : { kind: "kept" };
   } else {
-    // No local branch and no tracking ref. After a successful prune-fetch that
-    // is authoritative — nothing is left to clean; without one the tracking ref
-    // may merely be stale locally, so stay conservative.
+    // No tracking ref. After a successful prune-fetch that is authoritative —
+    // nothing is left to clean; without one the remote is unreachable and its
+    // state unknown, so stay conservative.
     remoteHead = pruned ? { kind: "absent" } : { kind: "kept" };
   }
 
@@ -274,7 +261,7 @@ async function removeRemoteHead(
     return { kind: await deleteRemoteBranch(exec, remote, branch) };
   } catch (err) {
     const detail =
-      (err as { stderr?: string }).stderr ?? (err instanceof Error ? err.message : String(err));
+      (err as { stderr?: string }).stderr || (err instanceof Error ? err.message : String(err));
     return { kind: "failed", detail: detail.trim() };
   }
 }

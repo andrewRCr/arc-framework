@@ -167,7 +167,8 @@ On merge (full) or final commit (partial), close out:
   back-points to). The reap is containment-safe: if the branch's commits aren't provably preserved (pushed or
   merged), it **refuses** and keeps the record — push/merge then retry, or `--force` if you've verified it
   shipped. A remote head that is the only proven preservation (e.g. a multi-commit squash) is kept and surfaced,
-  never deleted.
+  never deleted. The remote delete is best-effort: on a push failure (auth, connectivity) the local close still
+  completes and the head is surfaced for manual cleanup.
 - **Partial protection** — nothing to close; the errand is already a direct base commit.
 
 **Unattended merge (auto-merge lane).** If the merge lands after the session ends, `arc errand close` is replayed
