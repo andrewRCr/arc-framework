@@ -165,7 +165,9 @@ export async function listNoteTreeEntries(
   exec: GitExec,
   commitish: string,
 ): Promise<NoteEntry[]> {
-  const { stdout } = await exec("git", ["ls-tree", "-r", commitish]);
+  // --full-tree: a bare ls-tree implicitly scopes to the invoking directory's
+  // path within the tree; pin the notes-tree read to the root regardless of cwd.
+  const { stdout } = await exec("git", ["ls-tree", "--full-tree", "-r", commitish]);
   return stdout
     .split("\n")
     .map(parseLsTreeNoteEntry)

@@ -384,7 +384,10 @@ export async function listMetaPathsAtRef(
 ): Promise<ListMetaPathsAtRefResult> {
   const { exec, ref } = options;
   try {
-    const { stdout } = await exec("git", ["ls-tree", "-r", "--name-only", ref, ".arc/active/"]);
+    // --full-tree: without it the `.arc/active/` pathspec resolves relative to
+    // the invoking directory, so a subdirectory cwd reads every branch as
+    // meta-less. Pin the read to the tree root regardless of cwd.
+    const { stdout } = await exec("git", ["ls-tree", "--full-tree", "-r", "--name-only", ref, ".arc/active/"]);
     return {
       ok: true,
       paths: stdout

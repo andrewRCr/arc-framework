@@ -57,8 +57,8 @@ function makeExec(opts: {
       };
     }
     if (args[0] === "worktree" && args[1] === "list") return { stdout: "", stderr: "" };
-    if (args[0] === "ls-tree" && args[1] === "-r") {
-      const ref = args[3] ?? "";
+    if (args[0] === "ls-tree" && args.includes("--name-only")) {
+      const ref = args[args.indexOf("--name-only") + 1] ?? "";
       const paths = Object.keys(metas)
         .filter((target) => target.startsWith(`${ref}:`))
         .map((target) => target.slice(target.indexOf(":") + 1));
