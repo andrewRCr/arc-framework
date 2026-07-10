@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "errand-close-remote-delete",
-  "origin": "description",
-  "intent": "arc errand close leaves merged remote branches undeleted; port teardown's landed-proof-gated remote-head delete and align run-errand.md",
-  "branch": "fix/errand-close-remote-delete",
-  "createdAt": "2026-07-10T12:12:43.765Z"
-}
