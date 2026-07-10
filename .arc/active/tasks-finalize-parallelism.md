@@ -628,6 +628,17 @@ flight; notes coherence follows it as a split-out WU. Both route per the burn-in
 
     - `[ ]` **4.4.a Induce detectors, confirm firing, record**
 
+### `[ ]` **4.5 Retire synthetic remote notes state before routine writes resume**
+
+- _Goal:_ The wave-2 notes topology remains intact for its planned verification, then the synthetic bulk history
+  and synthetic partial-push markers are removed before wave 3's live Errand/drain starts routine paired writes.
+  This prevents the first post-NESC paired push from adopting the burn-in-only history into ordinary local refs.
+
+    - `[ ]` **4.5.a Clean the shared remote notes fixture and synthetic markers**
+        - Verify wave 2 no longer needs the induced topology, record the exact refs/markers being retired, and
+          clean them with an explicit destructive-action surface. Confirm the canonical local notes ref still
+          carries only ordinary history before launching wave 3.
+
 ## **Phase 5:** Burn-in wave 3 — code + code + live errand
 
 _Purpose:_ Primary-singleton contention + the parallel-errand decision's evidence — first-in-wins reconcile
