@@ -133,7 +133,9 @@ function makeExec(opts: {
       throw new Error(`fatal: path does not exist in '${target}'`);
     }
     if (args[0] === "ls-tree") {
-      const ref = args[3] ?? "";
+      const ref = (args.includes("--name-only")
+        ? args[args.indexOf("--name-only") + 1]
+        : args[args.length - 1]) ?? "";
       const paths = listedPaths[ref] ?? Object.keys(metas)
         .filter((target) => target.startsWith(`${ref}:`))
         .map((target) => target.slice(target.indexOf(":") + 1));

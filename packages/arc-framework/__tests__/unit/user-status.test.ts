@@ -2011,7 +2011,7 @@ describe("runUserSessionInitStatus", () => {
         if (args[0] === "fetch") return { stdout: "", stderr: "" };
         if (args[0] === "merge-base") throw new Error("not an ancestor");
         if (args[0] === "ls-tree") {
-          const selected = args[2] === localHash ? entries.local : entries.remote;
+          const selected = args[args.length - 1] === localHash ? entries.local : entries.remote;
           return {
             stdout: selected.map((entry) => `100644 blob ${entry.blob}\t${entry.commit}`).join("\n"),
             stderr: "",
@@ -3442,7 +3442,7 @@ describe("runUserStatus bounded notes-ref fetch", () => {
       if (args[0] === "merge-base") throw new Error("not an ancestor");
       if (args[0] === "ls-tree") {
         if (options.listingFails) throw new Error("listing failed");
-        const entries = args[2] === localHash ? options.localEntries : options.remoteEntries;
+        const entries = args[args.length - 1] === localHash ? options.localEntries : options.remoteEntries;
         return {
           stdout: entries.map((entry) => `100644 blob ${entry.blob}\t${entry.commit}`).join("\n"),
           stderr: "",
@@ -3475,7 +3475,7 @@ describe("runUserStatus bounded notes-ref fetch", () => {
     const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
 
     expect(inspection).toMatchObject({ state: "diverged", contentRelation: "remote-subset" });
-    expect(calls).toContainEqual(["ls-tree", "-r", remoteHash]);
+    expect(calls).toContainEqual(["ls-tree", "--full-tree", "-r", remoteHash]);
     expect(calls.some((args) => args[0] === "show" && args[1]?.startsWith(`${remoteHash}:`))).toBe(true);
   });
 

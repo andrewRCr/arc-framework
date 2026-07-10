@@ -143,7 +143,7 @@ describe("readMetaAtRef", () => {
 describe("listMetaPathsAtRef", () => {
   it("lists active meta paths present at a ref", async () => {
     const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
-      expect(args).toEqual(["ls-tree", "-r", "--name-only", "origin/feat/x", ".arc/active/"]);
+      expect(args).toEqual(["ls-tree", "--full-tree", "-r", "--name-only", "origin/feat/x", ".arc/active/"]);
       return {
         stdout: [
           ".arc/active/meta-x.md",
