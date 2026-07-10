@@ -254,10 +254,12 @@ describe("decideSyncAction", () => {
       unsavedDirection: null,
     } as const;
 
-    for (const contentRelation of ["local-subset", "equal", "mixed-uncontested"] as const) {
-      expect(decideSyncAction({ ...base, contentRelation })).toBe("guidance");
+    for (const diskStatus of ["current", "stale", "local unsaved", "mixed"] as const) {
+      for (const contentRelation of ["local-subset", "equal", "mixed-uncontested"] as const) {
+        expect(decideSyncAction({ ...base, contentRelation, diskStatus })).toBe("guidance");
+      }
+      expect(decideSyncAction({ ...base, contentRelation: "conflicting", diskStatus })).toBe("conflict");
     }
-    expect(decideSyncAction({ ...base, contentRelation: "conflicting" })).toBe("conflict");
     expect(decideSyncAction({
       ...base,
       spineState: "clean",
