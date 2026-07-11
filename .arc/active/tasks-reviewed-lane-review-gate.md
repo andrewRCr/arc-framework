@@ -217,16 +217,14 @@ runs into and out of the neutral ports without allowing host objects to become p
 - _Approach:_ Keep endpoint payloads private to `hosts/github/`, validate every response before normalization, and
   separate API/write credentials from the narrow token used to fetch trusted-base git objects.
 
-    - `[ ]` **3.1.a Build the injected GitHub API boundary**
-        - Implement bounded modules for a version-pinned REST client plus one paginated GraphQL query family for
-          review threads/`reviewDecision`, using injected Node `fetch`, manual guards, and no new runtime dependency.
-        - Paginate every connection; retry only idempotent reads on declared transient/rate-limit responses, never
-          retry writes blindly, and re-query ambiguous writes by stable idempotency identity.
-        - Build `test-first` (one behavior at a time):
-            - Valid paginated fixtures normalize deterministically.
-            - HTTP, schema, pagination, retry exhaustion, ambiguous writes, and rate limits remain explicit/unavailable
-              rather than empty state.
-            - Tokens and private-key material never enter logs, errors, receipts, or projections.
+    - `[x]` **3.1.a Build the injected GitHub API boundary**
+        - Added `hosts/github/api/{http,rest,graphql}.ts`: an injected-`fetch` transport (REST version pinned via
+          `X-GitHub-Api-Version`, no runtime dependency added), a `Link`-paginated REST client, and a
+          cursor-paginated GraphQL client. Idempotent reads (`performRead`) retry transient/rate-limit/network
+          failures then fail `unavailable`; writes (`performWrite`) make one attempt and surface `ambiguous` for an
+          idempotency-keyed `reconcile` rather than resending. HTTP, schema, incomplete-pagination, and
+          enumeration-cap failures stay explicit rather than collapsing to empty state, and the token is confined to
+          request headers — asserted absent from every read/write/GraphQL outcome.
 
     - `[ ]` **3.1.b Resolve exact pull-request coverage identities**
         - Query immutable repository/PR ids, base/head, readiness, mergeability, and current base tip; validate refs and
