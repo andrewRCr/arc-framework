@@ -31,6 +31,7 @@ export interface ReceiptAppendResult {
 export interface RequestAcknowledgement {
   requestIdentity: string;
   acknowledgedAt: string;
+  durableRef?: string;
 }
 
 /** Opaque provider observation awaiting normalization. */

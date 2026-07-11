@@ -126,6 +126,20 @@ describe("CodeRabbit request translation", () => {
     expect(api.triggers).toEqual(["label", "remove-label"]);
   });
 
+  it("retains durable trigger provenance when the GitHub transport provides it", async () => {
+    const api = new MemoryApi();
+    api.outcome = {
+      kind: "acknowledged",
+      acknowledgedAt: "2026-07-11T12:01:00Z",
+      durableRef: "https://github.test/pull/7#issuecomment-99",
+    };
+    const adapter = new CodeRabbitProviderAdapter({ api, capabilities, expectedBotUserId: BOT_ID });
+
+    await expect(adapter.request(request())).resolves.toMatchObject({
+      durableRef: "https://github.test/pull/7#issuecomment-99",
+    });
+  });
+
   it("does not trigger for replayed or stale requests", async () => {
     for (const current of ["replay", "stale"] as const) {
       const api = new MemoryApi();

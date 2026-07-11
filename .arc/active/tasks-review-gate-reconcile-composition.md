@@ -105,18 +105,9 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
   delta and qualifies the effective configuration only when the resolved automatic path is exclusively that label.
 - **Additional Context:** `notes-review-gate-reconcile-composition.md` § CodeRabbit enforcement research
 
-    - `[ ]` **2.3.a Implement the GitHub-backed trigger methods**
-        - `validateCurrent` re-resolves the request/change/policy identities and consults durable request history;
-          stale returns `stale`, a previously triggered request returns `replay`, and only an exact current request
-          reaches an effect.
-        - `applyTriggerLabel` / `removeTriggerLabel` use the single `arc-review-gate` label for generation zero;
-          `requestFullReview` posts `@coderabbitai full review` for refresh. Retain durable GitHub artifact ids and
-          timestamps in acknowledgements/diagnostics; an ambiguous create/update is never retried or rerouted.
-        - Build `test-first` (one behavior at a time):
-            - Generation zero applies exactly one label and removes it after acknowledged delivery
-            - Refresh posts exactly one full-review command; no label fallback occurs
-            - Stale/replayed request produces no GitHub mutation
-            - Rejected delivery is pre-effect failure; ambiguous delivery is terminal and non-retryable
+    - `[x]` **2.3.a Implement the GitHub-backed trigger methods**
+        - Added the repository-pinned trigger API: a generation-zero label handshake, refresh command with durable
+          comment provenance, current/replay/stale guard delegation, and terminal rejected-versus-ambiguous delivery.
 
     - `[ ]` **2.3.b Implement observation and capacity methods**
         - Read current-head and candidate-tail-start CodeRabbit checks, reviews, comments, and threads through the

@@ -36,7 +36,7 @@ export const CODERABBIT_SHADOW_CAPABILITIES: CodeRabbitCapabilities = {
 
 /** One provider trigger result; ambiguous delivery is never retried or rerouted. */
 export type TriggerOutcome =
-  | { kind: "acknowledged"; acknowledgedAt: string }
+  | { kind: "acknowledged"; acknowledgedAt: string; durableRef?: string }
   | { kind: "rejected"; reason: string }
   | { kind: "ambiguous" };
 
@@ -174,7 +174,11 @@ export class CodeRabbitProviderAdapter implements ReviewProviderAdapter {
     if (mechanism === "label") await this.api.removeTriggerLabel(request);
     if (outcome.kind === "ambiguous") throw new CodeRabbitRequestError("ambiguous-delivery", true);
     if (outcome.kind === "rejected") throw new CodeRabbitRequestError(`pre-effect-rejection:${outcome.reason}`);
-    return { requestIdentity: computeRequestKey(request), acknowledgedAt: outcome.acknowledgedAt };
+    return {
+      requestIdentity: computeRequestKey(request),
+      acknowledgedAt: outcome.acknowledgedAt,
+      ...(outcome.durableRef === undefined ? {} : { durableRef: outcome.durableRef }),
+    };
   }
 
   async observe(requestIdentity: string): Promise<ProviderObservation[]> {
