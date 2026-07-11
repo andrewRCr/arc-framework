@@ -674,16 +674,14 @@ Errand integration, and make this repository's review workflow controller-driven
 - _Outcome:_ Self-hosting review coordination now has one explicit-target, controller-driven convergence workflow;
   activation remains a post-main cutover operation rather than a behavior change on this branch.
 
-### `[ ]` **6.6 Independently review the ARC lifecycle slice**
+### `[x]` **6.6 Independently review the ARC lifecycle slice**
 
 - _Goal:_ A fresh reviewer certifies package/project extension replacement, WU/Errand hook timing, explicit target
   context, local-preflight boundaries, and project review coordination before rollout documentation freezes them.
 
-    - Run the phase-completion quality gates, then give one fresh independent-analysis reviewer the spec, project
-      orientation, and commit range after Task 5.5 through Phase 6.
-    - Apply `independent-analysis/v1` with package-sync, create/resume/reconcile paths, retry/idempotency, ordered
-      actions, PR-cardinality neutrality, and direct-provider/thread-closure escape paths in scope.
-    - Default to one pass; add another only for substantive lifecycle or packaged-surface fixes.
+- _Outcome:_ Phase gates passed; CodeRabbit CLI found five review items. Four valid lifecycle/distribution gaps were
+  fixed, the project-only workflow suggestion was rejected as package leakage, and the required second pass returned
+  zero findings.
 
 ## **Phase 7:** Rollout safety and repository-level coherence
 
