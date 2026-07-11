@@ -47,9 +47,10 @@ export interface ReviewReceipt {
   idempotencyKey: string;
   previousLedgerVersion: number;
   receiptHash: string;
-  action: "reserved" | "acknowledged" | "terminal-failure" | "dismissed" | "waived" | "attested" | "unadmitted";
+  action: "reserved" | "acknowledged" | "terminal-failure" | "required" | "dismissed" | "waived" | "attested" | "unadmitted";
   request: ReviewRequest;
   result: EvidenceResult | null;
+  reason: string | null;
   evidenceUrlOrId: string | null;
   findingIds: string[];
 }
@@ -174,7 +175,7 @@ function parseReceipt(input: unknown, path: string): ReviewReceipt {
   const record = objectAt(input, path);
   exactKeys(record, [
     "schemaVersion", "eventId", "idempotencyKey", "previousLedgerVersion", "receiptHash", "action", "request",
-    "result", "evidenceUrlOrId", "findingIds",
+    "result", "reason", "evidenceUrlOrId", "findingIds",
   ], path);
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
@@ -184,12 +185,13 @@ function parseReceipt(input: unknown, path: string): ReviewReceipt {
     receiptHash: digestAt(record.receiptHash, `${path}.receiptHash`),
     action: enumAt(
       record.action,
-      ["reserved", "acknowledged", "terminal-failure", "dismissed", "waived", "attested", "unadmitted"],
+      ["reserved", "acknowledged", "terminal-failure", "required", "dismissed", "waived", "attested", "unadmitted"],
       `${path}.action`,
     ),
     request: parseReviewRequest(record.request, `${path}.request`),
     result: nullableAt(record.result, `${path}.result`, (value, itemPath) =>
       enumAt(value, ["clean", "findings", "failed", "unavailable"], itemPath)),
+    reason: nullableAt(record.reason, `${path}.reason`, stringAt),
     evidenceUrlOrId: nullableAt(record.evidenceUrlOrId, `${path}.evidenceUrlOrId`, stringAt),
     findingIds: arrayAt(record.findingIds, `${path}.findingIds`, stringAt),
   };

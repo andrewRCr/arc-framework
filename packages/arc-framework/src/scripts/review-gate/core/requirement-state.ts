@@ -58,8 +58,11 @@ export function reduceRequirementState(input: RequirementStateInput): Requiremen
     return result(input.requirement, "unavailable", "current source unavailable");
   }
   if (!input.findingsConsistent) return result(input.requirement, "failed", "finding history is inconsistent");
-  if (input.openFindingCount > 0 || latest?.result === "findings") {
+  if (input.openFindingCount > 0) {
     return result(input.requirement, "findings", "current findings remain open");
+  }
+  if (latest?.result === "findings") {
+    return result(input.requirement, "not-requested", "findings closed without current clean evidence");
   }
   if (latest?.result === "clean" && input.coverageSatisfied) {
     return result(input.requirement, "clean", "current coverage and closures satisfy the requirement");

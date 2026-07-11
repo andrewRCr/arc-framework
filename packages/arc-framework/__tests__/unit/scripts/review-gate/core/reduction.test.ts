@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { Evidence } from "../../../../../src/scripts/review-gate/core/evidence.js";
 import type { ReviewReceipt, SourceCapacity } from "../../../../../src/scripts/review-gate/core/execution.js";
 import { computePolicyVersion } from "../../../../../src/scripts/review-gate/core/identity.js";
+import { COMMAND_RECEIPT_SOURCE } from "../../../../../src/scripts/review-gate/core/command-receipts.js";
+import { createReceipt } from "../../../../../src/scripts/review-gate/core/request-key.js";
 import {
   reduceSelfHostingGate,
   type SelfHostingGateReductionInput,
@@ -132,9 +134,91 @@ function admittedReceipt(policy: SelfHostingPolicy): ReviewReceipt {
       actorIdentity: SELF_HOSTING_POLICY.providerIdentities.appBotUserId,
     },
     result: null,
+    reason: null,
     evidenceUrlOrId: null,
     findingIds: [],
   };
+}
+
+function requiredReceipt(policy: SelfHostingPolicy): ReviewReceipt {
+  return createReceipt({
+    eventId: "command:IC_1:required",
+    previousLedgerVersion: 0,
+    action: "required",
+    request: {
+      schemaVersion: 1,
+      repositoryId: changeRequest.repositoryId,
+      changeRequestId: changeRequest.changeRequestId,
+      changeSetId: changeRequest.changeSetId,
+      policyVersion: computePolicyVersion({ policy }),
+      rubricVersion: "independent-analysis/v1",
+      requirementId: "independent-analysis",
+      sourceIdentity: COMMAND_RECEIPT_SOURCE,
+      coverage: "full",
+      coverageFromSha: changeRequest.diffBaseSha,
+      coverageThroughSha: changeRequest.headSha,
+      generation: 0,
+      actorIdentity: "7",
+    },
+    result: null,
+    reason: "run independent analysis",
+    evidenceUrlOrId: "https://github.test/pull/7#issuecomment-1",
+    findingIds: [],
+  });
+}
+
+function waivedReceipt(policy: SelfHostingPolicy): ReviewReceipt {
+  return createReceipt({
+    eventId: "command:IC_2:waived",
+    previousLedgerVersion: 0,
+    action: "waived",
+    request: {
+      schemaVersion: 1,
+      repositoryId: changeRequest.repositoryId,
+      changeRequestId: changeRequest.changeRequestId,
+      changeSetId: changeRequest.changeSetId,
+      policyVersion: computePolicyVersion({ policy }),
+      rubricVersion: "independent-analysis/v1",
+      requirementId: "independent-analysis",
+      sourceIdentity: COMMAND_RECEIPT_SOURCE,
+      coverage: "full",
+      coverageFromSha: changeRequest.diffBaseSha,
+      coverageThroughSha: changeRequest.headSha,
+      generation: 0,
+      actorIdentity: "7",
+    },
+    result: null,
+    reason: "accepted operational risk",
+    evidenceUrlOrId: "https://github.test/pull/7#issuecomment-2",
+    findingIds: [],
+  });
+}
+
+function dismissalReceipt(policy: SelfHostingPolicy, sourceIdentity = "codex-cli"): ReviewReceipt {
+  return createReceipt({
+    eventId: `command:IC_3:dismiss:${sourceIdentity}`,
+    previousLedgerVersion: 0,
+    action: "dismissed",
+    request: {
+      schemaVersion: 1,
+      repositoryId: changeRequest.repositoryId,
+      changeRequestId: changeRequest.changeRequestId,
+      changeSetId: changeRequest.changeSetId,
+      policyVersion: computePolicyVersion({ policy }),
+      rubricVersion: "independent-analysis/v1",
+      requirementId: "independent-analysis",
+      sourceIdentity,
+      coverage: "full",
+      coverageFromSha: changeRequest.diffBaseSha,
+      coverageThroughSha: changeRequest.headSha,
+      generation: 0,
+      actorIdentity: "maintainer-1",
+    },
+    result: null,
+    reason: "not applicable",
+    evidenceUrlOrId: "https://github.test/pull/7#issuecomment-3",
+    findingIds: ["finding-1"],
+  });
 }
 
 describe("self-hosting gate reduction", () => {
@@ -228,6 +312,77 @@ describe("self-hosting gate reduction", () => {
 
     expect(decision.request).toBeNull();
     expect(decision.projection.requirementExecutions[0]?.state).toBe("not-requested");
+  });
+
+  it("elevates a current require receipt into normal generation-zero admission", () => {
+    const policy = coderabbitPolicy();
+    const decision = reduceSelfHostingGate(input({
+      policy,
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "routine", reasons: ["routine-doc-surface"] },
+      capacities: [capacity()],
+      receipts: [requiredReceipt(policy)],
+    }));
+
+    expect(decision.request).toMatchObject({ sourceIdentity: "coderabbit-pr", generation: 0, coverage: "full" });
+  });
+
+  it("applies a waiver only while its requirement scope is current", () => {
+    const current = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      receipts: [waivedReceipt(SELF_HOSTING_POLICY)],
+    }));
+    const stale = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      receipts: [createReceipt({
+        eventId: "command:IC_2:stale-waived",
+        previousLedgerVersion: 0,
+        action: "waived",
+        request: {
+          ...waivedReceipt(SELF_HOSTING_POLICY).request,
+          policyVersion: "f".repeat(64),
+        },
+        result: null,
+        reason: "accepted operational risk",
+        evidenceUrlOrId: "https://github.test/pull/7#issuecomment-2",
+        findingIds: [],
+      })],
+    }));
+
+    expect(current.projection.requirementExecutions[0]).toMatchObject({ state: "waived" });
+    expect(stale.projection.requirementExecutions[0]).toMatchObject({ state: "not-requested" });
+  });
+
+  it("closes only the exact source-scoped finding without manufacturing clean evidence", () => {
+    const finding = evidence({
+      result: "findings",
+      findings: [{
+        findingId: "finding-1",
+        severity: "high",
+        locus: "src/controller.ts:10",
+        evidenceUrlOrId: "https://example.test/findings/1",
+      }],
+    });
+    const dismissed = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [finding],
+      receipts: [dismissalReceipt(SELF_HOSTING_POLICY)],
+      authorizedDismissers: ["maintainer-1"],
+    }));
+    const crossSource = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [finding],
+      receipts: [dismissalReceipt(SELF_HOSTING_POLICY, "other-source")],
+      authorizedDismissers: ["maintainer-1"],
+    }));
+
+    expect(dismissed.projection.requirementExecutions[0]).toMatchObject({ state: "not-requested" });
+    expect(dismissed.projection.conclusion).toBe("pending");
+    expect(crossSource.projection.conclusion).toBe("failure");
   });
 
   it.each([

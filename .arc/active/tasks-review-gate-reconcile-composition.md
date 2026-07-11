@@ -120,7 +120,7 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
   provenance, terminal delivery semantics, and provider-native review coordination that never fabricates controller
   finding authority or spends a refresh after a valid lifecycle-tail settlement.
 
-### `[ ]` **2.4 Human command ingestion, authorization, and receipt reduction**
+### `[x]` **2.4 Human command ingestion, authorization, and receipt reduction**
 
 - _Goal:_ GitHub issue-comment wake-ups can actually execute the shipped strict command surface; require, waive,
   refresh, and dismiss are current-scope, permission-checked, durable, and replay-safe rather than inert parser code.
@@ -132,17 +132,14 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
           are no-ops while edits remain explicit new events; malformed, stale, foreign, unauthorized, and unknown
           inputs remain non-persistent.
 
-    - `[ ]` **2.4.b Persist and reduce every command kind**
-        - Add a `required` receipt action/validation for current scoped obligation overrides; after append, evaluate
-          generation zero through normal source selection/admission.
-        - `refresh` creates the authorized full/incremental request and enters the standard
-          reserve → confirm → invoke → acknowledge protocol; `waived` sets only the matching current requirement's
-          waiver input.
-        - Extend findings reduction with current authenticated dismissal receipts so `dismissed` closes exactly
-          `(sourceIdentity, findingId)` with actor/reason/durable receipt provenance; it never implies clean evidence
-          or waives the surrounding requirement.
-        - Build `test-first` (one behavior at a time): require override, refresh generation/coverage bounds, scoped
-          waiver expiry, exact dismissal, cross-source/unknown finding rejection, and receipt replay.
+    - `[x]` **2.4.b Persist and reduce every command kind**
+        - Added event-aware command receipt plans and ledger validation: `required` elevates the current obligation
+          before ordinary generation-zero admission; refresh yields a full or exact incremental reservation; waivers
+          expire outside their requirement scope; and dismissed receipts retain actor, reason, and durable-comment
+          provenance while closing only the exact source/finding pair without manufacturing clean evidence.
+
+- _Outcome:_ GitHub comment commands now form a strict, replay-safe authority path from immutable host version through
+  live capability authorization to receipt-backed requirement, request, waiver, and finding reduction semantics.
 
 ### `[ ]` **2.5 Degraded receipt-state failure projection**
 

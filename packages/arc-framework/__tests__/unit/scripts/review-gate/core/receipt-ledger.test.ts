@@ -114,6 +114,69 @@ describe("canonical request keys and receipt ledger", () => {
     })).toMatchObject({ valid: true });
   });
 
+  it("accepts distinct authorized command versions without collapsing their event identities", () => {
+    const first = createReceipt({
+      request: request({ sourceIdentity: "review-gate-command" }),
+      previousLedgerVersion: 0,
+      action: "required",
+      eventId: "command:IC_1:version-1",
+      result: null,
+      reason: "request review",
+      evidenceUrlOrId: "https://github.test/pull/7#issuecomment-1",
+      findingIds: [],
+    });
+    const edited = createReceipt({
+      request: request({ sourceIdentity: "review-gate-command" }),
+      previousLedgerVersion: 1,
+      action: "required",
+      eventId: "command:IC_1:version-2",
+      result: null,
+      reason: "request amended review",
+      evidenceUrlOrId: "https://github.test/pull/7#issuecomment-1",
+      findingIds: [],
+    });
+
+    expect(first.idempotencyKey).not.toBe(edited.idempotencyKey);
+    expect(validateReceiptLedger({
+      envelopes: [envelope(1, first), envelope(2, edited)],
+      anchorVersion: 2,
+      anchorCount: 2,
+    })).toMatchObject({ valid: true });
+  });
+
+  it("validates dismissals against the exact source-scoped finding history", () => {
+    const finding = createReceipt({
+      request: request({ sourceIdentity: "agent-1" }),
+      previousLedgerVersion: 0,
+      action: "attested",
+      eventId: "evidence:agent-1",
+      result: "findings",
+      evidenceUrlOrId: "evidence:agent-1",
+      findingIds: ["finding-1"],
+    });
+    const dismissal = (sourceIdentity: string) => createReceipt({
+      request: request({ sourceIdentity }),
+      previousLedgerVersion: 1,
+      action: "dismissed",
+      eventId: `command:${sourceIdentity}:dismiss`,
+      result: null,
+      reason: "not applicable",
+      evidenceUrlOrId: "https://github.test/pull/7#issuecomment-3",
+      findingIds: ["finding-1"],
+    });
+
+    expect(validateReceiptLedger({
+      envelopes: [envelope(1, finding), envelope(2, dismissal("agent-1"))],
+      anchorVersion: 2,
+      anchorCount: 2,
+    })).toMatchObject({ valid: true });
+    expect(validateReceiptLedger({
+      envelopes: [envelope(1, finding), envelope(2, dismissal("agent-2"))],
+      anchorVersion: 2,
+      anchorCount: 2,
+    }).valid).toBe(false);
+  });
+
   it.each([
     ["acknowledgement without reservation", "acknowledgement-without-reservation:1", () => [envelope(1, createReceipt({
       request: request(), previousLedgerVersion: 0, action: "acknowledged", eventId: "ack",

@@ -1,6 +1,7 @@
 /** Production composition of review-policy, evidence, admission, verdict, and projection reducers. */
 
 import { admitAutomaticRequest } from "./admission.js";
+import { applyRequiredOverride, COMMAND_RECEIPT_SOURCE } from "./command-receipts.js";
 import type { NormalizedChangeRequest, ReviewRequirement } from "./contracts.js";
 import { reduceCoverage } from "./coverage.js";
 import type { Evidence } from "./evidence.js";
@@ -125,7 +126,9 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
   const projectionEvidence: GateProjection["evidence"] = [];
   let request: ReviewRequest | null = null;
 
-  for (const requirement of policyDecision.requirements) {
+  for (const policyRequirement of policyDecision.requirements) {
+    const requirement = applyRequiredOverride(policyRequirement, input.receipts);
+    const receipts = input.receipts.filter((receipt) => receiptCurrent(requirement, receipt));
     const evidence = input.evidence.filter((item) => item.requirementId === requirement.id
       && evidenceQualified(requirement, item, input.policy.qualifications));
     const findings = reduceFindings({
@@ -133,6 +136,15 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
       currentChangeSetId: requirement.changeSetId,
       authorizedDismissers: input.authorizedDismissers,
       knownHostActors: input.knownHostActors,
+      dismissalReceipts: receipts
+        .filter((receipt) => receipt.action === "dismissed")
+        .flatMap((receipt) => receipt.findingIds.map((findingId) => ({
+          sourceIdentity: receipt.request.sourceIdentity,
+          findingId,
+          actorIdentity: receipt.request.actorIdentity,
+          reason: receipt.reason,
+          durableRef: receipt.evidenceUrlOrId,
+        }))),
     });
     inconsistencies.push(...findings.errors);
     const coverage = reduceCoverage({
@@ -149,8 +161,8 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
     const capacity = candidate === undefined
       ? null
       : input.capacities.find((item) => item.sourceIdentity === candidate.sourceIdentity) ?? null;
-    const receipts = input.receipts.filter((receipt) => receiptCurrent(requirement, receipt));
-    const waived = receipts.some((receipt) => receipt.action === "waived");
+    const waived = receipts.some((receipt) => receipt.action === "waived"
+      && receipt.request.sourceIdentity === COMMAND_RECEIPT_SOURCE);
     const state = reduceRequirementState({
       requirement,
       evidence,
@@ -192,7 +204,7 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
           && input.nativeReview.unresolvedRequiredConversations === 0
           && input.nativeReview.decision !== "changes-requested",
         draft: input.readiness.draft,
-        history: input.receipts,
+        history: receipts,
         capacity,
       });
       if (admission.admit && admission.generation !== null) {

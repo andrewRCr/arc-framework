@@ -95,24 +95,39 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
       case "unadmitted":
         if (receipt.result === null) errors.push(`missing-result:${envelope.ledgerVersion}`);
         validateResultFindings(receipt, envelope.ledgerVersion, errors);
-        for (const findingId of receipt.findingIds) knownFindings.add(findingId);
+        for (const findingId of receipt.findingIds) {
+          knownFindings.add(findingKey(receipt.request.sourceIdentity, findingId));
+        }
         break;
       case "dismissed":
         if (
           receipt.result !== null
-          || receipt.findingIds.length === 0
-          || receipt.findingIds.some((findingId) => !knownFindings.has(findingId))
+          || receipt.findingIds.length !== 1
+          || receipt.findingIds.some((findingId) => !knownFindings.has(findingKey(receipt.request.sourceIdentity, findingId)))
+          || !hasCommandProvenance(receipt)
         ) {
           errors.push(`contradictory-dismissal:${envelope.ledgerVersion}`);
         }
         break;
+      case "required":
       case "waived":
-        if (receipt.result !== null || receipt.findingIds.length > 0) {
-          errors.push(`contradictory-waiver:${envelope.ledgerVersion}`);
+        if (receipt.result !== null || receipt.findingIds.length > 0 || !hasCommandProvenance(receipt)) {
+          errors.push(`contradictory-${receipt.action}:${envelope.ledgerVersion}`);
         }
         break;
     }
   }
+}
+
+function findingKey(sourceIdentity: string, findingId: string): string {
+  return `${sourceIdentity}\0${findingId}`;
+}
+
+function hasCommandProvenance(receipt: ReviewReceipt): boolean {
+  return receipt.reason !== null
+    && receipt.reason.length > 0
+    && Buffer.byteLength(receipt.reason, "utf8") <= 1024
+    && receipt.evidenceUrlOrId !== null;
 }
 
 function validateResultFindings(receipt: ReviewReceipt, version: number, errors: string[]): void {

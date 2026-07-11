@@ -32,6 +32,7 @@ const receipt = {
   action: "reserved",
   request,
   result: null,
+  reason: null,
   evidenceUrlOrId: null,
   findingIds: [],
 };
