@@ -12,7 +12,7 @@
 - **Task List:** `tasks-review-gate-reconcile-composition.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks passes 1-3 (task list drafted, grounded, coherent; on disk, uncommitted)
+- **Last Completed:** Planning finalized; work unit activated for implementation
 - **Next Task:** Task 1.1 — Pin the App-bot account id in providerIdentities
 - **Blockers:** [none]
 
