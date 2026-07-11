@@ -688,73 +688,29 @@ Errand integration, and make this repository's review workflow controller-driven
 _Purpose:_ Make the shadow-to-final transition, rollback, and App-outage recovery executable; then close the
 cross-layer security, packaging, workflow, and architecture-description seams before verification.
 
-### `[ ]` **7.1 Ship the cutover, rollback, and break-glass runbook**
+### `[x]` **7.1 Ship the cutover, rollback, and break-glass runbook**
 
 - _Goal:_ A post-main operator can prove the App/provider contracts and move required contexts forward or backward
   without a missing gate, duplicate `merge-ok`, unreviewed repair, or admin merge bypass.
 
-    - `[ ]` **7.1.a Document setup and shadow authentication probes**
-        - Create `.github/review-gate.md` with private account-owned App settings/permissions, selected-repository
-          install, separate Client ID/numeric App ID variables, and creation/repair of a default-branch-only
-          `review-gate` environment before its private-key secret is written through authenticated local `gh`.
-        - Carry the operational copy of the `independent-analysis/v1` rubric with its explicit initial
-          `rubric_version`, and state the same-commit rule: a rubric change and its version change land in one
-          reviewed commit.
-        - Cover deployment-record inertness (environment-referencing jobs always mint records; rejected attempts
-          leave failed records — bookkeeping, never an access path), exact App token permissions/current-repo scope,
-          main-ref shadow dispatch, non-default secret denial, App source proof, spoof rejection, and
-          credential/installation/environment failure probes.
-        - Stream private-key creation/rotation from a protected file/stdin through authenticated `gh` without argv,
-          log, or step-summary exposure; keep runtime credentials out of repository/user configuration, preserve App
-          identity across key rotation, and treat App-id changes as prove-new-before-remove-old migrations.
-        - State that ARC/package installation creates no hosted footprint; before this repository opts in, disclose
-          the App permissions, tracked workflow/configuration, compact visible audit comments/notification potential,
-          expected transition-only volume, outage blocking, and the durable gate guarantees received in exchange.
+    - `[x]` **7.1.a Document setup and shadow authentication probes**
+        - Added hosted-footprint disclosure, explicit rubric/version rule, selected-repo App/environment setup, streamed
+          key handling, identity migration, default/non-default probes, source spoof rejection, and failure checks.
 
-    - `[ ]` **7.1.b Define the provider and evidence live-probe matrix**
-        - Cover exempt, recommended/accepted, required/clean/findings, stale/retarget, CodeRabbit trigger/retrigger,
-          resolved-config exclusivity, direct commands, exact commit-status context/creator, full/incremental bounds,
-          immutable finding ids, closure authority, capacity provenance/failure, waiver/dismissal, agent/human
-          attestation, reservation ambiguity, repair, and bare-thread-resolution rejection.
-        - Prove `status` wakes CodeRabbit progress, CI completion wakes through filtered `workflow_run`, review events
-          traverse the secretless relay, multi-PR candidates receive distinct concurrency lanes, and an open PR with no
-          gate is found by scheduled repair.
-        - Probe expected native `REVIEW_REQUIRED | CHANGES_REQUESTED | APPROVED` mapping without parsing CODEOWNERS;
-          keep self-hosting formal Code Owner enforcement disabled and route reusable team setup/doctor verification to
-          the downstream GitHub adapter.
-        - State the fallback for every unproven native contract: explicit request or generic attestation, never inferred
-          satisfaction.
-        - Record the evidence needed for the cutover PR to enable CodeRabbit's satisfying declaration; leave it
-          disabled when any required capability remains unproven. Note that enablement additionally authors the
-          rubric-implementing provider review instructions, versioned under `rubric_version` in the same reviewed
-          commit.
+    - `[x]` **7.1.b Define the provider and evidence live-probe matrix**
+        - Added an evidence matrix spanning disposition, admission, status/event routing, coverage/findings/closure,
+          capacity, commands, attestations, ambiguity/repair, fan-out, native review, and fail-safe qualification.
 
-    - `[ ]` **7.1.c Script the required-context cutover and normal rollback**
-        - Give exact inspect/mutate/verify commands for temporary `ci-ok + review-gate-shadow`, legacy alias removal,
-          probe-backed qualification enablement (when earned), resulting policy-version invalidation, dual re-proof,
-          App-owned `merge-ok` pinning, final cleanup, and reverse ordered rollback.
-        - Activate project `post-pr-open` and `pre-merge-review` only in the cutover PR after shadow proof; explicitly
-          invoke `coordinate-pr-review.md` for that PR because its integration session may hold the pre-activation
-          extension snapshot, then verify later sessions discover the active actions normally.
-        - Begin every step with an exact before-state comparison across mode, contexts/source ids, App/environment,
-          and action activation; make mutation commands idempotent or compare-and-stop guarded, log the verified
-          after-state, resume from the last proven checkpoint after interruption, and stop on unexpected divergence.
-        - Require exact-head green proof after every mutation and retain the last proven pair on any failure. After
-          final enforcement is proven, require a narrow final-gated closeout PR that updates
-          `TECHNICAL-OVERVIEW.md` from shadow delivery to current final architecture before unpausing the dependent WU.
+    - `[x]` **7.1.c Script the required-context cutover and normal rollback**
+        - Added compare-and-stop `gh`/API commands and checkpoints for shadow pair, alias removal, qualification,
+          dual/final source pinning, action activation, exact-head proof, closeout, and reverse add-before-remove rollback.
 
-    - `[ ]` **7.1.d Script audited App/controller-outage recovery**
-        - Define merge freeze, incident/ruleset snapshot, exact-head independent `ci-ok` proof, repair-PR producer
-          guard, add-before-remove requirement mutation, normal protected merge, shadow restoration, and final
-          re-promotion.
-        - When coordination cannot reach the App/controller, make the repair PR deactivate the dead project actions
-          and record the incident-scoped suspension instead of retrying them. Require one fresh Codex CLI, Claude Code,
-          or qualified-human `independent-analysis/v1` review of the exact repair diff, linked visibly in the PR and
-          incident without fabricating a controller receipt.
-        - After shadow restoration, require a reactivation PR, explicit `coordinate-pr-review.md` invocation for its
-          possibly stale extension snapshot, and proof that later sessions load the restored actions before final
-          promotion and merge unfreeze.
-        - Include a non-final rehearsal before cutover and prohibit `--admin`, direct base push, or empty requirements.
+    - `[x]` **7.1.d Script audited App/controller-outage recovery**
+        - Added rehearsed freeze/snapshot, independent exact-head proof, producer guard, dead-action suspension,
+          externally reviewed protected repair, shadow/reactivation proof, re-promotion, and explicit bypass prohibitions.
+
+- _Outcome:_ Operators now have one resumable, auditable source for setup, live qualification, normal promotion and
+  rollback, and independently reviewed outage repair without ever dropping the last proven merge guard.
 
 ### `[ ]` **7.2 Close workflow and packaging regressions**
 
