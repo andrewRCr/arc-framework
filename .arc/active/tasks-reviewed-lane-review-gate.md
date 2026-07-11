@@ -394,28 +394,25 @@ capacity, coverage, finding authority, and non-substitution rules.
   requests are single-effect and guard-bound, observations remain provenance-typed, and only live-proven immutable
   finding records cross the evidence boundary while clean and closure capabilities stay disabled.
 
-### `[ ]` **4.2 Configure the repository CodeRabbit handshake**
+### `[x]` **4.2 Configure the repository CodeRabbit handshake**
 
 - _Goal:_ Repository-local CodeRabbit settings inherit account-level policy while enabling only the controller-owned
   request/status/failure contract and detecting inherited paths that could bypass admission or multiply spend.
 
-    - `[ ]` **4.2.a Add the minimal inherited repository delta**
-        - Create `.coderabbit.yaml` with `inheritance: true`, `reviews.request_changes_workflow: true`,
-          `reviews.commit_status: true`, `reviews.fail_commit_status: true`, and `reviews.auto_review` scalars that
-          enable auto review restricted to the controller's positive label (`enabled: true` plus `labels`; a
-          disabled `auto_review` makes the label path inert) while disabling draft/incremental/description-keyword
-          triggers. Leave walkthrough-only `reviews.review_status` inherited.
-        - Add a schema/static assertion that locks only the self-hosting delta and contains no ARC-level provider
-          preference or credential.
+    - `[x]` **4.2.a Add the minimal inherited repository delta**
+        - `.coderabbit.yaml` inherits account configuration and adds only Request Changes, commit success/failure
+          status, and an enabled auto-review path restricted to the single `arc-review-gate` label while disabling
+          drafts, incremental review, and description keywords; schema and repository-file tests reject credentials,
+          provider preference, review-status override, extra labels, or broader triggers.
 
-    - `[ ]` **4.2.b Register configuration as live-probe-gated**
-        - Require `@coderabbitai configuration` evidence for the fully resolved settings because inherited arrays and
-          global overrides can preserve extra positive labels or trigger paths that static repository assertions
-          cannot see. Keep label reaction, acknowledgement, later-push behavior, exact commit-status context/creator,
-          coverage, capacity, and closure as explicit probes.
-        - Keep label qualification disabled when the effective trigger set is not exclusive; repair the account-level
-          setting or preselect the explicit-command strategy, and fail unavailable rather than infer any unproven
-          capability.
+    - `[x]` **4.2.b Register configuration as live-probe-gated**
+        - Resolved configuration qualifies the label only from current `@coderabbitai configuration` evidence whose
+          effective automatic path set is exactly `label:arc-review-gate`; missing, stale, inherited-extra, keyword,
+          or global paths keep the capability disabled and unavailable rather than inferred.
+
+- _Outcome:_ The repository now declares the minimal inherited CodeRabbit handshake while keeping the effective
+  trigger set outside static authority: local schema proves the delta, and live resolved-configuration evidence is
+  still required before the controller may select the label mechanism.
 
 ### `[ ]` **4.3 Ingest qualified agent and human attestations**
 
