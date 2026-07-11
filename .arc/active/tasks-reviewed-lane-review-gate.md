@@ -613,35 +613,29 @@ Errand integration, and make this repository's review workflow controller-driven
 - _Outcome:_ Fresh, retry, resume, composition, and behind-base paths now converge on one explicit open-PR lifecycle
   and an exact-head settled checkpoint immediately before merge authorization.
 
-### `[ ]` **6.3 Rewire Errand PR creation, reuse, and review checkpoints**
+### `[x]` **6.3 Rewire Errand PR creation, reuse, and review checkpoints**
 
 - _Goal:_ Errands reuse an existing PR safely, coordinate review on every open-PR entry, and settle the current head
   before the integration interlock without duplicating provider spend.
 
-    - `[ ]` **6.3.a Detect and reuse an existing Errand PR**
-        - Paginate an exact repository/head-branch lookup before creation; preserve lean Errand body/lane behavior only
-          on the no-match create arm.
-        - Reuse one open match; treat one merged match for the current head as cleanup-only; stop on closed-unmerged,
-          conflicting/multiple candidates, incomplete enumeration, or lookup failure without reopening, creating, or
-          selecting silently.
-        - Add workflow/static fixtures for absent, open, current-head merged, closed-unmerged, ambiguous, incomplete,
-          and lookup-failure states.
+    - `[x]` **6.3.a Detect and reuse an existing Errand PR**
+        - Added a fully paginated exact repository/head lookup and fail-closed state table covering absent, one open,
+          exact-head merged cleanup, closed/stale, multiple/conflicting, incomplete, and failed enumeration.
 
-    - `[ ]` **6.3.b Fire PR-open hooks at Errand boundaries**
-        - Fire retry-safe `pre-pr-open` only after the push and before create; fire idempotent `post-pr-open` on both
-          newly-created and already-open paths before review/merge coordination.
-        - Declare the new extensions in both packaged and self-hosting workflow frontmatter.
+    - `[x]` **6.3.b Fire PR-open hooks at Errand boundaries**
+        - Wired proposed-change actions only on the no-match create arm and opened-change actions on both created and
+          reused PRs, with synchronized package/project declarations and authored-order failure semantics.
 
-    - `[ ]` **6.3.c Place final review before merge authorization**
-        - Move `pre-merge-review` ahead of the integration interlock for reviewed and auto lanes, and require any
-          controller-driven fix/request cycle to settle before PR status is surfaced for approval.
-        - Invalidate the checkpoint after every fix push and repeat current-base/final-head review until the head is
-          unchanged and settled; only then surface integration approval or reviewed-lane handoff.
-        - Preserve the explicit integration approval boundary and unattended auto-merge cleanup semantics.
+    - `[x]` **6.3.c Place final review before merge authorization**
+        - Moved exact-head settlement before the integration interlock for both lanes, repeating after every review
+          push while preserving explicit approval and unattended auto-merge cleanup.
 
-    - `[ ]` **6.3.d Assert WU/Errand lifecycle symmetry**
-        - Add cross-workflow checks for creation-only pre hooks, create/resume post hooks, sequential action ordering,
-          halt-on-failure, and final-head review placement without claiming the two lifecycles are otherwise identical.
+    - `[x]` **6.3.d Assert WU/Errand lifecycle symmetry**
+        - Added cross-workflow assertions for creation-only pre hooks, create/reuse post hooks, authored ordering,
+          halt-before-later failure behavior, and final review placement.
+
+- _Outcome:_ Errand retries now reuse a single unambiguous PR and share the WU lifecycle's hook/checkpoint invariants
+  without broadening Errands into work-unit semantics.
 
 ### `[ ]` **6.4 Clarify local diff preflight boundaries**
 

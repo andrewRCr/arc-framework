@@ -64,4 +64,31 @@ describe("PR-open lifecycle extensions", () => {
     expect(workflow).toContain("PR open, not merged");
     expect(workflow).toContain("`post-pr-open` → review iteration");
   });
+
+  it("fails closed across every Errand PR lookup state", async () => {
+    const workflow = await readFile(
+      resolve(packageArc, "system/workflows/arc/supplemental/run-errand.md"),
+      "utf8",
+    );
+    for (const state of [
+      "No match", "One open match", "One merged match at the current head", "Closed-unmerged",
+      "multiple/conflicting matches", "lookup error", "incomplete enumeration",
+    ]) expect(workflow).toContain(state);
+    expect(workflow).toContain("--paginate --slurp");
+    expect(workflow).toContain("state=all&head={owner}:{branch}");
+  });
+
+  it("keeps WU and Errand hook ordering symmetric", async () => {
+    const workflows = await Promise.all([
+      "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md",
+      "system/workflows/arc/supplemental/run-errand.md",
+    ].map((path) => readFile(resolve(packageArc, path), "utf8")));
+    for (const workflow of workflows) {
+      expect(workflow.indexOf("proposedChangeRequest")).toBeLessThan(workflow.indexOf("gh pr create"));
+      expect(workflow.indexOf("openedChangeRequest")).toBeGreaterThan(workflow.indexOf("gh pr create"));
+      expect(workflow.indexOf("pre-merge-review", workflow.indexOf("openedChangeRequest")))
+        .toBeLessThan(workflow.indexOf("`integration-interlock`", workflow.indexOf("openedChangeRequest")));
+      expect(workflow.toLowerCase()).toContain("halt before later actions");
+    }
+  });
 });
