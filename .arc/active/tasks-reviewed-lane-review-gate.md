@@ -210,12 +210,10 @@ requirements, whether a request may spend quota, and whether the aggregate merge
 _Purpose:_ Translate GitHub change requests, permissions, native review state, App-comment receipt storage, and check
 runs into and out of the neutral ports without allowing host objects to become policy or record authority.
 
-### `[ ]` **3.1 Resolve GitHub change sets and actor capabilities**
+### `[x]` **3.1 Resolve GitHub change sets and actor capabilities**
 
 - _Goal:_ The GitHub adapter produces complete normalized change-request and authorization facts from canonical API
   state without executing or trusting pull-request code.
-- _Approach:_ Keep endpoint payloads private to `hosts/github/`, validate every response before normalization, and
-  separate API/write credentials from the narrow token used to fetch trusted-base git objects.
 
     - `[x]` **3.1.a Build the injected GitHub API boundary**
         - Added `hosts/github/api/{http,rest,graphql}.ts`: an injected-`fetch` transport (REST version pinned via
@@ -247,12 +245,22 @@ runs into and out of the neutral ports without allowing host objects to become p
           Extended `pull-request.ts` to normalize the PR `author` separately (immutable-id bound) for non-author
           rules.
 
-    - `[ ]` **3.1.d Compose the `GitHostAdapter` change-request surface**
-        - Return normalized change request, native evidence, and projection references through the host port; retain
-          PR number, node ids, and URLs only as opaque host coordinates. Receipt persistence composes separately.
-        - Build `test-first` (one behavior at a time):
-            - Core-facing fixtures contain no GitHub object or event payload.
-            - Re-querying unchanged canonical state is idempotent.
+    - `[x]` **3.1.d Compose the `GitHostAdapter` change-request surface**
+        - Added `hosts/github/change-request.ts` — `resolveChangeRequest` decodes an opaque `hostRef`
+          (`github:<owner>/<repo>/pull/<n>`), combines PR facts and trusted coverage, and emits a
+          `NormalizedChangeRequest` validated through the core parser so only the neutral nine keys cross the port
+          (no GitHub object, payload, or URL leaks; PR number lives only inside the opaque `hostRef`, ids read as
+          opaque). A companion neutral `ChangeContext` carries changed paths, author, draft/cross-repo/mergeability
+          for the controller and policy. Fails `unavailable` on a PR-lookup failure, `sensitive` on an
+          unresolvable/force-pushed change set, `invalid-ref` on a malformed ref — no partial record either way.
+          Re-querying unchanged canonical state is deterministic (idempotency fixture).
+
+- _Outcome:_ The GitHub host adapter's change-set + authorization surface is complete: every endpoint payload is
+  validated and normalized inside `hosts/github/`, immutable numeric/node ids carry identity while mutable
+  refs/logins stay observation-only, trusted-base git objects are fetched with a narrow read path separate from the
+  API token, and the only core-facing record is the neutral `NormalizedChangeRequest`. Native evidence (Task 3.2)
+  and verdict projection (Task 3.4) fill the remaining host-port methods; receipt persistence (Task 3.3) composes
+  separately.
 
 ### `[ ]` **3.2 Normalize native reviews and conversations**
 
