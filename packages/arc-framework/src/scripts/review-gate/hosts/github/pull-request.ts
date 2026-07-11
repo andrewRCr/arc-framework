@@ -13,6 +13,7 @@
  */
 
 import { digestAt, integerAt, objectAt, stringAt } from "../../core/validation.js";
+import { normalizeActor, type NormalizedActor } from "./actor.js";
 import type { GitHubRestClient, ReadOutcome } from "./api/rest.js";
 
 /** Normalized mergeability derived from the host's async merge computation. */
@@ -42,6 +43,8 @@ export interface PullRequestFacts {
   isDraft: boolean;
   /** Normalized mergeability. */
   mergeability: Mergeability;
+  /** PR author bound to immutable ids, normalized separately for non-author rules. */
+  author: NormalizedActor;
 }
 
 function boolAt(value: unknown, path: string): boolean {
@@ -83,6 +86,7 @@ export function parsePullRequest(input: unknown): PullRequestFacts {
     isCrossRepository: headRepositoryId === null || headRepositoryId !== repositoryId,
     isDraft: boolAt(record.draft, "pullRequest.draft"),
     mergeability: mergeabilityAt(record.mergeable, "pullRequest.mergeable"),
+    author: normalizeActor(record.user, "pullRequest.user"),
   };
 }
 

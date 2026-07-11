@@ -15,6 +15,7 @@ function prPayload(overrides: Record<string, unknown> = {}): unknown {
     mergeable: true,
     base: { ref: "main", sha: BASE_SHA, repo: { id: 100, node_id: "R_base" } },
     head: { ref: "feature", sha: HEAD_SHA, repo: { id: 100, node_id: "R_base" } },
+    user: { id: 7, node_id: "U_author", login: "andrewRCr", type: "User" },
     ...overrides,
   };
 }
@@ -33,6 +34,7 @@ describe("parsePullRequest", () => {
       isCrossRepository: false,
       isDraft: false,
       mergeability: "mergeable",
+      author: { identity: "7", nodeId: "U_author", login: "andrewRCr", kind: "user" },
     });
   });
 

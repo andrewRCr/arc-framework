@@ -238,14 +238,14 @@ runs into and out of the neutral ports without allowing host objects to become p
           git runs. Real-git integration fixtures cover base-tip-stable vs retarget/merge-base-moved identity,
           sensitive fail modes, injection rejection, and arbitrary-filename/rename transport.
 
-    - `[ ]` **3.1.c Resolve actor and author capabilities**
-        - Bind repository, PR, human, bot, and App authority to immutable numeric/node ids, retaining login only for
-          display. Re-query collaborator permission for every command/attestation and normalize the PR author
-          separately for non-author rules.
-        - Build `test-first` (one behavior at a time):
-            - Read/triage/write/maintain/admin fixtures map without over-granting.
-            - Login case/rename cannot change identity; removed access, lookup failure, numeric actor mismatch, and bot
-              ambiguity fail closed.
+    - `[x]` **3.1.c Resolve actor and author capabilities**
+        - Added `hosts/github/actor.ts` — `normalizeActor` binds any account to its immutable numeric/node ids with
+          login kept display-only, and `resolveActorCapabilities` re-queries the live collaborator-permission
+          endpoint per actor, mapping the exact role (`role_name` preferred, legacy field as fallback) without
+          over-granting. Identity is the numeric id, so a login case change or rename cannot alter it; a numeric-id
+          mismatch, a bot account, removed access (permission `none` / 404), and any lookup failure all fail closed.
+          Extended `pull-request.ts` to normalize the PR `author` separately (immutable-id bound) for non-author
+          rules.
 
     - `[ ]` **3.1.d Compose the `GitHostAdapter` change-request surface**
         - Return normalized change request, native evidence, and projection references through the host port; retain
