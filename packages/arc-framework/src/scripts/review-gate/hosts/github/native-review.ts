@@ -1,0 +1,274 @@
+/**
+ * Native GitHub review, decision, and conversation normalization.
+ *
+ * Observes submitted reviews (REST), the aggregate `reviewDecision`, and review
+ * threads (GraphQL), binding every actor to immutable ids. It never parses
+ * CODEOWNERS or infers Code Owner identity, and a `COMMENTED` review or aggregate
+ * host approval is never treated as independent analysis — a current qualified
+ * `APPROVED` satisfies peer approval only. Individual approval is atomic to the
+ * head it was submitted against, so a head change staleness the approval under
+ * the host's own dismissal semantics. Under self-hosting policy every unresolved
+ * thread blocks; a resolution closes its finding only when the host exposes a
+ * qualifying resolver identity, never on a bare `isResolved` boolean.
+ *
+ * @module
+ */
+
+import type { FindingClosure } from "../../core/evidence.js";
+import { digestAt, objectAt, stringAt, timestampAt } from "../../core/validation.js";
+import { normalizeActor, type NormalizedActor } from "./actor.js";
+import type { GitHubGraphQLClient, GraphQLOutcome, GraphQLPage } from "./api/graphql.js";
+import type { GitHubRestClient, ReadOutcome } from "./api/rest.js";
+import type { HostCoordinates } from "./change-request.js";
+
+/** Normalized submitted-review state; `commented`/`pending` set no effective state. */
+export type ReviewState = "approved" | "changes-requested" | "commented" | "dismissed" | "pending";
+
+/** One submitted review bound to its actor and the head it was submitted against. */
+export interface NormalizedReview {
+  reviewId: string;
+  actor: NormalizedActor;
+  state: ReviewState;
+  commitId: string;
+  submittedAt: string | null;
+}
+
+/** Aggregate host review decision, normalized; null when the host reports none. */
+export type ReviewDecision = "approved" | "changes-requested" | "review-required" | null;
+
+/** One review thread with its resolver identity when the host exposes it. */
+export interface NormalizedThread {
+  threadId: string;
+  isResolved: boolean;
+  resolvedBy: NormalizedActor | null;
+}
+
+// --- Individual reviews (REST) ---
+
+function parseReviewState(state: string, path: string): ReviewState {
+  switch (state) {
+    case "APPROVED":
+      return "approved";
+    case "CHANGES_REQUESTED":
+      return "changes-requested";
+    case "COMMENTED":
+      return "commented";
+    case "DISMISSED":
+      return "dismissed";
+    case "PENDING":
+      return "pending";
+    default:
+      throw new Error(`${path}: unexpected review state ${state}`);
+  }
+}
+
+function parseReview(input: unknown, path: string): NormalizedReview {
+  const record = objectAt(input, path);
+  const submittedAt = record.submitted_at === null || record.submitted_at === undefined
+    ? null
+    : timestampAt(record.submitted_at, `${path}.submitted_at`);
+  return {
+    reviewId: stringAt(record.node_id, `${path}.node_id`),
+    actor: normalizeActor(record.user, `${path}.user`),
+    state: parseReviewState(stringAt(record.state, `${path}.state`), `${path}.state`),
+    commitId: digestAt(record.commit_id, `${path}.commit_id`, 40),
+    submittedAt,
+  };
+}
+
+/** Read every submitted review for a pull request. */
+export function resolveReviews(rest: GitHubRestClient, ref: HostCoordinates): Promise<ReadOutcome<NormalizedReview[]>> {
+  const path = `/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.repo)}/pulls/${ref.number}/reviews`;
+  return rest.getPaginated(path, {
+    query: { per_page: 100 },
+    parsePage: (value) => {
+      if (!Array.isArray(value)) throw new Error("reviews: expected an array page");
+      return value.map((item, index) => parseReview(item, `reviews[${index}]`));
+    },
+  });
+}
+
+// --- Aggregate decision and review threads (GraphQL) ---
+
+const REVIEW_DECISION_QUERY = `query ReviewDecision($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) { reviewDecision }
+  }
+}`;
+
+const REVIEW_THREADS_QUERY = `query ReviewThreads($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $cursor) {
+        nodes {
+          id
+          isResolved
+          resolvedBy {
+            __typename
+            ... on User { id databaseId login }
+            ... on Bot { id databaseId login }
+            ... on Organization { id databaseId login }
+          }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}`;
+
+function pullRequestNode(data: unknown): Record<string, unknown> {
+  const repository = objectAt((objectAt(data, "data")).repository, "data.repository");
+  return objectAt(repository.pullRequest, "data.repository.pullRequest");
+}
+
+function normalizeGraphqlActor(input: unknown): NormalizedActor | null {
+  if (input === null || input === undefined) return null;
+  const record = objectAt(input, "resolvedBy");
+  if (record.databaseId === null || record.databaseId === undefined) return null;
+  return normalizeActor(
+    { id: record.databaseId, node_id: record.id, login: record.login, type: record.__typename },
+    "resolvedBy",
+  );
+}
+
+/** Read and normalize the aggregate host review decision. */
+export function resolveReviewDecision(gql: GitHubGraphQLClient, ref: HostCoordinates): Promise<GraphQLOutcome<ReviewDecision>> {
+  return gql.query({
+    query: REVIEW_DECISION_QUERY,
+    variables: { owner: ref.owner, repo: ref.repo, number: ref.number },
+    parse: (data) => {
+      const decision = pullRequestNode(data).reviewDecision;
+      switch (decision) {
+        case "APPROVED":
+          return "approved";
+        case "CHANGES_REQUESTED":
+          return "changes-requested";
+        case "REVIEW_REQUIRED":
+          return "review-required";
+        case null:
+        case undefined:
+          return null;
+        default:
+          throw new Error(`reviewDecision: unexpected ${String(decision)}`);
+      }
+    },
+  });
+}
+
+/** Read every review thread with its resolver identity where exposed. */
+export function resolveThreads(gql: GitHubGraphQLClient, ref: HostCoordinates): Promise<GraphQLOutcome<NormalizedThread[]>> {
+  return gql.paginate({
+    query: REVIEW_THREADS_QUERY,
+    variables: { owner: ref.owner, repo: ref.repo, number: ref.number },
+    extractPage: (data): GraphQLPage<NormalizedThread> => {
+      const connection = objectAt(pullRequestNode(data).reviewThreads, "reviewThreads");
+      const nodes = Array.isArray(connection.nodes) ? connection.nodes : [];
+      const pageInfo = objectAt(connection.pageInfo, "reviewThreads.pageInfo");
+      return {
+        nodes: nodes.map((node, index): NormalizedThread => {
+          const record = objectAt(node, `reviewThreads.nodes[${index}]`);
+          return {
+            threadId: stringAt(record.id, `reviewThreads.nodes[${index}].id`),
+            isResolved: record.isResolved === true,
+            resolvedBy: normalizeGraphqlActor(record.resolvedBy),
+          };
+        }),
+        hasNextPage: pageInfo.hasNextPage === true,
+        endCursor: typeof pageInfo.endCursor === "string" ? pageInfo.endCursor : null,
+      };
+    },
+  });
+}
+
+// --- Reduction ---
+
+/** A current native approval eligible to satisfy a peer-approval requirement only. */
+export interface NativePeerApproval {
+  actorIdentity: string;
+  headSha: string;
+}
+
+/** The verdict's native-review block plus derived peer approvals and closures. */
+export interface NativeReviewReduction {
+  nativeReview: {
+    requestedChanges: boolean;
+    unresolvedRequiredConversations: number;
+    decision: "not-configured" | "review-required" | "changes-requested" | "approved" | "unknown";
+  };
+  peerApprovals: NativePeerApproval[];
+  closures: FindingClosure[];
+}
+
+/** Inputs for reducing observed native review state at the current head. */
+export interface NativeReviewReductionInput {
+  reviews: NormalizedReview[];
+  reviewDecision: ReviewDecision;
+  threads: NormalizedThread[];
+  headSha: string;
+  authorIdentity: string;
+  /** Whether versioned policy expects a native required-review decision. */
+  expectsNativeReview: boolean;
+  /** Resolver identities that cannot close a finding (e.g. the review provider's bot). */
+  nonClosingResolvers?: readonly string[];
+}
+
+/** Latest state-setting review per actor; `commented`/`pending` never set effective state. */
+function effectiveReviews(reviews: NormalizedReview[]): NormalizedReview[] {
+  const ordered = [...reviews].sort((left, right) => (left.submittedAt ?? "").localeCompare(right.submittedAt ?? ""));
+  const byActor = new Map<string, NormalizedReview>();
+  for (const review of ordered) {
+    if (review.state === "commented" || review.state === "pending") continue;
+    byActor.set(review.actor.identity, review);
+  }
+  return [...byActor.values()];
+}
+
+function decisionOf(input: NativeReviewReductionInput): NativeReviewReduction["nativeReview"]["decision"] {
+  if (!input.expectsNativeReview) return "not-configured";
+  switch (input.reviewDecision) {
+    case "review-required":
+      return "review-required";
+    case "changes-requested":
+      return "changes-requested";
+    case "approved":
+      return "approved";
+    case null:
+      return "unknown";
+  }
+}
+
+/** Reduce observed native review state into the verdict block, peer approvals, and closures. */
+export function reduceNativeReview(input: NativeReviewReductionInput): NativeReviewReduction {
+  const effective = effectiveReviews(input.reviews);
+  const peerApprovals = effective
+    .filter((review) =>
+      review.state === "approved"
+      && review.commitId === input.headSha
+      && review.actor.identity !== input.authorIdentity)
+    .map((review): NativePeerApproval => ({ actorIdentity: review.actor.identity, headSha: input.headSha }));
+
+  const requestedChanges = effective.some((review) => review.state === "changes-requested")
+    || input.reviewDecision === "changes-requested";
+
+  const nonClosing = new Set(input.nonClosingResolvers ?? []);
+  const closures = input.threads.flatMap((thread): FindingClosure[] => {
+    const resolver = thread.resolvedBy;
+    if (!thread.isResolved || resolver === null || nonClosing.has(resolver.identity)) return [];
+    return [{
+      findingId: thread.threadId,
+      authorityKind: "host-native",
+      authorityIdentity: resolver.identity,
+      evidenceUrlOrId: thread.threadId,
+    }];
+  });
+
+  return {
+    nativeReview: {
+      requestedChanges,
+      unresolvedRequiredConversations: input.threads.filter((thread) => !thread.isResolved).length,
+      decision: decisionOf(input),
+    },
+    peerApprovals,
+    closures,
+  };
+}

@@ -262,38 +262,38 @@ runs into and out of the neutral ports without allowing host objects to become p
   and verdict projection (Task 3.4) fill the remaining host-port methods; receipt persistence (Task 3.3) composes
   separately.
 
-### `[ ]` **3.2 Normalize native reviews and conversations**
+### `[x]` **3.2 Normalize native reviews and conversations**
 
 - _Goal:_ Native approvals, requested changes, dismissals, and review conversations affect only the requirement and
   closure semantics GitHub can actually prove.
 
-    - `[ ]` **3.2.a Normalize review state by head and actor**
-        - Observe submitted/edited/dismissed reviews, requested changes, commit binding, and immutable actor identity;
-          separately normalize GitHub `reviewDecision`. Never parse `CODEOWNERS`, infer Code Owner identity, or treat
-          `COMMENTED`/aggregate host approval as independent analysis.
-        - Build `test-first` (one behavior at a time):
-            - Current qualified approval satisfies peer approval only.
-            - Stale approval, self-approval, dismissed approval, and current requested changes reduce correctly.
-            - Expected `REVIEW_REQUIRED` stays pending, `CHANGES_REQUESTED` fails, `APPROVED` clears only the native
-              host-review blocker, and missing/unknown expected state fails closed.
+    - `[x]` **3.2.a Normalize review state by head and actor**
+        - `native-review.ts` normalizes submitted reviews (REST, per-actor latest state-setting review;
+          `commented`/`pending` set none) bound to the actor's immutable id and the head `commit_id`, and separately
+          normalizes the GraphQL `reviewDecision`. `reduceNativeReview` yields a current qualified approval as a
+          peer-approval candidate only (never independent analysis); stale (older head), self (author), and
+          later-dismissed approvals drop out, current requested-changes blocks, and the decision maps only when policy
+          expects native review (`review-required` / `changes-requested` / `approved`, missing → `unknown` fails
+          closed). No CODEOWNERS parse or Code Owner inference.
 
-    - `[ ]` **3.2.b Normalize conversations and closure authority**
-        - Paginate every review thread and normalize `isResolved` plus immutable `resolvedBy` identity where exposed.
-          Under self-hosting policy every unresolved thread blocks; resolution without an identified, qualifying actor
-          emits no closure and requires later source confirmation/dismissal.
-        - Build `test-first` (one behavior at a time):
-            - Unresolved required conversations block independently of requirement count.
-            - Resolver-known native dismissal closes only the named finding.
-            - Bare `isResolved` with no actor never becomes closure evidence.
+    - `[x]` **3.2.b Normalize conversations and closure authority**
+        - `resolveThreads` paginates every review thread and normalizes `isResolved` plus the immutable `resolvedBy`
+          identity where the host exposes it. Every unresolved thread counts as a blocking required conversation
+          independent of requirement count; a resolved thread yields a `host-native` closure for exactly its finding
+          only when a qualifying resolver is known (a bare `isResolved` with no actor, or a caller-listed non-closing
+          resolver such as the provider bot, yields no closure).
 
-    - `[ ]` **3.2.c Bind native evidence to exact host state**
-        - Produce durable host evidence references and current-head bindings; keep individual approval atomic rather
-          than composing it across heads, and keep aggregate host-policy satisfaction separate from ARC peer evidence.
-        - Build `test-first` (one behavior at a time):
-            - Head changes stale native approval under the host's dismissal semantics.
-            - Review edit/dismiss events reconstruct the same result as a scheduled canonical re-query.
-            - GitHub's host decision can block merge readiness without manufacturing a Code Owner identity or
-              satisfying an independent-analysis requirement.
+    - `[x]` **3.2.c Bind native evidence to exact host state**
+        - Individual approval is atomic to its submitted head, so a head change stales it without composing across
+          heads, and the aggregate host decision blocks merge readiness without manufacturing a Code Owner or an
+          independent-analysis satisfaction. `reduceNativeReview` is pure over observed state, so a scheduled
+          re-query reconstructs the same result as the edit/dismiss event stream.
+
+- _Outcome:_ Native GitHub review state — individual reviews, aggregate `reviewDecision`, and review threads — is
+  normalized to immutable-id-bound, head-exact facts that feed the core's `nativeReview` block (requested-changes,
+  unresolved-conversation count, decision), peer-approval candidates, and `host-native` closures, with no CODEOWNERS
+  parsing and no path by which `COMMENTED`, a bare thread resolution, or aggregate host approval becomes independent
+  analysis.
 
 ### `[ ]` **3.3 Implement the App-comment receipt store**
 
