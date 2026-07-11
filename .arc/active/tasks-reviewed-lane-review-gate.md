@@ -457,47 +457,29 @@ capacity, coverage, finding authority, and non-substitution rules.
 _Purpose:_ Run the controller only from protected default-branch code, reconstruct canonical state from event
 wake-ups, and separate `ci-ok` from a shadow-capable review gate without breaking the legacy required context.
 
-### `[ ]` **5.1 Reconcile events, races, timeouts, and scheduled repair**
+### `[x]` **5.1 Reconcile events, races, timeouts, and scheduled repair**
 
 - _Goal:_ Short-lived trusted controller runs reconstruct one current canonical state and converge despite duplicate,
   missed, reordered, coalesced, or delayed wake-ups without cancelling an effectful writer.
 
-    - `[ ]` **5.1.a Normalize event wake-ups without trusting snapshots**
-        - Parse `pull_request_target`, commit `status`, filtered CI/review-relay `workflow_run`, external check,
-          issue-comment, dispatch, and schedule inputs only into repository/PR hints; re-query every
-          policy/evidence/receipt fact from its authoritative adapter.
-        - Build `test-first` (one behavior at a time):
-            - Stale event payloads reconcile the current head rather than their embedded snapshot.
-            - GitHub Actions CI completion maps through `workflow_run`, while CodeRabbit progress maps through
-              `status`; neither depends on a suppressed/missing `check_run` event.
-            - Unsupported/malformed events fail visibly without mutating receipts/checks.
+    - `[x]` **5.1.a Normalize event wake-ups without trusting snapshots**
+        - Added closed event normalization that retains only numeric repository/PR and SHA discovery hints, routes CI
+          and provider wake-ups through their reliable event families, and rejects malformed or unsupported input.
 
-    - `[ ]` **5.1.b Orchestrate read, reduce, effect, and final re-read**
-        - Compose host/policy/receipt-store/provider adapters around pure reducers; append a reservation against the
-          read ledger version, confirm it canonically before the provider effect, and publish only after a final guard.
-        - Build `test-first` (one behavior at a time):
-            - Re-running unchanged state produces no duplicate spend or receipt and an idempotent check update.
-            - Head/permission/policy changes between reads abort stale effects and reconcile the new state.
+    - `[x]` **5.1.b Orchestrate read, reduce, effect, and final re-read**
+        - Added a read-reduce-effect-publish orchestrator that checks head, policy, permissions, and ledger before an
+          effect, then re-reads and re-reduces authenticated state before publishing an idempotent projection.
 
-    - `[ ]` **5.1.c Repair missed and nonterminal state on schedule**
-        - Fully paginate every open PR in scope—including PRs with no anchor/check—then shortlist missing,
-          pending/nonterminal state, rebuild it, apply the one-time automatic admission rule, and never replay
-          ambiguous reservations. Fail visibly on pagination/candidate caps rather than silently omitting PRs.
-        - Build `test-first` (one behavior at a time):
-            - A ready PR with no gate/receipt state is discovered and repairs the initial required request once.
-            - Recommended/exempt/settled PRs and ambiguous attempts spend nothing.
+    - `[x]` **5.1.c Repair missed and nonterminal state on schedule**
+        - Added full open-PR scan consumption with bounded, sorted deduplication; every discovered PR enters the same
+          canonical reducer, whose existing one-shot admission and ambiguous-reservation rules prevent replay.
 
-    - `[ ]` **5.1.d Bound races and injected time**
-        - Let a read-only discovery job emit a bounded, deduplicated numeric repository/PR matrix for every event and
-          scheduled scan. Run one effectful matrix leg per PR, sharing its repository-id/PR-id concurrency group with
-          attestation and `cancel-in-progress: false`; let pending wake-ups coalesce and stale runs self-abort.
-        - Inject the evaluation clock while deriving timeout age only from store-authenticated `recorded_at`; keep
-          controller-check wake-ups nonrecursive.
-        - Build `test-first` (one behavior at a time):
-            - Interleaved older/newer reconciliations leave only the newest change-set projection authoritative.
-            - One status/workflow run associated with multiple PRs fans out without sharing a write lane; discovery
-              never receives App credentials or authors state.
-            - Timeout boundary fixtures and self-check events converge deterministically.
+    - `[x]` **5.1.d Bound races and injected time**
+        - Added stable repository/PR concurrency identities, multi-PR head fan-out, injected evaluation time, stale
+          worker guards, and dedicated-App self-check suppression; discovery has no write or credential surface.
+
+- _Outcome:_ Event order and delivery are now wake-up concerns only: bounded secretless discovery feeds isolated
+  guarded writers, while canonical re-reads and authenticated ledger time determine effects and projections.
 
 ### `[ ]` **5.2 Model and test shadow, dual, and final projection modes**
 
