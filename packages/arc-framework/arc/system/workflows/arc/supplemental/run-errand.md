@@ -7,7 +7,8 @@ arc:
     - commit-footer
   extensions:
     - post-task-quality
-    - pre-pr-review
+    - pre-pr-open
+    - post-pr-open
     - pre-push-review
     - pre-merge-review
 ---
@@ -121,26 +122,56 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
 
-3. **Open the PR** with a **lean errand body** — `template-pull-request` assumes a work unit, so inline a minimal
-   body: a one-line Summary, plus a one-line Test Plan only when verification is non-obvious. No Spec /
-   Out-of-Scope / Follow-Up sections — an errand is one concern.
+3. **Resolve the Errand PR** before creation. Paginate the exact current repository + head-owner/branch query and
+   retain each candidate's state, merged time, and head SHA. A lookup error or incomplete enumeration is a stop, not
+   an empty result. Classify the complete result:
 
-   - **Extensions** · `#pre-pr-review`: If active, run its `.actions` before opening the PR; halt-on-fail as above.
-     Otherwise skip.
+   | Result                                                           | Action                                       |
+   |------------------------------------------------------------------|----------------------------------------------|
+   | No match                                                         | Enter the creation arm below                 |
+   | One open match                                                   | Reuse its `hostRef`; do not create or reopen |
+   | One merged match at the current head                             | Skip review/merge and enter Complete cleanup |
+   | Closed-unmerged, stale merged head, multiple/conflicting matches | Stop and surface every candidate             |
+
+   ```bash
+   gh api --method GET --paginate --slurp \
+     "repos/{repository}/pulls?state=all&base={base-branch}&head={owner}:{branch}&per_page=100"
+   ```
+
+   The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
+   one-line Summary plus a one-line Test Plan only when verification is non-obvious. No Spec / Out-of-Scope /
+   Follow-Up sections.
+
+   Compose `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }`. If `pre-pr-open` is active,
+   execute numbered actions in authored order immediately before creation; halt before later actions on failure.
+   Retry these retry-safe actions after a failed create, but never run them on the one-open-match reuse path.
+
+   Immediately before `gh pr create`, read `refs/heads/<branch>` from the base repository remote with
+   `git ls-remote --heads origin`. Compare its exact 40-hex SHA with `proposedChangeRequest.headSha`; on absence,
+   ambiguity, or mismatch, stop and restart PR resolution. Never create against a head that changed after validation.
 
    ```bash
    gh pr create --base <base-branch> --head <branch>
    ```
 
-> [!IMPORTANT]
-> `integration-interlock`: Stop before arming auto-merge or merging. Surface PR status (checks, required
-> approvals) and the resolved lane; await explicit integration approval — never infer it from the increment
-> approval above.
+4. **Enter the open PR.** On both newly-created and reused-open paths, compose
+   `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open` is active, execute its idempotent
+   numbered actions before review coordination. Derive current controller/PR state from `hostRef`.
 
-4. Fire the pre-merge review, then land per lane:
+5. **Settle the final head.** For reviewed and auto lanes, run review coordination and fire `pre-merge-review` before
+   merge authorization. If any fix/request action changes the head, repeat base freshness, current-head coordination,
+   and the final hook until the head is unchanged and the controller reports it settled. No review-authored commit or
+   push may occur after the stable checkpoint.
 
    - **Extensions** · `#pre-merge-review`: If active, run its `.actions` before the merge; halt-on-fail as above.
      Otherwise skip.
+
+> [!IMPORTANT]
+> `integration-interlock`: Stop after the current head is settled and before arming auto-merge or merging. Surface PR
+> status (checks, required approvals) and the resolved lane; await explicit integration approval — never infer it from
+> the increment approval above.
+
+6. Land per lane:
 
    **Auto-merge-lane** — resolve `merge.strategy` via the config probe, then arm native auto-merge with the
    matching method (`merge` → `--merge`, `squash` → `--squash`, `rebase` → `--rebase`):

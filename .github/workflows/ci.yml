@@ -27,7 +27,7 @@ jobs:
   #            docs-only change or an already-verified tree. A light run skips the
   #            code checks, the integration/e2e suite, and the portability matrix.
   # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet light.
-  # merge-ok rolls the gated jobs up into the single required check.
+  # ci-ok rolls up CI truth; merge-ok remains a thin compatibility alias.
   classify:
     name: Classify lane & weight
     runs-on: ubuntu-latest
@@ -41,7 +41,7 @@ jobs:
       reason: ${{ steps.c.outputs.reason }}
       duplicate_push: ${{ steps.duplicate.outputs.duplicate_push }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -88,13 +88,17 @@ jobs:
             all_base='${{ github.event.before }}'
             all_head='${{ github.sha }}'
           fi
-          changed_all=''
+          lane=reviewed
           if git rev-parse -q --verify "$all_base^{commit}" >/dev/null 2>&1 \
              && git rev-parse -q --verify "$all_head^{commit}" >/dev/null 2>&1; then
-            changed_all="$(git diff --name-only "$all_base...$all_head" 2>/dev/null || true)"
+            if [ "$event" = 'pull_request' ]; then
+              lane="$(git diff --name-only -z "$all_base...$all_head" \
+                | bash scripts/classify-change.sh lane --stdin0)"
+            else
+              lane="$(git diff --name-only -z "$all_base" "$all_head" \
+                | bash scripts/classify-change.sh lane --stdin0)"
+            fi
           fi
-
-          echo 'changed (all):'; printf '%s\n' "$changed_all"
 
           # weight axis: delegate to the canonical classifier. It prints
           # `weight=` and `reason=` (GITHUB_OUTPUT lines) on stdout and a decision
@@ -114,16 +118,8 @@ jobs:
           printf '%s\n' "$weight_out" >> "$GITHUB_OUTPUT"
           { echo '### CI classification'; echo; printf '%s\n' "$weight_out" | sed 's/^/- /'; } >> "$GITHUB_STEP_SUMMARY"
 
-          # lane (PR only) from the WHOLE change: auto-merge lane = changes confined
-          # to planning/metadata files (PREFIX draft- / tasks- / meta- / notes- /
-          # cohort-* under active/ or backlog/); else reviewed. Computed from
-          # changed_all so a docs push never flips a code PR to auto-merge.
-          lane=reviewed
-          if [ "$event" = 'pull_request' ] && [ -n "$changed_all" ] \
-             && ! printf '%s\n' "$changed_all" \
-                  | grep -qvE '^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)-'; then
-            lane=auto
-          fi
+          # The legacy scheduling lane is PR-only; pushes remain reviewed.
+          if [ "$event" != 'pull_request' ]; then lane=reviewed; fi
           echo "lane=$lane" >> "$GITHUB_OUTPUT"
           echo "classified lane=$lane (event=$event action=$action); see decide log above for weight"
 
@@ -136,10 +132,10 @@ jobs:
     if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         persist-credentials: false
-    - uses: actions/setup-node@v5
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -169,10 +165,10 @@ jobs:
     if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light' }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         persist-credentials: false
-    - uses: actions/setup-node@v5
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -198,10 +194,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       with:
         persist-credentials: false
-    - uses: actions/setup-node@v5
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -209,8 +205,8 @@ jobs:
     - run: npm run build
     - run: npm run test:portability
 
-  merge-ok:
-    name: merge-ok
+  ci_ok:
+    name: ci-ok
     needs: [classify, lint-typecheck-unit, integration-e2e, portability]
     if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
@@ -231,4 +227,20 @@ jobs:
             echo "::error::required job(s) did not succeed: $(printf '%s' "$failed" | paste -sd, -)"
             exit 1
           fi
-          echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }} weight=${{ needs.classify.outputs.weight }})"
+          echo "ci-ok ✓ (lane=${{ needs.classify.outputs.lane }} weight=${{ needs.classify.outputs.weight }})"
+
+  merge-ok:
+    name: merge-ok
+    needs: ci_ok
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror ci-ok for required-context compatibility
+        env:
+          CI_OK_RESULT: ${{ needs.ci_ok.result }}
+        run: |
+          if [ "$CI_OK_RESULT" != 'success' ]; then
+            echo "::error::ci-ok did not succeed: $CI_OK_RESULT"
+            exit 1
+          fi
+          echo 'merge-ok compatibility alias ✓'

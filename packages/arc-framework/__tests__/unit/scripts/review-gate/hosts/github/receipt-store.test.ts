@@ -1,0 +1,234 @@
+import { describe, expect, it } from "vitest";
+
+import type { ReviewReceipt, ReviewRequest } from "../../../../../../src/scripts/review-gate/core/execution.js";
+import { createReceipt } from "../../../../../../src/scripts/review-gate/core/request-key.js";
+import {
+  GitHubCommentReceiptStore,
+  ReceiptStoreError,
+  type GitHubIssueCommentApi,
+  type GitHubIssueComment,
+  type ReceiptWriteState,
+} from "../../../../../../src/scripts/review-gate/hosts/github/receipt-store.js";
+import {
+  serializeLedgerAnchor,
+  type LedgerAnchorPayload,
+} from "../../../../../../src/scripts/review-gate/hosts/github/receipt-anchor.js";
+import { serializeReceiptComment } from "../../../../../../src/scripts/review-gate/hosts/github/receipt-comment.js";
+
+const AUTHORITY = { expectedAppId: "4268856", expectedBotId: "302312524" };
+const CREATED = "2026-07-11T10:00:00Z";
+
+function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
+  return {
+    schemaVersion: 1,
+    repositoryId: "100",
+    changeRequestId: "PR_node",
+    changeSetId: "a".repeat(64),
+    policyVersion: "b".repeat(64),
+    rubricVersion: "independent-analysis/v1",
+    requirementId: "analysis",
+    sourceIdentity: "coderabbit",
+    coverage: "full",
+    coverageFromSha: "0".repeat(40),
+    coverageThroughSha: "f".repeat(40),
+    generation: 0,
+    actorIdentity: "7",
+    ...overrides,
+  };
+}
+
+function receipt(previousLedgerVersion = 0, overrides: Partial<ReviewReceipt> = {}): ReviewReceipt {
+  return {
+    ...createReceipt({
+      eventId: `evt-${previousLedgerVersion + 1}`,
+      previousLedgerVersion,
+      action: "reserved",
+      request: request({ generation: previousLedgerVersion }),
+      result: null,
+      evidenceUrlOrId: null,
+      findingIds: [],
+    }),
+    ...overrides,
+  };
+}
+
+function appComment(id: number, body: string, overrides: Record<string, unknown> = {}): GitHubIssueComment {
+  return {
+    id,
+    node_id: `IC_${id}`,
+    body,
+    created_at: CREATED,
+    updated_at: CREATED,
+    user: { id: 302312524, login: "arc-review-gate[bot]", type: "Bot" },
+    performed_via_github_app: { id: 4268856, slug: "arc-review-gate" },
+    ...overrides,
+  } as GitHubIssueComment;
+}
+
+class MemoryComments implements GitHubIssueCommentApi {
+  readonly comments: GitHubIssueComment[];
+  createMode: "ok" | "ambiguous-applied" | "ambiguous-missing" = "ok";
+  failList = false;
+  private nextId = 10;
+
+  constructor(comments: GitHubIssueComment[] = []) {
+    this.comments = comments;
+  }
+
+  async list(): Promise<GitHubIssueComment[]> {
+    if (this.failList) throw new Error("enumeration-cap");
+    return this.comments;
+  }
+
+  async create(body: string): Promise<{ kind: "created"; comment: GitHubIssueComment } | { kind: "ambiguous" }> {
+    if (this.createMode === "ambiguous-missing") return { kind: "ambiguous" };
+    const comment = appComment(this.nextId, body);
+    this.nextId += 1;
+    this.comments.push(comment);
+    return this.createMode === "ambiguous-applied" ? { kind: "ambiguous" } : { kind: "created", comment };
+  }
+
+  async update(id: number, body: string): Promise<GitHubIssueComment> {
+    const index = this.comments.findIndex((comment) => comment.id === id);
+    const prior = this.comments[index];
+    if (prior === undefined) throw new Error("missing-comment");
+    const updated = appComment(id, body, { created_at: prior.created_at, updated_at: "2026-07-11T10:01:00Z" });
+    this.comments[index] = updated;
+    return updated;
+  }
+}
+
+function anchor(version: number, count = version): LedgerAnchorPayload {
+  return { schemaVersion: 1, repositoryId: "100", changeRequestId: "PR_node", ledgerVersion: version, receiptCount: count };
+}
+
+function writeState(overrides: Partial<ReceiptWriteState> = {}): ReceiptWriteState {
+  return {
+    repositoryId: "100",
+    changeRequestId: "PR_node",
+    changeSetId: "a".repeat(64),
+    policyVersion: "b".repeat(64),
+    actorIdentity: "7",
+    authorized: true,
+    ...overrides,
+  };
+}
+
+function store(api: MemoryComments, revalidate = async () => writeState(), stateExpected = async () => false) {
+  return new GitHubCommentReceiptStore({
+    api,
+    authority: AUTHORITY,
+    repositoryId: "100",
+    changeRequestId: "PR_node",
+    revalidate,
+    stateExpected,
+  });
+}
+
+describe("GitHub comment receipt append", () => {
+  it("revalidates current actor and change-set state immediately before appending", async () => {
+    const api = new MemoryComments([appComment(1, serializeLedgerAnchor(anchor(0)))]);
+    let current = writeState({ changeSetId: "c".repeat(64) });
+    const target = store(api, async () => current);
+    await expect(target.appendReceipt(receipt(), 0)).rejects.toMatchObject({ code: "stale-write" });
+    expect(api.comments).toHaveLength(1);
+
+    current = writeState({ authorized: false });
+    await expect(target.appendReceipt(receipt(), 0)).rejects.toMatchObject({ code: "unauthorized-write" });
+    expect(api.comments).toHaveLength(1);
+  });
+
+  it("returns the existing logical receipt for a byte-equivalent idempotent replay", async () => {
+    const first = receipt();
+    const api = new MemoryComments([
+      appComment(1, serializeLedgerAnchor(anchor(1))),
+      appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })),
+    ]);
+    await expect(store(api).appendReceipt(first, 0)).resolves.toEqual({
+      ledgerVersion: 1,
+      durableEvidenceRef: "IC_2",
+    });
+    expect(api.comments).toHaveLength(2);
+  });
+
+  it("reconciles an ambiguous create only when a canonical matching receipt is observable", async () => {
+    const applied = new MemoryComments([appComment(1, serializeLedgerAnchor(anchor(0)))]);
+    applied.createMode = "ambiguous-applied";
+    await expect(store(applied).appendReceipt(receipt(), 0)).resolves.toMatchObject({ ledgerVersion: 1 });
+
+    const missing = new MemoryComments([appComment(1, serializeLedgerAnchor(anchor(0)))]);
+    missing.createMode = "ambiguous-missing";
+    await expect(store(missing).appendReceipt(receipt(), 0)).rejects.toMatchObject({ code: "ambiguous-write" });
+  });
+});
+
+describe("GitHub comment receipt reconstruction", () => {
+  it("reconstructs the same canonical ledger from out-of-order comments", async () => {
+    const first = receipt();
+    const second = receipt(1);
+    const api = new MemoryComments([
+      appComment(3, serializeReceiptComment({ ledgerVersion: 2, receipt: second })),
+      appComment(1, serializeLedgerAnchor(anchor(2))),
+      appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })),
+    ]);
+    await expect(store(api).readLedger("PR_node")).resolves.toMatchObject({
+      ledgerVersion: 2,
+      receipts: [{ ledgerVersion: 1 }, { ledgerVersion: 2 }],
+    });
+  });
+
+  it("fails closed on incomplete enumeration instead of returning a partial ledger", async () => {
+    const api = new MemoryComments();
+    api.failList = true;
+    await expect(store(api).readLedger("PR_node")).rejects.toBeInstanceOf(ReceiptStoreError);
+  });
+
+  it("rejects divergent duplicates, edits, forks, and missing versions", async () => {
+    const first = receipt();
+    const divergent = receipt(0, { action: "waived" });
+    const cases = [
+      [appComment(1, serializeLedgerAnchor(anchor(1))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })), appComment(3, serializeReceiptComment({ ledgerVersion: 1, receipt: divergent }))],
+      [appComment(1, serializeLedgerAnchor(anchor(1))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }), { updated_at: "2026-07-11T11:00:00Z" })],
+      [appComment(1, serializeLedgerAnchor(anchor(2))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })), appComment(3, serializeReceiptComment({ ledgerVersion: 2, receipt: receipt(0) }))],
+      [appComment(1, serializeLedgerAnchor(anchor(2))), appComment(3, serializeReceiptComment({ ledgerVersion: 2, receipt: receipt(1) }))],
+    ];
+    for (const comments of cases) {
+      await expect(store(new MemoryComments(comments)).readLedger("PR_node")).rejects.toMatchObject({ code: "inconsistent-ledger" });
+    }
+  });
+});
+
+describe("stable ledger anchor recovery", () => {
+  it("bootstraps one anchor and repairs only a unique canonical receipt extension", async () => {
+    const fresh = new MemoryComments();
+    await expect(store(fresh).readLedger("PR_node")).resolves.toMatchObject({ ledgerVersion: 0, receipts: [] });
+    expect(fresh.comments).toHaveLength(1);
+
+    const first = receipt();
+    const interrupted = new MemoryComments([
+      appComment(1, serializeLedgerAnchor(anchor(0))),
+      appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })),
+    ]);
+    await expect(store(interrupted).readLedger("PR_node")).resolves.toMatchObject({ ledgerVersion: 1 });
+    expect(interrupted.comments).toHaveLength(2);
+    expect(interrupted.comments[0]?.updated_at).not.toBe(CREATED);
+  });
+
+  it("fails closed for missing, regressed, duplicate, or receipt-mismatched anchors", async () => {
+    const first = receipt();
+    const cases = [
+      [appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }))],
+      [appComment(1, serializeLedgerAnchor(anchor(2))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }))],
+      [appComment(1, serializeLedgerAnchor(anchor(1))), appComment(2, serializeLedgerAnchor(anchor(1))), appComment(3, serializeReceiptComment({ ledgerVersion: 1, receipt: first }))],
+      [appComment(1, serializeLedgerAnchor(anchor(1, 2))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }))],
+    ];
+    for (const comments of cases) {
+      await expect(store(new MemoryComments(comments)).readLedger("PR_node")).rejects.toMatchObject({ code: "inconsistent-anchor" });
+    }
+  });
+
+  it("enters break-glass when prior controller state existed but receipts, anchor, and checks vanished", async () => {
+    const target = store(new MemoryComments(), async () => writeState(), async () => true);
+    await expect(target.readLedger("PR_node")).rejects.toMatchObject({ code: "break-glass" });
+  });
+});

@@ -9,13 +9,9 @@ active: false
 > - **Workflow:** [integrate-work-unit.md][integrate-work-unit]
 > - **Fires:** After `review-response` processing completes, before the merge action
 >
-> - **Contract:** Sequential execution with halt-on-fail. The integrate-work-unit workflow's review-and-merge
->   sequence runs `pre-pr-review` (before PR creation, after the [diff-review method][diff-review]) →
->   `review-response` processing (handling AI / human review findings) → `pre-merge-review` (this extension,
->   before merge). This extension fires last in that sequence — it has visibility into review-response
->   outcomes that the earlier `pre-pr-review` couldn't anticipate. Reserved-pending-final-state-check use
->   cases: verifying review-response fixes haven't introduced regressions, post-fix quality-gate re-runs,
->   final approval ceremonies before the merge action lands.
+> - **Contract:** Sequential execution with halt-on-fail. Every action is read-only, idempotent, or retry-safe because
+>   final-head settlement may repeat. Fire after review coordination and after any lifecycle- or review-authored head
+>   update. No commit or push may occur between the settled checkpoint and merge authorization.
 
 ## pre-merge-review.actions
 
@@ -24,4 +20,3 @@ active: false
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[diff-review]: ../methods/diff-review.md

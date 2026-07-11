@@ -1,0 +1,125 @@
+/** Validation and duplicate reduction for receipt-ledger envelopes. */
+
+import type { ReceiptEnvelope, ReviewReceipt } from "./execution.js";
+import { computeRequestKey, receiptIdentityValid } from "./request-key.js";
+
+/** Inputs from paginated storage plus its stable anchor. */
+export interface ReceiptLedgerInput {
+  envelopes: ReceiptEnvelope[];
+  anchorVersion: number;
+  anchorCount: number;
+}
+
+/** Validated ledger or fail-closed diagnostics. */
+export interface ReceiptLedgerResult {
+  valid: boolean;
+  ledgerVersion: number;
+  receipts: ReviewReceipt[];
+  errors: string[];
+}
+
+/** Validate hashes, linear versions, edits, duplicates, and anchor parity. */
+export function validateReceiptLedger(input: ReceiptLedgerInput): ReceiptLedgerResult {
+  const errors: string[] = [];
+  const byVersion = new Map<number, ReceiptEnvelope>();
+  const idempotencyVersions = new Map<string, number>();
+  for (const envelope of input.envelopes) {
+    if (envelope.recordedAt !== envelope.lastModifiedAt) errors.push(`edited-record:${envelope.durableRecordId}`);
+    if (!receiptIdentityValid(envelope.receipt)) errors.push(`invalid-receipt-hash:${envelope.durableRecordId}`);
+    const prior = byVersion.get(envelope.ledgerVersion);
+    if (prior === undefined) {
+      byVersion.set(envelope.ledgerVersion, envelope);
+    } else if (
+      prior.receipt.receiptHash !== envelope.receipt.receiptHash
+      || prior.receipt.idempotencyKey !== envelope.receipt.idempotencyKey
+    ) {
+      errors.push(`divergent-ledger-version:${envelope.ledgerVersion}`);
+    }
+    const priorIdempotencyVersion = idempotencyVersions.get(envelope.receipt.idempotencyKey);
+    if (priorIdempotencyVersion === undefined) {
+      idempotencyVersions.set(envelope.receipt.idempotencyKey, envelope.ledgerVersion);
+    } else if (priorIdempotencyVersion !== envelope.ledgerVersion) {
+      errors.push(`replayed-idempotency-key:${envelope.receipt.idempotencyKey}`);
+    }
+  }
+
+  const ordered = [...byVersion.values()].sort((left, right) => left.ledgerVersion - right.ledgerVersion);
+  for (let index = 0; index < ordered.length; index += 1) {
+    const expectedVersion = index + 1;
+    const envelope = ordered[index];
+    if (envelope?.ledgerVersion !== expectedVersion) errors.push(`missing-ledger-version:${expectedVersion}`);
+    if (envelope?.receipt.previousLedgerVersion !== expectedVersion - 1) {
+      errors.push(`forked-predecessor:${envelope?.ledgerVersion ?? expectedVersion}`);
+    }
+  }
+  validateReceiptSemantics(ordered, errors);
+  if (input.anchorVersion !== ordered.length) errors.push("anchor-version-mismatch");
+  if (input.anchorCount !== ordered.length) errors.push("anchor-count-mismatch");
+  return {
+    valid: errors.length === 0,
+    ledgerVersion: ordered.length,
+    receipts: ordered.map((envelope) => envelope.receipt),
+    errors,
+  };
+}
+
+function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]): void {
+  const reserved = new Set<string>();
+  const knownFindings = new Set<string>();
+  for (const envelope of ordered) {
+    const receipt = envelope.receipt;
+    const requestKey = computeRequestKey(receipt.request);
+    switch (receipt.action) {
+      case "reserved":
+        if (receipt.result !== null || receipt.findingIds.length > 0) {
+          errors.push(`contradictory-reservation:${envelope.ledgerVersion}`);
+        }
+        reserved.add(requestKey);
+        break;
+      case "acknowledged":
+        if (!reserved.has(requestKey)) errors.push(`acknowledgement-without-reservation:${envelope.ledgerVersion}`);
+        if (receipt.result !== null || receipt.findingIds.length > 0) {
+          errors.push(`contradictory-acknowledgement:${envelope.ledgerVersion}`);
+        }
+        break;
+      case "terminal-failure":
+        if (!reserved.has(requestKey)) errors.push(`failure-without-reservation:${envelope.ledgerVersion}`);
+        if (
+          (receipt.result !== "failed" && receipt.result !== "unavailable")
+          || receipt.findingIds.length > 0
+        ) {
+          errors.push(`contradictory-terminal-failure:${envelope.ledgerVersion}`);
+        }
+        break;
+      case "attested":
+      case "unadmitted":
+        if (receipt.result === null) errors.push(`missing-result:${envelope.ledgerVersion}`);
+        validateResultFindings(receipt, envelope.ledgerVersion, errors);
+        for (const findingId of receipt.findingIds) knownFindings.add(findingId);
+        break;
+      case "dismissed":
+        if (
+          receipt.result !== null
+          || receipt.findingIds.length === 0
+          || receipt.findingIds.some((findingId) => !knownFindings.has(findingId))
+        ) {
+          errors.push(`contradictory-dismissal:${envelope.ledgerVersion}`);
+        }
+        break;
+      case "waived":
+        if (receipt.result !== null || receipt.findingIds.length > 0) {
+          errors.push(`contradictory-waiver:${envelope.ledgerVersion}`);
+        }
+        break;
+    }
+  }
+}
+
+function validateResultFindings(receipt: ReviewReceipt, version: number, errors: string[]): void {
+  if (receipt.result === "findings" && receipt.findingIds.length === 0) {
+    errors.push(`findings-result-without-findings:${version}`);
+  }
+  if (receipt.result !== "findings" && receipt.findingIds.length > 0) {
+    errors.push(`non-findings-result-with-findings:${version}`);
+  }
+}
