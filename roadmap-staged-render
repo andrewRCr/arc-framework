@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "roadmap-staged-render",
+  "origin": "inbox",
+  "intent": "Add arc status --project --staged (index-source render) and repoint the ROADMAP regen remediation at it; bundle the post-teardown row-drop for the shipped reviewed-lane-review-gate WU",
+  "branch": "fix/roadmap-staged-render",
+  "createdAt": "2026-07-11T16:37:07.969Z",
+  "originEntry": "Expose the index-accurate ROADMAP render as a CLI writer and repoint the regen remediation at it"
+}
