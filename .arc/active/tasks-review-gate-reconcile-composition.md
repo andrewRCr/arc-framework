@@ -25,36 +25,21 @@ closed predicate identities are versioned — no dynamic lookup or new operator-
 - _Outcome:_ The private App slug recorded by repository operations resolves through GitHub to the same immutable
   bot identity already exercised by authenticated receipt fixtures, so policy now supplies the production pin.
 
-### `[ ]` **1.2 Pin attestation-enforcement policy fields and derive `acceptedReviewerClaims`**
+### `[x]` **1.2 Pin attestation-enforcement policy fields and derive `acceptedReviewerClaims`**
 
 - _Goal:_ Every `AttestationValidationContext` enforcement input has a production source: `acceptedRuntimeKinds`
   and `maxRunAgeMinutes` are pinned policy fields; `acceptedReviewerClaims` derives from the enabled
   `authenticated-attestation` qualifications rather than duplicating them.
-- _Note:_ Four enabled attestation sources exist — `codex-cli` / `claude-code` / `coderabbit-cli` (agent) and
-  `qualified-non-author-human` (human). `acceptedRuntimeKinds` maps agent source identities to accepted runtime
-  kinds; the human source is enforced by actor-identity rules, not a runtime mapping.
+    - `[x]` **1.2.a Add the enforcement fields to the policy schema and document**
+        - Added the closed runtime-kind map and 60-minute run-age limit, validating positive integer age and
+          requiring every mapped source to be an enabled authenticated-attestation agent qualification.
 
-    - `[ ]` **1.2.a Add the enforcement fields to the policy schema and document**
-        - Add a top-level `attestationEnforcement: { acceptedRuntimeKinds, maxRunAgeMinutes }` block to
-          `policy/self-hosting/schema.ts` (interface, `SELF_HOSTING_POLICY` value, root `exactKeys`, and
-          `parseSelfHostingPolicy` validation) — it hashes into `policy_version` with the rest of the document.
-        - Pinned values: `codex-cli → codex`, `claude-code → claude-code`, `coderabbit-cli → coderabbit`;
-          `maxRunAgeMinutes: 60` (aligned with `timeouts.analysisMinutes`).
-        - Build `test-first` (one behavior at a time):
-            - Parser accepts the new block and rejects runtime-kind map keys not backed by an enabled
-              `authenticated-attestation` agent qualification
-            - Parser rejects a non-positive or non-integer `maxRunAgeMinutes`
+    - `[x]` **1.2.b Derive `acceptedReviewerClaims` from enabled qualifications**
+        - Exported policy-driven claim derivation across enabled authenticated-attestation qualifications,
+          including the asymmetric human source while excluding disabled and durable-record entries.
 
-    - `[ ]` **1.2.b Derive `acceptedReviewerClaims` from enabled qualifications**
-        - Export a derivation from `schema.ts` beside the parser, over the parsed policy: the `sourceIdentity`
-          values of enabled qualifications with `transport: "authenticated-attestation"` — already inside
-          `policy_version`, so no new pinned list.
-        - The human entry works asymmetrically by design: a human manifest carries `qualified-non-author-human`
-          as its `reviewerClaim` while `sourceIdentity` is the actual person, identity-checked against the
-          authenticated actor — the derivation still returns exactly the enabled source identities.
-        - Build `test-first` (one behavior at a time):
-            - Derivation returns exactly the enabled `authenticated-attestation` source identities (including
-              the human source), excluding disabled and `durable-record` entries
+- _Outcome:_ All `AttestationValidationContext` enforcement inputs now originate in versioned policy: runtime and
+  age values are pinned directly, while reviewer claims derive from the already-hashed qualification set.
 
 ### `[ ]` **1.3 Pin the lifecycle-bookkeeping-tail predicate**
 

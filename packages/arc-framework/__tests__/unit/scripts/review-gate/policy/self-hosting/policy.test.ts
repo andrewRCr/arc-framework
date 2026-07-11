@@ -2,11 +2,72 @@ import { describe, expect, it } from "vitest";
 
 import { computePolicyVersion } from "../../../../../../src/scripts/review-gate/core/identity.js";
 import {
+  deriveAcceptedReviewerClaims,
   parseSelfHostingPolicy,
   SELF_HOSTING_POLICY,
 } from "../../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
 
 describe("self-hosting review policy document", () => {
+  it("returns pinned attestation enforcement values", () => {
+    const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
+
+    expect(parsed.attestationEnforcement).toEqual({
+      acceptedRuntimeKinds: {
+        "codex-cli": "codex",
+        "claude-code": "claude-code",
+        "coderabbit-cli": "coderabbit",
+      },
+      maxRunAgeMinutes: 60,
+    });
+  });
+
+  it("rejects runtime-kind sources without an enabled agent attestation qualification", () => {
+    const attestationEnforcement = {
+      ...SELF_HOSTING_POLICY.attestationEnforcement,
+      acceptedRuntimeKinds: {
+        ...SELF_HOSTING_POLICY.attestationEnforcement.acceptedRuntimeKinds,
+        "qualified-non-author-human": "human",
+      },
+    };
+
+    expect(() => parseSelfHostingPolicy({ ...SELF_HOSTING_POLICY, attestationEnforcement })).toThrow();
+  });
+
+  it.each([0, -1, 1.5])("rejects max run age %s", (maxRunAgeMinutes) => {
+    const attestationEnforcement = {
+      ...SELF_HOSTING_POLICY.attestationEnforcement,
+      maxRunAgeMinutes,
+    };
+
+    expect(() => parseSelfHostingPolicy({ ...SELF_HOSTING_POLICY, attestationEnforcement })).toThrow();
+  });
+
+  it("derives reviewer claims from enabled authenticated-attestation qualifications", () => {
+    const parsed = parseSelfHostingPolicy({
+      ...SELF_HOSTING_POLICY,
+      qualifications: [
+        ...SELF_HOSTING_POLICY.qualifications,
+        {
+          ...SELF_HOSTING_POLICY.qualifications[0],
+          sourceIdentity: "enabled-durable-record",
+          enabled: true,
+        },
+        {
+          ...SELF_HOSTING_POLICY.qualifications[1],
+          sourceIdentity: "disabled-attestation",
+          enabled: false,
+        },
+      ],
+    });
+
+    expect(deriveAcceptedReviewerClaims(parsed)).toEqual([
+      "codex-cli",
+      "claude-code",
+      "coderabbit-cli",
+      "qualified-non-author-human",
+    ]);
+  });
+
   it("returns the pinned App-bot user id", () => {
     const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
 

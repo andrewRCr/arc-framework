@@ -50,6 +50,10 @@ export interface SelfHostingPolicy {
   rubricBindings: Array<{ requirementKind: string; rubricVersion: string }>;
   timeouts: { reservationMinutes: number; analysisMinutes: number };
   providerIdentities: { coderabbitBotUserId: string; appBotUserId: string };
+  attestationEnforcement: {
+    acceptedRuntimeKinds: Record<string, string>;
+    maxRunAgeMinutes: number;
+  };
   qualifications: SourceQualificationDeclaration[];
 }
 
@@ -91,6 +95,14 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
   rubricBindings: [{ requirementKind: "independent-analysis", rubricVersion: "independent-analysis/v1" }],
   timeouts: { reservationMinutes: 10, analysisMinutes: 60 },
   providerIdentities: { coderabbitBotUserId: "136622811", appBotUserId: "302312524" },
+  attestationEnforcement: {
+    acceptedRuntimeKinds: {
+      "codex-cli": "codex",
+      "claude-code": "claude-code",
+      "coderabbit-cli": "coderabbit",
+    },
+    maxRunAgeMinutes: 60,
+  },
   qualifications: [
     {
       sourceKind: "agent",
@@ -137,6 +149,14 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
   ],
 };
 
+/** Derive the reviewer claims accepted by attestation validation from the versioned policy. */
+export function deriveAcceptedReviewerClaims(policy: SelfHostingPolicy): string[] {
+  return policy.qualifications
+    .filter((qualification) => qualification.enabled
+      && qualification.transport === "authenticated-attestation")
+    .map((qualification) => qualification.sourceIdentity);
+}
+
 function exactStringArray(value: unknown, expected: readonly string[], path: string): string[] {
   const actual = arrayAt(value, path, stringAt);
   if (actual.length !== expected.length || actual.some((item, index) => item !== expected[index])) {
@@ -182,7 +202,7 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const record = objectAt(input, path);
   exactKeys(record, [
     "schemaVersion", "semanticsVersion", "lanePredicate", "riskPredicate", "authorMap", "requirementTemplates",
-    "rubricBindings", "timeouts", "providerIdentities", "qualifications",
+    "rubricBindings", "timeouts", "providerIdentities", "attestationEnforcement", "qualifications",
   ], path);
 
   const lane = objectAt(record.lanePredicate, `${path}.lanePredicate`);
@@ -224,6 +244,33 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
     `${path}.providerIdentities.appBotUserId`,
   );
   if (!/^[1-9][0-9]*$/u.test(appBotUserId)) throw new Error("invalid App bot user id");
+  const qualifications = arrayAt(record.qualifications, `${path}.qualifications`, parseQualification);
+  const enforcement = objectAt(record.attestationEnforcement, `${path}.attestationEnforcement`);
+  exactKeys(
+    enforcement,
+    ["acceptedRuntimeKinds", "maxRunAgeMinutes"],
+    `${path}.attestationEnforcement`,
+  );
+  const acceptedRuntimeKindRecord = objectAt(
+    enforcement.acceptedRuntimeKinds,
+    `${path}.attestationEnforcement.acceptedRuntimeKinds`,
+  );
+  const acceptedRuntimeSources = new Set(qualifications
+    .filter((qualification) => qualification.enabled
+      && qualification.sourceKind === "agent"
+      && qualification.transport === "authenticated-attestation")
+    .map((qualification) => qualification.sourceIdentity));
+  const acceptedRuntimeKinds = Object.fromEntries(Object.entries(acceptedRuntimeKindRecord).map(
+    ([sourceIdentity, runtimeKind]) => {
+      if (!acceptedRuntimeSources.has(sourceIdentity)) {
+        throw new Error(`accepted runtime source is not an enabled agent qualification: ${sourceIdentity}`);
+      }
+      return [
+        sourceIdentity,
+        stringAt(runtimeKind, `${path}.attestationEnforcement.acceptedRuntimeKinds.${sourceIdentity}`),
+      ];
+    },
+  ));
 
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
@@ -246,6 +293,14 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
       analysisMinutes: integerAt(timeouts.analysisMinutes, `${path}.timeouts.analysisMinutes`, 1),
     },
     providerIdentities: { coderabbitBotUserId, appBotUserId },
-    qualifications: arrayAt(record.qualifications, `${path}.qualifications`, parseQualification),
+    attestationEnforcement: {
+      acceptedRuntimeKinds,
+      maxRunAgeMinutes: integerAt(
+        enforcement.maxRunAgeMinutes,
+        `${path}.attestationEnforcement.maxRunAgeMinutes`,
+        1,
+      ),
+    },
+    qualifications,
   };
 }
