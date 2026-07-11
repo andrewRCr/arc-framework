@@ -334,41 +334,31 @@ runs into and out of the neutral ports without allowing host objects to become p
   append/replay handling, and a durable PR anchor into one fail-closed ledger whose recovery can repair an interrupted
   canonical extension without retrying an external effect.
 
-### `[ ]` **3.4 Project idempotent App-owned gate checks**
+### `[x]` **3.4 Project idempotent App-owned gate checks**
 
 - _Goal:_ GitHub receives one authoritative, source-pinnable custom check per context/change set, with races and
   duplicates reconciled to the core verdict rather than hidden.
 
-    - `[ ]` **3.4.a Locate checks by deterministic external identity and App source**
-        - Enumerate with `app_id`, `check_name`, `filter=all`, and complete pagination, then select
-          `arc-review-gate:<PR>:<change-set>:<context>`; never accept name or external id alone and fail unavailable at
-          any API enumeration cap.
-        - Build `test-first` (one behavior at a time):
-            - Unchanged reconciliations update the canonical run rather than create a new one.
-            - Same-name GitHub Actions/other-App checks are rejected as authority.
+    - `[x]` **3.4.a Locate checks by deterministic external identity and App source**
+        - The REST adapter completely enumerates `filter=all` history with GitHub's App/name filters, then admits only
+          the exact PR/change-set/context external id, check name, and pinned App id; unchanged reconciliations update
+          the elected run while same-name Actions/other-App checks remain non-authoritative.
 
-    - `[ ]` **3.4.b Publish neutral projections as GitHub check runs**
-        - Map pending/failure/success and summaries to check-run status/conclusion/output with bounded, escaped content
-          plus durable evidence links; echo the stable anchor's ledger version/count without making the check canonical.
-        - Build `test-first` (one behavior at a time):
-            - Every neutral verdict maps losslessly to the host surface.
-            - Untrusted titles/reasons cannot inject workflow commands or markup authority.
+    - `[x]` **3.4.b Publish neutral projections as GitHub check runs**
+        - Pending/failure/success projections map to in-progress/completed GitHub checks with bounded escaped output,
+          durable receipt/evidence links, and the anchor's ledger version/count retained as a secondary projection.
 
-    - `[ ]` **3.4.c Reconcile interrupted duplicate check creation**
-        - Elect the newest same-App/external-id run, mirror the canonical conclusion to every match, and report the
-          duplicate until live validation proves source/context behavior.
-        - Build `test-first` (one behavior at a time):
-            - Concurrent creators converge without divergent conclusions.
-            - Duplicate or update API failure cannot leave a green stale run while canonical state blocks.
+    - `[x]` **3.4.c Reconcile interrupted duplicate check creation**
+        - The newest same-App/external-id run is elected while every exact duplicate receives the same canonical
+          conclusion; duplicate ids remain surfaced and any failed update makes the publishing operation fail closed.
 
-    - `[ ]` **3.4.d Guard recursion and stale writers**
-        - Ignore the controller's own check-completion wake-up, bind each write to a final current-state read, and let
-          the shared non-cancelling per-PR concurrency group plus final guards prevent older runs from overwriting newer
-          change sets.
-        - Build `test-first` (one behavior at a time):
-            - Self-authored check events do not create reconciliation loops.
-            - A stale reconciler cannot publish after the head advances; a newer wake-up never cancels an effectful
-              running writer.
+    - `[x]` **3.4.d Guard recursion and stale writers**
+        - Controller-authored completion events are ignored, every create/update is preceded by a final head/change-set
+          read, and the exported per-PR concurrency posture is shared and explicitly non-cancelling.
+
+- _Outcome:_ The GitHub check adapter now treats App source plus deterministic external identity as authority, maps
+  neutral verdicts without trusting host text, converges interrupted duplicate creation, and prevents recursive or
+  stale writers from publishing over a newer change set.
 
 ## **Phase 4:** Review providers and out-of-band evidence
 
