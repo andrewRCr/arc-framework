@@ -49,6 +49,7 @@ describe("normalized evidence", () => {
       closures: [{ ...evidence.closures[0], authorityKind: "thread-resolved" }],
     }],
     ["unsafe evidence reference", { ...evidence, evidenceUrlOrId: "javascript:alert(1)" }],
+    ["space-prefixed unsafe reference", { ...evidence, evidenceUrlOrId: " javascript:alert(1)" }],
     ["finding result without findings", { ...evidence, findings: [] }],
     ["clean result with findings", { ...evidence, result: "clean" }],
   ])("rejects malformed %s", (_name, input) => {

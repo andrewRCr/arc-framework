@@ -25,8 +25,23 @@ export interface NormalizedChangeRequest {
   changeSetId: string;
 }
 
-/** Permission understood by the normalized authorization boundary. */
-export type ActorPermission = "read" | "triage" | "write" | "maintain" | "admin";
+/** Permissions understood by the normalized authorization boundary, in ascending authority order. */
+export const ACTOR_PERMISSIONS = ["read", "triage", "write", "maintain", "admin"] as const;
+/** Member of the closed normalized permission set. */
+export type ActorPermission = (typeof ACTOR_PERMISSIONS)[number];
+/** Numeric authority rank for normalized permissions. */
+export const ACTOR_PERMISSION_RANK: Record<ActorPermission, number> = {
+  read: 0,
+  triage: 1,
+  write: 2,
+  maintain: 3,
+  admin: 4,
+};
+
+/** Check whether one normalized permission meets a minimum authority level. */
+export function meetsMinimumPermission(permission: ActorPermission, minimum: ActorPermission): boolean {
+  return ACTOR_PERMISSION_RANK[permission] >= ACTOR_PERMISSION_RANK[minimum];
+}
 
 /** Stable actor identity and its observed permissions. */
 export interface CapabilitySet {
@@ -35,14 +50,22 @@ export interface CapabilitySet {
   permissions: ActorPermission[];
 }
 
-/** Kind of review obligation. */
-export type RequirementKind = "peer-approval" | "independent-analysis" | "specialist-review";
-/** Whether an unmet requirement blocks the verdict. */
-export type RequirementObligation = "required" | "recommended";
+/** Kinds of review obligation. */
+export const REQUIREMENT_KINDS = ["peer-approval", "independent-analysis", "specialist-review"] as const;
+/** Member of the closed review-obligation kind set. */
+export type RequirementKind = (typeof REQUIREMENT_KINDS)[number];
+/** Requirement obligation levels. */
+export const REQUIREMENT_OBLIGATIONS = ["required", "recommended"] as const;
+/** Member of the closed requirement-obligation set. */
+export type RequirementObligation = (typeof REQUIREMENT_OBLIGATIONS)[number];
 /** Normalized source family. */
-export type SourceKind = "human" | "agent" | "deterministic-tool";
-/** Initial request admission mode. */
-export type InitialAdmission = "automatic" | "checkpoint";
+export const SOURCE_KINDS = ["human", "agent", "deterministic-tool"] as const;
+/** Member of the closed normalized source-family set. */
+export type SourceKind = (typeof SOURCE_KINDS)[number];
+/** Initial request admission modes. */
+export const INITIAL_ADMISSIONS = ["automatic", "checkpoint"] as const;
+/** Member of the closed initial-admission set. */
+export type InitialAdmission = (typeof INITIAL_ADMISSIONS)[number];
 
 /** A source family accepted for a requirement. */
 export interface AcceptedSource {
@@ -112,7 +135,7 @@ export function parseCapabilitySet(input: unknown): CapabilitySet {
     schemaVersion: schemaOneAt(record.schemaVersion, "capabilities.schemaVersion"),
     actorIdentity: stringAt(record.actorIdentity, "capabilities.actorIdentity"),
     permissions: arrayAt(record.permissions, "capabilities.permissions", (value, path) =>
-      enumAt(value, ["read", "triage", "write", "maintain", "admin"], path)),
+      enumAt(value, ACTOR_PERMISSIONS, path)),
   };
 }
 
@@ -121,8 +144,22 @@ function parseAcceptedSource(input: unknown, path: string): AcceptedSource {
   exactKeys(record, ["sourceKind", "qualifier"], path);
   const qualifier = optionalAt(record.qualifier, `${path}.qualifier`, stringAt);
   return {
-    sourceKind: enumAt(record.sourceKind, ["human", "agent", "deterministic-tool"], `${path}.sourceKind`),
+    sourceKind: enumAt(record.sourceKind, SOURCE_KINDS, `${path}.sourceKind`),
     ...(qualifier === undefined ? {} : { qualifier }),
+  };
+}
+
+function parseCommonRequirementFields(record: Record<string, unknown>, path: string): ReviewRequirementTemplate {
+  const acceptableSources = arrayAt(record.acceptableSources, `${path}.acceptableSources`, parseAcceptedSource);
+  if (acceptableSources.length === 0) throw new Error(`${path}.acceptableSources: expected at least one source`);
+  return {
+    id: stringAt(record.id, `${path}.id`),
+    kind: enumAt(record.kind, REQUIREMENT_KINDS, `${path}.kind`),
+    obligation: enumAt(record.obligation, REQUIREMENT_OBLIGATIONS, `${path}.obligation`),
+    acceptableSources,
+    count: integerAt(record.count, `${path}.count`, 1),
+    initialAdmission: enumAt(record.initialAdmission, INITIAL_ADMISSIONS, `${path}.initialAdmission`),
+    rubricVersion: stringAt(record.rubricVersion, `${path}.rubricVersion`),
   };
 }
 
@@ -134,18 +171,10 @@ export function parseReviewRequirement(input: unknown, path = "requirement"): Re
     "policyVersion", "rubricVersion", "changeSetId", "headSha",
     "reasons",
   ], path);
-  const acceptableSources = arrayAt(record.acceptableSources, `${path}.acceptableSources`, parseAcceptedSource);
-  if (acceptableSources.length === 0) throw new Error(`${path}.acceptableSources: expected at least one source`);
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
-    id: stringAt(record.id, `${path}.id`),
-    kind: enumAt(record.kind, ["peer-approval", "independent-analysis", "specialist-review"], `${path}.kind`),
-    obligation: enumAt(record.obligation, ["required", "recommended"], `${path}.obligation`),
-    acceptableSources,
-    count: integerAt(record.count, `${path}.count`, 1),
-    initialAdmission: enumAt(record.initialAdmission, ["automatic", "checkpoint"], `${path}.initialAdmission`),
+    ...parseCommonRequirementFields(record, path),
     policyVersion: digestAt(record.policyVersion, `${path}.policyVersion`),
-    rubricVersion: stringAt(record.rubricVersion, `${path}.rubricVersion`),
     reasons: arrayAt(record.reasons, `${path}.reasons`, stringAt),
     changeSetId: digestAt(record.changeSetId, `${path}.changeSetId`),
     headSha: digestAt(record.headSha, `${path}.headSha`, 40),
@@ -157,17 +186,7 @@ function parseRequirementTemplate(input: unknown, path: string): ReviewRequireme
   exactKeys(record, [
     "id", "kind", "obligation", "acceptableSources", "count", "initialAdmission", "rubricVersion",
   ], path);
-  const acceptableSources = arrayAt(record.acceptableSources, `${path}.acceptableSources`, parseAcceptedSource);
-  if (acceptableSources.length === 0) throw new Error(`${path}.acceptableSources: expected at least one source`);
-  return {
-    id: stringAt(record.id, `${path}.id`),
-    kind: enumAt(record.kind, ["peer-approval", "independent-analysis", "specialist-review"], `${path}.kind`),
-    obligation: enumAt(record.obligation, ["required", "recommended"], `${path}.obligation`),
-    acceptableSources,
-    count: integerAt(record.count, `${path}.count`, 1),
-    initialAdmission: enumAt(record.initialAdmission, ["automatic", "checkpoint"], `${path}.initialAdmission`),
-    rubricVersion: stringAt(record.rubricVersion, `${path}.rubricVersion`),
-  };
+  return parseCommonRequirementFields(record, path);
 }
 
 /** Validate a plain-data review policy. */

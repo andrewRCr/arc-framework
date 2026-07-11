@@ -8,6 +8,9 @@ export class ReviewRecordValidationError extends Error {
   }
 }
 
+/** Closed syntax accepted for normalized review identifiers. */
+export const REVIEW_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u;
+
 /** Narrow an unknown value to a plain object. */
 export function objectAt(value: unknown, path: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -75,4 +78,13 @@ export function optionalAt<T>(value: unknown, path: string, parse: (item: unknow
 export function schemaOneAt(value: unknown, path: string): 1 {
   if (value !== 1) throw new ReviewRecordValidationError(path, "expected schema version 1");
   return 1;
+}
+
+/** Read an ISO-8601 UTC timestamp. */
+export function timestampAt(value: unknown, path: string): string {
+  const timestamp = stringAt(value, path);
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u.test(timestamp) || Number.isNaN(Date.parse(timestamp))) {
+    throw new ReviewRecordValidationError(path, "expected an ISO-8601 UTC timestamp");
+  }
+  return timestamp;
 }

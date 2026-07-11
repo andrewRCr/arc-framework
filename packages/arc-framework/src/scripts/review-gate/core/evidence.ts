@@ -1,6 +1,6 @@
 /** Normalized review evidence, findings, and closure records. */
 
-import type { SourceKind } from "./contracts.js";
+import { SOURCE_KINDS, type SourceKind } from "./contracts.js";
 import {
   arrayAt,
   digestAt,
@@ -10,6 +10,7 @@ import {
   optionalAt,
   schemaOneAt,
   stringAt,
+  timestampAt,
 } from "./validation.js";
 
 /** Result reported by a qualified source. */
@@ -72,18 +73,10 @@ function referenceAt(value: unknown, path: string): string {
       break;
     }
   }
-  if (/^(?:javascript|data):/iu.test(reference) || hasControlCharacter) {
+  if (reference !== reference.trimStart() || /^(?:javascript|data):/iu.test(reference) || hasControlCharacter) {
     throw new Error(`${path}: unsafe reference`);
   }
   return reference;
-}
-
-function timestampAt(value: unknown, path: string): string {
-  const timestamp = stringAt(value, path);
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u.test(timestamp) || Number.isNaN(Date.parse(timestamp))) {
-    throw new Error(`${path}: expected an ISO-8601 UTC timestamp`);
-  }
-  return timestamp;
 }
 
 function parseFinding(input: unknown, path: string): ReviewFinding {
@@ -138,7 +131,7 @@ export function parseEvidence(input: unknown): Evidence {
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
     requirementId: stringAt(record.requirementId, `${path}.requirementId`),
-    sourceKind: enumAt(record.sourceKind, ["human", "agent", "deterministic-tool"], `${path}.sourceKind`),
+    sourceKind: enumAt(record.sourceKind, SOURCE_KINDS, `${path}.sourceKind`),
     sourceIdentity: stringAt(record.sourceIdentity, `${path}.sourceIdentity`),
     result,
     evidenceUrlOrId: referenceAt(record.evidenceUrlOrId, `${path}.evidenceUrlOrId`),

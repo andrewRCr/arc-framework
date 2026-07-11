@@ -1,5 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -55,7 +56,7 @@ describe("review adapter ports", () => {
   });
 
   it("keeps the core source independent of adapter and runner vocabulary", async () => {
-    const coreDir = join(process.cwd(), "src/scripts/review-gate/core");
+    const coreDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../src/scripts/review-gate/core");
     const files = (await readdir(coreDir)).filter((name) => name.endsWith(".ts"));
     const source = (await Promise.all(files.map(async (name) => readFile(join(coreDir, name), "utf8")))).join("\n");
 

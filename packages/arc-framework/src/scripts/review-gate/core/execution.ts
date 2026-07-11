@@ -10,6 +10,7 @@ import {
   objectAt,
   schemaOneAt,
   stringAt,
+  timestampAt,
 } from "./validation.js";
 
 /** Request admitted for one source and exact coverage range. */
@@ -118,14 +119,6 @@ export interface GateProjection {
   ciState: "pending" | "failure" | "success";
   ledgerVersion: number;
   evidence: GateEvidenceProjection[];
-}
-
-function timestampAt(value: unknown, path: string): string {
-  const timestamp = stringAt(value, path);
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/u.test(timestamp) || Number.isNaN(Date.parse(timestamp))) {
-    throw new Error(`${path}: expected an ISO-8601 UTC timestamp`);
-  }
-  return timestamp;
 }
 
 function nullableAt<T>(value: unknown, path: string, parse: (input: unknown, path: string) => T): T | null {

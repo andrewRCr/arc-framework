@@ -1,5 +1,7 @@
 /** Strict source-neutral command language for review-gate mutations. */
 
+import { REVIEW_IDENTIFIER } from "./validation.js";
+
 /** Parsed review command. */
 export type ReviewCommand =
   | { kind: "require"; requirementId: string; reason: string }
@@ -37,8 +39,6 @@ export type ReviewCommandParseResult =
   | { ok: true; command: ReviewCommand }
   | { ok: false; error: ReviewCommandError };
 
-const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u;
-
 function failure(code: string, message: string): ReviewCommandParseResult {
   return { ok: false, error: { code, message } };
 }
@@ -60,7 +60,7 @@ export function parseReviewCommand(text: string, context: ReviewCommandContext):
     const kind = requireMatch[1] as "require" | "waive";
     const requirementId = requireMatch[2] ?? "";
     const reason = (requireMatch[3] ?? "").trim();
-    if (!IDENTIFIER.test(requirementId)) return failure("invalid-requirement", "requirement id is malformed");
+    if (!REVIEW_IDENTIFIER.test(requirementId)) return failure("invalid-requirement", "requirement id is malformed");
     if (!context.knownRequirementIds.includes(requirementId)) {
       return failure("unknown-requirement", `unknown requirement: ${requirementId}`);
     }
@@ -78,7 +78,7 @@ export function parseReviewCommand(text: string, context: ReviewCommandContext):
       return failure("unknown-requirement", `unknown requirement: ${requirementId}`);
     }
     if (
-      !IDENTIFIER.test(sourceIdentity)
+      !REVIEW_IDENTIFIER.test(sourceIdentity)
       || (sourceIdentity !== "auto" && !context.allowedSourceIdentities.includes(sourceIdentity))
     ) return failure("unknown-source", `source is not allowed: ${sourceIdentity}`);
     if (coverage !== "full" && coverage !== "incremental") {
@@ -100,7 +100,7 @@ export function parseReviewCommand(text: string, context: ReviewCommandContext):
     if (!context.knownRequirementIds.includes(requirementId)) {
       return failure("unknown-requirement", `unknown requirement: ${requirementId}`);
     }
-    if (![sourceIdentity, findingId].every((value) => IDENTIFIER.test(value))) {
+    if (![sourceIdentity, findingId].every((value) => REVIEW_IDENTIFIER.test(value))) {
       return failure("invalid-finding", "source or finding identity is malformed");
     }
     if (!context.knownFindings.some((finding) =>

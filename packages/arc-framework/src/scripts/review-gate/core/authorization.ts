@@ -1,6 +1,11 @@
 /** Capability and identity scoping for review commands and overrides. */
 
-import type { ActorPermission, CapabilitySet } from "./contracts.js";
+import {
+  ACTOR_PERMISSION_RANK,
+  meetsMinimumPermission,
+  type ActorPermission,
+  type CapabilitySet,
+} from "./contracts.js";
 import type { ReviewCommand } from "./commands.js";
 
 /** Identities that scope every command mutation. */
@@ -31,14 +36,6 @@ export type CommandAuthorizationResult =
   | { authorized: true; receipt: AuthorizedCommandReceipt }
   | { authorized: false; reason: string };
 
-const PERMISSION_RANK: Record<ActorPermission, number> = {
-  read: 0,
-  triage: 1,
-  write: 2,
-  maintain: 3,
-  admin: 4,
-};
-
 function sameScope(left: ReviewScopeIdentity, right: ReviewScopeIdentity): boolean {
   return left.changeSetId === right.changeSetId
     && left.policyVersion === right.policyVersion
@@ -52,8 +49,8 @@ export function authorizeReviewCommand(input: AuthorizeReviewCommandInput): Comm
     ? "write"
     : "maintain";
   const permission = [...input.capabilities.permissions]
-    .sort((left, right) => PERMISSION_RANK[right] - PERMISSION_RANK[left])
-    .find((candidate) => PERMISSION_RANK[candidate] >= PERMISSION_RANK[minimum]);
+    .sort((left, right) => ACTOR_PERMISSION_RANK[right] - ACTOR_PERMISSION_RANK[left])
+    .find((candidate) => meetsMinimumPermission(candidate, minimum));
   if (permission === undefined) return { authorized: false, reason: `requires-${minimum}` };
   return {
     authorized: true,

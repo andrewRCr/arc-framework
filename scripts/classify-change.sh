@@ -6,8 +6,8 @@
 # subcommand dispatch so each capability is invocable in isolation by unit tests
 # and the live Checks-API lookback stays behind an injectable seam:
 #
-#   classify [--stdin0] <file>...
-#                        Decide a changed-file set as code (heavy) or docs (light).
+#   classify <file>...   Decide a changed-file set as code (heavy) or docs (light).
+#   classify --stdin0    Same, but read NUL-delimited paths from standard input.
 #   tree-hash <ref>      Compute a rebase/squash-stable code-tree identity at a ref.
 #
 # The pure subcommands (classify, tree-hash) run without network; the Checks-API
@@ -113,8 +113,8 @@ usage() {
 Usage: classify-change.sh <command> [args...]
 
 Commands:
-  classify [--stdin0] <file>...
-                            Classify paths from argv or NUL-delimited stdin
+  classify <file>...       Classify paths from argv
+  classify --stdin0        Classify NUL-delimited paths from stdin
   tree-hash <ref>           Compute the code-tree hash at a git ref
   duplicate-push <event> <ref-name> <head-sha>
                             Print true when a push run duplicates an open PR head

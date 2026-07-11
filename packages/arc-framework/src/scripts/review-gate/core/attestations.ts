@@ -1,9 +1,17 @@
 /** Source-neutral attestation validation for durable review evidence. */
 
-import type { CapabilitySet, ReviewRequirement, SourceKind } from "./contracts.js";
+import { meetsMinimumPermission, type CapabilitySet, type ReviewRequirement, type SourceKind } from "./contracts.js";
 import { parseEvidence, type Evidence } from "./evidence.js";
 import { computeChangeSetId } from "./identity.js";
-import { arrayAt, enumAt, exactKeys, objectAt, schemaOneAt, stringAt } from "./validation.js";
+import {
+  arrayAt,
+  enumAt,
+  exactKeys,
+  objectAt,
+  REVIEW_IDENTIFIER,
+  schemaOneAt,
+  stringAt,
+} from "./validation.js";
 
 /** Context resolved independently from the untrusted manifest. */
 export interface AttestationValidationContext {
@@ -19,20 +27,13 @@ export type AttestationValidationResult =
   | { ok: true; evidence: Evidence }
   | { ok: false; error: string };
 
-const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u;
-const PERMISSION_RANK = { read: 0, triage: 1, write: 2, maintain: 3, admin: 4 } as const;
-
 function fail(error: string): AttestationValidationResult {
   return { ok: false, error };
 }
 
-function hasPermission(capabilities: CapabilitySet, minimum: "write" | "maintain"): boolean {
-  return capabilities.permissions.some((permission) => PERMISSION_RANK[permission] >= PERMISSION_RANK[minimum]);
-}
-
 function idAt(value: unknown, path: string): string {
   const id = stringAt(value, path);
-  if (!IDENTIFIER.test(id)) throw new Error(`${path}: invalid identifier`);
+  if (!REVIEW_IDENTIFIER.test(id)) throw new Error(`${path}: invalid identifier`);
   return id;
 }
 
@@ -85,10 +86,14 @@ export function validateAttestation(
     if (!acceptedSource) throw new Error("source kind is not accepted by the requirement");
 
     if (sourceKind === "agent") {
-      if (!hasPermission(context.authenticatedActor, "maintain")) throw new Error("agent attestation requires maintain");
+      if (!context.authenticatedActor.permissions.some((permission) => meetsMinimumPermission(permission, "maintain"))) {
+        throw new Error("agent attestation requires maintain");
+      }
       if (!context.acceptedReviewerClaims.includes(sourceIdentity)) throw new Error("agent source identity is not accepted");
     } else {
-      if (!hasPermission(context.authenticatedActor, "write")) throw new Error("human attestation requires write");
+      if (!context.authenticatedActor.permissions.some((permission) => meetsMinimumPermission(permission, "write"))) {
+        throw new Error("human attestation requires write");
+      }
       if (context.authenticatedActor.actorIdentity !== sourceIdentity) throw new Error("delegated human identity");
       if (sourceIdentity === context.authorIdentity) throw new Error("author cannot self-attest");
     }

@@ -197,17 +197,13 @@ requirements, whether a request may spend quota, and whether the aggregate merge
 - _Outcome:_ One failure-over-pending verdict now composes every declared readiness, CI, review, native, and
   consistency dimension, with a complete neutral projection that cannot hide residual obligations or evidence state.
 
-### `[ ]` **2.5 Independently review the core policy and reducer slice**
+### `[x]` **2.5 Independently review the core policy and reducer slice**
 
 - _Goal:_ A fresh reviewer certifies the domain, policy, evidence, admission, and verdict implementation before host
   and provider integration can compound any mistaken assumption.
-
-    - Run the phase-completion quality gates, then give one fresh independent-analysis reviewer the spec, project
-      orientation, and commit range from the activation baseline through Phase 2.
-    - Apply `independent-analysis/v1`; verify every finding against source, settle approved fixes through the normal
-      review increment, and re-run affected gates.
-    - Default to one pass. Run a second fresh pass only when confirmed substantive findings or their fixes warrant it;
-      do not shotgun multiple providers for a clean slice.
+- _Outcome:_ CodeRabbit independently reviewed the activation-to-Phase-2 range; all eight findings were verified and
+  resolved, including unsafe-reference hardening and shared validation cleanup. A warranted fresh pass over the fixes
+  reviewed 54 files with no further findings.
 
 ## **Phase 3:** GitHub host adapter and trusted projection
 
