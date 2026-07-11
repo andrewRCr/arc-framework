@@ -151,36 +151,25 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
   unavailability publish a failure projection with unknown coordinates, suppress writes, and recover after repair.
   Coverage proves stale-green replacement, durable refusal and recovery, and independent check publication failure.
 
-### `[ ]` **2.6 Lifecycle-bookkeeping-tail proof and review-authority carry-forward**
+### `[x]` **2.6 Lifecycle-bookkeeping-tail proof and review-authority carry-forward**
 
 - _Goal:_ Completion composition and sweep can advance an exact reviewed PR to its mergeable bookkeeping head
   without purchasing another independent review, while any substantive or ambiguous tail still fails closed.
-- _Note:_ Core is storage-neutral. The current Git adapter implements `lifecycle-bookkeeping-tail/v1`; under the
-  future materialized backing store, operational-state writes advance no code head and this proof becomes a no-tail
-  case (spec Decisions 17 and 20).
-- **Additional Context:** `notes-review-gate-reconcile-composition.md` § Storage forward-compatibility check
 
     - `[x]` **2.6.a Define and consume the host/storage-neutral proof**
         - Added the diagnostic-bearing `LifecycleTailProof` and neutral resolution port. Coverage carries only an
           exact clean source chain across it; findings, native review, and proof-free paths retain ordinary authority.
           Projection names a clean bridge explicitly without treating the proof as evidence.
 
-    - `[ ]` **2.6.b Implement the current in-repo Git predicate**
-        - Resolve the exact reviewed-head → current-head diff without inferring WU identity from branch name. Require
-          the reviewed meta to establish one artifact group and optional cohort path, then enforce a closed
-          path/status grammar: archive-phase edits plus relocation for that WU's `meta-*` / `tasks-*`; the same plus
-          optional deletion for `notes-*`; byte-identical relocation only for every other same-slug companion;
-          documented final-member closeout/relocation for cohort documents bound by that path; and the single derived
-          `.arc/backlog/ROADMAP.md` update.
-        - Treat the proof as review-relevance classification, not provenance or bookkeeping-correctness attestation.
-          Final-head required checks/hooks own archive structure and ROADMAP regeneration; the predicate neither
-          guesses an "integration-owned" author nor attempts an unreconstructible historical local-ref render.
-        - Reject code, `.github/`, `.arc/system/`, policy/config, unrelated/mixed WUs, authored-design content edits,
-          base/merge-base/policy/rubric/source drift, and any unknown path/status. A behind-base merge or
-          review-driven fix to a review-relevant surface is never a lifecycle tail.
-        - Build `test-first` (one behavior at a time): every allowed artifact/status transition including notes/task
-          cleanup and cohort closeout, mixed allowed operations, every reject class above, rename ambiguity,
-          deleted/added spoofing, ROADMAP-plus-code mixing, and future-storage no-tail behavior at the port.
+    - `[x]` **2.6.b Implement the current in-repo Git predicate**
+        - Added the exact-diff Git adapter with a closed archive grammar: one reviewed WU artifact group, optional
+          notes cleanup and cohort closeout, byte-identical companion relocation, and the derived ROADMAP update.
+          Drift, code/control surfaces, design edits, unrelated artifacts, ambiguity, and unavailable objects return
+          a diagnostic-bearing proof or no-tail result.
+
+- _Outcome:_ Exact clean evidence can now carry through the versioned bookkeeping tail without becoming proof
+  evidence. The storage-neutral core and current Git adapter fail closed on every non-lifecycle change; a future
+  storage tier returns no tail when operational state does not advance the code head.
 
 ## **Phase 3:** Runtime, factory, and reconcile entry rewrite
 
