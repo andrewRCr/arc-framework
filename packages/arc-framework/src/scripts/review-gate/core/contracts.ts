@@ -61,6 +61,7 @@ export interface ReviewRequirement {
   initialAdmission: InitialAdmission;
   policyVersion: string;
   rubricVersion: string;
+  reasons: string[];
   changeSetId: string;
   headSha: string;
 }
@@ -131,6 +132,7 @@ export function parseReviewRequirement(input: unknown, path = "requirement"): Re
   exactKeys(record, [
     "schemaVersion", "id", "kind", "obligation", "acceptableSources", "count", "initialAdmission",
     "policyVersion", "rubricVersion", "changeSetId", "headSha",
+    "reasons",
   ], path);
   const acceptableSources = arrayAt(record.acceptableSources, `${path}.acceptableSources`, parseAcceptedSource);
   if (acceptableSources.length === 0) throw new Error(`${path}.acceptableSources: expected at least one source`);
@@ -144,6 +146,7 @@ export function parseReviewRequirement(input: unknown, path = "requirement"): Re
     initialAdmission: enumAt(record.initialAdmission, ["automatic", "checkpoint"], `${path}.initialAdmission`),
     policyVersion: digestAt(record.policyVersion, `${path}.policyVersion`),
     rubricVersion: stringAt(record.rubricVersion, `${path}.rubricVersion`),
+    reasons: arrayAt(record.reasons, `${path}.reasons`, stringAt),
     changeSetId: digestAt(record.changeSetId, `${path}.changeSetId`),
     headSha: digestAt(record.headSha, `${path}.headSha`, 40),
   };

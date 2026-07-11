@@ -29,6 +29,7 @@ const requirement = {
   initialAdmission: "automatic",
   policyVersion: "e".repeat(64),
   rubricVersion: "independent-analysis/v1",
+  reasons: ["reviewed-sensitive"],
   changeSetId: changeRequest.changeSetId,
   headSha: changeRequest.headSha,
 };

@@ -41,6 +41,8 @@ export interface RunScriptOptions {
   env?: NodeJS.ProcessEnv;
   /** Timeout in milliseconds. Default: {@link DEFAULT_TIMEOUT_MS}. */
   timeout?: number;
+  /** Optional bytes supplied to the script's standard input. */
+  stdin?: string | Buffer;
 }
 
 /** Result of a {@link runScript} invocation. */
@@ -79,6 +81,8 @@ export function runScript(
 
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
+
+    child.stdin?.end(options.stdin);
 
     child.stdout?.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
     child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk));

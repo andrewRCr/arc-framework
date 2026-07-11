@@ -39,98 +39,56 @@ qualification rules that every adapter and reducer consumes.
   every downstream adapter and reducer, with 37 focused unit checks covering round trips, invalid boundaries,
   neutrality, and canonical identities.
 
-### `[ ]` **1.2 Split CI cost from self-hosting review policy**
+### `[x]` **1.2 Split CI cost from self-hosting review policy**
 
 - _Goal:_ One canonical changed-path read yields independent CI-cost and stable review-policy decisions, so mutable
   verification history can never weaken an unchanged review obligation.
-- _Approach:_ Preserve `scripts/classify-change.sh` as the code-surface authority and compose its pure result into
-  the versioned TypeScript self-hosting policy rather than duplicating code globs.
 
-    - `[ ]` **1.2.a Expose the canonical code-surface predicate safely**
-        - Add `classify --stdin0` as the scalable NUL-delimited form of the existing argv predicate; retain argv
-          compatibility and change `decide`'s internal diff transport to `git diff --name-only -z` without changing
-          its CI-weight output contract.
-        - Let the typed policy consume structured host paths and invoke only this code-surface predicate; shell code
-          never parses meta ownership, requirement templates, or provider state.
-        - Build `test-first` (one behavior at a time):
-            - Existing docs/code/tree-hash/verified-tree cases remain byte-compatible.
-            - Filenames containing whitespace or newlines cannot split, inject, or disappear from classification.
-            - Empty/unresolvable input remains sensitive/heavy, and CI/policy read the same code-surface predicate.
+    - `[x]` **1.2.a Expose the canonical code-surface predicate safely**
+        - Added argv-compatible `classify --stdin0` and moved `decide` to NUL-delimited diff transport, preserving
+          fail-safe empty/ref behavior and exact whitespace/newline-bearing filenames through the shared predicate.
 
-    - `[ ]` **1.2.b Define the validated self-hosting policy document**
-        - Author a plain-data policy schema carrying schema/semantics versions, closed predicate ids/parameters,
-          author/source maps, requirement templates, rubric bindings, timeouts, and qualification declarations.
-        - Keep evaluators in code keyed by closed ids; require a new id or semantics-version value whenever predicate
-          meaning changes, so the canonical policy digest changes with enforcement semantics.
-        - Build `test-first` (one behavior at a time):
-            - Canonical policy data validates and hashes deterministically.
-            - Unknown predicate ids/parameters, missing semantics versions, executable values, and mutable
-              rollout/capacity fields are rejected.
+    - `[x]` **1.2.b Define the validated self-hosting policy document**
+        - Added the closed plain-data self-hosting policy with versioned lane/risk predicates, identity map,
+          requirement/rubric bindings, timeouts, and source declarations; mutable runtime fields and executable or
+          unknown policy values fail validation.
 
-    - `[ ]` **1.2.c Classify review risk and stable reason codes**
-        - Implement the sensitive path matrix for code, GitHub control, ARC system/strategy/ADR/brief, project
-          authority, technical overview, and harness-contract surfaces; everything else resolves routine.
-        - Emit all matching stable reason codes, with `unknown-change-set` as the fail-safe result.
-        - Build `test-first` (one behavior at a time):
-            - Every critical prefix/root file maps to its declared reason set.
-            - Routine documentation stays routine regardless of prior CI verification.
-            - Generated-only, bot-authored, size-based, and quota-based exemptions do not appear implicitly.
+    - `[x]` **1.2.c Classify review risk and stable reason codes**
+        - Added the sensitive path matrix and complete stable reason-set reduction, including fail-safe unknown changes
+          and routine documentation without generated, author, size, quota, or prior-verification exemptions.
 
-    - `[ ]` **1.2.d Resolve auto-lane ownership from exact refs**
-        - Derive the canonical slug and same-directory companion meta for each movable artifact group. Reuse
-          `readMetaAtRef()` plus `parseMetaRecord()` to read existing/deleted ownership from `diff_base_sha` and
-          genuinely new ownership from `head_sha`; never scan checkout-local active state.
-        - Load the versioned `andrewRCr -> andrew` map, treat cohorts as ownerless, and fail reviewed on owner deltas,
-          rename/move ambiguity, multiple/missing/unparseable companions, mixed ownership, unmapped authors,
-          design-authority paths, or any non-lane path.
-        - Build `test-first` (one behavior at a time):
-            - Pure policy fixtures cover base-owned, new-owned, transitioned, cohort, mapped, and unmapped decisions.
-            - Editing `Owner` in the same change cannot make an existing artifact self-authorizing.
-            - Empty and mixed diffs fail safe to the reviewed lane.
-            - Real-git integration fixtures cover flat/nested groups, add/delete/rename/move, ambiguous companions,
-              ref-read failures, and filenames containing whitespace/newlines.
+    - `[x]` **1.2.d Resolve auto-lane ownership from exact refs**
+        - Added deterministic flat/nested artifact grouping and exact-ref companion reads through `readMetaAtRef()`
+          and `parseMetaRecord()`, with ownerless cohorts and reviewed fallbacks for every ownership, layout, move,
+          author, parsing, or mixed-diff ambiguity; real-git fixtures cover unusual valid filenames and ref failures.
 
-    - `[ ]` **1.2.e Emit the aggregate self-hosting policy decision**
-        - Bind lane, risk, typed requirements, reason codes, stable identities, and policy version into one decision;
-          keep aggregate `required | recommended | exempt` explanatory rather than authoritative over each requirement.
-        - Build `test-first` (one behavior at a time):
-            - `auto` is exempt, reviewed-routine is recommended, and reviewed-sensitive is required.
-            - CI weight may change from heavy to light without changing the review record for the same change set.
-            - Policy-version changes invalidate prior decisions and evidence.
+    - `[x]` **1.2.e Emit the aggregate self-hosting policy decision**
+        - Added the exact-change-set decision binding lane, risk, stable reasons, policy digest, and retained typed
+          requirements; it maps auto/reviewed-routine/reviewed-sensitive independently of mutable CI state.
 
-### `[ ]` **1.3 Model typed requirements and source qualification**
+- _Outcome:_ CI run-cost classification and review obligation now share one safe code-surface predicate but remain
+  separate decisions: verification history can lighten CI without changing the policy-bound review record.
+
+### `[x]` **1.3 Model typed requirements and source qualification**
 
 - _Goal:_ Human approval, independent analysis, and specialist review remain distinct obligations whose accepted
   sources and counts cannot be widened implicitly.
 
-    - `[ ]` **1.3.a Reduce typed requirements without source substitution**
-        - Represent obligation, accepted source kind/qualifier, count, stable `automatic | checkpoint` initial
-          admission, rubric, policy, and exact change-set binding on every requirement.
-        - Build `test-first` (one behavior at a time):
-            - Agent analysis cannot satisfy peer approval, and generic approval cannot satisfy specialist review.
-            - Counts require distinct qualified identities and distinct human actors where applicable.
-            - Native requested changes and unresolved required conversations remain blocking independently.
+    - `[x]` **1.3.a Reduce typed requirements without source substitution**
+        - Added exact kind/qualifier matching, distinct source and human-actor counting, retained policy/change
+          bindings, and independent native requested-change/conversation blockers.
 
-    - `[ ]` **1.3.b Qualify `independent-analysis/v1` sources**
-        - Encode the repository rubric/version and require exact coverage, durable result/finding evidence, explicit
-          failure/unavailability, and closure capability before a source can enter an acceptable-source set.
-        - Add qualification fixtures for CodeRabbit, maintainer-attested fresh Codex CLI, Claude Code, and
-          CodeRabbit CLI, and a qualified non-author human. Ship CodeRabbit's versioned satisfying declaration disabled
-          while the adapter observes in shadow; only the post-probe cutover PR may enable it, changing `policy_version`
-          and forcing fresh evidence.
-        - Build `test-first` (one behavior at a time):
-            - Missing rubric delivery, coverage bounds, durable findings, result distinction, or closure fails
-              qualification.
-            - Provider-declared rubric versions must equal the requirement's version.
-            - Local-only prose/transcripts and generic approval tokens cannot qualify as evidence.
-            - Runtime labels, capacity, or secrets cannot enable a disabled source qualification.
+    - `[x]` **1.3.b Qualify `independent-analysis/v1` sources**
+        - Encoded the five-part rubric and closed qualification capabilities for attested CLI/human and durable-record
+          sources; every required proof is fail-closed, runtime fields cannot enable a source, and the PR provider's
+          satisfying declaration remains disabled for shadow observation.
 
-    - `[ ]` **1.3.c Aggregate requirement disposition without erasing detail**
-        - Derive the explanatory aggregate from requirement obligations while preserving each requirement's reason,
-          source set, count, and satisfaction state for later gate summaries.
-        - Build `test-first` (one behavior at a time):
-            - Any required requirement makes the aggregate required; otherwise recommended precedes exempt.
-            - Mixed peer/analysis/specialist fixtures retain independent satisfaction and blocker reporting.
+    - `[x]` **1.3.c Aggregate requirement disposition without erasing detail**
+        - Added required-first/recommended-second/exempt aggregation while retaining each typed requirement, accepted
+          sources, count, satisfaction identities, reasons, and blockers for later verdict summaries.
+
+- _Outcome:_ Peer approval, independent analysis, and specialist review now reduce as separate obligations; neither
+  source matching, counts, qualification, native blockers, nor aggregate summaries can erase the underlying detail.
 
 ## **Phase 2:** Evidence, admission, and readiness reduction
 
