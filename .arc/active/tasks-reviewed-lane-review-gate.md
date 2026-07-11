@@ -119,51 +119,32 @@ requirements, whether a request may spend quota, and whether the aggregate merge
 - _Outcome:_ Evidence can satisfy a requirement only through a current contiguous coverage chain with consistent,
   authority-closed finding history; obligation remains intact across every visible execution state.
 
-### `[ ]` **2.2 Admit idempotent provider requests from receipts**
+### `[x]` **2.2 Admit idempotent provider requests from receipts**
 
 - _Goal:_ Every possible provider spend is version-reserved durably and permits at most one controller invocation
   attempt per request identity, while explicit refreshes and qualified alternate sources remain available.
 
-    - `[ ]` **2.2.a Define canonical receipt and request keys**
-        - Implement `core/request-key.ts` and `core/receipt-ledger.ts`: canonicalize hierarchical request keys,
-          generations, event/idempotency keys, prior ledger versions, and receipt hashes; validate storage envelopes.
-        - Build `test-first` (one behavior at a time):
-            - Exact request replay is rejected across event retries and scheduled repair.
-            - A new source, validated coverage bounds, or advanced generation yields a distinct permitted attempt.
-            - Byte-equivalent duplicate records collapse; divergent duplicates, forks, edits, missing/truncated
-              history, malformed envelopes, and cross-change-set receipts fail closed.
+    - `[x]` **2.2.a Define canonical receipt and request keys**
+        - Added hierarchical requirement/request keys, replay-stable idempotency, predecessor-bound receipt hashes,
+          and anchor-checked ledger validation that collapses exact duplicates and rejects replay, edits, forks,
+          divergence, missing history, or malformed identities.
 
-    - `[ ]` **2.2.b Admit the one automatic initial request**
-        - Implement `core/admission.ts`; admit generation zero only for a required, ready, automatic-eligible change
-          request with no admitted history for that requirement. Checkpoint-only, recommended, exempt, and draft
-          states never spend automatically. Permit `unknown:not-observable` for the one justified attempt; suppress
-          known exhaustion and `unknown:lookup-failed` unless an authorized explicit refresh accepts the uncertainty.
-        - Build `test-first` (one behavior at a time):
-            - Opened-ready, first ready transition, and missed-event repair converge on one reservation.
-            - Synchronize after any admitted history leaves the new head pending without spending.
-            - Coalesced pushes before an explicit checkpoint yield one current-change-set request.
-            - Versioned checkpoint-only topology suppresses automatic spend without weakening the requirement.
-            - Capacity provenance controls invocation eligibility but cannot change requirement obligation.
+    - `[x]` **2.2.b Admit the one automatic initial request**
+        - Added generation-zero admission for ready required automatic work only, with admitted-history replay
+          suppression and the declared exhausted/not-observable/lookup-failed capacity behavior; obligation is never
+          rewritten by admission or capacity.
 
-    - `[ ]` **2.2.c Reserve before invocation and reconcile acknowledgement**
-        - Implement `core/request-execution.ts`; emit a version-checked `reserved` intent before the adapter call and
-          `acknowledged` or terminal failure afterward. Require bounded canonical post-append confirmation before an
-          invocation effect, and derive ten-/sixty-minute boundaries from store-authenticated `recorded_at` with an
-          injected evaluation clock; provider `observed_at` remains informational.
-        - Build `test-first` (one behavior at a time):
-            - Interrupted reservation becomes an ambiguous blocking failure and is never auto-replayed.
-            - A stale/forked/unconfirmed reservation permits no invocation, and one canonical request key emits at
-              most one controller invocation effect.
-            - Acknowledged timeout is visible/retriable but never successful.
-            - Boundary instants and reordered wake-ups reduce idempotently.
+    - `[x]` **2.2.c Reserve before invocation and reconcile acknowledgement**
+        - Added append-confirm-invoke sequencing with no effect from an unconfirmed reservation, at-most-one invocation,
+          acknowledged/ambiguous terminal recording, and injected-clock ten-/sixty-minute boundaries derived solely
+          from authenticated store time.
 
-    - `[ ]` **2.2.d Admit refresh, alternate, and out-of-band evidence paths**
-        - Validate full/incremental refresh against the current chain; require alternate sources to start full; record
-          independently verifiable out-of-band evidence as `unadmitted` and suppress duplicate provider requests.
-        - Build `test-first` (one behavior at a time):
-            - Same-change-set refresh advances generation only after authorization.
-            - Alternate fallback cannot use cross-source incremental coverage.
-            - Qualifying out-of-band evidence satisfies without fabricating an admitted request.
+    - `[x]` **2.2.d Admit refresh, alternate, and out-of-band evidence paths**
+        - Added authorized generation-advancing refresh, full-only qualified alternate admission, and durable current
+          out-of-band evidence recording as `unadmitted`, suppressing provider spend without fabricating history.
+
+- _Outcome:_ Every provider attempt now has one canonical request identity and a durable, version-confirmed reservation
+  before invocation; retries, repair wakes, fallbacks, and external evidence cannot duplicate spend or weaken policy.
 
 ### `[ ]` **2.3 Validate commands, overrides, and attestations**
 

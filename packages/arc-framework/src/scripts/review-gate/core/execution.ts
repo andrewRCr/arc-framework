@@ -46,7 +46,7 @@ export interface ReviewReceipt {
   idempotencyKey: string;
   previousLedgerVersion: number;
   receiptHash: string;
-  action: "reserved" | "acknowledged" | "terminal-failure" | "dismissed" | "waived" | "attested";
+  action: "reserved" | "acknowledged" | "terminal-failure" | "dismissed" | "waived" | "attested" | "unadmitted";
   request: ReviewRequest;
   result: EvidenceResult | null;
   evidenceUrlOrId: string | null;
@@ -170,7 +170,7 @@ function parseReceipt(input: unknown, path: string): ReviewReceipt {
     receiptHash: digestAt(record.receiptHash, `${path}.receiptHash`),
     action: enumAt(
       record.action,
-      ["reserved", "acknowledged", "terminal-failure", "dismissed", "waived", "attested"],
+      ["reserved", "acknowledged", "terminal-failure", "dismissed", "waived", "attested", "unadmitted"],
       `${path}.action`,
     ),
     request: parseReviewRequest(record.request, `${path}.request`),
