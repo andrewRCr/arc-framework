@@ -9,55 +9,35 @@
 _Purpose:_ Establish the host/provider-neutral vocabulary, stable identities, policy boundary, and source
 qualification rules that every adapter and reducer consumes.
 
-### `[ ]` **1.1 Define normalized review-domain contracts**
+### `[x]` **1.1 Define normalized review-domain contracts**
 
 - _Goal:_ Core records and ports express review policy, evidence, requests, and verdicts without importing host,
   provider, workflow-runner, or harness concepts.
-- _Approach:_ Keep the domain under `src/scripts/review-gate/core/`; adapters retain opaque round-trip references
-  outside any field that participates in policy or reduction.
 
-    - `[ ]` **1.1.a Model change requests, policy, and requirements**
-        - Define validated schema-versioned records in bounded core modules for exact change-request identity,
-          capability sets, plain-data policy, typed requirements, accepted sources, counts, and initial admission.
-        - Keep every record scoped to one explicit change request with no WU identity or PR-cardinality field.
-        - Build `test-first` (one behavior at a time):
-            - Valid fixtures round-trip without losing identity, obligation, qualifier, count, or admission fields.
-            - Invalid enums, counts, qualifiers, policy versions, and change-set bindings are rejected.
+    - `[x]` **1.1.a Model change requests, policy, and requirements**
+        - Added closed runtime guards for schema-versioned change requests, capability sets, policies, requirements,
+          accepted source qualifiers, counts, and admission modes; exact schemas reject foreign identity/cardinality
+          fields and invalid bindings.
 
-    - `[ ]` **1.1.b Model evidence, findings, and closures**
-        - Define bounded core modules for result, coverage, evidence references, stable source-scoped findings, and
-          authority-bearing closures; co-locate manual runtime guards with each untrusted record family.
-        - Build `test-first` (one behavior at a time):
-            - Valid evidence preserves coverage and authority through parse/serialize boundaries.
-            - Malformed coverage, reused finding shapes, unknown closure authority, and unsafe references fail.
+    - `[x]` **1.1.b Model evidence, findings, and closures**
+        - Added validated evidence, coverage, finding, and authenticated-closure records with stable source-scoped
+          finding identities, safe evidence references, exact change bindings, and result/finding consistency.
 
-    - `[ ]` **1.1.c Model requests, receipts, capacity, and verdicts**
-        - Define bounded core modules for request identity/generation, storage-agnostic receipt events and validated
-          storage envelopes, source capacity plus reason/provenance, requirement execution, and neutral gate projection
-          without implementing their reducers yet.
-        - Build `test-first` (one behavior at a time):
-            - Valid fixtures retain idempotency, actor, source, state, and blocker detail.
-            - Malformed generations, actions, capacity/reason pairs, execution states, conclusions, and receipt
-              identities are rejected.
+    - `[x]` **1.1.c Model requests, receipts, capacity, and verdicts**
+        - Added guarded request generations, storage-neutral receipt events and envelopes, capacity/reason pairs,
+          requirement executions, and neutral gate projections retaining actor, source, blocker, and receipt detail.
 
-    - `[ ]` **1.1.d Define adapter ports and enforce core neutrality**
-        - Define behavioral `GitHostAdapter`, `ReviewReceiptStore`, and `ReviewProviderAdapter` ports in
-          `core/ports.ts` over core-owned inputs and outputs. Give the receipt store versioned read plus
-          expected-version append; adapters may retain opaque round-trip references outside policy/reduction fields.
-        - Add a static import-boundary test that rejects GitHub, Actions, CodeRabbit, PR-number, check-run, workflow,
-          and harness types/tokens anywhere under `core/`.
-        - Build `test-first` (one behavior at a time):
-            - Host/store/provider fixture adapters satisfy the ports using only normalized values.
-            - Core source/import scans remain independent of adapter and runtime directories.
+    - `[x]` **1.1.d Define adapter ports and enforce core neutrality**
+        - Added normalized host, receipt-store, and provider ports with expected-version append and opaque adapter
+          references, plus fixture conformance and source/import scans that enforce the core neutrality boundary.
 
-    - `[ ]` **1.1.e Implement canonical policy and change-set identities**
-        - Reuse the repository SHA-256 helper for `base_ref NUL diff_base_sha NUL head_sha` UTF-8 bytes.
-        - Canonicalize validated plain JSON by recursively sorting object keys, preserving array order, and rejecting
-          unsupported values/non-finite numbers before hashing; never serialize evaluator functions.
-        - Build `test-first` (one behavior at a time):
-            - Retarget, merge-base, head, policy data, predicate id, or semantics-version changes alter identity.
-            - Base-tip-only movement, object insertion order, and runtime rollout/capacity do not alter identity.
-            - Ambiguous inputs and non-JSON policy values fail instead of producing satisfying evidence.
+    - `[x]` **1.1.e Implement canonical policy and change-set identities**
+        - Added NUL-delimited change-set hashing through the shared SHA-256 helper and canonical plain-JSON policy
+          hashing with recursive key sorting, array-order retention, runtime exclusion, and fail-closed input checks.
+
+- _Outcome:_ `src/scripts/review-gate/core/` now provides one validated, host/provider-neutral contract layer for
+  every downstream adapter and reducer, with 37 focused unit checks covering round trips, invalid boundaries,
+  neutrality, and canonical identities.
 
 ### `[ ]` **1.2 Split CI cost from self-hosting review policy**
 
