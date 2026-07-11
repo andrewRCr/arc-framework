@@ -44,6 +44,11 @@ checks: [intent-and-scope, correctness-and-failure-behavior, trust-and-compatibi
 A rubric change and its `rubric_version` change land in the same reviewed commit. Satisfying evidence covers the full
 current change set and follows [.github/review-gate-attestation.md](review-gate-attestation.md).
 
+Provenance: the empirical basis for these inputs — the App permission model (PR ledger comments and the one-shot
+label ride `pull-requests: write`, not `issues: write`), the branch-protection check-source pinning proof, and
+CodeRabbit's non-satisfying qualification — is recorded in the archived `notes-reviewed-lane-review-gate.md` spike
+findings.
+
 ## Setup and Shadow Authentication
 
 ### Create or repair the protected environment
@@ -137,6 +142,10 @@ exactly `$REPO`, cannot write contents, and never enters git transport.
 Run this matrix in shadow against disposable PR heads. Record immutable API evidence and the exact head for each row.
 Any unproven native/provider capability falls back to an explicit controller request or generic attestation—never
 inferred satisfaction.
+
+Baseline: the visible `CodeRabbit` commit-status check was absent when this gate was designed (the motivating
+symptom) but was observed to reappear 2026-07-11. Re-probe current behavior here rather than assuming the outage
+state; its presence remains progress evidence only, never verdict.
 
 | Probe                             | Required observation                                                                        |
 |-----------------------------------|---------------------------------------------------------------------------------------------|

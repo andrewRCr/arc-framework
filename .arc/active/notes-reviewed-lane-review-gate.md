@@ -4,12 +4,10 @@ Working notes companion to `spec-reviewed-lane-review-gate.md` and `tasks-review
 
 ## Planning-terminus spikes — external-contract probes
 
-Two bounded spikes run after task generation and before the adversarial review pass, so empirical findings can
-still amend the spec ahead of finalization. Both probe external contracts the design assumes but cannot verify
-from documentation alone; both run in a sandbox repository in the same organization, touching nothing in this
-repository's tree. Contracts follow the spike shape (hypothesis / acceptance criteria / scope cap / disposition);
-findings land in the sections below and propagate to the spec where they contradict a design statement — most
-likely § 9 (CodeRabbit adapter) and the § Open Questions probe expectations.
+Two bounded spikes probe external contracts the design assumes but cannot verify from documentation alone —
+CodeRabbit's provider contract, and the GitHub App identity and check-pinning behavior. Both ran in a sandbox
+repository in the same organization, touching nothing in this repository's tree, under the spike shape
+(hypothesis / acceptance criteria / scope cap / disposition).
 
 The spikes de-risk implementation shape only; they do not replace the post-main cutover Errand's live probes,
 which re-prove every contract on this repository before enforcement.
