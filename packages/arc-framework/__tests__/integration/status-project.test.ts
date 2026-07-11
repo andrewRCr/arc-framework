@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { handleStatus } from "../../src/handlers/status.js";
+import { handleStatus, type StatusCliOptions } from "../../src/handlers/status.js";
 import { writeErrandRecord } from "../../src/lib/errand/record.js";
 import {
   cleanupTempDir,
@@ -36,6 +36,10 @@ function meta(slug: string, state: string, branch: string): string {
   ].join("\n");
 }
 
+function metaAt(slug: string, state: string, branch: string, priority: string): string {
+  return meta(slug, state, branch).replace("- **Priority:** P1", `- **Priority:** ${priority}`);
+}
+
 async function commitAll(cwd: string, message: string): Promise<void> {
   await execFileAsync("git", ["add", "-A"], { cwd });
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", message], { cwd });
@@ -53,6 +57,19 @@ async function captureStdout(fn: () => Promise<void>): Promise<string> {
     spy.mockRestore();
   }
   return chunks.join("");
+}
+
+async function runProject(cwd: string, opts: StatusCliOptions): Promise<string> {
+  const originalCwd = process.cwd();
+  const savedExitCode: ProcessExitCode = process.exitCode;
+  process.exitCode = undefined;
+  try {
+    process.chdir(cwd);
+    return await captureStdout(() => handleStatus(undefined, opts));
+  } finally {
+    process.chdir(originalCwd);
+    process.exitCode = savedExitCode;
+  }
 }
 
 describe("arc status --project", () => {
@@ -126,6 +143,35 @@ describe("arc status --project", () => {
     expect(result.output).not.toContain("ref-only-errand");
     expect(sectionBetween(result.output, "## Ready", "## Blocked")).not.toContain("ref-only");
     expect(result.exitCode).toBeUndefined();
+  });
+
+  it("renders --staged tree inputs from the git index, not the working tree", async () => {
+    repo = await createTempRepo("arc-status-staged-");
+    await execFileAsync("git", ["config", "arc.identity", "andrew"], { cwd: repo });
+    await mkdir(join(repo, ".arc", "system"), { recursive: true });
+    await mkdir(join(repo, ".arc", "active"), { recursive: true });
+    await writeFile(
+      join(repo, ".arc", "system", "arc-config.yml"),
+      "branch.base: main\nbranch.protection: partial\npm.mode: arc-in-git\n",
+    );
+    // HEAD: foo Active at P1.
+    await writeFile(join(repo, ".arc", "active", "meta-foo.md"), meta("foo", "Active", "[none]"));
+    await commitAll(repo, "scaffold foo");
+
+    // Stage foo at P2, then dirty the working file to P3 (unstaged) so the index,
+    // the working tree, and HEAD all disagree.
+    await writeFile(join(repo, ".arc", "active", "meta-foo.md"), metaAt("foo", "Active", "[none]", "P2"));
+    await execFileAsync("git", ["add", "-A"], { cwd: repo });
+    await writeFile(join(repo, ".arc", "active", "meta-foo.md"), metaAt("foo", "Active", "[none]", "P3"));
+
+    const staged = await runProject(repo, { project: true, staged: true });
+    const worktree = await runProject(repo, { project: true, local: true });
+
+    // --staged reads the index (P2); the working-tree render reads disk (P3).
+    expect(staged).toContain("Source scope: tree + local refs.");
+    expect(staged).toMatch(/\|\s*foo\s*\|\s*P2\b/u);
+    expect(staged).not.toMatch(/\|\s*foo\s*\|\s*P3\b/u);
+    expect(worktree).toMatch(/\|\s*foo\s*\|\s*P3\b/u);
   });
 });
 

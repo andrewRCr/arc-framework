@@ -5,6 +5,7 @@ import {
   assertRoadmapRegenerated,
   createIndexProjectViewFs,
   renderRoadmapFromIndex,
+  renderRoadmapFromIndexViewResult,
   type RoadmapRegenerationAssertVerdict,
 } from "../../../src/lib/status/roadmap-regeneration-assert.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
@@ -138,5 +139,23 @@ describe("renderRoadmapFromIndex", () => {
 
     expect(verdict.status).toBe("pass");
     expect(rendered).toMatch(/\| ready\s+\| P1\s+\|/);
+  });
+});
+
+describe("renderRoadmapFromIndexViewResult", () => {
+  it("composes the same markdown the pre-commit render emits, plus structured facts", async () => {
+    const exec = makeIndexExec({
+      ".arc/backlog/planned/ready/meta-ready.md": meta("ready", { priority: "P1" }),
+    });
+    const options = { cwd: "/repo", exec, baseBranch: "main", renderedRef: "abc1234" } as const;
+
+    const view = await renderRoadmapFromIndexViewResult(options);
+    const markdown = await renderRoadmapFromIndex(options);
+
+    // The CLI's `--staged` path and the hook's assert both compose from this
+    // primitive: the markdown must be byte-identical (modulo the trailing newline
+    // the assert appends).
+    expect(`${view.result.markdown}\n`).toBe(markdown);
+    expect(view.result.facts.some((fact) => fact.slug === "ready")).toBe(true);
   });
 });

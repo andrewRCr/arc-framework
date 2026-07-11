@@ -15,10 +15,11 @@ import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
 
 import {
-  composeProjectReadinessView,
+  composeProjectReadinessViewResult,
   resolveProjectReadinessRenderStamp,
   resolveProjectReadinessViewInput,
   type ProjectReadinessRenderStamp,
+  type ProjectReadinessViewResult,
   type ProjectViewDirEntry,
   type ProjectViewFs,
 } from "./project-view.js";
@@ -27,7 +28,7 @@ import {
 export const ROADMAP_PATH = ".arc/backlog/ROADMAP.md";
 
 /** Command users can run to recreate the tracked readiness view. */
-export const ROADMAP_RERENDER_COMMAND = `arc status --project --local > ${ROADMAP_PATH}`;
+export const ROADMAP_RERENDER_COMMAND = `arc status --project --staged > ${ROADMAP_PATH}`;
 
 /** Shared remediation instruction for hook diagnostics. */
 export const ROADMAP_RERENDER_INSTRUCTION =
@@ -71,6 +72,12 @@ export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions
 /** ROADMAP content plus whether its source snapshot was determinate. */
 export interface RoadmapIndexRenderResult {
   content: string;
+  indeterminate: boolean;
+}
+
+/** ROADMAP structured view plus whether its source snapshot was determinate. */
+export interface RoadmapIndexViewResult {
+  result: ProjectReadinessViewResult;
   indeterminate: boolean;
 }
 
@@ -152,14 +159,17 @@ export function createIndexProjectViewFs(options: IndexProjectViewFsOptions): Pr
 }
 
 /**
- * Render the project readiness view from staged tree inputs and local refs.
+ * Render the project readiness view (structured) from staged tree inputs and
+ * local refs. This is the shared index-render primitive: the pre-commit assert
+ * and `arc status --project --staged` both compose from it, so their output
+ * matches by construction.
  *
  * @param options - Repo root, Git executor, and optional render metadata.
- * @returns Rendered content with a trailing newline, plus determinacy.
+ * @returns The structured readiness view plus source determinacy.
  */
-export async function renderRoadmapFromIndexResult(
+export async function renderRoadmapFromIndexViewResult(
   options: RenderRoadmapFromIndexOptions,
-): Promise<RoadmapIndexRenderResult> {
+): Promise<RoadmapIndexViewResult> {
   const fs = createIndexProjectViewFs(options);
   const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: options.cwd, fs }));
   const input = await resolveProjectReadinessViewInput({
@@ -179,8 +189,24 @@ export async function renderRoadmapFromIndexResult(
     liveView: "arc status --project",
   });
   return {
-    content: withTrailingNewline(composeProjectReadinessView({ ...input, renderedRef })),
+    result: composeProjectReadinessViewResult({ ...input, renderedRef }),
     indeterminate: input.indeterminate,
+  };
+}
+
+/**
+ * Render the project readiness view from staged tree inputs and local refs.
+ *
+ * @param options - Repo root, Git executor, and optional render metadata.
+ * @returns Rendered content with a trailing newline, plus determinacy.
+ */
+export async function renderRoadmapFromIndexResult(
+  options: RenderRoadmapFromIndexOptions,
+): Promise<RoadmapIndexRenderResult> {
+  const { result, indeterminate } = await renderRoadmapFromIndexViewResult(options);
+  return {
+    content: withTrailingNewline(result.markdown),
+    indeterminate,
   };
 }
 
