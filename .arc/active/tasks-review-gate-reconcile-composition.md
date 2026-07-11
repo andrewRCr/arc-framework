@@ -69,16 +69,12 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
   selection, admission history, finding/coverage/requirement reduction, and truthful verdict projection. Composition
   coverage also closed the policy-template gap that had made the declared non-author human source unreachable.
 
-### `[ ]` **2.2 `GitHostAdapter` implementation over the `hosts/github/*` leaf functions**
+### `[x]` **2.2 `GitHostAdapter` implementation over the `hosts/github/*` leaf functions**
 
 - _Goal:_ The host port has one production implementor composing the tested host leaves, including a contract that
   carries native-review state without loss — and a verdict actually reaches the check API: `publishVerdict()`
   maps the projection through `projectContexts(mode, …)` and writes one check per named context via
   `publishGateCheck`.
-- _Note:_ Replace `verifyAppIdentity`'s invalid installation-token call to App-JWT-only `GET /app`. The pinned
-  token-mint action passes `app-slug`; launch validation resolves `<app-slug>[bot]` to the policy-pinned immutable
-  `appBotUserId` and proves repository scope through installation-token repository access (spec Decision 13).
-
     - `[x]` **2.2.a Read-side methods and corrected native-review contract**
         - Added the pinned-scope GitHub read adapter, login-addressed immutable-id capability resolution, full
           change context, and lossless native review/provider dispositions without synthesizing review evidence.
@@ -95,6 +91,9 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
         - Added pinned-bot decisive-review selection with durable provenance, current-head and verified-tail support,
           policy-qualified clean evidence mapping, and fail-closed handling for stale, foreign, missing, or ambiguous
           reviews. Completion checks remain outside the satisfaction path.
+
+- _Outcome:_ The production GitHub adapter now composes lossless reads, source-pinned CI and provider authority,
+  stale-safe context publication, and installation-token-compatible controller identity validation.
 
 ### `[ ]` **2.3 Production CodeRabbit trigger and observation boundary**
 
