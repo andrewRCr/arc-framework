@@ -7,6 +7,7 @@ import { reduceCoverage } from "./coverage.js";
 import type { Evidence } from "./evidence.js";
 import type { GateProjection, ReviewReceipt, ReviewRequest, SourceCapacity } from "./execution.js";
 import { reduceFindings } from "./findings.js";
+import type { LifecycleTailProof } from "./lifecycle-tail.js";
 import { renderGateProjection } from "./projection.js";
 import { reduceRequirementState } from "./requirement-state.js";
 import { reduceGateVerdict, type GateVerdictInput, type VerdictRequirement } from "./verdict.js";
@@ -42,6 +43,7 @@ export interface SelfHostingGateReductionInput {
   knownHostActors: string[];
   inconsistencies: string[];
   ledgerVersion: number | null;
+  lifecycleTail?: LifecycleTailProof | null;
   receiptRefs: string[];
   actorIdentity: string;
 }
@@ -131,9 +133,18 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
     const receipts = input.receipts.filter((receipt) => receiptCurrent(requirement, receipt));
     const evidence = input.evidence.filter((item) => item.requirementId === requirement.id
       && evidenceQualified(requirement, item, input.policy.qualifications));
-    const findings = reduceFindings({
+    const coverage = reduceCoverage({
+      requirement,
+      baseRef: input.changeRequest.baseRef,
+      diffBaseSha: input.changeRequest.diffBaseSha,
+      headSha: input.changeRequest.headSha,
       evidence,
-      currentChangeSetId: requirement.changeSetId,
+      lifecycleTail: input.lifecycleTail ?? null,
+      lifecycleTailPredicateId: input.policy.lifecycleTailPredicate.id,
+    });
+    const findings = reduceFindings({
+      evidence: coverage.stateEvidence,
+      currentChangeSetId: coverage.stateChangeSetId,
       authorizedDismissers: input.authorizedDismissers,
       knownHostActors: input.knownHostActors,
       dismissalReceipts: receipts
@@ -147,13 +158,6 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
         }))),
     });
     inconsistencies.push(...findings.errors);
-    const coverage = reduceCoverage({
-      requirement,
-      baseRef: input.changeRequest.baseRef,
-      diffBaseSha: input.changeRequest.diffBaseSha,
-      headSha: input.changeRequest.headSha,
-      evidence,
-    });
     const candidates = input.policy.qualifications.filter((declaration) =>
       declaration.transport === "durable-record" && sourceQualified(requirement, declaration));
     if (candidates.length > 1) inconsistencies.push("multiple-invokable-sources");
@@ -166,6 +170,7 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
     const state = reduceRequirementState({
       requirement,
       evidence,
+      currentEvidence: coverage.stateEvidence,
       receipts,
       capacity,
       waived,
@@ -173,7 +178,7 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
       findingsConsistent: findings.consistent,
       openFindingCount: findings.openFindings.length,
     });
-    const latestEvidence = [...evidence]
+    const latestEvidence = [...coverage.stateEvidence]
       .sort((left, right) => left.observedAt.localeCompare(right.observedAt))
       .at(-1);
     const latestReceipt = receipts.at(-1);
@@ -181,6 +186,9 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
       requirement,
       state: state.state,
       sourceIdentity: latestEvidence?.sourceIdentity ?? latestReceipt?.request.sourceIdentity ?? candidate?.sourceIdentity ?? null,
+      detail: coverage.carriedForward && state.state === "clean"
+        ? "carried forward by lifecycle tail"
+        : state.detail,
     });
     projectionEvidence.push(...coverage.chain.map((item) => ({
       requirementId: requirement.id,

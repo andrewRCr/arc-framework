@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { Evidence } from "../../../../../src/scripts/review-gate/core/evidence.js";
 import type { ReviewReceipt, SourceCapacity } from "../../../../../src/scripts/review-gate/core/execution.js";
-import { computePolicyVersion } from "../../../../../src/scripts/review-gate/core/identity.js";
+import { computeChangeSetId, computePolicyVersion } from "../../../../../src/scripts/review-gate/core/identity.js";
+import type { LifecycleTailProof } from "../../../../../src/scripts/review-gate/core/lifecycle-tail.js";
 import { COMMAND_RECEIPT_SOURCE } from "../../../../../src/scripts/review-gate/core/command-receipts.js";
 import { createReceipt } from "../../../../../src/scripts/review-gate/core/request-key.js";
 import {
@@ -75,6 +76,22 @@ function evidence(overrides: Partial<Evidence> = {}): Evidence {
     closures: [],
     observedAt: "2026-07-11T20:00:00.000Z",
     ...overrides,
+  };
+}
+
+function lifecycleTail(policy = SELF_HOSTING_POLICY, sourceIdentity = "codex-cli"): LifecycleTailProof {
+  return {
+    schemaVersion: 1,
+    predicateId: policy.lifecycleTailPredicate.id,
+    reviewedThroughSha: "e".repeat(40),
+    currentHeadSha: changeRequest.headSha,
+    baseRef: changeRequest.baseRef,
+    diffBaseSha: changeRequest.diffBaseSha,
+    policyVersion: computePolicyVersion({ policy }),
+    rubricVersion: "independent-analysis/v1",
+    sourceIdentity,
+    artifact: { workUnitId: "review-gate", artifactGroupId: "review-gate", cohortPath: null },
+    diagnostics: [],
   };
 }
 
@@ -249,6 +266,108 @@ describe("self-hosting gate reduction", () => {
         state: "clean",
         sourceIdentity: "codex-cli",
       }],
+    });
+  });
+
+  it("carries exact reviewed evidence through a valid lifecycle tail", () => {
+    const tail = lifecycleTail();
+    const reviewedEvidence = evidence({
+      headSha: tail.reviewedThroughSha,
+      coverageThroughSha: tail.reviewedThroughSha,
+      changeSetId: computeChangeSetId({
+        baseRef: changeRequest.baseRef,
+        diffBaseSha: changeRequest.diffBaseSha,
+        headSha: tail.reviewedThroughSha,
+      }),
+    });
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [reviewedEvidence],
+      lifecycleTail: tail,
+    }));
+
+    expect(decision.projection).toMatchObject({
+      conclusion: "success",
+      requirementExecutions: [{ state: "clean", detail: "carried forward by lifecycle tail" }],
+      evidence: [{ evidenceRef: reviewedEvidence.evidenceUrlOrId }],
+    });
+  });
+
+  it("keeps an open reviewed finding blocking across an otherwise valid lifecycle tail", () => {
+    const tail = lifecycleTail();
+    const reviewedChangeSetId = computeChangeSetId({
+      baseRef: changeRequest.baseRef,
+      diffBaseSha: changeRequest.diffBaseSha,
+      headSha: tail.reviewedThroughSha,
+    });
+    const clean = evidence({
+      headSha: tail.reviewedThroughSha,
+      coverageThroughSha: tail.reviewedThroughSha,
+      changeSetId: reviewedChangeSetId,
+    });
+    const finding = evidence({
+      headSha: tail.reviewedThroughSha,
+      coverageThroughSha: tail.reviewedThroughSha,
+      changeSetId: reviewedChangeSetId,
+      result: "findings",
+      findings: [{
+        findingId: "finding-1",
+        severity: "high",
+        locus: "src/controller.ts:10",
+        evidenceUrlOrId: "https://example.test/findings/1",
+      }],
+      observedAt: "2026-07-11T21:00:00.000Z",
+    });
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [clean, finding],
+      lifecycleTail: tail,
+    }));
+
+    expect(decision.projection).toMatchObject({
+      conclusion: "failure",
+      requirementExecutions: [{ state: "findings" }],
+    });
+  });
+
+  it("keeps native requested changes blocking after lifecycle-tail carry-forward", () => {
+    const tail = lifecycleTail();
+    const reviewedEvidence = evidence({
+      headSha: tail.reviewedThroughSha,
+      coverageThroughSha: tail.reviewedThroughSha,
+      changeSetId: computeChangeSetId({
+        baseRef: changeRequest.baseRef,
+        diffBaseSha: changeRequest.diffBaseSha,
+        headSha: tail.reviewedThroughSha,
+      }),
+    });
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [reviewedEvidence],
+      lifecycleTail: tail,
+      nativeReview: { ...nativeReview, requestedChanges: true, decision: "changes-requested" },
+    }));
+
+    expect(decision.projection).toMatchObject({
+      conclusion: "failure",
+      blockers: expect.arrayContaining([expect.objectContaining({ code: "native-requested-changes" })]),
+    });
+  });
+
+  it("does not treat a lifecycle proof as independent analysis evidence", () => {
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      lifecycleTail: lifecycleTail(),
+    }));
+
+    expect(decision.projection).toMatchObject({
+      conclusion: "pending",
+      evidence: [],
+      requirementExecutions: [{ state: "not-requested" }],
     });
   });
 

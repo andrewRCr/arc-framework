@@ -9,6 +9,7 @@ import type { Evidence } from "../../../../../src/scripts/review-gate/core/evide
 import type { GateProjection, ReceiptEnvelope, ReviewRequest, SourceCapacity } from "../../../../../src/scripts/review-gate/core/execution.js";
 import type {
   GitHostAdapter,
+  LifecycleTailProofAdapter,
   ReviewProviderAdapter,
   ReviewReceiptStore,
 } from "../../../../../src/scripts/review-gate/core/ports.js";
@@ -51,6 +52,9 @@ describe("review adapter ports", () => {
       readLedger: async () => ({ kind: "valid", ledgerVersion: 1, receipts }),
       appendReceipt: async () => ({ ledgerVersion: 2, durableEvidenceRef: "record-2" }),
     };
+    const noTailStorage: LifecycleTailProofAdapter = {
+      resolveLifecycleTail: async () => null,
+    };
     const provider: ReviewProviderAdapter = {
       readCapacity: async () => capacity,
       request: async () => ({ requestIdentity: "request-1", acknowledgedAt: "2026-07-10T20:00:00.000Z" }),
@@ -79,6 +83,19 @@ describe("review adapter ports", () => {
     })).resolves.toEqual([{ opaqueRef: "projection-1" }]);
     await expect(store.readLedger(change.changeRequestId)).resolves.toEqual({ kind: "valid", ledgerVersion: 1, receipts });
     await expect(store.appendReceipt(receipts[0]!.receipt, 1)).resolves.toMatchObject({ ledgerVersion: 2 });
+    await expect(noTailStorage.resolveLifecycleTail({
+      predicateId: "lifecycle-bookkeeping-tail/v1",
+      reviewedThroughSha: "a".repeat(40),
+      currentHeadSha: "a".repeat(40),
+      reviewed: {
+        baseRef: "main", diffBaseSha: "b".repeat(40), policyVersion: "c".repeat(64),
+        rubricVersion: "independent-analysis/v1", sourceIdentity: "agent-1",
+      },
+      current: {
+        baseRef: "main", diffBaseSha: "b".repeat(40), policyVersion: "c".repeat(64),
+        rubricVersion: "independent-analysis/v1", sourceIdentity: "agent-1",
+      },
+    })).resolves.toBeNull();
     await expect(provider.readCapacity("agent-9")).resolves.toBe(capacity);
     await expect(provider.request(request)).resolves.toMatchObject({ requestIdentity: "request-1" });
   });

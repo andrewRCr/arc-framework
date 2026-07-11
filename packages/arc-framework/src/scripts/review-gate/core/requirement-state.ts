@@ -12,6 +12,8 @@ import type {
 export interface RequirementStateInput {
   requirement: ReviewRequirement;
   evidence: Evidence[];
+  /** Evidence already proven current by direct coverage or a lifecycle-tail bridge. */
+  currentEvidence?: Evidence[];
   receipts: ReviewReceipt[];
   capacity: SourceCapacity | null;
   waived: boolean;
@@ -45,7 +47,7 @@ function result(
 /** Reduce one requirement without changing its underlying obligation. */
 export function reduceRequirementState(input: RequirementStateInput): RequirementStateResult {
   if (input.waived) return result(input.requirement, "waived", "authorized waiver");
-  const current = input.evidence.filter((item) =>
+  const current = input.currentEvidence ?? input.evidence.filter((item) =>
     item.requirementId === input.requirement.id
     && item.policyVersion === input.requirement.policyVersion
     && item.rubricVersion === input.requirement.rubricVersion

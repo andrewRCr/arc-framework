@@ -8,6 +8,7 @@ export interface VerdictRequirement {
   requirement: ReviewRequirement;
   state: RequirementExecutionState;
   sourceIdentity: string | null;
+  detail?: string;
 }
 
 /** Reduced requirement detail for projection. */
@@ -17,6 +18,7 @@ export interface VerdictRequirementResult {
   state: RequirementExecutionState;
   sourceIdentity: string | null;
   blocking: boolean;
+  detail: string;
 }
 
 /** Complete current-state inputs. */
@@ -79,6 +81,7 @@ export function reduceGateVerdict(input: GateVerdictInput): GateVerdict {
       state: entry.state,
       sourceIdentity: entry.sourceIdentity,
       blocking,
+      detail: entry.detail ?? (blocking ? "blocking" : "non-blocking"),
     };
   });
 

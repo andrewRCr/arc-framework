@@ -2,6 +2,7 @@
 
 import type { CapabilitySet, NormalizedChangeRequest } from "./contracts.js";
 import type { Evidence, FindingClosure } from "./evidence.js";
+import type { LifecycleTailProof } from "./lifecycle-tail.js";
 import type {
   GateProjection,
   ReceiptEnvelope,
@@ -13,6 +14,29 @@ import type {
 /** Opaque reference returned after projecting a verdict. */
 export interface HostProjectionRef {
   opaqueRef: string;
+}
+
+/** Scope facts compared across the reviewed and current sides of a lifecycle tail. */
+export interface LifecycleTailScope {
+  baseRef: string;
+  diffBaseSha: string;
+  policyVersion: string;
+  rubricVersion: string;
+  sourceIdentity: string;
+}
+
+/** Neutral input for a storage adapter that may classify a lifecycle tail. */
+export interface LifecycleTailProofResolutionInput {
+  predicateId: string;
+  reviewedThroughSha: string;
+  currentHeadSha: string;
+  reviewed: LifecycleTailScope;
+  current: LifecycleTailScope;
+}
+
+/** Storage adapter boundary; `null` represents a storage tier with no code-head tail. */
+export interface LifecycleTailProofAdapter {
+  resolveLifecycleTail(input: LifecycleTailProofResolutionInput): Promise<LifecycleTailProof | null>;
 }
 
 /** Stable diagnostics for an untrusted or unavailable receipt ledger. */

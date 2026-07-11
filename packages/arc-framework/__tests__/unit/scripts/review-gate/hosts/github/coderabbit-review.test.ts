@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ReviewRequirement } from "../../../../../../src/scripts/review-gate/core/contracts.js";
 import { computeChangeSetId, computePolicyVersion } from "../../../../../../src/scripts/review-gate/core/identity.js";
+import type { LifecycleTailProof } from "../../../../../../src/scripts/review-gate/core/lifecycle-tail.js";
 import type { ProviderReviewDisposition } from "../../../../../../src/scripts/review-gate/core/ports.js";
 import {
   mapCodeRabbitApprovalToEvidence,
@@ -58,6 +59,22 @@ function requirement(value: SelfHostingPolicy): ReviewRequirement {
   };
 }
 
+function lifecycleTail(): LifecycleTailProof {
+  return {
+    schemaVersion: 1,
+    predicateId: "lifecycle-bookkeeping-tail/v1",
+    reviewedThroughSha: OLD_HEAD,
+    currentHeadSha: HEAD,
+    baseRef: "main",
+    diffBaseSha: BASE,
+    policyVersion: computePolicyVersion({ policy: SELF_HOSTING_POLICY }),
+    rubricVersion: "independent-analysis/v1",
+    sourceIdentity: "coderabbit-pr",
+    artifact: { workUnitId: "review-gate", artifactGroupId: "review-gate", cohortPath: null },
+    diagnostics: [],
+  };
+}
+
 describe("CodeRabbit decisive review reduction", () => {
   it("selects the current-head pinned-bot approval and maps policy-qualified clean evidence", () => {
     const value = policy();
@@ -90,7 +107,7 @@ describe("CodeRabbit decisive review reduction", () => {
       reviews: [review({ commitId: OLD_HEAD })],
       expectedBotUserId: SELF_HOSTING_POLICY.providerIdentities.coderabbitBotUserId,
       currentHeadSha: HEAD,
-      lifecycleTail: { valid: true, reviewedThroughSha: OLD_HEAD },
+      lifecycleTail: lifecycleTail(),
     });
 
     expect(decisive).toMatchObject({ kind: "approved", reviewedThroughSha: OLD_HEAD });

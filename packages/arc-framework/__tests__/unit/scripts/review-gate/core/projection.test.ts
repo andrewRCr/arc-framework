@@ -9,8 +9,14 @@ describe("neutral gate projection", () => {
         conclusion: "success",
         blockers: [],
         requirements: [
-          { requirementId: "analysis", obligation: "required", state: "clean", sourceIdentity: "agent-1", blocking: false },
-          { requirementId: "peer", obligation: "required", state: "waived", sourceIdentity: null, blocking: false },
+          {
+            requirementId: "analysis", obligation: "required", state: "clean", sourceIdentity: "agent-1",
+            blocking: false, detail: "current coverage and closures satisfy the requirement",
+          },
+          {
+            requirementId: "peer", obligation: "required", state: "waived", sourceIdentity: null,
+            blocking: false, detail: "authorized waiver",
+          },
         ],
       },
       policy: {
@@ -38,7 +44,8 @@ describe("neutral gate projection", () => {
           { code: "requirement:analysis:findings", detail: "finding & unresolved" },
         ],
         requirements: [{
-          requirementId: "analysis", obligation: "required", state: "findings", sourceIdentity: "agent-1", blocking: true,
+          requirementId: "analysis", obligation: "required", state: "findings", sourceIdentity: "agent-1",
+          blocking: true, detail: "required findings remain open",
         }],
       },
       policy: {

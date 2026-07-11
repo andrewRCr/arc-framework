@@ -160,15 +160,10 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
   case (spec Decisions 17 and 20).
 - **Additional Context:** `notes-review-gate-reconcile-composition.md` § Storage forward-compatibility check
 
-    - `[ ]` **2.6.a Define and consume the host/storage-neutral proof**
-        - Add `LifecycleTailProof` with predicate id, reviewed-through/current head, base/diff-base, policy/rubric,
-          source, WU-artifact identity, and stable proof diagnostics. It is not `Evidence`, cannot close findings,
-          and carries no provider result.
-        - Extend coverage/requirement reduction: qualifying clean evidence ending at `reviewedThroughSha` remains
-          current only when the proof exactly bridges to the canonical head and every invariant agrees. Projection
-          states the carry-forward explicitly; invalid/missing proof leaves prior evidence stale.
-        - Build `test-first` (one behavior at a time): direct current coverage, valid bridged coverage, identity
-          mismatch, missing/ambiguous proof, surviving finding/native failure, and no proof-as-evidence path.
+    - `[x]` **2.6.a Define and consume the host/storage-neutral proof**
+        - Added the diagnostic-bearing `LifecycleTailProof` and neutral resolution port. Coverage carries only an
+          exact clean source chain across it; findings, native review, and proof-free paths retain ordinary authority.
+          Projection names a clean bridge explicitly without treating the proof as evidence.
 
     - `[ ]` **2.6.b Implement the current in-repo Git predicate**
         - Resolve the exact reviewed-head → current-head diff without inferring WU identity from branch name. Require
