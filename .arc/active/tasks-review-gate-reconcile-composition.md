@@ -109,17 +109,11 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
         - Added the repository-pinned trigger API: a generation-zero label handshake, refresh command with durable
           comment provenance, current/replay/stale guard delegation, and terminal rejected-versus-ambiguous delivery.
 
-    - `[ ]` **2.3.b Implement observation and capacity methods**
-        - Read current-head and candidate-tail-start CodeRabbit checks, reviews, comments, and threads through the
-          existing REST/GraphQL boundaries; bind all bot artifacts to the policy-pinned numeric id. Produce
-          `CodeRabbitRunContext` and
-          normalized signals for progress/advisory diagnostics; Task 2.2.d remains the satisfaction authority.
-        - `readCapacity` reports provider quota rejection when a current durable signal proves it; otherwise
-          `not-observable` / `lookup-failed` — never fabricate remaining quota or queue position.
-        - Build `test-first` (one behavior at a time):
-            - Current-head bot artifacts normalize; stale-head/wrong-bot/malformed artifacts fail closed
-            - Findings and rate-limit/progress signals remain diagnostic and cannot override decisive review state
-            - Unobservable capacity remains `unknown`; explicit quota rejection maps to exhausted
+    - `[x]` **2.3.b Implement observation and capacity methods**
+        - Added GitHub-backed run-context, observation, and capacity reads that bind checks, reviews, comments,
+          and thread resolutions to the pinned numeric bot id; malformed, stale, and foreign artifacts fail closed.
+          Completion checks and provider-native conversations stay diagnostic, candidate-tail checks retain their
+          observed SHA, and only a completed current-head quota signal reports exhausted capacity.
 
     - `[ ]` **2.3.c Align project review coordination with provider-native conversations**
         - Update `coordinate-pr-review.md` to distinguish controller-normalized findings from provider-native
