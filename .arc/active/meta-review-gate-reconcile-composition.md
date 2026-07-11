@@ -9,15 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-review-gate-reconcile-composition.md`
-- **Task List:** [none]
+- **Task List:** `tasks-review-gate-reconcile-composition.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** generate-tasks passes 1-3 (task list drafted, grounded, coherent; on disk, uncommitted)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run the generate-tasks adversarial fire-point (task-audit rubric, pass-cap 2), then finalize —
-  `arc finalize generate-tasks --class Heavy` + ceremony commit bundling tasks/spec/notes
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
