@@ -69,7 +69,6 @@ describe("trusted review-gate workflows", () => {
     for (const name of names) {
       const workflow = await read(name);
       expect(() => load(workflow), name).not.toThrow();
-      if (!["ci.yml", "review-gate.yml", "review-gate-attest.yml", "review-gate-wakeup.yml"].includes(name)) continue;
       for (const action of workflow.matchAll(/^\s*-\s+uses:\s+([^\s#]+)/gmu)) {
         if (action[1]?.startsWith("./")) continue;
         expect(action[1], `${name}: ${action[1]}`).toMatch(/@[0-9a-f]{40}$/u);

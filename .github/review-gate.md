@@ -20,6 +20,7 @@ export BRANCH='main'
 export APP_ID='4268856'             # numeric evidence/check source identity
 export APP_CLIENT_ID='<client-id>'  # token-minting client id; never substitute APP_ID
 export KEY_FILE="$HOME/dev/arc-review-gate-andrewrcr.private-key.pem"
+set -euo pipefail
 gh auth status
 test -r "$KEY_FILE" && test "$(stat -c '%a' "$KEY_FILE")" = '600'
 ```
@@ -47,6 +48,27 @@ Create the default-branch-only environment before writing its secret. Environmen
 records; rejected refs leave failed records. Those records are inert bookkeeping, not an access path.
 
 ```bash
+before_dir="$(mktemp -d)"
+environment_exists=false
+if gh api --include "repos/$REPO/environments/review-gate" >"$before_dir/environment.http"; then
+  grep -qE '^HTTP/[^ ]+ 200' "$before_dir/environment.http"
+  environment_exists=true
+else
+  grep -qE '^HTTP/[^ ]+ 404' "$before_dir/environment.http" || exit 1
+fi
+gh variable list --repo "$REPO" --json name,value >"$before_dir/variables.json"
+if "$environment_exists"; then
+  gh secret list --repo "$REPO" --env review-gate --json name,updatedAt >"$before_dir/secrets.json"
+else
+  printf '[]\n' >"$before_dir/secrets.json"
+fi
+
+# Compare snapshots with the expected create/repair checkpoint before mutation.
+jq -e --arg client "$APP_CLIENT_ID" --arg app "$APP_ID" '
+  [.[] | select(.name == "ARC_REVIEW_GATE_APP_CLIENT_ID" or .name == "ARC_REVIEW_GATE_APP_ID")]
+  | all(.value == $client or .value == $app)
+' "$before_dir/variables.json"
+
 jq -n '{deployment_branch_policy:{protected_branches:true,custom_branch_policies:false}}' |
   gh api --method PUT "repos/$REPO/environments/review-gate" --input -
 gh api "repos/$REPO/environments/review-gate" |
@@ -54,7 +76,18 @@ gh api "repos/$REPO/environments/review-gate" |
 gh variable set ARC_REVIEW_GATE_APP_CLIENT_ID --repo "$REPO" --body "$APP_CLIENT_ID"
 gh variable set ARC_REVIEW_GATE_APP_ID --repo "$REPO" --body "$APP_ID"
 gh secret set ARC_REVIEW_GATE_APP_PRIVATE_KEY --repo "$REPO" --env review-gate <"$KEY_FILE"
+
+gh variable list --repo "$REPO" --json name,value |
+  jq -e --arg client "$APP_CLIENT_ID" --arg app "$APP_ID" '
+    any(.name == "ARC_REVIEW_GATE_APP_CLIENT_ID" and .value == $client) and
+    any(.name == "ARC_REVIEW_GATE_APP_ID" and .value == $app)
+  '
+secret_after="$(gh secret list --repo "$REPO" --env review-gate --json name,updatedAt)"
+jq -e 'any(.name == "ARC_REVIEW_GATE_APP_PRIVATE_KEY" and (.updatedAt | length > 0))' <<<"$secret_after"
 ```
+
+GitHub never returns a secret fingerprint. The only non-secret post-write proof is updated secret metadata followed
+by the App authentication probe below; both must pass. Remove `$before_dir` after the checkpoint record is stored.
 
 The App must be installed on selected repositories with only `$REPO` selected. The workflow token request must name
 the current repository and only checks write, pull-requests write, and statuses read. Rotate a key by streaming the new
@@ -68,8 +101,20 @@ Dispatch shadow from main and confirm a non-default ref cannot enter the environ
 
 ```bash
 gh workflow run review-gate.yml --repo "$REPO" --ref "$BRANCH" -f pull_request='<pr>' -f head_sha='<40-hex-sha>'
+
+probe_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 gh workflow run review-gate-attest.yml --repo "$REPO" --ref '<non-default-ref>' \
-  -f pull_request='<pr>' -f payload='{}' && exit 1 || true
+  -f pull_request='<pr>' -f payload='{}'
+probe_run="$(gh run list --repo "$REPO" --workflow review-gate-attest.yml --event workflow_dispatch \
+  --branch '<non-default-ref>' --limit 20 --json databaseId,createdAt |
+  jq -er --arg started "$probe_started" '[.[] | select(.createdAt >= $started)] | sort_by(.createdAt) | last.databaseId')"
+if gh run watch "$probe_run" --repo "$REPO" --exit-status; then
+  echo 'non-default attestation unexpectedly succeeded' >&2
+  exit 1
+fi
+gh run view "$probe_run" --repo "$REPO" --json conclusion,jobs |
+  jq -e '.conclusion == "failure" and any(.jobs[];
+    .name == "attest" and .conclusion == "failure" and ([.steps[]?] | all(.conclusion == "skipped")))'
 ```
 
 For the main dispatch, prove the emitted `review-gate-shadow` check has `.app.id == $APP_ID`; prove a same-name
@@ -120,8 +165,16 @@ checks() {
     jq -S '{strict,contexts,checks}'
 }
 set_checks() {
-  jq -n --argjson checks "$1" '{strict:true,checks:$checks}' |
+  local candidate="$1"
+  jq -e '
+    type == "array" and length > 0 and
+    all(.[]; (.context | type == "string" and length > 0) and
+      (.app_id | type == "number" and (. == -1 or . > 0))) and
+    ((map(.context) | unique | length) == length)
+  ' <<<"$candidate" >/dev/null
+  jq -n --argjson checks "$candidate" '{strict:true,checks:$checks}' |
     gh api --method PATCH "repos/$REPO/branches/$BRANCH/protection/required_status_checks" --input -
+  checks | jq -e --argjson expected "$candidate" '.checks == $expected'
 }
 head_sha() { gh api "repos/$REPO/commits/$BRANCH" --jq .sha; }
 ```
