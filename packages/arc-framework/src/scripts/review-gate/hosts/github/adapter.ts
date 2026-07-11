@@ -3,11 +3,15 @@
 import type { GitExec } from "../../../../lib/git/exec.js";
 import type {
   ActorAddress,
+  GitHostAdapter,
   GitHostReadAdapter,
   HostChangeRequestResolution,
+  HostProjectionRef,
   NativeReviewObservation,
   NativeReviewReadInput,
+  VerdictPublicationInput,
 } from "../../core/ports.js";
+import { projectContexts } from "../../runtime/rollout.js";
 import {
   resolveActorCapabilities as resolveActorCapabilitiesLeaf,
 } from "./actor.js";
@@ -17,6 +21,10 @@ import {
   decodeHostRef,
   resolveChangeRequest as resolveChangeRequestLeaf,
 } from "./change-request.js";
+import {
+  publishGateCheck,
+  type GitHubCheckRunApi,
+} from "./check-runs.js";
 import {
   reduceNativeReview,
   resolveReviewDecision,
@@ -149,5 +157,40 @@ export class GitHubHostReadAdapter implements GitHostReadAdapter {
         evidenceRef: review.url,
       })),
     };
+  }
+}
+
+/** Full production GitHub host adapter, including guarded verdict publication. */
+export class GitHubHostAdapter extends GitHubHostReadAdapter implements GitHostAdapter {
+  private readonly checks: GitHubCheckRunApi;
+
+  constructor(
+    deps: GitHubHostReadDeps,
+    checks: GitHubCheckRunApi,
+    functions: Partial<GitHubHostReadFunctions> = {},
+  ) {
+    super(deps, functions);
+    this.checks = checks;
+  }
+
+  async publishVerdict(input: VerdictPublicationInput): Promise<HostProjectionRef[]> {
+    const coordinates = this.coordinates(input.hostRef);
+    const named = projectContexts(input.mode, input.projection);
+    const results = await Promise.all(named.map(async ({ name, projection }) => publishGateCheck({
+      api: this.checks,
+      scope: {
+        owner: this.deps.owner,
+        repo: this.deps.repo,
+        pullNumber: coordinates.number,
+        headSha: input.headSha,
+        changeSetId: input.changeSetId,
+        contextName: name,
+        expectedAppId: input.expectedAppId,
+      },
+      projection,
+      anchorReceiptCount: input.anchorReceiptCount,
+      readCurrentState: input.readCurrentState,
+    })));
+    return results.map((result) => ({ opaqueRef: result.checkRun.htmlUrl }));
   }
 }

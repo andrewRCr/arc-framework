@@ -83,13 +83,9 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
         - Added the pinned-scope GitHub read adapter, login-addressed immutable-id capability resolution, full
           change context, and lossless native review/provider dispositions without synthesizing review evidence.
 
-    - `[ ]` **2.2.b `publishVerdict()` — the missing link**
-        - Map mode via `projectContexts`; for each `NamedProjection`, publish through `publishGateCheck` with the
-          deterministic external id and the current-state assert (`readCurrentState`) wired to a live API re-read.
-        - Build `test-first` (one behavior at a time):
-            - Shadow mode writes exactly one `review-gate-shadow` check; verdict content identical to the projection
-            - `dual` / `final` modes write their context sets (name-only differences)
-            - A stale writer (head or change-set moved between read and write) fails closed without a write
+    - `[x]` **2.2.b `publishVerdict()` — the missing link**
+        - Added guarded per-context check publication through `projectContexts` and `publishGateCheck`; shadow,
+          dual, and final modes preserve one projection while a moved head or change set prevents every write.
 
     - `[ ]` **2.2.c CI-state reader**
         - Small host leaf resolving `ci.state` for the verdict: read the `ci-ok` check run on the current head

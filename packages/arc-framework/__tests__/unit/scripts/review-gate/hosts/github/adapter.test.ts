@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import type { GitExec } from "../../../../../../src/lib/git/exec.js";
+import type { GateProjection } from "../../../../../../src/scripts/review-gate/core/execution.js";
 import {
+  GitHubHostAdapter,
   GitHubHostReadAdapter,
   GitHubHostReadError,
   type GitHubHostReadFunctions,
 } from "../../../../../../src/scripts/review-gate/hosts/github/adapter.js";
 import type { GitHubGraphQLClient } from "../../../../../../src/scripts/review-gate/hosts/github/api/graphql.js";
 import type { GitHubRestClient } from "../../../../../../src/scripts/review-gate/hosts/github/api/rest.js";
+import type {
+  CheckRunMutation,
+  GitHubCheckRun,
+  GitHubCheckRunApi,
+} from "../../../../../../src/scripts/review-gate/hosts/github/check-runs.js";
 
 const HEAD = "c".repeat(40);
 const changeRequest = {
@@ -72,6 +79,70 @@ function adapter(functions: Partial<GitHubHostReadFunctions> = {}): GitHubHostRe
   });
 }
 
+function projection(): GateProjection {
+  return {
+    schemaVersion: 1,
+    conclusion: "success",
+    summary: "independent-analysis: clean",
+    blockers: [],
+    requirementExecutions: [{
+      requirementId: "independent-analysis",
+      state: "clean",
+      sourceIdentity: "codex-cli",
+      detail: "non-blocking",
+    }],
+    receiptRefs: [],
+    policyDecision: {
+      lane: "reviewed",
+      reviewRisk: "sensitive",
+      disposition: "required",
+      reasons: ["code-surface"],
+      policyVersion: "e".repeat(64),
+    },
+    ciState: "success",
+    ledgerVersion: 1,
+    evidence: [],
+  };
+}
+
+class MemoryChecks implements GitHubCheckRunApi {
+  readonly mutations: CheckRunMutation[] = [];
+
+  async list(): Promise<GitHubCheckRun[]> {
+    return [];
+  }
+
+  async create(value: CheckRunMutation): Promise<GitHubCheckRun> {
+    this.mutations.push(value);
+    return {
+      id: this.mutations.length,
+      nodeId: `CR_${this.mutations.length}`,
+      name: value.name,
+      externalId: value.externalId,
+      appId: "4268856",
+      status: value.status,
+      conclusion: value.conclusion,
+      createdAt: "2026-07-11T20:00:00.000Z",
+      htmlUrl: `https://github.test/checks/${this.mutations.length}`,
+    };
+  }
+
+  async update(): Promise<GitHubCheckRun> {
+    throw new Error("unexpected update");
+  }
+}
+
+function fullAdapter(checks: GitHubCheckRunApi): GitHubHostAdapter {
+  return new GitHubHostAdapter({
+    rest: {} as GitHubRestClient,
+    gql: {} as GitHubGraphQLClient,
+    exec: (async () => ({ stdout: "" })) as GitExec,
+    owner: "o",
+    repo: "r",
+    baseRemote: "origin",
+  }, checks);
+}
+
 describe("GitHub host read adapter", () => {
   it("returns the full normalized change and policy/readiness context", async () => {
     await expect(adapter().resolveChangeRequest(changeRequest.hostRef)).resolves.toEqual({
@@ -122,5 +193,48 @@ describe("GitHub host read adapter", () => {
     await expect(adapter().resolveChangeRequest("github:other/r/pull/7")).rejects.toMatchObject({
       code: "host-ref-outside-pinned-scope",
     });
+  });
+});
+
+describe("GitHub verdict publication", () => {
+  it.each([
+    ["shadow", ["review-gate-shadow"]],
+    ["dual", ["review-gate-shadow", "merge-ok"]],
+    ["final", ["merge-ok"]],
+  ] as const)("publishes the %s context set without changing verdict content", async (mode, names) => {
+    const checks = new MemoryChecks();
+    const refs = await fullAdapter(checks).publishVerdict({
+      hostRef: changeRequest.hostRef,
+      headSha: changeRequest.headSha,
+      changeSetId: changeRequest.changeSetId,
+      projection: projection(),
+      mode,
+      expectedAppId: "4268856",
+      anchorReceiptCount: 1,
+      readCurrentState: async () => ({
+        headSha: changeRequest.headSha,
+        changeSetId: changeRequest.changeSetId,
+      }),
+    });
+
+    expect(checks.mutations.map((mutation) => mutation.name)).toEqual(names);
+    expect(checks.mutations.every((mutation) => mutation.output.summary.includes("independent-analysis: clean")))
+      .toBe(true);
+    expect(refs).toHaveLength(names.length);
+  });
+
+  it("fails closed without a write when canonical state moved", async () => {
+    const checks = new MemoryChecks();
+    await expect(fullAdapter(checks).publishVerdict({
+      hostRef: changeRequest.hostRef,
+      headSha: changeRequest.headSha,
+      changeSetId: changeRequest.changeSetId,
+      projection: projection(),
+      mode: "shadow",
+      expectedAppId: "4268856",
+      anchorReceiptCount: 1,
+      readCurrentState: async () => ({ headSha: "f".repeat(40), changeSetId: changeRequest.changeSetId }),
+    })).rejects.toMatchObject({ code: "stale-writer" });
+    expect(checks.mutations).toEqual([]);
   });
 });
