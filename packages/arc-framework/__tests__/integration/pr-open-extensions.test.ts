@@ -44,4 +44,24 @@ describe("PR-open lifecycle extensions", () => {
     expect(classification).toContain('"system/extensions/pre-pr-open.md"');
     expect(classification).toContain('"system/extensions/post-pr-open.md"');
   });
+
+  it("places work-unit hooks on create, re-entry, and the stable final head", async () => {
+    const workflow = await readFile(
+      resolve(packageArc, "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      "utf8",
+    );
+    const push = workflow.indexOf("Push the WU branch upstream");
+    const preOpen = workflow.indexOf("Immediately before creation");
+    const create = workflow.indexOf("gh pr create");
+    const postOpen = workflow.indexOf("compose `openedChangeRequest");
+    const finalHead = workflow.indexOf("At the zero-behind final head");
+    const mergeInterlock = workflow.indexOf("`integration-interlock`", finalHead);
+    expect(push).toBeLessThan(preOpen);
+    expect(preOpen).toBeLessThan(create);
+    expect(create).toBeLessThan(postOpen);
+    expect(finalHead).toBeLessThan(mergeInterlock);
+    expect(workflow.slice(finalHead, mergeInterlock)).toContain("No lifecycle- or review-authored commit or push");
+    expect(workflow).toContain("PR open, not merged");
+    expect(workflow).toContain("`post-pr-open` → review iteration");
+  });
 });

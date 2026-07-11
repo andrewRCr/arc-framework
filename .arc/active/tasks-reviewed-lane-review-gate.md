@@ -589,32 +589,29 @@ Errand integration, and make this repository's review workflow controller-driven
 - _Outcome:_ ARC now ships two action-neutral PR lifecycle hooks with independent update identities and no live
   compatibility surface for the removed action-named extension.
 
-### `[ ]` **6.2 Rewire work-unit PR-open and final-head checkpoints**
+### `[x]` **6.2 Rewire work-unit PR-open and final-head checkpoints**
 
 - _Goal:_ Work-unit integration fires generic PR-open actions on the correct create/re-entry boundaries and performs
   the final review-coordination checkpoint only after every lifecycle- or review-authored head update.
 
-    - `[ ]` **6.2.a Separate local diff preflight from PR-open hooks**
-        - Remove the old extension from the `review.pre_merge`-gated diff-review step in both workflow copies; keep the
-          local preflight and finding triage otherwise unchanged.
-        - Declare `pre-pr-open`, `post-pr-open`, and `pre-merge-review` in workflow frontmatter at point of use.
+    - `[x]` **6.2.a Separate local diff preflight from PR-open hooks**
+        - Kept `review.pre_merge` scoped to the local diff preflight and finding triage while declaring the three
+          lifecycle extensions independently at their package/project fire points.
 
-    - `[ ]` **6.2.b Fire `pre-pr-open` only on the creation path**
-        - Place the hook after the PR head push and immediately before `gh pr create`; document create failure/retry
-          behavior and skip it whenever an open PR already exists.
-        - Add static lifecycle fixtures for fresh create, failed-create retry, and integrating resume.
+    - `[x]` **6.2.b Fire `pre-pr-open` only on the creation path**
+        - Placed retry-safe proposed-change actions after the pushed head and immediately before creation, with failed
+          create replay and explicit skip on existing-open-PR resume paths.
 
-    - `[ ]` **6.2.c Fire `post-pr-open` on create and open-PR re-entry**
-        - Enter the hook after an open PR is observed and before review iteration, whether this session created the PR
-          or resumed one; require actions to derive current controller/PR state.
-        - Verify the re-entry table routes an existing open PR through the hook without replaying creation actions.
+    - `[x]` **6.2.c Fire `post-pr-open` on create and open-PR re-entry**
+        - Routed both create and open-PR resume through idempotent opened-change actions before review iteration, using
+          explicit host coordinates and current controller/PR state.
 
-    - `[ ]` **6.2.d Move `pre-merge-review` to the final open-PR head**
-        - Fire after composition/sweep/final push and after each behind-base reconcile push, immediately before the
-          integration interlock; loop back through review coordination when that head is stale or unresolved.
-        - Treat every review-action commit/push as checkpoint invalidation: repeat base freshness and the final hook
-          until no head change occurs and the controller reports the current head settled.
-        - Assert no lifecycle- or review-authored commit can land after the stable checkpoint and before merge approval.
+    - `[x]` **6.2.d Move `pre-merge-review` to the final open-PR head**
+        - Moved final review after composition/sweep/push and every base reconcile, invalidating on any review-authored
+          head update and prohibiting further lifecycle/review writes before the integration interlock.
+
+- _Outcome:_ Fresh, retry, resume, composition, and behind-base paths now converge on one explicit open-PR lifecycle
+  and an exact-head settled checkpoint immediately before merge authorization.
 
 ### `[ ]` **6.3 Rewire Errand PR creation, reuse, and review checkpoints**
 
