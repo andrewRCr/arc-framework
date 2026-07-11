@@ -1,8 +1,8 @@
 # Metadata: reviewed-lane-review-gate
 
-| **State**     | **Owner** | **Branch**                       | **Class** | **Priority** |
-| ------------- | --------- | -------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/reviewed-lane-review-gate` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/224>
+- **Completed:** 2026-07-11
 
 ---
 
