@@ -87,14 +87,9 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
         - Added guarded per-context check publication through `projectContexts` and `publishGateCheck`; shadow,
           dual, and final modes preserve one projection while a moved head or change set prevents every write.
 
-    - `[ ]` **2.2.c CI-state reader**
-        - Small host leaf resolving `ci.state` for the verdict: read the `ci-ok` check run on the current head
-          (the stable CI truth across the whole cutover — only the `merge-ok` alias is ever removed),
-          source-filtered to the GitHub Actions App id (pinned, documented host-layer constant), mapped to
-          `pending` / `failure` / `success`.
-        - Build `test-first` (one behavior at a time):
-            - Success/failure/in-progress `ci-ok` runs map to their verdict states; absent maps to `pending`
-            - A same-name check from a different source is ignored; multiple matches elect the newest
+    - `[x]` **2.2.c CI-state reader**
+        - Added a source-pinned `ci-ok` reader that maps the newest GitHub Actions check to pending, failure, or
+          success and ignores same-name checks from other Apps.
 
     - `[ ]` **2.2.d CodeRabbit decisive-review disposition reader**
         - Read the policy-pinned CodeRabbit bot's GitHub PR reviews and reduce the latest decisive
