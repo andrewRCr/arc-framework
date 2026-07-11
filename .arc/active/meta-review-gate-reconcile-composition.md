@@ -12,11 +12,11 @@
 - **Task List:** `tasks-review-gate-reconcile-composition.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Planning finalized; work unit activated for implementation
-- **Next Task:** Task 1.1 — Pin the App-bot account id in providerIdentities
+- **Last Completed:** Phase 2 complete — reconcile-path core composition
+- **Next Task:** Task 3.1 — ReconcileRuntime implementation
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — pin the App-bot account id in providerIdentities
+- **Next Action:** Begin Task 3.1 — compose the production ReconcileRuntime from canonical GitHub state
 
 - **PR URL:** [none]
 - **Completed:** [none]
