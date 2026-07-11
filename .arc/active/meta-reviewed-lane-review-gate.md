@@ -12,11 +12,11 @@
 - **Task List:** `tasks-reviewed-lane-review-gate.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 2 complete — core policy and reducer slice independently reviewed
-- **Next Task:** Task 3.1 — Resolve GitHub change sets and actor capabilities (line ~213)
+- **Last Completed:** Task 3.3.b — Authenticate receipt authorship by App identity
+- **Next Task:** Task 3.3.c — Append receipts with current-state revalidation (line ~322)
 - **Blockers:** [none]
 
-- **Next Action:** Execute Task 3.1 — Resolve GitHub change sets and actor capabilities
+- **Next Action:** Start Task 3.3.c — Append receipts with current-state revalidation
 
 - **PR URL:** [none]
 - **Completed:** [none]
