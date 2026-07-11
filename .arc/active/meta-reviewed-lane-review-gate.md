@@ -9,14 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-reviewed-lane-review-gate.md`
-- **Task List:** [none]
+- **Task List:** `tasks-reviewed-lane-review-gate.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** External-contract spikes (CodeRabbit + GitHub App) run; findings folded into spec and tasks
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Continue `generate-tasks` — run the adversarial review pass, then the pre-save checklist
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
