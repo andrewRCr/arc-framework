@@ -60,12 +60,11 @@ arc integrate {name} --last-completed "{last completed}" --action "{next action}
 ```
 
 The executor fires the full `integrate` edge: flips `**State:** Active → Integrating`, writes `**Last Completed:**`
-/ `**Next Action:**`, resets `**Next Task:** [none]`, and stages the meta. `{name}` defaults to the current
+/ `**Next Action:**`, resets `**Next Task:** [none]`, regenerates `backlog/ROADMAP.md` so the In Flight table's
+`State` column reflects `Integrating`, and stages both the meta and the ROADMAP. `{name}` defaults to the current
 worktree's WU. The `Integrating` state covers PR open through review-response.
 
-Hand-render `backlog/ROADMAP.md` into the same commit per the command's interim ROADMAP advisory, so the In Flight
-table's rendered `State` column reflects `Integrating` (interim until `roadmap-tooling` ships the renderer). Stage
-the ROADMAP edit alongside the meta.
+Confirm the regenerated ROADMAP diff is clean (the `State` flip only) before committing.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit` (subject `chore(arc):` per § Commit
