@@ -15,11 +15,32 @@ export interface HostProjectionRef {
   opaqueRef: string;
 }
 
-/** Versioned receipt-ledger snapshot. */
-export interface ReceiptLedger {
+/** Stable diagnostics for an untrusted or unavailable receipt ledger. */
+export type ReceiptLedgerDiagnostic =
+  | "malformed-receipt"
+  | "ledger-fork"
+  | "ledger-regression"
+  | "ledger-anchor-mismatch"
+  | "ledger-disappeared"
+  | "ledger-unavailable";
+
+/** Trusted versioned receipt-ledger snapshot. */
+export interface ValidReceiptLedger {
+  kind: "valid";
   ledgerVersion: number;
   receipts: ReceiptEnvelope[];
 }
+
+/** Untrusted ledger state that still carries failure diagnostics for publication. */
+export interface DegradedReceiptLedger {
+  kind: "degraded";
+  diagnostics: ReceiptLedgerDiagnostic[];
+  observedLedgerVersion: number | null;
+  receipts: [];
+}
+
+/** One valid trusted ledger or a fail-closed degraded snapshot. */
+export type ReceiptLedger = ValidReceiptLedger | DegradedReceiptLedger;
 
 /** Result of an expected-version append. */
 export interface ReceiptAppendResult {
@@ -117,7 +138,7 @@ export interface VerdictPublicationInput {
   projection: GateProjection;
   mode: "shadow" | "dual" | "final";
   expectedAppId: string;
-  anchorReceiptCount: number;
+  anchorReceiptCount: number | null;
   readCurrentState: () => Promise<{ headSha: string; changeSetId: string }>;
 }
 

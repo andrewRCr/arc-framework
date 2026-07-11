@@ -12,7 +12,7 @@ export interface GateProjectionInput {
   verdict: GateVerdict;
   policy: PolicyDecisionProjection;
   ciState: "pending" | "failure" | "success";
-  ledgerVersion: number;
+  ledgerVersion: number | null;
   receiptRefs: string[];
   evidence: GateEvidenceProjection[];
 }

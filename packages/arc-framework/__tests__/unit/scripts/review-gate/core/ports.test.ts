@@ -48,7 +48,7 @@ describe("review adapter ports", () => {
       publishVerdict: async () => [{ opaqueRef: "projection-1" }],
     };
     const store: ReviewReceiptStore = {
-      readLedger: async () => ({ ledgerVersion: 1, receipts }),
+      readLedger: async () => ({ kind: "valid", ledgerVersion: 1, receipts }),
       appendReceipt: async () => ({ ledgerVersion: 2, durableEvidenceRef: "record-2" }),
     };
     const provider: ReviewProviderAdapter = {
@@ -77,7 +77,7 @@ describe("review adapter ports", () => {
       anchorReceiptCount: 1,
       readCurrentState: async () => ({ headSha: change.headSha, changeSetId: change.changeSetId }),
     })).resolves.toEqual([{ opaqueRef: "projection-1" }]);
-    await expect(store.readLedger(change.changeRequestId)).resolves.toEqual({ ledgerVersion: 1, receipts });
+    await expect(store.readLedger(change.changeRequestId)).resolves.toEqual({ kind: "valid", ledgerVersion: 1, receipts });
     await expect(store.appendReceipt(receipts[0]!.receipt, 1)).resolves.toMatchObject({ ledgerVersion: 2 });
     await expect(provider.readCapacity("agent-9")).resolves.toBe(capacity);
     await expect(provider.request(request)).resolves.toMatchObject({ requestIdentity: "request-1" });

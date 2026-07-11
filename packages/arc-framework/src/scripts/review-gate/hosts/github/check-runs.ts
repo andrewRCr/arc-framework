@@ -99,7 +99,7 @@ export async function publishGateCheck(input: {
   api: GitHubCheckRunApi;
   scope: CheckRunScope;
   projection: GateProjection;
-  anchorReceiptCount: number;
+  anchorReceiptCount: number | null;
   readCurrentState: () => Promise<CheckWriteState>;
 }): Promise<CheckRunPublishResult> {
   const matches = await findAuthoritativeCheckRuns(input.api, input.scope);
@@ -138,7 +138,7 @@ async function assertCurrent(scope: CheckRunScope, readCurrentState: () => Promi
 function renderCheckMutation(
   scope: CheckRunScope,
   projection: GateProjection,
-  anchorReceiptCount: number,
+  anchorReceiptCount: number | null,
 ): CheckRunMutation {
   const conclusion = projection.conclusion === "pending" ? null : projection.conclusion;
   return {
@@ -154,12 +154,14 @@ function renderCheckMutation(
   };
 }
 
-function renderSummary(projection: GateProjection, anchorReceiptCount: number): string {
+function renderSummary(projection: GateProjection, anchorReceiptCount: number | null): string {
+  const ledgerVersion = projection.ledgerVersion === null ? "unknown" : String(projection.ledgerVersion);
+  const receiptCount = anchorReceiptCount === null ? "unknown" : String(anchorReceiptCount);
   const lines = [
     `**Result:** ${projection.conclusion}`,
     `**Policy:** ${projection.policyDecision.disposition} / ${projection.policyDecision.reviewRisk}`,
     `**CI:** ${projection.ciState}`,
-    `**Ledger version/count:** ${projection.ledgerVersion}/${anchorReceiptCount}`,
+    `**Ledger version/count:** ${ledgerVersion}/${receiptCount}`,
     "",
     escapeText(projection.summary).slice(0, 24_000),
   ];

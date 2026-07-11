@@ -56,6 +56,26 @@ describe("neutral gate projection", () => {
     expect(projection.summary).toContain("ci-failure");
   });
 
+  it("retains an unknown ledger version for a degraded projection", () => {
+    const projection = renderGateProjection({
+      verdict: {
+        conclusion: "failure",
+        blockers: [{ code: "ledger-unavailable", detail: "receipt state could not be read" }],
+        requirements: [],
+      },
+      policy: {
+        lane: "reviewed", reviewRisk: "sensitive", disposition: "required",
+        reasons: ["code-surface"], policyVersion: "a".repeat(64),
+      },
+      ciState: "success",
+      ledgerVersion: null,
+      receiptRefs: [],
+      evidence: [],
+    });
+
+    expect(projection.ledgerVersion).toBeNull();
+  });
+
   it("names an exempt policy as inapplicable", () => {
     const projection = renderGateProjection({
       verdict: { conclusion: "success", blockers: [], requirements: [] },

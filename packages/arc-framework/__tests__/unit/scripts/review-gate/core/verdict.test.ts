@@ -79,7 +79,8 @@ describe("complete merge readiness verdict", () => {
 
   it("never succeeds with inconsistent controller state", () => {
     for (const inconsistency of [
-      "malformed-receipt", "ledger-fork", "ledger-regression", "duplicate-projection", "invalid-capacity",
+      "malformed-receipt", "ledger-fork", "ledger-regression", "ledger-anchor-mismatch", "ledger-disappeared",
+      "ledger-unavailable", "duplicate-projection", "invalid-capacity",
     ]) {
       expect(reduceGateVerdict({ ...passing, inconsistencies: [inconsistency] }).conclusion).toBe("failure");
     }

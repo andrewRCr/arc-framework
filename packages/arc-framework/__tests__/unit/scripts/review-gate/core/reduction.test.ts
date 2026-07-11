@@ -252,6 +252,23 @@ describe("self-hosting gate reduction", () => {
     });
   });
 
+  it("replaces an otherwise green projection when the receipt ledger is unavailable", () => {
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [evidence()],
+      inconsistencies: ["ledger-unavailable"],
+      ledgerVersion: null,
+    }));
+
+    expect(decision.request).toBeNull();
+    expect(decision.projection).toMatchObject({
+      conclusion: "failure",
+      ledgerVersion: null,
+      blockers: expect.arrayContaining([expect.objectContaining({ code: "ledger-unavailable" })]),
+    });
+  });
+
   it("accepts the policy-qualified non-author human attestation source", () => {
     const decision = reduceSelfHostingGate(input({
       lane: { lane: "reviewed", reasons: ["non-lane-path"] },

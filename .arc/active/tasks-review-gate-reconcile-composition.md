@@ -141,21 +141,15 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
 - _Outcome:_ GitHub comment commands now form a strict, replay-safe authority path from immutable host version through
   live capability authorization to receipt-backed requirement, request, waiver, and finding reduction semantics.
 
-### `[ ]` **2.5 Degraded receipt-state failure projection**
+### `[x]` **2.5 Degraded receipt-state failure projection**
 
 - _Goal:_ A malformed, forked, unexpectedly disappeared, or unavailable receipt ledger replaces any prior green
   check with a current failure projection whenever check publication remains available; corruption never fails
   before verdict, while an initial empty ledger remains valid.
 
-    - Change `ReviewReceiptStore.readLedger` to return a discriminated valid/degraded result. Degraded state carries
-      stable diagnostics, nullable observed ledger version, and no trusted receipts; writes still require valid.
-    - Map store errors (edited/malformed record, anchor mismatch/disappearance, fork/regression, unavailable) into
-      `reduceGateVerdict`'s stable inconsistency vocabulary. Continue current host/policy resolution and publish the
-      failure projection; if check publication also fails, surface that independent outage.
-    - Update projection/rendering for nullable degraded ledger version without fabricating `0` as authority.
-    - Build `test-first` (one behavior at a time): initial empty ledger, each degraded diagnostic mapping, stale
-      green replaced by failure, write refusal while degraded, recovery after repair, and simultaneous check-write
-      outage.
+- _Outcome:_ Receipt reads now distinguish valid snapshots from degraded fail-closed state; corruption and
+  unavailability publish a failure projection with unknown coordinates, suppress writes, and recover after repair.
+  Coverage proves stale-green replacement, durable refusal and recovery, and independent check publication failure.
 
 ### `[ ]` **2.6 Lifecycle-bookkeeping-tail proof and review-authority carry-forward**
 

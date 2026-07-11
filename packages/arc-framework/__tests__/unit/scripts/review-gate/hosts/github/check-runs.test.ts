@@ -178,6 +178,25 @@ describe("neutral projection publishing", () => {
     expect(output?.summary).toContain("Ledger version/count:** 4/4");
     expect(output?.summary).toContain("[receipt 1](https://github.com/acme/repo/pull/7#issuecomment-1)");
   });
+
+  it("renders unknown ledger coordinates instead of inventing an initial ledger", async () => {
+    const api = new MemoryChecks();
+    const degraded = {
+      ...projection("failure"),
+      blockers: [{ code: "ledger-unavailable", detail: "receipt state could not be read" }],
+      ledgerVersion: null,
+    };
+
+    await publishGateCheck({
+      api,
+      scope,
+      projection: degraded,
+      anchorReceiptCount: null,
+      readCurrentState: async () => state(),
+    });
+
+    expect(api.mutations[0]?.value.output.summary).toContain("Ledger version/count:** unknown/unknown");
+  });
 });
 
 describe("duplicate, recursion, and stale-writer guards", () => {
@@ -197,6 +216,24 @@ describe("duplicate, recursion, and stale-writer guards", () => {
     api.failUpdateId = 1;
     await expect(publishGateCheck({ api, scope, projection: projection("failure"), anchorReceiptCount: 4, readCurrentState: async () => state() }))
       .rejects.toBeInstanceOf(CheckRunPublishError);
+  });
+
+  it("surfaces a check-write outage independently of a degraded-ledger failure", async () => {
+    const api = new MemoryChecks([run({ conclusion: "success" })]);
+    api.failUpdateId = 1;
+    const degraded = {
+      ...projection("failure"),
+      blockers: [{ code: "ledger-unavailable", detail: "receipt state could not be read" }],
+      ledgerVersion: null,
+    };
+
+    await expect(publishGateCheck({
+      api,
+      scope,
+      projection: degraded,
+      anchorReceiptCount: null,
+      readCurrentState: async () => state(),
+    })).rejects.toMatchObject({ code: "check-update-failed" });
   });
 
   it("ignores the controller's own completion event", () => {

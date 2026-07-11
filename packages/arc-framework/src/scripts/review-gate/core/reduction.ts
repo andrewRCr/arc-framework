@@ -41,7 +41,7 @@ export interface SelfHostingGateReductionInput {
   authorizedDismissers: string[];
   knownHostActors: string[];
   inconsistencies: string[];
-  ledgerVersion: number;
+  ledgerVersion: number | null;
   receiptRefs: string[];
   actorIdentity: string;
 }
@@ -191,6 +191,7 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
 
     if (
       request === null
+      && input.ledgerVersion !== null
       && candidate !== undefined
       && capacity !== null
       && (state.state === "not-requested" || state.state === "stale")

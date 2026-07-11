@@ -4,10 +4,10 @@ import type { GateProjection, ReviewRequest } from "../../../../../src/scripts/r
 import type { CanonicalReconcileState, ReconcileDecision } from "../../../../../src/scripts/review-gate/runtime/reconcile.js";
 import { reconcile } from "../../../../../src/scripts/review-gate/runtime/reconcile.js";
 
-const state = (headSha = "a".repeat(40), ledgerVersion = 0): CanonicalReconcileState => ({
+const state = (headSha = "a".repeat(40), ledgerVersion: number | null = 0): CanonicalReconcileState => ({
   repositoryId: 42, pullRequestNumber: 7, headSha, policyVersion: "p1", permissionVersion: "m1", ledgerVersion,
 });
-const projection = (ledgerVersion = 0): GateProjection => ({
+const projection = (ledgerVersion: number | null = 0): GateProjection => ({
   schemaVersion: 1, conclusion: "pending", summary: "pending", blockers: [], requirementExecutions: [],
   receiptRefs: [], policyDecision: { lane: "reviewed", reviewRisk: "routine", disposition: "required", reasons: [], policyVersion: "b".repeat(64) },
   ciState: "pending", ledgerVersion, evidence: [],
@@ -25,6 +25,43 @@ describe("review-gate reconciliation", () => {
     expect(result).toEqual({ status: "published", effect: null });
     expect(execute).not.toHaveBeenCalled();
     expect(publish).toHaveBeenCalledTimes(1);
+  });
+
+  it("publishes a degraded-ledger failure without attempting a receipt-writing effect", async () => {
+    const publish = vi.fn(async () => undefined);
+    const execute = vi.fn();
+    const degradedProjection: GateProjection = {
+      ...projection(null),
+      conclusion: "failure",
+      blockers: [{ code: "ledger-unavailable", detail: "receipt state could not be read" }],
+    };
+    const reads = [state(undefined, null), state(undefined, null)];
+
+    const result = await reconcile({
+      read: async () => reads.shift()!,
+      reduce: async (): Promise<ReconcileDecision> => ({ request, projection: degradedProjection }),
+      execute,
+      publish,
+    }, new Date("2026-07-11T12:00:00.000Z"));
+
+    expect(result).toEqual({ status: "published", effect: null });
+    expect(execute).not.toHaveBeenCalled();
+    expect(publish).toHaveBeenCalledWith(degradedProjection);
+  });
+
+  it("does not mask a check publication outage while the ledger is degraded", async () => {
+    const reads = [state(undefined, null), state(undefined, null)];
+    const checkOutage = new Error("check write outage");
+
+    await expect(reconcile({
+      read: async () => reads.shift()!,
+      reduce: async (): Promise<ReconcileDecision> => ({
+        request: null,
+        projection: { ...projection(null), conclusion: "failure" },
+      }),
+      execute: async () => ({ status: "acknowledged", invoked: true }),
+      publish: async () => { throw checkOutage; },
+    }, new Date("2026-07-11T12:00:00.000Z"))).rejects.toThrow("check write outage");
   });
 
   it("aborts before an effect when canonical state changes", async () => {

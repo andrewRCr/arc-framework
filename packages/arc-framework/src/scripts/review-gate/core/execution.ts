@@ -118,7 +118,7 @@ export interface GateProjection {
   receiptRefs: string[];
   policyDecision: PolicyDecisionProjection;
   ciState: "pending" | "failure" | "success";
-  ledgerVersion: number;
+  ledgerVersion: number | null;
   evidence: GateEvidenceProjection[];
 }
 
@@ -275,7 +275,7 @@ export function parseGateProjection(input: unknown): GateProjection {
     receiptRefs: arrayAt(record.receiptRefs, `${path}.receiptRefs`, stringAt),
     policyDecision: parsePolicyDecision(record.policyDecision, `${path}.policyDecision`),
     ciState: enumAt(record.ciState, ["pending", "failure", "success"], `${path}.ciState`),
-    ledgerVersion: integerAt(record.ledgerVersion, `${path}.ledgerVersion`),
+    ledgerVersion: nullableAt(record.ledgerVersion, `${path}.ledgerVersion`, integerAt),
     evidence: arrayAt(record.evidence, `${path}.evidence`, parseGateEvidence),
   };
 }

@@ -9,7 +9,7 @@ export interface CanonicalReconcileState {
   headSha: string;
   policyVersion: string;
   permissionVersion: string;
-  ledgerVersion: number;
+  ledgerVersion: number | null;
 }
 
 export interface ReconcileDecision {
@@ -38,7 +38,7 @@ export async function reconcile(runtime: ReconcileRuntime, now: Date): Promise<R
   const initial = await runtime.read();
   const decision = await runtime.reduce(initial, now);
   let effect: RequestExecutionResult | null = null;
-  if (decision.request !== null) {
+  if (decision.request !== null && initial.ledgerVersion !== null) {
     const beforeEffect = await runtime.read();
     if (guard(beforeEffect) !== guard(initial) || beforeEffect.ledgerVersion !== initial.ledgerVersion) {
       return { status: "stale-before-effect", effect: null };

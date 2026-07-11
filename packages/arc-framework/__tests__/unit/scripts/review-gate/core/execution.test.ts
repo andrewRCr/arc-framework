@@ -94,7 +94,7 @@ describe("request and projection contracts", () => {
         policyVersion: "b".repeat(64),
       },
       ciState: "success",
-      ledgerVersion: 4,
+      ledgerVersion: null,
       evidence: [],
     };
     expect(parseGateProjection(projection)).toEqual(projection);
