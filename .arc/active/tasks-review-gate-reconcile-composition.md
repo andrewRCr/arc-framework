@@ -91,27 +91,10 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
         - Added a source-pinned `ci-ok` reader that maps the newest GitHub Actions check to pending, failure, or
           success and ignores same-name checks from other Apps.
 
-    - `[ ]` **2.2.d CodeRabbit decisive-review disposition reader**
-        - Read the policy-pinned CodeRabbit bot's GitHub PR reviews and reduce the latest decisive
-          (`APPROVED` / `CHANGES_REQUESTED`) review whose `commit_id` equals the current head or the reviewed-through
-          head of a valid lifecycle tail; ignore later `COMMENTED` noise. Retain durable review id/URL provenance.
-        - When and only when `coderabbit-pr` is enabled and qualified, normalize applicable `APPROVED` into clean
-          `Evidence` bound to the review's own commit/change-set/policy/rubric identities, with full coverage through
-          that reviewed head, review node id as `reviewRunId`, and durable review URL. `CHANGES_REQUESTED` produces no
-          evidence (the schema requires named findings for a findings result); it blocks through native review
-          while the requirement stays pending. Generic native reviews cannot enter this mapping.
-        - Feed approved evidence through `reduceCoverage`, `reduceFindings`, and `reduceRequirementState` — no
-          parallel satisfaction bypass.
-        - Treat the `CodeRabbit` check only as wake-up/diagnostic context. Its `success` conclusion cannot produce
-          clean because findings, rate-limit skips, and other non-clean completions can all succeed.
-        - Build `test-first` (one behavior at a time):
-            - Current-head or valid lifecycle-tail-start `APPROVED` from the pinned bot produces clean disposition
-            - Current-head `CHANGES_REQUESTED` produces the native failure and no invalid empty-findings evidence;
-              later `COMMENTED` does not erase it
-            - Enabled/qualified approval produces exact current provider evidence consumed by requirement state;
-              disabled/unqualified approval produces none
-            - Prior-head, wrong-bot, missing, duplicate-ambiguous, paused/rate-limited/skipped, or check-only state
-              remains pending/fails closed
+    - `[x]` **2.2.d CodeRabbit decisive-review disposition reader**
+        - Added pinned-bot decisive-review selection with durable provenance, current-head and verified-tail support,
+          policy-qualified clean evidence mapping, and fail-closed handling for stale, foreign, missing, or ambiguous
+          reviews. Completion checks remain outside the satisfaction path.
 
 ### `[ ]` **2.3 Production CodeRabbit trigger and observation boundary**
 
