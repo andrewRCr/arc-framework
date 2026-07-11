@@ -712,41 +712,29 @@ cross-layer security, packaging, workflow, and architecture-description seams be
 - _Outcome:_ Operators now have one resumable, auditable source for setup, live qualification, normal promotion and
   rollback, and independently reviewed outage repair without ever dropping the last proven merge guard.
 
-### `[ ]` **7.2 Close workflow and packaging regressions**
+### `[x]` **7.2 Close workflow and packaging regressions**
 
 - _Goal:_ Cross-layer tests prove the repository integration as a whole—core/adapters/runtime/workflows/package
   content—without weakening ARC distribution or current CI behavior.
 
-    - `[ ]` **7.2.a Add end-to-end controller contract fixtures**
-        - Exercise canonical re-query through policy, receipts, provider/native evidence, admission, verdict, and GitHub
-          projection for representative exempt/recommended/required, findings, stale, failure, waiver, and repair paths.
-        - Cover the integrated behavior after the component contracts are in place:
-            - Event and scheduled entry paths converge on the same receipt/check state.
-            - No fixture can make the gate green through missing evidence, spoofed authority, or capacity mutation.
+    - `[x]` **7.2.a Add end-to-end controller contract fixtures**
+        - Added integrated disposition/verdict fixtures for exempt, recommended, required, findings, stale, waiver,
+          malformed/capacity failure, missing/spoofed authority, and event/schedule candidate convergence.
 
-    - `[ ]` **7.2.b Harden and assert workflow trust domains**
-        - Pin every external action in the three review-gate workflows and CI to a full commit SHA, including existing
-          CI checkout/setup actions; preserve maintainable version comments or dependency-update metadata.
-        - Assert the secretless relay has no checkout/write credential; privileged controller/attestation jobs check
-          out only `github.workflow_sha` and own the App environment; CI intentionally checks the event head with a
-          read-only token and cannot author receipts or controller checks.
-        - Parse event sets, environment/permission scope, candidate fan-out/concurrency, fork safety, structured input
-          transport, no-download execution, and nonrecursive check handling according to those distinct trust domains.
-        - Assert every workflow file is valid YAML and every referenced script/policy path exists on the default branch.
+    - `[x]` **7.2.b Harden and assert workflow trust domains**
+        - Full-SHA-pinned CI's existing actions with version comments and added YAML/action/path parsing plus relay,
+          controller, attestation, CI credential/execution, mode, concurrency, and nonrecursive trust assertions.
 
-    - `[ ]` **7.2.c Verify package/project extension and update behavior**
-        - Run init/update/E2E assertions for the new extension pair, removed name, configurable action preservation,
-          workflow declarations/fire markers, inactive implementation state, cutover activation instructions, numbered
-          action/failure guidance, explicit invocation inputs, and package neutrality.
-        - Confirm methodology edits are synchronized package-to-project without clobbering self-hosting `.actions`.
+    - `[x]` **7.2.c Verify package/project extension and update behavior**
+        - Extended init/update/E2E and corpus fixtures across new/removed names, Configurable identities, declarations,
+          inactive numbered project actions, explicit inputs, package neutrality, and independently preserved actions.
 
-    - `[ ]` **7.2.d Verify build, publish, and dependency boundaries**
-        - Inspect build/import output and the JSON file manifest from
-          `npm pack --dry-run --json --workspace @arc-framework/cli` so repo-only controller/policy/host/provider
-          sources and self-hosting workflows/config/runbook do not ship as CLI runtime/API while canonical ARC
-          extension shells do.
-        - Assert no new production dependency, CLI command, git-config key, review-provider setting, or generalized
-          provider registry landed.
+    - `[x]` **7.2.d Verify build, publish, and dependency boundaries**
+        - Added an actual JSON dry-run pack-manifest assertion: canonical shells/Errand ship, while repository controller,
+          self-hosting workflow/runbook do not; production dependencies and CLI/provider surfaces remain unchanged.
+
+- _Outcome:_ Cross-layer fixtures now prove the delivered controller/workflow/package composition and fail if trust
+  domains, required files, installed extension behavior, or the published CLI boundary regress.
 
 ### `[ ]` **7.3 Describe the delivered shadow architecture**
 

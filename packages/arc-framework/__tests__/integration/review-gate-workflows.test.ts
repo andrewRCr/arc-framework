@@ -1,6 +1,7 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "../../../..");
@@ -61,5 +62,39 @@ describe("trusted review-gate workflows", () => {
     expect(tsup).toContain('entry: ["src/cli.ts"]');
     expect(tsup).not.toContain("review-gate");
     expect(manifest.files).not.toContain("src");
+  });
+
+  it("parses every workflow and pins every external action", async () => {
+    const names = (await readdir(resolve(root, ".github/workflows"))).filter((name) => /\.ya?ml$/u.test(name));
+    for (const name of names) {
+      const workflow = await read(name);
+      expect(() => load(workflow), name).not.toThrow();
+      if (!["ci.yml", "review-gate.yml", "review-gate-attest.yml", "review-gate-wakeup.yml"].includes(name)) continue;
+      for (const action of workflow.matchAll(/^\s*-\s+uses:\s+([^\s#]+)/gmu)) {
+        if (action[1]?.startsWith("./")) continue;
+        expect(action[1], `${name}: ${action[1]}`).toMatch(/@[0-9a-f]{40}$/u);
+      }
+    }
+  });
+
+  it("keeps CI and controller trust domains disjoint", async () => {
+    const ci = await read("ci.yml");
+    const controller = await read("review-gate.yml");
+    expect(ci).not.toMatch(/ARC_APP_TOKEN|ARC_REVIEW_GATE_APP_PRIVATE_KEY|run-reconcile|run-attest/u);
+    expect(controller).toContain("REVIEW_GATE_CONTEXT_MODE: ${{ vars.REVIEW_GATE_CONTEXT_MODE }}");
+    expect(controller).toContain("github.workflow_sha");
+    expect(controller).toContain("check_run:");
+  });
+
+  it("references existing repository scripts", async () => {
+    const workflows = await Promise.all(["ci.yml", "review-gate.yml", "review-gate-attest.yml"]
+      .map((name) => read(name)));
+    const referenced = new Set<string>();
+    for (const workflow of workflows) {
+      for (const match of workflow.matchAll(/(?:bash |tsx )((?:packages|scripts)\/[A-Za-z0-9_./-]+)/gu)) {
+        if (match[1] !== undefined) referenced.add(match[1]);
+      }
+    }
+    for (const path of referenced) await expect(readFile(resolve(root, path)), path).resolves.toBeDefined();
   });
 });
