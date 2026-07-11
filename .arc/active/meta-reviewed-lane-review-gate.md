@@ -12,7 +12,7 @@
 - **Task List:** `tasks-reviewed-lane-review-gate.md`
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** External-contract spikes (CodeRabbit + GitHub App) run; findings folded into spec and tasks
+- **Last Completed:** generate-tasks complete — adversarial-review loop converged (2 passes); suite finalized
 - **Next Task:** [none]
 - **Blockers:** [none]
 
