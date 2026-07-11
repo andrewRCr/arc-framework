@@ -20,9 +20,12 @@ export BRANCH='main'
 export APP_ID='4268856'             # numeric evidence/check source identity
 export APP_CLIENT_ID='<client-id>'  # token-minting client id; never substitute APP_ID
 export KEY_FILE="$HOME/dev/arc-review-gate-andrewrcr.private-key.pem"
+export EXPECT_CLIENT_ID_BEFORE='absent' # `absent` for create, exact current value for repair
+export EXPECT_APP_ID_BEFORE='absent'    # `absent` for create, exact current value for repair
 set -euo pipefail
 gh auth status
-test -r "$KEY_FILE" && test "$(stat -c '%a' "$KEY_FILE")" = '600'
+key_mode="$(stat -f '%Lp' "$KEY_FILE" 2>/dev/null || stat -c '%a' "$KEY_FILE")"
+test -r "$KEY_FILE" && test "$key_mode" = '600'
 ```
 
 Every mutation below begins with an exact before-state comparison and ends with an exact-head proof. Stop on any
@@ -64,9 +67,14 @@ else
 fi
 
 # Compare snapshots with the expected create/repair checkpoint before mutation.
-jq -e --arg client "$APP_CLIENT_ID" --arg app "$APP_ID" '
-  [.[] | select(.name == "ARC_REVIEW_GATE_APP_CLIENT_ID" or .name == "ARC_REVIEW_GATE_APP_ID")]
-  | all(.value == $client or .value == $app)
+jq -e --arg client "$EXPECT_CLIENT_ID_BEFORE" --arg app "$EXPECT_APP_ID_BEFORE" '
+  ([.[] | select(
+    .name == "ARC_REVIEW_GATE_APP_CLIENT_ID" or .name == "ARC_REVIEW_GATE_APP_ID"
+  )] | sort_by(.name))
+  == ([
+    {name: "ARC_REVIEW_GATE_APP_CLIENT_ID", value: $client},
+    {name: "ARC_REVIEW_GATE_APP_ID", value: $app}
+  ] | map(select(.value != "absent")) | sort_by(.name))
 ' "$before_dir/variables.json"
 
 jq -n '{deployment_branch_policy:{protected_branches:true,custom_branch_policies:false}}' |
