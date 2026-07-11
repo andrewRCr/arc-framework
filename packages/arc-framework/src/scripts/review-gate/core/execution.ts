@@ -89,6 +89,23 @@ export interface GateBlocker {
   detail: string;
 }
 
+/** Policy facts retained in the neutral projection. */
+export interface PolicyDecisionProjection {
+  lane: "auto" | "reviewed";
+  reviewRisk: "routine" | "sensitive";
+  disposition: "required" | "recommended" | "exempt";
+  reasons: string[];
+  policyVersion: string;
+}
+
+/** Evidence detail retained for a requirement summary. */
+export interface GateEvidenceProjection {
+  requirementId: string;
+  sourceIdentity: string;
+  coverage: "full" | "incremental";
+  evidenceRef: string;
+}
+
 /** Host-neutral readiness projection. */
 export interface GateProjection {
   schemaVersion: 1;
@@ -97,6 +114,10 @@ export interface GateProjection {
   blockers: GateBlocker[];
   requirementExecutions: RequirementExecution[];
   receiptRefs: string[];
+  policyDecision: PolicyDecisionProjection;
+  ciState: "pending" | "failure" | "success";
+  ledgerVersion: number;
+  evidence: GateEvidenceProjection[];
 }
 
 function timestampAt(value: unknown, path: string): string {
@@ -215,11 +236,37 @@ function parseRequirementExecution(input: unknown, path: string): RequirementExe
   };
 }
 
+function parsePolicyDecision(input: unknown, path: string): PolicyDecisionProjection {
+  const record = objectAt(input, path);
+  exactKeys(record, ["lane", "reviewRisk", "disposition", "reasons", "policyVersion"], path);
+  return {
+    lane: enumAt(record.lane, ["auto", "reviewed"], `${path}.lane`),
+    reviewRisk: enumAt(record.reviewRisk, ["routine", "sensitive"], `${path}.reviewRisk`),
+    disposition: enumAt(record.disposition, ["required", "recommended", "exempt"], `${path}.disposition`),
+    reasons: arrayAt(record.reasons, `${path}.reasons`, stringAt),
+    policyVersion: digestAt(record.policyVersion, `${path}.policyVersion`),
+  };
+}
+
+function parseGateEvidence(input: unknown, path: string): GateEvidenceProjection {
+  const record = objectAt(input, path);
+  exactKeys(record, ["requirementId", "sourceIdentity", "coverage", "evidenceRef"], path);
+  return {
+    requirementId: stringAt(record.requirementId, `${path}.requirementId`),
+    sourceIdentity: stringAt(record.sourceIdentity, `${path}.sourceIdentity`),
+    coverage: enumAt(record.coverage, ["full", "incremental"], `${path}.coverage`),
+    evidenceRef: stringAt(record.evidenceRef, `${path}.evidenceRef`),
+  };
+}
+
 /** Validate a neutral readiness projection. */
 export function parseGateProjection(input: unknown): GateProjection {
   const path = "projection";
   const record = objectAt(input, path);
-  exactKeys(record, ["schemaVersion", "conclusion", "summary", "blockers", "requirementExecutions", "receiptRefs"], path);
+  exactKeys(record, [
+    "schemaVersion", "conclusion", "summary", "blockers", "requirementExecutions", "receiptRefs",
+    "policyDecision", "ciState", "ledgerVersion", "evidence",
+  ], path);
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
     conclusion: enumAt(record.conclusion, ["pending", "failure", "success"], `${path}.conclusion`),
@@ -231,5 +278,9 @@ export function parseGateProjection(input: unknown): GateProjection {
       parseRequirementExecution,
     ),
     receiptRefs: arrayAt(record.receiptRefs, `${path}.receiptRefs`, stringAt),
+    policyDecision: parsePolicyDecision(record.policyDecision, `${path}.policyDecision`),
+    ciState: enumAt(record.ciState, ["pending", "failure", "success"], `${path}.ciState`),
+    ledgerVersion: integerAt(record.ledgerVersion, `${path}.ledgerVersion`),
+    evidence: arrayAt(record.evidence, `${path}.evidence`, parseGateEvidence),
   };
 }

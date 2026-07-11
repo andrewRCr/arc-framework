@@ -172,41 +172,30 @@ requirements, whether a request may spend quota, and whether the aggregate merge
 - _Outcome:_ Every command and attestation now crosses a strict syntax/schema boundary, a fresh capability check,
   and exact policy/change scope before it can emit auditable evidence or mutate one named obligation/finding.
 
-### `[ ]` **2.4 Reduce complete merge readiness to one verdict**
+### `[x]` **2.4 Reduce complete merge readiness to one verdict**
 
 - _Goal:_ `merge-ok` is successful exactly when every declared PR, CI, and review blocker is absent, with a summary
   that explains all remaining obligations and evidence.
 
-    - `[ ]` **2.4.a Reduce readiness, mergeability, and base freshness**
-        - Implement the host-neutral readiness dimension in `core/verdict.ts`; map draft, unresolved mergeability,
-          conflicts, and enforced base freshness into pending/failure without treating integration approval as review.
-        - Build `test-first` (one behavior at a time):
-            - Draft/unknown mergeability/base wait are pending; conflicts fail.
-            - Ready, mergeable, base-fresh input passes this dimension.
+    - `[x]` **2.4.a Reduce readiness, mergeability, and base freshness**
+        - Added the neutral readiness dimension: draft, unknown mergeability, and enforced base waits remain pending;
+          conflicts fail; ready, mergeable, base-fresh changes pass without inventing review authorization.
 
-    - `[ ]` **2.4.b Reduce CI and typed review obligations**
-        - Complete obligation reduction in `core/verdict.ts`; consume `ci-ok`, requirement execution, waivers, native
-          requested changes, and required conversations while keeping recommended-unsatisfied visible/non-blocking.
-        - Build `test-first` (one behavior at a time):
-            - CI pending/failure and every required review state map to the declared conclusion.
-            - Exempt, satisfied, or validly waived requirements pass; recommended does not become required implicitly.
-            - Peer, independent-analysis, and specialist requirements compose without substitution.
+    - `[x]` **2.4.b Reduce CI and typed review obligations**
+        - Added CI, typed requirement, waiver, native decision, requested-change, and conversation reduction with
+          failure-over-pending precedence; recommended-unsatisfied work stays visible and non-blocking.
 
-    - `[ ]` **2.4.c Fail closed on inconsistent controller state**
-        - Complete inconsistent-state reduction in `core/verdict.ts`; treat malformed/conflicting receipts, ledger
-          forks/regression, duplicate divergent projections, invalid capacity/provenance, and stale/mismatched evidence
-          as pending or failure per the design.
-        - Build `test-first` (one behavior at a time):
-            - No inconsistent state produces success.
-            - Exhausted/lookup-failed unsatisfied requests stay blocking, while `unknown:not-observable` can admit one
-              justified attempt and residual capacity cannot block current qualifying evidence.
+    - `[x]` **2.4.c Fail closed on inconsistent controller state**
+        - Added explicit malformed receipt, ledger fork/regression, duplicate projection, invalid capacity, and stale
+          evidence handling; no inconsistency succeeds, while current qualifying evidence remains capacity-independent.
 
-    - `[ ]` **2.4.d Render the neutral gate projection**
-        - Implement `core/projection.ts`; emit conclusion plus policy decision/reasons, requirement states, evidence
-          source/coverage, CI state, blockers, ledger version, and durable references without host formatting.
-        - Build `test-first` (one behavior at a time):
-            - Green summaries name why every requirement is satisfied/inapplicable/waived.
-            - Pending/failure summaries identify each blocker without exposing secrets or untrusted markup.
+    - `[x]` **2.4.d Render the neutral gate projection**
+        - Added deterministic neutral projections retaining policy/reasons, CI, requirement/evidence detail, blockers,
+          ledger version, and durable references; summaries explain clean/waived/inapplicable states or every blocker
+          without propagating untrusted markup.
+
+- _Outcome:_ One failure-over-pending verdict now composes every declared readiness, CI, review, native, and
+  consistency dimension, with a complete neutral projection that cannot hide residual obligations or evidence state.
 
 ### `[ ]` **2.5 Independently review the core policy and reducer slice**
 

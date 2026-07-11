@@ -85,6 +85,16 @@ describe("request and projection contracts", () => {
         detail: "awaiting checkpoint",
       }],
       receiptRefs: ["receipt:anchor-4"],
+      policyDecision: {
+        lane: "reviewed",
+        reviewRisk: "sensitive",
+        disposition: "required",
+        reasons: ["code-surface"],
+        policyVersion: "b".repeat(64),
+      },
+      ciState: "success",
+      ledgerVersion: 4,
+      evidence: [],
     };
     expect(parseGateProjection(projection)).toEqual(projection);
   });
