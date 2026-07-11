@@ -767,57 +767,63 @@ cross-layer security, packaging, workflow, and architecture-description seams be
 
 _Purpose:_ Validate the settled implementation and planning record against the complete reviewed design.
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The delivered review gate, lifecycle wiring, rollout contract, and documentation satisfy the complete
   reviewed design and are ready for integration.
+- _Quality gates:_ Markdown lint (445 files), TypeScript lint, shell lint, source + test typecheck, 4619 tests
+  (1 skipped), and tsup build — all passed.
+- _Success criteria:_ 22 criteria, all met (none superseded, none unmet). An independent adversarial-verify pass
+  re-validated conformance blind and converged with no blocker or major finding; its lone minor observation
+  (a literal provider-CLI source name in a core test fixture) was adjudicated against source as legitimate
+  agent-source data, not provider coupling.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Stable change-set and policy identities determine review disposition independently of CI history or capacity.
-- `[ ]` Self-hosting lane, ownership, risk, and reason-code matrices fail safe for every unknown or ambiguous input.
-- `[ ]` Core requirements, evidence, admission, and verdict logic remain host/provider/runtime/harness neutral and
+- `[x]` Stable change-set and policy identities determine review disposition independently of CI history or capacity.
+- `[x]` Self-hosting lane, ownership, risk, and reason-code matrices fail safe for every unknown or ambiguous input.
+- `[x]` Core requirements, evidence, admission, and verdict logic remain host/provider/runtime/harness neutral and
   scope one explicit change request without assuming work-unit PR cardinality.
-- `[ ]` Every satisfying independent-analysis source proves rubric, exact coverage, durable findings/results, and
+- `[x]` Every satisfying independent-analysis source proves rubric, exact coverage, durable findings/results, and
   explicit closure behavior.
-- `[ ]` Typed human, agent, deterministic-tool, and specialist evidence cannot substitute outside declared source sets.
-- `[ ]` Full/incremental chains are contiguous and authority-valid; stale evidence and unclosed findings remain
+- `[x]` Typed human, agent, deterministic-tool, and specialist evidence cannot substitute outside declared source sets.
+- `[x]` Full/incremental chains are contiguous and authority-valid; stale evidence and unclosed findings remain
   blocking.
-- `[ ]` Automatic-eligible admission spends once for a required ready requirement; checkpoint-only topology and later
+- `[x]` Automatic-eligible admission spends once for a required ready requirement; checkpoint-only topology and later
   heads wait for an authorized, deduplicated checkpoint without weakening obligation.
-- `[ ]` Receipt-store versions, reservations, acknowledgements, generations, alternates, timeouts, and out-of-band
+- `[x]` Receipt-store versions, reservations, acknowledgements, generations, alternates, timeouts, and out-of-band
   evidence remain durable and idempotent, with no duplicate controller invocation attempt.
-- `[ ]` Commands, waivers, dismissals, and agent/human attestations are permission-checked, scoped, and receipted.
-- `[ ]` Individual native reviews and GitHub's expected aggregate review decision compose truthfully without parsing
+- `[x]` Commands, waivers, dismissals, and agent/human attestations are permission-checked, scoped, and receipted.
+- `[x]` Individual native reviews and GitHub's expected aggregate review decision compose truthfully without parsing
   CODEOWNERS, inventing owner identity, or treating host approval as independent analysis.
-- `[ ]` `merge-ok` is green only when readiness, mergeability, freshness, CI, requirements, findings, and conversations
+- `[x]` `merge-ok` is green only when readiness, mergeability, freshness, CI, requirements, findings, and conversations
   are satisfied or validly waived.
-- `[ ]` Trusted reconciliation checks out only `github.workflow_sha`, receives review events through a secretless
+- `[x]` Trusted reconciliation checks out only `github.workflow_sha`, receives review events through a secretless
   relay, maps status/CI/schedule wake-ups through read-only discovery into distinct per-PR concurrency lanes, handles
   forks safely, and repairs missing initial gates without replaying ambiguous spend.
-- `[ ]` The environment-protected, permission-narrowed current-repository App token keeps Client ID separate from
+- `[x]` The environment-protected, permission-narrowed current-repository App token keeps Client ID separate from
   numeric evidence identity; receipt storage/checks reject GitHub Actions, wrong Apps, non-default secret access,
   missing credentials/installations, mutable resemblance, edits, forks/regression/truncation, and stale/malformed
   state.
-- `[ ]` CodeRabbit inheritance is resolved and probed for trigger exclusivity; ARC emits only reserved one-shot
+- `[x]` CodeRabbit inheritance is resolved and probed for trigger exclusivity; ARC emits only reserved one-shot
   requests, reports direct/unadmitted spend honestly, and requires proven commit-status, result, coverage, capacity-
   provenance, immutable-finding, and closure signals before cutover enables its satisfying declaration.
-- `[ ]` Maintainer-attested fresh Codex CLI, Claude Code, and CodeRabbit CLI runs plus qualified-human reviews can
+- `[x]` Maintainer-attested fresh Codex CLI, Claude Code, and CodeRabbit CLI runs plus qualified-human reviews can
   satisfy allowed requirements only through durable attestations that distinguish authenticated submitters from
   claimed agent/run provenance.
-- `[ ]` Package/project ARC surfaces replace `pre-pr-review` with inactive placeholder-only `pre-pr-open` and
+- `[x]` Package/project ARC surfaces replace `pre-pr-review` with inactive placeholder-only `pre-pr-open` and
   `post-pr-open` shells wired across WU and Errand create/resume boundaries with explicit target context.
-- `[ ]` This implementation prepares inactive project `post-pr-open` and final-head `pre-merge-review` actions; the
+- `[x]` This implementation prepares inactive project `post-pr-open` and final-head `pre-merge-review` actions; the
   post-main cutover activates them for controller-driven coordination while `diff-review` remains non-independent
   author preflight.
-- `[ ]` Shadow rollout, cutover, rollback, and App-outage recovery preserve a truthful non-empty required-context set
+- `[x]` Shadow rollout, cutover, rollback, and App-outage recovery preserve a truthful non-empty required-context set
   without name collision or protection bypass, suspend/restore dead actions explicitly, and require durable
   independent review of any break-glass repair.
-- `[ ]` Repository-only review-gate tooling remains outside the published CLI and adds no user or receipt-store config,
+- `[x]` Repository-only review-gate tooling remains outside the published CLI and adds no user or receipt-store config,
   production dependency, CLI surface, or premature provider registry.
-- `[ ]` Technical and operational documentation describes the delivered shadow state, executable cutover contract,
+- `[x]` Technical and operational documentation describes the delivered shadow state, executable cutover contract,
   and required final-gated current-fact closeout.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
