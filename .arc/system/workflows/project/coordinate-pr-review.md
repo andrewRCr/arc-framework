@@ -11,7 +11,8 @@ arc:
 Operate on one caller-supplied `openedChangeRequest = { repositoryRef, hostRef, headSha }`. Require an explicit
 `hostRef`; never infer all PRs associated with a work unit or branch. Read the normalized controller decision and
 current change-set projection before acting. Provider-specific requests and observations stay behind controller
-commands and adapter summaries.
+commands and adapter summaries; controller-normalized findings and provider-native conversations have distinct
+closure authority.
 
 ## 1. Enter From Canonical State
 
@@ -26,9 +27,18 @@ The same decision may be entered from `post-pr-open` and final `pre-merge-review
 
 ## 2. Coordinate Findings
 
-Fetch the controller's normalized findings and source-scoped immutable ids. Triage each finding with
-[`review-triage`][review-triage], surface dispositions, and apply only approved fixes. Run affected quality gates,
-commit atomically with a `(code review)` context footer, and push.
+Fetch controller-normalized findings with source-scoped immutable ids and provider-native conversations with their
+current decisive review state. Triage both paths with [`review-triage`][review-triage], then keep their authority
+separate:
+
+- **Controller-normalized findings:** Surface dispositions and apply only approved fixes. Their immutable ids may
+  receive a controller dismissal after authorization.
+- **Provider-native conversations:** Surface dispositions and apply only approved fixes, but never mint a controller
+  finding or dismissal. `CHANGES_REQUESTED` remains blocking; closure comes from the provider's decisive state and
+  current conversation status. Completion-check success only wakes a canonical re-read; it never closes or cleans a
+  conversation.
+
+Run affected quality gates, commit atomically with a `(code review)` context footer, and push.
 
 After a head update, re-read canonical state. Recommend full coverage when the whole diff or source changed;
 recommend incremental coverage only from the controller-reported reviewed chain head. On approval, submit the
@@ -42,7 +52,8 @@ Wait for the external review completion signal without polling, then re-enter fr
 
 ## 3. Close Findings With Authority
 
-Treat a finding as closed only when the provider confirms closure, or after an authorized dismissal receipt:
+Only controller-normalized findings may use `/review-gate dismiss`. Treat one as closed only when the provider
+confirms closure, or after an authorized dismissal receipt:
 
 ```text
 /review-gate dismiss <requirement> <source> <finding-id> <reason>
@@ -52,11 +63,16 @@ Only after that authority is durable may the host adapter resolve the correspond
 mutation, provider ignore command, or direct provider review request cannot close or satisfy a requirement. Keep
 defer/reject rationale concise and verify every closure against the current change set.
 
+A provider-native conversation closes only when its provider's current decisive state and conversation status confirm
+it. Never mint a controller finding or dismissal for a native artifact the provider boundary cannot model.
+
 ## 4. Return Settled State
 
 Re-read the current head, requirements, findings, native conversations, and check projection. Return only when every
 obligation is satisfied, explicitly waived/dismissed with authority, or remains non-blocking recommended work, and no
-blocking finding or unresolved required conversation remains. If the head changes, restart at § 1.
+blocking finding or unresolved required conversation remains. A valid lifecycle-tail projection that is already
+settled returns without requesting or recommending a refresh. An invalid or ambiguous tail returns to ordinary
+current-head coordination. If the head changes, restart at § 1.
 
 ---
 

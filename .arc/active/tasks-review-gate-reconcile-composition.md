@@ -95,15 +95,11 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
 - _Outcome:_ The production GitHub adapter now composes lossless reads, source-pinned CI and provider authority,
   stale-safe context publication, and installation-token-compatible controller identity validation.
 
-### `[ ]` **2.3 Production CodeRabbit trigger and observation boundary**
+### `[x]` **2.3 Production CodeRabbit trigger and observation boundary**
 
 - _Goal:_ The shipped `CodeRabbitProviderAdapter` has a real repository-local `CodeRabbitApi`; a policy-qualified
   request can trigger exactly once and later observation can correlate GitHub artifacts without inventing a vendor
   API or weakening ambiguous-delivery handling.
-- _Context:_ The repository configuration already enables `request_changes_workflow`, restricts automatic review
-  to the `arc-review-gate` label, and disables automatic incremental review. `config.ts` validates the tracked
-  delta and qualifies the effective configuration only when the resolved automatic path is exclusively that label.
-- **Additional Context:** `notes-review-gate-reconcile-composition.md` § CodeRabbit enforcement research
 
     - `[x]` **2.3.a Implement the GitHub-backed trigger methods**
         - Added the repository-pinned trigger API: a generation-zero label handshake, refresh command with durable
@@ -115,17 +111,14 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
           Completion checks and provider-native conversations stay diagnostic, candidate-tail checks retain their
           observed SHA, and only a completed current-head quota signal reports exhausted capacity.
 
-    - `[ ]` **2.3.c Align project review coordination with provider-native conversations**
-        - Update `coordinate-pr-review.md` to distinguish controller-normalized findings from provider-native
-          comments/conversations. Both pass through `review-triage`; `/review-gate dismiss` applies only to a
-          normalized source-scoped finding id.
-        - For CodeRabbit-native conversations, `CHANGES_REQUESTED` remains blocking and closure comes from the
-          provider's decisive state/current conversation status; never mint a controller finding or dismissal for
-          an artifact the provider boundary cannot model. Completion check success only wakes a canonical re-read.
-        - A valid lifecycle-tail projection returns settled without recommending refresh; an invalid/ambiguous
-          tail returns to ordinary current-head coordination.
-        - Extend `pr-open-extensions.test.ts` to pin both finding paths, check non-authority, and no-spend tail
-          settlement while retaining the provider-command prohibition.
+    - `[x]` **2.3.c Align project review coordination with provider-native conversations**
+        - Updated the review coordinator and integration contract to triage controller findings and provider-native
+          conversations separately: only normalized ids may dismiss, decisive provider state closes native work,
+          completion checks only re-read canonical state, and a valid lifecycle tail settles without a refresh.
+
+- _Outcome:_ Shipped the GitHub-backed CodeRabbit trigger and diagnostic-observation boundary with pinned bot
+  provenance, terminal delivery semantics, and provider-native review coordination that never fabricates controller
+  finding authority or spends a refresh after a valid lifecycle-tail settlement.
 
 ### `[ ]` **2.4 Human command ingestion, authorization, and receipt reduction**
 

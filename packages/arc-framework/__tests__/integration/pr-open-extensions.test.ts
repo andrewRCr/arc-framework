@@ -118,6 +118,19 @@ describe("PR-open lifecycle extensions", () => {
     expect(workflow).not.toMatch(/@coderabbit|resolveReviewThread/iu);
   });
 
+  it("keeps controller findings distinct from provider-native review conversations", async () => {
+    const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
+
+    expect(workflow).toContain("controller-normalized findings");
+    expect(workflow).toContain("provider-native conversations");
+    expect(workflow).toContain("Only controller-normalized findings may use `/review-gate dismiss`");
+    expect(workflow).toContain("`CHANGES_REQUESTED` remains blocking");
+    expect(workflow).toContain("Completion-check success only wakes a canonical re-read");
+    expect(workflow).toContain("valid lifecycle-tail projection");
+    expect(workflow).toContain("without requesting or recommending a refresh");
+    expect(workflow).toContain("invalid or ambiguous tail");
+  });
+
   it("keeps project actions populated but inactive until cutover", async () => {
     for (const name of ["post-pr-open", "pre-merge-review"]) {
       const project = await readFile(resolve(projectArc, `system/extensions/${name}.md`), "utf8");
