@@ -146,47 +146,31 @@ requirements, whether a request may spend quota, and whether the aggregate merge
 - _Outcome:_ Every provider attempt now has one canonical request identity and a durable, version-confirmed reservation
   before invocation; retries, repair wakes, fallbacks, and external evidence cannot duplicate spend or weaken policy.
 
-### `[ ]` **2.3 Validate commands, overrides, and attestations**
+### `[x]` **2.3 Validate commands, overrides, and attestations**
 
 - _Goal:_ Every requirement escalation, refresh, waiver, dismissal, and external attestation is strict,
   permission-checked, current-change-set scoped, and auditable.
 
-    - `[ ]` **2.3.a Parse the host-neutral command language**
-        - Implement `core/commands.ts`; parse exact `require`, `waive`, `refresh`, and `dismiss` grammars with bounded
-          ASCII identifiers and a trimmed final reason field. Enforce the 4096-byte command/1024-byte reason limits,
-          reject controls, trailing ambiguity, malformed/unknown/cross-source input, and never shell-tokenize.
-        - Build `test-first` (one behavior at a time):
-            - Valid commands preserve requirement/source/coverage/reason fields without shell interpretation.
-            - Unknown templates/findings and invalid coverage modes fail with actionable diagnostics.
-            - There is no implicit waive-all or generic resolve command.
+    - `[x]` **2.3.a Parse the host-neutral command language**
+        - Added strict bounded `require`, `waive`, `refresh`, and `dismiss` parsing with closed identifiers,
+          source-scoped findings, byte/control checks, preserved reason text, and actionable fail-closed diagnostics;
+          no shell interpretation, generic resolve, or implicit waive-all path exists.
 
-    - `[ ]` **2.3.b Authorize and scope command receipts**
-        - Implement `core/authorization.ts`; apply capability thresholds (`write` for require/refresh; `maintain` for
-          waive/dismiss), re-check current identity, and expire all overrides on change-set, policy, or rubric changes.
-        - Build `test-first` (one behavior at a time):
-            - Authorized actors emit actor/permission/reason-bearing receipts.
-            - Under-privileged, stale, or mismatched actors cannot mutate obligation or findings.
-            - `require` raises the named candidate and enters normal admission; `dismiss` closes one finding only.
+    - `[x]` **2.3.b Authorize and scope command receipts**
+        - Added live capability thresholds and actor/permission/reason-bearing receipts scoped to exact change-set,
+          policy, and rubric identities; under-privileged or stale commands cannot mutate requirements or findings.
 
-    - `[ ]` **2.3.c Validate generic agent attestations**
-        - Implement the agent arm of `core/attestations.ts`; authenticate a `maintain`/`admin` submitter separately
-          from a policy-accepted `reviewer_claim`, and require a unique review-run id, harness kind/version, run
-          timestamps, full current coverage, rubric/policy equality, durable evidence reference, result, findings, and
-          closures. Enforce the 32-KiB manifest, 256-entry array, identifier, and evidence-reference limits.
-        - Build `test-first` (one behavior at a time):
-            - Maintainer-attested fresh Codex CLI and Claude Code payloads pass the same neutral contract without
-              claiming the controller directly authenticated the agent.
-            - Reused run ids, local transcript, unauthenticated PR token, stale head, missing manifest, and disallowed
-              reviewer claims fail.
-            - A findings result remains blocking until qualifying closure evidence arrives.
+    - `[x]` **2.3.c Validate generic agent attestations**
+        - Added bounded neutral manifests with separately authenticated maintain/admin submitters, accepted reviewer
+          claims and runtime provenance, unique runs, exact recomputed coverage identity, durable evidence, and strict
+          result/finding/closure validation; local, stale, oversized, reused, or token-like input fails closed.
 
-    - `[ ]` **2.3.d Validate qualified-human attestations**
-        - Complete the human arm of `core/attestations.ts`; require dispatch actor/source identity equality, non-author
-          status, accepted human qualifier, sufficient repository permission, full rubric result, and a durable
-          evidence link under the same neutral manifest bounds.
-        - Build `test-first` (one behavior at a time):
-            - Qualified non-author humans can satisfy independent analysis.
-            - PR authors, delegated identities, and native approval alone cannot self-attest independent analysis.
+    - `[x]` **2.3.d Validate qualified-human attestations**
+        - Added the same bounded full-rubric manifest for qualified humans, requiring actor/source identity equality,
+          non-author status, accepted qualification, write-or-higher permission, and durable evidence.
+
+- _Outcome:_ Every command and attestation now crosses a strict syntax/schema boundary, a fresh capability check,
+  and exact policy/change scope before it can emit auditable evidence or mutate one named obligation/finding.
 
 ### `[ ]` **2.4 Reduce complete merge readiness to one verdict**
 
