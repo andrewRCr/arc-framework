@@ -95,45 +95,29 @@ qualification rules that every adapter and reducer consumes.
 _Purpose:_ Build the pure state machines that decide whether exact-change-set evidence satisfies typed
 requirements, whether a request may spend quota, and whether the aggregate merge gate is truthful.
 
-### `[ ]` **2.1 Reduce coverage chains and finding closure**
+### `[x]` **2.1 Reduce coverage chains and finding closure**
 
 - _Goal:_ Only a complete, current, authority-valid analysis chain can satisfy a review requirement, and no clean
   summary can silently erase an earlier finding.
 
-    - `[ ]` **2.1.a Validate full and incremental evidence links**
-        - Implement `core/coverage.ts`; require a full link from the current diff base or a contiguous same-source
-          chain whose bounds, identities, requirement, policy, and rubric agree through the current head.
-        - Build `test-first` (one behavior at a time):
-            - Full-current and contiguous full-plus-incremental chains satisfy coverage.
-            - Gaps, overlaps, cross-source links, retargets, merge-base changes, and stale terminal heads fail.
-            - Failed/unavailable links and unprovable incremental bounds contribute no coverage.
+    - `[x]` **2.1.a Validate full and incremental evidence links**
+        - Added exact-binding, same-source full/incremental coverage reduction through the current head; gaps,
+          overlaps, retargets, merge-base drift, cross-source links, stale terminals, and failed evidence fail closed.
 
-    - `[ ]` **2.1.b Track stable findings across evidence generations**
-        - Implement the finding-history reducer in `core/findings.ts`; enforce source-scoped immutable finding ids and
-          carry every open finding through later evidence until a qualifying closure is observed.
-        - Build `test-first` (one behavior at a time):
-            - Reusing an id for different content is inconsistent state.
-            - Aggregate clean with an earlier unclosed finding remains blocking.
-            - Alternate-source clean evidence cannot erase findings from the original requested source.
+    - `[x]` **2.1.b Track stable findings across evidence generations**
+        - Added source-scoped immutable finding history that retains every open finding across later clean evidence,
+          rejects identity reuse, and prevents alternate-source evidence from erasing another source's findings.
 
-    - `[ ]` **2.1.c Validate closure authority**
-        - Complete `core/findings.ts` with closure reduction; accept only same-source confirmation, authenticated
-          authorized dismissal, or host-native dismissal with a known actor, treating bare resolution as projection.
-        - Build `test-first` (one behavior at a time):
-            - Correct source/finding/current-change-set closures settle the named finding only.
-            - Bare resolution, wrong actor/source, stale identities, and unknown findings are rejected.
-            - Dismissal never implies a clean surrounding requirement.
+    - `[x]` **2.1.c Validate closure authority**
+        - Added named-finding closure reduction for same-source confirmation, authenticated dismissal, and known
+          host actors; stale, unknown, mismatched, or bare projection state cannot close findings or imply clean.
 
-    - `[ ]` **2.1.d Reduce evidence to requirement execution state**
-        - Implement `core/requirement-state.ts`; derive
-          `not-requested | queued | running | clean | findings | failed | unavailable | waived | stale` from current
-          evidence, receipts, overrides, and capacity without changing the underlying obligation.
-        - Build `test-first` (one behavior at a time):
-            - New heads stale prior evidence but preserve history for eligible incremental chains.
-            - Required unavailable remains blocking; recommended unavailable remains visible and non-blocking.
-            - Capacity provenance affects an unsatisfied request attempt but cannot keep qualifying current evidence
-              from settling the requirement.
-            - A terminal clean result satisfies only when coverage and closure reduction both pass.
+    - `[x]` **2.1.d Reduce evidence to requirement execution state**
+        - Added the complete execution-state reducer over current evidence, receipts, waivers, and capacity; only
+          coverage-complete, closure-consistent clean evidence satisfies, while stale history remains chain-eligible.
+
+- _Outcome:_ Evidence can satisfy a requirement only through a current contiguous coverage chain with consistent,
+  authority-closed finding history; obligation remains intact across every visible execution state.
 
 ### `[ ]` **2.2 Admit idempotent provider requests from receipts**
 
