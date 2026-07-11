@@ -1,11 +1,7 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `af136cd9`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `7bd885f6`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
-
-## Warnings
-
-- Meta `.arc/active/meta-reviewed-lane-review-gate.md` at `feat/reviewed-lane-review-gate` points to `plan/reviewed-lane-review-gate`; shadowed by location match. Work unit `reviewed-lane-review-gate` has not shipped; treating the view as degraded.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
