@@ -481,42 +481,29 @@ wake-ups, and separate `ci-ok` from a shadow-capable review gate without breakin
 - _Outcome:_ Event order and delivery are now wake-up concerns only: bounded secretless discovery feeds isolated
   guarded writers, while canonical re-reads and authenticated ledger time determine effects and projections.
 
-### `[ ]` **5.2 Model and test shadow, dual, and final projection modes**
+### `[x]` **5.2 Model and test shadow, dual, and final projection modes**
 
 - _Goal:_ Rollout mode changes only check-name projection, never policy or verdict semantics, and every transition
   retains at least one truthful required context.
 
-    - `[ ]` **5.2.a Map verdicts to shadow/dual/final context sets**
-        - Default missing/invalid `REVIEW_GATE_CONTEXT_MODE` to shadow; emit only `review-gate-shadow` in shadow,
-          shadow plus App `merge-ok` in dual, and only App `merge-ok` in final.
-        - Build `test-first` (one behavior at a time):
-            - All modes project the identical neutral verdict under the appropriate names.
-            - The shadow controller never emits `merge-ok` while the CI compatibility producer exists.
+    - `[x]` **5.2.a Map verdicts to shadow/dual/final context sets**
+        - Added fail-safe mode parsing and name-only projection of one identical neutral verdict: shadow emits only
+          `review-gate-shadow`, dual emits both App contexts, and final emits only App `merge-ok`.
 
-    - `[ ]` **5.2.b Validate normal transition and rollback ordering**
-        - Model required-context mutations so a proven pair is added/green before the prior context is removed across
-          shadow-to-dual-to-final and final-to-dual-to-shadow paths.
-        - Build `test-first` (one behavior at a time):
-            - No valid transition creates an empty set or same-name multi-producer overlap.
-            - Out-of-order/removal-first operations are rejected with the last proven set intact.
+    - `[x]` **5.2.b Validate normal transition and rollback ordering**
+        - Added transition and mutation guards that preserve the last proven required set, require add-before-remove,
+          and reject empty sets or same-name producer overlap.
 
-    - `[ ]` **5.2.c Validate App/controller-outage recovery ordering**
-        - Require merge freeze/audit snapshot, exact-head independent `ci-ok` proof, repair-PR scope guard, and
-          add-before-remove semantics; model incident-scoped review-action suspension plus independent repair-review
-          evidence as prerequisites, and prohibit admin/direct-base bypass.
-        - Build `test-first` (one behavior at a time):
-            - Repair PRs touching the `ci-ok` producer cannot use that same proof.
-            - A dead controller cannot leave its project action active in the repair path or manufacture a satisfying
-              receipt for the substitute review.
-            - Restoring the App re-enters shadow, restores/proves the project actions, and repeats normal promotion
-              before final enforcement.
+    - `[x]` **5.2.c Validate App/controller-outage recovery ordering**
+        - Added outage prerequisites for merge freeze, audit capture, independent exact-head CI and review evidence,
+          repair scope, suspended project actions, and explicit rejection of admin bypass.
 
-    - `[ ]` **5.2.d Render transition plans for the runbook**
-        - Produce explicit current/next required contexts, mode, prerequisites, verification probes, and rollback
-          target, including action activation and independent repair-review state where applicable, so operational
-          steps are reviewable before mutation.
-        - Build `test-first` (one behavior at a time):
-            - Normal, rollback, and outage plans name a truthful guard at every mutation.
+    - `[x]` **5.2.d Render transition plans for the runbook**
+        - Added explicit current/next mode and required sets, additions/removals, prerequisites, exact-head probes,
+          and rollback targets for review before any repository mutation.
+
+- _Outcome:_ Rollout state now changes only the projected context/source topology; neutral gate truth is invariant,
+  and both ordinary and outage transitions retain an independently proven required context.
 
 ### `[ ]` **5.3 Wire trusted controller and attestation workflows**
 
