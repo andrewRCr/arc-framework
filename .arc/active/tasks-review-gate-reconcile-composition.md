@@ -61,45 +61,13 @@ maps to clean provider evidence; commands are durable and current-scope; receipt
 only a closed lifecycle-tail proof can carry authority past a reviewed head. Shadow suppresses nothing — the full
 pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20).
 
-### `[ ]` **2.1 Core reduce assembly (policy decision → admission → requirement state → verdict → projection)**
+### `[x]` **2.1 Core reduce assembly (policy decision → admission → requirement state → verdict → projection)**
 
 - _Goal:_ One production function turns canonical state (normalized change request, evidence, receipts,
   capacity, policy) into a `ReconcileDecision` — the chaining function the unit-tested leaf reducers never had.
-- _Approach:_ Policy decision first (`resolveSelfHostingDecision` produces the requirements admission consumes),
-  then `admitAutomaticRequest`, `reduceRequirementState`, `reduceGateVerdict`, `renderGateProjection` — reusing
-  the unit fixtures' semantics; target the seams, since fixtures were only ever exercised in isolation.
-- _Note:_ Verdict-input producers: `coverageSatisfied` ← the `core/coverage.ts` chain reduction;
-  `findingsConsistent` / `openFindingCount` ← `reduceFindings` (`core/findings.ts`, wiring its
-  `authorizedDismissers` / `knownHostActors` inputs); `inconsistencies` ← ledger/findings diagnostics using the
-  failure-code vocabulary `reduceGateVerdict` recognizes; `nativeReview` ← the corrected 2.2.a host-neutral
-  reduction; `ci.state` ← the 2.2.c reader. Pin `readiness.enforceBaseFreshness: false` — branch protection's
-  `strict: true` governs base freshness host-side; the gate does not re-enforce it.
-- _Note:_ The live policy has no machine-invokable qualified provider: every enabled satisfying source uses
-  `authenticated-attestation`. Automatic admission therefore surfaces the pending obligation without creating a
-  request or provider effect. The dormant `coderabbit-pr` path becomes invokable only when policy enables its
-  qualified durable-record declaration; source selection is policy-driven, never implicit (spec Decisions 11-12).
-- _Note:_ `coderabbit-pr` is a separate dormant durable-record source. When policy enables it after live cutover
-  probes, Task 2.2.d maps its current-head or valid-tail-start decisive review into policy-qualified `Evidence` —
-  never from the `CodeRabbit` completion check or progress signals alone. Task 2.3's provider boundary owns
-  triggering; the decisive review owns satisfaction through the existing evidence/requirement reducer.
-- **Additional Context:** `notes-review-gate-reconcile-composition.md` § Composition gap map
-
-    - Build `test-first` (one behavior at a time):
-        - Exempt (auto-lane) change produces zero requirements and a truthful projection
-        - Required + current clean evidence with satisfied coverage reduces to `success`
-        - Open findings or failed evidence reduces to `failure` per the conclusion mapping
-        - No evidence under the attestation-only topology remains pending and emits no automatic request
-        - Enabled, qualified, invokable `coderabbit-pr` with non-exhausted/non-failed capacity admits at most one
-          automatic generation-zero request; disabled/unqualified declarations produce no effect
-        - Zero invokable sources stays pending; multiple invokable sources fail closed instead of choosing
-        - Admitted-history-exists suppresses re-admission on the same requirement
-        - Enabled/qualified `coderabbit-pr` maps `APPROVED` at the current head or the start of a valid lifecycle
-          tail to clean satisfying evidence;
-          `CHANGES_REQUESTED` emits no empty-finding evidence, fails through native review, and leaves the
-          requirement pending. Absent/stale/ambiguous/disabled/unqualified review likewise remains pending
-        - Stale evidence (prior change set) yields `pending` with a stale-marked requirement state
-        - Conclusion mapping (`pending` / `failure` / `success`) matches the shipped § 8 semantics across the
-          blocker classes (`ci-*`, mergeability, native review, requirement states)
+- _Outcome:_ Added the production reduction chain with policy-qualified evidence filtering, closed automatic-source
+  selection, admission history, finding/coverage/requirement reduction, and truthful verdict projection. Composition
+  coverage also closed the policy-template gap that had made the declared non-author human source unreachable.
 
 ### `[ ]` **2.2 `GitHostAdapter` implementation over the `hosts/github/*` leaf functions**
 

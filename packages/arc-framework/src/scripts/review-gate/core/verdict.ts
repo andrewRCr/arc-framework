@@ -103,7 +103,7 @@ export function reduceGateVerdict(input: GateVerdictInput): GateVerdict {
   const failureCodes = new Set([
     "merge-conflict", "ci-failure", "native-requested-changes", "unresolved-required-conversations",
     "native-review-inconsistent", "malformed-receipt", "ledger-fork", "ledger-regression", "duplicate-projection",
-    "invalid-capacity",
+    "invalid-capacity", "multiple-invokable-sources",
   ]);
   const hasFailure = blockers.some((blocker) =>
     failureCodes.has(blocker.code)

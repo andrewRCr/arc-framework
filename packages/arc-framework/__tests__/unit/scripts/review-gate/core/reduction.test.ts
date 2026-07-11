@@ -1,0 +1,339 @@
+import { describe, expect, it } from "vitest";
+
+import type { Evidence } from "../../../../../src/scripts/review-gate/core/evidence.js";
+import type { ReviewReceipt, SourceCapacity } from "../../../../../src/scripts/review-gate/core/execution.js";
+import { computePolicyVersion } from "../../../../../src/scripts/review-gate/core/identity.js";
+import {
+  reduceSelfHostingGate,
+  type SelfHostingGateReductionInput,
+} from "../../../../../src/scripts/review-gate/core/reduction.js";
+import {
+  SELF_HOSTING_POLICY,
+  type SelfHostingPolicy,
+} from "../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
+
+const changeRequest = {
+  schemaVersion: 1 as const,
+  repositoryId: "100",
+  changeRequestId: "PR_node",
+  hostRef: "refs/pull/7/head",
+  baseRef: "main",
+  baseSha: "a".repeat(40),
+  diffBaseSha: "b".repeat(40),
+  headSha: "c".repeat(40),
+  changeSetId: "d".repeat(64),
+};
+
+const nativeReview = {
+  requestedChanges: false,
+  unresolvedRequiredConversations: 0,
+  decision: "not-configured" as const,
+};
+
+function input(overrides: Partial<SelfHostingGateReductionInput> = {}): SelfHostingGateReductionInput {
+  return {
+    policy: SELF_HOSTING_POLICY,
+    changeRequest,
+    lane: { lane: "auto" as const, reasons: ["author-owned-artifacts" as const] },
+    risk: { risk: "routine" as const, reasons: ["routine-doc-surface" as const] },
+    evidence: [],
+    receipts: [],
+    capacities: [],
+    readiness: { draft: false, mergeability: "mergeable" as const, baseFresh: true },
+    ciState: "success" as const,
+    nativeReview,
+    authorizedDismissers: [],
+    knownHostActors: [],
+    inconsistencies: [],
+    ledgerVersion: 0,
+    receiptRefs: [],
+    actorIdentity: SELF_HOSTING_POLICY.providerIdentities.appBotUserId,
+    ...overrides,
+  };
+}
+
+function evidence(overrides: Partial<Evidence> = {}): Evidence {
+  return {
+    schemaVersion: 1,
+    requirementId: "independent-analysis",
+    sourceKind: "agent",
+    sourceIdentity: "codex-cli",
+    result: "clean",
+    evidenceUrlOrId: "https://example.test/review/run-1",
+    policyVersion: computePolicyVersion({ policy: SELF_HOSTING_POLICY }),
+    rubricVersion: "independent-analysis/v1",
+    coverage: "full",
+    coverageFromSha: changeRequest.diffBaseSha,
+    coverageThroughSha: changeRequest.headSha,
+    baseRef: changeRequest.baseRef,
+    diffBaseSha: changeRequest.diffBaseSha,
+    changeSetId: changeRequest.changeSetId,
+    headSha: changeRequest.headSha,
+    findings: [],
+    closures: [],
+    observedAt: "2026-07-11T20:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function coderabbitPolicy(additional = false): SelfHostingPolicy {
+  const [coderabbit, ...otherQualifications] = SELF_HOSTING_POLICY.qualifications;
+  if (coderabbit === undefined) throw new Error("missing CodeRabbit policy fixture");
+  const qualified = {
+    ...coderabbit,
+    enabled: true,
+    exactCoverage: true,
+    durableResults: true,
+    distinctOutcomes: true,
+    closureCapability: true,
+  };
+  return {
+    ...SELF_HOSTING_POLICY,
+    qualifications: [
+      qualified,
+      ...(additional ? [{ ...qualified, sourceIdentity: "other-provider" }] : []),
+      ...otherQualifications,
+    ],
+  };
+}
+
+function capacity(sourceIdentity = "coderabbit-pr"): SourceCapacity {
+  return {
+    schemaVersion: 1,
+    sourceIdentity,
+    status: "available",
+    reason: "provider-reported",
+    provenance: `capacity:${sourceIdentity}`,
+    observedAt: "2026-07-11T20:00:00.000Z",
+  };
+}
+
+function admittedReceipt(policy: SelfHostingPolicy): ReviewReceipt {
+  return {
+    schemaVersion: 1,
+    eventId: "request:reserved",
+    idempotencyKey: "request-key",
+    previousLedgerVersion: 0,
+    receiptHash: "e".repeat(64),
+    action: "reserved",
+    request: {
+      schemaVersion: 1,
+      repositoryId: changeRequest.repositoryId,
+      changeRequestId: changeRequest.changeRequestId,
+      changeSetId: changeRequest.changeSetId,
+      policyVersion: computePolicyVersion({ policy }),
+      rubricVersion: "independent-analysis/v1",
+      requirementId: "independent-analysis",
+      sourceIdentity: "coderabbit-pr",
+      coverage: "full",
+      coverageFromSha: changeRequest.diffBaseSha,
+      coverageThroughSha: changeRequest.headSha,
+      generation: 0,
+      actorIdentity: SELF_HOSTING_POLICY.providerIdentities.appBotUserId,
+    },
+    result: null,
+    evidenceUrlOrId: null,
+    findingIds: [],
+  };
+}
+
+describe("self-hosting gate reduction", () => {
+  it("projects an exempt automatic-lane change truthfully", () => {
+    const decision = reduceSelfHostingGate(input());
+
+    expect(decision.request).toBeNull();
+    expect(decision.projection).toMatchObject({
+      conclusion: "success",
+      summary: "review: inapplicable",
+      requirementExecutions: [],
+      policyDecision: { disposition: "exempt" },
+    });
+  });
+
+  it("reduces current clean full coverage to success", () => {
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [evidence()],
+    }));
+
+    expect(decision.request).toBeNull();
+    expect(decision.projection).toMatchObject({
+      conclusion: "success",
+      requirementExecutions: [{
+        requirementId: "independent-analysis",
+        state: "clean",
+        sourceIdentity: "codex-cli",
+      }],
+    });
+  });
+
+  it("accepts the policy-qualified non-author human attestation source", () => {
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [evidence({
+        sourceKind: "human",
+        sourceIdentity: "reviewer-42",
+        reviewerClaim: "qualified-non-author-human",
+      })],
+    }));
+
+    expect(decision.projection).toMatchObject({
+      conclusion: "success",
+      requirementExecutions: [{ state: "clean", sourceIdentity: "reviewer-42" }],
+    });
+  });
+
+  it.each([
+    ["open findings", evidence({
+      result: "findings",
+      findings: [{
+        findingId: "finding-1",
+        severity: "high",
+        locus: "src/controller.ts:10",
+        evidenceUrlOrId: "https://example.test/findings/1",
+      }],
+    })],
+    ["failed evidence", evidence({ result: "failed" })],
+  ])("reduces %s to failure", (_name, item) => {
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [item],
+    }));
+
+    expect(decision.projection.conclusion).toBe("failure");
+  });
+
+  it("keeps attestation-only obligations pending without an automatic request", () => {
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+    }));
+
+    expect(decision.request).toBeNull();
+    expect(decision.projection).toMatchObject({
+      conclusion: "pending",
+      requirementExecutions: [{ state: "not-requested" }],
+    });
+  });
+
+  it("does not invoke a disabled or unqualified durable-record declaration", () => {
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      capacities: [capacity()],
+    }));
+
+    expect(decision.request).toBeNull();
+    expect(decision.projection.requirementExecutions[0]?.state).toBe("not-requested");
+  });
+
+  it.each([
+    ["exhausted", { status: "exhausted" as const, reason: "provider-reported" as const }],
+    ["lookup failure", { status: "unknown" as const, reason: "lookup-failed" as const }],
+  ])("does not admit when provider capacity is %s", (_name, capacityOverride) => {
+    const policy = coderabbitPolicy();
+    const decision = reduceSelfHostingGate(input({
+      policy,
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      capacities: [{ ...capacity(), ...capacityOverride }],
+    }));
+
+    expect(decision.request).toBeNull();
+    expect(decision.projection.conclusion).toBe("failure");
+  });
+
+  it("admits one qualified invokable provider request and never re-admits its history", () => {
+    const policy = coderabbitPolicy();
+    const first = reduceSelfHostingGate(input({
+      policy,
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      capacities: [capacity()],
+    }));
+    expect(first.request).toMatchObject({ sourceIdentity: "coderabbit-pr", generation: 0, coverage: "full" });
+
+    const replay = reduceSelfHostingGate(input({
+      policy,
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      capacities: [capacity()],
+      receipts: [admittedReceipt(policy)],
+    }));
+    expect(replay.request).toBeNull();
+    expect(replay.projection.requirementExecutions[0]?.state).toBe("queued");
+  });
+
+  it("fails closed instead of choosing among multiple invokable providers", () => {
+    const decision = reduceSelfHostingGate(input({
+      policy: coderabbitPolicy(true),
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      capacities: [capacity(), capacity("other-provider")],
+    }));
+
+    expect(decision.request).toBeNull();
+    expect(decision.projection).toMatchObject({
+      conclusion: "failure",
+      blockers: expect.arrayContaining([expect.objectContaining({ code: "multiple-invokable-sources" })]),
+    });
+  });
+
+  it("consumes qualified provider approval through the ordinary evidence reducers", () => {
+    const policy = coderabbitPolicy();
+    const approved = evidence({
+      sourceIdentity: "coderabbit-pr",
+      policyVersion: computePolicyVersion({ policy }),
+      evidenceUrlOrId: "https://github.test/pull/7#pullrequestreview-1",
+    });
+    const decision = reduceSelfHostingGate(input({
+      policy,
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [approved],
+      capacities: [capacity()],
+    }));
+
+    expect(decision.request).toBeNull();
+    expect(decision.projection).toMatchObject({
+      conclusion: "success",
+      requirementExecutions: [{ state: "clean", sourceIdentity: "coderabbit-pr" }],
+    });
+  });
+
+  it("keeps prior-change evidence stale and pending", () => {
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [evidence({ changeSetId: "f".repeat(64), headSha: "9".repeat(40) })],
+    }));
+
+    expect(decision.projection).toMatchObject({
+      conclusion: "pending",
+      requirementExecutions: [{ state: "stale" }],
+    });
+  });
+
+  it.each([
+    ["CI pending", { ciState: "pending" as const }, "pending"],
+    ["CI failure", { ciState: "failure" as const }, "failure"],
+    ["merge conflict", {
+      readiness: { draft: false, mergeability: "conflicting" as const, baseFresh: true },
+    }, "failure"],
+    ["native changes requested", {
+      nativeReview: { ...nativeReview, requestedChanges: true, decision: "changes-requested" as const },
+    }, "failure"],
+  ])("composes %s into a %s conclusion", (_name, overrides, conclusion) => {
+    const decision = reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: [evidence()],
+      ...overrides,
+    }));
+
+    expect(decision.projection.conclusion).toBe(conclusion);
+  });
+});

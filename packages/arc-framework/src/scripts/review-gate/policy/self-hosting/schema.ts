@@ -89,7 +89,10 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
     id: "independent-analysis",
     kind: "independent-analysis",
     obligation: "required",
-    acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+    acceptableSources: [
+      { sourceKind: "agent", qualifier: "independent-analysis/v1" },
+      { sourceKind: "human", qualifier: "independent-analysis/v1" },
+    ],
     count: 1,
     initialAdmission: "automatic",
     rubricVersion: "independent-analysis/v1",
