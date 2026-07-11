@@ -41,17 +41,13 @@ closed predicate identities are versioned — no dynamic lookup or new operator-
 - _Outcome:_ All `AttestationValidationContext` enforcement inputs now originate in versioned policy: runtime and
   age values are pinned directly, while reviewer claims derive from the already-hashed qualification set.
 
-### `[ ]` **1.3 Pin the lifecycle-bookkeeping-tail predicate**
+### `[x]` **1.3 Pin the lifecycle-bookkeeping-tail predicate**
 
 - _Goal:_ Review carry-forward is licensed by a closed, versioned policy rule rather than an implicit path
   exception that can drift independently of `policy_version`.
 
-    - Add `lifecycleTailPredicate: { id: "lifecycle-bookkeeping-tail/v1" }` to the closed self-hosting policy
-      schema/document and exact-key parser; do not add storage-mode or per-artifact switches.
-    - Keep the policy value storage-neutral. Task 2.6's current Git adapter owns the concrete in-repo proof, while
-      core consumes only the predicate id and a validated `LifecycleTailProof`.
-    - Build `test-first` (one behavior at a time): accepted exact predicate, missing/unknown/extra-key rejection,
-      and `policy_version` sensitivity.
+- _Outcome:_ Added the exact `lifecycle-bookkeeping-tail/v1` predicate without storage switches, with closed-shape
+  rejection and a regression proof that the predicate changes `policy_version`.
 
 ## **Phase 2:** Reconcile-path core composition
 

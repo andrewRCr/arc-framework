@@ -8,6 +8,30 @@ import {
 } from "../../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
 
 describe("self-hosting review policy document", () => {
+  it("returns the closed lifecycle-tail predicate", () => {
+    const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
+
+    expect(parsed.lifecycleTailPredicate).toEqual({ id: "lifecycle-bookkeeping-tail/v1" });
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["unknown", { id: "lifecycle-bookkeeping-tail/v2" }],
+    ["extended", { id: "lifecycle-bookkeeping-tail/v1", storageMode: "git" }],
+  ])("rejects a %s lifecycle-tail predicate", (_name, lifecycleTailPredicate) => {
+    expect(() => parseSelfHostingPolicy({ ...SELF_HOSTING_POLICY, lifecycleTailPredicate })).toThrow();
+  });
+
+  it("includes the lifecycle-tail predicate in policy versioning", () => {
+    const legacyPolicy = Object.fromEntries(
+      Object.entries(SELF_HOSTING_POLICY).filter(([key]) => key !== "lifecycleTailPredicate"),
+    );
+
+    expect(computePolicyVersion({ policy: SELF_HOSTING_POLICY })).not.toBe(
+      computePolicyVersion({ policy: legacyPolicy }),
+    );
+  });
+
   it("returns pinned attestation enforcement values", () => {
     const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
 

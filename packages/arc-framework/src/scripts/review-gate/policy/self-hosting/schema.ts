@@ -45,6 +45,7 @@ export interface SelfHostingPolicy {
     sensitivePrefixes: string[];
     sensitiveFiles: string[];
   };
+  lifecycleTailPredicate: { id: "lifecycle-bookkeeping-tail/v1" };
   authorMap: Record<string, string>;
   requirementTemplates: ReviewRequirementTemplate[];
   rubricBindings: Array<{ requirementKind: string; rubricVersion: string }>;
@@ -82,6 +83,7 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
       "CLAUDE.md",
     ],
   },
+  lifecycleTailPredicate: { id: "lifecycle-bookkeeping-tail/v1" },
   authorMap: { andrewRCr: "andrew" },
   requirementTemplates: [{
     id: "independent-analysis",
@@ -201,8 +203,9 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const path = "selfHostingPolicy";
   const record = objectAt(input, path);
   exactKeys(record, [
-    "schemaVersion", "semanticsVersion", "lanePredicate", "riskPredicate", "authorMap", "requirementTemplates",
-    "rubricBindings", "timeouts", "providerIdentities", "attestationEnforcement", "qualifications",
+    "schemaVersion", "semanticsVersion", "lanePredicate", "riskPredicate", "lifecycleTailPredicate", "authorMap",
+    "requirementTemplates", "rubricBindings", "timeouts", "providerIdentities", "attestationEnforcement",
+    "qualifications",
   ], path);
 
   const lane = objectAt(record.lanePredicate, `${path}.lanePredicate`);
@@ -211,6 +214,13 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const risk = objectAt(record.riskPredicate, `${path}.riskPredicate`);
   exactKeys(risk, ["id", "sensitivePrefixes", "sensitiveFiles"], `${path}.riskPredicate`);
   const riskId = enumAt(risk.id, ["sensitive-paths/v1"], `${path}.riskPredicate.id`);
+  const lifecycleTail = objectAt(record.lifecycleTailPredicate, `${path}.lifecycleTailPredicate`);
+  exactKeys(lifecycleTail, ["id"], `${path}.lifecycleTailPredicate`);
+  const lifecycleTailId = enumAt(
+    lifecycleTail.id,
+    ["lifecycle-bookkeeping-tail/v1"],
+    `${path}.lifecycleTailPredicate.id`,
+  );
 
   const authorMapRecord = objectAt(record.authorMap, `${path}.authorMap`);
   const authorMap = Object.fromEntries(Object.entries(authorMapRecord).map(([author, owner]) => [
@@ -285,6 +295,7 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
       sensitivePrefixes: exactStringArray(risk.sensitivePrefixes, SELF_HOSTING_POLICY.riskPredicate.sensitivePrefixes, `${path}.riskPredicate.sensitivePrefixes`),
       sensitiveFiles: exactStringArray(risk.sensitiveFiles, SELF_HOSTING_POLICY.riskPredicate.sensitiveFiles, `${path}.riskPredicate.sensitiveFiles`),
     },
+    lifecycleTailPredicate: { id: lifecycleTailId },
     authorMap,
     requirementTemplates: templatePolicy.requirements,
     rubricBindings: bindings,
