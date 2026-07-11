@@ -505,53 +505,29 @@ wake-ups, and separate `ci-ok` from a shadow-capable review gate without breakin
 - _Outcome:_ Rollout state now changes only the projected context/source topology; neutral gate truth is invariant,
   and both ordinary and outage transitions retain an independently proven required context.
 
-### `[ ]` **5.3 Wire trusted controller and attestation workflows**
+### `[x]` **5.3 Wire trusted controller and attestation workflows**
 
 - _Goal:_ GitHub Actions supplies narrow trusted wake-ups and short-lived App credentials while all executable code,
   policy, and dependencies come from the protected default branch.
 
-    - `[ ]` **5.3.a Add the reconciliation workflow trigger shell**
-        - Create secretless `.github/workflows/review-gate-wakeup.yml` for review/review-comment events with no
-          checkout, untrusted-input execution, or write capability. Create privileged
-          `.github/workflows/review-gate.yml` for `pull_request_target`, `status`, filtered CI/wake-up `workflow_run`,
-          issue-comment, opportunistic external check, and schedule events with read-only discovery plus the per-PR
-          reconciliation matrix.
-        - Give `GITHUB_TOKEN` read permissions only. Full-SHA pin every action, check out `github.workflow_sha` with
-          credential persistence/caches disabled, install locked dependencies, and invoke the installed local `tsx`
-          binary without download fallback. Give only the controller's validated argument-array git-fetch boundary
-          the narrow read token for base-repository objects.
-        - Fix the workflow→controller invocation contract: two entry modules under `src/scripts/review-gate/` —
-          `run-reconcile.ts` for the discovery/event reconciliation legs and `run-attest.ts` for attestation
-          validation — receiving context through environment variables and the standard event-payload file, with no
-          untrusted value or credential interpolated into argv or shell text.
+    - `[x]` **5.3.a Add the reconciliation workflow trigger shell**
+        - Added checkout-free review relay and privileged discovery/matrix workflows with read-only default token,
+          immutable trusted checkouts, locked installs, local `tsx`, and environment/standard-payload entry modules.
 
-    - `[ ]` **5.3.b Mint and constrain the GitHub App token**
-        - Bind privileged jobs to GitHub environment `review-gate`. Require setup to restrict the environment to the
-          exact protected default branch before storing `ARC_REVIEW_GATE_APP_PRIVATE_KEY`; non-default refs and
-          absent/unsafe environment state fail closed before any step runs (environment-referencing jobs always
-          mint deployment records — rejected attempts leave failed records; inert bookkeeping, not an access path).
-        - Use full-SHA-pinned `actions/create-github-app-token` with `ARC_REVIEW_GATE_APP_CLIENT_ID`, the environment
-          private key, explicit checks-write/pull-requests-write/statuses-read permission inputs (pull-requests
-          write owns PR ledger comments and the one-shot label; no issues permission is held), and exact
-          current-repository scope. Keep `ARC_REVIEW_GATE_APP_ID` separate for evidence authentication,
-          `GITHUB_TOKEN` non-authoritative, and the App token out of git transport.
-        - Add static workflow assertions for action pins, immutable checkout, permissions, environment/secret flow,
-          client-id/App-id separation, current-repository scope, and no PR-code checkout/execution.
+    - `[x]` **5.3.b Mint and constrain the GitHub App token**
+        - Bound writers to `review-gate`, full-SHA-pinned repository-scoped App token minting with explicit permissions,
+          separate client/evidence App ids, no issues permission, and no App token in checkout or discovery.
 
-    - `[ ]` **5.3.c Add the authenticated attestation dispatch workflow**
-        - Create `.github/workflows/review-gate-attest.yml` on default-branch `workflow_dispatch`, collect the strict
-          bounded neutral payload, resolve the dispatch actor, join the same repository-id/PR-id concurrency group,
-          and pass it to controller validation before App receipt write. Require `--ref` to name the protected default
-          branch and bind the job to the same restricted environment so another ref cannot receive the private key.
-        - Assert agent and human inputs share one contract, `github.workflow_sha` is the only checkout, and no
-          untrusted prose is parsed as authority.
+    - `[x]` **5.3.c Add the authenticated attestation dispatch workflow**
+        - Added default-ref-only bounded neutral dispatch, authenticated actor context, the shared repository/PR write
+          lane, immutable workflow checkout, and payload transport that never parses prose into workflow authority.
 
-    - `[ ]` **5.3.d Cover fork and untrusted-input boundaries**
-        - Add workflow/controller fixtures for fork PRs, malicious labels/titles/comments/evidence links, newline paths,
-          malicious fork URLs/refs/SHAs, missing secrets/installations, and shell-free structured argument transport.
-        - Verify fork review events traverse only the secretless wake-up plus default-ref `workflow_run`, relay data is
-          hint-only, empty/ambiguous mappings defer to all-open-PR repair, and no secret or write credential enters
-          PR-controlled execution. Prove a non-default attestation dispatch cannot enter the credential environment.
+    - `[x]` **5.3.d Cover fork and untrusted-input boundaries**
+        - Added workflow and event assertions proving hint-only hostile metadata, shell-free numeric transport,
+          secretless fork relay, default-code execution, missing-input failure, and default-ref attestation gating.
+
+- _Outcome:_ Repository workflows now expose a narrow trust split: event/fork data can only wake secretless discovery,
+  while protected default-branch code and environment-scoped App credentials own every authoritative write.
 
 ### `[ ]` **5.4 Refactor CI classification and compatibility rollup**
 
