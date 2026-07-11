@@ -300,24 +300,20 @@ runs into and out of the neutral ports without allowing host objects to become p
 - _Goal:_ The neutral receipt-store contract gains a version-checked GitHub implementation whose compact visible
   comments are authenticated, tamper-evident within the declared App/admin boundary, and durably auditable.
 
-    - `[ ]` **3.3.a Parse visible-plus-machine receipt comments**
-        - Define a compact visible summary plus collapsible machine payload; parse without executing/interpolating
-          comment content and validate repository/change-request/schema/size identities. Emit no comment for routine
-          observation, waiting, or check refresh.
-        - Build `test-first` (one behavior at a time):
-            - Valid receipts round-trip with stable event/idempotency keys and evidence references.
-            - Truncated, duplicated, malformed, oversized, and conflicting payloads fail closed.
+    - `[x]` **3.3.a Parse visible-plus-machine receipt comments**
+        - `receipt-comment.ts` serializes an authoritative receipt as an HTML-comment marker plus a visible summary
+          and one collapsible JSON machine payload; `parseReceiptComment` extracts by structure only (never executes
+          or interpolates), rebuilds the store envelope from the host comment's node id + created/updated times
+          (payload time never trusted for ordering), and fails closed on oversized / missing / duplicate /
+          malformed / missing-ledger-version / scope-mismatch / schema. Only authoritative transitions serialize.
 
-    - `[ ]` **3.3.b Authenticate receipt authorship by App identity**
-        - Require `performed_via_github_app.id` to match `ARC_REVIEW_GATE_APP_ID` plus the expected immutable bot
-          account id pinned in the versioned policy document; reject `github-actions`, user comments,
-          lookalike/renamed logins, edited receipt comments, and
-          `external_id`-only claims. Normalize host record id plus host-created `recorded_at`; never trust payload time
-          for ordering/timeouts.
-        - Build `test-first` (one behavior at a time):
-            - Stable App-id private-key rotation preserves authority.
-            - Wrong/missing installation or credential and mismatched App identity fail adapter initialization.
-            - Same payload from any other source remains an untrusted command/evidence candidate.
+    - `[x]` **3.3.b Authenticate receipt authorship by App identity**
+        - `receipt-auth.ts` binds authority to `performed_via_github_app.id` plus the pinned immutable bot account
+          id: `authenticateAppComment` rejects github-actions/other-App, non-bot, lookalike-id, and body-only
+          identity claims, and (for receipts) edited comments, while the deliberately-mutable anchor authenticates
+          under `allowEdits`. Identity is numeric, so a renamed bot login still authenticates and key rotation is
+          transparent. `verifyAppIdentity` fails adapter initialization closed on App-id mismatch, credential
+          (401/403), or an unavailable `/app`.
 
     - `[ ]` **3.3.c Append receipts with current-state revalidation**
         - Re-query actor permission/change-set identity immediately before the App writes, require the expected ledger
