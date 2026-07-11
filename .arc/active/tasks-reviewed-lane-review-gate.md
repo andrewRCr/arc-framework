@@ -736,27 +736,23 @@ cross-layer security, packaging, workflow, and architecture-description seams be
 - _Outcome:_ Cross-layer fixtures now prove the delivered controller/workflow/package composition and fail if trust
   domains, required files, installed extension behavior, or the published CLI boundary regress.
 
-### `[ ]` **7.3 Describe the delivered shadow architecture**
+### `[x]` **7.3 Describe the delivered shadow architecture**
 
 - _Goal:_ Project architecture documentation accurately describes what the implementation PR delivers and leaves
   final-enforcement wording to the post-main operational closeout.
 
-    - `[ ]` **7.3.a Update the technical overview at the architecture trigger**
-        - Replace the CI-only merge-gating description with `ci-ok`, compatibility `merge-ok`, the shadow App/controller
-          architecture, repository-only TypeScript core/adapters, CodeRabbit/generic attestation paths, and the no-
-          webhook/service-runtime App boundary.
-        - Describe the delivered shadow state as current fact, not the future final state or WU history; ensure the
-          runbook owns operational transition detail and the final-gated closeout PR owns the current-fact final edit.
+    - `[x]` **7.3.a Update the technical overview at the architecture trigger**
+        - Updated current architecture with repository-only neutral core/adapters, CodeRabbit/generic attestations,
+          short-lived no-webhook App reconciliation, `ci-ok`, compatibility `merge-ok`, and delivered shadow truth.
 
-    - `[ ]` **7.3.b Record the architecture decision record**
+    - `[x]` **7.3.b Record the architecture decision record**
         - _Goal:_ The decision cluster survives WU archival in a durable internal home that future sessions consult
           before reopening any of its calls.
-        - Write the next-numbered ADR in `.arc/reference/adr/` covering: the evidence-composed App-owned required
-          check replacing the CI-only rollup, receipt-over-comment authority, typed non-substitutable requirements,
-          the provider-neutral core/host-adapter split, and the probe-revisable CodeRabbit non-satisfying
-          determination (with its spike-evidence basis and the enablement path that would revise it).
-        - Follow the ADR methodology's stability tiers; keep the record internal-only (no references from
-          adopter-facing surfaces) and free of WU/task provenance beyond the standard decision context.
+        - Added accepted ADR-028 for evidence-composed App gating, authenticated receipt authority, typed
+          non-substitution, neutral core/adapters, and probe-revisable CodeRabbit non-satisfaction without WU provenance.
+
+- _Outcome:_ Durable architecture surfaces now distinguish the implementation PR's shadow delivery from operational
+  final enforcement while preserving the decisions future provider or gate changes must explicitly revisit.
 
 ### `[ ]` **7.4 Independently review the rollout and coherence slice**
 
