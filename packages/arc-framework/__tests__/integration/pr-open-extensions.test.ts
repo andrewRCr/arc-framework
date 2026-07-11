@@ -91,4 +91,16 @@ describe("PR-open lifecycle extensions", () => {
       expect(workflow.toLowerCase()).toContain("halt before later actions");
     }
   });
+
+  it("keeps diff review author-side and provider-neutral", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/diff-review.md"), "utf8");
+      expect(method).toContain("author-side");
+      expect(method).toContain("not peer/independent review evidence");
+      expect(method).toContain("**Correctness**");
+      expect(method).toContain("**Error paths**");
+      expect(method.replace(/\s+/gu, " ")).toContain("invokes no external review provider by default");
+      expect(method).not.toMatch(/coderabbit|copilot|claude/iu);
+    }
+  });
 });

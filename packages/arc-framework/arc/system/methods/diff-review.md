@@ -1,6 +1,6 @@
 ---
 name: diff-review
-description: Aggregate diff review activity — generic contract invokable from any composable moment
+description: Local author-side aggregate diff preflight — generic and composable
 related:
   - review-triage
 override-active: false
@@ -9,10 +9,10 @@ override-active: false
 # Method: diff-review
 
 > - **Workflow:** [integrate-work-unit.md][integrate-work-unit] (primary caller)
-> - **When:** When a workflow or skill invokes diff review — notably at integrate-work-unit after Phase 1 docs
->   are committed, before push and PR creation
+> - **When:** When a workflow or skill invokes local diff preflight — notably before opening a change request
 >
-> - **Contract:** Review an aggregate diff to catch cross-cutting issues that per-task review misses. Generic
+> - **Contract:** The authoring agent reviews its aggregate local diff for cross-cutting issues that per-task review
+>   misses. This preflight is not peer/independent review evidence and cannot satisfy a review requirement. Generic
 >   activity contract — callers decide when to invoke and what gating applies. The primary caller
 >   (integrate-work-unit.md) gates on `review.pre_merge` in [`arc-config.yml`][arc-config]; other callers apply
 >   their own gating.
@@ -24,10 +24,8 @@ override-active: false
 
 ## diff-review.default
 
-Lightweight diff review. Catches issues that only emerge at the aggregate level — cross-task inconsistencies,
-documentation drift, cleanup artifacts. Research consistently shows that self-review before submission eliminates
-a significant proportion of review comments and catches issues that are trivial to fix but compound if left for
-reviewers.
+Lightweight author-side diff preflight. It catches issues that only emerge at the aggregate level; it invokes no
+external review provider by default and authors no independent evidence.
 
 **Review the aggregate diff against the parent branch:**
 
@@ -45,6 +43,8 @@ git diff {parent-branch}...HEAD
   refactoring (unused imports, orphaned functions, stale references)
 - **Documentation drift**: Docs or comments that no longer match the implementation
 - **Unresolved markers**: TODO/FIXME items that should be resolved before merge
+- **Correctness**: The aggregate behavior satisfies its declared contract, including boundary conditions
+- **Error paths**: Failures are handled explicitly and do not silently weaken invariants
 
 **AI-assisted code** (when an agent performed implementation): Verify business logic correctness — does the
 aggregate change actually solve the stated problem? Check exception handling paths explicitly — AI-generated
@@ -54,12 +54,10 @@ code systematically underperforms on error cases and edge conditions.
 quality gates on modified files. Commit fixes using the context footer appropriate to the invoking workflow (e.g.,
 `(integration)` when called from integrate-work-unit.md).
 
-For structured review workflows (multi-pass, AI tool integration, team review protocols), override this method.
-Workflows invoking diff-review at the pre-merge moment may also configure the [pre-merge-review
-extension][pre-merge-review-ext] for additional ceremony at that specific moment.
+For structured review workflows, configure lifecycle extensions separately; do not reinterpret this author-side
+preflight as independent evidence.
 
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [arc-config]: ../arc-config.yml
-[pre-merge-review-ext]: ../extensions/pre-merge-review.md

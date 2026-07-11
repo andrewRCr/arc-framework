@@ -637,17 +637,14 @@ Errand integration, and make this repository's review workflow controller-driven
 - _Outcome:_ Errand retries now reuse a single unambiguous PR and share the WU lifecycle's hook/checkpoint invariants
   without broadening Errands into work-unit semantics.
 
-### `[ ]` **6.4 Clarify local diff preflight boundaries**
+### `[x]` **6.4 Clarify local diff preflight boundaries**
 
 - _Goal:_ `diff-review` remains a cheap author-side aggregate preflight and cannot be mistaken for independent PR
   review evidence or a default external-provider invocation.
 
-    - `[ ]` **6.4.a Narrow the method contract without redesigning it**
-        - Update both method copies to state the local authoring-agent scope, add correctness/error-path coverage to
-          the existing checklist, and explicitly deny peer/independent evidence authority.
-        - Preserve its generic invocability, `review.pre_merge` behavior at the integration caller, override slot,
-          finding triage, cleanup, consistency, documentation, and unresolved-marker checks.
-        - Add package/project content assertions for the boundary and absence of a default provider command.
+    - `[x]` **6.4.a Narrow the method contract without redesigning it**
+        - Reframed both method copies as generic local author-side preflight, added correctness/error-path checks, denied
+          peer/independent authority, and asserted no default provider while preserving gating, overrides, and triage.
 
 ### `[ ]` **6.5 Coordinate the project open-PR review cycle**
 
