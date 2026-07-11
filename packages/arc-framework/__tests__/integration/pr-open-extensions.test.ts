@@ -14,15 +14,15 @@ async function markdownFiles(directory: string): Promise<string[]> {
 
 describe("PR-open lifecycle extensions", () => {
   it.each([
-    [packageArc, "system/extensions/pre-pr-open.md", "pre-pr-open"],
-    [packageArc, "system/extensions/post-pr-open.md", "post-pr-open"],
-    [projectArc, "system/extensions/pre-pr-open.md", "pre-pr-open"],
-    [projectArc, "system/extensions/post-pr-open.md", "post-pr-open"],
-  ])("registers an inactive placeholder shell at %s/%s", async (base, relative, name) => {
+    [packageArc, "system/extensions/pre-pr-open.md", "pre-pr-open", true],
+    [packageArc, "system/extensions/post-pr-open.md", "post-pr-open", true],
+    [projectArc, "system/extensions/pre-pr-open.md", "pre-pr-open", true],
+    [projectArc, "system/extensions/post-pr-open.md", "post-pr-open", false],
+  ])("registers an inactive managed shell at %s/%s", async (base, relative, name, placeholder) => {
     const content = await readFile(resolve(base, relative), "utf8");
     expect(content).toContain(`name: ${name}`);
     expect(content).toContain("active: false");
-    expect(content).toContain(`[No extension configured]`);
+    expect(content.includes(`[No extension configured]`)).toBe(placeholder);
     expect(content.match(/^## .*\.actions$/gmu)).toHaveLength(1);
   });
 
@@ -101,6 +101,31 @@ describe("PR-open lifecycle extensions", () => {
       expect(method).toContain("**Error paths**");
       expect(method.replace(/\s+/gu, " ")).toContain("invokes no external review provider by default");
       expect(method).not.toMatch(/coderabbit|copilot|claude/iu);
+    }
+  });
+
+  it("routes self-hosting actions through one controller workflow", async () => {
+    const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
+    expect(workflow).toContain("one caller-supplied `openedChangeRequest");
+    expect(workflow).toContain("**Required:**");
+    expect(workflow).toContain("**Recommended:**");
+    expect(workflow).toContain("**Exempt:**");
+    expect(workflow).toContain("/review-gate refresh");
+    expect(workflow).toContain("/review-gate dismiss");
+    expect(workflow).toContain("Wait for the external review completion signal without polling");
+    expect(workflow).not.toMatch(/@coderabbit|resolveReviewThread/iu);
+  });
+
+  it("keeps project actions populated but inactive until cutover", async () => {
+    for (const name of ["post-pr-open", "pre-merge-review"]) {
+      const project = await readFile(resolve(projectArc, `system/extensions/${name}.md`), "utf8");
+      const packaged = await readFile(resolve(packageArc, `system/extensions/${name}.md`), "utf8");
+      expect(project).toContain("active: false");
+      expect(project).toContain("coordinate-pr-review.md");
+      expect(project).toMatch(/1\. \*\*/u);
+      expect(project).toMatch(/2\. \*\*/u);
+      expect(packaged).toContain("[No extension configured]");
+      expect(packaged).not.toContain("coordinate-pr-review");
     }
   });
 });

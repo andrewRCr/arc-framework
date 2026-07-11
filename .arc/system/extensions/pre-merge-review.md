@@ -15,8 +15,13 @@ active: false
 
 ## pre-merge-review.actions
 
-[No extension configured]
+1. **Settle the final pull-request head.** Invoke [coordinate-pr-review.md][coordinate-pr-review] with the current
+   `openedChangeRequest`. Continue only when the controller reports that exact head settled.
+
+2. **Future final-head actions.** Append additional actions here in authored order. Execute sequentially and halt
+   before later actions when an earlier action fails.
 
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[coordinate-pr-review]: ../workflows/project/coordinate-pr-review.md

@@ -646,39 +646,33 @@ Errand integration, and make this repository's review workflow controller-driven
         - Reframed both method copies as generic local author-side preflight, added correctness/error-path checks, denied
           peer/independent authority, and asserted no default provider while preserving gating, overrides, and triage.
 
-### `[ ]` **6.5 Coordinate the project open-PR review cycle**
+### `[x]` **6.5 Coordinate the project open-PR review cycle**
 
 - _Goal:_ The self-hosting workflow enters through normalized controller decisions, spends review quota only with
   admission, and returns only when current obligations/findings/conversations are settled.
 
-    - `[ ]` **6.5.a Rename and broaden the project workflow**
-        - Replace `address-pr-review.md` with `coordinate-pr-review.md`, update title/purpose/references, and frame it
-          as the whole open-PR review cycle rather than a CodeRabbit finding-only response loop.
-        - Keep provider-specific request/observation mechanics behind controller commands and adapter summaries.
+    - `[x]` **6.5.a Rename and broaden the project workflow**
+        - Replaced the CodeRabbit-specific finding loop with one registered project workflow coordinating the complete
+          open-PR cycle through normalized controller decisions, commands, and adapter summaries.
 
-    - `[ ]` **6.5.b Route required, recommended, and exempt entry decisions**
-        - Resolve one explicit target `hostRef`, then read its normalized current decision: observe eligible one-time
-          automatic admission, recommend explicit refresh for checkpoint-only/later required heads, ask before raising
-          recommended work, and no-op exempt work while retaining explicit `require`.
-        - Make entry idempotent across `post-pr-open` and final `pre-merge-review` invocations without aggregating all
-          PRs that a future work unit might own.
+    - `[x]` **6.5.b Route required, recommended, and exempt entry decisions**
+        - Scoped entry to one explicit `hostRef` and routed required automatic/checkpoint behavior, consented
+          recommended work, exempt no-op, and explicit require idempotently across both lifecycle hooks.
 
-    - `[ ]` **6.5.c Drive the finding-response and coverage loop**
-        - Fetch/triage findings, apply only approved fixes, run affected gates, push, then recommend full vs incremental
-          refresh; invoke controller `refresh` rather than direct CodeRabbit commands.
-        - Wait on external review without polling and re-enter from canonical controller state after completion.
+    - `[x]` **6.5.c Drive the finding-response and coverage loop**
+        - Added normalized finding triage, approved fix/gate/push handling, controller-only full/incremental refresh,
+          external wait without polling, and canonical-state re-entry.
 
-    - `[ ]` **6.5.d Enforce closure authority in workflow operations**
-        - Use provider-confirmed closure or an approved controller `dismiss` receipt before resolving a host thread;
-          remove bare `resolveReviewThread` and provider ignore/request commands as authority paths.
-        - Preserve concise defer/reject rationale and current-change-set verification.
+    - `[x]` **6.5.d Enforce closure authority in workflow operations**
+        - Required provider-confirmed or controller-dismissal authority before host-thread resolution and prohibited
+          bare host mutations/direct provider commands from satisfying review.
 
-    - `[ ]` **6.5.e Prepare inactive self-hosting action wiring**
-        - Populate project `post-pr-open` and `pre-merge-review` with numbered actions invoking
-          `coordinate-pr-review.md`, but leave both inactive until the trusted controller/App exist on `main`; keep
-          `pre-pr-open` inactive and packaged copies placeholder-only.
-        - Assert additional actions can be appended in authored order and an exempt Errand returns without provider
-          review.
+    - `[x]` **6.5.e Prepare inactive self-hosting action wiring**
+        - Populated numbered project post-open/final-head actions while leaving them and pre-open inactive; packaged
+          copies remain neutral placeholders and exempt Errands return without provider work.
+
+- _Outcome:_ Self-hosting review coordination now has one explicit-target, controller-driven convergence workflow;
+  activation remains a post-main cutover operation rather than a behavior change on this branch.
 
 ### `[ ]` **6.6 Independently review the ARC lifecycle slice**
 

@@ -18,9 +18,14 @@ active: false
 
 ## post-pr-open.actions
 
-[No extension configured]
+1. **Coordinate the opened pull request.** Invoke [coordinate-pr-review.md][coordinate-pr-review] with the supplied
+   `openedChangeRequest`. Return immediately when the controller reports the PR exempt.
+
+2. **Future project actions.** Append additional actions here in authored order. Execute sequentially and halt before
+   later actions when an earlier action fails.
 
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [run-errand]: ../workflows/arc/supplemental/run-errand.md
+[coordinate-pr-review]: ../workflows/project/coordinate-pr-review.md
