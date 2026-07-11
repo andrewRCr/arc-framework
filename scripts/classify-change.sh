@@ -8,6 +8,7 @@
 #
 #   classify <file>...   Decide a changed-file set as code (heavy) or docs (light).
 #   classify --stdin0    Same, but read NUL-delimited paths from standard input.
+#   lane --stdin0        Decide the legacy path-only scheduling lane.
 #   tree-hash <ref>      Compute a rebase/squash-stable code-tree identity at a ref.
 #
 # The pure subcommands (classify, tree-hash) run without network; the Checks-API
@@ -115,6 +116,7 @@ Usage: classify-change.sh <command> [args...]
 Commands:
   classify <file>...       Classify paths from argv
   classify --stdin0        Classify NUL-delimited paths from stdin
+  lane --stdin0            Classify NUL-delimited paths as auto or reviewed
   tree-hash <ref>           Compute the code-tree hash at a git ref
   duplicate-push <event> <ref-name> <head-sha>
                             Print true when a push run duplicates an open PR head
@@ -160,6 +162,23 @@ cmd_classify() {
     fi
   done
   echo "light"
+}
+
+# Preserve the legacy path-only scheduling lane without newline parsing.
+cmd_lane() {
+  if [[ "${1:-}" != "--stdin0" ]] || [[ "$#" -ne 1 ]]; then
+    echo "lane: paths must be supplied as NUL-delimited standard input" >&2
+    return "${EX_USAGE}"
+  fi
+  local seen=false file
+  while IFS= read -r -d '' file; do
+    seen=true
+    if [[ ! "${file}" =~ ^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)- ]]; then
+      echo "reviewed"
+      return 0
+    fi
+  done
+  if [[ "${seen}" == "true" ]]; then echo "auto"; else echo "reviewed"; fi
 }
 
 # Classify the exact path set between two refs without passing filenames
@@ -416,6 +435,10 @@ main() {
     classify)
       shift
       cmd_classify "$@"
+      ;;
+    lane)
+      shift
+      cmd_lane "$@"
       ;;
     tree-hash)
       shift

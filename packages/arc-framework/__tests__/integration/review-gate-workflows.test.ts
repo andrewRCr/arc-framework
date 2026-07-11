@@ -42,4 +42,24 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).not.toContain("fromJSON(inputs.payload)");
     expect(workflow).not.toMatch(/uses: [^\n]+@v\d/u);
   });
+
+  it("publishes independent CI truth and a thin compatibility alias", async () => {
+    const workflow = await read("ci.yml");
+    expect(workflow).toContain("  ci_ok:\n    name: ci-ok");
+    expect(workflow).toContain("needs: [classify, lint-typecheck-unit, integration-e2e, portability]");
+    expect(workflow).toContain("  merge-ok:\n    name: merge-ok\n    needs: ci_ok");
+    expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
+    expect(workflow).toContain("git diff --name-only -z");
+    expect(workflow).not.toContain("changed_all=");
+  });
+
+  it("keeps repository controller scripts outside the published CLI graph", async () => {
+    const tsup = await readFile(resolve(root, "packages/arc-framework/tsup.config.ts"), "utf8");
+    const manifest = JSON.parse(await readFile(resolve(root, "packages/arc-framework/package.json"), "utf8")) as {
+      files: string[];
+    };
+    expect(tsup).toContain('entry: ["src/cli.ts"]');
+    expect(tsup).not.toContain("review-gate");
+    expect(manifest.files).not.toContain("src");
+  });
 });

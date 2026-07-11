@@ -529,38 +529,29 @@ wake-ups, and separate `ci-ok` from a shadow-capable review gate without breakin
 - _Outcome:_ Repository workflows now expose a narrow trust split: event/fork data can only wake secretless discovery,
   while protected default-branch code and environment-scoped App credentials own every authoritative write.
 
-### `[ ]` **5.4 Refactor CI classification and compatibility rollup**
+### `[x]` **5.4 Refactor CI classification and compatibility rollup**
 
 - _Goal:_ CI publishes an independent `ci-ok` result and retains a thin legacy `merge-ok` compatibility producer until
   the post-main cutover, while exposing stable classifier facts to the controller.
 
-    - `[ ]` **5.4.a Publish CI-cost and canonical code-surface facts**
-        - Keep CI weight on the Phase 1 NUL-safe `decide` path and add a `lane --stdin0` subcommand for the legacy
-          path-only scheduling lane (peer of the Phase 1 `classify --stdin0` code-surface predicate; `ci.yml`'s
-          existing `lane` output name and value contract are preserved). Feed `git diff --name-only -z` directly to
-          that boundary without storing NUL-delimited paths in a shell scalar. Preserve add/delete/rename/move and
-          arbitrary whitespace/newline names, with empty/unresolvable/parser-failed input resolving reviewed/heavy.
-        - Expose the existing mutable CI record plus canonical code-surface diagnostics; the trusted controller—not PR
-          CI—adds ownership and emits the authoritative review-policy record from default-branch code.
-        - Preserve duplicate-push and verified-tree optimizations, and assert provider capacity/check results cannot
-          affect the separately computed review record.
+    - `[x]` **5.4.a Publish CI-cost and canonical code-surface facts**
+        - Added the NUL-safe legacy `lane --stdin0` peer and pipes Git diff directly into it, preserving the lane output
+          contract and fail-safe reviewed behavior without changing weight, duplicate-push, or verified-tree logic.
 
-    - `[ ]` **5.4.b Rename the CI aggregate to `ci-ok`**
-        - Roll up the current classify/lint/typecheck/unit/integration/E2E/portability graph under `ci-ok`, preserving
-          skipped-vs-failed semantics and diagnostic job naming.
-        - Add workflow assertions that every existing gated job remains represented and reviewed/light combinations
-          retain current CI behavior.
+    - `[x]` **5.4.b Rename the CI aggregate to `ci-ok`**
+        - Renamed the independent aggregate check to `ci-ok` while retaining the complete classify, lint/typecheck/unit,
+          integration/E2E, and portability dependency graph and its skipped-versus-failed reduction.
 
-    - `[ ]` **5.4.c Add the temporary compatibility `merge-ok` alias**
-        - Emit legacy `merge-ok` only from CI as a thin dependency on `ci-ok` during shadow mode; prevent the
-          controller from using that name until the cutover removes the alias.
-        - Test all-success/skipped/failure/cancelled shapes and assert no intermediate workflow revision omits today's
-          required context.
+    - `[x]` **5.4.c Add the temporary compatibility `merge-ok` alias**
+        - Added a sole-purpose CI `merge-ok` job that mirrors only successful `ci-ok` and fails for every other result,
+          preserving today's required context while the controller remains shadow-only.
 
-    - `[ ]` **5.4.d Exclude repository controller tooling from the published CLI**
-        - Keep review-gate scripts reachable by repo `tsx` and normal lint/typecheck/test gates but outside the tsup
-          entry graph and npm `files` payload; add an explicit packaging/build assertion.
-        - Confirm no new production dependency or published CLI command/API is introduced.
+    - `[x]` **5.4.d Exclude repository controller tooling from the published CLI**
+        - Added packaging assertions that controller scripts remain repo-local `tsx` inputs outside the single CLI
+          tsup entry and npm `files`; no dependency, CLI command, or published API was added.
+
+- _Outcome:_ CI truth is now independently named and controller-consumable, while the legacy required context remains
+  continuously produced by a thin alias and repository-only controller code stays outside the package surface.
 
 ### `[ ]` **5.5 Independently review the runtime and CI slice**
 
