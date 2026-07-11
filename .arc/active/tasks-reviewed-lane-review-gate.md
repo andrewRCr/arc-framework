@@ -295,7 +295,7 @@ runs into and out of the neutral ports without allowing host objects to become p
   parsing and no path by which `COMMENTED`, a bare thread resolution, or aggregate host approval becomes independent
   analysis.
 
-### `[ ]` **3.3 Implement the App-comment receipt store**
+### `[x]` **3.3 Implement the App-comment receipt store**
 
 - _Goal:_ The neutral receipt-store contract gains a version-checked GitHub implementation whose compact visible
   comments are authenticated, tamper-evident within the declared App/admin boundary, and durably auditable.
@@ -315,32 +315,24 @@ runs into and out of the neutral ports without allowing host objects to become p
           transparent. `verifyAppIdentity` fails adapter initialization closed on App-id mismatch, credential
           (401/403), or an unavailable `/app`.
 
-    - `[ ]` **3.3.c Append receipts with current-state revalidation**
-        - Re-query actor permission/change-set identity immediately before the App writes, require the expected ledger
-          version, and perform a bounded canonical post-write read. Use idempotency keys to return an existing logical
-          receipt on byte-equivalent replay; invoke no downstream effect when confirmation is stale or inconsistent.
-        - Build `test-first` (one behavior at a time):
-            - Raced head/permission changes prevent stale writes.
-            - Replayed commands/events do not append duplicate authoritative transitions.
+    - `[x]` **3.3.c Append receipts with current-state revalidation**
+        - `GitHubCommentReceiptStore` requires the expected predecessor, revalidates actor authority plus repository,
+          change-request, change-set, and policy identity immediately before the write, confirms the canonical result,
+          and resolves exact idempotent or ambiguous replays without issuing a second effect.
 
-    - `[ ]` **3.3.d Reconstruct the ledger and detect contradictions**
-        - Read every paginated receipt comment, reduce the hash/version chain, collapse byte-equivalent duplicates,
-          and surface forks, divergent duplicates, edits, missing pages, acknowledgement/result/closure contradictions,
-          or incomplete enumeration as inconsistent state.
-        - Build `test-first` (one behavior at a time):
-            - Out-of-order event delivery reconstructs the same state.
-            - Missing pages/API failures cannot produce a partial green ledger.
+    - `[x]` **3.3.d Reconstruct the ledger and detect contradictions**
+        - Complete issue-comment enumeration now authenticates and parses receipts, orders them by ledger position,
+          collapses byte-equivalent duplicates, and rejects edits, gaps, forks, divergent/replayed identities, or
+          contradictory reservation, acknowledgement, result, failure, waiver, and dismissal histories.
 
-    - `[ ]` **3.3.e Maintain the stable PR-scoped ledger anchor**
-        - Create one compact App-authored anchor comment at shadow bootstrap, then update it through expected-version
-          compare/re-read with the canonical ledger version/count. Treat it as mutable store metadata, never a receipt;
-          echo its version in checks and detect missing/regressed/mismatched anchor state across head changes and
-          force-pushes.
-        - Build `test-first` (one behavior at a time):
-            - Crash before/after receipt or anchor writes repairs only a unique canonical extension and never spends.
-            - Tail deletion, anchor deletion/regression, duplicate anchors, and receipt/anchor mismatch fail closed.
-            - Simultaneous authorized destruction of receipts, anchor, and checks enters audited break-glass rather than
-              normal reconstruction.
+    - `[x]` **3.3.e Maintain the stable PR-scoped ledger anchor**
+        - A single authenticated mutable anchor bootstraps at version zero, advances after confirmed receipt writes,
+          repairs only a unique one-receipt extension, and fails closed on deletion, regression, duplication, mismatch,
+          incomplete enumeration, or an externally signalled total-state loss requiring break-glass.
+
+- _Outcome:_ The GitHub receipt-store port now composes authenticated comments, a linear semantic reducer, optimistic
+  append/replay handling, and a durable PR anchor into one fail-closed ledger whose recovery can repair an interrupted
+  canonical extension without retrying an external effect.
 
 ### `[ ]` **3.4 Project idempotent App-owned gate checks**
 

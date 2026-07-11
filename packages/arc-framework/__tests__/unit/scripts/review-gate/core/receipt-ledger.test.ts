@@ -98,4 +98,40 @@ describe("canonical request keys and receipt ledger", () => {
   ])("fails closed for %s", (_name, build) => {
     expect(validateReceiptLedger({ envelopes: build(), anchorVersion: 2, anchorCount: 2 }).valid).toBe(false);
   });
+
+  it("accepts a reserved request followed by its acknowledgement", () => {
+    const admitted = request();
+    const reserved = envelope(1, createReceipt({
+      request: admitted, previousLedgerVersion: 0, action: "reserved", eventId: "reserve",
+      result: null, evidenceUrlOrId: null, findingIds: [],
+    }));
+    const acknowledged = envelope(2, createReceipt({
+      request: admitted, previousLedgerVersion: 1, action: "acknowledged", eventId: "ack",
+      result: null, evidenceUrlOrId: "comment-1", findingIds: [],
+    }));
+    expect(validateReceiptLedger({
+      envelopes: [acknowledged, reserved], anchorVersion: 2, anchorCount: 2,
+    })).toMatchObject({ valid: true });
+  });
+
+  it.each([
+    ["acknowledgement without reservation", () => [envelope(1, createReceipt({
+      request: request(), previousLedgerVersion: 0, action: "acknowledged", eventId: "ack",
+      result: null, evidenceUrlOrId: "comment-1", findingIds: [],
+    }))]],
+    ["clean result carrying findings", () => [envelope(1, createReceipt({
+      request: request(), previousLedgerVersion: 0, action: "attested", eventId: "result",
+      result: "clean", evidenceUrlOrId: "evidence-1", findingIds: ["finding-1"],
+    }))]],
+    ["findings result without findings", () => [envelope(1, createReceipt({
+      request: request(), previousLedgerVersion: 0, action: "attested", eventId: "result",
+      result: "findings", evidenceUrlOrId: "evidence-1", findingIds: [],
+    }))]],
+    ["dismissal of an unknown finding", () => [envelope(1, createReceipt({
+      request: request(), previousLedgerVersion: 0, action: "dismissed", eventId: "dismiss",
+      result: null, evidenceUrlOrId: "reason", findingIds: ["unknown"],
+    }))]],
+  ])("rejects semantic contradiction: %s", (_name, build) => {
+    expect(validateReceiptLedger({ envelopes: build(), anchorVersion: 1, anchorCount: 1 }).valid).toBe(false);
+  });
 });

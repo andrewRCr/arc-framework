@@ -1,7 +1,7 @@
 /** Validation and duplicate reduction for receipt-ledger envelopes. */
 
 import type { ReceiptEnvelope, ReviewReceipt } from "./execution.js";
-import { receiptIdentityValid } from "./request-key.js";
+import { computeRequestKey, receiptIdentityValid } from "./request-key.js";
 
 /** Inputs from paginated storage plus its stable anchor. */
 export interface ReceiptLedgerInput {
@@ -52,6 +52,7 @@ export function validateReceiptLedger(input: ReceiptLedgerInput): ReceiptLedgerR
       errors.push(`forked-predecessor:${envelope?.ledgerVersion ?? expectedVersion}`);
     }
   }
+  validateReceiptSemantics(ordered, errors);
   if (input.anchorVersion !== ordered.length) errors.push("anchor-version-mismatch");
   if (input.anchorCount !== ordered.length) errors.push("anchor-count-mismatch");
   return {
@@ -60,4 +61,65 @@ export function validateReceiptLedger(input: ReceiptLedgerInput): ReceiptLedgerR
     receipts: ordered.map((envelope) => envelope.receipt),
     errors,
   };
+}
+
+function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]): void {
+  const reserved = new Set<string>();
+  const knownFindings = new Set<string>();
+  for (const envelope of ordered) {
+    const receipt = envelope.receipt;
+    const requestKey = computeRequestKey(receipt.request);
+    switch (receipt.action) {
+      case "reserved":
+        if (receipt.result !== null || receipt.findingIds.length > 0) {
+          errors.push(`contradictory-reservation:${envelope.ledgerVersion}`);
+        }
+        reserved.add(requestKey);
+        break;
+      case "acknowledged":
+        if (!reserved.has(requestKey)) errors.push(`acknowledgement-without-reservation:${envelope.ledgerVersion}`);
+        if (receipt.result !== null || receipt.findingIds.length > 0) {
+          errors.push(`contradictory-acknowledgement:${envelope.ledgerVersion}`);
+        }
+        break;
+      case "terminal-failure":
+        if (!reserved.has(requestKey)) errors.push(`failure-without-reservation:${envelope.ledgerVersion}`);
+        if (
+          (receipt.result !== "failed" && receipt.result !== "unavailable")
+          || receipt.findingIds.length > 0
+        ) {
+          errors.push(`contradictory-terminal-failure:${envelope.ledgerVersion}`);
+        }
+        break;
+      case "attested":
+      case "unadmitted":
+        if (receipt.result === null) errors.push(`missing-result:${envelope.ledgerVersion}`);
+        validateResultFindings(receipt, envelope.ledgerVersion, errors);
+        for (const findingId of receipt.findingIds) knownFindings.add(findingId);
+        break;
+      case "dismissed":
+        if (
+          receipt.result !== null
+          || receipt.findingIds.length === 0
+          || receipt.findingIds.some((findingId) => !knownFindings.has(findingId))
+        ) {
+          errors.push(`contradictory-dismissal:${envelope.ledgerVersion}`);
+        }
+        break;
+      case "waived":
+        if (receipt.result !== null || receipt.findingIds.length > 0) {
+          errors.push(`contradictory-waiver:${envelope.ledgerVersion}`);
+        }
+        break;
+    }
+  }
+}
+
+function validateResultFindings(receipt: ReviewReceipt, version: number, errors: string[]): void {
+  if (receipt.result === "findings" && receipt.findingIds.length === 0) {
+    errors.push(`findings-result-without-findings:${version}`);
+  }
+  if (receipt.result !== "findings" && receipt.findingIds.length > 0) {
+    errors.push(`non-findings-result-with-findings:${version}`);
+  }
 }
