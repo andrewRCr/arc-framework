@@ -11,7 +11,7 @@ const root = resolve(import.meta.dirname, "../../../..");
 describe("review-gate package boundary", () => {
   it("ships extension shells without repository controller implementation", async () => {
     const { stdout } = await run("npm", ["pack", "--dry-run", "--json", "--workspace", "@arc-framework/cli"], {
-      cwd: root, maxBuffer: 10 * 1024 * 1024,
+      cwd: root, maxBuffer: 10 * 1024 * 1024, timeout: 30_000,
     });
     const packs = JSON.parse(stdout) as Array<{ files: Array<{ path: string }> }>;
     const paths = packs[0]?.files.map(({ path }) => path) ?? [];

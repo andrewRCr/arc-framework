@@ -19,6 +19,7 @@ export REPO='andrewRCr/arc-framework'
 export BRANCH='main'
 export APP_ID='4268856'             # numeric evidence/check source identity
 export APP_CLIENT_ID='<client-id>'  # token-minting client id; never substitute APP_ID
+export ACTIONS_APP_ID='15368'        # verified GitHub Actions check source id
 export KEY_FILE="$HOME/dev/arc-review-gate-andrewrcr.private-key.pem"
 export EXPECT_CLIENT_ID_BEFORE='absent' # `absent` for create, exact current value for repair
 export EXPECT_APP_ID_BEFORE='absent'    # `absent` for create, exact current value for repair
@@ -185,32 +186,140 @@ set_checks() {
   checks | jq -e --argjson expected "$candidate" '.checks == $expected'
 }
 head_sha() { gh api "repos/$REPO/commits/$BRANCH" --jq .sha; }
+mode() {
+  gh variable list --repo "$REPO" --json name,value |
+    jq -er '[.[] | select(.name == "REVIEW_GATE_CONTEXT_MODE")][0].value // "missing"'
+}
+project_actions() {
+  jq -n \
+    --arg post "$(sed -n 's/^active: //p' .arc/system/extensions/post-pr-open.md)" \
+    --arg final "$(sed -n 's/^active: //p' .arc/system/extensions/pre-merge-review.md)" \
+    '{post_pr_open:$post,pre_merge_review:$final}'
+}
+snapshot() {
+  local destination="$1"
+  mkdir -p "$destination"
+  checks >"$destination/checks.json"
+  mode >"$destination/mode.txt"
+  gh api "repos/$REPO/environments/review-gate" |
+    jq -S '{id,name,protection_rules,deployment_branch_policy}' >"$destination/environment.json"
+  gh variable list --repo "$REPO" --json name,value |
+    jq -S '[.[] | select((.name | startswith("ARC_REVIEW_GATE_")) or .name == "REVIEW_GATE_CONTEXT_MODE")]' \
+    >"$destination/variables.json"
+  project_actions >"$destination/actions.json"
+  head_sha >"$destination/head.txt"
+}
+compare_checkpoint() {
+  local expected="$1" actual="$2"
+  diff -ru "$expected" "$actual"
+}
+verify_checkpoint() {
+  local expected_head="$1" expected_mode="$2" expected_checks="$3"
+  test "$(head_sha)" = "$expected_head"
+  test "$(mode)" = "$expected_mode"
+  checks | jq -e --argjson expected "$expected_checks" '.checks == $expected'
+  gh api "repos/$REPO/commits/$expected_head/check-runs?per_page=100" |
+    jq -e --argjson expected "$expected_checks" '
+      all($expected[]; . as $need | any(.check_runs[];
+        .name == $need.context and .conclusion == "success" and
+        ($need.app_id == -1 or .app.id == $need.app_id)))
+    '
+}
 ```
 
 At every checkpoint save `checks`, the repository variable `REVIEW_GATE_CONTEXT_MODE`, App/environment state, project
 extension `active:` values, and `head_sha`. Compare them with the expected before-state before running `set_checks`.
+Store reviewed expected snapshots outside the repository in `$EXPECTED_CHECKPOINT_DIR`; a missing snapshot is a stop.
+After every mutation, `verify_checkpoint` proves the exact head/mode/check sources are green, then `snapshot` plus
+`compare_checkpoint` proves all other state. Any command failure aborts under `set -euo pipefail`.
 
 1. **Shadow proof.** Keep CI-owned `merge-ok` required. Set `REVIEW_GATE_CONTEXT_MODE=shadow`, add
    `review-gate-shadow` pinned to `$APP_ID`, and prove both green on the exact head before continuing.
 
    ```bash
+   test -d "$EXPECTED_CHECKPOINT_DIR/shadow-before"
+   snapshot "$before_dir/shadow-before.actual"
+   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/shadow-before" "$before_dir/shadow-before.actual"
+   shadow_head="$(head_sha)"
+   shadow_checks="$(jq -n --argjson app "$APP_ID" --argjson actions "$ACTIONS_APP_ID" \
+     '[{context:"merge-ok",app_id:$actions},{context:"review-gate-shadow",app_id:$app}]')"
    gh variable set REVIEW_GATE_CONTEXT_MODE --repo "$REPO" --body shadow
-   set_checks "$(jq -n --argjson app "$APP_ID" '[{context:"merge-ok",app_id:-1},{context:"review-gate-shadow",app_id:$app}]')"
+   set_checks "$shadow_checks"
+   verify_checkpoint "$shadow_head" shadow "$shadow_checks"
+   snapshot "$before_dir/shadow-after.actual"
+   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/shadow-after" "$before_dir/shadow-after.actual"
    ```
 
 2. **Remove the legacy alias only after the pair is green.** Require `ci-ok` plus App shadow, verify exact-head green,
    then remove CI `merge-ok` from the workflow in the reviewed cutover PR. Never let an intermediate revision omit
-   today's `merge-ok` before the replacement pair is proven.
+   today's `merge-ok` before the replacement pair is proven. Before opening the PR, snapshot/compare
+   `alias-before`; after its protected merge, set the new checks, run `verify_checkpoint` on the new exact head in
+   shadow mode, then snapshot/compare `alias-after`.
+
+   ```bash
+   snapshot "$before_dir/alias-before.actual"
+   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/alias-before" "$before_dir/alias-before.actual"
+   # Merge the reviewed alias-removal PR normally, then continue on its new main head.
+   alias_head="$(head_sha)"
+   alias_checks="$(jq -n --argjson app "$APP_ID" --argjson actions "$ACTIONS_APP_ID" \
+     '[{context:"ci-ok",app_id:$actions},{context:"review-gate-shadow",app_id:$app}]')"
+   set_checks "$alias_checks"
+   verify_checkpoint "$alias_head" shadow "$alias_checks"
+   snapshot "$before_dir/alias-after.actual"
+   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/alias-after" "$before_dir/alias-after.actual"
+   ```
 
 3. **Qualification decision.** Enable a satisfying CodeRabbit declaration only if every live probe passed. The change
-   invalidates policy identity; re-run current-head evidence. Otherwise keep CodeRabbit non-satisfying.
+   invalidates policy identity; re-run current-head evidence. Otherwise keep CodeRabbit non-satisfying. Compare
+   `qualification-before` before the reviewed policy/rubric PR and `qualification-after` after merge; verify the new
+   exact head with the unchanged shadow check set before accepting the policy identity.
+
+   ```bash
+   snapshot "$before_dir/qualification-before.actual"
+   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/qualification-before" "$before_dir/qualification-before.actual"
+   # Merge the reviewed qualification PR normally only when every probe passed.
+   qualification_head="$(head_sha)"
+   verify_checkpoint "$qualification_head" shadow "$alias_checks"
+   snapshot "$before_dir/qualification-after.actual"
+   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/qualification-after" "$before_dir/qualification-after.actual"
+   ```
 
 4. **Dual proof.** Set mode `dual`; require `ci-ok`, App `review-gate-shadow`, and App `merge-ok`. Verify the new App
-   `merge-ok` is green and source-pinned before removing shadow.
+   `merge-ok` is green and source-pinned before removing shadow. Compare `dual-before`, retain its exact head, mutate
+   mode/checks, run `verify_checkpoint "$dual_head" dual "$dual_checks"`, then compare `dual-after`.
+
+   ```bash
+   snapshot "$before_dir/dual-before.actual"
+   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/dual-before" "$before_dir/dual-before.actual"
+   dual_head="$(head_sha)"
+   dual_checks="$(jq -n --argjson app "$APP_ID" --argjson actions "$ACTIONS_APP_ID" \
+     '[{context:"ci-ok",app_id:$actions},{context:"review-gate-shadow",app_id:$app},
+       {context:"merge-ok",app_id:$app}]')"
+   gh variable set REVIEW_GATE_CONTEXT_MODE --repo "$REPO" --body dual
+   set_checks "$dual_checks"
+   verify_checkpoint "$dual_head" dual "$dual_checks"
+   snapshot "$before_dir/dual-after.actual"
+   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/dual-after" "$before_dir/dual-after.actual"
+   ```
 
 5. **Final.** Set mode `final`; require `ci-ok` and App `merge-ok`, then remove shadow only after exact-head proof.
-   Open a narrow final-gated closeout PR updating `TECHNICAL-OVERVIEW.md` from delivered shadow state to current final
-   architecture; unpause dependent work only after it merges.
+   Compare `final-before`, retain its exact head, mutate mode/checks, run
+   `verify_checkpoint "$final_head" final "$final_checks"`, then compare `final-after`. Open a narrow final-gated
+   closeout PR updating `TECHNICAL-OVERVIEW.md` from delivered shadow state to current final architecture; unpause
+   dependent work only after it merges.
+
+   ```bash
+   snapshot "$before_dir/final-before.actual"
+   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/final-before" "$before_dir/final-before.actual"
+   final_head="$(head_sha)"
+   final_checks="$(jq -n --argjson app "$APP_ID" --argjson actions "$ACTIONS_APP_ID" \
+     '[{context:"ci-ok",app_id:$actions},{context:"merge-ok",app_id:$app}]')"
+   gh variable set REVIEW_GATE_CONTEXT_MODE --repo "$REPO" --body final
+   set_checks "$final_checks"
+   verify_checkpoint "$final_head" final "$final_checks"
+   snapshot "$before_dir/final-after.actual"
+   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/final-after" "$before_dir/final-after.actual"
+   ```
 
 Activate project `post-pr-open` and `pre-merge-review` in the cutover PR only after shadow proof. Explicitly invoke
 `coordinate-pr-review.md` for that PR because its integration session may retain the pre-activation extension snapshot;
