@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   checkDevBuildStaleness,
+  selectBundleInputs,
   type DevCheckDeps,
 } from "../../src/lib/dev-check.js";
 
@@ -81,5 +82,34 @@ describe("checkDevBuildStaleness", () => {
     );
 
     expect(result).toEqual({ kind: "fresh" });
+  });
+});
+
+describe("selectBundleInputs", () => {
+  const PKG = "/repo/packages/arc-framework";
+
+  it("returns only src/*.ts inputs as absolute paths, excluding deps and non-ts", () => {
+    const metafile = {
+      inputs: {
+        "src/cli.ts": { bytes: 1 },
+        "src/lib/dev-check.ts": { bytes: 1 },
+        "node_modules/commander/index.js": { bytes: 1 },
+        "src/styles.css": { bytes: 1 },
+      },
+    };
+    expect(selectBundleInputs(metafile, PKG)).toEqual([
+      `${PKG}/src/cli.ts`,
+      `${PKG}/src/lib/dev-check.ts`,
+    ]);
+  });
+
+  it("returns null when no src inputs are present (so the caller falls back to a full walk)", () => {
+    expect(selectBundleInputs({ inputs: { "node_modules/x/i.js": {} } }, PKG)).toBeNull();
+  });
+
+  it("returns null on an unusable metafile shape", () => {
+    expect(selectBundleInputs(null, PKG)).toBeNull();
+    expect(selectBundleInputs({}, PKG)).toBeNull();
+    expect(selectBundleInputs({ inputs: 5 }, PKG)).toBeNull();
   });
 });
