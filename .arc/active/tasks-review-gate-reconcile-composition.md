@@ -13,24 +13,17 @@ _Design decisions:_ Changing `policy_version` is legitimate and safe pre-live: t
 have zero production callers, so no live requirement or receipt is invalidated (spec Decision 5). Values and
 closed predicate identities are versioned — no dynamic lookup or new operator-pinned variables.
 
-### `[ ]` **1.1 Pin the App-bot account id in `providerIdentities`**
+### `[x]` **1.1 Pin the App-bot account id in `providerIdentities`**
 
 - _Goal:_ Receipt authentication's `expectedBotId` has a production source — the pinned, immutable bot account
   id resolves from the versioned policy document, matching how `receipt-auth.ts` documents it.
 
-    - Resolve the App-bot account id once (operator step): the bot user behind App id `4268856` — a non-secret
-      numeric id via `gh api 'users/<app-slug>[bot]' --jq .id` (operator confirms the App slug from the App
-      settings page). Record the value only in the policy document.
+    - `[x]` **1.1.a Add the field to the policy schema and document**
+        - Added the immutable App-bot user id `302312524` beside the CodeRabbit identity, with exact-key and
+          numeric-string parser validation plus canonical round-trip and malformed-shape coverage.
 
-    - `[ ]` **1.1.a Add the field to the policy schema and document**
-        - Extend `SelfHostingPolicy.providerIdentities` in `policy/self-hosting/schema.ts` with `appBotUserId`
-          beside `coderabbitBotUserId`; add the pinned value to `SELF_HOSTING_POLICY`.
-        - Extend `parseSelfHostingPolicy` — `exactKeys` on `providerIdentities` and numeric-string validation
-          mirroring `coderabbitBotUserId`'s (`/^[1-9][0-9]*$/`).
-        - Build `test-first` (one behavior at a time):
-            - Parser accepts the extended `providerIdentities` shape and returns the pinned id
-            - Parser rejects a missing, non-numeric, or extra-key `providerIdentities` block
-            - `SELF_HOSTING_POLICY` round-trips through `parseSelfHostingPolicy` unchanged
+- _Outcome:_ The private App slug recorded by repository operations resolves through GitHub to the same immutable
+  bot identity already exercised by authenticated receipt fixtures, so policy now supplies the production pin.
 
 ### `[ ]` **1.2 Pin attestation-enforcement policy fields and derive `acceptedReviewerClaims`**
 

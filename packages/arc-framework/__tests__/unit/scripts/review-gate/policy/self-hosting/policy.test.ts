@@ -7,6 +7,20 @@ import {
 } from "../../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
 
 describe("self-hosting review policy document", () => {
+  it("returns the pinned App-bot user id", () => {
+    const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
+
+    expect(parsed.providerIdentities.appBotUserId).toBe("302312524");
+  });
+
+  it.each([
+    ["missing", { coderabbitBotUserId: SELF_HOSTING_POLICY.providerIdentities.coderabbitBotUserId }],
+    ["non-numeric", { ...SELF_HOSTING_POLICY.providerIdentities, appBotUserId: "arc-review-gate[bot]" }],
+    ["extra-key", { ...SELF_HOSTING_POLICY.providerIdentities, appBotUserIdAlias: "302312524" }],
+  ])("rejects a %s App-bot provider identity", (_name, providerIdentities) => {
+    expect(() => parseSelfHostingPolicy({ ...SELF_HOSTING_POLICY, providerIdentities })).toThrow();
+  });
+
   it("validates and hashes canonical policy data deterministically", () => {
     const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
 
