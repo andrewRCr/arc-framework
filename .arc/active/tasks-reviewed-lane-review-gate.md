@@ -365,60 +365,34 @@ runs into and out of the neutral ports without allowing host objects to become p
 _Purpose:_ Prove the first provider adapter and the source-neutral human/agent fallback while preserving
 capacity, coverage, finding authority, and non-substitution rules.
 
-### `[ ]` **4.1 Implement the CodeRabbit provider adapter**
+### `[x]` **4.1 Implement the CodeRabbit provider adapter**
 
 - _Goal:_ CodeRabbit can be requested and observed through the neutral provider port without deciding obligation,
   weakening capacity failures, or claiming evidence capabilities not proven by fixtures/live probes.
 
-    - `[ ]` **4.1.a Translate admitted requests into one-shot provider triggers**
-        - Split request mechanisms by role before reservation: the controller-owned positive label serves generation
-          zero (applied only after reservation, removed after acknowledgement/failure; a persisting label does not
-          re-review later pushes), and the explicit full-review command serves refresh generations. The plain
-          incremental command defers to label-gated auto review and is not a request mechanism; never fall through
-          to another mechanism after ambiguous delivery.
-        - Build `test-first` (one behavior at a time):
-            - Exact admitted requests map to one provider action with declared coverage bounds.
-            - Replays and stale change sets produce no controller trigger; direct human commands are surfaced as
-              potentially spending, never attributed to a reservation, and qualify only as `unadmitted` evidence.
-            - Unsupported behavior selects the configured strategy before admission; ambiguous delivery blocks rather
-              than issuing a second provider action, while provable pre-effect rejection can fail safely.
+    - `[x]` **4.1.a Translate admitted requests into one-shot provider triggers**
+        - Generation zero selects the exclusive controller label and refresh generations select only the full-review
+          command before reservation; stale/replayed requests trigger nothing, label cleanup follows every attempted
+          label delivery, and ambiguous delivery remains effect-ambiguous without fallback.
 
-    - `[ ]` **4.1.b Observe acknowledgement, progress, result, and capacity**
-        - Normalize CodeRabbit commit statuses, comments, and reviews into queued/running/clean/findings/failed/
-          unavailable and capacity status plus `provider-reported | not-observable | lookup-failed` provenance; keep
-          provider-specific context names, tokens, and quota text inside the adapter.
-        - Build `test-first` (one behavior at a time):
-            - `COMMENTED` alone, walkthrough `review_status` text, and absence of a commit status are not clean
-              evidence; a completion status is not verdict evidence and can assert completion for a head that
-              carries no review object.
-            - Required exhaustion/unavailability blocks while recommended remains non-blocking.
-            - `unknown:not-observable` permits one justified attempt, `unknown:lookup-failed` suppresses automatic
-              spend, and neither can rewrite obligation or block already-qualifying evidence.
+    - `[x]` **4.1.b Observe acknowledgement, progress, result, and capacity**
+        - Provider status, walkthrough, review, quota, and request signals reduce behind the neutral port while
+          completion-only status/COMMENTED/mutable text stay non-authoritative; capacity retains provider-reported,
+          not-observable, or lookup-failed provenance without changing policy obligation.
 
-    - `[ ]` **4.1.c Normalize coverage and durable findings**
-        - Require live-proven coverage bounds, immutable GitHub review-thread/comment node ids bound to the provider
-          Bot account's immutable numeric user id (pinned in the versioned policy document) and run, concrete loci,
-          and result evidence before producing
-          qualifying evidence; only findings-bearing runs leave immutable artifacts (a clean run surfaces as a
-          mutable walkthrough edit and an unbound completion status). Use mutable walkthrough run/range text only
-          for correlation.
-        - Build `test-first` (one behavior at a time):
-            - Proven full and incremental observations map to exact neutral evidence.
-            - Ambiguous coverage, mutable-text identities, missing durable ids, or generic success remain useful but
-              non-satisfying.
-            - Bare thread resolution or provider-native ignore cannot waive the ARC requirement; CodeRabbit
-              resolution and approval signals are attributable but non-confirming and never close mapped findings —
-              closure requires qualifying current-change-set evidence or an authorized dismissal receipt.
+    - `[x]` **4.1.c Normalize coverage and durable findings**
+        - Qualifying findings require exact coverage plus immutable review/thread/comment ids, concrete loci, and the
+          versioned `coderabbitai[bot]` numeric identity; generic success remains non-satisfying and neither thread
+          resolution nor provider approval emits a finding closure.
 
-    - `[ ]` **4.1.d Compose the provider adapter contract fixtures**
-        - Cover resolved configuration, label one-shot/retrigger and delivery ambiguity, preselected explicit-command
-          strategy, commit-status/failure propagation, Request Changes, quota provenance, immutable finding/closure,
-          direct commands, and alternate-source handoff as declared probe-gated capabilities.
-        - Build `test-first` (one behavior at a time):
-            - Unproven capabilities keep CodeRabbit out of satisfying accepted-source sets.
-            - Enabling a capability requires a matching rubric-qualification fixture.
-            - Shadow observation can report candidate capability evidence without mutating the disabled policy
-              declaration.
+    - `[x]` **4.1.d Compose the provider adapter contract fixtures**
+        - Probe-backed fixtures cover request selection, delivery ambiguity, progress/failure/capacity, Request
+          Changes, immutable findings, direct-command `unadmitted` routing, and the deliberately disabled PR-provider
+          qualification while preserving CodeRabbit as a shadow findings source.
+
+- _Outcome:_ CodeRabbit now implements the neutral provider port without leaking provider vocabulary into policy:
+  requests are single-effect and guard-bound, observations remain provenance-typed, and only live-proven immutable
+  finding records cross the evidence boundary while clean and closure capabilities stay disabled.
 
 ### `[ ]` **4.2 Configure the repository CodeRabbit handshake**
 

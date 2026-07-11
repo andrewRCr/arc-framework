@@ -49,6 +49,7 @@ export interface SelfHostingPolicy {
   requirementTemplates: ReviewRequirementTemplate[];
   rubricBindings: Array<{ requirementKind: string; rubricVersion: string }>;
   timeouts: { reservationMinutes: number; analysisMinutes: number };
+  providerIdentities: { coderabbitBotUserId: string };
   qualifications: SourceQualificationDeclaration[];
 }
 
@@ -89,6 +90,7 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
   }],
   rubricBindings: [{ requirementKind: "independent-analysis", rubricVersion: "independent-analysis/v1" }],
   timeouts: { reservationMinutes: 10, analysisMinutes: 60 },
+  providerIdentities: { coderabbitBotUserId: "136622811" },
   qualifications: [
     {
       sourceKind: "agent",
@@ -180,7 +182,7 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const record = objectAt(input, path);
   exactKeys(record, [
     "schemaVersion", "semanticsVersion", "lanePredicate", "riskPredicate", "authorMap", "requirementTemplates",
-    "rubricBindings", "timeouts", "qualifications",
+    "rubricBindings", "timeouts", "providerIdentities", "qualifications",
   ], path);
 
   const lane = objectAt(record.lanePredicate, `${path}.lanePredicate`);
@@ -210,6 +212,13 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   });
   const timeouts = objectAt(record.timeouts, `${path}.timeouts`);
   exactKeys(timeouts, ["reservationMinutes", "analysisMinutes"], `${path}.timeouts`);
+  const providerIdentities = objectAt(record.providerIdentities, `${path}.providerIdentities`);
+  exactKeys(providerIdentities, ["coderabbitBotUserId"], `${path}.providerIdentities`);
+  const coderabbitBotUserId = stringAt(
+    providerIdentities.coderabbitBotUserId,
+    `${path}.providerIdentities.coderabbitBotUserId`,
+  );
+  if (!/^[1-9][0-9]*$/u.test(coderabbitBotUserId)) throw new Error("invalid CodeRabbit bot user id");
 
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
@@ -231,6 +240,7 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
       reservationMinutes: integerAt(timeouts.reservationMinutes, `${path}.timeouts.reservationMinutes`, 1),
       analysisMinutes: integerAt(timeouts.analysisMinutes, `${path}.timeouts.analysisMinutes`, 1),
     },
+    providerIdentities: { coderabbitBotUserId },
     qualifications: arrayAt(record.qualifications, `${path}.qualifications`, parseQualification),
   };
 }

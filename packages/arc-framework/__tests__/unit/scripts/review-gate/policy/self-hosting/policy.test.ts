@@ -21,6 +21,7 @@ describe("self-hosting review policy document", () => {
     ["semantics version", { semanticsVersion: "" }],
     ["rollout mode", { rolloutMode: "shadow" }],
     ["capacity", { capacity: "available" }],
+    ["provider identity", { providerIdentities: { coderabbitBotUserId: "coderabbitai[bot]" } }],
   ])("rejects unknown or mutable %s", (_name, override) => {
     expect(() => parseSelfHostingPolicy({ ...SELF_HOSTING_POLICY, ...override })).toThrow();
   });
