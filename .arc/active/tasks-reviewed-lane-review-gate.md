@@ -226,15 +226,17 @@ runs into and out of the neutral ports without allowing host objects to become p
           enumeration-cap failures stay explicit rather than collapsing to empty state, and the token is confined to
           request headers — asserted absent from every read/write/GraphQL outcome.
 
-    - `[ ]` **3.1.b Resolve exact pull-request coverage identities**
-        - Query immutable repository/PR ids, base/head, readiness, mergeability, and current base tip; validate refs and
-          40-hex SHAs, then fetch only the trusted base repository's base ref plus `refs/pull/<n>/head` through
-          argument-array process execution. Compute merge base and exact-ref path/meta reads locally without checkout.
-        - Build `test-first` (one behavior at a time):
-            - Retarget and merge-base movement invalidate the change-set while base-tip-only movement does not.
-            - Missing/fork/force-pushed objects fail sensitive and cannot satisfy evidence.
-            - A fork URL/ref cannot redirect credentials, select another remote, or enter shell syntax.
-            - Changed-path transport preserves arbitrary valid Git filenames.
+    - `[x]` **3.1.b Resolve exact pull-request coverage identities**
+        - Added `hosts/github/pull-request.ts` — validates a REST PR payload into canonical facts bound to immutable
+          numeric/node ids and 40-hex SHAs, retaining mutable refs only for observation and marking a distinct/absent
+          head repository cross-repository. Added `hosts/github/coverage.ts` — fetches only the trusted base remote's
+          base ref plus `refs/pull/<n>/head` via argument-array `GitExec` (idempotent: prior local refs cleared
+          first), computes the merge base and NUL-framed changed-path set locally without checkout, and derives the
+          `(base_ref, diff_base_sha, head_sha)` change-set id. Fails `sensitive` on invalid identity,
+          unavailable/force-pushed objects, head mismatch, absent merge base, or unresolvable diff; conservative ref
+          validation (no `..`, leading `-`, edge/double slashes) blocks fork-controlled ref/remote input before any
+          git runs. Real-git integration fixtures cover base-tip-stable vs retarget/merge-base-moved identity,
+          sensitive fail modes, injection rejection, and arbitrary-filename/rename transport.
 
     - `[ ]` **3.1.c Resolve actor and author capabilities**
         - Bind repository, PR, human, bot, and App authority to immutable numeric/node ids, retaining login only for
