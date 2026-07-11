@@ -135,7 +135,7 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
 
    ```bash
    gh api --method GET --paginate --slurp \
-     "repos/{repository}/pulls?state=all&head={owner}:{branch}&per_page=100"
+     "repos/{repository}/pulls?state=all&base={base-branch}&head={owner}:{branch}&per_page=100"
    ```
 
    The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
@@ -145,6 +145,10 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    Compose `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }`. If `pre-pr-open` is active,
    execute numbered actions in authored order immediately before creation; halt before later actions on failure.
    Retry these retry-safe actions after a failed create, but never run them on the one-open-match reuse path.
+
+   Immediately before `gh pr create`, read `refs/heads/<branch>` from the base repository remote with
+   `git ls-remote --heads origin`. Compare its exact 40-hex SHA with `proposedChangeRequest.headSha`; on absence,
+   ambiguity, or mismatch, stop and restart PR resolution. Never create against a head that changed after validation.
 
    ```bash
    gh pr create --base <base-branch> --head <branch>

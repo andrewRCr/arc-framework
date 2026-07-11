@@ -235,16 +235,16 @@ Personal preferences live in git-config local rather than `arc-config.yml`. Each
 independently; they have no project-level counterpart (with the lone exception of `arc.notesPush`, which
 overrides a yaml-side default).
 
-| Git-config key            | Controls                                          | Values                                         | Default       |
-|---------------------------|---------------------------------------------------|------------------------------------------------|---------------|
-| `arc.identity`            | Developer identity                                | Free-form (no spaces)                          | (required)    |
-| `arc.role`                | Maintainer vs. contributor                        | `maintainer` / `contributor`                   | `maintainer`  |
-| `arc.tools`               | Installed AI harnesses for skill scaffolding      | Comma-separated harness names                  | (none)        |
-| `arc.commitInterlock`     | When the agent fires per-task commits             | `manual` / `on-task-approval` / `on-workflow`  | `manual`      |
-| `arc.pushInterlock`       | When the agent fires pushes                       | `manual` / `on-sync` / `on-workflow`           | `manual`      |
-| `arc.syncInterlock`       | When the agent invokes session sync               | `manual` / `on-handoff` / `on-workflow`        | `on-handoff`  |
-| `arc.notesPush`           | Personal user-directory notes push behavior       | `manual` / `prompt` / `on-sync`                | `on-sync`     |
-| `arc.releaseOptedIn`      | Per-developer release-wrapper opt-in flag         | `true` / `false`                               | `false`       |
+| Git-config key        | Controls                                     | Values                                        | Default      |
+|-----------------------|----------------------------------------------|-----------------------------------------------|--------------|
+| `arc.identity`        | Developer identity                           | Free-form (no spaces)                         | (required)   |
+| `arc.role`            | Maintainer vs. contributor                   | `maintainer` / `contributor`                  | `maintainer` |
+| `arc.tools`           | Installed AI harnesses for skill scaffolding | Comma-separated harness names                 | (none)       |
+| `arc.commitInterlock` | When the agent fires per-task commits        | `manual` / `on-task-approval` / `on-workflow` | `manual`     |
+| `arc.pushInterlock`   | When the agent fires pushes                  | `manual` / `on-sync` / `on-workflow`          | `manual`     |
+| `arc.syncInterlock`   | When the agent invokes session sync          | `manual` / `on-handoff` / `on-workflow`       | `on-handoff` |
+| `arc.notesPush`       | Personal user-directory notes push behavior  | `manual` / `prompt` / `on-sync`               | `on-sync`    |
+| `arc.releaseOptedIn`  | Per-developer release-wrapper opt-in flag    | `true` / `false`                              | `false`      |
 
 `arc.notesPush` is dual-scope: it overrides the project-level `user.notes_push` value in `arc-config.yml`. The
 other entries are per-developer only — there is no project-level counterpart to override.
@@ -383,15 +383,15 @@ step or git operation:
 
 Seven extension fire-points span the work-unit and Errand lifecycles:
 
-| Extension                      | Fire-point                                                | Wired into                                   | Default                         |
-|--------------------------------|-----------------------------------------------------------|----------------------------------------------|---------------------------------|
-| `pre-spec-finalization-review` | `create-spec.md` finalization gate, post-`spec-review`    | `create-spec.md`                             | inactive; no default `.actions` |
-| `pre-activation`               | `activate-work-unit.md` pre-condition gate                | `activate-work-unit.md`                      | inactive                        |
-| `pre-commit-review`            | After staging, before commit creation                     | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
-| `pre-pr-open`                  | Pushed head, immediately before change-request creation   | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
-| `post-pr-open`                 | Newly created or existing open change request             | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
-| `pre-push-review`              | Any push via the push wrapper                             | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
-| `pre-merge-review`             | `integrate-work-unit.md` post-review-response, pre-merge  | `integrate-work-unit.md`                     | inactive; no default `.actions` |
+| Extension                      | Fire-point                                                 | Wired into                                   | Default                         |
+|--------------------------------|------------------------------------------------------------|----------------------------------------------|---------------------------------|
+| `pre-spec-finalization-review` | `create-spec.md` finalization gate, post-`spec-review`     | `create-spec.md`                             | inactive; no default `.actions` |
+| `pre-activation`               | `activate-work-unit.md` pre-condition gate                 | `activate-work-unit.md`                      | inactive                        |
+| `pre-commit-review`            | After staging, before commit creation                      | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
+| `pre-pr-open`                  | Pushed head, immediately before change-request creation    | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
+| `post-pr-open`                 | Newly created or existing open change request              | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
+| `pre-push-review`              | Any push via the push wrapper                              | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
+| `pre-merge-review`             | Settled final head, immediately before merge authorization | `integrate-work-unit.md`, `run-errand.md`    | inactive; no default `.actions` |
 
 All extensions ship as inactive by default — teams populate `.actions` and flip `active: true` in frontmatter
 to opt in. Entries marked "no default `.actions`" ship as no-op shells without a provided action body; teams

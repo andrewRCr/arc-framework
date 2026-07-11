@@ -75,7 +75,9 @@ describe("PR-open lifecycle extensions", () => {
       "multiple/conflicting matches", "lookup error", "incomplete enumeration",
     ]) expect(workflow).toContain(state);
     expect(workflow).toContain("--paginate --slurp");
-    expect(workflow).toContain("state=all&head={owner}:{branch}");
+    expect(workflow).toContain("state=all&base={base-branch}&head={owner}:{branch}");
+    expect(workflow).toContain("git ls-remote --heads origin");
+    expect(workflow).toContain("proposedChangeRequest.headSha");
   });
 
   it("keeps WU and Errand hook ordering symmetric", async () => {
@@ -127,5 +129,12 @@ describe("PR-open lifecycle extensions", () => {
       expect(packaged).toContain("[No extension configured]");
       expect(packaged).not.toContain("coordinate-pr-review");
     }
+  });
+
+  it("ships every packaged workflow referenced by the new extension family", async () => {
+    const recipe = await readFile(resolve(root, "packages/arc-framework/init-recipe.json"), "utf8");
+    expect(recipe).toContain('"system/workflows/arc/supplemental/run-errand.md"');
+    const finalHook = await readFile(resolve(packageArc, "system/extensions/pre-merge-review.md"), "utf8");
+    expect(finalHook).toContain("read-only, idempotent, or retry-safe");
   });
 });
