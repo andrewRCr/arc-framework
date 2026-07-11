@@ -536,6 +536,7 @@ program
   )
   .option("--local", "With --user/--project: skip the network read; render from local refs (alias: --no-fetch)")
   .option("--no-fetch", "With --user/--project: skip the network read; render from local refs")
+  .option("--staged", "With --project: render tree inputs from the git index (matches the pre-commit ROADMAP regen check)")
   .addOption(
     new Option(
       "--write-compaction-seed",

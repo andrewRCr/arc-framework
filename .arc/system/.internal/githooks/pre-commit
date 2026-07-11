@@ -465,7 +465,7 @@ if [ "$pm_mode" = "arc-in-git" ]; then
             echo -e "${YELLOW}Warning: ROADMAP render fields changed without re-rendering backlog/ROADMAP.md:${NC}"
             echo "$roadmap_field_changes" | sed 's/^/   /'
             echo "   Depends On / Owner / Cohort feed the ROADMAP render."
-            echo "   Re-render with: arc status --project --local > .arc/backlog/ROADMAP.md"
+            echo "   Re-render with: arc status --project --staged > .arc/backlog/ROADMAP.md"
             echo "   Then stage .arc/backlog/ROADMAP.md."
             echo "   (Lifecycle ceremonies regen via their own step — disregard if this is one.)"
             warnings=$((warnings + 1))

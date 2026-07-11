@@ -110,6 +110,7 @@ import {
   resolveProjectReadinessRenderStamp,
   resolveProjectReadinessViewInput,
 } from "../lib/status/project-view.js";
+import { renderRoadmapFromIndexViewResult } from "../lib/status/roadmap-regeneration-assert.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -126,6 +127,8 @@ export interface StatusCliOptions {
   project?: boolean;
   /** `--local`: render explicit user/project views from local refs without a network read. */
   local?: boolean;
+  /** `--staged`: render the `--project` view's tree inputs from the git index (the pre-commit regen source). */
+  staged?: boolean;
   /** Commander's negation of `--no-fetch` (defaults to `true`); `false` skips the network read. */
   fetch?: boolean;
   json?: boolean;
@@ -670,6 +673,23 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
 
   if (opts.project) {
     const resolved = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    if (opts.staged) {
+      // Render the project view from the git index — the same source the
+      // pre-commit ROADMAP regen check validates against, so
+      // `arc status --project --staged > ROADMAP` produces exactly what the
+      // hook expects (staged sweep or clean tree).
+      const { result } = await renderRoadmapFromIndexViewResult({
+        cwd,
+        exec: gitExec,
+        baseBranch: resolved.settings["branch.base"],
+      });
+      if (json) {
+        process.stdout.write(`${JSON.stringify(result)}\n`);
+        return;
+      }
+      process.stdout.write(`${result.markdown}\n`);
+      return;
+    }
     const localOnly = Boolean(opts.local) || opts.fetch === false;
     const [parkedSlugs, errandRecords] = await Promise.all([
       buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
