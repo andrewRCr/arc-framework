@@ -8,6 +8,9 @@ export default defineConfig({
   clean: true,
   dts: true,
   sourcemap: true,
+  // Emit the esbuild metafile so the dev-mode stale-build check can scope
+  // staleness to the bundle's real input graph (see lib/dev-check.ts).
+  metafile: true,
   banner: {
     js: "#!/usr/bin/env node",
   },
