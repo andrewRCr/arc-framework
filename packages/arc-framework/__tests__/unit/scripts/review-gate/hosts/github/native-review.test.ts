@@ -24,7 +24,15 @@ function actor(id: number, login = "rev"): NormalizedActor {
 }
 
 function review(overrides: Partial<NormalizedReview> = {}): NormalizedReview {
-  return { reviewId: "PRR_1", actor: actor(2), state: "approved", commitId: HEAD, submittedAt: "2026-07-10T10:00:00.000Z", ...overrides };
+  return {
+    reviewId: "PRR_1",
+    url: "https://github.test/reviews/1",
+    actor: actor(2),
+    state: "approved",
+    commitId: HEAD,
+    submittedAt: "2026-07-10T10:00:00.000Z",
+    ...overrides,
+  };
 }
 
 function thread(overrides: Partial<NormalizedThread> = {}): NormalizedThread {
@@ -152,7 +160,14 @@ describe("reduceNativeReview: head binding and determinism", () => {
 describe("native review fetch layer", () => {
   it("normalizes submitted reviews from the REST list", async () => {
     const payload = JSON.stringify([
-      { node_id: "PRR_1", user: { id: 2, node_id: "U_2", login: "rev", type: "User" }, state: "APPROVED", commit_id: HEAD, submitted_at: "2026-07-10T10:00:00Z" },
+      {
+        node_id: "PRR_1",
+        html_url: "https://github.test/reviews/1",
+        user: { id: 2, node_id: "U_2", login: "rev", type: "User" },
+        state: "APPROVED",
+        commit_id: HEAD,
+        submitted_at: "2026-07-10T10:00:00Z",
+      },
     ]);
     const result = await resolveReviews(restClient([response(200, payload)]), { owner: "o", repo: "r", number: 5 });
     expect(result).toMatchObject({ kind: "ok", value: [{ reviewId: "PRR_1", state: "approved", commitId: HEAD, actor: { identity: "2" } }] });

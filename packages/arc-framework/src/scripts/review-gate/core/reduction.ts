@@ -9,7 +9,6 @@ import { reduceFindings } from "./findings.js";
 import { renderGateProjection } from "./projection.js";
 import { reduceRequirementState } from "./requirement-state.js";
 import { reduceGateVerdict, type GateVerdictInput, type VerdictRequirement } from "./verdict.js";
-import type { ReconcileDecision } from "../runtime/reconcile.js";
 import {
   resolveSelfHostingDecision,
   type SelfHostingDecision,
@@ -44,6 +43,12 @@ export interface SelfHostingGateReductionInput {
   ledgerVersion: number;
   receiptRefs: string[];
   actorIdentity: string;
+}
+
+/** Request plus projection emitted by one core reduction. */
+export interface GateReductionDecision {
+  request: ReviewRequest | null;
+  projection: GateProjection;
 }
 
 function sourceAccepted(requirement: ReviewRequirement, declaration: SourceQualificationDeclaration): boolean {
@@ -108,7 +113,7 @@ function policyProjection(decision: SelfHostingDecision): GateProjection["policy
 }
 
 /** Reduce one canonical self-hosting snapshot into the next request and neutral gate projection. */
-export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): ReconcileDecision {
+export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): GateReductionDecision {
   const policyDecision = resolveSelfHostingDecision({
     policy: input.policy,
     changeRequest: input.changeRequest,

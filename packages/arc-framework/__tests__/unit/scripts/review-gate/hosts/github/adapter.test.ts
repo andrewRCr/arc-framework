@@ -1,0 +1,126 @@
+import { describe, expect, it } from "vitest";
+
+import type { GitExec } from "../../../../../../src/lib/git/exec.js";
+import {
+  GitHubHostReadAdapter,
+  GitHubHostReadError,
+  type GitHubHostReadFunctions,
+} from "../../../../../../src/scripts/review-gate/hosts/github/adapter.js";
+import type { GitHubGraphQLClient } from "../../../../../../src/scripts/review-gate/hosts/github/api/graphql.js";
+import type { GitHubRestClient } from "../../../../../../src/scripts/review-gate/hosts/github/api/rest.js";
+
+const HEAD = "c".repeat(40);
+const changeRequest = {
+  schemaVersion: 1 as const,
+  repositoryId: "100",
+  changeRequestId: "PR_node",
+  hostRef: "github:o/r/pull/7",
+  baseRef: "main",
+  baseSha: "a".repeat(40),
+  diffBaseSha: "b".repeat(40),
+  headSha: HEAD,
+  changeSetId: "d".repeat(64),
+};
+
+function adapter(functions: Partial<GitHubHostReadFunctions> = {}): GitHubHostReadAdapter {
+  return new GitHubHostReadAdapter({
+    rest: {} as GitHubRestClient,
+    gql: {} as GitHubGraphQLClient,
+    exec: (async () => ({ stdout: "" })) as GitExec,
+    owner: "o",
+    repo: "r",
+    baseRemote: "origin",
+  }, {
+    resolveChangeRequest: async () => ({
+      kind: "resolved",
+      changeRequest,
+      context: {
+        changedPaths: [{ status: "modified", path: "src/a.ts" }],
+        author: { identity: "7", nodeId: "U_7", login: "author", kind: "user" },
+        isDraft: false,
+        isCrossRepository: false,
+        mergeability: "mergeable",
+      },
+    }),
+    resolveActorCapabilities: async () => ({
+      kind: "resolved",
+      actor: { identity: "7", nodeId: "U_7", login: "author", kind: "user" },
+      capabilities: { schemaVersion: 1, actorIdentity: "7", permissions: ["write"] },
+    }),
+    resolveReviews: async () => ({
+      kind: "ok",
+      status: 200,
+      value: [{
+        reviewId: "PRR_1",
+        url: "https://github.test/reviews/1",
+        actor: { identity: "42", nodeId: "BOT_42", login: "provider[bot]", kind: "bot" },
+        state: "approved",
+        commitId: HEAD,
+        submittedAt: "2026-07-11T20:00:00.000Z",
+      }],
+    }),
+    resolveReviewDecision: async () => ({ kind: "ok", value: "approved" }),
+    resolveThreads: async () => ({
+      kind: "ok",
+      value: [{
+        threadId: "T_1",
+        isResolved: true,
+        resolvedBy: { identity: "9", nodeId: "U_9", login: "resolver", kind: "user" },
+      }],
+    }),
+    ...functions,
+  });
+}
+
+describe("GitHub host read adapter", () => {
+  it("returns the full normalized change and policy/readiness context", async () => {
+    await expect(adapter().resolveChangeRequest(changeRequest.hostRef)).resolves.toEqual({
+      changeRequest,
+      context: {
+        changedPaths: [{ status: "modified", path: "src/a.ts" }],
+        author: { identity: "7", login: "author" },
+        isDraft: false,
+        isCrossRepository: false,
+        mergeability: "mergeable",
+      },
+    });
+  });
+
+  it("resolves login-addressed capability while retaining immutable identity", async () => {
+    await expect(adapter().resolveActorCapabilities({ login: "author", expectedActorId: "7" })).resolves.toEqual({
+      schemaVersion: 1,
+      actorIdentity: "7",
+      permissions: ["write"],
+    });
+  });
+
+  it("preserves aggregate review, approvals, closures, and provider dispositions without evidence synthesis", async () => {
+    const result = await adapter().observeNativeReview({
+      hostRef: changeRequest.hostRef,
+      headSha: HEAD,
+      authorIdentity: "7",
+      expectsNativeReview: true,
+    });
+
+    expect(result).toMatchObject({
+      nativeReview: { decision: "approved", requestedChanges: false },
+      peerApprovals: [{ actorIdentity: "42", headSha: HEAD }],
+      closures: [{ findingId: "T_1", authorityIdentity: "9" }],
+      providerReviews: [{
+        reviewId: "PRR_1",
+        actorIdentity: "42",
+        state: "approved",
+        evidenceRef: "https://github.test/reviews/1",
+      }],
+    });
+    expect(result).not.toHaveProperty("evidence");
+  });
+
+  it("fails closed on leaf errors and references outside the pinned repository", async () => {
+    const unavailable = adapter({ resolveChangeRequest: async () => ({ kind: "unavailable", reason: "network" }) });
+    await expect(unavailable.resolveChangeRequest(changeRequest.hostRef)).rejects.toBeInstanceOf(GitHubHostReadError);
+    await expect(adapter().resolveChangeRequest("github:other/r/pull/7")).rejects.toMatchObject({
+      code: "host-ref-outside-pinned-scope",
+    });
+  });
+});

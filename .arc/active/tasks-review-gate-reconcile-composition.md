@@ -79,24 +79,9 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
   token-mint action passes `app-slug`; launch validation resolves `<app-slug>[bot]` to the policy-pinned immutable
   `appBotUserId` and proves repository scope through installation-token repository access (spec Decision 13).
 
-    - `[ ]` **2.2.a Read-side methods and corrected native-review contract**
-        - Compose `resolveChangeRequest` behind its existing port method. Correct actor capability input to
-          `{ login, expectedActorId }`: GitHub's collaborator endpoint is login-addressed while identity remains
-          immutable-id-bound. Change context supplies both for the author; command/attest callers supply both from
-          their authenticated host payload. Never cache a numeric-id→login guess.
-        - Replace `observeNativeEvidence(): Evidence[]` with a host-neutral native-review result defined in the
-          core contract: aggregate `nativeReview` verdict input, peer-approval candidates, finding closures, and
-          policy-addressable provider review dispositions. Compose `native-review.ts` into the aggregate result;
-          generic native reviews never become independent-analysis evidence. Task 2.2.d owns the sole
-          policy-qualified provider-disposition → `Evidence` mapping.
-        - The adapter additionally exposes the full change-request resolution (normalized record +
-          `ChangeContext` — changed paths, author, draft, mergeability) to the host-side runtime, which
-          lane/risk/verdict readiness consume.
-        - Build `test-first` (one behavior at a time):
-            - Each method delegates to its leaf with the adapter's pinned scope and propagates fail-closed errors
-            - Native review preserves aggregate decision, unresolved conversations, peer approvals, and closures
-            - Native review cannot become independent-analysis evidence or satisfy that requirement
-            - The exposed resolution carries the context fields lane/risk/readiness consume
+    - `[x]` **2.2.a Read-side methods and corrected native-review contract**
+        - Added the pinned-scope GitHub read adapter, login-addressed immutable-id capability resolution, full
+          change context, and lossless native review/provider dispositions without synthesizing review evidence.
 
     - `[ ]` **2.2.b `publishVerdict()` — the missing link**
         - Map mode via `projectContexts`; for each `NamedProjection`, publish through `publishGateCheck` with the
