@@ -7,7 +7,8 @@ arc:
     - review-triage
     - commit-footer
   extensions:
-    - pre-pr-review
+    - pre-pr-open
+    - post-pr-open
     - pre-push-review
     - pre-merge-review
 ---
@@ -107,7 +108,7 @@ If `review.pre_merge` is enabled in [`arc-config.yml`][arc-config]:
 1. Execute the [`diff-review` method][diff-review] against the local aggregate diff vs the base branch.
    Classify findings per the [`review-triage` method][review-triage]; commit fixes per the
    [`commit-footer` method][commit-footer].
-2. If `pre-pr-review` appears in the active-extensions list (established at session init), load and execute its
+2. If `pre-pr-open` appears in the active-extensions list (established at session init), load and execute its
    `.actions`. Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke bypasses.
 
 When disabled, proceed directly to Step 3.

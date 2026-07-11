@@ -373,24 +373,23 @@ Extension files follow `{pre|post}-{lifecycle-event-name}`, where the event-name
 step or git operation:
 
 - `pre-*` fires before the named event; `post-*` fires after.
-- Event-names reflect the **actual local fire-point** — the literal workflow step or git operation — not an
-  upstream UI-level event. For example, `pre-pr-review` names the pre-PR-creation push fire-point, not the
-  GitHub-side "open PR" UI event; `pre-merge-review` names the genuine pre-merge fire-point at
-  `integrate-work-unit.md`, not "before the PR merges from the platform's perspective."
+- Event-names reflect the **actual lifecycle boundary**. For example, `pre-pr-open` fires immediately before
+  creation and `post-pr-open` fires whenever a workflow enters an open change request, including re-entry.
 - The fire-point's **frequency** must match the name's semantic. If an extension is named `pre-commit-review`,
   it must fire at every commit pathway — wiring that catches one workflow's commit step while another's skips
   it violates the convention. Names that promise broad coverage demand broad wiring.
 
 ### Fire-point family
 
-Six extension fire-points span the work-unit lifecycle:
+Seven extension fire-points span the work-unit and Errand lifecycles:
 
 | Extension                      | Fire-point                                                | Wired into                                   | Default                         |
 |--------------------------------|-----------------------------------------------------------|----------------------------------------------|---------------------------------|
 | `pre-spec-finalization-review` | `create-spec.md` finalization gate, post-`spec-review`    | `create-spec.md`                             | inactive; no default `.actions` |
 | `pre-activation`               | `activate-work-unit.md` pre-condition gate                | `activate-work-unit.md`                      | inactive                        |
 | `pre-commit-review`            | After staging, before commit creation                     | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
-| `pre-pr-review`                | `integrate-work-unit.md` pre-PR-creation push             | `integrate-work-unit.md`                     | inactive                        |
+| `pre-pr-open`                  | Pushed head, immediately before change-request creation   | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
+| `post-pr-open`                 | Newly created or existing open change request             | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
 | `pre-push-review`              | Any push via the push wrapper                             | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
 | `pre-merge-review`             | `integrate-work-unit.md` post-review-response, pre-merge  | `integrate-work-unit.md`                     | inactive; no default `.actions` |
 

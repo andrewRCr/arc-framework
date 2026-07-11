@@ -127,7 +127,7 @@ describe("resolveLoadSetManifest", () => {
       ...BASE_INPUT,
       sessionType: "execution",
       planningStage: null,
-      activeExtensions: ["post-context-load", "pre-pr-review"],
+      activeExtensions: ["post-context-load", "post-pr-open"],
       cohortDocPath: ".arc/backlog/planned/loadset/cohort-loadset.md",
     });
 
@@ -140,7 +140,7 @@ describe("resolveLoadSetManifest", () => {
       fullEntry(".arc/system/extensions/post-context-load.md"),
     );
     expect(manifest.entries).not.toContainEqual(
-      fullEntry(".arc/system/extensions/pre-pr-review.md"),
+      fullEntry(".arc/system/extensions/post-pr-open.md"),
     );
   });
 

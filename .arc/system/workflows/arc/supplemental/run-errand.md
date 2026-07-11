@@ -7,7 +7,8 @@ arc:
     - commit-footer
   extensions:
     - post-task-quality
-    - pre-pr-review
+    - pre-pr-open
+    - post-pr-open
     - pre-push-review
     - pre-merge-review
 ---
@@ -125,7 +126,7 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    body: a one-line Summary, plus a one-line Test Plan only when verification is non-obvious. No Spec /
    Out-of-Scope / Follow-Up sections — an errand is one concern.
 
-   - **Extensions** · `#pre-pr-review`: If active, run its `.actions` before opening the PR; halt-on-fail as above.
+   - **Extensions** · `#pre-pr-open`: If active, run its `.actions` before opening the PR; halt-on-fail as above.
      Otherwise skip.
 
    ```bash

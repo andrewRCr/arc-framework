@@ -566,43 +566,28 @@ wake-ups, and separate `ci-ok` from a shadow-capable review gate without breakin
 _Purpose:_ Expose action-neutral PR-open hooks in shipped ARC, place them consistently across work-unit and
 Errand integration, and make this repository's review workflow controller-driven and re-entry-safe.
 
-### `[ ]` **6.1 Replace the action-named pre-PR extension pair**
+### `[x]` **6.1 Replace the action-named pre-PR extension pair**
 
 - _Goal:_ Shipped ARC exposes retry-safe `pre-pr-open` and idempotent `post-pr-open` lifecycle hook points whose
   names describe events and whose action lists can host unrelated ordered project behavior.
-- _Approach:_ Edit package source first and mirror framework sections deliberately into the self-hosting instance;
-  remove the pre-public `pre-pr-review` surface rather than retaining an inert compatibility alias.
+    - `[x]` **6.1.a Add inactive placeholder-only canonical extension shells**
+        - Added synchronized inactive shells with explicit proposed/opened change-request inputs, retry/idempotency,
+          platform-neutral sequential execution, and exact placeholder-only packaged/project action sections.
 
-    - `[ ]` **6.1.a Add inactive placeholder-only canonical extension shells**
-        - Create package/project `pre-pr-open.md` and `post-pr-open.md` with fire timing, retry/idempotency, sequential
-          ordered-action, halt-on-failure, and platform-neutral contracts.
-        - Define the explicit inputs as
-          `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }` for `pre-pr-open` and
-          `openedChangeRequest = { repositoryRef, hostRef, headSha }` for `post-pr-open`; callers supply them, adapters
-          validate/convert their opaque coordinates, and neither hook infers branch/WU state or assumes one PR per WU.
-        - Keep packaged copies `active: false` with the exact placeholder-only `.actions`; leave this repository's
-          `pre-pr-open` inactive.
+    - `[x]` **6.1.b Remove `pre-pr-review` completely**
+        - Removed both legacy extension files and all live product declarations, links, inventories, guidance, and
+          configured actions; a bounded product-corpus assertion excludes movable planning/history artifacts.
 
-    - `[ ]` **6.1.b Remove `pre-pr-review` completely**
-        - Delete both extension files and every declaration, fire-point marker, link, inventory, fixture, and local
-          CodeRabbit subagent action; do not migrate the old name or its `review.pre_merge` gating semantics.
-        - Add corpus assertions that no live package/project surface declares or fires `pre-pr-review` while harmless
-          historical WU artifacts remain outside the product scan.
+    - `[x]` **6.1.c Register the lifecycle pair and multi-action contract**
+        - Registered both WU/Errand lifecycle boundaries in synchronized extension indexes and configurability
+          guidance, retaining point-of-use declarations, numbered authored order, halt-on-failure, and no new axis.
 
-    - `[ ]` **6.1.c Register the lifecycle pair and multi-action contract**
-        - Update both extension READMEs plus package/project configurability strategy copies with action-neutral naming,
-          actual fire points, ordered actions, retry/idempotency expectations, and WU/Errand coverage.
-        - Preserve `[No extension configured]` as the exact inactive placeholder; represent configured actions as
-          numbered authored-order blocks, execute them sequentially, and halt before later blocks on failure.
-        - Preserve point-of-use workflow declarations and avoid a new action registry, loading flag, or config axis.
+    - `[x]` **6.1.d Update install/update inventories and extension validation**
+        - Updated recipe, classification, strategy inventory, init/update/E2E/load-set expectations, and independent
+          Configurable identities; install and second-update fixtures preserve the managed extension set.
 
-    - `[ ]` **6.1.d Update install/update inventories and extension validation**
-        - Replace the old file across the init recipe, classification/manifest/pristine baselines, package-sync
-          strategy count/list, and init/update/status/E2E/unit expected sets; assert both new shells are Configurable,
-          package-neutral, resolvable from fire-point markers, and stable across update.
-        - Exclude movable `.arc/{active,backlog,completed}` planning/history artifacts from the no-legacy-name product
-          scan so sibling WU records are not rewritten.
-        - Verify project-filled `.actions` survive three-way update independently for both hooks.
+- _Outcome:_ ARC now ships two action-neutral PR lifecycle hooks with independent update identities and no live
+  compatibility surface for the removed action-named extension.
 
 ### `[ ]` **6.2 Rewire work-unit PR-open and final-head checkpoints**
 
