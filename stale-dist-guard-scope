@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "stale-dist-guard-scope",
-  "origin": "description",
-  "intent": "Scope the self-hosting stale-dist guard to real bundle inputs; stop it refusing compaction-seed emission",
-  "branch": "fix/stale-dist-guard-scope",
-  "createdAt": "2026-07-11T04:15:29.312Z"
-}
