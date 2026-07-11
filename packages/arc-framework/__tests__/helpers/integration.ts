@@ -102,6 +102,9 @@ export async function createTempRepo(
 ): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix));
   await execFileAsync("git", ["init", "--initial-branch=main", dir]);
+  // Disable background auto-gc: its repacking races temp-repo teardown
+  // (ENOTEMPTY on .git/objects/pack) and concurrent notes-tree reads.
+  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });
   await execFileAsync("git", ["config", "user.email", "test@test.com"], {
     cwd: dir,
   });
