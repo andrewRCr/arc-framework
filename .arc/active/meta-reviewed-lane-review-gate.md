@@ -12,11 +12,11 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Completed task grounding and suite coherence through Phase 7
+- **Last Completed:** External-contract spikes (CodeRabbit + GitHub App) run; findings folded into spec and tasks
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Continue `generate-tasks` — offer adversarial review, then run the pre-save checklist
+- **Next Action:** Continue `generate-tasks` — run the adversarial review pass, then the pre-save checklist
 
 - **PR URL:** [none]
 - **Completed:** [none]
