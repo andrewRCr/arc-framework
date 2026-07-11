@@ -3,7 +3,8 @@
 import { meetsMinimumPermission, type CapabilitySet, type ReviewRequirement, type SourceKind } from "./contracts.js";
 import { parseEvidence, type Evidence } from "./evidence.js";
 import type { ReviewReceipt, ReviewRequest } from "./execution.js";
-import { computeChangeSetId } from "./identity.js";
+import { hashContent } from "../../../lib/manifest/hash.js";
+import { canonicalizePlainJson, computeChangeSetId } from "./identity.js";
 import { createReceipt } from "./request-key.js";
 import {
   arrayAt,
@@ -203,15 +204,22 @@ export type AttestationIngestResult =
 
 /** Validate, receipt, and idempotently reduce independently produced evidence. */
 export function ingestAttestation(input: AttestationIngestInput): AttestationIngestResult {
+  if (Buffer.byteLength(input.content, "utf8") > 32 * 1024) {
+    return { ok: false, error: "manifest exceeds 32 KiB" };
+  }
   let reviewRunId: string;
+  let manifestDigest: string;
   try {
-    const parsed = objectAt(JSON.parse(input.content) as unknown, "attestation");
+    const raw = JSON.parse(input.content) as unknown;
+    const parsed = objectAt(raw, "attestation");
     reviewRunId = idAt(parsed.reviewRunId, "attestation.reviewRunId");
+    manifestDigest = hashContent(canonicalizePlainJson(raw));
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
-  const eventId = `attestation:${reviewRunId}`;
-  const prior = input.priorReceipts.find((receipt) => receipt.eventId === eventId);
+  const eventPrefix = `attestation:${reviewRunId}:`;
+  const eventId = `${eventPrefix}${manifestDigest}`;
+  const prior = input.priorReceipts.find((receipt) => receipt.eventId.startsWith(eventPrefix));
   if (input.context.usedRunIds.includes(reviewRunId) && prior === undefined) {
     return { ok: false, error: "review run id was already used" };
   }
@@ -246,7 +254,9 @@ export function ingestAttestation(input: AttestationIngestInput): AttestationIng
     findingIds: evidence.findings.map((finding) => finding.findingId),
   });
   if (prior !== undefined) {
-    if (prior.receiptHash !== receipt.receiptHash) return { ok: false, error: "conflicting attestation replay" };
+    if (prior.eventId !== eventId || prior.receiptHash !== receipt.receiptHash) {
+      return { ok: false, error: "conflicting attestation replay" };
+    }
     return { ok: true, evidence, receipt: prior, replay: true, requestSuppressed: true };
   }
   return { ok: true, evidence, receipt, replay: false, requestSuppressed: true };

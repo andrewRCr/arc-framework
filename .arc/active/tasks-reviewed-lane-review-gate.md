@@ -442,16 +442,15 @@ capacity, coverage, finding authority, and non-substitution rules.
   path: reviewer claims and submitters remain distinct, every mechanism proves the same exact coverage, and replay or
   alternate-source evidence suppresses spend without fabricating provider admission history.
 
-### `[ ]` **4.4 Independently review the host and provider adapter slice**
+### `[x]` **4.4 Independently review the host and provider adapter slice**
 
 - _Goal:_ A fresh reviewer certifies GitHub translation, App authority, native evidence, CodeRabbit behavior, and
   generic attestations before the trusted runtime begins producing external effects.
 
-    - Run the phase-completion quality gates, then give one fresh independent-analysis reviewer the spec, project
-      orientation, and commit range after Task 2.5 through Phase 4.
-    - Apply `independent-analysis/v1` with particular attention to trust boundaries, spoofing, coverage/closure loss,
-      untrusted inputs, and provider-capacity leakage into policy; settle verified findings and re-run affected gates.
-    - Default to one pass; add another only for substantive findings/fixes or an uncovered trust seam.
+- _Outcome:_ Phase-completion gates passed before CodeRabbit CLI reviewed the committed Task 2.5-through-Phase 4
+  slice under `independent-analysis/v1`. The first pass found four verified issues (GraphQL page validation,
+  pre-parse manifest bounds, full-manifest replay identity, and diagnostic test specificity); all were fixed and
+  covered, affected gates passed, and the required second pass completed with zero findings.
 
 ## **Phase 5:** Trusted reconciliation runtime and CI shadow graph
 

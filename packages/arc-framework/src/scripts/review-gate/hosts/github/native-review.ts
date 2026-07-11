@@ -162,19 +162,29 @@ export function resolveThreads(gql: GitHubGraphQLClient, ref: HostCoordinates): 
     variables: { owner: ref.owner, repo: ref.repo, number: ref.number },
     extractPage: (data): GraphQLPage<NormalizedThread> => {
       const connection = objectAt(pullRequestNode(data).reviewThreads, "reviewThreads");
-      const nodes = Array.isArray(connection.nodes) ? connection.nodes : [];
+      if (!Array.isArray(connection.nodes)) throw new Error("reviewThreads.nodes: expected an array");
+      const nodes = connection.nodes;
       const pageInfo = objectAt(connection.pageInfo, "reviewThreads.pageInfo");
+      if (typeof pageInfo.hasNextPage !== "boolean") {
+        throw new Error("reviewThreads.pageInfo.hasNextPage: expected a boolean");
+      }
+      if (pageInfo.endCursor !== null && typeof pageInfo.endCursor !== "string") {
+        throw new Error("reviewThreads.pageInfo.endCursor: expected a string or null");
+      }
       return {
         nodes: nodes.map((node, index): NormalizedThread => {
           const record = objectAt(node, `reviewThreads.nodes[${index}]`);
+          if (typeof record.isResolved !== "boolean") {
+            throw new Error(`reviewThreads.nodes[${index}].isResolved: expected a boolean`);
+          }
           return {
             threadId: stringAt(record.id, `reviewThreads.nodes[${index}].id`),
-            isResolved: record.isResolved === true,
+            isResolved: record.isResolved,
             resolvedBy: normalizeGraphqlActor(record.resolvedBy),
           };
         }),
-        hasNextPage: pageInfo.hasNextPage === true,
-        endCursor: typeof pageInfo.endCursor === "string" ? pageInfo.endCursor : null,
+        hasNextPage: pageInfo.hasNextPage,
+        endCursor: pageInfo.endCursor,
       };
     },
   });

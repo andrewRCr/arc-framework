@@ -115,23 +115,25 @@ describe("canonical request keys and receipt ledger", () => {
   });
 
   it.each([
-    ["acknowledgement without reservation", () => [envelope(1, createReceipt({
+    ["acknowledgement without reservation", "acknowledgement-without-reservation:1", () => [envelope(1, createReceipt({
       request: request(), previousLedgerVersion: 0, action: "acknowledged", eventId: "ack",
       result: null, evidenceUrlOrId: "comment-1", findingIds: [],
     }))]],
-    ["clean result carrying findings", () => [envelope(1, createReceipt({
+    ["clean result carrying findings", "non-findings-result-with-findings:1", () => [envelope(1, createReceipt({
       request: request(), previousLedgerVersion: 0, action: "attested", eventId: "result",
       result: "clean", evidenceUrlOrId: "evidence-1", findingIds: ["finding-1"],
     }))]],
-    ["findings result without findings", () => [envelope(1, createReceipt({
+    ["findings result without findings", "findings-result-without-findings:1", () => [envelope(1, createReceipt({
       request: request(), previousLedgerVersion: 0, action: "attested", eventId: "result",
       result: "findings", evidenceUrlOrId: "evidence-1", findingIds: [],
     }))]],
-    ["dismissal of an unknown finding", () => [envelope(1, createReceipt({
+    ["dismissal of an unknown finding", "contradictory-dismissal:1", () => [envelope(1, createReceipt({
       request: request(), previousLedgerVersion: 0, action: "dismissed", eventId: "dismiss",
       result: null, evidenceUrlOrId: "reason", findingIds: ["unknown"],
     }))]],
-  ])("rejects semantic contradiction: %s", (_name, build) => {
-    expect(validateReceiptLedger({ envelopes: build(), anchorVersion: 1, anchorCount: 1 }).valid).toBe(false);
+  ])("rejects semantic contradiction: %s", (_name, expectedError, build) => {
+    const result = validateReceiptLedger({ envelopes: build(), anchorVersion: 1, anchorCount: 1 });
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain(expectedError);
   });
 });

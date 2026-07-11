@@ -167,12 +167,23 @@ describe("neutral attestations", () => {
     });
     if (!baseline.ok) throw new Error(baseline.error);
     expect(ingestAttestation({
-      content: manifest({ result: "failed" }),
+      content: manifest({ completedAt: "2026-07-10T20:11:00.000Z" }),
       context,
       repositoryId: "100",
       changeRequestId: "PR_node",
       expectedLedgerVersion: 0,
       priorReceipts: [baseline.receipt],
     })).toMatchObject({ ok: false, error: "conflicting attestation replay" });
+  });
+
+  it("enforces the manifest size bound before ingestion parses the payload", () => {
+    expect(ingestAttestation({
+      content: `{"reviewRunId":"run-1","padding":"${"x".repeat(33 * 1024)}"}`,
+      context,
+      repositoryId: "100",
+      changeRequestId: "PR_node",
+      expectedLedgerVersion: 0,
+      priorReceipts: [],
+    })).toEqual({ ok: false, error: "manifest exceeds 32 KiB" });
   });
 });

@@ -177,4 +177,17 @@ describe("native review fetch layer", () => {
       value: [{ threadId: "T1", isResolved: true, resolvedBy: { identity: "5", nodeId: "U_5", login: "r", kind: "user" } }],
     });
   });
+
+  it.each([
+    ["nodes", { nodes: null, pageInfo: { hasNextPage: false, endCursor: null } }],
+    ["hasNextPage", { nodes: [], pageInfo: { hasNextPage: "false", endCursor: null } }],
+    ["endCursor", { nodes: [], pageInfo: { hasNextPage: false, endCursor: 7 } }],
+    ["isResolved", { nodes: [{ id: "T1", isResolved: "false", resolvedBy: null }], pageInfo: { hasNextPage: false, endCursor: null } }],
+  ])("fails closed on malformed review-thread %s", async (_field, reviewThreads) => {
+    const payload = JSON.stringify({ data: { repository: { pullRequest: { reviewThreads } } } });
+    const { gql } = gqlClient([response(200, payload)]);
+    await expect(resolveThreads(gql, { owner: "o", repo: "r", number: 5 })).resolves.toMatchObject({
+      kind: "schema-error",
+    });
+  });
 });
