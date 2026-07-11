@@ -12,11 +12,11 @@
 - **Task List:** `tasks-reviewed-lane-review-gate.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks complete — adversarial-review loop converged (2 passes); suite finalized
-- **Next Task:** Begin Task 1.1 — Define normalized review-domain contracts
+- **Last Completed:** Phase 2 complete — core policy and reducer slice independently reviewed
+- **Next Task:** Task 3.1 — Resolve GitHub change sets and actor capabilities (line ~213)
 - **Blockers:** [none]
 
-- **Next Action:** Execute Task 1.1 — Define normalized review-domain contracts
+- **Next Action:** Execute Task 3.1 — Resolve GitHub change sets and actor capabilities
 
 - **PR URL:** [none]
 - **Completed:** [none]
