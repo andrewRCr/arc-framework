@@ -414,42 +414,33 @@ capacity, coverage, finding authority, and non-substitution rules.
   trigger set outside static authority: local schema proves the delta, and live resolved-configuration evidence is
   still required before the controller may select the label mechanism.
 
-### `[ ]` **4.3 Ingest qualified agent and human attestations**
+### `[x]` **4.3 Ingest qualified agent and human attestations**
 
 - _Goal:_ Maintainer-attested fresh Codex CLI, Claude Code, and CodeRabbit CLI runs plus qualified human reviews can
   publish equivalent durable evidence while the controller states exactly which identity GitHub authenticated.
 
-    - `[ ]` **4.3.a Define the source-neutral attestation payload**
-        - Carry source kind, reviewer claim, unique review-run id, harness kind/version, run timestamps, requirement,
-          result, exact base/diff/head/change-set identities, policy/rubric, full coverage bounds, evidence URL/id,
-          finding manifest, and explicit closure ids in the Phase 2 bounded 32-KiB neutral manifest.
-        - Build `test-first` (one behavior at a time):
-            - Canonical Codex, Claude, CodeRabbit CLI, and human fixtures validate through one schema.
-            - Missing/stale identities, incremental fallback, malformed findings, and expiring/unlinked evidence fail.
+    - `[x]` **4.3.a Define the source-neutral attestation payload**
+        - The bounded manifest now validates canonical Codex CLI, Claude Code, CodeRabbit CLI, and human runtime
+          identities plus unique run/timing, exact full coverage, policy/rubric, durable evidence, findings, and
+          closures; stale runs, incremental fallback, malformed identities/findings, and expiring links fail closed.
 
-    - `[ ]` **4.3.b Validate durable evidence and reviewer qualification**
-        - Apply the Phase 2 authorization/non-author/source rules after resolving the dispatch actor from GitHub;
-          authenticate and record the submitter separately from the policy-accepted reviewer claim, and describe agent
-          identity/freshness as maintainer-attested provenance rather than controller-authenticated fact.
-        - Build `test-first` (one behavior at a time):
-            - Agent attestations require maintainer submission and reject reused/stale run provenance; human
-              attestations require actor/source equality.
-            - A native reactive agent artifact is non-satisfying until an adapter proves its coverage/result contract.
+    - `[x]` **4.3.b Validate durable evidence and reviewer qualification**
+        - Agent claims require a matching canonical runtime and maintain/admin submitter while human evidence binds
+          the authenticated write-capable actor directly to a non-author source; submitter identity remains separate
+          from the claimed reviewer and unqualified reactive integrations remain rejected.
 
-    - `[ ]` **4.3.c Emit attestation receipts and suppress duplicate requests**
-        - Convert accepted payloads into App-authored evidence receipts under the current requirement; mark independent
-          out-of-band evidence `unadmitted` and let admission observe it before invoking a provider.
-        - Build `test-first` (one behavior at a time):
-            - Exact replay is idempotent and conflicting replay fails closed.
-            - Clean qualifying evidence satisfies; findings evidence remains blocking with its finding ids.
+    - `[x]` **4.3.c Emit attestation receipts and suppress duplicate requests**
+        - Accepted evidence becomes a stable `unadmitted` receipt under the current requirement and suppresses a
+          duplicate provider request; exact run replay returns the same receipt while conflicting reuse fails closed,
+          and findings retain their ids/result for blocking reduction.
 
-    - `[ ]` **4.3.d Preserve provider-neutral operational guidance**
-        - Document the full-rubric review input/output expected from each satisfying local mechanism — the two
-          primary harnesses plus CodeRabbit CLI (instruction-file rubric delivery, maintainer-resolved coverage
-          bounds, manifest-minted finding ids) — without embedding a Codex- or Claude-specific command into ARC
-          framework surfaces.
-        - Assert project workflow prose treats the qualifying mechanisms equally and leaves future PR-native adapters
-          behind the same qualification boundary.
+    - `[x]` **4.3.d Preserve provider-neutral operational guidance**
+        - `.github/review-gate-attestation.md` gives all three local CLIs and a qualified human the same full-change,
+          shared-rubric input and durable manifest output contract without prescribing harness-specific commands.
+
+- _Outcome:_ Out-of-band independent analysis now crosses one authenticated, freshness-bound manifest and receipt
+  path: reviewer claims and submitters remain distinct, every mechanism proves the same exact coverage, and replay or
+  alternate-source evidence suppresses spend without fabricating provider admission history.
 
 ### `[ ]` **4.4 Independently review the host and provider adapter slice**
 

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { ReviewRequirement } from "../../../../../src/scripts/review-gate/core/contracts.js";
-import { validateAttestation } from "../../../../../src/scripts/review-gate/core/attestations.js";
+import {
+  ingestAttestation,
+  validateAttestation,
+} from "../../../../../src/scripts/review-gate/core/attestations.js";
 import { computeChangeSetId } from "../../../../../src/scripts/review-gate/core/identity.js";
 
 const DIFF_BASE = "d".repeat(40);
@@ -57,14 +60,29 @@ function manifest(overrides: Record<string, unknown> = {}): string {
 const context = {
   requirement,
   authenticatedActor: { schemaVersion: 1 as const, actorIdentity: "maintainer-1", permissions: ["maintain" as const] },
-  acceptedReviewerClaims: ["codex-cli", "claude-code"],
+  acceptedReviewerClaims: ["codex-cli", "claude-code", "coderabbit-cli"],
+  acceptedRuntimeKinds: {
+    "codex-cli": "codex",
+    "claude-code": "claude-code",
+    "coderabbit-cli": "coderabbit",
+  },
   usedRunIds: [] as string[],
   authorIdentity: "author-1",
+  now: new Date("2026-07-10T20:15:00.000Z"),
+  maxRunAgeMinutes: 60,
 };
 
 describe("neutral attestations", () => {
-  it.each(["codex-cli", "claude-code"])("accepts maintainer-attested fresh %s evidence", (claim) => {
-    expect(validateAttestation(manifest({ reviewerClaim: claim, sourceIdentity: claim }), context)).toMatchObject({
+  it.each([
+    ["codex-cli", "codex"],
+    ["claude-code", "claude-code"],
+    ["coderabbit-cli", "coderabbit"],
+  ])("accepts maintainer-attested fresh %s evidence", (claim, runtime) => {
+    expect(validateAttestation(manifest({
+      reviewerClaim: claim,
+      sourceIdentity: claim,
+      reviewerRuntime: { kind: runtime, version: "1.0.0" },
+    }), context)).toMatchObject({
       ok: true,
       evidence: { submitterIdentity: "maintainer-1", reviewerClaim: claim },
     });
@@ -73,10 +91,14 @@ describe("neutral attestations", () => {
   it.each([
     ["reused run", manifest(), { ...context, usedRunIds: ["run-1"] }],
     ["local transcript", manifest({ evidenceUrlOrId: "file:///tmp/review.txt" }), context],
+    ["expiring evidence", manifest({ evidenceUrlOrId: "https://example.test/run?X-Amz-Signature=abc" }), context],
     ["unauthenticated token", manifest({ prToken: "approved" }), context],
     ["stale head", manifest({ headSha: "e".repeat(40) }), context],
+    ["stale run", manifest({ startedAt: "2026-07-10T18:00:00.000Z", completedAt: "2026-07-10T18:10:00.000Z" }), context],
     ["missing manifest", "", context],
     ["disallowed claim", manifest({ reviewerClaim: "unknown-agent" }), context],
+    ["runtime mismatch", manifest({ sourceIdentity: "claude-code", reviewerClaim: "claude-code" }), context],
+    ["native reactive artifact", manifest({ sourceIdentity: "codex-github", reviewerClaim: "codex-github" }), context],
   ])("rejects %s", (_name, input, validationContext) => {
     expect(validateAttestation(input, validationContext).ok).toBe(false);
   });
@@ -112,5 +134,45 @@ describe("neutral attestations", () => {
     expect(validateAttestation(manifest({ findings: Array.from({ length: 257 }, (_, index) => ({
       findingId: `f-${index}`, severity: "low", locus: "x", evidenceUrlOrId: `https://example.test/${index}`,
     })) }), context).ok).toBe(false);
+  });
+
+  it("emits a stable unadmitted receipt and suppresses a duplicate provider request", () => {
+    const input = {
+      content: manifest(),
+      context,
+      repositoryId: "100",
+      changeRequestId: "PR_node",
+      expectedLedgerVersion: 4,
+      priorReceipts: [],
+    };
+    const first = ingestAttestation(input);
+    expect(first).toMatchObject({
+      ok: true,
+      replay: false,
+      requestSuppressed: true,
+      receipt: { action: "unadmitted", previousLedgerVersion: 4, result: "clean" },
+    });
+    if (!first.ok) throw new Error(first.error);
+    expect(ingestAttestation({ ...input, priorReceipts: [first.receipt] })).toMatchObject({
+      ok: true,
+      replay: true,
+      receipt: { receiptHash: first.receipt.receiptHash },
+    });
+  });
+
+  it("fails closed when a reused run id carries conflicting evidence", () => {
+    const baseline = ingestAttestation({
+      content: manifest(), context, repositoryId: "100", changeRequestId: "PR_node",
+      expectedLedgerVersion: 0, priorReceipts: [],
+    });
+    if (!baseline.ok) throw new Error(baseline.error);
+    expect(ingestAttestation({
+      content: manifest({ result: "failed" }),
+      context,
+      repositoryId: "100",
+      changeRequestId: "PR_node",
+      expectedLedgerVersion: 0,
+      priorReceipts: [baseline.receipt],
+    })).toMatchObject({ ok: false, error: "conflicting attestation replay" });
   });
 });

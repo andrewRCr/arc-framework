@@ -2,7 +2,9 @@
 
 import { meetsMinimumPermission, type CapabilitySet, type ReviewRequirement, type SourceKind } from "./contracts.js";
 import { parseEvidence, type Evidence } from "./evidence.js";
+import type { ReviewReceipt, ReviewRequest } from "./execution.js";
 import { computeChangeSetId } from "./identity.js";
+import { createReceipt } from "./request-key.js";
 import {
   arrayAt,
   enumAt,
@@ -18,8 +20,11 @@ export interface AttestationValidationContext {
   requirement: ReviewRequirement;
   authenticatedActor: CapabilitySet;
   acceptedReviewerClaims: string[];
+  acceptedRuntimeKinds: Record<string, string>;
   usedRunIds: string[];
   authorIdentity: string;
+  now: Date;
+  maxRunAgeMinutes: number;
 }
 
 /** Valid evidence or a fail-closed diagnostic. */
@@ -41,6 +46,9 @@ function durableReferenceAt(value: unknown, path: string): string {
   const reference = stringAt(value, path);
   if (Buffer.byteLength(reference, "utf8") > 2048) throw new Error(`${path}: exceeds 2048 bytes`);
   if (!/^(?:https:\/\/|evidence:|receipt:)/u.test(reference)) throw new Error(`${path}: not durable`);
+  if (/[?&](?:x-amz-[^=]*|expires|signature|token)=/iu.test(reference)) {
+    throw new Error(`${path}: expiring or credential-bearing reference`);
+  }
   return reference;
 }
 
@@ -76,7 +84,7 @@ export function validateAttestation(
 
     const runtime = objectAt(record.reviewerRuntime, `${path}.reviewerRuntime`);
     exactKeys(runtime, ["kind", "version"], `${path}.reviewerRuntime`);
-    idAt(runtime.kind, `${path}.reviewerRuntime.kind`);
+    const runtimeKind = idAt(runtime.kind, `${path}.reviewerRuntime.kind`);
     idAt(runtime.version, `${path}.reviewerRuntime.version`);
     const requirementId = idAt(record.requirementId, `${path}.requirementId`);
     if (requirementId !== context.requirement.id) throw new Error("requirement mismatch");
@@ -90,12 +98,16 @@ export function validateAttestation(
         throw new Error("agent attestation requires maintain");
       }
       if (!context.acceptedReviewerClaims.includes(sourceIdentity)) throw new Error("agent source identity is not accepted");
+      if (context.acceptedRuntimeKinds[sourceIdentity] !== runtimeKind) {
+        throw new Error("agent runtime does not match source identity");
+      }
     } else {
       if (!context.authenticatedActor.permissions.some((permission) => meetsMinimumPermission(permission, "write"))) {
         throw new Error("human attestation requires write");
       }
       if (context.authenticatedActor.actorIdentity !== sourceIdentity) throw new Error("delegated human identity");
       if (sourceIdentity === context.authorIdentity) throw new Error("author cannot self-attest");
+      if (runtimeKind !== "human") throw new Error("human attestation requires human runtime");
     }
 
     const startedAt = stringAt(record.startedAt, `${path}.startedAt`);
@@ -103,7 +115,13 @@ export function validateAttestation(
     if (!Number.isFinite(Date.parse(startedAt)) || !Number.isFinite(Date.parse(completedAt))) {
       throw new Error("run timestamps are invalid");
     }
-    if (Date.parse(completedAt) < Date.parse(startedAt)) throw new Error("run completed before it started");
+    const startedTime = Date.parse(startedAt);
+    const completedTime = Date.parse(completedAt);
+    if (completedTime < startedTime) throw new Error("run completed before it started");
+    if (completedTime > context.now.getTime()) throw new Error("run completion is in the future");
+    if (context.now.getTime() - completedTime > context.maxRunAgeMinutes * 60 * 1000) {
+      throw new Error("review run is stale");
+    }
     if (
       record.changeSetId !== context.requirement.changeSetId
       || record.headSha !== context.requirement.headSha
@@ -160,4 +178,76 @@ export function validateAttestation(
   } catch (error) {
     return fail(error instanceof Error ? error.message : String(error));
   }
+}
+
+/** Inputs for turning one validated out-of-band attestation into a receipt. */
+export interface AttestationIngestInput {
+  content: string;
+  context: AttestationValidationContext;
+  repositoryId: string;
+  changeRequestId: string;
+  expectedLedgerVersion: number;
+  priorReceipts: ReviewReceipt[];
+}
+
+/** Accepted receipt, exact replay, or fail-closed validation/conflict. */
+export type AttestationIngestResult =
+  | {
+    ok: true;
+    evidence: Evidence;
+    receipt: ReviewReceipt;
+    replay: boolean;
+    requestSuppressed: true;
+  }
+  | { ok: false; error: string };
+
+/** Validate, receipt, and idempotently reduce independently produced evidence. */
+export function ingestAttestation(input: AttestationIngestInput): AttestationIngestResult {
+  let reviewRunId: string;
+  try {
+    const parsed = objectAt(JSON.parse(input.content) as unknown, "attestation");
+    reviewRunId = idAt(parsed.reviewRunId, "attestation.reviewRunId");
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+  const eventId = `attestation:${reviewRunId}`;
+  const prior = input.priorReceipts.find((receipt) => receipt.eventId === eventId);
+  if (input.context.usedRunIds.includes(reviewRunId) && prior === undefined) {
+    return { ok: false, error: "review run id was already used" };
+  }
+  const validation = validateAttestation(input.content, {
+    ...input.context,
+    usedRunIds: input.context.usedRunIds.filter((used) => used !== reviewRunId),
+  });
+  if (!validation.ok) return validation;
+  const evidence = validation.evidence;
+  const request: ReviewRequest = {
+    schemaVersion: 1,
+    repositoryId: input.repositoryId,
+    changeRequestId: input.changeRequestId,
+    changeSetId: evidence.changeSetId,
+    policyVersion: evidence.policyVersion,
+    rubricVersion: evidence.rubricVersion,
+    requirementId: evidence.requirementId,
+    sourceIdentity: evidence.sourceIdentity,
+    coverage: evidence.coverage,
+    coverageFromSha: evidence.coverageFromSha,
+    coverageThroughSha: evidence.coverageThroughSha,
+    generation: 0,
+    actorIdentity: evidence.submitterIdentity ?? input.context.authenticatedActor.actorIdentity,
+  };
+  const receipt = createReceipt({
+    eventId,
+    previousLedgerVersion: prior?.previousLedgerVersion ?? input.expectedLedgerVersion,
+    action: "unadmitted",
+    request,
+    result: evidence.result,
+    evidenceUrlOrId: evidence.evidenceUrlOrId,
+    findingIds: evidence.findings.map((finding) => finding.findingId),
+  });
+  if (prior !== undefined) {
+    if (prior.receiptHash !== receipt.receiptHash) return { ok: false, error: "conflicting attestation replay" };
+    return { ok: true, evidence, receipt: prior, replay: true, requestSuppressed: true };
+  }
+  return { ok: true, evidence, receipt, replay: false, requestSuppressed: true };
 }
