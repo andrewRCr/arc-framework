@@ -125,15 +125,12 @@ pipeline runs; only context names differ (spec Decisions 1-4, 12, 14-15, 17, 20)
 - _Goal:_ GitHub issue-comment wake-ups can actually execute the shipped strict command surface; require, waive,
   refresh, and dismiss are current-scope, permission-checked, durable, and replay-safe rather than inert parser code.
 
-    - `[ ]` **2.4.a Read and authorize canonical command comments**
-        - List current PR issue comments and retain immutable comment/user ids, addressing login, body,
-          host-created/updated times, and durable URL. Parse only exact `/review-gate` command bodies.
-        - Define event identity as comment node id + host update time + body digest. An edit is a new explicit
-          command version and never retracts an earlier effect; exact receipted versions are no-ops.
-        - Resolve capability with `{ login, expectedActorId }`, then run `authorizeReviewCommand` against current
-          change-set/policy/rubric scope. Unknown, stale, malformed, unauthorized, or cross-source input writes none.
-        - Build `test-first` (one behavior at a time): created/edited replay, login rename with stable id,
-          wrong-id lookup, permission floors, stale scope, malformed/oversized body, and unknown identities.
+    - `[x]` **2.4.a Read and authorize canonical command comments**
+        - Added a validated GitHub issue-comment reader and pure command reducer that retain immutable provenance,
+          bind the mutable login to its numeric id for live capability checks, and emit only authorized current-scope
+          command versions. Event identity combines comment node id, update time, and body digest, so exact replays
+          are no-ops while edits remain explicit new events; malformed, stale, foreign, unauthorized, and unknown
+          inputs remain non-persistent.
 
     - `[ ]` **2.4.b Persist and reduce every command kind**
         - Add a `required` receipt action/validation for current scoped obligation overrides; after append, evaluate
