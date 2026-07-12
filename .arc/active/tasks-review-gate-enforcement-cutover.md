@@ -624,14 +624,15 @@ only from immutable default-branch code.
 
 ## **Phase 7:** Delivery qualification contract and extraction handoff
 
-_Purpose:_ Assemble the inactive self-hosting delivery and the exact qualification/closeout machinery that will prove
-it from default-branch code without changing legacy required-check or project-hook authority.
+_Purpose:_ Assemble the inactive self-hosting delivery and the exact qualification machinery the dependent
+qualification work unit will run from default-branch code without changing legacy required-check or project-hook
+authority.
 
-_Design decisions:_ The implementation PR carries a sanitized manifest schema, not invented live values, and leaves
-the work `Integrating` under temporary manual archival. Baseline default-branch qualification feeds a policy-
-activation housekeeping PR; the complete matrix then reruns through that enabled policy before a separate archival
-closeout records final results, marks the Post-Merge Acceptance Gates, restores cadence, and completes teardown.
-Phase 8 validates only the delivery Success Criteria below.
+_Design decisions:_ The implementation PR carries the fail-closed qualification runner, activation compiler, diff
+validator, and sanitized manifest schema, but no invented live values or post-merge acceptance state. It archives
+normally after delivery verification; `review-gate-enforcement-qualification` owns baseline qualification, provider-
+policy activation, and the provisional observed manifest; promotion owns enabled-policy requalification and the final
+acceptance proof before enforcement mutation.
 
 ### `[ ]` **7.1 Complete controller composition and repository-only launcher packaging**
 
@@ -655,7 +656,7 @@ Phase 8 validates only the delivery Success Criteria below.
 
 ### `[ ]` **7.2 Build App identity, token-opacity, and secret-boundary qualification**
 
-- _Goal:_ The default-branch acceptance tail can prove the pinned least-privilege App through the exact controller
+- _Goal:_ The dependent qualification work can prove the pinned least-privilege App through the exact controller
   consumer across both token formats without exposing credentials or granting qualification code production authority.
 - **Additional Context:** `notes-review-gate-enforcement-cutover.md` § GitHub App and token evidence.
 
@@ -705,9 +706,9 @@ Phase 8 validates only the delivery Success Criteria below.
 
 ### `[ ]` **7.4 Publish the runbook, technical overview, sanitized evidence schema, and extraction handoff**
 
-- _Goal:_ Operators receive an exact default-branch qualification/closeout procedure, while downstream work receives
-  a stable sanitized schema that later records observed values without conflating reusable contracts and self-hosting
-  policy.
+- _Goal:_ Operators receive an exact default-branch qualification and handoff procedure, while downstream work
+  receives a stable sanitized schema that later records observed values without conflating reusable contracts and
+  self-hosting policy.
 
     - `[ ]` **7.4.a Complete `.github/review-gate.md` and `.github/review-gate-attestation.md`**
         - Document current operation, typed agent loop, exclusive trigger/finding authority, qualification, repair,
@@ -722,78 +723,17 @@ Phase 8 validates only the delivery Success Criteria below.
           contracts, GitHub/provider implementations, self-hosting policy, workflow assumptions, qualification result
           slots, source identities, and unresolved productization constraints.
         - Permit the implementation PR to contain schema/instructions and prior sanitized probe facts only. The
-          qualification-activation PR records baseline-proven declarations provisionally; only the acceptance-
-          closeout PR records final enabled-policy default-branch values.
-        - Define `CutoverAcceptanceProof` with implementation/activation PR identities, live default-branch SHA,
+          qualification work unit records baseline-proven declarations and provisional live values after executing
+          shipped code; this delivery never pre-populates them.
+        - Define `CutoverAcceptanceProof` with implementation/qualification PR identities, live default-branch SHA,
           enabled policy/rubric/guidance/parser digests, complete required-matrix result, enforcement boundary, and
           raw-checkpoint hashes; credentials and raw responses remain structurally inadmissible.
 
     - `[ ]` **7.4.d Validate docs, workflow prose, secret redaction, and audience boundaries**
 
-### `[ ]` **7.5 Prepare the deferred acceptance and archival closeout boundary**
-
-- _Goal:_ Merging the inactive implementation leaves a recoverable `Integrating` work unit whose only successful
-  closeout path records default-branch proof, restores normal archival cadence, and preserves WU2's promotion scope.
-
-    - `[ ]` **7.5.a Make manual archival retain and later complete the physical lifecycle tail**
-        - Set `.arc/system/arc-config.yml` to temporary manual archival for this delivery. Update package-source and
-          project `integrate-work-unit.md` so manual cadence defers user-state close and teardown with the archive
-          sweep; update both `archive-work-unit.md` copies so the standalone PR's post-merge tail owns those actions.
-        - Cover both cadences, resume after attended/unattended merges, retained branch/worktree state, standalone
-          archive-PR merge, user-state close, merged-safe teardown, and idempotent partial cleanup.
-        - Add the optional Post-Merge Acceptance Gates contract to package/project task-list formatting and make the
-          archive verb reject a present section with missing, malformed, or non-terminal markers before any computed
-          destination or relocation side effect.
-        - Place the section after the verification phase and before the Success Criteria separator; Phase 8 never
-          marks it, its text remains immutable, and only the named post-merge closeout authority may mark it terminal.
-
-    - `[ ]` **7.5.b Define the post-merge acceptance and failure procedure**
-        - Implement a deterministic activation compiler from baseline result plus current policy to exact declaration
-          and provisional-manifest patches. Bind identities, versions/digests, capabilities, terminal-unavailable
-          mode, baseline SHA, and checkpoint hashes.
-        - Validate the qualification-activation PR diff against that candidate, allowing only the generated policy and
-          manifest fields/paths and rejecting manual additions, omissions, stale inputs, version drift, or extra diff.
-          Do not archive or restore cadence in that PR.
-        - After activation merges, rerun the complete matrix through the enabled default-branch policy; require at
-          least one hosted satisfying adapter, complete settlement/repair proof, and exact source/controller handoffs.
-        - On failure, restore/disable to the safe checkpoint, keep the work unarchived, ship a separate repair, and
-          rerun only through the repaired default branch.
-
-    - `[ ]` **7.5.c Define the acceptance-closeout housekeeping PR and WU2 handoff**
-        - Add a repository-only `review-gate:closeout` main/private root script that validates
-          `CutoverAcceptanceProof` against private checkpoints and live GitHub, writes the final sanitized manifest,
-          marks Post-Merge Acceptance Gates, then alone invokes its injected archive port with the implementation PR
-          URL. Restore `archive.cadence: with-integration` in the same closeout PR.
-        - Refuse before archive mutation on missing, malformed, partial, failed, stale, wrong-head, wrong-policy,
-          incomplete-matrix, checkpoint-mismatch, or replayed proof. Add a pre-commit contract that rejects a marked/
-          archived acceptance section whose sanitized proof does not validate.
-        - After that PR merges, close the retained WU user workspace and run `arc teardown
-          review-gate-enforcement-cutover`; prove the branch/worktree and user-state tail is fully retired.
-        - Require `post-pr-open` and `pre-merge` inactive, legacy `merge-ok` required, and CodeRabbit native request-
-          changes enabled; WU2 starts only after this PR merges and re-proves the recorded state before mutation.
-
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
-
-## Post-Merge Acceptance Gates
-
-- `[ ]` CodeRabbit has a live capability table whose non-satisfying observations cannot grant authority.
-- `[ ]` Hosted Codex is live-proven for every required result, grammar, rubric, trigger, and settlement behavior.
-- `[ ]` At least one hosted adapter is enabled as satisfying, with only legal terminal/pre-effect fallback and one
-  live source per generation.
-- `[ ]` Both token forms, pinned App identity, least privilege, repository selection, denied capabilities, and
-  credential isolation pass through shipped default-branch code.
-- `[ ]` The Actions-pinned, exclusive-writer-proven repair authority passes exact-head attestation and outage/restore
-  rehearsal while the App projection remains non-required.
-- `[ ]` A qualification-activation housekeeping PR writes only baseline-proven hosted declarations, after which the
-  complete disposable-PR matrix passes through the enabled default-branch policy.
-- `[ ]` The final matrix populates `.arc/reference/supplemental/research/research-review-gate-cutover-evidence.md` with
-  sanitized capability, source, controller, enforcement-boundary, and evidence-hash values.
-- `[ ]` The acceptance-closeout housekeeping PR preserves legacy authority and inactive hooks, archives with the
-  implementation PR URL only after machine-validating the complete live proof, restores
-  `archive.cadence: with-integration`, and is followed by complete user-state, branch, and worktree teardown before
-  promotion begins.
 
 ---
 
@@ -803,12 +743,12 @@ Phase 8 validates only the delivery Success Criteria below.
   the exact head.
 - `[ ]` Satisfying evidence is causally bound to pinned identity, versioned policy/rubric, full frozen head, and one
   uncontaminated immutable trigger generation.
-- `[ ]` CodeRabbit capability declarations fail closed, and the acceptance runner can record the final observed
-  capability table without treating native status or empty approval as authority.
+- `[ ]` CodeRabbit capability declarations fail closed, and the qualification runner can record an observed capability
+  table without treating native status or empty approval as authority.
 - `[ ]` Hosted Codex parsers, rubric transport, trigger ownership, and settlement contracts cover every required
   outcome while connected-account behavior remains parser-only until admissible live proof exists.
-- `[ ]` Provider order permits fallback only after a legal terminal/pre-effect condition, and acceptance refuses to
-  close without at least one hosted satisfying adapter.
+- `[ ]` Provider order permits fallback only after a legal terminal/pre-effect condition, and the qualification
+  runner refuses a passing proof without at least one hosted satisfying adapter.
 - `[ ]` Passive CI/review waiting returns typed exact-head state changes without provider parsing or model work.
 - `[ ]` Every configured event path and scheduled repair converges on the same canonical state without duplicate
   generations or recursive controller wake-ups.
@@ -825,8 +765,8 @@ Phase 8 validates only the delivery Success Criteria below.
 - `[ ]` Coordinator FIX, DEFER, REJECT, and provider-owned closure retain their distinct exact-head authority and
   original-conversation lifecycle contracts.
 - `[ ]` The single implementation delivery leaves legacy `merge-ok` required and project hooks inactive, installs the
-  deterministic qualification-activation compiler/diff validator and machine-gated requalification/closeout
-  procedure, and defers archival plus teardown safely.
+  deterministic qualification compiler, activation-diff validator, machine-gated requalification runner, and
+  sanitized handoff schema, and archives through the ordinary work-unit lifecycle.
 - `[ ]` Neutral core modules depend only on injected ports, and the sanitized handoff schema separates reusable
   contracts from self-hosting policy and later live values.
 - `[ ]` All quality gates pass (tests, linting, type checking).

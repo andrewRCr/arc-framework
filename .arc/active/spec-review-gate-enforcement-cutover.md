@@ -4,8 +4,8 @@
 
 - **Purpose:** Complete the self-hosting review controller with provider-neutral request execution, passive
   exact-head waiting, hosted CodeRabbit and Codex evidence adapters, conversation settlement, and an independent
-  outage-repair path. Ship and qualify those capabilities without yet replacing the repository's legacy required
-  CI authority.
+  outage-repair path. Ship those capabilities and their fail-closed qualification machinery without replacing the
+  repository's legacy required CI authority.
 
 ---
 
@@ -25,9 +25,9 @@ account. CodeRabbit can submit an empty approval after an unrelated review threa
 not substantive evidence. GitHub App installation tokens are becoming longer opaque values; both the classic and
 stateless formats work with the current controller when treated opaquely.
 
-This work completes and live-qualifies the controller on the default branch. It deliberately leaves required-check
-promotion, project-hook activation, generic-approval removal, and CodeRabbit native request-changes deactivation to
-`review-gate-enforcement-promotion` after this work's post-merge acceptance tail passes.
+This work completes the inactive controller and the machinery needed to qualify it from immutable default-branch
+code. `review-gate-enforcement-qualification` owns the live qualification and provider-policy activation that follow
+this delivery; `review-gate-enforcement-promotion` then owns required-check and project-hook promotion.
 
 ## Goals
 
@@ -36,17 +36,17 @@ promotion, project-hook activation, generic-approval removal, and CodeRabbit nat
   inventing App credentials or waiting for manual user coordination.
 - Return control to that agent when CI or aggregate review state changes, without consuming model work during the
   wait or coupling the watcher to provider prose.
-- Qualify hosted CodeRabbit and hosted Codex independently, retain useful partial capabilities, and enable at least
-  one hosted satisfying adapter under deterministic fallback policy.
+- Build fail-closed qualification for hosted CodeRabbit and hosted Codex that can retain useful partial capabilities
+  and enable only baseline-proven satisfying adapters under deterministic fallback policy.
 - Bind provider evidence causally to one controller-owned request generation, the exact frozen PR head, pinned
   identities, and versioned semantics.
 - Settle every finding at its original GitHub conversation locus and prevent pushes from silently invalidating an
   active review.
 - Provide a preinstalled, Actions-pinned and exclusive-writer-proven recovery authority that can replace an
   unavailable App check without an empty required-check interval or an administrative merge bypass.
-- Prove the App's least-privilege scope, both installation-token formats, event routing, waiting, provider outcomes,
-  fallback, and outage recovery through default-branch code before the promotion work begins.
-- Produce an extraction-ready contract boundary and acceptance handoff that the planned
+- Provide the default-branch probes and typed evidence contracts that the qualification work uses to prove App scope,
+  token formats, event routing, waiting, provider outcomes, fallback, and outage recovery before promotion.
+- Produce an extraction-ready contract boundary and qualification handoff that the planned
   `review-gate-github-adapter` can productize for ARC installations without reimplementing review semantics.
 
 ## Non-Goals
@@ -58,8 +58,8 @@ promotion, project-hook activation, generic-approval removal, and CodeRabbit nat
 - Do not ship the adopter-facing GitHub adapter, public ARC CLI setup surface, webhook service, or durable external
   queue in this work. This delivery must remain extraction-ready; productization is deferred, not rejected.
 - Do not add API-billed review providers or evaluate Copilot, Grok, or hosted Claude as speculative fallbacks.
-- Do not archive this work before its shipped default-branch acceptance tail passes. The inactive delivery PR must
-  merge first because the acceptance tail qualifies immutable default-branch code.
+- Do not execute live qualification or record observed capability values in this work; those require the merged
+  implementation and belong to `review-gate-enforcement-qualification`.
 
 ## Proposed Design
 
@@ -380,61 +380,40 @@ remains non-required: prove `ci-ok`, attestation, and exclusive-writer audit; cr
 it while the App context remains present; then remove the unavailable App context. Restoration performs the reverse:
 add and prove the restored App context before removing `review-repair-ok`.
 
-### 10. Deliver once, qualify default-branch code, then close out
+### 10. Deliver inactive machinery and hand qualification forward
 
 The single implementation delivery PR contains the contracts, runtimes, adapters, watcher, workflows, behavior
 guards, tests, runbook, the self-hosting review-gate section of `TECHNICAL-OVERVIEW.md`, and the sanitized evidence
-schema. Keep `post-pr-open` and `pre-merge` inactive and leave legacy CI `merge-ok` required. Do not perform
-promotion mutations in this work. Set the project archival cadence to `manual` in that PR so merge leaves the work
-unit `Integrating` while immutable default-branch code is qualified; this temporary project setting is not a reusable
-controller contract. The cadence-aware integration path retains the WU workspace and branch after that merge;
-standalone archival owns user-state close and merged-safe teardown only after its housekeeping PR lands.
+schema. Keep `post-pr-open` and `pre-merge` inactive and leave legacy CI `merge-ok` required. Do not mutate provider
+policy from live observations or promote enforcement in this work. After ordinary delivery verification, integrate
+and archive this work through the normal lifecycle.
 
-Publish a sanitized extraction handoff with the acceptance record. It identifies reusable core contracts and ports,
-self-hosting-only policy/configuration, GitHub/provider implementations, workflow execution assumptions, qualification
-results, source identities, token behavior, repair behavior, and unresolved productization constraints. The handoff
-must let `review-gate-github-adapter` add setup/verify/upgrade/uninstall and supported configuration without moving
-policy into the neutral core or reverse-engineering the self-hosting installation.
+Publish a sanitized extraction and qualification handoff that identifies reusable core contracts and ports, self-
+hosting-only policy/configuration, GitHub/provider implementations, workflow execution assumptions, typed result
+slots, source-identity requirements, token behavior, repair behavior, and unresolved productization constraints. It
+contains no invented live capability values. The handoff must let `review-gate-enforcement-qualification` execute
+the shipped probes without reverse-engineering the controller, and later let `review-gate-github-adapter` productize
+the accepted boundary without moving policy into the neutral core.
 
 The repository-only qualification coordinator is a hybrid boundary. A local developer-authenticated launcher verifies
-a clean checkout at the immutable remote default-branch SHA, owns resumable private checkpoint files, performs only
-the typed actor-executable actions assigned to the authenticated developer, and emits a sanitized result candidate.
-It dispatches `.github/workflows/review-gate-qualify.yml` for App-authenticated and forced-token probes; that workflow
+a clean checkout at an immutable remote default-branch SHA, owns resumable private checkpoint files, performs only the
+typed actor-executable actions assigned to the authenticated developer, and emits a sanitized result candidate. It
+dispatches `.github/workflows/review-gate-qualify.yml` for App-authenticated and forced-token probes; that workflow
 runs only from the default branch in the existing protected `review-gate` environment, accepts bounded repository/PR/
 head/matrix inputs, and returns no credential-bearing output. The coordinator re-queries every result from GitHub and
 refuses a changed default branch, incomplete matrix, checkpoint mismatch, fixture result, or unshipped implementation.
 
-After the implementation merge, run the complete baseline qualification matrix against disposable exact-head PRs.
-Retain raw non-secret evidence in the private operator checkpoint store. When the baseline proves one or more hosted
-capability declarations, a deterministic activation compiler maps the typed baseline result into exact checked-in
-policy declarations and a provisional sanitized-manifest patch. The candidate binds source/actor identities, parser
-and rubric/guidance versions, every capability outcome, terminal-unavailable mode, baseline default-branch SHA, and
-checkpoint hashes. A diff validator permits only that generated policy/manifest delta and rejects manual additions,
-omissions, version drift, or extra paths. Open the qualification-activation housekeeping PR from that candidate. It
-does not archive the work or restore cadence. After that PR merges, rerun the complete matrix through the now-enabled
-immutable default-branch policy so the satisfying aggregate path itself is live-proven.
+A deterministic activation compiler maps a typed baseline result into exact checked-in provider-policy declarations
+and a provisional sanitized-manifest patch. The candidate binds source/actor identities, parser and rubric/guidance
+versions, every capability outcome, terminal-unavailable mode, baseline default-branch SHA, and checkpoint hashes. A
+diff validator permits only that generated policy/manifest delta and rejects manual additions, omissions, version
+drift, or extra paths. The shipped runner can then re-execute the complete matrix through the enabled immutable
+default-branch policy and emit a `CutoverAcceptanceProof` candidate.
 
-If either qualification tail fails, restore or disable to the safe checkpoint, leave the work unarchived, route a
-separate repair Errand or work unit, and repeat the affected tail after that repair ships. Never amend live results
-with unshipped code. On final success, the repository-only closeout main validates a `CutoverAcceptanceProof` against
-the private checkpoints, live default-branch SHA, activated policy/rubric/guidance/parser digests, complete required
-matrix, enforcement boundary, and original implementation PR. Only then does it write the final sanitized manifest,
-mark the task list's Post-Merge Acceptance Gates, and invoke the archive port with the implementation PR URL.
-
-The generic archive verb recognizes an optional Post-Merge Acceptance Gates section and rejects any missing,
-malformed, or non-terminal item before computing or applying the relocation. The review-gate closeout main is the
-canonical path and never calls its injected archive port after a partial, failed, stale, wrong-policy, wrong-head, or
-replayed proof. A pre-commit contract validates the marked section against the sanitized proof so a direct archive
-invocation cannot produce a committable bypass. The acceptance-closeout housekeeping PR restores
-`archive.cadence: with-integration`; after it merges, close the WU user workspace and run merged-safe teardown. These
-housekeeping PRs are not additional implementation deliveries. `review-gate-enforcement-promotion` remains blocked
-until the closeout and teardown complete, then consumes and re-proves the recorded live values before any enforcement
-mutation.
-
-The ordinary verification phase validates the Delivery Success Criteria and the fail-closed acceptance machinery
-before the implementation PR opens. The separately named Post-Merge Acceptance Gates remain unchecked while the work
-is `Integrating`; the closeout marks them only from shipped-code evidence before the archive sweep. Live-only claims
-therefore never masquerade as pre-merge implementation verification.
+The dependent qualification work unit owns baseline execution, activation delivery, failure repair/rerun, and the
+provisional observed manifest. Promotion begins by rerunning the full matrix through the enabled policy and producing
+the final sanitized proof before any required-check mutation. Live-only claims therefore never masquerade as this
+implementation delivery's verification.
 
 ## Alternatives & Rationale
 
@@ -497,8 +476,8 @@ required capability, it can remain first in policy without weakening the gate.
 ### Promote enforcement in the same delivery
 
 Rejected. Default-branch-only protected code cannot be live-qualified before its own merge without trusting unshipped
-controller code. This work ships inactive machinery and performs a post-merge acceptance tail; the dependent
-promotion work then changes enforcement add-before-remove.
+controller code. This work ships inactive machinery, the qualification work proves and activates it from the default
+branch, and promotion then changes enforcement add-before-remove.
 
 ## Cross-cutting Considerations
 
@@ -533,17 +512,17 @@ promotion work then changes enforcement add-before-remove.
 - Extend workflow contract tests for pinned actions, default-branch checkout, secret boundaries, event filters,
   recursion suppression, and inactive project hooks.
 - Run the full repository typecheck, test, lint, build, and shell/Markdown gates before delivery.
-- Live-probe every qualification claim on disposable PRs and retain sanitized evidence sufficient to reproduce the
-  controller's decision.
+- Contract-test every qualification path against controlled fixtures; the dependent qualification work performs the
+  live disposable-PR probes through the shipped default-branch implementation.
 
 ### Migration and rollout
 
 No destructive or out-of-band data migration and no public package migration are required in this work. Existing
 receipt comments remain byte-stable; the controller performs only the specified append-only v1→v2 ledger transition,
 and new semantics fail closed against older incomplete generations. Ship with project hooks inactive and legacy CI
-authority unchanged. The post-merge acceptance tail qualifies default-branch code. Only the dependent promotion work
-may activate hooks or alter required checks. The later GitHub-adapter work owns public packaging and installation
-migration while consuming these extraction-ready contracts.
+authority unchanged. The qualification work may activate only baseline-proven provider declarations; only promotion
+may activate project hooks or alter required checks. The later GitHub-adapter work owns public packaging and
+installation migration while consuming these extraction-ready contracts.
 
 ### User-facing impact
 
@@ -560,12 +539,12 @@ descriptions remain understandable to collaborators who do not use ARC.
    one uncontaminated PR-wide controller-owned trigger window. Owned triggers remain immutable/present, mutation and
    deletion create tombstones, old-head effects require terminal proof, and direct commands cannot satisfy.
 3. CodeRabbit capability declarations fail closed so an absent or partial qualification cannot turn native status or
-   empty approval into authority, and the acceptance runner can record the final observed capability table.
+   empty approval into authority, and the qualification runner can record an observed capability table.
 4. Hosted Codex parsers, rubric transport, trigger ownership, and settlement contracts cover acknowledgement, full-
    commit findings, issue-comment clean, stale rejection, unknown grammar, every rubric dimension, and coordinator-
    owned closure. Connected-account grammar remains parser-only unless the later live gate proves an admissible actor.
 5. Policy order and fallback select an alternate only after a proven legal terminal/pre-effect condition, with at most
-   one live source; the acceptance runner refuses closeout unless at least one hosted adapter qualifies as satisfying.
+   one live source; the qualification runner refuses a passing proof unless at least one hosted adapter qualifies.
 6. The reusable await runtime and self-hosting watcher launcher observe source-pinned `ci-ok` or the aggregate App
    projection for one expected head, emit only typed changes, return every terminal/attention state, and perform no
    provider parsing or model work.
@@ -590,35 +569,12 @@ descriptions remain understandable to collaborators who do not use ARC.
 13. Coordinator FIX closure requires the authorized sequenced receipt, exact new-head CI, qualifying follow-up review,
     verification/evidence refs, direct reply, and resolution; DEFER/REJECT and provider-owned closure retain distinct
     authority contracts.
-14. The one implementation delivery PR leaves legacy CI `merge-ok` required and project review hooks inactive, sets
-    archival cadence to `manual`, preserves workspace/branch teardown until standalone archival lands, and installs
-    deterministic activation derivation/diff validation plus a machine-gated requalification/closeout procedure that
-    cannot promote enforcement or archive an incomplete result.
+14. The one implementation delivery PR leaves legacy CI `merge-ok` required and project review hooks inactive,
+    installs deterministic activation derivation/diff validation plus machine-gated requalification, and archives
+    through the ordinary work-unit lifecycle without recording unobserved live values.
 15. Neutral request, evidence, fallback, settlement, await, and head-mutability modules depend only on injected ports;
     the sanitized handoff schema separates them from self-hosting policy and gives downstream work sufficient
     contracts to consume later live evidence without semantic reimplementation.
-
-## Post-Merge Acceptance Gates
-
-1. CodeRabbit has a recorded live capability table whose non-satisfying observations cannot grant authority.
-2. Hosted Codex is live-proven for acknowledgement, full-commit findings, issue-comment clean, stale rejection,
-   unknown grammar, effective rubric guidance, every rubric dimension, and coordinator-owned settlement.
-3. At least one hosted adapter is enabled as satisfying, with only legal terminal/pre-effect fallback and one live
-   source per generation.
-4. Both installation-token formats authenticate the pinned App and selected repository through the exact controller
-   consumer, and production retains no temporary override or credential-bearing evidence.
-5. App identity, least privilege, selected-repository scope, denied capabilities, and credential isolation are
-   live-proven from immutable default-branch code.
-6. The Actions-pinned, exclusive-writer-proven repair authority passes exact-head attestation and add-before-remove
-   outage/restoration rehearsal while the App projection remains non-required.
-7. A qualification-activation housekeeping PR writes only baseline-proven hosted declarations; after it merges, the
-   complete disposable-PR matrix passes again through the now-enabled default-branch policy and records one valid
-   `CutoverAcceptanceProof` plus the exact provider capabilities, source identities, controller/workflow revisions,
-   enforcement boundaries, and sanitized evidence hashes in
-   `.arc/reference/supplemental/research/research-review-gate-cutover-evidence.md`.
-8. The acceptance-closeout housekeeping PR preserves legacy `merge-ok`, inactive project hooks, and CodeRabbit native
-   request-changes; archives the work with the implementation PR URL; restores `archive.cadence: with-integration`;
-   and is followed by user-state close and merged-safe teardown before `review-gate-enforcement-promotion` begins.
 
 ## Open Questions
 

@@ -79,3 +79,12 @@ Those tests establish executable composition, not live GitHub enforcement. The d
 repository-rule reconciliation, shadow → dual → final promotion, rollback checkpoints, project-hook activation,
 and the final architecture closeout. Until that work unit's closeout PR merges, CI's compatibility `merge-ok` remains
 the live required authority and App-owned final enforcement is intentionally not claimed as proven.
+
+**Amendment (2026-07-12): Qualification and promotion split.** Cutover planning exposed that one work unit could not
+both deliver the inactive controller and own multiple post-merge acceptance/activation PRs without violating the
+one-WU/one-PR boundary. Responsibility now follows three work units: `review-gate-enforcement-cutover` ships the
+inactive controller and fail-closed qualification machinery; `review-gate-enforcement-qualification` runs the shipped
+baseline matrix and activates only baseline-proven hosted provider declarations; and
+`review-gate-enforcement-promotion` reruns the enabled-policy matrix before changing required-check authority,
+activating project hooks, or recording the final enforcement closeout. CI's compatibility `merge-ok` remains required
+through the first two work units.

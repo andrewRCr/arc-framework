@@ -2,14 +2,15 @@
 
 - **Purpose:** Promote the shipped review controller from authenticated shadow observation to the sole required
   machine-review authority without a duplicate, stale, or temporarily absent merge gate.
-- **Depends On:** `review-gate-enforcement-cutover` — its single implementation delivery PR, post-merge default-
-  branch baseline, qualification-activation PR, enabled-policy requalification tail, and acceptance-closeout
-  housekeeping PR must pass. Provider qualification, pending-first projection, watcher, workflow behavior guards,
-  every fallback adapter, and the sanitized acceptance manifest are consumed as shipped contracts.
+- **Depends On:** `review-gate-enforcement-qualification` — its baseline matrix and generated provider-policy
+  activation PR must ship with at least one satisfying hosted adapter and a provisional sanitized manifest. The
+  controller implementation, pending-first projection, watcher, workflow guards, fallback adapters, and qualification
+  runner arrive transitively from `review-gate-enforcement-cutover`.
 - **Likely Class:** Heavy — staged GitHub host mutations, exact-head evidence, rollback rehearsal, and a final-gated
   closeout PR require durable sequencing even though this work consumes rather than invents the controller design.
-- **Planning boundary:** Keep this draft coordinated with the dependency now; create its spec and task list only after
-  `review-gate-enforcement-cutover` ships, so observed WU 1 contracts replace provisional assumptions.
+- **Planning boundary:** Keep this draft coordinated with both predecessors now; create its spec and task list only
+  after `review-gate-enforcement-qualification` ships, so the committed baseline and enabled provider policy replace
+  provisional assumptions.
 
 ---
 
@@ -19,21 +20,21 @@ This work unit owns enforcement promotion, not controller or adapter constructio
 evidence and closeout change reviewed under the progressively promoted gate. Disposable probe PRs are test fixtures,
 not additional work-unit delivery PRs.
 
-The dependency leaves the repository in an authenticated shadow-ready state with the legacy CI `merge-ok` authority
-still intact, project review hooks inactive, normal archival cadence restored, and a committed sanitized acceptance
-manifest. This work unit re-proves those recorded values before reconciling live GitHub rules, then proves each
-authority transition on exact probe or closeout heads and removes legacy authority only after its replacement is
-already required and green. It never fills gaps in WU 1 qualification or treats promotion probes as retroactive WU 1
-acceptance. The recorded hosted declarations must trace through both WU 1 default-branch passes: baseline evidence
-before activation and satisfying aggregate evidence after the activation PR merged.
+The dependency leaves the repository with baseline-proven hosted declarations enabled, legacy CI `merge-ok` still
+required, project review hooks inactive, and a committed provisional sanitized manifest. Before reconciling live
+GitHub rules, this work reruns the complete matrix through the enabled immutable default-branch policy and upgrades
+that provisional record to the final `CutoverAcceptanceProof`. It then proves each authority transition on exact probe
+or closeout heads and removes legacy authority only after its replacement is already required and green. It never
+fills implementation or baseline-qualification gaps with promotion probes.
 
 ## Promotion sequence
 
-1. Validate the committed WU 1 acceptance manifest against its sanitized schema and raw-checkpoint hashes, then
-   re-prove the installed ARC App identity, selected-repository scope, protected environment boundary, shipped
-   controller workflow SHA, provider capability table, enabled subset, and exact source ids. Refuse promotion if the
-   `CutoverAcceptanceProof` is incomplete, the activation diff does not match its baseline-derived candidate, current
-   state has drifted, or any required capability is unavailable.
+1. Validate the committed provisional qualification manifest against its sanitized schema and raw-checkpoint hashes,
+   then rerun the complete matrix through the enabled immutable default-branch policy. Re-prove the installed ARC App
+   identity, selected-repository scope, protected environment boundary, shipped controller workflow SHA, provider
+   capability table, enabled subset, and exact source ids. Refuse promotion if the activation diff does not match its
+   baseline-derived candidate, current state has drifted, any required capability is unavailable, or the enabled
+   aggregate path cannot produce one complete `CutoverAcceptanceProof`.
 2. Snapshot classic branch protection and the `main-protection` ruleset, including source-pinned checks, strictness,
    human approvals, stale-review dismissal, and conversation resolution. Keep both enforcement layers equivalent at
    every mutation. Retain both layers for this cutover to minimize unrelated governance change; consolidation is
@@ -91,18 +92,17 @@ and permits maintainer-attested agent evidence or an authenticated non-author hu
 removing the unavailable App context; remove it only after restored App authority is required and green. Every
 rollback ends with the same exact-head verification used for forward promotion.
 
-## Required WU 1 inputs before spec creation
+## Required qualification inputs before spec creation
 
-These are observed values, not open design choices. Import them from the shipped
-`.arc/reference/supplemental/research/research-review-gate-cutover-evidence.md`: the final capability table, qualified
-enabled hosted-adapter subset under the canonical `coderabbit-pr` then `codex-pr` policy order, exact App/Actions
-source ids,
-controller/workflow SHAs, token-format evidence, repair proof, enforcement boundary, and raw-checkpoint hashes.
-Reject placeholders, missing qualification rows, unverified hashes, or drift from the live installation. Refuse
-promotion unless at least one hosted adapter is enabled and its request/evidence path plus enabled aggregate policy
-are live-proven from the second default-branch tail. Retain classic protection beside `main-protection`, mutate them
-equivalently, set generic approvals to zero at final, and use disposable promotion probes plus the one final alias-
-removal, activation, and closeout delivery PR.
+These are observed values, not open design choices. Import them from the provisional
+`.arc/reference/supplemental/research/research-review-gate-cutover-evidence.md`: the baseline capability table,
+qualified enabled hosted-adapter subset under the canonical `coderabbit-pr` then `codex-pr` policy order, exact App/
+Actions source ids, controller/workflow SHAs, token-format evidence, repair proof, enforcement boundary, and raw-
+checkpoint hashes. Reject placeholders, missing qualification rows, unverified hashes, activation-diff mismatch, or
+drift from the live installation. Refuse enforcement mutation unless at least one hosted adapter is enabled and its
+request/evidence path plus the enabled aggregate policy pass promotion's opening default-branch matrix. Retain classic
+protection beside `main-protection`, mutate them equivalently, set generic approvals to zero at final, and use
+disposable promotion probes plus the one final alias-removal, activation, and closeout delivery PR.
 
 The final handoff also records the installed workflow revisions, source-pinned enforcement set, setup assumptions,
 normal/outage mutation sequence, and project-hook activation behavior for `review-gate-github-adapter`; it does not

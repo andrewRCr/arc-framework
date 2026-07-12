@@ -1,14 +1,14 @@
-# Metadata: review-gate-enforcement-promotion
+# Metadata: review-gate-enforcement-qualification
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** `review-gate-enforcement-qualification`
+- **Depends On:** `review-gate-enforcement-cutover`
 
 - **Origin:** [internal]
-- **Design:** `draft-review-gate-enforcement-promotion.md`
+- **Design:** `draft-review-gate-enforcement-qualification.md`
 - **Task List:** [none]
 
 - **Current Workflow:** [none]
