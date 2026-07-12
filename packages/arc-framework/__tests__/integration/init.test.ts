@@ -294,7 +294,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "post-work-unit-archive.md",
       "pre-activation.md",
       "pre-commit-review.md",
-      "pre-merge-review.md",
+      "pre-merge.md",
       "pre-pr-open.md",
       "post-pr-open.md",
       "pre-push-review.md",
@@ -320,7 +320,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         "post-context-load", "post-task-completion", "post-task-quality",
         "post-unit-quality", "post-work-unit-activate",
         "post-work-unit-archive", "pre-activation", "pre-commit-review",
-        "pre-merge-review", "pre-pr-open", "post-pr-open", "pre-push-review",
+        "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review",
       ];
 
       for (const name of methodNames) {

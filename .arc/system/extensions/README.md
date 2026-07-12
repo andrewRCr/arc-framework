@@ -34,7 +34,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [pre-push-review](pre-push-review.md) — verification at any push routed through the push wrapper
 - [pre-pr-open](pre-pr-open.md) — retry-safe actions immediately before change-request creation
 - [post-pr-open](post-pr-open.md) — idempotent actions on every open change-request entry
-- [pre-merge-review](pre-merge-review.md) — final-state checks after review-response, before merge
+- [pre-merge](pre-merge.md) — final-state checks after review-response, before merge
 - [post-work-unit-archive](post-work-unit-archive.md) — actions after work unit archival
 
 ## Extension Points
@@ -55,7 +55,7 @@ answer the question "when should my extension fire?"; lifecycle ordering does.
 | pre-push-review              | push wrapper                     | Push wrapper invocation         | Per-push checks (reserved-for-future)     |
 | pre-pr-open                  | integrate-work-unit / run-errand | pushed head → create request    | Retry-safe creation actions               |
 | post-pr-open                 | integrate-work-unit / run-errand | open request → review cycle     | Idempotent open-request actions           |
-| pre-merge-review             | integrate-work-unit              | review-response → merge         | Final-state checks before merge action    |
+| pre-merge                    | integrate-work-unit              | review-response → merge         | Final-state checks before merge action    |
 | post-work-unit-archive       | archive-work-unit                | After core archival             | PM layer interface after archival         |
 
 ---

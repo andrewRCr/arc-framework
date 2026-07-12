@@ -23,7 +23,7 @@ Read the current decision for `hostRef` and follow exactly one arm:
 - **Recommended:** Surface the reason, expected coverage, and capacity provenance; ask before raising the work.
 - **Exempt:** Return successfully without provider work. An authorized operator may still use explicit `require`.
 
-The same decision may be entered from `post-pr-open` and final `pre-merge-review`; unchanged state is a no-op.
+The same decision may be entered from `post-pr-open` and final `pre-merge`; unchanged state is a no-op.
 
 ## 2. Coordinate Findings
 

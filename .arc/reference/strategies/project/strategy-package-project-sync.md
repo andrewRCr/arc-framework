@@ -230,7 +230,7 @@ arc-in-git files are annotated explicitly.
 - `system/extensions/post-work-unit-archive.md`
 - `system/extensions/pre-activation.md`
 - `system/extensions/pre-commit-review.md`
-- `system/extensions/pre-merge-review.md`
+- `system/extensions/pre-merge.md`
 - `system/extensions/pre-pr-open.md`
 - `system/extensions/post-pr-open.md`
 - `system/extensions/pre-push-review.md`

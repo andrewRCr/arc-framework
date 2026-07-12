@@ -65,7 +65,7 @@ a given session. Loaded on-demand when the agent enters the relevant workflow ph
 - arc-methods defaults and overrides (decision trees, format specs, classification rubrics)
 - Strategy documents (domain-specific patterns and guidance)
 - Workflow documents (prepare-commits, integrate-work-unit)
-- arc-extensions steps (post-task-quality, pre-merge-review, etc.)
+- arc-extensions steps (post-task-quality, pre-merge, etc.)
 
 ### State-Conditional Promotion
 

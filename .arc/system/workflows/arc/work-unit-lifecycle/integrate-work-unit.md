@@ -10,7 +10,7 @@ arc:
     - pre-pr-open
     - post-pr-open
     - pre-push-review
-    - pre-merge-review
+    - pre-merge
 ---
 
 # Workflow: Integrate Work Unit
@@ -307,7 +307,7 @@ Before pushing the reconcile commit, repeat the Step 12 pre-push extension check
 Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. Re-run the distance check after the
 push; repeat the reconcile loop until `{behind}` is `0`.
 
-At the zero-behind final head, compose the current `openedChangeRequest` and fire `pre-merge-review` when active.
+At the zero-behind final head, compose the current `openedChangeRequest` and fire `pre-merge` when active.
 Its actions must report the controller settled for this exact head. Any review action that commits or pushes
 invalidates the checkpoint: repeat the distance check, reconcile if needed, and fire the final hook again. Continue
 only when the head is unchanged and settled. No lifecycle- or review-authored commit or push is allowed after this

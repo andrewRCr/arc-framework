@@ -11,7 +11,7 @@ active: false
 >
 > - **Contract:** Sequential execution with halt-on-fail. Fires per push — high-frequency invocation, so
 >   `.actions` should stay lightweight. Reserved-for-future framing: shipped to complete the extension-family
->   namespace alongside `pre-commit-review`, `pre-pr-open`, and `pre-merge-review`; `.actions` is empty by
+>   namespace alongside `pre-commit-review`, `pre-pr-open`, and `pre-merge`; `.actions` is empty by
 >   default. Use for last-mile push-time checks (upstream-state validation, release-state assertions,
 >   protected-branch reaffirmation) that earlier gates can't cover.
 

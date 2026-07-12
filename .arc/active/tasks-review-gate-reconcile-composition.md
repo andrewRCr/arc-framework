@@ -353,26 +353,14 @@ same-concern bounded exceptions settled by spec Decisions 18-19, not an invitati
   project `verify-work-unit`; routed composition-test policy, deceptive-stub review, and the researched follow-up
   mechanism to `delivery-intent-integrity` for deliberate design.
 
-### `[ ]` **5.4 Rename the final lifecycle extension to `pre-merge` and align cutover activation**
+### `[x]` **5.4 Rename the final lifecycle extension to `pre-merge` and align cutover activation**
 
 - _Goal:_ The extension family names the final hook for its lifecycle event rather than one installed action, and
   the self-hosting runbook can activate/rollback the exact project hooks it actually uses.
-- _Note:_ Clean forward rename only: ARC is pre-public-alpha and this repository is the only live consumer. No
-  alias, updater migration, update guarantee, or compatibility note; completed historical artifacts remain
-  historical.
-
-    - Rename `system/extensions/pre-merge-review.md` → `pre-merge.md` in package and project copies with targeted
-      Configurable edits, preserving the package placeholder and moving the project's inactive coordinator actions.
-    - Cascade live product surfaces: extension declarations/fire points in `integrate-work-unit` and `run-errand`,
-      extension README/configurability/session guidance, package classification/init recipe, reference inventories,
-      project coordinator wording, and product-facing tests. Synthetic fixture names may stay arbitrary; no live
-      non-historical product reference to `pre-merge-review` remains.
-    - Update `.github/review-gate.md` checkpoint capture, cutover activation, explicit current-session invocation,
-      rollback, and outage recovery to enable/disable `post-pr-open` + `pre-merge`. The project hooks remain inactive
-      in this WU; the dependent cutover flips them only after shadow proof.
-    - Verify package/project Configurable diffs retain only the intentional project `.actions` body and activation
-      value; extend extension integrity, fresh-install/current-repository, and PR-open lifecycle tests for the
-      renamed point. Do not add updater retirement behavior for unsupported pre-alpha installations.
+- _Outcome:_ Cleanly renamed the inactive Configurable hook to `pre-merge` across package/project workflows,
+  inventories, classification/installation, docs, and tests. The project/package delta remains only the coordinator
+  actions; the runbook now snapshots, activates, explicitly invokes, rolls back, and suspends the two project hooks
+  as one `{post_pr_open,pre_merge}` cutover state, with no compatibility alias or updater retirement path.
 
 ### `[ ]` **5.5 Rename `SILENT FIX` review triage to `MINOR FIX`**
 

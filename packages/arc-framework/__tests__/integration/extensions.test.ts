@@ -88,10 +88,10 @@ describe("runExtensionsStatus — full mode", () => {
   });
 
   it("classifies active and inactive extensions and counts them", async () => {
-    await writeExtension(fixture.extDir, "pre-merge-review", true, "Review ceremony");
+    await writeExtension(fixture.extDir, "pre-merge", true, "Review ceremony");
     await writeExtension(fixture.extDir, "post-task-quality", false, "Extra checks");
     await writeExtension(fixture.extDir, "post-unit-quality", false);
-    await writeWorkflow(fixture.wfDir, "a.md", ["pre-merge-review"]);
+    await writeWorkflow(fixture.wfDir, "a.md", ["pre-merge"]);
 
     const result = await runExtensionsStatus({ cwd: fixture.root });
 
@@ -100,15 +100,15 @@ describe("runExtensionsStatus — full mode", () => {
     expect(result.inactiveCount).toBe(2);
     expect(result.extensions).toEqual(
       expect.arrayContaining([
-        { name: "pre-merge-review", active: true, description: "Review ceremony" },
+        { name: "pre-merge", active: true, description: "Review ceremony" },
         { name: "post-task-quality", active: false, description: "Extra checks" },
       ]),
     );
   });
 
   it("detects orphaned references against the extensions listing", async () => {
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
-    await writeWorkflow(fixture.wfDir, "wf.md", ["pre-merge-review", "ghost-extension"]);
+    await writeExtension(fixture.extDir, "pre-merge", true);
+    await writeWorkflow(fixture.wfDir, "wf.md", ["pre-merge", "ghost-extension"]);
 
     const result = await runExtensionsStatus({ cwd: fixture.root, includeOrphanDetails: true });
 
@@ -119,7 +119,7 @@ describe("runExtensionsStatus — full mode", () => {
   });
 
   it("reports orphan count but suppresses detail when includeOrphanDetails is false", async () => {
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
     await writeWorkflow(fixture.wfDir, "wf.md", ["ghost"]);
 
     const result = await runExtensionsStatus({ cwd: fixture.root });
@@ -130,16 +130,16 @@ describe("runExtensionsStatus — full mode", () => {
   });
 
   it("ignores README.md in the extensions directory", async () => {
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
     await writeFile(join(fixture.extDir, "README.md"), "# Extensions directory\n");
 
     const result = await runExtensionsStatus({ cwd: fixture.root });
 
-    expect(result.extensions.map((e) => e.name)).toEqual(["pre-merge-review"]);
+    expect(result.extensions.map((e) => e.name)).toEqual(["pre-merge"]);
   });
 
   it("records a warning when an extension file has malformed frontmatter and still resolves refs by basename", async () => {
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
     await writeFile(
       join(fixture.extDir, "broken.md"),
       "# no frontmatter\n",
@@ -157,8 +157,8 @@ describe("runExtensionsStatus — full mode", () => {
   });
 
   it("recurses into workflow subdirectories", async () => {
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
-    await writeWorkflow(fixture.wfDir, "sub/nested.md", ["pre-merge-review", "ghost"]);
+    await writeExtension(fixture.extDir, "pre-merge", true);
+    await writeWorkflow(fixture.wfDir, "sub/nested.md", ["pre-merge", "ghost"]);
 
     const result = await runExtensionsStatus({ cwd: fixture.root, includeOrphanDetails: true });
 
@@ -187,14 +187,14 @@ describe("runExtensionsSessionInitStatus — session-init mode", () => {
   });
 
   it("returns only active extensions, not inactive ones", async () => {
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
     await writeExtension(fixture.extDir, "post-task-quality", false);
     await writeExtension(fixture.extDir, "post-context-load", true);
 
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
 
     expect(result.mode).toBe("session-init");
-    expect(result.active.sort()).toEqual(["post-context-load", "pre-merge-review"]);
+    expect(result.active.sort()).toEqual(["post-context-load", "pre-merge"]);
   });
 
   it("returns an empty list when no extensions are active", async () => {
@@ -206,8 +206,8 @@ describe("runExtensionsSessionInitStatus — session-init mode", () => {
   it("does not walk the workflows directory (fast path)", async () => {
     // The session-init probe should succeed even when the workflows
     // directory is empty — it only reads the extensions directory.
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
     const result = await runExtensionsSessionInitStatus({ cwd: fixture.root });
-    expect(result.active).toEqual(["pre-merge-review"]);
+    expect(result.active).toEqual(["pre-merge"]);
   });
 });

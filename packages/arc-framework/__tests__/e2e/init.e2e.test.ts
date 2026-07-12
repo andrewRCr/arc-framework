@@ -144,7 +144,7 @@ describe("init", () => {
       "post-context-load", "post-task-completion", "post-task-quality",
       "post-unit-quality", "post-work-unit-activate",
       "post-work-unit-archive", "pre-activation", "pre-commit-review",
-      "pre-merge-review", "pre-pr-open", "post-pr-open", "pre-push-review",
+      "pre-merge", "pre-pr-open", "post-pr-open", "pre-push-review",
     ];
 
     for (const name of methodNames) {
