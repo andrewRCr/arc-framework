@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `679f8b7c8`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `cb356ea57`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,12 +13,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                         | Priority | Owner  | Depends on | Cohort            |
-| ---------- | --------------------------------- | -------- | ------ | ---------- | ----------------- |
-| `Active`   | finalize-parallelism              | P1       | andrew | —          | agile-parallelism |
-| `Planning` | slug-state-oracle-alignment       | P1       | andrew | —          | —                 |
-| `Active`   | review-gate-reconcile-composition | P2       | andrew | —          | —                 |
-| `Active`   | burn-in-probe-b                   | P3       | andrew | —          | —                 |
+| State         | Work unit                         | Priority | Owner  | Depends on | Cohort            |
+| ------------- | --------------------------------- | -------- | ------ | ---------- | ----------------- |
+| `Active`      | finalize-parallelism              | P1       | andrew | —          | agile-parallelism |
+| `Planning`    | slug-state-oracle-alignment       | P1       | andrew | —          | —                 |
+| `Integrating` | review-gate-reconcile-composition | P2       | andrew | —          | —                 |
+| `Active`      | burn-in-probe-b                   | P3       | andrew | —          | —                 |
 
 ## Ready
 
