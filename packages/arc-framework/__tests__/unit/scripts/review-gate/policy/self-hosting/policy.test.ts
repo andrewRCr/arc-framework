@@ -109,6 +109,7 @@ describe("self-hosting review policy document", () => {
     const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
 
     expect(parsed.providerIdentities.appBotUserId).toBe("302312524");
+    expect(parsed.providerIdentities).toMatchObject({ codexAppId: "1144995", codexBotUserId: "199175422" });
   });
 
   it.each([

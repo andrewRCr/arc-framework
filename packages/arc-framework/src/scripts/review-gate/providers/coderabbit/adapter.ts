@@ -176,6 +176,18 @@ export class CodeRabbitProviderAdapter implements ReviewProviderAdapter {
     };
   }
 
+  qualifyRequest(request: ReviewRequest): Promise<{ qualified: boolean; reason: string }> {
+    try {
+      selectCodeRabbitRequestMechanism(request, this.capabilities);
+      return Promise.resolve({ qualified: true, reason: "qualified" });
+    } catch (error) {
+      return Promise.resolve({
+        qualified: false,
+        reason: error instanceof CodeRabbitRequestError ? error.code : "request-unqualified",
+      });
+    }
+  }
+
   async request(request: ReviewRequest): Promise<RequestAcknowledgement> {
     const current = await this.api.validateCurrent(request);
     if (current !== "current") throw new CodeRabbitRequestError(current);

@@ -58,6 +58,7 @@ describe("review adapter ports", () => {
     };
     const provider: ReviewProviderAdapter = {
       readCapacity: async () => capacity,
+      qualifyRequest: async () => ({ qualified: true, reason: "qualified" }),
       request: async () => ({
         requestIdentity: "request-1",
         acknowledgedAt: "2026-07-10T20:00:00.000Z",

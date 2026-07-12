@@ -197,6 +197,7 @@ export interface ReviewReceiptStore {
 /** Boundary for source capacity, request admission, and evidence observation. */
 export interface ReviewProviderAdapter {
   readCapacity(sourceIdentity: string): Promise<SourceCapacity>;
+  qualifyRequest(request: ReviewRequest): Promise<{ qualified: boolean; reason: string }>;
   request(request: ReviewRequest): Promise<RequestAcknowledgement>;
   observe(requestIdentity: string): Promise<ProviderObservation[]>;
   normalizeEvidence(observations: ProviderObservation[]): Promise<Evidence[]>;

@@ -169,6 +169,7 @@ function harness(overrides: HarnessOverrides = {}) {
   };
   const provider: ReviewProviderAdapter = {
     readCapacity: async (sourceIdentity) => availableCapacity(sourceIdentity),
+    qualifyRequest: async () => ({ qualified: true, reason: "qualified" }),
     request: async (request) => {
       requestCalls.push(request);
       return {
@@ -299,6 +300,20 @@ describe("SelfHostingReconcileRuntime", () => {
     expect(result).toEqual({ status: "acknowledged", invoked: true });
     expect(requestCalls).toHaveLength(1);
     expect(store.envelopes.map((entry) => entry.receipt.action)).toEqual(["reserved", "acknowledged"]);
+  });
+
+  it("rejects an unqualified provider request before appending its reservation", async () => {
+    const { runtime, provider, store } = harness({
+      policy: coderabbitPolicy(),
+      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+    });
+    provider.qualifyRequest = async () => ({ qualified: false, reason: "guidance-unresolved" });
+    const state = await runtime.read();
+    const decision = await runtime.reduce(state, NOW);
+    if (decision.request === null) throw new Error("expected request");
+
+    await expect(runtime.reserve(decision.request, 0)).resolves.toBeNull();
+    expect(store.envelopes).toEqual([]);
   });
 
   it("keeps an exact-head native CodeRabbit approval non-satisfying", async () => {

@@ -581,7 +581,9 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     expectedLedgerVersion: number,
     plannedReservation: ReviewReceipt | null = null,
   ): Promise<{ envelope: ReceiptEnvelope; created: boolean } | null> {
-    const { store } = this.deps;
+    const { provider, store } = this.deps;
+    const qualification = await provider.qualifyRequest(request);
+    if (!qualification.qualified) return null;
     const changeRequestId = request.changeRequestId;
     return reserveRequest({
       request,

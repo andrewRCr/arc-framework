@@ -247,34 +247,38 @@ schema, mixed-ledger mode, or upgrade transition is introduced before activation
   declared capability set, the ledger owns the real GitHub trigger event, and only exact-head durable artifacts
   normalized by the adapter can satisfy the gate.
 
-### `[ ]` **3.3 Add the hosted Codex adapter, pinned evidence parsers, and rubric transport**
+### `[x]` **3.3 Add the hosted Codex adapter, pinned evidence parsers, and rubric transport**
 
 - _Goal:_ Hosted Codex can serve as a causally bound satisfying adapter through the PR author's identity, with
   versioned grammar and guidance that fail closed on every stale, edited, ambiguous, or unrelated artifact.
 - **Additional Context:** `notes-review-gate-enforcement-cutover.md` § Live hosted-Codex probe.
 
-    - `[ ]` **3.3.a Add `providers/codex` request, observation, and capability boundaries**
-        - Implement actor-required request actions, pinned App id `1144995`, bot user id `199175422`, request-window
-          correlation, and exact-head provider observations behind `ReviewProviderAdapter`.
+    - `[x]` **3.3.a Add `providers/codex` request, observation, and capability boundaries**
+        - Added actor-required trigger adoption, receipt-backed request/run locators, pinned App `1144995` and bot
+          `199175422` identities, exact-head observations, capability declarations, and neutral provider-port
+          preflight that rejects unqualified requests before reservation.
 
-    - `[ ]` **3.3.b Parse findings and clean outcomes with versioned fail-closed grammars**
-        - Accept findings only from a standard submitted full-commit review; accept clean only from the unedited
-          anchored issue-comment grammar with one uniquely resolved reviewed-commit marker.
+    - `[x]` **3.3.b Parse findings and clean outcomes with versioned fail-closed grammars**
+        - Added fail-closed parsing for full-commit submitted-review findings and the pinned, unedited `Codex Review:`
+          clean comment with its exact clause and one uniquely resolved frozen-head commit marker.
 
-    - `[ ]` **3.3.c Add repository review guidance and effective-guidance digest validation**
-        - Add top-level `AGENTS.md` `## Review guidelines` for `independent-analysis/v1`; resolve nested guidance for
-          every changed path and bind its digest plus the five focus dimensions to the owned trigger.
-        - Resolve guidance through an injected exact-head git-object reader, not GitHub contents permission. Check
-          both prior and destination paths for renames and the containing path for deletions; reject missing,
-          conflicting, unreadable, or head-mismatched guidance before reservation.
+    - `[x]` **3.3.c Add repository review guidance and effective-guidance digest validation**
+        - Added the `independent-analysis/v1` review-guidelines section and command transport for all five dimensions;
+          exact-head git-object resolution covers changed, deleted, and both renamed paths while rejecting missing,
+          conflicting, unreadable, or head-mismatched effective guidance before reservation.
 
-    - `[ ]` **3.3.d Keep connected-account unavailability parser-only until production qualification**
-        - Parse only the pinned response grammar/link in the exclusive window; require an admissible intentionally
-          unconnected actor probe before enabling terminal fallback.
+    - `[x]` **3.3.d Keep connected-account unavailability parser-only until production qualification**
+        - Added the pinned connected-account response grammar/link under the App/bot/request window while leaving its
+          terminal capability disabled pending an admissible unconnected-actor live qualification.
 
-    - `[ ]` **3.3.e Cover probe fixtures, grammar drift, rubric transport, and stale rejection**
-        - Include nested guidance precedence, rename/delete path coverage, exact-head object reads, conflicting
-          guidance, ambiguous SHA prefixes, edited clean comments, and full-commit findings.
+    - `[x]` **3.3.e Cover probe fixtures, grammar drift, rubric transport, and stale rejection**
+        - Covered nested guidance and rename/delete targets, exact-head object reads, conflicts and drift, ambiguous
+          SHA prefixes, edited/foreign/pre-trigger clean comments, full-commit findings, actor-required trigger
+          adoption, parser-only account failure, and reservation preflight.
+
+- _Outcome:_ Hosted Codex now has an independently qualifying path from exact-head repository guidance and an owned
+  author trigger through pinned durable artifacts; unknown grammar, identity drift, and unresolved guidance cannot
+  create either a reservation or satisfying evidence.
 
 ### `[ ]` **3.4 Enforce one-live-source fallback and explicit ambiguous-effect repair**
 

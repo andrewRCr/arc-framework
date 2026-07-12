@@ -50,7 +50,12 @@ export interface SelfHostingPolicy {
   requirementTemplates: ReviewRequirementTemplate[];
   rubricBindings: Array<{ requirementKind: string; rubricVersion: string }>;
   timeouts: { reservationMinutes: number; analysisMinutes: number };
-  providerIdentities: { coderabbitBotUserId: string; appBotUserId: string };
+  providerIdentities: {
+    coderabbitBotUserId: string;
+    codexAppId: string;
+    codexBotUserId: string;
+    appBotUserId: string;
+  };
   attestationEnforcement: {
     acceptedRuntimeKinds: Record<string, string>;
     maxRunAgeMinutes: number;
@@ -99,7 +104,12 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
   }],
   rubricBindings: [{ requirementKind: "independent-analysis", rubricVersion: "independent-analysis/v1" }],
   timeouts: { reservationMinutes: 10, analysisMinutes: 60 },
-  providerIdentities: { coderabbitBotUserId: "136622811", appBotUserId: "302312524" },
+  providerIdentities: {
+    coderabbitBotUserId: "136622811",
+    codexAppId: "1144995",
+    codexBotUserId: "199175422",
+    appBotUserId: "302312524",
+  },
   attestationEnforcement: {
     acceptedRuntimeKinds: {
       "codex-cli": "codex",
@@ -119,6 +129,20 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
       durableResults: false,
       distinctOutcomes: false,
       durableFindings: true,
+      closureCapability: false,
+      transport: "durable-record",
+      liveProbeRequired: true,
+    },
+    {
+      sourceKind: "agent",
+      qualifier: "independent-analysis/v1",
+      sourceIdentity: "codex-pr",
+      rubricVersion: "independent-analysis/v1",
+      enabled: false,
+      exactCoverage: false,
+      durableResults: false,
+      distinctOutcomes: false,
+      durableFindings: false,
       closureCapability: false,
       transport: "durable-record",
       liveProbeRequired: true,
@@ -246,12 +270,20 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const timeouts = objectAt(record.timeouts, `${path}.timeouts`);
   exactKeys(timeouts, ["reservationMinutes", "analysisMinutes"], `${path}.timeouts`);
   const providerIdentities = objectAt(record.providerIdentities, `${path}.providerIdentities`);
-  exactKeys(providerIdentities, ["coderabbitBotUserId", "appBotUserId"], `${path}.providerIdentities`);
+  exactKeys(
+    providerIdentities,
+    ["coderabbitBotUserId", "codexAppId", "codexBotUserId", "appBotUserId"],
+    `${path}.providerIdentities`,
+  );
   const coderabbitBotUserId = stringAt(
     providerIdentities.coderabbitBotUserId,
     `${path}.providerIdentities.coderabbitBotUserId`,
   );
   if (!/^[1-9][0-9]*$/u.test(coderabbitBotUserId)) throw new Error("invalid CodeRabbit bot user id");
+  const codexAppId = stringAt(providerIdentities.codexAppId, `${path}.providerIdentities.codexAppId`);
+  if (!/^[1-9][0-9]*$/u.test(codexAppId)) throw new Error("invalid Codex App id");
+  const codexBotUserId = stringAt(providerIdentities.codexBotUserId, `${path}.providerIdentities.codexBotUserId`);
+  if (!/^[1-9][0-9]*$/u.test(codexBotUserId)) throw new Error("invalid Codex bot user id");
   const appBotUserId = stringAt(
     providerIdentities.appBotUserId,
     `${path}.providerIdentities.appBotUserId`,
@@ -311,7 +343,7 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
       reservationMinutes: integerAt(timeouts.reservationMinutes, `${path}.timeouts.reservationMinutes`, 1),
       analysisMinutes: integerAt(timeouts.analysisMinutes, `${path}.timeouts.analysisMinutes`, 1),
     },
-    providerIdentities: { coderabbitBotUserId, appBotUserId },
+    providerIdentities: { coderabbitBotUserId, codexAppId, codexBotUserId, appBotUserId },
     attestationEnforcement: {
       acceptedRuntimeKinds,
       maxRunAgeMinutes: integerAt(
