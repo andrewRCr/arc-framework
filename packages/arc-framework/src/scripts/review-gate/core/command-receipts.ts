@@ -87,28 +87,23 @@ function commandRequest(
   };
 }
 
-/** Create or replay one authorized require, waive, or dismiss receipt. */
+/** Create or replay one authorized require or waive receipt. */
 export function createDirectCommandReceipt(input: DirectCommandReceiptInput): DirectCommandReceiptResult {
   const requirementError = currentRequirement(input);
   if (requirementError !== null) return { ok: false, error: requirementError };
   if (input.event.command.kind === "refresh") return { ok: false, error: "refresh-requires-reservation" };
 
-  const action = input.event.command.kind === "require"
-    ? "required" as const
-    : input.event.command.kind === "waive" ? "waived" as const : "dismissed" as const;
-  const sourceIdentity = input.event.command.kind === "dismiss"
-    ? input.event.command.sourceIdentity
-    : COMMAND_RECEIPT_SOURCE;
+  const action = input.event.command.kind === "require" ? "required" as const : "waived" as const;
   const prior = input.priorReceipts.find((receipt) => receipt.eventId === input.event.eventId);
   const receipt = createReceipt({
     eventId: input.event.eventId,
     previousLedgerVersion: prior?.previousLedgerVersion ?? input.expectedLedgerVersion,
     action,
-    request: commandRequest(input, sourceIdentity),
+    request: commandRequest(input, COMMAND_RECEIPT_SOURCE),
     result: null,
     reason: input.event.command.reason,
     evidenceUrlOrId: input.event.durableRef,
-    findingIds: input.event.command.kind === "dismiss" ? [input.event.command.findingId] : [],
+    findingIds: [],
     payload: { kind: "decision", decidedAt: null },
   });
   if (prior === undefined) return { ok: true, receipt, replay: false };

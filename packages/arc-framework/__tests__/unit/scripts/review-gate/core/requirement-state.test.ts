@@ -82,6 +82,24 @@ describe("requirement execution state", () => {
     })).toMatchObject({ state: "stale", blocking: true });
   });
 
+  it("settles current findings evidence only after every finding is closed", () => {
+    const findings = evidence({
+      result: "findings",
+      findings: [{ findingId: "f-1", severity: "high", locus: "src/a.ts:1", evidenceUrlOrId: "finding:1" }],
+    });
+    expect(reduceRequirementState({
+      requirement: requirement(),
+      evidence: [findings],
+      currentEvidence: [findings],
+      receipts: [],
+      capacity,
+      waived: false,
+      coverageSatisfied: false,
+      findingsConsistent: true,
+      openFindingCount: 0,
+    })).toMatchObject({ state: "clean", blocking: false });
+  });
+
   it("stales prior evidence on a new head while retaining history eligibility", () => {
     expect(reduceRequirementState({
       requirement: requirement(),

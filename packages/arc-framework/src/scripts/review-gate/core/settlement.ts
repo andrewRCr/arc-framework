@@ -49,7 +49,7 @@ export function reduceFindingSettlements(input: {
   receipts: ReviewReceipt[];
   currentHeadSha: string;
   ciState: "pending" | "failure" | "success";
-  authorizedActorIdentity: string;
+  authorizedActorIdentity: string | null;
   qualifiedClosureSources: string[];
 }): FindingSettlementReduction {
   const findings = new Map<string, SourceFinding>();
@@ -88,10 +88,11 @@ export function reduceFindingSettlements(input: {
       if (payload.disposition === "provider-closed") {
         const sourceClosure = input.evidence.some((item) => item.sourceIdentity === finding.sourceIdentity
           && item.closures.some((itemClosure) => itemClosure.findingId === finding.findingId
-            && itemClosure.authorityKind === "source-confirmed"
             && itemClosure.authorityIdentity === finding.sourceIdentity
             && itemClosure.evidenceUrlOrId === payload.followUpEvidenceRef));
-        if (!input.qualifiedClosureSources.includes(finding.sourceIdentity) || !sourceClosure) {
+        if (!input.qualifiedClosureSources.includes(finding.sourceIdentity)
+          || payload.actorIdentity !== finding.sourceIdentity
+          || !sourceClosure) {
           errors.push(`invalid-provider-closure:${finding.findingId}`);
           continue;
         }

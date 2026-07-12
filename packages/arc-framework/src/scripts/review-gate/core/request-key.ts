@@ -42,7 +42,7 @@ function computeIdempotencyKey(input: ReceiptCreationInput): string {
   return hashContent(canonicalizePlainJson({
     requestKey: computeRequestKey(input.request),
     action: input.action,
-    ...(["required", "waived", "dismissed"].includes(input.action) ? { eventId: input.eventId } : {}),
+    ...(["required", "waived"].includes(input.action) ? { eventId: input.eventId } : {}),
     result: input.result,
     reason: input.reason ?? null,
     evidenceUrlOrId: input.evidenceUrlOrId,

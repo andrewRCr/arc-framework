@@ -16,6 +16,7 @@ import { ingestReviewCommands, type AuthorizedReviewCommandEvent, type ReviewCom
 import { deriveReviewGateAction } from "../core/next-action.js";
 import { createDirectCommandReceipt, planCommandRefresh } from "../core/command-receipts.js";
 import { planHeadUpdateConsumption } from "../core/head-mutability.js";
+import { resolveSettlementActor } from "../core/settlement.js";
 import { reduceExclusiveTriggerWindow, type TriggerEvent } from "../core/trigger-window.js";
 import type { GitHubTriggerHistoryEvent } from "../hosts/github/trigger-history.js";
 import type { CapabilitySet, NormalizedChangeRequest, ReviewRequirement } from "../core/contracts.js";
@@ -115,6 +116,7 @@ interface ReconcileSnapshot {
   receiptRefs: string[];
   inconsistencies: string[];
   ledgerVersion: number | null;
+  settlementActorIdentity: string | null;
 }
 
 const EMPTY_CAPABILITIES = (actorIdentity: string): CapabilitySet => ({
@@ -392,6 +394,24 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       ...providerEvidence,
       ...receiptEvidence,
     ];
+    const settlementRelevant = evidence.some((item) => item.findings.length > 0)
+      || ledgerReceipts.some((receipt) => receipt.payload.kind === "finding-disposition"
+        && receipt.payload.disposition !== "provider-closed");
+    let settlementActorIdentity: string | null = null;
+    if (settlementRelevant) {
+      try {
+        const settlementActor = await resolveSettlementActor({
+          prAuthor: { login: context.author.login, expectedActorId: context.author.identity },
+          fallbackMaintainer: policy.fallbackMaintainer,
+          resolveCapabilities: async (actor) => actor.expectedActorId === context.author.identity
+            ? capabilities
+            : host.resolveActorCapabilities(actor),
+        });
+        settlementActorIdentity = settlementActor.expectedActorId;
+      } catch {
+        settlementActorIdentity = null;
+      }
+    }
     const capacities = await this.resolveCapacities(decision);
     const commandEvents = await this.resolveCommandEvents(changeRequest, decision, evidence, ledgerReceipts);
 
@@ -422,6 +442,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       receiptRefs: ledgerEnvelopes.map((envelope) => envelope.durableRecordId),
       inconsistencies,
       ledgerVersion,
+      settlementActorIdentity,
     };
     return state;
   }
@@ -502,12 +523,6 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       }
     }
 
-    const authorizedDismissers = [
-      ...new Set(snapshot.commandEvents
-        .filter((event) => event.command.kind === "dismiss")
-        .map((event) => event.actorIdentity)),
-    ];
-
     const reduction = reduceSelfHostingGate({
       policy: this.deps.policy,
       changeRequest: snapshot.changeRequest,
@@ -523,7 +538,6 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       },
       ciState: snapshot.ciState,
       nativeReview: snapshot.nativeReview,
-      authorizedDismissers,
       inconsistencies: [
         ...snapshot.inconsistencies,
         ...(headUpdate.kind === "ambiguous" ? [`head-update-${headUpdate.reason}`] : []),
@@ -534,6 +548,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       lifecycleTail: snapshot.lifecycleTail,
       receiptRefs: snapshot.receiptRefs,
       actorIdentity: this.deps.policy.providerIdentities.appBotUserId,
+      settlementActorIdentity: snapshot.settlementActorIdentity,
       prAuthorIdentity: snapshot.context.author.identity,
       now,
     });
@@ -714,12 +729,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       ? receipt.action === "required" && receipt.request.sourceIdentity === "review-gate-command"
       : event.command.kind === "waive"
         ? receipt.action === "waived" && receipt.request.sourceIdentity === "review-gate-command"
-        : event.command.kind === "dismiss"
-          ? receipt.action === "dismissed"
-            && receipt.request.sourceIdentity === event.command.sourceIdentity
-            && receipt.findingIds.length === 1
-            && receipt.findingIds[0] === event.command.findingId
-          : ["reserved", "acknowledged", "terminal-failure"].includes(receipt.action)
+        : ["reserved", "acknowledged", "terminal-failure"].includes(receipt.action)
             && (event.command.sourceIdentity === "auto"
               || receipt.request.sourceIdentity === event.command.sourceIdentity);
     if (!actionMatches) return false;

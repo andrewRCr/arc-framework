@@ -29,9 +29,9 @@ const evidence = {
   }],
   closures: [{
     findingId: "finding-0",
-    authorityKind: "authorized-dismissal",
-    authorityIdentity: "actor-4",
-    evidenceUrlOrId: "receipt:dismiss-1",
+    authorityKind: "source-confirmed",
+    authorityIdentity: "agent-9",
+    evidenceUrlOrId: "evidence:closure-1",
   }],
   observedAt: "2026-07-10T20:00:00.000Z",
 };

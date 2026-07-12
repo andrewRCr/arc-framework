@@ -38,10 +38,10 @@ Fetch controller-normalized findings with source-scoped immutable ids and provid
 current decisive review state. Triage both paths with [`review-triage`][review-triage], then keep their authority
 separate:
 
-- **Controller-normalized findings:** Surface dispositions and apply only approved fixes. Their immutable ids may
-  receive a controller dismissal after authorization.
+- **Controller-normalized findings:** Surface every finding and record an explicit FIX, DEFER, or REJECT disposition.
+  Apply only approved fixes; non-fix dispositions require an authorized developer rationale on the unchanged head.
 - **Provider-native conversations:** Surface dispositions and apply only approved fixes, but never mint a controller
-  finding or dismissal. `CHANGES_REQUESTED` remains blocking; closure comes from the provider's decisive state and
+  finding or settlement. `CHANGES_REQUESTED` remains blocking; closure comes from the provider's decisive state and
   current conversation status. Completion-check success only wakes a canonical re-read; it never closes or cleans a
   conversation.
 
@@ -58,24 +58,27 @@ invalidates the loop scope before any action or settlement decision.
 
 ## 3. Close Findings With Authority
 
-Only controller-normalized findings may use `/review-gate dismiss`. Treat one as closed only when the provider
-confirms closure, or after an authorized dismissal receipt:
+Settle each controller-normalized finding through exactly one authority path:
 
-```text
-/review-gate dismiss <requirement> <source> <finding-id> <reason>
-```
+- **FIX:** Record `begin-fix`, authorize and consume one old-head-to-new-head push, require successful exact-new-head
+  CI and a qualifying full-head follow-up review with no explicit recurrence, post an accurate direct reply, append
+  and confirm `fixed`, then resolve and canonically observe the conversation.
+- **DEFER or REJECT:** Keep the head unchanged, post the authorized developer's bounded rationale as a direct reply,
+  append and confirm that disposition, then resolve and canonically observe the conversation.
+- **Provider-owned closure:** Accept only an explicit closure relation from the same qualified source that issued the
+  finding. Record `provider-closed` without speaking for the provider or mutating the thread on its behalf.
 
-Only after that authority is durable may the host adapter resolve the corresponding thread. A bare host-thread
-mutation, provider ignore command, or direct provider review request cannot close or satisfy a requirement. Keep
-defer/reject rationale concise and verify every closure against the current change set.
+A bare host-thread mutation, generic approval, provider ignore command, coordinator-authored closure claim, or direct
+provider review request cannot close or satisfy a requirement. Thread resolution is a separate observation that may
+follow durable coordinator authority; it is never authority by itself.
 
 A provider-native conversation closes only when its provider's current decisive state and conversation status confirm
-it. Never mint a controller finding or dismissal for a native artifact the provider boundary cannot model.
+it. Never mint a controller finding or settlement for a native artifact the provider boundary cannot model.
 
 ## 4. Return Settled State
 
 Re-read the current head, requirements, findings, native conversations, and check projection. Return only when every
-obligation is satisfied, explicitly waived/dismissed with authority, or remains non-blocking recommended work, and no
+obligation is satisfied, explicitly waived or settled with authority, or remains non-blocking recommended work, and no
 blocking finding or unresolved required conversation remains. A valid lifecycle-tail projection that is already
 settled returns without requesting or recommending a refresh. An invalid or ambiguous tail returns to ordinary
 current-head coordination. If the head changes, restart at § 1.

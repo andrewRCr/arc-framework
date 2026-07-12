@@ -12,13 +12,6 @@ export type ReviewCommand =
       sourceIdentity: string;
       coverage: "full" | "incremental";
       reason: string;
-    }
-  | {
-      kind: "dismiss";
-      requirementId: string;
-      sourceIdentity: string;
-      findingId: string;
-      reason: string;
     };
 
 /** Known identifiers used to reject semantically impossible commands early. */
@@ -91,27 +84,5 @@ export function parseReviewCommand(text: string, context: ReviewCommandContext):
     };
   }
 
-  const dismissMatch = /^\/review-gate dismiss (\S+) (\S+) (\S+) (.+)$/u.exec(text);
-  if (dismissMatch !== null) {
-    const requirementId = dismissMatch[1] ?? "";
-    const sourceIdentity = dismissMatch[2] ?? "";
-    const findingId = dismissMatch[3] ?? "";
-    const reason = (dismissMatch[4] ?? "").trim();
-    if (!context.knownRequirementIds.includes(requirementId)) {
-      return failure("unknown-requirement", `unknown requirement: ${requirementId}`);
-    }
-    if (![sourceIdentity, findingId].every((value) => REVIEW_IDENTIFIER.test(value))) {
-      return failure("invalid-finding", "source or finding identity is malformed");
-    }
-    if (!context.knownFindings.some((finding) =>
-      finding.sourceIdentity === sourceIdentity && finding.findingId === findingId)) {
-      return failure("unknown-finding", `unknown source-scoped finding: ${sourceIdentity}/${findingId}`);
-    }
-    if (!reasonValid(reason)) return failure("invalid-reason", "reason must contain 1-1024 bytes");
-    return {
-      ok: true,
-      command: { kind: "dismiss", requirementId, sourceIdentity, findingId, reason },
-    };
-  }
-  return failure("invalid-command", "command does not match require, waive, refresh, or dismiss grammar");
+  return failure("invalid-command", "command does not match require, waive, or refresh grammar");
 }

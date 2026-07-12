@@ -19,6 +19,7 @@ import type { LifecycleTailProof } from "./lifecycle-tail.js";
 import { renderGateProjection } from "./projection.js";
 import { resolveProviderFallback } from "./provider-fallback.js";
 import { reduceRequirementState } from "./requirement-state.js";
+import { reduceFindingSettlements } from "./settlement.js";
 import { reduceGateVerdict, type GateVerdictInput, type VerdictRequirement } from "./verdict.js";
 
 /** Policy decision data consumed by the neutral reducer. */
@@ -41,6 +42,7 @@ export interface ReviewSourceQualification {
   requestMechanism: "automatic" | "user-trigger";
   requiredActorIdentity: string | null;
   requestCommand: string | null;
+  closureCapability: boolean;
 }
 
 /** Canonical state consumed by the production core reduction. */
@@ -58,13 +60,13 @@ export interface ReviewGateReductionInput {
   };
   ciState: "pending" | "failure" | "success";
   nativeReview: GateVerdictInput["nativeReview"];
-  authorizedDismissers: string[];
   inconsistencies: string[];
   ledgerVersion: number | null;
   lifecycleTail?: LifecycleTailProof | null;
   lifecycleTailPredicateId: string;
   receiptRefs: string[];
   actorIdentity: string;
+  settlementActorIdentity: string | null;
   now?: Date;
 }
 
@@ -107,6 +109,42 @@ function receiptCurrent(requirement: ReviewRequirement, receipt: ReviewReceipt):
     && receipt.request.changeSetId === requirement.changeSetId
     && receipt.request.policyVersion === requirement.policyVersion
     && receipt.request.rubricVersion === requirement.rubricVersion;
+}
+
+function receiptPolicyRelevant(requirement: ReviewRequirement, receipt: ReviewReceipt): boolean {
+  return receipt.request.requirementId === requirement.id
+    && receipt.request.policyVersion === requirement.policyVersion
+    && receipt.request.rubricVersion === requirement.rubricVersion;
+}
+
+function awaitsAuthorizedFollowUp(input: {
+  sourceIdentity: string;
+  findingId: string;
+  originHeadSha: string;
+  currentHeadSha: string;
+  authorizedActorIdentity: string | null;
+  evidence: Evidence[];
+  receipts: ReviewReceipt[];
+}): boolean {
+  if (input.authorizedActorIdentity === null || input.originHeadSha === input.currentHeadSha) return false;
+  const authorization = input.receipts.find((receipt) => receipt.action === "begin-fix"
+    && receipt.payload.kind === "head-update-authorization"
+    && receipt.payload.oldHeadSha === input.originHeadSha
+    && receipt.payload.targetHeadSha === input.currentHeadSha
+    && receipt.payload.actorIdentity === input.authorizedActorIdentity
+    && receipt.findingIds.includes(input.findingId));
+  if (authorization === undefined) return false;
+  const consumed = input.receipts.some((receipt) => receipt.action === "head-update-consumed"
+    && receipt.payload.kind === "head-update-consumption"
+    && receipt.payload.authorizationReceiptHash === authorization.receiptHash
+    && receipt.payload.oldHeadSha === input.originHeadSha
+    && receipt.payload.newHeadSha === input.currentHeadSha
+    && receipt.findingIds.includes(input.findingId));
+  const followUpArrived = input.evidence.some((item) => item.sourceIdentity === input.sourceIdentity
+    && item.headSha === input.currentHeadSha
+    && item.coverage === "full"
+    && item.coverageThroughSha === input.currentHeadSha);
+  return consumed && !followUpArrived;
 }
 
 function requestFor(
@@ -161,6 +199,7 @@ export function reduceReviewGate(input: ReviewGateReductionInput): GateReduction
     const receipts = input.receipts.filter((receipt) => receiptCurrent(requirement, receipt));
     const evidence = input.evidence.filter((item) => item.requirementId === requirement.id
       && evidenceQualified(requirement, item, input.qualifications));
+    const settlementReceipts = input.receipts.filter((receipt) => receiptPolicyRelevant(requirement, receipt));
     const coverage = reduceCoverage({
       requirement,
       baseRef: input.changeRequest.baseRef,
@@ -173,18 +212,28 @@ export function reduceReviewGate(input: ReviewGateReductionInput): GateReduction
     const findings = reduceFindings({
       evidence: coverage.stateEvidence,
       currentChangeSetId: coverage.stateChangeSetId,
-      authorizedDismissers: input.authorizedDismissers,
-      dismissalReceipts: receipts
-        .filter((receipt) => receipt.action === "dismissed")
-        .flatMap((receipt) => receipt.findingIds.map((findingId) => ({
-          sourceIdentity: receipt.request.sourceIdentity,
-          findingId,
-          actorIdentity: receipt.request.actorIdentity,
-          reason: receipt.reason,
-          durableRef: receipt.evidenceUrlOrId,
-        }))),
     });
-    inconsistencies.push(...findings.errors);
+    const settlements = reduceFindingSettlements({
+      evidence,
+      receipts: settlementReceipts,
+      currentHeadSha: input.changeRequest.headSha,
+      ciState: input.ciState,
+      authorizedActorIdentity: input.settlementActorIdentity,
+      qualifiedClosureSources: input.qualifications
+        .filter((declaration) => declaration.closureCapability && sourceQualified(requirement, declaration))
+        .map((declaration) => declaration.sourceIdentity),
+    });
+    const findingsConsistent = findings.consistent && settlements.errors.length === 0;
+    const blockingOpenFindingCount = settlements.openFindings.filter((finding) => !awaitsAuthorizedFollowUp({
+      sourceIdentity: finding.sourceIdentity,
+      findingId: finding.findingId,
+      originHeadSha: finding.originHeadSha,
+      currentHeadSha: input.changeRequest.headSha,
+      authorizedActorIdentity: input.settlementActorIdentity,
+      evidence,
+      receipts: settlementReceipts,
+    })).length;
+    inconsistencies.push(...findings.errors, ...settlements.errors);
     const candidates = input.qualifications.filter((declaration) =>
       declaration.transport === "durable-record" && sourceQualified(requirement, declaration));
     const candidateRequests = candidates.map((declaration) => requestFor(
@@ -221,8 +270,8 @@ export function reduceReviewGate(input: ReviewGateReductionInput): GateReduction
       capacity,
       waived,
       coverageSatisfied: coverage.satisfied,
-      findingsConsistent: findings.consistent,
-      openFindingCount: findings.openFindings.length,
+      findingsConsistent,
+      openFindingCount: blockingOpenFindingCount,
     });
     const latestEvidence = [...coverage.stateEvidence]
       .sort((left, right) => left.observedAt.localeCompare(right.observedAt))
@@ -254,7 +303,7 @@ export function reduceReviewGate(input: ReviewGateReductionInput): GateReduction
         requirement,
         ready: input.readiness.mergeability === "mergeable"
           && input.ciState === "success"
-          && findings.consistent
+          && findingsConsistent
           && !input.nativeReview.requestedChanges
           && input.nativeReview.unresolvedRequiredConversations === 0
           && input.nativeReview.decision !== "changes-requested",

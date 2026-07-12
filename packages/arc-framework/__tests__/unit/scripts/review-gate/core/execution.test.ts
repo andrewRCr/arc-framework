@@ -245,6 +245,16 @@ describe("request and projection contracts", () => {
       },
     };
     expect(parseReceiptEnvelope({ ...envelope, receipt: disposition }).receipt.action).toBe("deferred");
+    for (const rationale of ["   ", "é".repeat(513)]) {
+      expect(() => parseReceiptEnvelope({
+        ...envelope,
+        receipt: {
+          ...disposition,
+          reason: rationale,
+          payload: { ...disposition.payload, rationale },
+        },
+      })).toThrow("invalid non-fix disposition");
+    }
     const resolution = {
       ...receipt,
       action: "conversation-resolved",

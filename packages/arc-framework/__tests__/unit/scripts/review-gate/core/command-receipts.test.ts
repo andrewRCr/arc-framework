@@ -111,35 +111,6 @@ describe("command receipt planning", () => {
     expect(conflict).toEqual({ ok: false, error: "conflicting-command-replay" });
   });
 
-  it("preserves the named source and finding when planning a dismissal", () => {
-    const result = createDirectCommandReceipt({
-      event: event({
-        permission: "maintain",
-        command: {
-          kind: "dismiss",
-          requirementId: "analysis",
-          sourceIdentity: "agent-1",
-          findingId: "finding-1",
-          reason: "not applicable to this review",
-        },
-      }),
-      changeRequest,
-      requirement,
-      expectedLedgerVersion: 3,
-      priorReceipts: [],
-    });
-
-    expect(result).toMatchObject({
-      ok: true,
-      receipt: {
-        action: "dismissed",
-        findingIds: ["finding-1"],
-        request: { sourceIdentity: "agent-1", actorIdentity: "7" },
-        reason: "not applicable to this review",
-      },
-    });
-  });
-
   it("plans an authorized full refresh as the normal reservation protocol", () => {
     const result = planCommandRefresh({
       event: event({

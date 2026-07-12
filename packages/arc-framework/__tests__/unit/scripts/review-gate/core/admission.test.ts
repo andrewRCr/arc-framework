@@ -73,7 +73,7 @@ describe("request admission", () => {
     },
   );
 
-  it.each(["required", "waived", "dismissed", "attested", "unadmitted"] as const)(
+  it.each(["required", "waived", "attested", "unadmitted"] as const)(
     "does not treat %s history as an admitted automatic request",
     (action) => {
       const history = [{ action, request: { requirementId: "analysis" } } as ReviewReceipt];

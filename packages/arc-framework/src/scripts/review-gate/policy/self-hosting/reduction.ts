@@ -41,6 +41,7 @@ function qualification(
     requestCommand: declaration.sourceIdentity === "codex-pr" && declaration.guidanceDigest !== null
       ? buildCodexReviewCommand(declaration.guidanceDigest)
       : null,
+    closureCapability: declaration.closureCapability,
   };
 }
 

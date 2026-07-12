@@ -48,11 +48,11 @@ function input(overrides: Partial<SelfHostingGateReductionInput> = {}): SelfHost
     readiness: { draft: false, mergeability: "mergeable" as const, baseFresh: true },
     ciState: "success" as const,
     nativeReview,
-    authorizedDismissers: [],
     inconsistencies: [],
     ledgerVersion: 0,
     receiptRefs: [],
     actorIdentity: SELF_HOSTING_POLICY.providerIdentities.appBotUserId,
+    settlementActorIdentity: SELF_HOSTING_POLICY.fallbackMaintainer.expectedActorId,
     ...overrides,
   };
 }
@@ -224,38 +224,6 @@ function waivedReceipt(policy: SelfHostingPolicy): ReviewReceipt {
     reason: "accepted operational risk",
     evidenceUrlOrId: "https://github.test/pull/7#issuecomment-2",
     findingIds: [],
-    payload: { kind: "decision", decidedAt: null },
-  });
-}
-
-function dismissalReceipt(policy: SelfHostingPolicy, sourceIdentity = "codex-cli"): ReviewReceipt {
-  return createReceipt({
-    eventId: `command:IC_3:dismiss:${sourceIdentity}`,
-    previousLedgerVersion: 0,
-    action: "dismissed",
-    request: {
-      schemaVersion: 1,
-      repositoryId: changeRequest.repositoryId,
-      changeRequestId: changeRequest.changeRequestId,
-      changeSetId: changeRequest.changeSetId,
-      policyVersion: computePolicyVersion({ policy }),
-      semanticsVersion: "review-gate/v1",
-      rubricVersion: "independent-analysis/v1",
-      requirementId: "independent-analysis",
-      sourceIdentity,
-      coverage: "full",
-      coverageFromSha: changeRequest.diffBaseSha,
-      coverageThroughSha: changeRequest.headSha,
-      generation: 0,
-      actorIdentity: "maintainer-1",
-      requestMechanism: "authorized-command",
-      requiredActorIdentity: "maintainer-1",
-      requestCommand: null,
-    },
-    result: null,
-    reason: "not applicable",
-    evidenceUrlOrId: "https://github.test/pull/7#issuecomment-3",
-    findingIds: ["finding-1"],
     payload: { kind: "decision", decidedAt: null },
   });
 }
@@ -597,7 +565,7 @@ describe("self-hosting gate reduction", () => {
     expect(stale.projection.requirementExecutions[0]).toMatchObject({ state: "not-requested" });
   });
 
-  it("closes only the exact source-scoped finding without manufacturing clean evidence", () => {
+  it("closes a current finding only through sequenced non-fix settlement receipts", () => {
     const finding = evidence({
       result: "findings",
       findings: [{
@@ -607,24 +575,89 @@ describe("self-hosting gate reduction", () => {
         evidenceUrlOrId: "https://example.test/findings/1",
       }],
     });
-    const dismissed = reduceSelfHostingGate(input({
+    const actorIdentity = SELF_HOSTING_POLICY.fallbackMaintainer.expectedActorId;
+    const request = {
+      ...admittedReceipt(SELF_HOSTING_POLICY).request,
+      sourceIdentity: finding.sourceIdentity,
+      actorIdentity,
+      requiredActorIdentity: actorIdentity,
+    };
+    const deferred = createReceipt({
+      eventId: "deferred:codex-cli:finding-1",
+      previousLedgerVersion: 0,
+      action: "deferred",
+      request,
+      result: null,
+      reason: "Outside this change's supported contract.",
+      evidenceUrlOrId: "github-review-comment:81",
+      findingIds: ["finding-1"],
+      payload: {
+        kind: "finding-disposition",
+        disposition: "deferred",
+        findingId: "finding-1",
+        sourceIdentity: finding.sourceIdentity,
+        oldHeadSha: changeRequest.headSha,
+        fixHeadSha: null,
+        actorIdentity,
+        rationale: "Outside this change's supported contract.",
+        directReplyRef: "github-review-comment:81",
+        followUpEvidenceRef: null,
+        verificationRefs: [],
+        settledAt: "2026-07-12T22:01:00.000Z",
+      },
+    });
+    const resolved = createReceipt({
+      eventId: "conversation-resolved:codex-cli:finding-1",
+      previousLedgerVersion: 1,
+      action: "conversation-resolved",
+      request,
+      result: null,
+      evidenceUrlOrId: "github-review-thread:PRRT_1:resolved",
+      findingIds: ["finding-1"],
+      payload: {
+        kind: "conversation-resolved",
+        findingId: "finding-1",
+        sourceIdentity: finding.sourceIdentity,
+        headSha: changeRequest.headSha,
+        threadId: "PRRT_1",
+        resolvedByActorIdentity: actorIdentity,
+        dispositionReceiptHash: deferred.receiptHash,
+        hostEvidenceRef: "github-review-thread:PRRT_1:resolved",
+        resolvedAt: "2026-07-12T22:02:00.000Z",
+      },
+    });
+    const decision = reduceSelfHostingGate(input({
       lane: { lane: "reviewed", reasons: ["non-lane-path"] },
       risk: { risk: "sensitive", reasons: ["code-surface"] },
       evidence: [finding],
-      receipts: [dismissalReceipt(SELF_HOSTING_POLICY)],
-      authorizedDismissers: ["maintainer-1"],
+      receipts: [deferred, resolved],
     }));
-    const crossSource = reduceSelfHostingGate(input({
+    expect(decision.projection.requirementExecutions[0]).toMatchObject({ state: "clean" });
+    expect(decision.projection.conclusion).toBe("success");
+  });
+
+  it("keeps an old-head finding blocking without an authorized consumed FIX transition", () => {
+    const oldHeadSha = "e".repeat(40);
+    const decision = reduceSelfHostingGate(input({
       lane: { lane: "reviewed", reasons: ["non-lane-path"] },
       risk: { risk: "sensitive", reasons: ["code-surface"] },
-      evidence: [finding],
-      receipts: [dismissalReceipt(SELF_HOSTING_POLICY, "other-source")],
-      authorizedDismissers: ["maintainer-1"],
+      evidence: [evidence({
+        result: "findings",
+        changeSetId: "f".repeat(64),
+        headSha: oldHeadSha,
+        coverageThroughSha: oldHeadSha,
+        findings: [{
+          findingId: "finding-1",
+          severity: "high",
+          locus: "src/controller.ts:10",
+          evidenceUrlOrId: "https://example.test/findings/1",
+        }],
+      })],
     }));
 
-    expect(dismissed.projection.requirementExecutions[0]).toMatchObject({ state: "not-requested" });
-    expect(dismissed.projection.conclusion).toBe("pending");
-    expect(crossSource.projection.conclusion).toBe("failure");
+    expect(decision.request).toBeNull();
+    expect(decision.projection.requirementExecutions[0]).toMatchObject({ state: "findings" });
+    expect(decision.projection.conclusion).toBe("failure");
   });
 
   it.each([

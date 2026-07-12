@@ -500,20 +500,25 @@ them. Disposition authority is durable before resolution, while resolution is a 
 - _Outcome:_ FIX now forms one auditable old-head-to-new-head chain; no push, green check, provider response, reply,
   or thread mutation can independently close the original finding.
 
-### `[ ]` **5.4 Complete DEFER, REJECT, and provider-owned closure paths**
+### `[x]` **5.4 Complete DEFER, REJECT, and provider-owned closure paths**
 
 - _Goal:_ Non-fix dispositions close on the unchanged head only through bounded rationale and durable reply, while
   provider-owned closure is accepted only from the qualified finding source.
 
-    - `[ ]` **5.4.a Implement authorized DEFER and REJECT receipt/reply sequences**
-        - On the unchanged head, post the bounded rationale as the authorized developer, append and confirm the
-          disposition receipt with the direct-reply id, then resolve and observe the conversation separately.
+    - `[x]` **5.4.a Implement authorized DEFER and REJECT receipt/reply sequences**
+        - Added unchanged-head settlement with byte-bounded developer rationale, canonical direct reply, confirmed
+          disposition receipt, and separately confirmed conversation resolution in strict order.
 
-    - `[ ]` **5.4.b Implement source-confirmed provider closure without coordinator impersonation**
-        - Accept only a qualified source's explicit finding closure relation; a native resolved flag, coordinator
-          mutation, or provider membership in a broad actor set is observation rather than provider-owned authority.
+    - `[x]` **5.4.b Implement source-confirmed provider closure without coordinator impersonation**
+        - Added provider-closure recording and reduction that requires an explicit relation and disposition receipt
+          from the same closure-capable qualified source; native thread state remains observational.
 
-    - `[ ]` **5.4.c Update PR coordination triage and cover all closure-authority arms**
+    - `[x]` **5.4.c Update PR coordination triage and cover all closure-authority arms**
+        - Replaced the legacy dismissal command with explicit FIX, DEFER/REJECT, and provider-owned coordination
+          paths, and covered their runtime, reducer, parser, workflow, and removed-command boundaries.
+
+- _Outcome:_ Every finding now remains an aggregate blocker until one exact authority sequence completes; settled
+  current-head findings satisfy the reviewed obligation without manufacturing provider-clean evidence.
 
 ## **Phase 6:** Independent outage-repair authority
 

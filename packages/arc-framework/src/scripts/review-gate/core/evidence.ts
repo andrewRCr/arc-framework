@@ -20,7 +20,7 @@ export type CoverageKind = "full" | "incremental";
 /** Finding severity retained for policy reduction. */
 export type FindingSeverity = "critical" | "high" | "medium" | "low" | "info";
 /** Authority capable of closing a finding. */
-export type ClosureAuthorityKind = "source-confirmed" | "authorized-dismissal";
+export type ClosureAuthorityKind = "source-confirmed";
 
 /** One stable source-scoped finding. */
 export interface ReviewFinding {
@@ -100,7 +100,7 @@ function parseClosure(input: unknown, path: string): FindingClosure {
     findingId: stringAt(record.findingId, `${path}.findingId`),
     authorityKind: enumAt(
       record.authorityKind,
-      ["source-confirmed", "authorized-dismissal"],
+      ["source-confirmed"],
       `${path}.authorityKind`,
     ),
     authorityIdentity: stringAt(record.authorityIdentity, `${path}.authorityIdentity`),

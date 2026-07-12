@@ -412,7 +412,8 @@ export function parseReviewReceiptPayload(input: unknown, path: string): ReviewR
           throw new Error(`${path}: invalid fixed disposition`);
         }
       } else if (disposition === "deferred" || disposition === "rejected") {
-        if (fixHeadSha !== null || rationale === null || rationale.length === 0 || rationale.length > 1024
+        if (fixHeadSha !== null || rationale === null || rationale.trim().length === 0
+          || Buffer.byteLength(rationale, "utf8") > 1024
           || directReplyRef === null || followUpEvidenceRef !== null || verificationRefs.length > 0) {
           throw new Error(`${path}: invalid non-fix disposition`);
         }

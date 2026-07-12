@@ -135,7 +135,7 @@ describe("review command ingestion", () => {
     expect(result.rejections).toMatchObject([{ code }]);
   });
 
-  it("rejects stale-scope and cross-source commands without resolving a write", async () => {
+  it("rejects stale-scope and removed dismissal commands without resolving a write", async () => {
     const resolveCapabilities = vi.fn(async () => ({
       schemaVersion: 1 as const,
       actorIdentity: "7",
@@ -149,7 +149,7 @@ describe("review command ingestion", () => {
       receiptedEventIds: [],
       resolveCapabilities,
     });
-    const crossSource = await ingestReviewCommands({
+    const dismissal = await ingestReviewCommands({
       comments: [comment({ body: "/review-gate dismiss analysis agent-2 finding-1 not applicable" })],
       commandContext: {
         knownRequirementIds: ["analysis"],
@@ -163,7 +163,7 @@ describe("review command ingestion", () => {
     });
 
     expect(stale.rejections).toMatchObject([{ code: "stale-scope" }]);
-    expect(crossSource.rejections).toMatchObject([{ code: "unknown-finding" }]);
+    expect(dismissal.rejections).toMatchObject([{ code: "invalid-command" }]);
     expect(resolveCapabilities).toHaveBeenCalledTimes(1);
   });
 

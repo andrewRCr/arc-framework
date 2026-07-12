@@ -70,7 +70,7 @@ export interface ReviewReceipt {
   previousLedgerVersion: number;
   receiptHash: string;
   action:
-    | "reserved" | "acknowledged" | "terminal-failure" | "required" | "dismissed" | "waived"
+    | "reserved" | "acknowledged" | "terminal-failure" | "required" | "waived"
     | "attested" | "unadmitted" | "finding-opened" | "finding-settled" | "contaminated" | "superseded"
     | "running" | "abandoned" | "begin-fix" | "head-update-consumed" | "trigger-deleted" | "source-superseded"
     | "fixed" | "deferred" | "rejected" | "provider-closed" | "conversation-resolved";
@@ -222,7 +222,7 @@ export function parseReviewReceipt(input: unknown, path = "receipt"): ReviewRece
   const action = enumAt(
     record.action,
     [
-      "reserved", "acknowledged", "terminal-failure", "required", "dismissed", "waived", "attested", "unadmitted",
+      "reserved", "acknowledged", "terminal-failure", "required", "waived", "attested", "unadmitted",
       "finding-opened", "finding-settled", "contaminated", "superseded", "running", "abandoned", "begin-fix",
       "head-update-consumed", "trigger-deleted", "source-superseded",
       "fixed", "deferred", "rejected", "provider-closed", "conversation-resolved",

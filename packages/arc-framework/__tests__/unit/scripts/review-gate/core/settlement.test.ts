@@ -119,5 +119,13 @@ describe("finding settlement reduction", () => {
       evidence: [evidence(), closureEvidence], receipts: [provider], currentHeadSha: OLD, ciState: "success",
       authorizedActorIdentity: "44", qualifiedClosureSources: ["coderabbit-pr"],
     }).openFindings).toEqual([]);
+    expect(reduceFindingSettlements({
+      evidence: [evidence(), closureEvidence],
+      receipts: [disposition("provider-closed", { actorIdentity: "44" })],
+      currentHeadSha: OLD,
+      ciState: "success",
+      authorizedActorIdentity: "44",
+      qualifiedClosureSources: ["coderabbit-pr"],
+    })).toMatchObject({ openFindings: [expect.objectContaining({ findingId: "f-1" })], errors: ["invalid-provider-closure:f-1"] });
   });
 });

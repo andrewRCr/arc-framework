@@ -222,16 +222,6 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
         ) errors.push(`contradictory-conversation-resolution:${envelope.ledgerVersion}`);
         break;
       }
-      case "dismissed":
-        if (
-          receipt.result !== null
-          || receipt.findingIds.length !== 1
-          || receipt.findingIds.some((findingId) => !knownFindings.has(findingKey(receipt.request.sourceIdentity, findingId)))
-          || !hasCommandProvenance(receipt)
-        ) {
-          errors.push(`contradictory-dismissal:${envelope.ledgerVersion}`);
-        }
-        break;
       case "required":
       case "waived":
         if (receipt.result !== null || receipt.findingIds.length > 0 || !hasCommandProvenance(receipt)) {

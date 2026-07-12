@@ -146,7 +146,10 @@ function harness(overrides: HarnessOverrides = {}) {
   const publishCalls: VerdictPublicationInput[] = [];
   const requestCalls: unknown[] = [];
   const resolveActorCapabilities = overrides.resolveActorCapabilities
-    ?? (async (actor: ActorAddress) => capabilities(actor.expectedActorId, ["write"]));
+    ?? (async (actor: ActorAddress) => capabilities(
+      actor.expectedActorId,
+      actor.expectedActorId === SELF_HOSTING_POLICY.fallbackMaintainer.expectedActorId ? ["maintain"] : ["write"],
+    ));
 
   const host: GitHostAdapter = {
     resolveChangeRequest: async (): Promise<HostChangeRequestResolution> => ({
@@ -462,8 +465,8 @@ describe("SelfHostingReconcileRuntime", () => {
     const begin = planBeginFix({
       receipts: [reserved, acknowledged, terminal],
       terminalRequestKey: computeRequestKey(oldRequest),
-      actorIdentity: "author-1",
-      authorizedActorIdentities: ["author-1"],
+      actorIdentity: SELF_HOSTING_POLICY.fallbackMaintainer.expectedActorId,
+      authorizedActorIdentities: [SELF_HOSTING_POLICY.fallbackMaintainer.expectedActorId],
       targetHeadSha: HEAD,
       carriedFindingIds: ["finding-1"],
       expectedLedgerVersion: 3,

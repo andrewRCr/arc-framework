@@ -206,7 +206,7 @@ describe("GitHub host read adapter", () => {
     expect(result).toMatchObject({
       nativeReview: { decision: "approved", requestedChanges: false },
       peerApprovals: [{ actorIdentity: "42", headSha: HEAD }],
-      closures: [{ findingId: "T_1", authorityIdentity: "9" }],
+      closures: [],
       providerReviews: [{
         reviewId: "PRR_1",
         actorIdentity: "42",
