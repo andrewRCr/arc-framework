@@ -329,35 +329,29 @@ _Design decisions:_ Fold-in scope is capped at edits carrying no major-concern r
 process-improvements stub is the pressure valve. The clean `pre-merge` rename and `MINOR FIX` correction are
 same-concern bounded exceptions settled by spec Decisions 18-19, not an invitation to broader method reform.
 
-### `[ ]` **5.1 Record the refined postmortem findings**
+### `[x]` **5.1 Record the refined postmortem findings**
 
 - _Goal:_ The six-factor diagnosis is refined against the completed implementation experience and recorded
   durably as this WU's postmortem output — the ground truth the stub charter and guard dispositions cite.
-- _Note:_ The findings' home is the notes companion's postmortem section, refined in place — not a new
-  artifact.
-- **Additional Context:** `notes-review-gate-reconcile-composition.md` § Postmortem working material
+- _Outcome:_ The notes companion now records the six-factor diagnosis against Phase 4's actual composition work,
+  the unifying ownership lesson, and explicit fold-versus-route dispositions for every guard candidate.
 
-### `[ ]` **5.2 Scaffold the process-improvements backlog stub with rich charter**
+### `[x]` **5.2 Scaffold the process-improvements backlog stub with rich charter**
 
 - _Goal:_ A `backlog/` stub exists whose charter carries the process improvements with this WU's ground-level
   context — anchors, examples, the six-factor diagnosis — plus the sanctioned-follow-up-stub charter item with
   its industry-precedent research note, so the follow-on cannot repeat factor 6 (under-scoped, unowned).
 
-    - Scaffold into `backlog/provisional/<slug>/` (`draft-*` + `meta-*`, `Class: [TBD]` — the charter carries
-      an unresolved design question, so it grooms before it plans); slug chosen at execution.
-    - Charter contents: the refined findings (5.1), the routed guard candidates (5.3), and the
-      follow-up-stub-route design question.
+- _Outcome:_ Created provisional `delivery-intent-integrity` with the grounded postmortem, three routed guard
+  families, open mechanism/home questions, and a cited research synthesis for the sanctioned rich-follow-up route.
 
-### `[ ]` **5.3 Resolve and fold the critical-small guard set**
+### `[x]` **5.3 Resolve and fold the critical-small guard set**
 
 - _Goal:_ Each guard candidate has an explicit disposition — folded into this PR (critical-small, no
   major-concern risk) or routed to the stub with its context — and none is silently dropped (postmortem SC).
-- **Additional Context:** `notes-review-gate-reconcile-composition.md` § Guard candidates
-
-    - Assess the six candidates against the no-major-concern cap; record each disposition with a one-line
-      rationale in the postmortem output.
-    - Apply the fold-in edits for the accepted set; anything touching workflow/method semantics beyond the cap
-      routes to the stub.
+- _Outcome:_ Folded the bounded intent-proof, delivery-claim truth, and follow-on ownership checks into package and
+  project `verify-work-unit`; routed composition-test policy, deceptive-stub review, and the researched follow-up
+  mechanism to `delivery-intent-integrity` for deliberate design.
 
 ### `[ ]` **5.4 Rename the final lifecycle extension to `pre-merge` and align cutover activation**
 

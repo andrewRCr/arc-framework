@@ -7,8 +7,8 @@
 - [Composition gap map](#composition-gap-map)
 - [CodeRabbit enforcement research](#coderabbit-enforcement-research)
 - [Storage forward-compatibility check](#storage-forward-compatibility-check)
-- [Postmortem working material](#postmortem-working-material)
-- [Guard candidates](#guard-candidates)
+- [Postmortem findings](#postmortem-findings)
+- [Guard dispositions](#guard-dispositions)
 
 ## Cutover state
 
@@ -349,55 +349,47 @@ Forward-compatible boundary:
 This WU implements only the current Git adapter and neutral core contract. It neither pulls the backing store
 forward nor adds backend-specific behavior.
 
-## Postmortem working material
+## Postmortem findings
 
 How "the design intent isn't fulfilled" survived heavy adversarial review at every planning stage, per-phase
-implementation reviews, and dual-agent final verification. Six factors, each a distinct blind spot:
+implementation reviews, and dual-agent final verification. Phase 4 confirmed that the missing work was not a thin
+wire-up: durable evidence required a hashed schema extension, live actor/policy/store authorization, two distinct
+composition roots, and a cross-process integration world. Six factors formed the delivery gap:
 
-1. **Plan-space review cannot catch execution holes.** Adversarial review of draft/spec/tasks attacks the
-   design and decomposition — it never executes anything. A sound plan reviewed hard still ships a stub if
-   nothing downstream exercises the composed system.
-2. **Phase-scoped diff review normalizes seams.** Task 5.3's diff (workflow trust shell + thin entry modules)
-   is correct *for that phase*; the reviewer's frame is "composition lands elsewhere." No phase review owns the
-   question "does the whole now work?"
+1. **Plan-space review cannot catch execution holes.** Adversarial review of draft/spec/tasks attacks the design
+   and decomposition — it never executes anything. A sound plan reviewed hard still ships a stub if nothing
+   downstream exercises the composed system.
+2. **Phase-scoped diff review normalizes seams.** The trust shell and thin entry modules were correct for their
+   phase; the reviewer's frame was "composition lands elsewhere." No phase review owned "does the whole now work?"
 3. **The stub was laundered by an intentional-sounding comment.** "Adapter composition is deliberately reached
-   through validated numeric coordinates only" reads as a decision, not a TODO. Green tests + confident comment
-   = a hole indistinguishable from a wall, for human and adversarial reviewers alike.
-4. **"End-to-end" tests that aren't.** The controller-contract fixtures test integrated *reducers*, not the
-   entry point; the name manufactured false confidence. No test would fail on total non-emission.
+   through validated numeric coordinates only" read as a decision, not a TODO. Green tests plus confident prose
+   made a hole indistinguishable from a wall.
+4. **"End-to-end" tests that weren't.** The controller-contract fixtures integrated reducers, not either entry
+   point. Phase 4's dispatch → receipt → fresh reconcile test is the first proof that fails on non-emission or
+   evidence loss.
 5. **Verification validated criteria, not intent — and the load-bearing criterion was unverifiable.** "The
-   controller emits `review-gate-shadow`" was only provable with live App credentials that did not exist
-   pre-cutover; it was waved through as delivered and written into TECHNICAL-OVERVIEW + ADR-028 as
-   present-tense fact.
-6. **The deferred remainder was nobody's deliverable.** The WU assumed a trivial "cutover errand" would close
-   the intent; the cutover was scoped as configuration. The composition fell into the seam between a WU and an
-   under-classified follow-on — mis-classifying the follow-on created the seam.
+   controller emits `review-gate-shadow`" required live App credentials unavailable before cutover, yet the claim
+   was marked delivered and copied into `TECHNICAL-OVERVIEW.md` and ADR-028 as present-tense fact.
+6. **The deferred remainder was nobody's deliverable.** Execution proved the assumed cutover Errand needs
+   authentication probes, a provider/evidence matrix, repository-rules reconciliation, staged modes, rollback
+   checkpoints, and a closeout PR. Misclassifying the follow-on created the seam.
 
-Unifying lesson: the process proved *every piece is correct* and *the plan is sound*, then wrote *"it is
-delivered"* — but never proved *the composed system fulfills the intent*, and let the intent-proof defer into
-an untracked, under-scoped follow-on.
+Unifying lesson: the process proved every piece correct and the plan sound, then wrote "delivered" without proving
+the composed system fulfilled the intent. The correction is twofold: prove composed intent at the earliest
+executable boundary, and make every remaining proof an explicitly classified, owned deliverable before claiming
+completion.
 
-## Guard candidates
+## Guard dispositions
 
-Inputs to the postmortem phase — final disposition (fold inline vs. route to the process-improvements stub)
-decided there under the critical-small cap.
-
-1. **Intent-level verification:** a WU's success criteria must include at least one executable check that fails
-   if the composed system misses the top-level intent; criteria provable only post-deploy are marked explicit
-   deferred verification with a named forcing function and owner. (Candidate homes: `verify-work-unit`,
-   `create-spec`.)
-2. **Composition-seam test requirement:** the entry point / composition root gets a test that drives it
-   end-to-end (fakes acceptable); "all units green" declared insufficient. (Candidate homes: `generate-tasks`,
-   testing-standards method.)
-3. **Stub-at-a-seam review hazard:** placeholder/"deliberately X only" comments at composition boundaries
-   trigger a mandatory reviewer question — where is the real composition, and what test proves it? (Candidate
-   homes: adversarial-review / review-method family.)
-4. **Docs-delivery integrity:** present-tense "delivered" architecture claims require a passing check or an
-   explicit intended-not-yet-verified marker. (Candidate homes: `verify-work-unit`, TECHNICAL-OVERVIEW
-   trigger guidance.)
-5. **Follow-on classification discipline:** a WU deferring part of its intent validates the follow-on's
-   classification and specification at WU close; essential unproven intent never rides an "errand" assumption.
-   (Candidate homes: `integrate-work-unit` / `verify-work-unit` close checks.)
-6. **Sanctioned follow-up-stub route:** codify "a WU stubs out its follow-up with sufficient explicit,
-   ground-level detail" as the norm for deferred intent (vs. thin inbox capture) — needs deliberate design plus
-   industry-precedent research; charter item for the stub, not a fold-in.
+1. **Intent-level verification — fold.** Require an executable check that fails when the composed system misses
+   top-level intent; post-deploy-only proof names its forcing event and owner. This is a bounded verification close.
+2. **Composition-seam test requirement — route to `delivery-intent-integrity`.** Universal composition-root test
+   planning belongs in `generate-tasks` / `testing-standards` and needs design beyond this WU's cap.
+3. **Stub-at-a-seam review hazard — route to `delivery-intent-integrity`.** A mandatory reviewer heuristic for
+   intentional-sounding placeholders belongs with the adversarial/review-method design.
+4. **Docs-delivery integrity — fold.** Present-tense delivery claims must be proven or explicitly marked as not yet
+   live-verified. This is a bounded verification-closeout truth check.
+5. **Follow-on classification discipline — fold.** Every deferred part of original intent must have a correctly
+   classified, sufficiently specified owner; essential unproven intent cannot rest on an assumed Errand.
+6. **Sanctioned follow-up-stub route — route to `delivery-intent-integrity`.** The norm needs deliberate design and
+   industry-precedent research, so it remains a charter item rather than a fold-in.
