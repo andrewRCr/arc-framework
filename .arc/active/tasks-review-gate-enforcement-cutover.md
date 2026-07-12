@@ -454,22 +454,26 @@ them. Disposition authority is durable before resolution, while resolution is a 
 - _Outcome:_ Finding closure authority is now explicit, sequence-bound, and source/policy scoped; no broad host actor
   set or resolved-thread flag can remove a blocker.
 
-### `[ ]` **5.2 Implement GitHub direct-reply and thread-resolution adapters with durable provenance**
+### `[x]` **5.2 Implement GitHub direct-reply and thread-resolution adapters with durable provenance**
 
 - _Goal:_ The coordinator can reply and resolve at the original inline conversation while the reducer retains
   immutable, canonically re-queryable evidence for each mutation under the actor policy that authorized it.
 
-    - `[ ]` **5.2.a Add direct inline-reply and thread-resolution host operations**
-        - Reuse Phase 2's developer-authenticated action port for direct inline replies and GraphQL thread-resolution
-          mutations; bind exact comment/thread ids, expected actor id, body digest, timestamps, and current head.
-        - Keep the App-token GitHub client read-only for these mutations. The App controller performs the authoritative
-          post-write read and receipt append after the developer-authenticated operation returns.
+    - `[x]` **5.2.a Add direct inline-reply and thread-resolution host operations**
+        - Extended the developer-authenticated action port with exact-head/actor inline replies and GraphQL thread
+          resolution, retaining comment/thread ids, body digest, timestamps, and mutation identity. The separate App
+          reader exposes only paginated REST and GraphQL queries.
 
-    - `[ ]` **5.2.b Adopt ambiguous replies and resolutions only after exact re-query**
-        - Re-query through canonical App reads for the exact actor/body/time reply or thread state. Keep absence or
-          mismatch blocking; never repeat a potentially successful mutation blindly.
+    - `[x]` **5.2.b Adopt ambiguous replies and resolutions only after exact re-query**
+        - Added one-attempt mutation orchestration that adopts only a unique actor/body/time reply and exact
+          actor/thread resolution from canonical App reads; absence, duplication, or mismatch remains blocking.
 
-    - `[ ]` **5.2.c Cover durable reply, permission, stale-thread, and ambiguity behavior**
+    - `[x]` **5.2.c Cover durable reply, permission, stale-thread, and ambiguity behavior**
+        - Covered exact provenance, actor/head guards, already-resolved adoption, ambiguous transport, mismatched
+          resolver, and unavailable canonical reads with developer and App-bound fakes.
+
+- _Outcome:_ Settlement writes now have a single developer-authorized attempt and an independent canonical read
+  proof, so network ambiguity cannot cause replay or manufacture durable provenance.
 
 ### `[ ]` **5.3 Complete the coordinator-owned FIX sequence across old and new heads**
 

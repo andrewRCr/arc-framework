@@ -66,4 +66,36 @@ describe("developer-authenticated gh action port", () => {
       `inputs[head_sha]=${"a".repeat(40)}`,
     ]);
   });
+
+  it("posts an exact inline reply and resolves a thread under the expected actor and head", async () => {
+    const head = "a".repeat(40);
+    const process = runner([
+      JSON.stringify({ id: 7 }),
+      JSON.stringify({ head: { sha: head } }),
+      JSON.stringify({ id: 81, user: { id: 7 }, body: "Addressed and verified in this head.", created_at: "2026-07-12T21:00:00Z" }),
+      JSON.stringify({ id: 7 }),
+      JSON.stringify({ head: { sha: head } }),
+      JSON.stringify({ data: { resolveReviewThread: { thread: { id: "PRRT_1", isResolved: true } } } }),
+    ]);
+    const target = new GhDeveloperActionPort(process);
+    await expect(target.postInlineReply({
+      repositoryRef: "o/r", pullRequestNumber: 7, commentId: "41", expectedActorIdentity: "7",
+      expectedHeadSha: head, body: "Addressed and verified in this head.",
+    })).resolves.toMatchObject({ kind: "created", reply: { commentId: "81", actorIdentity: "7" } });
+    await expect(target.resolveReviewThread({
+      repositoryRef: "o/r", pullRequestNumber: 7, threadId: "PRRT_1", expectedActorIdentity: "7",
+      expectedHeadSha: head,
+    })).resolves.toEqual({ kind: "resolved", threadId: "PRRT_1" });
+    expect(process.run).toHaveBeenCalledWith("gh", expect.arrayContaining(["pullRequestReviewThreadId=PRRT_1"]));
+  });
+
+  it("returns ambiguous instead of replaying a potentially successful reply or resolution", async () => {
+    const head = "a".repeat(40);
+    const process = runner([JSON.stringify({ id: 7 }), JSON.stringify({ head: { sha: head } }), new Error("lost")]);
+    const target = new GhDeveloperActionPort(process);
+    await expect(target.postInlineReply({
+      repositoryRef: "o/r", pullRequestNumber: 7, commentId: "41", expectedActorIdentity: "7",
+      expectedHeadSha: head, body: "Bounded rationale",
+    })).resolves.toEqual({ kind: "ambiguous" });
+  });
 });
