@@ -25,6 +25,7 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     changeRequestId: "PR_node",
     changeSetId: "a".repeat(64),
     policyVersion: "b".repeat(64),
+    semanticsVersion: "review-gate/v1",
     rubricVersion: "independent-analysis/v1",
     requirementId: "independent-analysis",
     sourceIdentity: "coderabbit-pr",
@@ -33,6 +34,8 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     coverageThroughSha: HEAD,
     generation: 0,
     actorIdentity: "7",
+    requestMechanism: "automatic",
+    requiredActorIdentity: "7",
     ...overrides,
   };
 }

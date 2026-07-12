@@ -11,6 +11,7 @@ function request(): ReviewRequest {
     changeRequestId: "change-7",
     changeSetId: "a".repeat(64),
     policyVersion: "b".repeat(64),
+    semanticsVersion: "review-gate/v1",
     rubricVersion: "independent-analysis/v1",
     requirementId: "analysis",
     sourceIdentity: "agent-1",
@@ -19,6 +20,8 @@ function request(): ReviewRequest {
     coverageThroughSha: "d".repeat(40),
     generation: 0,
     actorIdentity: "actor-1",
+    requestMechanism: "automatic",
+    requiredActorIdentity: "actor-1",
   };
 }
 
@@ -32,6 +35,7 @@ function reservation(): ReceiptEnvelope {
     receipt: createReceipt({
       request: request(), previousLedgerVersion: 0, action: "reserved", eventId: "event-1",
       result: null, evidenceUrlOrId: null, findingIds: [],
+      payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
     }),
   };
 }
@@ -99,6 +103,18 @@ describe("reserved request execution", () => {
         receipt: createReceipt({
           request: request(), previousLedgerVersion: 1, action: "acknowledged", eventId: "event-2",
           result: null, evidenceUrlOrId: null, findingIds: [],
+          payload: {
+            kind: "acknowledgement",
+            acknowledgedAt: null,
+            acknowledgementRef: "event-2",
+            trigger: {
+              mechanism: "automatic",
+              eventId: "event-2",
+              actorIdentity: "actor-1",
+              occurredAt: null,
+              headSha: "d".repeat(40),
+            },
+          },
         }),
       }, terminalEvidence: false, now: new Date("2026-07-10T21:01:00.000Z"),
     })).toBe("acknowledged-timeout");

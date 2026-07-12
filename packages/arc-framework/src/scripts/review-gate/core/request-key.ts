@@ -17,6 +17,7 @@ export function computeRequirementKey(request: ReviewRequest): string {
     request.changeRequestId,
     request.changeSetId,
     request.policyVersion,
+    request.semanticsVersion,
     request.rubricVersion,
     request.requirementId,
   ].join("\0"));
@@ -31,6 +32,8 @@ export function computeRequestKey(request: ReviewRequest): string {
     request.coverageFromSha,
     request.coverageThroughSha,
     String(request.generation),
+    request.requestMechanism,
+    request.requiredActorIdentity,
   ].join("\0"));
 }
 
@@ -43,6 +46,7 @@ function computeIdempotencyKey(input: ReceiptCreationInput): string {
     reason: input.reason ?? null,
     evidenceUrlOrId: input.evidenceUrlOrId,
     findingIds: input.findingIds,
+    payload: input.payload,
     ...(input.evidence === undefined ? {} : { evidence: input.evidence }),
   }));
 }
@@ -64,6 +68,7 @@ export function createReceipt(input: ReceiptCreationInput): ReviewReceipt {
     reason: input.reason ?? null,
     evidenceUrlOrId: input.evidenceUrlOrId,
     findingIds: input.findingIds,
+    payload: input.payload,
     ...(input.evidence === undefined ? {} : { evidence: input.evidence }),
   };
   return { ...withoutHash, receiptHash: computeReceiptHash(withoutHash) };
@@ -80,6 +85,7 @@ export function receiptIdentityValid(receipt: ReviewReceipt): boolean {
     reason: receipt.reason,
     evidenceUrlOrId: receipt.evidenceUrlOrId,
     findingIds: receipt.findingIds,
+    payload: receipt.payload,
     ...(receipt.evidence === undefined ? {} : { evidence: receipt.evidence }),
   });
   return receipt.idempotencyKey === expected.idempotencyKey && receipt.receiptHash === expected.receiptHash;

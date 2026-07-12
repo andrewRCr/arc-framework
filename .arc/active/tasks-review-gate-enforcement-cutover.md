@@ -15,60 +15,66 @@ closed schema-v1 codec owns parsing, hashing, and semantics. It exposes stable c
 later schema-library implementation can replace its internals without changing consumers; this work adds no schema
 dependency or public registry.
 
-### `[ ]` **1.1 Define the initial causal request, receipt, and lifecycle-payload contracts**
+### `[x]` **1.1 Define the initial causal request, receipt, and lifecycle-payload contracts**
 
 - _Goal:_ The first live schema carries the causal, head-flight, actor, trigger, timing, contamination, supersession,
   terminal-evidence, and finding-settlement identity required by the controller behind one replaceable boundary codec.
 
-    - `[ ]` **1.1.a Define the closed request and receipt identities**
-        - Extend the cohesive contract module behind the existing `parse*` façades with request mechanism, required
-          actor, semantics, generation, and causal lifecycle payloads. Co-locate hand-written types and guards, expose
-          explicit contract name/version constants, and keep neutral types free of GitHub/provider policy assumptions.
+    - `[x]` **1.1.a Define the closed request and receipt identities**
+        - Added explicit contract and semantics identities plus required mechanism, actor, generation, and payload
+          fields behind the existing neutral parsing façades.
 
-    - `[ ]` **1.1.b Define terminal-evidence and finding-lifecycle payloads**
-        - Carry exact full-head terminal references, trigger ownership, finding origin, carried-head lifecycle,
-          settlement, contamination, and supersession. Preserve normalized `Evidence` as the sole evidence contract.
+    - `[x]` **1.1.b Define terminal-evidence and finding-lifecycle payloads**
+        - Added a closed payload union for reservation, acknowledgement and trigger ownership, terminal evidence,
+          finding lifecycle and settlement, contamination, supersession, and decisions while retaining normalized
+          `Evidence` as the sole evidence contract.
 
-    - `[ ]` **1.1.c Validate closed contract shapes test-first**
-        - Build `test-first` (one behavior at a time):
-            - Round-trip every receipt payload and reject unknown or missing causal fields.
-            - Reject incongruent request, evidence, trigger, finding, and settlement identities.
-            - Reject obsolete pre-activation shapes rather than silently defaulting or upgrading them.
+    - `[x]` **1.1.c Validate closed contract shapes test-first**
+        - Covered every payload family and the request/envelope boundary, including strict rejection of unknown,
+          missing, obsolete, and causally incongruent shapes without defaults or upgrade paths.
 
-### `[ ]` **1.2 Bind canonical identities and authenticated comment storage to the initial schema**
+- _Outcome:_ One initial schema now owns the complete causal lifecycle identity; persisted inputs cannot enter the
+  controller through a partial or compatibility shape.
+
+### `[x]` **1.2 Bind canonical identities and authenticated comment storage to the initial schema**
 
 - _Goal:_ Request keys, receipt hashes, serialized comments, and reconstructed ledgers share one closed identity
   algorithm with literal golden fixtures and no alternate schema path.
 
-    - `[ ]` **1.2.a Extend request-key and receipt identity with causal fields**
-        - Bind semantics, mechanism, required actor, lifecycle payload, and predecessor version into canonical keys and
-          hashes. Add literal, non-generated golden fixtures for the definitive request key, receipt hash, and
-          canonical serialization.
+    - `[x]` **1.2.a Extend request-key and receipt identity with causal fields**
+        - Bound semantics, mechanism, required actor, lifecycle payload, and predecessor version into canonical
+          identities, with literal fixtures fixing the request key, idempotency key, receipt hash, and serialized bytes.
 
-    - `[ ]` **1.2.b Update every production request and receipt producer**
-        - Update automatic runtime, authorized-command/refresh, attestation, and provider producers so every new/empty
-          ledger begins with the complete initial schema and no compatibility creator remains.
+    - `[x]` **1.2.b Update every production request and receipt producer**
+        - Updated automatic reduction/runtime, authorized-command and refresh, attestation, and provider paths to emit
+          the complete initial request and payload schema through the sole strict creator.
 
-    - `[ ]` **1.2.c Preserve the closed schema through authenticated comment storage**
-        - Update comment parsing, serialization, and store reconstruction to preserve exact envelope identity, reject
-          obsolete or malformed payloads, and retain the anchor's repository/change-request/version/count contract.
+    - `[x]` **1.2.c Preserve the closed schema through authenticated comment storage**
+        - Closed receipt-comment and anchor machine payloads to exact fields; authenticated reconstruction now degrades
+          on obsolete, extended, edited, malformed, or scope-incongruent records.
 
-### `[ ]` **1.3 Complete ledger, reduction, and extraction boundaries**
+- _Outcome:_ One canonical byte and hash path now spans request creation, receipt production, authenticated storage,
+  and ledger reconstruction without a compatibility branch.
+
+### `[x]` **1.3 Complete ledger, reduction, and extraction boundaries**
 
 - _Goal:_ The host-neutral controller consumes the definitive ledger through stable injected boundaries, while
   behavior-specific ports remain vertically owned by the later phases that implement them.
 
-    - `[ ]` **1.3.a Keep the ledger port schema-complete and behavior-neutral**
-        - Update `core/ports.ts` with closed-schema ledger reads/appends. Add pending projection, trigger, actor action,
-          and settlement ports vertically in Phases 2, 3, and 5 with their implementations.
+    - `[x]` **1.3.a Keep the ledger port schema-complete and behavior-neutral**
+        - Kept ledger reads and appends on the neutral parsed envelope/receipt types and added pre-write shape and
+          identity validation; behavior-specific ports remain vertically owned by their implementation phases.
 
-    - `[ ]` **1.3.b Preserve degradation while reducing the definitive receipts**
-        - Update `core/reduction.ts`, `requirement-state.ts`, `verdict.ts`, and `projection.ts` to consume only validated
-          receipts. Malformed history remains a failure; flight, contamination, and settlement states land later.
+    - `[x]` **1.3.b Preserve degradation while reducing the definitive receipts**
+        - Routed authenticated parsed ledger records through the existing requirement, verdict, and projection reducers;
+          malformed history still degrades to failure while later phases retain ownership of new behavioral states.
 
-    - `[ ]` **1.3.c Prove neutral dependency direction and replaceable codec boundaries**
-        - Extend core unit coverage and `review-gate-controller-contract.test.ts` to reject self-hosting/GitHub imports
-          and ensure consumers import stable parsed types and façades rather than duplicating boundary shapes.
+    - `[x]` **1.3.c Prove neutral dependency direction and replaceable codec boundaries**
+        - Extracted self-hosting policy composition from the neutral reducer and added contract checks rejecting policy,
+          GitHub, or provider imports from core and duplicate request, receipt, or envelope declarations.
+
+- _Outcome:_ The definitive receipt contract now crosses storage, ledger, reduction, and projection through one neutral
+  dependency direction, with self-hosting qualification bound outside core.
 
 ## **Phase 2:** Pending-first execution and exact-head control
 

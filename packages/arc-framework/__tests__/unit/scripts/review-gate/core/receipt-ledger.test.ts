@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import type { ReviewRequest } from "../../../../../src/scripts/review-gate/core/execution.js";
+import type {
+  ReviewReceipt,
+  ReviewReceiptPayload,
+  ReviewRequest,
+} from "../../../../../src/scripts/review-gate/core/execution.js";
 import {
   computeRequestKey,
-  createReceipt,
+  createReceipt as createReceiptCore,
+  type ReceiptCreationInput,
 } from "../../../../../src/scripts/review-gate/core/request-key.js";
+import { canonicalizePlainJson } from "../../../../../src/scripts/review-gate/core/identity.js";
 import { validateReceiptLedger } from "../../../../../src/scripts/review-gate/core/receipt-ledger.js";
 
 function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
@@ -14,6 +20,7 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     changeRequestId: "change-7",
     changeSetId: "a".repeat(64),
     policyVersion: "b".repeat(64),
+    semanticsVersion: "review-gate/v1",
     rubricVersion: "independent-analysis/v1",
     requirementId: "analysis",
     sourceIdentity: "agent-1",
@@ -22,8 +29,43 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     coverageThroughSha: "d".repeat(40),
     generation: 0,
     actorIdentity: "actor-1",
+    requestMechanism: "automatic",
+    requiredActorIdentity: "actor-1",
     ...overrides,
   };
+}
+
+type TestReceiptInput = Omit<ReceiptCreationInput, "payload"> & { payload?: ReviewReceiptPayload };
+
+function createReceipt(input: TestReceiptInput): ReviewReceipt {
+  let payload = input.payload;
+  if (payload === undefined && input.action === "reserved") {
+    payload = { kind: "reservation", reservedAt: null, pendingProjectionRef: input.evidenceUrlOrId };
+  } else if (payload === undefined && input.action === "acknowledged") {
+    const acknowledgementRef = input.evidenceUrlOrId ?? input.eventId;
+    payload = {
+      kind: "acknowledgement",
+      acknowledgedAt: null,
+      acknowledgementRef,
+      trigger: {
+        mechanism: input.request.requestMechanism,
+        eventId: input.eventId,
+        actorIdentity: input.request.requiredActorIdentity,
+        occurredAt: null,
+        headSha: input.request.coverageThroughSha,
+      },
+    };
+  } else if (payload === undefined && ["attested", "unadmitted", "terminal-failure"].includes(input.action)) {
+    payload = {
+      kind: "terminal-evidence",
+      terminalAt: null,
+      evidenceRefs: input.evidenceUrlOrId === null ? [] : [input.evidenceUrlOrId],
+      findingIds: input.findingIds,
+    };
+  } else if (payload === undefined) {
+    payload = { kind: "decision", decidedAt: null };
+  }
+  return createReceiptCore({ ...input, payload });
 }
 
 function envelope(ledgerVersion: number, receipt = createReceipt({
@@ -46,12 +88,74 @@ function envelope(ledgerVersion: number, receipt = createReceipt({
 }
 
 describe("canonical request keys and receipt ledger", () => {
+  it("matches the definitive literal identity and serialization fixtures", () => {
+    const created = createReceiptCore({
+      request: request(),
+      previousLedgerVersion: 0,
+      action: "reserved",
+      eventId: "event-1",
+      result: null,
+      evidenceUrlOrId: null,
+      findingIds: [],
+      payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
+    });
+    const { receiptHash, ...withoutHash } = created;
+
+    expect(computeRequestKey(request())).toBe(
+      "9d2cce34bc4529848512227cfb75fa816762a0702981cc8461feccb135c1027f",
+    );
+    expect(created.idempotencyKey).toBe(
+      "f547c4aca2732ffd8e6d8616e9cc1a8dac1f040c121a717c3d75dd2752e46db7",
+    );
+    expect(receiptHash).toBe("9cd891ae4f9abfdf8d02ac2aa39c813b7ad916a8bed8a7b18587383795f2ac6e");
+    expect(canonicalizePlainJson(withoutHash)).toBe(
+      '{"action":"reserved","eventId":"event-1","evidenceUrlOrId":null,"findingIds":[],'
+      + '"idempotencyKey":"f547c4aca2732ffd8e6d8616e9cc1a8dac1f040c121a717c3d75dd2752e46db7",'
+      + '"payload":{"kind":"reservation","pendingProjectionRef":null,"reservedAt":null},'
+      + '"previousLedgerVersion":0,"reason":null,"request":{"actorIdentity":"actor-1",'
+      + '"changeRequestId":"change-7","changeSetId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",'
+      + '"coverage":"full","coverageFromSha":"cccccccccccccccccccccccccccccccccccccccc",'
+      + '"coverageThroughSha":"dddddddddddddddddddddddddddddddddddddddd","generation":0,'
+      + '"policyVersion":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",'
+      + '"repositoryId":"repo-1","requestMechanism":"automatic","requiredActorIdentity":"actor-1",'
+      + '"requirementId":"analysis","rubricVersion":"independent-analysis/v1","schemaVersion":1,'
+      + '"semanticsVersion":"review-gate/v1","sourceIdentity":"agent-1"},"result":null,"schemaVersion":1}',
+    );
+  });
+
   it("changes request identity for source, coverage, or generation", () => {
     const baseline = computeRequestKey(request());
     expect(computeRequestKey(request({ sourceIdentity: "agent-2" }))).not.toBe(baseline);
     expect(computeRequestKey(request({ coverageFromSha: "e".repeat(40) }))).not.toBe(baseline);
     expect(computeRequestKey(request({ generation: 1 }))).not.toBe(baseline);
+    expect(computeRequestKey(request({ semanticsVersion: "review-gate/v2" }))).not.toBe(baseline);
+    expect(computeRequestKey(request({ requestMechanism: "user-trigger" }))).not.toBe(baseline);
+    expect(computeRequestKey(request({ requiredActorIdentity: "actor-2" }))).not.toBe(baseline);
   });
+
+  it("binds lifecycle payload and predecessor version into receipt identity", () => {
+    const input = {
+      request: request(),
+      action: "reserved" as const,
+      eventId: "event-1",
+      result: null,
+      evidenceUrlOrId: null,
+      findingIds: [],
+      payload: { kind: "reservation" as const, reservedAt: null, pendingProjectionRef: null },
+    };
+    const baseline = createReceiptCore({ ...input, previousLedgerVersion: 0 });
+    const changedPayload = createReceiptCore({
+      ...input,
+      previousLedgerVersion: 0,
+      payload: { ...input.payload, pendingProjectionRef: "check-run:41" },
+    });
+    const changedPredecessor = createReceiptCore({ ...input, previousLedgerVersion: 1 });
+
+    expect(changedPayload.idempotencyKey).not.toBe(baseline.idempotencyKey);
+    expect(changedPayload.receiptHash).not.toBe(baseline.receiptHash);
+    expect(changedPredecessor.receiptHash).not.toBe(baseline.receiptHash);
+  });
+
 
   it("accepts a contiguous, hash-valid ledger", () => {
     expect(validateReceiptLedger({

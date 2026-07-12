@@ -17,6 +17,7 @@ function request(): ReviewRequest {
     changeRequestId: "PR_node",
     changeSetId: "a".repeat(64),
     policyVersion: "b".repeat(64),
+    semanticsVersion: "review-gate/v1",
     rubricVersion: "independent-analysis/v1",
     requirementId: "analysis",
     sourceIdentity: "coderabbit",
@@ -25,6 +26,8 @@ function request(): ReviewRequest {
     coverageThroughSha: "f".repeat(40),
     generation: 0,
     actorIdentity: "7",
+    requestMechanism: "automatic",
+    requiredActorIdentity: "7",
   };
 }
 
@@ -37,6 +40,7 @@ function receipt(): ReviewReceipt {
     result: null,
     evidenceUrlOrId: null,
     findingIds: [],
+    payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
   });
 }
 
@@ -104,5 +108,14 @@ describe("receipt comment fail-closed parsing", () => {
       kind: "invalid",
       reason: "scope-mismatch",
     });
+  });
+
+  it("rejects obsolete receipt shapes and unknown storage fields", () => {
+    const body = serializeReceiptComment({ ledgerVersion: 1, receipt: receipt() });
+    const obsolete = body.replace('"semanticsVersion":"review-gate/v1",', "");
+    expect(parseReceiptComment(parseInput(obsolete))).toMatchObject({ kind: "invalid" });
+
+    const extended = body.replace('{"ledgerVersion":1,', '{"ledgerVersion":1,"legacyVersion":1,');
+    expect(parseReceiptComment(parseInput(extended))).toMatchObject({ kind: "invalid", reason: /unknown field/u });
   });
 });

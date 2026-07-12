@@ -2,7 +2,11 @@
 
 import { meetsMinimumPermission, type CapabilitySet, type ReviewRequirement, type SourceKind } from "./contracts.js";
 import { parseEvidence, type Evidence } from "./evidence.js";
-import type { ReviewReceipt, ReviewRequest } from "./execution.js";
+import {
+  REVIEW_SEMANTICS_VERSION,
+  type ReviewReceipt,
+  type ReviewRequest,
+} from "./execution.js";
 import { hashContent } from "../../../lib/manifest/hash.js";
 import { canonicalizePlainJson, computeChangeSetId } from "./identity.js";
 import { createReceipt } from "./request-key.js";
@@ -235,6 +239,7 @@ export function ingestAttestation(input: AttestationIngestInput): AttestationIng
     changeRequestId: input.changeRequestId,
     changeSetId: evidence.changeSetId,
     policyVersion: evidence.policyVersion,
+    semanticsVersion: REVIEW_SEMANTICS_VERSION,
     rubricVersion: evidence.rubricVersion,
     requirementId: evidence.requirementId,
     sourceIdentity: evidence.sourceIdentity,
@@ -243,6 +248,8 @@ export function ingestAttestation(input: AttestationIngestInput): AttestationIng
     coverageThroughSha: evidence.coverageThroughSha,
     generation: 0,
     actorIdentity: evidence.submitterIdentity ?? input.context.authenticatedActor.actorIdentity,
+    requestMechanism: "attestation",
+    requiredActorIdentity: evidence.submitterIdentity ?? input.context.authenticatedActor.actorIdentity,
   };
   const receipt = createReceipt({
     eventId,
@@ -252,6 +259,12 @@ export function ingestAttestation(input: AttestationIngestInput): AttestationIng
     result: evidence.result,
     evidenceUrlOrId: evidence.evidenceUrlOrId,
     findingIds: evidence.findings.map((finding) => finding.findingId),
+    payload: {
+      kind: "terminal-evidence",
+      terminalAt: evidence.observedAt,
+      evidenceRefs: [evidence.evidenceUrlOrId],
+      findingIds: evidence.findings.map((finding) => finding.findingId),
+    },
     evidence,
   });
   if (prior !== undefined) {

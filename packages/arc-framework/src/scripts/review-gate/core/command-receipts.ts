@@ -2,7 +2,11 @@
 
 import type { AuthorizedReviewCommandEvent } from "./command-ingestion.js";
 import type { NormalizedChangeRequest, ReviewRequirement } from "./contracts.js";
-import type { ReviewReceipt, ReviewRequest } from "./execution.js";
+import {
+  REVIEW_SEMANTICS_VERSION,
+  type ReviewReceipt,
+  type ReviewRequest,
+} from "./execution.js";
 import { admitRefresh } from "./admission.js";
 import { createReceipt } from "./request-key.js";
 
@@ -67,6 +71,7 @@ function commandRequest(
     changeRequestId: input.changeRequest.changeRequestId,
     changeSetId: input.requirement.changeSetId,
     policyVersion: input.requirement.policyVersion,
+    semanticsVersion: REVIEW_SEMANTICS_VERSION,
     rubricVersion: input.requirement.rubricVersion,
     requirementId: input.requirement.id,
     sourceIdentity,
@@ -75,6 +80,8 @@ function commandRequest(
     coverageThroughSha: input.changeRequest.headSha,
     generation: 0,
     actorIdentity: input.event.actorIdentity,
+    requestMechanism: "authorized-command",
+    requiredActorIdentity: input.event.actorIdentity,
   };
 }
 
@@ -100,6 +107,7 @@ export function createDirectCommandReceipt(input: DirectCommandReceiptInput): Di
     reason: input.event.command.reason,
     evidenceUrlOrId: input.event.durableRef,
     findingIds: input.event.command.kind === "dismiss" ? [input.event.command.findingId] : [],
+    payload: { kind: "decision", decidedAt: null },
   });
   if (prior === undefined) return { ok: true, receipt, replay: false };
   if (prior.receiptHash !== receipt.receiptHash) return { ok: false, error: "conflicting-command-replay" };
@@ -184,6 +192,7 @@ export function planCommandRefresh(input: CommandRefreshInput): CommandRefreshRe
     changeRequestId: input.changeRequest.changeRequestId,
     changeSetId: input.requirement.changeSetId,
     policyVersion: input.requirement.policyVersion,
+    semanticsVersion: REVIEW_SEMANTICS_VERSION,
     rubricVersion: input.requirement.rubricVersion,
     requirementId: input.requirement.id,
     sourceIdentity,
@@ -192,6 +201,8 @@ export function planCommandRefresh(input: CommandRefreshInput): CommandRefreshRe
     coverageThroughSha: input.changeRequest.headSha,
     generation: admission.generation,
     actorIdentity: input.event.actorIdentity,
+    requestMechanism: "authorized-command",
+    requiredActorIdentity: input.event.actorIdentity,
   };
   const reservation = createReceipt({
     eventId: input.event.eventId,
@@ -202,6 +213,7 @@ export function planCommandRefresh(input: CommandRefreshInput): CommandRefreshRe
     reason: input.event.command.reason,
     evidenceUrlOrId: input.event.durableRef,
     findingIds: [],
+    payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: input.event.durableRef },
   });
   return { ok: true, request, reservation, replay: false };
 }

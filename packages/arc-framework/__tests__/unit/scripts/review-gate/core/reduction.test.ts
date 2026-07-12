@@ -8,9 +8,11 @@ import { COMMAND_RECEIPT_SOURCE } from "../../../../../src/scripts/review-gate/c
 import { createReceipt } from "../../../../../src/scripts/review-gate/core/request-key.js";
 import {
   extractAuthenticatedReceiptEvidence,
+} from "../../../../../src/scripts/review-gate/core/reduction.js";
+import {
   reduceSelfHostingGate,
   type SelfHostingGateReductionInput,
-} from "../../../../../src/scripts/review-gate/core/reduction.js";
+} from "../../../../../src/scripts/review-gate/policy/self-hosting/reduction.js";
 import {
   SELF_HOSTING_POLICY,
   type SelfHostingPolicy,
@@ -142,6 +144,7 @@ function admittedReceipt(policy: SelfHostingPolicy): ReviewReceipt {
       changeRequestId: changeRequest.changeRequestId,
       changeSetId: changeRequest.changeSetId,
       policyVersion: computePolicyVersion({ policy }),
+      semanticsVersion: "review-gate/v1",
       rubricVersion: "independent-analysis/v1",
       requirementId: "independent-analysis",
       sourceIdentity: "coderabbit-pr",
@@ -150,11 +153,14 @@ function admittedReceipt(policy: SelfHostingPolicy): ReviewReceipt {
       coverageThroughSha: changeRequest.headSha,
       generation: 0,
       actorIdentity: SELF_HOSTING_POLICY.providerIdentities.appBotUserId,
+      requestMechanism: "automatic",
+      requiredActorIdentity: SELF_HOSTING_POLICY.providerIdentities.appBotUserId,
     },
     result: null,
     reason: null,
     evidenceUrlOrId: null,
     findingIds: [],
+    payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
   };
 }
 
@@ -169,6 +175,7 @@ function requiredReceipt(policy: SelfHostingPolicy): ReviewReceipt {
       changeRequestId: changeRequest.changeRequestId,
       changeSetId: changeRequest.changeSetId,
       policyVersion: computePolicyVersion({ policy }),
+      semanticsVersion: "review-gate/v1",
       rubricVersion: "independent-analysis/v1",
       requirementId: "independent-analysis",
       sourceIdentity: COMMAND_RECEIPT_SOURCE,
@@ -177,11 +184,14 @@ function requiredReceipt(policy: SelfHostingPolicy): ReviewReceipt {
       coverageThroughSha: changeRequest.headSha,
       generation: 0,
       actorIdentity: "7",
+      requestMechanism: "authorized-command",
+      requiredActorIdentity: "7",
     },
     result: null,
     reason: "run independent analysis",
     evidenceUrlOrId: "https://github.test/pull/7#issuecomment-1",
     findingIds: [],
+    payload: { kind: "decision", decidedAt: null },
   });
 }
 
@@ -196,6 +206,7 @@ function waivedReceipt(policy: SelfHostingPolicy): ReviewReceipt {
       changeRequestId: changeRequest.changeRequestId,
       changeSetId: changeRequest.changeSetId,
       policyVersion: computePolicyVersion({ policy }),
+      semanticsVersion: "review-gate/v1",
       rubricVersion: "independent-analysis/v1",
       requirementId: "independent-analysis",
       sourceIdentity: COMMAND_RECEIPT_SOURCE,
@@ -204,11 +215,14 @@ function waivedReceipt(policy: SelfHostingPolicy): ReviewReceipt {
       coverageThroughSha: changeRequest.headSha,
       generation: 0,
       actorIdentity: "7",
+      requestMechanism: "authorized-command",
+      requiredActorIdentity: "7",
     },
     result: null,
     reason: "accepted operational risk",
     evidenceUrlOrId: "https://github.test/pull/7#issuecomment-2",
     findingIds: [],
+    payload: { kind: "decision", decidedAt: null },
   });
 }
 
@@ -223,6 +237,7 @@ function dismissalReceipt(policy: SelfHostingPolicy, sourceIdentity = "codex-cli
       changeRequestId: changeRequest.changeRequestId,
       changeSetId: changeRequest.changeSetId,
       policyVersion: computePolicyVersion({ policy }),
+      semanticsVersion: "review-gate/v1",
       rubricVersion: "independent-analysis/v1",
       requirementId: "independent-analysis",
       sourceIdentity,
@@ -231,11 +246,14 @@ function dismissalReceipt(policy: SelfHostingPolicy, sourceIdentity = "codex-cli
       coverageThroughSha: changeRequest.headSha,
       generation: 0,
       actorIdentity: "maintainer-1",
+      requestMechanism: "authorized-command",
+      requiredActorIdentity: "maintainer-1",
     },
     result: null,
     reason: "not applicable",
     evidenceUrlOrId: "https://github.test/pull/7#issuecomment-3",
     findingIds: ["finding-1"],
+    payload: { kind: "decision", decidedAt: null },
   });
 }
 
@@ -252,6 +270,7 @@ describe("self-hosting gate reduction", () => {
         changeRequestId: changeRequest.changeRequestId,
         changeSetId: normalized.changeSetId,
         policyVersion: normalized.policyVersion,
+        semanticsVersion: "review-gate/v1",
         rubricVersion: normalized.rubricVersion,
         requirementId: normalized.requirementId,
         sourceIdentity: normalized.sourceIdentity,
@@ -260,10 +279,18 @@ describe("self-hosting gate reduction", () => {
         coverageThroughSha: normalized.coverageThroughSha,
         generation: 0,
         actorIdentity: "maintainer-1",
+        requestMechanism: "attestation",
+        requiredActorIdentity: "maintainer-1",
       },
       result: normalized.result,
       evidenceUrlOrId: normalized.evidenceUrlOrId,
       findingIds: [],
+      payload: {
+        kind: "terminal-evidence",
+        terminalAt: normalized.observedAt,
+        evidenceRefs: [normalized.evidenceUrlOrId],
+        findingIds: [],
+      },
       evidence: normalized,
     });
     const envelopes: ReceiptEnvelope[] = [{
@@ -558,6 +585,7 @@ describe("self-hosting gate reduction", () => {
         reason: "accepted operational risk",
         evidenceUrlOrId: "https://github.test/pull/7#issuecomment-2",
         findingIds: [],
+        payload: { kind: "decision", decidedAt: null },
       })],
     }));
 
@@ -619,7 +647,14 @@ describe("self-hosting gate reduction", () => {
       risk: { risk: "sensitive", reasons: ["code-surface"] },
       capacities: [capacity()],
     }));
-    expect(first.request).toMatchObject({ sourceIdentity: "coderabbit-pr", generation: 0, coverage: "full" });
+    expect(first.request).toMatchObject({
+      sourceIdentity: "coderabbit-pr",
+      generation: 0,
+      coverage: "full",
+      semanticsVersion: "review-gate/v1",
+      requestMechanism: "automatic",
+      requiredActorIdentity: SELF_HOSTING_POLICY.providerIdentities.appBotUserId,
+    });
 
     const replay = reduceSelfHostingGate(input({
       policy,

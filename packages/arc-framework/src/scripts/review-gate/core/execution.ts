@@ -2,6 +2,11 @@
 
 import { parseEvidence, type CoverageKind, type Evidence, type EvidenceResult } from "./evidence.js";
 import {
+  parseReviewReceiptPayload,
+  type RequestMechanism,
+  type ReviewReceiptPayload,
+} from "./receipt-payload.js";
+import {
   arrayAt,
   digestAt,
   enumAt,
@@ -13,6 +18,19 @@ import {
   timestampAt,
 } from "./validation.js";
 
+/** Stable request contract identity. */
+export const REVIEW_REQUEST_CONTRACT = "arc.review-request";
+/** Initial live request schema. */
+export const REVIEW_REQUEST_SCHEMA_VERSION = 1;
+/** Stable receipt contract identity. */
+export const REVIEW_RECEIPT_CONTRACT = "arc.review-receipt";
+/** Initial live receipt schema. */
+export const REVIEW_RECEIPT_SCHEMA_VERSION = 1;
+/** Current neutral semantics bound into request identity. */
+export const REVIEW_SEMANTICS_VERSION = "review-gate/v1";
+
+export type { RequestMechanism, ReviewReceiptPayload } from "./receipt-payload.js";
+
 /** Request admitted for one source and exact coverage range. */
 export interface ReviewRequest {
   schemaVersion: 1;
@@ -20,6 +38,7 @@ export interface ReviewRequest {
   changeRequestId: string;
   changeSetId: string;
   policyVersion: string;
+  semanticsVersion: string;
   rubricVersion: string;
   requirementId: string;
   sourceIdentity: string;
@@ -28,6 +47,8 @@ export interface ReviewRequest {
   coverageThroughSha: string;
   generation: number;
   actorIdentity: string;
+  requestMechanism: RequestMechanism;
+  requiredActorIdentity: string;
 }
 
 /** Capacity state for a candidate source. */
@@ -47,12 +68,15 @@ export interface ReviewReceipt {
   idempotencyKey: string;
   previousLedgerVersion: number;
   receiptHash: string;
-  action: "reserved" | "acknowledged" | "terminal-failure" | "required" | "dismissed" | "waived" | "attested" | "unadmitted";
+  action:
+    | "reserved" | "acknowledged" | "terminal-failure" | "required" | "dismissed" | "waived"
+    | "attested" | "unadmitted" | "finding-opened" | "finding-settled" | "contaminated" | "superseded";
   request: ReviewRequest;
   result: EvidenceResult | null;
   reason: string | null;
   evidenceUrlOrId: string | null;
   findingIds: string[];
+  payload: ReviewReceiptPayload;
   evidence?: Evidence;
 }
 
@@ -131,9 +155,9 @@ function nullableAt<T>(value: unknown, path: string, parse: (input: unknown, pat
 export function parseReviewRequest(input: unknown, path = "request"): ReviewRequest {
   const record = objectAt(input, path);
   exactKeys(record, [
-    "schemaVersion", "repositoryId", "changeRequestId", "changeSetId", "policyVersion", "rubricVersion",
+    "schemaVersion", "repositoryId", "changeRequestId", "changeSetId", "policyVersion", "semanticsVersion", "rubricVersion",
     "requirementId", "sourceIdentity", "coverage", "coverageFromSha", "coverageThroughSha", "generation",
-    "actorIdentity",
+    "actorIdentity", "requestMechanism", "requiredActorIdentity",
   ], path);
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
@@ -141,6 +165,7 @@ export function parseReviewRequest(input: unknown, path = "request"): ReviewRequ
     changeRequestId: stringAt(record.changeRequestId, `${path}.changeRequestId`),
     changeSetId: digestAt(record.changeSetId, `${path}.changeSetId`),
     policyVersion: digestAt(record.policyVersion, `${path}.policyVersion`),
+    semanticsVersion: stringAt(record.semanticsVersion, `${path}.semanticsVersion`),
     rubricVersion: stringAt(record.rubricVersion, `${path}.rubricVersion`),
     requirementId: stringAt(record.requirementId, `${path}.requirementId`),
     sourceIdentity: stringAt(record.sourceIdentity, `${path}.sourceIdentity`),
@@ -149,6 +174,12 @@ export function parseReviewRequest(input: unknown, path = "request"): ReviewRequ
     coverageThroughSha: digestAt(record.coverageThroughSha, `${path}.coverageThroughSha`, 40),
     generation: integerAt(record.generation, `${path}.generation`),
     actorIdentity: stringAt(record.actorIdentity, `${path}.actorIdentity`),
+    requestMechanism: enumAt(
+      record.requestMechanism,
+      ["automatic", "user-trigger", "authorized-command", "attestation"],
+      `${path}.requestMechanism`,
+    ),
+    requiredActorIdentity: stringAt(record.requiredActorIdentity, `${path}.requiredActorIdentity`),
   };
 }
 
@@ -172,15 +203,19 @@ export function parseCapacity(input: unknown): SourceCapacity {
   };
 }
 
-function parseReceipt(input: unknown, path: string): ReviewReceipt {
+/** Validate one receipt before storage or reduction. */
+export function parseReviewReceipt(input: unknown, path = "receipt"): ReviewReceipt {
   const record = objectAt(input, path);
   exactKeys(record, [
     "schemaVersion", "eventId", "idempotencyKey", "previousLedgerVersion", "receiptHash", "action", "request",
-    "result", "reason", "evidenceUrlOrId", "findingIds", "evidence",
+    "result", "reason", "evidenceUrlOrId", "findingIds", "payload", "evidence",
   ], path);
   const action = enumAt(
     record.action,
-    ["reserved", "acknowledged", "terminal-failure", "required", "dismissed", "waived", "attested", "unadmitted"],
+    [
+      "reserved", "acknowledged", "terminal-failure", "required", "dismissed", "waived", "attested", "unadmitted",
+      "finding-opened", "finding-settled", "contaminated", "superseded",
+    ],
     `${path}.action`,
   );
   const request = parseReviewRequest(record.request, `${path}.request`);
@@ -188,12 +223,14 @@ function parseReceipt(input: unknown, path: string): ReviewReceipt {
     enumAt(value, ["clean", "findings", "failed", "unavailable"], itemPath));
   const evidenceUrlOrId = nullableAt(record.evidenceUrlOrId, `${path}.evidenceUrlOrId`, stringAt);
   const findingIds = arrayAt(record.findingIds, `${path}.findingIds`, stringAt);
+  const payload = parseReviewReceiptPayload(record.payload, `${path}.payload`);
   const evidence = record.evidence === undefined ? undefined : parseEvidence(record.evidence);
   const attestationAction = action === "attested" || action === "unadmitted";
   if (attestationAction !== (evidence !== undefined)) {
     throw new Error(`${path}.evidence: required only for attestation receipts`);
   }
   if (evidence !== undefined) validateReceiptEvidenceCongruence({ request, result, evidenceUrlOrId, findingIds }, evidence, path);
+  validatePayloadCongruence({ action, request, result, evidenceUrlOrId, findingIds, payload }, path);
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
     eventId: stringAt(record.eventId, `${path}.eventId`),
@@ -206,8 +243,57 @@ function parseReceipt(input: unknown, path: string): ReviewReceipt {
     reason: nullableAt(record.reason, `${path}.reason`, stringAt),
     evidenceUrlOrId,
     findingIds,
+    payload,
     ...(evidence === undefined ? {} : { evidence }),
   };
+}
+
+function validatePayloadCongruence(
+  receipt: Pick<ReviewReceipt, "action" | "request" | "result" | "evidenceUrlOrId" | "findingIds" | "payload">,
+  path: string,
+): void {
+  const expected = receipt.action === "reserved"
+    ? "reservation"
+    : receipt.action === "acknowledged"
+      ? "acknowledgement"
+      : ["attested", "unadmitted", "terminal-failure"].includes(receipt.action)
+        ? "terminal-evidence"
+        : ["finding-opened", "finding-settled"].includes(receipt.action)
+          ? "finding-lifecycle"
+          : receipt.action === "contaminated"
+            ? "contamination"
+            : receipt.action === "superseded" ? "supersession" : "decision";
+  const payload = receipt.payload;
+  if (payload.kind !== expected) throw new Error(`${path}.payload: action mismatch`);
+  if (payload.kind === "acknowledgement") {
+    if (payload.trigger.mechanism !== receipt.request.requestMechanism) {
+      throw new Error(`${path}.payload: mechanism mismatch`);
+    }
+    if (payload.trigger.actorIdentity !== receipt.request.requiredActorIdentity) {
+      throw new Error(`${path}.payload: actor identity mismatch`);
+    }
+    if (payload.trigger.headSha !== receipt.request.coverageThroughSha) throw new Error(`${path}.payload: head mismatch`);
+    if (payload.acknowledgementRef !== receipt.evidenceUrlOrId) throw new Error(`${path}.payload: reference mismatch`);
+  }
+  if (payload.kind === "terminal-evidence") {
+    if (!sameStrings(payload.findingIds, receipt.findingIds)) throw new Error(`${path}.payload: finding mismatch`);
+    if (receipt.evidenceUrlOrId !== null && !payload.evidenceRefs.includes(receipt.evidenceUrlOrId)) {
+      throw new Error(`${path}.payload: terminal evidence mismatch`);
+    }
+  }
+  if (payload.kind === "finding-lifecycle") {
+    if (payload.origin.sourceIdentity !== receipt.request.sourceIdentity) {
+      throw new Error(`${path}.payload: source identity mismatch`);
+    }
+    if (payload.origin.headSha !== receipt.request.coverageThroughSha) {
+      throw new Error(`${path}.payload: origin head mismatch`);
+    }
+    if (!receipt.findingIds.includes(payload.findingId)) throw new Error(`${path}.payload: finding identity mismatch`);
+  }
+}
+
+function sameStrings(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
 }
 
 function validateReceiptEvidenceCongruence(
@@ -225,7 +311,7 @@ function validateReceiptEvidenceCongruence(
     && evidence.coverageFromSha === request.coverageFromSha
     && evidence.coverageThroughSha === request.coverageThroughSha;
   if (!identitiesMatch) throw new Error(`${path}.evidence: request identity mismatch`);
-  if (evidence.submitterIdentity !== undefined && evidence.submitterIdentity !== request.actorIdentity) {
+  if (evidence.submitterIdentity !== undefined && evidence.submitterIdentity !== request.requiredActorIdentity) {
     throw new Error(`${path}.evidence: actor identity mismatch`);
   }
   if (evidence.result !== receipt.result) throw new Error(`${path}.evidence: result mismatch`);
@@ -248,7 +334,7 @@ export function parseReceiptEnvelope(input: unknown): ReceiptEnvelope {
     recordedAt: timestampAt(record.recordedAt, `${path}.recordedAt`),
     lastModifiedAt: timestampAt(record.lastModifiedAt, `${path}.lastModifiedAt`),
     ledgerVersion: integerAt(record.ledgerVersion, `${path}.ledgerVersion`),
-    receipt: parseReceipt(record.receipt, `${path}.receipt`),
+    receipt: parseReviewReceipt(record.receipt, `${path}.receipt`),
   };
 }
 

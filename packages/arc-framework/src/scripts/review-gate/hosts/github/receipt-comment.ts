@@ -16,6 +16,7 @@
  */
 
 import { parseReceiptEnvelope, type ReceiptEnvelope, type ReviewReceipt } from "../../core/execution.js";
+import { exactKeys, objectAt } from "../../core/validation.js";
 
 /** HTML-comment marker identifying an ARC receipt comment. */
 export const RECEIPT_MARKER = "arc-review-gate:receipt";
@@ -72,14 +73,9 @@ export type ReceiptCommentParse =
   | { kind: "not-a-receipt" }
   | { kind: "invalid"; reason: string };
 
-function extractLedgerVersion(raw: unknown): number | null {
-  if (raw === null || typeof raw !== "object" || !("ledgerVersion" in raw)) return null;
-  const value: unknown = raw.ledgerVersion;
+function extractLedgerVersion(raw: Record<string, unknown>): number | null {
+  const value = raw.ledgerVersion;
   return typeof value === "number" ? value : null;
-}
-
-function extractReceipt(raw: unknown): unknown {
-  return raw !== null && typeof raw === "object" && "receipt" in raw ? raw.receipt : undefined;
 }
 
 /** Parse a candidate comment into a validated, scope-checked receipt envelope. */
@@ -100,7 +96,14 @@ export function parseReceiptComment(input: ParseReceiptCommentInput): ReceiptCom
     return { kind: "invalid", reason: "malformed-json" };
   }
 
-  const ledgerVersion = extractLedgerVersion(raw);
+  let payload: Record<string, unknown>;
+  try {
+    payload = objectAt(raw, "payload");
+    exactKeys(payload, ["ledgerVersion", "receipt"], "payload");
+  } catch (error) {
+    return { kind: "invalid", reason: error instanceof Error ? error.message : "schema-invalid" };
+  }
+  const ledgerVersion = extractLedgerVersion(payload);
   if (ledgerVersion === null) return { kind: "invalid", reason: "missing-ledger-version" };
 
   let envelope: ReceiptEnvelope;
@@ -111,7 +114,7 @@ export function parseReceiptComment(input: ParseReceiptCommentInput): ReceiptCom
       recordedAt: input.createdAt,
       lastModifiedAt: input.updatedAt,
       ledgerVersion,
-      receipt: extractReceipt(raw),
+      receipt: payload.receipt,
     });
   } catch (error) {
     return { kind: "invalid", reason: error instanceof Error ? error.message : "schema-invalid" };

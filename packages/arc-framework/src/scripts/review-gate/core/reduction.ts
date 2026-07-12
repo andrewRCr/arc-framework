@@ -2,33 +2,47 @@
 
 import { admitAutomaticRequest } from "./admission.js";
 import { applyRequiredOverride, COMMAND_RECEIPT_SOURCE } from "./command-receipts.js";
-import type { NormalizedChangeRequest, ReviewRequirement } from "./contracts.js";
+import type { NormalizedChangeRequest, ReviewRequirement, SourceKind } from "./contracts.js";
 import { reduceCoverage } from "./coverage.js";
 import type { Evidence } from "./evidence.js";
-import type { GateProjection, ReceiptEnvelope, ReviewReceipt, ReviewRequest, SourceCapacity } from "./execution.js";
+import {
+  REVIEW_SEMANTICS_VERSION,
+  type GateProjection,
+  type ReceiptEnvelope,
+  type ReviewReceipt,
+  type ReviewRequest,
+  type SourceCapacity,
+} from "./execution.js";
 import { reduceFindings } from "./findings.js";
 import type { LifecycleTailProof } from "./lifecycle-tail.js";
 import { renderGateProjection } from "./projection.js";
 import { reduceRequirementState } from "./requirement-state.js";
 import { reduceGateVerdict, type GateVerdictInput, type VerdictRequirement } from "./verdict.js";
-import {
-  resolveSelfHostingDecision,
-  type SelfHostingDecision,
-} from "../policy/self-hosting/decision.js";
-import type { LaneDecision } from "../policy/self-hosting/lane.js";
-import { qualifyIndependentAnalysisSource } from "../policy/self-hosting/qualification.js";
-import type { ReviewRiskDecision } from "../policy/self-hosting/risk.js";
-import type {
-  SelfHostingPolicy,
-  SourceQualificationDeclaration,
-} from "../policy/self-hosting/schema.js";
+
+/** Policy decision data consumed by the neutral reducer. */
+export interface ReviewGatePolicyDecision {
+  lane: "auto" | "reviewed";
+  reviewRisk: "routine" | "sensitive";
+  disposition: "required" | "recommended" | "exempt";
+  reasons: string[];
+  policyVersion: string;
+  requirements: ReviewRequirement[];
+}
+
+/** Pre-qualified source capabilities supplied by repository policy. */
+export interface ReviewSourceQualification {
+  sourceKind: SourceKind;
+  qualifier: string;
+  sourceIdentity: string;
+  qualifiedRubricVersions: string[];
+  transport: "durable-record" | "authenticated-attestation";
+}
 
 /** Canonical state consumed by the production core reduction. */
-export interface SelfHostingGateReductionInput {
-  policy: SelfHostingPolicy;
+export interface ReviewGateReductionInput {
+  policyDecision: ReviewGatePolicyDecision;
+  qualifications: ReviewSourceQualification[];
   changeRequest: NormalizedChangeRequest;
-  lane: LaneDecision;
-  risk: ReviewRiskDecision;
   evidence: Evidence[];
   receipts: ReviewReceipt[];
   capacities: SourceCapacity[];
@@ -44,6 +58,7 @@ export interface SelfHostingGateReductionInput {
   inconsistencies: string[];
   ledgerVersion: number | null;
   lifecycleTail?: LifecycleTailProof | null;
+  lifecycleTailPredicateId: string;
   receiptRefs: string[];
   actorIdentity: string;
 }
@@ -59,20 +74,20 @@ export function extractAuthenticatedReceiptEvidence(envelopes: ReceiptEnvelope[]
   return envelopes.flatMap((envelope) => envelope.receipt.evidence === undefined ? [] : [envelope.receipt.evidence]);
 }
 
-function sourceAccepted(requirement: ReviewRequirement, declaration: SourceQualificationDeclaration): boolean {
+function sourceAccepted(requirement: ReviewRequirement, declaration: ReviewSourceQualification): boolean {
   return requirement.acceptableSources.some((accepted) => accepted.sourceKind === declaration.sourceKind
     && (accepted.qualifier === undefined || accepted.qualifier === declaration.qualifier));
 }
 
-function sourceQualified(requirement: ReviewRequirement, declaration: SourceQualificationDeclaration): boolean {
+function sourceQualified(requirement: ReviewRequirement, declaration: ReviewSourceQualification): boolean {
   return sourceAccepted(requirement, declaration)
-    && qualifyIndependentAnalysisSource(declaration, requirement.rubricVersion).qualified;
+    && declaration.qualifiedRubricVersions.includes(requirement.rubricVersion);
 }
 
 function evidenceQualified(
   requirement: ReviewRequirement,
   evidence: Evidence,
-  declarations: SourceQualificationDeclaration[],
+  declarations: ReviewSourceQualification[],
 ): boolean {
   return declarations.some((declaration) => declaration.sourceKind === evidence.sourceKind
     && (declaration.sourceIdentity === evidence.sourceIdentity
@@ -88,9 +103,9 @@ function receiptCurrent(requirement: ReviewRequirement, receipt: ReviewReceipt):
 }
 
 function requestFor(
-  input: SelfHostingGateReductionInput,
+  input: ReviewGateReductionInput,
   requirement: ReviewRequirement,
-  declaration: SourceQualificationDeclaration,
+  declaration: ReviewSourceQualification,
   generation: number,
 ): ReviewRequest {
   return {
@@ -99,6 +114,7 @@ function requestFor(
     changeRequestId: input.changeRequest.changeRequestId,
     changeSetId: requirement.changeSetId,
     policyVersion: requirement.policyVersion,
+    semanticsVersion: REVIEW_SEMANTICS_VERSION,
     rubricVersion: requirement.rubricVersion,
     requirementId: requirement.id,
     sourceIdentity: declaration.sourceIdentity,
@@ -107,10 +123,12 @@ function requestFor(
     coverageThroughSha: input.changeRequest.headSha,
     generation,
     actorIdentity: input.actorIdentity,
+    requestMechanism: "automatic",
+    requiredActorIdentity: input.actorIdentity,
   };
 }
 
-function policyProjection(decision: SelfHostingDecision): GateProjection["policyDecision"] {
+function policyProjection(decision: ReviewGatePolicyDecision): GateProjection["policyDecision"] {
   return {
     lane: decision.lane,
     reviewRisk: decision.reviewRisk,
@@ -121,13 +139,8 @@ function policyProjection(decision: SelfHostingDecision): GateProjection["policy
 }
 
 /** Reduce one canonical self-hosting snapshot into the next request and neutral gate projection. */
-export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): GateReductionDecision {
-  const policyDecision = resolveSelfHostingDecision({
-    policy: input.policy,
-    changeRequest: input.changeRequest,
-    lane: input.lane,
-    risk: input.risk,
-  });
+export function reduceReviewGate(input: ReviewGateReductionInput): GateReductionDecision {
+  const policyDecision = input.policyDecision;
   const inconsistencies = [...input.inconsistencies];
   const verdictRequirements: VerdictRequirement[] = [];
   const projectionEvidence: GateProjection["evidence"] = [];
@@ -137,7 +150,7 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
     const requirement = applyRequiredOverride(policyRequirement, input.receipts);
     const receipts = input.receipts.filter((receipt) => receiptCurrent(requirement, receipt));
     const evidence = input.evidence.filter((item) => item.requirementId === requirement.id
-      && evidenceQualified(requirement, item, input.policy.qualifications));
+      && evidenceQualified(requirement, item, input.qualifications));
     const coverage = reduceCoverage({
       requirement,
       baseRef: input.changeRequest.baseRef,
@@ -145,7 +158,7 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
       headSha: input.changeRequest.headSha,
       evidence,
       lifecycleTail: input.lifecycleTail ?? null,
-      lifecycleTailPredicateId: input.policy.lifecycleTailPredicate.id,
+      lifecycleTailPredicateId: input.lifecycleTailPredicateId,
     });
     const findings = reduceFindings({
       evidence: coverage.stateEvidence,
@@ -163,7 +176,7 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
         }))),
     });
     inconsistencies.push(...findings.errors);
-    const candidates = input.policy.qualifications.filter((declaration) =>
+    const candidates = input.qualifications.filter((declaration) =>
       declaration.transport === "durable-record" && sourceQualified(requirement, declaration));
     if (candidates.length > 1) inconsistencies.push("multiple-invokable-sources");
     const candidate = candidates.length === 1 ? candidates[0] : undefined;

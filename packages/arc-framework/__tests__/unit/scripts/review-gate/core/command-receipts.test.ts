@@ -72,7 +72,11 @@ describe("command receipt planning", () => {
           requirementId: "analysis",
           sourceIdentity: COMMAND_RECEIPT_SOURCE,
           actorIdentity: "7",
+          semanticsVersion: "review-gate/v1",
+          requestMechanism: "authorized-command",
+          requiredActorIdentity: "7",
         },
+        payload: { kind: "decision" },
       },
     });
   });
@@ -165,11 +169,15 @@ describe("command receipt planning", () => {
         coverageThroughSha: changeRequest.headSha,
         generation: 0,
         actorIdentity: "7",
+        semanticsVersion: "review-gate/v1",
+        requestMechanism: "authorized-command",
+        requiredActorIdentity: "7",
       },
       reservation: {
         eventId: "command:IC_1:2026-07-11T20:00:00Z:body",
         action: "reserved",
         reason: "run the full change again",
+        payload: { kind: "reservation" },
       },
     });
   });

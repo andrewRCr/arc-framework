@@ -29,9 +29,11 @@ import type {
 } from "../core/ports.js";
 import {
   extractAuthenticatedReceiptEvidence,
+} from "../core/reduction.js";
+import {
   reduceSelfHostingGate,
   type SelfHostingGateReductionInput,
-} from "../core/reduction.js";
+} from "../policy/self-hosting/reduction.js";
 import { createReceipt, computeRequestKey } from "../core/request-key.js";
 import { executeReservedRequest, type RequestExecutionResult } from "../core/request-execution.js";
 import {
@@ -385,6 +387,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           result: null,
           evidenceUrlOrId: null,
           findingIds: [],
+          payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
         });
         if (
           computeRequestKey(receipt.request) !== computeRequestKey(reservedRequest)
@@ -415,8 +418,20 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           action: "acknowledged",
           request: reservation.receipt.request,
           result: null,
-          evidenceUrlOrId: acknowledgement.durableRef ?? null,
+          evidenceUrlOrId: acknowledgement.durableRef ?? acknowledgement.requestIdentity,
           findingIds: [],
+          payload: {
+            kind: "acknowledgement",
+            acknowledgedAt: acknowledgement.acknowledgedAt,
+            acknowledgementRef: acknowledgement.durableRef ?? acknowledgement.requestIdentity,
+            trigger: {
+              mechanism: reservation.receipt.request.requestMechanism,
+              eventId: acknowledgement.requestIdentity,
+              actorIdentity: reservation.receipt.request.requiredActorIdentity,
+              occurredAt: acknowledgement.acknowledgedAt,
+              headSha: reservation.receipt.request.coverageThroughSha,
+            },
+          },
         });
         await store.appendReceipt(receipt, reservation.ledgerVersion);
       },
@@ -429,6 +444,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           result: "unavailable",
           evidenceUrlOrId: null,
           findingIds: [],
+          payload: { kind: "terminal-evidence", terminalAt: null, evidenceRefs: [], findingIds: [] },
         });
         await store.appendReceipt(receipt, reservation.ledgerVersion);
       },

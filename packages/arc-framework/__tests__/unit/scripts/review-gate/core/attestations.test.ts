@@ -150,7 +150,17 @@ describe("neutral attestations", () => {
       ok: true,
       replay: false,
       requestSuppressed: true,
-      receipt: { action: "unadmitted", previousLedgerVersion: 4, result: "clean" },
+      receipt: {
+        action: "unadmitted",
+        previousLedgerVersion: 4,
+        result: "clean",
+        request: {
+          semanticsVersion: "review-gate/v1",
+          requestMechanism: "attestation",
+          requiredActorIdentity: "maintainer-1",
+        },
+        payload: { kind: "terminal-evidence" },
+      },
     });
     if (!first.ok) throw new Error(first.error);
     expect(ingestAttestation({ ...input, priorReceipts: [first.receipt] })).toMatchObject({
