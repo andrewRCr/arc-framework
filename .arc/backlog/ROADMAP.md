@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `08e83a21d`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `27dcb0ffb`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -81,16 +81,17 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                    | Cohort                     |
-| ----------------------------- | -------- | ------ | ----------------------------- | -------------------------- |
-| unit-scoped-review            | P2       | andrew | commit-increments             | approval-flow-refinement   |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption        | —                          |
-| documentation-surface-routing | P3       | andrew | handoff-optimization          | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | composable-workflows          | agent-context-optimization |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption        | architecture-remediation   |
-| workflow-template-loads       | P3       | andrew | composable-workflows          | principle-anchored-core    |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh             | release-readiness          |
-| comprehension-preservation    | P3       | andrew | execution-delegation-doctrine | —                          |
+| Work unit                         | Priority | Owner  | Depends on                      | Cohort                     |
+| --------------------------------- | -------- | ------ | ------------------------------- | -------------------------- |
+| review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-cutover | —                          |
+| unit-scoped-review                | P2       | andrew | commit-increments               | approval-flow-refinement   |
+| operational-state-docs            | P2       | andrew | cli-substrate-adoption          | —                          |
+| documentation-surface-routing     | P3       | andrew | handoff-optimization            | agent-context-optimization |
+| instruction-optimization          | P3       | andrew | composable-workflows            | agent-context-optimization |
+| schema-introspection-layer        | P3       | andrew | cli-substrate-adoption          | architecture-remediation   |
+| workflow-template-loads           | P3       | andrew | composable-workflows            | principle-anchored-core    |
+| docs-content-sweep                | P3       | andrew | docs-site-refresh               | release-readiness          |
+| comprehension-preservation        | P3       | andrew | execution-delegation-doctrine   | —                          |
 
 ### Depth 2
 

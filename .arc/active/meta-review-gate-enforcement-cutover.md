@@ -11,7 +11,7 @@
 - **Design:** `draft-review-gate-enforcement-cutover.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Setup baseline captured before the composition gap was discovered (2026-07-11).
 - **Next Task:** [none]
 - **Blockers:** [none]
