@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { ReviewRequirement } from "../../../../../src/scripts/review-gate/core/contracts.js";
 import type { Evidence } from "../../../../../src/scripts/review-gate/core/evidence.js";
+import { computeChangeSetId } from "../../../../../src/scripts/review-gate/core/identity.js";
+import type { LifecycleTailProof } from "../../../../../src/scripts/review-gate/core/lifecycle-tail.js";
 import { reduceCoverage } from "../../../../../src/scripts/review-gate/core/coverage.js";
 
 const sha = (value: string): string => value.repeat(40);
@@ -48,6 +50,23 @@ function evidence(overrides: Partial<Evidence> = {}): Evidence {
   };
 }
 
+function lifecycleTail(overrides: Partial<LifecycleTailProof> = {}): LifecycleTailProof {
+  return {
+    schemaVersion: 1,
+    predicateId: "lifecycle-bookkeeping-tail/v1",
+    reviewedThroughSha: sha("e"),
+    currentHeadSha: sha("f"),
+    baseRef: "main",
+    diffBaseSha: sha("0"),
+    policyVersion: "a".repeat(64),
+    rubricVersion: "independent-analysis/v1",
+    sourceIdentity: "agent-1",
+    artifact: { workUnitId: "review-gate", artifactGroupId: "review-gate", cohortPath: null },
+    diagnostics: [],
+    ...overrides,
+  };
+}
+
 const input = {
   requirement: requirement(),
   baseRef: "main",
@@ -58,6 +77,80 @@ const input = {
 describe("evidence coverage reduction", () => {
   it("accepts one full current review", () => {
     expect(reduceCoverage({ ...input, evidence: [evidence()] })).toMatchObject({ satisfied: true });
+  });
+
+  it("carries a qualifying clean review through an exact lifecycle tail", () => {
+    const reviewedThroughSha = sha("e");
+    const bridged = evidence({
+      headSha: reviewedThroughSha,
+      coverageThroughSha: reviewedThroughSha,
+      changeSetId: computeChangeSetId({ baseRef: "main", diffBaseSha: sha("0"), headSha: reviewedThroughSha }),
+    });
+
+    expect(reduceCoverage({
+      ...input,
+      evidence: [bridged],
+      lifecycleTail: lifecycleTail(),
+      lifecycleTailPredicateId: "lifecycle-bookkeeping-tail/v1",
+    })).toMatchObject({
+      satisfied: true,
+      carriedForward: true,
+      stateEvidence: [bridged],
+    });
+  });
+
+  it("carries a contiguous reviewed chain whose earlier link ends before the tail head", () => {
+    const reviewedThroughSha = sha("e");
+    const middleSha = sha("7");
+    const reviewedChangeSetId = computeChangeSetId({
+      baseRef: "main",
+      diffBaseSha: sha("0"),
+      headSha: reviewedThroughSha,
+    });
+    const chain = [
+      evidence({
+        headSha: reviewedThroughSha,
+        coverageThroughSha: middleSha,
+        changeSetId: reviewedChangeSetId,
+      }),
+      evidence({
+        headSha: reviewedThroughSha,
+        coverage: "incremental",
+        coverageFromSha: middleSha,
+        coverageThroughSha: reviewedThroughSha,
+        changeSetId: reviewedChangeSetId,
+      }),
+    ];
+
+    expect(reduceCoverage({
+      ...input,
+      evidence: chain,
+      lifecycleTail: lifecycleTail(),
+      lifecycleTailPredicateId: "lifecycle-bookkeeping-tail/v1",
+    })).toMatchObject({ satisfied: true, carriedForward: true, chain });
+  });
+
+  it.each([
+    ["missing", null],
+    ["ambiguous", lifecycleTail({ diagnostics: ["ambiguous-artifact-group"] })],
+    ["invalid identity", lifecycleTail({ reviewedThroughSha: "not-a-sha" })],
+    ["source identity mismatch", lifecycleTail({ sourceIdentity: "agent-2" })],
+  ] as const)("leaves reviewed evidence stale when the proof is %s", (_name, proof) => {
+    const reviewedThroughSha = sha("e");
+    const reviewed = evidence({
+      headSha: reviewedThroughSha,
+      coverageThroughSha: reviewedThroughSha,
+      changeSetId: computeChangeSetId({ baseRef: "main", diffBaseSha: sha("0"), headSha: reviewedThroughSha }),
+    });
+
+    expect(reduceCoverage({
+      ...input,
+      evidence: [reviewed],
+      ...(proof === null ? {} : {
+        lifecycleTail: proof,
+        lifecycleTailPredicateId: "lifecycle-bookkeeping-tail/v1",
+      }),
+    })).toMatchObject({ satisfied: false, carriedForward: false, stateEvidence: [] });
   });
 
   it("accepts a contiguous full-plus-incremental chain ending clean", () => {

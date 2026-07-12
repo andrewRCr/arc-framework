@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { GitHubRestClient } from "../../../../../../src/scripts/review-gate/hosts/github/api/rest.js";
 import {
   authenticateAppComment,
-  verifyAppIdentity,
+  verifyInstallationAuthority,
   type ReceiptCommentAuthority,
 } from "../../../../../../src/scripts/review-gate/hosts/github/receipt-auth.js";
 import { fetchFake, response, type FetchStep } from "./api/fetch-fake.js";
@@ -95,24 +95,70 @@ describe("authenticateAppComment anchor allowance", () => {
   });
 });
 
-describe("verifyAppIdentity adapter initialization", () => {
-  it("verifies when the authenticated App id matches the pinned id", async () => {
-    const result = await verifyAppIdentity(client([response(200, JSON.stringify({ id: 4268856, slug: "x" }))]), "4268856");
+const authorityInput = {
+  appSlug: "arc-review-gate-andrewrcr",
+  expectedBotId: "302312524",
+  expectedRepositoryId: "100",
+};
+
+function installation(overrides: Record<string, unknown> = {}): unknown {
+  return {
+    total_count: 1,
+    repositories: [{ id: 100, full_name: "andrewRCr/arc-framework" }],
+    ...overrides,
+  };
+}
+
+describe("installation-token authority validation", () => {
+  it("verifies the token through its bot identity and scoped repository list", async () => {
+    const result = await verifyInstallationAuthority(client([
+      response(200, JSON.stringify({ id: 302312524, type: "Bot" })),
+      response(200, JSON.stringify(installation())),
+    ]), authorityInput);
     expect(result).toEqual({ kind: "verified" });
   });
 
-  it("fails closed on a mismatched App identity", async () => {
-    const result = await verifyAppIdentity(client([response(200, JSON.stringify({ id: 999, slug: "x" }))]), "4268856");
-    expect(result).toEqual({ kind: "failed", reason: "app-id-mismatch" });
+  it("fails closed on a mismatched bot identity", async () => {
+    await expect(verifyInstallationAuthority(client([
+      response(200, JSON.stringify({ id: 999, type: "Bot" })),
+    ]), authorityInput)).resolves.toEqual({ kind: "failed", reason: "bot-id-mismatch" });
+  });
+
+  it("enumerates every installation-repository page before rejecting scope", async () => {
+    const result = await verifyInstallationAuthority(client([
+      response(200, JSON.stringify({ id: 302312524, type: "Bot" })),
+      response(200, JSON.stringify(installation({
+        total_count: 2,
+        repositories: [{ id: 200, full_name: "other/repo" }],
+      })), { link: '<https://api.github.com/installation/repositories?per_page=100&page=2>; rel="next"' }),
+      response(200, JSON.stringify(installation({
+        total_count: 2,
+        repositories: [{ id: 100, full_name: "andrewRCr/arc-framework" }],
+      }))),
+    ]), authorityInput);
+    expect(result).toEqual({ kind: "verified" });
+  });
+
+  it("fails closed when the repository is outside the installation scope", async () => {
+    const result = await verifyInstallationAuthority(client([
+      response(200, JSON.stringify({ id: 302312524, type: "Bot" })),
+      response(200, JSON.stringify(installation({ repositories: [{ id: 200, full_name: "other/repo" }] }))),
+    ]), authorityInput);
+    expect(result).toEqual({ kind: "failed", reason: "repository-outside-installation" });
   });
 
   it("fails closed on a missing or invalid credential", async () => {
-    const result = await verifyAppIdentity(client([response(401, "{\"message\":\"Bad credentials\"}")]), "4268856");
+    const result = await verifyInstallationAuthority(client([
+      response(401, "{\"message\":\"Bad credentials\"}"),
+    ]), authorityInput);
     expect(result).toEqual({ kind: "failed", reason: "credential" });
   });
 
-  it("fails closed when the App endpoint is unavailable", async () => {
-    const result = await verifyAppIdentity(client([response(500, "")]), "4268856");
+  it("fails closed when installation scope cannot be read", async () => {
+    const result = await verifyInstallationAuthority(client([
+      response(200, JSON.stringify({ id: 302312524, type: "Bot" })),
+      response(500, ""),
+    ]), authorityInput);
     expect(result).toMatchObject({ kind: "failed" });
   });
 });

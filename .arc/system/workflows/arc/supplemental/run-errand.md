@@ -10,7 +10,7 @@ arc:
     - pre-pr-open
     - post-pr-open
     - pre-push-review
-    - pre-merge-review
+    - pre-merge
 ---
 
 # Workflow: Run Errand
@@ -158,12 +158,12 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open` is active, execute its idempotent
    numbered actions before review coordination. Derive current controller/PR state from `hostRef`.
 
-5. **Settle the final head.** For reviewed and auto lanes, run review coordination and fire `pre-merge-review` before
+5. **Settle the final head.** For reviewed and auto lanes, run review coordination and fire `pre-merge` before
    merge authorization. If any fix/request action changes the head, repeat base freshness, current-head coordination,
    and the final hook until the head is unchanged and the controller reports it settled. No review-authored commit or
    push may occur after the stable checkpoint.
 
-   - **Extensions** · `#pre-merge-review`: If active, run its `.actions` before the merge; halt-on-fail as above.
+   - **Extensions** · `#pre-merge`: If active, run its `.actions` before the merge; halt-on-fail as above.
      Otherwise skip.
 
 > [!IMPORTANT]

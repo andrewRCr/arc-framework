@@ -202,8 +202,8 @@ mode() {
 project_actions() {
   jq -n \
     --arg post "$(sed -n 's/^active: //p' .arc/system/extensions/post-pr-open.md)" \
-    --arg final "$(sed -n 's/^active: //p' .arc/system/extensions/pre-merge-review.md)" \
-    '{post_pr_open:$post,pre_merge_review:$final}'
+    --arg final "$(sed -n 's/^active: //p' .arc/system/extensions/pre-merge.md)" \
+    '{post_pr_open:$post,pre_merge:$final}'
 }
 snapshot() {
   local destination="$1"
@@ -330,13 +330,29 @@ After every mutation, `verify_checkpoint` proves the exact head/mode/check sourc
    compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/final-after" "$before_dir/final-after.actual"
    ```
 
-Activate project `post-pr-open` and `pre-merge-review` in the cutover PR only after shadow proof. Explicitly invoke
+Activate project `post-pr-open` and `pre-merge` in the cutover PR only after shadow proof. Explicitly invoke
 `coordinate-pr-review.md` for that PR because its integration session may retain the pre-activation extension snapshot;
 verify later sessions load both active actions normally.
+
+The activation PR changes only `active: false` → `active: true` in these project Configurable files; preserve their
+existing `.actions` bodies:
+
+```text
+.arc/system/extensions/post-pr-open.md
+.arc/system/extensions/pre-merge.md
+```
+
+Before merging that same PR, explicitly run `coordinate-pr-review.md` against its current `openedChangeRequest` even
+though the in-memory extension list may still reflect the pre-activation snapshot. A fresh session must then report
+both `post-pr-open` and `pre-merge` active before the next cutover mutation.
 
 **Normal rollback is the reverse add-before-remove sequence:** final → dual (add/prove shadow) → shadow (restore/prove
 CI compatibility `merge-ok`, then remove App `merge-ok`). Retain the last proven pair on any failure. Never reuse the
 same `merge-ok` name from CI and the App without an ordered source-pinned handoff.
+
+If rollback also suspends project coordination, use a reviewed rollback PR to set both files above to `active: false`,
+explicitly coordinate that PR's current head, and verify a fresh session loads neither action. Never edit one hook
+without the other: snapshots treat `{post_pr_open,pre_merge}` as one cutover state.
 
 ## Audited App or Controller Outage Recovery
 
@@ -347,7 +363,7 @@ Rehearse this path before final cutover while shadow remains non-required.
 2. Prove independent `ci-ok` on that exact head. A repair PR touching the `ci-ok` producer cannot use its own proof;
    require an independent trusted workflow/reviewer path instead.
 3. If project coordination cannot reach the controller, the repair PR sets project `post-pr-open` and
-   `pre-merge-review` inactive and records the incident-scoped suspension. Do not retry dead actions.
+   `pre-merge` inactive and records the incident-scoped suspension. Do not retry dead actions.
 4. Add and prove the substitute required check before removing the dead App context. Merge the repair normally through
    branch protection—never `--admin` or direct base push.
 5. Require one fresh Codex CLI, Claude Code, CodeRabbit CLI, or qualified-human `independent-analysis/v1` review of the

@@ -25,7 +25,7 @@ describe("classifyExtensionRefs", () => {
   it("classifies a reference as resolved when its extension file exists", () => {
     const result = classifyExtensionRefs(
       [ref("post-task-quality")],
-      ["post-task-quality", "pre-merge-review"],
+      ["post-task-quality", "pre-merge"],
     );
     expect(result.resolved).toEqual([ref("post-task-quality")]);
     expect(result.orphans).toEqual([]);
@@ -34,7 +34,7 @@ describe("classifyExtensionRefs", () => {
   it("classifies a reference as orphaned when its extension file is missing", () => {
     const result = classifyExtensionRefs(
       [ref("post-task-quality")],
-      ["pre-merge-review"],
+      ["pre-merge"],
     );
     expect(result.resolved).toEqual([]);
     expect(result.orphans).toEqual([ref("post-task-quality")]);
@@ -54,13 +54,13 @@ describe("classifyExtensionRefs", () => {
     const refs = [
       ref("post-task-quality", "-a"),
       ref("ghost-extension", "-b"),
-      ref("pre-merge-review", "-c"),
+      ref("pre-merge", "-c"),
       ref("ghost-extension", "-d"),
     ];
-    const result = classifyExtensionRefs(refs, ["post-task-quality", "pre-merge-review"]);
+    const result = classifyExtensionRefs(refs, ["post-task-quality", "pre-merge"]);
     expect(result.resolved).toEqual([
       ref("post-task-quality", "-a"),
-      ref("pre-merge-review", "-c"),
+      ref("pre-merge", "-c"),
     ]);
     expect(result.orphans).toEqual([
       ref("ghost-extension", "-b"),

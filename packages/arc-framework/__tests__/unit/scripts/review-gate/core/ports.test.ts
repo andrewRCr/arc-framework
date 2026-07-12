@@ -9,6 +9,7 @@ import type { Evidence } from "../../../../../src/scripts/review-gate/core/evide
 import type { GateProjection, ReceiptEnvelope, ReviewRequest, SourceCapacity } from "../../../../../src/scripts/review-gate/core/execution.js";
 import type {
   GitHostAdapter,
+  LifecycleTailProofAdapter,
   ReviewProviderAdapter,
   ReviewReceiptStore,
 } from "../../../../../src/scripts/review-gate/core/ports.js";
@@ -24,14 +25,35 @@ describe("review adapter ports", () => {
     const receipts = [{ durableRecordId: "record-1" } as ReceiptEnvelope];
 
     const host: GitHostAdapter = {
-      resolveChangeRequest: async () => change,
+      resolveChangeRequest: async () => ({
+        changeRequest: change,
+        context: {
+          changedPaths: [],
+          author: { identity: "actor-4", login: "actor" },
+          isDraft: false,
+          isCrossRepository: false,
+          mergeability: "mergeable",
+        },
+      }),
       resolveActorCapabilities: async () => capabilities,
-      observeNativeEvidence: async () => evidence,
-      publishVerdict: async () => ({ opaqueRef: "projection-1" }),
+      observeNativeReview: async () => ({
+        nativeReview: {
+          requestedChanges: false,
+          unresolvedRequiredConversations: 0,
+          decision: "not-configured",
+        },
+        peerApprovals: [],
+        closures: [],
+        providerReviews: [],
+      }),
+      publishVerdict: async () => [{ opaqueRef: "projection-1" }],
     };
     const store: ReviewReceiptStore = {
-      readLedger: async () => ({ ledgerVersion: 1, receipts }),
+      readLedger: async () => ({ kind: "valid", ledgerVersion: 1, receipts }),
       appendReceipt: async () => ({ ledgerVersion: 2, durableEvidenceRef: "record-2" }),
+    };
+    const noTailStorage: LifecycleTailProofAdapter = {
+      resolveLifecycleTail: async () => null,
     };
     const provider: ReviewProviderAdapter = {
       readCapacity: async () => capacity,
@@ -46,11 +68,34 @@ describe("review adapter ports", () => {
       normalizeEvidence: async () => evidence,
     };
 
-    await expect(host.resolveChangeRequest("opaque-change-7")).resolves.toBe(change);
-    await expect(host.resolveActorCapabilities("actor-4")).resolves.toBe(capabilities);
-    await expect(host.publishVerdict(change.changeRequestId, projection)).resolves.toEqual({ opaqueRef: "projection-1" });
-    await expect(store.readLedger(change.changeRequestId)).resolves.toEqual({ ledgerVersion: 1, receipts });
+    await expect(host.resolveChangeRequest("opaque-change-7")).resolves.toMatchObject({ changeRequest: change });
+    await expect(host.resolveActorCapabilities({ login: "actor", expectedActorId: "actor-4" }))
+      .resolves.toBe(capabilities);
+    await expect(host.publishVerdict({
+      hostRef: change.hostRef,
+      headSha: change.headSha,
+      changeSetId: change.changeSetId,
+      projection,
+      mode: "shadow",
+      expectedAppId: "app-1",
+      anchorReceiptCount: 1,
+      readCurrentState: async () => ({ headSha: change.headSha, changeSetId: change.changeSetId }),
+    })).resolves.toEqual([{ opaqueRef: "projection-1" }]);
+    await expect(store.readLedger(change.changeRequestId)).resolves.toEqual({ kind: "valid", ledgerVersion: 1, receipts });
     await expect(store.appendReceipt(receipts[0]!.receipt, 1)).resolves.toMatchObject({ ledgerVersion: 2 });
+    await expect(noTailStorage.resolveLifecycleTail({
+      predicateId: "lifecycle-bookkeeping-tail/v1",
+      reviewedThroughSha: "a".repeat(40),
+      currentHeadSha: "a".repeat(40),
+      reviewed: {
+        baseRef: "main", diffBaseSha: "b".repeat(40), policyVersion: "c".repeat(64),
+        rubricVersion: "independent-analysis/v1", sourceIdentity: "agent-1",
+      },
+      current: {
+        baseRef: "main", diffBaseSha: "b".repeat(40), policyVersion: "c".repeat(64),
+        rubricVersion: "independent-analysis/v1", sourceIdentity: "agent-1",
+      },
+    })).resolves.toBeNull();
     await expect(provider.readCapacity("agent-9")).resolves.toBe(capacity);
     await expect(provider.request(request)).resolves.toMatchObject({ requestIdentity: "request-1" });
   });

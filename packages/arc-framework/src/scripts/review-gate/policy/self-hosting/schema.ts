@@ -45,11 +45,16 @@ export interface SelfHostingPolicy {
     sensitivePrefixes: string[];
     sensitiveFiles: string[];
   };
+  lifecycleTailPredicate: { id: "lifecycle-bookkeeping-tail/v1" };
   authorMap: Record<string, string>;
   requirementTemplates: ReviewRequirementTemplate[];
   rubricBindings: Array<{ requirementKind: string; rubricVersion: string }>;
   timeouts: { reservationMinutes: number; analysisMinutes: number };
-  providerIdentities: { coderabbitBotUserId: string };
+  providerIdentities: { coderabbitBotUserId: string; appBotUserId: string };
+  attestationEnforcement: {
+    acceptedRuntimeKinds: Record<string, string>;
+    maxRunAgeMinutes: number;
+  };
   qualifications: SourceQualificationDeclaration[];
 }
 
@@ -78,19 +83,31 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
       "CLAUDE.md",
     ],
   },
+  lifecycleTailPredicate: { id: "lifecycle-bookkeeping-tail/v1" },
   authorMap: { andrewRCr: "andrew" },
   requirementTemplates: [{
     id: "independent-analysis",
     kind: "independent-analysis",
     obligation: "required",
-    acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
+    acceptableSources: [
+      { sourceKind: "agent", qualifier: "independent-analysis/v1" },
+      { sourceKind: "human", qualifier: "independent-analysis/v1" },
+    ],
     count: 1,
     initialAdmission: "automatic",
     rubricVersion: "independent-analysis/v1",
   }],
   rubricBindings: [{ requirementKind: "independent-analysis", rubricVersion: "independent-analysis/v1" }],
   timeouts: { reservationMinutes: 10, analysisMinutes: 60 },
-  providerIdentities: { coderabbitBotUserId: "136622811" },
+  providerIdentities: { coderabbitBotUserId: "136622811", appBotUserId: "302312524" },
+  attestationEnforcement: {
+    acceptedRuntimeKinds: {
+      "codex-cli": "codex",
+      "claude-code": "claude-code",
+      "coderabbit-cli": "coderabbit",
+    },
+    maxRunAgeMinutes: 60,
+  },
   qualifications: [
     {
       sourceKind: "agent",
@@ -137,6 +154,14 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
   ],
 };
 
+/** Derive the reviewer claims accepted by attestation validation from the versioned policy. */
+export function deriveAcceptedReviewerClaims(policy: SelfHostingPolicy): string[] {
+  return policy.qualifications
+    .filter((qualification) => qualification.enabled
+      && qualification.transport === "authenticated-attestation")
+    .map((qualification) => qualification.sourceIdentity);
+}
+
 function exactStringArray(value: unknown, expected: readonly string[], path: string): string[] {
   const actual = arrayAt(value, path, stringAt);
   if (actual.length !== expected.length || actual.some((item, index) => item !== expected[index])) {
@@ -181,8 +206,9 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const path = "selfHostingPolicy";
   const record = objectAt(input, path);
   exactKeys(record, [
-    "schemaVersion", "semanticsVersion", "lanePredicate", "riskPredicate", "authorMap", "requirementTemplates",
-    "rubricBindings", "timeouts", "providerIdentities", "qualifications",
+    "schemaVersion", "semanticsVersion", "lanePredicate", "riskPredicate", "lifecycleTailPredicate", "authorMap",
+    "requirementTemplates", "rubricBindings", "timeouts", "providerIdentities", "attestationEnforcement",
+    "qualifications",
   ], path);
 
   const lane = objectAt(record.lanePredicate, `${path}.lanePredicate`);
@@ -191,6 +217,13 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const risk = objectAt(record.riskPredicate, `${path}.riskPredicate`);
   exactKeys(risk, ["id", "sensitivePrefixes", "sensitiveFiles"], `${path}.riskPredicate`);
   const riskId = enumAt(risk.id, ["sensitive-paths/v1"], `${path}.riskPredicate.id`);
+  const lifecycleTail = objectAt(record.lifecycleTailPredicate, `${path}.lifecycleTailPredicate`);
+  exactKeys(lifecycleTail, ["id"], `${path}.lifecycleTailPredicate`);
+  const lifecycleTailId = enumAt(
+    lifecycleTail.id,
+    ["lifecycle-bookkeeping-tail/v1"],
+    `${path}.lifecycleTailPredicate.id`,
+  );
 
   const authorMapRecord = objectAt(record.authorMap, `${path}.authorMap`);
   const authorMap = Object.fromEntries(Object.entries(authorMapRecord).map(([author, owner]) => [
@@ -213,12 +246,49 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const timeouts = objectAt(record.timeouts, `${path}.timeouts`);
   exactKeys(timeouts, ["reservationMinutes", "analysisMinutes"], `${path}.timeouts`);
   const providerIdentities = objectAt(record.providerIdentities, `${path}.providerIdentities`);
-  exactKeys(providerIdentities, ["coderabbitBotUserId"], `${path}.providerIdentities`);
+  exactKeys(providerIdentities, ["coderabbitBotUserId", "appBotUserId"], `${path}.providerIdentities`);
   const coderabbitBotUserId = stringAt(
     providerIdentities.coderabbitBotUserId,
     `${path}.providerIdentities.coderabbitBotUserId`,
   );
   if (!/^[1-9][0-9]*$/u.test(coderabbitBotUserId)) throw new Error("invalid CodeRabbit bot user id");
+  const appBotUserId = stringAt(
+    providerIdentities.appBotUserId,
+    `${path}.providerIdentities.appBotUserId`,
+  );
+  if (!/^[1-9][0-9]*$/u.test(appBotUserId)) throw new Error("invalid App bot user id");
+  const qualifications = arrayAt(record.qualifications, `${path}.qualifications`, parseQualification);
+  const enforcement = objectAt(record.attestationEnforcement, `${path}.attestationEnforcement`);
+  exactKeys(
+    enforcement,
+    ["acceptedRuntimeKinds", "maxRunAgeMinutes"],
+    `${path}.attestationEnforcement`,
+  );
+  const acceptedRuntimeKindRecord = objectAt(
+    enforcement.acceptedRuntimeKinds,
+    `${path}.attestationEnforcement.acceptedRuntimeKinds`,
+  );
+  const acceptedRuntimeSources = new Set(qualifications
+    .filter((qualification) => qualification.enabled
+      && qualification.sourceKind === "agent"
+      && qualification.transport === "authenticated-attestation")
+    .map((qualification) => qualification.sourceIdentity));
+  const missingRuntimeKind = [...acceptedRuntimeSources]
+    .find((sourceIdentity) => !(sourceIdentity in acceptedRuntimeKindRecord));
+  if (missingRuntimeKind !== undefined) {
+    throw new Error(`enabled agent qualification is missing an accepted runtime kind: ${missingRuntimeKind}`);
+  }
+  const acceptedRuntimeKinds = Object.fromEntries(Object.entries(acceptedRuntimeKindRecord).map(
+    ([sourceIdentity, runtimeKind]) => {
+      if (!acceptedRuntimeSources.has(sourceIdentity)) {
+        throw new Error(`accepted runtime source is not an enabled agent qualification: ${sourceIdentity}`);
+      }
+      return [
+        sourceIdentity,
+        stringAt(runtimeKind, `${path}.attestationEnforcement.acceptedRuntimeKinds.${sourceIdentity}`),
+      ];
+    },
+  ));
 
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
@@ -233,6 +303,7 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
       sensitivePrefixes: exactStringArray(risk.sensitivePrefixes, SELF_HOSTING_POLICY.riskPredicate.sensitivePrefixes, `${path}.riskPredicate.sensitivePrefixes`),
       sensitiveFiles: exactStringArray(risk.sensitiveFiles, SELF_HOSTING_POLICY.riskPredicate.sensitiveFiles, `${path}.riskPredicate.sensitiveFiles`),
     },
+    lifecycleTailPredicate: { id: lifecycleTailId },
     authorMap,
     requirementTemplates: templatePolicy.requirements,
     rubricBindings: bindings,
@@ -240,7 +311,15 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
       reservationMinutes: integerAt(timeouts.reservationMinutes, `${path}.timeouts.reservationMinutes`, 1),
       analysisMinutes: integerAt(timeouts.analysisMinutes, `${path}.timeouts.analysisMinutes`, 1),
     },
-    providerIdentities: { coderabbitBotUserId },
-    qualifications: arrayAt(record.qualifications, `${path}.qualifications`, parseQualification),
+    providerIdentities: { coderabbitBotUserId, appBotUserId },
+    attestationEnforcement: {
+      acceptedRuntimeKinds,
+      maxRunAgeMinutes: integerAt(
+        enforcement.maxRunAgeMinutes,
+        `${path}.attestationEnforcement.maxRunAgeMinutes`,
+        1,
+      ),
+    },
+    qualifications,
   };
 }

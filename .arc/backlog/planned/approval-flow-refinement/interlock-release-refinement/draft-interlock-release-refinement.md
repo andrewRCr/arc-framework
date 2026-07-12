@@ -99,7 +99,7 @@ atomic companion and the personal atomic inbox.
   errand-specific collapse of the whole tail.
 - *Shape (provisional):* a configurable mode — modeled on `commit.interlock: on-task-approval` (the existing
   "one approval releases the next" precedent) — where a single errand increment-approval arms the rest:
-  commit + push + merge + branch-delete fire without re-prompting, with CI + `pre-merge-review` still gating the
+  commit + push + merge + branch-delete fire without re-prompting, with CI + `pre-merge` still gating the
   actual merge (auto-merge-style). Trigger framed as *one increment* (an errand-class property), not "one
   commit." Self-review/lane-aware: in a team the integration stop still carries cross-owner review weight, so
   the collapse is opt-in and self-review-scoped.
@@ -126,7 +126,7 @@ atomic companion and the personal atomic inbox.
   planning artifacts), decision density / ambiguity, ownership context (self-review vs team/foreign-owner), and an
   explicit approval-provenance source with declared scope. The floor remains EDD's principle: no judgment without
   a gate, and no gate without a decision. Outputs may include configurable/autonomy modes for errand and grooming
-  tails, but must preserve CI, `pre-merge-review` when active, lane requirements, and no self-escalation beyond the
+  tails, but must preserve CI, `pre-merge` when active, lane requirements, and no self-escalation beyond the
   human's declared grant.
 - *Composition:* generalizes the errand approval-collapse and integration-stacking items; coordinates with
   `unit-scoped-review` for the WU-scale application and `execution-delegation-doctrine` for the constitutional
@@ -222,7 +222,7 @@ atomic companion and the personal atomic inbox.
   (the integration interlock holds; it does not collapse the merge)** — so this proposes *evaluating* whether the
   integration stop itself can fold, which is a cohort design call against that current stance, not a given.
 - *Constraint:* the integration-interlock is constitutionally **always-stop** (`DEV-RULES.ARC` — merge approval may
-  never be inferred). Any collapse must preserve an explicit merge authorization and keep CI / `pre-merge-review`
+  never be inferred). Any collapse must preserve an explicit merge authorization and keep CI / `pre-merge`
   gating; likely opt-in + self-review-scoped (team integration still carries cross-owner review weight).
 - *Cheap tail:* once the lines are drawn, the realization is small — markdown edits to the two workflows' interlock
   callouts. The design (where to draw them, what still gates) is the work, and it is this cohort's, not a

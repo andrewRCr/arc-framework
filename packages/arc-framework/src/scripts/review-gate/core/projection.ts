@@ -12,7 +12,7 @@ export interface GateProjectionInput {
   verdict: GateVerdict;
   policy: PolicyDecisionProjection;
   ciState: "pending" | "failure" | "success";
-  ledgerVersion: number;
+  ledgerVersion: number | null;
   receiptRefs: string[];
   evidence: GateEvidenceProjection[];
 }
@@ -44,7 +44,7 @@ export function renderGateProjection(input: GateProjectionInput): GateProjection
       requirementId: plain(requirement.requirementId),
       state: requirement.state,
       sourceIdentity: requirement.sourceIdentity,
-      detail: requirement.blocking ? "blocking" : "non-blocking",
+      detail: plain(requirement.detail),
     })),
     receiptRefs: input.receiptRefs.map(plain),
     policyDecision: input.policy,

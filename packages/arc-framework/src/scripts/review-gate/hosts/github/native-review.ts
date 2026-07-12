@@ -27,6 +27,7 @@ export type ReviewState = "approved" | "changes-requested" | "commented" | "dism
 /** One submitted review bound to its actor and the head it was submitted against. */
 export interface NormalizedReview {
   reviewId: string;
+  url: string;
   actor: NormalizedActor;
   state: ReviewState;
   commitId: string;
@@ -69,6 +70,7 @@ function parseReview(input: unknown, path: string): NormalizedReview {
     : timestampAt(record.submitted_at, `${path}.submitted_at`);
   return {
     reviewId: stringAt(record.node_id, `${path}.node_id`),
+    url: stringAt(record.html_url, `${path}.html_url`),
     actor: normalizeActor(record.user, `${path}.user`),
     state: parseReviewState(stringAt(record.state, `${path}.state`), `${path}.state`),
     commitId: digestAt(record.commit_id, `${path}.commit_id`, 40),
@@ -257,7 +259,8 @@ export function reduceNativeReview(input: NativeReviewReductionInput): NativeRev
       && review.actor.identity !== input.authorIdentity)
     .map((review): NativePeerApproval => ({ actorIdentity: review.actor.identity, headSha: input.headSha }));
 
-  const requestedChanges = effective.some((review) => review.state === "changes-requested")
+  const requestedChanges = effective.some((review) =>
+    review.state === "changes-requested" && review.commitId === input.headSha)
     || input.reviewDecision === "changes-requested";
 
   const nonClosing = new Set(input.nonClosingResolvers ?? []);

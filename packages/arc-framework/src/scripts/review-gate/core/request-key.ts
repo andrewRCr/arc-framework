@@ -7,8 +7,8 @@ import { canonicalizePlainJson } from "./identity.js";
 /** Receipt fields supplied before derived identities are added. */
 export type ReceiptCreationInput = Omit<
   ReviewReceipt,
-  "schemaVersion" | "idempotencyKey" | "receiptHash"
->;
+  "schemaVersion" | "idempotencyKey" | "receiptHash" | "reason"
+> & { reason?: string | null };
 
 /** Compute the requirement-level key shared by source requests. */
 export function computeRequirementKey(request: ReviewRequest): string {
@@ -38,9 +38,12 @@ function computeIdempotencyKey(input: ReceiptCreationInput): string {
   return hashContent(canonicalizePlainJson({
     requestKey: computeRequestKey(input.request),
     action: input.action,
+    ...(["required", "waived", "dismissed"].includes(input.action) ? { eventId: input.eventId } : {}),
     result: input.result,
+    reason: input.reason ?? null,
     evidenceUrlOrId: input.evidenceUrlOrId,
     findingIds: input.findingIds,
+    ...(input.evidence === undefined ? {} : { evidence: input.evidence }),
   }));
 }
 
@@ -58,8 +61,10 @@ export function createReceipt(input: ReceiptCreationInput): ReviewReceipt {
     action: input.action,
     request: input.request,
     result: input.result,
+    reason: input.reason ?? null,
     evidenceUrlOrId: input.evidenceUrlOrId,
     findingIds: input.findingIds,
+    ...(input.evidence === undefined ? {} : { evidence: input.evidence }),
   };
   return { ...withoutHash, receiptHash: computeReceiptHash(withoutHash) };
 }
@@ -72,8 +77,10 @@ export function receiptIdentityValid(receipt: ReviewReceipt): boolean {
     action: receipt.action,
     request: receipt.request,
     result: receipt.result,
+    reason: receipt.reason,
     evidenceUrlOrId: receipt.evidenceUrlOrId,
     findingIds: receipt.findingIds,
+    ...(receipt.evidence === undefined ? {} : { evidence: receipt.evidence }),
   });
   return receipt.idempotencyKey === expected.idempotencyKey && receipt.receiptHash === expected.receiptHash;
 }

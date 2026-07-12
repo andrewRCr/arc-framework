@@ -63,12 +63,25 @@ describe("request admission", () => {
     }).admit).toBe(true);
   });
 
-  it("never auto-replays after any admitted history, including on a new head", () => {
-    const history = [{ action: "reserved", request: { requirementId: "analysis" } } as ReviewReceipt];
-    expect(admitAutomaticRequest({
-      requirement: requirement({ changeSetId: "d".repeat(64) }), ready: true, draft: false, history, capacity,
-    })).toMatchObject({ admit: false, reason: "admitted-history-exists" });
-  });
+  it.each(["reserved", "acknowledged", "terminal-failure"] as const)(
+    "never auto-replays after %s history, including on a new head",
+    (action) => {
+      const history = [{ action, request: { requirementId: "analysis" } } as ReviewReceipt];
+      expect(admitAutomaticRequest({
+        requirement: requirement({ changeSetId: "d".repeat(64) }), ready: true, draft: false, history, capacity,
+      })).toMatchObject({ admit: false, reason: "admitted-history-exists" });
+    },
+  );
+
+  it.each(["required", "waived", "dismissed", "attested", "unadmitted"] as const)(
+    "does not treat %s history as an admitted automatic request",
+    (action) => {
+      const history = [{ action, request: { requirementId: "analysis" } } as ReviewReceipt];
+      expect(admitAutomaticRequest({
+        requirement: requirement(), ready: true, draft: false, history, capacity,
+      })).toMatchObject({ admit: true, reason: "automatic-initial" });
+    },
+  );
 
   it("advances authorized refresh generation and requires alternates to start full", () => {
     expect(admitRefresh({ authorized: true, priorGenerations: [0, 1], coverage: "incremental", chainHeadSha: "c".repeat(40), coverageFromSha: "c".repeat(40) })).toEqual({

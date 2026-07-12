@@ -84,7 +84,7 @@ describe("classifyPackagePath", () => {
       "other",
     );
     expect(
-      classifyPackagePath(".arc/system/extensions/pre-merge-review.md"),
+      classifyPackagePath(".arc/system/extensions/pre-merge.md"),
     ).toBe("other");
   });
 

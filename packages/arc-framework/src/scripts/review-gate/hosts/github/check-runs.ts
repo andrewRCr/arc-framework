@@ -99,7 +99,7 @@ export async function publishGateCheck(input: {
   api: GitHubCheckRunApi;
   scope: CheckRunScope;
   projection: GateProjection;
-  anchorReceiptCount: number;
+  anchorReceiptCount: number | null;
   readCurrentState: () => Promise<CheckWriteState>;
 }): Promise<CheckRunPublishResult> {
   const matches = await findAuthoritativeCheckRuns(input.api, input.scope);
@@ -138,7 +138,7 @@ async function assertCurrent(scope: CheckRunScope, readCurrentState: () => Promi
 function renderCheckMutation(
   scope: CheckRunScope,
   projection: GateProjection,
-  anchorReceiptCount: number,
+  anchorReceiptCount: number | null,
 ): CheckRunMutation {
   const conclusion = projection.conclusion === "pending" ? null : projection.conclusion;
   return {
@@ -154,12 +154,14 @@ function renderCheckMutation(
   };
 }
 
-function renderSummary(projection: GateProjection, anchorReceiptCount: number): string {
+function renderSummary(projection: GateProjection, anchorReceiptCount: number | null): string {
+  const ledgerVersion = projection.ledgerVersion === null ? "unknown" : String(projection.ledgerVersion);
+  const receiptCount = anchorReceiptCount === null ? "unknown" : String(anchorReceiptCount);
   const lines = [
     `**Result:** ${projection.conclusion}`,
     `**Policy:** ${projection.policyDecision.disposition} / ${projection.policyDecision.reviewRisk}`,
     `**CI:** ${projection.ciState}`,
-    `**Ledger version/count:** ${projection.ledgerVersion}/${anchorReceiptCount}`,
+    `**Ledger version/count:** ${ledgerVersion}/${receiptCount}`,
     "",
     escapeText(projection.summary).slice(0, 24_000),
   ];
@@ -196,20 +198,6 @@ function durableLink(label: string, candidate: string): string {
     return `[${label}](${url.toString().replace(/\)/gu, "%29")})`;
   } catch {
     return `${label}: ${escapeText(candidate).slice(0, 2_048)}`;
-  }
-}
-
-/** Whether a `check_run` wake-up should enter reconciliation. */
-export function shouldHandleCheckRunEvent(event: unknown, expectedAppId: string, contextName: string): boolean {
-  try {
-    const record = objectAt(event, "event");
-    if (stringAt(record.action, "event.action") !== "completed") return true;
-    const check = objectAt(record.check_run, "event.check_run");
-    const app = objectAt(check.app, "event.check_run.app");
-    return stringAt(check.name, "event.check_run.name") !== contextName
-      || String(integerAt(app.id, "event.check_run.app.id", 1)) !== expectedAppId;
-  } catch {
-    return true;
   }
 }
 

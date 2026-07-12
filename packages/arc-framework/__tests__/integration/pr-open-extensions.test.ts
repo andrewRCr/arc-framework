@@ -39,10 +39,23 @@ describe("PR-open lifecycle extensions", () => {
     expect(matches).toEqual([]);
   });
 
+  it("removes the old final-hook name from live package and project system surfaces", async () => {
+    const files = [
+      ...await markdownFiles(packageArc),
+      ...await markdownFiles(resolve(projectArc, "system")),
+    ];
+    const matches: string[] = [];
+    for (const file of files) {
+      if ((await readFile(file, "utf8")).includes("pre-merge-review")) matches.push(file);
+    }
+    expect(matches).toEqual([]);
+  });
+
   it("preserves independent Configurable update identities", async () => {
     const classification = await readFile(resolve(root, "packages/arc-framework/src/lib/classification.ts"), "utf8");
     expect(classification).toContain('"system/extensions/pre-pr-open.md"');
     expect(classification).toContain('"system/extensions/post-pr-open.md"');
+    expect(classification).toContain('"system/extensions/pre-merge.md"');
   });
 
   it("places work-unit hooks on create, re-entry, and the stable final head", async () => {
@@ -88,7 +101,7 @@ describe("PR-open lifecycle extensions", () => {
     for (const workflow of workflows) {
       expect(workflow.indexOf("proposedChangeRequest")).toBeLessThan(workflow.indexOf("gh pr create"));
       expect(workflow.indexOf("openedChangeRequest")).toBeGreaterThan(workflow.indexOf("gh pr create"));
-      expect(workflow.indexOf("pre-merge-review", workflow.indexOf("openedChangeRequest")))
+      expect(workflow.indexOf("pre-merge", workflow.indexOf("openedChangeRequest")))
         .toBeLessThan(workflow.indexOf("`integration-interlock`", workflow.indexOf("openedChangeRequest")));
       expect(workflow.toLowerCase()).toContain("halt before later actions");
     }
@@ -106,6 +119,19 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("keeps every review-triage disposition explicit while allowing concise minor roll-up", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/review-triage.md"), "utf8");
+      expect(method).toContain("**FIX NOW**");
+      expect(method).toContain("**MINOR FIX**");
+      expect(method).toContain("**DEFER**");
+      expect(method).toContain("**REJECT**");
+      expect(method).toContain("Every valid finding appears in the record");
+      expect(method).toContain("may share one concise `Minor fixes`");
+      expect(method).not.toContain("SILENT FIX");
+    }
+  });
+
   it("routes self-hosting actions through one controller workflow", async () => {
     const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
     expect(workflow).toContain("one caller-supplied `openedChangeRequest");
@@ -118,8 +144,21 @@ describe("PR-open lifecycle extensions", () => {
     expect(workflow).not.toMatch(/@coderabbit|resolveReviewThread/iu);
   });
 
+  it("keeps controller findings distinct from provider-native review conversations", async () => {
+    const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
+
+    expect(workflow).toContain("controller-normalized findings");
+    expect(workflow).toContain("provider-native conversations");
+    expect(workflow).toContain("Only controller-normalized findings may use `/review-gate dismiss`");
+    expect(workflow).toContain("`CHANGES_REQUESTED` remains blocking");
+    expect(workflow).toContain("Completion-check success only wakes a canonical re-read");
+    expect(workflow).toContain("valid lifecycle-tail projection");
+    expect(workflow).toContain("without requesting or recommending a refresh");
+    expect(workflow).toContain("invalid or ambiguous tail");
+  });
+
   it("keeps project actions populated but inactive until cutover", async () => {
-    for (const name of ["post-pr-open", "pre-merge-review"]) {
+    for (const name of ["post-pr-open", "pre-merge"]) {
       const project = await readFile(resolve(projectArc, `system/extensions/${name}.md`), "utf8");
       const packaged = await readFile(resolve(packageArc, `system/extensions/${name}.md`), "utf8");
       expect(project).toContain("active: false");
@@ -134,7 +173,7 @@ describe("PR-open lifecycle extensions", () => {
   it("ships every packaged workflow referenced by the new extension family", async () => {
     const recipe = await readFile(resolve(root, "packages/arc-framework/init-recipe.json"), "utf8");
     expect(recipe).toContain('"system/workflows/arc/supplemental/run-errand.md"');
-    const finalHook = await readFile(resolve(packageArc, "system/extensions/pre-merge-review.md"), "utf8");
+    const finalHook = await readFile(resolve(packageArc, "system/extensions/pre-merge.md"), "utf8");
     expect(finalHook).toContain("read-only, idempotent, or retry-safe");
   });
 });

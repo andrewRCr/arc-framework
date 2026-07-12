@@ -252,6 +252,7 @@ export function ingestAttestation(input: AttestationIngestInput): AttestationIng
     result: evidence.result,
     evidenceUrlOrId: evidence.evidenceUrlOrId,
     findingIds: evidence.findings.map((finding) => finding.findingId),
+    evidence,
   });
   if (prior !== undefined) {
     if (prior.eventId !== eventId || prior.receiptHash !== receipt.receiptHash) {

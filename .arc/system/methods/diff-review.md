@@ -50,7 +50,7 @@ git diff {parent-branch}...HEAD
 aggregate change actually solve the stated problem? Check exception handling paths explicitly — AI-generated
 code systematically underperforms on error cases and edge conditions.
 
-**Process findings** using the [review-triage method](review-triage.md) (fix-now/defer/reject/silent-fix). Run Tier 3
+**Process findings** using the [review-triage method](review-triage.md) (fix-now/minor-fix/defer/reject). Run Tier 3
 quality gates on modified files. Commit fixes using the context footer appropriate to the invoking workflow (e.g.,
 `(integration)` when called from integrate-work-unit.md).
 

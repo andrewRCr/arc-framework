@@ -7,6 +7,28 @@ import { describe, expect, it } from "vitest";
 const root = resolve(import.meta.dirname, "../../../..");
 const read = async (name: string): Promise<string> => readFile(resolve(root, ".github/workflows", name), "utf8");
 
+function jobValue(workflow: string, name: string): Record<string, unknown> {
+  const parsed = load(workflow) as { jobs?: Record<string, unknown> };
+  const job = parsed.jobs?.[name];
+  if (typeof job !== "object" || job === null) throw new Error(`missing workflow job: ${name}`);
+  return job as Record<string, unknown>;
+}
+
+function jobBlock(workflow: string, name: string): string {
+  return JSON.stringify(jobValue(workflow, name));
+}
+
+function stepValue(workflow: string, jobName: string, stepId: string): Record<string, unknown> {
+  const steps = jobValue(workflow, jobName).steps;
+  if (!Array.isArray(steps)) throw new Error(`missing workflow steps: ${jobName}`);
+  const step = steps.find((candidate) => typeof candidate === "object"
+    && candidate !== null
+    && "id" in candidate
+    && candidate.id === stepId);
+  if (typeof step !== "object" || step === null) throw new Error(`missing workflow step: ${jobName}.${stepId}`);
+  return step as Record<string, unknown>;
+}
+
 describe("trusted review-gate workflows", () => {
   it("keeps the review relay secretless and checkout-free", async () => {
     const workflow = await read("review-gate-wakeup.yml");
@@ -83,6 +105,34 @@ describe("trusted review-gate workflows", () => {
     expect(controller).toContain("REVIEW_GATE_CONTEXT_MODE: ${{ vars.REVIEW_GATE_CONTEXT_MODE }}");
     expect(controller).toContain("github.workflow_sha");
     expect(controller).toContain("check_run:");
+  });
+
+  it("supplies the reconcile step its App slug and narrow git read token", async () => {
+    const workflow = await read("review-gate.yml");
+    const reconcile = jobBlock(workflow, "reconcile");
+    expect(reconcile).toContain("ARC_APP_SLUG");
+    expect(reconcile).toContain("steps.app-token.outputs.app-slug");
+    expect(reconcile).toContain("GITHUB_TOKEN");
+    expect(reconcile).toContain("github.token");
+  });
+
+  it("supplies the attest step its App slug and narrow canonical-read token", async () => {
+    const workflow = await read("review-gate-attest.yml");
+    const attest = jobBlock(workflow, "attest");
+    expect(attest).toContain("ARC_APP_SLUG");
+    expect(attest).toContain("steps.app-token.outputs.app-slug");
+    expect(attest).toContain("GITHUB_TOKEN");
+    expect(attest).toContain("github.token");
+    expect(attest).toContain("ARC_DISPATCH_ACTOR_ID");
+    expect(attest).toContain("github.actor_id");
+  });
+
+  it("gives discovery the App id to suppress self-checks and skips reconcile on an empty matrix", async () => {
+    const workflow = await read("review-gate.yml");
+    expect(stepValue(workflow, "discover", "discover").env).toMatchObject({
+      ARC_REVIEW_GATE_APP_ID: "${{ vars.ARC_REVIEW_GATE_APP_ID }}",
+    });
+    expect(jobValue(workflow, "reconcile").if).toContain('needs.discover.outputs.matrix != \'{"include":[]}\'');
   });
 
   it("references existing repository scripts", async () => {

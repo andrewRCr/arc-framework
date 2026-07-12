@@ -7,12 +7,22 @@ export interface SourceFinding extends ReviewFinding {
   sourceIdentity: string;
 }
 
+/** One authenticated dismissal receipt reduced beside immutable provider evidence. */
+export interface FindingDismissalReceipt {
+  sourceIdentity: string;
+  findingId: string;
+  actorIdentity: string;
+  reason: string | null;
+  durableRef: string | null;
+}
+
 /** Inputs for reducing finding history. */
 export interface FindingReductionInput {
   evidence: Evidence[];
   currentChangeSetId: string;
   authorizedDismissers: string[];
   knownHostActors: string[];
+  dismissalReceipts?: FindingDismissalReceipt[];
 }
 
 /** Open findings plus consistency diagnostics. */
@@ -69,6 +79,29 @@ export function reduceFindings(input: FindingReductionInput): FindingReductionRe
       }
       closed.add(key);
     }
+  }
+
+  for (const dismissal of input.dismissalReceipts ?? []) {
+    const key = findingKey(dismissal.sourceIdentity, dismissal.findingId);
+    if (!findings.has(key)) {
+      errors.push(`unknown-dismissal-finding:${dismissal.sourceIdentity}:${dismissal.findingId}`);
+      continue;
+    }
+    if (!input.authorizedDismissers.includes(dismissal.actorIdentity)) {
+      errors.push(`invalid-dismissal-authority:${dismissal.sourceIdentity}:${dismissal.findingId}`);
+      continue;
+    }
+    if (
+      dismissal.reason === null
+      || dismissal.reason.length === 0
+      || Buffer.byteLength(dismissal.reason, "utf8") > 1024
+      || dismissal.durableRef === null
+      || dismissal.durableRef.length === 0
+    ) {
+      errors.push(`invalid-dismissal-provenance:${dismissal.sourceIdentity}:${dismissal.findingId}`);
+      continue;
+    }
+    closed.add(key);
   }
 
   return {

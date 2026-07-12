@@ -1,0 +1,631 @@
+/**
+ * Production `ReconcileRuntime` composing the host, receipt-store, and provider
+ * adapters into the guarded read/reduce/execute/publish orchestration.
+ *
+ * `read()` resolves canonical state live and retains the full resolution
+ * internally; `reduce()` is pure over that cached snapshot and delegates to the
+ * core `reduceSelfHostingGate` assembly; `execute()` drives the reserve-confirm-
+ * invoke-acknowledge protocol through the injected receipt store and provider;
+ * `publish()` projects the verdict through the host adapter.
+ *
+ * @module
+ */
+
+import { hashContent } from "../../../lib/manifest/hash.js";
+import { ingestReviewCommands, type AuthorizedReviewCommandEvent, type ReviewCommandComment } from "../core/command-ingestion.js";
+import { createDirectCommandReceipt, planCommandRefresh } from "../core/command-receipts.js";
+import type { CapabilitySet, NormalizedChangeRequest, ReviewRequirement } from "../core/contracts.js";
+import type { Evidence } from "../core/evidence.js";
+import type { GateProjection, ReceiptEnvelope, ReviewReceipt, ReviewRequest, SourceCapacity } from "../core/execution.js";
+import { canonicalizePlainJson, computePolicyVersion } from "../core/identity.js";
+import type { LifecycleTailProof } from "../core/lifecycle-tail.js";
+import type {
+  ActorAddress,
+  GitHostAdapter,
+  HostChangeContext,
+  LifecycleTailProofAdapter,
+  ReviewProviderAdapter,
+  ReviewReceiptStore,
+} from "../core/ports.js";
+import {
+  extractAuthenticatedReceiptEvidence,
+  reduceSelfHostingGate,
+  type SelfHostingGateReductionInput,
+} from "../core/reduction.js";
+import { createReceipt, computeRequestKey } from "../core/request-key.js";
+import { executeReservedRequest, type RequestExecutionResult } from "../core/request-execution.js";
+import {
+  resolveSelfHostingDecision,
+  type SelfHostingDecision,
+} from "../policy/self-hosting/decision.js";
+import type { ChangedPath, LaneDecision } from "../policy/self-hosting/lane.js";
+import { qualifyIndependentAnalysisSource } from "../policy/self-hosting/qualification.js";
+import type { ReviewRiskDecision } from "../policy/self-hosting/risk.js";
+import type { SelfHostingPolicy, SourceQualificationDeclaration } from "../policy/self-hosting/schema.js";
+import {
+  mapCodeRabbitApprovalToEvidence,
+  resolveCodeRabbitDecisiveReview,
+} from "../hosts/github/coderabbit-review.js";
+import type { ContextMode } from "./rollout.js";
+import type {
+  CanonicalReconcileState,
+  ReconcileDecision,
+  ReconcileRuntime,
+} from "./reconcile.js";
+
+/** Immutable PR coordinates the runtime reconciles. */
+export interface ReconcileCoordinates {
+  repositoryId: number;
+  pullRequestNumber: number;
+  hostRef: string;
+}
+
+/** Inputs a lane resolver derives from one canonical change read. */
+export interface LaneResolutionInput {
+  authorLogin: string;
+  diffBaseSha: string;
+  headSha: string;
+  changes: ChangedPath[];
+}
+
+/** Injected adapters, policy, and canonical resolvers for one reconcile runtime. */
+export interface ReconcileRuntimeDependencies {
+  policy: SelfHostingPolicy;
+  host: GitHostAdapter;
+  store: ReviewReceiptStore;
+  provider: ReviewProviderAdapter;
+  lifecycleTailAdapter: LifecycleTailProofAdapter;
+  coordinates: ReconcileCoordinates;
+  mode: ContextMode;
+  expectedAppId: string;
+  /** Resolve the pinned CI signal for a head, independent of the runtime's transport. */
+  resolveCiState: (headSha: string) => Promise<"pending" | "failure" | "success">;
+  /** Resolve automatic-lane eligibility from the canonical change read. */
+  resolveLane: (input: LaneResolutionInput) => Promise<LaneDecision>;
+  /** Classify stable review risk from the canonical change read. */
+  resolveRisk: (changes: ChangedPath[]) => ReviewRiskDecision | Promise<ReviewRiskDecision>;
+  /** List current PR command comments for authorized-command ingestion. */
+  listCommandComments: () => Promise<ReviewCommandComment[]>;
+}
+
+/** Full live resolution retained by `read()` and consumed by `reduce()`. */
+interface ReconcileSnapshot {
+  state: CanonicalReconcileState;
+  changeRequest: NormalizedChangeRequest;
+  context: HostChangeContext;
+  lane: LaneDecision;
+  risk: ReviewRiskDecision;
+  decision: SelfHostingDecision;
+  evidence: Evidence[];
+  ledgerReceipts: ReviewReceipt[];
+  ledgerEnvelopes: ReceiptEnvelope[];
+  capacities: SourceCapacity[];
+  ciState: "pending" | "failure" | "success";
+  nativeReview: SelfHostingGateReductionInput["nativeReview"];
+  knownHostActors: string[];
+  lifecycleTail: LifecycleTailProof | null;
+  commandEvents: AuthorizedReviewCommandEvent[];
+  receiptRefs: string[];
+  inconsistencies: string[];
+  ledgerVersion: number | null;
+}
+
+const EMPTY_CAPABILITIES = (actorIdentity: string): CapabilitySet => ({
+  schemaVersion: 1,
+  actorIdentity,
+  permissions: [],
+});
+
+function guardKey(state: CanonicalReconcileState): string {
+  return [
+    state.repositoryId,
+    state.pullRequestNumber,
+    state.headSha,
+    state.policyVersion,
+    state.permissionVersion,
+  ].join(":");
+}
+
+/** Stable digest of the live-resolved author capability facts. */
+function permissionDigest(capabilities: CapabilitySet): string {
+  return hashContent(canonicalizePlainJson({
+    actorIdentity: capabilities.actorIdentity,
+    permissions: [...capabilities.permissions].sort(),
+  }));
+}
+
+function singleRequirement(decision: SelfHostingDecision): ReviewRequirement | undefined {
+  if (decision.requirements.length > 1) {
+    throw new Error("reconcile-runtime: self-hosting policy must resolve at most one requirement");
+  }
+  return decision.requirements[0];
+}
+
+function toChangedPaths(context: HostChangeContext): ChangedPath[] {
+  return context.changedPaths.map((change) => ({
+    status: change.status,
+    path: change.path,
+    ...(change.previousPath === undefined ? {} : { previousPath: change.previousPath }),
+  }));
+}
+
+/** Sources the policy licenses to run through the durable-record provider transport. */
+function qualifiedDurableSources(
+  policy: SelfHostingPolicy,
+  requirement: ReviewRequirement,
+): SourceQualificationDeclaration[] {
+  return policy.qualifications.filter((declaration) => declaration.transport === "durable-record"
+    && requirement.acceptableSources.some((accepted) => accepted.sourceKind === declaration.sourceKind
+      && (accepted.qualifier === undefined || accepted.qualifier === declaration.qualifier))
+    && qualifyIndependentAnalysisSource(declaration, requirement.rubricVersion).qualified);
+}
+
+/** Production reconcile runtime bound to one pull request's live host state. */
+export class SelfHostingReconcileRuntime implements ReconcileRuntime {
+  private readonly deps: ReconcileRuntimeDependencies;
+  private snapshot: ReconcileSnapshot | null = null;
+
+  constructor(deps: ReconcileRuntimeDependencies) {
+    this.deps = deps;
+  }
+
+  async read(): Promise<CanonicalReconcileState> {
+    const { host, policy, coordinates } = this.deps;
+    const resolution = await host.resolveChangeRequest(coordinates.hostRef);
+    const changeRequest = resolution.changeRequest;
+    const context = resolution.context;
+
+    const capabilities = await this.resolveAuthorCapabilities(context.author);
+    const policyVersion = computePolicyVersion({ policy });
+    const [lane, risk, ciState, nativeObservation, ledger] = await Promise.all([
+      this.deps.resolveLane({
+        authorLogin: context.author.login,
+        diffBaseSha: changeRequest.diffBaseSha,
+        headSha: changeRequest.headSha,
+        changes: toChangedPaths(context),
+      }),
+      Promise.resolve(this.deps.resolveRisk(toChangedPaths(context))),
+      this.deps.resolveCiState(changeRequest.headSha),
+      host.observeNativeReview({
+        hostRef: coordinates.hostRef,
+        headSha: changeRequest.headSha,
+        authorIdentity: context.author.identity,
+        expectsNativeReview: false,
+      }),
+      this.deps.store.readLedger(changeRequest.changeRequestId),
+    ]);
+
+    const decision = resolveSelfHostingDecision({ policy, changeRequest, lane, risk });
+    const ledgerValid = ledger.kind === "valid";
+    const ledgerEnvelopes = ledgerValid ? ledger.receipts : [];
+    const ledgerReceipts = ledgerEnvelopes.map((envelope) => envelope.receipt);
+    const ledgerVersion = ledgerValid ? ledger.ledgerVersion : null;
+    const inconsistencies = ledgerValid ? [] : [...ledger.diagnostics];
+
+    const receiptEvidence = extractAuthenticatedReceiptEvidence(ledgerEnvelopes);
+    const lifecycleTail = await this.resolveLifecycleTail(
+      changeRequest,
+      decision,
+      policyVersion,
+      receiptEvidence,
+      nativeObservation.providerReviews,
+    );
+    const evidence = [
+      ...this.resolveEvidence(changeRequest, decision, nativeObservation.providerReviews, lifecycleTail),
+      ...receiptEvidence,
+    ];
+    const capacities = await this.resolveCapacities(decision);
+    const commandEvents = await this.resolveCommandEvents(changeRequest, decision, evidence, ledgerReceipts);
+    const knownHostActors = [
+      ...new Set(nativeObservation.peerApprovals.map((approval) => approval.actorIdentity)),
+    ];
+
+    const state: CanonicalReconcileState = {
+      repositoryId: coordinates.repositoryId,
+      pullRequestNumber: coordinates.pullRequestNumber,
+      headSha: changeRequest.headSha,
+      policyVersion,
+      permissionVersion: permissionDigest(capabilities),
+      ledgerVersion,
+    };
+
+    this.snapshot = {
+      state,
+      changeRequest,
+      context,
+      lane,
+      risk,
+      decision,
+      evidence,
+      ledgerReceipts,
+      ledgerEnvelopes,
+      capacities,
+      ciState,
+      nativeReview: nativeObservation.nativeReview,
+      knownHostActors,
+      lifecycleTail,
+      commandEvents,
+      receiptRefs: ledgerEnvelopes.map((envelope) => envelope.durableRecordId),
+      inconsistencies,
+      ledgerVersion,
+    };
+    return state;
+  }
+
+  reduce(state: CanonicalReconcileState, now: Date): Promise<ReconcileDecision> {
+    void now;
+    try {
+      return Promise.resolve(this.reduceSnapshot(state));
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  /** Pure reduction over the cached snapshot; no side effects so it is safe to re-run. */
+  private reduceSnapshot(state: CanonicalReconcileState): ReconcileDecision {
+    const snapshot = this.snapshot;
+    if (snapshot === null || guardKey(snapshot.state) !== guardKey(state) || snapshot.ledgerVersion !== state.ledgerVersion) {
+      throw new Error("reconcile-runtime: reduce called without a matching cached read");
+    }
+
+    const commandReceipts: ReviewReceipt[] = [];
+    const receiptsToAppend: ReviewReceipt[] = [];
+    let refreshRequest: ReviewRequest | null = null;
+    let requestReservation: ReviewReceipt | null = null;
+    for (const event of state.ledgerVersion === null ? [] : snapshot.commandEvents) {
+      const ledgerVersion = state.ledgerVersion;
+      if (ledgerVersion === null) break;
+      const requirement = snapshot.decision.requirements.find((entry) => entry.id === event.command.requirementId);
+      if (requirement === undefined) continue;
+      if (event.command.kind === "refresh") {
+        const plan = planCommandRefresh({
+          event,
+          changeRequest: snapshot.changeRequest,
+          requirement,
+          expectedLedgerVersion: ledgerVersion,
+          priorReceipts: [...snapshot.ledgerReceipts, ...commandReceipts],
+          qualifiedSourceIdentities: qualifiedDurableSources(this.deps.policy, requirement)
+            .map((declaration) => declaration.sourceIdentity),
+          reviewedChainHead: snapshot.evidence
+            .filter((item) => item.requirementId === requirement.id
+              && item.result === "clean"
+              && item.policyVersion === requirement.policyVersion
+              && item.rubricVersion === requirement.rubricVersion)
+            .sort((left, right) => right.observedAt.localeCompare(left.observedAt))[0]?.coverageThroughSha ?? null,
+        });
+        if (plan.ok) {
+          refreshRequest = plan.request;
+          commandReceipts.push(plan.reservation);
+          if (!plan.replay) {
+            requestReservation = plan.reservation;
+          }
+          break;
+        }
+        continue;
+      }
+      const receipt = createDirectCommandReceipt({
+        event,
+        changeRequest: snapshot.changeRequest,
+        requirement,
+        expectedLedgerVersion: ledgerVersion,
+        priorReceipts: [...snapshot.ledgerReceipts, ...commandReceipts],
+      });
+      if (receipt.ok) {
+        commandReceipts.push(receipt.receipt);
+        if (!receipt.replay) {
+          receiptsToAppend.push(receipt.receipt);
+        }
+        break;
+      }
+    }
+
+    const authorizedDismissers = [
+      ...new Set(snapshot.commandEvents
+        .filter((event) => event.command.kind === "dismiss")
+        .map((event) => event.actorIdentity)),
+    ];
+
+    const reduction = reduceSelfHostingGate({
+      policy: this.deps.policy,
+      changeRequest: snapshot.changeRequest,
+      lane: snapshot.lane,
+      risk: snapshot.risk,
+      evidence: snapshot.evidence,
+      receipts: [...snapshot.ledgerReceipts, ...commandReceipts],
+      capacities: snapshot.capacities,
+      readiness: {
+        draft: snapshot.context.isDraft,
+        mergeability: snapshot.context.mergeability,
+        baseFresh: true,
+      },
+      ciState: snapshot.ciState,
+      nativeReview: snapshot.nativeReview,
+      authorizedDismissers,
+      knownHostActors: snapshot.knownHostActors,
+      inconsistencies: snapshot.inconsistencies,
+      ledgerVersion: state.ledgerVersion,
+      lifecycleTail: snapshot.lifecycleTail,
+      receiptRefs: snapshot.receiptRefs,
+      actorIdentity: this.deps.policy.providerIdentities.appBotUserId,
+    });
+
+    return {
+      request: refreshRequest ?? reduction.request,
+      receiptsToAppend,
+      requestReservation,
+      projection: reduction.projection,
+    };
+  }
+
+  async appendReceipts(receipts: ReviewReceipt[], expectedLedgerVersion: number): Promise<number> {
+    let version = expectedLedgerVersion;
+    for (const receipt of receipts) {
+      const appended = await this.deps.store.appendReceipt(receipt, version);
+      version = appended.ledgerVersion;
+    }
+    return version;
+  }
+
+  async execute(
+    request: ReviewRequest,
+    expectedLedgerVersion: number,
+    plannedReservation: ReviewReceipt | null = null,
+  ): Promise<RequestExecutionResult> {
+    const { store, provider } = this.deps;
+    const changeRequestId = request.changeRequestId;
+    return executeReservedRequest({
+      request,
+      expectedLedgerVersion,
+      appendReservation: async (reservedRequest, version) => {
+        const receipt = plannedReservation ?? createReceipt({
+          eventId: `request:${computeRequestKey(reservedRequest)}:reserved`,
+          previousLedgerVersion: version,
+          action: "reserved",
+          request: reservedRequest,
+          result: null,
+          evidenceUrlOrId: null,
+          findingIds: [],
+        });
+        if (
+          computeRequestKey(receipt.request) !== computeRequestKey(reservedRequest)
+          || receipt.previousLedgerVersion !== version
+        ) {
+          throw new Error("reconcile-runtime: planned reservation does not match the request or ledger");
+        }
+        await store.appendReceipt(receipt, version);
+        const ledger = await store.readLedger(changeRequestId);
+        const envelope = ledger.kind === "valid"
+          ? ledger.receipts.find((entry) => entry.receipt.receiptHash === receipt.receiptHash) ?? null
+          : null;
+        if (envelope === null) throw new Error("reconcile-runtime: reservation not durable after append");
+        return envelope;
+      },
+      confirmReservation: async (requestKey) => {
+        const ledger = await store.readLedger(changeRequestId);
+        if (ledger.kind !== "valid") return { canonical: false, envelope: null };
+        const envelope = ledger.receipts.find((entry) => entry.receipt.action === "reserved"
+          && computeRequestKey(entry.receipt.request) === requestKey) ?? null;
+        return { canonical: envelope !== null, envelope };
+      },
+      invoke: (invokedRequest) => provider.request(invokedRequest),
+      appendAcknowledgement: async (acknowledgement, reservation) => {
+        const receipt = createReceipt({
+          eventId: `request:${computeRequestKey(reservation.receipt.request)}:acknowledged`,
+          previousLedgerVersion: reservation.ledgerVersion,
+          action: "acknowledged",
+          request: reservation.receipt.request,
+          result: null,
+          evidenceUrlOrId: acknowledgement.durableRef ?? null,
+          findingIds: [],
+        });
+        await store.appendReceipt(receipt, reservation.ledgerVersion);
+      },
+      appendTerminalFailure: async (reservation) => {
+        const receipt = createReceipt({
+          eventId: `request:${computeRequestKey(reservation.receipt.request)}:terminal-failure`,
+          previousLedgerVersion: reservation.ledgerVersion,
+          action: "terminal-failure",
+          request: reservation.receipt.request,
+          result: "unavailable",
+          evidenceUrlOrId: null,
+          findingIds: [],
+        });
+        await store.appendReceipt(receipt, reservation.ledgerVersion);
+      },
+    });
+  }
+
+  /** Revalidate a human command receipt against the latest cached event and live actor capability. */
+  async authorizesCommandReceipt(receipt: ReviewReceipt): Promise<boolean> {
+    const snapshot = this.snapshot;
+    if (snapshot === null) return false;
+    const refreshLifecycle = receipt.action === "acknowledged" || receipt.action === "terminal-failure";
+    const event = snapshot.commandEvents.find((candidate) => candidate.actorIdentity === receipt.request.actorIdentity
+      && candidate.command.requirementId === receipt.request.requirementId
+      && (refreshLifecycle || (candidate.durableRef === receipt.evidenceUrlOrId
+        && candidate.command.reason === receipt.reason))
+      && (candidate.eventId === receipt.eventId || (candidate.command.kind === "refresh" && refreshLifecycle)));
+    if (event === undefined) return false;
+    const actionMatches = event.command.kind === "require"
+      ? receipt.action === "required" && receipt.request.sourceIdentity === "review-gate-command"
+      : event.command.kind === "waive"
+        ? receipt.action === "waived" && receipt.request.sourceIdentity === "review-gate-command"
+        : event.command.kind === "dismiss"
+          ? receipt.action === "dismissed"
+            && receipt.request.sourceIdentity === event.command.sourceIdentity
+            && receipt.findingIds.length === 1
+            && receipt.findingIds[0] === event.command.findingId
+          : ["reserved", "acknowledged", "terminal-failure"].includes(receipt.action)
+            && (event.command.sourceIdentity === "auto"
+              || receipt.request.sourceIdentity === event.command.sourceIdentity);
+    if (!actionMatches) return false;
+    try {
+      const capabilities = await this.deps.host.resolveActorCapabilities({
+        login: event.actorLogin,
+        expectedActorId: event.actorIdentity,
+      });
+      return capabilities.actorIdentity === event.actorIdentity && capabilities.permissions.includes(event.permission);
+    } catch {
+      return false;
+    }
+  }
+
+  async publish(projection: GateProjection): Promise<void> {
+    const snapshot = this.snapshot;
+    if (snapshot === null) throw new Error("reconcile-runtime: publish called before read");
+    await this.deps.host.publishVerdict({
+      hostRef: this.deps.coordinates.hostRef,
+      headSha: snapshot.changeRequest.headSha,
+      changeSetId: snapshot.changeRequest.changeSetId,
+      projection,
+      mode: this.deps.mode,
+      expectedAppId: this.deps.expectedAppId,
+      anchorReceiptCount: snapshot.ledgerVersion,
+      readCurrentState: async () => {
+        const resolution = await this.deps.host.resolveChangeRequest(this.deps.coordinates.hostRef);
+        return {
+          headSha: resolution.changeRequest.headSha,
+          changeSetId: resolution.changeRequest.changeSetId,
+        };
+      },
+    });
+  }
+
+  private async resolveAuthorCapabilities(author: HostChangeContext["author"]): Promise<CapabilitySet> {
+    const address: ActorAddress = { login: author.login, expectedActorId: author.identity };
+    try {
+      return await this.deps.host.resolveActorCapabilities(address);
+    } catch {
+      return EMPTY_CAPABILITIES(author.identity);
+    }
+  }
+
+  private async resolveLifecycleTail(
+    changeRequest: NormalizedChangeRequest,
+    decision: SelfHostingDecision,
+    policyVersion: string,
+    receiptEvidence: Evidence[],
+    providerReviews: Parameters<typeof resolveCodeRabbitDecisiveReview>[0]["reviews"],
+  ): Promise<LifecycleTailProof | null> {
+    const requirement = singleRequirement(decision);
+    if (requirement === undefined) return null;
+    const codeRabbitQualified = qualifiedDurableSources(this.deps.policy, requirement)
+      .some((declaration) => declaration.sourceIdentity === "coderabbit-pr");
+    const reviewAuthorities = codeRabbitQualified
+      ? providerReviews
+          .filter((review) => review.actorIdentity === this.deps.policy.providerIdentities.coderabbitBotUserId
+            && review.state === "approved"
+            && review.commitId !== changeRequest.headSha
+            && review.submittedAt !== null)
+          .map((review) => ({
+            requirementId: requirement.id,
+            policyVersion,
+            rubricVersion: requirement.rubricVersion,
+            baseRef: changeRequest.baseRef,
+            diffBaseSha: changeRequest.diffBaseSha,
+            coverageThroughSha: review.commitId,
+            sourceIdentity: "coderabbit-pr",
+            observedAt: review.submittedAt ?? "",
+          }))
+      : [];
+    const reviewed = [...receiptEvidence, ...reviewAuthorities]
+      .filter((item) => item.requirementId === requirement.id
+        && item.policyVersion === policyVersion
+        && item.rubricVersion === requirement.rubricVersion
+        && item.baseRef === changeRequest.baseRef
+        && item.diffBaseSha === changeRequest.diffBaseSha
+        && item.coverageThroughSha !== changeRequest.headSha)
+      .sort((left, right) => right.observedAt.localeCompare(left.observedAt))[0];
+    if (reviewed === undefined) return null;
+    const reviewedScope = {
+      baseRef: reviewed.baseRef,
+      diffBaseSha: reviewed.diffBaseSha,
+      policyVersion: reviewed.policyVersion,
+      rubricVersion: reviewed.rubricVersion,
+      sourceIdentity: reviewed.sourceIdentity,
+    };
+    const currentScope = {
+      baseRef: changeRequest.baseRef,
+      diffBaseSha: changeRequest.diffBaseSha,
+      policyVersion,
+      rubricVersion: requirement.rubricVersion,
+      sourceIdentity: reviewed.sourceIdentity,
+    };
+    return this.deps.lifecycleTailAdapter.resolveLifecycleTail({
+      predicateId: this.deps.policy.lifecycleTailPredicate.id,
+      reviewedThroughSha: reviewed.coverageThroughSha,
+      currentHeadSha: changeRequest.headSha,
+      reviewed: reviewedScope,
+      current: currentScope,
+    });
+  }
+
+  private resolveEvidence(
+    changeRequest: NormalizedChangeRequest,
+    decision: SelfHostingDecision,
+    providerReviews: Parameters<typeof resolveCodeRabbitDecisiveReview>[0]["reviews"],
+    lifecycleTail: LifecycleTailProof | null,
+  ): Evidence[] {
+    const evidence: Evidence[] = [];
+    const decisive = resolveCodeRabbitDecisiveReview({
+      reviews: providerReviews,
+      expectedBotUserId: this.deps.policy.providerIdentities.coderabbitBotUserId,
+      currentHeadSha: changeRequest.headSha,
+      lifecycleTail,
+    });
+    for (const requirement of decision.requirements) {
+      const mapped = mapCodeRabbitApprovalToEvidence({
+        policy: this.deps.policy,
+        requirement,
+        baseRef: changeRequest.baseRef,
+        diffBaseSha: changeRequest.diffBaseSha,
+        decisive,
+      });
+      if (mapped !== null) evidence.push(mapped);
+    }
+    return evidence;
+  }
+
+  private async resolveCapacities(decision: SelfHostingDecision): Promise<SourceCapacity[]> {
+    const sources = new Set<string>();
+    for (const requirement of decision.requirements) {
+      for (const declaration of qualifiedDurableSources(this.deps.policy, requirement)) {
+        sources.add(declaration.sourceIdentity);
+      }
+    }
+    return Promise.all([...sources].map((sourceIdentity) => this.deps.provider.readCapacity(sourceIdentity)));
+  }
+
+  private async resolveCommandEvents(
+    changeRequest: NormalizedChangeRequest,
+    decision: SelfHostingDecision,
+    evidence: Evidence[],
+    ledgerReceipts: ReviewReceipt[],
+  ): Promise<AuthorizedReviewCommandEvent[]> {
+    const requirement = singleRequirement(decision);
+    if (requirement === undefined) return [];
+    const comments = await this.deps.listCommandComments();
+    const scope = {
+      changeSetId: changeRequest.changeSetId,
+      policyVersion: requirement.policyVersion,
+      rubricVersion: requirement.rubricVersion,
+    };
+    const result = await ingestReviewCommands({
+      comments,
+      commandContext: {
+        knownRequirementIds: decision.requirements.map((entry) => entry.id),
+        knownFindings: evidence.flatMap((item) => item.findings.map((finding) => ({
+          sourceIdentity: item.sourceIdentity,
+          findingId: finding.findingId,
+        }))),
+        allowedSourceIdentities: this.deps.policy.qualifications.map((declaration) => declaration.sourceIdentity),
+      },
+      currentScope: scope,
+      expectedScope: scope,
+      receiptedEventIds: ledgerReceipts.map((receipt) => receipt.eventId),
+      resolveCapabilities: (actor) => this.deps.host.resolveActorCapabilities(actor),
+    });
+    return result.accepted;
+  }
+
+}

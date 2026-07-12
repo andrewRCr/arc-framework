@@ -8,7 +8,6 @@ import {
   findAuthoritativeCheckRuns,
   publishGateCheck,
   reviewGateConcurrency,
-  shouldHandleCheckRunEvent,
   type CheckRunMutation,
   type CheckWriteState,
   type GitHubCheckRun,
@@ -178,6 +177,25 @@ describe("neutral projection publishing", () => {
     expect(output?.summary).toContain("Ledger version/count:** 4/4");
     expect(output?.summary).toContain("[receipt 1](https://github.com/acme/repo/pull/7#issuecomment-1)");
   });
+
+  it("renders unknown ledger coordinates instead of inventing an initial ledger", async () => {
+    const api = new MemoryChecks();
+    const degraded = {
+      ...projection("failure"),
+      blockers: [{ code: "ledger-unavailable", detail: "receipt state could not be read" }],
+      ledgerVersion: null,
+    };
+
+    await publishGateCheck({
+      api,
+      scope,
+      projection: degraded,
+      anchorReceiptCount: null,
+      readCurrentState: async () => state(),
+    });
+
+    expect(api.mutations[0]?.value.output.summary).toContain("Ledger version/count:** unknown/unknown");
+  });
 });
 
 describe("duplicate, recursion, and stale-writer guards", () => {
@@ -199,9 +217,22 @@ describe("duplicate, recursion, and stale-writer guards", () => {
       .rejects.toBeInstanceOf(CheckRunPublishError);
   });
 
-  it("ignores the controller's own completion event", () => {
-    expect(shouldHandleCheckRunEvent({ action: "completed", check_run: { name: NAME, app: { id: Number(APP_ID) } } }, APP_ID, NAME)).toBe(false);
-    expect(shouldHandleCheckRunEvent({ action: "completed", check_run: { name: NAME, app: { id: 15368 } } }, APP_ID, NAME)).toBe(true);
+  it("surfaces a check-write outage independently of a degraded-ledger failure", async () => {
+    const api = new MemoryChecks([run({ conclusion: "success" })]);
+    api.failUpdateId = 1;
+    const degraded = {
+      ...projection("failure"),
+      blockers: [{ code: "ledger-unavailable", detail: "receipt state could not be read" }],
+      ledgerVersion: null,
+    };
+
+    await expect(publishGateCheck({
+      api,
+      scope,
+      projection: degraded,
+      anchorReceiptCount: null,
+      readCurrentState: async () => state(),
+    })).rejects.toMatchObject({ code: "check-update-failed" });
   });
 
   it("prevents stale reconcilers from writing after the head advances", async () => {

@@ -8,6 +8,7 @@ export interface VerdictRequirement {
   requirement: ReviewRequirement;
   state: RequirementExecutionState;
   sourceIdentity: string | null;
+  detail?: string;
 }
 
 /** Reduced requirement detail for projection. */
@@ -17,6 +18,7 @@ export interface VerdictRequirementResult {
   state: RequirementExecutionState;
   sourceIdentity: string | null;
   blocking: boolean;
+  detail: string;
 }
 
 /** Complete current-state inputs. */
@@ -79,6 +81,7 @@ export function reduceGateVerdict(input: GateVerdictInput): GateVerdict {
       state: entry.state,
       sourceIdentity: entry.sourceIdentity,
       blocking,
+      detail: entry.detail ?? (blocking ? "blocking" : "non-blocking"),
     };
   });
 
@@ -103,7 +106,8 @@ export function reduceGateVerdict(input: GateVerdictInput): GateVerdict {
   const failureCodes = new Set([
     "merge-conflict", "ci-failure", "native-requested-changes", "unresolved-required-conversations",
     "native-review-inconsistent", "malformed-receipt", "ledger-fork", "ledger-regression", "duplicate-projection",
-    "invalid-capacity",
+    "ledger-anchor-mismatch", "ledger-disappeared", "ledger-unavailable", "invalid-capacity",
+    "multiple-invokable-sources",
   ]);
   const hasFailure = blockers.some((blocker) =>
     failureCodes.has(blocker.code)

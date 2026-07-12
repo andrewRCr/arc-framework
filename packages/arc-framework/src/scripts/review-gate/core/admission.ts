@@ -30,7 +30,8 @@ export function admitAutomaticRequest(input: AutomaticAdmissionInput): Admission
   if (input.requirement.initialAdmission !== "automatic") {
     return { admit: false, generation: null, reason: "checkpoint-only" };
   }
-  if (input.history.some((receipt) => receipt.request.requirementId === input.requirement.id)) {
+  if (input.history.some((receipt) => receipt.request.requirementId === input.requirement.id
+    && ["reserved", "acknowledged", "terminal-failure"].includes(receipt.action))) {
     return { admit: false, generation: null, reason: "admitted-history-exists" };
   }
   if (input.capacity.status === "exhausted") {

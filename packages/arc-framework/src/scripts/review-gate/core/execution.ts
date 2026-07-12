@@ -1,6 +1,6 @@
 /** Request, receipt, capacity, execution, and verdict contracts. */
 
-import type { CoverageKind, EvidenceResult } from "./evidence.js";
+import { parseEvidence, type CoverageKind, type Evidence, type EvidenceResult } from "./evidence.js";
 import {
   arrayAt,
   digestAt,
@@ -47,11 +47,13 @@ export interface ReviewReceipt {
   idempotencyKey: string;
   previousLedgerVersion: number;
   receiptHash: string;
-  action: "reserved" | "acknowledged" | "terminal-failure" | "dismissed" | "waived" | "attested" | "unadmitted";
+  action: "reserved" | "acknowledged" | "terminal-failure" | "required" | "dismissed" | "waived" | "attested" | "unadmitted";
   request: ReviewRequest;
   result: EvidenceResult | null;
+  reason: string | null;
   evidenceUrlOrId: string | null;
   findingIds: string[];
+  evidence?: Evidence;
 }
 
 /** Store-validated envelope around one receipt. */
@@ -117,7 +119,7 @@ export interface GateProjection {
   receiptRefs: string[];
   policyDecision: PolicyDecisionProjection;
   ciState: "pending" | "failure" | "success";
-  ledgerVersion: number;
+  ledgerVersion: number | null;
   evidence: GateEvidenceProjection[];
 }
 
@@ -174,25 +176,65 @@ function parseReceipt(input: unknown, path: string): ReviewReceipt {
   const record = objectAt(input, path);
   exactKeys(record, [
     "schemaVersion", "eventId", "idempotencyKey", "previousLedgerVersion", "receiptHash", "action", "request",
-    "result", "evidenceUrlOrId", "findingIds",
+    "result", "reason", "evidenceUrlOrId", "findingIds", "evidence",
   ], path);
+  const action = enumAt(
+    record.action,
+    ["reserved", "acknowledged", "terminal-failure", "required", "dismissed", "waived", "attested", "unadmitted"],
+    `${path}.action`,
+  );
+  const request = parseReviewRequest(record.request, `${path}.request`);
+  const result = nullableAt(record.result, `${path}.result`, (value, itemPath) =>
+    enumAt(value, ["clean", "findings", "failed", "unavailable"], itemPath));
+  const evidenceUrlOrId = nullableAt(record.evidenceUrlOrId, `${path}.evidenceUrlOrId`, stringAt);
+  const findingIds = arrayAt(record.findingIds, `${path}.findingIds`, stringAt);
+  const evidence = record.evidence === undefined ? undefined : parseEvidence(record.evidence);
+  const attestationAction = action === "attested" || action === "unadmitted";
+  if (attestationAction !== (evidence !== undefined)) {
+    throw new Error(`${path}.evidence: required only for attestation receipts`);
+  }
+  if (evidence !== undefined) validateReceiptEvidenceCongruence({ request, result, evidenceUrlOrId, findingIds }, evidence, path);
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
     eventId: stringAt(record.eventId, `${path}.eventId`),
     idempotencyKey: stringAt(record.idempotencyKey, `${path}.idempotencyKey`),
     previousLedgerVersion: integerAt(record.previousLedgerVersion, `${path}.previousLedgerVersion`),
     receiptHash: digestAt(record.receiptHash, `${path}.receiptHash`),
-    action: enumAt(
-      record.action,
-      ["reserved", "acknowledged", "terminal-failure", "dismissed", "waived", "attested", "unadmitted"],
-      `${path}.action`,
-    ),
-    request: parseReviewRequest(record.request, `${path}.request`),
-    result: nullableAt(record.result, `${path}.result`, (value, itemPath) =>
-      enumAt(value, ["clean", "findings", "failed", "unavailable"], itemPath)),
-    evidenceUrlOrId: nullableAt(record.evidenceUrlOrId, `${path}.evidenceUrlOrId`, stringAt),
-    findingIds: arrayAt(record.findingIds, `${path}.findingIds`, stringAt),
+    action,
+    request,
+    result,
+    reason: nullableAt(record.reason, `${path}.reason`, stringAt),
+    evidenceUrlOrId,
+    findingIds,
+    ...(evidence === undefined ? {} : { evidence }),
   };
+}
+
+function validateReceiptEvidenceCongruence(
+  receipt: Pick<ReviewReceipt, "request" | "result" | "evidenceUrlOrId" | "findingIds">,
+  evidence: Evidence,
+  path: string,
+): void {
+  const request = receipt.request;
+  const identitiesMatch = evidence.requirementId === request.requirementId
+    && evidence.sourceIdentity === request.sourceIdentity
+    && evidence.changeSetId === request.changeSetId
+    && evidence.policyVersion === request.policyVersion
+    && evidence.rubricVersion === request.rubricVersion
+    && evidence.coverage === request.coverage
+    && evidence.coverageFromSha === request.coverageFromSha
+    && evidence.coverageThroughSha === request.coverageThroughSha;
+  if (!identitiesMatch) throw new Error(`${path}.evidence: request identity mismatch`);
+  if (evidence.submitterIdentity !== undefined && evidence.submitterIdentity !== request.actorIdentity) {
+    throw new Error(`${path}.evidence: actor identity mismatch`);
+  }
+  if (evidence.result !== receipt.result) throw new Error(`${path}.evidence: result mismatch`);
+  if (evidence.evidenceUrlOrId !== receipt.evidenceUrlOrId) throw new Error(`${path}.evidence: reference mismatch`);
+  const evidenceFindingIds = evidence.findings.map((finding) => finding.findingId);
+  if (
+    evidenceFindingIds.length !== receipt.findingIds.length
+    || evidenceFindingIds.some((findingId, index) => findingId !== receipt.findingIds[index])
+  ) throw new Error(`${path}.evidence: finding identity mismatch`);
 }
 
 /** Validate a receipt and its storage-assigned envelope. */
@@ -273,7 +315,7 @@ export function parseGateProjection(input: unknown): GateProjection {
     receiptRefs: arrayAt(record.receiptRefs, `${path}.receiptRefs`, stringAt),
     policyDecision: parsePolicyDecision(record.policyDecision, `${path}.policyDecision`),
     ciState: enumAt(record.ciState, ["pending", "failure", "success"], `${path}.ciState`),
-    ledgerVersion: integerAt(record.ledgerVersion, `${path}.ledgerVersion`),
+    ledgerVersion: nullableAt(record.ledgerVersion, `${path}.ledgerVersion`, integerAt),
     evidence: arrayAt(record.evidence, `${path}.evidence`, parseGateEvidence),
   };
 }

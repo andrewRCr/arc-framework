@@ -391,7 +391,7 @@ Seven extension fire-points span the work-unit and Errand lifecycles:
 | `pre-pr-open`                  | Pushed head, immediately before change-request creation    | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
 | `post-pr-open`                 | Newly created or existing open change request              | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
 | `pre-push-review`              | Any push via the push wrapper                              | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
-| `pre-merge-review`             | Settled final head, immediately before merge authorization | `integrate-work-unit.md`, `run-errand.md`    | inactive; no default `.actions` |
+| `pre-merge`                    | Settled final head, immediately before merge authorization | `integrate-work-unit.md`, `run-errand.md`    | inactive; no default `.actions` |
 
 All extensions ship as inactive by default — teams populate `.actions` and flip `active: true` in frontmatter
 to opt in. Entries marked "no default `.actions`" ship as no-op shells without a provided action body; teams
@@ -406,7 +406,7 @@ or for future defaults. Three entries from the family above carry this status to
   self-review. The opt-in seam for a team's own spec-review cadence — an async-PR review of the spec, a fixed
   comment window, a committee sign-off. Those cadences are informative precedents only; ARC enforces none.
 - `pre-push-review` — fires for any push via the push wrapper.
-- `pre-merge-review` — fires post-review-response, pre-merge at `integrate-work-unit.md`.
+- `pre-merge` — fires post-review-response, pre-merge at `integrate-work-unit.md` and `run-errand.md`.
 
 New reserved names land here when codified, keeping the namespace coherent before defaults emerge.
 

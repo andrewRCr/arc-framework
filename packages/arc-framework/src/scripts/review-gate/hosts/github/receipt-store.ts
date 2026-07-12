@@ -4,6 +4,7 @@ import type { ReceiptEnvelope, ReviewReceipt } from "../../core/execution.js";
 import type {
   ReceiptAppendResult,
   ReceiptLedger,
+  ReceiptLedgerDiagnostic,
   ReviewReceiptStore,
 } from "../../core/ports.js";
 import { validateReceiptLedger } from "../../core/receipt-ledger.js";
@@ -80,7 +81,9 @@ interface AnchorRecord {
 
 interface ScannedState {
   envelopes: ReceiptEnvelope[];
-  anchor: AnchorRecord | null;
+  anchors: AnchorRecord[];
+  ledgerErrors: string[];
+  anchorErrors: string[];
 }
 
 function anchorPayload(options: GitHubCommentReceiptStoreOptions, version: number): LedgerAnchorPayload {
@@ -97,6 +100,58 @@ function logicalTip(envelopes: ReceiptEnvelope[]): number {
   return envelopes.reduce((maximum, envelope) => Math.max(maximum, envelope.ledgerVersion), 0);
 }
 
+const DIAGNOSTIC_ORDER: ReceiptLedgerDiagnostic[] = [
+  "malformed-receipt",
+  "ledger-fork",
+  "ledger-regression",
+  "ledger-anchor-mismatch",
+  "ledger-disappeared",
+  "ledger-unavailable",
+];
+
+function degraded(
+  diagnostics: ReceiptLedgerDiagnostic[],
+  observedLedgerVersion: number | null,
+): ReceiptLedger {
+  const unique = [...new Set(diagnostics)].sort((left, right) =>
+    DIAGNOSTIC_ORDER.indexOf(left) - DIAGNOSTIC_ORDER.indexOf(right));
+  return { kind: "degraded", diagnostics: unique, observedLedgerVersion, receipts: [] };
+}
+
+function diagnosticsForLedgerErrors(errors: string[]): ReceiptLedgerDiagnostic[] {
+  const diagnostics = new Set<ReceiptLedgerDiagnostic>();
+  for (const error of errors) {
+    if (/^missing-ledger-version:/u.test(error)) {
+      diagnostics.add("ledger-regression");
+    } else if (/^anchor-(?:version|count)-mismatch$/u.test(error)) {
+      diagnostics.add("ledger-anchor-mismatch");
+    } else if (/^(?:divergent-ledger-version|forked-predecessor|replayed-idempotency-key):/u.test(error)) {
+      diagnostics.add("ledger-fork");
+    } else {
+      diagnostics.add("malformed-receipt");
+    }
+  }
+  return diagnostics.size === 0 ? ["malformed-receipt"] : [...diagnostics];
+}
+
+function diagnosticsForError(error: unknown): ReceiptLedgerDiagnostic[] {
+  if (!(error instanceof ReceiptStoreError)) return ["ledger-unavailable"];
+  switch (error.code) {
+    case "break-glass":
+      return ["ledger-disappeared"];
+    case "inconsistent-anchor":
+      return ["ledger-anchor-mismatch"];
+    case "inconsistent-ledger":
+      return diagnosticsForLedgerErrors(error.message.split(": ").at(-1)?.split(",") ?? []);
+    case "unavailable":
+    case "write-failed":
+    case "ambiguous-write":
+      return ["ledger-unavailable"];
+    default:
+      return ["malformed-receipt"];
+  }
+}
+
 /** Version-checked, idempotent GitHub comment receipt store. */
 export class GitHubCommentReceiptStore implements ReviewReceiptStore {
   private readonly options: GitHubCommentReceiptStoreOptions;
@@ -107,13 +162,31 @@ export class GitHubCommentReceiptStore implements ReviewReceiptStore {
 
   async readLedger(changeRequestId: string): Promise<ReceiptLedger> {
     if (changeRequestId !== this.options.changeRequestId) throw new ReceiptStoreError("scope-mismatch");
-    const state = await this.scan();
-    if (state.anchor === null) {
-      if (state.envelopes.length > 0) throw new ReceiptStoreError("inconsistent-anchor", "missing");
-      if (await this.options.stateExpected()) throw new ReceiptStoreError("break-glass", "controller state disappeared");
-      const created = await this.options.api.create(serializeLedgerAnchor(anchorPayload(this.options, 0)));
-      if (created.kind === "ambiguous") throw new ReceiptStoreError("ambiguous-write", "anchor bootstrap");
-      return { ledgerVersion: 0, receipts: [] };
+    let state: ScannedState;
+    try {
+      state = await this.scan();
+    } catch (error) {
+      return degraded(diagnosticsForError(error), null);
+    }
+    const anchor = state.anchors[0] ?? null;
+    const observedLedgerVersion = anchor?.payload.ledgerVersion
+      ?? (state.envelopes.length === 0 ? null : logicalTip(state.envelopes));
+    if (state.ledgerErrors.length > 0) {
+      return degraded(diagnosticsForLedgerErrors(state.ledgerErrors), observedLedgerVersion);
+    }
+    if (state.anchorErrors.length > 0 || state.anchors.length > 1) {
+      return degraded(["ledger-anchor-mismatch"], observedLedgerVersion);
+    }
+    if (anchor === null) {
+      if (state.envelopes.length > 0) return degraded(["ledger-anchor-mismatch"], observedLedgerVersion);
+      try {
+        if (await this.options.stateExpected()) return degraded(["ledger-disappeared"], null);
+        const created = await this.options.api.create(serializeLedgerAnchor(anchorPayload(this.options, 0)));
+        if (created.kind === "ambiguous") return degraded(["ledger-unavailable"], null);
+        return { kind: "valid", ledgerVersion: 0, receipts: [] };
+      } catch (error) {
+        return degraded(diagnosticsForError(error), null);
+      }
     }
 
     const tip = logicalTip(state.envelopes);
@@ -122,26 +195,36 @@ export class GitHubCommentReceiptStore implements ReviewReceiptStore {
       anchorVersion: tip,
       anchorCount: tip,
     });
-    if (!ledger.valid) throw new ReceiptStoreError("inconsistent-ledger", ledger.errors.join(","));
+    if (!ledger.valid) return degraded(diagnosticsForLedgerErrors(ledger.errors), observedLedgerVersion);
 
-    const anchor = state.anchor.payload;
-    if (anchor.ledgerVersion === ledger.ledgerVersion && anchor.receiptCount === ledger.receipts.length) {
-      return { ledgerVersion: ledger.ledgerVersion, receipts: orderedEnvelopes(state.envelopes) };
+    const anchorPayloadValue = anchor.payload;
+    if (
+      anchorPayloadValue.ledgerVersion === ledger.ledgerVersion
+      && anchorPayloadValue.receiptCount === ledger.receipts.length
+    ) {
+      return { kind: "valid", ledgerVersion: ledger.ledgerVersion, receipts: orderedEnvelopes(state.envelopes) };
     }
 
-    const uniqueExtension = anchor.ledgerVersion + 1 === ledger.ledgerVersion
-      && anchor.receiptCount + 1 === ledger.receipts.length;
-    if (!uniqueExtension) throw new ReceiptStoreError("inconsistent-anchor", "version/count mismatch");
+    const uniqueExtension = anchorPayloadValue.ledgerVersion + 1 === ledger.ledgerVersion
+      && anchorPayloadValue.receiptCount + 1 === ledger.receipts.length;
+    if (!uniqueExtension) return degraded(["ledger-anchor-mismatch"], observedLedgerVersion);
 
-    await this.options.api.update(
-      state.anchor.id,
-      serializeLedgerAnchor(anchorPayload(this.options, ledger.ledgerVersion)),
-    );
-    return { ledgerVersion: ledger.ledgerVersion, receipts: orderedEnvelopes(state.envelopes) };
+    try {
+      await this.options.api.update(
+        anchor.id,
+        serializeLedgerAnchor(anchorPayload(this.options, ledger.ledgerVersion)),
+      );
+    } catch (error) {
+      return degraded(diagnosticsForError(error), observedLedgerVersion);
+    }
+    return { kind: "valid", ledgerVersion: ledger.ledgerVersion, receipts: orderedEnvelopes(state.envelopes) };
   }
 
   async appendReceipt(receipt: ReviewReceipt, expectedLedgerVersion: number): Promise<ReceiptAppendResult> {
     const current = await this.readLedger(this.options.changeRequestId);
+    if (current.kind !== "valid") {
+      throw new ReceiptStoreError("degraded-ledger", current.diagnostics.join(","));
+    }
     const replay = current.receipts.find((envelope) => envelope.receipt.idempotencyKey === receipt.idempotencyKey);
     if (replay !== undefined) {
       if (
@@ -172,11 +255,11 @@ export class GitHubCommentReceiptStore implements ReviewReceiptStore {
     const nextVersion = expectedLedgerVersion + 1;
     const body = serializeReceiptComment({ ledgerVersion: nextVersion, receipt });
     const write = await this.options.api.create(body);
-    const confirmed = await this.readLedger(this.options.changeRequestId).catch((error: unknown) => {
-      if (write.kind === "ambiguous") return null;
-      throw error;
-    });
-    if (confirmed === null) throw new ReceiptStoreError("ambiguous-write");
+    const confirmed = await this.readLedger(this.options.changeRequestId);
+    if (confirmed.kind !== "valid") {
+      if (write.kind === "ambiguous") throw new ReceiptStoreError("ambiguous-write");
+      throw new ReceiptStoreError("degraded-ledger", confirmed.diagnostics.join(","));
+    }
     const appended = confirmed.receipts.find((envelope) =>
       envelope.ledgerVersion === nextVersion
       && envelope.receipt.idempotencyKey === receipt.idempotencyKey
@@ -235,11 +318,7 @@ export class GitHubCommentReceiptStore implements ReviewReceiptStore {
         }
       }
     }
-    if (ledgerErrors.length > 0) throw new ReceiptStoreError("inconsistent-ledger", ledgerErrors.join(","));
-    if (anchorErrors.length > 0 || anchors.length > 1) {
-      throw new ReceiptStoreError("inconsistent-anchor", [...anchorErrors, "duplicate"].join(","));
-    }
-    return { envelopes, anchor: anchors[0] ?? null };
+    return { envelopes, anchors, ledgerErrors, anchorErrors };
   }
 }
 

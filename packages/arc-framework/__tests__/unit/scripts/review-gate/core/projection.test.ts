@@ -9,8 +9,14 @@ describe("neutral gate projection", () => {
         conclusion: "success",
         blockers: [],
         requirements: [
-          { requirementId: "analysis", obligation: "required", state: "clean", sourceIdentity: "agent-1", blocking: false },
-          { requirementId: "peer", obligation: "required", state: "waived", sourceIdentity: null, blocking: false },
+          {
+            requirementId: "analysis", obligation: "required", state: "clean", sourceIdentity: "agent-1",
+            blocking: false, detail: "current coverage and closures satisfy the requirement",
+          },
+          {
+            requirementId: "peer", obligation: "required", state: "waived", sourceIdentity: null,
+            blocking: false, detail: "authorized waiver",
+          },
         ],
       },
       policy: {
@@ -38,7 +44,8 @@ describe("neutral gate projection", () => {
           { code: "requirement:analysis:findings", detail: "finding & unresolved" },
         ],
         requirements: [{
-          requirementId: "analysis", obligation: "required", state: "findings", sourceIdentity: "agent-1", blocking: true,
+          requirementId: "analysis", obligation: "required", state: "findings", sourceIdentity: "agent-1",
+          blocking: true, detail: "required findings remain open",
         }],
       },
       policy: {
@@ -54,6 +61,26 @@ describe("neutral gate projection", () => {
     expect(projection.blockers).toHaveLength(2);
     expect(projection.summary).not.toMatch(/[<>&]/u);
     expect(projection.summary).toContain("ci-failure");
+  });
+
+  it("retains an unknown ledger version for a degraded projection", () => {
+    const projection = renderGateProjection({
+      verdict: {
+        conclusion: "failure",
+        blockers: [{ code: "ledger-unavailable", detail: "receipt state could not be read" }],
+        requirements: [],
+      },
+      policy: {
+        lane: "reviewed", reviewRisk: "sensitive", disposition: "required",
+        reasons: ["code-surface"], policyVersion: "a".repeat(64),
+      },
+      ciState: "success",
+      ledgerVersion: null,
+      receiptRefs: [],
+      evidence: [],
+    });
+
+    expect(projection.ledgerVersion).toBeNull();
   });
 
   it("names an exempt policy as inapplicable", () => {

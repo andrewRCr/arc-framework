@@ -4,7 +4,6 @@ import type { ReviewReceipt, ReviewRequest } from "../../../../../../src/scripts
 import { createReceipt } from "../../../../../../src/scripts/review-gate/core/request-key.js";
 import {
   GitHubCommentReceiptStore,
-  ReceiptStoreError,
   type GitHubIssueCommentApi,
   type GitHubIssueComment,
   type ReceiptWriteState,
@@ -180,28 +179,82 @@ describe("GitHub comment receipt reconstruction", () => {
   it("fails closed on incomplete enumeration instead of returning a partial ledger", async () => {
     const api = new MemoryComments();
     api.failList = true;
-    await expect(store(api).readLedger("PR_node")).rejects.toBeInstanceOf(ReceiptStoreError);
+    await expect(store(api).readLedger("PR_node")).resolves.toEqual({
+      kind: "degraded",
+      diagnostics: ["ledger-unavailable"],
+      observedLedgerVersion: null,
+      receipts: [],
+    });
   });
 
-  it("rejects divergent duplicates, edits, forks, and missing versions", async () => {
+  it("classifies divergent, edited, forked, and missing records as degraded", async () => {
     const first = receipt();
-    const divergent = receipt(0, { action: "waived" });
-    const cases = [
-      [appComment(1, serializeLedgerAnchor(anchor(1))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })), appComment(3, serializeReceiptComment({ ledgerVersion: 1, receipt: divergent }))],
-      [appComment(1, serializeLedgerAnchor(anchor(1))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }), { updated_at: "2026-07-11T11:00:00Z" })],
-      [appComment(1, serializeLedgerAnchor(anchor(2))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })), appComment(3, serializeReceiptComment({ ledgerVersion: 2, receipt: receipt(0) }))],
-      [appComment(1, serializeLedgerAnchor(anchor(2))), appComment(3, serializeReceiptComment({ ledgerVersion: 2, receipt: receipt(1) }))],
+    const divergent = createReceipt({
+      eventId: "evt-divergent",
+      previousLedgerVersion: 0,
+      action: "waived",
+      request: request(),
+      result: null,
+      reason: "accepted risk",
+      evidenceUrlOrId: "https://github.test/pull/7#issuecomment-9",
+      findingIds: [],
+    });
+    const cases: Array<[string, GitHubIssueComment[]]> = [
+      ["ledger-fork", [appComment(1, serializeLedgerAnchor(anchor(1))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })), appComment(3, serializeReceiptComment({ ledgerVersion: 1, receipt: divergent }))]],
+      ["malformed-receipt", [appComment(1, serializeLedgerAnchor(anchor(1))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }), { updated_at: "2026-07-11T11:00:00Z" })]],
+      ["ledger-fork", [appComment(1, serializeLedgerAnchor(anchor(2))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })), appComment(3, serializeReceiptComment({ ledgerVersion: 2, receipt: receipt(0) }))]],
+      ["ledger-regression", [appComment(1, serializeLedgerAnchor(anchor(2))), appComment(3, serializeReceiptComment({ ledgerVersion: 2, receipt: receipt(1) }))]],
     ];
-    for (const comments of cases) {
-      await expect(store(new MemoryComments(comments)).readLedger("PR_node")).rejects.toMatchObject({ code: "inconsistent-ledger" });
+    for (const [diagnostic, comments] of cases) {
+      await expect(store(new MemoryComments(comments)).readLedger("PR_node")).resolves.toMatchObject({
+        kind: "degraded",
+        diagnostics: expect.arrayContaining([diagnostic]),
+        receipts: [],
+      });
     }
+  });
+
+  it("returns a degraded ledger without trusting malformed receipt records", async () => {
+    const first = receipt();
+    const api = new MemoryComments([
+      appComment(1, serializeLedgerAnchor(anchor(1))),
+      appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }), {
+        updated_at: "2026-07-11T11:00:00Z",
+      }),
+    ]);
+
+    await expect(store(api).readLedger("PR_node")).resolves.toEqual({
+      kind: "degraded",
+      diagnostics: ["malformed-receipt"],
+      observedLedgerVersion: 1,
+      receipts: [],
+    });
+  });
+
+  it("refuses writes while degraded and resumes only after a repaired ledger", async () => {
+    const api = new MemoryComments([
+      appComment(1, serializeLedgerAnchor(anchor(1))),
+      appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: receipt() }), {
+        updated_at: "2026-07-11T11:00:00Z",
+      }),
+    ]);
+    const target = store(api);
+
+    await expect(target.appendReceipt(receipt(), 1)).rejects.toMatchObject({ code: "degraded-ledger" });
+    expect(api.comments).toHaveLength(2);
+
+    api.comments.splice(0, api.comments.length, appComment(1, serializeLedgerAnchor(anchor(0))));
+    await expect(target.readLedger("PR_node")).resolves.toEqual({ kind: "valid", ledgerVersion: 0, receipts: [] });
+    await expect(target.appendReceipt(receipt(), 0)).resolves.toMatchObject({ ledgerVersion: 1 });
   });
 });
 
 describe("stable ledger anchor recovery", () => {
   it("bootstraps one anchor and repairs only a unique canonical receipt extension", async () => {
     const fresh = new MemoryComments();
-    await expect(store(fresh).readLedger("PR_node")).resolves.toMatchObject({ ledgerVersion: 0, receipts: [] });
+    await expect(store(fresh).readLedger("PR_node")).resolves.toMatchObject({
+      kind: "valid", ledgerVersion: 0, receipts: [],
+    });
     expect(fresh.comments).toHaveLength(1);
 
     const first = receipt();
@@ -209,7 +262,7 @@ describe("stable ledger anchor recovery", () => {
       appComment(1, serializeLedgerAnchor(anchor(0))),
       appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })),
     ]);
-    await expect(store(interrupted).readLedger("PR_node")).resolves.toMatchObject({ ledgerVersion: 1 });
+    await expect(store(interrupted).readLedger("PR_node")).resolves.toMatchObject({ kind: "valid", ledgerVersion: 1 });
     expect(interrupted.comments).toHaveLength(2);
     expect(interrupted.comments[0]?.updated_at).not.toBe(CREATED);
   });
@@ -223,12 +276,21 @@ describe("stable ledger anchor recovery", () => {
       [appComment(1, serializeLedgerAnchor(anchor(1, 2))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }))],
     ];
     for (const comments of cases) {
-      await expect(store(new MemoryComments(comments)).readLedger("PR_node")).rejects.toMatchObject({ code: "inconsistent-anchor" });
+      await expect(store(new MemoryComments(comments)).readLedger("PR_node")).resolves.toMatchObject({
+        kind: "degraded",
+        diagnostics: ["ledger-anchor-mismatch"],
+        receipts: [],
+      });
     }
   });
 
   it("enters break-glass when prior controller state existed but receipts, anchor, and checks vanished", async () => {
     const target = store(new MemoryComments(), async () => writeState(), async () => true);
-    await expect(target.readLedger("PR_node")).rejects.toMatchObject({ code: "break-glass" });
+    await expect(target.readLedger("PR_node")).resolves.toEqual({
+      kind: "degraded",
+      diagnostics: ["ledger-disappeared"],
+      observedLedgerVersion: null,
+      receipts: [],
+    });
   });
 });

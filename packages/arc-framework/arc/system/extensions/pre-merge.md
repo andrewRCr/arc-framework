@@ -1,10 +1,10 @@
 ---
-name: pre-merge-review
+name: pre-merge
 description: Final pre-merge gate after review-response processing — reserved for final-state checks before merge
 active: false
 ---
 
-# Extension: pre-merge-review
+# Extension: pre-merge
 
 > - **Workflow:** [integrate-work-unit.md][integrate-work-unit]
 > - **Fires:** After `review-response` processing completes, before the merge action
@@ -13,7 +13,7 @@ active: false
 >   final-head settlement may repeat. Fire after review coordination and after any lifecycle- or review-authored head
 >   update. No commit or push may occur between the settled checkpoint and merge authorization.
 
-## pre-merge-review.actions
+## pre-merge.actions
 
 [No extension configured]
 

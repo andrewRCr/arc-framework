@@ -93,11 +93,15 @@ class MemoryApi implements CodeRabbitApi {
   capacity: "not-observable" | "lookup-failed" | "exhausted" = "not-observable";
   signals: CodeRabbitSignal[] = [];
   readonly triggers: string[] = [];
+  cleanupFails = false;
 
   async validateCurrent(): Promise<"current" | "replay" | "stale"> { return this.current; }
   async applyTriggerLabel(): Promise<TriggerOutcome> { this.triggers.push("label"); return this.outcome; }
   async requestFullReview(): Promise<TriggerOutcome> { this.triggers.push("full-review"); return this.outcome; }
-  async removeTriggerLabel(): Promise<void> { this.triggers.push("remove-label"); }
+  async removeTriggerLabel(): Promise<void> {
+    this.triggers.push("remove-label");
+    if (this.cleanupFails) throw new Error("cleanup failed");
+  }
   async readRunContext(): Promise<CodeRabbitRunContext> { return context(); }
   async readSignals(): Promise<CodeRabbitSignal[]> { return this.signals; }
   async readCapacity(): Promise<"not-observable" | "lookup-failed" | "exhausted"> { return this.capacity; }
@@ -126,6 +130,29 @@ describe("CodeRabbit request translation", () => {
     expect(api.triggers).toEqual(["label", "remove-label"]);
   });
 
+  it("retains durable trigger provenance when the GitHub transport provides it", async () => {
+    const api = new MemoryApi();
+    api.outcome = {
+      kind: "acknowledged",
+      acknowledgedAt: "2026-07-11T12:01:00Z",
+      durableRef: "https://github.test/pull/7#issuecomment-99",
+    };
+    const adapter = new CodeRabbitProviderAdapter({ api, capabilities, expectedBotUserId: BOT_ID });
+
+    await expect(adapter.request(request())).resolves.toMatchObject({
+      durableRef: "https://github.test/pull/7#issuecomment-99",
+    });
+  });
+
+  it("keeps acknowledged label delivery successful when cleanup fails", async () => {
+    const api = new MemoryApi();
+    api.cleanupFails = true;
+    const adapter = new CodeRabbitProviderAdapter({ api, capabilities, expectedBotUserId: BOT_ID });
+
+    await expect(adapter.request(request())).resolves.toMatchObject({ acknowledgedAt: "2026-07-11T12:01:00Z" });
+    expect(api.triggers).toEqual(["label", "remove-label"]);
+  });
+
   it("does not trigger for replayed or stale requests", async () => {
     for (const current of ["replay", "stale"] as const) {
       const api = new MemoryApi();
@@ -141,7 +168,7 @@ describe("CodeRabbit request translation", () => {
     api.outcome = { kind: "ambiguous" };
     const adapter = new CodeRabbitProviderAdapter({ api, capabilities, expectedBotUserId: BOT_ID });
     await expect(adapter.request(request())).rejects.toMatchObject({ code: "ambiguous-delivery", effectAmbiguous: true });
-    expect(api.triggers).toEqual(["label", "remove-label"]);
+    expect(api.triggers).toEqual(["label"]);
   });
 });
 
