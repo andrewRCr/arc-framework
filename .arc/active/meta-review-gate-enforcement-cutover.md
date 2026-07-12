@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Setup baseline captured before the composition gap was discovered (2026-07-11).
+- **Last Completed:** Detailed RFC finalized after three adversarial spec passes (2026-07-12).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
