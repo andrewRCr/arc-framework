@@ -59,7 +59,6 @@ export interface ReviewGateReductionInput {
   ciState: "pending" | "failure" | "success";
   nativeReview: GateVerdictInput["nativeReview"];
   authorizedDismissers: string[];
-  knownHostActors: string[];
   inconsistencies: string[];
   ledgerVersion: number | null;
   lifecycleTail?: LifecycleTailProof | null;
@@ -175,7 +174,6 @@ export function reduceReviewGate(input: ReviewGateReductionInput): GateReduction
       evidence: coverage.stateEvidence,
       currentChangeSetId: coverage.stateChangeSetId,
       authorizedDismissers: input.authorizedDismissers,
-      knownHostActors: input.knownHostActors,
       dismissalReceipts: receipts
         .filter((receipt) => receipt.action === "dismissed")
         .flatMap((receipt) => receipt.findingIds.map((findingId) => ({

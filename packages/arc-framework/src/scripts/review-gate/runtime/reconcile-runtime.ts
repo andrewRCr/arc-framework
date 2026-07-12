@@ -110,7 +110,6 @@ interface ReconcileSnapshot {
   capacities: SourceCapacity[];
   ciState: "pending" | "failure" | "success";
   nativeReview: SelfHostingGateReductionInput["nativeReview"];
-  knownHostActors: string[];
   lifecycleTail: LifecycleTailProof | null;
   commandEvents: AuthorizedReviewCommandEvent[];
   receiptRefs: string[];
@@ -395,9 +394,6 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     ];
     const capacities = await this.resolveCapacities(decision);
     const commandEvents = await this.resolveCommandEvents(changeRequest, decision, evidence, ledgerReceipts);
-    const knownHostActors = [
-      ...new Set(nativeObservation.peerApprovals.map((approval) => approval.actorIdentity)),
-    ];
 
     const state: CanonicalReconcileState = {
       repositoryId: coordinates.repositoryId,
@@ -421,7 +417,6 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       capacities,
       ciState,
       nativeReview: nativeObservation.nativeReview,
-      knownHostActors,
       lifecycleTail,
       commandEvents,
       receiptRefs: ledgerEnvelopes.map((envelope) => envelope.durableRecordId),
@@ -529,7 +524,6 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       ciState: snapshot.ciState,
       nativeReview: snapshot.nativeReview,
       authorizedDismissers,
-      knownHostActors: snapshot.knownHostActors,
       inconsistencies: [
         ...snapshot.inconsistencies,
         ...(headUpdate.kind === "ambiguous" ? [`head-update-${headUpdate.reason}`] : []),

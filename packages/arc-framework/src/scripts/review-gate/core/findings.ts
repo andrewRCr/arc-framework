@@ -21,7 +21,6 @@ export interface FindingReductionInput {
   evidence: Evidence[];
   currentChangeSetId: string;
   authorizedDismissers: string[];
-  knownHostActors: string[];
   dismissalReceipts?: FindingDismissalReceipt[];
 }
 
@@ -70,9 +69,7 @@ export function reduceFindings(input: FindingReductionInput): FindingReductionRe
       }
       const authorized = closure.authorityKind === "source-confirmed"
         ? closure.authorityIdentity === item.sourceIdentity
-        : closure.authorityKind === "authorized-dismissal"
-          ? input.authorizedDismissers.includes(closure.authorityIdentity)
-          : input.knownHostActors.includes(closure.authorityIdentity);
+        : input.authorizedDismissers.includes(closure.authorityIdentity);
       if (!authorized) {
         errors.push(`invalid-closure-authority:${item.sourceIdentity}:${closure.findingId}`);
         continue;

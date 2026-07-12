@@ -143,6 +143,35 @@ export interface TriggerDeletedPayload {
   authenticatedEventRef: string;
 }
 
+/** Authority-bearing disposition recorded before any thread resolution. */
+export interface FindingDispositionPayload {
+  kind: "finding-disposition";
+  disposition: "fixed" | "deferred" | "rejected" | "provider-closed";
+  findingId: string;
+  sourceIdentity: string;
+  oldHeadSha: string;
+  fixHeadSha: string | null;
+  actorIdentity: string;
+  rationale: string | null;
+  directReplyRef: string | null;
+  followUpEvidenceRef: string | null;
+  verificationRefs: string[];
+  settledAt: string;
+}
+
+/** Canonical host observation that follows one durable disposition. */
+export interface ConversationResolvedPayload {
+  kind: "conversation-resolved";
+  findingId: string;
+  sourceIdentity: string;
+  headSha: string;
+  threadId: string;
+  resolvedByActorIdentity: string;
+  dispositionReceiptHash: string;
+  hostEvidenceRef: string;
+  resolvedAt: string;
+}
+
 /** Authorized policy/finding decision with no provider effect. */
 export interface DecisionPayload {
   kind: "decision";
@@ -162,6 +191,8 @@ export type ReviewReceiptPayload =
   | HeadUpdateAuthorizationPayload
   | HeadUpdateConsumptionPayload
   | TriggerDeletedPayload
+  | FindingDispositionPayload
+  | ConversationResolvedPayload
   | DecisionPayload;
 
 function nullableAt<T>(value: unknown, path: string, parse: (input: unknown, path: string) => T): T | null {
@@ -218,7 +249,7 @@ export function parseReviewReceiptPayload(input: unknown, path: string): ReviewR
   const kind = enumAt(record.kind, [
     "reservation", "acknowledgement", "terminal-evidence", "finding-lifecycle", "contamination", "supersession",
     "source-supersession", "flight-state", "head-update-authorization", "head-update-consumption", "trigger-deleted",
-    "decision",
+    "finding-disposition", "conversation-resolved", "decision",
   ], `${path}.kind`);
   switch (kind) {
     case "reservation":
@@ -358,6 +389,68 @@ export function parseReviewReceiptPayload(input: unknown, path: string): ReviewR
         authenticatedEventRef,
       };
     }
+    case "finding-disposition": {
+      exactKeys(record, [
+        "kind", "disposition", "findingId", "sourceIdentity", "oldHeadSha", "fixHeadSha", "actorIdentity",
+        "rationale", "directReplyRef", "followUpEvidenceRef", "verificationRefs", "settledAt",
+      ], path);
+      const disposition = enumAt(
+        record.disposition,
+        ["fixed", "deferred", "rejected", "provider-closed"],
+        `${path}.disposition`,
+      );
+      const oldHeadSha = digestAt(record.oldHeadSha, `${path}.oldHeadSha`, 40);
+      const fixHeadSha = nullableAt(record.fixHeadSha, `${path}.fixHeadSha`, (value, itemPath) =>
+        digestAt(value, itemPath, 40));
+      const rationale = nullableAt(record.rationale, `${path}.rationale`, stringAt);
+      const directReplyRef = nullableAt(record.directReplyRef, `${path}.directReplyRef`, stringAt);
+      const followUpEvidenceRef = nullableAt(record.followUpEvidenceRef, `${path}.followUpEvidenceRef`, stringAt);
+      const verificationRefs = arrayAt(record.verificationRefs, `${path}.verificationRefs`, stringAt);
+      if (disposition === "fixed") {
+        if (fixHeadSha === null || fixHeadSha === oldHeadSha || directReplyRef === null
+          || followUpEvidenceRef === null || verificationRefs.length === 0 || rationale !== null) {
+          throw new Error(`${path}: invalid fixed disposition`);
+        }
+      } else if (disposition === "deferred" || disposition === "rejected") {
+        if (fixHeadSha !== null || rationale === null || rationale.length === 0 || rationale.length > 1024
+          || directReplyRef === null || followUpEvidenceRef !== null || verificationRefs.length > 0) {
+          throw new Error(`${path}: invalid non-fix disposition`);
+        }
+      } else if (fixHeadSha !== null || rationale !== null || directReplyRef !== null
+        || followUpEvidenceRef === null || verificationRefs.length > 0) {
+        throw new Error(`${path}: invalid provider closure`);
+      }
+      return {
+        kind,
+        disposition,
+        findingId: stringAt(record.findingId, `${path}.findingId`),
+        sourceIdentity: stringAt(record.sourceIdentity, `${path}.sourceIdentity`),
+        oldHeadSha,
+        fixHeadSha,
+        actorIdentity: stringAt(record.actorIdentity, `${path}.actorIdentity`),
+        rationale,
+        directReplyRef,
+        followUpEvidenceRef,
+        verificationRefs,
+        settledAt: timestampAt(record.settledAt, `${path}.settledAt`),
+      };
+    }
+    case "conversation-resolved":
+      exactKeys(record, [
+        "kind", "findingId", "sourceIdentity", "headSha", "threadId", "resolvedByActorIdentity",
+        "dispositionReceiptHash", "hostEvidenceRef", "resolvedAt",
+      ], path);
+      return {
+        kind,
+        findingId: stringAt(record.findingId, `${path}.findingId`),
+        sourceIdentity: stringAt(record.sourceIdentity, `${path}.sourceIdentity`),
+        headSha: digestAt(record.headSha, `${path}.headSha`, 40),
+        threadId: stringAt(record.threadId, `${path}.threadId`),
+        resolvedByActorIdentity: stringAt(record.resolvedByActorIdentity, `${path}.resolvedByActorIdentity`),
+        dispositionReceiptHash: digestAt(record.dispositionReceiptHash, `${path}.dispositionReceiptHash`),
+        hostEvidenceRef: stringAt(record.hostEvidenceRef, `${path}.hostEvidenceRef`),
+        resolvedAt: timestampAt(record.resolvedAt, `${path}.resolvedAt`),
+      };
     case "decision":
       exactKeys(record, ["kind", "decidedAt"], path);
       return { kind, decidedAt: nullableAt(record.decidedAt, `${path}.decidedAt`, timestampAt) };

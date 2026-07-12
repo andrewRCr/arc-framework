@@ -41,6 +41,14 @@ describe("normalized evidence", () => {
     expect(parseEvidence(JSON.parse(JSON.stringify(evidence)))).toEqual(evidence);
   });
 
+  it("round-trips an optional source-authenticated recurrence relation", () => {
+    const recurring = {
+      ...evidence,
+      findings: [{ ...evidence.findings[0], recursFindingId: "finding-0" }],
+    };
+    expect(parseEvidence(recurring).findings[0]?.recursFindingId).toBe("finding-0");
+  });
+
   it.each([
     ["coverage", { ...evidence, coverage: "partial" }],
     ["coverage bounds", { ...evidence, coverageThroughSha: "unsafe" }],

@@ -341,17 +341,9 @@ export function reduceNativeReview(input: NativeReviewReductionInput): NativeRev
     review.state === "changes-requested" && review.commitId === input.headSha)
     || input.reviewDecision === "changes-requested";
 
-  const nonClosing = new Set(input.nonClosingResolvers ?? []);
-  const closures = input.threads.flatMap((thread): FindingClosure[] => {
-    const resolver = thread.resolvedBy;
-    if (!thread.isResolved || resolver === null || nonClosing.has(resolver.identity)) return [];
-    return [{
-      findingId: thread.threadId,
-      authorityKind: "host-native",
-      authorityIdentity: resolver.identity,
-      evidenceUrlOrId: thread.threadId,
-    }];
-  });
+  // Native resolution is an observation only. Settlement authority is reduced
+  // from source-confirmed closure or a sequenced disposition receipt.
+  const closures: FindingClosure[] = [];
 
   return {
     nativeReview: {

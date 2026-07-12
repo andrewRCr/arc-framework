@@ -72,7 +72,8 @@ export interface ReviewReceipt {
   action:
     | "reserved" | "acknowledged" | "terminal-failure" | "required" | "dismissed" | "waived"
     | "attested" | "unadmitted" | "finding-opened" | "finding-settled" | "contaminated" | "superseded"
-    | "running" | "abandoned" | "begin-fix" | "head-update-consumed" | "trigger-deleted" | "source-superseded";
+    | "running" | "abandoned" | "begin-fix" | "head-update-consumed" | "trigger-deleted" | "source-superseded"
+    | "fixed" | "deferred" | "rejected" | "provider-closed" | "conversation-resolved";
   request: ReviewRequest;
   result: EvidenceResult | null;
   reason: string | null;
@@ -224,6 +225,7 @@ export function parseReviewReceipt(input: unknown, path = "receipt"): ReviewRece
       "reserved", "acknowledged", "terminal-failure", "required", "dismissed", "waived", "attested", "unadmitted",
       "finding-opened", "finding-settled", "contaminated", "superseded", "running", "abandoned", "begin-fix",
       "head-update-consumed", "trigger-deleted", "source-superseded",
+      "fixed", "deferred", "rejected", "provider-closed", "conversation-resolved",
     ],
     `${path}.action`,
   );
@@ -282,7 +284,11 @@ function validatePayloadCongruence(
                   ? "head-update-authorization"
                   : receipt.action === "head-update-consumed"
                     ? "head-update-consumption"
-                    : receipt.action === "trigger-deleted" ? "trigger-deleted" : "decision";
+                    : receipt.action === "trigger-deleted"
+                      ? "trigger-deleted"
+                      : ["fixed", "deferred", "rejected", "provider-closed"].includes(receipt.action)
+                        ? "finding-disposition"
+                        : receipt.action === "conversation-resolved" ? "conversation-resolved" : "decision";
   const payload = receipt.payload;
   if (payload.kind !== expected) throw new Error(`${path}.payload: action mismatch`);
   if (payload.kind === "acknowledgement") {
@@ -309,6 +315,24 @@ function validatePayloadCongruence(
       throw new Error(`${path}.payload: origin head mismatch`);
     }
     if (!receipt.findingIds.includes(payload.findingId)) throw new Error(`${path}.payload: finding identity mismatch`);
+  }
+  if (payload.kind === "finding-disposition") {
+    if (payload.disposition !== receipt.action
+      || payload.sourceIdentity !== receipt.request.sourceIdentity
+      || receipt.findingIds.length !== 1
+      || receipt.findingIds[0] !== payload.findingId
+      || receipt.reason !== payload.rationale
+      || receipt.evidenceUrlOrId !== (payload.directReplyRef ?? payload.followUpEvidenceRef)) {
+      throw new Error(`${path}.payload: finding disposition mismatch`);
+    }
+  }
+  if (payload.kind === "conversation-resolved") {
+    if (payload.sourceIdentity !== receipt.request.sourceIdentity
+      || receipt.findingIds.length !== 1
+      || receipt.findingIds[0] !== payload.findingId
+      || receipt.evidenceUrlOrId !== payload.hostEvidenceRef) {
+      throw new Error(`${path}.payload: conversation resolution mismatch`);
+    }
   }
   if (payload.kind === "flight-state" && payload.state !== receipt.action) {
     throw new Error(`${path}.payload: flight state mismatch`);

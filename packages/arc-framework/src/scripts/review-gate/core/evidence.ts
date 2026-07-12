@@ -20,7 +20,7 @@ export type CoverageKind = "full" | "incremental";
 /** Finding severity retained for policy reduction. */
 export type FindingSeverity = "critical" | "high" | "medium" | "low" | "info";
 /** Authority capable of closing a finding. */
-export type ClosureAuthorityKind = "source-confirmed" | "authorized-dismissal" | "host-native";
+export type ClosureAuthorityKind = "source-confirmed" | "authorized-dismissal";
 
 /** One stable source-scoped finding. */
 export interface ReviewFinding {
@@ -28,6 +28,7 @@ export interface ReviewFinding {
   severity: FindingSeverity;
   locus: string;
   evidenceUrlOrId: string;
+  recursFindingId?: string;
 }
 
 /** An authenticated closure for one known finding. */
@@ -81,12 +82,14 @@ function referenceAt(value: unknown, path: string): string {
 
 function parseFinding(input: unknown, path: string): ReviewFinding {
   const record = objectAt(input, path);
-  exactKeys(record, ["findingId", "severity", "locus", "evidenceUrlOrId"], path);
+  exactKeys(record, ["findingId", "severity", "locus", "evidenceUrlOrId", "recursFindingId"], path);
+  const recursFindingId = optionalAt(record.recursFindingId, `${path}.recursFindingId`, stringAt);
   return {
     findingId: stringAt(record.findingId, `${path}.findingId`),
     severity: enumAt(record.severity, ["critical", "high", "medium", "low", "info"], `${path}.severity`),
     locus: stringAt(record.locus, `${path}.locus`),
     evidenceUrlOrId: referenceAt(record.evidenceUrlOrId, `${path}.evidenceUrlOrId`),
+    ...(recursFindingId === undefined ? {} : { recursFindingId }),
   };
 }
 
@@ -97,7 +100,7 @@ function parseClosure(input: unknown, path: string): FindingClosure {
     findingId: stringAt(record.findingId, `${path}.findingId`),
     authorityKind: enumAt(
       record.authorityKind,
-      ["source-confirmed", "authorized-dismissal", "host-native"],
+      ["source-confirmed", "authorized-dismissal"],
       `${path}.authorityKind`,
     ),
     authorityIdentity: stringAt(record.authorityIdentity, `${path}.authorityIdentity`),

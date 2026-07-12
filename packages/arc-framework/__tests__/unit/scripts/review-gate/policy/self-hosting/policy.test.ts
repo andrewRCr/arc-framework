@@ -117,6 +117,15 @@ describe("self-hosting review policy document", () => {
     expect(parsed.providerIdentities).toMatchObject({ codexAppId: "1144995", codexBotUserId: "199175422" });
   });
 
+  it("pins one immutable fallback maintainer address", () => {
+    const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
+    expect(parsed.fallbackMaintainer).toEqual({ login: "andrewRCr", expectedActorId: "44483269" });
+    expect(() => parseSelfHostingPolicy({
+      ...SELF_HOSTING_POLICY,
+      fallbackMaintainer: { ...SELF_HOSTING_POLICY.fallbackMaintainer, expectedActorId: "andrew" },
+    })).toThrow(/fallbackMaintainer/u);
+  });
+
   it.each([
     ["missing", { coderabbitBotUserId: SELF_HOSTING_POLICY.providerIdentities.coderabbitBotUserId }],
     ["non-numeric", { ...SELF_HOSTING_POLICY.providerIdentities, appBotUserId: "arc-review-gate[bot]" }],

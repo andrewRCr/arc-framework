@@ -73,6 +73,7 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
   const terminalFindings = new Map<string, string[]>();
   const repairAuthorizations = new Map<string, ReviewReceipt>();
   const consumedAuthorizations = new Set<string>();
+  const dispositions = new Map<string, ReviewReceipt>();
   for (const envelope of ordered) {
     const receipt = envelope.receipt;
     const requestKey = computeRequestKey(receipt.request);
@@ -194,6 +195,33 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
           || receipt.evidenceUrlOrId !== receipt.payload.authenticatedEventRef
         ) errors.push(`contradictory-trigger-deletion:${envelope.ledgerVersion}`);
         break;
+      case "fixed":
+      case "deferred":
+      case "rejected":
+      case "provider-closed": {
+        const payload = receipt.payload;
+        if (
+          payload.kind !== "finding-disposition"
+          || payload.disposition !== receipt.action
+          || !knownFindings.has(findingKey(payload.sourceIdentity, payload.findingId))
+          || dispositions.has(receipt.receiptHash)
+        ) errors.push(`contradictory-${receipt.action}:${envelope.ledgerVersion}`);
+        dispositions.set(receipt.receiptHash, receipt);
+        break;
+      }
+      case "conversation-resolved": {
+        const payload = receipt.payload;
+        const prior = payload.kind === "conversation-resolved"
+          ? dispositions.get(payload.dispositionReceiptHash)
+          : undefined;
+        if (
+          payload.kind !== "conversation-resolved"
+          || prior === undefined
+          || prior.request.sourceIdentity !== payload.sourceIdentity
+          || prior.findingIds[0] !== payload.findingId
+        ) errors.push(`contradictory-conversation-resolution:${envelope.ledgerVersion}`);
+        break;
+      }
       case "dismissed":
         if (
           receipt.result !== null

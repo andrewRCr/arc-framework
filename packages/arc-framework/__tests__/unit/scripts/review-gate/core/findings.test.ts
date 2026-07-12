@@ -35,7 +35,6 @@ describe("finding history and closure", () => {
       evidence: [evidence(), evidence({ result: "clean", findings: [], evidenceUrlOrId: "evidence:2" })],
       currentChangeSetId: CHANGE,
       authorizedDismissers: [],
-      knownHostActors: [],
     });
     expect(result.openFindings).toHaveLength(1);
     expect(result.consistent).toBe(true);
@@ -51,7 +50,6 @@ describe("finding history and closure", () => {
       }] })],
       currentChangeSetId: CHANGE,
       authorizedDismissers: [],
-      knownHostActors: [],
     });
     expect(result.consistent).toBe(false);
   });
@@ -71,7 +69,6 @@ describe("finding history and closure", () => {
       evidence: [evidence(), sourceClosed],
       currentChangeSetId: CHANGE,
       authorizedDismissers: [],
-      knownHostActors: [],
     }).openFindings).toEqual([]);
 
     const dismissed = evidence({
@@ -88,7 +85,6 @@ describe("finding history and closure", () => {
       evidence: [evidence(), dismissed],
       currentChangeSetId: CHANGE,
       authorizedDismissers: ["maintainer-1"],
-      knownHostActors: [],
     }).openFindings).toEqual([]);
   });
 
@@ -109,7 +105,6 @@ describe("finding history and closure", () => {
       evidence: [evidence(), evidence({ result: "clean", findings: [], closures: [closure] })],
       currentChangeSetId: CHANGE,
       authorizedDismissers: [],
-      knownHostActors: [],
     });
     expect(result.consistent).toBe(false);
   });
@@ -119,7 +114,6 @@ describe("finding history and closure", () => {
       evidence: [evidence(), evidence({ result: "clean", findings: [], sourceIdentity: "agent-2" })],
       currentChangeSetId: CHANGE,
       authorizedDismissers: [],
-      knownHostActors: [],
     });
     expect(result.openFindings.map((finding) => finding.sourceIdentity)).toEqual(["agent-1"]);
   });

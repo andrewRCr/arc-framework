@@ -53,6 +53,7 @@ export interface SelfHostingPolicy {
   };
   lifecycleTailPredicate: { id: "lifecycle-bookkeeping-tail/v1" };
   authorMap: Record<string, string>;
+  fallbackMaintainer: { login: string; expectedActorId: string };
   requirementTemplates: ReviewRequirementTemplate[];
   rubricBindings: Array<{ requirementKind: string; rubricVersion: string }>;
   timeouts: { reservationMinutes: number; analysisMinutes: number };
@@ -96,6 +97,7 @@ export const SELF_HOSTING_POLICY: SelfHostingPolicy = {
   },
   lifecycleTailPredicate: { id: "lifecycle-bookkeeping-tail/v1" },
   authorMap: { andrewRCr: "andrew" },
+  fallbackMaintainer: { login: "andrewRCr", expectedActorId: "44483269" },
   requirementTemplates: [{
     id: "independent-analysis",
     kind: "independent-analysis",
@@ -312,6 +314,7 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
   const record = objectAt(input, path);
   exactKeys(record, [
     "schemaVersion", "semanticsVersion", "lanePredicate", "riskPredicate", "lifecycleTailPredicate", "authorMap",
+    "fallbackMaintainer",
     "requirementTemplates", "rubricBindings", "timeouts", "providerIdentities", "attestationEnforcement",
     "qualifications",
   ], path);
@@ -335,6 +338,18 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
     stringAt(author, `${path}.authorMap key`),
     stringAt(owner, `${path}.authorMap.${author}`),
   ]));
+  const fallbackMaintainerRecord = objectAt(record.fallbackMaintainer, `${path}.fallbackMaintainer`);
+  exactKeys(fallbackMaintainerRecord, ["login", "expectedActorId"], `${path}.fallbackMaintainer`);
+  const fallbackMaintainer = {
+    login: stringAt(fallbackMaintainerRecord.login, `${path}.fallbackMaintainer.login`),
+    expectedActorId: stringAt(
+      fallbackMaintainerRecord.expectedActorId,
+      `${path}.fallbackMaintainer.expectedActorId`,
+    ),
+  };
+  if (!/^[1-9][0-9]*$/u.test(fallbackMaintainer.expectedActorId)) {
+    throw new Error(`${path}.fallbackMaintainer: invalid actor identity`);
+  }
   const templatePolicy = parseReviewPolicy({
     schemaVersion: 1,
     semanticsVersion: stringAt(record.semanticsVersion, `${path}.semanticsVersion`),
@@ -429,6 +444,7 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
     },
     lifecycleTailPredicate: { id: lifecycleTailId },
     authorMap,
+    fallbackMaintainer,
     requirementTemplates: templatePolicy.requirements,
     rubricBindings: bindings,
     timeouts: {

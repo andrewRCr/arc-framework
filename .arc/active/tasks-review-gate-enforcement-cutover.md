@@ -432,32 +432,27 @@ reply, and authorized receipt evidence. Thread resolution alone never removes a 
 and resolutions run through the authorized developer's GitHub identity; the App independently re-queries and records
 them. Disposition authority is durable before resolution, while resolution is a subsequent observed transition.
 
-### `[ ]` **5.1 Add settlement actions, authorization contracts, and lifecycle-tail reduction**
+### `[x]` **5.1 Add settlement actions, authorization contracts, and lifecycle-tail reduction**
 
 - _Goal:_ Every known finding remains blocking until a source-confirmed or policy-authorized lifecycle transition
   proves its disposition at the original locus and exact head sequence.
 
-    - `[ ]` **5.1.a Define `begin-fix`, `fixed`, `deferred`, `rejected`, and provider-closure receipts**
-        - Extend the initial action contracts with finding id, source, old/fix head, actor, rationale, direct reply,
-          follow-up evidence, and verification references, updating the strict parser and golden fixtures in place
-          before activation.
-        - Keep `fixed`, `deferred`, and `rejected` receipts pre-resolution, as required by the settlement sequence.
-          Add a distinct `conversation-resolved` transition (or equivalent canonical reducer input) that can exist
-          only after authorized disposition and an exact host re-read of the resolved original thread.
+    - `[x]` **5.1.a Define `begin-fix`, `fixed`, `deferred`, `rejected`, and provider-closure receipts**
+        - Added strict disposition payloads binding finding/source, old/fix heads, actor, rationale, direct reply,
+          follow-up evidence, verification, and time. Added a separate `conversation-resolved` receipt keyed to the
+          prior disposition hash, with parser and ledger sequence validation.
 
-    - `[ ]` **5.1.b Resolve authorized finding actors from maintain permission and policy**
-        - Select the PR author only when maintain-capable; otherwise require the configured maintainer. Remove
-          `knownHostActors` as a closure-authority shortcut.
-        - Add one immutable fallback-maintainer actor address (login plus expected numeric actor id) to versioned
-          self-hosting policy. Do not reuse `authorMap`, which maps repository authors to ARC ownership rather than
-          settlement authority; revalidate live `maintain` permission before every coordinator-owned action.
+    - `[x]` **5.1.b Resolve authorized finding actors from maintain permission and policy**
+        - Added live maintain-capability selection for the PR author or the separately pinned fallback maintainer
+          (`andrewRCr` / `44483269`). Removed `knownHostActors` and native resolver membership from closure authority.
 
-    - `[ ]` **5.1.c Reduce finding lifecycle tails test-first**
-        - Cover exact sequence, actor, head, evidence, recurrence, reply, and resolution requirements; reject bare
-          resolution, generic approval, foreign findings, reordered steps, and overbroad actor membership.
-        - Remove `native-review.ts`'s generic `host-native` finding closures from authority reduction. Native thread
-          resolution remains an observation until it matches a source-confirmed closure or the authorized disposition
-          plus `conversation-resolved` sequence.
+    - `[x]` **5.1.c Reduce finding lifecycle tails test-first**
+        - Added recurrence-aware sequenced reduction across actor, head, CI, follow-up evidence, direct reply,
+          resolution, and provider authority. Bare/reordered resolution, foreign findings, wrong actors, incomplete
+          FIX proof, and native thread resolution remain blocking observations.
+
+- _Outcome:_ Finding closure authority is now explicit, sequence-bound, and source/policy scoped; no broad host actor
+  set or resolved-thread flag can remove a blocker.
 
 ### `[ ]` **5.2 Implement GitHub direct-reply and thread-resolution adapters with durable provenance**
 

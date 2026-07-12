@@ -49,7 +49,6 @@ function input(overrides: Partial<SelfHostingGateReductionInput> = {}): SelfHost
     ciState: "success" as const,
     nativeReview,
     authorizedDismissers: [],
-    knownHostActors: [],
     inconsistencies: [],
     ledgerVersion: 0,
     receiptRefs: [],

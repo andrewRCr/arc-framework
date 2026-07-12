@@ -222,6 +222,49 @@ describe("request and projection contracts", () => {
     }).receipt.evidence).toEqual(evidence);
   });
 
+  it("round-trips sequenced finding disposition and conversation-resolution receipts", () => {
+    const disposition = {
+      ...receipt,
+      action: "deferred",
+      reason: "Bounded rationale",
+      evidenceUrlOrId: "reply:1",
+      findingIds: ["finding-1"],
+      payload: {
+        kind: "finding-disposition",
+        disposition: "deferred",
+        findingId: "finding-1",
+        sourceIdentity: request.sourceIdentity,
+        oldHeadSha: request.coverageThroughSha,
+        fixHeadSha: null,
+        actorIdentity: "44",
+        rationale: "Bounded rationale",
+        directReplyRef: "reply:1",
+        followUpEvidenceRef: null,
+        verificationRefs: [],
+        settledAt: "2026-07-10T20:05:00.000Z",
+      },
+    };
+    expect(parseReceiptEnvelope({ ...envelope, receipt: disposition }).receipt.action).toBe("deferred");
+    const resolution = {
+      ...receipt,
+      action: "conversation-resolved",
+      evidenceUrlOrId: "thread:resolved",
+      findingIds: ["finding-1"],
+      payload: {
+        kind: "conversation-resolved",
+        findingId: "finding-1",
+        sourceIdentity: request.sourceIdentity,
+        headSha: request.coverageThroughSha,
+        threadId: "thread:1",
+        resolvedByActorIdentity: "44",
+        dispositionReceiptHash: "f".repeat(64),
+        hostEvidenceRef: "thread:resolved",
+        resolvedAt: "2026-07-10T20:06:00.000Z",
+      },
+    };
+    expect(parseReceiptEnvelope({ ...envelope, receipt: resolution }).receipt.action).toBe("conversation-resolved");
+  });
+
   it("requires evidence on attestation receipts and forbids it on lifecycle receipts", () => {
     const envelope = {
       schemaVersion: 1,
