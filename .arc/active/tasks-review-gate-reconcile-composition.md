@@ -362,18 +362,15 @@ same-concern bounded exceptions settled by spec Decisions 18-19, not an invitati
   actions; the runbook now snapshots, activates, explicitly invokes, rolls back, and suspends the two project hooks
   as one `{post_pr_open,pre_merge}` cutover state, with no compatibility alias or updater retirement path.
 
-### `[ ]` **5.5 Rename `SILENT FIX` review triage to `MINOR FIX`**
+### `[x]` **5.5 Rename `SILENT FIX` review triage to `MINOR FIX`**
 
 - _Goal:_ Every valid review finding has a neutral, explicit, documented disposition; low-impact nits remain concise
   without being framed as silent or overlapping material `FIX NOW` work.
 
-    - Update package and project `review-triage` defaults to
-      `FIX NOW | MINOR FIX | DEFER | REJECT`: materiality governs `FIX NOW`; valid low-impact safe-now work governs
-      `MINOR FIX`; all dispositions are documented, with concise roll-up allowed for multiple self-evident minors.
-    - Update `diff-review` and live reference surfaces/tests using the old enum. Preserve the Configurable override
-      section exactly; do not redesign the broader review-method family.
-    - Record a coordination capture for `review-method-family`, whose future charter currently assumes the old enum;
-      do not edit that sibling WU's tracked planning artifacts from this branch.
+- _Outcome:_ Package/project `review-triage` now uses documented `FIX NOW | MINOR FIX | DEFER | REJECT`, with
+  materiality separating the first two and concise grouped minor reporting preserving signal. `diff-review` and
+  product tests consume the new enum; a `review-method-family` USER-INBOX capture coordinates its future charter
+  without editing the sibling WU from this branch.
 
 ### `[ ]` **5.6 Docs true-up — `TECHNICAL-OVERVIEW.md` verified true; ADR-028 gap-and-completion amendment**
 

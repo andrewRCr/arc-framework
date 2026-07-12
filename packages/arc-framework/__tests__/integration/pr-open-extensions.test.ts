@@ -119,6 +119,19 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("keeps every review-triage disposition explicit while allowing concise minor roll-up", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/review-triage.md"), "utf8");
+      expect(method).toContain("**FIX NOW**");
+      expect(method).toContain("**MINOR FIX**");
+      expect(method).toContain("**DEFER**");
+      expect(method).toContain("**REJECT**");
+      expect(method).toContain("Every valid finding appears in the record");
+      expect(method).toContain("may share one concise `Minor fixes`");
+      expect(method).not.toContain("SILENT FIX");
+    }
+  });
+
   it("routes self-hosting actions through one controller workflow", async () => {
     const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
     expect(workflow).toContain("one caller-supplied `openedChangeRequest");

@@ -1,6 +1,6 @@
 ---
 name: review-triage
-description: Four-way classification of review findings — fix-now, defer, reject, silent-fix
+description: Four-way classification of review findings — fix-now, minor-fix, defer, reject
 override-active: false
 ---
 
@@ -9,9 +9,8 @@ override-active: false
 > - **Workflow:** [integrate-work-unit.md][integrate-work-unit]
 > - **When:** Agent processes findings from any code review (self-review, AI tool, human reviewer)
 >
-> - **Contract:** Every review finding gets an explicit disposition. No finding is silently ignored.
->   `FIX NOW`, `DEFER`, and `REJECT` are documented in the commit message that addresses them;
->   `SILENT FIX` may be omitted when the change is self-evident.
+> - **Contract:** Every review finding gets an explicit, documented disposition. No finding is silently ignored.
+>   Multiple self-evident `MINOR FIX` findings may be documented as one concise roll-up.
 
 ## review-triage.override
 
@@ -22,12 +21,18 @@ override-active: false
 Four-way classification for each finding. Evaluate validity (real issue or preference?), context (conflicts with
 documented deferrals? code scheduled for replacement?), and impact (functionality vs. code quality?).
 
-**FIX NOW** if:
+**FIX NOW** (material findings that must be addressed in the current change) if:
 
-- Legitimate bug affecting current functionality
-- Documentation inconsistency causing confusion
-- Simple fix (<10 lines, low risk)
-- Improves code being actively maintained
+- Bug, security issue, or failure-path gap affecting delivered behavior
+- Documentation inconsistency that would make the delivered contract materially untrue
+- Significant maintainability or coherence issue in the changed surface
+- Any valid finding whose impact makes deferral incompatible with the current change's completion bar
+
+**MINOR FIX** (valid, low-impact, safe-now findings) if:
+
+- Typo, formatting, or local naming correction
+- Small clarification or code-quality improvement with no material behavior change
+- Self-evident cleanup that is safe to include in the current review-fix increment
 
 **DEFER** (document reason) if:
 
@@ -42,17 +47,14 @@ documented deferrals? code scheduled for replacement?), and impact (functionalit
 - Out of scope for current work
 - Reviewer misunderstands the context
 
-**SILENT FIX** (minor findings — explicit per-finding documentation optional) if:
-
-- Typo corrections, formatting improvements
-- Minor code quality enhancements
-- Simple clarifications that don't need justification
-
 **Documenting dispositions:** Include in the commit message that addresses the findings:
 
 ```text
 Fixed:
 - [Finding 1 description]
+
+Minor fixes:
+- [Concise finding or grouped roll-up]
 
 Deferred:
 - [Finding X]: [Brief reason]
@@ -60,6 +62,9 @@ Deferred:
 Rejected:
 - [Finding Y]: [Brief reason]
 ```
+
+Every valid finding appears in the record. Several self-evident minor fixes may share one concise `Minor fixes`
+entry; grouping reduces noise without making the disposition implicit.
 
 ---
 
