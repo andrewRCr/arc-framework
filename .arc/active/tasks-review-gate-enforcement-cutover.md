@@ -378,22 +378,22 @@ controller state without reconstructing provider semantics or scraping prose.
 - _Outcome:_ The PR coordinator can now wait cheaply through its existing developer authentication while the reusable
   runtime remains transport-neutral and the repository launcher stays outside the published CLI graph.
 
-### `[ ]` **4.3 Expand canonical wake-up routing and scheduled repair coverage**
+### `[x]` **4.3 Expand canonical wake-up routing and scheduled repair coverage**
 
 - _Goal:_ Every relevant GitHub mutation wakes exact-PR reconciliation or leaves scheduled discovery able to repair
   it, without trusting event payload state or recursively reacting to controller-owned output.
 
-    - `[ ]` **4.3.a Extend wake-up normalization for the complete event set**
-        - Keep provider review and review-comment events on the secretless `Review Gate Wakeup` proxy and normalize
-          their downstream `workflow_run` event in `runtime/wakeup.ts`; the runtime never receives those original
-          payloads directly.
-        - Normalize direct pull-request/label, issue-comment create/edit/delete, status, check, CI/proxy workflow
-          completion, dispatch, and schedule events through their actual transport paths.
+    - `[x]` **4.3.a Extend wake-up normalization for the complete event set**
+        - Added explicit action allowlists for direct PR/label, issue-comment, check, and CI/proxy completion events;
+          status, dispatch, and schedule retain their canonical paths while review payloads remain on the secretless
+          proxy. Controller-owned created/completed checks are suppressed before candidate expansion.
 
-    - `[ ]` **4.3.b Update privileged and secretless workflow routing**
-        - Expand `.github/workflows/review-gate.yml` and `review-gate-wakeup.yml` with pinned actions, minimal explicit
-          permissions, safe proxy coverage, exact-PR dispatch where the initiating coordinator has canonical
-          coordinates, and recursion suppression.
+    - `[x]` **4.3.b Update privileged and secretless workflow routing**
+        - Expanded trusted PR-review-request and check-created coverage, retained the checkout-free/permissionless
+          review proxy, verified exact-PR default-branch dispatch, and kept scheduled discovery as the repair path.
+
+- _Outcome:_ Event-driven reconciliation now covers every supported canonical mutation path without admitting
+  unsupported actions or recursively reacting to controller projections; schedule remains repair-only.
         - Consume Phase 3's direct `issue_comment: deleted` tombstone route as an established input; do not define a
           second tombstone handoff, storage shape, or persistence path here.
 

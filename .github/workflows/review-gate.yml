@@ -2,7 +2,8 @@ name: Review Gate
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited, labeled, unlabeled]
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited, labeled, unlabeled,
+      review_requested, review_request_removed]
   status:
   workflow_run:
     workflows: [CI, Review Gate Wakeup]
@@ -10,7 +11,7 @@ on:
   issue_comment:
     types: [created, edited, deleted]
   check_run:
-    types: [completed, rerequested]
+    types: [created, completed, rerequested]
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:

@@ -74,6 +74,20 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).not.toMatch(/issue_comment:[\s\S]*Review Gate Wakeup/u);
   });
 
+  it("covers every canonical wake-up transport and retains scheduled repair", async () => {
+    const controller = await read("review-gate.yml");
+    const proxy = await read("review-gate-wakeup.yml");
+    expect(controller).toContain("review_requested, review_request_removed");
+    expect(controller).toContain("check_run:\n    types: [created, completed, rerequested]");
+    expect(controller).toContain("workflows: [CI, Review Gate Wakeup]");
+    expect(controller).toContain("issue_comment:\n    types: [created, edited, deleted]");
+    expect(controller).toContain("status:");
+    expect(controller).toContain("schedule:");
+    expect(controller).toContain("workflow_dispatch:");
+    expect(proxy).toContain("pull_request_review:");
+    expect(proxy).toContain("pull_request_review_comment:");
+  });
+
   it("publishes independent CI truth and a thin compatibility alias", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("  ci_ok:\n    name: ci-ok");

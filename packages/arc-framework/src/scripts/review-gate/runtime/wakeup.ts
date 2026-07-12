@@ -45,6 +45,12 @@ function pullNumbers(value: unknown): number[] {
   return [...new Set(value.map((item) => positiveInteger(record(item, "pull-request").number, "pull-request-number")))];
 }
 
+function requireAction(payload: Record<string, unknown>, allowed: string[]): void {
+  if (typeof payload.action !== "string" || !allowed.includes(payload.action)) {
+    throw new Error("unsupported-event-action");
+  }
+}
+
 /** Parse only stable routing hints. No payload field returned here is authoritative review state. */
 export function normalizeWakeup(eventName: string, payloadValue: unknown): WakeupHint {
   const payload = record(payloadValue, "event-payload");
@@ -53,6 +59,10 @@ export function normalizeWakeup(eventName: string, payloadValue: unknown): Wakeu
     return { kind: "schedule", repositoryId: repo, pullRequestNumbers: [], headSha: null, workflowName: null };
   }
   if (eventName === "pull_request_target") {
+    requireAction(payload, [
+      "opened", "reopened", "synchronize", "ready_for_review", "converted_to_draft", "edited", "labeled",
+      "unlabeled", "review_requested", "review_request_removed",
+    ]);
     const pull = record(payload.pull_request, "pull-request");
     return { kind: "pull-request", repositoryId: repo, pullRequestNumbers: [positiveInteger(pull.number, "pull-request-number")], headSha: sha(record(pull.head, "pull-request-head").sha), workflowName: null };
   }
@@ -60,16 +70,19 @@ export function normalizeWakeup(eventName: string, payloadValue: unknown): Wakeu
     return { kind: "status", repositoryId: repo, pullRequestNumbers: pullNumbers(payload.pull_requests), headSha: sha(payload.sha), workflowName: null };
   }
   if (eventName === "workflow_run") {
+    requireAction(payload, ["completed"]);
     const run = record(payload.workflow_run, "workflow-run");
     const name = run.name;
     if (typeof name !== "string" || !["CI", "Review Gate Wakeup"].includes(name)) throw new Error("unsupported-workflow-run");
     return { kind: "workflow-run", repositoryId: repo, pullRequestNumbers: pullNumbers(run.pull_requests), headSha: sha(run.head_sha), workflowName: name };
   }
   if (eventName === "check_run") {
+    requireAction(payload, ["created", "completed", "rerequested"]);
     const check = record(payload.check_run, "check-run");
     return { kind: "check-run", repositoryId: repo, pullRequestNumbers: pullNumbers(check.pull_requests), headSha: sha(record(check.check_suite, "check-suite").head_sha), workflowName: null };
   }
   if (eventName === "issue_comment") {
+    requireAction(payload, ["created", "edited", "deleted"]);
     const issue = record(payload.issue, "issue");
     if (!("pull_request" in issue)) throw new Error("issue-comment-not-pull-request");
     return { kind: "issue-comment", repositoryId: repo, pullRequestNumbers: [positiveInteger(issue.number, "pull-request-number")], headSha: null, workflowName: null };
@@ -85,9 +98,9 @@ export function normalizeWakeup(eventName: string, payloadValue: unknown): Wakeu
 const CONTROLLER_CHECK_NAMES = new Set(["review-gate-shadow", "merge-ok"]);
 
 /**
- * Whether a `check_run` wake-up is the controller's own completed projection,
+ * Whether a `check_run` wake-up is the controller's own created/completed projection,
  * which must be suppressed before candidate expansion so publishing a verdict
- * cannot recursively wake another reconciliation. Only a `completed` event
+ * cannot recursively wake another reconciliation. Only a `created` or `completed` event
  * authored by the expected App for a controller-owned context suppresses;
  * `rerequested`, other-App, other-name, and malformed events stay eligible and
  * continue through the normal fail-closed/current-state path.
@@ -95,7 +108,7 @@ const CONTROLLER_CHECK_NAMES = new Set(["review-gate-shadow", "merge-ok"]);
 export function isControllerSelfCheckEvent(payloadValue: unknown, expectedAppId: number): boolean {
   try {
     const payload = record(payloadValue, "event-payload");
-    if (payload.action !== "completed") return false;
+    if (payload.action !== "created" && payload.action !== "completed") return false;
     const check = record(payload.check_run, "check-run");
     const app = record(check.app, "check-app");
     return app.id === expectedAppId && typeof check.name === "string" && CONTROLLER_CHECK_NAMES.has(check.name);
