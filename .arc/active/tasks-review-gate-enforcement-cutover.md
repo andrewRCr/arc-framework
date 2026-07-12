@@ -475,26 +475,30 @@ them. Disposition authority is durable before resolution, while resolution is a 
 - _Outcome:_ Settlement writes now have a single developer-authorized attempt and an independent canonical read
   proof, so network ambiguity cannot cause replay or manufacture durable provenance.
 
-### `[ ]` **5.3 Complete the coordinator-owned FIX sequence across old and new heads**
+### `[x]` **5.3 Complete the coordinator-owned FIX sequence across old and new heads**
 
 - _Goal:_ A FIX finding closes only after one authorized push, exact new-head CI, qualifying full-head follow-up
   review, non-recurrence, direct reply, durable `fixed` receipt, and thread resolution.
 
-    - `[ ]` **5.3.a Carry terminal findings through `begin-fix` and one consumed push authorization**
+    - `[x]` **5.3.a Carry terminal findings through `begin-fix` and one consumed push authorization**
+        - The FIX runtime requires one matching `begin-fix` receipt and its single consumed old→new-head
+          authorization before any reply or settlement write.
 
-    - `[ ]` **5.3.b Bind new-head CI and follow-up review evidence to the original finding**
-        - Allow other new findings while rejecting a source-confirmed recurrence of the issue being closed.
-        - Add an optional source-authenticated recurrence relation (for example `recursFindingId`) to normalized
-          finding evidence. Only a qualified source's explicit relation blocks closure as recurrence; coordinator
-          text similarity or shared locus does not manufacture that authority.
+    - `[x]` **5.3.b Bind new-head CI and follow-up review evidence to the original finding**
+        - Bound FIX to successful exact new-head CI and same-source full-head follow-up evidence. Added optional
+          source-authenticated `recursFindingId`; other findings remain legal, while an explicit recurrence blocks.
 
-    - `[ ]` **5.3.c Record accurate direct-reply language and `fixed` authority before resolution**
-        - State that the coordinator addressed and verified the fix; never claim individual provider verification
-          without corresponding evidence.
-        - Append and canonically confirm the `fixed` receipt naming the durable direct reply before resolving the
-          thread; then observe/record `conversation-resolved` and reconcile the aggregate blocker set.
+    - `[x]` **5.3.c Record accurate direct-reply language and `fixed` authority before resolution**
+        - The reply states that the coordinator addressed and verified the fix and cites follow-up evidence without
+          impersonating provider claims. The runtime confirms `fixed` before resolving, then confirms the canonical
+          thread state and appends `conversation-resolved`.
 
-    - `[ ]` **5.3.d Exercise the full FIX path through runtime composition and GitHub fakes**
+    - `[x]` **5.3.d Exercise the full FIX path through runtime composition and GitHub fakes**
+        - Covered ordered receipt appends, accurate reply text, other-finding tolerance, explicit recurrence,
+          incomplete head authorization, CI/evidence binding, and canonical reply/thread adapters.
+
+- _Outcome:_ FIX now forms one auditable old-head-to-new-head chain; no push, green check, provider response, reply,
+  or thread mutation can independently close the original finding.
 
 ### `[ ]` **5.4 Complete DEFER, REJECT, and provider-owned closure paths**
 
