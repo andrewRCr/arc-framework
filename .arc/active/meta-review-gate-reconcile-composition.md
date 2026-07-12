@@ -16,9 +16,7 @@
 - **Next Task:** Task 4.1 — Persist authenticated normalized evidence in attestation receipts (line ~288)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 4 (attest-path composition), Task 4.1 — extend the receipt/envelope schema with an
-  optional normalized `Evidence` payload (attestation action only) plus parse-time congruence validation, and add a
-  reducer that feeds store-authenticated evidence into coverage/findings/requirement-state/projection
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

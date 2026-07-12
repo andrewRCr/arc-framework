@@ -232,6 +232,52 @@ function artifactFromMeta(content: string, slug: string): LifecycleTailArtifactI
   }
 }
 
+function stableMetaArchiveText(content: string): string {
+  const mutable = /^(?:- \*\*(?:State|Branch|Current Workflow|Next Task|Blockers|Next Action|PR URL|Completed):\*\*)/u;
+  return content.split("\n").filter((line) => !mutable.test(line)).map((line) => {
+    if (!line.startsWith("|") || (!line.includes("Integrating") && !line.includes("Shipped"))) return line;
+    const cells = line.split("|");
+    if (cells.length >= 6) {
+      cells[1] = " <archive-state> ";
+      cells[3] = " <archive-branch> ";
+    }
+    return cells.join("|");
+  }).join("\n");
+}
+
+function validArchivedMeta(source: string, destination: string, slug: string): boolean {
+  try {
+    const sourceRecord = parseMetaRecord(source);
+    const destinationRecord = parseMetaRecord(destination);
+    if (
+      sourceRecord.State !== "Integrating"
+      || destinationRecord.State !== "Shipped"
+      || destinationRecord["Task List"] !== `tasks-${slug}.md`
+      || destinationRecord.Cohort !== sourceRecord.Cohort
+      || (destinationRecord.Branch !== null && destinationRecord.Branch !== "[none]")
+      || (destinationRecord["Current Workflow"] !== null && destinationRecord["Current Workflow"] !== "[none]")
+      || (destinationRecord["Next Task"] !== null && destinationRecord["Next Task"] !== "[none]")
+      || (destinationRecord.Blockers !== null && destinationRecord.Blockers !== "[none]")
+      || (destinationRecord["Next Action"] !== null && destinationRecord["Next Action"] !== "[none]")
+      || (destinationRecord.Completed !== null
+        && destinationRecord.Completed !== "[none]"
+        && !/^\d{4}-\d{2}-\d{2}$/u.test(destinationRecord.Completed))
+    ) return false;
+    return stableMetaArchiveText(source) === stableMetaArchiveText(destination);
+  } catch {
+    return false;
+  }
+}
+
+function validCohortCloseout(source: string, destination: string, slug: string): boolean {
+  if (source === destination) return true;
+  const marker = source.lastIndexOf("\n---");
+  if (marker < 0 || destination.slice(0, marker) !== source.slice(0, marker)) return false;
+  const closeout = destination.slice(marker);
+  return /^\n---\n\n## Closeout\n\n- \*\*Closed:\*\* \d{4}-\d{2}-\d{2}\n- \*\*Final member:\*\* `[^`]+`\n- \*\*Member archives:\*\* .+\n- \*\*Outcome:\*\* .+\n- \*\*Follow-up:\*\* .+\n\n---\n?$/u.test(closeout)
+    && closeout.includes(`\n- **Final member:** \`${slug}\``);
+}
+
 function consume(remaining: Map<string, PathChange>, status: PathChange["status"], path: string): boolean {
   const change = remaining.get(path);
   if (change?.status !== status) return false;
@@ -324,12 +370,20 @@ async function classifyTail(
   if (sourceContent === null) return invalid(input, ["tail-unavailable"]);
   const artifact = artifactFromMeta(sourceContent, slug);
   if (artifact === null) return invalid(input, ["invalid-artifact-group"]);
+  const destinationContent = await showText(exec, input.currentHeadSha, destinationMeta);
+  if (destinationContent === null) return invalid(input, ["tail-unavailable"], artifact);
+  if (!validArchivedMeta(sourceContent, destinationContent, slug)) {
+    return invalid(input, ["unrecognized-tail-change"], artifact);
+  }
 
   const sourceTasks = sourceArtifactPath(slug, "tasks");
   const destinationTasks = destinationArtifactPath(destination, slug, "tasks");
   if (!consume(remaining, "D", sourceTasks) || !consume(remaining, "A", destinationTasks)) {
     return invalid(input, ["invalid-artifact-group"], artifact);
   }
+  const tasksEquality = await sameBlob(exec, input.reviewedThroughSha, sourceTasks, input.currentHeadSha, destinationTasks);
+  if (tasksEquality === "unavailable") return invalid(input, ["tail-unavailable"], artifact);
+  if (tasksEquality !== "same") return invalid(input, ["unrecognized-tail-change"], artifact);
 
   const sourceNotes = sourceArtifactPath(slug, "notes");
   const destinationNotes = destinationArtifactPath(destination, slug, "notes");
@@ -351,6 +405,15 @@ async function classifyTail(
   }
   for (const pair of cohortPairs(artifact, destination)) {
     if (!optionalPair(remaining, pair.source, pair.destination)) {
+      return invalid(input, ["unrecognized-tail-change"], artifact);
+    }
+    if (!changes.some((change) => change.path === pair.source)) continue;
+    const [sourceCohort, destinationCohort] = await Promise.all([
+      showText(exec, input.reviewedThroughSha, pair.source),
+      showText(exec, input.currentHeadSha, pair.destination),
+    ]);
+    if (sourceCohort === null || destinationCohort === null) return invalid(input, ["tail-unavailable"], artifact);
+    if (!validCohortCloseout(sourceCohort, destinationCohort, slug)) {
       return invalid(input, ["unrecognized-tail-change"], artifact);
     }
   }

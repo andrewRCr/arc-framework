@@ -42,7 +42,9 @@ export function resolveCodeRabbitDecisiveReview(input: {
     && eligibleHeads.has(review.commitId)
     && review.submittedAt !== null);
   if (decisive.length === 0) return { kind: "pending", reason: "no-applicable-decisive-review" };
-  const ordered = [...decisive].sort((left, right) =>
+  const currentHead = decisive.filter((review) => review.commitId === input.currentHeadSha);
+  const applicable = currentHead.length > 0 ? currentHead : decisive;
+  const ordered = [...applicable].sort((left, right) =>
     (right.submittedAt ?? "").localeCompare(left.submittedAt ?? "") || right.reviewId.localeCompare(left.reviewId));
   const latest = ordered[0];
   const next = ordered[1];

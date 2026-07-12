@@ -196,7 +196,13 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     const inconsistencies = ledgerValid ? [] : [...ledger.diagnostics];
 
     const receiptEvidence = extractAuthenticatedReceiptEvidence(ledgerEnvelopes);
-    const lifecycleTail = await this.resolveLifecycleTail(changeRequest, decision, policyVersion, receiptEvidence);
+    const lifecycleTail = await this.resolveLifecycleTail(
+      changeRequest,
+      decision,
+      policyVersion,
+      receiptEvidence,
+      nativeObservation.providerReviews,
+    );
     const evidence = [
       ...this.resolveEvidence(changeRequest, decision, nativeObservation.providerReviews, lifecycleTail),
       ...receiptEvidence,
@@ -256,25 +262,35 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     }
 
     const commandReceipts: ReviewReceipt[] = [];
+    const receiptsToAppend: ReviewReceipt[] = [];
     let refreshRequest: ReviewRequest | null = null;
+    let requestReservation: ReviewReceipt | null = null;
     for (const event of snapshot.commandEvents) {
       const requirement = snapshot.decision.requirements.find((entry) => entry.id === event.command.requirementId);
       if (requirement === undefined) continue;
       if (event.command.kind === "refresh") {
-        if (refreshRequest !== null) continue;
         const plan = planCommandRefresh({
           event,
           changeRequest: snapshot.changeRequest,
           requirement,
           expectedLedgerVersion: state.ledgerVersion ?? 0,
-          priorReceipts: snapshot.ledgerReceipts,
+          priorReceipts: [...snapshot.ledgerReceipts, ...commandReceipts],
           qualifiedSourceIdentities: qualifiedDurableSources(this.deps.policy, requirement)
             .map((declaration) => declaration.sourceIdentity),
-          reviewedChainHead: null,
+          reviewedChainHead: snapshot.evidence
+            .filter((item) => item.requirementId === requirement.id
+              && item.result === "clean"
+              && item.policyVersion === requirement.policyVersion
+              && item.rubricVersion === requirement.rubricVersion)
+            .sort((left, right) => right.observedAt.localeCompare(left.observedAt))[0]?.coverageThroughSha ?? null,
         });
         if (plan.ok) {
           refreshRequest = plan.request;
           commandReceipts.push(plan.reservation);
+          if (!plan.replay) {
+            requestReservation = plan.reservation;
+          }
+          break;
         }
         continue;
       }
@@ -283,9 +299,15 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
         changeRequest: snapshot.changeRequest,
         requirement,
         expectedLedgerVersion: state.ledgerVersion ?? 0,
-        priorReceipts: snapshot.ledgerReceipts,
+        priorReceipts: [...snapshot.ledgerReceipts, ...commandReceipts],
       });
-      if (receipt.ok) commandReceipts.push(receipt.receipt);
+      if (receipt.ok) {
+        commandReceipts.push(receipt.receipt);
+        if (!receipt.replay) {
+          receiptsToAppend.push(receipt.receipt);
+        }
+        break;
+      }
     }
 
     const authorizedDismissers = [
@@ -318,17 +340,35 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       actorIdentity: this.deps.policy.providerIdentities.appBotUserId,
     });
 
-    return { request: refreshRequest ?? reduction.request, projection: reduction.projection };
+    return {
+      request: refreshRequest ?? reduction.request,
+      receiptsToAppend,
+      requestReservation,
+      projection: reduction.projection,
+    };
   }
 
-  async execute(request: ReviewRequest, expectedLedgerVersion: number): Promise<RequestExecutionResult> {
+  async appendReceipts(receipts: ReviewReceipt[], expectedLedgerVersion: number): Promise<number> {
+    let version = expectedLedgerVersion;
+    for (const receipt of receipts) {
+      const appended = await this.deps.store.appendReceipt(receipt, version);
+      version = appended.ledgerVersion;
+    }
+    return version;
+  }
+
+  async execute(
+    request: ReviewRequest,
+    expectedLedgerVersion: number,
+    plannedReservation: ReviewReceipt | null = null,
+  ): Promise<RequestExecutionResult> {
     const { store, provider } = this.deps;
     const changeRequestId = request.changeRequestId;
     return executeReservedRequest({
       request,
       expectedLedgerVersion,
       appendReservation: async (reservedRequest, version) => {
-        const receipt = createReceipt({
+        const receipt = plannedReservation ?? createReceipt({
           eventId: `request:${computeRequestKey(reservedRequest)}:reserved`,
           previousLedgerVersion: version,
           action: "reserved",
@@ -337,6 +377,12 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           evidenceUrlOrId: null,
           findingIds: [],
         });
+        if (
+          computeRequestKey(receipt.request) !== computeRequestKey(reservedRequest)
+          || receipt.previousLedgerVersion !== version
+        ) {
+          throw new Error("reconcile-runtime: planned reservation does not match the request or ledger");
+        }
         await store.appendReceipt(receipt, version);
         const ledger = await store.readLedger(changeRequestId);
         const envelope = ledger.kind === "valid"
@@ -380,6 +426,41 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     });
   }
 
+  /** Revalidate a human command receipt against the latest cached event and live actor capability. */
+  async authorizesCommandReceipt(receipt: ReviewReceipt): Promise<boolean> {
+    const snapshot = this.snapshot;
+    if (snapshot === null) return false;
+    const refreshLifecycle = receipt.action === "acknowledged" || receipt.action === "terminal-failure";
+    const event = snapshot.commandEvents.find((candidate) => candidate.actorIdentity === receipt.request.actorIdentity
+      && candidate.command.requirementId === receipt.request.requirementId
+      && (refreshLifecycle || (candidate.durableRef === receipt.evidenceUrlOrId
+        && candidate.command.reason === receipt.reason))
+      && (candidate.eventId === receipt.eventId || (candidate.command.kind === "refresh" && refreshLifecycle)));
+    if (event === undefined) return false;
+    const actionMatches = event.command.kind === "require"
+      ? receipt.action === "required" && receipt.request.sourceIdentity === "review-gate-command"
+      : event.command.kind === "waive"
+        ? receipt.action === "waived" && receipt.request.sourceIdentity === "review-gate-command"
+        : event.command.kind === "dismiss"
+          ? receipt.action === "dismissed"
+            && receipt.request.sourceIdentity === event.command.sourceIdentity
+            && receipt.findingIds.length === 1
+            && receipt.findingIds[0] === event.command.findingId
+          : ["reserved", "acknowledged", "terminal-failure"].includes(receipt.action)
+            && (event.command.sourceIdentity === "auto"
+              || receipt.request.sourceIdentity === event.command.sourceIdentity);
+    if (!actionMatches) return false;
+    try {
+      const capabilities = await this.deps.host.resolveActorCapabilities({
+        login: event.actorLogin,
+        expectedActorId: event.actorIdentity,
+      });
+      return capabilities.actorIdentity === event.actorIdentity && capabilities.permissions.includes(event.permission);
+    } catch {
+      return false;
+    }
+  }
+
   async publish(projection: GateProjection): Promise<void> {
     const snapshot = this.snapshot;
     if (snapshot === null) throw new Error("reconcile-runtime: publish called before read");
@@ -415,10 +496,30 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     decision: SelfHostingDecision,
     policyVersion: string,
     receiptEvidence: Evidence[],
+    providerReviews: Parameters<typeof resolveCodeRabbitDecisiveReview>[0]["reviews"],
   ): Promise<LifecycleTailProof | null> {
     const requirement = decision.requirements[0];
     if (requirement === undefined) return null;
-    const reviewed = receiptEvidence
+    const codeRabbitQualified = qualifiedDurableSources(this.deps.policy, requirement)
+      .some((declaration) => declaration.sourceIdentity === "coderabbit-pr");
+    const reviewAuthorities = codeRabbitQualified
+      ? providerReviews
+          .filter((review) => review.actorIdentity === this.deps.policy.providerIdentities.coderabbitBotUserId
+            && review.state === "approved"
+            && review.commitId !== changeRequest.headSha
+            && review.submittedAt !== null)
+          .map((review) => ({
+            requirementId: requirement.id,
+            policyVersion,
+            rubricVersion: requirement.rubricVersion,
+            baseRef: changeRequest.baseRef,
+            diffBaseSha: changeRequest.diffBaseSha,
+            coverageThroughSha: review.commitId,
+            sourceIdentity: "coderabbit-pr",
+            observedAt: review.submittedAt ?? "",
+          }))
+      : [];
+    const reviewed = [...receiptEvidence, ...reviewAuthorities]
       .filter((item) => item.requirementId === requirement.id
         && item.policyVersion === policyVersion
         && item.rubricVersion === requirement.rubricVersion

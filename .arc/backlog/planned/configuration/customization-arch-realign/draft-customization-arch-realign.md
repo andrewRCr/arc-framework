@@ -143,7 +143,7 @@ Methods have **one customization axis** (`override-active`). No `active` axis fo
 ### Extensions (8, with one self-hosting exception)
 
 All extensions ship empty (`[No extension configured]` placeholder) with `active: false` default —
-except `pre-merge-review.md` which carries CodeRabbit invocation logic in this self-hosting repo.
+except `pre-merge.md` which carries CodeRabbit invocation logic in this self-hosting repo.
 Extensions have **one customization axis** (`active`). No defaults to override.
 
 ### Config keys by functional category

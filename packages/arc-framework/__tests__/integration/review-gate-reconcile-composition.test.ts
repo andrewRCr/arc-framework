@@ -150,6 +150,28 @@ describe("review-gate reconcile composition (e2e)", () => {
     expect(substantive.counters.commentCreate).toBe(2);
   });
 
+  it("carries a qualified CodeRabbit approval over a verified bookkeeping tail", async () => {
+    const world = createWorld();
+    const reviewedHead = world.headSha;
+    advanceLifecycleTail(world);
+    world.reviews.push(coderabbitReview(world, "APPROVED", reviewedHead));
+
+    const result = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
+
+    expect(result).toEqual({ status: "published", effectInvoked: false });
+    expect(shadowChecks(world)[0]).toMatchObject({ status: "completed", conclusion: "success" });
+  });
+
+  it("keeps a stale CodeRabbit changes-requested review pending", async () => {
+    const world = createWorld();
+    world.reviews.push(coderabbitReview(world, "CHANGES_REQUESTED", "d".repeat(40)));
+
+    const result = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
+
+    expect(result).toEqual({ status: "published", effectInvoked: true });
+    expect(shadowChecks(world)[0]).toMatchObject({ status: "in_progress", conclusion: null });
+  });
+
   it("emits a pending shadow check under an attestation-only requirement with no provider effect", async () => {
     const world = createWorld();
 
@@ -189,17 +211,15 @@ describe("review-gate reconcile composition (e2e)", () => {
     expect(world.counters.commentCreate).toBe(1);
   });
 
-  it("reserves a generation-zero request through the receipt protocol; the dormant trigger fails closed", async () => {
+  it("executes a qualified generation-zero request through the receipt protocol", async () => {
     const world = createWorld();
 
     const result = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
 
-    // The request is admitted and invoked, but the shadow-capability trigger is not yet qualified (burn-in),
-    // so invocation fails closed with a terminal-failure receipt and the gate projects failure rather than a
-    // false green — exactly the dormant-provider boundary the enabled policy exercises.
     expect(result).toEqual({ status: "published", effectInvoked: true });
-    expect(shadowChecks(world)[0]).toMatchObject({ name: "review-gate-shadow", status: "completed", conclusion: "failure" });
-    // Anchor plus reserved and terminal-failure receipts landed durably — the reserve path is wired end-to-end.
+    expect(shadowChecks(world)[0]).toMatchObject({ name: "review-gate-shadow", status: "in_progress", conclusion: null });
+    expect(world.labels).toEqual([]);
+    // Anchor plus reserved and acknowledged receipts landed durably.
     expect(world.counters.commentCreate).toBeGreaterThanOrEqual(3);
   });
 
@@ -212,6 +232,32 @@ describe("review-gate reconcile composition (e2e)", () => {
 
     expect(result.status).toBe("published");
     expect(shadowChecks(world)[0]).toMatchObject({ name: "review-gate-shadow", status: "in_progress", conclusion: null });
+    expect(receiptComments(world)).toHaveLength(1);
+
+    world.comments = world.comments.filter((comment) => comment.performed_via_github_app !== null);
+    await runReconcileMain(env(world), deps(world));
+
+    expect(shadowChecks(world)[0]).toMatchObject({ name: "review-gate-shadow", status: "in_progress", conclusion: null });
+    expect(receiptComments(world)).toHaveLength(1);
+  });
+
+  it("persists a human refresh reservation and invokes the qualified provider", async () => {
+    const world = createWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
+    world.collaborators.set("reviewer", { id: 55, role: "write" });
+    commandComment(
+      world,
+      "reviewer",
+      "/review-gate refresh independent-analysis coderabbit-pr full request another review",
+    );
+
+    const result = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
+
+    expect(result).toEqual({ status: "published", effectInvoked: true });
+    expect(world.labels).toEqual([]);
+    expect(receiptComments(world).map((comment) => comment.body)).toEqual([
+      expect.stringContaining('"action":"reserved"'),
+      expect.stringContaining('"action":"acknowledged"'),
+    ]);
   });
 
   it("ignores a require command from an under-permissioned author, leaving the routine success intact", async () => {
@@ -238,5 +284,18 @@ describe("review-gate reconcile composition (e2e)", () => {
     expect(shadowChecks(world)[0]).toMatchObject({ status: "completed", conclusion: "failure" });
     expect(world.counters.checkCreate).toBe(1);
     expect(world.counters.checkPatch).toBeGreaterThanOrEqual(1);
+  });
+
+  it("fails closed when all receipt state disappears after a controller check exists", async () => {
+    const world = createWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
+
+    await runReconcileMain(env(world), deps(world));
+    expect(shadowChecks(world)[0]).toMatchObject({ conclusion: "success" });
+
+    world.comments = [];
+    await runReconcileMain(env(world), deps(world));
+
+    expect(shadowChecks(world)[0]).toMatchObject({ status: "completed", conclusion: "failure" });
+    expect(world.comments).toEqual([]);
   });
 });

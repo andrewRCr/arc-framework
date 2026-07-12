@@ -141,6 +141,25 @@ describe("CodeRabbit decisive review reduction", () => {
     })).toBeNull();
   });
 
+  it("always prefers a decisive current-head review over a newer tail-start review", () => {
+    const decisive = resolveCodeRabbitDecisiveReview({
+      reviews: [
+        review({ state: "changes-requested", submittedAt: "2026-07-11T20:00:00.000Z" }),
+        review({
+          reviewId: "PRR_tail",
+          commitId: OLD_HEAD,
+          state: "approved",
+          submittedAt: "2026-07-11T21:00:00.000Z",
+        }),
+      ],
+      expectedBotUserId: SELF_HOSTING_POLICY.providerIdentities.coderabbitBotUserId,
+      currentHeadSha: HEAD,
+      lifecycleTail: lifecycleTail(),
+    });
+
+    expect(decisive).toMatchObject({ kind: "changes-requested", reviewedThroughSha: HEAD });
+  });
+
   it.each([
     ["wrong bot", [review({ actorIdentity: "999" })]],
     ["prior head", [review({ commitId: "d".repeat(40) })]],

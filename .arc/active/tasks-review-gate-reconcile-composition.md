@@ -394,68 +394,72 @@ same-concern bounded exceptions settled by spec Decisions 18-19, not an invitati
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source/test typecheck; 4,824 tests; and build all passed.
+- _Success criteria:_ 19 criteria met after two independent adversarial verification passes; confirmed findings
+  were corrected and regression-pinned before the final full-suite run.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` E2E composition tests drive both exported entry mains against fakes — shadow reconcile creates/updates a
+- `[x]` E2E composition tests drive both exported entry mains against fakes — shadow reconcile creates/updates a
   `review-gate-shadow` check with truthful verdict content; authenticated attest dispatch persists normalized
   evidence that a later reconcile consumes to satisfy the requirement — and each fails if either entry or the
   durable handoff regresses
 
-- `[ ]` Entry shells contain no logic beyond input parsing and invocation
+- `[x]` Entry shells contain no logic beyond input parsing and invocation
 
-- `[ ]` Controller-owned completed checks are suppressed before discovery and candidate-less wake-ups complete
+- `[x]` Controller-owned completed checks are suppressed before discovery and candidate-less wake-ups complete
   quietly, regression-pinned in the workflows integration test
 
-- `[ ]` The policy-pinned CodeRabbit bot's latest decisive applicable review maps `APPROVED` to clean and
+- `[x]` The policy-pinned CodeRabbit bot's latest decisive applicable review maps `APPROVED` to clean and
   `CHANGES_REQUESTED` to native failure with no invalid empty-findings evidence; a current-head decision outranks a
   tail-start approval, while check-success alone and absent/stale/ambiguous review state remain pending
 
-- `[ ]` A policy-qualified CodeRabbit request executes exactly once through label/full-review triggering and the
+- `[x]` A policy-qualified CodeRabbit request executes exactly once through label/full-review triggering and the
   receipt protocol; disabled policy is effect-free and stale/replayed/ambiguous delivery cannot duplicate a review
 
-- `[ ]` Reconcile and attest both receive the narrow git read token; installation launch validation uses the pinned
+- `[x]` Reconcile and attest both receive the narrow git read token; installation launch validation uses the pinned
   action's App slug + policy bot id without App-JWT-only endpoints, and controller receipts use the App bot actor
 
-- `[ ]` Current-scope GitHub commands compose end to end: require/refresh admit correctly, waive affects only its
+- `[x]` Current-scope GitHub commands compose end to end: require/refresh admit correctly, waive affects only its
   requirement, dismiss closes only its named finding, and exact replay/stale/unauthorized input is effect-free
 
-- `[ ]` Invalid or unavailable receipt state replaces any prior green check with a current failure projection and
+- `[x]` Invalid or unavailable receipt state replaces any prior green check with a current failure projection and
   forbids writes until repaired
 
-- `[ ]` Actor capability lookup carries login + immutable id, and reconcile/attest factories consume one shared
+- `[x]` Actor capability lookup carries login + immutable id, and reconcile/attest factories consume one shared
   validated graph without irrelevant inputs or divergent authorization
 
-- `[ ]` Clean CodeRabbit or attested evidence at a substantive head carries across only a verified
+- `[x]` Clean CodeRabbit or attested evidence at a substantive head carries across only a verified
   `lifecycle-bookkeeping-tail/v1` delta with no additional provider request; the exact WU operational/cohort/ROADMAP
   class is non-review-relevant, while every code/control/unrelated/design, mixed, spoofed, or ambiguous tail
   invalidates carry-forward
 
-- `[ ]` Lifecycle-tail core contracts are storage-neutral and introduce no storage-mode/per-artifact axis; tracked
+- `[x]` Lifecycle-tail core contracts are storage-neutral and introduce no storage-mode/per-artifact axis; tracked
   `.arc/` classification is isolated to the current Git adapter and future materialized state is a no-tail case
 
-- `[ ]` The final extension is `pre-merge` across package/project workflows, references, manifests, and tests;
+- `[x]` The final extension is `pre-merge` across package/project workflows, references, manifests, and tests;
   the cutover runbook activates and recovers `post-pr-open` + `pre-merge`, with no live product alias
 
-- `[ ]` `review-triage` and `diff-review` expose `FIX NOW | MINOR FIX | DEFER | REJECT`, document every disposition,
+- `[x]` `review-triage` and `diff-review` expose `FIX NOW | MINOR FIX | DEFER | REJECT`, document every disposition,
   and keep the project override sections intact
 
-- `[ ]` `TECHNICAL-OVERVIEW.md` distinguishes composed code from live-proven enforcement; ADR-028 records the
+- `[x]` `TECHNICAL-OVERVIEW.md` distinguishes composed code from live-proven enforcement; ADR-028 records the
   delivery gap, completion locus, and dependent cutover owner
 
-- `[ ]` Postmortem outputs delivered: recorded findings, scaffolded process-improvements stub with rich context,
+- `[x]` Postmortem outputs delivered: recorded findings, scaffolded process-improvements stub with rich context,
   and every critical-small guard either landed in this PR or explicitly routed to the stub
 
-- `[ ]` `review-gate-enforcement-cutover` is an owned Heavy WU depending on this WU, with runbook resume state,
+- `[x]` `review-gate-enforcement-cutover` is an owned Heavy WU depending on this WU, with runbook resume state,
   CodeRabbit request-changes probes/failure semantics, mode transitions, checkpoints, closeout, and unpause chartered
 
-- `[ ]` The cutover charter audits repository rulesets/branch protection so no duplicate CodeRabbit completion or
+- `[x]` The cutover charter audits repository rulesets/branch protection so no duplicate CodeRabbit completion or
   native current-head approval requirement defeats lifecycle-tail carry-forward; any human approval rule is explicit
   and separate
 
-- `[ ]` All quality gates pass, including packaging assertions keeping the controller outside the published CLI
+- `[x]` All quality gates pass, including packaging assertions keeping the controller outside the published CLI
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration

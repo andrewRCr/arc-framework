@@ -52,6 +52,7 @@ import {
   CODERABBIT_SHADOW_CAPABILITIES,
   CodeRabbitProviderAdapter,
   type CodeRabbitApi,
+  type CodeRabbitCapabilities,
 } from "../providers/coderabbit/adapter.js";
 import { GitHubCodeRabbitObservationApi } from "../providers/coderabbit/github-observation.js";
 import { GitHubCodeRabbitTriggerApi } from "../providers/coderabbit/github-trigger.js";
@@ -184,6 +185,27 @@ function composeCodeRabbitApi(
   };
 }
 
+function codeRabbitCapabilities(policy: SelfHostingPolicy): CodeRabbitCapabilities {
+  const declaration = policy.qualifications.find((candidate) => candidate.sourceIdentity === "coderabbit-pr"
+    && candidate.transport === "durable-record");
+  if (declaration === undefined || !declaration.enabled) return CODERABBIT_SHADOW_CAPABILITIES;
+  const qualified = declaration.exactCoverage
+    && declaration.durableResults
+    && declaration.distinctOutcomes
+    && declaration.durableFindings
+    && declaration.closureCapability;
+  return {
+    resolvedConfiguration: qualified,
+    exclusiveLabelTrigger: qualified,
+    labelOneShot: true,
+    fullReviewCommand: true,
+    exactCoverage: declaration.exactCoverage,
+    durableFindings: declaration.durableFindings,
+    durableCleanResults: declaration.durableResults && declaration.distinctOutcomes,
+    sourceConfirmedClosures: declaration.closureCapability,
+  };
+}
+
 /** Build the authenticated clients, host adapter, and launch-authority verdict. */
 export async function createSharedInfrastructure(
   config: SharedInfrastructureConfig,
@@ -231,16 +253,22 @@ export async function createReconcileRuntime(
   const appBotUserId = config.policy.providerIdentities.appBotUserId;
   const authority: ReceiptCommentAuthority = { expectedAppId: config.expectedAppId, expectedBotId: appBotUserId };
   const policyVersion = computePolicyVersion({ policy: config.policy });
+  let commandReceiptAuthorizer: ((receipt: ReviewReceipt) => Promise<boolean>) | null = null;
   const controllerRevalidate = async (receipt: ReviewReceipt): Promise<ReceiptWriteState> => {
     const current = await resolveChange();
     const currentChange = current.kind === "resolved" ? current.changeRequest : null;
+    const controllerAuthorized = shared.launchAuthority.kind === "verified"
+      && receipt.request.actorIdentity === appBotUserId;
+    const commandAuthorized = !controllerAuthorized
+      && commandReceiptAuthorizer !== null
+      && await commandReceiptAuthorizer(receipt);
     return {
       repositoryId: String(config.repositoryId),
       changeRequestId: currentChange?.changeRequestId ?? "",
       changeSetId: currentChange?.changeSetId ?? "",
       policyVersion,
       actorIdentity: receipt.request.actorIdentity,
-      authorized: shared.launchAuthority.kind === "verified" && receipt.request.actorIdentity === appBotUserId,
+      authorized: controllerAuthorized || commandAuthorized,
     };
   };
   const store = new GitHubCommentReceiptStore({
@@ -249,7 +277,13 @@ export async function createReconcileRuntime(
     repositoryId: String(config.repositoryId),
     changeRequestId,
     revalidate: controllerRevalidate,
-    stateExpected: () => Promise.resolve(false),
+    stateExpected: seams.stateExpected ?? (async () => {
+      const current = await resolveChange();
+      if (current.kind !== "resolved") throw new Error(`change request unavailable — ${current.kind}`);
+      const checks = await Promise.all(["review-gate-shadow", "merge-ok"].map((name) =>
+        shared.checks.list(current.changeRequest.headSha, config.expectedAppId, name)));
+      return checks.some((items) => items.length > 0);
+    }),
   });
 
   const locatorDeps = {
@@ -273,7 +307,7 @@ export async function createReconcileRuntime(
   });
   const provider = new CodeRabbitProviderAdapter({
     api: composeCodeRabbitApi(observation, trigger),
-    capabilities: CODERABBIT_SHADOW_CAPABILITIES,
+    capabilities: codeRabbitCapabilities(config.policy),
     expectedBotUserId: config.policy.providerIdentities.coderabbitBotUserId,
   });
 
@@ -309,8 +343,10 @@ export async function createReconcileRuntime(
     listCommandComments: () => commandReader.list(),
   };
 
+  const runtime = new SelfHostingReconcileRuntime(deps);
+  commandReceiptAuthorizer = (receipt) => runtime.authorizesCommandReceipt(receipt);
   return {
-    runtime: new SelfHostingReconcileRuntime(deps),
+    runtime,
     host: shared.host,
     store,
     provider,

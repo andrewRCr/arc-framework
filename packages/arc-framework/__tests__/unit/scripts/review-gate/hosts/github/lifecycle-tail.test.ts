@@ -28,6 +28,18 @@ function meta(cohort = "[none]"): string {
   ].join("\n");
 }
 
+function archivedMeta(cohort = "[none]"): string {
+  return meta(cohort).replace("`Integrating`", "`Shipped`");
+}
+
+function cohort(): string {
+  return "# Cohort: delivery\n\nCoordination.\n\n---\n";
+}
+
+function closedCohort(): string {
+  return "# Cohort: delivery\n\nCoordination.\n\n---\n\n## Closeout\n\n- **Closed:** 2026-07-11\n- **Final member:** `review-gate`\n- **Member archives:** `01_review-gate`\n- **Outcome:** Delivered.\n- **Follow-up:** [none]\n\n---\n";
+}
+
 function resolution(): LifecycleTailProofResolutionInput {
   const scope = {
     baseRef: "main",
@@ -81,8 +93,15 @@ function ordinaryAdapter(
   return new GitLifecycleTailProofAdapter({
     exec: git({
       changes: ordinaryArchive(extra),
-      text: { [`${REVIEWED}:${ACTIVE}/meta-${SLUG}.md`]: meta() },
-      blobs,
+      text: {
+        [`${REVIEWED}:${ACTIVE}/meta-${SLUG}.md`]: meta(),
+        [`${CURRENT}:${ARCHIVE}/meta-${SLUG}.md`]: archivedMeta(),
+      },
+      blobs: {
+        [`${REVIEWED}:${ACTIVE}/tasks-${SLUG}.md`]: "1".repeat(40),
+        [`${CURRENT}:${ARCHIVE}/tasks-${SLUG}.md`]: "1".repeat(40),
+        ...blobs,
+      },
     }),
   });
 }
@@ -108,8 +127,13 @@ describe("Git lifecycle bookkeeping-tail predicate", () => {
           { status: "A", path: destinationSpec },
           { status: "M", path: ".arc/backlog/ROADMAP.md" },
         ],
-        text: { [`${REVIEWED}:${sourceMeta}`]: meta() },
+        text: {
+          [`${REVIEWED}:${sourceMeta}`]: meta(),
+          [`${CURRENT}:${destinationMeta}`]: archivedMeta(),
+        },
         blobs: {
+          [`${REVIEWED}:${sourceTasks}`]: "1".repeat(40),
+          [`${CURRENT}:${destinationTasks}`]: "1".repeat(40),
           [`${REVIEWED}:${sourceSpec}`]: "e".repeat(40),
           [`${CURRENT}:${destinationSpec}`]: "e".repeat(40),
         },
@@ -154,8 +178,17 @@ describe("Git lifecycle bookkeeping-tail predicate", () => {
           { status: "A", path: parentDestination },
           { status: "M", path: ".arc/backlog/ROADMAP.md" },
         ],
-        text: { [`${REVIEWED}:${sourceMeta}`]: meta("`delivery/closeout`") },
+        text: {
+          [`${REVIEWED}:${sourceMeta}`]: meta("`delivery/closeout`"),
+          [`${CURRENT}:${destinationMeta}`]: archivedMeta("`delivery/closeout`"),
+          [`${REVIEWED}:${leafSource}`]: cohort(),
+          [`${CURRENT}:${leafDestination}`]: closedCohort(),
+          [`${REVIEWED}:${parentSource}`]: cohort(),
+          [`${CURRENT}:${parentDestination}`]: closedCohort(),
+        },
         blobs: {
+          [`${REVIEWED}:${sourceTasks}`]: "1".repeat(40),
+          [`${CURRENT}:${destinationTasks}`]: "1".repeat(40),
           [`${REVIEWED}:${sourceDraft}`]: "e".repeat(40),
           [`${CURRENT}:${destinationDraft}`]: "e".repeat(40),
         },
@@ -232,6 +265,16 @@ describe("Git lifecycle bookkeeping-tail predicate", () => {
     ], {
       [`${REVIEWED}:${source}`]: "e".repeat(40),
       [`${CURRENT}:${destination}`]: "f".repeat(40),
+    });
+
+    await expect(adapter.resolveLifecycleTail(resolution()))
+      .resolves.toMatchObject({ diagnostics: ["unrecognized-tail-change"] });
+  });
+
+  it("rejects task-list content changes hidden inside the privileged archive pair", async () => {
+    const adapter = ordinaryAdapter([], {
+      [`${REVIEWED}:${ACTIVE}/tasks-${SLUG}.md`]: "e".repeat(40),
+      [`${CURRENT}:${ARCHIVE}/tasks-${SLUG}.md`]: "f".repeat(40),
     });
 
     await expect(adapter.resolveLifecycleTail(resolution()))

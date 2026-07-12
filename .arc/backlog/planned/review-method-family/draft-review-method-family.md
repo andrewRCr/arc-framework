@@ -61,7 +61,7 @@
 
 - _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: review-method-family`), housekeep drain (2026-06-10);
   captured during `decomposition-machinery` Task 4.1 while authoring the `decompose-work-unit` park PR step.
-- _Concern:_ the code-review extension family (`pre-pr-review` / `pre-merge-review`, and the broader ceremony)
+- _Concern:_ the code-review extension family (`pre-pr-review` / `pre-merge`, and the broader ceremony)
   fires on push / PR fire-points regardless of whether the change carries a code diff. Some ARC lifecycle
   ceremonies produce doc- or planning-artifact-only PRs; the new `decompose-work-unit.md` park PR is the live
   instance because it carries the `#pre-push-review` marker, mirroring `integrate` / `init`.
@@ -93,7 +93,7 @@ integration (PR #23):
 **Step 8 inlines too-thin guidance and assumes PR review always happens.** `integrate-work-unit.md` Step 8
 (Address PR Review Findings) inlines generic guidance pointing at `review-triage` for classification —
 accurate for the bare-classification case but missing the richer end-to-end response cycle some projects
-want (this project's [`workflows/project/address-pr-review.md`][address-pr-review] — fetch threads via gh
+want (this project's `address-pr-review.md` — fetch threads via gh
 api → triage → fix-now commits → reply-and-resolve for defer/reject → completion-doc check → push →
 final-state verification). The workflow also assumes every PR receives review feedback the agent should
 act on — not always true (solo dev, low-stakes change, or human-handled review where the agent should
@@ -135,18 +135,18 @@ feedback) / `review-triage` (classify). Each name unambiguous in isolation.
 
 Extension fire-point naming and the broader fire-point family are locked by Work Organization Reform
 (WOR) — see `prd-work-organization-reform.md` R55–R57. This plan retains scope over **method** naming
-and content (the WHAT side); the WHEN side is WOR territory. As a result, the prior `pre-merge-review`
-extension is renamed by WOR to `pre-pr-review` (its actual fire-point is pre-PR-creation push, not
-pre-merge), and a new `pre-merge-review` extension exists at the genuine pre-merge fire-point.
+and content (the WHAT side); the WHEN side is WOR territory. WOR renamed the original review-named extension to
+`pre-pr-review` because its actual fire-point is pre-PR-creation push. The final
+hook is now `pre-merge`, named for its genuine lifecycle event rather than an installed review action.
 
 Three-extension family at `integrate-work-unit.md` post-WOR:
 
-- `pre-pr-review` (WOR; renamed from `pre-merge-review`) — fires before PR creation push. Invokes
+- `pre-pr-review` (WOR; renamed from the original review-named hook) — fires before PR creation push. Invokes
   `self-review` instead of `diff-review` per this plan's method-rename.
 - `review-response` (this plan; new) — fires at `integrate-work-unit` Step 8. **Default: not
   configured.** Projects that get PR review configure it; projects that don't (or handle review
   manually) leave it unconfigured and Step 8 no-ops.
-- `pre-merge-review` (WOR new; name freed by the rename above) — fires after `review-response`
+- `pre-merge` — fires after `review-response`
   processes received feedback, before the actual merge action. **Default: not configured.**
   Reserved for final-state-check use cases (all threads resolved, CI green, last review pass).
 
@@ -228,9 +228,8 @@ a plan doc and PRD.
 
 - `system/methods/`: rename `diff-review.md` → `self-review.md` (content carries forward); new
   `peer-review.md`; new `review-response.md`. Both copies (package source + project instance).
-- `system/extensions/`: new `review-response.md` extension shell. WOR has already shipped renames
-  and additions for the surrounding family — `pre-pr-review.md` (renamed from `pre-merge-review.md`)
-  and a new `pre-merge-review.md` at the post-review-response fire-point — so this plan only adds
+- `system/extensions/`: new `review-response.md` extension shell. The surrounding family already provides
+  `pre-pr-review.md` and `pre-merge.md` at the post-review-response fire-point, so this plan only adds
   the middle of the three-extension family at integrate-work-unit.
 - `system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`: Step 6 invocation reference
   (`diff-review` → `self-review`); Step 8 collapses inline content into extension fire point
@@ -262,5 +261,4 @@ surface family." Graduated from `ATOMIC-INBOX.md` to plan-doc on 2026-04-30.
 
 ---
 
-[address-pr-review]: ../../../system/workflows/project/address-pr-review.md
 [adr-016]: ../../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md

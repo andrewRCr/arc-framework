@@ -98,6 +98,7 @@ export interface E2EWorld {
   /** When set, the issue-comment list read fails, degrading the ledger. */
   commentsUnavailable: boolean;
   comments: CommentWire[];
+  labels: string[];
   checks: CheckWire[];
   counters: { commentCreate: number; commentPatch: number; checkCreate: number; checkPatch: number };
   nextCommentId: number;
@@ -131,6 +132,7 @@ export function createWorld(overrides: Partial<E2EWorld> = {}): E2EWorld {
     ci: { conclusion: "success" },
     commentsUnavailable: false,
     comments: [],
+    labels: [],
     checks: [],
     counters: { commentCreate: 0, commentPatch: 0, checkCreate: 0, checkPatch: 0 },
     nextCommentId: 1000,
@@ -393,6 +395,17 @@ export function routingFetch(world: E2EWorld): HttpFetch {
       if (method === "POST") return Promise.resolve(jsonResponse(201, createComment(world, commentBody(init))));
     }
 
+    if (/\/issues\/\d+\/labels$/u.test(path) && method === "POST") {
+      const labels = (JSON.parse(init.body ?? "{}") as { labels?: string[] }).labels ?? [];
+      world.labels = [...new Set([...world.labels, ...labels])];
+      return Promise.resolve(jsonResponse(200, world.labels.map((name) => ({ name }))));
+    }
+    const labelDelete = /\/issues\/\d+\/labels\/([^/]+)$/u.exec(path);
+    if (labelDelete?.[1] !== undefined && method === "DELETE") {
+      world.labels = world.labels.filter((name) => name !== labelDelete[1]);
+      return Promise.resolve(jsonResponse(200, world.labels.map((name) => ({ name }))));
+    }
+
     const checkPatch = /\/check-runs\/(\d+)$/u.exec(path);
     if (checkPatch?.[1] !== undefined) {
       const id = Number(checkPatch[1]);
@@ -451,6 +464,8 @@ export function routingExec(world: E2EWorld): GitExec {
         const ref = rest.find((arg) => arg.includes("^{commit}")) ?? "";
         if (ref.includes("/head^")) return Promise.resolve({ stdout: `${world.headSha}\n` });
         if (ref.includes("/base^")) return Promise.resolve({ stdout: `${world.baseSha}\n` });
+        const object = rest.at(-1) ?? "";
+        if (object.includes("tasks-review-gate.md")) return Promise.resolve({ stdout: `${"1".repeat(40)}\n` });
         return Promise.reject(new Error(`unexpected rev-parse: ${rest.join(" ")}`));
       }
       case "merge-base":
@@ -472,6 +487,21 @@ export function routingExec(world: E2EWorld): GitExec {
               "# Metadata: review-gate",
               "",
               "- **State:** Integrating",
+              "- **Task List:** tasks-review-gate.md",
+              "- **Cohort:** [none]",
+              "",
+            ].join("\n"),
+          });
+        }
+        if (
+          world.lifecycleTailReviewedHead !== null
+          && object === `${world.headSha}:.arc/completed/2026-q3/01_review-gate/meta-review-gate.md`
+        ) {
+          return Promise.resolve({
+            stdout: [
+              "# Metadata: review-gate",
+              "",
+              "- **State:** Shipped",
               "- **Task List:** tasks-review-gate.md",
               "- **Cohort:** [none]",
               "",

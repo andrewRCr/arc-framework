@@ -259,7 +259,8 @@ export function reduceNativeReview(input: NativeReviewReductionInput): NativeRev
       && review.actor.identity !== input.authorIdentity)
     .map((review): NativePeerApproval => ({ actorIdentity: review.actor.identity, headSha: input.headSha }));
 
-  const requestedChanges = effective.some((review) => review.state === "changes-requested")
+  const requestedChanges = effective.some((review) =>
+    review.state === "changes-requested" && review.commitId === input.headSha)
     || input.reviewDecision === "changes-requested";
 
   const nonClosing = new Set(input.nonClosingResolvers ?? []);
