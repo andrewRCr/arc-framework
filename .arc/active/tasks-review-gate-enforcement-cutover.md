@@ -118,7 +118,8 @@ request generation.
 
     - `[ ]` **2.2.a Model `needs-user-trigger` and terminal/attention actions in the neutral reducer**
         - Include request key, provider, full head, generation, exact command, and immutable required actor id.
-        - Resolve hosted Codex's required actor from the admitted PR author through the host capability boundary.
+        - Define the host-neutral actor-resolution boundary and exercise it with actor-required request fixtures;
+          Phase 3 binds hosted Codex admission to the resolved PR author's immutable actor identity.
 
     - `[ ]` **2.2.b Implement dependency-injectable next-action and perform-action mains**
         - Add runtime mains that re-read the exact PR/head, validate the current typed action and `gh` actor, post
@@ -166,8 +167,8 @@ request generation.
           transition without consuming authorization before the new head is canonically observed.
 
     - `[ ]` **2.4.b Insert the guard at canonical integration and errand push fire sites**
-        - Update package-source and `.arc/` copies of `integrate-work-unit.md` and `run-errand.md`, preserving
-          project overrides and invoking the guard only when `openedChangeRequest` exists.
+        - Update package-source and `.arc/` copies of `integrate-work-unit.md` and `supplemental/run-errand.md`,
+          preserving project overrides and invoking the guard only when `openedChangeRequest` exists.
         - Guard the review-fix push in project-owned `coordinate-pr-review.md`; initial pre-PR pushes remain outside
           the query because no opened change request or review flight exists yet.
 
@@ -184,7 +185,9 @@ _Design decisions:_ Provider identity, grammar, request transport, and settlemen
 versioned. Native status and approval remain observations rather than aggregate authority. Trigger-deletion
 tombstones follow the managed-record principle that deletion is an explicit non-projected event, but remain
 domain-specific immutable review-ledger receipts: PR-scoped, actor/head/digest-bound, and retained with the ledger
-rather than sharing user-record projection, sync, TTL, or garbage-collection machinery.
+rather than sharing user-record projection, sync, TTL, or garbage-collection machinery. Every receipt variant added
+below extends the still-inactive initial schema v1, its strict parser, and literal golden fixtures; no second receipt
+schema, mixed-ledger mode, or upgrade transition is introduced before activation.
 
 ### `[ ]` **3.1 Build the PR-wide exclusive-trigger window and mutation tombstone model**
 
@@ -202,8 +205,9 @@ rather than sharing user-record projection, sync, TTL, or garbage-collection mac
           than current-head artifacts only.
 
     - `[ ]` **3.1.c Capture bounded deletion tombstones before canonical comments disappear**
-        - Add a closed v2 `trigger-deleted` receipt payload containing comment id, actor, prior body digest, event
-          time, observed PR head, provider/trigger classification, and authenticated event reference.
+        - Add an initial-schema `trigger-deleted` receipt payload containing comment id, actor, prior body digest,
+          event time, observed PR head, provider/trigger classification, and authenticated event reference; extend
+          the strict parser and golden fixtures without adding a schema-version path.
         - Route `issue_comment: deleted` directly through `.github/workflows/review-gate.yml`'s default-branch
           discovery/writer lane so the payload survives long enough to append the receipt before canonical re-query;
           do not rely on the payload-losing `workflow_run` relay for this event.
@@ -280,9 +284,9 @@ rather than sharing user-record projection, sync, TTL, or garbage-collection mac
     - `[ ]` **3.4.a Extend admission and requirement reduction with source supersession**
         - Use self-hosting order `coderabbit-pr`, then `codex-pr`; skip disabled/non-qualified sources and persist
           supersession before admitting an alternate.
-        - Add a v2 `source-superseded` receipt naming the prior source/generation, terminal or pre-effect proof,
-          alternate source, actor, reason, and ledger predecessor. Canonically re-read that receipt before emitting
-          the alternate reservation.
+        - Add an initial-schema `source-superseded` receipt naming the prior source/generation, terminal or pre-effect
+          proof, alternate source, actor, reason, and ledger predecessor. Canonically re-read that receipt before
+          emitting the alternate reservation.
 
     - `[ ]` **3.4.b Distinguish legal fallback from blocking ambiguity test-first**
         - Cover explicit exhaustion, proven pre-effect rejection, terminal provider failure, unknown capacity's one
@@ -416,8 +420,9 @@ them. Disposition authority is durable before resolution, while resolution is a 
   proves its disposition at the original locus and exact head sequence.
 
     - `[ ]` **5.1.a Define `begin-fix`, `fixed`, `deferred`, `rejected`, and provider-closure receipts**
-        - Extend v2 action contracts with finding id, source, old/fix head, actor, rationale, direct reply, follow-up
-          evidence, and verification references.
+        - Extend the initial action contracts with finding id, source, old/fix head, actor, rationale, direct reply,
+          follow-up evidence, and verification references, updating the strict parser and golden fixtures in place
+          before activation.
         - Keep `fixed`, `deferred`, and `rejected` receipts pre-resolution, as required by the settlement sequence.
           Add a distinct `conversation-resolved` transition (or equivalent canonical reducer input) that can exist
           only after authorized disposition and an exact host re-read of the resolved original thread.
@@ -716,8 +721,8 @@ acceptance proof before enforcement mutation.
   generations or recursive controller wake-ups.
 - `[ ]` Active flights freeze pushes, and every finding disposition satisfies its exact-head authorization and
   original-conversation lifecycle contract.
-- `[ ]` V1 ledgers remain byte-stable and audit-readable, with only the terminally-proven append-only v2 transition
-  accepted.
+- `[ ]` Initial-schema ledgers remain byte-stable and audit-readable through one strict parser and identity algorithm;
+  no mixed-version or upgrade path is accepted.
 - `[ ]` Qualification-only token probes treat both formats as opaque, remove every temporary override, and emit no
   credential-bearing result.
 - `[ ]` App validation pins identity, least privilege, selected-repository scope, denied capabilities, and secret
