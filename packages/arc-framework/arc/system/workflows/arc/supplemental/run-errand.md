@@ -161,7 +161,9 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
 
 4. **Enter the open PR.** On both newly-created and reused-open paths, compose
    `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open` is active, execute its idempotent
-   numbered actions before review coordination. Derive current controller/PR state from `hostRef`.
+   numbered actions before review coordination. Derive current controller/PR state from `hostRef`. Review
+   coordination and both hooks share this exact-head contract. After any head-changing action, recompose
+   `openedChangeRequest` from the canonical current head before re-entry.
 
 5. **Settle the final head.** For reviewed and auto lanes, run review coordination and fire `pre-merge` before
    merge authorization. If any fix/request action changes the head, repeat base freshness, current-head coordination,

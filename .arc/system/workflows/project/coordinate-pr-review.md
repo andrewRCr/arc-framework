@@ -14,16 +14,23 @@ current change-set projection before acting. Provider-specific requests and obse
 commands and adapter summaries; controller-normalized findings and provider-native conversations have distinct
 closure authority.
 
-## 1. Enter From Canonical State
+## 1. Run the Typed Action Loop
 
-Read the current decision for `hostRef` and follow exactly one arm:
+Resolve `openedChangeRequest` through the host adapter into the exact repository id, PR number, change-request id,
+and current full head required by the repository launchers. Keep that scope unchanged for one loop iteration:
 
-- **Required:** Observe a generation-zero automatic admission only when the controller reports it eligible. For a
-  checkpoint-only or later required head, recommend an explicit refresh; do not spend without authorization.
-- **Recommended:** Surface the reason, expected coverage, and capacity provenance; ask before raising the work.
-- **Exempt:** Return successfully without provider work. An authorized operator may still use explicit `require`.
+1. Run `review-gate:next-action` and parse its JSON contract. Never infer an action from summary prose.
+2. On `needs-user-trigger`, surface the provider, generation, command, and required actor. After authorization, run
+   `review-gate:perform-action -- <request-key> <generation>`; it revalidates actor and canonical state before the
+   trigger and dispatches exact-PR/head reconciliation afterward.
+3. On `waiting`, or after a performed action, run `review-gate:await -- review --head <full-head>`. An exempt lane
+   uses `ci` instead. The watcher emits typed transition JSON and one terminal/attention result without model work.
+4. On `terminal: success`, continue to § 4. On `attention` or an await failure/attention result, enter § 2. On
+   `stale-head`, recompose the full `openedChangeRequest` and restart. On timeout, re-read `next-action` before
+   deciding whether to wait again. Authentication, host, or malformed-projection results stop for operator repair.
 
-The same decision may be entered from `post-pr-open` and final `pre-merge`; unchanged state is a no-op.
+This is the `next-action` → `perform-action` → `await` → canonical re-entry loop. It is idempotent from both
+`post-pr-open` and final `pre-merge`; no arm bypasses the controller.
 
 ## 2. Coordinate Findings
 
@@ -44,15 +51,10 @@ outgoing local head as `<outgoing-head-sha>`, then run
 `npm run review-gate:assert-head-mutable -- <outgoing-head-sha> [<begin-fix-receipt-hash>]`. Stop on refusal; only then
 run any active pre-push review action and push.
 
-After a head update, re-read canonical state. Recommend full coverage when the whole diff or source changed;
-recommend incremental coverage only from the controller-reported reviewed chain head. On approval, submit the
-structured controller command rather than a provider command:
-
-```text
-/review-gate refresh <requirement> <source|auto> <full|incremental> <reason>
-```
-
-Wait for the external review completion signal without polling, then re-enter from canonical controller state.
+After a head update, recompose the exact scope and return to § 1. The controller decides whether full or incremental
+coverage is admissible and exposes any actor-owned trigger through `next-action`; never synthesize a command from
+provider state or prose. Run the resulting typed action/wait loop, then re-enter from canonical state. A changed head
+invalidates the loop scope before any action or settlement decision.
 
 ## 3. Close Findings With Authority
 

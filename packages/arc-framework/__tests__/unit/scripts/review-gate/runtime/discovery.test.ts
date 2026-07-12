@@ -58,6 +58,26 @@ describe("review-gate discovery matrix output", () => {
     expect(output).toBe(JSON.stringify({ include: [{ repositoryId: 42, pullRequestNumber: 7 }] }));
   });
 
+  it("routes proxy completion exactly when coordinates exist and repairs by bounded scan when absent", async () => {
+    const exact = await resolveMatrixOutput("workflow_run", {
+      action: "completed",
+      repository: { id: 42 },
+      workflow_run: { name: "Review Gate Wakeup", head_sha: sha, pull_requests: [{ number: 7 }, { number: 7 }] },
+    }, 91, EMPTY_PORT);
+    expect(exact).toBe(JSON.stringify({ include: [{ repositoryId: 42, pullRequestNumber: 7 }] }));
+
+    const listOpenPullRequests = vi.fn(async function* () { yield [9, 3]; });
+    const repaired = await resolveMatrixOutput("workflow_run", {
+      action: "completed",
+      repository: { id: 42 },
+      workflow_run: { name: "Review Gate Wakeup", head_sha: sha, pull_requests: [] },
+    }, 91, { ...EMPTY_PORT, listOpenPullRequests });
+    expect(repaired).toBe(JSON.stringify({
+      include: [{ repositoryId: 42, pullRequestNumber: 3 }, { repositoryId: 42, pullRequestNumber: 9 }],
+    }));
+    expect(listOpenPullRequests).toHaveBeenCalledOnce();
+  });
+
   it("suppresses the controller's own completed check before expansion", async () => {
     const output = await resolveMatrixOutput(
       "check_run",

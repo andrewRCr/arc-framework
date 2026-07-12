@@ -203,4 +203,22 @@ describe("trusted review-gate workflows", () => {
     expect(coordination.indexOf(guard)).toBeLessThan(coordination.indexOf("and push."));
     expect(coordination).toMatch(/record the\s+authorized\s+`begin-fix` transition before invoking the guard/u);
   });
+
+  it("keeps exact-head review coordination paired across WU and errand callers", async () => {
+    const [packageIntegration, instanceIntegration, packageErrand, instanceErrand, coordination] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(".arc/system/workflows/project/coordinate-pr-review.md"),
+    ]);
+    expect(packageIntegration).toBe(instanceIntegration);
+    expect(packageErrand).toBe(instanceErrand);
+    for (const workflow of [packageIntegration, packageErrand]) {
+      expect(workflow).toMatch(/recompose\s+`openedChangeRequest` from the canonical current head/u);
+      expect(workflow).toContain("exact-head contract");
+    }
+    expect(coordination).toMatch(/`next-action` → `perform-action` → `await` → canonical re-entry/u);
+    expect(coordination).not.toMatch(/provider command|without polling/iu);
+  });
 });

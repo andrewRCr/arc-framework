@@ -144,6 +144,8 @@ describing post-merge workflow continuity or next actions — those route to the
 Resolve the one open PR and compose `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open`
 is active, execute its numbered `.actions` in authored order before review iteration. This idempotent hook fires on
 both the newly-created path and every open-PR re-entry; actions derive current controller/host state from `hostRef`.
+Review coordination and every hook invocation share this exact-head contract. If a review action changes the head,
+recompose `openedChangeRequest` from the canonical current head before re-entry; never carry the prior head forward.
 
 Process any reviewer findings per the [`review-triage` method][review-triage]; commit fixes per the
 [`commit-footer` method][commit-footer]. Re-run Tier 1 quality gates on modified files after each review-driven

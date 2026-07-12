@@ -23,6 +23,21 @@ describe("review-gate package boundary", () => {
     expect(paths.some((path) => path.includes("coordinate-pr-review"))).toBe(false);
   });
 
+  it("keeps configured project review actions inactive and outside package content", async () => {
+    const [projectPostOpen, projectPreMerge, packagePostOpen, packagePreMerge] = await Promise.all([
+      readFile(resolve(root, ".arc/system/extensions/post-pr-open.md"), "utf8"),
+      readFile(resolve(root, ".arc/system/extensions/pre-merge.md"), "utf8"),
+      readFile(resolve(root, "packages/arc-framework/arc/system/extensions/post-pr-open.md"), "utf8"),
+      readFile(resolve(root, "packages/arc-framework/arc/system/extensions/pre-merge.md"), "utf8"),
+    ]);
+    expect(projectPostOpen).toContain("active: false");
+    expect(projectPreMerge).toContain("active: false");
+    expect(projectPostOpen).toContain("coordinate-pr-review.md");
+    expect(projectPreMerge).toContain("coordinate-pr-review.md");
+    expect(packagePostOpen).toContain("[No extension configured]");
+    expect(packagePreMerge).toContain("[No extension configured]");
+  });
+
   it("adds no production dependency, CLI command, or provider registry", async () => {
     const manifest = JSON.parse(await readFile(resolve(root, "packages/arc-framework/package.json"), "utf8")) as {
       dependencies: Record<string, string>;

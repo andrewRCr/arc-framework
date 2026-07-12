@@ -390,35 +390,37 @@ controller state without reconstructing provider semantics or scraping prose.
 
     - `[x]` **4.3.b Update privileged and secretless workflow routing**
         - Expanded trusted PR-review-request and check-created coverage, retained the checkout-free/permissionless
-          review proxy, verified exact-PR default-branch dispatch, and kept scheduled discovery as the repair path.
+          review proxy, consumed the established deletion tombstone route, verified exact-PR default-branch dispatch,
+          and kept scheduled discovery as the repair path.
+
+    - `[x]` **4.3.c Extend workflow and runtime integration tests**
+        - Covered exact and coordinate-less proxy completion, deduplicated candidate expansion, bounded all-open-PR
+          repair, empty discovery, direct deletion consumption, and controller-self-check suppression.
 
 - _Outcome:_ Event-driven reconciliation now covers every supported canonical mutation path without admitting
-  unsupported actions or recursively reacting to controller projections; schedule remains repair-only.
-        - Consume Phase 3's direct `issue_comment: deleted` tombstone route as an established input; do not define a
-          second tombstone handoff, storage shape, or persistence path here.
+  unsupported actions, duplicating exact candidates, or recursively reacting to controller projections; schedule
+  remains repair-only.
 
-    - `[ ]` **4.3.c Extend workflow and runtime integration tests**
-        - Prove event-to-canonical-requery routing, missed-event scheduled recovery, empty discovery no-op, and no
-          duplicate request generation.
-        - Cover proxy `workflow_run` with and without populated PR coordinates, direct deletion consumption, and
-          bounded all-open-PR repair only when a safe proxy cannot identify one PR.
-
-### `[ ]` **4.4 Integrate action execution, passive waiting, and exact-head re-entry into PR coordination**
+### `[x]` **4.4 Integrate action execution, passive waiting, and exact-head re-entry into PR coordination**
 
 - _Goal:_ The PR-opening workflow repeatedly reads canonical action state, performs an admitted developer trigger,
   waits passively, and re-enters findings coordination until the exact head settles.
 
-    - `[ ]` **4.4.a Rewrite `coordinate-pr-review.md` around typed action and await loops**
-        - Replace provider-command and manual-completion prose with `next-action` → `perform-action` → `await` →
-          canonical re-entry; preserve distinct provider-native and normalized finding authority.
+    - `[x]` **4.4.a Rewrite `coordinate-pr-review.md` around typed action and await loops**
+        - Replaced provider-command/manual waiting with typed `next-action` → `perform-action` → `await` → canonical
+          re-entry, including head invalidation and typed attention handling while preserving distinct finding
+          authorities.
 
-    - `[ ]` **4.4.b Align work-unit and errand integration callers**
-        - Update package-source and `.arc/` workflow copies so opened PR context, mutability guards, review re-entry,
-          and final `pre-merge` checks share one exact-head contract.
+    - `[x]` **4.4.b Align work-unit and errand integration callers**
+        - Updated paired package/instance WU and errand workflows so review coordination, mutability guards, hook
+          re-entry, and final pre-merge settlement recompose one canonical exact-head contract after every change.
 
-    - `[ ]` **4.4.c Extend workflow trigger, package-sync, and prose-contract tests**
-        - Verify shipped-content register, frontmatter declarations, paired copies, guard ordering, and inactive
-          `post-pr-open`/`pre-merge` configuration.
+    - `[x]` **4.4.c Extend workflow trigger, package-sync, and prose-contract tests**
+        - Verified paired Framework copies, exact-head prose contracts, guard ordering, repository-only coordination,
+          configured project actions, generic package shells, and inactive `post-pr-open`/`pre-merge` state.
+
+- _Outcome:_ PR coordination now blocks cheaply on typed controller state and always re-enters through canonical
+  exact-head coordinates, while the complete self-hosting machinery remains configured but inactive.
 
 ## **Phase 5:** Conversation settlement and finding lifecycle tails
 
