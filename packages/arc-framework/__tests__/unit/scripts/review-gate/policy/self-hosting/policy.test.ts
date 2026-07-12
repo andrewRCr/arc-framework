@@ -57,6 +57,19 @@ describe("self-hosting review policy document", () => {
     expect(() => parseSelfHostingPolicy({ ...SELF_HOSTING_POLICY, attestationEnforcement })).toThrow();
   });
 
+  it("rejects enabled agent attestation qualifications without a runtime kind", () => {
+    const attestationEnforcement = {
+      ...SELF_HOSTING_POLICY.attestationEnforcement,
+      acceptedRuntimeKinds: {
+        "claude-code": "claude-code",
+        "coderabbit-cli": "coderabbit",
+      },
+    };
+
+    expect(() => parseSelfHostingPolicy({ ...SELF_HOSTING_POLICY, attestationEnforcement }))
+      .toThrow(/missing an accepted runtime kind: codex-cli/u);
+  });
+
   it.each([0, -1, 1.5])("rejects max run age %s", (maxRunAgeMinutes) => {
     const attestationEnforcement = {
       ...SELF_HOSTING_POLICY.attestationEnforcement,

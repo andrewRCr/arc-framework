@@ -110,6 +110,22 @@ describe("requirement execution state", () => {
     })).toMatchObject({ state: "clean", blocking: false });
   });
 
+  it("uses bridged current evidence when the retained evidence is stale", () => {
+    const stale = evidence({ changeSetId: "e".repeat(64), headSha: "f".repeat(40) });
+    const bridged = evidence({ coverageThroughSha: "f".repeat(40) });
+    expect(reduceRequirementState({
+      requirement: requirement(),
+      evidence: [stale],
+      currentEvidence: [bridged],
+      receipts: [],
+      capacity,
+      waived: false,
+      coverageSatisfied: true,
+      findingsConsistent: true,
+      openFindingCount: 0,
+    })).toMatchObject({ state: "clean", blocking: false });
+  });
+
   it("keeps required unavailable blocking and recommended unavailable visible", () => {
     const unavailable = evidence({ result: "unavailable" });
     expect(reduceRequirementState({

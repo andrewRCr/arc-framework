@@ -189,4 +189,19 @@ describe("review command ingestion", () => {
     expect(unknown.rejections).toMatchObject([{ code: "capability-unavailable" }]);
     expect(resolveCapabilities).toHaveBeenCalledTimes(1);
   });
+
+  it("ignores comments whose command prefix only starts similarly", async () => {
+    const resolveCapabilities = vi.fn();
+    const result = await ingestReviewCommands({
+      comments: [comment({ body: "/review-gateway require analysis unrelated" })],
+      commandContext: { knownRequirementIds: ["analysis"], knownFindings: [], allowedSourceIdentities: [] },
+      currentScope: scope,
+      expectedScope: scope,
+      receiptedEventIds: [],
+      resolveCapabilities,
+    });
+
+    expect(result).toEqual({ accepted: [], replayedEventIds: [], rejections: [] });
+    expect(resolveCapabilities).not.toHaveBeenCalled();
+  });
 });

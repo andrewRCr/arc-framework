@@ -18,6 +18,17 @@ function jobBlock(workflow: string, name: string): string {
   return JSON.stringify(jobValue(workflow, name));
 }
 
+function stepValue(workflow: string, jobName: string, stepId: string): Record<string, unknown> {
+  const steps = jobValue(workflow, jobName).steps;
+  if (!Array.isArray(steps)) throw new Error(`missing workflow steps: ${jobName}`);
+  const step = steps.find((candidate) => typeof candidate === "object"
+    && candidate !== null
+    && "id" in candidate
+    && candidate.id === stepId);
+  if (typeof step !== "object" || step === null) throw new Error(`missing workflow step: ${jobName}.${stepId}`);
+  return step as Record<string, unknown>;
+}
+
 describe("trusted review-gate workflows", () => {
   it("keeps the review relay secretless and checkout-free", async () => {
     const workflow = await read("review-gate-wakeup.yml");
@@ -118,8 +129,9 @@ describe("trusted review-gate workflows", () => {
 
   it("gives discovery the App id to suppress self-checks and skips reconcile on an empty matrix", async () => {
     const workflow = await read("review-gate.yml");
-    const discovery = workflow.slice(workflow.indexOf("  discover:"), workflow.indexOf("  reconcile:"));
-    expect(discovery).toContain("ARC_REVIEW_GATE_APP_ID: ${{ vars.ARC_REVIEW_GATE_APP_ID }}");
+    expect(stepValue(workflow, "discover", "discover").env).toMatchObject({
+      ARC_REVIEW_GATE_APP_ID: "${{ vars.ARC_REVIEW_GATE_APP_ID }}",
+    });
     expect(jobValue(workflow, "reconcile").if).toContain('needs.discover.outputs.matrix != \'{"include":[]}\'');
   });
 

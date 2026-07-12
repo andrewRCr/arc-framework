@@ -273,6 +273,11 @@ export function parseSelfHostingPolicy(input: unknown): SelfHostingPolicy {
       && qualification.sourceKind === "agent"
       && qualification.transport === "authenticated-attestation")
     .map((qualification) => qualification.sourceIdentity));
+  const missingRuntimeKind = [...acceptedRuntimeSources]
+    .find((sourceIdentity) => !(sourceIdentity in acceptedRuntimeKindRecord));
+  if (missingRuntimeKind !== undefined) {
+    throw new Error(`enabled agent qualification is missing an accepted runtime kind: ${missingRuntimeKind}`);
+  }
   const acceptedRuntimeKinds = Object.fromEntries(Object.entries(acceptedRuntimeKindRecord).map(
     ([sourceIdentity, runtimeKind]) => {
       if (!acceptedRuntimeSources.has(sourceIdentity)) {

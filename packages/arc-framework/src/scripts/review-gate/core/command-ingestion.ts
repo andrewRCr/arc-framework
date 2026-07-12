@@ -68,7 +68,7 @@ export function commandEventId(comment: ReviewCommandComment): string {
 }
 
 function isReviewCommandBody(body: string): boolean {
-  return body.startsWith("/review-gate");
+  return body === "/review-gate" || /^\/review-gate\s/u.test(body);
 }
 
 function orderedComments(comments: ReviewCommandComment[]): ReviewCommandComment[] {
