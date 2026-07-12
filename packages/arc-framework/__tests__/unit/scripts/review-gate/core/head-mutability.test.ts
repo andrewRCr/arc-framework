@@ -59,6 +59,7 @@ function receipt(input: {
           acknowledgementRef: "comment-1",
           trigger: {
             mechanism: admitted.requestMechanism,
+            eventKind: "label",
             eventId: "trigger-1",
             actorIdentity: admitted.requiredActorIdentity,
             occurredAt: null,

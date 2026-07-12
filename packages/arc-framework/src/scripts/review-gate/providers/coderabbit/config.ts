@@ -1,6 +1,7 @@
 /** Static repository-delta validation and live resolved-config qualification. */
 
 import { arrayAt, exactKeys, objectAt, stringAt } from "../../core/validation.js";
+import type { CodeRabbitCapabilities, CodeRabbitRequestMechanism } from "./adapter.js";
 
 /** Minimal repository-owned CodeRabbit configuration. */
 export interface CodeRabbitRepositoryDelta {
@@ -78,19 +79,64 @@ export function validateCodeRabbitRepositoryDelta(input: unknown): CodeRabbitRep
 export interface ResolvedCodeRabbitConfigurationEvidence {
   command: string;
   observedAt: string;
-  effectiveAutomaticPaths: string[];
+  effectiveAutomaticPaths: readonly string[];
+  inheritedAutomaticPaths: readonly string[];
+  globalAutomaticPaths: readonly string[];
+  keywordAutomaticPaths: readonly string[];
+  pathExclusionsResolved: boolean;
+  requestMechanisms: readonly CodeRabbitRequestMechanism[];
+  exactFullCoverage: boolean;
+  durableFindings: boolean;
+  durableCleanResults: boolean;
+  settlementCapability: "source-confirmed" | "coordinator-only" | "unproven";
 }
 
-/** Keep label qualification disabled unless the effective trigger set is exclusive. */
+/** Derive request and satisfaction capabilities from one resolved configuration audit. */
 export function qualifyResolvedCodeRabbitConfiguration(
   evidence: ResolvedCodeRabbitConfigurationEvidence,
-): { qualified: boolean; reasons: string[] } {
-  const reasons: string[] = [];
-  if (evidence.command !== "@coderabbitai configuration") reasons.push("wrong-command");
-  if (!Number.isFinite(Date.parse(evidence.observedAt))) reasons.push("invalid-observed-at");
+): {
+  qualified: boolean;
+  satisfying: boolean;
+  capabilities: CodeRabbitCapabilities;
+  reasons: string[];
+} {
+  const configurationReasons: string[] = [];
+  if (evidence.command !== "@coderabbitai configuration") configurationReasons.push("wrong-command");
+  if (!Number.isFinite(Date.parse(evidence.observedAt))) configurationReasons.push("invalid-observed-at");
   if (
     evidence.effectiveAutomaticPaths.length !== 1
     || evidence.effectiveAutomaticPaths[0] !== "label:arc-review-gate"
-  ) reasons.push("non-exclusive-automatic-paths");
-  return { qualified: reasons.length === 0, reasons };
+  ) configurationReasons.push("non-exclusive-automatic-paths");
+  if (evidence.inheritedAutomaticPaths.length > 0) configurationReasons.push("inherited-automatic-paths");
+  if (evidence.globalAutomaticPaths.length > 0) configurationReasons.push("global-automatic-paths");
+  if (evidence.keywordAutomaticPaths.length > 0) configurationReasons.push("keyword-automatic-paths");
+  if (!evidence.pathExclusionsResolved) configurationReasons.push("path-exclusions-unresolved");
+
+  const configurationQualified = configurationReasons.length === 0;
+  const mechanisms = new Set(evidence.requestMechanisms);
+  const capabilities: CodeRabbitCapabilities = {
+    resolvedConfiguration: configurationQualified,
+    exclusiveLabelTrigger: configurationQualified && mechanisms.has("label"),
+    labelOneShot: configurationQualified && mechanisms.has("label"),
+    fullReviewCommand: configurationQualified && mechanisms.has("full-review-command"),
+    exactCoverage: evidence.exactFullCoverage,
+    durableFindings: evidence.durableFindings,
+    durableCleanResults: evidence.durableCleanResults,
+    sourceConfirmedClosures: evidence.settlementCapability === "source-confirmed",
+  };
+  const capabilityReasons: string[] = [];
+  if (configurationQualified) {
+    if (!capabilities.exclusiveLabelTrigger) capabilityReasons.push("label-request-unproven");
+    if (!capabilities.fullReviewCommand) capabilityReasons.push("full-review-request-unproven");
+    if (!capabilities.exactCoverage) capabilityReasons.push("exact-full-coverage-unproven");
+    if (!capabilities.durableFindings) capabilityReasons.push("durable-findings-unproven");
+    if (!capabilities.durableCleanResults) capabilityReasons.push("durable-clean-results-unproven");
+    if (!capabilities.sourceConfirmedClosures) capabilityReasons.push("source-settlement-unproven");
+  }
+  return {
+    qualified: configurationQualified,
+    satisfying: configurationQualified && capabilityReasons.length === 0,
+    capabilities,
+    reasons: [...configurationReasons, ...capabilityReasons],
+  };
 }

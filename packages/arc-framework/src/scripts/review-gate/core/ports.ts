@@ -76,6 +76,14 @@ export interface ReceiptAppendResult {
 export interface RequestAcknowledgement {
   requestIdentity: string;
   acknowledgedAt: string;
+  trigger: {
+    eventKind: "comment" | "label";
+    eventId: string;
+    actorIdentity: string;
+    contentDigest: string;
+    occurredAt: string;
+    headSha: string;
+  };
   durableRef?: string;
 }
 

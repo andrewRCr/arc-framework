@@ -18,6 +18,15 @@ const BOT_ID = "136622811";
 const DIFF_BASE = "c".repeat(40);
 const HEAD = "d".repeat(40);
 
+const acknowledgedTrigger = {
+  eventKind: "label" as const,
+  eventId: "TRIGGER_1",
+  actorIdentity: "7",
+  contentDigest: "e".repeat(64),
+  occurredAt: "2026-07-11T12:01:00Z",
+  headSha: HEAD,
+};
+
 function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
   return {
     schemaVersion: 1,
@@ -93,7 +102,11 @@ function findingSignals(overrides: Record<string, unknown> = {}): CodeRabbitSign
 
 class MemoryApi implements CodeRabbitApi {
   current: "current" | "replay" | "stale" = "current";
-  outcome: TriggerOutcome = { kind: "acknowledged", acknowledgedAt: "2026-07-11T12:01:00Z" };
+  outcome: TriggerOutcome = {
+    kind: "acknowledged",
+    acknowledgedAt: "2026-07-11T12:01:00Z",
+    trigger: acknowledgedTrigger,
+  };
   capacity: "not-observable" | "lookup-failed" | "exhausted" = "not-observable";
   signals: CodeRabbitSignal[] = [];
   readonly triggers: string[] = [];
@@ -140,11 +153,13 @@ describe("CodeRabbit request translation", () => {
       kind: "acknowledged",
       acknowledgedAt: "2026-07-11T12:01:00Z",
       durableRef: "https://github.test/pull/7#issuecomment-99",
+      trigger: acknowledgedTrigger,
     };
     const adapter = new CodeRabbitProviderAdapter({ api, capabilities, expectedBotUserId: BOT_ID });
 
     await expect(adapter.request(request())).resolves.toMatchObject({
       durableRef: "https://github.test/pull/7#issuecomment-99",
+      trigger: acknowledgedTrigger,
     });
   });
 
@@ -192,6 +207,38 @@ describe("CodeRabbit observation and capacity", () => {
     expect(normalizeCodeRabbitRun(context(), [{ kind: "status", state: "pending", headSha: HEAD }], capabilities, BOT_ID).state).toBe("running");
     expect(normalizeCodeRabbitRun(context(), [{ kind: "status", state: "failure", headSha: HEAD }], capabilities, BOT_ID).state).toBe("failed");
     expect(normalizeCodeRabbitRun(context(), [{ kind: "quota-rejected", detail: "limit reached" }], capabilities, BOT_ID).state).toBe("unavailable");
+  });
+
+  it("admits a pinned substantive clean artifact only with proven exact durable capability", () => {
+    const signal: CodeRabbitSignal = {
+      kind: "clean",
+      reviewNodeId: "PRR_clean",
+      botUserId: BOT_ID,
+      headSha: HEAD,
+      url: "https://github.test/pull/7#pullrequestreview-clean",
+    };
+    expect(normalizeCodeRabbitRun(context(), [signal], {
+      ...capabilities,
+      durableCleanResults: true,
+    }, BOT_ID)).toMatchObject({
+      state: "clean",
+      qualifying: true,
+      evidence: { result: "clean", headSha: HEAD, findings: [] },
+    });
+  });
+
+  it("keeps stale clean artifacts and unproven durable clean capability non-satisfying", () => {
+    const signal: CodeRabbitSignal = {
+      kind: "clean",
+      reviewNodeId: "PRR_clean",
+      botUserId: BOT_ID,
+      headSha: "e".repeat(40),
+      url: "https://github.test/review",
+    };
+    expect(normalizeCodeRabbitRun(context(), [signal], { ...capabilities, durableCleanResults: true }, BOT_ID))
+      .toMatchObject({ qualifying: false, evidence: null });
+    expect(normalizeCodeRabbitRun(context(), [{ ...signal, headSha: HEAD }], capabilities, BOT_ID))
+      .toMatchObject({ qualifying: false, evidence: null, reasons: ["durable-clean-result-unproven"] });
   });
 
   it.each([

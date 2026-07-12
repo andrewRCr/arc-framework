@@ -23,6 +23,7 @@ export interface ReservationPayload {
 /** Exact owned trigger retained with a provider acknowledgement. */
 export interface TriggerIdentity {
   mechanism: RequestMechanism;
+  eventKind: "comment" | "label";
   eventId: string;
   actorIdentity: string;
   occurredAt: string | null;
@@ -153,13 +154,18 @@ function nullableAt<T>(value: unknown, path: string, parse: (input: unknown, pat
 
 function parseTrigger(input: unknown, path: string): TriggerIdentity {
   const record = objectAt(input, path);
-  exactKeys(record, ["mechanism", "eventId", "actorIdentity", "occurredAt", "headSha", "contentDigest"], path);
+  exactKeys(
+    record,
+    ["mechanism", "eventKind", "eventId", "actorIdentity", "occurredAt", "headSha", "contentDigest"],
+    path,
+  );
   return {
     mechanism: enumAt(
       record.mechanism,
       ["automatic", "user-trigger", "authorized-command", "attestation"],
       `${path}.mechanism`,
     ),
+    eventKind: enumAt(record.eventKind, ["comment", "label"], `${path}.eventKind`),
     eventId: stringAt(record.eventId, `${path}.eventId`),
     actorIdentity: stringAt(record.actorIdentity, `${path}.actorIdentity`),
     occurredAt: nullableAt(record.occurredAt, `${path}.occurredAt`, timestampAt),

@@ -50,6 +50,7 @@ function createReceipt(input: TestReceiptInput): ReviewReceipt {
       acknowledgementRef,
       trigger: {
         mechanism: input.request.requestMechanism,
+        eventKind: "label",
         eventId: input.eventId,
         actorIdentity: input.request.requiredActorIdentity,
         occurredAt: null,

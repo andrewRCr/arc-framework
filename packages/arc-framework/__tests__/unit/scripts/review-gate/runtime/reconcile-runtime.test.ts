@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { hashContent } from "../../../../../src/lib/manifest/hash.js";
 import type { NormalizedChangeRequest } from "../../../../../src/scripts/review-gate/core/contracts.js";
 import type {
   ReceiptAppendResult,
@@ -138,6 +137,7 @@ interface HarnessOverrides {
   store?: InMemoryReceiptStore;
   resolveActorCapabilities?: (actor: ActorAddress) => Promise<CapabilitySet>;
   confirmPendingProjection?: GitHostAdapter["confirmPendingProjection"];
+  nativeObservation?: NativeReviewObservation;
   deps?: Partial<ReconcileRuntimeDependencies>;
 }
 
@@ -160,7 +160,7 @@ function harness(overrides: HarnessOverrides = {}) {
       },
     }),
     resolveActorCapabilities,
-    observeNativeReview: async () => nativeObservation,
+    observeNativeReview: async () => overrides.nativeObservation ?? nativeObservation,
     publishVerdict: async (input) => {
       publishCalls.push(input);
       return [{ opaqueRef: "projection-1" }];
@@ -171,7 +171,19 @@ function harness(overrides: HarnessOverrides = {}) {
     readCapacity: async (sourceIdentity) => availableCapacity(sourceIdentity),
     request: async (request) => {
       requestCalls.push(request);
-      return { requestIdentity: "request-1", acknowledgedAt: NOW.toISOString(), durableRef: "receipt:ack" };
+      return {
+        requestIdentity: "request-1",
+        acknowledgedAt: NOW.toISOString(),
+        durableRef: "receipt:ack",
+        trigger: {
+          eventKind: "label",
+          eventId: "trigger-1",
+          actorIdentity: request.requiredActorIdentity,
+          contentDigest: "a".repeat(64),
+          occurredAt: NOW.toISOString(),
+          headSha: request.coverageThroughSha,
+        },
+      };
     },
     observe: async () => [],
     normalizeEvidence: async () => [],
@@ -289,6 +301,94 @@ describe("SelfHostingReconcileRuntime", () => {
     expect(store.envelopes.map((entry) => entry.receipt.action)).toEqual(["reserved", "acknowledged"]);
   });
 
+  it("keeps an exact-head native CodeRabbit approval non-satisfying", async () => {
+    const { runtime } = harness({
+      policy: coderabbitPolicy(),
+      nativeObservation: {
+        ...nativeObservation,
+        providerReviews: [{
+          reviewId: "PRR_empty",
+          actorIdentity: SELF_HOSTING_POLICY.providerIdentities.coderabbitBotUserId,
+          state: "approved",
+          commitId: HEAD,
+          submittedAt: NOW.toISOString(),
+          evidenceRef: "https://github.test/review-empty",
+        }],
+      },
+      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+    });
+
+    const state = await runtime.read();
+    expect((await runtime.reduce(state, NOW)).projection.conclusion).toBe("pending");
+  });
+
+  it("admits satisfying evidence only through the provider observation port", async () => {
+    const triggerHistory: GitHubTriggerHistoryEvent[] = [];
+    const { runtime, provider } = harness({
+      policy: coderabbitPolicy(),
+      deps: {
+        resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }),
+        readTriggerHistory: async () => triggerHistory,
+      },
+    });
+    const initial = await runtime.read();
+    const requestDecision = await runtime.reduce(initial, NOW);
+    if (requestDecision.request === null) throw new Error("expected request");
+    const reserved = await runtime.reserve(requestDecision.request, 0);
+    if (reserved === null) throw new Error("expected reservation");
+    await runtime.execute(requestDecision.request, reserved.envelope);
+    provider.observe = async (requestIdentity) => [{
+      schemaVersion: 1,
+      requestIdentity,
+      sourceIdentity: "coderabbit-pr",
+      observedAt: NOW.toISOString(),
+      opaqueRef: "provider-clean",
+    }];
+    provider.normalizeEvidence = async () => [{
+      schemaVersion: 1,
+      requirementId: "independent-analysis",
+      sourceKind: "agent",
+      sourceIdentity: "coderabbit-pr",
+      result: "clean",
+      evidenceUrlOrId: "https://github.test/review-clean",
+      reviewRunId: "run-clean",
+      policyVersion: computePolicyVersion({ policy: coderabbitPolicy() }),
+      rubricVersion: "independent-analysis/v1",
+      coverage: "full",
+      coverageFromSha: DIFF_BASE,
+      coverageThroughSha: HEAD,
+      baseRef: "main",
+      diffBaseSha: DIFF_BASE,
+      changeSetId: changeRequest.changeSetId,
+      headSha: HEAD,
+      findings: [],
+      closures: [],
+      observedAt: NOW.toISOString(),
+    }];
+
+    const missingTrigger = await runtime.read();
+    const missingTriggerDecision = await runtime.reduce(missingTrigger, NOW);
+    expect(missingTriggerDecision.projection.conclusion).not.toBe("success");
+    expect(missingTriggerDecision.projection.blockers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: expect.stringContaining("trigger-window") }),
+    ]));
+
+    triggerHistory.push({
+      eventId: "trigger-1",
+      eventKind: "label",
+      actorIdentity: APP_BOT,
+      contentDigest: "a".repeat(64),
+      occurredAt: NOW.toISOString(),
+      observedHeadSha: HEAD,
+      mutation: "applied",
+      authenticatedEventRef: "github:timeline:trigger-1",
+      providerIdentity: "coderabbit-pr",
+      classification: "trigger",
+    });
+    const observed = await runtime.read();
+    expect((await runtime.reduce(observed, NOW)).projection.conclusion).toBe("success");
+  });
+
   it("consumes an exact begin-fix transition before admitting follow-up review on the new head", async () => {
     const policy = coderabbitPolicy();
     const oldHead = "f".repeat(40);
@@ -322,7 +422,7 @@ describe("SelfHostingReconcileRuntime", () => {
       payload: {
         kind: "acknowledgement", acknowledgedAt: NOW.toISOString(), acknowledgementRef: "trigger-1",
         trigger: {
-          mechanism: "automatic", eventId: "trigger-1", actorIdentity: APP_BOT,
+          mechanism: "automatic", eventKind: "label", eventId: "trigger-1", actorIdentity: APP_BOT,
           occurredAt: NOW.toISOString(), headSha: oldHead, contentDigest: "f".repeat(64),
         },
       },
@@ -391,14 +491,14 @@ describe("SelfHostingReconcileRuntime", () => {
     if (reserved === null) throw new Error("expected reservation");
     await runtime.execute(decision.request, reserved.envelope);
     events.push({
-      eventId: "request-1",
+      eventId: "trigger-1",
       eventKind: "label",
       actorIdentity: APP_BOT,
-      contentDigest: hashContent("receipt:ack"),
+      contentDigest: "a".repeat(64),
       occurredAt: NOW.toISOString(),
       observedHeadSha: HEAD,
       mutation: "applied",
-      authenticatedEventRef: "github:timeline:request-1",
+      authenticatedEventRef: "github:timeline:trigger-1",
       providerIdentity: "coderabbit-pr",
       classification: "trigger",
     });

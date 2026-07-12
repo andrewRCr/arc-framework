@@ -52,10 +52,6 @@ import type { ChangedPath, LaneDecision } from "../policy/self-hosting/lane.js";
 import { qualifyIndependentAnalysisSource } from "../policy/self-hosting/qualification.js";
 import type { ReviewRiskDecision } from "../policy/self-hosting/risk.js";
 import type { SelfHostingPolicy, SourceQualificationDeclaration } from "../policy/self-hosting/schema.js";
-import {
-  mapCodeRabbitApprovalToEvidence,
-  resolveCodeRabbitDecisiveReview,
-} from "../hosts/github/coderabbit-review.js";
 import type { ContextMode } from "./rollout.js";
 import type {
   CanonicalReconcileState,
@@ -154,6 +150,7 @@ function resumableReservation(receipts: ReviewReceipt[]): ReviewReceipt | null {
 function exclusiveTriggerInconsistencies(
   receipts: readonly ReviewReceipt[],
   history: readonly GitHubTriggerHistoryEvent[],
+  observedEvidence: readonly Evidence[],
 ): string[] {
   const errors: string[] = [];
   const acknowledgements = receipts.filter((receipt) => receipt.action === "acknowledged"
@@ -170,6 +167,14 @@ function exclusiveTriggerInconsistencies(
     const tombstones = receipts.filter((receipt) => receipt.action === "trigger-deleted"
       && receipt.payload.kind === "trigger-deleted"
       && receipt.request.sourceIdentity === acknowledgement.request.sourceIdentity);
+    const liveTerminalEvidence = observedEvidence.filter((evidence) =>
+      evidence.requirementId === acknowledgement.request.requirementId
+      && evidence.sourceIdentity === acknowledgement.request.sourceIdentity
+      && evidence.policyVersion === acknowledgement.request.policyVersion
+      && evidence.rubricVersion === acknowledgement.request.rubricVersion
+      && evidence.coverage === acknowledgement.request.coverage
+      && evidence.coverageFromSha === acknowledgement.request.coverageFromSha
+      && evidence.coverageThroughSha === acknowledgement.request.coverageThroughSha);
     const canonicalOwned = providerHistory.some((event) => event.eventId === trigger.eventId
       && (event.mutation === "created" || event.mutation === "applied"));
     const ownedTriggerEvent: TriggerEvent = {
@@ -177,13 +182,13 @@ function exclusiveTriggerInconsistencies(
       eventId: trigger.eventId,
       providerIdentity: acknowledgement.request.sourceIdentity,
       classification: "trigger",
-      eventKind: acknowledgement.request.requestMechanism === "user-trigger" ? "comment" : "label",
+      eventKind: trigger.eventKind,
       actorIdentity: trigger.actorIdentity,
       contentDigest: trigger.contentDigest,
       occurredAt: trigger.occurredAt,
       observedHeadSha: trigger.headSha,
       ownership: "controller-owned",
-      mutation: acknowledgement.request.requestMechanism === "user-trigger" ? "created" : "applied",
+      mutation: trigger.eventKind === "comment" ? "created" : "applied",
       terminalForEventId: null,
       authenticatedEventRef: acknowledgement.evidenceUrlOrId ?? trigger.eventId,
     };
@@ -226,7 +231,7 @@ function exclusiveTriggerInconsistencies(
         };
       }),
     ];
-    if (!canonicalOwned && (providerHistory.length > 0 || tombstones.length > 0)) {
+    if (!canonicalOwned && (providerHistory.length > 0 || tombstones.length > 0 || liveTerminalEvidence.length > 0)) {
       triggerEvents.push({
         ...ownedTriggerEvent,
         eventId: `missing:${trigger.eventId}`,
@@ -256,6 +261,23 @@ function exclusiveTriggerInconsistencies(
         authenticatedEventRef: terminal.evidenceUrlOrId ?? terminal.eventId,
       });
     }
+    for (const evidence of liveTerminalEvidence) {
+      triggerEvents.push({
+        schemaVersion: 1,
+        eventId: `provider-evidence:${evidence.reviewRunId}`,
+        providerIdentity: acknowledgement.request.sourceIdentity,
+        classification: "terminal",
+        eventKind: "review",
+        actorIdentity: acknowledgement.request.sourceIdentity,
+        contentDigest: hashContent(evidence.evidenceUrlOrId),
+        occurredAt: evidence.observedAt,
+        observedHeadSha: evidence.headSha,
+        ownership: "provider",
+        mutation: "observed",
+        terminalForEventId: trigger.eventId,
+        authenticatedEventRef: evidence.evidenceUrlOrId,
+      });
+    }
     const result = reduceExclusiveTriggerWindow({
       schemaVersion: 1,
       requestKey: computeRequestKey(acknowledgement.request),
@@ -270,6 +292,9 @@ function exclusiveTriggerInconsistencies(
       },
     }, triggerEvents);
     errors.push(...result.contamination.map((reason) => `trigger-window:${reason}`));
+    if (liveTerminalEvidence.length > 0 && result.status !== "terminal") {
+      errors.push(`trigger-window:provider-evidence-outside-owned-window:${computeRequestKey(acknowledgement.request)}`);
+    }
   }
   return errors;
 }
@@ -349,8 +374,11 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     const ledgerEnvelopes = ledgerValid ? ledger.receipts : [];
     const ledgerReceipts = ledgerEnvelopes.map((envelope) => envelope.receipt);
     const ledgerVersion = ledgerValid ? ledger.ledgerVersion : null;
+    const providerEvidence = ledgerValid
+      ? await this.resolveProviderEvidence(changeRequest, ledgerReceipts)
+      : [];
     const inconsistencies = ledgerValid && this.deps.readTriggerHistory !== undefined
-      ? exclusiveTriggerInconsistencies(ledgerReceipts, triggerHistory)
+      ? exclusiveTriggerInconsistencies(ledgerReceipts, triggerHistory, providerEvidence)
       : ledgerValid ? [] : [...ledger.diagnostics];
 
     const receiptEvidence = extractAuthenticatedReceiptEvidence(ledgerEnvelopes);
@@ -359,10 +387,9 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       decision,
       policyVersion,
       receiptEvidence,
-      nativeObservation.providerReviews,
     );
     const evidence = [
-      ...this.resolveEvidence(changeRequest, decision, nativeObservation.providerReviews, lifecycleTail),
+      ...providerEvidence,
       ...receiptEvidence,
     ];
     const capacities = await this.resolveCapacities(decision);
@@ -451,6 +478,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
               && item.policyVersion === requirement.policyVersion
               && item.rubricVersion === requirement.rubricVersion)
             .sort((left, right) => right.observedAt.localeCompare(left.observedAt))[0]?.coverageThroughSha ?? null,
+          controllerActorIdentity: this.deps.policy.providerIdentities.appBotUserId,
         });
         if (plan.ok) {
           refreshRequest = plan.request;
@@ -644,15 +672,12 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
             acknowledgementRef: acknowledgement.durableRef ?? acknowledgement.requestIdentity,
             trigger: {
               mechanism: reservation.receipt.request.requestMechanism,
-              eventId: acknowledgement.requestIdentity,
-              actorIdentity: reservation.receipt.request.requiredActorIdentity,
-              occurredAt: acknowledgement.acknowledgedAt,
-              headSha: reservation.receipt.request.coverageThroughSha,
-              contentDigest: hashContent(
-                reservation.receipt.request.requestCommand
-                  ?? acknowledgement.durableRef
-                  ?? acknowledgement.requestIdentity,
-              ),
+              eventKind: acknowledgement.trigger.eventKind,
+              eventId: acknowledgement.trigger.eventId,
+              actorIdentity: acknowledgement.trigger.actorIdentity,
+              occurredAt: acknowledgement.trigger.occurredAt,
+              headSha: acknowledgement.trigger.headSha,
+              contentDigest: acknowledgement.trigger.contentDigest,
             },
           },
         });
@@ -744,30 +769,10 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     decision: SelfHostingDecision,
     policyVersion: string,
     receiptEvidence: Evidence[],
-    providerReviews: Parameters<typeof resolveCodeRabbitDecisiveReview>[0]["reviews"],
   ): Promise<LifecycleTailProof | null> {
     const requirement = singleRequirement(decision);
     if (requirement === undefined) return null;
-    const codeRabbitQualified = qualifiedDurableSources(this.deps.policy, requirement)
-      .some((declaration) => declaration.sourceIdentity === "coderabbit-pr");
-    const reviewAuthorities = codeRabbitQualified
-      ? providerReviews
-          .filter((review) => review.actorIdentity === this.deps.policy.providerIdentities.coderabbitBotUserId
-            && review.state === "approved"
-            && review.commitId !== changeRequest.headSha
-            && review.submittedAt !== null)
-          .map((review) => ({
-            requirementId: requirement.id,
-            policyVersion,
-            rubricVersion: requirement.rubricVersion,
-            baseRef: changeRequest.baseRef,
-            diffBaseSha: changeRequest.diffBaseSha,
-            coverageThroughSha: review.commitId,
-            sourceIdentity: "coderabbit-pr",
-            observedAt: review.submittedAt ?? "",
-          }))
-      : [];
-    const reviewed = [...receiptEvidence, ...reviewAuthorities]
+    const reviewed = receiptEvidence
       .filter((item) => item.requirementId === requirement.id
         && item.policyVersion === policyVersion
         && item.rubricVersion === requirement.rubricVersion
@@ -799,28 +804,36 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     });
   }
 
-  private resolveEvidence(
+  private async resolveProviderEvidence(
     changeRequest: NormalizedChangeRequest,
-    decision: SelfHostingDecision,
-    providerReviews: Parameters<typeof resolveCodeRabbitDecisiveReview>[0]["reviews"],
-    lifecycleTail: LifecycleTailProof | null,
-  ): Evidence[] {
+    receipts: ReviewReceipt[],
+  ): Promise<Evidence[]> {
     const evidence: Evidence[] = [];
-    const decisive = resolveCodeRabbitDecisiveReview({
-      reviews: providerReviews,
-      expectedBotUserId: this.deps.policy.providerIdentities.coderabbitBotUserId,
-      currentHeadSha: changeRequest.headSha,
-      lifecycleTail,
-    });
-    for (const requirement of decision.requirements) {
-      const mapped = mapCodeRabbitApprovalToEvidence({
-        policy: this.deps.policy,
-        requirement,
-        baseRef: changeRequest.baseRef,
-        diffBaseSha: changeRequest.diffBaseSha,
-        decisive,
-      });
-      if (mapped !== null) evidence.push(mapped);
+    const acknowledged = receipts.filter((receipt) => receipt.action === "acknowledged"
+      && receipt.request.coverageThroughSha === changeRequest.headSha);
+    const seen = new Set<string>();
+    for (const receipt of acknowledged) {
+      const requestIdentity = computeRequestKey(receipt.request);
+      if (seen.has(requestIdentity)) continue;
+      seen.add(requestIdentity);
+      const terminalAlreadyRecorded = receipts.some((candidate) =>
+        computeRequestKey(candidate.request) === requestIdentity
+        && candidate.payload.kind === "terminal-evidence");
+      if (terminalAlreadyRecorded) continue;
+      const observations = await this.deps.provider.observe(requestIdentity);
+      const normalized = await this.deps.provider.normalizeEvidence(observations);
+      evidence.push(...normalized.filter((item) =>
+        item.requirementId === receipt.request.requirementId
+        && item.sourceIdentity === receipt.request.sourceIdentity
+        && item.policyVersion === receipt.request.policyVersion
+        && item.rubricVersion === receipt.request.rubricVersion
+        && item.baseRef === changeRequest.baseRef
+        && item.diffBaseSha === changeRequest.diffBaseSha
+        && item.coverage === receipt.request.coverage
+        && item.coverageFromSha === receipt.request.coverageFromSha
+        && item.coverageThroughSha === receipt.request.coverageThroughSha
+        && item.headSha === changeRequest.headSha
+        && item.changeSetId === changeRequest.changeSetId));
     }
     return evidence;
   }

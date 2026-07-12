@@ -78,7 +78,18 @@ describe("reserved request execution", () => {
       reservation: reservation(),
       invoke: async () => {
         order.push("invoke");
-        return { requestIdentity: "request-1", acknowledgedAt: "2026-07-10T20:01:00.000Z" };
+        return {
+          requestIdentity: "request-1",
+          acknowledgedAt: "2026-07-10T20:01:00.000Z",
+          trigger: {
+            eventKind: "label",
+            eventId: "trigger-1",
+            actorIdentity: "actor-1",
+            contentDigest: "a".repeat(64),
+            occurredAt: "2026-07-10T20:01:00.000Z",
+            headSha: "d".repeat(40),
+          },
+        };
       },
       appendAcknowledgement: async () => { order.push("ack"); },
       appendTerminalFailure: async () => { order.push("failure"); },
@@ -119,6 +130,7 @@ describe("reserved request execution", () => {
             acknowledgementRef: "event-2",
             trigger: {
               mechanism: "automatic",
+              eventKind: "label",
               eventId: "event-2",
               actorIdentity: "actor-1",
               occurredAt: null,

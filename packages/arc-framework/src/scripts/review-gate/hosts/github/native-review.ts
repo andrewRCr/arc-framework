@@ -32,6 +32,22 @@ export interface NormalizedReview {
   state: ReviewState;
   commitId: string;
   submittedAt: string | null;
+  /** Durable submitted-review body when the host supplies one. */
+  body?: string;
+}
+
+/** One immutable inline review comment retained with its containing thread. */
+export interface NormalizedReviewComment {
+  commentId: string;
+  reviewId: string;
+  actor: NormalizedActor;
+  body: string;
+  url: string;
+  path: string;
+  line: number | null;
+  originalLine: number | null;
+  commitId: string;
+  originalCommitId: string;
 }
 
 /** Aggregate host review decision, normalized; null when the host reports none. */
@@ -42,6 +58,7 @@ export interface NormalizedThread {
   threadId: string;
   isResolved: boolean;
   resolvedBy: NormalizedActor | null;
+  comments?: NormalizedReviewComment[];
 }
 
 // --- Individual reviews (REST) ---
@@ -68,6 +85,8 @@ function parseReview(input: unknown, path: string): NormalizedReview {
   const submittedAt = record.submitted_at === null || record.submitted_at === undefined
     ? null
     : timestampAt(record.submitted_at, `${path}.submitted_at`);
+  const body = record.body === null || record.body === undefined ? "" : record.body;
+  if (typeof body !== "string") throw new Error(`${path}.body: expected a string`);
   return {
     reviewId: stringAt(record.node_id, `${path}.node_id`),
     url: stringAt(record.html_url, `${path}.html_url`),
@@ -75,6 +94,7 @@ function parseReview(input: unknown, path: string): NormalizedReview {
     state: parseReviewState(stringAt(record.state, `${path}.state`), `${path}.state`),
     commitId: digestAt(record.commit_id, `${path}.commit_id`, 40),
     submittedAt,
+    body,
   };
 }
 
@@ -111,6 +131,26 @@ const REVIEW_THREADS_QUERY = `query ReviewThreads($owner: String!, $repo: String
             ... on Bot { id databaseId login }
             ... on Organization { id databaseId login }
           }
+          comments(first: 100) {
+            nodes {
+              id
+              body
+              url
+              path
+              line
+              originalLine
+              commit { oid }
+              originalCommit { oid }
+              pullRequestReview { id }
+              author {
+                __typename
+                ... on User { id databaseId login }
+                ... on Bot { id databaseId login }
+                ... on Organization { id databaseId login }
+              }
+            }
+            pageInfo { hasNextPage }
+          }
         }
         pageInfo { hasNextPage endCursor }
       }
@@ -131,6 +171,42 @@ function normalizeGraphqlActor(input: unknown): NormalizedActor | null {
     { id: record.databaseId, node_id: record.id, login: record.login, type: record.__typename },
     "resolvedBy",
   );
+}
+
+function nullableLine(value: unknown, path: string): number | null {
+  if (value === null || value === undefined) return null;
+  if (!Number.isInteger(value) || Number(value) < 1) throw new Error(`${path}: expected a positive integer or null`);
+  return Number(value);
+}
+
+function normalizeThreadComments(input: unknown, path: string): NormalizedReviewComment[] | undefined {
+  if (input === null || input === undefined) return undefined;
+  const connection = objectAt(input, `${path}.comments`);
+  if (!Array.isArray(connection.nodes)) throw new Error(`${path}.comments.nodes: expected an array`);
+  const pageInfo = objectAt(connection.pageInfo, `${path}.comments.pageInfo`);
+  if (pageInfo.hasNextPage !== false) throw new Error(`${path}.comments: incomplete enumeration`);
+  return connection.nodes.map((node, index) => {
+    const itemPath = `${path}.comments.nodes[${index}]`;
+    const record = objectAt(node, itemPath);
+    const actor = normalizeGraphqlActor(record.author);
+    if (actor === null) throw new Error(`${itemPath}.author: immutable actor id required`);
+    return {
+      commentId: stringAt(record.id, `${itemPath}.id`),
+      reviewId: stringAt(objectAt(record.pullRequestReview, `${itemPath}.pullRequestReview`).id, `${itemPath}.pullRequestReview.id`),
+      actor,
+      body: stringAt(record.body, `${itemPath}.body`),
+      url: stringAt(record.url, `${itemPath}.url`),
+      path: stringAt(record.path, `${itemPath}.path`),
+      line: nullableLine(record.line, `${itemPath}.line`),
+      originalLine: nullableLine(record.originalLine, `${itemPath}.originalLine`),
+      commitId: digestAt(objectAt(record.commit, `${itemPath}.commit`).oid, `${itemPath}.commit.oid`, 40),
+      originalCommitId: digestAt(
+        objectAt(record.originalCommit, `${itemPath}.originalCommit`).oid,
+        `${itemPath}.originalCommit.oid`,
+        40,
+      ),
+    };
+  });
 }
 
 /** Read and normalize the aggregate host review decision. */
@@ -179,10 +255,12 @@ export function resolveThreads(gql: GitHubGraphQLClient, ref: HostCoordinates): 
           if (typeof record.isResolved !== "boolean") {
             throw new Error(`reviewThreads.nodes[${index}].isResolved: expected a boolean`);
           }
+          const comments = normalizeThreadComments(record.comments, `reviewThreads.nodes[${index}]`);
           return {
             threadId: stringAt(record.id, `reviewThreads.nodes[${index}].id`),
             isResolved: record.isResolved,
             resolvedBy: normalizeGraphqlActor(record.resolvedBy),
+            ...(comments === undefined ? {} : { comments }),
           };
         }),
         hasNextPage: pageInfo.hasNextPage,

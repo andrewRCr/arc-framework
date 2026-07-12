@@ -58,7 +58,18 @@ describe("review adapter ports", () => {
     };
     const provider: ReviewProviderAdapter = {
       readCapacity: async () => capacity,
-      request: async () => ({ requestIdentity: "request-1", acknowledgedAt: "2026-07-10T20:00:00.000Z" }),
+      request: async () => ({
+        requestIdentity: "request-1",
+        acknowledgedAt: "2026-07-10T20:00:00.000Z",
+        trigger: {
+          eventKind: "label",
+          eventId: "trigger-1",
+          actorIdentity: "actor-4",
+          contentDigest: "a".repeat(64),
+          occurredAt: "2026-07-10T20:00:00.000Z",
+          headSha: "b".repeat(40),
+        },
+      }),
       observe: async () => [{
         schemaVersion: 1,
         requestIdentity: "request-1",

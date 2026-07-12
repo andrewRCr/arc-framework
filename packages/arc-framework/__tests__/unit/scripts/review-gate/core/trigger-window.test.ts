@@ -65,6 +65,25 @@ describe("exclusive trigger windows", () => {
     });
   });
 
+  it("orders an owned trigger before terminal evidence when host timestamps have equal precision", () => {
+    const terminal = event({
+      eventId: "provider-evidence:review-20",
+      classification: "terminal",
+      eventKind: "review",
+      actorIdentity: "provider-bot",
+      contentDigest: "d".repeat(64),
+      ownership: "provider",
+      mutation: "observed",
+      terminalForEventId: "comment-10",
+      authenticatedEventRef: "event:review-20",
+    });
+    expect(reduceExclusiveTriggerWindow(window, [terminal, event()])).toMatchObject({
+      status: "terminal",
+      satisfiable: true,
+      terminalEventId: "provider-evidence:review-20",
+    });
+  });
+
   it("contaminates unowned and competing triggers instead of attributing by time and head", () => {
     const unowned = event({
       eventId: "comment-11",

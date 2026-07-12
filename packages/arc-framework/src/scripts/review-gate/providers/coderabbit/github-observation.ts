@@ -5,6 +5,7 @@ import type { GitHubGraphQLClient } from "../../hosts/github/api/graphql.js";
 import type { GitHubRestClient } from "../../hosts/github/api/rest.js";
 import { resolveReviews, resolveThreads } from "../../hosts/github/native-review.js";
 import type { CodeRabbitApi, CodeRabbitRunContext, CodeRabbitSignal } from "./adapter.js";
+import type { FindingSeverity } from "../../core/evidence.js";
 
 const CODERABBIT_CHECK = "CodeRabbit";
 
@@ -88,6 +89,21 @@ function checkSignals(records: CheckSignalRecord[], expectedBotUserId: string): 
     });
 }
 
+function cleanReviewBody(body: string): boolean {
+  return /^\*\*Actionable comments posted: 0\*\*$/mu.test(body);
+}
+
+function findingSeverity(body: string): FindingSeverity | null {
+  const match = /_([🔴🟠🟡🔵]?)\s*(Critical|Major|Minor|Trivial)_/iu.exec(body);
+  switch (match?.[2]?.toLowerCase()) {
+    case "critical": return "critical";
+    case "major": return "high";
+    case "minor": return "medium";
+    case "trivial": return "low";
+    default: return null;
+  }
+}
+
 /** Concrete diagnostic-only GitHub observation boundary for the CodeRabbit provider adapter. */
 export class GitHubCodeRabbitObservationApi implements Pick<CodeRabbitApi, "readRunContext" | "readSignals" | "readCapacity"> {
   private readonly rest: GitHubRestClient;
@@ -149,10 +165,36 @@ export class GitHubCodeRabbitObservationApi implements Pick<CodeRabbitApi, "read
     if (comments.kind !== "ok") throw new Error(`coderabbit-comments-${comments.kind}`);
     const threads = await resolveThreads(this.gql, { owner: this.owner, repo: this.repo, number: run.pullNumber });
     if (threads.kind !== "ok") throw new Error(`coderabbit-threads-${threads.kind}`);
+    const providerReviews = reviews.value.filter((review) =>
+      review.actor.identity === this.expectedBotUserId && eligibleHeads.has(review.commitId));
+    const findings = threads.value.flatMap((thread): CodeRabbitSignal[] => (thread.comments ?? []).flatMap((comment) => {
+      const review = providerReviews.find((candidate) => candidate.reviewId === comment.reviewId
+        && candidate.state === "changes-requested"
+        && candidate.commitId === run.context.headSha);
+      const severity = findingSeverity(comment.body);
+      const line = comment.line ?? comment.originalLine;
+      if (
+        review === undefined
+        || comment.actor.identity !== this.expectedBotUserId
+        || comment.commitId !== run.context.headSha
+        || severity === null
+        || line === null
+      ) return [];
+      return [{
+        kind: "finding",
+        findingId: thread.threadId,
+        commentNodeId: comment.commentId,
+        threadNodeId: thread.threadId,
+        reviewNodeId: review.reviewId,
+        botUserId: comment.actor.identity,
+        locus: `${comment.path}:${line}`,
+        severity,
+        url: comment.url,
+      }];
+    }));
     return [
       ...checkSignals(checks, this.expectedBotUserId),
-      ...reviews.value
-        .filter((review) => review.actor.identity === this.expectedBotUserId && eligibleHeads.has(review.commitId))
+      ...providerReviews
         .map((review): CodeRabbitSignal => ({
           kind: "review",
           nodeId: review.reviewId,
@@ -162,6 +204,16 @@ export class GitHubCodeRabbitObservationApi implements Pick<CodeRabbitApi, "read
           botUserId: review.actor.identity,
           url: review.url,
         })),
+      ...providerReviews
+        .filter((review) => review.state === "approved" && cleanReviewBody(review.body ?? ""))
+        .map((review): CodeRabbitSignal => ({
+          kind: "clean",
+          reviewNodeId: review.reviewId,
+          botUserId: review.actor.identity,
+          headSha: review.commitId,
+          url: review.url,
+        })),
+      ...findings,
       ...comments.value
         .filter((comment) => comment.botUserId === this.expectedBotUserId)
         .map((comment): CodeRabbitSignal => ({

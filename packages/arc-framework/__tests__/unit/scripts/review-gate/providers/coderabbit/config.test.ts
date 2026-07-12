@@ -38,12 +38,39 @@ describe("CodeRabbit repository delta", () => {
 });
 
 describe("resolved-configuration qualification", () => {
-  it("qualifies the label only from current configuration-command evidence with one effective path", () => {
+  const resolved = {
+    command: "@coderabbitai configuration",
+    observedAt: "2026-07-11T12:00:00Z",
+    effectiveAutomaticPaths: ["label:arc-review-gate"],
+    inheritedAutomaticPaths: [],
+    globalAutomaticPaths: [],
+    keywordAutomaticPaths: [],
+    pathExclusionsResolved: true,
+    requestMechanisms: ["label", "full-review-command"] as const,
+    exactFullCoverage: true,
+    durableFindings: true,
+    durableCleanResults: true,
+    settlementCapability: "source-confirmed" as const,
+  };
+
+  it("derives a satisfying capability declaration only from complete resolved evidence", () => {
     expect(qualifyResolvedCodeRabbitConfiguration({
-      command: "@coderabbitai configuration",
-      observedAt: "2026-07-11T12:00:00Z",
-      effectiveAutomaticPaths: ["label:arc-review-gate"],
-    })).toEqual({ qualified: true, reasons: [] });
+      ...resolved,
+    })).toEqual({
+      qualified: true,
+      satisfying: true,
+      reasons: [],
+      capabilities: {
+        resolvedConfiguration: true,
+        exclusiveLabelTrigger: true,
+        labelOneShot: true,
+        fullReviewCommand: true,
+        exactCoverage: true,
+        durableFindings: true,
+        durableCleanResults: true,
+        sourceConfirmedClosures: true,
+      },
+    });
   });
 
   it.each([
@@ -53,17 +80,61 @@ describe("resolved-configuration qualification", () => {
     ["missing label", []],
   ])("keeps label qualification disabled for %s", (_name, effectiveAutomaticPaths) => {
     expect(qualifyResolvedCodeRabbitConfiguration({
-      command: "@coderabbitai configuration",
-      observedAt: "2026-07-11T12:00:00Z",
+      ...resolved,
       effectiveAutomaticPaths,
     }).qualified).toBe(false);
   });
 
+  it("retains independently proven partial capabilities without enabling satisfaction", () => {
+    expect(qualifyResolvedCodeRabbitConfiguration({
+      ...resolved,
+      durableCleanResults: false,
+      settlementCapability: "coordinator-only",
+    })).toMatchObject({
+      qualified: true,
+      satisfying: false,
+      reasons: ["durable-clean-results-unproven", "source-settlement-unproven"],
+      capabilities: {
+        resolvedConfiguration: true,
+        exclusiveLabelTrigger: true,
+        fullReviewCommand: true,
+        exactCoverage: true,
+        durableFindings: true,
+        durableCleanResults: false,
+        sourceConfirmedClosures: false,
+      },
+    });
+  });
+
+  it("keeps a proven label request usable when later full-review transport is unproven", () => {
+    expect(qualifyResolvedCodeRabbitConfiguration({
+      ...resolved,
+      requestMechanisms: ["label"],
+    })).toMatchObject({
+      qualified: true,
+      satisfying: false,
+      reasons: ["full-review-request-unproven"],
+      capabilities: { exclusiveLabelTrigger: true, fullReviewCommand: false },
+    });
+  });
+
+  it.each([
+    ["inherited", { inheritedAutomaticPaths: ["label:review"] }],
+    ["global", { globalAutomaticPaths: ["global:auto-review"] }],
+    ["keyword", { keywordAutomaticPaths: ["description-keyword"] }],
+    ["unresolved path exclusions", { pathExclusionsResolved: false }],
+  ])("rejects a bypassing %s review path", (_name, override) => {
+    expect(qualifyResolvedCodeRabbitConfiguration({ ...resolved, ...override })).toMatchObject({
+      qualified: false,
+      capabilities: { resolvedConfiguration: false, exclusiveLabelTrigger: false },
+    });
+  });
+
   it("fails unavailable rather than inferring capability from stale or wrong evidence", () => {
     expect(qualifyResolvedCodeRabbitConfiguration({
+      ...resolved,
       command: "@coderabbitai rate limit",
       observedAt: "not-a-time",
-      effectiveAutomaticPaths: ["label:arc-review-gate"],
     })).toMatchObject({ qualified: false, reasons: ["wrong-command", "invalid-observed-at"] });
   });
 });

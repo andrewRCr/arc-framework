@@ -35,7 +35,7 @@ function api(steps: FetchStep[], state: "current" | "replay" | "stale" = "curren
   const fake = fetchFake(steps);
   const rest = new GitHubRestClient({ fetch: fake.fetch, token: "t", sleep: fake.sleep, maxReadAttempts: 1 });
   const locator: CodeRabbitRequestLocator = {
-    resolve: async () => ({ state, pullNumber: 7 }),
+    resolve: async () => ({ state, pullNumber: 7, reservedAt: "2026-07-11T19:59:00Z" }),
   };
   return { api: new GitHubCodeRabbitTriggerApi({ rest, owner: "o", repo: "r", locator }), fake };
 }
@@ -44,16 +44,31 @@ describe("GitHub CodeRabbit trigger API", () => {
   it("applies and removes the sole generation-zero label with durable acknowledgement", async () => {
     const { api: trigger, fake } = api([
       response(200, JSON.stringify([{ name: "arc-review-gate" }])),
+      response(200, JSON.stringify([{
+        event: "labeled",
+        node_id: "LE_99",
+        actor: { id: 302312524 },
+        label: { name: "arc-review-gate" },
+        created_at: "2026-07-11T20:00:00Z",
+      }])),
       response(200, JSON.stringify([])),
     ]);
 
     await expect(trigger.applyTriggerLabel(request())).resolves.toMatchObject({
       kind: "acknowledged",
-      durableRef: "github-label:7:arc-review-gate",
+      trigger: {
+        eventKind: "label",
+        eventId: "LE_99",
+        actorIdentity: "302312524",
+        occurredAt: "2026-07-11T20:00:00Z",
+        headSha: "d".repeat(40),
+      },
+      durableRef: "github:timeline:LE_99",
     });
     await expect(trigger.removeTriggerLabel(request())).resolves.toBeUndefined();
     expect(fake.calls.map((call) => [new URL(call.url).pathname, call.init.method])).toEqual([
       ["/repos/o/r/issues/7/labels", "POST"],
+      ["/repos/o/r/issues/7/timeline", "GET"],
       ["/repos/o/r/issues/7/labels/arc-review-gate", "DELETE"],
     ]);
   });
@@ -65,6 +80,9 @@ describe("GitHub CodeRabbit trigger API", () => {
         node_id: "IC_99",
         html_url: "https://github.test/pull/7#issuecomment-99",
         created_at: "2026-07-11T20:00:00Z",
+        updated_at: "2026-07-11T20:00:00Z",
+        body: "@coderabbitai full review",
+        user: { id: 302312524 },
       })),
     ]);
 
@@ -72,6 +90,14 @@ describe("GitHub CodeRabbit trigger API", () => {
       kind: "acknowledged",
       acknowledgedAt: "2026-07-11T20:00:00Z",
       durableRef: "https://github.test/pull/7#issuecomment-99",
+      trigger: {
+        eventKind: "comment",
+        eventId: "IC_99",
+        actorIdentity: "302312524",
+        occurredAt: "2026-07-11T20:00:00Z",
+        headSha: "d".repeat(40),
+        contentDigest: expect.any(String),
+      },
     });
     expect(JSON.parse(fake.calls[0]?.init.body ?? "{}")).toEqual({ body: "@coderabbitai full review" });
   });

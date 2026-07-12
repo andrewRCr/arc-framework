@@ -2,10 +2,9 @@
  * Receipt-backed CodeRabbit locators binding a `requestIdentity` / `ReviewRequest`
  * to its live pull-request number and run context from canonical controller state.
  *
- * The reconcile composition satisfies CodeRabbit through GitHub's decisive native
- * review, not provider-observed runs, so these locators exist to complete the
- * dormant production `CodeRabbitApi`; they activate only when a `coderabbit-pr`
- * declaration is enabled and qualified.
+ * The reconcile composition admits CodeRabbit results only through provider-
+ * observed runs. These locators recover the exact reserved request and current
+ * host coordinates required by that observation boundary.
  *
  * @module
  */
@@ -39,18 +38,27 @@ export class ReceiptBackedCodeRabbitRequestLocator implements CodeRabbitRequestL
     this.deps = deps;
   }
 
-  async resolve(request: ReviewRequest): Promise<{ state: "current" | "replay" | "stale"; pullNumber: number }> {
+  async resolve(request: ReviewRequest): Promise<{
+    state: "current" | "replay" | "stale";
+    pullNumber: number;
+    reservedAt: string;
+  }> {
     const change = await resolvedChange(this.deps);
     const pullNumber = this.deps.pullRequestNumber;
-    if (request.coverageThroughSha !== change.headSha) return { state: "stale", pullNumber };
     const ledger = await this.deps.readLedger(change.changeRequestId);
     if (ledger.kind !== "valid") throw new CodeRabbitRequestError("receipt-ledger-degraded");
     const receipts = ledger.receipts;
     const requestKey = computeRequestKey(request);
+    const reservation = receipts.find((envelope) => envelope.receipt.action === "reserved"
+      && computeRequestKey(envelope.receipt.request) === requestKey);
+    if (reservation === undefined) throw new CodeRabbitRequestError("reservation-not-found");
+    if (request.coverageThroughSha !== change.headSha) {
+      return { state: "stale", pullNumber, reservedAt: reservation.recordedAt };
+    }
     const alreadyTriggered = receipts.some((envelope) =>
       computeRequestKey(envelope.receipt.request) === requestKey
       && (envelope.receipt.action === "acknowledged" || envelope.receipt.action === "terminal-failure"));
-    return { state: alreadyTriggered ? "replay" : "current", pullNumber };
+    return { state: alreadyTriggered ? "replay" : "current", pullNumber, reservedAt: reservation.recordedAt };
   }
 }
 

@@ -150,7 +150,7 @@ describe("review-gate reconcile composition (e2e)", () => {
     expect(substantive.counters.commentCreate).toBe(2);
   });
 
-  it("carries a qualified CodeRabbit approval over a verified bookkeeping tail", async () => {
+  it("does not carry an empty CodeRabbit approval over a bookkeeping tail", async () => {
     const world = createWorld();
     const reviewedHead = world.headSha;
     advanceLifecycleTail(world);
@@ -158,8 +158,8 @@ describe("review-gate reconcile composition (e2e)", () => {
 
     const result = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
 
-    expect(result).toEqual({ status: "published", effectInvoked: false });
-    expect(shadowChecks(world)[0]).toMatchObject({ status: "completed", conclusion: "success" });
+    expect(result).toEqual({ status: "published", effectInvoked: true });
+    expect(shadowChecks(world)[0]).toMatchObject({ status: "in_progress", conclusion: null });
   });
 
   it("keeps a stale CodeRabbit changes-requested review pending", async () => {
@@ -199,16 +199,23 @@ describe("review-gate reconcile composition (e2e)", () => {
     expect(world.counters.checkPatch).toBeGreaterThanOrEqual(1);
   });
 
-  it("projects success when a current-head CodeRabbit approval satisfies the enabled provider requirement", async () => {
+  it("requires substantive adapter-observed clean evidence beyond a current-head CodeRabbit approval", async () => {
     const world = createWorld();
     world.reviews.push(coderabbitReview(world, "APPROVED"));
 
-    const result = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
+    const emptyApproval = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
 
-    expect(result).toEqual({ status: "published", effectInvoked: false });
+    expect(emptyApproval).toEqual({ status: "published", effectInvoked: true });
+    expect(shadowChecks(world)[0]).toMatchObject({ name: "review-gate-shadow", status: "in_progress", conclusion: null });
+    const review = world.reviews[0];
+    if (review === undefined) throw new Error("missing review fixture");
+    review.body = "Review complete\n\n**Actionable comments posted: 0**";
+
+    const substantive = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
+
+    expect(substantive).toEqual({ status: "published", effectInvoked: false });
     expect(shadowChecks(world)[0]).toMatchObject({ name: "review-gate-shadow", status: "completed", conclusion: "success" });
-    // Satisfied by decisive-review evidence — no provider request is reserved (anchor is the only comment write).
-    expect(world.counters.commentCreate).toBe(1);
+    expect(world.counters.commentCreate).toBeGreaterThanOrEqual(3);
   });
 
   it("executes a qualified generation-zero request through the receipt protocol", async () => {
@@ -273,12 +280,12 @@ describe("review-gate reconcile composition (e2e)", () => {
 
   it("replaces an earlier green shadow check with failure when the receipt ledger degrades", async () => {
     const world = createWorld();
-    world.reviews.push(coderabbitReview(world, "APPROVED"));
-    await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
+    await dispatchAttestation(world);
+    await runReconcileMain(env(world), deps(world));
     expect(shadowChecks(world)[0]).toMatchObject({ conclusion: "success" });
 
     corruptReceiptComment(world);
-    await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
+    await runReconcileMain(env(world), deps(world));
 
     expect(shadowChecks(world)).toHaveLength(1);
     expect(shadowChecks(world)[0]).toMatchObject({ status: "completed", conclusion: "failure" });

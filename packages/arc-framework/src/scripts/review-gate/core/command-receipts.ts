@@ -31,6 +31,7 @@ export interface DirectCommandReceiptInput {
 export interface CommandRefreshInput extends DirectCommandReceiptInput {
   qualifiedSourceIdentities: string[];
   reviewedChainHead: string | null;
+  controllerActorIdentity: string;
 }
 
 /** Refresh reservation plan, exact replay, or a fail-closed admission result. */
@@ -156,6 +157,7 @@ function matchingRefreshReservation(input: CommandRefreshInput, receipt: ReviewR
     || request.rubricVersion !== input.requirement.rubricVersion
     || request.requirementId !== input.requirement.id
     || request.actorIdentity !== input.event.actorIdentity
+    || request.requiredActorIdentity !== input.controllerActorIdentity
     || request.coverage !== command.coverage
   ) return false;
   return command.sourceIdentity === "auto" || request.sourceIdentity === command.sourceIdentity;
@@ -203,7 +205,7 @@ export function planCommandRefresh(input: CommandRefreshInput): CommandRefreshRe
     generation: admission.generation,
     actorIdentity: input.event.actorIdentity,
     requestMechanism: "authorized-command",
-    requiredActorIdentity: input.event.actorIdentity,
+    requiredActorIdentity: input.controllerActorIdentity,
     requestCommand: null,
   };
   const reservation = createReceipt({

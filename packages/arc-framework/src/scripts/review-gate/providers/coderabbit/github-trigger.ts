@@ -1,6 +1,7 @@
 /** GitHub-backed CodeRabbit trigger transport for the repository-owned handshake. */
 
 import type { ReviewRequest } from "../../core/execution.js";
+import { hashContent } from "../../../../lib/manifest/hash.js";
 import { arrayAt, integerAt, objectAt, stringAt, timestampAt } from "../../core/validation.js";
 import type { GitHubRestClient, WriteOutcome } from "../../hosts/github/api/rest.js";
 import type { TriggerOutcome } from "./adapter.js";
@@ -13,6 +14,7 @@ export interface CodeRabbitRequestLocator {
   resolve(request: ReviewRequest): Promise<{
     state: "current" | "replay" | "stale";
     pullNumber: number;
+    reservedAt: string;
   }>;
 }
 
@@ -72,10 +74,45 @@ export class GitHubCodeRabbitTriggerApi {
       reconcile: () => Promise.resolve({ kind: "unavailable", reason: "network" }),
     });
     if (outcome.kind !== "ok") return writeOutcome(outcome);
+    const timeline = await this.rest.getPaginated(`${this.path}/issues/${current.pullNumber}/timeline`, {
+      query: { per_page: 100 },
+      parsePage: (value) => arrayAt(value, "timeline", (item, path) => {
+        const record = objectAt(item, path);
+        const label = record.label === null || record.label === undefined
+          ? null
+          : objectAt(record.label, `${path}.label`);
+        const actor = record.actor === null || record.actor === undefined
+          ? null
+          : objectAt(record.actor, `${path}.actor`);
+        return {
+          event: stringAt(record.event, `${path}.event`),
+          nodeId: stringAt(record.node_id, `${path}.node_id`),
+          actorIdentity: actor === null ? "" : String(integerAt(actor.id, `${path}.actor.id`, 1)),
+          label: label === null ? "" : stringAt(label.name, `${path}.label.name`),
+          occurredAt: timestampAt(record.created_at, `${path}.created_at`),
+        };
+      }),
+    });
+    if (timeline.kind !== "ok") return { kind: "ambiguous" };
+    const candidates = timeline.value.filter((event) => event.event === "labeled"
+      && event.label === TRIGGER_LABEL
+      && event.actorIdentity === request.requiredActorIdentity
+      && event.occurredAt >= current.reservedAt);
+    if (candidates.length !== 1) return { kind: "ambiguous" };
+    const trigger = candidates[0];
+    if (trigger === undefined) return { kind: "ambiguous" };
     return {
       kind: "acknowledged",
-      acknowledgedAt: new Date().toISOString(),
-      durableRef: `github-label:${current.pullNumber}:${TRIGGER_LABEL}`,
+      acknowledgedAt: trigger.occurredAt,
+      trigger: {
+        eventKind: "label",
+        eventId: trigger.nodeId,
+        actorIdentity: trigger.actorIdentity,
+        contentDigest: hashContent(`label:${TRIGGER_LABEL}`),
+        occurredAt: trigger.occurredAt,
+        headSha: request.coverageThroughSha,
+      },
+      durableRef: `github:timeline:${trigger.nodeId}`,
     };
   }
 
@@ -100,13 +137,29 @@ export class GitHubCodeRabbitTriggerApi {
           nodeId: stringAt(record.node_id, "comment.node_id"),
           url: stringAt(record.html_url, "comment.html_url"),
           createdAt: timestampAt(record.created_at, "comment.created_at"),
+          updatedAt: timestampAt(record.updated_at, "comment.updated_at"),
+          body: stringAt(record.body, "comment.body"),
+          actorIdentity: String(integerAt(objectAt(record.user, "comment.user").id, "comment.user.id", 1)),
         };
       },
     });
     if (outcome.kind !== "ok") return writeOutcome(outcome);
+    if (
+      outcome.value.actorIdentity !== request.requiredActorIdentity
+      || outcome.value.body !== FULL_REVIEW_COMMAND
+      || outcome.value.createdAt !== outcome.value.updatedAt
+    ) return { kind: "ambiguous" };
     return {
       kind: "acknowledged",
       acknowledgedAt: outcome.value.createdAt,
+      trigger: {
+        eventKind: "comment",
+        eventId: outcome.value.nodeId,
+        actorIdentity: outcome.value.actorIdentity,
+        contentDigest: hashContent(outcome.value.body),
+        occurredAt: outcome.value.createdAt,
+        headSha: request.coverageThroughSha,
+      },
       durableRef: outcome.value.url,
     };
   }

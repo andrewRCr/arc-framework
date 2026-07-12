@@ -217,32 +217,35 @@ schema, mixed-ledger mode, or upgrade transition is introduced before activation
 - _Outcome:_ Provider evidence now has a PR-wide causal envelope: only one immutable owned trigger can satisfy its
   generation, while complete history and retained deletion events preserve contamination and effect terminality.
 
-### `[ ]` **3.2 Qualify CodeRabbit capabilities and full-coverage request generations**
+### `[x]` **3.2 Qualify CodeRabbit capabilities and full-coverage request generations**
 
 - _Goal:_ CodeRabbit contributes only capabilities proven under the resolved repository configuration, with native
   approval and progress unable to impersonate substantive exact-head evidence.
 
-    - `[ ]` **3.2.a Expand the capability declaration and resolved-configuration audit**
-        - Update `providers/coderabbit/config.ts` and `adapter.ts` for automatic/inherited/global/keyword path
-          exclusion, settlement capability, durable clean/findings, exact coverage, and request mechanisms.
+    - `[x]` **3.2.a Expand the capability declaration and resolved-configuration audit**
+        - Added fail-closed derivation for exclusive automatic paths, inherited/global/keyword bypasses, path
+          exclusions, request mechanisms, exact coverage, durable outcomes, and source-confirmed settlement while
+          retaining independently proven partial capabilities.
 
-    - `[ ]` **3.2.b Bind generation-zero labels and later full-review comments to owned trigger events**
-        - Extend `github-trigger.ts`, locators, and observation normalization with immutable event/head identity and
-          full-coverage generation semantics.
-        - Enumerate CodeRabbit inline review comments and correlate each finding to its pinned bot, submitted review,
-          thread, stable locus, exact head, and durable URL; the existing signal normalizer alone is insufficient
-          until the GitHub observation boundary actually produces `finding` signals.
+    - `[x]` **3.2.b Bind generation-zero labels and later full-review comments to owned trigger events**
+        - Bound label acknowledgements to the unique post-reservation immutable timeline event and full-review
+          acknowledgements to the unedited App-authored comment, carrying exact actor, digest, time, and head into the
+          ledger; provider observations now enumerate complete inline-comment threads and correlate findings to the
+          pinned bot, submitted review, stable locus, exact head, and durable URL.
 
-    - `[ ]` **3.2.c Separate progress, native approval, substantive evidence, and capacity terminality**
-        - Keep visible status, empty approval, paused/skipped/silent outcomes, and unknown capacity non-satisfying;
-          admit fallback only for proven pre-effect or terminal outcomes.
-        - Remove the production shortcut that maps a decisive native CodeRabbit approval directly to evidence;
-          satisfying clean/findings outcomes must enter through `ReviewProviderAdapter.observe()` and
-          `normalizeEvidence()` under the owned trigger window.
+    - `[x]` **3.2.c Separate progress, native approval, substantive evidence, and capacity terminality**
+        - Removed the native-approval evidence mapper and its lifecycle-tail shortcut; current-head evidence now enters
+          only through the provider observation/normalization port, while status, empty approval, mutable walkthrough,
+          silence, unknown capacity, and non-terminal failures remain non-satisfying.
 
-    - `[ ]` **3.2.d Add capability-matrix and provider-surface coverage**
-        - Exercise satisfying and partial declarations, exact-head clean/findings, stale evidence, empty approval,
-          ambiguous silence, quota rejection, and settlement capability.
+    - `[x]` **3.2.d Add capability-matrix and provider-surface coverage**
+        - Covered satisfying and partial declarations, request-mechanism gaps, exact-head clean/findings, stale and
+          empty approvals, silent/progress-only states, quota rejection, settlement capability, incomplete inline
+          enumeration, exact trigger provenance, and provider-port-only runtime satisfaction.
+
+- _Outcome:_ CodeRabbit authority is now causal and substantive end to end: configuration qualification controls the
+  declared capability set, the ledger owns the real GitHub trigger event, and only exact-head durable artifacts
+  normalized by the adapter can satisfy the gate.
 
 ### `[ ]` **3.3 Add the hosted Codex adapter, pinned evidence parsers, and rubric transport**
 

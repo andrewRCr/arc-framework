@@ -44,7 +44,9 @@ export interface ExclusiveTriggerWindowResult {
 function ordered(events: readonly TriggerEvent[]): TriggerEvent[] {
   return [...events].sort((left, right) => {
     const time = left.occurredAt.localeCompare(right.occurredAt);
-    return time === 0 ? left.eventId.localeCompare(right.eventId) : time;
+    if (time !== 0) return time;
+    const causalOrder = Number(left.classification === "terminal") - Number(right.classification === "terminal");
+    return causalOrder === 0 ? left.eventId.localeCompare(right.eventId) : causalOrder;
   });
 }
 

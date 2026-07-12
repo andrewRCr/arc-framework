@@ -65,6 +65,15 @@ export interface ReviewWire {
   state: string;
   commit_id: string;
   submitted_at: string | null;
+  body: string;
+}
+
+interface TimelineWire {
+  event: "labeled" | "unlabeled";
+  node_id: string;
+  actor: { id: number };
+  label: { name: string };
+  created_at: string;
 }
 
 /** A collaborator's numeric id and role, keyed by login for permission reads. */
@@ -99,6 +108,7 @@ export interface E2EWorld {
   commentsUnavailable: boolean;
   comments: CommentWire[];
   labels: string[];
+  timeline: TimelineWire[];
   checks: CheckWire[];
   counters: { commentCreate: number; commentPatch: number; checkCreate: number; checkPatch: number };
   nextCommentId: number;
@@ -133,6 +143,7 @@ export function createWorld(overrides: Partial<E2EWorld> = {}): E2EWorld {
     commentsUnavailable: false,
     comments: [],
     labels: [],
+    timeline: [],
     checks: [],
     counters: { commentCreate: 0, commentPatch: 0, checkCreate: 0, checkPatch: 0 },
     nextCommentId: 1000,
@@ -155,6 +166,7 @@ export function coderabbitReview(
     state,
     commit_id: commitId,
     submitted_at: submittedAt,
+    body: "",
   };
 }
 
@@ -395,17 +407,33 @@ export function routingFetch(world: E2EWorld): HttpFetch {
       if (method === "POST") return Promise.resolve(jsonResponse(201, createComment(world, commentBody(init))));
     }
     if (/\/issues\/\d+\/timeline$/u.test(path) && method === "GET") {
-      return Promise.resolve(jsonResponse(200, []));
+      return Promise.resolve(jsonResponse(200, world.timeline));
     }
 
     if (/\/issues\/\d+\/labels$/u.test(path) && method === "POST") {
       const labels = (JSON.parse(init.body ?? "{}") as { labels?: string[] }).labels ?? [];
       world.labels = [...new Set([...world.labels, ...labels])];
+      for (const label of labels) {
+        world.timeline.push({
+          event: "labeled",
+          node_id: `LE_${world.timeline.length + 1}`,
+          actor: { id: APP_BOT_USER_ID },
+          label: { name: label },
+          created_at: NOW.toISOString(),
+        });
+      }
       return Promise.resolve(jsonResponse(200, world.labels.map((name) => ({ name }))));
     }
     const labelDelete = /\/issues\/\d+\/labels\/([^/]+)$/u.exec(path);
     if (labelDelete?.[1] !== undefined && method === "DELETE") {
       world.labels = world.labels.filter((name) => name !== labelDelete[1]);
+      world.timeline.push({
+        event: "unlabeled",
+        node_id: `LE_${world.timeline.length + 1}`,
+        actor: { id: APP_BOT_USER_ID },
+        label: { name: labelDelete[1] },
+        created_at: NOW.toISOString(),
+      });
       return Promise.resolve(jsonResponse(200, world.labels.map((name) => ({ name }))));
     }
 

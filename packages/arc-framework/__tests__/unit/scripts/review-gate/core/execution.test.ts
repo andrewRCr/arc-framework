@@ -131,6 +131,7 @@ describe("request and projection contracts", () => {
         acknowledgementRef: "provider-run:77",
         trigger: {
           mechanism: request.requestMechanism,
+          eventKind: "label",
           eventId: "trigger-1",
           actorIdentity: request.requiredActorIdentity,
           occurredAt: "2026-07-10T20:00:30.000Z",
@@ -375,6 +376,7 @@ describe("request and projection contracts", () => {
         acknowledgementRef: "provider-run:77",
         trigger: {
           mechanism: "user-trigger",
+          eventKind: "comment",
           eventId: "trigger-1",
           actorIdentity: request.requiredActorIdentity,
           occurredAt: null,
@@ -393,6 +395,7 @@ describe("request and projection contracts", () => {
         acknowledgementRef: "provider-run:77",
         trigger: {
           mechanism: request.requestMechanism,
+          eventKind: "label",
           eventId: "trigger-1",
           actorIdentity: "other-actor",
           occurredAt: null,

@@ -87,6 +87,7 @@ function currentArtifacts(summary = "review complete"): FetchStep[] {
       state: "APPROVED",
       commit_id: HEAD,
       submitted_at: "2026-07-11T20:00:00Z",
+      body: "",
     }])),
     response(200, JSON.stringify([{
       node_id: "IC_1",
@@ -114,6 +115,74 @@ describe("GitHub CodeRabbit observation API", () => {
       { kind: "thread-resolution", threadNodeId: "T_1", resolvedByBotUserId: BOT_ID },
     ]));
     expect(signals.some((signal) => signal.kind === "finding")).toBe(false);
+    expect(signals.some((signal) => signal.kind === "clean")).toBe(false);
+  });
+
+  it("enumerates exact-head inline findings with review, thread, locus, actor, and durable URL", async () => {
+    const artifacts = currentArtifacts();
+    artifacts[1] = response(200, JSON.stringify([{
+      node_id: "PRR_1",
+      html_url: "https://github.test/pull/7#pullrequestreview-1",
+      user: { id: Number(BOT_ID), node_id: "BOT_1", login: "coderabbitai[bot]", type: "Bot" },
+      state: "CHANGES_REQUESTED",
+      commit_id: HEAD,
+      submitted_at: "2026-07-11T20:00:00Z",
+      body: "Review findings",
+    }]));
+    const { api: observation } = api(artifacts, [graphqlThreads([{
+      id: "T_1",
+      isResolved: false,
+      resolvedBy: null,
+      comments: {
+        nodes: [{
+          id: "PRRC_1",
+          body: "_🟠 Major_ Unsafe path handling",
+          url: "https://github.test/pull/7#discussion_r1",
+          path: "src/a.ts",
+          line: 7,
+          originalLine: 7,
+          commit: { oid: HEAD },
+          originalCommit: { oid: HEAD },
+          pullRequestReview: { id: "PRR_1" },
+          author: { __typename: "Bot", id: "BOT_1", databaseId: Number(BOT_ID), login: "coderabbitai[bot]" },
+        }],
+        pageInfo: { hasNextPage: false },
+      },
+    }])]);
+
+    await expect(observation.readSignals("request-1")).resolves.toContainEqual({
+      kind: "finding",
+      findingId: "T_1",
+      commentNodeId: "PRRC_1",
+      threadNodeId: "T_1",
+      reviewNodeId: "PRR_1",
+      botUserId: BOT_ID,
+      locus: "src/a.ts:7",
+      severity: "high",
+      url: "https://github.test/pull/7#discussion_r1",
+    });
+  });
+
+  it("emits clean only for the pinned non-empty completed-review grammar", async () => {
+    const artifacts = currentArtifacts();
+    artifacts[1] = response(200, JSON.stringify([{
+      node_id: "PRR_clean",
+      html_url: "https://github.test/pull/7#pullrequestreview-clean",
+      user: { id: Number(BOT_ID), node_id: "BOT_1", login: "coderabbitai[bot]", type: "Bot" },
+      state: "APPROVED",
+      commit_id: HEAD,
+      submitted_at: "2026-07-11T20:00:00Z",
+      body: "Review complete\n\n**Actionable comments posted: 0**",
+    }]));
+    const { api: observation } = api(artifacts, [graphqlThreads()]);
+
+    await expect(observation.readSignals("request-1")).resolves.toContainEqual({
+      kind: "clean",
+      reviewNodeId: "PRR_clean",
+      botUserId: BOT_ID,
+      headSha: HEAD,
+      url: "https://github.test/pull/7#pullrequestreview-clean",
+    });
   });
 
   it("drops stale-head and wrong-bot artifacts", async () => {
@@ -234,5 +303,16 @@ describe("GitHub CodeRabbit observation API", () => {
     ], [graphqlThreads()]);
 
     await expect(observation.readSignals("request-1")).rejects.toThrow("coderabbit-comments-schema-error");
+  });
+
+  it("fails closed rather than truncating an inline-comment thread", async () => {
+    const { api: observation } = api(currentArtifacts(), [graphqlThreads([{
+      id: "T_1",
+      isResolved: false,
+      resolvedBy: null,
+      comments: { nodes: [], pageInfo: { hasNextPage: true } },
+    }])]);
+
+    await expect(observation.readSignals("request-1")).rejects.toThrow("coderabbit-threads-schema-error");
   });
 });

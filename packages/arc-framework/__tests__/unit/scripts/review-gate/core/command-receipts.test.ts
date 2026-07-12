@@ -157,6 +157,7 @@ describe("command receipt planning", () => {
       priorReceipts: [],
       qualifiedSourceIdentities: ["agent-1"],
       reviewedChainHead: null,
+      controllerActorIdentity: "99",
     });
 
     expect(result).toMatchObject({
@@ -171,7 +172,7 @@ describe("command receipt planning", () => {
         actorIdentity: "7",
         semanticsVersion: "review-gate/v1",
         requestMechanism: "authorized-command",
-        requiredActorIdentity: "7",
+        requiredActorIdentity: "99",
       },
       reservation: {
         eventId: "command:IC_1:2026-07-11T20:00:00Z:body",
@@ -199,6 +200,7 @@ describe("command receipt planning", () => {
       priorReceipts: [],
       qualifiedSourceIdentities: ["agent-1"],
       reviewedChainHead: null,
+      controllerActorIdentity: "99",
     });
     expect(first).toMatchObject({ ok: true, replay: false });
     if (!first.ok) throw new Error("expected initial reservation");
@@ -220,6 +222,7 @@ describe("command receipt planning", () => {
       priorReceipts: [first.reservation],
       qualifiedSourceIdentities: ["agent-1"],
       reviewedChainHead: null,
+      controllerActorIdentity: "99",
     });
     const incremental = planCommandRefresh({
       event: event({
@@ -238,6 +241,7 @@ describe("command receipt planning", () => {
       priorReceipts: [first.reservation],
       qualifiedSourceIdentities: ["agent-1"],
       reviewedChainHead: "f".repeat(40),
+      controllerActorIdentity: "99",
     });
 
     expect(missingHead).toEqual({ ok: false, error: "incremental-chain-head-missing" });
@@ -262,6 +266,7 @@ describe("command receipt planning", () => {
       priorReceipts: [first.reservation],
       qualifiedSourceIdentities: [],
       reviewedChainHead: null,
+      controllerActorIdentity: "99",
     });
     expect(replay).toMatchObject({ ok: true, replay: true, reservation: first.reservation });
   });
