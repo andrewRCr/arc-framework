@@ -92,7 +92,7 @@ describe("trusted review-gate workflows", () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("  ci_ok:\n    name: ci-ok");
     expect(workflow).toContain("needs: [classify, lint-typecheck-unit, integration-e2e, portability]");
-    expect(workflow).toContain("  merge-ok:\n    name: merge-ok\n    needs: ci_ok");
+    expect(workflow).toMatch(/ {2}merge-ok:\n {4}name: merge-ok\n {4}permissions: \{\}\n {4}needs: ci_ok/u);
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
     expect(workflow).toContain("git diff --name-only -z");
     expect(workflow).not.toContain("changed_all=");

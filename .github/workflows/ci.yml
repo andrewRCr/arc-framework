@@ -125,6 +125,8 @@ jobs:
 
   lint-typecheck-unit:
     name: Lint, Typecheck & Unit Tests
+    permissions:
+      contents: read
     needs: classify
     # Run after classification on every push and PR lane. The documentation /
     # ARC-doc linters always run; code checks additionally gate on weight
@@ -161,6 +163,8 @@ jobs:
 
   integration-e2e:
     name: Integration & E2E Tests
+    permissions:
+      contents: read
     needs: classify
     if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light' }}
     runs-on: ubuntu-latest
@@ -186,6 +190,8 @@ jobs:
   # Linux syscalls, covered by the ubuntu leg).
   portability:
     name: Portability (concurrency guards)
+    permissions:
+      contents: read
     needs: classify
     if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light' }}
     strategy:
@@ -207,6 +213,7 @@ jobs:
 
   ci_ok:
     name: ci-ok
+    permissions: {}
     needs: [classify, lint-typecheck-unit, integration-e2e, portability]
     if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
@@ -231,6 +238,7 @@ jobs:
 
   merge-ok:
     name: merge-ok
+    permissions: {}
     needs: ci_ok
     if: ${{ always() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest

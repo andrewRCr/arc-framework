@@ -550,29 +550,25 @@ only from immutable default-branch code.
 - _Outcome:_ Valid review evidence and emergency success authority are now separate contracts; live host facts narrow
   the latter without coupling the neutral validator to GitHub or Actions vocabulary.
 
-### `[ ]` **6.2 Build the default-branch workflow and call-graph exclusive-writer audit**
+### `[x]` **6.2 Build the default-branch workflow and call-graph exclusive-writer audit**
 
 - _Goal:_ A `review-repair-ok` status is trusted only after the complete immutable default-branch Actions graph
   proves no other workflow, token, or protected-environment consumer can write that context.
 
-    - `[ ]` **6.2.a Parse workflow permissions, calls, environments, and status-writing paths**
-        - Add a deterministic validator over `.github/workflows/**` and reusable calls; default repository
-          permissions must remain read-only and every workflow/job permission explicit.
-        - Pair the immutable default-branch graph with a live GitHub settings read proving the repository Actions
-          default token permission is read-only; static YAML cannot establish that repository-level fact.
+    - `[x]` **6.2.a Parse workflow permissions, calls, environments, and status-writing paths**
+        - Added deterministic YAML graph parsing for explicit workflow/job permissions, local reusable calls,
+          environment consumers, and status writers, paired with live default-token and default-branch SHA reads.
 
-    - `[ ]` **6.2.b Enforce the exclusive-writer and protected-environment invariants**
-        - Require the read-only validation job to precede one writer job that alone has `statuses: write`. The writer
-          uses no checkout, `uses`, called script, dependency install, repository/organization secret, or dynamic
-          context and emits only the inline constant `review-repair-ok` status after rechecking the live head.
-        - Require `review-gate-repair` to be the sole workflow/environment reference and verify the emitted context is
-          from GitHub Actions App id `15368`; source pinning, rather than static secret inference, excludes PAT/other-
-          App writers.
+    - `[x]` **6.2.b Enforce the exclusive-writer and protected-environment invariants**
+        - Enforced one validation-dependent, actionless, secretless inline status writer with exact permissions and
+          sole environment ownership, plus exact context/head/run and GitHub Actions App id `15368` source proof.
 
-    - `[ ]` **6.2.c Add fixture and live-repository audit coverage**
-        - Include direct, reusable-workflow, environment, permissions, forbidden writer-job step, secret injection,
-          dynamic context, and protected-file self-change cases in unit/integration tests.
-        - Cover repository-default permission drift and live/default-branch graph disagreement as dispatch blockers.
+    - `[x]` **6.2.c Add fixture and live-repository audit coverage**
+        - Covered direct/reusable competing writers, environment reuse, implicit permissions, forbidden actions and
+          secrets, dynamic context, protected self-change, repository permission drift, and graph SHA disagreement.
+
+- _Outcome:_ The repository now has one closed proof model for Actions-token status authority; all existing jobs also
+  declare explicit permissions so inherited defaults cannot silently widen the audited graph.
 
 ### `[ ]` **6.3 Add the dispatch-only `review-repair-ok` workflow and protected-environment contract**
 
