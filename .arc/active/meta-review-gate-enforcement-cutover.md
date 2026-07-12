@@ -12,11 +12,11 @@
 - **Task List:** `tasks-review-gate-enforcement-cutover.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task planning finalized and work unit activated (2026-07-12).
-- **Next Task:** Task 1.1 — Introduce discriminated v2 request, receipt, and lifecycle-payload contracts (line ~17)
+- **Last Completed:** Phase 3 — Hosted review-provider adapters and ordered fallback (Tasks 3.1-3.5).
+- **Next Task:** Task 4.1 — Implement the injected passive await state machine (line ~340)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 1.1 test-first with the v1/v2 contract and fixture inventory.
+- **Next Action:** Start Task 4.1.a test-first with wait inputs, normalized transitions, and terminal results.
 
 - **PR URL:** [none]
 - **Completed:** [none]
