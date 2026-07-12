@@ -85,6 +85,13 @@ describe("trusted review-gate workflows", () => {
     expect(controller).toContain("check_run:");
   });
 
+  it("supplies the reconcile step its App slug and narrow git read token", async () => {
+    const workflow = await read("review-gate.yml");
+    const reconcileStep = workflow.slice(workflow.indexOf("  reconcile:"));
+    expect(reconcileStep).toContain("ARC_APP_SLUG: ${{ steps.app-token.outputs.app-slug }}");
+    expect(reconcileStep).toContain("GITHUB_TOKEN: ${{ github.token }}");
+  });
+
   it("references existing repository scripts", async () => {
     const workflows = await Promise.all(["ci.yml", "review-gate.yml", "review-gate-attest.yml"]
       .map((name) => read(name)));

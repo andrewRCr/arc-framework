@@ -223,22 +223,24 @@ orchestrator's existing guards plus `publishGateCheck`'s current-state assert.
   risk derivation (a touched JS/TS file) lands here; the authenticated `GitExec` is deferred to the Task 3.3 shell
   that owns production IO. Covered by a 9-case composition suite.
 
-### `[ ]` **3.3 `run-reconcile.ts` reconcile-branch rewrite — thin shell over exported main**
+### `[x]` **3.3 `run-reconcile.ts` reconcile-branch rewrite — thin shell over exported main**
 
 - _Goal:_ The `reconcile` operation actually reconciles: environment → factory → `reconcile()` → check write,
   with the shell holding nothing beyond input parsing and invocation (spec Decision 6; SC 1's shell clause).
-- _Note:_ The workflow supplies the API inputs (`ARC_REPOSITORY_ID`, `ARC_PULL_REQUEST_NUMBER`,
-  `ARC_REVIEW_GATE_APP_ID`, `REVIEW_GATE_CONTEXT_MODE`, `ARC_APP_TOKEN`, standard `GITHUB_REPOSITORY`). Add
-  `ARC_APP_SLUG: ${{ steps.app-token.outputs.app-slug }}` as the pinned token-mint launch identity and
-  `GITHUB_TOKEN: ${{ github.token }}` for git-transport fetches (the narrow read token; the job already holds
-  `contents: read`). Pin both in the workflow integration test.
 
-    - `[ ]` **3.3.a Export a dependency-injectable reconcile main** — module exporting a main that takes the
-      environment record plus an injectable factory (production shell passes `process.env` and the real
-      factory), runs `reconcile()`, and reports the `ReconcileResult` status.
+    - `[x]` **3.3.a Export a dependency-injectable reconcile main** — `runReconcileMain(env, deps)`
+      (`runtime/reconcile-main.ts`) resolves the environment into a composition config, builds the injected IO,
+      constructs the runtime through the supplied factory, runs `reconcile()`, and returns the result status;
+      missing or malformed environment fails closed before any effect is constructed.
 
-    - `[ ]` **3.3.b Rewrite the shell** — replace the coordinate-echo stub in the `reconcile` branch with main
-      invocation; discovery changes only through Task 3.5's bounded wake-up guards.
+    - `[x]` **3.3.b Rewrite the shell** — the `reconcile` branch now calls `runReconcileMain(process.env, …)`
+      with the real factory, `productionFetch`, and an authenticated git exec; the `discover` branch is untouched
+      (its empty-candidate guard is Task 3.5). `ARC_APP_SLUG` and `GITHUB_TOKEN` were added to the workflow
+      reconcile env and pinned in the workflow integration test.
+- _Outcome:_ The stub is gone — `run-reconcile.ts reconcile` composes and runs the real runtime. New
+  `runtime/production-io.ts` supplies the transport (`globalThis.fetch`) and the authenticated `GitExec`: the
+  narrow read token is injected per-invocation as an `http.extraheader`, never a persisted remote URL or the git
+  subprocess environment. Covered by injectable-main and auth-exec unit suites plus the workflow env pins.
 
 ### `[ ]` **3.4 Reconcile e2e composition test (env → factory → runtime → `reconcile()` → check write)**
 

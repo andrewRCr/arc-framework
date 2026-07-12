@@ -85,4 +85,6 @@ jobs:
           ARC_REVIEW_GATE_APP_ID: ${{ vars.ARC_REVIEW_GATE_APP_ID }}
           REVIEW_GATE_CONTEXT_MODE: ${{ vars.REVIEW_GATE_CONTEXT_MODE }}
           ARC_APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          ARC_APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: ./node_modules/.bin/tsx packages/arc-framework/src/scripts/review-gate/run-reconcile.ts reconcile

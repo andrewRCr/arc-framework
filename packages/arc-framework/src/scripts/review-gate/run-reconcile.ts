@@ -2,6 +2,10 @@
 
 import { appendFile, readFile } from "node:fs/promises";
 
+import { SELF_HOSTING_POLICY } from "./policy/self-hosting/schema.js";
+import { createReconcileRuntime } from "./runtime/composition.js";
+import { createAuthenticatedGitExec, productionFetch } from "./runtime/production-io.js";
+import { runReconcileMain } from "./runtime/reconcile-main.js";
 import { discoverCandidates, type DiscoveryPort } from "./runtime/discovery.js";
 import { normalizeWakeup } from "./runtime/wakeup.js";
 
@@ -58,11 +62,14 @@ async function main(): Promise<void> {
     return;
   }
   if (operation === "reconcile") {
-    const repositoryId = Number(required("ARC_REPOSITORY_ID"));
-    const pullRequestNumber = Number(required("ARC_PULL_REQUEST_NUMBER"));
-    if (!Number.isSafeInteger(repositoryId) || !Number.isSafeInteger(pullRequestNumber)) throw new Error("invalid-candidate");
-    // Adapter composition is deliberately reached through validated numeric coordinates only.
-    process.stdout.write(JSON.stringify({ repositoryId, pullRequestNumber, wakeup: true }));
+    const result = await runReconcileMain(process.env, {
+      createRuntime: createReconcileRuntime,
+      fetch: productionFetch,
+      createGitExec: (gitToken) => createAuthenticatedGitExec(gitToken),
+      policy: SELF_HOSTING_POLICY,
+      now: new Date(),
+    });
+    process.stdout.write(JSON.stringify(result));
     return;
   }
   throw new Error("usage: run-reconcile.ts <discover|reconcile>");
