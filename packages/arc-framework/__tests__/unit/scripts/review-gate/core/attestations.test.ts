@@ -4,6 +4,7 @@ import type { ReviewRequirement } from "../../../../../src/scripts/review-gate/c
 import {
   ingestAttestation,
   validateAttestation,
+  validateRepairAttestation,
 } from "../../../../../src/scripts/review-gate/core/attestations.js";
 import { computeChangeSetId } from "../../../../../src/scripts/review-gate/core/identity.js";
 
@@ -195,5 +196,74 @@ describe("neutral attestations", () => {
       expectedLedgerVersion: 0,
       priorReceipts: [],
     })).toEqual({ ok: false, error: "manifest exceeds 32 KiB" });
+  });
+});
+
+describe("repair attestation authority", () => {
+  const repairContext = {
+    ...context,
+    purpose: "repair-authority" as const,
+    repair: {
+      repositoryId: "100",
+      changeRequestOrdinal: 7,
+      controllerExecutionId: "9001",
+      controllerExecutionAttempt: 2,
+      controllerDefinitionRef: ".github/workflows/review-gate-repair.yml",
+      controllerDefinitionSha: "f".repeat(40),
+      authorityCodeUnchanged: true,
+    },
+  };
+
+  function repairManifest(overrides: Record<string, unknown> = {}): string {
+    return manifest({
+      purpose: "repair-authority",
+      repositoryIdentity: "100",
+      changeRequestOrdinal: 7,
+      authorIdentity: "author-1",
+      controllerExecution: {
+        id: "9001",
+        attempt: 2,
+        definitionRef: ".github/workflows/review-gate-repair.yml",
+        definitionSha: "f".repeat(40),
+      },
+      ...overrides,
+    });
+  }
+
+  it("authorizes only a clean exact-head repair manifest bound to immutable workflow context", () => {
+    expect(validateRepairAttestation(repairManifest(), repairContext)).toMatchObject({
+      ok: true,
+      evidence: { result: "clean", headSha: HEAD },
+    });
+  });
+
+  it("accepts an authenticated non-author human repair review", () => {
+    const humanContext = {
+      ...repairContext,
+      authenticatedActor: { schemaVersion: 1 as const, actorIdentity: "human-1", permissions: ["write" as const] },
+      acceptedReviewerClaims: ["independent-analysis/v1"],
+    };
+    expect(validateRepairAttestation(repairManifest({
+      sourceKind: "human",
+      sourceIdentity: "human-1",
+      reviewerClaim: "independent-analysis/v1",
+      reviewerRuntime: { kind: "human", version: "1" },
+    }), humanContext).ok).toBe(true);
+  });
+
+  it.each([
+    ["findings", { result: "findings", findings: [{
+      findingId: "f-1", severity: "high", locus: "src/a.ts:1", evidenceUrlOrId: "https://example.test/f-1",
+    }] }, repairContext],
+    ["closures", { closures: [{
+      findingId: "f-0", authorityKind: "source-confirmed", authorityIdentity: "codex-cli",
+      evidenceUrlOrId: "https://example.test/closure-1",
+    }] }, repairContext],
+    ["wrong purpose", { purpose: "review-evidence" }, repairContext],
+    ["wrong repository", { repositoryIdentity: "101" }, repairContext],
+    ["self review", { authorIdentity: "maintainer-1" }, repairContext],
+    ["changed repair code", {}, { ...repairContext, repair: { ...repairContext.repair, authorityCodeUnchanged: false } }],
+  ])("keeps valid-but-ineligible %s evidence from authorizing repair", (_name, overrides, validationContext) => {
+    expect(validateRepairAttestation(repairManifest(overrides), validationContext).ok).toBe(false);
   });
 });

@@ -530,24 +530,25 @@ Repair validates bounded exact-head attestations and follows add-before-remove t
 The emergency writer uses a dedicated `review-gate-repair` environment referenced by no other workflow and executes
 only from immutable default-branch code.
 
-### `[ ]` **6.1 Extend bounded attestation validation for exact-head repair authority**
+### `[x]` **6.1 Extend bounded attestation validation for exact-head repair authority**
 
 - _Goal:_ Recovery accepts only fresh, bounded, authorized independent-analysis evidence for the live repository,
   PR, author, diff base, change set, exact head, policy, rubric, and runtime.
 
-    - `[ ]` **6.1.a Extend the neutral attestation manifest and validator**
-        - Update `core/attestations.ts` for repair purpose, exact controller identities, run/workflow references,
-          freshness, author separation, and unchanged-validator constraints.
-        - A repair status requires a qualifying `clean` result with full exact-head coverage and no findings or
-          closures; a structurally valid findings manifest remains review evidence but cannot authorize success.
+    - `[x]` **6.1.a Extend the neutral attestation manifest and validator**
+        - Added host-neutral repair purpose, repository/change/controller execution bindings, author separation, and
+          unchanged-authority proof. Only clean exact-head evidence without findings or closures authorizes repair.
 
-    - `[ ]` **6.1.b Add live GitHub context resolution for repair validation**
-        - Resolve canonical PR/head/policy plus maintainer or authenticated non-author authority without App
-          credentials.
+    - `[x]` **6.1.b Add live GitHub context resolution for repair validation**
+        - Added a read-only ordinary-token GitHub adapter and resolver for repository/default branch, PR coverage,
+          workflow run, policy, changed authority paths, and live maintainer or non-author capability.
 
-    - `[ ]` **6.1.c Cover agent, human, stale, self-review, and changed-repair-code cases test-first**
-        - Include valid-but-findings, closure-bearing, partial-coverage, wrong-purpose, and clean exact-head repair
-          manifests so status success cannot collapse ordinary attestation validity into repair authority.
+    - `[x]` **6.1.c Cover agent, human, stale, self-review, and changed-repair-code cases test-first**
+        - Covered qualified agents and humans plus findings, closures, stale scope, wrong purpose/identity, self-review,
+          weak authority, non-default dispatch, and changed repair code as distinct fail-closed cases.
+
+- _Outcome:_ Valid review evidence and emergency success authority are now separate contracts; live host facts narrow
+  the latter without coupling the neutral validator to GitHub or Actions vocabulary.
 
 ### `[ ]` **6.2 Build the default-branch workflow and call-graph exclusive-writer audit**
 

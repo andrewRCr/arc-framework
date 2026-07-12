@@ -12,8 +12,10 @@ import { canonicalizePlainJson, computeChangeSetId } from "./identity.js";
 import { createReceipt } from "./request-key.js";
 import {
   arrayAt,
+  digestAt,
   enumAt,
   exactKeys,
+  integerAt,
   objectAt,
   REVIEW_IDENTIFIER,
   schemaOneAt,
@@ -30,6 +32,19 @@ export interface AttestationValidationContext {
   authorIdentity: string;
   now: Date;
   maxRunAgeMinutes: number;
+  purpose?: "review-evidence" | "repair-authority";
+  repair?: RepairAttestationContext;
+}
+
+/** Live immutable identities required before valid evidence may authorize emergency repair success. */
+export interface RepairAttestationContext {
+  repositoryId: string;
+  changeRequestOrdinal: number;
+  controllerExecutionId: string;
+  controllerExecutionAttempt: number;
+  controllerDefinitionRef: string;
+  controllerDefinitionSha: string;
+  authorityCodeUnchanged: boolean;
 }
 
 /** Valid evidence or a fail-closed diagnostic. */
@@ -77,7 +92,8 @@ export function validateAttestation(
       "schemaVersion", "sourceKind", "sourceIdentity", "reviewerClaim", "reviewRunId", "reviewerRuntime",
       "requirementId", "result", "baseRef", "diffBaseSha", "headSha", "changeSetId", "policyVersion",
       "rubricVersion", "coverage", "coverageFromSha", "coverageThroughSha", "evidenceUrlOrId", "startedAt",
-      "completedAt", "findings", "closures",
+      "completedAt", "findings", "closures", "purpose", "repositoryIdentity", "changeRequestOrdinal",
+      "authorIdentity", "controllerExecution",
     ], path);
     schemaOneAt(record.schemaVersion, `${path}.schemaVersion`);
     const sourceKind = enumAt(record.sourceKind, ["agent", "human"], `${path}.sourceKind`) as SourceKind;
@@ -180,6 +196,50 @@ export function validateAttestation(
     }
     if (evidence.coverageFromSha !== evidence.diffBaseSha) throw new Error("full coverage must start at the diff base");
     return { ok: true, evidence };
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** Validate the strict subset of attestation evidence that may authorize `review-repair-ok`. */
+export function validateRepairAttestation(
+  content: string,
+  context: AttestationValidationContext & { purpose: "repair-authority"; repair: RepairAttestationContext },
+): AttestationValidationResult {
+  const validation = validateAttestation(content, context);
+  if (!validation.ok) return validation;
+  try {
+    const record = objectAt(JSON.parse(content) as unknown, "attestation");
+    if (record.purpose !== context.purpose) throw new Error("attestation purpose does not authorize repair");
+    if (stringAt(record.repositoryIdentity, "attestation.repositoryIdentity") !== context.repair.repositoryId) {
+      throw new Error("repair repository mismatch");
+    }
+    if (integerAt(record.changeRequestOrdinal, "attestation.changeRequestOrdinal", 1)
+      !== context.repair.changeRequestOrdinal) {
+      throw new Error("repair pull request mismatch");
+    }
+    if (stringAt(record.authorIdentity, "attestation.authorIdentity") !== context.authorIdentity
+      || context.authenticatedActor.actorIdentity === context.authorIdentity) {
+      throw new Error("repair authority must be separate from the author");
+    }
+    const execution = objectAt(record.controllerExecution, "attestation.controllerExecution");
+    exactKeys(execution, ["id", "attempt", "definitionRef", "definitionSha"], "attestation.controllerExecution");
+    if (stringAt(execution.id, "attestation.controllerExecution.id") !== context.repair.controllerExecutionId
+      || integerAt(execution.attempt, "attestation.controllerExecution.attempt", 1)
+        !== context.repair.controllerExecutionAttempt
+      || stringAt(execution.definitionRef, "attestation.controllerExecution.definitionRef")
+        !== context.repair.controllerDefinitionRef
+      || digestAt(execution.definitionSha, "attestation.controllerExecution.definitionSha", 40)
+        !== context.repair.controllerDefinitionSha) {
+      throw new Error("repair controller execution mismatch");
+    }
+    if (!context.repair.authorityCodeUnchanged) throw new Error("repair authority code changed on the target PR");
+    if (validation.evidence.result !== "clean"
+      || validation.evidence.findings.length > 0
+      || validation.evidence.closures.length > 0) {
+      throw new Error("repair authority requires clean evidence without findings or closures");
+    }
+    return validation;
   } catch (error) {
     return fail(error instanceof Error ? error.message : String(error));
   }
