@@ -31,6 +31,11 @@ import { GitHubReviewCommandCommentReader } from "../hosts/github/command-commen
 import { resolveCiState } from "../hosts/github/ci.js";
 import { GitLifecycleTailProofAdapter } from "../hosts/github/lifecycle-tail.js";
 import {
+  GitHubRestTriggerHistoryApi,
+  GitHubTriggerHistoryReader,
+  type GitHubTriggerClassifier,
+} from "../hosts/github/trigger-history.js";
+import {
   verifyInstallationAuthority,
   type AppIdentityResult,
   type InstallationAuthorityInput,
@@ -117,6 +122,7 @@ export interface SharedInfrastructure {
 /** The wired reconcile runtime plus the constructed graph for inspection. */
 export interface ReconcileComposition {
   runtime: SelfHostingReconcileRuntime;
+  changeRequestId: string;
   host: GitHostAdapter;
   store: ReviewReceiptStore;
   provider: ReviewProviderAdapter;
@@ -211,6 +217,19 @@ function codeRabbitCapabilities(policy: SelfHostingPolicy): CodeRabbitCapabiliti
     sourceConfirmedClosures: declaration.closureCapability,
   };
 }
+
+const classifySelfHostingTrigger: GitHubTriggerClassifier = ({ eventKind, content }) => {
+  if (eventKind === "label" && content === "label:arc-review-gate") {
+    return { providerIdentity: "coderabbit-pr", classification: "trigger" };
+  }
+  if (eventKind === "comment" && /@codex\s+review/iu.test(content)) {
+    return { providerIdentity: "codex-pr", classification: "trigger" };
+  }
+  if (eventKind === "comment" && /@coderabbit(?:ai)?\b/iu.test(content)) {
+    return { providerIdentity: "coderabbit-pr", classification: "trigger" };
+  }
+  return null;
+};
 
 /** Build the authenticated clients, host adapter, and launch-authority verdict. */
 export async function createSharedInfrastructure(
@@ -317,6 +336,10 @@ export async function createReconcileRuntime(
   });
 
   const commandReader = new GitHubReviewCommandCommentReader(shared.rest, config.owner, config.repo, config.pullRequestNumber);
+  const triggerHistory = new GitHubTriggerHistoryReader(
+    new GitHubRestTriggerHistoryApi(shared.rest, config.owner, config.repo, config.pullRequestNumber),
+    classifySelfHostingTrigger,
+  );
   const lifecycleTailAdapter = new GitLifecycleTailProofAdapter({ exec: io.exec });
 
   const deps: ReconcileRuntimeDependencies = {
@@ -346,12 +369,14 @@ export async function createReconcileRuntime(
       codeSurface: derivesCodeSurface(changes),
     }),
     listCommandComments: () => commandReader.list(),
+    readTriggerHistory: (headSha) => triggerHistory.read(headSha),
   };
 
   const runtime = new SelfHostingReconcileRuntime(deps);
   commandReceiptAuthorizer = (receipt) => runtime.authorizesCommandReceipt(receipt);
   return {
     runtime,
+    changeRequestId,
     host: shared.host,
     store,
     provider,

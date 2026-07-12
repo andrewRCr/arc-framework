@@ -72,7 +72,7 @@ export interface ReviewReceipt {
   action:
     | "reserved" | "acknowledged" | "terminal-failure" | "required" | "dismissed" | "waived"
     | "attested" | "unadmitted" | "finding-opened" | "finding-settled" | "contaminated" | "superseded"
-    | "running" | "abandoned" | "begin-fix" | "head-update-consumed";
+    | "running" | "abandoned" | "begin-fix" | "head-update-consumed" | "trigger-deleted";
   request: ReviewRequest;
   result: EvidenceResult | null;
   reason: string | null;
@@ -223,7 +223,7 @@ export function parseReviewReceipt(input: unknown, path = "receipt"): ReviewRece
     [
       "reserved", "acknowledged", "terminal-failure", "required", "dismissed", "waived", "attested", "unadmitted",
       "finding-opened", "finding-settled", "contaminated", "superseded", "running", "abandoned", "begin-fix",
-      "head-update-consumed",
+      "head-update-consumed", "trigger-deleted",
     ],
     `${path}.action`,
   );
@@ -277,7 +277,9 @@ function validatePayloadCongruence(
                 ? "flight-state"
                 : receipt.action === "begin-fix"
                   ? "head-update-authorization"
-                  : receipt.action === "head-update-consumed" ? "head-update-consumption" : "decision";
+                  : receipt.action === "head-update-consumed"
+                    ? "head-update-consumption"
+                    : receipt.action === "trigger-deleted" ? "trigger-deleted" : "decision";
   const payload = receipt.payload;
   if (payload.kind !== expected) throw new Error(`${path}.payload: action mismatch`);
   if (payload.kind === "acknowledgement") {
@@ -318,6 +320,12 @@ function validatePayloadCongruence(
   if (payload.kind === "head-update-consumption") {
     if (payload.oldHeadSha !== receipt.request.coverageThroughSha) throw new Error(`${path}.payload: old head mismatch`);
     if (!sameStrings(payload.findingIds, receipt.findingIds)) throw new Error(`${path}.payload: finding mismatch`);
+  }
+  if (payload.kind === "trigger-deleted") {
+    if (payload.observedHeadSha !== receipt.request.coverageThroughSha) throw new Error(`${path}.payload: head mismatch`);
+    if (payload.providerIdentity !== receipt.request.sourceIdentity) throw new Error(`${path}.payload: provider mismatch`);
+    if (payload.authenticatedEventRef !== receipt.evidenceUrlOrId) throw new Error(`${path}.payload: reference mismatch`);
+    if (receipt.result !== null || receipt.findingIds.length > 0) throw new Error(`${path}.payload: result mismatch`);
   }
 }
 

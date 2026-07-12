@@ -63,6 +63,7 @@ function receipt(input: {
             actorIdentity: admitted.requiredActorIdentity,
             occurredAt: null,
             headSha: admitted.coverageThroughSha,
+            contentDigest: "f".repeat(64),
           },
         }
       : input.action === "running" || input.action === "abandoned"

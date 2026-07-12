@@ -147,6 +147,15 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
         }
         break;
       }
+      case "trigger-deleted":
+        if (
+          !reserved.has(requestKey)
+          || receipt.result !== null
+          || receipt.findingIds.length > 0
+          || receipt.payload.kind !== "trigger-deleted"
+          || receipt.evidenceUrlOrId !== receipt.payload.authenticatedEventRef
+        ) errors.push(`contradictory-trigger-deletion:${envelope.ledgerVersion}`);
+        break;
       case "dismissed":
         if (
           receipt.result !== null

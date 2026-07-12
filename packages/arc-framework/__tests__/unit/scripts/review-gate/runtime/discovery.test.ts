@@ -81,4 +81,40 @@ describe("review-gate discovery matrix output", () => {
     );
     expect(output).toBe(JSON.stringify({ include: [{ repositoryId: 42, pullRequestNumber: 7 }] }));
   });
+
+  it("carries a bounded deleted-comment tombstone directly into the writer matrix", async () => {
+    const output = await resolveMatrixOutput(
+      "issue_comment",
+      {
+        action: "deleted",
+        repository: { id: 42 },
+        issue: { number: 7, pull_request: {} },
+        comment: {
+          id: 123,
+          node_id: "IC_123",
+          body: "@codex review",
+          updated_at: "2026-07-12T20:00:00.000Z",
+          user: { id: 101 },
+        },
+      },
+      91,
+      {
+        ...EMPTY_PORT,
+        resolvePullRequestHead: async () => "f".repeat(40),
+      },
+    );
+    const parsed = JSON.parse(output ?? "null") as { include: Array<Record<string, unknown>> };
+    expect(parsed.include).toEqual([expect.objectContaining({
+      repositoryId: 42,
+      pullRequestNumber: 7,
+      triggerDeletion: expect.objectContaining({
+        schemaVersion: 1,
+        commentId: "123",
+        actorIdentity: "101",
+        observedHeadSha: "f".repeat(40),
+        providerIdentity: "codex-pr",
+        triggerClassification: "provider-trigger",
+      }),
+    })]);
+  });
 });

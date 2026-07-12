@@ -67,6 +67,13 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).not.toMatch(/uses: [^\n]+@v\d/u);
   });
 
+  it("routes deleted issue comments directly with their bounded payload", async () => {
+    const workflow = await read("review-gate.yml");
+    expect(workflow).toContain("types: [created, edited, deleted]");
+    expect(workflow).toContain("ARC_TRIGGER_DELETION: ${{ toJSON(matrix.triggerDeletion) }}");
+    expect(workflow).not.toMatch(/issue_comment:[\s\S]*Review Gate Wakeup/u);
+  });
+
   it("publishes independent CI truth and a thin compatibility alias", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("  ci_ok:\n    name: ci-ok");

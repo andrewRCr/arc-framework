@@ -123,6 +123,7 @@ describe("reserved request execution", () => {
               actorIdentity: "actor-1",
               occurredAt: null,
               headSha: "d".repeat(40),
+              contentDigest: "f".repeat(64),
             },
           },
         }),

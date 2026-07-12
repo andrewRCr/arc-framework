@@ -54,6 +54,7 @@ function createReceipt(input: TestReceiptInput): ReviewReceipt {
         actorIdentity: input.request.requiredActorIdentity,
         occurredAt: null,
         headSha: input.request.coverageThroughSha,
+        contentDigest: "f".repeat(64),
       },
     };
   } else if (payload === undefined && ["attested", "unadmitted", "terminal-failure"].includes(input.action)) {

@@ -189,36 +189,33 @@ rather than sharing user-record projection, sync, TTL, or garbage-collection mac
 below extends the still-inactive initial schema v1, its strict parser, and literal golden fixtures; no second receipt
 schema, mixed-ledger mode, or upgrade transition is introduced before activation.
 
-### `[ ]` **3.1 Build the PR-wide exclusive-trigger window and mutation tombstone model**
+### `[x]` **3.1 Build the PR-wide exclusive-trigger window and mutation tombstone model**
 
 - _Goal:_ A terminal provider artifact can satisfy only the controller generation that owns the sole immutable
   trigger window across the entire PR, including trigger edits, deletions, labels, and old-head effects.
 - **Additional Context:** `draft-operational-state-docs.md` § Treat deletion as an explicit record event, not a
   state diff. Reuse the principle, not its managed-document storage/projection substrate.
 
-    - `[ ]` **3.1.a Define neutral trigger-event and contamination reduction**
-        - Model comment/label event id, actor, digest, event time, observed canonical head, ownership, mutation,
-          terminal proof, and generation-wide contamination in cohesive core modules.
+    - `[x]` **3.1.a Define neutral trigger-event and contamination reduction**
+        - Added neutral exclusive-window types and reduction over immutable event identity, actor, digest, time, head,
+          ownership, mutation, live-effect terminality, and generation-wide contamination.
 
-    - `[ ]` **3.1.b Read complete GitHub command and label history with immutable provenance**
-        - Extend REST/GraphQL clients and host adapters to scan PR-wide comments and timeline label events rather
-          than current-head artifacts only.
+    - `[x]` **3.1.b Read complete GitHub command and label history with immutable provenance**
+        - Added a fully paginated GitHub history adapter for PR-wide issue comments and immutable label timeline
+          events, with injected provider classification and fail-closed incomplete enumeration.
 
-    - `[ ]` **3.1.c Capture bounded deletion tombstones before canonical comments disappear**
-        - Add an initial-schema `trigger-deleted` receipt payload containing comment id, actor, prior body digest,
-          event time, observed PR head, provider/trigger classification, and authenticated event reference; extend
-          the strict parser and golden fixtures without adding a schema-version path.
-        - Route `issue_comment: deleted` directly through `.github/workflows/review-gate.yml`'s default-branch
-          discovery/writer lane so the payload survives long enough to append the receipt before canonical re-query;
-          do not rely on the payload-losing `workflow_run` relay for this event.
-        - Reconcile tombstones with scheduled canonical scans. Keep them non-projected and ledger-retained—no user-
-          record sync, rendered Markdown marker, TTL, or GC contract.
+    - `[x]` **3.1.c Capture bounded deletion tombstones before canonical comments disappear**
+        - Added the strict initial-schema `trigger-deleted` payload, stable identity goldens, ledger semantics, and
+          exact replay adoption; the direct deleted-event matrix preserves and appends it before ordinary reconcile.
+        - Scheduled scans combine retained tombstones with canonical comment/timeline history without projecting,
+          expiring, synchronizing, or garbage-collecting deletion records.
 
-    - `[ ]` **3.1.d Prove contamination and terminal-release rules test-first**
-        - Build `test-first` (one behavior at a time) for unowned, edited, deleted, competing, old-head, and
-          provider-terminal event sequences; reject time/head-only attribution.
-        - Cover the direct deleted-event workflow route, payload authentication/bounds, append-before-re-query
-          ordering, exact replay, and scheduled reconciliation after a missed non-deletion event.
+    - `[x]` **3.1.d Prove contamination and terminal-release rules test-first**
+        - Covered owned terminal acceptance; unowned, edited, deleted, removed, competing, and old-head effects;
+          bounded/authenticated deletion routing, append ordering, replay, and scheduled missed-event repair.
+
+- _Outcome:_ Provider evidence now has a PR-wide causal envelope: only one immutable owned trigger can satisfy its
+  generation, while complete history and retained deletion events preserve contamination and effect terminality.
 
 ### `[ ]` **3.2 Qualify CodeRabbit capabilities and full-coverage request generations**
 

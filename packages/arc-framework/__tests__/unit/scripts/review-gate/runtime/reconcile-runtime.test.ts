@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { hashContent } from "../../../../../src/lib/manifest/hash.js";
 import type { NormalizedChangeRequest } from "../../../../../src/scripts/review-gate/core/contracts.js";
 import type {
   ReceiptAppendResult,
@@ -25,6 +26,7 @@ import type {
   VerdictPublicationInput,
 } from "../../../../../src/scripts/review-gate/core/ports.js";
 import type { CapabilitySet } from "../../../../../src/scripts/review-gate/core/contracts.js";
+import type { GitHubTriggerHistoryEvent } from "../../../../../src/scripts/review-gate/hosts/github/trigger-history.js";
 import {
   SELF_HOSTING_POLICY,
   type SelfHostingPolicy,
@@ -321,7 +323,7 @@ describe("SelfHostingReconcileRuntime", () => {
         kind: "acknowledgement", acknowledgedAt: NOW.toISOString(), acknowledgementRef: "trigger-1",
         trigger: {
           mechanism: "automatic", eventId: "trigger-1", actorIdentity: APP_BOT,
-          occurredAt: NOW.toISOString(), headSha: oldHead,
+          occurredAt: NOW.toISOString(), headSha: oldHead, contentDigest: "f".repeat(64),
         },
       },
     });
@@ -371,6 +373,52 @@ describe("SelfHostingReconcileRuntime", () => {
       "reserved", "acknowledged",
     ]);
     expect(requestCalls).toHaveLength(1);
+  });
+
+  it("discovers a missed competing trigger on a later canonical scan", async () => {
+    const events: GitHubTriggerHistoryEvent[] = [];
+    const { runtime } = harness({
+      policy: coderabbitPolicy(),
+      deps: {
+        resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }),
+        readTriggerHistory: async () => events,
+      },
+    });
+    const initial = await runtime.read();
+    const decision = await runtime.reduce(initial, NOW);
+    if (decision.request === null) throw new Error("expected an admitted request");
+    const reserved = await runtime.reserve(decision.request, 0);
+    if (reserved === null) throw new Error("expected reservation");
+    await runtime.execute(decision.request, reserved.envelope);
+    events.push({
+      eventId: "request-1",
+      eventKind: "label",
+      actorIdentity: APP_BOT,
+      contentDigest: hashContent("receipt:ack"),
+      occurredAt: NOW.toISOString(),
+      observedHeadSha: HEAD,
+      mutation: "applied",
+      authenticatedEventRef: "github:timeline:request-1",
+      providerIdentity: "coderabbit-pr",
+      classification: "trigger",
+    });
+    const acknowledgedState = await runtime.read();
+    expect((await runtime.reduce(acknowledgedState, NOW)).projection.blockers)
+      .not.toEqual(expect.arrayContaining([expect.objectContaining({ code: expect.stringContaining("trigger-window") })]));
+
+    const ownedEvent = events[0];
+    if (ownedEvent === undefined) throw new Error("missing owned trigger event");
+    events.push({
+      ...ownedEvent,
+      eventId: "competing-label-2",
+      actorIdentity: "other-actor",
+      occurredAt: "2026-07-11T20:01:00.000Z",
+      authenticatedEventRef: "github:timeline:competing-label-2",
+    });
+    const repairedScan = await runtime.read();
+    expect((await runtime.reduce(repairedScan, NOW)).projection.blockers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "trigger-window:competing-trigger:competing-label-2" }),
+    ]));
   });
 
   it("confirms pending only for the matching request generation and ledger projection", async () => {

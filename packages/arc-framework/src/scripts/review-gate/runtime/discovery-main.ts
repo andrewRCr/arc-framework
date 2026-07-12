@@ -17,6 +17,14 @@ function pullNumber(value: unknown): number {
   return value.number as number;
 }
 
+function pullHead(value: unknown): string {
+  if (typeof value !== "object" || value === null || !("head" in value)) throw new Error("invalid-github-pull-request");
+  const head = value.head;
+  if (typeof head !== "object" || head === null || !("sha" in head) || typeof head.sha !== "string"
+    || !/^[a-f0-9]{40}$/u.test(head.sha)) throw new Error("invalid-github-pull-request-head");
+  return head.sha;
+}
+
 async function githubJson(fetch: HttpFetch, token: string, path: string): Promise<unknown> {
   const response = await fetch(`https://api.github.com${path}`, {
     method: "GET",
@@ -47,6 +55,8 @@ function discoveryPort(fetch: HttpFetch, token: string, repository: string): Dis
       }
       throw new Error("github-pagination-cap-exceeded");
     },
+    resolvePullRequestHead: async (_repositoryId, pullRequestNumber) =>
+      pullHead(await githubJson(fetch, token, `/repos/${repository}/pulls/${pullRequestNumber}`)),
   };
 }
 

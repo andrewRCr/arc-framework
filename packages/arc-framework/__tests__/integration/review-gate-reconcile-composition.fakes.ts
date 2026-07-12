@@ -394,6 +394,9 @@ export function routingFetch(world: E2EWorld): HttpFetch {
       }
       if (method === "POST") return Promise.resolve(jsonResponse(201, createComment(world, commentBody(init))));
     }
+    if (/\/issues\/\d+\/timeline$/u.test(path) && method === "GET") {
+      return Promise.resolve(jsonResponse(200, []));
+    }
 
     if (/\/issues\/\d+\/labels$/u.test(path) && method === "POST") {
       const labels = (JSON.parse(init.body ?? "{}") as { labels?: string[] }).labels ?? [];
