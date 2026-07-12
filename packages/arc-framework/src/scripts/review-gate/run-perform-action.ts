@@ -1,8 +1,7 @@
 /** Repository-only perform-action launcher using the current developer's `gh` session. */
 
 import { SELF_HOSTING_POLICY } from "./policy/self-hosting/schema.js";
-import { createReadOnlyNextActionReader } from "./runtime/action-composition.js";
-import { runPerformAction } from "./runtime/action-main.js";
+import { SELF_HOSTING_REVIEW_GATE } from "./runtime/entrypoints.js";
 import { GhDeveloperActionPort } from "./runtime/gh-action-port.js";
 import { parseContextMode } from "./runtime/rollout.js";
 import {
@@ -37,7 +36,7 @@ const token = (await productionProcessRunner.run("gh", ["auth", "token"])).stdou
 if (token.length === 0) throw new Error("gh-auth-token-empty");
 const repositoryId = positiveInteger("ARC_REPOSITORY_ID");
 const pullRequestNumber = positiveInteger("ARC_PULL_REQUEST_NUMBER");
-const reader = await createReadOnlyNextActionReader({
+const reader = await SELF_HOSTING_REVIEW_GATE.createReadOnlyNextActionReader({
   owner,
   repo,
   repositoryId,
@@ -51,7 +50,7 @@ const reader = await createReadOnlyNextActionReader({
   exec: createAuthenticatedGitExec(token),
   now: () => new Date(),
 });
-const result = await runPerformAction({
+const result = await SELF_HOSTING_REVIEW_GATE.runPerformAction({
   repositoryRef,
   pullRequestNumber,
   repositoryId: String(repositoryId),

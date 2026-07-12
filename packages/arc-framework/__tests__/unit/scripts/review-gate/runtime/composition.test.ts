@@ -4,6 +4,7 @@ import type { NormalizedChangeRequest } from "../../../../../src/scripts/review-
 import type { GitExec } from "../../../../../src/lib/git/exec.js";
 import type { HttpFetch } from "../../../../../src/scripts/review-gate/hosts/github/api/http.js";
 import type { ChangeRequestResolution } from "../../../../../src/scripts/review-gate/hosts/github/change-request.js";
+import { GitHubSettlementReader } from "../../../../../src/scripts/review-gate/hosts/github/settlement.js";
 import { QualifiedProviderRouter } from "../../../../../src/scripts/review-gate/providers/router.js";
 import {
   SELF_HOSTING_POLICY,
@@ -105,6 +106,7 @@ describe("review-gate composition roots", () => {
     expect(composition.provider).toBeInstanceOf(QualifiedProviderRouter);
     expect(composition.store).toBeDefined();
     expect(composition.checks).toBeDefined();
+    expect(composition.settlement).toBeInstanceOf(GitHubSettlementReader);
     expect(fetch).not.toHaveBeenCalled();
   });
 

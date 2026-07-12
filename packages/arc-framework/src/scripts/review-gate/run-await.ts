@@ -1,6 +1,6 @@
 /** Repository-only passive await launcher using the current developer's `gh` session. */
 
-import { runAwaitMain } from "./runtime/await-main.js";
+import { SELF_HOSTING_REVIEW_GATE } from "./runtime/entrypoints.js";
 import { GhDeveloperActionPort } from "./runtime/gh-action-port.js";
 import { GhAwaitHostPort } from "./runtime/gh-await-port.js";
 import { productionProcessRunner } from "./runtime/production-io.js";
@@ -19,7 +19,7 @@ if (!Number.isSafeInteger(pullRequestNumber) || pullRequestNumber <= 0) {
 const gh = new GhDeveloperActionPort(productionProcessRunner);
 await gh.currentActorIdentity();
 const contextName = parseContextMode(process.env.REVIEW_GATE_CONTEXT_MODE) === "final" ? "merge-ok" : "review-gate-shadow";
-await runAwaitMain({
+await SELF_HOSTING_REVIEW_GATE.runAwaitMain({
   args: process.argv.slice(2),
   repositoryRef: required("GITHUB_REPOSITORY"),
   pullRequestNumber,

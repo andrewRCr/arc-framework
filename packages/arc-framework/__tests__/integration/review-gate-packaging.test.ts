@@ -39,11 +39,37 @@ describe("review-gate package boundary", () => {
   });
 
   it("adds no production dependency, CLI command, or provider registry", async () => {
-    const manifest = JSON.parse(await readFile(resolve(root, "packages/arc-framework/package.json"), "utf8")) as {
+    const [manifestText, rootManifestText, tsup] = await Promise.all([
+      readFile(resolve(root, "packages/arc-framework/package.json"), "utf8"),
+      readFile(resolve(root, "package.json"), "utf8"),
+      readFile(resolve(root, "packages/arc-framework/tsup.config.ts"), "utf8"),
+    ]);
+    const manifest = JSON.parse(manifestText) as {
       dependencies: Record<string, string>;
+      scripts: Record<string, string>;
     };
+    const rootManifest = JSON.parse(rootManifestText) as { scripts: Record<string, string> };
     const cli = await readFile(resolve(root, "packages/arc-framework/src/cli.ts"), "utf8");
     expect(Object.keys(manifest.dependencies).sort()).toEqual(["@clack/prompts", "commander", "js-yaml", "semver"]);
     expect(cli).not.toMatch(/review-gate|coderabbit|provider-registry/iu);
+    expect(tsup).toContain('entry: ["src/cli.ts"]');
+    expect(Object.values(manifest.scripts).some((script) => script.includes("src/scripts/review-gate"))).toBe(false);
+    expect(Object.values(rootManifest.scripts).some((script) => script.includes("src/scripts/review-gate"))).toBe(true);
+  });
+
+  it("routes every production launcher through the private entrypoint assembly", async () => {
+    const launchers = [
+      "run-attest.ts",
+      "run-assert-head-mutable.ts",
+      "run-await.ts",
+      "run-next-action.ts",
+      "run-perform-action.ts",
+      "run-reconcile.ts",
+      "run-repair-environment.ts",
+      "run-repair.ts",
+    ];
+    const sources = await Promise.all(launchers.map((name) =>
+      readFile(resolve(root, "packages/arc-framework/src/scripts/review-gate", name), "utf8")));
+    expect(sources.every((source) => source.includes('from "./runtime/entrypoints.js"'))).toBe(true);
   });
 });

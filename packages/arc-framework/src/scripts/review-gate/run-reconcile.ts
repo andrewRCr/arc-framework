@@ -3,10 +3,8 @@
 import { appendFile, readFile } from "node:fs/promises";
 
 import { SELF_HOSTING_POLICY } from "./policy/self-hosting/schema.js";
-import { createReconcileRuntime } from "./runtime/composition.js";
-import { runDiscoveryMain } from "./runtime/discovery-main.js";
+import { SELF_HOSTING_REVIEW_GATE } from "./runtime/entrypoints.js";
 import { createAuthenticatedGitExec, productionFetch } from "./runtime/production-io.js";
-import { runReconcileMain } from "./runtime/reconcile-main.js";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -24,7 +22,7 @@ async function main(): Promise<void> {
   const operation = process.argv[2];
   if (operation === "discover") {
     const payload = JSON.parse(await readFile(required("GITHUB_EVENT_PATH"), "utf8")) as unknown;
-    const output = await runDiscoveryMain({
+    const output = await SELF_HOSTING_REVIEW_GATE.runDiscoveryMain({
       eventName: required("GITHUB_EVENT_NAME"),
       payload,
       expectedAppId: positiveInteger("ARC_REVIEW_GATE_APP_ID"),
@@ -36,8 +34,8 @@ async function main(): Promise<void> {
     return;
   }
   if (operation === "reconcile") {
-    const result = await runReconcileMain(process.env, {
-      createRuntime: createReconcileRuntime,
+    const result = await SELF_HOSTING_REVIEW_GATE.runReconcileMain(process.env, {
+      createRuntime: SELF_HOSTING_REVIEW_GATE.createReconcileRuntime,
       fetch: productionFetch,
       createGitExec: (gitToken) => createAuthenticatedGitExec(gitToken),
       policy: SELF_HOSTING_POLICY,

@@ -631,25 +631,27 @@ normally after delivery verification; `review-gate-enforcement-qualification` ow
 policy activation, and the provisional observed manifest; promotion owns enabled-policy requalification and the final
 acceptance proof before enforcement mutation.
 
-### `[ ]` **7.1 Complete controller composition and repository-only launcher packaging**
+### `[x]` **7.1 Complete controller composition and repository-only launcher packaging**
 
 - _Goal:_ All new neutral modules, GitHub/provider adapters, launchers, workflows, and policy declarations compose
   into one inactive self-hosting controller without leaking repository mechanics into the extraction boundary.
 
-    - `[ ]` **7.1.a Assemble production factories and runtime entry points**
-        - Update `runtime/composition.ts`, reconcile/attest mains, and thin launchers to inject the versioned store,
-          provider set, action executor, await runtime, conversation settlement, and repair validator.
+    - `[x]` **7.1.a Assemble production factories and runtime entry points**
+        - Added one immutable repository-only entrypoint assembly spanning reconciliation, attestation, developer
+          actions, passive await, finding settlement, repair validation, and environment provisioning. The reconcile
+          graph now also exposes its canonical settlement reader beside the versioned store and provider router.
 
-    - `[ ]` **7.1.b Keep repository-only launchers outside the published CLI surface**
-        - Keep launchers under `src/scripts/review-gate` and invoke them only from private root scripts or repository
-          workflows; do not add tsup entries, CLI commands, provider registries, or published package scripts that
-          reference source files absent from the tarball.
+    - `[x]` **7.1.b Keep repository-only launchers outside the published CLI surface**
+        - Routed every production launcher through the private assembly while retaining `src/cli.ts` as the sole tsup
+          entry. No package command, CLI command, provider registry, or runtime dependency exposes repository code.
 
-    - `[ ]` **7.1.c Extend packaging, architecture-boundary, and production-composition tests**
-        - Prove neutral modules import only ports/core utilities and that every executable path emits typed,
-          fail-closed output against injected fakes.
-        - Preserve the existing `npm pack --dry-run` proof that repository controller source, policy, evidence, and
-          workflows remain excluded while the public CLI bundle stays rooted only at `src/cli.ts`.
+    - `[x]` **7.1.c Extend packaging, architecture-boundary, and production-composition tests**
+        - Extended composition and launcher inventory tests over the assembled paths and canonical settlement read
+          side. Packaging now proves private scripts stay root-only, the public build remains rooted at `src/cli.ts`,
+          and the tarball excludes controller sources and repository workflows.
+
+- _Outcome:_ The inactive self-hosting controller now has one inspectable private composition surface without widening
+  the neutral core or published CLI boundary.
 
 ### `[ ]` **7.2 Build App identity, token-opacity, and secret-boundary qualification**
 

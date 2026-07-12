@@ -4,8 +4,8 @@ import { GitHubRestClient } from "./hosts/github/api/rest.js";
 import { GitHubRestRepairContextApi } from "./hosts/github/repair-context.js";
 import {
   GitHubRestRepairEnvironmentApi,
-  provisionRepairEnvironment,
 } from "./hosts/github/repair-environment.js";
+import { SELF_HOSTING_REVIEW_GATE } from "./runtime/entrypoints.js";
 import { productionFetch } from "./runtime/production-io.js";
 
 function required(name: string): string {
@@ -24,7 +24,7 @@ if (owner === undefined || repo === undefined || extra.length > 0) throw new Err
 
 const rest = new GitHubRestClient({ fetch: productionFetch, token: required("GITHUB_TOKEN") });
 const defaultBranch = (await new GitHubRestRepairContextApi(rest, owner, repo).readRepository()).defaultBranch;
-const result = await provisionRepairEnvironment(
+const result = await SELF_HOSTING_REVIEW_GATE.provisionRepairEnvironment(
   args.includes("--apply") ? "apply" : "compare",
   defaultBranch,
   new GitHubRestRepairEnvironmentApi(rest, owner, repo),

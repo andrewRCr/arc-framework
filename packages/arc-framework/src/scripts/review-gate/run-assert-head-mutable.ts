@@ -1,8 +1,7 @@
 /** Repository-only exact-head mutability launcher using the current developer's `gh` session. */
 
 import { SELF_HOSTING_POLICY } from "./policy/self-hosting/schema.js";
-import { createReadOnlyHeadMutabilityReader } from "./runtime/head-mutability-composition.js";
-import { runAssertHeadMutable } from "./runtime/head-mutability-main.js";
+import { SELF_HOSTING_REVIEW_GATE } from "./runtime/entrypoints.js";
 import { parseContextMode } from "./runtime/rollout.js";
 import {
   createAuthenticatedGitExec,
@@ -41,7 +40,7 @@ const token = (await productionProcessRunner.run("gh", ["auth", "token"])).stdou
 if (token.length === 0) throw new Error("gh-auth-token-empty");
 const repositoryId = positiveInteger("ARC_REPOSITORY_ID");
 const pullRequestNumber = positiveInteger("ARC_PULL_REQUEST_NUMBER");
-const reader = await createReadOnlyHeadMutabilityReader({
+const reader = await SELF_HOSTING_REVIEW_GATE.createReadOnlyHeadMutabilityReader({
   owner,
   repo,
   repositoryId,
@@ -54,7 +53,7 @@ const reader = await createReadOnlyHeadMutabilityReader({
   fetch: productionFetch,
   exec: createAuthenticatedGitExec(token),
 });
-const guard = await runAssertHeadMutable({
+const guard = await SELF_HOSTING_REVIEW_GATE.runAssertHeadMutable({
   repositoryId: String(repositoryId),
   changeRequestId: required("ARC_CHANGE_REQUEST_ID"),
   currentHeadSha: sha(required("ARC_HEAD_SHA"), "current-head"),

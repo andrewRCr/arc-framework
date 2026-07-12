@@ -31,6 +31,7 @@ import {
 import { GitHubReviewCommandCommentReader } from "../hosts/github/command-comments.js";
 import { resolveCiState } from "../hosts/github/ci.js";
 import { GitLifecycleTailProofAdapter } from "../hosts/github/lifecycle-tail.js";
+import { GitHubSettlementReader } from "../hosts/github/settlement.js";
 import {
   GitHubRestTriggerHistoryApi,
   GitHubTriggerHistoryReader,
@@ -138,6 +139,7 @@ export interface ReconcileComposition {
   store: ReviewReceiptStore;
   provider: ReviewProviderAdapter;
   checks: GitHubCheckRunApi;
+  settlement: GitHubSettlementReader;
   launchAuthority: AppIdentityResult;
 }
 
@@ -464,6 +466,7 @@ export async function createReconcileRuntime(
     store,
     provider,
     checks: shared.checks,
+    settlement: new GitHubSettlementReader(shared.rest, shared.gql, config.owner, config.repo),
     launchAuthority: shared.launchAuthority,
   };
 }

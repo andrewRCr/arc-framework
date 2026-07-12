@@ -7,8 +7,8 @@ import { auditRepairWriterGraph, GitHubRestRepairAuditFacts } from "./hosts/gith
 import { resolveRepairAttestationContext, GitHubRestRepairContextApi } from "./hosts/github/repair-context.js";
 import { GitHubRestRepairEnvironmentApi, verifyRepairEnvironment } from "./hosts/github/repair-environment.js";
 import { SELF_HOSTING_POLICY } from "./policy/self-hosting/schema.js";
+import { SELF_HOSTING_REVIEW_GATE } from "./runtime/entrypoints.js";
 import { productionFetch } from "./runtime/production-io.js";
-import { parseRepairDispatchEvent, validateRepairDispatch } from "./runtime/repair-main.js";
 
 const AUTHORITY_PATHS = [
   ".github/workflows/review-gate-repair.yml",
@@ -27,7 +27,9 @@ function required(name: string): string {
   return value;
 }
 
-const event = parseRepairDispatchEvent(JSON.parse(await readFile(required("GITHUB_EVENT_PATH"), "utf8")) as unknown);
+const event = SELF_HOSTING_REVIEW_GATE.parseRepairDispatchEvent(
+  JSON.parse(await readFile(required("GITHUB_EVENT_PATH"), "utf8")) as unknown,
+);
 const repository = required("GITHUB_REPOSITORY");
 const [owner, repo, ...extra] = repository.split("/");
 if (owner === undefined || repo === undefined || extra.length > 0) throw new Error("invalid-GITHUB_REPOSITORY");
@@ -44,7 +46,7 @@ for (const name of await readdir(".github/workflows")) {
 }
 const authorityPaths = [...AUTHORITY_PATHS, ...Object.keys(workflowFiles)];
 const workflowSha = required("GITHUB_WORKFLOW_SHA");
-const result = await validateRepairDispatch({
+const result = await SELF_HOSTING_REVIEW_GATE.validateRepairDispatch({
   manifest: event.manifest,
   selectedRef: required("GITHUB_REF_NAME"),
   defaultBranch: liveFacts.defaultBranch,
