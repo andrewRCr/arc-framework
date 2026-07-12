@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { createReconcileRuntime } from "../../src/scripts/review-gate/runtime/composition.js";
+import { computeChangeSetId, computePolicyVersion } from "../../src/scripts/review-gate/core/identity.js";
+import { runAttestMain, type AttestMainDependencies } from "../../src/scripts/review-gate/runtime/attest-main.js";
+import { createAttestRuntime, createReconcileRuntime } from "../../src/scripts/review-gate/runtime/composition.js";
 import {
   runReconcileMain,
   type ReconcileMainDependencies,
@@ -9,12 +11,14 @@ import {
 import { SELF_HOSTING_POLICY, type SelfHostingPolicy } from "../../src/scripts/review-gate/policy/self-hosting/schema.js";
 import {
   NOW,
+  advanceLifecycleTail,
   coderabbitReview,
   commandComment,
   corruptReceiptComment,
   createWorld,
   routingExec,
   routingFetch,
+  receiptComments,
   shadowChecks,
   type E2EWorld,
 } from "./review-gate-reconcile-composition.fakes.js";
@@ -56,7 +60,96 @@ function deps(world: E2EWorld, policy: SelfHostingPolicy = SELF_HOSTING_POLICY):
   };
 }
 
+function attestDeps(world: E2EWorld): AttestMainDependencies {
+  return {
+    createRuntime: createAttestRuntime,
+    fetch: routingFetch(world),
+    createGitExec: () => routingExec(world),
+    policy: SELF_HOSTING_POLICY,
+    now: NOW,
+  };
+}
+
+function attestationManifest(world: E2EWorld): string {
+  const policyVersion = computePolicyVersion({ policy: SELF_HOSTING_POLICY });
+  return JSON.stringify({
+    schemaVersion: 1,
+    sourceKind: "agent",
+    sourceIdentity: "codex-cli",
+    reviewerClaim: "codex-cli",
+    reviewRunId: "run-e2e-1",
+    reviewerRuntime: { kind: "codex", version: "1.0.0" },
+    requirementId: "independent-analysis",
+    result: "clean",
+    baseRef: world.baseRef,
+    diffBaseSha: world.diffBaseSha,
+    headSha: world.headSha,
+    changeSetId: computeChangeSetId({
+      baseRef: world.baseRef,
+      diffBaseSha: world.diffBaseSha,
+      headSha: world.headSha,
+    }),
+    policyVersion,
+    rubricVersion: "independent-analysis/v1",
+    coverage: "full",
+    coverageFromSha: world.diffBaseSha,
+    coverageThroughSha: world.headSha,
+    evidenceUrlOrId: "https://example.test/evidence/run-e2e-1",
+    startedAt: "2026-07-11T19:50:00.000Z",
+    completedAt: "2026-07-11T19:55:00.000Z",
+    findings: [],
+    closures: [],
+  });
+}
+
+async function dispatchAttestation(world: E2EWorld): Promise<void> {
+  world.collaborators.set("reviewer", { id: 55, role: "maintain" });
+  const result = await runAttestMain({
+    GITHUB_REPOSITORY: `${world.owner}/${world.repo}`,
+    ARC_REVIEW_GATE_APP_ID: "4268856",
+    ARC_APP_TOKEN: "ghs_apptoken",
+    ARC_APP_SLUG: world.appSlug,
+    ARC_DISPATCH_ACTOR_ID: "55",
+    GITHUB_TOKEN: "ghs_readtoken",
+  }, {
+    repository: { id: world.repositoryId },
+    sender: { login: "reviewer" },
+    inputs: { pull_request: world.pull, payload: attestationManifest(world) },
+  }, attestDeps(world));
+  expect(result.status).toBe("appended");
+}
+
 describe("review-gate reconcile composition (e2e)", () => {
+  it("persists an attestation that a separate reconcile reduces to a satisfied shadow verdict", async () => {
+    const world = createWorld();
+
+    await dispatchAttestation(world);
+    expect(receiptComments(world)).toHaveLength(1);
+    expect(receiptComments(world)[0]?.body).toContain('"reviewRunId":"run-e2e-1"');
+
+    const result = await runReconcileMain(env(world), deps(world));
+
+    expect(result).toEqual({ status: "published", effectInvoked: false });
+    expect(shadowChecks(world)[0]).toMatchObject({ status: "completed", conclusion: "success" });
+    expect(world.counters.commentCreate).toBe(2);
+  });
+
+  it("carries attested evidence over bookkeeping only and rejects a substantive tail without provider effects", async () => {
+    const bookkeeping = createWorld();
+    await dispatchAttestation(bookkeeping);
+    advanceLifecycleTail(bookkeeping);
+    await runReconcileMain(env(bookkeeping), deps(bookkeeping));
+    expect(shadowChecks(bookkeeping)[0]).toMatchObject({ status: "completed", conclusion: "success" });
+    expect(bookkeeping.counters.commentCreate).toBe(2);
+
+    const substantive = createWorld();
+    await dispatchAttestation(substantive);
+    advanceLifecycleTail(substantive, true);
+    await runReconcileMain(env(substantive), deps(substantive));
+    expect(shadowChecks(substantive)[0]).toMatchObject({ status: "in_progress", conclusion: null });
+    expect(substantive.counters.commentCreate).toBe(2);
+  });
+
   it("emits a pending shadow check under an attestation-only requirement with no provider effect", async () => {
     const world = createWorld();
 

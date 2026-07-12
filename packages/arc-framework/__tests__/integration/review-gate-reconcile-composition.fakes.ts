@@ -87,6 +87,8 @@ export interface E2EWorld {
   headSha: string;
   diffBaseSha: string;
   changedPaths: ChangedPath[];
+  lifecycleTailChanges: ChangedPath[] | null;
+  lifecycleTailReviewedHead: string | null;
   mergeable: boolean;
   isDraft: boolean;
   reviews: ReviewWire[];
@@ -119,6 +121,8 @@ export function createWorld(overrides: Partial<E2EWorld> = {}): E2EWorld {
     headSha: HEAD_SHA,
     diffBaseSha: DIFF_BASE_SHA,
     changedPaths: [{ status: "modified", path: "packages/arc-framework/src/scripts/review-gate/runtime/reconcile.ts" }],
+    lifecycleTailChanges: null,
+    lifecycleTailReviewedHead: null,
     mergeable: true,
     isDraft: false,
     reviews: [],
@@ -196,6 +200,21 @@ export function shadowChecks(world: E2EWorld): CheckWire[] {
 /** Whether any authenticated receipt comment (non-anchor) has been appended. */
 export function receiptComments(world: E2EWorld): CommentWire[] {
   return world.comments.filter((comment) => comment.body.includes("<!-- arc-review-gate:receipt"));
+}
+
+/** Advance from a reviewed head through a valid bookkeeping tail or a substantive change. */
+export function advanceLifecycleTail(world: E2EWorld, substantive = false): void {
+  world.lifecycleTailReviewedHead = world.headSha;
+  world.headSha = "e".repeat(40);
+  world.lifecycleTailChanges = substantive
+    ? [{ status: "modified", path: "packages/arc-framework/src/scripts/review-gate/runtime/reconcile.ts" }]
+    : [
+        { status: "deleted", path: ".arc/active/meta-review-gate.md" },
+        { status: "added", path: ".arc/completed/2026-q3/01_review-gate/meta-review-gate.md" },
+        { status: "deleted", path: ".arc/active/tasks-review-gate.md" },
+        { status: "added", path: ".arc/completed/2026-q3/01_review-gate/tasks-review-gate.md" },
+        { status: "modified", path: ".arc/backlog/ROADMAP.md" },
+      ];
 }
 
 function jsonResponse(status: number, body: unknown): HttpResponse {
@@ -437,7 +456,30 @@ export function routingExec(world: E2EWorld): GitExec {
       case "merge-base":
         return Promise.resolve({ stdout: `${world.diffBaseSha}\n` });
       case "diff":
-        return Promise.resolve({ stdout: nameStatusZ(world.changedPaths) });
+        return Promise.resolve({
+          stdout: nameStatusZ(rest.includes("--no-renames") && world.lifecycleTailChanges !== null
+            ? world.lifecycleTailChanges
+            : world.changedPaths),
+        });
+      case "show": {
+        const object = rest[0] ?? "";
+        if (
+          world.lifecycleTailReviewedHead !== null
+          && object === `${world.lifecycleTailReviewedHead}:.arc/active/meta-review-gate.md`
+        ) {
+          return Promise.resolve({
+            stdout: [
+              "# Metadata: review-gate",
+              "",
+              "- **State:** Integrating",
+              "- **Task List:** tasks-review-gate.md",
+              "- **Cohort:** [none]",
+              "",
+            ].join("\n"),
+          });
+        }
+        return Promise.reject(new Error(`unexpected show: ${object}`));
+      }
       default:
         return Promise.reject(new Error(`unexpected git subcommand: ${args.join(" ")}`));
     }

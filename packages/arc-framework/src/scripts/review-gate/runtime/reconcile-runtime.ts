@@ -195,10 +195,11 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     const ledgerVersion = ledgerValid ? ledger.ledgerVersion : null;
     const inconsistencies = ledgerValid ? [] : [...ledger.diagnostics];
 
-    const lifecycleTail = await this.resolveLifecycleTail(changeRequest, decision, policyVersion);
+    const receiptEvidence = extractAuthenticatedReceiptEvidence(ledgerEnvelopes);
+    const lifecycleTail = await this.resolveLifecycleTail(changeRequest, decision, policyVersion, receiptEvidence);
     const evidence = [
       ...this.resolveEvidence(changeRequest, decision, nativeObservation.providerReviews, lifecycleTail),
-      ...extractAuthenticatedReceiptEvidence(ledgerEnvelopes),
+      ...receiptEvidence,
     ];
     const capacities = await this.resolveCapacities(decision);
     const commandEvents = await this.resolveCommandEvents(changeRequest, decision, evidence, ledgerReceipts);
@@ -413,22 +414,39 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     changeRequest: NormalizedChangeRequest,
     decision: SelfHostingDecision,
     policyVersion: string,
+    receiptEvidence: Evidence[],
   ): Promise<LifecycleTailProof | null> {
     const requirement = decision.requirements[0];
     if (requirement === undefined) return null;
-    const scope = {
+    const reviewed = receiptEvidence
+      .filter((item) => item.requirementId === requirement.id
+        && item.policyVersion === policyVersion
+        && item.rubricVersion === requirement.rubricVersion
+        && item.baseRef === changeRequest.baseRef
+        && item.diffBaseSha === changeRequest.diffBaseSha
+        && item.coverageThroughSha !== changeRequest.headSha)
+      .sort((left, right) => right.observedAt.localeCompare(left.observedAt))[0];
+    if (reviewed === undefined) return null;
+    const reviewedScope = {
+      baseRef: reviewed.baseRef,
+      diffBaseSha: reviewed.diffBaseSha,
+      policyVersion: reviewed.policyVersion,
+      rubricVersion: reviewed.rubricVersion,
+      sourceIdentity: reviewed.sourceIdentity,
+    };
+    const currentScope = {
       baseRef: changeRequest.baseRef,
       diffBaseSha: changeRequest.diffBaseSha,
       policyVersion,
       rubricVersion: requirement.rubricVersion,
-      sourceIdentity: requirement.acceptableSources[0]?.sourceKind ?? "",
+      sourceIdentity: reviewed.sourceIdentity,
     };
     return this.deps.lifecycleTailAdapter.resolveLifecycleTail({
       predicateId: this.deps.policy.lifecycleTailPredicate.id,
-      reviewedThroughSha: changeRequest.headSha,
+      reviewedThroughSha: reviewed.coverageThroughSha,
       currentHeadSha: changeRequest.headSha,
-      reviewed: scope,
-      current: scope,
+      reviewed: reviewedScope,
+      current: currentScope,
     });
   }
 

@@ -311,20 +311,14 @@ Decision 10); validation semantics do not change.
 - _Outcome:_ Authenticated dispatch now terminates in one durable normalized-evidence receipt; validation failures
   fail the run, exact replays remain single-record, and the created App comment wakes the ordinary reconcile path.
 
-### `[ ]` **4.3 Cross-path e2e test (dispatch → receipt → later reconcile → satisfied verdict)**
+### `[x]` **4.3 Cross-path e2e test (dispatch → receipt → later reconcile → satisfied verdict)**
 
 - _Goal:_ A test fails if either entry path or their durable handoff regresses: it drives the exported attest main,
   persists the receipt, starts a separate reconcile from store state, and observes a satisfied requirement and
   truthful shadow projection (SC 1).
-- _Note:_ Also owns the lifecycle-tail carry-forward e2e deferred from Task 3.4 — once recovered evidence supplies a
-  prior reviewed head, assert exact-head projection stays successful across a valid bookkeeping tail with zero
-  provider effect and fails closed on any substantive tail. Reuse the Task 3.4 world/routing fakes
-  (`review-gate-reconcile-composition.fakes.ts`).
-
-    - Integration tier; fake the comment/API boundary; assert ledger version advances, the appended receipt carries
-      normalized evidence, and a fresh runtime reads it into a `success` verdict/check.
-    - Assert regressions fail: echo-only/no append, summary receipt without evidence, evidence not reloaded, or a
-      reconcile that remains pending after valid attestation.
+- _Outcome:_ The stateful composition suite now drives dispatch through an authenticated App receipt and a fresh
+  reconcile to a successful shadow verdict. It also proves the recovered reviewed head carries across the exact
+  bookkeeping-tail predicate with no provider effect while any substantive tail remains pending.
 
 ## **Phase 5:** Postmortem, guards, and record correction
 
