@@ -71,7 +71,8 @@ export interface ReviewReceipt {
   receiptHash: string;
   action:
     | "reserved" | "acknowledged" | "terminal-failure" | "required" | "dismissed" | "waived"
-    | "attested" | "unadmitted" | "finding-opened" | "finding-settled" | "contaminated" | "superseded";
+    | "attested" | "unadmitted" | "finding-opened" | "finding-settled" | "contaminated" | "superseded"
+    | "running" | "abandoned" | "begin-fix" | "head-update-consumed";
   request: ReviewRequest;
   result: EvidenceResult | null;
   reason: string | null;
@@ -221,7 +222,8 @@ export function parseReviewReceipt(input: unknown, path = "receipt"): ReviewRece
     record.action,
     [
       "reserved", "acknowledged", "terminal-failure", "required", "dismissed", "waived", "attested", "unadmitted",
-      "finding-opened", "finding-settled", "contaminated", "superseded",
+      "finding-opened", "finding-settled", "contaminated", "superseded", "running", "abandoned", "begin-fix",
+      "head-update-consumed",
     ],
     `${path}.action`,
   );
@@ -269,7 +271,13 @@ function validatePayloadCongruence(
           ? "finding-lifecycle"
           : receipt.action === "contaminated"
             ? "contamination"
-            : receipt.action === "superseded" ? "supersession" : "decision";
+            : receipt.action === "superseded"
+              ? "supersession"
+              : ["running", "abandoned"].includes(receipt.action)
+                ? "flight-state"
+                : receipt.action === "begin-fix"
+                  ? "head-update-authorization"
+                  : receipt.action === "head-update-consumed" ? "head-update-consumption" : "decision";
   const payload = receipt.payload;
   if (payload.kind !== expected) throw new Error(`${path}.payload: action mismatch`);
   if (payload.kind === "acknowledgement") {
@@ -296,6 +304,20 @@ function validatePayloadCongruence(
       throw new Error(`${path}.payload: origin head mismatch`);
     }
     if (!receipt.findingIds.includes(payload.findingId)) throw new Error(`${path}.payload: finding identity mismatch`);
+  }
+  if (payload.kind === "flight-state" && payload.state !== receipt.action) {
+    throw new Error(`${path}.payload: flight state mismatch`);
+  }
+  if (payload.kind === "flight-state" && payload.evidenceRef !== receipt.evidenceUrlOrId) {
+    throw new Error(`${path}.payload: reference mismatch`);
+  }
+  if (payload.kind === "head-update-authorization") {
+    if (payload.oldHeadSha !== receipt.request.coverageThroughSha) throw new Error(`${path}.payload: old head mismatch`);
+    if (!sameStrings(payload.findingIds, receipt.findingIds)) throw new Error(`${path}.payload: finding mismatch`);
+  }
+  if (payload.kind === "head-update-consumption") {
+    if (payload.oldHeadSha !== receipt.request.coverageThroughSha) throw new Error(`${path}.payload: old head mismatch`);
+    if (!sameStrings(payload.findingIds, receipt.findingIds)) throw new Error(`${path}.payload: finding mismatch`);
   }
 }
 

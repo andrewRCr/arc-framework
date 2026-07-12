@@ -84,6 +84,35 @@ export interface SupersessionPayload {
   reason: string;
 }
 
+/** Explicit provider-side activity or abandonment for one request flight. */
+export interface FlightStatePayload {
+  kind: "flight-state";
+  state: "running" | "abandoned";
+  observedAt: string | null;
+  evidenceRef: string;
+}
+
+/** Single-use authorization to move terminal findings to one exact target head. */
+export interface HeadUpdateAuthorizationPayload {
+  kind: "head-update-authorization";
+  authorizedAt: string;
+  terminalRequestKey: string;
+  oldHeadSha: string;
+  targetHeadSha: string;
+  actorIdentity: string;
+  findingIds: string[];
+}
+
+/** Durable consumption of one exact head-update authorization. */
+export interface HeadUpdateConsumptionPayload {
+  kind: "head-update-consumption";
+  consumedAt: string;
+  authorizationReceiptHash: string;
+  oldHeadSha: string;
+  newHeadSha: string;
+  findingIds: string[];
+}
+
 /** Authorized policy/finding decision with no provider effect. */
 export interface DecisionPayload {
   kind: "decision";
@@ -98,6 +127,9 @@ export type ReviewReceiptPayload =
   | FindingLifecyclePayload
   | ContaminationPayload
   | SupersessionPayload
+  | FlightStatePayload
+  | HeadUpdateAuthorizationPayload
+  | HeadUpdateConsumptionPayload
   | DecisionPayload;
 
 function nullableAt<T>(value: unknown, path: string, parse: (input: unknown, path: string) => T): T | null {
@@ -147,7 +179,7 @@ export function parseReviewReceiptPayload(input: unknown, path: string): ReviewR
   const record = objectAt(input, path);
   const kind = enumAt(record.kind, [
     "reservation", "acknowledgement", "terminal-evidence", "finding-lifecycle", "contamination", "supersession",
-    "decision",
+    "flight-state", "head-update-authorization", "head-update-consumption", "decision",
   ], `${path}.kind`);
   switch (kind) {
     case "reservation":
@@ -197,6 +229,43 @@ export function parseReviewReceiptPayload(input: unknown, path: string): ReviewR
         supersededAt: nullableAt(record.supersededAt, `${path}.supersededAt`, timestampAt),
         successorRequestKey: nullableAt(record.successorRequestKey, `${path}.successorRequestKey`, digestAt),
         reason: stringAt(record.reason, `${path}.reason`),
+      };
+    case "flight-state":
+      exactKeys(record, ["kind", "state", "observedAt", "evidenceRef"], path);
+      return {
+        kind,
+        state: enumAt(record.state, ["running", "abandoned"], `${path}.state`),
+        observedAt: nullableAt(record.observedAt, `${path}.observedAt`, timestampAt),
+        evidenceRef: stringAt(record.evidenceRef, `${path}.evidenceRef`),
+      };
+    case "head-update-authorization": {
+      exactKeys(record, [
+        "kind", "authorizedAt", "terminalRequestKey", "oldHeadSha", "targetHeadSha", "actorIdentity", "findingIds",
+      ], path);
+      const oldHeadSha = digestAt(record.oldHeadSha, `${path}.oldHeadSha`, 40);
+      const targetHeadSha = digestAt(record.targetHeadSha, `${path}.targetHeadSha`, 40);
+      if (oldHeadSha === targetHeadSha) throw new Error(`${path}: target head must change`);
+      return {
+        kind,
+        authorizedAt: timestampAt(record.authorizedAt, `${path}.authorizedAt`),
+        terminalRequestKey: digestAt(record.terminalRequestKey, `${path}.terminalRequestKey`),
+        oldHeadSha,
+        targetHeadSha,
+        actorIdentity: stringAt(record.actorIdentity, `${path}.actorIdentity`),
+        findingIds: arrayAt(record.findingIds, `${path}.findingIds`, stringAt),
+      };
+    }
+    case "head-update-consumption":
+      exactKeys(record, [
+        "kind", "consumedAt", "authorizationReceiptHash", "oldHeadSha", "newHeadSha", "findingIds",
+      ], path);
+      return {
+        kind,
+        consumedAt: timestampAt(record.consumedAt, `${path}.consumedAt`),
+        authorizationReceiptHash: digestAt(record.authorizationReceiptHash, `${path}.authorizationReceiptHash`),
+        oldHeadSha: digestAt(record.oldHeadSha, `${path}.oldHeadSha`, 40),
+        newHeadSha: digestAt(record.newHeadSha, `${path}.newHeadSha`, 40),
+        findingIds: arrayAt(record.findingIds, `${path}.findingIds`, stringAt),
       };
     case "decision":
       exactKeys(record, ["kind", "decidedAt"], path);

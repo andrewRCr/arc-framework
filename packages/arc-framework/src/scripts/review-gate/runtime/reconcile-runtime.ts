@@ -15,6 +15,7 @@ import { hashContent } from "../../../lib/manifest/hash.js";
 import { ingestReviewCommands, type AuthorizedReviewCommandEvent, type ReviewCommandComment } from "../core/command-ingestion.js";
 import { deriveReviewGateAction } from "../core/next-action.js";
 import { createDirectCommandReceipt, planCommandRefresh } from "../core/command-receipts.js";
+import { planHeadUpdateConsumption } from "../core/head-mutability.js";
 import type { CapabilitySet, NormalizedChangeRequest, ReviewRequirement } from "../core/contracts.js";
 import type { Evidence } from "../core/evidence.js";
 import type { GateProjection, ReceiptEnvelope, ReviewReceipt, ReviewRequest, SourceCapacity } from "../core/execution.js";
@@ -273,26 +274,34 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
   }
 
   reduce(state: CanonicalReconcileState, now: Date): Promise<ReconcileDecision> {
-    void now;
     try {
-      return Promise.resolve(this.reduceSnapshot(state));
+      return Promise.resolve(this.reduceSnapshot(state, now));
     } catch (error) {
       return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
   }
 
   /** Pure reduction over the cached snapshot; no side effects so it is safe to re-run. */
-  private reduceSnapshot(state: CanonicalReconcileState): ReconcileDecision {
+  private reduceSnapshot(state: CanonicalReconcileState, now: Date): ReconcileDecision {
     const snapshot = this.snapshot;
     if (snapshot === null || guardKey(snapshot.state) !== guardKey(state) || snapshot.ledgerVersion !== state.ledgerVersion) {
       throw new Error("reconcile-runtime: reduce called without a matching cached read");
     }
 
+    const headUpdate = state.ledgerVersion === null
+      ? { kind: "none" as const, reason: "no-authorization" as const }
+      : planHeadUpdateConsumption({
+          receipts: snapshot.ledgerReceipts,
+          currentHeadSha: snapshot.changeRequest.headSha,
+          expectedLedgerVersion: state.ledgerVersion,
+          consumedAt: now,
+        });
+    const transitionReceipts = headUpdate.kind === "consume" ? headUpdate.receipts : [];
     const commandReceipts: ReviewReceipt[] = [];
-    const receiptsToAppend: ReviewReceipt[] = [];
+    const receiptsToAppend: ReviewReceipt[] = [...transitionReceipts];
     let refreshRequest: ReviewRequest | null = null;
     let requestReservation: ReviewReceipt | null = null;
-    for (const event of state.ledgerVersion === null ? [] : snapshot.commandEvents) {
+    for (const event of state.ledgerVersion === null || transitionReceipts.length > 0 ? [] : snapshot.commandEvents) {
       const ledgerVersion = state.ledgerVersion;
       if (ledgerVersion === null) break;
       const requirement = snapshot.decision.requirements.find((entry) => entry.id === event.command.requirementId);
@@ -351,7 +360,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       lane: snapshot.lane,
       risk: snapshot.risk,
       evidence: snapshot.evidence,
-      receipts: [...snapshot.ledgerReceipts, ...commandReceipts],
+      receipts: [...snapshot.ledgerReceipts, ...transitionReceipts, ...commandReceipts],
       capacities: snapshot.capacities,
       readiness: {
         draft: snapshot.context.isDraft,
@@ -362,15 +371,23 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       nativeReview: snapshot.nativeReview,
       authorizedDismissers,
       knownHostActors: snapshot.knownHostActors,
-      inconsistencies: snapshot.inconsistencies,
-      ledgerVersion: state.ledgerVersion,
+      inconsistencies: [
+        ...snapshot.inconsistencies,
+        ...(headUpdate.kind === "ambiguous" ? [`head-update-${headUpdate.reason}`] : []),
+      ],
+      ledgerVersion: state.ledgerVersion === null
+        ? null
+        : state.ledgerVersion + receiptsToAppend.length,
       lifecycleTail: snapshot.lifecycleTail,
       receiptRefs: snapshot.receiptRefs,
       actorIdentity: this.deps.policy.providerIdentities.appBotUserId,
     });
 
-    const priorReservation = resumableReservation([...snapshot.ledgerReceipts, ...commandReceipts]);
-    const selectedRequest = refreshRequest ?? reduction.request ?? priorReservation?.request ?? null;
+    const effectiveReceipts = [...snapshot.ledgerReceipts, ...transitionReceipts, ...commandReceipts];
+    const priorReservation = resumableReservation(effectiveReceipts);
+    const selectedRequest = headUpdate.kind === "ambiguous"
+      ? null
+      : refreshRequest ?? reduction.request ?? priorReservation?.request ?? null;
     const selectedReservation = requestReservation ?? priorReservation;
     const reservationEnvelope = selectedReservation === null
       ? null

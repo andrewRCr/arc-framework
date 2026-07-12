@@ -132,26 +132,29 @@ request generation.
 - _Outcome:_ Actor-dependent provider work now crosses a pending-confirmed, exact-head handoff: neutral reduction
   describes the single permitted trigger, while only the matching developer session can consume and reconcile it.
 
-### `[ ]` **2.3 Model active flights, `begin-fix`, supersession, and one-shot head-update authorization**
+### `[x]` **2.3 Model active flights, `begin-fix`, supersession, and one-shot head-update authorization**
 
 - _Goal:_ Request activity and terminal findings produce an explicit mutability state, so every allowed new head is
   attributable to one authorized repair and every old-head finding remains in the lifecycle tail.
 
-    - `[ ]` **2.3.a Reduce exact-head flight and mutability state**
-        - Add a neutral query over receipts and host state for pending trigger, acknowledged, queued, running,
-          terminal, contaminated, abandoned, superseded, and ambiguous generations.
+    - `[x]` **2.3.a Reduce exact-head flight and mutability state**
+        - Added neutral receipt and exact-host-observation reduction for pending trigger, queued, acknowledged,
+          running, terminal, contaminated, abandoned, superseded, and ambiguous active generations.
 
-    - `[ ]` **2.3.b Add `begin-fix` and carried-finding receipt semantics**
-        - Require authorized terminal findings, exact old head, carried finding ids, and one target head-update
-          authorization; reject non-terminal, reused, unrelated, or stale authorizations.
+    - `[x]` **2.3.b Add `begin-fix` and carried-finding receipt semantics**
+        - Extended the strict initial receipt schema with flight, `begin-fix`, and head-consumption payloads; repair
+          planning requires an authorized actor, exact terminal request/findings, old head, and one target head.
 
-    - `[ ]` **2.3.c Consume authorization on the first reconciled new head**
-        - Supersede the old generation for satisfaction, retain its finding tail, and admit follow-up review only
-          after the new head's pending projection is confirmed.
+    - `[x]` **2.3.c Consume authorization on the first reconciled new head**
+        - The first target-head reconciliation now appends consumption, supersession, and per-finding carry receipts
+          before reserving follow-up review through the existing pending-confirmed execution protocol.
 
-    - `[ ]` **2.3.d Cover abandon, supersede, repair, and replay transitions test-first**
-        - Build `test-first` (one behavior at a time) across active-flight refusal, same-head DEFER/REJECT, one FIX
-          push, unused authorization, unexpected head, and carried-tail persistence.
+    - `[x]` **2.3.d Cover abandon, supersede, repair, and replay transitions test-first**
+        - Covered active and ambiguous refusal, unchanged-head settlement, abandon/supersede/contamination states,
+          exact FIX authorization, wrong targets/actors/findings, replay, strict identities, and runtime carry order.
+
+- _Outcome:_ Every modeled head change is now attributable to a durable single-use transition: active review freezes
+  mutation, while terminal findings cross exactly one authorized target with their original lifecycle authority intact.
 
 ### `[ ]` **2.4 Expose and compose the exact-head mutability guard at workflow push fire sites**
 

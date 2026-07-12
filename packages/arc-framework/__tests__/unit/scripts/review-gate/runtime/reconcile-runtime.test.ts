@@ -9,9 +9,12 @@ import type {
 import type {
   ReceiptEnvelope,
   ReviewReceipt,
+  ReviewRequest,
   SourceCapacity,
 } from "../../../../../src/scripts/review-gate/core/execution.js";
+import { planBeginFix } from "../../../../../src/scripts/review-gate/core/head-mutability.js";
 import { computeChangeSetId, computePolicyVersion } from "../../../../../src/scripts/review-gate/core/identity.js";
+import { computeRequestKey, createReceipt } from "../../../../../src/scripts/review-gate/core/request-key.js";
 import type {
   ActorAddress,
   GitHostAdapter,
@@ -282,6 +285,92 @@ describe("SelfHostingReconcileRuntime", () => {
     expect(result).toEqual({ status: "acknowledged", invoked: true });
     expect(requestCalls).toHaveLength(1);
     expect(store.envelopes.map((entry) => entry.receipt.action)).toEqual(["reserved", "acknowledged"]);
+  });
+
+  it("consumes an exact begin-fix transition before admitting follow-up review on the new head", async () => {
+    const policy = coderabbitPolicy();
+    const oldHead = "f".repeat(40);
+    const oldRequest: ReviewRequest = {
+      schemaVersion: 1,
+      repositoryId: changeRequest.repositoryId,
+      changeRequestId: changeRequest.changeRequestId,
+      changeSetId: computeChangeSetId({ baseRef: "main", diffBaseSha: DIFF_BASE, headSha: oldHead }),
+      policyVersion: computePolicyVersion({ policy }),
+      semanticsVersion: "review-gate/v1",
+      rubricVersion: "independent-analysis/v1",
+      requirementId: "independent-analysis",
+      sourceIdentity: "coderabbit-pr",
+      coverage: "full",
+      coverageFromSha: DIFF_BASE,
+      coverageThroughSha: oldHead,
+      generation: 0,
+      actorIdentity: APP_BOT,
+      requestMechanism: "automatic",
+      requiredActorIdentity: APP_BOT,
+      requestCommand: null,
+    };
+    const reserved = createReceipt({
+      eventId: "old-reserved", previousLedgerVersion: 0, action: "reserved", request: oldRequest,
+      result: null, evidenceUrlOrId: null, findingIds: [],
+      payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
+    });
+    const acknowledged = createReceipt({
+      eventId: "old-acknowledged", previousLedgerVersion: 1, action: "acknowledged", request: oldRequest,
+      result: null, evidenceUrlOrId: "trigger-1", findingIds: [],
+      payload: {
+        kind: "acknowledgement", acknowledgedAt: NOW.toISOString(), acknowledgementRef: "trigger-1",
+        trigger: {
+          mechanism: "automatic", eventId: "trigger-1", actorIdentity: APP_BOT,
+          occurredAt: NOW.toISOString(), headSha: oldHead,
+        },
+      },
+    });
+    const terminal = createReceipt({
+      eventId: "old-findings", previousLedgerVersion: 2, action: "attested", request: oldRequest,
+      result: "findings", evidenceUrlOrId: "review-1", findingIds: ["finding-1"],
+      payload: {
+        kind: "terminal-evidence", terminalAt: NOW.toISOString(), evidenceRefs: ["review-1"],
+        findingIds: ["finding-1"],
+      },
+      evidence: {
+        schemaVersion: 1, requirementId: oldRequest.requirementId, sourceKind: "agent",
+        sourceIdentity: oldRequest.sourceIdentity, result: "findings", evidenceUrlOrId: "review-1",
+        policyVersion: oldRequest.policyVersion, rubricVersion: oldRequest.rubricVersion,
+        coverage: "full", coverageFromSha: DIFF_BASE, coverageThroughSha: oldHead,
+        baseRef: "main", diffBaseSha: DIFF_BASE, changeSetId: oldRequest.changeSetId, headSha: oldHead,
+        findings: [{ findingId: "finding-1", severity: "high", locus: "src/file.ts", evidenceUrlOrId: "review-1" }],
+        closures: [], observedAt: NOW.toISOString(),
+      },
+    });
+    const begin = planBeginFix({
+      receipts: [reserved, acknowledged, terminal],
+      terminalRequestKey: computeRequestKey(oldRequest),
+      actorIdentity: "author-1",
+      authorizedActorIdentities: ["author-1"],
+      targetHeadSha: HEAD,
+      carriedFindingIds: ["finding-1"],
+      expectedLedgerVersion: 3,
+      authorizedAt: NOW,
+    });
+    if (!begin.ok) throw new Error(begin.reason);
+    const store = new InMemoryReceiptStore();
+    for (const receipt of [reserved, acknowledged, terminal, begin.receipt]) {
+      await store.appendReceipt(receipt, store.version);
+    }
+    const { runtime, requestCalls } = harness({
+      policy,
+      store,
+      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+    });
+
+    const result = await reconcile(runtime, NOW);
+
+    expect(result.status).toBe("published");
+    expect(store.envelopes.map((envelope) => envelope.receipt.action)).toEqual([
+      "reserved", "acknowledged", "attested", "begin-fix", "head-update-consumed", "superseded", "finding-opened",
+      "reserved", "acknowledged",
+    ]);
+    expect(requestCalls).toHaveLength(1);
   });
 
   it("confirms pending only for the matching request generation and ledger projection", async () => {

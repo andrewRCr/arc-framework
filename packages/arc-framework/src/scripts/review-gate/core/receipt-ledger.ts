@@ -66,6 +66,9 @@ export function validateReceiptLedger(input: ReceiptLedgerInput): ReceiptLedgerR
 function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]): void {
   const reserved = new Set<string>();
   const knownFindings = new Set<string>();
+  const terminalFindings = new Map<string, string[]>();
+  const repairAuthorizations = new Map<string, ReviewReceipt>();
+  const consumedAuthorizations = new Set<string>();
   for (const envelope of ordered) {
     const receipt = envelope.receipt;
     const requestKey = computeRequestKey(receipt.request);
@@ -98,7 +101,52 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
         for (const findingId of receipt.findingIds) {
           knownFindings.add(findingKey(receipt.request.sourceIdentity, findingId));
         }
+        if (receipt.result === "findings") terminalFindings.set(requestKey, receipt.findingIds);
         break;
+      case "running":
+      case "abandoned":
+        if (
+          !reserved.has(requestKey)
+          || receipt.result !== null
+          || receipt.findingIds.length > 0
+          || receipt.evidenceUrlOrId === null
+          || receipt.payload.kind !== "flight-state"
+          || receipt.payload.state !== receipt.action
+        ) errors.push(`contradictory-${receipt.action}:${envelope.ledgerVersion}`);
+        break;
+      case "begin-fix": {
+        const terminal = terminalFindings.get(requestKey);
+        const payload = receipt.payload;
+        if (
+          payload.kind !== "head-update-authorization"
+          || terminal === undefined
+          || !sameStrings(terminal, receipt.findingIds)
+          || payload.terminalRequestKey !== requestKey
+          || repairAuthorizations.has(requestKey)
+        ) {
+          errors.push(`contradictory-begin-fix:${envelope.ledgerVersion}`);
+        } else {
+          repairAuthorizations.set(requestKey, receipt);
+        }
+        break;
+      }
+      case "head-update-consumed": {
+        const payload = receipt.payload;
+        const authorization = payload.kind === "head-update-consumption"
+          ? [...repairAuthorizations.values()].find((candidate) => candidate.receiptHash === payload.authorizationReceiptHash)
+          : undefined;
+        if (
+          payload.kind !== "head-update-consumption"
+          || authorization === undefined
+          || consumedAuthorizations.has(payload.authorizationReceiptHash)
+          || !sameStrings(authorization.findingIds, receipt.findingIds)
+        ) {
+          errors.push(`contradictory-head-update-consumption:${envelope.ledgerVersion}`);
+        } else {
+          consumedAuthorizations.add(payload.authorizationReceiptHash);
+        }
+        break;
+      }
       case "dismissed":
         if (
           receipt.result !== null
@@ -117,6 +165,10 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
         break;
     }
   }
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
 }
 
 function findingKey(sourceIdentity: string, findingId: string): string {
