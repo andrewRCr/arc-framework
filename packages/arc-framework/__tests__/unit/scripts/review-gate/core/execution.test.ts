@@ -134,16 +134,6 @@ describe("request and projection contracts", () => {
     ["request identity", { ...evidence, requirementId: "other-requirement" }],
     ["result", { ...evidence, result: "failed" }],
     ["reference", { ...evidence, evidenceUrlOrId: "https://example.test/evidence/other" }],
-    ["finding identity", {
-      ...evidence,
-      result: "findings",
-      findings: [{
-        findingId: "finding-1",
-        severity: "high",
-        locus: "src/a.ts:1",
-        evidenceUrlOrId: "https://example.test/evidence/finding-1",
-      }],
-    }],
   ])("rejects incongruent attestation %s", (_name, mismatchedEvidence) => {
     expect(() => parseReceiptEnvelope({
       schemaVersion: 1,
@@ -159,6 +149,32 @@ describe("request and projection contracts", () => {
         evidence: mismatchedEvidence,
       },
     })).toThrow();
+  });
+
+  it("rejects incongruent attestation finding identity", () => {
+    expect(() => parseReceiptEnvelope({
+      schemaVersion: 1,
+      durableRecordId: "record-10",
+      recordedAt: "2026-07-10T20:00:00.000Z",
+      lastModifiedAt: "2026-07-10T20:00:00.000Z",
+      ledgerVersion: 5,
+      receipt: {
+        ...receipt,
+        action: "unadmitted",
+        result: "findings",
+        evidenceUrlOrId: evidence.evidenceUrlOrId,
+        evidence: {
+          ...evidence,
+          result: "findings",
+          findings: [{
+            findingId: "finding-1",
+            severity: "high",
+            locus: "src/a.ts:1",
+            evidenceUrlOrId: "https://example.test/evidence/finding-1",
+          }],
+        },
+      },
+    })).toThrow(/finding identity mismatch/u);
   });
 
   it("round-trips a neutral gate projection with blocker detail", () => {

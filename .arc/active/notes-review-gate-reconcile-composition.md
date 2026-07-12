@@ -4,7 +4,7 @@
 
 - [Cutover state](#cutover-state)
 - [Task 3.4 e2e coverage and deferrals](#task-34-e2e-coverage-and-deferrals)
-- [Composition gap map](#composition-gap-map)
+- [Historical composition gap map](#historical-composition-gap-map)
 - [CodeRabbit enforcement research](#coderabbit-enforcement-research)
 - [Storage forward-compatibility check](#storage-forward-compatibility-check)
 - [Postmortem findings](#postmortem-findings)
@@ -73,11 +73,13 @@ flips a routine success to pending, an under-permissioned author is inert.
    true dormant-boundary behavior (reserve happens, no acknowledgement). Live gen-0 label acknowledgement requires
    qualified capabilities the cutover WU proves; it is not drivable through the Phase-3 factory.
 
-## Composition gap map
+## Historical composition gap map
 
-Verified 2026-07-11 against source (paths under `packages/arc-framework/src/scripts/review-gate/`).
+Captured before implementation on 2026-07-11 against source (paths under
+`packages/arc-framework/src/scripts/review-gate/`). Every gap below was closed by this work unit; the inventory is
+retained as the implementation audit trail, not as a cutover runbook.
 
-**Exists, unit-tested, zero production callers (wire only):**
+**Historical starting inventory — unit-tested leaves with zero production callers:**
 
 - `publishGateCheck` + `GitHubRestCheckRunApi` — check-run POST/PATCH with stale-writer guards, duplicate
   convergence, deterministic external id (`check-runs.ts:98, 245`)
@@ -94,7 +96,7 @@ Verified 2026-07-11 against source (paths under `packages/arc-framework/src/scri
   (`hosts/github/native-review.ts`), `resolvePullRequestFacts` (`hosts/github/pull-request.ts:101`),
   `resolveCoverageIdentity` (`hosts/github/coverage.ts:198`)
 
-**Missing (must be written):**
+**Historical gaps — implemented and verified by this work unit:**
 
 - A `GitHostAdapter` implementation (port: `core/ports.ts:46`) — no implementor anywhere; `publishVerdict()` in
   particular is unimplemented, so nothing connects a verdict to the check write

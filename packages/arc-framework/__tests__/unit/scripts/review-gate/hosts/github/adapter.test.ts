@@ -107,9 +107,12 @@ function projection(): GateProjection {
 
 class MemoryChecks implements GitHubCheckRunApi {
   readonly mutations: CheckRunMutation[] = [];
+  readonly updatedIds: number[] = [];
+
+  constructor(private readonly existing: GitHubCheckRun[] = []) {}
 
   async list(): Promise<GitHubCheckRun[]> {
-    return [];
+    return this.existing;
   }
 
   async create(value: CheckRunMutation): Promise<GitHubCheckRun> {
@@ -127,8 +130,20 @@ class MemoryChecks implements GitHubCheckRunApi {
     };
   }
 
-  async update(): Promise<GitHubCheckRun> {
-    throw new Error("unexpected update");
+  async update(id: number, value: CheckRunMutation): Promise<GitHubCheckRun> {
+    this.updatedIds.push(id);
+    this.mutations.push(value);
+    return {
+      id,
+      nodeId: `CR_${id}`,
+      name: value.name,
+      externalId: value.externalId,
+      appId: "4268856",
+      status: value.status,
+      conclusion: value.conclusion,
+      createdAt: "2026-07-11T20:00:00.000Z",
+      htmlUrl: `https://github.test/checks/${id}`,
+    };
   }
 }
 
@@ -236,5 +251,56 @@ describe("GitHub verdict publication", () => {
       readCurrentState: async () => ({ headSha: "f".repeat(40), changeSetId: changeRequest.changeSetId }),
     })).rejects.toMatchObject({ code: "stale-writer" });
     expect(checks.mutations).toEqual([]);
+  });
+
+  it("updates an existing authoritative check run", async () => {
+    const existing: GitHubCheckRun = {
+      id: 41,
+      nodeId: "CR_41",
+      name: "review-gate-shadow",
+      externalId: `arc-review-gate:7:${changeRequest.changeSetId}:review-gate-shadow`,
+      appId: "4268856",
+      status: "in_progress",
+      conclusion: null,
+      createdAt: "2026-07-11T19:00:00.000Z",
+      htmlUrl: "https://github.test/checks/41",
+    };
+    const checks = new MemoryChecks([existing]);
+    await expect(fullAdapter(checks).publishVerdict({
+      hostRef: changeRequest.hostRef,
+      headSha: changeRequest.headSha,
+      changeSetId: changeRequest.changeSetId,
+      projection: projection(),
+      mode: "shadow",
+      expectedAppId: "4268856",
+      anchorReceiptCount: 1,
+      readCurrentState: async () => ({
+        headSha: changeRequest.headSha,
+        changeSetId: changeRequest.changeSetId,
+      }),
+    })).resolves.toEqual([{ opaqueRef: "https://github.test/checks/41" }]);
+    expect(checks.updatedIds).toEqual([41]);
+  });
+
+  it("revalidates each dual-mode write and rejects a partially stale batch", async () => {
+    const checks = new MemoryChecks();
+    let reads = 0;
+    await expect(fullAdapter(checks).publishVerdict({
+      hostRef: changeRequest.hostRef,
+      headSha: changeRequest.headSha,
+      changeSetId: changeRequest.changeSetId,
+      projection: projection(),
+      mode: "dual",
+      expectedAppId: "4268856",
+      anchorReceiptCount: 1,
+      readCurrentState: async () => {
+        reads += 1;
+        return reads === 1
+          ? { headSha: changeRequest.headSha, changeSetId: changeRequest.changeSetId }
+          : { headSha: "f".repeat(40), changeSetId: changeRequest.changeSetId };
+      },
+    })).rejects.toMatchObject({ code: "stale-writer" });
+    expect(reads).toBe(2);
+    expect(checks.mutations).toHaveLength(1);
   });
 });

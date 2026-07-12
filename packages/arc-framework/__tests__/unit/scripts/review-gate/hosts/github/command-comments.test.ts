@@ -54,4 +54,21 @@ describe("GitHub review command comments", () => {
       code: "command-comments-schema-error",
     });
   });
+
+  it("fails closed when immutable actor identity is malformed", async () => {
+    const { reader: target } = reader([response(200, JSON.stringify([{
+      id: 99,
+      node_id: "IC_99",
+      body: "/review-gate require analysis inspect this change",
+      created_at: "2026-07-11T20:00:00Z",
+      updated_at: "2026-07-11T20:01:00Z",
+      html_url: "https://github.test/pull/7#issuecomment-99",
+      user: { id: "not-numeric", node_id: "U_7", login: "alice", type: "User" },
+    }]))]);
+
+    await expect(target.list()).rejects.toMatchObject({
+      name: GitHubReviewCommandCommentError.name,
+      code: "command-comments-schema-error",
+    });
+  });
 });

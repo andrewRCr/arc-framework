@@ -406,7 +406,7 @@ or for future defaults. Three entries from the family above carry this status to
   self-review. The opt-in seam for a team's own spec-review cadence — an async-PR review of the spec, a fixed
   comment window, a committee sign-off. Those cadences are informative precedents only; ARC enforces none.
 - `pre-push-review` — fires for any push via the push wrapper.
-- `pre-merge` — fires post-review-response, pre-merge at `integrate-work-unit.md`.
+- `pre-merge` — fires post-review-response, pre-merge at `integrate-work-unit.md` and `run-errand.md`.
 
 New reserved names land here when codified, keeping the namespace coherent before defaults emerge.
 

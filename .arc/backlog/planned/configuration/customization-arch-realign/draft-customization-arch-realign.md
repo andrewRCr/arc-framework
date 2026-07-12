@@ -126,17 +126,17 @@ others. The smell will continue to propagate unless the boundaries are clarified
 
 Every method ships with concrete default content + `override-active: false` frontmatter:
 
-| Method                  | Default activity                                            | Override surface       |
-|-------------------------|-------------------------------------------------------------|------------------------|
-| `branch-format`         | CB-style type prefix + `plan/` planning prefix              | Type list override     |
-| `commit-format`         | Conventional commit format                                  | Custom pattern         |
-| `commit-footer`         | Context footer naming deepest spec-shaped artifact          | Custom pattern         |
-| `diff-review`           | Aggregate-diff review activity                              | Replace activity       |
-| `issue-triage`          | Severity-based triage decision tree                         | Replace tree           |
-| `quality-gate-commands` | Project-defined Tier 1/2/3 commands                         | Replace commands       |
-| `review-triage`         | Four-way classification (fix-now / defer / reject / silent) | Replace classification |
-| `session-state`         | Tracked + gitignored session-state read/write               | Replace mechanism      |
-| `test-first`            | TDD decision tree by change type                            | Replace tree           |
+| Method                  | Default activity                                               | Override surface       |
+|-------------------------|----------------------------------------------------------------|------------------------|
+| `branch-format`         | CB-style type prefix + `plan/` planning prefix                 | Type list override     |
+| `commit-format`         | Conventional commit format                                     | Custom pattern         |
+| `commit-footer`         | Context footer naming deepest spec-shaped artifact             | Custom pattern         |
+| `diff-review`           | Aggregate-diff review activity                                 | Replace activity       |
+| `issue-triage`          | Severity-based triage decision tree                            | Replace tree           |
+| `quality-gate-commands` | Project-defined Tier 1/2/3 commands                            | Replace commands       |
+| `review-triage`         | Four-way classification (fix-now / minor-fix / defer / reject) | Replace classification |
+| `session-state`         | Tracked + gitignored session-state read/write                  | Replace mechanism      |
+| `test-first`            | TDD decision tree by change type                               | Replace tree           |
 
 Methods have **one customization axis** (`override-active`). No `active` axis for enable/disable.
 
