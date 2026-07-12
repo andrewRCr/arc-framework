@@ -337,25 +337,26 @@ Provider parsing remains inside adapters, and scheduled discovery repairs event 
 The aggregate check retains a bounded machine marker beside its human summary so the watcher can validate typed
 controller state without reconstructing provider semantics or scraping prose.
 
-### `[ ]` **4.1 Implement the injected passive await state machine**
+### `[x]` **4.1 Implement the injected passive await state machine**
 
 - _Goal:_ One reusable runtime waits on exact-head CI or aggregate review state with bounded API use, no provider
   parsing, no model inference, and explicit terminal or attention outcomes.
 
-    - `[ ]` **4.1.a Define wait inputs, normalized transitions, and terminal results**
-        - Add an injected runtime under `runtime/` for repository, PR, expected full head, wait kind, polling
-          interval, timeout, host reads, clock, backoff, and output ports.
+    - `[x]` **4.1.a Define wait inputs, normalized transitions, and terminal results**
+        - Added a provider-neutral runtime with injected host reads, clock, backoff, and output ports plus typed
+          success, failure, stale-head, timeout, authentication, and malformed-projection terminals.
 
-    - `[ ]` **4.1.b Implement source-pinned CI and aggregate-projection observation loops**
-        - Verify the PR head every cycle, emit only changed normalized states, and terminate on success, failure,
-          stale head, timeout, authentication failure, or malformed/ambiguous projection.
-        - Extend App check publication with a bounded versioned machine marker carrying conclusion, blocker codes,
-          ledger version, and receipt references. Add a read-side parser that pins App id, stable external id, check
-          name, and exact head before returning typed aggregate state; `ci` continues to trust only source-pinned
-          `ci-ok` status/conclusion.
+    - `[x]` **4.1.b Implement source-pinned CI and aggregate-projection observation loops**
+        - Added exact-head polling with change-only normalized output and a bounded versioned App marker carrying
+          conclusion, blocker codes, ledger version, and receipt references. The aggregate parser pins App id,
+          stable external id, context name, PR, and head before exposing typed state.
 
-    - `[ ]` **4.1.c Prove timing, backoff, silence, and every terminal arm test-first**
-        - Use fake clock/read/output ports; assert no provider prose enters the watcher and no unchanged state emits.
+    - `[x]` **4.1.c Prove timing, backoff, silence, and every terminal arm test-first**
+        - Fake-clock and injected-port tests cover bounded backoff, unchanged-state silence, exact-head invalidation,
+          both conclusions, timeout, authentication failure, and malformed/ambiguous aggregate projections.
+
+- _Outcome:_ Passive waiting now consumes only typed canonical state: CI remains source-pinned, aggregate review
+  state is authenticated by exact machine coordinates, and provider prose never enters the runtime.
 
 ### `[ ]` **4.2 Add the self-hosting await launcher and typed terminal output contract**
 

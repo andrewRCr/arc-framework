@@ -8,6 +8,7 @@ import {
   confirmPendingGateCheck,
   findAuthoritativeCheckRuns,
   publishGateCheck,
+  parseGateStateMarker,
   reviewGateConcurrency,
   type CheckRunMutation,
   type CheckWriteState,
@@ -167,6 +168,21 @@ describe("authoritative check lookup", () => {
 });
 
 describe("neutral projection publishing", () => {
+  it("publishes and parses a bounded versioned aggregate machine marker", async () => {
+    const api = new MemoryChecks();
+    await publishGateCheck({ api, scope, projection: projection("failure"), anchorReceiptCount: 4, readCurrentState: async () => state() });
+    const summary = api.mutations[0]?.value.output.summary ?? "";
+    expect(parseGateStateMarker(summary)).toEqual({
+      schemaVersion: 1,
+      conclusion: "failure",
+      blockerCodes: ["review-failed"],
+      ledgerVersion: 4,
+      receiptRefs: ["https://github.com/acme/repo/pull/7#issuecomment-1"],
+    });
+    expect(summary.length).toBeLessThanOrEqual(65_535);
+    expect(() => parseGateStateMarker("<!-- arc-review-gate-state:v1:not-json -->")).toThrow("malformed-gate-state-marker");
+  });
+
   it.each([
     ["pending", "in_progress", null],
     ["failure", "completed", "failure"],

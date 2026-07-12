@@ -74,6 +74,53 @@ export interface CheckRunPublishResult {
   duplicateRunIds: number[];
 }
 
+/** Bounded controller state embedded beside the human-readable check summary. */
+export interface GateStateMarker {
+  schemaVersion: 1;
+  conclusion: "pending" | "failure" | "success";
+  blockerCodes: string[];
+  ledgerVersion: number | null;
+  receiptRefs: string[];
+}
+
+const GATE_STATE_MARKER = /<!-- arc-review-gate-state:v1:([A-Za-z0-9_-]+) -->/u;
+const MAX_MARKER_ITEMS = 32;
+const MAX_MARKER_VALUE = 2_048;
+
+function marker(projection: GateProjection): string {
+  const state: GateStateMarker = {
+    schemaVersion: 1,
+    conclusion: projection.conclusion,
+    blockerCodes: projection.blockers.slice(0, MAX_MARKER_ITEMS).map((item) => item.code.slice(0, MAX_MARKER_VALUE)),
+    ledgerVersion: projection.ledgerVersion,
+    receiptRefs: projection.receiptRefs.slice(0, MAX_MARKER_ITEMS).map((item) => item.slice(0, MAX_MARKER_VALUE)),
+  };
+  return `<!-- arc-review-gate-state:v1:${Buffer.from(JSON.stringify(state), "utf8").toString("base64url")} -->`;
+}
+
+/** Parse only the versioned aggregate state marker; human prose is never interpreted. */
+export function parseGateStateMarker(summary: string): GateStateMarker {
+  const encoded = GATE_STATE_MARKER.exec(summary)?.[1];
+  if (encoded === undefined || encoded.length > 128_000) throw new Error("malformed-gate-state-marker");
+  try {
+    const value = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as unknown;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("shape");
+    const state = value as Record<string, unknown>;
+    if (state.schemaVersion !== 1
+      || !["pending", "failure", "success"].includes(String(state.conclusion))
+      || !Array.isArray(state.blockerCodes)
+      || !state.blockerCodes.every((item) => typeof item === "string")
+      || !(state.ledgerVersion === null || (Number.isSafeInteger(state.ledgerVersion) && (state.ledgerVersion as number) >= 0))
+      || !Array.isArray(state.receiptRefs)
+      || !state.receiptRefs.every((item) => typeof item === "string")
+      || state.blockerCodes.length > MAX_MARKER_ITEMS
+      || state.receiptRefs.length > MAX_MARKER_ITEMS) throw new Error("shape");
+    return state as unknown as GateStateMarker;
+  } catch {
+    throw new Error("malformed-gate-state-marker");
+  }
+}
+
 /** Deterministic identity for one PR/change-set/context projection. */
 export function buildCheckExternalId(pullNumber: number, changeSetId: string, contextName: string): string {
   return `arc-review-gate:${pullNumber}:${changeSetId}:${contextName}`;
@@ -167,6 +214,7 @@ function renderSummary(projection: GateProjection, anchorReceiptCount: number | 
   const ledgerVersion = projection.ledgerVersion === null ? "unknown" : String(projection.ledgerVersion);
   const receiptCount = anchorReceiptCount === null ? "unknown" : String(anchorReceiptCount);
   const lines = [
+    marker(projection),
     `**Result:** ${projection.conclusion}`,
     `**Policy:** ${projection.policyDecision.disposition} / ${projection.policyDecision.reviewRisk}`,
     `**CI:** ${projection.ciState}`,
