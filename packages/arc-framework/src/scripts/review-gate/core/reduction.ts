@@ -1,6 +1,7 @@
 /** Production composition of review-policy, evidence, admission, verdict, and projection reducers. */
 
 import { admitAutomaticRequest } from "./admission.js";
+import { deriveReviewGateAction, type ReviewGateAction } from "./next-action.js";
 import { applyRequiredOverride, COMMAND_RECEIPT_SOURCE } from "./command-receipts.js";
 import type { NormalizedChangeRequest, ReviewRequirement, SourceKind } from "./contracts.js";
 import { reduceCoverage } from "./coverage.js";
@@ -36,6 +37,9 @@ export interface ReviewSourceQualification {
   sourceIdentity: string;
   qualifiedRubricVersions: string[];
   transport: "durable-record" | "authenticated-attestation";
+  requestMechanism: "automatic" | "user-trigger";
+  requiredActorIdentity: string | null;
+  requestCommand: string | null;
 }
 
 /** Canonical state consumed by the production core reduction. */
@@ -67,6 +71,7 @@ export interface ReviewGateReductionInput {
 export interface GateReductionDecision {
   request: ReviewRequest | null;
   projection: GateProjection;
+  action: ReviewGateAction;
 }
 
 /** Recover normalized evidence only after the receipt store authenticated and parsed its envelope. */
@@ -108,6 +113,7 @@ function requestFor(
   declaration: ReviewSourceQualification,
   generation: number,
 ): ReviewRequest {
+  const requiredActorIdentity = declaration.requiredActorIdentity ?? input.actorIdentity;
   return {
     schemaVersion: 1,
     repositoryId: input.changeRequest.repositoryId,
@@ -123,8 +129,9 @@ function requestFor(
     coverageThroughSha: input.changeRequest.headSha,
     generation,
     actorIdentity: input.actorIdentity,
-    requestMechanism: "automatic",
-    requiredActorIdentity: input.actorIdentity,
+    requestMechanism: declaration.requestMechanism,
+    requiredActorIdentity,
+    requestCommand: declaration.requestCommand,
   };
 }
 
@@ -250,15 +257,24 @@ export function reduceReviewGate(input: ReviewGateReductionInput): GateReduction
     nativeReview: input.nativeReview,
     inconsistencies,
   });
-  return {
-    request: verdict.conclusion === "failure" ? null : request,
-    projection: renderGateProjection({
+  const admittedRequest = verdict.conclusion === "failure" ? null : request;
+  const projection = renderGateProjection({
       verdict,
       policy: policyProjection(policyDecision),
       ciState: input.ciState,
       ledgerVersion: input.ledgerVersion,
       receiptRefs: input.receiptRefs,
       evidence: projectionEvidence,
+    });
+  return {
+    request: admittedRequest,
+    projection,
+    action: deriveReviewGateAction({
+      repositoryId: input.changeRequest.repositoryId,
+      changeRequestId: input.changeRequest.changeRequestId,
+      headSha: input.changeRequest.headSha,
+      request: admittedRequest,
+      projection,
     }),
   };
 }

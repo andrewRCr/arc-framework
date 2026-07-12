@@ -14,11 +14,13 @@ import { execFile } from "node:child_process";
 
 import type { ExecResult, GitExec, GitExecOptions } from "../../../lib/git/exec.js";
 import type { HttpFetch } from "../hosts/github/api/http.js";
+import type { ProcessRunner } from "./gh-action-port.js";
 
 /** Node global `fetch` as the transport boundary; the `Response` satisfies `HttpResponse`. */
 export const productionFetch: HttpFetch = (url, init) => globalThis.fetch(url, init);
 
 const MAX_GIT_STDOUT_BYTES = 64 * 1024 * 1024;
+const MAX_PROCESS_STDOUT_BYTES = 8 * 1024 * 1024;
 
 /** `child_process.execFile`-backed git executor; retains stdout on non-zero exit for callers. */
 export function execFileGitExec(cmd: string, args: string[], options?: GitExecOptions): Promise<ExecResult> {
@@ -46,3 +48,18 @@ export function createAuthenticatedGitExec(gitToken: string, base: GitExec = exe
   const header = `http.extraheader=AUTHORIZATION: basic ${credential}`;
   return (cmd, args, options) => base(cmd, ["-c", header, ...args], options);
 }
+
+/** `execFile` process boundary for repository-only `gh` action launchers. */
+export const productionProcessRunner: ProcessRunner = {
+  run(command, args) {
+    return new Promise((resolve, reject) => {
+      execFile(command, args, { maxBuffer: MAX_PROCESS_STDOUT_BYTES, encoding: "utf8" }, (error, stdout) => {
+        if (error !== null) {
+          reject(error instanceof Error ? error : new Error("process execution failed"));
+          return;
+        }
+        resolve({ stdout });
+      });
+    });
+  },
+};

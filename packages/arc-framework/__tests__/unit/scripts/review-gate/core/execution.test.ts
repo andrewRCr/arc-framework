@@ -24,6 +24,7 @@ const request = {
   actorIdentity: "controller-1",
   requestMechanism: "automatic",
   requiredActorIdentity: "controller-1",
+  requestCommand: null,
 };
 
 const receipt = {
@@ -76,6 +77,15 @@ const evidence = {
 describe("request and projection contracts", () => {
   it("round-trips request identity and generation", () => {
     expect(parseReviewRequest(request)).toEqual(request);
+  });
+
+  it("round-trips an exact actor-bound user-trigger request", () => {
+    const triggered = {
+      ...request,
+      requestMechanism: "user-trigger",
+      requestCommand: "@codex review the exact head",
+    };
+    expect(parseReviewRequest(triggered)).toEqual(triggered);
   });
 
   it("validates capacity status and reason pairs", () => {
@@ -342,6 +352,8 @@ describe("request and projection contracts", () => {
       actorIdentity: request.actorIdentity,
     }],
     ["unknown causal field", { ...request, triggerIdentity: "trigger-1" }],
+    ["automatic command", { ...request, requestCommand: "@codex review" }],
+    ["trigger without command", { ...request, requestMechanism: "user-trigger" }],
   ])("rejects malformed request %s", (_name, input) => {
     expect(() => parseReviewRequest(input)).toThrow();
   });

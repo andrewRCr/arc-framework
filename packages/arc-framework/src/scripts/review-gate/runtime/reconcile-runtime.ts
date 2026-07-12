@@ -13,6 +13,7 @@
 
 import { hashContent } from "../../../lib/manifest/hash.js";
 import { ingestReviewCommands, type AuthorizedReviewCommandEvent, type ReviewCommandComment } from "../core/command-ingestion.js";
+import { deriveReviewGateAction } from "../core/next-action.js";
 import { createDirectCommandReceipt, planCommandRefresh } from "../core/command-receipts.js";
 import type { CapabilitySet, NormalizedChangeRequest, ReviewRequirement } from "../core/contracts.js";
 import type { Evidence } from "../core/evidence.js";
@@ -369,11 +370,25 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     });
 
     const priorReservation = resumableReservation([...snapshot.ledgerReceipts, ...commandReceipts]);
+    const selectedRequest = refreshRequest ?? reduction.request ?? priorReservation?.request ?? null;
+    const selectedReservation = requestReservation ?? priorReservation;
+    const reservationEnvelope = selectedReservation === null
+      ? null
+      : snapshot.ledgerEnvelopes.find((entry) =>
+          entry.receipt.receiptHash === selectedReservation.receiptHash) ?? null;
     return {
-      request: refreshRequest ?? reduction.request ?? priorReservation?.request ?? null,
+      request: selectedRequest,
       receiptsToAppend,
-      requestReservation: requestReservation ?? priorReservation,
+      requestReservation: selectedReservation,
+      reservationEnvelope,
       projection: reduction.projection,
+      action: deriveReviewGateAction({
+        repositoryId: snapshot.changeRequest.repositoryId,
+        changeRequestId: snapshot.changeRequest.changeRequestId,
+        headSha: snapshot.changeRequest.headSha,
+        request: selectedRequest,
+        projection: reduction.projection,
+      }),
     };
   }
 

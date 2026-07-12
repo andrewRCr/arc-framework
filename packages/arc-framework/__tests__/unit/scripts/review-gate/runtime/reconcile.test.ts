@@ -21,6 +21,7 @@ const projection = (ledgerVersion: number | null = 0): GateProjection => ({
   ciState: "pending", ledgerVersion, evidence: [],
 });
 const request = { changeRequestId: "change-7" } as ReviewRequest;
+const userRequest = { ...request, requestMechanism: "user-trigger" } as ReviewRequest;
 const reservation = { ledgerVersion: 1, receipt: { action: "reserved" } } as ReceiptEnvelope;
 
 function runtime(overrides: Partial<ReconcileRuntime>): ReconcileRuntime {
@@ -194,6 +195,21 @@ describe("review-gate reconciliation", () => {
     }), new Date("2026-07-11T12:00:00.000Z"));
 
     expect(result).toEqual({ status: "reservation-adopted", effect: null });
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("exposes an actor-owned trigger only after pending confirmation without invoking the provider", async () => {
+    const reads = [state(), state(), state(undefined, 1)];
+    const execute = vi.fn();
+    const result = await reconcile(runtime({
+      read: async () => reads.shift()!,
+      reduce: async (current) => ({ request: userRequest, projection: projection(current.ledgerVersion) }),
+      reserve: async () => ({ envelope: reservation, created: true }),
+      confirmPending: async () => true,
+      execute,
+    }), new Date("2026-07-11T12:00:00.000Z"));
+
+    expect(result).toEqual({ status: "action-ready", effect: null });
     expect(execute).not.toHaveBeenCalled();
   });
 });

@@ -26,6 +26,7 @@ function request(): ReviewRequest {
     actorIdentity: "actor-1",
     requestMechanism: "automatic",
     requiredActorIdentity: "actor-1",
+    requestCommand: null,
   };
 }
 

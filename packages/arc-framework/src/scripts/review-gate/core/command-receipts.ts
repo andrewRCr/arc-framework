@@ -82,6 +82,7 @@ function commandRequest(
     actorIdentity: input.event.actorIdentity,
     requestMechanism: "authorized-command",
     requiredActorIdentity: input.event.actorIdentity,
+    requestCommand: null,
   };
 }
 
@@ -203,6 +204,7 @@ export function planCommandRefresh(input: CommandRefreshInput): CommandRefreshRe
     actorIdentity: input.event.actorIdentity,
     requestMechanism: "authorized-command",
     requiredActorIdentity: input.event.actorIdentity,
+    requestCommand: null,
   };
   const reservation = createReceipt({
     eventId: input.event.eventId,

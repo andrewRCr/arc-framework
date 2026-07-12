@@ -26,6 +26,8 @@
     "lint:arc:triggers": "tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
     "lint:arc:domain-rules": "tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
     "lint:arc:section-refs": "tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
+    "review-gate:next-action": "tsx packages/arc-framework/src/scripts/review-gate/run-next-action.ts",
+    "review-gate:perform-action": "tsx packages/arc-framework/src/scripts/review-gate/run-perform-action.ts",
     "prepare": "husky"
   },
   "devDependencies": {

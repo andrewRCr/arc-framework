@@ -30,6 +30,9 @@ function qualification(declaration: SourceQualificationDeclaration): ReviewSourc
     sourceIdentity: declaration.sourceIdentity,
     qualifiedRubricVersions: qualified ? [declaration.rubricVersion] : [],
     transport: declaration.transport,
+    requestMechanism: "automatic",
+    requiredActorIdentity: null,
+    requestCommand: null,
   };
 }
 

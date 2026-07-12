@@ -34,6 +34,7 @@ export function computeRequestKey(request: ReviewRequest): string {
     String(request.generation),
     request.requestMechanism,
     request.requiredActorIdentity,
+    request.requestCommand ?? "",
   ].join("\0"));
 }
 

@@ -1,6 +1,7 @@
 /** Guarded read-reduce-effect-publish orchestration for one pull request. */
 
 import type { GateProjection, ReceiptEnvelope, ReviewReceipt, ReviewRequest } from "../core/execution.js";
+import type { ReviewGateAction } from "../core/next-action.js";
 import type { RequestExecutionResult } from "../core/request-execution.js";
 
 export interface CanonicalReconcileState {
@@ -16,7 +17,9 @@ export interface ReconcileDecision {
   request: ReviewRequest | null;
   receiptsToAppend?: ReviewReceipt[];
   requestReservation?: ReviewReceipt | null;
+  reservationEnvelope?: ReceiptEnvelope | null;
   projection: GateProjection;
+  action?: ReviewGateAction;
 }
 
 export interface ReconcileRuntime {
@@ -43,7 +46,8 @@ export interface ReconcileResult {
     | "stale-before-effect"
     | "stale-after-effect"
     | "pending-unconfirmed"
-    | "reservation-adopted";
+    | "reservation-adopted"
+    | "action-ready";
   effect: RequestExecutionResult | null;
 }
 
@@ -85,6 +89,9 @@ export async function reconcile(runtime: ReconcileRuntime, now: Date): Promise<R
         pendingDecision.projection,
       );
       if (!pendingConfirmed) return { status: "pending-unconfirmed", effect: null };
+      if (decision.request.requestMechanism === "user-trigger") {
+        return { status: "action-ready", effect: null };
+      }
       if (!reserved.created) return { status: "reservation-adopted", effect: null };
       const beforeExecute = await runtime.read();
       if (

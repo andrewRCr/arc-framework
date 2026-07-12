@@ -26,6 +26,7 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     actorIdentity: "302312524",
     requestMechanism: "automatic",
     requiredActorIdentity: "302312524",
+    requestCommand: null,
     ...overrides,
   };
 }

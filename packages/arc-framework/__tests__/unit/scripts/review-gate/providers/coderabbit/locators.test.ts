@@ -24,6 +24,7 @@ const request: ReviewRequest = {
   actorIdentity: "302312524",
   requestMechanism: "automatic",
   requiredActorIdentity: "302312524",
+  requestCommand: null,
 };
 
 const deps: CodeRabbitLocatorDeps = {

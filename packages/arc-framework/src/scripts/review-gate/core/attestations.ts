@@ -250,6 +250,7 @@ export function ingestAttestation(input: AttestationIngestInput): AttestationIng
     actorIdentity: evidence.submitterIdentity ?? input.context.authenticatedActor.actorIdentity,
     requestMechanism: "attestation",
     requiredActorIdentity: evidence.submitterIdentity ?? input.context.authenticatedActor.actorIdentity,
+    requestCommand: null,
   };
   const receipt = createReceipt({
     eventId,

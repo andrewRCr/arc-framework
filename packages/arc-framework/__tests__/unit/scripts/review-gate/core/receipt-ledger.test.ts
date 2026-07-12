@@ -31,6 +31,7 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     actorIdentity: "actor-1",
     requestMechanism: "automatic",
     requiredActorIdentity: "actor-1",
+    requestCommand: null,
     ...overrides,
   };
 }
@@ -102,22 +103,23 @@ describe("canonical request keys and receipt ledger", () => {
     const { receiptHash, ...withoutHash } = created;
 
     expect(computeRequestKey(request())).toBe(
-      "9d2cce34bc4529848512227cfb75fa816762a0702981cc8461feccb135c1027f",
+      "f4a456df216594dcba2267fc2c05f18966b3d9b3c8d38a3f8e06f6a088006fcc",
     );
     expect(created.idempotencyKey).toBe(
-      "f547c4aca2732ffd8e6d8616e9cc1a8dac1f040c121a717c3d75dd2752e46db7",
+      "7f3be3f4cdbe0ce8ce039bb4487ae099ff35e0fb447c1d4b8a33d2b8999ffc77",
     );
-    expect(receiptHash).toBe("9cd891ae4f9abfdf8d02ac2aa39c813b7ad916a8bed8a7b18587383795f2ac6e");
+    expect(receiptHash).toBe("1b54d946d91b1329b9e3108b0114518ff5a5d5374c08ac764b0ba2af77a0bff0");
     expect(canonicalizePlainJson(withoutHash)).toBe(
       '{"action":"reserved","eventId":"event-1","evidenceUrlOrId":null,"findingIds":[],'
-      + '"idempotencyKey":"f547c4aca2732ffd8e6d8616e9cc1a8dac1f040c121a717c3d75dd2752e46db7",'
+      + '"idempotencyKey":"7f3be3f4cdbe0ce8ce039bb4487ae099ff35e0fb447c1d4b8a33d2b8999ffc77",'
       + '"payload":{"kind":"reservation","pendingProjectionRef":null,"reservedAt":null},'
       + '"previousLedgerVersion":0,"reason":null,"request":{"actorIdentity":"actor-1",'
       + '"changeRequestId":"change-7","changeSetId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",'
       + '"coverage":"full","coverageFromSha":"cccccccccccccccccccccccccccccccccccccccc",'
       + '"coverageThroughSha":"dddddddddddddddddddddddddddddddddddddddd","generation":0,'
       + '"policyVersion":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",'
-      + '"repositoryId":"repo-1","requestMechanism":"automatic","requiredActorIdentity":"actor-1",'
+      + '"repositoryId":"repo-1","requestCommand":null,"requestMechanism":"automatic",'
+      + '"requiredActorIdentity":"actor-1",'
       + '"requirementId":"analysis","rubricVersion":"independent-analysis/v1","schemaVersion":1,'
       + '"semanticsVersion":"review-gate/v1","sourceIdentity":"agent-1"},"result":null,"schemaVersion":1}',
     );
@@ -131,6 +133,10 @@ describe("canonical request keys and receipt ledger", () => {
     expect(computeRequestKey(request({ semanticsVersion: "review-gate/v2" }))).not.toBe(baseline);
     expect(computeRequestKey(request({ requestMechanism: "user-trigger" }))).not.toBe(baseline);
     expect(computeRequestKey(request({ requiredActorIdentity: "actor-2" }))).not.toBe(baseline);
+    expect(computeRequestKey(request({
+      requestMechanism: "user-trigger",
+      requestCommand: "@codex review the exact head",
+    }))).not.toBe(baseline);
   });
 
   it("binds lifecycle payload and predecessor version into receipt identity", () => {

@@ -108,29 +108,29 @@ request generation.
 - _Outcome:_ A provider effect is now unreachable until both durable controller state and its exact App-authored
   pending projection are canonically observable; interruption preserves pending state without duplicating spend.
 
-### `[ ]` **2.2 Add typed next-action and developer-authenticated action execution launchers**
+### `[x]` **2.2 Add typed next-action and developer-authenticated action execution launchers**
 
 - _Goal:_ A PR-opening agent can discover and consume one actor-bound hosted trigger from authenticated controller
   state without parsing display prose or borrowing App credentials.
 
-    - `[ ]` **2.2.a Model `needs-user-trigger` and terminal/attention actions in the neutral reducer**
-        - Include request key, provider, full head, generation, exact command, and immutable required actor id.
-        - Define the host-neutral actor-resolution boundary and exercise it with actor-required request fixtures;
-          Phase 3 binds hosted Codex admission to the resolved PR author's immutable actor identity.
+    - `[x]` **2.2.a Model `needs-user-trigger` and terminal/attention actions in the neutral reducer**
+        - Added strict typed next-state contracts carrying exact scope, request identity, generation, command, and
+          immutable required actor identity; request commands now participate in canonical request identity.
 
-    - `[ ]` **2.2.b Implement dependency-injectable next-action and perform-action mains**
-        - Add runtime mains that re-read the exact PR/head, validate the current typed action and `gh` actor, post
-          once, adopt only an exact actor/body/time match after ambiguous delivery, and dispatch reconciliation.
-        - Keep developer-authenticated `gh` execution behind an injected process/host-action port so the later
-          process-runner substrate migration changes one boundary rather than the action semantics.
+    - `[x]` **2.2.b Implement dependency-injectable next-action and perform-action mains**
+        - Added read-only next-action and actor-authenticated perform-action mains that revalidate exact controller
+          state, expose triggers only after pending confirmation, post once, narrowly adopt ambiguity, and dispatch.
 
-    - `[ ]` **2.2.c Add repository-only launcher scripts and JSON contracts**
-        - Expose `review-gate:next-action` and `review-gate:perform-action` through thin `tsx` launchers and private
-          root scripts; keep credentials in the current developer's `gh` session.
+    - `[x]` **2.2.c Add repository-only launcher scripts and JSON contracts**
+        - Added private root scripts and thin `tsx` launchers that use the current developer's `gh` session while
+          keeping the published CLI package surface unchanged.
 
-    - `[ ]` **2.2.d Cover actor mismatch, replay, adoption, and stale-action behavior**
-        - Add unit and integration cases for wrong actors, changed heads/generations, exact ambiguous-post adoption,
-          duplicate consumption, dispatch failure, and typed output stability.
+    - `[x]` **2.2.d Cover actor mismatch, replay, adoption, and stale-action behavior**
+        - Covered wrong actors, changed heads and generations, exact ambiguous-post adoption, duplicate consumption,
+          dispatch failure, pre-confirmation waiting, launcher isolation, and strict typed output parsing.
+
+- _Outcome:_ Actor-dependent provider work now crosses a pending-confirmed, exact-head handoff: neutral reduction
+  describes the single permitted trigger, while only the matching developer session can consume and reconcile it.
 
 ### `[ ]` **2.3 Model active flights, `begin-fix`, supersession, and one-shot head-update authorization**
 

@@ -49,6 +49,7 @@ export interface ReviewRequest {
   actorIdentity: string;
   requestMechanism: RequestMechanism;
   requiredActorIdentity: string;
+  requestCommand: string | null;
 }
 
 /** Capacity state for a candidate source. */
@@ -157,8 +158,17 @@ export function parseReviewRequest(input: unknown, path = "request"): ReviewRequ
   exactKeys(record, [
     "schemaVersion", "repositoryId", "changeRequestId", "changeSetId", "policyVersion", "semanticsVersion", "rubricVersion",
     "requirementId", "sourceIdentity", "coverage", "coverageFromSha", "coverageThroughSha", "generation",
-    "actorIdentity", "requestMechanism", "requiredActorIdentity",
+    "actorIdentity", "requestMechanism", "requiredActorIdentity", "requestCommand",
   ], path);
+  const requestMechanism = enumAt(
+    record.requestMechanism,
+    ["automatic", "user-trigger", "authorized-command", "attestation"],
+    `${path}.requestMechanism`,
+  );
+  const requestCommand = nullableAt(record.requestCommand, `${path}.requestCommand`, stringAt);
+  if ((requestMechanism === "user-trigger") !== (requestCommand !== null)) {
+    throw new Error(`${path}: user-trigger mechanism and request command are incongruent`);
+  }
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
     repositoryId: stringAt(record.repositoryId, `${path}.repositoryId`),
@@ -174,12 +184,9 @@ export function parseReviewRequest(input: unknown, path = "request"): ReviewRequ
     coverageThroughSha: digestAt(record.coverageThroughSha, `${path}.coverageThroughSha`, 40),
     generation: integerAt(record.generation, `${path}.generation`),
     actorIdentity: stringAt(record.actorIdentity, `${path}.actorIdentity`),
-    requestMechanism: enumAt(
-      record.requestMechanism,
-      ["automatic", "user-trigger", "authorized-command", "attestation"],
-      `${path}.requestMechanism`,
-    ),
+    requestMechanism,
     requiredActorIdentity: stringAt(record.requiredActorIdentity, `${path}.requiredActorIdentity`),
+    requestCommand,
   };
 }
 
