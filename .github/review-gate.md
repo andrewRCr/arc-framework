@@ -49,6 +49,13 @@ checks: [intent-and-scope, correctness-and-failure-behavior, trust-and-compatibi
 A rubric change and its `rubric_version` change land in the same reviewed commit. Satisfying evidence covers the full
 current change set and follows [.github/review-gate-attestation.md](review-gate-attestation.md).
 
+Receipt schema v1 is immutable. Schema v2 extends an existing ledger only as
+`v1* → schema-upgrade(v2) → v2*`; the upgrade names the v1 tip/new semantics and requires every legacy effect terminal.
+Every v1 `terminal-failure` is effect-ambiguous and needs separate durable terminal/cancellation proof. If proof is
+impossible, close the PR without merging and replace it with a new v2-ledger PR.
+Historical v1 evidence remains audit-readable but cannot satisfy v2 policy. Any malformed old record still degrades
+the ledger, and the monotonic anchor/version chain never resets.
+
 Provenance: the empirical basis for these inputs — the App permission model (PR ledger comments and the one-shot
 label ride `pull-requests: write`, not `issues: write`), the branch-protection check-source pinning proof, and
 CodeRabbit's non-satisfying qualification — is recorded in the archived `notes-reviewed-lane-review-gate.md` spike
@@ -157,21 +164,28 @@ override after proof; it is temporary migration tooling, not a production settin
 
 For every required request: durably reserve it, publish/confirm the ARC App's pending aggregate projection on the
 exact head, then initiate the provider effect. Bind the request ledger to provider, PR, full head, generation,
-transport actor, timestamps, and terminal evidence. A queued/running request freezes the head until terminal
-settlement or explicit supersession.
+transport actor, timestamps, and terminal evidence. A queued/running request freezes the head until a terminal
+provider result or explicit supersession.
+
+A confirmed pending trigger or acknowledged/queued/running request is an active flight and freezes the head until a
+terminal provider result. Terminal findings remain blocking but permit repair: DEFER/REJECT settles on the same head;
+FIX records `begin-fix` plus carried finding ids and authorizes exactly one push to a new head, where reconciliation
+consumes the authorization and retains the finding lifecycle tail. A non-terminal flight requires explicit
+abandon/supersede/restart before any head change.
 
 An actor-executable adapter returns a canonical `needs-user-trigger` action containing request key, full head,
-generation, exact command, and required GitHub actor id. The single PR coordinator acts only after observing that
-pending action with a matching authenticated `gh` actor. After an ambiguous post, re-query exact actor/body comments
-created after reservation before retrying. The controller binds the discovered comment id to the reservation.
+generation, exact command, and required GitHub actor id. Self-hosting hosted Codex resolves the PR author's immutable
+id. The coordinator reads the action through the typed `next-action` launcher and consumes it through
+`perform-action`, which revalidates state and actor, posts once, adopts only an exact ambiguous post, dispatches
+reconciliation, and returns its event id. The controller independently re-queries and binds that id.
 
-Provider output has no controller request id, so every request uses an exclusive trigger window. Before admission,
-prove automatic, inherited, global, keyword, and other unowned provider paths disabled. Scan the current head for
-earlier unowned triggers, then bind the owned label/comment event id and actor to the reservation. Qualifying terminal
-evidence must follow that event with no intervening trigger. Any direct collaborator/provider trigger contaminates the
-generation: it cannot satisfy the requirement, and neither fallback nor a replacement generation may begin while its
-effect could still be live. Wait for that effect to terminate, then explicitly reserve a new owned generation. Head
-equality and temporal order without this exclusive window do not establish causation.
+Provider output has no controller request id, so every request uses a PR-wide exclusive trigger window. Before
+admission, prove automatic/unowned paths disabled and scan all PR command comments plus label timeline events. Record
+event id, actor, digest, time, and canonical head observed at the event. The owned comment must remain present,
+unedited, and exact through terminal acceptance. Route comment creation/edit/deletion and label/unlabel; deletion
+records a bounded default-branch event tombstone before canonical state disappears. Any unowned/mutated/deleted
+trigger contaminates across head pushes until provider-specific terminal/cancellation proof. Head equality and time
+alone do not establish causation.
 
 The local change-request watcher observes the aggregate App projection at low frequency and returns only typed state
 changes. It never parses provider prose. Exempt PRs await exact-head `ci-ok`; reviewed PRs await the aggregate
@@ -181,12 +195,20 @@ timeout.
 Adapter semantic parsers are versioned and fail closed. Hosted Codex clean requires a pinned, unedited App/bot issue
 comment with anchored `Codex Review:`, the exact `Didn't find any major issues.` clause, and one reviewed-commit SHA
 marker that resolves uniquely to the frozen full head. Unknown grammar remains pending. Findings require the standard
-review's full `commit_id`; connected-account failure maps to unavailable only under the correlation contract below.
+review's full `commit_id`; connected-account failure maps to unavailable only under the correlation and live-
+qualification contract below.
 
-Connected-account failure is terminal only when its versioned anchored text/link comes from the pinned Codex App/bot,
-is the earliest qualifying response created after the recorded trigger comment and before the next generation, and
-the head remained frozen with no competing trigger in the window. Bind the trigger actor/comment id in the request
-ledger; stale, unrelated, changed, or contaminated prose stays unknown.
+Hosted Codex rubric transport is versioned top-level `AGENTS.md` Review guidelines plus the owned trigger comment,
+which names `independent-analysis/v1` and repeats its five focus dimensions. Resolve the effective guidance digest for
+every changed path and reject missing/conflicting nested guidance. Codex is satisfying only after controlled probes
+exercise every dimension under that digest and trigger; ledger metadata alone is insufficient.
+
+Connected-account failure is eligible for terminal mapping only when its versioned anchored text/link comes from the
+pinned Codex App/bot, is the earliest qualifying response created after the recorded trigger comment and before the
+next generation, and the head remained frozen with no competing trigger in the window. Bind the trigger actor/comment
+id in the request ledger. The App-authored probe proves parser grammar only because that actor is inadmissible.
+Self-hosting keeps this capability parser-only/non-terminal unless an admissible, intentionally unconnected actor
+live-proves the complete production path; stale, unrelated, changed, or contaminated prose stays unknown.
 
 Automatic fallback is legal only after proven pre-effect rejection/capacity exhaustion or explicit terminal failure.
 Record source supersession before selecting an alternate. Effect-ambiguous delivery, acknowledged silence, or
@@ -215,7 +237,7 @@ state; its presence remains progress evidence only, never verdict.
 | Stale/retarget                    | Prior evidence becomes stale; current policy/change set re-queries                          |
 | CodeRabbit trigger/retrigger      | Label is generation zero; controller `refresh` selects full/incremental coverage            |
 | Resolved CodeRabbit configuration | No inherited label, keyword, global override, or alternate automatic path                   |
-| Codex user trigger                | Developer-authored mention acknowledges; App-authored mention fails typed/unavailable       |
+| Codex user trigger                | Developer trigger qualifies; App failure is parser-only unless admissible actor proves it   |
 | Codex findings                    | Pinned bot/App standard review plus comments bind full requested `commit_id`                |
 | Codex clean                       | Pinned, unedited App issue-comment SHA prefix resolves uniquely to the frozen full head     |
 | Direct provider commands          | Contaminate the generation; wait terminal, then reserve a new owned generation              |
@@ -232,6 +254,8 @@ state; its presence remains progress evidence only, never verdict.
 | Native review                     | `REVIEW_REQUIRED`, `CHANGES_REQUESTED`, and `APPROVED` map without parsing CODEOWNERS       |
 | Await wake-up                     | Proxy events wake provider closure; coordinator thread mutations dispatch exact-head repair |
 | Token formats                     | Direct forced tokens pass controller; pinned Action is opaque; override is then absent      |
+| Ledger upgrade                    | v1 history extends once into v2; legacy active/ambiguous effects reject upgrade             |
+| Repair authority                  | Actions source plus exclusive status-writer call graph and exact run are proven             |
 
 Formal self-hosting Code Owner enforcement stays disabled. Reusable team setup/doctor verification belongs in the
 downstream GitHub adapter. Provider satisfaction and conversation settlement are separate capabilities: a provider
@@ -240,6 +264,12 @@ reservation and substantive full-head evidence is non-satisfying; `request_chang
 resolution even when no qualifying CodeRabbit review occurred. If CodeRabbit becomes satisfying, the same reviewed
 enablement commit must author the provider instructions implementing `independent-analysis/v1` and update
 `rubric_version`.
+
+Coordinator FIX closure requires an authorized `begin-fix`, one carried-finding head push, exact-head CI, a
+qualifying follow-up full-head review, and an authorized `fixed` receipt linking the original finding, fix head,
+verification, follow-up evidence, and direct reply before thread resolution. The reply never claims the provider
+verified the individual fix. DEFER/REJECT requires its authorized rationale/direct-reply receipt; provider closure
+requires the qualified source identity. Bare resolution and broad host-actor membership are non-satisfying.
 
 WU 1's one PR ships this machinery with project hooks inactive and legacy CI `merge-ok` required. After merge,
 manually run the complete matrix through the shipped default-branch workflow before archiving WU 1. On failure,
@@ -497,12 +527,19 @@ without the other: snapshots treat `{post_pr_open,pre_merge}` as one cutover sta
 ## Audited App or Controller Outage Recovery
 
 Preinstall `.github/workflows/review-gate-repair.yml` on the default branch during WU 1 and rehearse this path before
-final cutover while shadow remains non-required. Its source-pinned GitHub Actions App id is `15368`; it runs only by
+final cutover while shadow remains non-required. Its GitHub Actions App id is `15368`; it runs only by
 `workflow_dispatch`, uses `GITHUB_TOKEN` with `statuses: write`, and has no ARC App credential. Default-branch code
 validates a bounded attestation manifest following `.github/review-gate-attestation.md` against the exact repository,
 PR, frozen head, rubric version, and authenticated author. It accepts only maintainer-attested agent analysis or an
 authenticated non-author human review under `independent-analysis/v1`, then writes `review-repair-ok` to that exact
 head. The repair PR cannot modify this workflow or its validator, and cannot use its own changed CI producer as proof.
+
+Branch protection pins the Actions producer family, not a workflow path. Require an exclusive-writer proof:
+repository Actions defaults read-only, all workflows declare explicit permissions, only this immutable default-branch
+workflow/call graph has `statuses: write`, no alternate PAT/App writer can emit `review-repair-ok`, and only it
+references the protected repair environment. Audit that graph before every accepted run. The status links the exact
+run/path/workflow SHA/PR/head, all manually proved before enforcement mutation. This is Actions-pinned and exclusive-
+writer-proven authority.
 
 1. Freeze merges and capture the incident id, ruleset/branch-protection JSON, mode, required checks/source ids,
    environment/App state, action activation, and exact affected head.
@@ -511,9 +548,10 @@ head. The repair PR cannot modify this workflow or its validator, and cannot use
    trusted workflow/reviewer proof instead of its self-produced result.
 3. If project coordination cannot reach the controller, the repair PR sets project `post-pr-open` and
    `pre-merge` inactive and records the incident-scoped suspension. Do not retry dead actions.
-4. Dispatch `review-gate-repair.yml` from the default branch, prove source-pinned `review-repair-ok` on the exact repair
-   head, then add it to both enforcement layers while the dead App context remains required. Prove the augmented set
-   before removing the unavailable App context. Merge normally through branch protection.
+4. Audit the exclusive-writer graph, dispatch `review-gate-repair.yml` from the default branch, and prove the Actions-
+   pinned/exclusive-writer `review-repair-ok` on the exact repair head. Add it to both enforcement layers while the
+   dead App context remains required; prove the augmented set before removing the unavailable App context. Merge
+   normally through branch protection.
 5. Link the validated attestation, emergency run, exact-head status, and enforcement mutations in the PR and incident;
    never fabricate an App/controller receipt.
 6. Restore the App in shadow. Open a reactivation PR, explicitly invoke `coordinate-pr-review.md` for its possibly stale
@@ -523,4 +561,5 @@ head. The repair PR cannot modify this workflow or its validator, and cannot use
    status requirement only after the App is required and green, then unfreeze merges.
 
 An empty requirement set, admin bypass, direct-base repair, controller-manufactured substitute review, repair-PR edit
-to the emergency workflow/validator, or repair PR using the CI producer it modifies as its own proof is prohibited.
+to the emergency workflow/validator/permission graph, alternate status writer, or repair PR using the CI producer it
+modifies as its own proof is prohibited.

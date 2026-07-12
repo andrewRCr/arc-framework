@@ -8,10 +8,10 @@
 - **Depends On:** `review-gate-reconcile-composition`
 
 - **Origin:** [internal]
-- **Design:** `draft-review-gate-enforcement-cutover.md`
+- **Design:** `spec-review-gate-enforcement-cutover.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Setup baseline captured before the composition gap was discovered (2026-07-11).
 - **Next Task:** [none]
 - **Blockers:** [none]

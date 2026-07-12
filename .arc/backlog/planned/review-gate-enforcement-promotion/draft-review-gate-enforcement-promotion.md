@@ -48,6 +48,8 @@ closeout heads, and removes the legacy authority only after its replacement is a
 9. Merge the final-gated closeout PR, then prove the resulting final controller state. Report
    `finalize-parallelism` readiness from its own live state; this is a sequencing preference, not a fabricated
    dependency.
+10. Publish the sanitized final installation, enforcement, activation, rollback, and recovery handoff consumed by
+    `review-gate-github-adapter`. Keep self-hosting values clearly separated from reusable contracts and setup inputs.
 
 ## Inherited non-negotiables
 
@@ -60,7 +62,8 @@ closeout heads, and removes the legacy authority only after its replacement is a
   ARC integration interlock; a future genuinely human-constrained GitHub rule is separate governance scope.
 - CI and review share a change-request await transport but retain separate terminal semantics. Exempt PRs await
   `ci-ok`; reviewed PRs await the aggregate controller projection.
-- A review request freezes the head until terminal settlement or an explicit abandon/supersede/restart transition.
+- A pending-trigger/acknowledged/queued/running request flight freezes the head until a terminal provider result or an
+  explicit abandon/supersede/restart transition. Terminal findings use the inherited `begin-fix` one-push contract.
 - Every finding is settled at its original conversation locus. A provider may resolve its own thread; otherwise the
   coordinator replies there and resolves it only after the applicable fix, deferral, or rejection policy is met.
 - Reviewer-visible prose uses repository and engineering language, not methodology-internal vocabulary.
@@ -71,12 +74,14 @@ Retain raw non-secret snapshots in the private operator checkpoint store. Commit
 PR, run, check, review, and comment identifiers; exact heads; before/after enforcement summaries; dispositions; URLs;
 and hashes of raw snapshots. Never retain tokens, private keys, secret values, or credential-bearing responses.
 
-Normal rollback reverses final → dual → shadow. If the controller cannot coordinate, first establish and prove a
-source-pinned Actions `review-repair-ok` status produced by the preinstalled default-branch emergency workflow. That
-workflow uses no ARC App credential: it validates the existing bounded `independent-analysis/v1` attestation against
-the live PR/author/head and permits maintainer-attested agent evidence or an authenticated non-author human. Add and
-prove the status before removing the unavailable App context; remove it only after restored App authority is required
-and green. Every rollback ends with the same source-pinned, exact-head verification used for forward promotion.
+Normal rollback reverses final → dual → shadow. If the controller cannot coordinate, first establish and prove an
+Actions-pinned, exclusive-writer-proven `review-repair-ok` status from the preinstalled default-branch emergency
+workflow. Branch protection pins the Actions producer family; a full permission/call-graph audit proves only that
+immutable workflow can emit the context and links the exact run/workflow SHA/PR/head. The workflow uses no ARC App
+credential: it validates the existing bounded `independent-analysis/v1` attestation against the live PR/author/head
+and permits maintainer-attested agent evidence or an authenticated non-author human. Add and prove the status before
+removing the unavailable App context; remove it only after restored App authority is required and green. Every
+rollback ends with the same exact-head verification used for forward promotion.
 
 ## Required WU 1 inputs before spec creation
 
@@ -86,5 +91,9 @@ controller workflow SHA, and accepted token-format evidence. Refuse promotion un
 enabled and its request/evidence path is live-proven. Retain classic protection beside `main-protection`, mutate them
 equivalently, set generic approvals to zero at final, and use disposable promotion probes plus the one final alias
 removal, activation, and closeout delivery PR.
+
+The final handoff also records the installed workflow revisions, source-pinned enforcement set, setup assumptions,
+normal/outage mutation sequence, and project-hook activation behavior for `review-gate-github-adapter`; it does not
+choose that downstream work's public command or configuration surface.
 
 ---

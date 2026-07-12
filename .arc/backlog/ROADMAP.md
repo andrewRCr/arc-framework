@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `27dcb0ffb`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `ade1a53f5`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -95,10 +95,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit          | Priority | Owner  | Depends on                                                  | Cohort            |
-| ------------------ | -------- | ------ | ----------------------------------------------------------- | ----------------- |
-| wu5-public-release | P3       | andrew | docs-content-sweep                                          | release-readiness |
-| local-mode         | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
+| Work unit                  | Priority | Owner  | Depends on                                                  | Cohort            |
+| -------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------- |
+| review-gate-github-adapter | P1       | andrew | review-gate-enforcement-promotion                           | —                 |
+| wu5-public-release         | P3       | andrew | docs-content-sweep                                          | release-readiness |
+| local-mode                 | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
 
 ---
 
