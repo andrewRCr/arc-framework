@@ -125,7 +125,7 @@ function findingKey(sourceIdentity: string, findingId: string): string {
 
 function hasCommandProvenance(receipt: ReviewReceipt): boolean {
   return receipt.reason !== null
-    && receipt.reason.length > 0
+    && receipt.reason.trim().length > 0
     && Buffer.byteLength(receipt.reason, "utf8") <= 1024
     && receipt.evidenceUrlOrId !== null;
 }

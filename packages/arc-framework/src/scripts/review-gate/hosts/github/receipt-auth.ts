@@ -98,7 +98,6 @@ export type AppIdentityResult = { kind: "verified" } | { kind: "failed"; reason:
 /** Pinned installation-token facts required to authorize the controller App. */
 export interface InstallationAuthorityInput {
   appSlug: string;
-  expectedAppId: string;
   expectedBotId: string;
   expectedRepositoryId: string;
 }
@@ -132,23 +131,19 @@ export async function verifyInstallationAuthority(
   if (bot.value.type !== "Bot") return { kind: "failed", reason: "not-bot" };
   if (bot.value.id !== input.expectedBotId) return { kind: "failed", reason: "bot-id-mismatch" };
 
-  const installation = await rest.get("/installation/repositories", {
-    parse: (value) => {
+  const repositories = await rest.getPaginated("/installation/repositories", {
+    query: { per_page: 100 },
+    parsePage: (value) => {
       const record = objectAt(value, "installationRepositories");
-      const installationRecord = objectAt(record.installation, "installationRepositories.installation");
-      const repositoryIds = arrayAt(record.repositories, "installationRepositories.repositories", (repository, path) => {
+      integerAt(record.total_count, "installationRepositories.total_count", 0);
+      return arrayAt(record.repositories, "installationRepositories.repositories", (repository, path) => {
         const repositoryRecord = objectAt(repository, path);
         return numericId(repositoryRecord.id, `${path}.id`);
       });
-      return {
-        appId: numericId(installationRecord.app_id, "installationRepositories.installation.app_id"),
-        repositoryIds,
-      };
     },
   });
-  if (installation.kind !== "ok") return failureFromOutcome(installation);
-  if (installation.value.appId !== input.expectedAppId) return { kind: "failed", reason: "app-id-mismatch" };
-  if (!installation.value.repositoryIds.includes(input.expectedRepositoryId)) {
+  if (repositories.kind !== "ok") return failureFromOutcome(repositories);
+  if (!repositories.value.includes(input.expectedRepositoryId)) {
     return { kind: "failed", reason: "repository-outside-installation" };
   }
   return { kind: "verified" };

@@ -223,7 +223,6 @@ export async function createSharedInfrastructure(
   const verify = seams.verifyLaunchAuthority ?? verifyInstallationAuthority;
   const launchAuthority = await verify(rest, {
     appSlug: config.appSlug,
-    expectedAppId: config.expectedAppId,
     expectedBotId: config.policy.providerIdentities.appBotUserId,
     expectedRepositoryId: String(config.repositoryId),
   });

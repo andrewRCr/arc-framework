@@ -103,7 +103,11 @@ export class GitHubHostReadAdapter implements GitHostReadAdapter {
     return {
       changeRequest: result.changeRequest,
       context: {
-        changedPaths: result.context.changedPaths,
+        changedPaths: result.context.changedPaths.map((change) => {
+          if (change.status !== "renamed") return { status: change.status, path: change.path };
+          if (change.previousPath === undefined) throw new GitHubHostReadError("renamed-path-missing-previous-path");
+          return { status: "renamed", path: change.path, previousPath: change.previousPath };
+        }),
         author: {
           identity: result.context.author.identity,
           login: result.context.author.login,

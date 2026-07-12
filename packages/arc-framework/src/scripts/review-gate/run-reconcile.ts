@@ -14,6 +14,12 @@ function required(name: string): string {
   return value;
 }
 
+function positiveInteger(name: string): number {
+  const value = Number(required(name));
+  if (!Number.isSafeInteger(value) || value <= 0) throw new Error(`invalid-environment:${name}`);
+  return value;
+}
+
 async function main(): Promise<void> {
   const operation = process.argv[2];
   if (operation === "discover") {
@@ -21,7 +27,7 @@ async function main(): Promise<void> {
     const output = await runDiscoveryMain({
       eventName: required("GITHUB_EVENT_NAME"),
       payload,
-      expectedAppId: Number(required("ARC_REVIEW_GATE_APP_ID")),
+      expectedAppId: positiveInteger("ARC_REVIEW_GATE_APP_ID"),
       repository: required("GITHUB_REPOSITORY"),
       token: required("GITHUB_TOKEN"),
       fetch: productionFetch,

@@ -39,9 +39,12 @@ export interface LifecycleTailProof {
   diagnostics: LifecycleTailDiagnostic[];
 }
 
+/** Runtime proof shape before the supported schema version is established. */
+export type LifecycleTailProofCandidate = Omit<LifecycleTailProof, "schemaVersion"> & { schemaVersion: number };
+
 /** Exact requirement and evidence identity a proof must bridge. */
 export interface LifecycleTailApplicabilityInput {
-  proof: LifecycleTailProof | null;
+  proof: LifecycleTailProofCandidate | null;
   predicateId: string;
   reviewedThroughSha: string;
   currentHeadSha: string;
@@ -60,8 +63,9 @@ const SHA = /^[a-f0-9]{40}$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 
 /** Check that an adapter returned a structurally complete, diagnostic-free proof. */
-export function isTrustedLifecycleTailProof(proof: LifecycleTailProof | null): proof is LifecycleTailProof {
+export function isTrustedLifecycleTailProof(proof: LifecycleTailProofCandidate | null): proof is LifecycleTailProof {
   return proof !== null
+    && proof.schemaVersion === 1
     && proof.diagnostics.length === 0
     && SHA.test(proof.reviewedThroughSha)
     && SHA.test(proof.currentHeadSha)

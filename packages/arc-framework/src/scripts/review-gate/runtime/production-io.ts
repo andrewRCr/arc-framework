@@ -5,6 +5,7 @@
  * fetches (private-repo lane and coverage reads) authenticate through the narrow
  * workflow read token, injected as a per-invocation `http.extraheader` so it never
  * lands in a persisted remote URL or the process environment of the git subprocess.
+ * The credential is passed in the subprocess argument list for the invocation.
  *
  * @module
  */

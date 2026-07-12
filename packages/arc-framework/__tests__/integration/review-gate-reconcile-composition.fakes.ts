@@ -354,7 +354,7 @@ export function routingFetch(world: E2EWorld): HttpFetch {
     if (path.startsWith("/users/")) return Promise.resolve(jsonResponse(200, { id: APP_BOT_USER_ID, type: "Bot" }));
     if (path === "/installation/repositories") {
       return Promise.resolve(jsonResponse(200, {
-        installation: { app_id: APP_ID },
+        total_count: 1,
         repositories: [{ id: world.repositoryId, full_name: `${world.owner}/${world.repo}` }],
       }));
     }

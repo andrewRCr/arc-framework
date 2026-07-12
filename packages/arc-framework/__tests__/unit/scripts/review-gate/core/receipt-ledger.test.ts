@@ -144,6 +144,22 @@ describe("canonical request keys and receipt ledger", () => {
     })).toMatchObject({ valid: true });
   });
 
+  it("rejects whitespace-only command provenance", () => {
+    const command = createReceipt({
+      request: request({ sourceIdentity: "review-gate-command" }),
+      previousLedgerVersion: 0,
+      action: "required",
+      eventId: "command:IC_1:version-1",
+      result: null,
+      reason: "   ",
+      evidenceUrlOrId: "https://github.test/pull/7#issuecomment-1",
+      findingIds: [],
+    });
+    expect(validateReceiptLedger({
+      envelopes: [envelope(1, command)], anchorVersion: 1, anchorCount: 1,
+    })).toMatchObject({ valid: false, errors: ["contradictory-required:1"] });
+  });
+
   it("validates dismissals against the exact source-scoped finding history", () => {
     const finding = createReceipt({
       request: request({ sourceIdentity: "agent-1" }),

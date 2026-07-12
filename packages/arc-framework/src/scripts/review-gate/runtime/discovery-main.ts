@@ -3,6 +3,8 @@
 import type { HttpFetch } from "../hosts/github/api/http.js";
 import { resolveMatrixOutput, type DiscoveryPort } from "./discovery.js";
 
+const GITHUB_READ_TIMEOUT_MS = 15_000;
+
 function array(value: unknown): unknown[] {
   if (!Array.isArray(value)) throw new Error("invalid-github-list");
   return value;
@@ -23,6 +25,7 @@ async function githubJson(fetch: HttpFetch, token: string, path: string): Promis
       authorization: `Bearer ${token}`,
       "x-github-api-version": "2022-11-28",
     },
+    signal: AbortSignal.timeout(GITHUB_READ_TIMEOUT_MS),
   });
   if (response.status < 200 || response.status >= 300) throw new Error(`github-read-failed:${response.status}`);
   return JSON.parse(await response.text()) as unknown;

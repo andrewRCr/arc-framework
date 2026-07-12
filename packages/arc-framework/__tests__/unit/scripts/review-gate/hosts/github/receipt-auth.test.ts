@@ -97,14 +97,13 @@ describe("authenticateAppComment anchor allowance", () => {
 
 const authorityInput = {
   appSlug: "arc-review-gate-andrewrcr",
-  expectedAppId: "4268856",
   expectedBotId: "302312524",
   expectedRepositoryId: "100",
 };
 
 function installation(overrides: Record<string, unknown> = {}): unknown {
   return {
-    installation: { app_id: 4268856 },
+    total_count: 1,
     repositories: [{ id: 100, full_name: "andrewRCr/arc-framework" }],
     ...overrides,
   };
@@ -119,14 +118,25 @@ describe("installation-token authority validation", () => {
     expect(result).toEqual({ kind: "verified" });
   });
 
-  it("fails closed on a mismatched bot or App identity", async () => {
+  it("fails closed on a mismatched bot identity", async () => {
     await expect(verifyInstallationAuthority(client([
       response(200, JSON.stringify({ id: 999, type: "Bot" })),
     ]), authorityInput)).resolves.toEqual({ kind: "failed", reason: "bot-id-mismatch" });
-    await expect(verifyInstallationAuthority(client([
+  });
+
+  it("enumerates every installation-repository page before rejecting scope", async () => {
+    const result = await verifyInstallationAuthority(client([
       response(200, JSON.stringify({ id: 302312524, type: "Bot" })),
-      response(200, JSON.stringify(installation({ installation: { app_id: 999 } }))),
-    ]), authorityInput)).resolves.toEqual({ kind: "failed", reason: "app-id-mismatch" });
+      response(200, JSON.stringify(installation({
+        total_count: 2,
+        repositories: [{ id: 200, full_name: "other/repo" }],
+      })), { link: '<https://api.github.com/installation/repositories?per_page=100&page=2>; rel="next"' }),
+      response(200, JSON.stringify(installation({
+        total_count: 2,
+        repositories: [{ id: 100, full_name: "andrewRCr/arc-framework" }],
+      }))),
+    ]), authorityInput);
+    expect(result).toEqual({ kind: "verified" });
   });
 
   it("fails closed when the repository is outside the installation scope", async () => {

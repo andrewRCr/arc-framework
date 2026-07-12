@@ -211,6 +211,18 @@ describe("SelfHostingReconcileRuntime", () => {
     await expect(runtime.reduce({ ...state, headSha: "d".repeat(40) }, NOW)).rejects.toThrow(/matching cached read/u);
   });
 
+  it("enforces the self-hosting runtime's single-requirement invariant", async () => {
+    const first = SELF_HOSTING_POLICY.requirementTemplates[0];
+    if (first === undefined) throw new Error("missing requirement fixture");
+    const policy: SelfHostingPolicy = {
+      ...SELF_HOSTING_POLICY,
+      requirementTemplates: [first, { ...first, id: "independent-analysis-secondary" }],
+    };
+    const { runtime } = harness({ policy });
+
+    await expect(runtime.read()).rejects.toThrow(/at most one requirement/u);
+  });
+
   it("flips permissionVersion only when the author's resolved permission changes", async () => {
     const byActor = new Map<string, CapabilitySet>([["author-1", capabilities("author-1", ["write"])]]);
     const resolveActorCapabilities = async (actor: ActorAddress) =>
@@ -317,13 +329,32 @@ describe("SelfHostingReconcileRuntime", () => {
   it("projects a degraded ledger as a current failure without an effect", async () => {
     const store = new InMemoryReceiptStore();
     store.ledger = { kind: "degraded", diagnostics: ["ledger-unavailable"], observedLedgerVersion: null, receipts: [] };
-    const { runtime } = harness({ store, deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) } });
+    const command = {
+      commentId: 1,
+      commentNodeId: "IC_require",
+      actor: { login: "maintainer", expectedActorId: "maintainer-1" },
+      actorNodeId: "U_maintainer",
+      body: "/review-gate require independent-analysis needs a second look",
+      createdAt: NOW.toISOString(),
+      updatedAt: NOW.toISOString(),
+      durableRef: "https://github.test/pull/7#issuecomment-1",
+    };
+    const { runtime } = harness({
+      store,
+      resolveActorCapabilities: async (actor) => capabilities(actor.expectedActorId, ["maintain"]),
+      deps: {
+        resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }),
+        listCommandComments: async () => [command],
+      },
+    });
 
     const state = await runtime.read();
     expect(state.ledgerVersion).toBeNull();
 
     const decision = await runtime.reduce(state, NOW);
     expect(decision.request).toBeNull();
+    expect(decision.receiptsToAppend).toEqual([]);
+    expect(decision.requestReservation).toBeNull();
     expect(decision.projection).toMatchObject({
       conclusion: "failure",
       blockers: expect.arrayContaining([expect.objectContaining({ code: "ledger-unavailable" })]),

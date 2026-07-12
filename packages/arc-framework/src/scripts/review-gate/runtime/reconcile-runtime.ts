@@ -134,6 +134,13 @@ function permissionDigest(capabilities: CapabilitySet): string {
   }));
 }
 
+function singleRequirement(decision: SelfHostingDecision): ReviewRequirement | undefined {
+  if (decision.requirements.length > 1) {
+    throw new Error("reconcile-runtime: self-hosting policy must resolve at most one requirement");
+  }
+  return decision.requirements[0];
+}
+
 function toChangedPaths(context: HostChangeContext): ChangedPath[] {
   return context.changedPaths.map((change) => ({
     status: change.status,
@@ -265,7 +272,9 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     const receiptsToAppend: ReviewReceipt[] = [];
     let refreshRequest: ReviewRequest | null = null;
     let requestReservation: ReviewReceipt | null = null;
-    for (const event of snapshot.commandEvents) {
+    for (const event of state.ledgerVersion === null ? [] : snapshot.commandEvents) {
+      const ledgerVersion = state.ledgerVersion;
+      if (ledgerVersion === null) break;
       const requirement = snapshot.decision.requirements.find((entry) => entry.id === event.command.requirementId);
       if (requirement === undefined) continue;
       if (event.command.kind === "refresh") {
@@ -273,7 +282,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           event,
           changeRequest: snapshot.changeRequest,
           requirement,
-          expectedLedgerVersion: state.ledgerVersion ?? 0,
+          expectedLedgerVersion: ledgerVersion,
           priorReceipts: [...snapshot.ledgerReceipts, ...commandReceipts],
           qualifiedSourceIdentities: qualifiedDurableSources(this.deps.policy, requirement)
             .map((declaration) => declaration.sourceIdentity),
@@ -298,7 +307,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
         event,
         changeRequest: snapshot.changeRequest,
         requirement,
-        expectedLedgerVersion: state.ledgerVersion ?? 0,
+        expectedLedgerVersion: ledgerVersion,
         priorReceipts: [...snapshot.ledgerReceipts, ...commandReceipts],
       });
       if (receipt.ok) {
@@ -498,7 +507,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     receiptEvidence: Evidence[],
     providerReviews: Parameters<typeof resolveCodeRabbitDecisiveReview>[0]["reviews"],
   ): Promise<LifecycleTailProof | null> {
-    const requirement = decision.requirements[0];
+    const requirement = singleRequirement(decision);
     if (requirement === undefined) return null;
     const codeRabbitQualified = qualifiedDurableSources(this.deps.policy, requirement)
       .some((declaration) => declaration.sourceIdentity === "coderabbit-pr");
@@ -593,7 +602,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     evidence: Evidence[],
     ledgerReceipts: ReviewReceipt[],
   ): Promise<AuthorizedReviewCommandEvent[]> {
-    const requirement = decision.requirements[0];
+    const requirement = singleRequirement(decision);
     if (requirement === undefined) return [];
     const comments = await this.deps.listCommandComments();
     const scope = {

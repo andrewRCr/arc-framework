@@ -47,6 +47,7 @@ describe("lifecycle-tail proof applicability", () => {
   });
 
   it.each([
+    ["schema version", { ...proof(), schemaVersion: 2 }],
     ["diagnostic", proof({ diagnostics: ["ambiguous-artifact-group"] })],
     ["predicate", proof({ predicateId: "other" })],
     ["reviewed head", proof({ reviewedThroughSha: "e".repeat(40) })],
