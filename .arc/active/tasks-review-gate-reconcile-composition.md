@@ -197,34 +197,31 @@ orchestrator's existing guards plus `publishGateCheck`'s current-state assert.
   CI/lane/risk/command-reader seams are injected — their construction is the Task 3.2 factories' concern, and
   reconcile-side attestation-evidence recovery stays a Phase 4 concern. Covered by a 12-case unit suite.
 
-### `[ ]` **3.2 Shared infrastructure plus reconcile-specific factory**
+### `[x]` **3.2 Shared infrastructure plus reconcile-specific factory**
 
 - _Goal:_ Reconcile and attest share one validated infrastructure graph without pretending their runtime inputs or
   receipt authorization modes are identical; production clients are constructed once per entry through explicit
   returned shapes.
 
-    - `[ ]` **3.2.a Build the shared infrastructure factory**
-        - Inputs: repository owner/name + numeric id, PR number, App installation token, token-mint `app-slug`,
-          expected App id, narrow git read token, and parsed policy — no context mode or dispatch actor.
-        - Return launch authority; REST/GraphQL clients; argument-array authenticated `GitExec` + `baseRemote`;
-          canonical change/policy resolver; `GitHostAdapter`; issue-comment API; and a receipt-store builder that
-          requires an explicit controller- or human-revalidation strategy. Do not return a whole runtime.
-        - Validate launch authority without `GET /app`: resolve `<app-slug>[bot]`, compare its immutable id to
-          policy `appBotUserId`, and verify the installation token enumerates the current repository. Expected App
-          id continues to pin authored checks/comments on readback; the App token never enters git transport.
+    - `[x]` **3.2.a Build the shared infrastructure factory**
+        - `createSharedInfrastructure` builds the authenticated REST/GraphQL clients, `GitHostAdapter`, check-run
+          API, issue-comment API, and `hostRef` from injected `{fetch, exec}` IO, returning that graph plus the
+          launch-authority verdict — no runtime, store, or provider, so it cannot publish or invoke by itself.
+        - Launch authority is validated through `verifyInstallationAuthority` (installation-token semantics, no
+          `GET /app`); the App token pins authored checks/comments and never enters git transport.
 
-    - `[ ]` **3.2.b Build the reconcile-specific factory**
-        - Add required context mode, `GitHubRestCheckRunApi`/publisher, GitHub-backed `CodeRabbitApi`,
-          `CodeRabbitProviderAdapter`, controller-authorized receipt store, command reader, and
-          `ReconcileRuntime`. Policy keeps provider effects dormant until qualification enables them.
-        - The controller store strategy authorizes policy `appBotUserId` only through launch authority/current
-          identities; command receipts use the separately resolved human capability result.
-    - Build `test-first` (one behavior at a time):
-        - Shared factory returns the declared graph and cannot publish/invoke by itself
-        - Reconcile factory requires context mode and yields a fully wired runtime (observable via injected fakes)
-        - Missing/malformed shared or reconcile-only inputs fail closed before effects
-        - Installation token never calls App-JWT-only endpoints; wrong slug/bot id or missing repository scope fails
-        - Disabled policy exposes no provider effect; enabled/qualified policy wires the CodeRabbit boundary
+    - `[x]` **3.2.b Build the reconcile-specific factory**
+        - `createReconcileRuntime` adds the context mode, resolves the canonical change once to construct the
+          controller-authorized receipt store, composes the GitHub-backed `CodeRabbitApi` (observation + trigger +
+          the new receipt-backed locators) into a dormant `CodeRabbitProviderAdapter`, wires the command reader
+          and lane/risk resolvers, and returns the assembled `ReconcileRuntime`.
+        - The controller store strategy authorizes `appBotUserId` only through a verified launch verdict and
+          current change identity; a failed verdict or unavailable change fails the build closed before effects.
+- _Outcome:_ Added `runtime/composition.ts` (both factories) and `providers/coderabbit/locators.ts` (the two
+  previously-missing production `CodeRabbitApi` locators). Transport/git IO plus the launch-authority and change
+  reads are injected seams, so the whole graph composes — and fails closed — without a network. The `codeSurface`
+  risk derivation (a touched JS/TS file) lands here; the authenticated `GitExec` is deferred to the Task 3.3 shell
+  that owns production IO. Covered by a 9-case composition suite.
 
 ### `[ ]` **3.3 `run-reconcile.ts` reconcile-branch rewrite — thin shell over exported main**
 
