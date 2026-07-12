@@ -12,11 +12,11 @@
 - **Task List:** `tasks-review-gate-enforcement-cutover.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Detailed RFC finalized after three adversarial spec passes (2026-07-12).
-- **Next Task:** Begin Task 1.1 — Introduce discriminated v2 request, receipt, and lifecycle-payload contracts
+- **Last Completed:** Task planning finalized and work unit activated (2026-07-12).
+- **Next Task:** Task 1.1 — Introduce discriminated v2 request, receipt, and lifecycle-payload contracts (line ~17)
 - **Blockers:** [none]
 
-- **Next Action:** process-task-loop Task 1.1 — begin test-first implementation
+- **Next Action:** Start Task 1.1 test-first with the v1/v2 contract and fixture inventory.
 
 - **PR URL:** [none]
 - **Completed:** [none]
