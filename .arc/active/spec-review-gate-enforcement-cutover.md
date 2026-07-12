@@ -337,7 +337,8 @@ load-bearing on reviewer-visible surfaces.
 
 Add `.github/workflows/review-gate-repair.yml` during this work, while the App is not required. The workflow:
 
-- runs only by `workflow_dispatch` from immutable default-branch code;
+- runs only by the `review-gate-repair` `repository_dispatch` event from immutable default-branch code; the dispatch
+  token launches the event but never enters the workflow or receives status authority;
 - uses `GITHUB_TOKEN` with `statuses: write` and no ARC App credential;
 - validates a bounded attestation manifest through the existing `independent-analysis/v1` validator against live
   repository, PR, author, diff base, change set, exact frozen head, policy, rubric, runtime, and freshness;

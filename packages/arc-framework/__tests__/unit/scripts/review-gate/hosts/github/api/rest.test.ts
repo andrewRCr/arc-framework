@@ -97,6 +97,15 @@ describe("GitHubRestClient.getPaginated", () => {
 });
 
 describe("GitHubRestClient.write", () => {
+  it("accepts an explicitly modeled empty 204 response", async () => {
+    const { rest } = client([response(204, "")]);
+    expect(await rest.write("DELETE", "/x", { emptyValue: null, parse: () => null })).toEqual({
+      kind: "ok",
+      status: 204,
+      value: null,
+    });
+  });
+
   it("returns a validated value on success", async () => {
     const { rest } = client([response(201, "{\"name\":\"comment\"}")]);
     expect(await rest.write("POST", "/x", { body: { a: 1 }, parse: parseNamed })).toEqual({

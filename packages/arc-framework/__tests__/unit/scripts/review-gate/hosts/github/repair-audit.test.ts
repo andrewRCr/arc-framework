@@ -14,7 +14,7 @@ function repairWorkflow(writerStep = `
         env:
           STATUS_CONTEXT: review-repair-ok
           VALIDATED_HEAD: \${{ needs.validate.outputs.head_sha }}
-          PR_NUMBER: \${{ inputs.pull_request }}
+          PR_NUMBER: \${{ github.event.client_payload.pull_request }}
         run: |
           live_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)"
           test "$live_head" = "$VALIDATED_HEAD"
@@ -24,9 +24,8 @@ function repairWorkflow(writerStep = `
   return `
 name: Repair
 on:
-  workflow_dispatch:
-    inputs:
-      pull_request: { required: true, type: number }
+  repository_dispatch:
+    types: [review-gate-repair]
 permissions: {}
 jobs:
   validate:
@@ -101,6 +100,17 @@ describe("repair workflow exclusive-writer audit", () => {
     ["repository default write", { repositoryDefaultPermission: "write" }],
     ["default branch graph drift", { liveDefaultBranchSha: "c".repeat(40) }],
     ["protected authority changed", { changedPaths: [".github/workflows/review-gate-repair.yml"] }],
+    ["branch-selectable manual trigger", { files: {
+      ...validFiles(),
+      ".github/workflows/review-gate-repair.yml": repairWorkflow().replace(
+        "repository_dispatch:\n    types: [review-gate-repair]",
+        "workflow_dispatch:",
+      ),
+    } }],
+    ["wrong repository event type", { files: {
+      ...validFiles(),
+      ".github/workflows/review-gate-repair.yml": repairWorkflow().replace("review-gate-repair]", "other]"),
+    } }],
     ["direct competing writer", { files: {
       ...validFiles(),
       ".github/workflows/other.yml": `

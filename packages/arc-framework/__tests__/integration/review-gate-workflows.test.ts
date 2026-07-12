@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
+import { auditRepairWriterGraph } from "../../src/scripts/review-gate/hosts/github/repair-audit.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const read = async (name: string): Promise<string> => readFile(resolve(root, ".github/workflows", name), "utf8");
@@ -220,5 +221,27 @@ describe("trusted review-gate workflows", () => {
     }
     expect(coordination).toMatch(/`next-action` → `perform-action` → `await` → canonical re-entry/u);
     expect(coordination).not.toMatch(/provider command|without polling/iu);
+  });
+
+  it("proves the checked-in repair workflow is the sole closed status writer", async () => {
+    const names = [
+      "ci.yml", "docs.yml", "review-gate-attest.yml", "review-gate-repair.yml", "review-gate-wakeup.yml",
+      "review-gate.yml",
+    ];
+    const files = Object.fromEntries(await Promise.all(names.map(async (name) => [
+      `.github/workflows/${name}`,
+      await read(name),
+    ])));
+    const sha = "a".repeat(40);
+    expect(auditRepairWriterGraph({
+      files,
+      repositoryDefaultPermission: "read",
+      auditedSha: sha,
+      liveDefaultBranchSha: sha,
+      repairWorkflowPath: ".github/workflows/review-gate-repair.yml",
+      repairEnvironment: "review-gate-repair",
+      changedPaths: [],
+      authorityPaths: [".github/workflows/review-gate-repair.yml"],
+    })).toMatchObject({ ok: true, writer: { jobId: "write-status" } });
   });
 });

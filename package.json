@@ -30,6 +30,8 @@
     "review-gate:perform-action": "tsx packages/arc-framework/src/scripts/review-gate/run-perform-action.ts",
     "review-gate:await": "tsx packages/arc-framework/src/scripts/review-gate/run-await.ts",
     "review-gate:assert-head-mutable": "tsx packages/arc-framework/src/scripts/review-gate/run-assert-head-mutable.ts",
+    "review-gate:repair-environment": "tsx packages/arc-framework/src/scripts/review-gate/run-repair-environment.ts",
+    "review-gate:validate-repair": "tsx packages/arc-framework/src/scripts/review-gate/run-repair.ts",
     "prepare": "husky"
   },
   "devDependencies": {

@@ -67,6 +67,16 @@ function needsJob(value: unknown, jobId: string): boolean {
   return value === jobId || (Array.isArray(value) && value.includes(jobId));
 }
 
+function repairTriggerValid(value: unknown): boolean {
+  const triggers = record(value);
+  if (triggers === null || Object.keys(triggers).join(",") !== "repository_dispatch") return false;
+  const dispatch = record(triggers.repository_dispatch);
+  return dispatch !== null
+    && Array.isArray(dispatch.types)
+    && dispatch.types.length === 1
+    && dispatch.types[0] === "review-gate-repair";
+}
+
 function parseWorkflow(path: string, content: string, errors: string[]): JsonObject | null {
   try {
     const parsed = record(parseYaml(content));
@@ -155,10 +165,7 @@ export function auditRepairWriterGraph(input: RepairWriterAuditInput): RepairWri
     const jobs = record(writer.workflow.jobs);
     const validationJob = record(jobs?.validate) ?? undefined;
     if (!writerShapeValid(writer.job, validationJob, input.repairEnvironment)) errors.push("repair-writer-shape-invalid");
-    const triggers = record(writer.workflow.on);
-    if (triggers === null || Object.keys(triggers).join(",") !== "workflow_dispatch") {
-      errors.push("repair-workflow-trigger-invalid");
-    }
+    if (!repairTriggerValid(writer.workflow.on)) errors.push("repair-workflow-trigger-invalid");
   }
   const soleEnvironmentConsumer = environmentConsumers.length === 1 ? environmentConsumers[0] : undefined;
   if (soleEnvironmentConsumer === undefined

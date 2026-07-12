@@ -570,31 +570,31 @@ only from immutable default-branch code.
 - _Outcome:_ The repository now has one closed proof model for Actions-token status authority; all existing jobs also
   declare explicit permissions so inherited defaults cannot silently widen the audited graph.
 
-### `[ ]` **6.3 Add the dispatch-only `review-repair-ok` workflow and protected-environment contract**
+### `[x]` **6.3 Add the dispatch-only `review-repair-ok` workflow and protected-environment contract**
 
 - _Goal:_ A maintainer can create one Actions-pinned recovery status from audited default-branch code without the
   ARC App credential and without opening an alternate automatic authority path.
 
-    - `[ ]` **6.3.a Provision and verify the dedicated `review-gate-repair` environment**
-        - Add compare-and-stop runbook/setup logic that resolves the live default branch, creates or repairs the
-          secretless environment with an exact default-branch deployment policy, and verifies its live state before
-          every qualification or repair dispatch.
+    - `[x]` **6.3.a Provision and verify the dedicated `review-gate-repair` environment**
+        - Added compare/apply operator logic that resolves the live default branch, refuses secret-bearing state,
+          creates or repairs the exact branch deployment policy, and re-verifies live state after every mutation.
 
-    - `[ ]` **6.3.b Add `.github/workflows/review-gate-repair.yml` with split minimal permissions**
-        - Use only `workflow_dispatch` from immutable default-branch code and `GITHUB_TOKEN`; keep validation read-only
-          and grant the dedicated `review-gate-repair` environment writer job exactly `contents: read`,
-          `pull-requests: read`, and `statuses: write`.
-        - Reject a dispatch whose selected ref is not the repository default branch; check out the workflow's
-          immutable default-branch SHA with persisted credentials disabled only in the read-only validation job.
+    - `[x]` **6.3.b Add `.github/workflows/review-gate-repair.yml` with split minimal permissions**
+        - Added a typed `repository_dispatch` workflow whose launch credential never enters Actions, whose validation
+          job checks out immutable default-branch code without persisted credentials, and whose sole protected writer
+          receives exactly `contents: read`, `pull-requests: read`, and `statuses: write`.
 
-    - `[ ]` **6.3.c Implement validation output and the closed inline writer**
-        - Validate attestation plus exclusivity before emitting a bounded result; the writer rechecks that result and
-          live PR head, then links run id, workflow path/SHA, PR, and head without executing repository code under its
-          write token. Refuse changes to repair authority code on the repaired PR.
+    - `[x]` **6.3.c Implement validation output and the closed inline writer**
+        - Validation binds the typed event, live context, environment, full workflow graph, and attestation into a
+          bounded result. The actionless writer rechecks it and the live head before publishing a fully linked status;
+          repaired PRs cannot change the authority code or any workflow in the audited graph.
 
-    - `[ ]` **6.3.d Extend environment, permissions, secret-boundary, and source-id tests**
-        - Include missing/unprotected/wrong-branch environment refusal, non-default dispatch refusal, the exact split
-          permission/job shape, exclusive environment reference, and Actions App id `15368` verification.
+    - `[x]` **6.3.d Extend environment, permissions, secret-boundary, and source-id tests**
+        - Covered missing, secret-bearing, unprotected, and wrong-branch environments; wrong event/type/ref dispatch;
+          exact permission, environment, inline-writer, and no-secret boundaries; graph drift; and source app `15368`.
+
+- _Outcome:_ Emergency status authority now executes only from GitHub's immutable default-branch event path and is
+  closed over its environment, source identity, complete workflow graph, live PR head, and bounded review evidence.
 
 ### `[ ]` **6.4 Rehearse and document outage and restoration add-before-remove sequences**
 
