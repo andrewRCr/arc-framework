@@ -445,6 +445,23 @@ describe("self-hosting gate reduction", () => {
     });
   });
 
+  it("suppresses an admitted provider request when controller state is inconsistent", () => {
+    const decision = reduceSelfHostingGate(input({
+      policy: coderabbitPolicy(),
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      capacities: [capacity()],
+      inconsistencies: ["ledger-fork"],
+      ledgerVersion: 0,
+    }));
+
+    expect(decision.request).toBeNull();
+    expect(decision.projection).toMatchObject({
+      conclusion: "failure",
+      blockers: expect.arrayContaining([expect.objectContaining({ code: "ledger-fork" })]),
+    });
+  });
+
   it("accepts the policy-qualified non-author human attestation source", () => {
     const decision = reduceSelfHostingGate(input({
       lane: { lane: "reviewed", reasons: ["non-lane-path"] },

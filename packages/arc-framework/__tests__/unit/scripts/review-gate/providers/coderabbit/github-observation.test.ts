@@ -159,6 +159,22 @@ describe("GitHub CodeRabbit observation API", () => {
     await expect(observation.readSignals("request-1")).resolves.toEqual([]);
   });
 
+  it("ignores an unrelated check whose App has been removed", async () => {
+    const { api: observation } = api([
+      response(200, JSON.stringify({ check_runs: [{
+        name: "unrelated-check",
+        status: "completed",
+        conclusion: "success",
+        app: null,
+        output: null,
+      }] })),
+      response(200, JSON.stringify([])),
+      response(200, JSON.stringify([])),
+    ], [graphqlThreads()]);
+
+    await expect(observation.readSignals("request-1")).resolves.toEqual([]);
+  });
+
   it("reports exhausted capacity only for an explicit current durable quota signal", async () => {
     const { api: observation } = api(currentArtifacts("rate limit reached"), [graphqlThreads()]);
     await expect(observation.readCapacity()).resolves.toBe("exhausted");

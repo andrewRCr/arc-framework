@@ -238,7 +238,7 @@ export function reduceSelfHostingGate(input: SelfHostingGateReductionInput): Gat
     inconsistencies,
   });
   return {
-    request,
+    request: verdict.conclusion === "failure" ? null : request,
     projection: renderGateProjection({
       verdict,
       policy: policyProjection(policyDecision),

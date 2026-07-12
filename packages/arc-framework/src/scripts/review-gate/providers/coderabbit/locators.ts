@@ -44,7 +44,8 @@ export class ReceiptBackedCodeRabbitRequestLocator implements CodeRabbitRequestL
     const pullNumber = this.deps.pullRequestNumber;
     if (request.coverageThroughSha !== change.headSha) return { state: "stale", pullNumber };
     const ledger = await this.deps.readLedger(change.changeRequestId);
-    const receipts = ledger.kind === "valid" ? ledger.receipts : [];
+    if (ledger.kind !== "valid") throw new CodeRabbitRequestError("receipt-ledger-degraded");
+    const receipts = ledger.receipts;
     const requestKey = computeRequestKey(request);
     const alreadyTriggered = receipts.some((envelope) =>
       computeRequestKey(envelope.receipt.request) === requestKey
@@ -66,7 +67,8 @@ export class ReceiptBackedCodeRabbitObservationLocator implements CodeRabbitObse
   ): Promise<{ pullNumber: number; context: CodeRabbitRunContext; candidateTailStart: string | null }> {
     const change = await resolvedChange(this.deps);
     const ledger = await this.deps.readLedger(change.changeRequestId);
-    const receipts = ledger.kind === "valid" ? ledger.receipts : [];
+    if (ledger.kind !== "valid") throw new CodeRabbitRequestError("receipt-ledger-degraded");
+    const receipts = ledger.receipts;
     const reserved = receipts.find((envelope) => envelope.receipt.action === "reserved"
       && computeRequestKey(envelope.receipt.request) === requestIdentity);
     if (reserved === undefined) throw new CodeRabbitRequestError("run-not-found");

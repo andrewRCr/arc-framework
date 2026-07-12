@@ -51,8 +51,10 @@ function parseCheckRecords(value: unknown): ParsedCheckSignalRecord[] {
   const record = objectAt(value, "checkRuns");
   return arrayAt(record.check_runs, "checkRuns.check_runs", (item, path) => {
     const check = objectAt(item, path);
-    const app = objectAt(check.app, `${path}.app`);
-    const owner = app.owner === null || app.owner === undefined ? null : objectAt(app.owner, `${path}.app.owner`);
+    const app = check.app === null || check.app === undefined ? null : objectAt(check.app, `${path}.app`);
+    const owner = app === null || app.owner === null || app.owner === undefined
+      ? null
+      : objectAt(app.owner, `${path}.app.owner`);
     const output = check.output === null || check.output === undefined ? null : objectAt(check.output, `${path}.output`);
     return {
       name: stringAt(check.name, `${path}.name`),

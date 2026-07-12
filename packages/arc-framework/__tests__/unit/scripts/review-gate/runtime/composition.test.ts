@@ -136,6 +136,30 @@ describe("review-gate composition roots", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("retains the source path when a code file is renamed to a routine destination", async () => {
+    const { io } = makeIo();
+    const renamed = resolvedChange();
+    if (renamed.kind !== "resolved") throw new Error("expected resolved fixture");
+    renamed.context.changedPaths = [{ status: "renamed", path: "docs/controller.md", previousPath: "src/controller.ts" }];
+    const composition = await createAttestRuntime({
+      ...baseConfig(),
+      dispatchActorLogin: "maintainer",
+      dispatchActorId: "maintainer-1",
+    }, io, verifiedSeams({
+      resolveChange: async () => renamed,
+      resolveActorCapabilities: async () => ({
+        schemaVersion: 1,
+        actorIdentity: "maintainer-1",
+        permissions: ["maintain"],
+      }),
+      stateExpected: async () => false,
+    }));
+
+    await expect(composition.resolveValidationContext()).resolves.toMatchObject({
+      requirement: { obligation: "required" },
+    });
+  });
+
   it.each([
     ["empty appToken", { appToken: "" }, /appToken is required/u],
     ["empty owner", { owner: "" }, /owner is required/u],

@@ -171,9 +171,15 @@ export class CodeRabbitProviderAdapter implements ReviewProviderAdapter {
     const outcome = mechanism === "label"
       ? await this.api.applyTriggerLabel(request)
       : await this.api.requestFullReview(request);
-    if (mechanism === "label") await this.api.removeTriggerLabel(request);
     if (outcome.kind === "ambiguous") throw new CodeRabbitRequestError("ambiguous-delivery", true);
     if (outcome.kind === "rejected") throw new CodeRabbitRequestError(`pre-effect-rejection:${outcome.reason}`);
+    if (mechanism === "label") {
+      try {
+        await this.api.removeTriggerLabel(request);
+      } catch {
+        // The request is already acknowledged; label cleanup is best-effort.
+      }
+    }
     return {
       requestIdentity: computeRequestKey(request),
       acknowledgedAt: outcome.acknowledgedAt,

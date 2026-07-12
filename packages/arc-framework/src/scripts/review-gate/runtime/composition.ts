@@ -165,9 +165,15 @@ function assertAttestConfig(config: AttestRuntimeConfig): void {
   assertNonEmpty(config.dispatchActorId, "dispatchActorId");
 }
 
+function riskPaths(changes: ChangedPath[]): string[] {
+  return changes.flatMap((change) => change.previousPath === undefined
+    ? [change.path]
+    : [change.path, change.previousPath]);
+}
+
 /** A changed code file flips the reviewed lane to sensitive risk. */
 function derivesCodeSurface(changes: ChangedPath[]): boolean {
-  return changes.some((change) => /\.(?:ts|tsx|js|jsx|mjs|cjs)$/u.test(change.path));
+  return riskPaths(changes).some((path) => /\.(?:ts|tsx|js|jsx|mjs|cjs)$/u.test(path));
 }
 
 function composeCodeRabbitApi(
@@ -336,7 +342,7 @@ export async function createReconcileRuntime(
       changes: input.changes,
     }),
     resolveRisk: (changes) => classifyReviewRisk({
-      paths: changes.map((change) => change.path),
+      paths: riskPaths(changes),
       codeSurface: derivesCodeSurface(changes),
     }),
     listCommandComments: () => commandReader.list(),
@@ -398,7 +404,7 @@ export async function createAttestRuntime(
       changes,
     });
     const risk = classifyReviewRisk({
-      paths: changes.map((item) => item.path),
+      paths: riskPaths(changes),
       codeSurface: derivesCodeSurface(changes),
     });
     const decision = resolveSelfHostingDecision({ policy: config.policy, changeRequest: change.changeRequest, lane, risk });
