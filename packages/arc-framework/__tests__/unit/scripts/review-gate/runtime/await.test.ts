@@ -96,7 +96,7 @@ describe("passive review-gate await state machine", () => {
     expect(stale).toEqual({ kind: "stale-head", waitKind: "ci", expectedHeadSha: HEAD, actualHeadSha: "b".repeat(40) });
   });
 
-  it.each(["authentication-failure", "malformed-projection"] as const)(
+  it.each(["authentication-failure", "host-failure", "malformed-projection"] as const)(
     "returns the %s attention terminal",
     async (kind) => {
       const result = await runAwait({

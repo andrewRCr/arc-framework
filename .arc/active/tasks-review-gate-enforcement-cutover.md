@@ -358,20 +358,25 @@ controller state without reconstructing provider semantics or scraping prose.
 - _Outcome:_ Passive waiting now consumes only typed canonical state: CI remains source-pinned, aggregate review
   state is authenticated by exact machine coordinates, and provider prose never enters the runtime.
 
-### `[ ]` **4.2 Add the self-hosting await launcher and typed terminal output contract**
+### `[x]` **4.2 Add the self-hosting await launcher and typed terminal output contract**
 
 - _Goal:_ The coordinating developer process can block cheaply on canonical GitHub state and receive a stable JSON
   result without access to the App private key or installation token.
 
-    - `[ ]` **4.2.a Implement a dependency-injectable await main over authenticated `gh` reads**
-        - Keep the launcher read-only; validate exact repository/PR/head and map host errors into typed attention.
-        - Reuse Phase 2's developer-authenticated process/host-action port for actor/session resolution and GitHub
-          reads; do not create a second `gh` transport or error vocabulary.
+    - `[x]` **4.2.a Implement a dependency-injectable await main over authenticated `gh` reads**
+        - Added exact repository/PR/head reads through the existing developer `gh` port, including actor/session
+          validation and shared typed authentication, host, and malformed-state attention results.
 
-    - `[ ]` **4.2.b Add the `review-gate:await` thin launcher and private root script**
-        - Parse `ci|review`, interval, timeout, and exact head; write transition JSON only through the output port.
+    - `[x]` **4.2.b Add the `review-gate:await` thin launcher and private root script**
+        - Added the private root launcher with validated `ci|review`, exact-head, interval, and timeout arguments;
+          transitions and terminal results share one injected JSON-lines output boundary.
 
-    - `[ ]` **4.2.c Add launcher contract and credential-boundary tests**
+    - `[x]` **4.2.c Add launcher contract and credential-boundary tests**
+        - Covered canonical `gh api` requests, source pinning, typed failures, argument parsing, JSON output, and the
+          repository-only packaging boundary without introducing App private-key or installation-token access.
+
+- _Outcome:_ The PR coordinator can now wait cheaply through its existing developer authentication while the reusable
+  runtime remains transport-neutral and the repository launcher stays outside the published CLI graph.
 
 ### `[ ]` **4.3 Expand canonical wake-up routing and scheduled repair coverage**
 

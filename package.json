@@ -28,6 +28,7 @@
     "lint:arc:section-refs": "tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
     "review-gate:next-action": "tsx packages/arc-framework/src/scripts/review-gate/run-next-action.ts",
     "review-gate:perform-action": "tsx packages/arc-framework/src/scripts/review-gate/run-perform-action.ts",
+    "review-gate:await": "tsx packages/arc-framework/src/scripts/review-gate/run-await.ts",
     "review-gate:assert-head-mutable": "tsx packages/arc-framework/src/scripts/review-gate/run-assert-head-mutable.ts",
     "prepare": "husky"
   },

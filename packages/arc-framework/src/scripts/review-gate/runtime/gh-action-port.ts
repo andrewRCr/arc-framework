@@ -8,6 +8,17 @@ export interface ProcessRunner {
   run(command: string, args: string[]): Promise<{ stdout: string }>;
 }
 
+/** Classified process-boundary failure shared by developer-authenticated launchers. */
+export class GhProcessError extends Error {
+  readonly kind: "authentication-failure" | "host-failure";
+
+  constructor(kind: "authentication-failure" | "host-failure") {
+    super(kind);
+    this.name = "GhProcessError";
+    this.kind = kind;
+  }
+}
+
 function repositoryPath(repositoryRef: string): string {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(repositoryRef)) {
     throw new Error("gh-action: invalid repository reference");
@@ -51,9 +62,17 @@ export class GhDeveloperActionPort implements DeveloperActionPort {
     this.process = process;
   }
 
+  /** Canonical JSON read shared by repository-only developer launchers. */
+  async readJson(path: string): Promise<unknown> {
+    if (!/^(?:user|repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_?=&./-]+)$/u.test(path)) {
+      throw new Error("gh-action: invalid API path");
+    }
+    const result = await this.process.run("gh", ["api", path]);
+    return parseJson(result.stdout, "gh-read");
+  }
+
   async currentActorIdentity(): Promise<string> {
-    const result = await this.process.run("gh", ["api", "user"]);
-    return actorId(parseJson(result.stdout, "gh-user"), "gh-user");
+    return actorId(await this.readJson("user"), "gh-user");
   }
 
   async postComment(input: {

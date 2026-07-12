@@ -88,10 +88,14 @@ describe("trusted review-gate workflows", () => {
     const tsup = await readFile(resolve(root, "packages/arc-framework/tsup.config.ts"), "utf8");
     const manifest = JSON.parse(await readFile(resolve(root, "packages/arc-framework/package.json"), "utf8")) as {
       files: string[];
+      scripts?: Record<string, string>;
     };
     expect(tsup).toContain('entry: ["src/cli.ts"]');
     expect(tsup).not.toContain("review-gate");
     expect(manifest.files).not.toContain("src");
+    const rootManifest = JSON.parse(await readRepositoryFile("package.json")) as { scripts: Record<string, string> };
+    expect(rootManifest.scripts["review-gate:await"]).toContain("run-await.ts");
+    expect(manifest.scripts?.["review-gate:await"]).toBeUndefined();
   });
 
   it("parses every workflow and pins every external action", async () => {

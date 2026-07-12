@@ -6,6 +6,7 @@ export type AwaitConclusion = "pending" | "failure" | "success";
 export type WaitRead<T> =
   | { kind: "ok"; value: T }
   | { kind: "authentication-failure" }
+  | { kind: "host-failure" }
   | { kind: "malformed-projection" };
 
 export interface ReviewAwaitState {
@@ -49,7 +50,7 @@ export type AwaitTerminal =
   | { kind: "success" | "failure"; waitKind: AwaitKind; expectedHeadSha: string; state: AwaitState }
   | { kind: "stale-head"; waitKind: AwaitKind; expectedHeadSha: string; actualHeadSha: string }
   | { kind: "timeout"; waitKind: AwaitKind; expectedHeadSha: string; elapsedMs: number }
-  | { kind: "authentication-failure" | "malformed-projection"; waitKind: AwaitKind; expectedHeadSha: string };
+  | { kind: "authentication-failure" | "host-failure" | "malformed-projection"; waitKind: AwaitKind; expectedHeadSha: string };
 
 export interface RunAwaitInput {
   repositoryRef: string;

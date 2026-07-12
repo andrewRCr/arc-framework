@@ -14,7 +14,7 @@ import { execFile } from "node:child_process";
 
 import type { ExecResult, GitExec, GitExecOptions } from "../../../lib/git/exec.js";
 import type { HttpFetch } from "../hosts/github/api/http.js";
-import type { ProcessRunner } from "./gh-action-port.js";
+import { GhProcessError, type ProcessRunner } from "./gh-action-port.js";
 
 /** Node global `fetch` as the transport boundary; the `Response` satisfies `HttpResponse`. */
 export const productionFetch: HttpFetch = (url, init) => globalThis.fetch(url, init);
@@ -53,9 +53,11 @@ export function createAuthenticatedGitExec(gitToken: string, base: GitExec = exe
 export const productionProcessRunner: ProcessRunner = {
   run(command, args) {
     return new Promise((resolve, reject) => {
-      execFile(command, args, { maxBuffer: MAX_PROCESS_STDOUT_BYTES, encoding: "utf8" }, (error, stdout) => {
+      execFile(command, args, { maxBuffer: MAX_PROCESS_STDOUT_BYTES, encoding: "utf8" }, (error, stdout, stderr) => {
         if (error !== null) {
-          reject(error instanceof Error ? error : new Error("process execution failed"));
+          reject(new GhProcessError(/(?:HTTP\s+)?(?:401|403)|auth(?:entication|orization| token)/iu.test(stderr)
+            ? "authentication-failure"
+            : "host-failure"));
           return;
         }
         resolve({ stdout });
