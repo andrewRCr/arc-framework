@@ -156,25 +156,25 @@ request generation.
 - _Outcome:_ Every modeled head change is now attributable to a durable single-use transition: active review freezes
   mutation, while terminal findings cross exactly one authorized target with their original lifecycle authority intact.
 
-### `[ ]` **2.4 Expose and compose the exact-head mutability guard at workflow push fire sites**
+### `[x]` **2.4 Expose and compose the exact-head mutability guard at workflow push fire sites**
 
 - _Goal:_ Workflow-driven pushes for an opened PR stop immediately before transport unless canonical controller
   state authorizes that exact head transition, while pre-PR pushes remain network-hook free.
 
-    - `[ ]` **2.4.a Add `review-gate:assert-head-mutable` as a repository-only launcher**
-        - Bind repository, PR, canonical remote PR head, proposed outgoing local head/change set, and optional
-          `begin-fix` authorization to the neutral query; emit typed allow/refuse diagnostics for that exact
-          transition without consuming authorization before the new head is canonically observed.
+    - `[x]` **2.4.a Add `review-gate:assert-head-mutable` as a repository-only launcher**
+        - Added a private root launcher and read-only composition that bind repository, PR, canonical current head,
+          outgoing head, and optional authorization hash to stable typed allow/refuse output without consuming it.
 
-    - `[ ]` **2.4.b Insert the guard at canonical integration and errand push fire sites**
-        - Update package-source and `.arc/` copies of `integrate-work-unit.md` and `supplemental/run-errand.md`,
-          preserving project overrides and invoking the guard only when `openedChangeRequest` exists.
-        - Guard the review-fix push in project-owned `coordinate-pr-review.md`; initial pre-PR pushes remain outside
-          the query because no opened change request or review flight exists yet.
+    - `[x]` **2.4.b Insert the guard at canonical integration and errand push fire sites**
+        - Guarded final integration, base-reconcile, resumed-open-errand, and review-fix pushes immediately before
+          transport across synchronized package/project workflows; initial pre-PR pushes remain outside the query.
 
-    - `[ ]` **2.4.c Extend workflow contract tests for guard placement and no-pre-PR behavior**
-        - Cover initial push, review-fix push, lifecycle-final push, base-reconcile push, errand push, current/outgoing
-          head argument order, and refusal before transport.
+    - `[x]` **2.4.c Extend workflow contract tests for guard placement and no-pre-PR behavior**
+        - Covered launcher isolation and fail-closed output plus initial, review-fix, lifecycle-final, base-reconcile,
+          and resumed-errand placement, package/instance parity, head order, `begin-fix`, and refusal-before-push.
+
+- _Outcome:_ Open-PR workflow pushes now share one exact transition guard, closing the gap between durable flight
+  authority and transport while preserving the intentionally network-free pre-PR path.
 
 ## **Phase 3:** Causal provider evidence and deterministic fallback
 

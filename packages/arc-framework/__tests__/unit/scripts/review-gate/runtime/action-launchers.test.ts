@@ -22,7 +22,11 @@ describe("repository-only review action launchers", () => {
     expect(rootPackage.scripts["review-gate:perform-action"]).toBe(
       "tsx packages/arc-framework/src/scripts/review-gate/run-perform-action.ts",
     );
+    expect(rootPackage.scripts["review-gate:assert-head-mutable"]).toBe(
+      "tsx packages/arc-framework/src/scripts/review-gate/run-assert-head-mutable.ts",
+    );
     expect(cliPackage.scripts).not.toHaveProperty("review-gate:next-action");
     expect(cliPackage.scripts).not.toHaveProperty("review-gate:perform-action");
+    expect(cliPackage.scripts).not.toHaveProperty("review-gate:assert-head-mutable");
   });
 });

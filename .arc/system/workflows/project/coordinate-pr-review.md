@@ -38,7 +38,11 @@ separate:
   current conversation status. Completion-check success only wakes a canonical re-read; it never closes or cleans a
   conversation.
 
-Run affected quality gates, commit atomically with a `(code review)` context footer, and push.
+Run affected quality gates and commit atomically with a `(code review)` context footer. For a FIX, record the authorized
+`begin-fix` transition before invoking the guard. Resolve the canonical remote PR head as `ARC_HEAD_SHA` and the
+outgoing local head as `<outgoing-head-sha>`, then run
+`npm run review-gate:assert-head-mutable -- <outgoing-head-sha> [<begin-fix-receipt-hash>]`. Stop on refusal; only then
+run any active pre-push review action and push.
 
 After a head update, re-read canonical state. Recommend full coverage when the whole diff or source changed;
 recommend incremental coverage only from the controller-reported reviewed chain head. On approval, submit the

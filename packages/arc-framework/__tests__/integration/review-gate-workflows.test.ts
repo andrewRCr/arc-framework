@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const read = async (name: string): Promise<string> => readFile(resolve(root, ".github/workflows", name), "utf8");
+const readRepositoryFile = async (path: string): Promise<string> => readFile(resolve(root, path), "utf8");
 
 function jobValue(workflow: string, name: string): Record<string, unknown> {
   const parsed = load(workflow) as { jobs?: Record<string, unknown> };
@@ -145,5 +146,36 @@ describe("trusted review-gate workflows", () => {
       }
     }
     for (const path of referenced) await expect(readFile(resolve(root, path)), path).resolves.toBeDefined();
+  });
+
+  it("guards only opened-change push sites with current and outgoing heads in order", async () => {
+    const packageIntegrationPath = "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md";
+    const instanceIntegrationPath = ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md";
+    const packageErrandPath = "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md";
+    const instanceErrandPath = ".arc/system/workflows/arc/supplemental/run-errand.md";
+    const [packageIntegration, instanceIntegration, packageErrand, instanceErrand, coordination] = await Promise.all([
+      readRepositoryFile(packageIntegrationPath),
+      readRepositoryFile(instanceIntegrationPath),
+      readRepositoryFile(packageErrandPath),
+      readRepositoryFile(instanceErrandPath),
+      readRepositoryFile(".arc/system/workflows/project/coordinate-pr-review.md"),
+    ]);
+    const guard = "npm run review-gate:assert-head-mutable -- <outgoing-head-sha>";
+
+    expect(packageIntegration).toBe(instanceIntegration);
+    expect(packageErrand).toBe(instanceErrand);
+    expect(packageIntegration.match(new RegExp(guard, "gu"))).toHaveLength(2);
+    expect(packageIntegration.indexOf(guard)).toBeGreaterThan(packageIntegration.indexOf("### 12) Final push"));
+    expect(packageIntegration.slice(
+      packageIntegration.indexOf("### 3) Open the PR"),
+      packageIntegration.indexOf("### 4) Review iteration"),
+    )).not.toContain(guard);
+    expect(packageIntegration).toContain("canonical remote PR head as `ARC_HEAD_SHA`");
+    expect(packageIntegration).toContain("outgoing local head as `<outgoing-head-sha>`");
+
+    expect(packageErrand.match(new RegExp(guard, "gu"))).toHaveLength(1);
+    expect(packageErrand).toContain("The initial pre-PR push has no `openedChangeRequest` and skips this query.");
+    expect(coordination.indexOf(guard)).toBeLessThan(coordination.indexOf("and push."));
+    expect(coordination).toMatch(/record the\s+authorized\s+`begin-fix` transition before invoking the guard/u);
   });
 });

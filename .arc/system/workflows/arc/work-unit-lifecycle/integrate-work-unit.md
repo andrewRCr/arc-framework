@@ -267,6 +267,10 @@ What gets pushed varies by cadence:
 (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces
 an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
 
+Resolve the canonical remote PR head as `ARC_HEAD_SHA` and the outgoing local head as `<outgoing-head-sha>`, then
+run `npm run review-gate:assert-head-mutable -- <outgoing-head-sha> [<begin-fix-receipt-hash>]` with the current
+`openedChangeRequest` coordinates. Stop on any typed refusal; never reverse the current/outgoing head order.
+
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
@@ -300,6 +304,10 @@ git merge --no-edit origin/{base-branch}
 ```
 
 Before pushing the reconcile commit, repeat the Step 12 pre-push extension check when active.
+
+Resolve the canonical remote PR head as `ARC_HEAD_SHA` and the outgoing local head as `<outgoing-head-sha>`, then
+run `npm run review-gate:assert-head-mutable -- <outgoing-head-sha> [<begin-fix-receipt-hash>]` with the current
+`openedChangeRequest` coordinates. Stop on any typed refusal; never reverse the current/outgoing head order.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
