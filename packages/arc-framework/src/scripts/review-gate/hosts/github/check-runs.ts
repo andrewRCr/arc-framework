@@ -94,6 +94,15 @@ export async function findAuthoritativeCheckRuns(
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.id - left.id);
 }
 
+/** Confirm the pinned App's stable aggregate check is pending on the exact head. */
+export async function confirmPendingGateCheck(
+  api: GitHubCheckRunApi,
+  scope: CheckRunScope,
+): Promise<boolean> {
+  const matches = await findAuthoritativeCheckRuns(api, scope);
+  return matches.length > 0 && matches.every((run) => run.status === "in_progress" && run.conclusion === null);
+}
+
 /** Publish one projection, converging every interrupted duplicate to the same conclusion. */
 export async function publishGateCheck(input: {
   api: GitHubCheckRunApi;

@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ReceiptEnvelope, ReviewRequest } from "../../../../../src/scripts/review-gate/core/execution.js";
-import { executeReservedRequest, evaluateRequestTiming } from "../../../../../src/scripts/review-gate/core/request-execution.js";
+import {
+  evaluateRequestTiming,
+  executeConfirmedRequest,
+  reserveRequest,
+} from "../../../../../src/scripts/review-gate/core/request-execution.js";
 import { createReceipt } from "../../../../../src/scripts/review-gate/core/request-key.js";
 
 function request(): ReviewRequest {
@@ -41,48 +45,53 @@ function reservation(): ReceiptEnvelope {
 }
 
 describe("reserved request execution", () => {
-  it("appends and confirms reservation before one provider invocation", async () => {
+  it("appends and confirms a reservation without performing the provider effect", async () => {
     const order: string[] = [];
-    const invoke = vi.fn(async () => {
-      order.push("invoke");
-      return { requestIdentity: "request-1", acknowledgedAt: "2026-07-10T20:01:00.000Z" };
-    });
-    const result = await executeReservedRequest({
+    const result = await reserveRequest({
       request: request(),
       expectedLedgerVersion: 0,
-      appendReservation: async () => { order.push("reserve"); return reservation(); },
+      appendReservation: async () => {
+        order.push("reserve");
+        return { envelope: reservation(), created: true };
+      },
       confirmReservation: async () => { order.push("confirm"); return { canonical: true, envelope: reservation() }; },
-      invoke,
+    });
+
+    expect(result).toMatchObject({ created: true, envelope: { ledgerVersion: 1 } });
+    expect(order).toEqual(["reserve", "confirm"]);
+  });
+
+  it("returns no executable reservation for stale, forked, or unconfirmed state", async () => {
+    const result = await reserveRequest({
+      request: request(), expectedLedgerVersion: 0,
+      appendReservation: async () => ({ envelope: reservation(), created: true }),
+      confirmReservation: async () => ({ canonical: false, envelope: null }),
+    });
+    expect(result).toBeNull();
+  });
+
+  it("invokes and acknowledges only an already confirmed reservation", async () => {
+    const order: string[] = [];
+    const result = await executeConfirmedRequest({
+      request: request(),
+      reservation: reservation(),
+      invoke: async () => {
+        order.push("invoke");
+        return { requestIdentity: "request-1", acknowledgedAt: "2026-07-10T20:01:00.000Z" };
+      },
       appendAcknowledgement: async () => { order.push("ack"); },
       appendTerminalFailure: async () => { order.push("failure"); },
     });
-
-    expect(result).toMatchObject({ status: "acknowledged", invoked: true });
-    expect(order).toEqual(["reserve", "confirm", "invoke", "ack"]);
-    expect(invoke).toHaveBeenCalledTimes(1);
-  });
-
-  it("permits no invocation for stale, forked, or unconfirmed reservation", async () => {
-    const invoke = vi.fn();
-    const result = await executeReservedRequest({
-      request: request(), expectedLedgerVersion: 0,
-      appendReservation: async () => reservation(),
-      confirmReservation: async () => ({ canonical: false, envelope: null }),
-      invoke,
-      appendAcknowledgement: async () => undefined,
-      appendTerminalFailure: async () => undefined,
-    });
-    expect(result).toMatchObject({ status: "reservation-unconfirmed", invoked: false });
-    expect(invoke).not.toHaveBeenCalled();
+    expect(result).toEqual({ status: "acknowledged", invoked: true });
+    expect(order).toEqual(["invoke", "ack"]);
   });
 
   it("records an ambiguous terminal failure without replaying a rejected invocation", async () => {
     const appendTerminalFailure = vi.fn(async () => undefined);
     const invoke = vi.fn(async () => { throw new Error("response lost"); });
-    const result = await executeReservedRequest({
-      request: request(), expectedLedgerVersion: 0,
-      appendReservation: async () => reservation(),
-      confirmReservation: async () => ({ canonical: true, envelope: reservation() }),
+    const result = await executeConfirmedRequest({
+      request: request(),
+      reservation: reservation(),
       invoke,
       appendAcknowledgement: async () => undefined,
       appendTerminalFailure,

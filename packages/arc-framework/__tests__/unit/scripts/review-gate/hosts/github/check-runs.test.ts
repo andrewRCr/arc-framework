@@ -5,6 +5,7 @@ import { GitHubRestClient } from "../../../../../../src/scripts/review-gate/host
 import {
   CheckRunPublishError,
   buildCheckExternalId,
+  confirmPendingGateCheck,
   findAuthoritativeCheckRuns,
   publishGateCheck,
   reviewGateConcurrency,
@@ -147,6 +148,21 @@ describe("authoritative check lookup", () => {
     expect(result.checkRun.id).toBe(1);
     expect(api.mutations).toHaveLength(1);
     expect(api.mutations[0]?.id).toBe(1);
+  });
+
+  it("confirms only an exact pinned-App pending aggregate check", async () => {
+    await expect(confirmPendingGateCheck(
+      new MemoryChecks([run({ status: "in_progress", conclusion: null })]),
+      scope,
+    )).resolves.toBe(true);
+    await expect(confirmPendingGateCheck(
+      new MemoryChecks([run({ status: "completed", conclusion: "failure" })]),
+      scope,
+    )).resolves.toBe(false);
+    await expect(confirmPendingGateCheck(
+      new MemoryChecks([run({ status: "in_progress", conclusion: null, appId: "15368" })]),
+      scope,
+    )).resolves.toBe(false);
   });
 });
 

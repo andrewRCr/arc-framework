@@ -43,6 +43,8 @@ const projection: GateProjection = {
 const fakeRuntime: ReconcileRuntime = {
   read: async () => state,
   reduce: async () => ({ request: null, projection }),
+  reserve: async () => null,
+  confirmPending: async () => false,
   execute: async () => ({ status: "acknowledged", invoked: true }),
   publish: async () => undefined,
 };

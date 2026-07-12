@@ -87,29 +87,26 @@ aggregate check keeps its stable PR/change-set/context identity: pending confirm
 read with a separate canonical read of the matching reservation and ledger version rather than minting a check per
 request generation.
 
-### `[ ]` **2.1 Implement pending-first reservation, projection confirmation, and request acknowledgement**
+### `[x]` **2.1 Implement pending-first reservation, projection confirmation, and request acknowledgement**
 
 - _Goal:_ No provider effect or trigger-required action becomes live until its reservation and App-authored pending
   aggregate check are durable and canonically confirmed on the exact frozen head.
 
-    - `[ ]` **2.1.a Extend the neutral execution protocol to publish and confirm pending before effect**
-        - Evolve `core/request-execution.ts` from reserve-confirm-invoke to reserve → publish pending → canonical
-          pending confirmation → expose/perform effect → bind acknowledgement and terminal observations.
-        - Rewrite `runtime/reconcile.ts` and `ReconcileRuntime` so the orchestrator publishes the reserved pending
-          projection before `execute()`, re-reads around each effect boundary, and still publishes the final reduced
-          projection only from current state.
+    - `[x]` **2.1.a Extend the neutral execution protocol to publish and confirm pending before effect**
+        - Split reservation from confirmed execution and made reconciliation reserve, re-read, publish queued state,
+          confirm pending, re-read, execute, and finally re-reduce before publishing current terminal state.
 
-    - `[ ]` **2.1.b Compose pending confirmation through the GitHub host adapter**
-        - Extend `hosts/github/check-runs.ts`, `adapter.ts`, and the receipt store so confirmation pins App id, check
-          name, stable aggregate external id, and exact head, then independently confirms the matching request key,
-          generation, and ledger version from the authenticated receipt store.
+    - `[x]` **2.1.b Compose pending confirmation through the GitHub host adapter**
+        - Added exact pending-check confirmation for pinned App, context, external id, and head, paired independently
+          with authenticated request-key, generation, receipt-hash, and ledger-version confirmation.
 
-    - `[ ]` **2.1.c Prove ordering and fail-closed interruption test-first**
-        - Build `test-first` (one behavior at a time):
-            - No provider call or exposed action occurs before pending confirmation.
-            - Stale, foreign-App, missing, failed-write, and ambiguous confirmation paths perform no effect.
-            - Re-entry adopts the durable reservation/projection without duplicating the generation.
-            - The reconcile orchestrator cannot regress to effect-before-publish ordering or publish stale final state.
+    - `[x]` **2.1.c Prove ordering and fail-closed interruption test-first**
+        - Covered strict publish/confirm/effect ordering, stale and foreign identities, missing or failed confirmation,
+          interrupted reservation adoption without replay, and stale-final-state suppression through unit and composed
+          GitHub integration tests.
+
+- _Outcome:_ A provider effect is now unreachable until both durable controller state and its exact App-authored
+  pending projection are canonically observable; interruption preserves pending state without duplicating spend.
 
 ### `[ ]` **2.2 Add typed next-action and developer-authenticated action execution launchers**
 

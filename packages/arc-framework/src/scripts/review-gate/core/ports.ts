@@ -164,9 +164,20 @@ export interface VerdictPublicationInput {
   readCurrentState: () => Promise<{ headSha: string; changeSetId: string }>;
 }
 
+/** Exact pending projection coordinates confirmed before a provider effect. */
+export interface PendingProjectionConfirmationInput {
+  hostRef: string;
+  headSha: string;
+  changeSetId: string;
+  projection: GateProjection;
+  mode: "shadow" | "dual" | "final";
+  expectedAppId: string;
+}
+
 /** Boundary for canonical host reads and verdict projection. */
 export interface GitHostAdapter extends GitHostReadAdapter {
   publishVerdict(input: VerdictPublicationInput): Promise<HostProjectionRef[]>;
+  confirmPendingProjection(input: PendingProjectionConfirmationInput): Promise<boolean>;
 }
 
 /** Storage boundary for version-checked receipt persistence. */

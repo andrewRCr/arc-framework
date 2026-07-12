@@ -72,6 +72,7 @@ describe("integrated review-gate contract", () => {
   it.each([
     ["exempt", "clean", [], "success"],
     ["recommended", "unavailable", [], "success"],
+    ["recommended", "queued", [], "pending"],
     ["required", "clean", [], "success"],
     ["required", "findings", [], "failure"],
     ["required", "stale", [], "pending"],

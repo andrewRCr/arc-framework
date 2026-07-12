@@ -47,6 +47,7 @@ describe("review adapter ports", () => {
         providerReviews: [],
       }),
       publishVerdict: async () => [{ opaqueRef: "projection-1" }],
+      confirmPendingProjection: async () => true,
     };
     const store: ReviewReceiptStore = {
       readLedger: async () => ({ kind: "valid", ledgerVersion: 1, receipts }),

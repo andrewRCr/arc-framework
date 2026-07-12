@@ -9,6 +9,7 @@ import type {
   HostProjectionRef,
   NativeReviewObservation,
   NativeReviewReadInput,
+  PendingProjectionConfirmationInput,
   VerdictPublicationInput,
 } from "../../core/ports.js";
 import { projectContexts } from "../../runtime/rollout.js";
@@ -22,6 +23,7 @@ import {
   resolveChangeRequest as resolveChangeRequestLeaf,
 } from "./change-request.js";
 import {
+  confirmPendingGateCheck,
   publishGateCheck,
   type GitHubCheckRunApi,
 } from "./check-runs.js";
@@ -196,5 +198,21 @@ export class GitHubHostAdapter extends GitHubHostReadAdapter implements GitHostA
       readCurrentState: input.readCurrentState,
     })));
     return results.map((result) => ({ opaqueRef: result.checkRun.htmlUrl }));
+  }
+
+  async confirmPendingProjection(input: PendingProjectionConfirmationInput): Promise<boolean> {
+    if (input.projection.conclusion !== "pending") return false;
+    const coordinates = this.coordinates(input.hostRef);
+    const named = projectContexts(input.mode, input.projection);
+    const confirmations = await Promise.all(named.map(({ name }) => confirmPendingGateCheck(this.checks, {
+      owner: this.deps.owner,
+      repo: this.deps.repo,
+      pullNumber: coordinates.number,
+      headSha: input.headSha,
+      changeSetId: input.changeSetId,
+      contextName: name,
+      expectedAppId: input.expectedAppId,
+    })));
+    return confirmations.length > 0 && confirmations.every(Boolean);
   }
 }

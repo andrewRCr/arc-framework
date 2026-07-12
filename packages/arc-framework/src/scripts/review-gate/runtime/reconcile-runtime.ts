@@ -35,7 +35,11 @@ import {
   type SelfHostingGateReductionInput,
 } from "../policy/self-hosting/reduction.js";
 import { createReceipt, computeRequestKey } from "../core/request-key.js";
-import { executeReservedRequest, type RequestExecutionResult } from "../core/request-execution.js";
+import {
+  executeConfirmedRequest,
+  reserveRequest,
+  type RequestExecutionResult,
+} from "../core/request-execution.js";
 import {
   resolveSelfHostingDecision,
   type SelfHostingDecision,
@@ -126,6 +130,19 @@ function guardKey(state: CanonicalReconcileState): string {
     state.policyVersion,
     state.permissionVersion,
   ].join(":");
+}
+
+function resumableReservation(receipts: ReviewReceipt[]): ReviewReceipt | null {
+  for (let index = receipts.length - 1; index >= 0; index -= 1) {
+    const candidate = receipts[index];
+    if (candidate?.action !== "reserved") continue;
+    const requestKey = computeRequestKey(candidate.request);
+    const terminal = receipts.slice(index + 1).some((receipt) =>
+      computeRequestKey(receipt.request) === requestKey
+      && ["acknowledged", "terminal-failure", "contaminated", "superseded"].includes(receipt.action));
+    if (!terminal) return candidate;
+  }
+  return null;
 }
 
 /** Stable digest of the live-resolved author capability facts. */
@@ -351,10 +368,11 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       actorIdentity: this.deps.policy.providerIdentities.appBotUserId,
     });
 
+    const priorReservation = resumableReservation([...snapshot.ledgerReceipts, ...commandReceipts]);
     return {
-      request: refreshRequest ?? reduction.request,
+      request: refreshRequest ?? reduction.request ?? priorReservation?.request ?? null,
       receiptsToAppend,
-      requestReservation,
+      requestReservation: requestReservation ?? priorReservation,
       projection: reduction.projection,
     };
   }
@@ -368,14 +386,14 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     return version;
   }
 
-  async execute(
+  async reserve(
     request: ReviewRequest,
     expectedLedgerVersion: number,
     plannedReservation: ReviewReceipt | null = null,
-  ): Promise<RequestExecutionResult> {
-    const { store, provider } = this.deps;
+  ): Promise<{ envelope: ReceiptEnvelope; created: boolean } | null> {
+    const { store } = this.deps;
     const changeRequestId = request.changeRequestId;
-    return executeReservedRequest({
+    return reserveRequest({
       request,
       expectedLedgerVersion,
       appendReservation: async (reservedRequest, version) => {
@@ -389,10 +407,15 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           findingIds: [],
           payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
         });
-        if (
-          computeRequestKey(receipt.request) !== computeRequestKey(reservedRequest)
-          || receipt.previousLedgerVersion !== version
-        ) {
+        if (computeRequestKey(receipt.request) !== computeRequestKey(reservedRequest)) {
+          throw new Error("reconcile-runtime: planned reservation does not match the request or ledger");
+        }
+        const prior = await store.readLedger(changeRequestId);
+        const existing = prior.kind === "valid"
+          ? prior.receipts.find((entry) => entry.receipt.receiptHash === receipt.receiptHash) ?? null
+          : null;
+        if (existing !== null) return { envelope: existing, created: false };
+        if (receipt.previousLedgerVersion !== version) {
           throw new Error("reconcile-runtime: planned reservation does not match the request or ledger");
         }
         await store.appendReceipt(receipt, version);
@@ -401,7 +424,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           ? ledger.receipts.find((entry) => entry.receipt.receiptHash === receipt.receiptHash) ?? null
           : null;
         if (envelope === null) throw new Error("reconcile-runtime: reservation not durable after append");
-        return envelope;
+        return { envelope, created: true };
       },
       confirmReservation: async (requestKey) => {
         const ledger = await store.readLedger(changeRequestId);
@@ -410,6 +433,39 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           && computeRequestKey(entry.receipt.request) === requestKey) ?? null;
         return { canonical: envelope !== null, envelope };
       },
+    });
+  }
+
+  async confirmPending(
+    request: ReviewRequest,
+    reservation: ReceiptEnvelope,
+    projection: GateProjection,
+  ): Promise<boolean> {
+    if (projection.conclusion !== "pending" || projection.ledgerVersion !== reservation.ledgerVersion) return false;
+    const ledger = await this.deps.store.readLedger(request.changeRequestId);
+    if (ledger.kind !== "valid" || ledger.ledgerVersion !== reservation.ledgerVersion) return false;
+    const requestKey = computeRequestKey(request);
+    const receiptConfirmed = ledger.receipts.some((entry) =>
+      entry.ledgerVersion === reservation.ledgerVersion
+      && entry.receipt.receiptHash === reservation.receipt.receiptHash
+      && entry.receipt.request.generation === request.generation
+      && computeRequestKey(entry.receipt.request) === requestKey);
+    if (!receiptConfirmed) return false;
+    return this.deps.host.confirmPendingProjection({
+      hostRef: this.deps.coordinates.hostRef,
+      headSha: request.coverageThroughSha,
+      changeSetId: request.changeSetId,
+      projection,
+      mode: this.deps.mode,
+      expectedAppId: this.deps.expectedAppId,
+    });
+  }
+
+  async execute(request: ReviewRequest, reservation: ReceiptEnvelope): Promise<RequestExecutionResult> {
+    const { store, provider } = this.deps;
+    return executeConfirmedRequest({
+      request,
+      reservation,
       invoke: (invokedRequest) => provider.request(invokedRequest),
       appendAcknowledgement: async (acknowledgement, reservation) => {
         const receipt = createReceipt({

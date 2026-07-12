@@ -13,12 +13,21 @@ export interface ReservationConfirmation {
   envelope: ReceiptEnvelope | null;
 }
 
-/** Injected effects for one request execution. */
-export interface RequestExecutionInput {
+/** Injected storage effects for one request reservation. */
+export interface RequestReservationInput {
   request: ReviewRequest;
   expectedLedgerVersion: number;
-  appendReservation: (request: ReviewRequest, expectedLedgerVersion: number) => Promise<ReceiptEnvelope>;
+  appendReservation: (
+    request: ReviewRequest,
+    expectedLedgerVersion: number,
+  ) => Promise<{ envelope: ReceiptEnvelope; created: boolean }>;
   confirmReservation: (requestKey: string) => Promise<ReservationConfirmation>;
+}
+
+/** Injected provider effects after pending state is canonically confirmed. */
+export interface ConfirmedRequestExecutionInput {
+  request: ReviewRequest;
+  reservation: ReceiptEnvelope;
   invoke: (request: ReviewRequest) => Promise<RequestAcknowledgement>;
   appendAcknowledgement: (
     acknowledgement: RequestAcknowledgement,
@@ -29,12 +38,14 @@ export interface RequestExecutionInput {
 
 /** Effect result: invocation is explicit so callers never infer replay safety. */
 export interface RequestExecutionResult {
-  status: "acknowledged" | "reservation-unconfirmed" | "invocation-ambiguous";
+  status: "acknowledged" | "invocation-ambiguous";
   invoked: boolean;
 }
 
-/** Append and canonically confirm a reservation before invoking exactly once. */
-export async function executeReservedRequest(input: RequestExecutionInput): Promise<RequestExecutionResult> {
+/** Append and canonically confirm a reservation without performing the provider effect. */
+export async function reserveRequest(
+  input: RequestReservationInput,
+): Promise<{ envelope: ReceiptEnvelope; created: boolean } | null> {
   const reservation = await input.appendReservation(input.request, input.expectedLedgerVersion);
   const requestKey = computeRequestKey(input.request);
   const confirmation = await input.confirmReservation(requestKey);
@@ -43,18 +54,25 @@ export async function executeReservedRequest(input: RequestExecutionInput): Prom
     || confirmation.envelope === null
     || confirmation.envelope.receipt.action !== "reserved"
     || computeRequestKey(confirmation.envelope.receipt.request) !== requestKey
-    || confirmation.envelope.receipt.receiptHash !== reservation.receipt.receiptHash
+    || confirmation.envelope.receipt.receiptHash !== reservation.envelope.receipt.receiptHash
   ) {
-    return { status: "reservation-unconfirmed", invoked: false };
+    return null;
   }
+  return { envelope: confirmation.envelope, created: reservation.created };
+}
+
+/** Invoke one newly reserved request after the caller confirms its pending projection. */
+export async function executeConfirmedRequest(
+  input: ConfirmedRequestExecutionInput,
+): Promise<RequestExecutionResult> {
   let acknowledgement: RequestAcknowledgement;
   try {
     acknowledgement = await input.invoke(input.request);
   } catch {
-    await input.appendTerminalFailure(reservation);
+    await input.appendTerminalFailure(input.reservation);
     return { status: "invocation-ambiguous", invoked: true };
   }
-  await input.appendAcknowledgement(acknowledgement, reservation);
+  await input.appendAcknowledgement(acknowledgement, input.reservation);
   return { status: "acknowledged", invoked: true };
 }
 

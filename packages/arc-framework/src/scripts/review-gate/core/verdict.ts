@@ -112,8 +112,10 @@ export function reduceGateVerdict(input: GateVerdictInput): GateVerdict {
   const hasFailure = blockers.some((blocker) =>
     failureCodes.has(blocker.code)
     || /^requirement:.*:(?:findings|failed|unavailable)$/u.test(blocker.code));
+  const hasActiveRequest = requirements.some((requirement) =>
+    requirement.state === "queued" || requirement.state === "running");
   return {
-    conclusion: hasFailure ? "failure" : blockers.length > 0 ? "pending" : "success",
+    conclusion: hasFailure ? "failure" : blockers.length > 0 || hasActiveRequest ? "pending" : "success",
     blockers,
     requirements,
   };

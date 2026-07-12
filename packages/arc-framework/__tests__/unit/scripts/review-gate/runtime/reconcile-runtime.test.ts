@@ -30,6 +30,7 @@ import {
   SelfHostingReconcileRuntime,
   type ReconcileRuntimeDependencies,
 } from "../../../../../src/scripts/review-gate/runtime/reconcile-runtime.js";
+import { reconcile } from "../../../../../src/scripts/review-gate/runtime/reconcile.js";
 
 const HOST_REF = "github:o/r/pull/7";
 const DIFF_BASE = "b".repeat(40);
@@ -131,6 +132,7 @@ interface HarnessOverrides {
   policy?: SelfHostingPolicy;
   store?: InMemoryReceiptStore;
   resolveActorCapabilities?: (actor: ActorAddress) => Promise<CapabilitySet>;
+  confirmPendingProjection?: GitHostAdapter["confirmPendingProjection"];
   deps?: Partial<ReconcileRuntimeDependencies>;
 }
 
@@ -158,6 +160,7 @@ function harness(overrides: HarnessOverrides = {}) {
       publishCalls.push(input);
       return [{ opaqueRef: "projection-1" }];
     },
+    confirmPendingProjection: overrides.confirmPendingProjection ?? (async () => true),
   };
   const provider: ReviewProviderAdapter = {
     readCapacity: async (sourceIdentity) => availableCapacity(sourceIdentity),
@@ -272,11 +275,66 @@ describe("SelfHostingReconcileRuntime", () => {
     const decision = await runtime.reduce(state, NOW);
     if (decision.request === null) throw new Error("expected an admitted request");
 
-    const result = await runtime.execute(decision.request, 0);
+    const reserved = await runtime.reserve(decision.request, 0);
+    if (reserved === null) throw new Error("expected a confirmed reservation");
+    const result = await runtime.execute(decision.request, reserved.envelope);
 
     expect(result).toEqual({ status: "acknowledged", invoked: true });
     expect(requestCalls).toHaveLength(1);
     expect(store.envelopes.map((entry) => entry.receipt.action)).toEqual(["reserved", "acknowledged"]);
+  });
+
+  it("confirms pending only for the matching request generation and ledger projection", async () => {
+    const { runtime } = harness({
+      policy: coderabbitPolicy(),
+      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+    });
+    const state = await runtime.read();
+    const decision = await runtime.reduce(state, NOW);
+    if (decision.request === null) throw new Error("expected an admitted request");
+    const reserved = await runtime.reserve(decision.request, 0);
+    if (reserved === null) throw new Error("expected a confirmed reservation");
+
+    expect(await runtime.confirmPending(
+      decision.request,
+      reserved.envelope,
+      { ...decision.projection, conclusion: "pending", ledgerVersion: 0 },
+    )).toBe(false);
+    expect(await runtime.confirmPending(
+      { ...decision.request, generation: 1 },
+      reserved.envelope,
+      { ...decision.projection, conclusion: "pending", ledgerVersion: 1 },
+    )).toBe(false);
+  });
+
+  it("orchestrates durable pending publication and confirmation before provider execution", async () => {
+    const { runtime, store, publishCalls, requestCalls } = harness({
+      policy: coderabbitPolicy(),
+      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+    });
+
+    await expect(reconcile(runtime, NOW)).resolves.toMatchObject({ status: "published" });
+    expect(store.envelopes.map((entry) => entry.receipt.action)).toEqual(["reserved", "acknowledged"]);
+    expect(publishCalls).toHaveLength(2);
+    expect(publishCalls[0]?.projection).toMatchObject({
+      conclusion: "pending",
+      ledgerVersion: 1,
+      requirementExecutions: [{ state: "queued" }],
+    });
+    expect(requestCalls).toHaveLength(1);
+  });
+
+  it("leaves the durable reservation pending when the host projection cannot be confirmed", async () => {
+    const { runtime, store, publishCalls, requestCalls } = harness({
+      policy: coderabbitPolicy(),
+      confirmPendingProjection: async () => false,
+      deps: { resolveRisk: () => ({ risk: "sensitive", reasons: ["code-surface"] }) },
+    });
+
+    await expect(reconcile(runtime, NOW)).resolves.toEqual({ status: "pending-unconfirmed", effect: null });
+    expect(store.envelopes.map((entry) => entry.receipt.action)).toEqual(["reserved"]);
+    expect(publishCalls).toHaveLength(1);
+    expect(requestCalls).toHaveLength(0);
   });
 
   it("records a terminal failure at the expected ledger version when invocation is ambiguous", async () => {
@@ -289,7 +347,9 @@ describe("SelfHostingReconcileRuntime", () => {
     const decision = await runtime.reduce(state, NOW);
     if (decision.request === null) throw new Error("expected an admitted request");
 
-    const result = await runtime.execute(decision.request, 0);
+    const reserved = await runtime.reserve(decision.request, 0);
+    if (reserved === null) throw new Error("expected a confirmed reservation");
+    const result = await runtime.execute(decision.request, reserved.envelope);
 
     expect(result).toEqual({ status: "invocation-ambiguous", invoked: true });
     expect(store.envelopes.map((entry) => entry.receipt.action)).toEqual(["reserved", "terminal-failure"]);
@@ -323,7 +383,7 @@ describe("SelfHostingReconcileRuntime", () => {
     const decision = await runtime.reduce(state, NOW);
     if (decision.request === null) throw new Error("expected an admitted request");
 
-    await expect(runtime.execute(decision.request, 0)).rejects.toThrow(/unauthorized-write/u);
+    await expect(runtime.reserve(decision.request, 0)).rejects.toThrow(/unauthorized-write/u);
   });
 
   it("projects a degraded ledger as a current failure without an effect", async () => {

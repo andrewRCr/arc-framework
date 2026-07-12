@@ -82,7 +82,10 @@ describe("review command ingestion", () => {
       ...base,
       comments: [original],
       receiptedEventIds: [eventId],
-    })).resolves.toMatchObject({ accepted: [], replayedEventIds: [eventId] });
+    })).resolves.toMatchObject({
+      accepted: [expect.objectContaining({ eventId })],
+      replayedEventIds: [eventId],
+    });
 
     const edited = comment({
       body: "/review-gate require analysis inspect the amended change",
