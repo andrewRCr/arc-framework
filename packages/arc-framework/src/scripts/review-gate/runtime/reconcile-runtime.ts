@@ -540,6 +540,8 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       lifecycleTail: snapshot.lifecycleTail,
       receiptRefs: snapshot.receiptRefs,
       actorIdentity: this.deps.policy.providerIdentities.appBotUserId,
+      prAuthorIdentity: snapshot.context.author.identity,
+      now,
     });
 
     const effectiveReceipts = [...snapshot.ledgerReceipts, ...transitionReceipts, ...commandReceipts];
@@ -554,7 +556,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           entry.receipt.receiptHash === selectedReservation.receiptHash) ?? null;
     return {
       request: selectedRequest,
-      receiptsToAppend,
+      receiptsToAppend: [...receiptsToAppend, ...reduction.receiptsToAppend],
       requestReservation: selectedReservation,
       reservationEnvelope,
       projection: reduction.projection,

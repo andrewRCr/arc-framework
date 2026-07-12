@@ -89,10 +89,12 @@ export async function reconcile(runtime: ReconcileRuntime, now: Date): Promise<R
         pendingDecision.projection,
       );
       if (!pendingConfirmed) return { status: "pending-unconfirmed", effect: null };
-      if (decision.request.requestMechanism === "user-trigger") {
+      if (decision.request.requestMechanism === "user-trigger" && reserved.created) {
         return { status: "action-ready", effect: null };
       }
-      if (!reserved.created) return { status: "reservation-adopted", effect: null };
+      if (!reserved.created && decision.request.requestMechanism !== "user-trigger") {
+        return { status: "reservation-adopted", effect: null };
+      }
       const beforeExecute = await runtime.read();
       if (
         guard(beforeExecute) !== guard(initial)

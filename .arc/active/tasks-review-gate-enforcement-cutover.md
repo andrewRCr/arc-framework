@@ -303,26 +303,29 @@ schema, mixed-ledger mode, or upgrade transition is introduced before activation
   while the prior effect is live or ambiguous, and capacity, pre-effect, terminal, or explicit-repair proof remains
   reconstructible and idempotent.
 
-### `[ ]` **3.5 Compose provider qualification declarations into self-hosting policy and aggregate reduction**
+### `[x]` **3.5 Compose provider qualification declarations into self-hosting policy and aggregate reduction**
 
 - _Goal:_ The production runtime selects only live-qualified provider capabilities from versioned policy and reduces
   their evidence through the same neutral aggregate semantics.
 
-    - `[ ]` **3.5.a Extend policy schema with ordered provider modes and capability outcomes**
-        - Update `policy/self-hosting/schema.ts` and `qualification.ts` with enabled/partial/disabled declarations,
-          semantic-parser versions, identities, guidance digest, and terminal-unavailable mode.
-        - Define the pure baseline-result-to-declaration mapping used later by qualification activation; no operator-
-          authored capability field may bypass the typed derivation.
+    - `[x]` **3.5.a Extend policy schema with ordered provider modes and capability outcomes**
+        - Added closed enabled/partial/disabled declarations with parser and identity pins, guidance digest,
+          terminal-unavailable mode, request actor, cross-field validation, and a pure sanitized-baseline derivation
+          that is the only path from observed hosted-provider outcomes to an enabled declaration.
 
-    - `[ ]` **3.5.b Compose multiple provider adapters without widening the neutral port**
-        - Refactor `runtime/composition.ts` and `reconcile-runtime.ts` to read capacity, request, observe, normalize,
-          and settle through the selected adapter while retaining at most one live source.
-        - Retire `resolveCodeRabbitDecisiveReview` / `mapCodeRabbitApprovalToEvidence` from the satisfying production
-          path; native provider review remains observation input only.
+    - `[x]` **3.5.b Compose multiple provider adapters without widening the neutral port**
+        - Added a ledger-routed provider adapter that delegates capacity, qualification, request, observation, and
+          normalization to exactly one policy-enabled CodeRabbit or Codex source; aggregate reduction now records
+          source supersession before a later ordered provider can be selected.
 
-    - `[ ]` **3.5.c Extend production composition and end-to-end reconcile coverage**
-        - Drive CodeRabbit and Codex fixtures through reservation, pending, trigger, evidence, fallback, and
-          projection with only transport boundaries faked.
+    - `[x]` **3.5.c Extend production composition and end-to-end reconcile coverage**
+        - Drove CodeRabbit and hosted Codex through production composition with only Git/GitHub transport fakes,
+          covering reservation, pending confirmation, exact author-trigger adoption, pinned clean evidence,
+          ordered capacity fallback, aggregate projection, and restart-safe request routing.
+
+- _Outcome:_ Versioned policy now controls both provider availability and adapter capabilities; production can run
+  one durable hosted source at a time, advance only through a canonical supersession receipt, and reduce either
+  provider's substantive evidence without granting native review state satisfying authority.
 
 ## **Phase 4:** Passive waiting and coordination re-entry
 

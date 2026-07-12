@@ -84,7 +84,7 @@ function coderabbitPolicy(): SelfHostingPolicy {
     qualifications: [
       {
         ...coderabbit,
-        enabled: true,
+        mode: "enabled",
         exactCoverage: true,
         durableResults: true,
         distinctOutcomes: true,

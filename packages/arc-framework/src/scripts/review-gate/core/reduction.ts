@@ -17,6 +17,7 @@ import {
 import { reduceFindings } from "./findings.js";
 import type { LifecycleTailProof } from "./lifecycle-tail.js";
 import { renderGateProjection } from "./projection.js";
+import { resolveProviderFallback } from "./provider-fallback.js";
 import { reduceRequirementState } from "./requirement-state.js";
 import { reduceGateVerdict, type GateVerdictInput, type VerdictRequirement } from "./verdict.js";
 
@@ -65,11 +66,13 @@ export interface ReviewGateReductionInput {
   lifecycleTailPredicateId: string;
   receiptRefs: string[];
   actorIdentity: string;
+  now?: Date;
 }
 
 /** Request plus projection emitted by one core reduction. */
 export interface GateReductionDecision {
   request: ReviewRequest | null;
+  receiptsToAppend: ReviewReceipt[];
   projection: GateProjection;
   action: ReviewGateAction;
 }
@@ -152,6 +155,7 @@ export function reduceReviewGate(input: ReviewGateReductionInput): GateReduction
   const verdictRequirements: VerdictRequirement[] = [];
   const projectionEvidence: GateProjection["evidence"] = [];
   let request: ReviewRequest | null = null;
+  const receiptsToAppend: ReviewReceipt[] = [];
 
   for (const policyRequirement of policyDecision.requirements) {
     const requirement = applyRequiredOverride(policyRequirement, input.receipts);
@@ -185,8 +189,27 @@ export function reduceReviewGate(input: ReviewGateReductionInput): GateReduction
     inconsistencies.push(...findings.errors);
     const candidates = input.qualifications.filter((declaration) =>
       declaration.transport === "durable-record" && sourceQualified(requirement, declaration));
-    if (candidates.length > 1) inconsistencies.push("multiple-invokable-sources");
-    const candidate = candidates.length === 1 ? candidates[0] : undefined;
+    const candidateRequests = candidates.map((declaration) => requestFor(
+      input,
+      requirement,
+      declaration,
+      receipts.filter((receipt) => receipt.request.sourceIdentity === declaration.sourceIdentity)
+        .reduce((generation, receipt) => Math.max(generation, receipt.request.generation), 0),
+    ));
+    const fallback = input.ledgerVersion === null
+      ? { kind: "blocked" as const, reason: "ledger-unavailable" }
+      : resolveProviderFallback({
+          orderedCandidates: candidateRequests,
+          capacities: input.capacities,
+          receipts: input.receipts,
+          ledgerVersion: input.ledgerVersion + receiptsToAppend.length,
+          now: input.now ?? new Date(0),
+        });
+    if (fallback.kind === "append-supersession") receiptsToAppend.push(fallback.receipt);
+    const selectedCandidateRequest = fallback.kind === "append-supersession" ? undefined : fallback.request;
+    const candidate = selectedCandidateRequest !== undefined
+      ? candidates.find((item) => item.sourceIdentity === selectedCandidateRequest.sourceIdentity)
+      : undefined;
     const capacity = candidate === undefined
       ? null
       : input.capacities.find((item) => item.sourceIdentity === candidate.sourceIdentity) ?? null;
@@ -268,6 +291,7 @@ export function reduceReviewGate(input: ReviewGateReductionInput): GateReduction
     });
   return {
     request: admittedRequest,
+    receiptsToAppend,
     projection,
     action: deriveReviewGateAction({
       repositoryId: input.changeRequest.repositoryId,

@@ -114,7 +114,7 @@ describe("one-live-source fallback", () => {
       receipts: history,
       ledgerVersion: 3,
       now: NOW,
-    })).toEqual({ kind: "blocked", reason: "prior-effect-not-terminal" });
+    })).toMatchObject({ kind: "blocked", reason: "prior-effect-not-terminal" });
   });
 
   it("plans one supersession for a canonical pre-effect rejection", () => {

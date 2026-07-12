@@ -103,7 +103,7 @@ function coderabbitPolicy(additional = false): SelfHostingPolicy {
   if (coderabbit === undefined) throw new Error("missing CodeRabbit policy fixture");
   const qualified = {
     ...coderabbit,
-    enabled: true,
+    mode: "enabled" as const,
     exactCoverage: true,
     durableResults: true,
     distinctOutcomes: true,
@@ -672,7 +672,7 @@ describe("self-hosting gate reduction", () => {
     expect(replay.projection.requirementExecutions[0]?.state).toBe("queued");
   });
 
-  it("fails closed instead of choosing among multiple invokable providers", () => {
+  it("selects the first qualified provider while retaining later fallback candidates", () => {
     const decision = reduceSelfHostingGate(input({
       policy: coderabbitPolicy(true),
       lane: { lane: "reviewed", reasons: ["non-lane-path"] },
@@ -680,11 +680,36 @@ describe("self-hosting gate reduction", () => {
       capacities: [capacity(), capacity("other-provider")],
     }));
 
-    expect(decision.request).toBeNull();
-    expect(decision.projection).toMatchObject({
-      conclusion: "failure",
-      blockers: expect.arrayContaining([expect.objectContaining({ code: "multiple-invokable-sources" })]),
-    });
+    expect(decision.request).toMatchObject({ sourceIdentity: "coderabbit-pr" });
+    expect(decision.projection.conclusion).toBe("pending");
+  });
+
+  it("selects an alternate only after the capacity supersession is durable", () => {
+    const policy = coderabbitPolicy(true);
+    const first = reduceSelfHostingGate(input({
+      policy,
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      capacities: [
+        { ...capacity(), status: "exhausted", reason: "provider-reported" },
+        capacity("other-provider"),
+      ],
+      now: new Date("2026-07-12T20:00:00.000Z"),
+    }));
+    expect(first.request).toBeNull();
+    expect(first.receiptsToAppend).toEqual([
+      expect.objectContaining({ action: "source-superseded", request: expect.objectContaining({ sourceIdentity: "coderabbit-pr" }) }),
+    ]);
+
+    const second = reduceSelfHostingGate(input({
+      policy,
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      receipts: first.receiptsToAppend,
+      capacities: [capacity(), capacity("other-provider")],
+      ledgerVersion: 1,
+    }));
+    expect(second.request).toMatchObject({ sourceIdentity: "other-provider" });
   });
 
   it("consumes qualified provider approval through the ordinary evidence reducers", () => {

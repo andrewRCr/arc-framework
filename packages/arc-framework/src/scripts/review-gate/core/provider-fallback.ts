@@ -7,7 +7,7 @@ import { planSourceSupersession, type SourceSupersessionProof } from "./source-s
 export type ProviderFallbackResolution =
   | { kind: "selected"; request: ReviewRequest }
   | { kind: "append-supersession"; receipt: ReviewReceipt }
-  | { kind: "blocked"; reason: string };
+  | { kind: "blocked"; reason: string; request?: ReviewRequest };
 
 function sourceReceiptHistory(request: ReviewRequest, receipts: readonly ReviewReceipt[]): ReviewReceipt[] {
   const requestKey = computeRequestKey(request);
@@ -65,7 +65,7 @@ function planAlternate(input: {
   ledgerVersion: number;
   now: Date;
 }): ProviderFallbackResolution {
-  if (input.alternate === null) return { kind: "blocked", reason: "no-qualified-alternate" };
+  if (input.alternate === null) return { kind: "blocked", reason: "no-qualified-alternate", request: input.current };
   const plan = planSourceSupersession({
     priorRequest: input.current,
     alternateSourceIdentity: input.alternate.sourceIdentity,
@@ -78,7 +78,7 @@ function planAlternate(input: {
   });
   return plan.ok
     ? { kind: "append-supersession", receipt: plan.receipt }
-    : { kind: "blocked", reason: plan.error };
+    : { kind: "blocked", reason: plan.error, request: input.current };
 }
 
 /** Select one source, or emit the sole durable transition required before its alternate can be selected. */
@@ -95,7 +95,7 @@ export function resolveProviderFallback(input: {
   const history = sourceReceiptHistory(current, input.receipts)
     .filter((receipt) => receipt.action !== "source-superseded");
   const capacity = input.capacities.find((candidate) => candidate.sourceIdentity === current.sourceIdentity);
-  if (capacity === undefined) return { kind: "blocked", reason: "capacity-missing" };
+  if (capacity === undefined) return { kind: "blocked", reason: "capacity-missing", request: current };
 
   if (history.length === 0) {
     if (capacity.status !== "exhausted") return { kind: "selected", request: current };
@@ -110,7 +110,7 @@ export function resolveProviderFallback(input: {
   }
 
   const proof = terminalProof(history);
-  if (proof === null) return { kind: "blocked", reason: "prior-effect-not-terminal" };
+  if (proof === null) return { kind: "blocked", reason: "prior-effect-not-terminal", request: current };
   return planAlternate({
     current,
     alternate,

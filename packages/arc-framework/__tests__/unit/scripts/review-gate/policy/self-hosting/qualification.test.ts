@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { qualifyIndependentAnalysisSource } from "../../../../../../src/scripts/review-gate/policy/self-hosting/qualification.js";
+import {
+  deriveHostedProviderDeclaration,
+  qualifyIndependentAnalysisSource,
+} from "../../../../../../src/scripts/review-gate/policy/self-hosting/qualification.js";
 import {
   parseSelfHostingPolicy,
   SELF_HOSTING_POLICY,
@@ -12,7 +15,7 @@ const capable = {
   qualifier: "independent-analysis/v1",
   sourceIdentity: "agent-1",
   rubricVersion: "independent-analysis/v1",
-  enabled: true,
+  mode: "enabled",
   exactCoverage: true,
   durableResults: true,
   distinctOutcomes: true,
@@ -20,6 +23,12 @@ const capable = {
   closureCapability: true,
   transport: "authenticated-attestation",
   liveProbeRequired: false,
+  parserVersion: null,
+  providerAppId: null,
+  providerBotUserId: null,
+  guidanceDigest: null,
+  terminalUnavailableMode: "disabled",
+  requestActor: "explicit",
 } satisfies SourceQualificationDeclaration;
 
 describe("independent-analysis source qualification", () => {
@@ -43,7 +52,7 @@ describe("independent-analysis source qualification", () => {
     ["result distinction", { distinctOutcomes: false }],
     ["durable findings", { durableFindings: false }],
     ["closure", { closureCapability: false }],
-    ["disabled", { enabled: false }],
+    ["disabled", { mode: "disabled" as const }],
   ])("rejects missing %s", (_name, override) => {
     expect(qualifyIndependentAnalysisSource({ ...capable, ...override }, "independent-analysis/v1").qualified).toBe(false);
   });
@@ -51,8 +60,30 @@ describe("independent-analysis source qualification", () => {
   it("keeps the pull-request provider declaration disabled during shadow observation", () => {
     const source = SELF_HOSTING_POLICY.qualifications.find((candidate) => candidate.sourceIdentity === "coderabbit-pr");
     expect(source).toBeDefined();
-    expect(source?.enabled).toBe(false);
+    expect(source?.mode).toBe("partial");
     expect(qualifyIndependentAnalysisSource(source!, "independent-analysis/v1").qualified).toBe(false);
+  });
+
+  it("derives enabled versus partial hosted declarations only from baseline outcomes", () => {
+    const baseline = {
+      sourceIdentity: "codex-pr" as const,
+      parserVersion: "codex-evidence/v1",
+      providerAppId: "1144995",
+      providerBotUserId: "199175422",
+      guidanceDigest: "a".repeat(64),
+      requestActor: "pr-author" as const,
+      requestQualified: true,
+      artifactParserQualified: true,
+      exactCoverage: true,
+      durableResults: true,
+      distinctOutcomes: true,
+      durableFindings: true,
+      closureCapability: true,
+      terminalUnavailableMode: "parser-only" as const,
+      observedLive: true,
+    };
+    expect(deriveHostedProviderDeclaration(baseline)).toMatchObject({ mode: "enabled", sourceIdentity: "codex-pr" });
+    expect(deriveHostedProviderDeclaration({ ...baseline, observedLive: false })).toMatchObject({ mode: "partial" });
   });
 
   it("rejects local transcripts, generic approvals, runtime labels, capacity, and secrets as policy declarations", () => {

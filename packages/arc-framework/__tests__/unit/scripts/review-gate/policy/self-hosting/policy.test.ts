@@ -87,12 +87,17 @@ describe("self-hosting review policy document", () => {
         {
           ...SELF_HOSTING_POLICY.qualifications[0],
           sourceIdentity: "enabled-durable-record",
-          enabled: true,
+          mode: "enabled",
+          exactCoverage: true,
+          durableResults: true,
+          distinctOutcomes: true,
+          durableFindings: true,
+          closureCapability: true,
         },
         {
           ...SELF_HOSTING_POLICY.qualifications[1],
           sourceIdentity: "disabled-attestation",
-          enabled: false,
+          mode: "disabled",
         },
       ],
     });

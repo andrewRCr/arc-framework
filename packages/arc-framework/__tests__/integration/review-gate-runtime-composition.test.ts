@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { computeChangeSetId, computePolicyVersion } from "../../src/scripts/review-gate/core/identity.js";
+import { hashContent } from "../../src/lib/manifest/hash.js";
+import { buildCodexReviewCommand } from "../../src/scripts/review-gate/providers/codex/adapter.js";
 import { runAttestMain, type AttestMainDependencies } from "../../src/scripts/review-gate/runtime/attest-main.js";
 import { createAttestRuntime, createReconcileRuntime } from "../../src/scripts/review-gate/runtime/composition.js";
 import {
@@ -13,15 +15,16 @@ import {
   NOW,
   advanceLifecycleTail,
   coderabbitReview,
+  codexComment,
   commandComment,
   corruptReceiptComment,
-  createWorld,
+  createReviewGateWorld,
   routingExec,
   routingFetch,
   receiptComments,
   shadowChecks,
-  type E2EWorld,
-} from "./review-gate-reconcile-composition.fakes.js";
+  type ReviewGateWorld,
+} from "./review-gate-github-world.js";
 
 /** Policy variant that enables and qualifies the `coderabbit-pr` provider source. */
 function coderabbitPolicy(): SelfHostingPolicy {
@@ -30,13 +33,29 @@ function coderabbitPolicy(): SelfHostingPolicy {
   return {
     ...SELF_HOSTING_POLICY,
     qualifications: [
-      { ...coderabbit, enabled: true, exactCoverage: true, durableResults: true, distinctOutcomes: true, closureCapability: true },
+      { ...coderabbit, mode: "enabled", exactCoverage: true, durableResults: true, distinctOutcomes: true, closureCapability: true },
       ...rest,
     ],
   };
 }
 
-function env(world: E2EWorld, overrides: Partial<ReconcileMainEnv> = {}): ReconcileMainEnv {
+function codexPolicy(world: ReviewGateWorld): SelfHostingPolicy {
+  const qualifications = SELF_HOSTING_POLICY.qualifications.map((declaration) => declaration.sourceIdentity === "codex-pr"
+    ? {
+        ...declaration,
+        mode: "enabled" as const,
+        exactCoverage: true,
+        durableResults: true,
+        distinctOutcomes: true,
+        durableFindings: true,
+        closureCapability: true,
+        guidanceDigest: hashContent(JSON.stringify([{ path: "AGENTS.md", content: world.guidanceContent }])),
+      }
+    : declaration);
+  return { ...SELF_HOSTING_POLICY, qualifications };
+}
+
+function env(world: ReviewGateWorld, overrides: Partial<ReconcileMainEnv> = {}): ReconcileMainEnv {
   return {
     GITHUB_REPOSITORY: `${world.owner}/${world.repo}`,
     ARC_REPOSITORY_ID: String(world.repositoryId),
@@ -50,7 +69,7 @@ function env(world: E2EWorld, overrides: Partial<ReconcileMainEnv> = {}): Reconc
   };
 }
 
-function deps(world: E2EWorld, policy: SelfHostingPolicy = SELF_HOSTING_POLICY): ReconcileMainDependencies {
+function deps(world: ReviewGateWorld, policy: SelfHostingPolicy = SELF_HOSTING_POLICY): ReconcileMainDependencies {
   return {
     createRuntime: createReconcileRuntime,
     fetch: routingFetch(world),
@@ -60,7 +79,7 @@ function deps(world: E2EWorld, policy: SelfHostingPolicy = SELF_HOSTING_POLICY):
   };
 }
 
-function attestDeps(world: E2EWorld): AttestMainDependencies {
+function attestDeps(world: ReviewGateWorld): AttestMainDependencies {
   return {
     createRuntime: createAttestRuntime,
     fetch: routingFetch(world),
@@ -70,7 +89,7 @@ function attestDeps(world: E2EWorld): AttestMainDependencies {
   };
 }
 
-function attestationManifest(world: E2EWorld): string {
+function attestationManifest(world: ReviewGateWorld): string {
   const policyVersion = computePolicyVersion({ policy: SELF_HOSTING_POLICY });
   return JSON.stringify({
     schemaVersion: 1,
@@ -102,7 +121,7 @@ function attestationManifest(world: E2EWorld): string {
   });
 }
 
-async function dispatchAttestation(world: E2EWorld): Promise<void> {
+async function dispatchAttestation(world: ReviewGateWorld): Promise<void> {
   world.collaborators.set("reviewer", { id: 55, role: "maintain" });
   const result = await runAttestMain({
     GITHUB_REPOSITORY: `${world.owner}/${world.repo}`,
@@ -119,9 +138,9 @@ async function dispatchAttestation(world: E2EWorld): Promise<void> {
   expect(result.status).toBe("appended");
 }
 
-describe("review-gate reconcile composition (e2e)", () => {
+describe("review-gate runtime composition", () => {
   it("persists an attestation that a separate reconcile reduces to a satisfied shadow verdict", async () => {
-    const world = createWorld();
+    const world = createReviewGateWorld();
 
     await dispatchAttestation(world);
     expect(receiptComments(world)).toHaveLength(1);
@@ -131,27 +150,27 @@ describe("review-gate reconcile composition (e2e)", () => {
 
     expect(result).toEqual({ status: "published", effectInvoked: false });
     expect(shadowChecks(world)[0]).toMatchObject({ status: "completed", conclusion: "success" });
-    expect(world.counters.commentCreate).toBe(2);
+    expect(world.comments).toHaveLength(2);
   });
 
   it("carries attested evidence over bookkeeping only and rejects a substantive tail without provider effects", async () => {
-    const bookkeeping = createWorld();
+    const bookkeeping = createReviewGateWorld();
     await dispatchAttestation(bookkeeping);
     advanceLifecycleTail(bookkeeping);
     await runReconcileMain(env(bookkeeping), deps(bookkeeping));
     expect(shadowChecks(bookkeeping)[0]).toMatchObject({ status: "completed", conclusion: "success" });
-    expect(bookkeeping.counters.commentCreate).toBe(2);
+    expect(bookkeeping.comments).toHaveLength(2);
 
-    const substantive = createWorld();
+    const substantive = createReviewGateWorld();
     await dispatchAttestation(substantive);
     advanceLifecycleTail(substantive, true);
     await runReconcileMain(env(substantive), deps(substantive));
     expect(shadowChecks(substantive)[0]).toMatchObject({ status: "in_progress", conclusion: null });
-    expect(substantive.counters.commentCreate).toBe(2);
+    expect(substantive.comments).toHaveLength(2);
   });
 
   it("does not carry an empty CodeRabbit approval over a bookkeeping tail", async () => {
-    const world = createWorld();
+    const world = createReviewGateWorld();
     const reviewedHead = world.headSha;
     advanceLifecycleTail(world);
     world.reviews.push(coderabbitReview(world, "APPROVED", reviewedHead));
@@ -163,7 +182,7 @@ describe("review-gate reconcile composition (e2e)", () => {
   });
 
   it("keeps a stale CodeRabbit changes-requested review pending", async () => {
-    const world = createWorld();
+    const world = createReviewGateWorld();
     world.reviews.push(coderabbitReview(world, "CHANGES_REQUESTED", "d".repeat(40)));
 
     const result = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
@@ -173,7 +192,7 @@ describe("review-gate reconcile composition (e2e)", () => {
   });
 
   it("emits a pending shadow check under an attestation-only requirement with no provider effect", async () => {
-    const world = createWorld();
+    const world = createReviewGateWorld();
 
     const result = await runReconcileMain(env(world), deps(world));
 
@@ -184,23 +203,20 @@ describe("review-gate reconcile composition (e2e)", () => {
     // Shadow projects one context only — no `merge-ok` (wrong-named context) is ever written.
     expect(world.checks.every((check) => check.name === "review-gate-shadow")).toBe(true);
     // Attestation-only topology: the ledger anchor is the sole comment write; no reserve/acknowledge receipts.
-    expect(world.counters.commentCreate).toBe(1);
-    expect(world.counters.checkCreate).toBe(1);
+    expect(world.comments).toHaveLength(1);
   });
 
   it("converges on the existing shadow check across re-runs instead of creating a duplicate", async () => {
-    const world = createWorld();
+    const world = createReviewGateWorld();
 
     await runReconcileMain(env(world), deps(world));
     await runReconcileMain(env(world), deps(world));
 
     expect(shadowChecks(world)).toHaveLength(1);
-    expect(world.counters.checkCreate).toBe(1);
-    expect(world.counters.checkPatch).toBeGreaterThanOrEqual(1);
   });
 
   it("requires substantive adapter-observed clean evidence beyond a current-head CodeRabbit approval", async () => {
-    const world = createWorld();
+    const world = createReviewGateWorld();
     world.reviews.push(coderabbitReview(world, "APPROVED"));
 
     const emptyApproval = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
@@ -215,11 +231,14 @@ describe("review-gate reconcile composition (e2e)", () => {
 
     expect(substantive).toEqual({ status: "published", effectInvoked: false });
     expect(shadowChecks(world)[0]).toMatchObject({ name: "review-gate-shadow", status: "completed", conclusion: "success" });
-    expect(world.counters.commentCreate).toBeGreaterThanOrEqual(3);
+    expect(receiptComments(world).map((comment) => comment.body)).toEqual([
+      expect.stringContaining('"action":"reserved"'),
+      expect.stringContaining('"action":"acknowledged"'),
+    ]);
   });
 
   it("executes a qualified generation-zero request through the receipt protocol", async () => {
-    const world = createWorld();
+    const world = createReviewGateWorld();
 
     const result = await runReconcileMain(env(world), deps(world, coderabbitPolicy()));
 
@@ -227,11 +246,33 @@ describe("review-gate reconcile composition (e2e)", () => {
     expect(shadowChecks(world)[0]).toMatchObject({ name: "review-gate-shadow", status: "in_progress", conclusion: null });
     expect(world.labels).toEqual([]);
     // Anchor plus reserved and acknowledged receipts landed durably.
-    expect(world.counters.commentCreate).toBeGreaterThanOrEqual(3);
+    expect(receiptComments(world).map((comment) => comment.body)).toEqual([
+      expect.stringContaining('"action":"reserved"'),
+      expect.stringContaining('"action":"acknowledged"'),
+    ]);
+  });
+
+  it("adopts the PR author's Codex trigger and reduces the pinned clean artifact", async () => {
+    const world = createReviewGateWorld();
+    const policy = codexPolicy(world);
+    const declaration = policy.qualifications.find((item) => item.sourceIdentity === "codex-pr");
+    if (declaration?.guidanceDigest === null || declaration === undefined) throw new Error("missing Codex guidance");
+
+    const reserved = await runReconcileMain(env(world), deps(world, policy));
+    expect(reserved).toEqual({ status: "action-ready", effectInvoked: false });
+    commandComment(world, world.author.login, buildCodexReviewCommand(declaration.guidanceDigest));
+
+    const adopted = await runReconcileMain(env(world), deps(world, policy));
+    expect(adopted).toEqual({ status: "published", effectInvoked: true });
+    codexComment(world, `Codex Review:\n\nDidn't find any major issues.\n\nReviewed commit: \`${world.headSha}\``);
+
+    const clean = await runReconcileMain(env(world), deps(world, policy));
+    expect(clean).toEqual({ status: "published", effectInvoked: false });
+    expect(shadowChecks(world)[0]).toMatchObject({ status: "completed", conclusion: "success" });
   });
 
   it("applies an authorized require command composed from a PR comment, flipping a routine success to pending", async () => {
-    const world = createWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
+    const world = createReviewGateWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
     world.collaborators.set("reviewer", { id: 55, role: "write" });
     commandComment(world, "reviewer", "/review-gate require independent-analysis needs a second look");
 
@@ -249,7 +290,7 @@ describe("review-gate reconcile composition (e2e)", () => {
   });
 
   it("persists a human refresh reservation and invokes the qualified provider", async () => {
-    const world = createWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
+    const world = createReviewGateWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
     world.collaborators.set("reviewer", { id: 55, role: "write" });
     commandComment(
       world,
@@ -268,7 +309,7 @@ describe("review-gate reconcile composition (e2e)", () => {
   });
 
   it("ignores a require command from an under-permissioned author, leaving the routine success intact", async () => {
-    const world = createWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
+    const world = createReviewGateWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
     world.collaborators.set("reader", { id: 56, role: "read" });
     commandComment(world, "reader", "/review-gate require independent-analysis needs a second look");
 
@@ -279,7 +320,7 @@ describe("review-gate reconcile composition (e2e)", () => {
   });
 
   it("replaces an earlier green shadow check with failure when the receipt ledger degrades", async () => {
-    const world = createWorld();
+    const world = createReviewGateWorld();
     await dispatchAttestation(world);
     await runReconcileMain(env(world), deps(world));
     expect(shadowChecks(world)[0]).toMatchObject({ conclusion: "success" });
@@ -289,12 +330,10 @@ describe("review-gate reconcile composition (e2e)", () => {
 
     expect(shadowChecks(world)).toHaveLength(1);
     expect(shadowChecks(world)[0]).toMatchObject({ status: "completed", conclusion: "failure" });
-    expect(world.counters.checkCreate).toBe(1);
-    expect(world.counters.checkPatch).toBeGreaterThanOrEqual(1);
   });
 
   it("fails closed when all receipt state disappears after a controller check exists", async () => {
-    const world = createWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
+    const world = createReviewGateWorld({ changedPaths: [{ status: "modified", path: "README.md" }] });
 
     await runReconcileMain(env(world), deps(world));
     expect(shadowChecks(world)[0]).toMatchObject({ conclusion: "success" });
