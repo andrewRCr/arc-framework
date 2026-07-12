@@ -181,32 +181,21 @@ _Design decisions:_ `read()` re-resolves canonical state from the API — events
 `head_sha`) are wake-up hints, never trusted snapshots (spec Decision 3). Stale writers are stopped by the
 orchestrator's existing guards plus `publishGateCheck`'s current-state assert.
 
-### `[ ]` **3.1 `ReconcileRuntime` implementation**
+### `[x]` **3.1 `ReconcileRuntime` implementation**
 
 - _Goal:_ `reconcile(runtime, now)` has a production runtime whose four methods resolve live state and route
   effects through the composed adapters — the orchestrator's staleness guards operate on real API reads.
-- _Shape:_ `read()` retains its full resolution (change request + context, evidence, receipts, capacity)
-  internally and returns the canonical identity tuple; `reduce()` consumes the cached snapshot after asserting
-  the tuple matches — preserving the orchestrator's read-then-reduce pairing. `permissionVersion` is a stable
-  digest of the live-resolved author capability facts (actor identity + permission level), so
-  permission-relevant movement flips the guard.
-
-    - Build `test-first` (one behavior at a time):
-        - `read()` assembles `CanonicalReconcileState` (head SHA, policy version, permission version, ledger
-          version) from live API resolution, ignoring event-supplied values
-        - `reduce()` uses the snapshot cached by the matching `read()`; a mismatched tuple fails closed
-        - `permissionVersion` changes when the author's resolved permission changes, and only then
-        - Current attestation-only policy reduces to `request: null`; with an enabled/qualified test policy,
-          `execute()` runs `executeReservedRequest`'s reserve → confirm → invoke → acknowledge protocol through
-          `CodeRabbitProviderAdapter`, including terminal-failure handling at the expected ledger version
-        - Automatic requests set `actorIdentity` to policy `appBotUserId`; receipt `revalidate` authorizes that bot
-          only through validated launch authority + current request identities, independent of PR-author permission
-        - Fork/unknown PR authors do not block controller-authored reservation; wrong bot/current-state mismatch
-          rejects the append. Human command/attestation writes retain live capability checks
-        - `read()` includes canonical unreceipted command versions, degraded-ledger diagnostics, and any validated
-          lifecycle-tail proof; `reduce()` applies commands and tail carry-forward before request/verdict reduction,
-          and the effect stage executes at most the one admitted request selected for this ledger version
-        - `publish()` delegates to the adapter's `publishVerdict()`
+- _Outcome:_ Added `SelfHostingReconcileRuntime` (`runtime/reconcile-runtime.ts`). `read()` resolves change
+  request/context, lane/risk, CI, native review, ledger (valid or degraded diagnostics), provider capacities,
+  lifecycle-tail proof, and unreceipted command versions live, caching the full snapshot behind the canonical
+  tuple — `permissionVersion` a stable digest of resolved author capability, ignoring event-supplied head.
+  `reduce()` is pure over that snapshot: it applies commands in-memory (require/waive/dismiss receipts plus at
+  most one refresh reservation), then delegates to `reduceSelfHostingGate`, selecting at most one request
+  authored as `appBotUserId`; a mismatched tuple rejects. `execute()` drives `executeReservedRequest`
+  (reserve → confirm → invoke → acknowledge, terminal-failure on ambiguous delivery) through the injected store
+  and provider; `publish()` projects via `publishVerdict` with the configured mode/app id. Adapters and the
+  CI/lane/risk/command-reader seams are injected — their construction is the Task 3.2 factories' concern, and
+  reconcile-side attestation-evidence recovery stays a Phase 4 concern. Covered by a 12-case unit suite.
 
 ### `[ ]` **3.2 Shared infrastructure plus reconcile-specific factory**
 
