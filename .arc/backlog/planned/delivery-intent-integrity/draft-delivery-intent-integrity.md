@@ -3,8 +3,8 @@
 - **Origin:** `review-gate-reconcile-composition` postmortem (2026-07-11).
 - **Purpose:** Prevent a sound plan and green component suite from being called delivered while its composed intent
   remains unproved or falls into an under-classified, unowned follow-on.
-- **Provisional:** The failure is proven and the routed guards are concrete; the sanctioned follow-up mechanism and
-  its homes still need design, so `Class` remains `[TBD]` until grooming.
+- **Planning posture:** The failure and priority are proven. The routed mechanism still needs design, but the
+  cross-workflow/method surface establishes `Class: Heavy` and warrants a planned `P1` slot now.
 
 ---
 

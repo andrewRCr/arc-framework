@@ -342,8 +342,8 @@ same-concern bounded exceptions settled by spec Decisions 18-19, not an invitati
   context — anchors, examples, the six-factor diagnosis — plus the sanctioned-follow-up-stub charter item with
   its industry-precedent research note, so the follow-on cannot repeat factor 6 (under-scoped, unowned).
 
-- _Outcome:_ Created provisional `delivery-intent-integrity` with the grounded postmortem, three routed guard
-  families, open mechanism/home questions, and a cited research synthesis for the sanctioned rich-follow-up route.
+- _Outcome:_ Created planned P1 `delivery-intent-integrity` (`Class: Heavy`) with the grounded postmortem, three
+  routed guard families, open mechanism/home questions, and a cited research synthesis for the rich-follow-up route.
 
 ### `[x]` **5.3 Resolve and fold the critical-small guard set**
 
