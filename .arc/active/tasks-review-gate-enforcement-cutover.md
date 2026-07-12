@@ -4,115 +4,71 @@
 
 ---
 
-## **Phase 1:** Versioned request and receipt foundation
+## **Phase 1:** Request and receipt foundation
 
-_Purpose:_ Establish the append-only v2 identity and ledger substrate before any new execution, provider, or
-settlement behavior depends on it, while preserving byte-stable v1 interpretation and audit continuity.
+_Purpose:_ Establish the controller's initial causal request, receipt, and ledger contract before execution,
+provider, or settlement behavior depends on it.
 
-_Design decisions:_ Schema-specific parsing, hashing, and semantics remain explicit. The only mixed ledger is the
-terminally-proven `v1* → schema-upgrade(v2) → v2*` transition; ambiguous legacy effects fail closed. Boundary
-codecs expose stable parse façades and explicit schema name/version metadata so a later schema-library migration can
-replace their internals without changing consumers; this work adds no schema dependency or public registry.
+_Design decisions:_ No live or persisted review-gate receipts exist and the project hooks remain inactive, so the
+merged-but-unused development schema is replaced before activation rather than treated as migration history. One
+closed schema-v1 codec owns parsing, hashing, and semantics. It exposes stable contract name/version metadata so a
+later schema-library implementation can replace its internals without changing consumers; this work adds no schema
+dependency or public registry.
 
-### `[ ]` **1.1 Introduce discriminated v2 request, receipt, and lifecycle-payload contracts**
+### `[ ]` **1.1 Define the initial causal request, receipt, and lifecycle-payload contracts**
 
-- _Goal:_ New requests can carry the causal, head-flight, actor, trigger, and settlement identity required by the
-  cutover without changing any schema-v1 byte or interpretation, and later schema tooling can replace one co-located
-  boundary codec rather than parallel hand-written types and validators.
+- _Goal:_ The first live schema carries the causal, head-flight, actor, trigger, timing, contamination, supersession,
+  terminal-evidence, and finding-settlement identity required by the controller behind one replaceable boundary codec.
 
-    - `[ ]` **1.1.a Define schema-v2 request and receipt identities**
-        - Extract or extend cohesive schema-specific modules behind the existing `parse*` façades with discriminated
-          v1/v2 unions and the
-          v2 request mechanism, actor, generation, trigger, timing, contamination, supersession, and settlement
-          fields from Proposed Design §1.
-        - Co-locate hand-written types and boundary guards, expose explicit contract name/version constants, and
-          avoid a second consumer-facing type definition. A later schema-first implementation must be able to infer
-          the same internal types without changing callers.
-        - Keep exported neutral types free of GitHub, provider, and self-hosting policy assumptions.
+    - `[ ]` **1.1.a Define the closed request and receipt identities**
+        - Extend the cohesive contract module behind the existing `parse*` façades with request mechanism, required
+          actor, semantics, generation, and causal lifecycle payloads. Co-locate hand-written types and guards, expose
+          explicit contract name/version constants, and keep neutral types free of GitHub/provider policy assumptions.
 
-    - `[ ]` **1.1.b Define v2 terminal-evidence and finding-lifecycle receipt payloads**
-        - Carry exact full-head terminal references, trigger ownership, finding origin, carried-head lifecycle, and
-          settlement references in v2 receipts and cohesive lifecycle payloads.
-        - Preserve the existing normalized `Evidence` schema unless a source-grounded implementation need proves it
-          cannot represent provider observations; do not introduce a parallel v2 evidence contract by default.
+    - `[ ]` **1.1.b Define terminal-evidence and finding-lifecycle payloads**
+        - Carry exact full-head terminal references, trigger ownership, finding origin, carried-head lifecycle,
+          settlement, contamination, and supersession. Preserve normalized `Evidence` as the sole evidence contract.
 
-    - `[ ]` **1.1.c Validate closed schema-v2 shapes test-first**
+    - `[ ]` **1.1.c Validate closed contract shapes test-first**
         - Build `test-first` (one behavior at a time):
-            - Round-trip every v2 variant and reject unknown or missing causal fields.
-            - Reject incongruent request, evidence, finding, and settlement identities.
-            - Prove v1 fixtures still parse to the exact existing types and semantics.
+            - Round-trip every receipt payload and reject unknown or missing causal fields.
+            - Reject incongruent request, evidence, trigger, finding, and settlement identities.
+            - Reject obsolete pre-activation shapes rather than silently defaulting or upgrading them.
 
-### `[ ]` **1.2 Preserve exact v1 identity and add schema-dispatched parsing, serialization, and hashing**
+### `[ ]` **1.2 Bind canonical identities and authenticated comment storage to the initial schema**
 
-- _Goal:_ Historical v1 request keys, receipt hashes, and serialized comments remain stable while new records use
-  explicit v2 algorithms selected by their discriminant.
+- _Goal:_ Request keys, receipt hashes, serialized comments, and reconstructed ledgers share one closed identity
+  algorithm with literal golden fixtures and no alternate schema path.
 
-    - `[ ]` **1.2.a Split request-key and receipt-identity behavior by schema version**
-        - Refactor `core/request-key.ts` into explicit v1 and v2 paths without routing v1 through v2 defaults.
-        - Add literal, non-generated golden fixtures for existing request keys, receipt hashes, and canonical
-          serialization so a shared implementation bug cannot rewrite both the fixture and expectation.
+    - `[ ]` **1.2.a Extend request-key and receipt identity with causal fields**
+        - Bind semantics, mechanism, required actor, lifecycle payload, and predecessor version into canonical keys and
+          hashes. Add literal, non-generated golden fixtures for the definitive request key, receipt hash, and
+          canonical serialization.
 
-    - `[ ]` **1.2.b Add explicit v1/v2 receipt creators and migrate production producers to v2**
-        - Preserve v1 creation only for historical fixtures and compatibility tests. Update runtime request,
-          authorized-command, and attestation producers to use the v2 creator so every new/empty production ledger
-          begins with a v2 receipt.
+    - `[ ]` **1.2.b Update every production request and receipt producer**
+        - Update automatic runtime, authorized-command/refresh, attestation, and provider producers so every new/empty
+          ledger begins with the complete initial schema and no compatibility creator remains.
 
-    - `[ ]` **1.2.c Dispatch comment parsing and storage serialization across the versioned union**
-        - Update `hosts/github/receipt-comment.ts`, `receipt-store.ts`, and their tests to preserve each envelope's
-          original schema identity and reject implicit upgrades.
+    - `[ ]` **1.2.c Preserve the closed schema through authenticated comment storage**
+        - Update comment parsing, serialization, and store reconstruction to preserve exact envelope identity, reject
+          obsolete or malformed payloads, and retain the anchor's repository/change-request/version/count contract.
 
-### `[ ]` **1.3 Enforce the append-only v1-to-v2 upgrade protocol and legacy terminal-proof barrier**
+### `[ ]` **1.3 Complete ledger, reduction, and extraction boundaries**
 
-- _Goal:_ An existing PR can enter v2 only when every legacy effect is separately proven terminal, and an
-  unprovable ledger cannot be reset, replayed, upgraded, or used to satisfy current policy.
+- _Goal:_ The host-neutral controller consumes the definitive ledger through stable injected boundaries, while
+  behavior-specific ports remain vertically owned by the later phases that implement them.
 
-    - `[ ]` **1.3.a Add the single legal `schema-upgrade` receipt and predecessor contract**
-        - Extend `core/receipt-ledger.ts` with `v1* → schema-upgrade(v2) → v2*` ordering, v1-tip identity, new
-          semantics version, and rejection of every other mixed-schema shape.
+    - `[ ]` **1.3.a Keep the ledger port schema-complete and behavior-neutral**
+        - Update `core/ports.ts` with closed-schema ledger reads/appends. Add pending projection, trigger, actor action,
+          and settlement ports vertically in Phases 2, 3, and 5 with their implementations.
 
-    - `[ ]` **1.3.b Resolve legacy effect terminality through an injected proof port**
-        - Add durable terminal/cancellation proof references for every v1 request effect not already closed by
-          qualifying provider-native terminal evidence. Include reserved, acknowledged, and `terminal-failure`
-          histories; treat every v1 `terminal-failure` as effect-ambiguous regardless of its stored reason.
-        - Return an explicit close-and-replace repair state when terminality cannot be established.
+    - `[ ]` **1.3.b Preserve degradation while reducing the definitive receipts**
+        - Update `core/reduction.ts`, `requirement-state.ts`, `verdict.ts`, and `projection.ts` to consume only validated
+          receipts. Malformed history remains a failure; flight, contamination, and settlement states land later.
 
-    - `[ ]` **1.3.c Derive legal append mode from ledger history without changing the anchor contract**
-        - Keep the schema-v1 anchor's repository, change-request, monotonic version, and count shape unchanged.
-        - Resolve empty → v2, pre-upgrade v1 → upgrade-only, and post-upgrade → v2 append modes from the validated
-          receipt sequence; never persist a second schema-mode authority in the mutable anchor.
-
-    - `[ ]` **1.3.d Prove upgrade, refusal, and malformed-history behavior test-first**
-        - Build `test-first` (one behavior at a time):
-            - Empty ledgers begin at v2 with no upgrade record.
-            - Fully terminal v1 ledgers accept exactly one valid upgrade.
-            - Ambiguous, malformed, post-upgrade-v1, duplicate-upgrade, and reset attempts fail closed.
-            - Historical v1 evidence remains readable but cannot satisfy v2 reduction.
-
-    - `[ ]` **1.3.e Reconstruct the legal mixed ledger through the GitHub comment store**
-        - Add an integration case spanning versioned comment parsing, authenticated store reconstruction, unchanged
-          anchor repair, and `v1* → schema-upgrade(v2) → v2*` semantic validation.
-
-### `[ ]` **1.4 Complete versioned storage, reduction, and extraction boundaries**
-
-- _Goal:_ The host-neutral controller can consume the versioned ledger and exclude historical v1 authority through
-  stable injected boundaries, while behavior-specific ports remain vertically owned by the later phases that
-  implement them.
-
-    - `[ ]` **1.4.a Extend only the versioned ledger and terminal-proof ports**
-        - Update `core/ports.ts` with schema-preserving ledger reads/appends, effective append mode, and legacy
-          terminal-proof resolution. Add pending projection, trigger, actor action, and settlement ports vertically
-          in Phases 2, 3, and 5 with their implementations.
-
-    - `[ ]` **1.4.b Exclude v1 evidence and actions from v2 satisfaction without weakening degradation**
-        - Update `core/reduction.ts`, `requirement-state.ts`, `verdict.ts`, and `projection.ts` to preserve historical
-          audit visibility while reducing only post-upgrade v2 authority for current satisfaction. Malformed history
-          remains a failure; behavior-specific flight, contamination, and settlement states land in their owning
-          phases.
-
-    - `[ ]` **1.4.c Prove neutral dependency direction, version dispatch, and migration-ready codec boundaries**
-        - Extend core unit coverage and `review-gate-controller-contract.test.ts` to reject self-hosting/GitHub
-          imports, exercise v1 audit/v2 satisfaction projection, and ensure consumers import stable parsed types and
-          façades rather than duplicating boundary shapes.
+    - `[ ]` **1.3.c Prove neutral dependency direction and replaceable codec boundaries**
+        - Extend core unit coverage and `review-gate-controller-contract.test.ts` to reject self-hosting/GitHub imports
+          and ensure consumers import stable parsed types and façades rather than duplicating boundary shapes.
 
 ## **Phase 2:** Pending-first execution and exact-head control
 
@@ -682,7 +638,7 @@ acceptance proof before enforcement mutation.
 
     - `[ ]` **7.3.a Define the disposable-PR matrix and typed acceptance result**
         - Cover pending-first ordering, trigger lifecycle, provider outcomes, fallback, await, event repair, finding
-          settlement, v1/v2 migration, token formats, and repair authority.
+          settlement, receipt-ledger reconstruction, token formats, and repair authority.
         - Define bounded repository, default-branch SHA, PR/head, matrix-cell, checkpoint, and sanitized-result schemas
           plus stable resume/refusal outcomes.
         - Include every input needed to derive policy without inference: source/actor identities, parser, rubric and
@@ -692,7 +648,7 @@ acceptance proof before enforcement mutation.
         - Require every rubric dimension, exact-head clean/findings/stale/unknown case, and configured trigger path;
           keep connected-account behavior parser-only/non-terminal unless an admissible actor proves it live.
 
-    - `[ ]` **7.3.c Implement controller, watcher, settlement, migration, and recovery probe orchestration**
+    - `[ ]` **7.3.c Implement controller, watcher, settlement, ledger, and recovery probe orchestration**
         - Add a repository-only `run-qualification.ts` coordinator and private root script. Require a clean checkout
           equal to the immutable remote default-branch SHA; use developer-authenticated `gh` only for actor-assigned
           actions, dispatch the protected workflow for App probes, re-query GitHub, and persist raw non-secret results

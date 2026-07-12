@@ -60,7 +60,7 @@ summaries, and hashes. Credentials, installation tokens, private keys, secret va
 never enter tracked artifacts.
 
 The post-merge acceptance tail must establish the final provider capability table, enabled subset, source identities,
-effective Codex guidance digest, trigger/event lifecycle behavior, receipt v1→v2 upgrade cases, passive watcher wake-
+effective Codex guidance digest, trigger/event lifecycle behavior, receipt-ledger reconstruction, passive watcher wake-
 ups, finding closure sequences, token forms, and Actions-exclusive repair authority. Those observed contracts feed
 `review-gate-enforcement-promotion` and the later `review-gate-github-adapter` productization work.
 

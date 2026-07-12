@@ -34,7 +34,7 @@ both work units retain one-PR lifecycles; it converts the provisional baseline m
    versions, protected environment, repository selection, and private checkpoint locus.
 2. Run the complete baseline matrix against disposable exact-head PRs through the shipped qualification coordinator.
    Cover pending-first ordering, trigger lifecycle, CodeRabbit and Codex outcomes, fallback, passive waiting, event
-   repair, finding settlement, v1/v2 migration, both token formats, and outage repair authority.
+   repair, finding settlement, receipt-ledger reconstruction, both token formats, and outage repair authority.
 3. Fail closed on changed default branch, wrong actor, dirty checkout, missing or mismatched checkpoint, incomplete
    cells, fixture substitution, contaminated effects, credential-shaped output, or any result produced by unshipped
    code. Route implementation defects to a separate Errand or work unit and rerun only after the repair ships.

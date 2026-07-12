@@ -86,27 +86,16 @@ Extend the neutral request/receipt state to carry:
 - the owned trigger event id and actor;
 - terminal evidence ids, finding ids, settlement state, contamination, and supersession.
 
-Do not mutate schema version 1 or silently default its missing fields. Introduce discriminated version-2 request and
-receipt types while retaining the exact v1 parser, serializer, hash, request-key, and semantic validator. The comment
-store parses a versioned union and preserves each receipt's original identity; the ledger validates envelope order
-and predecessor versions across schemas, then dispatches schema-specific semantics.
+The review-gate extensions remain inactive, no open PR exists, and a repository-wide GitHub comment scan found no
+persisted receipt marker. The merged request/receipt code is therefore unused development scaffolding, not a deployed
+protocol. Replace it before activation with one definitive schema-version-1 request and receipt contract; do not
+carry a compatibility parser, mixed-ledger mode, schema-upgrade receipt, or terminal-proof migration path.
 
-A new/empty ledger begins directly at v2. An existing v1 ledger upgrades append-only through exactly one v2
-`schema-upgrade` receipt that names the v1 tip version/hash and the new policy/semantics version. Permit that transition
-only after every v1 request effect is proven terminal. Conservatively classify every v1 `terminal-failure` as effect-
-ambiguous: the immutable v1 receipt cannot distinguish a pre-effect rejection from an invocation that reached the
-provider before throwing. It never proves upgrade safety by itself.
-
-The v2 upgrade receipt carries durable, adapter-validated terminal/cancellation proof refs for every legacy reserved
-request not already closed by qualifying provider-native terminal evidence. If any effect remains ambiguous, do not
-upgrade or initiate another provider on that PR. Explicit repair may wait for/cancel and prove terminality; if proof
-cannot be obtained, close the PR without merging and open a replacement PR whose empty ledger begins at v2. Effects
-and artifacts on the closed PR cannot satisfy the replacement PR's distinct change-request identity.
-
-Historical v1 evidence remains audit-readable but cannot satisfy v2 policy because it lacks trigger, rubric-
-transport, and head-flight fields. After the upgrade, reject any v1 append and reduce only v2 receipts for current
-satisfaction; keep the existing anchor's monotonic version/count contract. A malformed historical receipt still
-degrades the ledger. The only legal mixed shape is `v1* → schema-upgrade(v2) → v2*`.
+The closed parser rejects obsolete pre-activation shapes rather than silently defaulting them. Canonical request keys
+and receipt hashes bind every causal field and predecessor version. The comment store preserves that exact identity,
+and the ledger validates linear envelope order, immutable records, idempotency, anchor parity, and semantic
+congruence through one code path. Expose stable contract name/version constants beside the hand-written codec so a
+future schema-library implementation can replace its internals without creating a parallel consumer-facing type.
 
 Expose actor-dependent work as one canonical `needs-user-trigger` action containing the request key, provider, exact
 full head, generation, exact command text, and required GitHub actor id. This action is controller state, not prose
@@ -447,11 +436,12 @@ Rejected. A timeout does not prove the first provider effect failed to run. Blin
 allow an unrelated terminal artifact to satisfy the wrong generation. Ambiguity remains blocking until the effect is
 proven terminal or explicitly repaired.
 
-### Rewrite old receipts or start a replacement ledger
+### Preserve the unused development receipt shape as migration history
 
-Rejected. Editing visible receipts breaks immutable hashes; resetting the anchor discards append-only continuity and
-creates two competing histories. A discriminated v2 plus one terminal-only upgrade receipt preserves every v1 byte,
-hash, version, and audit fact while preventing incomplete legacy evidence from satisfying new semantics.
+Rejected. Compatibility is warranted by persisted or consumed contracts, not by Git history alone. At design
+correction time the review-gate extensions were inactive, no PR was open, and a repository-wide GitHub comment scan
+found no receipt marker. Treating unused scaffolding as deployed history would add a second parser, mixed-ledger mode,
+upgrade receipt, proof port, and repair path with no state to protect. The initial live schema replaces it directly.
 
 ### Close FIX findings immediately after pushing
 
@@ -505,7 +495,7 @@ branch, and promotion then changes enforcement add-before-remove.
 ### Testing
 
 - Unit-test request state, exclusive-window contamination, parser grammars, identity/head checks, fallback legality,
-  watcher transitions, freeze guards, settlement, v1 ambiguity/mixed-ledger transitions, trigger tombstones, optional
+  watcher transitions, freeze guards, settlement, closed receipt-ledger behavior, trigger tombstones, optional
   unavailable capability, and repair-attestation validation.
 - Integration-test provider surfaces, App projection ordering, event routing, receipt reload, exact-head waiting,
   coordinator closure sequencing, workflow permission/call-graph exclusivity, and the emergency status producer.
@@ -517,11 +507,10 @@ branch, and promotion then changes enforcement add-before-remove.
 
 ### Migration and rollout
 
-No destructive or out-of-band data migration and no public package migration are required in this work. Existing
-receipt comments remain byte-stable; the controller performs only the specified append-only v1→v2 ledger transition,
-and new semantics fail closed against older incomplete generations. Ship with project hooks inactive and legacy CI
-authority unchanged. The qualification work may activate only baseline-proven provider declarations; only promotion
-may activate project hooks or alter required checks. The later GitHub-adapter work owns public packaging and
+No data or public-package migration is required: no live receipt exists and the controller remains inactive. The
+definitive initial schema replaces unused development scaffolding before activation. Ship with project hooks inactive
+and legacy CI authority unchanged. Qualification may activate only baseline-proven provider declarations; only
+promotion may activate project hooks or alter required checks. The later GitHub-adapter work owns public packaging and
 installation migration while consuming these extraction-ready contracts.
 
 ### User-facing impact
@@ -554,10 +543,8 @@ descriptions remain understandable to collaborators who do not use ARC.
    `begin-fix` authorization that carries the finding tail to the new head. FIX/DEFER/REJECT dispositions settle at
    the original finding locus, and reviewer-visible surfaces remain free of load-bearing methodology jargon. The
    guard imposes no network hook on pre-PR pushes.
-9. Existing v1 ledgers remain audit-readable and extend only through the single legal
-   `v1* → schema-upgrade(v2) → v2*` transition after all legacy effects have separate durable terminal proof. A v1
-   `terminal-failure` is always ambiguous; an unprovable PR is closed/replaced rather than upgraded or merged. V1
-   evidence cannot satisfy v2 policy, and malformed history still fails closed.
+9. The definitive initial request/receipt schema binds every causal field through one parser, identity algorithm, and
+   ledger semantic validator; obsolete pre-activation shapes and malformed history fail closed.
 10. Qualification-only direct minting passes both opaque token forms to the exact controller consumer without format
     assumptions, the pinned token Action is source-audited, and every path removes the temporary override and redacts
     credentials before emitting results.
