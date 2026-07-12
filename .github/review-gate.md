@@ -23,7 +23,7 @@ export ACTIONS_APP_ID='15368'        # verified GitHub Actions check source id
 export KEY_FILE="$HOME/dev/arc-review-gate-andrewrcr.private-key.pem"
 export CHECKPOINT_ROOT="$HOME/dev/arc-review-gate-checkpoints"
 export EXPECTED_CHECKPOINT_DIR="$CHECKPOINT_ROOT/expected"
-export EVIDENCE_MANIFEST='.arc/reference/research/review-gate-cutover-evidence.md'
+export EVIDENCE_MANIFEST='.arc/reference/supplemental/research/research-review-gate-cutover-evidence.md'
 export EXPECT_CLIENT_ID_BEFORE='absent' # `absent` for create, exact current value for repair
 export EXPECT_APP_ID_BEFORE='absent'    # `absent` for create, exact current value for repair
 set -euo pipefail
@@ -271,10 +271,26 @@ verification, follow-up evidence, and direct reply before thread resolution. The
 verified the individual fix. DEFER/REJECT requires its authorized rationale/direct-reply receipt; provider closure
 requires the qualified source identity. Bare resolution and broad host-actor membership are non-satisfying.
 
-WU 1's one PR ships this machinery with project hooks inactive and legacy CI `merge-ok` required. After merge,
-manually run the complete matrix through the shipped default-branch workflow before archiving WU 1. On failure,
-restore/disable to the safe checkpoint and route a separate repair Errand/work unit; do not open a second WU 1 PR.
-WU 2 cannot begin until the post-merge acceptance tail passes.
+WU 1's one implementation delivery PR ships this machinery with project hooks inactive, legacy CI `merge-ok`
+required, and `archive.cadence: manual`. After merge, manually run the complete matrix through the shipped default-
+branch workflow while WU 1 remains `Integrating`. On failure, restore/disable to the safe checkpoint and route a
+separate repair Errand/work unit; never amend the acceptance record with unshipped code.
+
+When the baseline matrix proves hosted capabilities, open a qualification-activation housekeeping PR containing only
+the policy/manifest patch produced by the activation compiler. Validate that PR's diff against the same typed baseline
+result; any manual field/path, omission, stale input, identity/version drift, or checkpoint mismatch is a stop. Do not
+archive or restore cadence. After it merges, rerun the complete matrix through the enabled default-branch policy. Only
+that second pass may prove the satisfying aggregate path.
+
+On final success, open the acceptance-closeout housekeeping PR and run the private root
+`review-gate:closeout` script with `$IMPLEMENTATION_PR_URL`. It validates `CutoverAcceptanceProof` against the live
+default branch, activated policy/version digests, complete matrix, enforcement boundary, and private checkpoint
+hashes before writing `$EVIDENCE_MANIFEST`, marking WU 1's Post-Merge Acceptance Gates, or invoking archive. The
+archive verb independently refuses an incomplete acceptance-gate section, and pre-commit rejects marked/archived
+gates without a matching sanitized proof. Restore `archive.cadence: with-integration` in that PR. After it merges,
+run `npx arc user close review-gate-enforcement-cutover` and `npx arc teardown review-gate-enforcement-cutover`.
+These are qualification/archive housekeeping PRs, not additional implementation deliveries. WU 2 cannot begin until
+the closeout merges and the retained workspace/branch tail is fully retired.
 
 ## WU 2 — Normal Cutover and Rollback
 
@@ -528,18 +544,22 @@ without the other: snapshots treat `{post_pr_open,pre_merge}` as one cutover sta
 
 Preinstall `.github/workflows/review-gate-repair.yml` on the default branch during WU 1 and rehearse this path before
 final cutover while shadow remains non-required. Its GitHub Actions App id is `15368`; it runs only by
-`workflow_dispatch`, uses `GITHUB_TOKEN` with `statuses: write`, and has no ARC App credential. Default-branch code
-validates a bounded attestation manifest following `.github/review-gate-attestation.md` against the exact repository,
-PR, frozen head, rubric version, and authenticated author. It accepts only maintainer-attested agent analysis or an
-authenticated non-author human review under `independent-analysis/v1`, then writes `review-repair-ok` to that exact
-head. The repair PR cannot modify this workflow or its validator, and cannot use its own changed CI producer as proof.
+`workflow_dispatch` and has no ARC App credential. Provision a separate secretless `review-gate-repair` environment
+through compare-and-stop setup with an exact live-default-branch deployment policy, and verify that policy before
+every dispatch. Default-branch code validates a bounded attestation manifest following
+`.github/review-gate-attestation.md` against the exact repository, PR, frozen head, rubric version, and authenticated
+author. It accepts only maintainer-attested agent analysis or an authenticated non-author human review under
+`independent-analysis/v1`. The repair PR cannot modify this workflow or its validator, and cannot use its own changed
+CI producer as proof.
 
-Branch protection pins the Actions producer family, not a workflow path. Require an exclusive-writer proof:
-repository Actions defaults read-only, all workflows declare explicit permissions, only this immutable default-branch
-workflow/call graph has `statuses: write`, no alternate PAT/App writer can emit `review-repair-ok`, and only it
-references the protected repair environment. Audit that graph before every accepted run. The status links the exact
-run/path/workflow SHA/PR/head, all manually proved before enforcement mutation. This is Actions-pinned and exclusive-
-writer-proven authority.
+Branch protection pins the Actions producer family, not a workflow path. Require a closed exclusive-writer proof:
+repository Actions defaults are live-proven read-only and all workflows/jobs declare explicit permissions. The
+repair validation job is read-only. Its writer job alone has `statuses: write`; references the protected environment;
+uses no checkout, action, called script, dependency install, or repository/organization secret; rechecks its bounded
+validation output plus live PR head; and emits the constant `review-repair-ok` status inline. Source pinning to Actions
+App id `15368` excludes PAT/other-App writers. Audit the setting, environment, workflow graph, and writer shape before
+every accepted run. The status links the exact run/path/workflow SHA/PR/head, all manually proved before enforcement
+mutation. This is Actions-pinned and exclusive-writer-proven authority.
 
 1. Freeze merges and capture the incident id, ruleset/branch-protection JSON, mode, required checks/source ids,
    environment/App state, action activation, and exact affected head.
