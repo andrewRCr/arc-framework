@@ -23,7 +23,7 @@ import {
   type UserCompactResult,
   type UserIOContext,
 } from "../commands/user.js";
-import { isRefusalCondition } from "../lib/git/index.js";
+import { isRefusalCondition, slugifyIdentity } from "../lib/git/index.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
 import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
@@ -52,8 +52,8 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
   p.intro("arc user add");
   const output = createSyncOutput(false);
 
-  // Preserve the supplied identity so workspace paths match external account names exactly.
-  const identity = rawIdentity;
+  // Normalize the external identity before it becomes a filesystem path.
+  const identity = slugifyIdentity(rawIdentity);
   if (!identity) {
     p.log.error("Invalid identity — must contain at least one alphanumeric character.");
     return;
