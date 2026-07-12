@@ -1,8 +1,8 @@
 # Metadata: review-gate-reconcile-composition
 
-| **State**     | **Owner** | **Branch**                              | **Class** | **Priority** |
-| ------------- | --------- | --------------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `fix/review-gate-reconcile-composition` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 4 — check and triage the next CodeRabbit review round
+- **Next Action:** [none]
 
-- **PR URL:** [PR #226](https://github.com/andrewRCr/arc-framework/pull/226)
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/226>
+- **Completed:** 2026-07-12
 
 ---
 
