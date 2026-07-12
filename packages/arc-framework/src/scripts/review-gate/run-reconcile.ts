@@ -6,8 +6,7 @@ import { SELF_HOSTING_POLICY } from "./policy/self-hosting/schema.js";
 import { createReconcileRuntime } from "./runtime/composition.js";
 import { createAuthenticatedGitExec, productionFetch } from "./runtime/production-io.js";
 import { runReconcileMain } from "./runtime/reconcile-main.js";
-import { discoverCandidates, type DiscoveryPort } from "./runtime/discovery.js";
-import { normalizeWakeup } from "./runtime/wakeup.js";
+import { resolveMatrixOutput, type DiscoveryPort } from "./runtime/discovery.js";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -56,9 +55,13 @@ async function main(): Promise<void> {
   const operation = process.argv[2];
   if (operation === "discover") {
     const payload = JSON.parse(await readFile(required("GITHUB_EVENT_PATH"), "utf8")) as unknown;
-    const hint = normalizeWakeup(required("GITHUB_EVENT_NAME"), payload);
-    const candidates = await discoverCandidates(hint, discoveryPort(required("GITHUB_REPOSITORY")));
-    await appendFile(required("GITHUB_OUTPUT"), `matrix=${JSON.stringify({ include: candidates })}\n`, "utf8");
+    const output = await resolveMatrixOutput(
+      required("GITHUB_EVENT_NAME"),
+      payload,
+      Number(required("ARC_REVIEW_GATE_APP_ID")),
+      discoveryPort(required("GITHUB_REPOSITORY")),
+    );
+    if (output !== null) await appendFile(required("GITHUB_OUTPUT"), `matrix=${output}\n`, "utf8");
     return;
   }
   if (operation === "reconcile") {

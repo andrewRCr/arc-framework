@@ -201,20 +201,6 @@ function durableLink(label: string, candidate: string): string {
   }
 }
 
-/** Whether a `check_run` wake-up should enter reconciliation. */
-export function shouldHandleCheckRunEvent(event: unknown, expectedAppId: string, contextName: string): boolean {
-  try {
-    const record = objectAt(event, "event");
-    if (stringAt(record.action, "event.action") !== "completed") return true;
-    const check = objectAt(record.check_run, "event.check_run");
-    const app = objectAt(check.app, "event.check_run.app");
-    return stringAt(check.name, "event.check_run.name") !== contextName
-      || String(integerAt(app.id, "event.check_run.app.id", 1)) !== expectedAppId;
-  } catch {
-    return true;
-  }
-}
-
 /** Shared non-cancelling concurrency posture for every effectful PR wake-up. */
 export function reviewGateConcurrency(repositoryId: string, pullNumber: number): {
   group: string;

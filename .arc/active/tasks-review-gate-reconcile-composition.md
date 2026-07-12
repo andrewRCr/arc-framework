@@ -259,31 +259,20 @@ orchestrator's existing guards plus `publishGateCheck`'s current-state assert.
   evidence recovery lands; and CodeRabbit gen-0 acknowledgement, which is dormant under
   `CODERABBIT_SHADOW_CAPABILITIES` (the reserve path is exercised and terminal-fails fail-closed, asserted as such).
 
-### `[ ]` **3.5 Wake-up guards — recursive self-check suppression and empty-candidate completion**
+### `[x]` **3.5 Wake-up guards — recursive self-check suppression and empty-candidate completion**
 
 - _Goal:_ Wake-up discovery is bounded at both edges: controller-owned completed checks cannot recursively
   reconcile themselves, and a candidate-less wake-up completes quietly instead of failing the workflow run.
-- _Context:_ The discover branch always writes `matrix={"include":[...]}`, even when empty; the reconcile
-  job's `if` (`matrix != ''`) passes on that non-empty string, and matrix expansion over an empty `include`
-  fails the run before any job is created. Diagnosed live 2026-07-11 — every wake-up with zero candidates
-  fails and notifies.
-- _Context:_ `review-gate.yml` subscribes to completed/rerequested `check_run` events. The shipped
-  `isRecursiveControllerCheck` / `shouldHandleCheckRunEvent` helpers have no production caller, so publishing or
-  updating the App's own `review-gate-shadow` / `merge-ok` check would otherwise trigger another reconcile
-  indefinitely (spec Decision 4).
-
-    - Before `normalizeWakeup` / candidate expansion, suppress only a completed controller-owned
-      `review-gate-shadow` or `merge-ok` event whose immutable App id matches the configured expected App id;
-      malformed, other-source, other-name, and rerequested events continue through the fail-closed/current-state
-      path. Consolidate the duplicate helpers to one production rule rather than wiring divergent filters.
-    - Emit the matrix output only when candidates exist; strengthen the reconcile job's condition in
-      `review-gate.yml` to match (empty output → job skipped).
-    - Build `test-first` (one behavior at a time):
-        - Completed controller-owned shadow/final checks produce no candidate matrix
-        - Same-name checks from another App, other check names, and rerequested events remain eligible wake-ups
-        - Discover with zero candidates writes no matrix output
-        - Discover with candidates writes the include matrix unchanged
-        - The workflows integration test pins both the self-check suppression input and empty-guard condition
+- _Outcome:_ Consolidated the two dead helpers (`isRecursiveControllerCheck`, `shouldHandleCheckRunEvent`) into one
+  production rule `isControllerSelfCheckEvent` (`runtime/wakeup.ts`) — suppresses only a `completed` event authored
+  by the expected App for `review-gate-shadow` / `merge-ok`; rerequested, other-App, other-name, and malformed
+  events stay eligible. A new `resolveMatrixOutput` (`runtime/discovery.ts`) composes suppression → normalize →
+  discover and returns `null` for a self-check or candidate-less wake-up; `run-reconcile.ts discover` writes the
+  `matrix=` output only when non-null, so an empty wake-up leaves the output blank. `review-gate.yml` gains
+  `ARC_REVIEW_GATE_APP_ID` in the (still secretless) discover env and strengthens the reconcile `if` to also skip
+  the empty-`include` string. Behaviors covered in `wakeup`/`discovery`/`check-runs` unit suites and pinned in the
+  workflows integration test; the wired discover script was driven end-to-end for both the suppressed and eligible
+  cases. Tests batched per the tightly-coupled two-function surface rather than strict one-at-a-time slicing.
 
 ## **Phase 4:** Attest-path composition
 

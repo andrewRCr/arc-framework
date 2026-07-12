@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isRecursiveControllerCheck, normalizeWakeup } from "../../../../../src/scripts/review-gate/runtime/wakeup.js";
+import { isControllerSelfCheckEvent, normalizeWakeup } from "../../../../../src/scripts/review-gate/runtime/wakeup.js";
 
 const repository = { id: 42 };
 const sha = "a".repeat(40);
@@ -25,8 +25,15 @@ describe("review-gate wake-ups", () => {
     expect(() => normalizeWakeup("status", { repository, sha: "main" })).toThrow("invalid-head-sha");
   });
 
-  it("recognizes only this App's controller checks as recursive", () => {
-    expect(isRecursiveControllerCheck({ check_run: { name: "merge-ok", app: { id: 91 } } }, 91)).toBe(true);
-    expect(isRecursiveControllerCheck({ check_run: { name: "merge-ok", app: { id: 92 } } }, 91)).toBe(false);
+  it("suppresses only this App's completed controller checks, leaving every other event eligible", () => {
+    const completed = (name: string, appId: number) => ({ action: "completed", check_run: { name, app: { id: appId } } });
+    // Completed controller-owned checks from the expected App suppress (break the recursive wake-up).
+    expect(isControllerSelfCheckEvent(completed("review-gate-shadow", 91), 91)).toBe(true);
+    expect(isControllerSelfCheckEvent(completed("merge-ok", 91), 91)).toBe(true);
+    // Same name from another App, an unrelated check name, a rerequested action, and malformed input stay eligible.
+    expect(isControllerSelfCheckEvent(completed("merge-ok", 92), 91)).toBe(false);
+    expect(isControllerSelfCheckEvent(completed("ci-ok", 91), 91)).toBe(false);
+    expect(isControllerSelfCheckEvent({ action: "rerequested", check_run: { name: "merge-ok", app: { id: 91 } } }, 91)).toBe(false);
+    expect(isControllerSelfCheckEvent({ check_run: { name: "merge-ok" } }, 91)).toBe(false);
   });
 });

@@ -8,7 +8,6 @@ import {
   findAuthoritativeCheckRuns,
   publishGateCheck,
   reviewGateConcurrency,
-  shouldHandleCheckRunEvent,
   type CheckRunMutation,
   type CheckWriteState,
   type GitHubCheckRun,
@@ -234,11 +233,6 @@ describe("duplicate, recursion, and stale-writer guards", () => {
       anchorReceiptCount: null,
       readCurrentState: async () => state(),
     })).rejects.toMatchObject({ code: "check-update-failed" });
-  });
-
-  it("ignores the controller's own completion event", () => {
-    expect(shouldHandleCheckRunEvent({ action: "completed", check_run: { name: NAME, app: { id: Number(APP_ID) } } }, APP_ID, NAME)).toBe(false);
-    expect(shouldHandleCheckRunEvent({ action: "completed", check_run: { name: NAME, app: { id: 15368 } } }, APP_ID, NAME)).toBe(true);
   });
 
   it("prevents stale reconcilers from writing after the head advances", async () => {

@@ -1,6 +1,6 @@
 /** Secretless, bounded candidate discovery for reconciliation matrix fan-out. */
 
-import type { WakeupHint } from "./wakeup.js";
+import { isControllerSelfCheckEvent, normalizeWakeup, type WakeupHint } from "./wakeup.js";
 
 export interface ReconcileCandidate { repositoryId: number; pullRequestNumber: number }
 
@@ -27,6 +27,25 @@ export async function discoverCandidates(
   if (deduplicated.some((number) => !Number.isSafeInteger(number) || number <= 0)) throw new Error("invalid-candidate");
   if (deduplicated.length > maximum) throw new Error(`candidate-cap-exceeded:${maximum}`);
   return deduplicated.map((pullRequestNumber) => ({ repositoryId: hint.repositoryId, pullRequestNumber }));
+}
+
+/**
+ * Resolve the reconcile-matrix output for a wake-up, or `null` when the reconcile
+ * job must not run: a controller self-check event (suppressed before expansion to
+ * break the recursive-wake-up loop) or a candidate-less wake-up. Returning `null`
+ * so the caller writes no `matrix=` output keeps the reconcile job's matrix input
+ * empty and skipped, rather than expanding an empty include vector and failing the run.
+ */
+export async function resolveMatrixOutput(
+  eventName: string,
+  payload: unknown,
+  expectedAppId: number,
+  port: DiscoveryPort,
+  maximum = 100,
+): Promise<string | null> {
+  if (eventName === "check_run" && isControllerSelfCheckEvent(payload, expectedAppId)) return null;
+  const candidates = await discoverCandidates(normalizeWakeup(eventName, payload), port, maximum);
+  return candidates.length === 0 ? null : JSON.stringify({ include: candidates });
 }
 
 /** Stable write-lane identity shared by reconciliation and attestation jobs. */

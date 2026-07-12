@@ -92,6 +92,13 @@ describe("trusted review-gate workflows", () => {
     expect(reconcileStep).toContain("GITHUB_TOKEN: ${{ github.token }}");
   });
 
+  it("gives discovery the App id to suppress self-checks and skips reconcile on an empty matrix", async () => {
+    const workflow = await read("review-gate.yml");
+    const discovery = workflow.slice(workflow.indexOf("  discover:"), workflow.indexOf("  reconcile:"));
+    expect(discovery).toContain("ARC_REVIEW_GATE_APP_ID: ${{ vars.ARC_REVIEW_GATE_APP_ID }}");
+    expect(workflow).toContain('needs.discover.outputs.matrix != \'{"include":[]}\'');
+  });
+
   it("references existing repository scripts", async () => {
     const workflows = await Promise.all(["ci.yml", "review-gate.yml", "review-gate-attest.yml"]
       .map((name) => read(name)));

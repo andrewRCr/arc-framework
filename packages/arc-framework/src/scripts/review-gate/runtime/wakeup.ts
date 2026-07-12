@@ -81,10 +81,25 @@ export function normalizeWakeup(eventName: string, payloadValue: unknown): Wakeu
   throw new Error(`unsupported-event:${eventName}`);
 }
 
-/** Ignore the controller's own projection events to avoid recursive wake-ups. */
-export function isRecursiveControllerCheck(payloadValue: unknown, appId: number): boolean {
-  const payload = record(payloadValue, "event-payload");
-  const check = record(payload.check_run, "check-run");
-  const app = record(check.app, "check-app");
-  return app.id === appId && (check.name === "review-gate-shadow" || check.name === "merge-ok");
+/** Context names the controller App authors; a completed one of these must never re-trigger reconciliation. */
+const CONTROLLER_CHECK_NAMES = new Set(["review-gate-shadow", "merge-ok"]);
+
+/**
+ * Whether a `check_run` wake-up is the controller's own completed projection,
+ * which must be suppressed before candidate expansion so publishing a verdict
+ * cannot recursively wake another reconciliation. Only a `completed` event
+ * authored by the expected App for a controller-owned context suppresses;
+ * `rerequested`, other-App, other-name, and malformed events stay eligible and
+ * continue through the normal fail-closed/current-state path.
+ */
+export function isControllerSelfCheckEvent(payloadValue: unknown, expectedAppId: number): boolean {
+  try {
+    const payload = record(payloadValue, "event-payload");
+    if (payload.action !== "completed") return false;
+    const check = record(payload.check_run, "check-run");
+    const app = record(check.app, "check-app");
+    return app.id === expectedAppId && typeof check.name === "string" && CONTROLLER_CHECK_NAMES.has(check.name);
+  } catch {
+    return false;
+  }
 }
