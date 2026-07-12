@@ -113,6 +113,19 @@ describe("reserved request execution", () => {
     expect(appendTerminalFailure).toHaveBeenCalledTimes(1);
   });
 
+  it("distinguishes a proven pre-effect rejection from ambiguous delivery", async () => {
+    const failures: Array<{ disposition: "pre-effect" | "ambiguous"; reason: string }> = [];
+    const result = await executeConfirmedRequest({
+      request: request(),
+      reservation: reservation(),
+      invoke: async () => { throw Object.assign(new Error("rate limited"), { code: "pre-effect-rejection:rate-limited" }); },
+      appendAcknowledgement: async () => undefined,
+      appendTerminalFailure: async (_reservation, failure) => { failures.push(failure); },
+    });
+    expect(result).toEqual({ status: "pre-effect-rejected", invoked: true });
+    expect(failures).toEqual([{ disposition: "pre-effect", reason: "pre-effect-rejection:rate-limited" }]);
+  });
+
   it("derives reservation and acknowledgement timeouts from authenticated record time", () => {
     expect(evaluateRequestTiming({
       reservation: reservation(), acknowledgement: null, terminalEvidence: false,

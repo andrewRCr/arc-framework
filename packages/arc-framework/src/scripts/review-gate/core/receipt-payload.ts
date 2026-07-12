@@ -5,6 +5,7 @@ import {
   digestAt,
   enumAt,
   exactKeys,
+  integerAt,
   objectAt,
   stringAt,
   timestampAt,
@@ -86,6 +87,20 @@ export interface SupersessionPayload {
   reason: string;
 }
 
+/** Durable proof that one provider source may yield to a named alternate. */
+export interface SourceSupersessionPayload {
+  kind: "source-supersession";
+  supersededAt: string;
+  priorRequestKey: string;
+  priorSourceIdentity: string;
+  priorGeneration: number;
+  proofKind: "capacity-exhausted" | "pre-effect-rejection" | "terminal-failure" | "explicit-repair";
+  proofRef: string;
+  alternateSourceIdentity: string;
+  actorIdentity: string;
+  reason: string;
+}
+
 /** Explicit provider-side activity or abandonment for one request flight. */
 export interface FlightStatePayload {
   kind: "flight-state";
@@ -142,6 +157,7 @@ export type ReviewReceiptPayload =
   | FindingLifecyclePayload
   | ContaminationPayload
   | SupersessionPayload
+  | SourceSupersessionPayload
   | FlightStatePayload
   | HeadUpdateAuthorizationPayload
   | HeadUpdateConsumptionPayload
@@ -201,7 +217,8 @@ export function parseReviewReceiptPayload(input: unknown, path: string): ReviewR
   const record = objectAt(input, path);
   const kind = enumAt(record.kind, [
     "reservation", "acknowledgement", "terminal-evidence", "finding-lifecycle", "contamination", "supersession",
-    "flight-state", "head-update-authorization", "head-update-consumption", "trigger-deleted", "decision",
+    "source-supersession", "flight-state", "head-update-authorization", "head-update-consumption", "trigger-deleted",
+    "decision",
   ], `${path}.kind`);
   switch (kind) {
     case "reservation":
@@ -250,6 +267,27 @@ export function parseReviewReceiptPayload(input: unknown, path: string): ReviewR
         kind,
         supersededAt: nullableAt(record.supersededAt, `${path}.supersededAt`, timestampAt),
         successorRequestKey: nullableAt(record.successorRequestKey, `${path}.successorRequestKey`, digestAt),
+        reason: stringAt(record.reason, `${path}.reason`),
+      };
+    case "source-supersession":
+      exactKeys(record, [
+        "kind", "supersededAt", "priorRequestKey", "priorSourceIdentity", "priorGeneration", "proofKind",
+        "proofRef", "alternateSourceIdentity", "actorIdentity", "reason",
+      ], path);
+      return {
+        kind,
+        supersededAt: timestampAt(record.supersededAt, `${path}.supersededAt`),
+        priorRequestKey: digestAt(record.priorRequestKey, `${path}.priorRequestKey`),
+        priorSourceIdentity: stringAt(record.priorSourceIdentity, `${path}.priorSourceIdentity`),
+        priorGeneration: integerAt(record.priorGeneration, `${path}.priorGeneration`),
+        proofKind: enumAt(
+          record.proofKind,
+          ["capacity-exhausted", "pre-effect-rejection", "terminal-failure", "explicit-repair"],
+          `${path}.proofKind`,
+        ),
+        proofRef: stringAt(record.proofRef, `${path}.proofRef`),
+        alternateSourceIdentity: stringAt(record.alternateSourceIdentity, `${path}.alternateSourceIdentity`),
+        actorIdentity: stringAt(record.actorIdentity, `${path}.actorIdentity`),
         reason: stringAt(record.reason, `${path}.reason`),
       };
     case "flight-state":

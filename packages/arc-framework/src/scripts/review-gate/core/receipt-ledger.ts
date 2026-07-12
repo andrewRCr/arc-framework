@@ -65,6 +65,10 @@ export function validateReceiptLedger(input: ReceiptLedgerInput): ReceiptLedgerR
 
 function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]): void {
   const reserved = new Set<string>();
+  const acknowledged = new Set<string>();
+  const terminalFailures = new Map<string, ReviewReceipt>();
+  const abandoned = new Set<string>();
+  const sourceSupersessions = new Set<string>();
   const knownFindings = new Set<string>();
   const terminalFindings = new Map<string, string[]>();
   const repairAuthorizations = new Map<string, ReviewReceipt>();
@@ -84,6 +88,7 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
         if (receipt.result !== null || receipt.findingIds.length > 0) {
           errors.push(`contradictory-acknowledgement:${envelope.ledgerVersion}`);
         }
+        acknowledged.add(requestKey);
         break;
       case "terminal-failure":
         if (!reserved.has(requestKey)) errors.push(`failure-without-reservation:${envelope.ledgerVersion}`);
@@ -93,6 +98,7 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
         ) {
           errors.push(`contradictory-terminal-failure:${envelope.ledgerVersion}`);
         }
+        terminalFailures.set(requestKey, receipt);
         break;
       case "attested":
       case "unadmitted":
@@ -113,7 +119,39 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
           || receipt.payload.kind !== "flight-state"
           || receipt.payload.state !== receipt.action
         ) errors.push(`contradictory-${receipt.action}:${envelope.ledgerVersion}`);
+        if (receipt.action === "abandoned") abandoned.add(requestKey);
         break;
+      case "source-superseded": {
+        const payload = receipt.payload;
+        const identity = payload.kind === "source-supersession"
+          ? `${requestKey}:${payload.alternateSourceIdentity}`
+          : "invalid";
+        const terminal = terminalFailures.get(requestKey);
+        const proofValid = payload.kind === "source-supersession" && (
+          (payload.proofKind === "capacity-exhausted" && !reserved.has(requestKey) && !acknowledged.has(requestKey))
+          || (payload.proofKind === "pre-effect-rejection"
+            && terminal?.reason?.startsWith("pre-effect-rejection:") === true
+            && terminal.payload.kind === "terminal-evidence"
+            && terminal.payload.terminalAt === null
+            && !acknowledged.has(requestKey))
+          || (payload.proofKind === "terminal-failure"
+            && terminal?.payload.kind === "terminal-evidence"
+            && terminal.payload.terminalAt !== null
+            && terminal.evidenceUrlOrId !== null)
+          || (payload.proofKind === "explicit-repair" && abandoned.has(requestKey))
+        );
+        if (
+          payload.kind !== "source-supersession"
+          || payload.priorRequestKey !== requestKey
+          || receipt.result !== null
+          || receipt.findingIds.length > 0
+          || receipt.evidenceUrlOrId !== payload.proofRef
+          || sourceSupersessions.has(identity)
+          || !proofValid
+        ) errors.push(`contradictory-source-supersession:${envelope.ledgerVersion}`);
+        sourceSupersessions.add(identity);
+        break;
+      }
       case "begin-fix": {
         const terminal = terminalFindings.get(requestKey);
         const payload = receipt.payload;

@@ -141,7 +141,8 @@ function resumableReservation(receipts: ReviewReceipt[]): ReviewReceipt | null {
     const requestKey = computeRequestKey(candidate.request);
     const terminal = receipts.slice(index + 1).some((receipt) =>
       computeRequestKey(receipt.request) === requestKey
-      && ["acknowledged", "terminal-failure", "contaminated", "superseded"].includes(receipt.action));
+      && ["acknowledged", "terminal-failure", "contaminated", "superseded", "source-superseded"]
+        .includes(receipt.action));
     if (!terminal) return candidate;
   }
   return null;
@@ -685,13 +686,14 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
         });
         await store.appendReceipt(receipt, reservation.ledgerVersion);
       },
-      appendTerminalFailure: async (reservation) => {
+      appendTerminalFailure: async (reservation, failure) => {
         const receipt = createReceipt({
           eventId: `request:${computeRequestKey(reservation.receipt.request)}:terminal-failure`,
           previousLedgerVersion: reservation.ledgerVersion,
           action: "terminal-failure",
           request: reservation.receipt.request,
           result: "unavailable",
+          reason: failure.disposition === "pre-effect" ? failure.reason : `ambiguous:${failure.reason}`,
           evidenceUrlOrId: null,
           findingIds: [],
           payload: { kind: "terminal-evidence", terminalAt: null, evidenceRefs: [], findingIds: [] },

@@ -47,6 +47,7 @@ function stateForReceipt(receipt: ReviewReceipt): RequestFlightState | null {
     case "contaminated": return "contaminated";
     case "abandoned": return "abandoned";
     case "superseded": return "superseded";
+    case "source-superseded": return "superseded";
     default: return null;
   }
 }

@@ -87,8 +87,15 @@ describe("request admission", () => {
     expect(admitRefresh({ authorized: true, priorGenerations: [0, 1], coverage: "incremental", chainHeadSha: "c".repeat(40), coverageFromSha: "c".repeat(40) })).toEqual({
       admit: true, generation: 2, reason: "authorized-refresh",
     });
-    expect(admitAlternate({ qualified: true, coverage: "incremental", sourceChanged: true }).admit).toBe(false);
-    expect(admitAlternate({ qualified: true, coverage: "full", sourceChanged: true }).admit).toBe(true);
+    expect(admitAlternate({
+      qualified: true, coverage: "incremental", sourceChanged: true, durableSupersession: true,
+    }).admit).toBe(false);
+    expect(admitAlternate({
+      qualified: true, coverage: "full", sourceChanged: true, durableSupersession: false,
+    })).toMatchObject({ admit: false, reason: "supersession-not-durable" });
+    expect(admitAlternate({
+      qualified: true, coverage: "full", sourceChanged: true, durableSupersession: true,
+    }).admit).toBe(true);
   });
 
   it("accepts qualifying out-of-band evidence without fabricating admission", () => {

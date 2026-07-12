@@ -33,13 +33,24 @@ export interface ConfirmedRequestExecutionInput {
     acknowledgement: RequestAcknowledgement,
     reservation: ReceiptEnvelope,
   ) => Promise<void>;
-  appendTerminalFailure: (reservation: ReceiptEnvelope) => Promise<void>;
+  appendTerminalFailure: (
+    reservation: ReceiptEnvelope,
+    failure: { disposition: "pre-effect" | "ambiguous"; reason: string },
+  ) => Promise<void>;
 }
 
 /** Effect result: invocation is explicit so callers never infer replay safety. */
 export interface RequestExecutionResult {
-  status: "acknowledged" | "invocation-ambiguous";
+  status: "acknowledged" | "pre-effect-rejected" | "invocation-ambiguous";
   invoked: boolean;
+}
+
+function invocationFailure(error: unknown): { disposition: "pre-effect" | "ambiguous"; reason: string } {
+  const candidate = error as { code?: unknown };
+  const code = typeof candidate.code === "string" ? candidate.code : "unclassified-invocation-failure";
+  return code.startsWith("pre-effect-rejection:")
+    ? { disposition: "pre-effect", reason: code }
+    : { disposition: "ambiguous", reason: code };
 }
 
 /** Append and canonically confirm a reservation without performing the provider effect. */
@@ -68,9 +79,13 @@ export async function executeConfirmedRequest(
   let acknowledgement: RequestAcknowledgement;
   try {
     acknowledgement = await input.invoke(input.request);
-  } catch {
-    await input.appendTerminalFailure(input.reservation);
-    return { status: "invocation-ambiguous", invoked: true };
+  } catch (error) {
+    const failure = invocationFailure(error);
+    await input.appendTerminalFailure(input.reservation, failure);
+    return {
+      status: failure.disposition === "pre-effect" ? "pre-effect-rejected" : "invocation-ambiguous",
+      invoked: true,
+    };
   }
   await input.appendAcknowledgement(acknowledgement, input.reservation);
   return { status: "acknowledged", invoked: true };

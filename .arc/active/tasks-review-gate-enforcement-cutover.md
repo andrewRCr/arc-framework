@@ -280,25 +280,28 @@ schema, mixed-ledger mode, or upgrade transition is introduced before activation
   author trigger through pinned durable artifacts; unknown grammar, identity drift, and unresolved guidance cannot
   create either a reservation or satisfying evidence.
 
-### `[ ]` **3.4 Enforce one-live-source fallback and explicit ambiguous-effect repair**
+### `[x]` **3.4 Enforce one-live-source fallback and explicit ambiguous-effect repair**
 
 - _Goal:_ Provider order advances only after the prior source is proven unable to have a live effect, preventing
   duplicate quota spend and cross-generation satisfaction.
 
-    - `[ ]` **3.4.a Extend admission and requirement reduction with source supersession**
-        - Use self-hosting order `coderabbit-pr`, then `codex-pr`; skip disabled/non-qualified sources and persist
-          supersession before admitting an alternate.
-        - Add an initial-schema `source-superseded` receipt naming the prior source/generation, terminal or pre-effect
-          proof, alternate source, actor, reason, and ledger predecessor. Canonically re-read that receipt before
-          emitting the alternate reservation.
+    - `[x]` **3.4.a Extend admission and requirement reduction with source supersession**
+        - Added ordered one-live-source selection and strict alternate admission behind an initial-schema
+          `source-superseded` receipt carrying prior request/source/generation, proof, alternate, actor, reason, and
+          ledger predecessor; selection advances only on a subsequent canonical pass that sees the durable record.
 
-    - `[ ]` **3.4.b Distinguish legal fallback from blocking ambiguity test-first**
-        - Cover explicit exhaustion, proven pre-effect rejection, terminal provider failure, unknown capacity's one
-          attempt, acknowledged silence, ambiguous delivery, contamination, and explicit repair.
-        - Prove an alternate cannot be selected from an in-memory decision alone or before durable supersession;
-          retries converge on the same supersession and next generation.
+    - `[x]` **3.4.b Distinguish legal fallback from blocking ambiguity test-first**
+        - Separated proven pre-effect rejection from ambiguous invocation failure, admitted unknown capacity for one
+          owned attempt, and covered exhaustion, terminal proof, acknowledged silence, ambiguous delivery, durable
+          replay convergence, and authorized explicit abandonment repair.
 
-    - `[ ]` **3.4.c Keep CLI-agent and qualified-human attestations explicit repair-only paths**
+    - `[x]` **3.4.c Keep CLI-agent and qualified-human attestations explicit repair-only paths**
+        - Preserved automatic fallback eligibility for durable-record providers only; CLI-agent and qualified-human
+          authenticated attestations remain out-of-band evidence paths requiring explicit invocation.
+
+- _Outcome:_ Provider fallback is now a ledger transition rather than a retry heuristic: no alternate can start
+  while the prior effect is live or ambiguous, and capacity, pre-effect, terminal, or explicit-repair proof remains
+  reconstructible and idempotent.
 
 ### `[ ]` **3.5 Compose provider qualification declarations into self-hosting policy and aggregate reduction**
 

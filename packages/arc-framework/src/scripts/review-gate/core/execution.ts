@@ -72,7 +72,7 @@ export interface ReviewReceipt {
   action:
     | "reserved" | "acknowledged" | "terminal-failure" | "required" | "dismissed" | "waived"
     | "attested" | "unadmitted" | "finding-opened" | "finding-settled" | "contaminated" | "superseded"
-    | "running" | "abandoned" | "begin-fix" | "head-update-consumed" | "trigger-deleted";
+    | "running" | "abandoned" | "begin-fix" | "head-update-consumed" | "trigger-deleted" | "source-superseded";
   request: ReviewRequest;
   result: EvidenceResult | null;
   reason: string | null;
@@ -223,7 +223,7 @@ export function parseReviewReceipt(input: unknown, path = "receipt"): ReviewRece
     [
       "reserved", "acknowledged", "terminal-failure", "required", "dismissed", "waived", "attested", "unadmitted",
       "finding-opened", "finding-settled", "contaminated", "superseded", "running", "abandoned", "begin-fix",
-      "head-update-consumed", "trigger-deleted",
+      "head-update-consumed", "trigger-deleted", "source-superseded",
     ],
     `${path}.action`,
   );
@@ -239,7 +239,8 @@ export function parseReviewReceipt(input: unknown, path = "receipt"): ReviewRece
     throw new Error(`${path}.evidence: required only for attestation receipts`);
   }
   if (evidence !== undefined) validateReceiptEvidenceCongruence({ request, result, evidenceUrlOrId, findingIds }, evidence, path);
-  validatePayloadCongruence({ action, request, result, evidenceUrlOrId, findingIds, payload }, path);
+  const reason = nullableAt(record.reason, `${path}.reason`, stringAt);
+  validatePayloadCongruence({ action, request, result, reason, evidenceUrlOrId, findingIds, payload }, path);
   return {
     schemaVersion: schemaOneAt(record.schemaVersion, `${path}.schemaVersion`),
     eventId: stringAt(record.eventId, `${path}.eventId`),
@@ -249,7 +250,7 @@ export function parseReviewReceipt(input: unknown, path = "receipt"): ReviewRece
     action,
     request,
     result,
-    reason: nullableAt(record.reason, `${path}.reason`, stringAt),
+    reason,
     evidenceUrlOrId,
     findingIds,
     payload,
@@ -258,7 +259,7 @@ export function parseReviewReceipt(input: unknown, path = "receipt"): ReviewRece
 }
 
 function validatePayloadCongruence(
-  receipt: Pick<ReviewReceipt, "action" | "request" | "result" | "evidenceUrlOrId" | "findingIds" | "payload">,
+  receipt: Pick<ReviewReceipt, "action" | "request" | "result" | "reason" | "evidenceUrlOrId" | "findingIds" | "payload">,
   path: string,
 ): void {
   const expected = receipt.action === "reserved"
@@ -273,6 +274,8 @@ function validatePayloadCongruence(
             ? "contamination"
             : receipt.action === "superseded"
               ? "supersession"
+              : receipt.action === "source-superseded"
+                ? "source-supersession"
               : ["running", "abandoned"].includes(receipt.action)
                 ? "flight-state"
                 : receipt.action === "begin-fix"
@@ -309,6 +312,24 @@ function validatePayloadCongruence(
   }
   if (payload.kind === "flight-state" && payload.state !== receipt.action) {
     throw new Error(`${path}.payload: flight state mismatch`);
+  }
+  if (payload.kind === "source-supersession") {
+    if (payload.priorSourceIdentity !== receipt.request.sourceIdentity) {
+      throw new Error(`${path}.payload: prior source mismatch`);
+    }
+    if (payload.priorGeneration !== receipt.request.generation) {
+      throw new Error(`${path}.payload: prior generation mismatch`);
+    }
+    if (payload.actorIdentity !== receipt.request.actorIdentity) {
+      throw new Error(`${path}.payload: actor identity mismatch`);
+    }
+    if (payload.alternateSourceIdentity === payload.priorSourceIdentity) {
+      throw new Error(`${path}.payload: alternate source must change`);
+    }
+    if (payload.proofRef !== receipt.evidenceUrlOrId || payload.reason !== receipt.reason) {
+      throw new Error(`${path}.payload: proof mismatch`);
+    }
+    if (receipt.result !== null || receipt.findingIds.length > 0) throw new Error(`${path}.payload: result mismatch`);
   }
   if (payload.kind === "flight-state" && payload.evidenceRef !== receipt.evidenceUrlOrId) {
     throw new Error(`${path}.payload: reference mismatch`);
