@@ -294,42 +294,22 @@ Decision 10); validation semantics do not change.
   attestation actions require congruent evidence, every other action forbids it, and reconcile feeds only evidence
   recovered from store-authenticated envelopes into coverage, findings, requirement state, and projection.
 
-### `[ ]` **4.2 `run-attest.ts` rewrite — validation + receipt-store append, thin shell over exported main**
+### `[x]` **4.2 `run-attest.ts` rewrite — validation + receipt-store append, thin shell over exported main**
 
 - _Goal:_ An authenticated attest dispatch durably lands: context resolved live, manifest validated, receipt
   appended at the expected ledger version — replacing the 15-line echo stub.
-- _Note:_ Workflow env is `ARC_APP_TOKEN` + `ARC_APP_SLUG` + `ARC_REVIEW_GATE_APP_ID` +
-  `ARC_DISPATCH_ACTOR_ID` + narrow `GITHUB_TOKEN`; the PR number and attestation JSON arrive via the bounded
-  `workflow_dispatch` event payload (`pull_request`, `payload` ≤ 16 KiB), not env. Uses Phase 3's shared graph
-  through the attest-specific factory below; context mode/provider/publisher are not attest inputs.
 
-    - `[ ]` **4.2.a Export a dependency-injectable attest main**
-        - Add an attest-specific factory over Task 3.2.a's shared graph. Inputs add the dispatch actor login/id;
-          outputs are canonical resolver, human-authorizing receipt store, and attestation dependencies only — no
-          context mode, CodeRabbit provider, check publisher, or complete reconcile runtime.
-        - Resolve the validation context: authenticated actor capabilities queried by the event payload's
-          `sender.login` (addressing handle only) with `expectedActorId` = `ARC_DISPATCH_ACTOR_ID` failing
-          closed on mismatch; the current change request + policy decision (yielding the requirement, the
-          derived `acceptedReviewerClaims`, and `authorIdentity` as the PR author's numeric identity from the
-          adapter's `ChangeContext` — the same identity space as `actorIdentity`); `usedRunIds` derived from
-          prior receipts' `attestation:<runId>:` event-id prefixes; and the pinned enforcement fields (Phase 1).
-        - Compose `ingestAttestation` with `GitHubCommentReceiptStore.appendReceipt`; surface the fail-closed
-          diagnostic on validation failure and the replay case without a duplicate append. The attest store
-          instance gets live `revalidate` / `stateExpected` implementations (write-time state + authorization
-          re-check), never permissive stubs.
-        - No direct reconcile call after the append: the App's receipt comment fires `issue_comment: created`,
-          a `review-gate.yml` wake-up, and the gate check re-projects through the normal reconcile path.
-        - Build `test-first` (one behavior at a time):
-            - A valid manifest for the current change set appends exactly one receipt at the expected version
-            - An exact replay returns the prior receipt without appending
-            - A stale-scope, unaccepted-claim, or over-age manifest fails closed with the validator's diagnostic
-            - A submitter below the required permission floor fails closed
-            - A `sender.login` whose resolved numeric id mismatches `ARC_DISPATCH_ACTOR_ID` fails closed
+    - `[x]` **4.2.a Export a dependency-injectable attest main**
+        - Added an attest-only factory and main that resolve the dispatch actor, canonical change and policy
+          requirement live; derive enforcement context and used run ids; and append through a permission- and
+          state-revalidating receipt store with exact-replay suppression.
 
-    - `[ ]` **4.2.b Rewrite the shell and supply canonical-read inputs** — keep the existing bounded event-payload
-      parsing (size caps, strict shape), then invoke the exported main; add the token-mint `app-slug` output and
-      narrow `GITHUB_TOKEN: ${{ github.token }}` to the attest step. The workflows integration test pins both;
-      no API-only or manifest-trusting resolver fallback is allowed.
+    - `[x]` **4.2.b Rewrite the shell and supply canonical-read inputs**
+        - Replaced the echo shell with bounded event parsing over the exported main and supplied the App slug,
+          immutable actor id, checks-read App scope, and narrow git read token in the trusted workflow.
+
+- _Outcome:_ Authenticated dispatch now terminates in one durable normalized-evidence receipt; validation failures
+  fail the run, exact replays remain single-record, and the created App comment wakes the ordinary reconcile path.
 
 ### `[ ]` **4.3 Cross-path e2e test (dispatch → receipt → later reconcile → satisfied verdict)**
 

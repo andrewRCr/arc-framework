@@ -12,6 +12,7 @@
  */
 
 import { computePolicyVersion } from "../core/identity.js";
+import { meetsMinimumPermission, type CapabilitySet, type ReviewRequirement } from "../core/contracts.js";
 import type { ReviewReceipt } from "../core/execution.js";
 import type { GitHostAdapter, ReviewProviderAdapter, ReviewReceiptStore } from "../core/ports.js";
 import type { GitExec } from "../../../lib/git/exec.js";
@@ -42,7 +43,11 @@ import {
 } from "../hosts/github/receipt-store.js";
 import { classifyReviewRisk } from "../policy/self-hosting/risk.js";
 import { resolveAutoLane, type ChangedPath } from "../policy/self-hosting/lane.js";
-import type { SelfHostingPolicy } from "../policy/self-hosting/schema.js";
+import { resolveSelfHostingDecision } from "../policy/self-hosting/decision.js";
+import {
+  deriveAcceptedReviewerClaims,
+  type SelfHostingPolicy,
+} from "../policy/self-hosting/schema.js";
 import {
   CODERABBIT_SHADOW_CAPABILITIES,
   CodeRabbitProviderAdapter,
@@ -75,6 +80,12 @@ export interface ReconcileRuntimeConfig extends SharedInfrastructureConfig {
   mode: ContextMode;
 }
 
+/** Attest adds the immutable dispatch actor address to shared configuration. */
+export interface AttestRuntimeConfig extends SharedInfrastructureConfig {
+  dispatchActorLogin: string;
+  dispatchActorId: string;
+}
+
 /** Injected transport and git boundaries; production supplies real implementations. */
 export interface CompositionIo {
   fetch: HttpFetch;
@@ -85,6 +96,8 @@ export interface CompositionIo {
 export interface CompositionSeams {
   verifyLaunchAuthority?: (rest: GitHubRestClient, input: InstallationAuthorityInput) => Promise<AppIdentityResult>;
   resolveChange?: (deps: GitHubChangeRequestDeps, hostRef: string) => Promise<ChangeRequestResolution>;
+  resolveActorCapabilities?: () => Promise<CapabilitySet>;
+  stateExpected?: () => Promise<boolean>;
 }
 
 /** Validated shared graph; carries no publish or provider-invocation capability. */
@@ -110,6 +123,24 @@ export interface ReconcileComposition {
   launchAuthority: AppIdentityResult;
 }
 
+/** Live validation facts resolved by the attest-only graph. */
+export interface AttestValidationResolution {
+  repositoryId: string;
+  changeRequestId: string;
+  requirement: ReviewRequirement;
+  authenticatedActor: CapabilitySet;
+  acceptedReviewerClaims: string[];
+  acceptedRuntimeKinds: Record<string, string>;
+  authorIdentity: string;
+  maxRunAgeMinutes: number;
+}
+
+/** Narrow attest graph: canonical context resolution plus a human-authorized store. */
+export interface AttestComposition {
+  store: ReviewReceiptStore;
+  resolveValidationContext: () => Promise<AttestValidationResolution>;
+}
+
 function assertNonEmpty(value: string, field: string): void {
   if (value.length === 0) throw new Error(`review-gate composition: ${field} is required`);
 }
@@ -126,6 +157,11 @@ function assertSharedConfig(config: SharedInfrastructureConfig): void {
   if (!Number.isInteger(config.pullRequestNumber) || config.pullRequestNumber <= 0) {
     throw new Error("review-gate composition: pullRequestNumber must be a positive integer");
   }
+}
+
+function assertAttestConfig(config: AttestRuntimeConfig): void {
+  assertNonEmpty(config.dispatchActorLogin, "dispatchActorLogin");
+  assertNonEmpty(config.dispatchActorId, "dispatchActorId");
 }
 
 /** A changed code file flips the reviewed lane to sensitive risk. */
@@ -281,4 +317,101 @@ export async function createReconcileRuntime(
     checks: shared.checks,
     launchAuthority: shared.launchAuthority,
   };
+}
+
+/** Wire the attest-only canonical resolver and human-authorized receipt store. */
+export async function createAttestRuntime(
+  config: AttestRuntimeConfig,
+  io: CompositionIo,
+  seams: CompositionSeams = {},
+): Promise<AttestComposition> {
+  assertAttestConfig(config);
+  const shared = await createSharedInfrastructure(config, io, seams);
+  if (shared.launchAuthority.kind === "failed") {
+    throw new Error(`review-gate composition: launch authority failed — ${shared.launchAuthority.reason}`);
+  }
+  const changeDeps: GitHubChangeRequestDeps = { rest: shared.rest, exec: io.exec, baseRemote: shared.baseRemote };
+  const resolveChangeFn = seams.resolveChange ?? resolveChangeRequest;
+  const resolveChange = (): Promise<ChangeRequestResolution> => resolveChangeFn(changeDeps, shared.hostRef);
+  const initial = await resolveChange();
+  if (initial.kind !== "resolved") {
+    throw new Error(`review-gate composition: change request unavailable — ${initial.kind}`);
+  }
+
+  const resolveValidationContext = async (): Promise<AttestValidationResolution> => {
+    const change = await resolveChange();
+    if (change.kind !== "resolved") {
+      throw new Error(`review-gate composition: change request unavailable — ${change.kind}`);
+    }
+    const authenticatedActor = seams.resolveActorCapabilities === undefined
+      ? await shared.host.resolveActorCapabilities({
+          login: config.dispatchActorLogin,
+          expectedActorId: config.dispatchActorId,
+        })
+      : await seams.resolveActorCapabilities();
+    const changes: ChangedPath[] = change.context.changedPaths.map((item) => ({
+      status: item.status,
+      path: item.path,
+      ...(item.previousPath === undefined ? {} : { previousPath: item.previousPath }),
+    }));
+    const lane = await resolveAutoLane({
+      exec: io.exec,
+      diffBaseSha: change.changeRequest.diffBaseSha,
+      headSha: change.changeRequest.headSha,
+      authorLogin: change.context.author.login,
+      authorMap: config.policy.authorMap,
+      changes,
+    });
+    const risk = classifyReviewRisk({
+      paths: changes.map((item) => item.path),
+      codeSurface: derivesCodeSurface(changes),
+    });
+    const decision = resolveSelfHostingDecision({ policy: config.policy, changeRequest: change.changeRequest, lane, risk });
+    const requirement = decision.requirements[0];
+    if (requirement === undefined || decision.requirements.length !== 1) {
+      throw new Error("review-gate composition: attestation requirement unavailable");
+    }
+    return {
+      repositoryId: String(config.repositoryId),
+      changeRequestId: change.changeRequest.changeRequestId,
+      requirement,
+      authenticatedActor,
+      acceptedReviewerClaims: deriveAcceptedReviewerClaims(config.policy),
+      acceptedRuntimeKinds: config.policy.attestationEnforcement.acceptedRuntimeKinds,
+      authorIdentity: change.context.author.identity,
+      maxRunAgeMinutes: config.policy.attestationEnforcement.maxRunAgeMinutes,
+    };
+  };
+
+  const authority: ReceiptCommentAuthority = {
+    expectedAppId: config.expectedAppId,
+    expectedBotId: config.policy.providerIdentities.appBotUserId,
+  };
+  const store = new GitHubCommentReceiptStore({
+    api: shared.issueCommentApi,
+    authority,
+    repositoryId: String(config.repositoryId),
+    changeRequestId: initial.changeRequest.changeRequestId,
+    revalidate: async (receipt) => {
+      const current = await resolveValidationContext();
+      const permission = receipt.evidence?.sourceKind === "agent" ? "maintain" : "write";
+      return {
+        repositoryId: current.repositoryId,
+        changeRequestId: current.changeRequestId,
+        changeSetId: current.requirement.changeSetId,
+        policyVersion: current.requirement.policyVersion,
+        actorIdentity: current.authenticatedActor.actorIdentity,
+        authorized: current.authenticatedActor.actorIdentity === config.dispatchActorId
+          && current.authenticatedActor.permissions.some((item) => meetsMinimumPermission(item, permission)),
+      };
+    },
+    stateExpected: seams.stateExpected ?? (async () => {
+      const current = await resolveChange();
+      if (current.kind !== "resolved") throw new Error(`change request unavailable — ${current.kind}`);
+      const checks = await Promise.all(["review-gate-shadow", "merge-ok"].map((name) =>
+        shared.checks.list(current.changeRequest.headSha, config.expectedAppId, name)));
+      return checks.some((items) => items.length > 0);
+    }),
+  });
+  return { store, resolveValidationContext };
 }

@@ -92,6 +92,13 @@ describe("trusted review-gate workflows", () => {
     expect(reconcileStep).toContain("GITHUB_TOKEN: ${{ github.token }}");
   });
 
+  it("supplies the attest step its App slug and narrow canonical-read token", async () => {
+    const workflow = await read("review-gate-attest.yml");
+    expect(workflow).toContain("ARC_APP_SLUG: ${{ steps.app-token.outputs.app-slug }}");
+    expect(workflow).toContain("GITHUB_TOKEN: ${{ github.token }}");
+    expect(workflow).toContain("ARC_DISPATCH_ACTOR_ID: ${{ github.actor_id }}");
+  });
+
   it("gives discovery the App id to suppress self-checks and skips reconcile on an empty matrix", async () => {
     const workflow = await read("review-gate.yml");
     const discovery = workflow.slice(workflow.indexOf("  discover:"), workflow.indexOf("  reconcile:"));

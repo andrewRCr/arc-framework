@@ -10,6 +10,7 @@ import {
   type SelfHostingPolicy,
 } from "../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
 import {
+  createAttestRuntime,
   createReconcileRuntime,
   createSharedInfrastructure,
   type CompositionIo,
@@ -104,6 +105,34 @@ describe("review-gate composition roots", () => {
     expect(composition.provider).toBeInstanceOf(CodeRabbitProviderAdapter);
     expect(composition.store).toBeDefined();
     expect(composition.checks).toBeDefined();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("wires an attest-only graph without reconcile, provider, or publisher capability", async () => {
+    const { io, fetch } = makeIo();
+    const composition = await createAttestRuntime({
+      ...baseConfig(),
+      dispatchActorLogin: "maintainer",
+      dispatchActorId: "maintainer-1",
+    }, io, verifiedSeams({
+      resolveActorCapabilities: async () => ({
+        schemaVersion: 1,
+        actorIdentity: "maintainer-1",
+        permissions: ["maintain"],
+      }),
+      stateExpected: async () => false,
+    }));
+
+    await expect(composition.resolveValidationContext()).resolves.toMatchObject({
+      repositoryId: "100",
+      changeRequestId: "PR_node",
+      authenticatedActor: { actorIdentity: "maintainer-1" },
+      requirement: { id: "independent-analysis" },
+    });
+    expect(composition.store).toBeDefined();
+    expect(composition).not.toHaveProperty("runtime");
+    expect(composition).not.toHaveProperty("provider");
+    expect(composition).not.toHaveProperty("checks");
     expect(fetch).not.toHaveBeenCalled();
   });
 
