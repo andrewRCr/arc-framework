@@ -37,6 +37,30 @@ const receipt = {
   findingIds: [],
 };
 
+const evidence = {
+  schemaVersion: 1,
+  requirementId: request.requirementId,
+  sourceKind: "agent",
+  sourceIdentity: request.sourceIdentity,
+  result: "clean",
+  evidenceUrlOrId: "https://example.test/evidence/run-1",
+  reviewRunId: "run-1",
+  reviewerClaim: "agent-9",
+  submitterIdentity: request.actorIdentity,
+  policyVersion: request.policyVersion,
+  rubricVersion: request.rubricVersion,
+  coverage: request.coverage,
+  coverageFromSha: request.coverageFromSha,
+  coverageThroughSha: request.coverageThroughSha,
+  baseRef: "main",
+  diffBaseSha: request.coverageFromSha,
+  changeSetId: request.changeSetId,
+  headSha: request.coverageThroughSha,
+  findings: [],
+  closures: [],
+  observedAt: "2026-07-10T20:00:00.000Z",
+};
+
 describe("request and projection contracts", () => {
   it("round-trips request identity and generation", () => {
     expect(parseReviewRequest(request)).toEqual(request);
@@ -71,6 +95,70 @@ describe("request and projection contracts", () => {
       receipt,
     };
     expect(parseReceiptEnvelope(envelope)).toEqual(envelope);
+  });
+
+  it("round-trips normalized evidence on an attestation receipt", () => {
+    const attestationReceipt = {
+      ...receipt,
+      action: "unadmitted",
+      result: "clean",
+      evidenceUrlOrId: evidence.evidenceUrlOrId,
+      evidence,
+    };
+    expect(parseReceiptEnvelope({
+      schemaVersion: 1,
+      durableRecordId: "record-10",
+      recordedAt: "2026-07-10T20:00:00.000Z",
+      lastModifiedAt: "2026-07-10T20:00:00.000Z",
+      ledgerVersion: 5,
+      receipt: attestationReceipt,
+    }).receipt.evidence).toEqual(evidence);
+  });
+
+  it("requires evidence on attestation receipts and forbids it on lifecycle receipts", () => {
+    const envelope = {
+      schemaVersion: 1,
+      durableRecordId: "record-10",
+      recordedAt: "2026-07-10T20:00:00.000Z",
+      lastModifiedAt: "2026-07-10T20:00:00.000Z",
+      ledgerVersion: 5,
+    };
+    expect(() => parseReceiptEnvelope({
+      ...envelope,
+      receipt: { ...receipt, action: "unadmitted", result: "clean", evidenceUrlOrId: evidence.evidenceUrlOrId },
+    })).toThrow(/evidence/u);
+    expect(() => parseReceiptEnvelope({ ...envelope, receipt: { ...receipt, evidence } })).toThrow(/evidence/u);
+  });
+
+  it.each([
+    ["request identity", { ...evidence, requirementId: "other-requirement" }],
+    ["result", { ...evidence, result: "failed" }],
+    ["reference", { ...evidence, evidenceUrlOrId: "https://example.test/evidence/other" }],
+    ["finding identity", {
+      ...evidence,
+      result: "findings",
+      findings: [{
+        findingId: "finding-1",
+        severity: "high",
+        locus: "src/a.ts:1",
+        evidenceUrlOrId: "https://example.test/evidence/finding-1",
+      }],
+    }],
+  ])("rejects incongruent attestation %s", (_name, mismatchedEvidence) => {
+    expect(() => parseReceiptEnvelope({
+      schemaVersion: 1,
+      durableRecordId: "record-10",
+      recordedAt: "2026-07-10T20:00:00.000Z",
+      lastModifiedAt: "2026-07-10T20:00:00.000Z",
+      ledgerVersion: 5,
+      receipt: {
+        ...receipt,
+        action: "unadmitted",
+        result: "clean",
+        evidenceUrlOrId: evidence.evidenceUrlOrId,
+        evidence: mismatchedEvidence,
+      },
+    })).toThrow();
   });
 
   it("round-trips a neutral gate projection with blocker detail", () => {

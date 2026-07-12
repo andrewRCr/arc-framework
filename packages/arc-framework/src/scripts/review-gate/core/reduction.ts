@@ -5,7 +5,7 @@ import { applyRequiredOverride, COMMAND_RECEIPT_SOURCE } from "./command-receipt
 import type { NormalizedChangeRequest, ReviewRequirement } from "./contracts.js";
 import { reduceCoverage } from "./coverage.js";
 import type { Evidence } from "./evidence.js";
-import type { GateProjection, ReviewReceipt, ReviewRequest, SourceCapacity } from "./execution.js";
+import type { GateProjection, ReceiptEnvelope, ReviewReceipt, ReviewRequest, SourceCapacity } from "./execution.js";
 import { reduceFindings } from "./findings.js";
 import type { LifecycleTailProof } from "./lifecycle-tail.js";
 import { renderGateProjection } from "./projection.js";
@@ -52,6 +52,11 @@ export interface SelfHostingGateReductionInput {
 export interface GateReductionDecision {
   request: ReviewRequest | null;
   projection: GateProjection;
+}
+
+/** Recover normalized evidence only after the receipt store authenticated and parsed its envelope. */
+export function extractAuthenticatedReceiptEvidence(envelopes: ReceiptEnvelope[]): Evidence[] {
+  return envelopes.flatMap((envelope) => envelope.receipt.evidence === undefined ? [] : [envelope.receipt.evidence]);
 }
 
 function sourceAccepted(requirement: ReviewRequirement, declaration: SourceQualificationDeclaration): boolean {

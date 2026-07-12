@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { Evidence } from "../../../../../src/scripts/review-gate/core/evidence.js";
-import type { ReviewReceipt, SourceCapacity } from "../../../../../src/scripts/review-gate/core/execution.js";
+import type { ReceiptEnvelope, ReviewReceipt, SourceCapacity } from "../../../../../src/scripts/review-gate/core/execution.js";
 import { computeChangeSetId, computePolicyVersion } from "../../../../../src/scripts/review-gate/core/identity.js";
 import type { LifecycleTailProof } from "../../../../../src/scripts/review-gate/core/lifecycle-tail.js";
 import { COMMAND_RECEIPT_SOURCE } from "../../../../../src/scripts/review-gate/core/command-receipts.js";
 import { createReceipt } from "../../../../../src/scripts/review-gate/core/request-key.js";
 import {
+  extractAuthenticatedReceiptEvidence,
   reduceSelfHostingGate,
   type SelfHostingGateReductionInput,
 } from "../../../../../src/scripts/review-gate/core/reduction.js";
@@ -239,6 +240,62 @@ function dismissalReceipt(policy: SelfHostingPolicy, sourceIdentity = "codex-cli
 }
 
 describe("self-hosting gate reduction", () => {
+  it("reduces only normalized evidence recovered from authenticated receipt envelopes", () => {
+    const normalized = evidence();
+    const attestation = createReceipt({
+      eventId: "attestation:run-1:digest",
+      previousLedgerVersion: 0,
+      action: "unadmitted",
+      request: {
+        schemaVersion: 1,
+        repositoryId: changeRequest.repositoryId,
+        changeRequestId: changeRequest.changeRequestId,
+        changeSetId: normalized.changeSetId,
+        policyVersion: normalized.policyVersion,
+        rubricVersion: normalized.rubricVersion,
+        requirementId: normalized.requirementId,
+        sourceIdentity: normalized.sourceIdentity,
+        coverage: normalized.coverage,
+        coverageFromSha: normalized.coverageFromSha,
+        coverageThroughSha: normalized.coverageThroughSha,
+        generation: 0,
+        actorIdentity: "maintainer-1",
+      },
+      result: normalized.result,
+      evidenceUrlOrId: normalized.evidenceUrlOrId,
+      findingIds: [],
+      evidence: normalized,
+    });
+    const envelopes: ReceiptEnvelope[] = [{
+      schemaVersion: 1,
+      durableRecordId: "IC_attestation",
+      recordedAt: normalized.observedAt,
+      lastModifiedAt: normalized.observedAt,
+      ledgerVersion: 1,
+      receipt: attestation,
+    }];
+
+    const recovered = extractAuthenticatedReceiptEvidence(envelopes);
+    expect(recovered).toEqual([normalized]);
+    expect(reduceSelfHostingGate(input({
+      lane: { lane: "reviewed", reasons: ["non-lane-path"] },
+      risk: { risk: "sensitive", reasons: ["code-surface"] },
+      evidence: recovered,
+    })).projection).toMatchObject({
+      conclusion: "success",
+      requirementExecutions: [{ state: "clean", sourceIdentity: "codex-cli" }],
+      evidence: [{ evidenceRef: normalized.evidenceUrlOrId }],
+    });
+    expect(extractAuthenticatedReceiptEvidence([{
+      schemaVersion: 1,
+      durableRecordId: "IC_summary",
+      recordedAt: normalized.observedAt,
+      lastModifiedAt: normalized.observedAt,
+      ledgerVersion: 1,
+      receipt: admittedReceipt(SELF_HOSTING_POLICY),
+    }])).toEqual([]);
+  });
+
   it("projects an exempt automatic-lane change truthfully", () => {
     const decision = reduceSelfHostingGate(input());
 

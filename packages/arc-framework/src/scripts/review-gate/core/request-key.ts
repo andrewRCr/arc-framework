@@ -43,6 +43,7 @@ function computeIdempotencyKey(input: ReceiptCreationInput): string {
     reason: input.reason ?? null,
     evidenceUrlOrId: input.evidenceUrlOrId,
     findingIds: input.findingIds,
+    ...(input.evidence === undefined ? {} : { evidence: input.evidence }),
   }));
 }
 
@@ -63,6 +64,7 @@ export function createReceipt(input: ReceiptCreationInput): ReviewReceipt {
     reason: input.reason ?? null,
     evidenceUrlOrId: input.evidenceUrlOrId,
     findingIds: input.findingIds,
+    ...(input.evidence === undefined ? {} : { evidence: input.evidence }),
   };
   return { ...withoutHash, receiptHash: computeReceiptHash(withoutHash) };
 }
@@ -78,6 +80,7 @@ export function receiptIdentityValid(receipt: ReviewReceipt): boolean {
     reason: receipt.reason,
     evidenceUrlOrId: receipt.evidenceUrlOrId,
     findingIds: receipt.findingIds,
+    ...(receipt.evidence === undefined ? {} : { evidence: receipt.evidence }),
   });
   return receipt.idempotencyKey === expected.idempotencyKey && receipt.receiptHash === expected.receiptHash;
 }

@@ -285,23 +285,14 @@ token and resolves its `AttestationValidationContext` from live state. The recei
 validated normalized `Evidence` survives the process boundary and can be reduced by a later reconcile (spec
 Decision 10); validation semantics do not change.
 
-### `[ ]` **4.1 Persist authenticated normalized evidence in attestation receipts**
+### `[x]` **4.1 Persist authenticated normalized evidence in attestation receipts**
 
 - _Goal:_ An authenticated App-comment receipt retains enough validated state to reconstruct coverage, findings,
   closures, and observation ordering exactly; reconciliation never mistakes a summary receipt for evidence.
 
-    - Extend the receipt/envelope schema with an optional normalized `Evidence` payload allowed only for the
-      attestation/unadmitted action; ordinary request lifecycle receipts carry none.
-    - On parse, validate congruence between evidence and receipt request/result/reference/finding identities so a
-      validly signed but internally inconsistent payload fails closed. Keep the bounded comment payload below the
-      existing size limit.
-    - Add a reducer that extracts evidence only from store-authenticated envelopes and feeds it into coverage,
-      findings, requirement-state, and projection assembly.
-    - Build `test-first` (one behavior at a time):
-        - Full normalized evidence round-trips through receipt serialization/parsing unchanged
-        - Missing evidence on an attestation receipt and evidence on an incompatible action fail closed
-        - Request/evidence identity, result, reference, or finding mismatch fails closed
-        - Authenticated extracted evidence satisfies coverage/findings reduction; a summary-only receipt cannot
+- _Outcome:_ Normalized evidence is now part of the receipt's authenticated hash and closed parser contract:
+  attestation actions require congruent evidence, every other action forbids it, and reconcile feeds only evidence
+  recovered from store-authenticated envelopes into coverage, findings, requirement state, and projection.
 
 ### `[ ]` **4.2 `run-attest.ts` rewrite — validation + receipt-store append, thin shell over exported main**
 

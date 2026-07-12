@@ -27,7 +27,11 @@ import type {
   ReviewProviderAdapter,
   ReviewReceiptStore,
 } from "../core/ports.js";
-import { reduceSelfHostingGate, type SelfHostingGateReductionInput } from "../core/reduction.js";
+import {
+  extractAuthenticatedReceiptEvidence,
+  reduceSelfHostingGate,
+  type SelfHostingGateReductionInput,
+} from "../core/reduction.js";
 import { createReceipt, computeRequestKey } from "../core/request-key.js";
 import { executeReservedRequest, type RequestExecutionResult } from "../core/request-execution.js";
 import {
@@ -192,12 +196,10 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     const inconsistencies = ledgerValid ? [] : [...ledger.diagnostics];
 
     const lifecycleTail = await this.resolveLifecycleTail(changeRequest, decision, policyVersion);
-    const evidence = this.resolveEvidence(
-      changeRequest,
-      decision,
-      nativeObservation.providerReviews,
-      lifecycleTail,
-    );
+    const evidence = [
+      ...this.resolveEvidence(changeRequest, decision, nativeObservation.providerReviews, lifecycleTail),
+      ...extractAuthenticatedReceiptEvidence(ledgerEnvelopes),
+    ];
     const capacities = await this.resolveCapacities(decision);
     const commandEvents = await this.resolveCommandEvents(changeRequest, decision, evidence, ledgerReceipts);
     const knownHostActors = [
