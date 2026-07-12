@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "kind": "shadow-add-before-remove-contract",
+  "scope": "non-mutating",
+  "containsLiveValues": false,
+  "existingAuthorityRequiredThroughout": true,
+  "steps": [
+    "freeze",
+    "prove-existing-ci",
+    "compare-environment",
+    "validate-attestation",
+    "audit-exclusive-writer",
+    "dispatch-default-branch",
+    "prove-repair-status",
+    "add-repair-context",
+    "prove-augmented-set",
+    "remove-repair-context",
+    "prove-restored-set"
+  ],
+  "result": "passed"
+}

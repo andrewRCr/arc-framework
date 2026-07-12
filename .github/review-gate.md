@@ -542,44 +542,107 @@ without the other: snapshots treat `{post_pr_open,pre_merge}` as one cutover sta
 
 ## Audited App or Controller Outage Recovery
 
-Preinstall `.github/workflows/review-gate-repair.yml` on the default branch during WU 1 and rehearse this path before
-final cutover while shadow remains non-required. Its GitHub Actions App id is `15368`; it runs only by
-`workflow_dispatch` and has no ARC App credential. Provision a separate secretless `review-gate-repair` environment
-through compare-and-stop setup with an exact live-default-branch deployment policy, and verify that policy before
-every dispatch. Default-branch code validates a bounded attestation manifest following
-`.github/review-gate-attestation.md` against the exact repository, PR, frozen head, rubric version, and authenticated
-author. It accepts only maintainer-attested agent analysis or an authenticated non-author human review under
-`independent-analysis/v1`. The repair PR cannot modify this workflow or its validator, and cannot use its own changed
-CI producer as proof.
+The emergency workflow has no ARC App credential. GitHub delivers its typed `review-gate-repair`
+`repository_dispatch` only to default-branch workflow code; the developer credential that sends the event never enters
+Actions. The read-only validation job proves the live environment, immutable workflow SHA, complete permission/call
+graph, exact PR head, and bounded `independent-analysis/v1` attestation. The protected writer alone receives
+`statuses: write`, executes no repository code, and writes constant context `review-repair-ok` as Actions App id
+`15368`.
 
-Branch protection pins the Actions producer family, not a workflow path. Require a closed exclusive-writer proof:
-repository Actions defaults are live-proven read-only and all workflows/jobs declare explicit permissions. The
-repair validation job is read-only. Its writer job alone has `statuses: write`; references the protected environment;
-uses no checkout, action, called script, dependency install, or repository/organization secret; rechecks its bounded
-validation output plus live PR head; and emits the constant `review-repair-ok` status inline. Source pinning to Actions
-App id `15368` excludes PAT/other-App writers. Audit the setting, environment, workflow graph, and writer shape before
-every accepted run. The status links the exact run/path/workflow SHA/PR/head, all manually proved before enforcement
-mutation. This is Actions-pinned and exclusive-writer-proven authority.
+### Compare the repair environment
 
-1. Freeze merges and capture the incident id, ruleset/branch-protection JSON, mode, required checks/source ids,
-   environment/App state, action activation, and exact affected head.
-2. Prove independent source-pinned `ci-ok` on that exact head and validate the existing bounded attestation through
-   the default-branch emergency workflow. If the repair changes the `ci-ok` producer, require a separate unchanged
-   trusted workflow/reviewer proof instead of its self-produced result.
-3. If project coordination cannot reach the controller, the repair PR sets project `post-pr-open` and
-   `pre-merge` inactive and records the incident-scoped suspension. Do not retry dead actions.
-4. Audit the exclusive-writer graph, dispatch `review-gate-repair.yml` from the default branch, and prove the Actions-
-   pinned/exclusive-writer `review-repair-ok` on the exact repair head. Add it to both enforcement layers while the
-   dead App context remains required; prove the augmented set before removing the unavailable App context. Merge
-   normally through branch protection.
-5. Link the validated attestation, emergency run, exact-head status, and enforcement mutations in the PR and incident;
-   never fabricate an App/controller receipt.
-6. Restore the App in shadow. Open a reactivation PR, explicitly invoke `coordinate-pr-review.md` for its possibly stale
-   extension snapshot, and prove later sessions load the restored actions. Add and prove the restored App context before
-   removing `review-repair-ok` from either enforcement layer.
-7. Repeat normal shadow → dual → final promotion, verify exact-head green after each mutation, remove the emergency
-   status requirement only after the App is required and green, then unfreeze merges.
+Use the authenticated developer token only in the local setup process. Compare first; `--apply` is a separate,
+explicit mutation. Apply refuses to touch an environment containing any secret.
 
-An empty requirement set, admin bypass, direct-base repair, controller-manufactured substitute review, repair-PR edit
-to the emergency workflow/validator/permission graph, alternate status writer, or repair PR using the CI producer it
-modifies as its own proof is prohibited.
+```bash
+export GITHUB_REPOSITORY="$REPO"
+GITHUB_TOKEN="$(gh auth token)" npm run review-gate:repair-environment
+
+# Only after the comparison stopped on an expected missing or policy-drift state:
+GITHUB_TOKEN="$(gh auth token)" npm run review-gate:repair-environment -- --apply
+GITHUB_TOKEN="$(gh auth token)" npm run review-gate:repair-environment
+```
+
+The final comparison must report `status: ready` and the live default branch. Independently retain the environment
+response, custom deployment-branch policies, and environment-secret names in the private incident directory. Require
+exactly one `branch` policy naming the live default branch and an empty secret-name array. Stop on any extra policy,
+secret, environment consumer, workflow writer, or repository Actions default other than read-only.
+
+### Outage add-before-remove
+
+Set incident-local values without placing the attestation on a command line:
+
+```bash
+export INCIDENT_ID='<non-secret-incident-id>'
+export REPAIR_PR='<pull-request-number>'
+export REPAIR_HEAD="$(pr_head "$REPAIR_PR")"
+export REPAIR_ATTESTATION='<private-path-to-bounded-attestation.json>'
+export REPAIR_DIR="$CHECKPOINT_ROOT/outages/$INCIDENT_ID"
+mkdir -p "$REPAIR_DIR" && chmod 700 "$REPAIR_DIR"
+```
+
+1. Freeze merges operationally. Snapshot classic protection, the full `main-protection` ruleset, current required
+   contexts and source ids, project action activation, both protected environments, App state, default-branch SHA, PR
+   head, and incident id. Compare the snapshot with the reviewed expected checkpoint. Require a non-empty currently
+   green authority set; never remove a requirement during this step.
+2. Prove source-pinned CI on `$REPAIR_HEAD` and retain its run/source identity. If the repair changes any file that
+   produces `ci-ok`, its own CI result is inadmissible: retain separate exact-head evidence from an unchanged producer
+   and an independent reviewer. Both are required; a self-produced `ci-ok` is never proof of its own producer change.
+3. Validate a clean bounded attestation from a maintainer-attested qualified agent or authenticated non-author human.
+   If project coordination cannot reach the controller, the reviewed repair PR sets both `post-pr-open` and
+   `pre-merge` inactive together. Never retry an effect-ambiguous dead action.
+4. Re-run the environment comparison. The workflow then audits repository default permissions, all checked-in
+   workflows/jobs, the sole environment consumer/writer, immutable default-branch SHA, and protected authority paths.
+   Dispatch the typed event with the attestation streamed from its private file:
+
+   ```bash
+   dispatch_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   jq -n --argjson pull_request "$REPAIR_PR" --rawfile payload "$REPAIR_ATTESTATION" \
+     '{event_type:"review-gate-repair",client_payload:{pull_request:$pull_request,payload:$payload}}' |
+     gh api --method POST "repos/$REPO/dispatches" --input -
+   ```
+
+5. Identify exactly one `review-gate-repair.yml` `repository_dispatch` run created after `$dispatch_started`. Require
+   its actor to match the dispatcher, its head SHA to equal the current default-branch SHA, and its conclusion to be
+   success. Re-query the PR head and the `review-repair-ok` commit status. Require exact `$REPAIR_HEAD`, state success,
+   Actions source id `15368`, and a target linking the run id, workflow path/SHA, PR, and head. Stop on ambiguity.
+6. Read the current required-check array from both enforcement layers and prove they are equal and still contain the
+   unavailable App context. Form an augmented non-empty array by adding
+   `{context:"review-repair-ok",app_id:15368}`. Call `set_checks` once, then prove both layers and the exact repair PR
+   head green. Snapshot and compare this augmented checkpoint before removing anything.
+7. Only after the augmented checkpoint passes, form the next non-empty array by removing the unavailable App context,
+   call `set_checks`, and prove both enforcement layers again. Merge the reviewed repair PR normally through branch
+   protection. Retain the attestation identity, workflow run, status, before/augmented/after enforcement snapshots,
+   and file hashes; never retain tokens, raw secrets, or the attestation body in sanitized evidence.
+
+### Restoration add-before-remove
+
+Restore the App in non-required shadow first. Open and coordinate a reviewed reactivation PR, then prove later
+sessions load both project actions. Freeze merges and compare the live outage checkpoint before each mutation.
+
+1. Produce the restored App context on the exact reactivation head and prove its configured App source id, successful
+   conclusion, external identity, default-branch controller run, and live PR head.
+2. While `review-repair-ok` remains required and green, add the restored App context to both enforcement layers. Prove
+   and snapshot the augmented non-empty set.
+3. Only after that proof, remove `review-repair-ok` from both layers. Prove the restored App context remains required
+   and green, resume the normal shadow → dual → final sequence, and unfreeze merges.
+
+### Shadow rehearsal and retained evidence
+
+The checked-in `.github/review-gate-repair-rehearsal.json` records the non-mutating contract rehearsal and contains no
+live claims. Its executable test fixes the safe ordering before hosted rehearsal is possible.
+
+After this workflow reaches the default branch and before final cutover, rehearse with the App projection still
+non-required and legacy CI still required. Use a disposable PR and sanitized attestation, execute environment compare,
+dispatch, run/status proof, add `review-repair-ok` beside the existing required CI floor, prove the augmented set, then
+remove only `review-repair-ok` and prove the original set is restored. Do not remove or replace the existing authority
+during rehearsal.
+
+Retain private raw responses under `$REPAIR_DIR/raw` with mode `0700`/`0600`. Retain a sanitized rehearsal record with
+only repository id, default-branch/workflow SHA, disposable PR/head, run id/attempt, context/source id, ordered
+checkpoint hashes, timestamps, and pass/fail outcomes. Hash the sanitized record into `$EVIDENCE_MANIFEST`. Delete
+credential-bearing command captures and attestation bodies after their hashes and identities are recorded.
+
+An empty requirement set, admin bypass, direct-base repair, removal-first mutation, controller-manufactured substitute
+review, changed emergency authority/permission graph, alternate status writer, ambiguous run, or CI-producer self-proof
+is prohibited. Stop at the last proven checkpoint on any mismatch.

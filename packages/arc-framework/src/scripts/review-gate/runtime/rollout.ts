@@ -7,14 +7,36 @@ export type ReviewContext = "merge-ok" | "review-gate-shadow";
 
 export interface NamedProjection { name: ReviewContext; projection: GateProjection }
 
+export interface IndependentCiProof {
+  exactHead: boolean;
+  producerUnchanged: boolean;
+  reviewerIndependent: boolean;
+  producedByRepairChange: boolean;
+}
+
 export interface TransitionPrerequisites {
   currentGreen: ReviewContext[];
   ciOkExactHead: boolean;
   mergeFrozen: boolean;
   auditCaptured: boolean;
-  repairTouchesCiProducer: boolean;
+  repairChangesCiProducer: boolean;
+  independentCiProof?: IndependentCiProof;
   projectActionsSuspended: boolean;
   independentRepairReview: boolean;
+  repairEnvironmentProven: boolean;
+  exclusiveWriterProven: boolean;
+  repairStatusExactHead: boolean;
+  repairStatusSourceProven: boolean;
+  appContextStillRequired: boolean;
+  adminBypass: boolean;
+}
+
+export interface RestorationPrerequisites {
+  mergeFrozen: boolean;
+  auditCaptured: boolean;
+  restoredAppExactHead: boolean;
+  restoredAppSourceProven: boolean;
+  repairContextStillRequired: boolean;
   adminBypass: boolean;
 }
 
@@ -83,10 +105,34 @@ export function validateOutageRecovery(input: TransitionPrerequisites): string[]
   const failures: string[] = [];
   if (!input.mergeFrozen) failures.push("merge-not-frozen");
   if (!input.auditCaptured) failures.push("audit-not-captured");
-  if (!input.ciOkExactHead) failures.push("ci-ok-not-proven");
-  if (input.repairTouchesCiProducer) failures.push("repair-touches-ci-producer");
+  if (input.currentGreen.length === 0) failures.push("current-context-not-green");
+  if (!input.repairChangesCiProducer && !input.ciOkExactHead) failures.push("ci-ok-not-proven");
+  if (input.repairChangesCiProducer) {
+    const proof = input.independentCiProof;
+    if (proof === undefined || !proof.exactHead) failures.push("independent-ci-exact-head-not-proven");
+    if (proof === undefined || !proof.producerUnchanged) failures.push("independent-ci-producer-not-unchanged");
+    if (proof === undefined || !proof.reviewerIndependent) failures.push("independent-ci-review-missing");
+    if (proof?.producedByRepairChange === true) failures.push("repair-ci-self-proof-prohibited");
+  }
   if (!input.projectActionsSuspended) failures.push("project-actions-active");
   if (!input.independentRepairReview) failures.push("independent-review-missing");
+  if (!input.repairEnvironmentProven) failures.push("repair-environment-not-proven");
+  if (!input.exclusiveWriterProven) failures.push("exclusive-writer-not-proven");
+  if (!input.repairStatusExactHead) failures.push("repair-status-head-not-proven");
+  if (!input.repairStatusSourceProven) failures.push("repair-status-source-not-proven");
+  if (!input.appContextStillRequired) failures.push("app-context-removed-before-repair-proof");
+  if (input.adminBypass) failures.push("admin-bypass-prohibited");
+  return failures;
+}
+
+/** Validate the reverse add-before-remove proof before emergency authority is removed. */
+export function validateOutageRestoration(input: RestorationPrerequisites): string[] {
+  const failures: string[] = [];
+  if (!input.mergeFrozen) failures.push("merge-not-frozen");
+  if (!input.auditCaptured) failures.push("audit-not-captured");
+  if (!input.restoredAppExactHead) failures.push("restored-app-head-not-proven");
+  if (!input.restoredAppSourceProven) failures.push("restored-app-source-not-proven");
+  if (!input.repairContextStillRequired) failures.push("repair-context-removed-before-app-proof");
   if (input.adminBypass) failures.push("admin-bypass-prohibited");
   return failures;
 }

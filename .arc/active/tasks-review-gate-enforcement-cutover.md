@@ -596,21 +596,28 @@ only from immutable default-branch code.
 - _Outcome:_ Emergency status authority now executes only from GitHub's immutable default-branch event path and is
   closed over its environment, source identity, complete workflow graph, live PR head, and bounded review evidence.
 
-### `[ ]` **6.4 Rehearse and document outage and restoration add-before-remove sequences**
+### `[x]` **6.4 Rehearse and document outage and restoration add-before-remove sequences**
 
 - _Goal:_ Operators can replace or restore required review authority without an empty required-check interval,
   administrative bypass, or unproven source.
 
-    - `[ ]` **6.4.a Add compare-and-stop outage and restoration procedures to `.github/review-gate.md`**
-        - Prove CI, attestation, exclusivity, exact status source, and live head before each enforcement mutation.
-        - When the repair changes the normal `ci-ok` producer, require separate unchanged CI/reviewer proof; never
-          accept the repair PR's self-produced `ci-ok` as its own prerequisite.
+    - `[x]` **6.4.a Add compare-and-stop outage and restoration procedures to `.github/review-gate.md`**
+        - Added exact environment, incident snapshot, CI/attestation, graph, dispatch, status-source, enforcement, and
+          restoration checkpoints. CI-producer changes require separate exact-head proof from an unchanged producer
+          and independent reviewer; self-produced proof is inadmissible.
 
-    - `[ ]` **6.4.b Rehearse add-before-remove in shadow/non-required mode and retain sanitized evidence**
+    - `[x]` **6.4.b Rehearse add-before-remove in shadow/non-required mode and retain sanitized evidence**
+        - Retained a non-mutating shadow contract rehearsal with no live claims and an executable exact-order proof;
+          the runbook separately requires hosted rehearsal after default-branch delivery and defines private raw versus
+          sanitized retained evidence.
 
-    - `[ ]` **6.4.c Add runbook contract tests for forbidden bypasses and ordering**
-        - Replace `validateOutageRecovery()`'s blanket `repairTouchesCiProducer` refusal with an explicit independent-
-          CI-proof contract, covering ordinary repair, producer-changing repair with proof, and self-proof refusal.
+    - `[x]` **6.4.c Add runbook contract tests for forbidden bypasses and ordering**
+        - Replaced the blanket CI-producer refusal with explicit independent proof and symmetric restoration contracts.
+          Tests cover ordinary and producer-changing repair, self-proof, removal-first mutation, default-branch event
+          choice, documented ordering, evidence retention, and bypass prohibitions.
+
+- _Outcome:_ Outage and restoration now share a mechanically tested add-prove-remove invariant, with a required green
+  authority floor at every checkpoint and no path for admin bypass, self-proof, or source-ambiguous substitution.
 
 ## **Phase 7:** Delivery qualification contract and extraction handoff
 
