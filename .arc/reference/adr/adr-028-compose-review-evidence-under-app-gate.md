@@ -65,3 +65,17 @@ requirements.
 
 <!-- Reserved for post-implementation learnings per the three-tier amendment model
      (strategy-adr-methodology.md). Append dated annotations as `**Amendment (YYYY-MM-DD):** …`. -->
+
+**Amendment (2026-07-11): Composition gap, completion locus, and live-proof owner.** During the first enforcement
+cutover authentication probe, the expected App-authored shadow check did not exist: the shipped entry scripts were
+validated stubs and no production composition connected the accepted core/adapters to receipt or check writes. The
+original ADR's architecture remains accepted, but its implementation record had incorrectly treated shadow emission
+as delivered.
+
+`review-gate-reconcile-composition` is the correction locus. It composes both entry paths, persists authenticated
+normalized evidence, rehydrates it in a later reconcile, and proves the behavior through stateful integration tests.
+Those tests establish executable composition, not live GitHub enforcement. The dependent Heavy work unit
+`review-gate-enforcement-cutover` owns post-merge App authentication probes, provider/evidence qualification,
+repository-rule reconciliation, shadow → dual → final promotion, rollback checkpoints, project-hook activation,
+and the final architecture closeout. Until that work unit's closeout PR merges, CI's compatibility `merge-ok` remains
+the live required authority and App-owned final enforcement is intentionally not claimed as proven.

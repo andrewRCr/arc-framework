@@ -372,46 +372,25 @@ same-concern bounded exceptions settled by spec Decisions 18-19, not an invitati
   product tests consume the new enum; a `review-method-family` USER-INBOX capture coordinates its future charter
   without editing the sibling WU from this branch.
 
-### `[ ]` **5.6 Docs true-up — `TECHNICAL-OVERVIEW.md` verified true; ADR-028 gap-and-completion amendment**
+### `[x]` **5.6 Docs true-up — `TECHNICAL-OVERVIEW.md` verified true; ADR-028 gap-and-completion amendment**
 
 - _Goal:_ The shipped record reads true at this boundary: `TECHNICAL-OVERVIEW.md` § Self-Hosting Review Gate
   describes the composed controller without claiming post-merge App emission or final cutover is already proven,
   and ADR-028 records the delivery gap, completion locus, and dependent live-proof owner (SC 10).
 
-    - Verify each present-tense claim against the composed implementation; distinguish implemented from
-      live-proven state. The cutover WU owns the final-architecture closeout update after its probes complete.
-    - Author the ADR-028 amendment (dated, in the reserved section) — gap, discovery context, completion locus,
-      and `review-gate-enforcement-cutover` as the live-proof/cutover owner.
+- _Outcome:_ The technical overview now distinguishes composed, integration-tested entry paths from unproven live
+  App emission and names CI `merge-ok` as the current authority. ADR-028 records the stub-composition gap, this WU's
+  correction boundary, and the dependent cutover WU's ownership of live proof and final architecture closeout.
 
-### `[ ]` **5.7 Scaffold the dependent `review-gate-enforcement-cutover` work unit**
+### `[x]` **5.7 Scaffold the dependent `review-gate-enforcement-cutover` work unit**
 
 - _Goal:_ The post-merge work is an owned, dependency-linked WU rather than an assumed Errand or an impossible
   unchecked integration tail; it can start immediately after this composition PR merges (SC 12).
 
-    - Create `backlog/planned/review-gate-enforcement-cutover/` with `meta-*` + rich `draft-*`: owner `andrew`,
-      `Depends On: review-gate-reconcile-composition`, `Class: Heavy`, and the runbook-governed purpose. Regenerate
-      `ROADMAP.md` in the same commit.
-    - Carry the exact resume state from `notes-review-gate-reconcile-composition.md` § Cutover state: protected
-      environment, variables/secret, `setup-before` checkpoint, disabled workflow, and authentication-probe entry.
-    - Charter the full sequence: authentication probes; provider/evidence matrix; shadow → alias removal →
-      qualification decision → dual → final; `post-pr-open` + `pre-merge` activation after shadow proof;
-      checkpoint/rollback discipline; closeout PR; and the `finalize-parallelism` unpause condition.
-    - Add a repository-rules checkpoint: snapshot rulesets/branch protection and verify the required review-gate
-      check is the sole machine authority for CodeRabbit satisfaction. Remove any duplicate required CodeRabbit
-      completion/native-current-head approval rule; qualify any retained human approval and stale-dismissal policy
-      as a separate requirement that does not masquerade as controller coverage.
-    - Document the CodeRabbit enforcement pattern and research-backed failure semantics:
-        - Verify the tracked/resolved `reviews.request_changes_workflow` and exclusive `arc-review-gate` trigger;
-          current-head `CHANGES_REQUESTED` blocks and `APPROVED` satisfies only after threads/error-mode checks clear;
-          a prior approved/attested substantive head may satisfy the exact final head only through a verified
-          lifecycle-bookkeeping-tail proof, with no second provider request
-        - The `CodeRabbit` check is completion/wakeup only; success may include findings, rate-limit skips, or
-          other non-clean outcomes and never satisfies independently
-        - Missing applicable approval — including paused, rate-limited, skipped, oversized, stale, or ambiguous
-          review state — remains pending/fails closed unless an earlier approval is bridged solely by a verified
-          lifecycle tail; manual recovery may request `@coderabbitai full review`
-        - Promote `coderabbit-pr` only if the live matrix passes; otherwise retain `coderabbit-cli` attestation
-          and record the GitHub App path as non-satisfying
+- _Outcome:_ Added a planned, P1, Heavy dependent WU with the exact post-setup resume state and the full
+  authentication, qualification, repository-rule, promotion, hook-activation, rollback, and closeout sequence. Its
+  CodeRabbit charter separates completion wake-ups from decisive reviews, fails closed on missing evidence, and
+  preserves authenticated CLI attestation unless the hosted path passes live qualification.
 
 ## **Phase 6:** Verification
 

@@ -129,9 +129,10 @@ provider adapter; generic `independent-analysis/v1` attestations cover qualified
 
 The dedicated GitHub App has no webhook or service runtime. Short-lived GitHub Actions runs execute protected
 default-branch code: secretless event discovery emits bounded repository/PR candidates, then environment-scoped App
-jobs re-query canonical state and serialize authoritative writes per PR. The delivered mode is shadow: the controller
-emits `review-gate-shadow`, while CI continues to provide the required compatibility `merge-ok`. Promotion to an
-App-owned final `merge-ok` is an operational post-main transition governed by `.github/review-gate.md`.
+jobs re-query canonical state and serialize authoritative writes per PR. Reconcile and attest entry points are
+composed and covered by cross-process integration tests, including durable evidence reload and lifecycle-tail
+carry-forward. Live App emission is not yet proven: `review-gate.yml` remains disabled until the composed code reaches
+`main`, and `review-gate-enforcement-cutover` owns authentication probes, shadow/dual/final promotion, and closeout.
 
 ## 3. Infrastructure
 
@@ -161,11 +162,11 @@ _CI & configuration:_
   suite, build verification, template structure validation, internal link checking
 - **Merge gating**: `ci-ok` rolls up the classifier-driven CI graph; `lane` controls auto-merge vs reviewed PRs,
   while `weight` lets docs-only or already-verified code trees skip heavy code/test/portability work without skipping
-  documentation lint. During the delivered shadow state, a thin CI `merge-ok` compatibility job remains the required
-  context and the App controller emits non-required `review-gate-shadow`. `main` protection fully enforces the legacy
-  context, `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is enabled—planning/backlog grooming
-  PRs auto-merge, while code and constitutional PRs merge deliberately (solo repo: no formal Code Owner review).
-  See `strategy-work-organization.md` § Auto-Merge Lane and `.github/review-gate.md` for operational promotion.
+  documentation lint. The current live authority remains the thin CI `merge-ok` compatibility job; no App-owned
+  review context is required or claimed live-proven yet. `main` protection enforces that legacy context,
+  `.github/CODEOWNERS` marks the reviewed lane, and native auto-merge is enabled—planning/backlog grooming PRs
+  auto-merge, while code and constitutional PRs merge deliberately (solo repo: no formal Code Owner review). See
+  `strategy-work-organization.md` § Auto-Merge Lane and `.github/review-gate.md` for the owned promotion sequence.
 - **Configuration**: `.markdownlint-cli2.jsonc` for lint rules, `.gitattributes` for line ending normalization,
   `tsconfig.json` for TypeScript, `tsup.config.ts` for build, `vitest.config.ts` for tests
 
