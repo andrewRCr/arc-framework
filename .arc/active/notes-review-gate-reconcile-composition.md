@@ -3,6 +3,7 @@
 ## Contents
 
 - [Cutover state](#cutover-state)
+- [Task 3.4 e2e coverage and deferrals](#task-34-e2e-coverage-and-deferrals)
 - [Composition gap map](#composition-gap-map)
 - [CodeRabbit enforcement research](#coderabbit-enforcement-research)
 - [Storage forward-compatibility check](#storage-forward-compatibility-check)
@@ -42,6 +43,35 @@ Normal Cutover 1 (shadow pair required) → 2 (alias-removal PR) → 3 (qualific
 explicitly coordinates its own possibly stale extension snapshot. Before promotion, a repository-rules checkpoint
 removes any duplicate machine CodeRabbit requirement and qualifies retained human approval/stale-dismissal policy.
 Every step follows before-state compare → mutate → exact-head proof per the runbook.
+
+## Task 3.4 e2e coverage and deferrals
+
+The reconcile e2e (`__tests__/integration/review-gate-reconcile-composition.test.ts` +
+`.fakes.ts`) drives the real `createReconcileRuntime` factory through `runReconcileMain`, faking only the
+`fetch` (URL/method-routing, order-tolerant) and git `exec` (subcommand-routing) boundaries over one stateful
+in-memory GitHub world — so re-reads, receipt appends, and check create-then-update converge as production would.
+
+**Covered:** shadow attestation-only run → `review-gate-shadow` check created `in_progress`/pending with no
+provider effect; re-run converges (update, not duplicate); shadow projects only its own context (no `merge-ok`);
+`coderabbit-pr`-enabled current-head `APPROVED` → `success`; degraded ledger (tampered receipt) → `failure`
+replacing an earlier green check; authorized `require` command (comment → live capability read → projection)
+flips a routine success to pending, an under-permissioned author is inert.
+
+**Two deferrals, both intentional Phase-3 boundaries, not gaps — surfaced while authoring the e2e:**
+
+1. **Lifecycle-tail carry-forward e2e → Phase 4 (Task 4.3).** `SelfHostingReconcileRuntime.resolveLifecycleTail`
+   passes `reviewedThroughSha === currentHeadSha === changeRequest.headSha`, and `classifyTail` short-circuits to
+   `null` when they are equal, so the composed reconcile path never produces a non-trivial tail. The prior
+   reviewed head that would make a carry-forward observable comes only from recovered evidence, which Task 3.1
+   explicitly deferred to Phase 4 (Task 4.1's evidence-extraction reducer). The carry-forward *mechanism* is built
+   and unit-tested (Phase 2, Tasks 2.4/2.6); its live wiring — and the exact-head-stays-successful-across-tail
+   assertions — belong to the Phase 4 cross-path e2e once evidence recovery lands, and to Phase 6 verification.
+2. **CodeRabbit gen-0 acknowledgement is dormant by design.** The factory wires
+   `CODERABBIT_SHADOW_CAPABILITIES` (`resolvedConfiguration: false`), so an enabled-`coderabbit-pr` gen-0 request
+   *reserves* through the receipt protocol but `request()` throws `configuration-unresolved` before any label
+   write → terminal-failure → the gate projects `failure` (fail-closed, not a false green). The e2e asserts this
+   true dormant-boundary behavior (reserve happens, no acknowledgement). Live gen-0 label acknowledgement requires
+   qualified capabilities the cutover WU proves; it is not drivable through the Phase-3 factory.
 
 ## Composition gap map
 

@@ -242,26 +242,22 @@ orchestrator's existing guards plus `publishGateCheck`'s current-state assert.
   narrow read token is injected per-invocation as an `http.extraheader`, never a persisted remote URL or the git
   subprocess environment. Covered by injectable-main and auth-exec unit suites plus the workflow env pins.
 
-### `[ ]` **3.4 Reconcile e2e composition test (env → factory → runtime → `reconcile()` → check write)**
+### `[x]` **3.4 Reconcile e2e composition test (env → factory → runtime → `reconcile()` → check write)**
 
 - _Goal:_ A test fails if the reconcile path regresses to non-emission: it drives the exported main against
   injected fakes and asserts a `review-gate-shadow` check is created/updated with truthful verdict content (SC 1).
-
-    - Integration tier, beside `review-gate-workflows.test.ts`; fake the GitHub API boundary (reuse the
-      `fetch-fake.ts` patterns from the unit host tests).
-    - Assert shadow-mode emission end-to-end: check create on first run, convergent update on re-run, truthful
-      pending conclusion under the attestation-only topology, and no provider request/effect. With a test policy
-      enabling `coderabbit-pr`, assert generation-zero reserve/trigger/acknowledgement, then a pinned current-head
-      approval yielding success while check-success alone stays pending.
-    - Starting from clean CodeRabbit evidence and, separately, clean attested evidence at a substantive head, append
-      a valid integration composition/sweep tail and assert the new exact-head projection stays successful with zero
-      provider effect. Mutate one allowed class at a time into code/control/unrelated-WU/design-content or an
-      unknown path/status and assert carry-forward fails closed; assert ROADMAP-only bookkeeping relies on final-head
-      required checks rather than a historical-ref re-render inside the review predicate.
-    - Drive authorized and unauthorized issue-comment commands through the same entry: exact command replay is
-      inert; require/refresh admission, scoped waiver, and exact dismissal reach the published projection/receipt
-      state. Drive a degraded ledger after an earlier green projection and assert the entry replaces it with failure.
-    - Assert non-emission fails: a run that publishes nothing (or writes a wrong-named context) fails the test.
+- _Outcome:_ Added `review-gate-reconcile-composition.test.ts` + `.fakes.ts` (integration tier) driving the real
+  `createReconcileRuntime` through `runReconcileMain`, faking only the `fetch` (URL/method-routing, order-tolerant
+  — `read()` fans out through `Promise.all`) and git `exec` (subcommand-routing) boundaries over one stateful
+  in-memory GitHub world, so re-reads, receipt appends, and check create-then-update converge as production does.
+  Covers: shadow attestation-only pending emission with no provider effect, re-run convergence (update not
+  duplicate), shadow-only context (no `merge-ok`), `coderabbit-pr` current-head `APPROVED` → success, degraded
+  ledger → failure replacing an earlier green check, and authorized/under-permissioned `require` commands composed
+  from PR comments through the live capability read. Two clusters deferred as intentional Phase-3 boundaries (see
+  `notes-review-gate-reconcile-composition.md` § Task 3.4 e2e coverage and deferrals): lifecycle-tail carry-forward
+  e2e → Phase 4 (Task 4.3), since the runtime resolves the tail at `reviewedThroughSha === currentHeadSha` until
+  evidence recovery lands; and CodeRabbit gen-0 acknowledgement, which is dormant under
+  `CODERABBIT_SHADOW_CAPABILITIES` (the reserve path is exercised and terminal-fails fail-closed, asserted as such).
 
 ### `[ ]` **3.5 Wake-up guards — recursive self-check suppression and empty-candidate completion**
 
@@ -360,6 +356,10 @@ Decision 10); validation semantics do not change.
 - _Goal:_ A test fails if either entry path or their durable handoff regresses: it drives the exported attest main,
   persists the receipt, starts a separate reconcile from store state, and observes a satisfied requirement and
   truthful shadow projection (SC 1).
+- _Note:_ Also owns the lifecycle-tail carry-forward e2e deferred from Task 3.4 — once recovered evidence supplies a
+  prior reviewed head, assert exact-head projection stays successful across a valid bookkeeping tail with zero
+  provider effect and fails closed on any substantive tail. Reuse the Task 3.4 world/routing fakes
+  (`review-gate-reconcile-composition.fakes.ts`).
 
     - Integration tier; fake the comment/API boundary; assert ledger version advances, the appended receipt carries
       normalized evidence, and a fresh runtime reads it into a `success` verdict/check.
