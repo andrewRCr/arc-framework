@@ -12,13 +12,13 @@
 - **Task List:** `tasks-review-gate-reconcile-composition.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 6.1 — verification complete
+- **Last Completed:** Second CodeRabbit review fixes pushed; full re-review triggered after green CI
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Open the pull request
+- **Next Action:** integrate-work-unit Step 4 — check and triage the next CodeRabbit review round
 
-- **PR URL:** [none]
+- **PR URL:** [PR #226](https://github.com/andrewRCr/arc-framework/pull/226)
 - **Completed:** [none]
 
 ---
