@@ -1,8 +1,8 @@
 # Metadata: Review Gate Enforcement Cutover
 
-| **State** | **Owner** | **Branch**                             | **Class** | **Priority** |
-| --------- | --------- | -------------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/review-gate-enforcement-cutover` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                             | **Class** | **Priority** |
+| ------------- | --------- | -------------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/review-gate-enforcement-cutover` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-review-gate-enforcement-cutover.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 3 — Hosted review-provider adapters and ordered fallback (Tasks 3.1-3.5).
-- **Next Task:** Task 4.1 — Implement the injected passive await state machine (line ~340)
+- **Last Completed:** Phase 8 — verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
