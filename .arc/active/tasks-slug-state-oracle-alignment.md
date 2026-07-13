@@ -237,8 +237,13 @@ shared render in `lib/status/roadmap-regeneration-assert.ts`.
         - Activation, integration, and archival fixtures assert byte-identical shared renders through the
           trailing-newline wrapper; the real handler and hook paths also match during an archival window.
 
+    - `[x]` **5.2.c Lifecycle ceremony regeneration parity**
+        - Drive the archive transition through the production executor binding and prove its staged ROADMAP
+          drops the archived WU's own row, matching the hook/CLI prospective render.
+
 - _Outcome:_ The staged CLI remediation is now exactly the content the hook accepts throughout lifecycle
-  transitions, closing the carried-row failure without changing sibling rows.
+  transitions, and the production lifecycle binding supplies that same own-branch prospective input. A real
+  executor-bound archive transition drops its row, closing the carried-row failure without changing siblings.
 
 ## **Phase 6:** Residue classification and `remoteOnly` truth
 

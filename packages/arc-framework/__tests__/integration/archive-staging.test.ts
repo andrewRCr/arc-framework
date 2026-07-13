@@ -23,7 +23,9 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
+import { renderRoadmapFromIndex } from "../../src/lib/status/roadmap-regeneration-assert.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
+import { executeTransition } from "../../src/lib/work-unit/lifecycle-executor.js";
 import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
@@ -37,6 +39,7 @@ function integratingMeta(): string {
     `| \`Integrating\` | \`test-user\` | \`feat/demo\` | \`Novel\` | \`P1\` |\n\n` +
     `- **Cohort:** [none]\n- **Depends On:** [none]\n\n` +
     `- **Last Completed:** [none]\n- **Next Task:** [none]\n- **Blockers:** [none]\n\n` +
+    `- **Current Workflow:** integrate-work-unit.md\n` +
     `- **Next Action:** [none]\n\n---\n`
   );
 }
@@ -89,5 +92,36 @@ describe("executor staging — relocate + content rewrite leaves the meta fully 
     const stagedRecord = parseMetaRecord(staged);
     expect(stagedRecord.State).toBe("Shipped");
     expect(stagedRecord.Branch).toBe("[none]");
+  });
+
+  it("regenerates ROADMAP from the archive transition's prospective own-branch state", async () => {
+    await execFileAsync("git", ["switch", "-c", "feat/demo"], { cwd: repo });
+    await mkdir(join(repo, ".arc", "active"), { recursive: true });
+    const activeRel = ".arc/active/meta-demo.md";
+    await writeFile(join(repo, activeRel), integratingMeta());
+    await execFileAsync("git", ["add", "-A"], { cwd: repo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "active demo"], { cwd: repo });
+
+    const ctx = buildExecutorContext({
+      cwd: repo,
+      io: { ...createUserIOContext(), exec: makeGitExec(repo) },
+      identity: null,
+      teamMode: false,
+      baseBranch: "main",
+      internalTemplateDir: getInternalTemplatePath(),
+    });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "archive",
+      slug: "demo",
+      inputs: { toDir: ".arc/completed/2026-q2/01_demo" },
+    });
+
+    if (outcome.status !== "ok") throw new Error(JSON.stringify(outcome));
+    const { stdout: stagedRoadmap } = await execFileAsync("git", ["show", ":.arc/backlog/ROADMAP.md"], {
+      cwd: repo,
+    });
+    expect(stagedRoadmap).not.toContain("| `Integrating` | demo");
+    expect(stagedRoadmap).toBe(await renderRoadmapFromIndex({ cwd: repo, exec: makeGitExec(repo), baseBranch: "main" }));
   });
 });
