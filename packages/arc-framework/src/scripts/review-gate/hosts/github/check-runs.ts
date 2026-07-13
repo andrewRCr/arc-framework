@@ -284,9 +284,22 @@ function parseCheckRun(input: unknown): GitHubCheckRun {
     appId: String(integerAt(app.id, "checkRun.app.id", 1)),
     status: stringAt(record.status, "checkRun.status"),
     conclusion: nullableString(record.conclusion, "checkRun.conclusion"),
-    createdAt: stringAt(record.created_at, "checkRun.created_at"),
+    createdAt: stringAt(record.started_at, "checkRun.started_at"),
     htmlUrl: stringAt(record.html_url, "checkRun.html_url"),
   };
+}
+
+function checkOutcomeDetail(outcome: {
+  kind: string;
+  message?: string;
+  reason?: string;
+  status?: number;
+}): string {
+  if (outcome.message !== undefined) {
+    const message = outcome.status === undefined ? outcome.message : `${outcome.status}: ${outcome.message}`;
+    return `${outcome.kind}: ${message}`;
+  }
+  return outcome.reason === undefined ? outcome.kind : `${outcome.kind}: ${outcome.reason}`;
 }
 
 /** REST-backed check-run boundary for one repository. */
@@ -310,7 +323,9 @@ export class GitHubRestCheckRunApi implements GitHubCheckRunApi {
         return record.check_runs.map(parseCheckRun);
       },
     });
-    if (outcome.kind !== "ok") throw new CheckRunPublishError("check-list-failed", outcome.kind);
+    if (outcome.kind !== "ok") {
+      throw new CheckRunPublishError("check-list-failed", checkOutcomeDetail(outcome));
+    }
     return outcome.value;
   }
 
@@ -328,7 +343,7 @@ export class GitHubRestCheckRunApi implements GitHubCheckRunApi {
         }
       },
     });
-    if (outcome.kind !== "ok") throw new CheckRunPublishError("check-create-failed", outcome.kind);
+    if (outcome.kind !== "ok") throw new CheckRunPublishError("check-create-failed", checkOutcomeDetail(outcome));
     return outcome.value;
   }
 
@@ -341,7 +356,7 @@ export class GitHubRestCheckRunApi implements GitHubCheckRunApi {
         return read.kind === "ok" ? { ...read, value: read.value } : read;
       },
     });
-    if (outcome.kind !== "ok") throw new CheckRunPublishError("check-update-failed", outcome.kind);
+    if (outcome.kind !== "ok") throw new CheckRunPublishError("check-update-failed", checkOutcomeDetail(outcome));
     return outcome.value;
   }
 }

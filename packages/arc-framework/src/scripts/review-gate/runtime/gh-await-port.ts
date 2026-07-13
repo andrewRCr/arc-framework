@@ -33,7 +33,7 @@ function ciState(values: unknown[], headSha: string): AwaitConclusion {
     return item.name === "ci-ok" && item.head_sha === headSha && String(app.id) === GITHUB_ACTIONS_APP_ID
       ? [item]
       : [];
-  }).sort((left, right) => String(right.created_at).localeCompare(String(left.created_at))
+  }).sort((left, right) => String(right.started_at).localeCompare(String(left.started_at))
     || Number(right.id) - Number(left.id));
   const current = matches[0];
   if (current === undefined || current.status !== "completed" || typeof current.conclusion !== "string") return "pending";

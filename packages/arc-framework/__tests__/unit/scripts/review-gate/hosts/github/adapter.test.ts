@@ -224,6 +224,25 @@ describe("GitHub host read adapter", () => {
       code: "host-ref-outside-pinned-scope",
     });
   });
+
+  it("retains the bounded host diagnostic for a native review read failure", async () => {
+    const broken = adapter({
+      resolveThreads: async () => ({
+        kind: "graphql-error",
+        message: "Fragment on Bot can't be spread inside User",
+      }),
+    });
+
+    await expect(broken.observeNativeReview({
+      hostRef: changeRequest.hostRef,
+      headSha: HEAD,
+      authorIdentity: "7",
+      expectsNativeReview: true,
+    })).rejects.toMatchObject({
+      code: "native-threads-graphql-error",
+      message: "native-threads-graphql-error: Fragment on Bot can't be spread inside User",
+    });
+  });
 });
 
 describe("GitHub verdict publication", () => {

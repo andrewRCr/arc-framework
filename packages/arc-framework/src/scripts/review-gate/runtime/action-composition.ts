@@ -40,6 +40,7 @@ export async function createReadOnlyNextActionReader(
   }, { fetch: input.fetch, exec: input.exec }, {
     // Read provenance is established from host records; no App write authority is granted or returned.
     verifyLaunchAuthority: () => Promise.resolve({ kind: "verified" }),
+    initializeLedgerAnchor: false,
   });
   return new ReconcileNextActionReader(composition.runtime, input.now);
 }

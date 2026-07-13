@@ -115,13 +115,16 @@ describe("authoritative check lookup", () => {
         app: { id: Number(APP_ID) },
         status: "completed",
         conclusion: "success",
-        created_at: "2026-07-11T10:00:00Z",
+        created_at: null,
+        started_at: "2026-07-11T10:00:00Z",
         html_url: "https://github.com/acme/repo/runs/1",
       }],
     }))]);
     const rest = new GitHubRestClient({ fetch: fake.fetch, token: "token", sleep: fake.sleep, maxReadAttempts: 1 });
     const api = new GitHubRestCheckRunApi(rest, "acme", "repo", APP_ID);
-    await expect(api.list(SHA, APP_ID, NAME)).resolves.toHaveLength(1);
+    await expect(api.list(SHA, APP_ID, NAME)).resolves.toEqual([
+      expect.objectContaining({ createdAt: "2026-07-11T10:00:00Z" }),
+    ]);
     const url = new URL(fake.calls[0]?.url ?? "");
     expect(Object.fromEntries(url.searchParams)).toMatchObject({
       app_id: APP_ID,
@@ -129,6 +132,28 @@ describe("authoritative check lookup", () => {
       filter: "all",
       per_page: "100",
     });
+  });
+
+  it("retains the path-specific schema diagnostic when a check run is malformed", async () => {
+    const fake = fetchFake([response(200, JSON.stringify({
+      total_count: 1,
+      check_runs: [{
+        id: 1,
+        node_id: "CR_1",
+        name: NAME,
+        external_id: buildCheckExternalId(7, CHANGE_SET, NAME),
+        app: { id: Number(APP_ID) },
+        status: "completed",
+        conclusion: "success",
+        html_url: "https://github.com/acme/repo/runs/1",
+      }],
+    }))]);
+    const rest = new GitHubRestClient({ fetch: fake.fetch, token: "token", sleep: fake.sleep, maxReadAttempts: 1 });
+    const api = new GitHubRestCheckRunApi(rest, "acme", "repo", APP_ID);
+
+    await expect(api.list(SHA, APP_ID, NAME)).rejects.toThrow(
+      "check-list-failed: schema-error: checkRun.started_at: expected a non-empty string",
+    );
   });
 
   it("queries by app/name/all-history and requires exact external id plus App source", async () => {
