@@ -282,11 +282,16 @@ export async function readLocalExclusiveAnnotatedNoteCommits(
 
   const commits = new Set<string>();
   for (const section of sections) {
-    const framing = /^\0\0\r?\n/u.exec(section)?.[0];
-    if (framing === undefined) {
+    if (!section.startsWith("\0\0")) {
       throw new Error("Malformed notes-history commit framing");
     }
-    const records = section.slice(framing.length);
+    const body = section.slice(2);
+    if (body === "") continue;
+    const recordSeparator = /^\r?\n/u.exec(body)?.[0];
+    if (recordSeparator === undefined) {
+      throw new Error("Malformed notes-history commit framing");
+    }
+    const records = body.slice(recordSeparator.length);
     for (const commit of parseNotesHistoryNameStatus(records)) commits.add(commit);
   }
   return commits;

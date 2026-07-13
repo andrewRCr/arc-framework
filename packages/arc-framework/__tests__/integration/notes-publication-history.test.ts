@@ -57,6 +57,20 @@ describe("notes publication history", () => {
       .resolves.toEqual(new Set([leftCommit, rightCommit]));
   });
 
+  it("accepts a no-op history commit with no name-status records", async () => {
+    repo = await createTempRepo("arc-notes-publication-history-noop-");
+    const annotated = oid("a1");
+    const entries = [{ commit: annotated, content: "unchanged" }];
+    const root = await makeNotesTreeCommit(repo, entries, { message: "root" });
+    const noop = await makeNotesTreeCommit(repo, entries, {
+      message: "unchanged note tree",
+      parents: [root.tip],
+    });
+
+    await expect(readLocalExclusiveAnnotatedNoteCommits(makeGitExec(repo), noop.tip, null))
+      .resolves.toEqual(new Set([annotated]));
+  });
+
   it("ignores fanout-only renames but collects same-blob cross-commit moves", async () => {
     repo = await createTempRepo("arc-notes-publication-history-renames-");
     const source = oid("a1");
