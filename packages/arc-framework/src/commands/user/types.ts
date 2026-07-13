@@ -26,9 +26,9 @@ export interface UserIOContext extends CoreIO {
   /** Read content from a git note ref on a commit. Returns null if no note. */
   readNote: (ref: string, commit: string) => Promise<string | null>;
   /**
-   * Stdin-fed git executor for orphan-state-ref (errand) blob/tree plumbing.
-   * Optional — present in production and errand-sync tests; when absent, the
-   * errand-ref reconcile is skipped (the leg is additive).
+   * Stdin-fed git executor for batch object reads, reachability proofs, and
+   * orphan-state-ref blob/tree plumbing. Optional — callers that omit it must
+   * explicitly handle proof-unavailable or skip additive state-ref work.
    */
   execInput?: GitExecInput;
 }
@@ -332,8 +332,8 @@ export interface PairedPushNotesContext {
 /**
  * Pluggable notes-leg pusher injected into {@link RunPairedPushOptions}.
  *
- * Production wires the branch-bounded notes-export adapter, which pushes the
- * already-planned temporary target. Tests inject a stub that emits a chosen
+ * Production wires the canonical notes-export adapter, which pushes the
+ * already-planned immutable target. Tests inject a stub that emits a chosen
  * outcome.
  */
 export type PairedPushNotesPusher = (
@@ -366,15 +366,10 @@ export type PairedPushMarkerPublisher = (
   context: PairedPushMarkerContext,
 ) => Promise<void>;
 
-/** Planner seam deriving the branch-bounded notes target after the worktree leg lands. */
+/** Planner seam deriving the canonical notes target after the worktree leg lands. */
 export type PairedPushNotesExportPlanner = (
   context: Pick<PairedPushNotesContext, "io" | "identity" | "worktreeBranch">,
 ) => Promise<PlanBranchBoundedNotesExportResult>;
-
-/** Cleanup seam for the temporary branch-bounded notes export target. */
-export type PairedPushNotesExportCleaner = (
-  target: BranchBoundedNotesExportTarget,
-) => Promise<void>;
 
 /**
  * Discriminated result of a paired worktree+notes push.
@@ -443,16 +438,10 @@ export interface RunPairedPushOptions {
    */
   publishMarker?: PairedPushMarkerPublisher;
   /**
-   * Optional planner seam for the branch-bounded notes export target. Production
+   * Optional planner seam for the canonical notes export target. Production
    * uses the real git planner; tests inject a fixed target.
    */
   planNotesExport?: PairedPushNotesExportPlanner;
-  /**
-   * Optional cleaner seam for the temporary branch-bounded notes export target.
-   * Production deletes the temp ref after the notes leg finishes; tests inject a
-   * no-op or spy.
-   */
-  cleanupNotesExport?: PairedPushNotesExportCleaner;
   /**
    * Auto-retry budget for a transient notes-leg failure. Defaults to
    * `DEFAULT_NOTES_PUSH_RETRY` (two silent retries with short backoff) when

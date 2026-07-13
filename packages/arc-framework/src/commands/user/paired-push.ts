@@ -29,7 +29,7 @@
  * intentional (see {@link ../../lib/git/pushability.js}).
  *
  * The notes leg is branch-bounded. After the worktree leg lands, the helper
- * derives one temporary notes-export target and hands that exact target to
+ * derives one immutable canonical notes target and hands that exact target to
  * the marker publisher and injected notes pusher. This keeps sibling
  * worktree notes local until their branches land, without `commands/user/`
  * taking a Clack dependency.
@@ -44,7 +44,6 @@
 import { runPushabilityStatus } from "../../lib/git/index.js";
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
 import {
-  cleanupBranchBoundedNotesExport,
   planBranchBoundedNotesExport,
   type PlanBranchBoundedNotesExportResult,
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
@@ -90,7 +89,6 @@ export async function runPairedPush(
     io, identity, cwd, access, branch, worktreeSyncState, pushNotes,
     publishMarker, setUpstream = false, notesRetryConfig, sleep,
     planNotesExport = defaultPlanNotesExport,
-    cleanupNotesExport,
   } = options;
 
   const pushability = await runPushabilityStatus({
@@ -190,10 +188,6 @@ export async function runPairedPush(
     notesRetryConfig,
     sleep,
   );
-  await cleanupNotesExportSafely(
-    cleanupNotesExport ?? ((target) => cleanupBranchBoundedNotesExport({ exec: io.exec, target })),
-    notesExportTarget,
-  );
   const notes: PairedPushNotesOutcome = retry.result;
   if (isNotesSuccess(notes)) {
     await clearPartialPushMarker(cwd, io, identity);
@@ -238,7 +232,6 @@ async function defaultPlanNotesExport(
     exec: context.io.exec,
     execInput: context.io.execInput,
     identity: context.identity,
-    branch: context.worktreeBranch,
   });
 }
 
@@ -255,17 +248,6 @@ function notesOutcomeForPlanMiss(
       return { status: "refused", message: plan.message };
     case "failed":
       return { status: "failed", error: plan.error };
-  }
-}
-
-async function cleanupNotesExportSafely(
-  cleanupNotesExport: (target: PairedPushNotesContext["notesExportTarget"]) => Promise<void>,
-  target: PairedPushNotesContext["notesExportTarget"],
-): Promise<void> {
-  try {
-    await cleanupNotesExport(target);
-  } catch {
-    // Best-effort: temp-ref cleanup must not hide the notes outcome or marker update.
   }
 }
 

@@ -15,10 +15,7 @@ import {
 } from "../helpers/integration.js";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import { reconcileNotesPush, runUserCompact, type UserIOContext } from "../../src/commands/user.js";
-import {
-  planBranchBoundedNotesExport,
-  pushBranchBoundedNotesExport,
-} from "../../src/lib/user-sync/branch-bounded-notes-export.js";
+import { planBranchBoundedNotesExport } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
 import { listNoteEntries, readNotesCompactionSyncMarker } from "../../src/lib/user-sync/index.js";
 import {
   adoptCompactedNotesRef,
@@ -528,7 +525,7 @@ describe("user notes compaction", () => {
     expect(await noteContent(cloneB, omittedCommit)).toBe("omitted");
   }, 15_000);
 
-  it("branch-bounded export adopts a newer generation before staging, so pruned notes stay pruned", async () => {
+  it("canonical export refuses a newer compaction generation without adopting it", async () => {
     harness = await setupMultiClone({
       cloneA: { config: { "arc.identity": IDENTITY } },
       cloneB: { config: { "arc.identity": IDENTITY } },
@@ -546,6 +543,7 @@ describe("user notes compaction", () => {
     await git(cloneA, ["push", "origin", NOTES_REF]);
     await fetchNotesInto(cloneB, NOTES_REF);
     await git(cloneB, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "local-only", localOnlyCommit]);
+    const localTip = await git(cloneB, ["rev-parse", NOTES_REF]);
 
     const entries = await listNoteEntries(makeGitExec(cloneA), NOTES_REF);
     await compactNotesRefSnapshot({
@@ -560,21 +558,12 @@ describe("user notes compaction", () => {
       exec: makeGitExec(cloneB),
       execInput: makeGitExecInput(cloneB),
       identity: IDENTITY,
-      branch: "main",
     });
-    expect(plan.kind).toBe("planned");
-    if (plan.kind !== "planned") return;
-    expect(plan.target.annotatedCommits).not.toContain(pruneCommit);
-    expect(plan.target.annotatedCommits).toContain(localOnlyCommit);
-
-    await pushBranchBoundedNotesExport({
-      exec: makeGitExec(cloneB),
-      identity: IDENTITY,
-      target: plan.target,
-    });
-
-    await expect(git(harness.origin, ["notes", `--ref=${NOTES_REF}`, "show", pruneCommit])).rejects.toThrow();
-    expect(await noteContent(harness.origin, localOnlyCommit)).toBe("local-only");
+    expect(plan).toMatchObject({ kind: "refused", reason: "compaction-lineage" });
+    expect(await git(cloneB, ["rev-parse", NOTES_REF])).toBe(localTip);
+    expect(await noteContent(harness.origin, keepCommit)).toBe("keep");
+    await expect(noteContent(harness.origin, pruneCommit)).rejects.toThrow();
+    await expect(noteContent(harness.origin, localOnlyCommit)).rejects.toThrow();
   }, 15_000);
 
   it("non-fast-forward reconcile push adopts a newer generation instead of merging across the boundary", async () => {

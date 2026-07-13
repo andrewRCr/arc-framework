@@ -9,7 +9,6 @@ import {
   execFileAsync,
   makeCommit,
   makeGitExec,
-  makeGitExecInput,
   makeNotesTreeCommit,
   makeUserIO,
 } from "../helpers/integration.js";
@@ -20,11 +19,7 @@ import {
   runUserSessionInitStatus,
   runUserStatus,
 } from "../../src/commands/user.js";
-import {
-  planBranchBoundedNotesExport,
-  pushBranchBoundedNotesExport,
-} from "../../src/lib/user-sync/branch-bounded-notes-export.js";
-import { listNoteTreeEntries } from "../../src/lib/user-sync/notes-ref.js";
+import { planBranchBoundedNotesExport } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
 import { inferSessionInitRecommendations } from "../../src/lib/session-init/recommended-action.js";
 import { decideSyncAction } from "../../src/handlers/user-sync.js";
 
@@ -133,16 +128,8 @@ describe("notes export state coherence", () => {
     const plan = await planBranchBoundedNotesExport({
       exec: makeGitExec(repo),
       identity: IDENTITY,
-      branch: "work-a",
     });
-    expect(plan.kind).toBe("planned");
-    if (plan.kind !== "planned") return;
-    expect(plan.target).toMatchObject({ supersedesLocal: false, localIncludesRemote: false });
-    await expect(pushBranchBoundedNotesExport({
-      exec: makeGitExec(repo),
-      identity: IDENTITY,
-      target: plan.target,
-    })).resolves.toEqual({ kind: "noop" });
+    expect(plan).toMatchObject({ kind: "refused", reason: "history-diverged" });
     expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(localTip);
 
     const io = makeUserIO(repo);
@@ -189,7 +176,7 @@ describe("notes export state coherence", () => {
     expect(["push", "push-load"]).toContain(decideSyncAction(syncState));
   });
 
-  it("projects mixed-uncontested residue consistently and joins it on the next paired push", async () => {
+  it("projects mixed-uncontested compaction divergence without mutating canonical notes", async () => {
     repo = await createTempRepo("arc-notes-mixed-uncontested-");
     const base = await makeCommit(repo, "base");
     remote = await addBareRemote(repo);
@@ -255,55 +242,9 @@ describe("notes export state coherence", () => {
     const plan = await planBranchBoundedNotesExport({
       exec: makeGitExec(repo),
       identity: IDENTITY,
-      branch: "work-a",
     });
-    expect(plan.kind).toBe("planned");
-    if (plan.kind !== "planned") return;
-    await expect(pushBranchBoundedNotesExport({
-      exec: makeGitExec(repo),
-      execInput: makeGitExecInput(repo),
-      identity: IDENTITY,
-      target: plan.target,
-    })).resolves.toEqual({ kind: "pushed" });
-
-    const localAfter = await git(repo, ["rev-parse", NOTES_REF]);
-    await git(repo, ["merge-base", "--is-ancestor", plan.target.tip, localAfter]);
-    expect((await listNoteTreeEntries(makeGitExec(repo), localAfter)).map((entry) => entry.commit).sort())
-      .toEqual([base, commitA, commitB].sort());
-    expect(await inspectUserSyncRefsDetailed(io, IDENTITY)).toMatchObject({
-      state: "local-ahead",
-      contentRelation: "remote-subset",
-    });
-
-    const afterJoinSessionInit = await runUserSessionInitStatus({
-      cwd: repo,
-      io,
-      identity: IDENTITY,
-      remoteSyncEnabled: true,
-    });
-    expect(afterJoinSessionInit).toMatchObject({
-      state: "clean",
-      refState: "local-ahead",
-      contentRelation: "remote-subset",
-      actionHint: null,
-    });
-
-    const afterJoinStatus = await runUserStatus({
-      cwd: repo,
-      io,
-      identity: IDENTITY,
-      remoteSyncEnabled: true,
-    });
-    expect(afterJoinStatus).toMatchObject({
-      spineState: "clean",
-      refState: "local-ahead",
-      contentRelation: "remote-subset",
-    });
-    expect(afterJoinStatus.userSyncCause).toBeUndefined();
-    expect(afterJoinStatus.actionHint ?? "").not.toMatch(/push|sync/u);
-    expect(afterJoinStatus.detailLines.join(" ")).toContain("branch-export residue");
-    expect(decideSyncAction(await inspectUserSyncState({ cwd: repo, io, identity: IDENTITY })))
-      .toBe("load");
+    expect(plan).toMatchObject({ kind: "refused", reason: "compaction-lineage" });
+    expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(localTip);
   });
 
   it("classifies a real same-commit conflict without temp-ref mislisting", async () => {

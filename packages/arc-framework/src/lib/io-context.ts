@@ -121,9 +121,11 @@ async function readUserDir(dirPath: string): Promise<DirEntry[]> {
   return entries;
 }
 
-/** Real stdin-fed git executor — the {@link GitExecInput} adapter for errand
- * orphan-state-ref plumbing (`hash-object --stdin`, `mktree`). Mirrors
- * {@link writeGitNote}'s spawn-with-stdin shape. */
+/**
+ * Real stdin-fed git executor for batch object reads, reachability proofs,
+ * and orphan-state-ref blob/tree plumbing. Mirrors {@link writeGitNote}'s
+ * spawn-with-stdin shape.
+ */
 export const gitExecInput: GitExecInput = (args, input) => {
   return new Promise((resolve, reject) => {
     const proc = spawn("git", args);

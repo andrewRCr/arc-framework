@@ -73,78 +73,32 @@ against locally readable live tips without fetching branch objects.
 _Purpose:_ Replace reconstructed branch-bounded exports with a read-only three-part planner whose only successful
 target is the captured canonical notes tip.
 
-### `[ ]` **3.1 Define the proof-bearing canonical publication target and result contract**
+### `[x]` **3.1 Define the proof-bearing canonical publication target and result contract**
 
 - _Goal:_ Callers can transport notes only through an immutable target that records a successfully proven canonical
   tip, while each unsafe topology has a stable refusal class.
 
-    - Simplify `BranchBoundedNotesExportTarget` in
-      `packages/arc-framework/src/lib/user-sync/branch-bounded-notes-export.ts` to exactly the destination ref and
-      captured canonical tip required by push and marker publication.
-    - Remove reconstruction/adoption fields and the `empty-export` skip; reserve `no-local-notes` for an absent
-      canonical ref, not an existing ref with an empty current tree.
-    - Give refused plans a stable `reason` union for `unpublished-history`, `history-diverged`,
-      `compaction-lineage`, and `proof-unavailable`, plus an actionable message; retain `failed` for malformed
-      metadata and unexpected Git failures.
-    - Remove the no-longer-relevant branch from the planner input and the identity/stdin seams from the push input;
-      within this planner/transport boundary, only the proof helper consumes optional stdin plumbing.
-    - Update `packages/arc-framework/src/commands/user/types.ts`, paired-push planner/pusher seams, and direct test
-      callers to accept only the proof-bearing target and result contracts.
-    - Update the `UserIOContext.execInput` and production `gitExecInput` TSDoc to cover the batch object and
-      reachability proof, and keep alternate adapters and test doubles explicit about whether they provide the seam.
+- _Outcome:_ The planner, paired-push seams, marker adapter, and direct callers now share an exact destination-ref
+  plus captured-tip target; stable refusal reasons distinguish unsafe topology from strict read failure, and stdin
+  adapter documentation names its batch-object and reachability-proof responsibilities.
 
-### `[ ]` **3.2 Gate the planner on containment, compaction lineage, and commit publication**
+### `[x]` **3.2 Gate the planner on containment, compaction lineage, and commit publication**
 
 - _Goal:_ Planning returns the captured canonical tip only when ancestry, compaction lineage, and live-head
   publication all succeed, without mutating canonical refs on any path.
 
-    - Build `test-first` (one behavior at a time):
-        - Capture the local canonical tip once through a strict reader that distinguishes verified ref absence from
-          malformed object IDs and unexpected Git failures; reserve `no-local-notes` for verified absence, and keep
-          malformed or failed reads in `failed`. Fetch the remote notes ref into a caller-unique temporary ref and
-          use the fetched ref's observed tip as the remote snapshot; clean that temporary ref best-effort before
-          every return.
-        - Read remote-ref membership strictly: distinguish a genuinely absent notes ref from unavailable, malformed,
-          duplicate, or mismatched `ls-remote` output rather than treating an invalid object ID as absence.
-        - Accept an absent remote ref or a remote ancestor; classify ordinary graph divergence without merging.
-        - Treat only `merge-base --is-ancestor` exit status `1` as ordinary non-ancestry; missing objects and other
-          command failures remain `failed` rather than masquerading as graph divergence.
-        - Read compaction metadata through a strict optional-tree-entry seam that distinguishes a successfully absent
-          manifest from an unreadable tree or blob. Compare normalized complete manifests before divergence routing;
-          any newer, older, or incompatible snapshot lineage refuses before adoption or merge, while malformed or
-          unreadable manifests fail.
-        - Derive the local-exclusive publication set and require the live-head proof from Phases 1–2.
-        - Treat an existing deletion-bearing empty tree as publishable history rather than absent local notes.
-        - Return the same immutable target without publication scanning only when the remote snapshot already equals
-          the captured local tip; every target that could transfer new history must complete all three checks.
-        - Verify planning never calls `git notes add`, `git notes merge`, `adoptCompactedNotesRef`, `commit-tree`, or
-          canonical `update-ref`, and that cleanup failure never masks its primary result.
-        - Cover verified local-ref absence, valid SHA-1 and SHA-256 tips, malformed output, and injected command
-          failure so the tolerant `readRefTip` behavior cannot erase a planner trust-boundary error.
-    - Rework the real-Git planner coverage in
-      `packages/arc-framework/__tests__/integration/branch-bounded-notes-export.test.ts` around exact canonical
-      publication instead of reconstructed subset trees.
+- _Outcome:_ Strict local/remote reads, caller-unique fetched snapshots, complete manifest equality, ancestry, and
+  local-exclusive live-head publication now gate every transferable target. Real-Git and injected-boundary coverage
+  includes deletion history, SHA-256 tips, malformed metadata, Git failures, cleanup failure, and mutation absence.
 
-### `[ ]` **3.3 Push the immutable canonical tip and retire reconstruction and adoption**
+### `[x]` **3.3 Push the immutable canonical tip and retire reconstruction and adoption**
 
 - _Goal:_ Successful non-force transport publishes exactly the proven object ID and creates no local notes event or
   post-push canonical reconciliation.
 
-    - Push `<captured-tip>:<destination-ref>` normally; return `noop` when the remote already matches and preserve
-      non-fast-forward rejection when the remote advances after planning.
-    - Keep the target pinned when a sibling save advances the local canonical ref after planning.
-    - Delete the union builder, adoption routine, temporary export target cleanup contract, and their obsolete
-      tests; remove paired-push cleanup plumbing that exists only for temporary export refs from
-      `packages/arc-framework/src/commands/user/paired-push.ts`, its command types, and the sync adapter.
-    - Migrate direct planner/pusher coverage in `user-notes-compaction.test.ts`,
-      `notes-export-state-coherence.test.ts`, `user-notes-interleaving.test.ts`, and sync-orchestrator mocks so no
-      released test seam still constructs a reconstructed target or invokes caller-owned cleanup.
-    - Retain `BRANCH_BOUNDED_NOTES_JOIN_MESSAGE` and released-history recognition as read compatibility, without
-      creating new join commits.
-    - Build `test-first` (one behavior at a time):
-        - Push and no-op paths leave the local canonical ref at its current tip and add no notes commit.
-        - A local post-plan save remains local and cannot widen the pushed target.
-        - A remote post-plan advance rejects the push without force, reconstruction, or cleanup masking the error.
+- _Outcome:_ Transport pushes only the captured object ID, no-ops exact remote equality, and leaves local notes
+  untouched across sibling saves and remote races. Reconstruction, adoption, caller cleanup, and their obsolete
+  seams are gone; the historical join subject remains read-only compatibility.
 
 ## **Phase 4:** Non-Force Publication Orchestration
 

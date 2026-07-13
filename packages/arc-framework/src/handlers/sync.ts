@@ -795,22 +795,20 @@ async function publishMarkerAdapter(context: PairedPushMarkerContext): Promise<v
     io: context.io,
     execInput: context.io.execInput,
     identity: context.identity,
-    intent: context.notesExportTarget.tip,
+    intent: context.notesExportTarget.capturedTip,
   });
 }
 
 /**
- * Notes-leg pusher delegate for `runPairedPush`. Pushes the branch-bounded
- * temporary notes ref planned after the worktree leg lands, so the paired cell
- * never exports sibling-worktree notes for commits outside that branch.
+ * Notes-leg pusher delegate for `runPairedPush`. Pushes the immutable canonical
+ * notes tip planned after the worktree leg lands, so the paired cell transports
+ * only history that passed publication containment.
  */
 async function pairedNotesAdapter(
   context: PairedPushNotesContext,
 ): Promise<PairedPushNotesPusherResult> {
   const outcome = await pushBranchBoundedNotesExport({
     exec: context.io.exec,
-    execInput: context.io.execInput,
-    identity: context.identity,
     target: context.notesExportTarget,
   });
   switch (outcome.kind) {

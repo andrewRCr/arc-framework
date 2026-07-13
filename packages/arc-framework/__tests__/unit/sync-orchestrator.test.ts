@@ -1131,13 +1131,8 @@ describe("--yes wiring", () => {
           access: unknown; worktreeBranch: string; notesExportTarget: unknown }) => Promise<unknown>;
       };
       const notesExportTarget = {
-        ref: "refs/notes/arc/user/andrew__branch_export_test",
         destinationRef: "refs/notes/arc/user/andrew",
-        tip: "f".repeat(40),
-        annotatedCommits: ["a".repeat(40)],
-        omittedCommits: [],
-        supersedesLocal: true,
-        localIncludesRemote: true,
+        capturedTip: "f".repeat(40),
       };
       capturedNotesContext = await o.pushNotes({
         io: {},
