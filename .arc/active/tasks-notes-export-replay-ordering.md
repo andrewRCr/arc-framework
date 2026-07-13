@@ -38,32 +38,20 @@ historical and snapshot entries that are absent from the current notes tree.
 _Purpose:_ Establish one bounded, reusable view of live remote branch heads and prove annotated-commit publication
 against locally readable live tips without fetching branch objects.
 
-### `[ ]` **2.1 Generalize the bounded live-head membership read**
+### `[x]` **2.1 Generalize the bounded live-head membership read**
 
 - _Goal:_ Notes publication and existing in-flight consumers share one authoritative, bounded remote-head query that
   preserves the difference between an empty remote and an unavailable remote.
 
-    - `[ ]` **2.1.a Expose the typed live-head result**
-        - Promote the private membership read in `packages/arc-framework/src/lib/git/remote-ref-reader.ts` to a
-          reusable typed helper returning reachability, branch-tip object IDs, and whether the head result is
-          complete enough to serve as publication evidence.
-        - Keep remote selection, timeout handling, malformed-line tolerance, and one-call `ls-remote --heads`
-          behavior centralized.
-        - Admit only lowercase 40- or 64-hex Git object IDs; ignore empty branch names, malformed IDs, and non-head
-          records as a safe under-approximation without turning a reachable remote into an unavailable one, while
-          marking the result incomplete so proof consumers refuse to classify omitted history as unpublished.
-        - Build `test-first` (one behavior at a time):
-            - A reachable remote returns its short branch names and exact tip IDs.
-            - An empty reachable remote is distinct from an unreachable or timed-out query.
-            - SHA-1 and SHA-256 tips remain proof-bearing, while malformed, mixed-validity, and non-head records do
-              not and mark the result incomplete.
+    - `[x]` **2.1.a Expose the typed live-head result**
+        - Exported one timeout-bounded live-head read carrying reachability, completeness, and validated lowercase
+          SHA-1/SHA-256 branch tips; malformed, duplicate, empty, and non-head records remain a safe incomplete
+          under-approximation rather than becoming publication evidence.
 
-    - `[ ]` **2.1.b Migrate existing membership consumers to the shared helper**
-        - Reuse the exported result in `listLiveRemoteBranches`, pruned-branch detection, and in-flight derivation
-          without changing their existing degradation contracts.
-        - Replace the short synthetic tip strings in
-          `packages/arc-framework/__tests__/unit/git/remote-ref-reader.test.ts` with valid object IDs and prove the
-          existing public consumers preserve their current empty/degraded behavior.
+    - `[x]` **2.1.b Migrate existing membership consumers to the shared helper**
+        - Routed live-branch listing, remote-tracking pruning, and in-flight derivation through the shared snapshot;
+          updated their Git fixtures to real object IDs while preserving empty, unreachable, and local-only
+          degradation behavior.
 
 ### `[ ]` **2.2 Prove publication through the union of locally readable live-head histories**
 

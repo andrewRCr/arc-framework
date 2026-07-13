@@ -5,11 +5,15 @@ import {
   listLiveRemoteBranches,
   listMetaPathsAtRef,
   listPrunedRemoteTrackingBranches,
+  readLiveRemoteHeads,
   readLocalInFlightRefSnapshot,
   readMetaAtRef,
   resolveInFlightBranchSet,
 } from "../../../src/lib/git/remote-ref-reader.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+
+const oid = (seed: string): string => seed.padEnd(40, "0");
+const oid256 = (seed: string): string => seed.padEnd(64, "0");
 
 /**
  * Build an exec stub that dispatches on the git subcommand — `ls-remote`
@@ -40,9 +44,9 @@ describe("listLiveRemoteBranches", () => {
   it("enumerates live remote branch names from git ls-remote --heads origin", async () => {
     const exec = execReturning(
       [
-        "abc123\trefs/heads/main",
-        "def456\trefs/heads/feat/in-flight-awareness",
-        "789aaa\trefs/heads/chore/fix-typo",
+        `${oid("abc123")}\trefs/heads/main`,
+        `${oid("def456")}\trefs/heads/feat/in-flight-awareness`,
+        `${oid("789aaa")}\trefs/heads/chore/fix-typo`,
       ].join("\n"),
     );
 
@@ -54,7 +58,7 @@ describe("listLiveRemoteBranches", () => {
   it("uses the configured remote for live membership", async () => {
     const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
       expect(args).toEqual(["ls-remote", "--heads", "upstream"]);
-      return { stdout: "abc123\trefs/heads/feat/x\n", stderr: "" };
+      return { stdout: `${oid("abc123")}\trefs/heads/feat/x\n`, stderr: "" };
     });
 
     const result = await listLiveRemoteBranches({ exec, remote: "upstream" });
@@ -70,6 +74,60 @@ describe("listLiveRemoteBranches", () => {
     const result = await listLiveRemoteBranches({ exec });
 
     expect(result).toEqual([]);
+  });
+});
+
+describe("readLiveRemoteHeads", () => {
+  it("returns reachable live branch names and exact object ids", async () => {
+    const main = oid("a1");
+    const feature = oid256("b2");
+    const exec = execReturning([
+      `${main}\trefs/heads/main`,
+      `${feature}\trefs/heads/feat/proof`,
+    ].join("\n"));
+
+    await expect(readLiveRemoteHeads({ exec })).resolves.toEqual({
+      reachable: true,
+      complete: true,
+      tips: { main, "feat/proof": feature },
+    });
+  });
+
+  it("distinguishes an empty reachable remote from an unavailable query", async () => {
+    const empty = execReturning("");
+    const unavailable: GitExec = vi.fn(async () => {
+      throw new Error("timed out");
+    });
+
+    await expect(readLiveRemoteHeads({ exec: empty })).resolves.toEqual({
+      reachable: true,
+      complete: true,
+      tips: {},
+    });
+    await expect(readLiveRemoteHeads({ exec: unavailable })).resolves.toEqual({
+      reachable: false,
+      complete: false,
+      tips: {},
+    });
+  });
+
+  it("retains valid SHA-1 and SHA-256 tips while marking mixed output incomplete", async () => {
+    const sha1 = oid("a1");
+    const sha256 = oid256("b2");
+    const exec = execReturning([
+      `${sha1}\trefs/heads/main`,
+      `${sha256}\trefs/heads/feat/sha256`,
+      "ABCDEF\trefs/heads/uppercase",
+      `${oid("c3")}\trefs/tags/not-a-head`,
+      `${oid("d4")}\trefs/heads/`,
+      "malformed",
+    ].join("\n"));
+
+    await expect(readLiveRemoteHeads({ exec })).resolves.toEqual({
+      reachable: true,
+      complete: false,
+      tips: { main: sha1, "feat/sha256": sha256 },
+    });
   });
 });
 
@@ -188,7 +246,7 @@ describe("listPrunedRemoteTrackingBranches", () => {
       // A merged-and-deleted branch lingers as a local remote-tracking ref...
       forEachRef: ["origin", "origin/HEAD", "origin/feat/a", "origin/chore/old-merged"].join("\n"),
       // ...but is gone from live `ls-remote` membership.
-      lsRemote: ["sha1\trefs/heads/feat/a", "sha2\trefs/heads/feat/b"].join("\n"),
+      lsRemote: [`${oid("a1")}\trefs/heads/feat/a`, `${oid("b2")}\trefs/heads/feat/b`].join("\n"),
     });
 
     const result = await listPrunedRemoteTrackingBranches({ exec });
@@ -301,7 +359,7 @@ describe("resolveInFlightBranchSet", () => {
         "refs/remotes/origin/feat/a\tlocal-a",
         "refs/remotes/origin/chore/old-merged\tlocal-old",
       ].join("\n"),
-      lsRemote: ["live-a\trefs/heads/feat/a", "live-b\trefs/heads/feat/b"].join("\n"),
+      lsRemote: [`${oid("a1")}\trefs/heads/feat/a`, `${oid("b2")}\trefs/heads/feat/b`].join("\n"),
     });
 
     const result = await resolveInFlightBranchSet({ exec });
@@ -309,7 +367,7 @@ describe("resolveInFlightBranchSet", () => {
     expect(result).toEqual({
       branches: ["feat/a"],
       refs: { "origin/feat/a": "local-a" },
-      liveRefs: { "origin/feat/a": "live-a", "origin/feat/b": "live-b" },
+      liveRefs: { "origin/feat/a": oid("a1"), "origin/feat/b": oid("b2") },
       reachable: true,
     });
   });
@@ -317,7 +375,7 @@ describe("resolveInFlightBranchSet", () => {
   it("keys selected refs and live refs with the configured remote", async () => {
     const exec = execBySubcommand({
       forEachRef: "refs/remotes/upstream/feat/a\tlocal-a",
-      lsRemote: "live-a\trefs/heads/feat/a",
+      lsRemote: `${oid("a1")}\trefs/heads/feat/a`,
     });
 
     const result = await resolveInFlightBranchSet({ exec, remote: "upstream" });
@@ -325,7 +383,7 @@ describe("resolveInFlightBranchSet", () => {
     expect(result).toEqual({
       branches: ["feat/a"],
       refs: { "upstream/feat/a": "local-a" },
-      liveRefs: { "upstream/feat/a": "live-a" },
+      liveRefs: { "upstream/feat/a": oid("a1") },
       reachable: true,
     });
   });
