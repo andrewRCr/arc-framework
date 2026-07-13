@@ -851,6 +851,10 @@ describe("user notes compaction", () => {
       ]);
     }
 
+    const notesTree = await git(repo, ["rev-parse", `${NOTES_REF}^{tree}`]);
+    const notesSnapshot = await git(repo, ["commit-tree", notesTree, "-m", "retention fixture snapshot"]);
+    await git(repo, ["update-ref", NOTES_REF, notesSnapshot]);
+
     await ensureDir(join(repo, ".arc", "user", IDENTITY, "local-subdir"));
     await writeFile(join(repo, ".arc", "user", IDENTITY, "local-subdir", "SESSION-NOTES.md"), "local\n", "utf-8");
     await git(repo, ["push", "origin", NOTES_REF]);
