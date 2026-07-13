@@ -506,7 +506,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const { entries, warnings } = await deriveInFlight({
+    const { entries, residue, warnings } = await deriveInFlight({
       exec,
       branches: ["main"],
       identity: null,
@@ -515,7 +515,137 @@ describe("deriveInFlight", () => {
     });
 
     expect(entries).toEqual([]);
+    expect(residue).toEqual([]);
     expect(warnings).toEqual([]);
+  });
+
+  it("classifies a branch with no errand record or active meta as visible residue", async () => {
+    const exec = makeExec({});
+
+    const { entries, residue, warnings } = await deriveInFlight({
+      exec,
+      branches: ["chore/merged-errand"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toEqual([]);
+    expect(residue).toEqual([
+      {
+        branch: "chore/merged-errand",
+        slug: "merged-errand",
+        reason: "no-record-or-meta",
+      },
+    ]);
+    expect(warnings).toEqual([
+      expect.objectContaining({
+        code: "branch-residue",
+        branch: "chore/merged-errand",
+      }),
+    ]);
+  });
+
+  it("surfaces an errand record whose branch no longer exists", async () => {
+    const exec = makeExec({ liveBranches: [] });
+
+    const { entries, residue, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([["chore/closed-record", "closed-record"]]),
+    });
+
+    expect(entries).toEqual([]);
+    expect(residue).toEqual([
+      {
+        branch: "chore/closed-record",
+        slug: "closed-record",
+        reason: "errand-record-without-branch",
+      },
+    ]);
+    expect(warnings).toEqual([
+      expect.objectContaining({
+        code: "errand-record-branch-missing",
+        branch: "chore/closed-record",
+      }),
+    ]);
+  });
+
+  it("keeps a missing errand-record branch indeterminate without a cleanup warning when the remote is unreachable", async () => {
+    const exec = makeExec({ liveBranches: "unreachable" });
+
+    const { reachable, residue, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([["chore/offline-record", "offline-record"]]),
+    });
+
+    expect(reachable).toBe(false);
+    expect(residue).toEqual([
+      {
+        branch: "chore/offline-record",
+        slug: "offline-record",
+        reason: "errand-record-without-branch",
+        marks: ["degraded", "indeterminate"],
+      },
+    ]);
+    expect(warnings).not.toContainEqual(
+      expect.objectContaining({ code: "errand-record-branch-missing", branch: "chore/offline-record" }),
+    );
+  });
+
+  it("keeps branch residue visible and degraded when errand records could not be read", async () => {
+    const exec = makeExec({});
+
+    const { residue, warnings } = await deriveInFlight({
+      exec,
+      branches: ["chore/read-failed"],
+      identity: null,
+      teamMode: false,
+      errandRecordsComplete: false,
+    });
+
+    expect(residue).toEqual([
+      {
+        branch: "chore/read-failed",
+        slug: "read-failed",
+        reason: "classification-unavailable",
+        marks: ["degraded"],
+      },
+    ]);
+    expect(warnings).toEqual([
+      expect.objectContaining({ code: "errand-record-read-failed" }),
+    ]);
+  });
+
+  it("keeps locally observed branch residue visible and degraded when the remote read fails", async () => {
+    const exec = makeExec({
+      localRefs: ["chore/offline-residue"],
+      liveBranches: "unreachable",
+    });
+
+    const { reachable, residue, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(reachable).toBe(false);
+    expect(residue).toEqual([
+      {
+        branch: "chore/offline-residue",
+        slug: "offline-residue",
+        reason: "no-record-or-meta",
+        marks: ["degraded"],
+      },
+    ]);
+    expect(warnings).toEqual([
+      expect.objectContaining({ code: "branch-residue", branch: "chore/offline-residue" }),
+    ]);
   });
 
   it("treats a single meta whose Branch points elsewhere as a stale-location candidate, not an entry", async () => {
@@ -654,6 +784,28 @@ describe("deriveInFlight", () => {
     ]);
   });
 
+  it("classifies an unpushed local errand branch with no worktree as local in-flight work", async () => {
+    const sha = "2".repeat(40);
+    const refs = { localHeads: { "chore/local-errand": sha } };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: [],
+    });
+
+    const { entries, residue } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([["chore/local-errand", "local-errand"]]),
+    });
+
+    expect(entries).toEqual([
+      { kind: "errand", branch: "chore/local-errand", slug: "local-errand", remoteOnly: false },
+    ]);
+    expect(residue).toEqual([]);
+  });
+
   it("keeps errand-record identity authoritative even when the branch carries a meta", async () => {
     const exec = makeExec({
       metas: {
@@ -721,10 +873,10 @@ describe("deriveInFlight", () => {
     });
   });
 
-  it("drops a branch with neither an errand record nor a backing meta (not in flight)", async () => {
+  it("keeps a branch with neither record nor meta out of entries while surfacing residue", async () => {
     const exec = makeExec({ metas: {} });
 
-    const { entries } = await deriveInFlight({
+    const { entries, residue } = await deriveInFlight({
       exec,
       branches: ["chore/orphan"],
       identity: null,
@@ -733,6 +885,13 @@ describe("deriveInFlight", () => {
     });
 
     expect(entries).toEqual([]);
+    expect(residue).toEqual([
+      {
+        branch: "chore/orphan",
+        slug: "orphan",
+        reason: "no-record-or-meta",
+      },
+    ]);
   });
 
   it("filters to the current identity (owner-matched), passing through unattributed entries", async () => {
@@ -1011,13 +1170,83 @@ describe("deriveInFlight input union", () => {
     });
   });
 
-  it("drops a stale same-branch remote meta when the checked-out branch has no active meta", async () => {
+  it("replaces a stale same-branch remote meta with checked-out branch residue", async () => {
     const exec = makeExec({
       worktrees: [{ path: "/repo.done", branch: "feat/done" }],
       localRefs: ["feat/done"],
       liveBranches: ["feat/done"],
       metas: {
         "origin/feat/done:.arc/active/meta-done.md": metaContent({ branch: "feat/done" }),
+      },
+    });
+
+    const { entries, residue, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toEqual([]);
+    expect(residue).toEqual([
+      {
+        branch: "feat/done",
+        slug: "done",
+        reason: "no-record-or-meta",
+      },
+    ]);
+    expect(warnings).toEqual([
+      expect.objectContaining({ code: "branch-residue", branch: "feat/done" }),
+    ]);
+  });
+
+  it("treats an unoccupied local branch as local rather than remote-only", async () => {
+    const sha = "1".repeat(40);
+    const refs = {
+      remoteTracking: { "feat/local-head": sha },
+      localHeads: { "feat/local-head": sha },
+    };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: ["feat/local-head"],
+      metas: {
+        "feat/local-head:.arc/active/meta-local-head.md": metaContent({
+          branch: "feat/local-head",
+        }),
+      },
+    });
+
+    const { entries } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "feat/local-head",
+      remoteOnly: false,
+    });
+    expect(entries[0]).not.toHaveProperty("worktreePath");
+  });
+
+  it("uses a fresher tracking tip without misreporting an unoccupied local branch as remote-only", async () => {
+    const branch = "feat/local-head";
+    const localSha = "1".repeat(40);
+    const remoteSha = "2".repeat(40);
+    const refs = {
+      remoteTracking: { [branch]: remoteSha },
+      localHeads: { [branch]: localSha },
+    };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: [branch],
+      ancestors: [[branch, `origin/${branch}`]],
+      metas: {
+        [`${branch}:.arc/active/meta-local-head.md`]: metaContent({ state: "Active", branch }),
+        [`origin/${branch}:.arc/active/meta-local-head.md`]: metaContent({ state: "Integrating", branch }),
       },
     });
 
@@ -1028,11 +1257,74 @@ describe("deriveInFlight input union", () => {
       teamMode: false,
     });
 
-    expect(entries).toEqual([]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch,
+      state: "Integrating",
+      remoteOnly: false,
+    });
+    expect(entries[0]).not.toHaveProperty("worktreePath");
     expect(warnings).toEqual([]);
   });
 
-  it("keeps remote-only behavior for refs with no local worktree", async () => {
+  it("keeps a fresher unoccupied local tip ahead of its stale tracking twin", async () => {
+    const branch = "feat/local-ahead";
+    const localSha = "3".repeat(40);
+    const remoteSha = "2".repeat(40);
+    const refs = {
+      remoteTracking: { [branch]: remoteSha },
+      localHeads: { [branch]: localSha },
+    };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: [branch],
+      ancestors: [[`origin/${branch}`, branch]],
+      metas: {
+        [`${branch}:.arc/active/meta-local-ahead.md`]: metaContent({ state: "Integrating", branch }),
+        [`origin/${branch}:.arc/active/meta-local-ahead.md`]: metaContent({ state: "Active", branch }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ state: "Integrating", remoteOnly: false });
+    expect(warnings).toEqual([]);
+  });
+
+  it("dedupes an errand observed through matching local and tracking refs", async () => {
+    const branch = "chore/local-errand";
+    const sha = "4".repeat(40);
+    const refs = {
+      remoteTracking: { [branch]: sha },
+      localHeads: { [branch]: sha },
+    };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: [branch],
+    });
+
+    const { entries, residue } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([[branch, "local-errand"]]),
+    });
+
+    expect(entries).toEqual([
+      expect.objectContaining({ kind: "errand", branch, slug: "local-errand", remoteOnly: false }),
+    ]);
+    expect(residue).toEqual([]);
+  });
+
+  it("keeps remote-only behavior for refs with no local worktree or local branch", async () => {
     const exec = makeExec({
       localRefs: ["feat/remote"],
       liveBranches: ["feat/remote"],

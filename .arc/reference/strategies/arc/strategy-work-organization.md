@@ -1050,7 +1050,7 @@ a third, purely-local input that needs no network:
 
 - **Local in-flight slice** — your WUs in flight on *this* machine (the identity-filtered roster). It regenerates
   cheaply, with no network read, at every local ceremony: spawn, activate, integrate, shift, and handoff.
-- **Cross-machine in-flight slice** — your WUs in flight only *elsewhere* (remote-only, no local worktree).
+- **Cross-machine in-flight slice** — your WUs in flight only *elsewhere* (remote-only, no local branch or worktree).
   Surfacing these needs a network round-trip, so it refreshes only at the subset of triggers where cross-machine
   truth matters: handoff, an explicit `arc sync`, an explicit view request (`arc status --user`), and a session
   start with no local active WU. Each network read is bounded by a short timeout and degrades to the last-rendered
@@ -1068,7 +1068,7 @@ read for a fast offline view; the ready slice is unaffected.
 
 1. Derive your in-flight-mine slice — the render set located in `active/**`, identity-filtered to your WUs. For a
    cross-machine refresh, also include your remote-only in-flight WUs (a WU branch unmerged on the remote with no
-   local worktree).
+   local branch or worktree).
 2. Derive your ready slice — `backlog/planned/**` metas owned by you whose dependencies have all shipped (absent
    from the active + planned + provisional pipeline), each sized by `Class`.
 3. Apply the `STATUS.USER` column sets and the `(priority, cohort, wu-name)` sort key from § Render standard.

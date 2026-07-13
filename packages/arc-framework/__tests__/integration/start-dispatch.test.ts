@@ -417,4 +417,92 @@ describe("arc start dispatch — against real worktrees", () => {
     if (dispatch.arm !== "refuse") return;
     expect(dispatch.reason).toMatch(/occupied|already active/i);
   });
+
+  it.each(["Planning", "Active", "Integrating"])(
+    "refuses a live sibling in %s from a foreign checkout without minting another branch",
+    async (state) => {
+      const slug = `foreign-${state.toLowerCase()}`;
+      const branch = `feat/${slug}`;
+      const remote = `${h.repo}-origin.git`;
+      h.cleanupPaths.push(remote);
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+      await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+      await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+      await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+      await execFileAsync("git", ["switch", "-c", branch], { cwd: h.repo });
+      await commitMeta(h.repo, "active", slug, state, branch);
+      await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: h.repo });
+      await execFileAsync("git", ["switch", "main"], { cwd: h.repo });
+
+      const originalCwd = process.cwd();
+      const savedExitCode = process.exitCode;
+      process.exitCode = undefined;
+      let observedExitCode: typeof process.exitCode;
+      try {
+        process.chdir(h.repo);
+        await handleStart(slug, { yes: true });
+        observedExitCode = process.exitCode;
+      } finally {
+        process.chdir(originalCwd);
+        process.exitCode = savedExitCode;
+      }
+
+      expect(observedExitCode).toBe(1);
+      const { stdout: duplicateBranch } = await execFileAsync("git", ["branch", "--list", `plan/${slug}`], {
+        cwd: h.repo,
+      });
+      expect(duplicateBranch.trim()).toBe("");
+    },
+  );
+
+  it("fetches and refuses a live sibling that has never had a local remote-tracking ref", async () => {
+    const slug = "never-fetched-sibling";
+    const branch = `feat/${slug}`;
+    const remote = `${h.repo}-origin.git`;
+    const sibling = `${h.repo}-sibling`;
+    const duplicateWorktree = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: slug,
+      branch: `plan/${slug}`,
+    });
+    h.cleanupPaths.push(remote, sibling);
+    h.spawned.push(duplicateWorktree);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+    await execFileAsync("git", ["clone", remote, sibling]);
+    await execFileAsync("git", ["config", "user.email", "test@test.com"], { cwd: sibling });
+    await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: sibling });
+    await execFileAsync("git", ["switch", "-c", branch], { cwd: sibling });
+    await mkdir(join(sibling, ".arc", "active"), { recursive: true });
+    await writeFile(join(sibling, ".arc", "active", `meta-${slug}.md`), metaFor(slug, "Active", branch));
+    await execFileAsync("git", ["add", ".arc"], { cwd: sibling });
+    await execFileAsync("git", ["commit", "-m", "activate remote sibling"], { cwd: sibling });
+    await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: sibling });
+    await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+
+    await expect(
+      execFileAsync("git", ["show-ref", "--verify", `refs/remotes/origin/${branch}`], { cwd: h.repo }),
+    ).rejects.toThrow();
+
+    const originalCwd = process.cwd();
+    const savedExitCode = process.exitCode;
+    process.exitCode = undefined;
+    let observedExitCode: typeof process.exitCode;
+    try {
+      process.chdir(h.repo);
+      await handleStart(slug, { yes: true });
+      observedExitCode = process.exitCode;
+    } finally {
+      process.chdir(originalCwd);
+      process.exitCode = savedExitCode;
+    }
+
+    expect(observedExitCode).toBe(1);
+    const { stdout: duplicateBranch } = await execFileAsync("git", ["branch", "--list", `plan/${slug}`], {
+      cwd: h.repo,
+    });
+    expect(duplicateBranch.trim()).toBe("");
+  });
 });

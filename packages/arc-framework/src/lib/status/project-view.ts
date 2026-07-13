@@ -18,6 +18,7 @@ import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   deriveInFlight,
+  type DeriveInFlightResult,
   type InFlightEntry,
   type InFlightWarning,
   type InFlightWorkUnit,
@@ -122,11 +123,28 @@ export interface ProjectReadinessViewInput {
   indeterminate: boolean;
 }
 
+/** Shared tree + oracle record composition before render-specific warning projection. */
+export interface ProjectReadinessCompositionResult {
+  records: ProjectReadinessRecord[];
+  derivationWarnings: ProjectReadinessDerivationWarning[];
+  sourceWarnings: ProjectReadinessWarning[];
+  indeterminate: boolean;
+  /** Native oracle result retained for non-render consumers; absent on tree-only composition. */
+  oracleResult: DeriveInFlightResult | null;
+}
+
+/** Checked-out branch whose staged tree record supersedes its own at-ref candidate. */
+export interface ProjectReadinessProspectiveInput {
+  currentBranch: string;
+}
+
 /** In-flight oracle inputs for project-readiness renders. */
 export interface ProjectReadinessOracleOptions {
   exec: GitExec;
   /** `true` skips the network read and renders from last-known local refs. */
   localOnly?: boolean;
+  /** Fetch and classify live membership branches absent from local remote-tracking refs. */
+  expandLiveOnly?: boolean;
   baseBranch?: string;
   errandSlugByBranch?: ReadonlyMap<string, string>;
   parkedSlugs?: ReadonlySet<string>;
@@ -148,6 +166,8 @@ export interface ResolveProjectReadinessViewInputOptions {
   localRefs?: ProjectReadinessLocalRefsOptions;
   /** Optional in-flight oracle input to merge at-ref active metas into the record set. */
   oracle?: ProjectReadinessOracleOptions;
+  /** Treat this staged tree as authoritative for the checked-out branch's own work unit. */
+  prospective?: ProjectReadinessProspectiveInput;
 }
 
 /** Structured freshness stamp rendered in the view header. */
@@ -458,18 +478,21 @@ function appendIndeterminateOracleWarning(
 
 async function resolveOracleCandidates(
   options: ProjectReadinessOracleOptions | undefined,
+  prospective?: ProjectReadinessProspectiveInput & { stagedSlugs: ReadonlySet<string> },
 ): Promise<{
   candidates: ProjectReadinessRecordCandidate[];
   derivationWarnings: ProjectReadinessDerivationWarning[];
   sourceWarnings: ProjectReadinessWarning[];
   indeterminate: boolean;
+  result: DeriveInFlightResult | null;
 }> {
   if (options === undefined) {
-    return { candidates: [], derivationWarnings: [], sourceWarnings: [], indeterminate: false };
+    return { candidates: [], derivationWarnings: [], sourceWarnings: [], indeterminate: false, result: null };
   }
   const result = await deriveInFlight({
     exec: options.exec,
     localOnly: options.localOnly ?? false,
+    expandLiveOnly: options.expandLiveOnly ?? false,
     baseBranch: options.baseBranch,
     timeoutMs: options.timeoutMs,
     identity: null,
@@ -477,7 +500,13 @@ async function resolveOracleCandidates(
     errandSlugByBranch: options.errandSlugByBranch,
     parkedSlugs: options.parkedSlugs,
   });
-  const candidates = result.entries
+  const entries = prospective === undefined
+    ? result.entries
+    : result.entries.filter((entry) =>
+        entry.kind !== "work-unit"
+        || entry.branch !== prospective.currentBranch
+        || !prospective.stagedSlugs.has(entry.name));
+  const candidates = entries
     .map(inFlightEntryToCandidate)
     .filter((candidate): candidate is ProjectReadinessRecordCandidate => candidate !== null);
   const derivationWarnings: ProjectReadinessDerivationWarning[] = [];
@@ -501,6 +530,7 @@ async function resolveOracleCandidates(
     derivationWarnings,
     sourceWarnings: appendIndeterminateOracleWarning(sourceWarnings, indeterminate, hasIndeterminateSourceWarning),
     indeterminate,
+    result,
   };
 }
 
@@ -517,21 +547,45 @@ function oracleOptionsFor(options: ResolveProjectReadinessViewInputOptions): Pro
   return { ...options.localRefs, localOnly: true };
 }
 
-/** Resolve tree-backed records and the title read into a compose-ready input. */
-export async function resolveProjectReadinessViewInput(
+/** Resolve the shared tree + oracle record set used by project rendering and lifecycle queries. */
+export async function resolveProjectReadinessComposition(
   options: ResolveProjectReadinessViewInputOptions,
-): Promise<ProjectReadinessViewInput> {
+): Promise<ProjectReadinessCompositionResult> {
   const fs = options.fs ?? DEFAULT_FS;
-  const [treeRecords, localRefs] = await Promise.all([
-    loadProjectRecords(options.cwd, fs),
-    resolveOracleCandidates(oracleOptionsFor(options)),
-  ]);
+  const treeRecords = await loadProjectRecords(options.cwd, fs);
+  const configuredOracle = oracleOptionsFor(options);
+  const parkedSlugs = configuredOracle?.parkedSlugs ?? new Set(
+    treeRecords.filter(isParkedPointer).map((record) => record.slug),
+  );
+  const localRefs = await resolveOracleCandidates(
+    configuredOracle === undefined ? undefined : { ...configuredOracle, parkedSlugs },
+    options.prospective === undefined
+      ? undefined
+      : {
+          ...options.prospective,
+          stagedSlugs: new Set(treeRecords.map((record) => record.slug)),
+        },
+  );
   return {
-    title: resolveTitle(options.title),
     records: mergeProjectReadinessRecords([...treeRecords, ...localRefs.candidates]),
     derivationWarnings: localRefs.derivationWarnings,
     sourceWarnings: localRefs.sourceWarnings,
     indeterminate: localRefs.indeterminate,
+    oracleResult: localRefs.result,
+  };
+}
+
+/** Resolve tree-backed records and the title read into a compose-ready input. */
+export async function resolveProjectReadinessViewInput(
+  options: ResolveProjectReadinessViewInputOptions,
+): Promise<ProjectReadinessViewInput> {
+  const composition = await resolveProjectReadinessComposition(options);
+  return {
+    title: resolveTitle(options.title),
+    records: composition.records,
+    derivationWarnings: composition.derivationWarnings,
+    sourceWarnings: composition.sourceWarnings,
+    indeterminate: composition.indeterminate,
   };
 }
 

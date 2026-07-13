@@ -5,7 +5,7 @@
  * identity's in-flight work units and errands (identity-filtered refs, optional
  * PR enrichment), cross-worktree *and* cross-machine. This is the activation
  * scope-check's data input, supplanting the local-only `arc active roster`: it
- * surfaces remote-only work units (no local worktree) the worktree roster can't
+ * surfaces remote-only work units (no local branch or worktree) the worktree roster can't
  * see. Pure logic over injected git deps — the handler resolves identity, team
  * mode, and the network/offline mode flag.
  *

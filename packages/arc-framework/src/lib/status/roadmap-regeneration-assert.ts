@@ -67,6 +67,8 @@ export interface RenderRoadmapFromIndexOptions extends IndexProjectViewFsOptions
   baseBranch?: string;
   /** Optional fixed render stamp for tests. */
   renderedRef?: string | ProjectReadinessRenderStamp;
+  /** Optional fixed checked-out branch for tests; omitted resolves it from Git. */
+  currentBranch?: string | null;
 }
 
 /** ROADMAP content plus whether its source snapshot was determinate. */
@@ -171,7 +173,12 @@ export async function renderRoadmapFromIndexViewResult(
   options: RenderRoadmapFromIndexOptions,
 ): Promise<RoadmapIndexViewResult> {
   const fs = createIndexProjectViewFs(options);
-  const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: options.cwd, fs }));
+  const [parkedSlugs, currentBranch] = await Promise.all([
+    buildLifecycleIndex({ cwd: options.cwd, fs }).then(listParkedSlugs),
+    options.currentBranch === undefined
+      ? resolveCurrentBranch(options.exec, options.cwd)
+      : Promise.resolve(options.currentBranch),
+  ]);
   const input = await resolveProjectReadinessViewInput({
     cwd: options.cwd,
     ...(options.title !== undefined ? { title: options.title } : {}),
@@ -181,6 +188,7 @@ export async function renderRoadmapFromIndexViewResult(
       ...(options.baseBranch !== undefined ? { baseBranch: options.baseBranch } : {}),
       parkedSlugs,
     },
+    ...(currentBranch === null ? {} : { prospective: { currentBranch } }),
   });
   const renderedRef = options.renderedRef ?? await resolveProjectReadinessRenderStamp({
     exec: options.exec,
@@ -192,6 +200,16 @@ export async function renderRoadmapFromIndexViewResult(
     result: composeProjectReadinessViewResult({ ...input, renderedRef }),
     indeterminate: input.indeterminate,
   };
+}
+
+async function resolveCurrentBranch(exec: GitExec, cwd: string): Promise<string | null> {
+  try {
+    const { stdout } = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd });
+    const branch = stdout.trim();
+    return branch === "" || branch === "HEAD" ? null : branch;
+  } catch {
+    return null;
+  }
 }
 
 /**

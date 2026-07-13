@@ -134,10 +134,12 @@ describe("formatForeignWriteWarnings", () => {
     const lines = formatForeignWriteWarnings([
       { branch: "feat/wu-a", worktreePath: "/repo.wu-a", matchedPaths: [".arc/active/meta-wu-a.md"] },
       { branch: "feat/wu-b", matchedPaths: [".arc/active/spec-wu-b.md"] },
+      { branch: "feat/wu-c", remoteOnly: false, matchedPaths: [".arc/active/tasks-wu-c.md"] },
     ]);
     expect(lines).toEqual([
       "feat/wu-a also touches .arc/active/meta-wu-a.md (/repo.wu-a)",
       "feat/wu-b also touches .arc/active/spec-wu-b.md (remote-only)",
+      "feat/wu-c also touches .arc/active/tasks-wu-c.md (no worktree)",
     ]);
   });
 
@@ -229,7 +231,7 @@ describe("detectStagedForeignWrites", () => {
   it("skips an indeterminate probe with an advisory note", async () => {
     let statusReads = 0;
     const exec = buildExec({
-      "diff main...feat/wu-a --name-only -- .arc/active/meta-wu-a.md": { stdout: "" },
+      "diff origin/main...feat/wu-a --name-only -- .arc/active/meta-wu-a.md": { stdout: "" },
       "status --porcelain -- .arc/active/meta-wu-a.md": () => {
         statusReads += 1;
         return { stdout: statusReads === 1 ? " M .arc/active/meta-wu-a.md\n" : "" };
@@ -275,6 +277,9 @@ describe("detectStagedForeignWrites", () => {
 
   it("marks the committed probe indeterminate when the base ref cannot be resolved", async () => {
     const exec = buildExec({
+      "rev-parse --verify origin/main": () => {
+        throw new Error("fatal: bad revision");
+      },
       "rev-parse --verify main": () => {
         throw new Error("fatal: bad revision");
       },
@@ -430,7 +435,7 @@ describe("detectStagedForeignWrites", () => {
       state: "Active",
     });
     const exec = buildExec({
-      "diff main...feat/wu-a --name-only -- .arc/active/meta-wu-a.md": {
+      "diff origin/main...feat/wu-a --name-only -- .arc/active/meta-wu-a.md": {
         stdout: ".arc/active/meta-wu-a.md\n",
       },
       "status --porcelain -- .arc/active/meta-wu-a.md": { stdout: "" },
@@ -541,7 +546,7 @@ describe("detectStagedForeignWrites", () => {
       },
     );
     const exec = buildExec({
-      "diff main...feat/other --name-only -- .arc/active/meta-self.md": {
+      "diff origin/main...feat/other --name-only -- .arc/active/meta-self.md": {
         stdout: ".arc/active/meta-self.md\n",
       },
       "status --porcelain -- .arc/active/meta-self.md": { stdout: "" },
@@ -568,7 +573,7 @@ describe("detectStagedForeignWrites", () => {
       state: "Active",
     });
     const exec = buildExec({
-      "diff main...feat/other --name-only -- .arc/active/meta-self.md": { stdout: "" },
+      "diff origin/main...feat/other --name-only -- .arc/active/meta-self.md": { stdout: "" },
       "status --porcelain -- .arc/active/meta-self.md": { stdout: "" },
     });
 

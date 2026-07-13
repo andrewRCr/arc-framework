@@ -3,13 +3,15 @@
  * record round-trips through, independent of the orphan state-ref it lives in.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 import {
   serializeErrandRecord,
   deserializeErrandRecord,
+  listErrandRecordsResult,
   type ErrandRecord,
 } from "../../src/lib/errand/index.js";
+import type { ExecResult, GitExec } from "../../src/lib/git/exec.js";
 
 const inboxRecord: ErrandRecord = {
   version: 1,
@@ -81,5 +83,28 @@ describe("errand record (de)serialization", () => {
     expect(
       deserializeErrandRecord(JSON.stringify({ ...descriptionRecord, originEntry: "x" })),
     ).toBeNull();
+  });
+});
+
+describe("errand record listing", () => {
+  it("reports an incomplete read when a listed record blob cannot be read", async () => {
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (args[0] === "ls-tree") {
+        return {
+          stdout: `100644 blob ${"a".repeat(40)}\tbroken-record\n`,
+          stderr: "",
+        };
+      }
+      if (args[0] === "cat-file") throw new Error("fatal: object unavailable");
+      throw new Error(`unexpected git ${args.join(" ")}`);
+    });
+
+    const result = await listErrandRecordsResult({ exec, identity: "andrew" });
+
+    expect(result.records).toEqual([]);
+    expect(result.complete).toBe(false);
+    expect(result.warnings).toEqual([
+      expect.stringContaining("broken-record"),
+    ]);
   });
 });

@@ -32,6 +32,7 @@ import {
 } from "../lib/errand/index.js";
 import {
   detectForeignArtifactOverlap,
+  preferRemoteBaseRef,
   projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionResult,
 } from "../lib/git/index.js";
@@ -64,10 +65,10 @@ export function formatErrandCheckCaveats(result: ForeignArtifactDetectionResult)
   return [
     ...(result.skipped ?? []).map(
       (entry) =>
-        `${entry.branch}  skipped  marked ${entry.marks.join(", ")}  (${entry.worktreePath ?? "remote-only"})`,
+        `${entry.branch}  skipped  marked ${entry.marks.join(", ")}  (${formatOverlapLocation(entry)})`,
     ),
     ...(result.indeterminate ?? []).map(
-      (entry) => `${entry.branch}  caveat  probe indeterminate  (${entry.worktreePath ?? "remote-only"})`,
+      (entry) => `${entry.branch}  caveat  probe indeterminate  (${formatOverlapLocation(entry)})`,
     ),
     ...(result.notes ?? []),
   ];
@@ -120,12 +121,13 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     baseBranch,
     parkedSlugs,
   });
+  const baseRef = await preferRemoteBaseRef(gitExec, baseBranch);
 
   const result = await detectForeignArtifactOverlap({
     exec: gitExec,
     roster: projectInFlightToOverlapRoster(entries),
     targetPaths,
-    baseBranch,
+    baseBranch: baseRef,
     originatingWorktreePath: await currentWorktreePath(cwd),
     originatingMetaPath: await resolveOriginatingMetaPath(cwd),
     snapshot,
@@ -142,7 +144,7 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     p.note("No in-flight work unit touches the target — proceed without a caveat.", "Advisory");
   } else {
     const lines = result.overlaps.map(
-      (o) => `${o.branch}  touches  ${o.matchedPaths.join(", ")}  (${o.worktreePath ?? "remote-only"})`,
+      (o) => `${o.branch}  touches  ${o.matchedPaths.join(", ")}  (${formatOverlapLocation(o)})`,
     );
     p.note(
       [...lines, ...caveats].join("\n"),
@@ -158,6 +160,10 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     p.log.warn(renderInFlightWarning(warning));
   }
   p.outro("Done.");
+}
+
+function formatOverlapLocation(entry: { worktreePath?: string; remoteOnly?: boolean }): string {
+  return entry.worktreePath ?? (entry.remoteOnly === false ? "no worktree" : "remote-only");
 }
 
 /** Options for the `arc errand open` subcommand. */

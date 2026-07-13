@@ -14,6 +14,7 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import type {
   InFlightEntry,
   InFlightErrand,
+  InFlightResidue,
   InFlightWorkUnit,
 } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ErrandRecord } from "../../../src/lib/errand/record.js";
@@ -269,8 +270,55 @@ describe("runErrandState", () => {
     ]);
   });
 
+  it("uses an unoccupied local errand head for merge and timestamp classification", async () => {
+    const exec = buildExec({
+      refs: [
+        `refs/heads/chore/local-unpushed\t${OLD}`,
+        `refs/remotes/origin/chore/local-unpushed\t${RECENT}`,
+      ].join("\n"),
+      merged: ["chore/local-unpushed"],
+    });
+
+    const result = await runErrandState({
+      exec,
+      currentBranch: "main",
+      hasBackingMeta: false,
+      includeDiscovery: true,
+      entries: [
+        errand({
+          slug: "local-unpushed",
+          branch: "chore/local-unpushed",
+          remoteOnly: false,
+        }),
+      ],
+      records: [record({ slug: "local-unpushed", branch: "chore/local-unpushed" })],
+      baseBranch: "main",
+      staleThresholdDays: 1,
+      nudge: nudge(),
+      now: NOW,
+    });
+
+    expect(result.inFlight.errands).toEqual([
+      {
+        slug: "local-unpushed",
+        branch: "chore/local-unpushed",
+        state: "merged-cleanup",
+        ageDays: 7,
+      },
+    ]);
+    expect(result.materializable.candidates).toEqual([]);
+  });
+
   it("skips discovery with a warning when discovery is requested but the oracle was unavailable", async () => {
     const exec = buildExec();
+    const residue: InFlightResidue[] = [
+      {
+        branch: "chore/local-residue",
+        slug: "local-residue",
+        reason: "no-record-or-meta",
+        marks: ["degraded"],
+      },
+    ];
 
     const result = await runErrandState({
       exec,
@@ -278,6 +326,7 @@ describe("runErrandState", () => {
       hasBackingMeta: false,
       includeDiscovery: true,
       entries: null,
+      residue,
       oracleWarnings: ["Meta `.arc/active/meta-x.md` at `origin/feat/x` has unrecognized State `Paused`."],
       records: [],
       baseBranch: "main",
@@ -288,6 +337,7 @@ describe("runErrandState", () => {
 
     expect(result.inFlight.errands).toEqual([]);
     expect(result.materializable.candidates).toEqual([]);
+    expect(result.residue).toEqual(residue);
     expect(result.warnings).toContain(
       "Meta `.arc/active/meta-x.md` at `origin/feat/x` has unrecognized State `Paused`.",
     );

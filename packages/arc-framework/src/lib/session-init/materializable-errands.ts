@@ -4,9 +4,9 @@
  * Materialize arm offers.
  *
  * An errand handed off mid-flight is a pushed `chore/<slug>` branch. On another
- * machine it exists only on the remote — no local worktree — so the oracle marks
- * it `remoteOnly`; session-init fetches it (`git worktree add`) and resumes via
- * run-errand. A `chore/` branch already checked out here is a resume (the resume
+ * machine it exists only on the remote — no local branch or worktree — so the
+ * oracle marks it `remoteOnly`; session-init fetches it (`git worktree add`) and
+ * resumes via run-errand. A `chore/` branch already present here is a resume (the resume
  * probe), not a materialize; one with a backing meta is a work unit (the oracle
  * classifies it as such, so it never reaches here as an errand).
  *
@@ -43,7 +43,7 @@ export interface MaterializableErrandsResult {
  * Select the materializable errands from the oracle's in-flight entries.
  *
  * An entry qualifies when it is an errand in flight only on the remote (no
- * local worktree — not already resumable here). Identity resolves from the
+ * local branch or worktree). Identity resolves from the
  * record (the branch→slug index); a record-less legacy branch degrades to its
  * branch-derived slug. Work units are never errand candidates.
  *

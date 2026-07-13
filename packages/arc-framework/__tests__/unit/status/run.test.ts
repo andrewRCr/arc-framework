@@ -214,6 +214,7 @@ function errandStateResult(overrides: Partial<ErrandStateResult> = {}): ErrandSt
     resume: { resumable: false, slug: null },
     inFlight: { errands: [] },
     materializable: { candidates: [] },
+    residue: [],
     nudge: { shouldNudge: false, markerPath: null, today: "2026-06-01" },
     warnings: [],
     ...overrides,

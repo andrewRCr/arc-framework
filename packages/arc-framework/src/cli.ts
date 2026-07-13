@@ -534,8 +534,9 @@ program
       "Render the live project status view",
     ).conflicts(["session-init", "session-handoff", "recover", "user"]),
   )
-  .option("--local", "With --user/--project: skip the network read; render from local refs (alias: --no-fetch)")
-  .option("--no-fetch", "With --user/--project: skip the network read; render from local refs")
+  .option("--fetch", "With status <slug>: upgrade the local-default query with live remote membership")
+  .option("--local", "With --user/--project: skip the live-default network read (slug queries are local by default)")
+  .option("--no-fetch", "With --user/--project: skip the live-default network read (slug queries are local by default)")
   .option("--staged", "With --project: render tree inputs from the git index (matches the pre-commit ROADMAP regen check)")
   .addOption(
     new Option(
