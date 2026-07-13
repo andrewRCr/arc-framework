@@ -61,11 +61,12 @@ checkout rendered both `Active`.
 
 ## Decision 5 — ready-mine adoption verdict
 
-Deferred. `loadReadyMineSlice` has a mechanically simple construction-site swap, but the surrounding user-view
+Not adopted. `loadReadyMineSlice` has a mechanically simple construction-site swap, but the surrounding user-view
 assembly already runs `deriveInFlight` for its in-flight slice and does not share that result with the ready-mine
 source. Adopting the composed index there would therefore run the oracle twice per user-view render for no material
 verdict gain: an in-flight dependency remains not-`shipped` under both tree and composed truth. The read-only path
-stays tree-only until the view has a shared derivation input; `dischargeDepEdges` remains deliberately untouched.
+stays tree-only; the conditional task creates no follow-on commitment. `dischargeDepEdges` remains deliberately
+untouched.
 
 ## Decision 6 — prospective-render mechanics (source anchors)
 

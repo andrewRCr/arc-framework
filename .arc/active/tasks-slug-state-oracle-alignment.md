@@ -150,8 +150,8 @@ flag (spec Decision 3). `localOnly` blindness to never-fetched siblings is accep
   construction-site swap at its caller; otherwise the defer is recorded and `dischargeDepEdges` stays
   tree-only either way (spec Decision 5 — defer is a sanctioned outcome).
 
-- _Outcome:_ Deferred because the current user-view assembly would run the oracle twice for no material verdict
-  gain. The rationale is recorded in `notes-slug-state-oracle-alignment.md`; `dischargeDepEdges` remains tree-only.
+- _Outcome:_ Superseded because the conditional adoption did not fall out free: the current user-view assembly
+  would run the oracle twice without changing the readiness verdict. `dischargeDepEdges` remains tree-only.
 
 ## **Phase 4:** Start dispatch — live oracle and indeterminacy
 
@@ -277,26 +277,33 @@ and no local branch).
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Goal:_ Validate the slug-state oracle alignment against full quality gates and the design success criteria
+  before integration.
+- _Quality gates:_ `typecheck:all`, TypeScript/Markdown/shell lint, build, full tests (5,253 passed, 1 skipped),
+  and `git diff --check` all passed.
+- _Success criteria:_ 9 criteria met; none superseded or open. Two fresh adversarial passes converged after
+  verification repaired stale local/tracking precedence and unkeyed meta-enumeration indeterminacy.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` From a checkout other than the WU's own, `arc status <live-sibling-slug>` reports the sibling's
+- `[x]` From a checkout other than the WU's own, `arc status <live-sibling-slug>` reports the sibling's
   in-flight state and `occupied: true` in `localOnly` mode via local remote-tracking refs
-- `[ ]` `arc start <live-sibling-slug>` never silently mints a second branch through either arm: refuse arms
+- `[x]` `arc start <live-sibling-slug>` never silently mints a second branch through either arm: refuse arms
   fire on a healthy oracle; indeterminate signals confirm interactively and refuse under `--yes` / non-TTY
-- `[ ]` A live-only (never-fetched) candidate is expanded on the start-dispatch path before either minting arm
+- `[x]` A live-only (never-fetched) candidate is expanded on the start-dispatch path before either minting arm
   may fire; a failed expansion fetch yields indeterminate, not absent
-- `[ ]` The foreign-write advisory is clean in both observed directions (forward and induced behind-base),
+- `[x]` The foreign-write advisory is clean in both observed directions (forward and induced behind-base),
   reproduced pre-fix and locked by regressions
-- `[ ]` An archival commit's fresh render drops the archived WU's own In Flight row; the pre-commit assert
+- `[x]` An archival commit's fresh render drops the archived WU's own In Flight row; the pre-commit assert
   accepts it; hook and CLI remediation output is byte-identical; sibling rows and the activation/integration
   transitions are covered by regressions
-- `[ ]` Merged no-record/no-meta branches surface as classified residue; a local branch with no worktree never
+- `[x]` Merged no-record/no-meta branches surface as classified residue; a local branch with no worktree never
   appears in the materializable candidate set
-- `[ ]` `resolveSlugQuery`, `isOccupied`, and `resolveStartDispatch` consume the composed index without
+- `[x]` `resolveSlugQuery`, `isOccupied`, and `resolveStartDispatch` consume the composed index without
   interface changes — composition is a construction-site swap
-- `[ ]` All quality gates pass (tests, linting, type checking, build)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking, build)
+- `[x]` Ready for integration

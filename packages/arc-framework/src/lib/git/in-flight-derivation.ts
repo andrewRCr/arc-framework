@@ -294,10 +294,9 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
       ),
     ),
   );
-  const expandedEnumerationFailed = classified.some((classification) =>
-    input.classificationRefs[`${remote}/${classification.input.branch}`] !== undefined
-    && classification.warnings.some((warning) => warning.code === "meta-enumeration-failed"));
-  const resultMarks = expandedEnumerationFailed
+  const metaEnumerationFailed = classified.some((classification) =>
+    classification.warnings.some((warning) => warning.code === "meta-enumeration-failed"));
+  const resultMarks = metaEnumerationFailed
     ? appendMark(input.resultMarks, "indeterminate")
     : input.resultMarks;
   // A checked-out branch with no active meta is still authoritative for that
@@ -320,9 +319,11 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
     reachable: branchSet.reachable,
   });
   const candidateEntries = [
-    ...classified
-      .map((classification) => classification.errand)
-      .filter((entry): entry is IndexedEntry => entry !== null),
+    ...dedupeErrandCandidates(
+      classified
+        .map((classification) => classification.errand)
+        .filter((entry): entry is IndexedEntry => entry !== null),
+    ),
     ...deduped.entries,
   ]
     .sort((a, b) => a.index - b.index)
@@ -334,7 +335,7 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
     classified
       .map((classification) => classification.residue)
       .filter((item): item is IndexedResidue => item !== null),
-  );
+  ).filter(({ residue: item }) => !candidateEntries.some((entry) => entry.branch === item.branch));
   const observedBranches = new Set(markedInputs.map((input) => input.branch));
   for (const ref of Object.keys(branchSet.liveRefs)) observedBranches.add(branchFromInputRef(ref, remote));
   const recordResidue = branches === undefined
@@ -771,7 +772,6 @@ function buildInputCandidates(
     ),
   );
   for (const branch of remoteBranches) {
-    if (localCandidateBranches.has(branch)) continue;
     const qualifiedRef = `${remote}/${branch}`;
     out.push({
       index: out.length,
@@ -987,7 +987,7 @@ async function dedupeWorkUnitCandidates(
         if (candidate.meta.relation === "stale") {
           return [staleLocationWarning(candidate.meta, candidate.input.branch, "stale-location-shadow")];
         }
-        return isWorktreeRemoteMirror(candidate, winner) ? [] : [candidateShadowedWarning(candidate, winner)];
+        return isLocalRemoteMirror(candidate, winner) ? [] : [candidateShadowedWarning(candidate, winner)];
       }),
     );
 
@@ -1016,11 +1016,9 @@ function candidateSourceRank(candidate: WorkUnitCandidate): number {
     case "worktree":
       return 4;
     case "local-branch":
-      return 3;
     case "remote-live":
-      return 2;
     case "remote-tracking":
-      return 1;
+      return 2;
   }
 }
 
@@ -1145,11 +1143,12 @@ function shouldMarkLocationAmbiguous(
   return group.filter((candidate) => candidate.input.source === "remote-tracking").length > 1;
 }
 
-function isWorktreeRemoteMirror(left: WorkUnitCandidate, right: WorkUnitCandidate): boolean {
+function isLocalRemoteMirror(left: WorkUnitCandidate, right: WorkUnitCandidate): boolean {
   if (left.input.branch !== right.input.branch) return false;
   if (left.meta.relation !== "consistent" || right.meta.relation !== "consistent") return false;
   const sources = new Set([left.input.source, right.input.source]);
-  return sources.has("worktree") && (sources.has("remote-live") || sources.has("remote-tracking"));
+  const hasLocal = sources.has("worktree") || sources.has("local-branch");
+  return hasLocal && (sources.has("remote-live") || sources.has("remote-tracking"));
 }
 
 function degradedMetaRecord(): MetaRecord {
@@ -1316,6 +1315,27 @@ function errandRecordReadFailedWarning(): InFlightWarning {
     code: "errand-record-read-failed",
     rendered: "Errand records could not be read completely; record-dependent classification is degraded.",
   });
+}
+
+function dedupeErrandCandidates(items: readonly IndexedEntry[]): IndexedEntry[] {
+  const byBranch = new Map<string, IndexedEntry>();
+  for (const item of items) {
+    const existing = byBranch.get(item.entry.branch);
+    if (existing === undefined) {
+      byBranch.set(item.entry.branch, item);
+      continue;
+    }
+    let marks = [...(existing.entry.marks ?? [])];
+    for (const mark of item.entry.marks ?? []) marks = appendMark(marks, mark);
+    byBranch.set(item.entry.branch, {
+      entry: {
+        ...existing.entry,
+        ...(marks.length > 0 ? { marks } : {}),
+      },
+      index: Math.min(existing.index, item.index),
+    });
+  }
+  return [...byBranch.values()];
 }
 
 function dedupeResidue(items: readonly IndexedResidue[]): IndexedResidue[] {

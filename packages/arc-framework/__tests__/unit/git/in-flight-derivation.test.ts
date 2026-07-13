@@ -1207,6 +1207,98 @@ describe("deriveInFlight input union", () => {
     expect(entries[0]).not.toHaveProperty("worktreePath");
   });
 
+  it("uses a fresher tracking tip without misreporting an unoccupied local branch as remote-only", async () => {
+    const branch = "feat/local-head";
+    const localSha = "1".repeat(40);
+    const remoteSha = "2".repeat(40);
+    const refs = {
+      remoteTracking: { [branch]: remoteSha },
+      localHeads: { [branch]: localSha },
+    };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: [branch],
+      ancestors: [[branch, `origin/${branch}`]],
+      metas: {
+        [`${branch}:.arc/active/meta-local-head.md`]: metaContent({ state: "Active", branch }),
+        [`origin/${branch}:.arc/active/meta-local-head.md`]: metaContent({ state: "Integrating", branch }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch,
+      state: "Integrating",
+      remoteOnly: false,
+    });
+    expect(entries[0]).not.toHaveProperty("worktreePath");
+    expect(warnings).toEqual([]);
+  });
+
+  it("keeps a fresher unoccupied local tip ahead of its stale tracking twin", async () => {
+    const branch = "feat/local-ahead";
+    const localSha = "3".repeat(40);
+    const remoteSha = "2".repeat(40);
+    const refs = {
+      remoteTracking: { [branch]: remoteSha },
+      localHeads: { [branch]: localSha },
+    };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: [branch],
+      ancestors: [[`origin/${branch}`, branch]],
+      metas: {
+        [`${branch}:.arc/active/meta-local-ahead.md`]: metaContent({ state: "Integrating", branch }),
+        [`origin/${branch}:.arc/active/meta-local-ahead.md`]: metaContent({ state: "Active", branch }),
+      },
+    });
+
+    const { entries, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ state: "Integrating", remoteOnly: false });
+    expect(warnings).toEqual([]);
+  });
+
+  it("dedupes an errand observed through matching local and tracking refs", async () => {
+    const branch = "chore/local-errand";
+    const sha = "4".repeat(40);
+    const refs = {
+      remoteTracking: { [branch]: sha },
+      localHeads: { [branch]: sha },
+    };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: [branch],
+    });
+
+    const { entries, residue } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([[branch, "local-errand"]]),
+    });
+
+    expect(entries).toEqual([
+      expect.objectContaining({ kind: "errand", branch, slug: "local-errand", remoteOnly: false }),
+    ]);
+    expect(residue).toEqual([]);
+  });
+
   it("keeps remote-only behavior for refs with no local worktree or local branch", async () => {
     const exec = makeExec({
       localRefs: ["feat/remote"],

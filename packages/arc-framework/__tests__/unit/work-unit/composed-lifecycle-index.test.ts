@@ -51,6 +51,7 @@ function makeInFlightExec(options: {
   worktreeError?: boolean;
   metas?: Record<string, string>;
   fetchFailures?: readonly string[];
+  metaEnumerationFailures?: readonly string[];
 }): GitExec {
   const remoteRefs = options.remoteRefs ?? {};
   const metas = options.metas ?? {};
@@ -94,6 +95,9 @@ function makeInFlightExec(options: {
     }
     if (args[0] === "ls-tree" && args.includes("--name-only")) {
       const ref = args[args.indexOf("--name-only") + 1] ?? "";
+      if (options.metaEnumerationFailures?.includes(ref) === true) {
+        throw new Error("meta enumeration failed");
+      }
       const paths = Object.keys(metas)
         .filter((target) => target.startsWith(`${ref}:`))
         .map((target) => target.slice(target.indexOf(":") + 1));
@@ -255,6 +259,33 @@ describe("resolveComposedLifecycleIndex", () => {
     });
 
     expect(result.index.get(slug)?.phase).toBe("Planning");
+    expect(result.qualityFacts.resultMarks).toContain("indeterminate");
+    expect(isComposedLifecycleSlugIndeterminate(result, slug)).toBe(true);
+  });
+
+  it("marks the whole result indeterminate when a tracked candidate cannot enumerate metas", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    const slug = "enumeration-failed";
+    const branch = `feat/${slug}`;
+    await writeMeta(
+      join(root, ".arc", "backlog", "planned", `meta-${slug}.md`),
+      meta(slug, "Planning"),
+    );
+    const exec = makeInFlightExec({
+      remoteRefs: { [branch]: "e".repeat(40) },
+      metaEnumerationFailures: [`origin/${branch}`],
+    });
+
+    const result = await resolveComposedLifecycleIndex({
+      cwd: root,
+      fs,
+      oracle: { exec, localOnly: true, baseBranch: "main" },
+    });
+
+    expect(result.index.get(slug)?.phase).toBe("Planning");
+    expect(result.qualityFacts.warnings).toEqual([
+      expect.objectContaining({ code: "meta-enumeration-failed", branch }),
+    ]);
     expect(result.qualityFacts.resultMarks).toContain("indeterminate");
     expect(isComposedLifecycleSlugIndeterminate(result, slug)).toBe(true);
   });

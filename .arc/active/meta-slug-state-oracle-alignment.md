@@ -19,7 +19,7 @@
 - **Next Task:** Task 1.1 — Reproduce both observed divergence directions as failing tests (line ~18)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — reproduce both foreign-write advisory misfires as failing integration tests
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
