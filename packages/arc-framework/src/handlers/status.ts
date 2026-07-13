@@ -94,6 +94,7 @@ import {
   resolveAllSettings,
   type ResolvedSettingsResult,
 } from "../lib/config/resolved-settings.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { listErrandRecords, type ErrandRecord } from "../lib/errand/record.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
@@ -114,6 +115,7 @@ import { renderRoadmapFromIndexViewResult } from "../lib/status/roadmap-regenera
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
@@ -129,7 +131,7 @@ export interface StatusCliOptions {
   local?: boolean;
   /** `--staged`: render the `--project` view's tree inputs from the git index (the pre-commit regen source). */
   staged?: boolean;
-  /** Commander's negation of `--no-fetch` (defaults to `true`); `false` skips the network read. */
+  /** `true` opts a slug query into live membership; `false` skips network reads for live-default views. */
   fetch?: boolean;
   json?: boolean;
   /** With --session-init: write the machine-local compaction seed sidecar. */
@@ -243,20 +245,38 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // Slug→state query: a subject-keyed read over the lifecycle-complete index,
     // independent of session identity / settings. The index walk binds real I/O;
     // the resolution stays a pure lib projection.
-    const index = await buildLifecycleIndex({
+    const { settings } = await readConfigSettings(cwd);
+    const composed = await resolveComposedLifecycleIndex({
       cwd,
       fs: {
         readdir: (path) => readdir(path, { withFileTypes: true }),
         readFile: (path) => readFile(path, "utf8"),
       },
+      oracle: {
+        exec: gitExec,
+        localOnly: opts.fetch !== true,
+        baseBranch: settings["branch.base"],
+      },
     });
-    const query = resolveSlugQuery(index, slug);
+    const query = resolveSlugQuery(composed.index, slug);
+    const worktreePath = composed.worktreePathBySlug.get(slug);
+    const warnings = [
+      ...composed.qualityFacts.warnings.map(renderInFlightWarning),
+      ...(opts.fetch === true && composed.qualityFacts.unreachable === true
+        ? ["Remote unreachable; query derived from local refs only."]
+        : []),
+    ];
+    const output = {
+      ...query,
+      ...(worktreePath !== undefined ? { worktreePath } : {}),
+      ...(warnings.length > 0 ? { warnings: [...new Set(warnings)] } : {}),
+    };
     if (json) {
-      process.stdout.write(`${JSON.stringify(query)}\n`);
+      process.stdout.write(`${JSON.stringify(output)}\n`);
       return;
     }
     p.intro("arc status");
-    p.note(formatSlugStateQuery(query), "Lifecycle state");
+    p.note(formatSlugStateQuery(query, { worktreePath, warnings: output.warnings ?? [] }), "Lifecycle state");
     p.outro("Done.");
     return;
   }
@@ -799,7 +819,10 @@ function errorMessage(err: unknown): string {
 }
 
 /** Compact human render of a slug→state query for the non-`--json` path. */
-function formatSlugStateQuery(query: SlugStateQuery): string {
+function formatSlugStateQuery(
+  query: SlugStateQuery,
+  enrichment: { worktreePath?: string; warnings?: readonly string[] } = {},
+): string {
   const position =
     query.position === null
       ? "—"
@@ -809,11 +832,13 @@ function formatSlugStateQuery(query: SlugStateQuery): string {
     `position: ${position}`,
     `occupied: ${query.occupied} · shipped: ${query.shipped}`,
   ];
+  if (enrichment.worktreePath !== undefined) lines.push(`worktree: ${enrichment.worktreePath}`);
   if (query.dependsOn.length > 0) {
     lines.push("depends on:");
     for (const dep of query.dependsOn) {
       lines.push(`  - ${dep.slug} — ${dep.landed ? "landed" : "not landed"}`);
     }
   }
+  for (const warning of enrichment.warnings ?? []) lines.push(`warning: ${warning}`);
   return lines.join("\n");
 }

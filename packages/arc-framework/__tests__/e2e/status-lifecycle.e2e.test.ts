@@ -6,10 +6,14 @@
  * `arc status` keeps its session/active view, unchanged by the positional.
  */
 
+import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, it, expect, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+
+const execFileAsync = promisify(execFile);
 
 describe("status <slug>", () => {
   let tmpDir: string;
@@ -79,5 +83,47 @@ describe("status <slug>", () => {
     expect(payload).not.toHaveProperty("slug");
     expect(typeof payload).toBe("object");
     expect(payload).not.toEqual({});
+  });
+
+  it("keeps slug queries local by default and upgrades only an explicit --fetch", async () => {
+    tmpDir = await createTempRepo("arc-status-fetch-default-");
+    const origin = join(tmpDir, "origin.git");
+    const slug = "stale-sibling";
+    const branch = `feat/${slug}`;
+
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
+    await execFileAsync("git", ["remote", "add", "origin", origin], { cwd: tmpDir });
+    await mkdir(join(tmpDir, ".arc", "system"), { recursive: true });
+    await mkdir(join(tmpDir, ".arc", "backlog", "planned"), { recursive: true });
+    await writeFile(join(tmpDir, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+    await writeFile(
+      join(tmpDir, ".arc", "backlog", "planned", `meta-${slug}.md`),
+      [`# Metadata: ${slug}`, "", "- **State:** Planning", "- **Branch:** [none]", ""].join("\n"),
+    );
+    await execFileAsync("git", ["add", ".arc"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "-m", "scaffold status query"], { cwd: tmpDir });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: tmpDir });
+
+    await execFileAsync("git", ["switch", "-c", branch], { cwd: tmpDir });
+    await mkdir(join(tmpDir, ".arc", "active"), { recursive: true });
+    await writeFile(
+      join(tmpDir, ".arc", "active", `meta-${slug}.md`),
+      [`# Metadata: ${slug}`, "", "- **State:** Active", `- **Branch:** ${branch}`, ""].join("\n"),
+    );
+    await execFileAsync("git", ["add", ".arc"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "-m", "activate status query"], { cwd: tmpDir });
+    const { stdout: branchTip } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tmpDir });
+    await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: tmpDir });
+    await execFileAsync("git", ["switch", "main"], { cwd: tmpDir });
+    await execFileAsync("git", ["push", "origin", "--delete", branch], { cwd: tmpDir });
+    await execFileAsync("git", ["update-ref", `refs/remotes/origin/${branch}`, branchTip.trim()], { cwd: tmpDir });
+
+    const local = await runArc(["status", slug, "--json"], tmpDir);
+    const live = await runArc(["status", slug, "--fetch", "--json"], tmpDir);
+
+    expect(local.exitCode).toBe(0);
+    expect(live.exitCode).toBe(0);
+    expect(JSON.parse(local.stdout)).toMatchObject({ state: "active", occupied: true });
+    expect(JSON.parse(live.stdout)).toMatchObject({ state: "planned", occupied: false });
   });
 });

@@ -104,64 +104,54 @@ inverting the `--project` view's live-default, because the slug query is a hot-p
 must not expose every call to a network timeout. The asymmetry is a recorded conscious call, documented at the
 flag (spec Decision 3). `localOnly` blindness to never-fetched siblings is accepted (no-go).
 
-### `[ ]` **3.1 Swap `resolveSlugQuery` and `isOccupied` onto the composed index**
+### `[x]` **3.1 Swap `resolveSlugQuery` and `isOccupied` onto the composed index**
 
 - _Goal:_ From a checkout other than the WU's own, `arc status <live-sibling-slug>` reports the sibling's
   in-flight state and `occupied: true` via local remote-tracking refs — no false `planned` (SC1) — with
   `resolveSlugQuery` and `isOccupied` running unchanged over the swapped index (SC7).
 
-    - `[ ]` **3.1.a Swap the slug-query handler's construction site**
-        - `handlers/status.ts` slug branch: replace the inline `buildLifecycleIndex` with the composed helper
-          in `localOnly` mode; the downstream `resolveSlugQuery` call is untouched.
+    - `[x]` **3.1.a Swap the slug-query handler's construction site**
+        - `handlers/status.ts` now resolves the composed lifecycle index in local-only mode before passing its
+          index into the unchanged `resolveSlugQuery` projection.
 
-    - `[ ]` **3.1.b Lock the cross-checkout truth with integration coverage**
-        - Temp-repo scenario mirroring the founding observation: sibling WU active on its own branch (local
-          remote-tracking ref present), queried from another checkout → in-flight state, `occupied: true`.
-        - `isOccupied` truthfulness over the composed index for `planning` / `active` / `integrating` sibling
-          states.
+    - `[x]` **3.1.b Lock the cross-checkout truth with integration coverage**
+        - Temp-repo integration coverage queries planning, active, and integrating siblings through local
+          remote-tracking refs from another checkout and asserts state-derived occupancy.
 
-### `[ ]` **3.2 Add `--fetch` live upgrade with warn-and-degrade rendering**
+- _Outcome:_ Slug resolution now sees sibling in-flight truth without changing the query or occupancy contracts.
+
+### `[x]` **3.2 Add `--fetch` live upgrade with warn-and-degrade rendering**
 
 - _Goal:_ The operator can opt one slug query into live membership; a degraded oracle renders the existing
   warn-and-degrade pattern and never blocks the query.
 
-    - `[ ]` **3.2.a Register the flag and plumb live mode**
-        - CLI option on the status command surface; `--fetch` routes the composed helper into live mode.
-          Document the deliberate `--fetch` vs `--local` asymmetry at the flag's help text.
-        - The command already registers `--no-fetch` (view modes), so Commander pairs the new `--fetch` on the
-          same `fetch` key and the key's default shifts from `true` to unset — the slug path must key on
-          `opts.fetch === true`, the view modes' `opts.fetch === false` checks and their live default must be
-          asserted unchanged, and the stale "defaults to true" doc comment on `StatusCliOptions.fetch` updates.
+    - `[x]` **3.2.a Register the flag and plumb live mode**
+        - The status command exposes positive `--fetch`, documents the slug/query-view default asymmetry, and
+          upgrades only `opts.fetch === true`; subprocess coverage locks the Commander pairing behavior.
 
-    - `[ ]` **3.2.b Render quality facts on the query output**
-        - Degraded/unreachable oracle → warning lines alongside the query result (human render); `--json`
-          output may gain additive fields only — wrapped at the handler emission layer (the handler emits
-          `JSON.stringify(query)` today), never by widening `SlugStateQuery` itself. Same rule for 3.3's
-          enrichment.
+    - `[x]` **3.2.b Render quality facts on the query output**
+        - Human and JSON query renders now expose deduplicated oracle warnings as handler-layer enrichment,
+          including the live-query unreachable fallback, without widening `SlugStateQuery`.
 
-### `[ ]` **3.3 Enrich query output with sibling worktree path when the roster knows it**
+- _Outcome:_ Slug reads stay network-free by default, while explicit live reads prune stale membership and
+  degrade to local truth with visible quality facts rather than blocking the query.
+
+### `[x]` **3.3 Enrich query output with sibling worktree path when the roster knows it**
 
 - _Goal:_ A locally-checked-out sibling's query names its worktree path — display enrichment only; the
   `occupied` contract stays state-derived (spec Decision 4).
 
-    - Source the path from the oracle entry / worktree roster already resolved in the composed result; render
-      in `formatSlugStateQuery`, additive in `--json`.
+- _Outcome:_ The composed roster's path appears as `worktree` in human output and `worktreePath` in JSON, while
+  occupancy remains derived solely from lifecycle state.
 
-### `[ ]` **3.4 Adopt composed index in `buildReadyMineSlice` only if it falls out free**
+### `[~]` **3.4 Adopt composed index in `buildReadyMineSlice` only if it falls out free**
 
 - _Goal:_ The read-only ready-mine render takes composed-`localOnly` truth iff the adoption is a pure
   construction-site swap at its caller; otherwise the defer is recorded and `dischargeDepEdges` stays
   tree-only either way (spec Decision 5 — defer is a sanctioned outcome).
 
-    - The call site is singular — `loadReadyMineSlice` builds `buildLifecycleIndex` inline
-      (`lib/status/ready-mine-source.ts`) — so the swap itself is mechanically free. The real defer trigger:
-      the user view already runs the in-flight oracle for its in-flight slice, so composed adoption here would
-      run the derivation twice per view render unless the view shares one derivation. Key the decision on
-      that.
-    - Verdict deltas are near-zero either way (an in-flight dep reads not-`shipped` from both tree and
-      composed truth) — the gain is truth-source consistency, so a defer is low-stakes; record it and the
-      rationale in `notes-slug-state-oracle-alignment.md` if taken.
-    - Confirm `dischargeDepEdges` is untouched by this phase (conservative tree-only read — the no-go).
+- _Outcome:_ Deferred because the current user-view assembly would run the oracle twice for no material verdict
+  gain. The rationale is recorded in `notes-slug-state-oracle-alignment.md`; `dischargeDepEdges` remains tree-only.
 
 ## **Phase 4:** Start dispatch — live oracle and indeterminacy
 

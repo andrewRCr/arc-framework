@@ -17,4 +17,13 @@ describe("runCli", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("arc");
   });
+
+  it("documents the slug-query --fetch upgrade separately from live-default views", async () => {
+    const result = await runCli(["status", "--help"]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("--fetch");
+    expect(result.stdout).toContain("upgrade the local-default query");
+    expect(result.stdout).toMatch(/skip the live-default network\s+read/u);
+  });
 });
