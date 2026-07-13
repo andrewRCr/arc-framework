@@ -12,10 +12,10 @@
 - **Task List:** `tasks-slug-state-oracle-alignment.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Spec created (2026-07-13) — outline form off the settled draft, base merged in first
-  (264 behind resolved; ROADMAP regen conflict); one adversarial pass folded (arm-agnostic start-mint
-  protection, composed-helper quality facts, prospective-override ref-form pinning); draft retired with
-  source anchors migrated to `notes-slug-state-oracle-alignment.md`; stage advanced to `generate-tasks`.
+- **Last Completed:** Task list generated + activated (2026-07-13) — high depth, 6 substantive phases; Class
+  ratcheted `Light → Heavy` on the scale read; per-phase grounding audits plus two adversarial passes folded
+  (composed-helper input/output + path contracts, native indeterminacy code set with marks channel, post-dedupe
+  prospective suppression); branch rotated to `fix/`, stale `plan/` upstream retargeted.
 - **Next Task:** Task 1.1 — Reproduce both observed divergence directions as failing tests (line ~18)
 - **Blockers:** [none]
 
