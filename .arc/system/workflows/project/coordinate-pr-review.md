@@ -48,10 +48,9 @@ separate:
   conversation.
 
 Run affected quality gates and commit atomically with a `(code review)` context footer. For a FIX, record the
-authorized `begin-fix` transition before invoking the guard. Resolve the outgoing local head as
-`<outgoing-head-sha>`, then run
-`npm run review-gate:assert-head-mutable -- <hostRef> <outgoing-head-sha> [<begin-fix-receipt-hash>]`. Stop on refusal;
-only then run any active pre-push review action and push.
+authorized `begin-fix` transition before invoking the guard. Run
+`npm run review-gate:assert-head-mutable -- <hostRef> HEAD [<begin-fix-receipt-hash>]`. Stop on refusal; only then run
+any active pre-push review action and push.
 
 After a head update, recompose the exact scope and return to § 1. The controller decides whether full or incremental
 coverage is admissible and exposes any actor-owned trigger through `next-action`; never synthesize a command from

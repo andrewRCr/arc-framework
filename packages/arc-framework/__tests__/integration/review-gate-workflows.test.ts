@@ -207,7 +207,7 @@ describe("trusted review-gate workflows", () => {
       readRepositoryFile(".arc/system/workflows/project/coordinate-pr-review.md"),
     ]);
     const genericGuard = "active project review coordinator's exact-head";
-    const projectGuard = "npm run review-gate:assert-head-mutable -- <hostRef> <outgoing-head-sha>";
+    const projectGuard = "npm run review-gate:assert-head-mutable -- <hostRef> HEAD";
 
     expect(packageIntegration).toBe(instanceIntegration);
     expect(packageErrand).toBe(instanceErrand);
@@ -223,6 +223,7 @@ describe("trusted review-gate workflows", () => {
     expect(packageErrand.match(new RegExp(genericGuard, "gu"))).toHaveLength(1);
     expect(packageErrand).not.toContain("review-gate:assert-head-mutable");
     expect(packageErrand).toContain("The initial pre-PR push has no `openedChangeRequest` and skips this query.");
+    expect(coordination).toContain(projectGuard);
     expect(coordination.indexOf(projectGuard)).toBeLessThan(coordination.indexOf("and push."));
     expect(coordination).toMatch(/record the\s+authorized\s+`begin-fix` transition before invoking the guard/u);
   });

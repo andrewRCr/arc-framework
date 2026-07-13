@@ -5,21 +5,22 @@ import { SELF_HOSTING_REVIEW_GATE } from "./runtime/entrypoints.js";
 import { parseContextMode } from "./runtime/rollout.js";
 import {
   createAuthenticatedGitExec,
+  execFileGitExec,
   productionFetch,
   productionProcessRunner,
 } from "./runtime/production-io.js";
+import { resolveLocalCommit } from "./runtime/local-commit.js";
 import { resolveLocalReviewContext } from "./runtime/local-review-context.js";
-
-function sha(value: string | undefined, label: string): string {
-  if (value === undefined || !/^[a-f0-9]{40}$/u.test(value)) throw new Error(`invalid-${label}`);
-  return value;
-}
 
 const hostRef = process.argv[2];
 if (hostRef === undefined) {
-  throw new Error("usage: run-assert-head-mutable.ts <host-ref> <proposed-head> [authorization-receipt-hash]");
+  throw new Error("usage: run-assert-head-mutable.ts <host-ref> <proposed-commit-ish> [authorization-receipt-hash]");
 }
-const proposedHeadSha = sha(process.argv[3], "proposed-head");
+const proposedCommitish = process.argv[3];
+if (proposedCommitish === undefined) {
+  throw new Error("usage: run-assert-head-mutable.ts <host-ref> <proposed-commit-ish> [authorization-receipt-hash]");
+}
+const proposedHeadSha = await resolveLocalCommit(execFileGitExec, proposedCommitish);
 const authorizationReceiptHash = process.argv[4] ?? null;
 if (authorizationReceiptHash !== null && !/^[a-f0-9]{64}$/u.test(authorizationReceiptHash)) {
   throw new Error("invalid-authorization-receipt-hash");
