@@ -413,6 +413,7 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
     case "no-local-notes":
       await recordPartialPushMarkerAfterFailedPush(params);
       p.log.error("No local user notes ref was available after save; nothing was published.");
+      p.log.warn("User directory was saved locally — push manually with `arc user push`.");
       process.exitCode = 1;
       return;
     case "no-remote":

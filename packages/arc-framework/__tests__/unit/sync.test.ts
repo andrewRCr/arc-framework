@@ -598,6 +598,25 @@ describe("handleUserSync push policy", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("reassures after save when push finds no local notes ref", async () => {
+    setSyncState("local-ahead", "same");
+    setPolicy("on-sync");
+    mockRunUserSave.mockResolvedValue({ warnings: [] });
+    mockPushWithRecovery.mockResolvedValue({ kind: "no-local-notes" });
+
+    await handleUserSync();
+
+    expect(mockRecordPartialPushMarker).toHaveBeenCalledWith(
+      process.cwd(),
+      expect.anything(),
+      "andrew",
+    );
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      "User directory was saved locally — push manually with `arc user push`.",
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
   it("threads worktreeBranch into pushNotesWithReconcile; surfaces matrix-blocked notes push", async () => {
     setSyncState("local-ahead", "same");
     setPolicy("on-sync");
