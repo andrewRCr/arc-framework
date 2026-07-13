@@ -21,6 +21,14 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Run a vocabulary-budget pass over adopter-facing coined terms**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); release-gates portfolio review.
+- *Concern:* consistency rules do not bound coined-term quantity. Evaluate a small justified adopter-core glossary,
+  rename-to-standard as the default disposition, and a possible glossary-membership check in `knowledge-lint`.
+  Keep internal authoring vocabulary separate from the adopter-facing budget and coordinate placement with
+  `knowledge-architecture`.
+
 ### `[ ]` **Include `arc start` ceremony commits in the init/activate footer split**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-07);

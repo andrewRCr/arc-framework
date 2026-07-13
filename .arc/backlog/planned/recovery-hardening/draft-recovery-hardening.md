@@ -14,6 +14,15 @@
 > *Routed-in concern pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`).*
 
+### `[ ]` **Close the Codex no-tool post-compaction recovery gap**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); reproduced during
+  `reviewed-lane-review-gate` task-generation audit.
+- *Concern:* `PreCompact` wrote the seed and marker, but a tool-free compacted response ran before recovery; only
+  the next `UserPromptSubmit` claimed the marker. Require instruction delivery or a self-sufficient block before
+  any substantive post-compaction response, within Codex's actual hook primitives, while preserving exactly-once
+  claim and fail-closed audit behavior.
+
 ### `[ ]` **Reckon with the worktree-local compaction seed (FP 2.6.e)**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-07-07); captured

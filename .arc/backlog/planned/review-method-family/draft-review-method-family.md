@@ -5,6 +5,22 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Consume the reviewed-lane gate contract in the reusable method family**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured during
+  `reviewed-lane-review-gate` design.
+- _Concern:_ consume the proven decision, typed-requirement, generic-attestation, and checkpoint contracts without
+  inheriting this repository's controller or provider policy. Preserve `diff-review` as local author preflight,
+  not independent evidence, and keep multiple ordered actions attachable to lifecycle hooks.
+
+### `[ ]` **Reconcile the charter with documented `MINOR FIX`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured during
+  `review-gate-reconcile-composition` Task 5.5.
+- _Concern:_ replace the draft's retired `SILENT FIX` assumptions with the shipped
+  `FIX NOW | MINOR FIX | DEFER | REJECT` contract. Every valid finding keeps an explicit disposition, while
+  several self-evident minor fixes may share one concise roll-up.
+
 ### `[ ]` **Consume `adversarial-review`'s fresh-subagent primitive**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-method-family`), housekeep drain (2026-07-03);

@@ -16,6 +16,16 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Coordinate multi-PR review cardinality with the reviewed-lane gate contract**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured during
+  `reviewed-lane-review-gate` task-generation reviewability assessment.
+- _Concern:_ each deliverable can reuse the proven per-change-request review contract, but stack-level review
+  cardinality and usage policy remain unsettled. More PRs must not automatically multiply expensive review passes.
+- _Approach:_ settle which deliverables auto-admit versus wait for checkpoints, where independent/adversarial
+  review runs, and how findings and approvals compose without one PR erasing another's evidence. Preserve each
+  deliverable's truthful `merge-ok` while keeping WU-terminal aggregation outside `ReviewCore`.
+
 ### `[ ]` **Coordinate adversarial verify cardinality and partition criteria**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: pr-decomposition`), housekeep drain (2026-07-03);

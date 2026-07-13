@@ -12,6 +12,20 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
+
+### `[ ]` **Give disciplined drains machine-readable lane provenance**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after PR #221 was classified as
+  reviewed despite being a disciplined routing PR.
+- *Concern:* settle a machine-readable drain provenance/attestation shape, then let reviewed-lane classification
+  consume it without baking inbox paths or mutable labels into provider policy. Coordinate the eventual shared
+  inbox rename so path churn cannot silently regress classification.
+
+---
+
 ## Problem / Motivation
 
 The core invariant — *no item with a known home may rest in a capture surface* — is enforced at **write-time**
