@@ -154,29 +154,6 @@ atomic companion and the personal atomic inbox.
   iteration so the two WUs don't both edit the same callouts.
 - *Scope:* Quick-tier (touches `.arc/system/workflows/`); package-source-primary with `.arc/` mirror sync.
 
-### `[ ]` **Clarify release-wrapper fire-site invocation + make the `arc-commit` path not matter**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: interlock-release-refinement`), housekeep drain
-  (2026-06-08); captured at `scalable-authoring-pipeline` Task 5.R.4.
-- *Concern:* The release wrappers (`arc release commit` / `arc release push`) are thin passthroughs to
-  `git commit` / `git push` (args forwarded; `-m` / `-F` as normal), but that isn't stated where it's needed.
-  `DEV-RULES.ARC § Workflow class-tag routing` says the workflow "supplies the message body in a `text`
-  codeblock," which reads as a special convention and leaves the literal invocation unclear — forcing a
-  mid-session `--help` check. Recurs because the agent hand-rolls the wrapper instead of invoking the
-  `arc-commit` skill the task-loop prescribes.
-- *Proposed:* Two coupled halves. (1) **Fire-site doc fix, on-demand — not session-init** (adding it to
-  `AGENT-BRIEF.ARC` violates ARC's own load-on-demand discipline): add a one-line "thin git passthrough" note +
-  a concrete example (`arc release commit -m "…"` / `-F <file>`) to the `arc-commit` skill (or a release-wrapper
-  reference), and tighten the DEV-RULES routing prose. (2) **Make the orchestration path not matter** — hooks
-  fire on the git event and can't see skill-vs-raw-wrapper; only the artifact (format/footer) is gate-able. The
-  wrapper already runs interlock-validation + audit regardless of caller, so hand-rolling only loses the skill's
-  simple-vs-complex triage (routing multi-concern commits to `prepare-commits`). Fold that triage into the
-  wrapper as a heuristic advisory and hand-rolling becomes harmless; failing that, salience-not-prevention
-  (`arc-reinforce` / commit-msg nudge).
-- *Scope:* Tension to preserve — fixing (1) makes hand-rolling *cheaper*, so the interface clarification is only
-  safe paired with making the outcome path-independent; that coupling is itself the argument for
-  wrapper-owns-the-triage.
-
 ### `[ ]` **Coordinate the "release the tail" pattern with the new sibling `unit-scoped-review`**
 
 - *Coordination (cross-member, 2026-06-15):* `unit-scoped-review` joined the cohort — it widens the *review*

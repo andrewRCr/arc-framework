@@ -19,6 +19,14 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Audit lifecycle workflows for stale ROADMAP hand-render advisories**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after `arc integrate` was found
+  to regenerate and stage ROADMAP despite stale workflow prose saying to hand-render it.
+- *Approach:* verify each lifecycle verb's actual render/stage side effects before editing. Correct only workflows
+  whose command already regenerates and stages, in package and project copies; candidate surfaces are promote,
+  deactivate, and planning/init.
+
 ### `[ ]` **STATUS.USER writer offline merge and document chrome**
 
 - *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
