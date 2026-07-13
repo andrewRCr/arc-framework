@@ -2,14 +2,14 @@
 
 | **State**  | **Owner** | **Branch**                         | **Class** | **Priority** |
 | ---------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/slug-state-oracle-alignment` | `Light`   | `P1`         |
+| `Planning` | `andrew`  | `plan/slug-state-oracle-alignment` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-slug-state-oracle-alignment.md`
-- **Task List:** [none]
+- **Task List:** `tasks-slug-state-oracle-alignment.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** Spec created (2026-07-13) — outline form off the settled draft, base merged in first
@@ -19,7 +19,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
