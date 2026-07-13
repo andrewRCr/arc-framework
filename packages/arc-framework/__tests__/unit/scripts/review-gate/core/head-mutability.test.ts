@@ -165,6 +165,24 @@ describe("request flights and exact-head mutability", () => {
     })).toEqual({ kind: "refuse", reason: "ambiguous-flight" });
   });
 
+  it("permits settled head updates while requiring authorization for terminal findings", () => {
+    expect(queryHeadMutability({
+      receipts: [], currentHeadSha: OLD_HEAD, proposedHeadSha: NEW_HEAD,
+    })).toEqual({ kind: "allow", reason: "settled-head-update" });
+
+    const clean = [
+      receipt({ action: "reserved", previousLedgerVersion: 0 }),
+      receipt({ action: "acknowledged", previousLedgerVersion: 1 }),
+      receipt({ action: "attested", previousLedgerVersion: 2, result: "clean" }),
+    ];
+    expect(queryHeadMutability({
+      receipts: clean, currentHeadSha: OLD_HEAD, proposedHeadSha: NEW_HEAD,
+    })).toEqual({ kind: "allow", reason: "settled-head-update" });
+    expect(queryHeadMutability({
+      receipts: terminalFindings(), currentHeadSha: OLD_HEAD, proposedHeadSha: NEW_HEAD,
+    })).toEqual({ kind: "refuse", reason: "missing-authorization" });
+  });
+
   it("authorizes begin-fix only for exact terminal findings and an authorized actor", () => {
     const receipts = terminalFindings();
     const planned = planBeginFix({

@@ -94,7 +94,7 @@ export function reduceRequestFlights(
 }
 
 export type HeadMutabilityResult =
-  | { kind: "allow"; reason: "unchanged-head" | "authorized-head-update"; authorizationReceiptHash?: string }
+  | { kind: "allow"; reason: "unchanged-head" | "settled-head-update" | "authorized-head-update"; authorizationReceiptHash?: string }
   | { kind: "refuse"; reason: "active-flight" | "ambiguous-flight" | "ambiguous-authorization" | "missing-authorization" | "unexpected-head" | "reused-authorization" };
 
 function authorizations(receipts: readonly ReviewReceipt[]): ReviewReceipt[] {
@@ -120,6 +120,10 @@ export function queryHeadMutability(input: {
   if (reduction.ambiguous) return { kind: "refuse", reason: "ambiguous-flight" };
   if (reduction.flights.some((flight) => flight.request.coverageThroughSha === input.currentHeadSha
     && ACTIVE_STATES.has(flight.state))) return { kind: "refuse", reason: "active-flight" };
+  const terminalFindings = input.receipts.some((receipt) => receipt.request.coverageThroughSha === input.currentHeadSha
+    && receipt.result === "findings"
+    && receipt.payload.kind === "terminal-evidence");
+  if (!terminalFindings) return { kind: "allow", reason: "settled-head-update" };
   const candidates = authorizations(input.receipts).filter((receipt) =>
     receipt.payload.kind === "head-update-authorization"
     && receipt.payload.oldHeadSha === input.currentHeadSha);

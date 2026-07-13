@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import type { ReviewReceipt } from "../../../../../src/scripts/review-gate/core/execution.js";
 import type { HeadMutabilityReader } from "../../../../../src/scripts/review-gate/runtime/head-mutability-main.js";
 import { runAssertHeadMutable } from "../../../../../src/scripts/review-gate/runtime/head-mutability-main.js";
 
@@ -21,18 +20,18 @@ function reader(overrides: Partial<Awaited<ReturnType<HeadMutabilityReader["read
 }
 
 describe("exact-head mutability main", () => {
-  it("returns a typed refusal when no repair authorization exists", async () => {
+  it("returns a typed allowance when controller state is settled", async () => {
     await expect(runAssertHeadMutable({
       repositoryId: "repo-1", changeRequestId: "change-7", currentHeadSha: CURRENT,
       proposedHeadSha: OUTGOING, authorizationReceiptHash: null,
     }, reader())).resolves.toEqual({
       schemaVersion: 1,
-      kind: "refuse",
+      kind: "allow",
       repositoryId: "repo-1",
       changeRequestId: "change-7",
       currentHeadSha: CURRENT,
       proposedHeadSha: OUTGOING,
-      reason: "missing-authorization",
+      reason: "settled-head-update",
       authorizationReceiptHash: null,
     });
   });
@@ -53,19 +52,10 @@ describe("exact-head mutability main", () => {
   });
 
   it("requires an explicitly supplied authorization hash to match the canonical allowance", async () => {
-    const authorization = {
-      action: "begin-fix",
-      receiptHash: "c".repeat(64),
-      payload: {
-        kind: "head-update-authorization",
-        oldHeadSha: CURRENT,
-        targetHeadSha: OUTGOING,
-      },
-    } as ReviewReceipt;
     await expect(runAssertHeadMutable({
       repositoryId: "repo-1", changeRequestId: "change-7", currentHeadSha: CURRENT,
       proposedHeadSha: OUTGOING, authorizationReceiptHash: "d".repeat(64),
-    }, reader({ receipts: [authorization] }))).resolves.toMatchObject({
+    }, reader())).resolves.toMatchObject({
       kind: "refuse", reason: "authorization-mismatch",
     });
   });
