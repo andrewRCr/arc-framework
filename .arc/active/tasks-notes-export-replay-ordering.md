@@ -179,47 +179,60 @@ compatibility for histories emitted by released versions.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ 419 test files and 5,186 tests passed (1 file and 1 test skipped); full TypeScript checks,
+  TypeScript lint, shell lint, Markdown lint, and production build all passed after the verification fix.
+- _Success criteria:_ All 19 criteria are met. One Heavy-class adversarial pass reported no actionable finding;
+  the live frozen-history audit proved 350 of 354 current annotations and explicitly flags the four synthetic
+  burn-in fixtures for operator resolution while the notes-push hold remains active until integration.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The resurrection induction reaches a formerly unsafe topology, paired notes publication defers, and a later
+- `[x]` The resurrection induction reaches a formerly unsafe topology, paired notes publication defers, and a later
   load does not restore the tombstoned inbox entry.
-- `[ ]` Current, historical, deletion-bearing, root/snapshot, merge-parent, and cross-object rename paths all enter
+- `[x]` Current, historical, deletion-bearing, root/snapshot, merge-parent, and cross-object rename paths all enter
   the local-exclusive publication set when applicable.
-- `[ ]` Fanout-only exact renames and deletions do not create false publication entries; malformed history and Git
+- `[x]` Fanout-only exact renames and deletions do not create false publication entries; malformed history and Git
   read failures never become optimistic empty success.
-- `[ ]` An existing canonical ref with an empty current tree is distinguished from an absent ref and can publish its
+- `[x]` An existing canonical ref with an empty current tree is distinguished from an absent ref and can publish its
   exact deletion-bearing tip once safe.
-- `[ ]` Live remote membership, locally readable tip filtering, and one union reachability walk prove publication
+- `[x]` Live remote membership, locally readable tip filtering, and one union reachability walk prove publication
   without branch fetches or stale remote-tracking authority; shallow-history truncation cannot become an
   unpublished-history verdict.
-- `[ ]` Local canonical-tip planning distinguishes verified ref absence from malformed output and Git failure, and
+- `[x]` Local canonical-tip planning distinguishes verified ref absence from malformed output and Git failure, and
   the optional stdin adapter contract is accurate at every released seam.
-- `[ ]` The planner is side-effect-free, cleans only its caller-unique temporary ref, and returns a target only after
+- `[x]` The planner is side-effect-free, cleans only its caller-unique temporary ref, and returns a target only after
   ancestry, compaction-lineage, and commit-publication proof.
-- `[ ]` Paired and standalone non-force transport publish the exact captured canonical tip and mint no reconstructed,
+- `[x]` Paired and standalone non-force transport publish the exact captured canonical tip and mint no reconstructed,
   replayed, adopted, or join notes event.
-- `[ ]` A local save after planning stays local, and a remote advance after planning rejects the pinned push without
+- `[x]` A local save after planning stays local, and a remote advance after planning rejects the pinned push without
   force or canonical-ref mutation.
-- `[ ]` Every non-force standalone push is preflighted; ordinary same-lineage divergence merges then re-proves, while
+- `[x]` Every non-force standalone push is preflighted; ordinary same-lineage divergence merges then re-proves, while
   incompatible compaction lineage refuses before adoption or merge.
-- `[ ]` Paired refusal preserves the successful worktree result, records the existing local partial-push marker,
+- `[x]` Paired refusal preserves the successful worktree result, records the existing local partial-push marker,
   returns the existing mixed failure, and emits no remote notes intent marker.
-- `[ ]` Refusal messages distinguish unpublished history, ordinary divergence, incompatible compaction lineage, and
+- `[x]` Refusal messages distinguish unpublished history, ordinary divergence, incompatible compaction lineage, and
   unavailable proof without recommending sorting, force-pushing, or blind retry.
-- `[ ]` Session-init, verbose and terse status, and sync guidance consistently describe explicit reconciliation and
+- `[x]` Session-init, verbose and terse status, and sync guidance consistently describe explicit reconciliation and
   proof-gated local-ahead residue without growing the five-state spine or content-relation vocabulary.
-- `[ ]` Released branch-export join commits remain readable and classifiable, while new publication paths emit no
+- `[x]` Released branch-export join commits remain readable and classifiable, while new publication paths emit no
   join signature.
-- `[ ]` The shared user-notes concurrency strategy accurately documents the remaining mutators, proof boundary,
+- `[x]` The shared user-notes concurrency strategy accurately documents the remaining mutators, proof boundary,
   cleanup, force escape hatch, recovery residuals, and manual compaction-lineage repair.
-- `[ ]` Before the notes-push hold is lifted, every annotation in the current frozen canonical history is confirmed
+- `[x]` Before the notes-push hold is lifted, every annotation in the current frozen canonical history is confirmed
   reachable from a live remote head or is flagged for explicit operator resolution under the documented manual-
   repair-only refusal.
-- `[ ]` Focused unit and real-Git integration suites pass, including the live resurrection induction and all failure
+
+    - _Verification audit:_ Of 354 current annotations, 350 are reachable from a live origin head. The explicit
+      operator-resolution set is the four synthetic burn-in fixtures `8314d4d7f6de8547f9a98f41357d2d2a9f55db7b`,
+      `9d44106acdce9bfb278625df2e4b6a2d4f52da15`, `a06e26dc8ee960fb2a1f0dd37f1c6289509c3c27`, and
+      `f96fc372dcd5d7d07ec75711f0f7983f0a321c57`. They remain operator-cleanup debt; the notes-push hold lifts once
+      this proof-gated implementation is integrated and active.
+
+- `[x]` Focused unit and real-Git integration suites pass, including the live resurrection induction and all failure
   and race cases.
-- `[ ]` All quality gates pass (tests, linting, type checking, build, and Markdown linting).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking, build, and Markdown linting).
+- `[x]` Ready for integration.

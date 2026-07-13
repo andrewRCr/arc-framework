@@ -20,9 +20,14 @@ import { atomicWriteFile } from "./fs.js";
 
 export const execFileAsync = promisify(execFile);
 
+const MAX_GIT_STDOUT_BYTES = 64 * 1024 * 1024;
+
 /** Real git executor wrapping child_process.execFile. */
 export const gitExec: GitExec = async (cmd, args, options) => {
-  const { stdout, stderr } = await execFileAsync(cmd, args, options ?? {});
+  const { stdout, stderr } = await execFileAsync(cmd, args, {
+    ...options,
+    maxBuffer: MAX_GIT_STDOUT_BYTES,
+  });
   return { stdout: stdout.trimEnd(), stderr };
 };
 
