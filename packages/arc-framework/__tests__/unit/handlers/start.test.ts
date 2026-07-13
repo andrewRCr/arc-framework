@@ -413,6 +413,24 @@ describe("handleStart — dispatch orchestration", () => {
     expect(process.exitCode).toBeUndefined();
   });
 
+  it("refuses an indeterminate in-place graduation even with --yes", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockResolveComposedLifecycleIndex.mockResolvedValue({
+      index: new Map(),
+      qualityFacts: { warnings: [], resultMarks: ["indeterminate"], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: false,
+    });
+
+    await handleStart("widget", { here: true, yes: true });
+
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/cannot safely start.*indeterminate/is));
+    expect(process.exitCode).toBe(1);
+    expect(mockRunGraduate).not.toHaveBeenCalled();
+    expect(mockRunColdStart).not.toHaveBeenCalled();
+  });
+
   it("reports an arm refusal — surfaces the reason, sets the exit code, writes no note", async () => {
     mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
     mockRunGraduate.mockResolvedValue({ status: "rejected", reason: "requires a resolved `Class`" });
