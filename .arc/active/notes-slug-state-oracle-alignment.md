@@ -1,9 +1,17 @@
 # Notes: slug-state-oracle-alignment
 
-Reference material for task generation and execution — source anchors, reproduction recipes, and
-coordination constraints backing `spec-slug-state-oracle-alignment.md`.
+Reference material for task generation and execution — source anchors and reproduction recipes backing
+`spec-slug-state-oracle-alignment.md`.
 
-## Problem 1 — blast radius of the checkout-local resolver (source anchors)
+## Contents
+
+- [Checkout-local resolver blast radius](#checkout-local-resolver-blast-radius)
+- [Foreign-write reproduction and candidate channels](#foreign-write-reproduction-and-candidate-channels)
+- [Oracle mechanics](#oracle-mechanics)
+- [Ready-mine adoption verdict](#ready-mine-adoption-verdict)
+- [Prospective-render mechanics](#prospective-render-mechanics)
+
+## Checkout-local resolver blast radius
 
 Consumers of `buildLifecycleIndex` truth, from source:
 
@@ -26,7 +34,7 @@ Live observation (2026-07-09): both wave-1 probes integration-ready, yet `arc st
 from FP's worktree reported `planned · Planning · occupied: false` while `arc status --project` in the same
 checkout rendered both `Active`.
 
-## Problem 2 — reproduction anchors and candidate channels
+## Foreign-write reproduction and candidate channels
 
 - **Forward direction:** FP's own-artifact commit `4c05c455` flagged FP-side files as probe overlaps.
 - **Behind-base direction:** probes lagging `main` flagged ~20 backlog drafts they never authored
@@ -48,7 +56,7 @@ checkout rendered both `Active`.
   only when the remote-tracking ref is unavailable.
 - Distinct from the 2026-07-06 phantom-meta roster misfire (fixed by `project-state-integrity`).
 
-## Decision 1 — oracle mechanics (source anchors)
+## Oracle mechanics
 
 - Candidate set: `resolveInFlightBranchSetFromLocalRefs` (`lib/git/remote-ref-reader.ts`) — local
   remote-tracking refs ∩ live membership; live mode prunes, never expands. `resolveInFlightBranchSet` returns
@@ -59,7 +67,7 @@ checkout rendered both `Active`.
   (`lib/status/project-view.ts`) nulls unknown-state entries; `buildLifecycleIndexFromRecords`
   (`lib/work-unit/lifecycle-index.ts`) skips unknown-state records.
 
-## Decision 5 — ready-mine adoption verdict
+## Ready-mine adoption verdict
 
 Not adopted. `loadReadyMineSlice` has a mechanically simple construction-site swap, but the surrounding user-view
 assembly already runs `deriveInFlight` for its in-flight slice and does not share that result with the ready-mine
@@ -68,7 +76,7 @@ verdict gain: an in-flight dependency remains not-`shipped` under both tree and 
 stays tree-only; the conditional task creates no follow-on commitment. `dischargeDepEdges` remains deliberately
 untouched.
 
-## Decision 6 — prospective-render mechanics (source anchors)
+## Prospective-render mechanics
 
 During the archive-commit window the checked-out branch contributes two oracle candidates — its worktree local
 head and its remote-tracking twin `origin/<branch>`, both at the pre-commit tip; `dedupeWorkUnitCandidates` /
@@ -76,13 +84,3 @@ head and its remote-tracking twin `origin/<branch>`, both at the pre-commit tip;
 ranks active over completed, which is why the staged `Shipped` record loses today. The prospective override
 must therefore substitute for *both* ref forms of the current branch. Hook + CLI parity is by construction via
 the shared render in `lib/status/roadmap-regeneration-assert.ts` (`arc status --project --staged`).
-
-## Execution constraints
-
-- **Launch mode:** code WU — run `--here` in the primary worktree per the standing spawned-code-WU caveat
-  (wave 2 is what blesses spawned code worktrees for quality gates).
-- **Sequencing / coordination:** land on `main` before `finalize-parallelism` wave 2 — the waves consume these
-  surfaces. FP merges the fix in; FP wave-1 cell 3.2.e induces the behind-base foreign-write case, and wave 2
-  verifies both halves under live concurrency.
-- Origin mechanism and source anchors for the founding defect: `notes-finalize-parallelism.md` § Dogfood
-  finding (2026-07-09) — slug-state surfaces are checkout-local.
