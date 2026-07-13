@@ -60,7 +60,10 @@ function makeIncomingReadFailExec(realExec: GitExec, errorMessage: string): GitE
       incomingTip = result.stdout.trim() || null;
       return result;
     }
-    if (args[0] === "ls-tree" && incomingTip !== null && args[1] === incomingTip) {
+    if (
+      args[0] === "ls-tree" && !args.includes("-r")
+      && incomingTip !== null && args[args.length - 1] === incomingTip
+    ) {
       throw new Error(errorMessage);
     }
     return realExec(cmd, args);

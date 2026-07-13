@@ -13,6 +13,7 @@ import { Command, Option } from "commander";
 import { getFrameworkVersion } from "./lib/version.js";
 import { formatUnexpectedError } from "./lib/errors.js";
 import { checkDevBuildStaleness, createDevCheckDeps } from "./lib/dev-check.js";
+import { isHandoffCritical } from "./lib/handoff-critical.js";
 import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
 import { handleStart, type StartOptions } from "./handlers/start.js";
@@ -535,6 +536,7 @@ program
   )
   .option("--local", "With --user/--project: skip the network read; render from local refs (alias: --no-fetch)")
   .option("--no-fetch", "With --user/--project: skip the network read; render from local refs")
+  .option("--staged", "With --project: render tree inputs from the git index (matches the pre-commit ROADMAP regen check)")
   .addOption(
     new Option(
       "--write-compaction-seed",
@@ -713,7 +715,12 @@ program.hook("preAction", (_thisCommand, actionCommand) => {
     = `arc dev build is stale (${verdict.newestSrc} changed `
     + `${formatAge(verdict.srcAge)} ago; ${distAgeText}).`;
 
-  if (isHandoffCritical(actionCommand)) {
+  const critical = isHandoffCritical({
+    name: actionCommand.name(),
+    parentName: actionCommand.parent?.name(),
+    opts: actionCommand.opts(),
+  });
+  if (critical) {
     const cmdPath = formatCommandPath(actionCommand);
     process.stderr.write(
       `error: ${baseMsg} Refusing \`${cmdPath}\` against stale dist; `
@@ -726,21 +733,6 @@ program.hook("preAction", (_thisCommand, actionCommand) => {
     `warn: ${baseMsg} Run \`npm run build\` before relying on output.\n`,
   );
 });
-
-function isHandoffCritical(cmd: Command): boolean {
-  const name = cmd.name();
-  const parentName = cmd.parent?.name();
-  if (parentName === "arc" && name === "sync") return true;
-  if (parentName === "user" && (name === "save" || name === "push" || name === "sync")) return true;
-  if (parentName === "release" && (name === "commit" || name === "push")) return true;
-  if (parentName === "arc" && name === "status") {
-    const opts = cmd.opts();
-    if (opts.json === true && (opts.sessionInit === true || opts.sessionHandoff === true)) {
-      return true;
-    }
-  }
-  return false;
-}
 
 function formatCommandPath(cmd: Command): string {
   const parts: string[] = [];

@@ -14,6 +14,15 @@
 > *Routed-in concern pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`).*
 
+### `[ ]` **Close the Codex no-tool post-compaction recovery gap**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); reproduced during
+  `reviewed-lane-review-gate` task-generation audit.
+- *Concern:* `PreCompact` wrote the seed and marker, but a tool-free compacted response ran before recovery; only
+  the next `UserPromptSubmit` claimed the marker. Require instruction delivery or a self-sufficient block before
+  any substantive post-compaction response, within Codex's actual hook primitives, while preserving exactly-once
+  claim and fail-closed audit behavior.
+
 ### `[ ]` **Reckon with the worktree-local compaction seed (FP 2.6.e)**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain (2026-07-07); captured
@@ -34,6 +43,20 @@
     - git-call bounding (PR #192 follow-up) still lands in `handlers/recover.ts`; the 2.6.e edit there is small (one
       dropped arg). Base-merge FP first; the substantive change to expect is the seed path relocation +
       `resolveCompactionSeedPath` signature.
+
+### `[ ]` **Distinguish committed task-cursor advancement for fresh verifiers**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: recovery-hardening`), housekeep drain
+  (2026-07-10); reproduced by the `notes-export-state-coherence` verification pass.
+- *Concern:* a fresh verifier can inherit a seed anchored to the prior implementation task; recovery correctly
+  explains the worktree delta as committed progress but still emits an unconditional `task-cursor-mismatch`
+  stop after the task list has advanced monotonically.
+- *Fold-in:* settle whether committed-progress explanation covers monotonic cursor advance or the verification
+  fire point must emit a fresh verifier-local seed. Preserve fail-closed behavior for uncommitted, reordered, or
+  otherwise unexplained drift and add a spawned-verifier regression. Coordinate the handoff contract with
+  `execution-delegation-doctrine`.
+- *FP boundary:* Phase 9 should refresh/preflight the worktree-local seed before its adversarial verifier; a
+  repeated false stop becomes an FP Phase 7 blocker rather than a deferred surprise.
 
 ## Problem / Motivation
 

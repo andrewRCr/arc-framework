@@ -5,6 +5,22 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Consume the reviewed-lane gate contract in the reusable method family**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured during
+  `reviewed-lane-review-gate` design.
+- _Concern:_ consume the proven decision, typed-requirement, generic-attestation, and checkpoint contracts without
+  inheriting this repository's controller or provider policy. Preserve `diff-review` as local author preflight,
+  not independent evidence, and keep multiple ordered actions attachable to lifecycle hooks.
+
+### `[ ]` **Reconcile the charter with documented `MINOR FIX`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured during
+  `review-gate-reconcile-composition` Task 5.5.
+- _Concern:_ replace the draft's retired `SILENT FIX` assumptions with the shipped
+  `FIX NOW | MINOR FIX | DEFER | REJECT` contract. Every valid finding keeps an explicit disposition, while
+  several self-evident minor fixes may share one concise roll-up.
+
 ### `[ ]` **Consume `adversarial-review`'s fresh-subagent primitive**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-method-family`), housekeep drain (2026-07-03);
@@ -30,7 +46,7 @@
   and delivered as a standalone errand at this drain; only the trigger-extension part remains here.
 - _Concern:_ In the manual-trigger review shape, after opening a WU PR the agent should ask whether to trigger
   an external AI review (rather than relying on automatic review). This is a new fire point, distinct from
-  `pre-pr-review` (which fires _before_ PR open).
+  the pre-PR self-review method.
 - _Proposed:_ Add an inactive-by-default extension around the post-PR-open trigger point (or nearest clean
   pre-review-response point), applying only to **work-unit** PRs, not Errand PRs. In this project it would ask
   the user whether to post `@coderabbitai review`; on approval, post the comment and wait for user signal without
@@ -44,26 +60,34 @@
   can't cleanly express the errand cut) — hence a managed trigger rather than the app's own filters. **(2)** Wire
   the extension's project-instance behavior as: confirm-with-recommendation → post `@coderabbitai review` → **then
   load `address-pr-review`** to process the findings (the existing entry stops at "post + wait"). **(3)** Distinct
-  from the WORKING-MEMORY entry on gating the ARC `pre-pr-review` extension by errand _content_ (that is the
-  framework extension firing); this is the CodeRabbit-app-side auto-trigger plus the post-PR-open ARC seam to manage
-  it. Confirms `review-method-family` as the shared home.
+  from content/lane gating of the broader review ceremony; this is the CodeRabbit-app-side auto-trigger plus the
+  `post-pr-open` ARC seam that manages it. Confirms `review-method-family` as the shared home.
 - _Interim (housekeep drain 2026-06-24):_ until this extension ships, the project workflow
   `address-pr-review.md` carries the manual-trigger instruction directly — CR is manual-trigger on this
   repo, so the initial review and each post-push re-review are requested via `@coderabbitai review`. When
   the trigger extension lands it owns that decision; remove/subsume the interim instruction from
   `address-pr-review.md` at that point.
+- _Operational split (housekeep drain 2026-07-10):_ keep the repo's long-standing manual-trigger posture —
+  `auto_review` remains disabled and `address-pr-review.md` remains the interim entry. A standalone
+  repo-internal Errand owns restoring CodeRabbit's visible in-progress/failing review surface after that check
+  disappeared; it does not pre-empt this WU's post-PR-open extension design.
 
 ### `[ ]` **Content/lane-gate review extensions for doc-only lifecycle ceremonies**
 
 - _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: review-method-family`), housekeep drain (2026-06-10);
   captured during `decomposition-machinery` Task 4.1 while authoring the `decompose-work-unit` park PR step.
-- _Concern:_ the code-review extension family (`pre-pr-review` / `pre-merge-review`, and the broader ceremony)
+- _Concern:_ the code-review extension family (`pre-push-review` / `post-pr-open` / `pre-merge`, and the broader ceremony)
   fires on push / PR fire-points regardless of whether the change carries a code diff. Some ARC lifecycle
   ceremonies produce doc- or planning-artifact-only PRs; the new `decompose-work-unit.md` park PR is the live
   instance because it carries the `#pre-push-review` marker, mirroring `integrate` / `init`.
 - _Scope:_ decide whether review extensions should key on change kind at their fire-point, and if so whether the
   gating belongs in the extension contract, the fire-site, or a review-method abstraction. Coordinate with
   `rules-restructure`'s extension-definition breadth and the auto-merge-lane "no human review" classification.
+- _2026-07-10 evidence:_ this repo's CI already computes a generic `reviewed | auto` lane, while CodeRabbit's
+  GitHub check stopped appearing even on manually-triggered passes. The repo-local recovery is being pulled
+  forward, but the reusable ARC question remains here: how a post-PR review extension consumes a generic lane
+  signal and holds integration while its review is active, without turning a project-specific tool into
+  framework policy.
 
 ### `[ ]` **`arc-design-audit` → departed to `adversarial-review` (2026-07-01 drain)**
 
@@ -84,7 +108,7 @@ integration (PR #23):
 **Step 8 inlines too-thin guidance and assumes PR review always happens.** `integrate-work-unit.md` Step 8
 (Address PR Review Findings) inlines generic guidance pointing at `review-triage` for classification —
 accurate for the bare-classification case but missing the richer end-to-end response cycle some projects
-want (this project's [`workflows/project/address-pr-review.md`][address-pr-review] — fetch threads via gh
+want (this project's `address-pr-review.md` — fetch threads via gh
 api → triage → fix-now commits → reply-and-resolve for defer/reject → completion-doc check → push →
 final-state verification). The workflow also assumes every PR receives review feedback the agent should
 act on — not always true (solo dev, low-stakes change, or human-handled review where the agent should
@@ -126,18 +150,18 @@ feedback) / `review-triage` (classify). Each name unambiguous in isolation.
 
 Extension fire-point naming and the broader fire-point family are locked by Work Organization Reform
 (WOR) — see `prd-work-organization-reform.md` R55–R57. This plan retains scope over **method** naming
-and content (the WHAT side); the WHEN side is WOR territory. As a result, the prior `pre-merge-review`
-extension is renamed by WOR to `pre-pr-review` (its actual fire-point is pre-PR-creation push, not
-pre-merge), and a new `pre-merge-review` extension exists at the genuine pre-merge fire-point.
+and content (the WHAT side); the WHEN side is WOR territory. The former action-named pre-PR review extension was
+removed in favor of lifecycle-named `pre-pr-open` and `post-pr-open` hooks. The final hook is `pre-merge`, named
+for its genuine lifecycle event rather than an installed review action.
 
-Three-extension family at `integrate-work-unit.md` post-WOR:
+Lifecycle family around review coordination at `integrate-work-unit.md`:
 
-- `pre-pr-review` (WOR; renamed from `pre-merge-review`) — fires before PR creation push. Invokes
-  `self-review` instead of `diff-review` per this plan's method-rename.
+- `pre-pr-open` and `post-pr-open` — bracket change-request creation and open-request entry without installing a
+  review action. The local aggregate self-review remains a method invocation before PR creation.
 - `review-response` (this plan; new) — fires at `integrate-work-unit` Step 8. **Default: not
   configured.** Projects that get PR review configure it; projects that don't (or handle review
   manually) leave it unconfigured and Step 8 no-ops.
-- `pre-merge-review` (WOR new; name freed by the rename above) — fires after `review-response`
+- `pre-merge` — fires after `review-response`
   processes received feedback, before the actual merge action. **Default: not configured.**
   Reserved for final-state-check use cases (all threads resolved, CI green, last review pass).
 
@@ -219,10 +243,9 @@ a plan doc and PRD.
 
 - `system/methods/`: rename `diff-review.md` → `self-review.md` (content carries forward); new
   `peer-review.md`; new `review-response.md`. Both copies (package source + project instance).
-- `system/extensions/`: new `review-response.md` extension shell. WOR has already shipped renames
-  and additions for the surrounding family — `pre-pr-review.md` (renamed from `pre-merge-review.md`)
-  and a new `pre-merge-review.md` at the post-review-response fire-point — so this plan only adds
-  the middle of the three-extension family at integrate-work-unit.
+- `system/extensions/`: new `review-response.md` extension shell. The surrounding family already provides
+  `pre-pr-open.md` / `post-pr-open.md` around change-request entry and `pre-merge.md` after review response, so this
+  plan adds the review-response activity at `integrate-work-unit` without restoring the removed action-named hook.
 - `system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`: Step 6 invocation reference
   (`diff-review` → `self-review`); Step 8 collapses inline content into extension fire point
   (`#review-response`).
@@ -253,5 +276,4 @@ surface family." Graduated from `ATOMIC-INBOX.md` to plan-doc on 2026-04-30.
 
 ---
 
-[address-pr-review]: ../../../system/workflows/project/address-pr-review.md
 [adr-016]: ../../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md

@@ -263,6 +263,87 @@ describe("buildUserStatusResult", () => {
     expect(result.actionHint).toContain("arc user fetch");
   });
 
+  it("renders remote-subset divergence with proof-gated publication-residue guidance", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "diverged",
+      contentRelation: "remote-subset",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.headline).toBe("local note ahead");
+    expect(result.remoteStatus).toBe("local ahead");
+    expect(result.actionHint).toContain("arc user push");
+    expect(result.detailLines.join(" ")).toContain("publication residue");
+    expect(result.detailLines.join(" ")).toContain("publication still requires proof");
+  });
+
+  it("keeps a legacy join left locally ahead non-conflicting without declaring publication safe", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "local-ahead",
+      contentRelation: "remote-subset",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result).toMatchObject({
+      spineState: "clean",
+      refState: "local-ahead",
+      contentRelation: "remote-subset",
+      actionHint: null,
+    });
+    expect(result.detailLines.join(" ")).toContain("publication residue");
+    expect(result.detailLines.join(" ")).toContain("publication still requires proof");
+  });
+
+  it("renders zero-contested divergence as reconciliation-required rather than conflicting", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "diverged",
+      contentRelation: "mixed-uncontested",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.headline).toBe("notes diverged (reconciliation required)");
+    expect(result.summary).not.toContain("conflict");
+    expect(result.actionHint).toContain("arc user push");
+    expect(result.actionHint).not.toContain("next paired push");
+    expect(result.detailLines.join(" ")).not.toContain("arc user pull");
+  });
+
+  it("renders contested divergence with genuine-conflict inspection guidance", () => {
+    const result = buildUserStatusResult({
+      identity: "andrew",
+      diskState: "same",
+      refState: "diverged",
+      contentRelation: "conflicting",
+      remoteChecked: true,
+      savedCommit: "abc1234",
+      savedFromAncestor: false,
+      backupFiles: [],
+      remoteIdentities: [],
+    });
+
+    expect(result.headline).toBe("notes conflict");
+    expect(result.actionHint).toContain("contested notes");
+    expect(result.detailLines.join(" ")).not.toContain("arc user pull");
+  });
+
   it("renders save timestamp detail line when savedAtRelative is provided", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
@@ -1720,6 +1801,53 @@ describe("user sync spine", () => {
     }
   });
 
+  it("collapses diverged remote-subset content to clean while preserving raw detail", () => {
+    const spine = computeUserSyncSpine({
+      remoteSyncEnabled: true,
+      refState: "diverged",
+      contentRelation: "remote-subset",
+    });
+
+    expect(spine).toMatchObject({
+      state: "clean",
+      refState: "diverged",
+      contentRelation: "remote-subset",
+      shouldPromptToPull: false,
+    });
+  });
+
+  it("preserves remote-subset detail on a local-ahead branch-export join", () => {
+    const spine = computeUserSyncSpine({
+      remoteSyncEnabled: true,
+      refState: "local-ahead",
+      contentRelation: "remote-subset",
+    });
+
+    expect(spine).toMatchObject({
+      state: "clean",
+      refState: "local-ahead",
+      contentRelation: "remote-subset",
+      shouldPromptToPull: false,
+    });
+  });
+
+  it("keeps every other diverged content relation on the conflict spine without pull prompts", () => {
+    const relations = ["local-subset", "equal", "mixed-uncontested", "conflicting"] as const;
+
+    for (const contentRelation of relations) {
+      expect(computeUserSyncSpine({
+        remoteSyncEnabled: true,
+        refState: "diverged",
+        contentRelation,
+      })).toMatchObject({
+        state: "conflict",
+        refState: "diverged",
+        contentRelation,
+        shouldPromptToPull: false,
+      });
+    }
+  });
+
   it("keeps remote-ahead recovery pull-directed even when working files have local edits", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
@@ -1880,6 +2008,67 @@ describe("runUserSessionInitStatus", () => {
     readNote: async () => null,
   };
 
+  function relationProbeIO(contentRelation: "remote-subset" | "local-subset" | "equal" | "mixed-uncontested" | "conflicting") {
+    const localHash = "1".repeat(40);
+    const remoteHash = "2".repeat(40);
+    const sharedCommit = "3".repeat(40);
+    const localCommit = "4".repeat(40);
+    const remoteCommit = "5".repeat(40);
+    const shared = { blob: "6".repeat(40), commit: sharedCommit };
+    const localOnly = { blob: "7".repeat(40), commit: localCommit };
+    const remoteOnly = { blob: "8".repeat(40), commit: remoteCommit };
+    const contestedLocal = { blob: "9".repeat(40), commit: sharedCommit };
+    const contestedRemote = { blob: "a".repeat(40), commit: sharedCommit };
+    const entries = {
+      "remote-subset": { local: [shared, localOnly], remote: [shared] },
+      "local-subset": { local: [shared], remote: [shared, remoteOnly] },
+      equal: { local: [shared], remote: [shared] },
+      "mixed-uncontested": { local: [localOnly], remote: [remoteOnly] },
+      conflicting: { local: [contestedLocal], remote: [contestedRemote] },
+    }[contentRelation];
+    return {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--git-common-dir") {
+          return { stdout: "/repo/.git\n", stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === notesRef) {
+          return { stdout: `${localHash}\n`, stderr: "" };
+        }
+        if (
+          args[0] === "rev-parse"
+          && args[1] === "--verify"
+          && args[2]?.startsWith("refs/arc-sync-temp/")
+        ) {
+          return { stdout: `${remoteHash}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${headCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${remoteHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "fetch") return { stdout: "", stderr: "" };
+        if (args[0] === "merge-base") throw new Error("not an ancestor");
+        if (args[0] === "ls-tree") {
+          const selected = args[args.length - 1] === localHash ? entries.local : entries.remote;
+          return {
+            stdout: selected.map((entry) => `100644 blob ${entry.blob}\t${entry.commit}`).join("\n"),
+            stderr: "",
+          };
+        }
+        if (args[0] === "show" && args[1]?.includes(".arc-user-notes-compaction-manifest.json")) {
+          throw new Error("manifest absent");
+        }
+        if (args[0] === "update-ref" && args[1] === "-d") return { stdout: "", stderr: "" };
+        if (args[0] === "notes" || args[0] === "log" || args[0] === "diff-tree" || args[0] === "rev-list") {
+          return { stdout: "", stderr: "" };
+        }
+        return { stdout: "", stderr: "" };
+      },
+    };
+  }
+
   it("returns disabled when session.remote_sync is off", async () => {
     const result = await runUserSessionInitStatus({
       cwd: "/repo",
@@ -1893,6 +2082,58 @@ describe("runUserSessionInitStatus", () => {
     expect(result.shouldPromptToPull).toBe(false);
     expect(result.loadNeeded).toBeUndefined();
     expect(buildUserSessionInitStatusSummary(result)).toContain("session-init remote sync disabled");
+  });
+
+  it("renders diverged remote-subset content as clean informational state", async () => {
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: relationProbeIO("remote-subset"),
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result).toMatchObject({
+      state: "clean",
+      refState: "diverged",
+      contentRelation: "remote-subset",
+      shouldPromptToPull: false,
+    });
+    expect(result.summary).toContain("local notes contain remote notes");
+  });
+
+  it("renders zero-contested divergence as explicit reconciliation without a pull prompt", async () => {
+    for (const contentRelation of ["local-subset", "equal", "mixed-uncontested"] as const) {
+      const result = await runUserSessionInitStatus({
+        cwd: "/repo",
+        io: relationProbeIO(contentRelation),
+        identity: "andrew",
+        remoteSyncEnabled: true,
+      });
+
+      expect(result).toMatchObject({ state: "conflict", contentRelation, shouldPromptToPull: false });
+      expect(result.actionHint).toContain("arc user push");
+      expect(result.detailLines.join(" ")).toContain("paired push defers");
+      expect(result.detailLines.join(" ")).not.toContain("run `arc user pull`");
+    }
+  });
+
+  it("renders contested divergence as an inspect-only genuine conflict", async () => {
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: relationProbeIO("conflicting"),
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result).toMatchObject({
+      state: "conflict",
+      contentRelation: "conflicting",
+      shouldPromptToPull: false,
+    });
+    expect(result.actionHint).toContain("arc user status");
+    expect(result.detailLines).toContain(
+      "Pull cannot resolve diverged notes refs; inspect with `arc user status`.",
+    );
   });
 
   it("uses the read-only remote probe for matching refs without fetch", async () => {
@@ -3215,6 +3456,115 @@ describe("runUserStatus bounded notes-ref fetch", () => {
       && c.args[3].startsWith(`+${notesRef}:`),
     );
   }
+
+  function fakeRelationExec(options: {
+    localEntries: { blob: string; commit: string }[];
+    remoteEntries: { blob: string; commit: string }[];
+    localManifest?: string;
+    remoteManifest?: string;
+    listingFails?: boolean;
+  }) {
+    return async (cmd: string, args: string[]) => {
+      if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+      if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === notesRef) {
+        return { stdout: `${localHash}\n`, stderr: "" };
+      }
+      if (args[0] === "ls-remote") {
+        return { stdout: `${remoteHash}\t${notesRef}\n`, stderr: "" };
+      }
+      if (args[0] === "fetch") return { stdout: "", stderr: "" };
+      if (
+        args[0] === "rev-parse"
+        && args[1] === "--verify"
+        && args[2]?.startsWith("refs/arc-sync-temp/")
+      ) {
+        return { stdout: `${remoteHash}\n`, stderr: "" };
+      }
+      if (args[0] === "merge-base") throw new Error("not an ancestor");
+      if (args[0] === "ls-tree") {
+        if (options.listingFails) throw new Error("listing failed");
+        const entries = args[args.length - 1] === localHash ? options.localEntries : options.remoteEntries;
+        return {
+          stdout: entries.map((entry) => `100644 blob ${entry.blob}\t${entry.commit}`).join("\n"),
+          stderr: "",
+        };
+      }
+      if (args[0] === "show") {
+        const manifest = args[1]?.startsWith(`${localHash}:`)
+          ? options.localManifest
+          : options.remoteManifest;
+        if (manifest === undefined) throw new Error("manifest absent");
+        return { stdout: manifest, stderr: "" };
+      }
+      if (args[0] === "update-ref" && args[1] === "-d") {
+        return { stdout: "", stderr: "" };
+      }
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    };
+  }
+
+  it("computes a content relation from the fetched remote SHA", async () => {
+    const shared = { blob: "1".repeat(40), commit: "c".repeat(40) };
+    const localOnly = { blob: "2".repeat(40), commit: "d".repeat(40) };
+    const calls: string[][] = [];
+    const exec = fakeRelationExec({ localEntries: [shared, localOnly], remoteEntries: [shared] });
+    const io = makeIO(async (cmd, args) => {
+      calls.push(args);
+      return exec(cmd, args);
+    });
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection).toMatchObject({ state: "diverged", contentRelation: "remote-subset" });
+    expect(calls).toContainEqual(["ls-tree", "--full-tree", "-r", remoteHash]);
+    expect(calls.some((args) => args[0] === "show" && args[1]?.startsWith(`${remoteHash}:`))).toBe(true);
+  });
+
+  it("applies fetched compaction manifests before classifying entries", async () => {
+    const shared = { blob: "1".repeat(40), commit: "c".repeat(40) };
+    const pruned = { blob: "2".repeat(40), commit: "d".repeat(40) };
+    const remoteManifest = JSON.stringify({
+      version: 1,
+      generation: 1,
+      preCompactionTip: null,
+      pruned: [pruned],
+    });
+    const io = makeIO(fakeRelationExec({
+      localEntries: [shared],
+      remoteEntries: [shared, pruned],
+      remoteManifest,
+    }));
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection).toMatchObject({ state: "diverged", contentRelation: "equal" });
+  });
+
+  it("omits content relation when entry listing fails", async () => {
+    const io = makeIO(fakeRelationExec({
+      localEntries: [],
+      remoteEntries: [],
+      listingFails: true,
+    }));
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection.state).toBe("diverged");
+    expect("contentRelation" in inspection).toBe(false);
+  });
+
+  it("does not attach a content relation to a non-diverged fast result", async () => {
+    const io = makeIO(async (_cmd, args) => {
+      if (args[0] === "rev-parse") return { stdout: `${localHash}\n`, stderr: "" };
+      if (args[0] === "ls-remote") return { stdout: `${localHash}\t${notesRef}\n`, stderr: "" };
+      throw new Error(`unexpected git call: ${args.join(" ")}`);
+    });
+
+    const inspection = await inspectUserSyncRefsDetailed(io, "andrew", 1000);
+
+    expect(inspection.state).toBe("same");
+    expect("contentRelation" in inspection).toBe(false);
+  });
 
   it("invokes the notes-ref fetch with an AbortSignal in full-mode `arc status`", async () => {
     const calls: ExecCall[] = [];

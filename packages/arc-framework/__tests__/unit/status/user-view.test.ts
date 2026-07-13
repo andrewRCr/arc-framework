@@ -4,6 +4,8 @@ import { runStatusUserView } from "../../../src/lib/status/user-view.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import type { StatusViewRow } from "../../../src/lib/status/render.js";
 
+const LIVE_REMOTE_TIP = "a".repeat(40);
+
 /** Default ready-slice source — empty unless a test injects one. */
 const noReady = (): Promise<StatusViewRow[]> => Promise.resolve([]);
 
@@ -59,8 +61,8 @@ function makeExec(opts: {
     }
     if (args[0] === "for-each-ref") return { stdout: opts.forEachRef ?? "", stderr: "" };
     if (args[0] === "worktree") return { stdout: worktreeList, stderr: "" };
-    if (args[0] === "ls-tree" && args[1] === "-r") {
-      const ref = args[3] ?? "";
+    if (args[0] === "ls-tree" && args.includes("--name-only")) {
+      const ref = args[args.indexOf("--name-only") + 1] ?? "";
       const paths = Object.keys(metas)
         .filter((target) => target.startsWith(`${ref}:`))
         .map((target) => target.slice(target.indexOf(":") + 1));
@@ -92,7 +94,7 @@ describe("runStatusUserView", () => {
   it("renders the in-flight-mine table from the oracle for a reachable remote", async () => {
     const exec = makeExec({
       forEachRef: "origin/feat/in-flight-awareness",
-      lsRemote: "sha\trefs/heads/feat/in-flight-awareness",
+      lsRemote: `${LIVE_REMOTE_TIP}\trefs/heads/feat/in-flight-awareness`,
       metas: {
         "origin/feat/in-flight-awareness:.arc/active/meta-in-flight-awareness.md": metaContent({
           cohort: "agile-parallelism",
@@ -121,7 +123,7 @@ describe("runStatusUserView", () => {
   it("merges the local ready slice into a Ready section alongside In Flight", async () => {
     const exec = makeExec({
       forEachRef: "origin/feat/in-flight-awareness",
-      lsRemote: "sha\trefs/heads/feat/in-flight-awareness",
+      lsRemote: `${LIVE_REMOTE_TIP}\trefs/heads/feat/in-flight-awareness`,
       metas: {
         "origin/feat/in-flight-awareness:.arc/active/meta-in-flight-awareness.md": metaContent({
           cohort: "agile-parallelism",
@@ -176,7 +178,7 @@ describe("runStatusUserView", () => {
   it("renders one row when a renamed local branch shadows a stale tracking twin", async () => {
     const exec = makeExec({
       forEachRef: "origin/plan/renamed",
-      lsRemote: "sha\trefs/heads/plan/renamed",
+      lsRemote: `${LIVE_REMOTE_TIP}\trefs/heads/plan/renamed`,
       worktrees: [{ path: "/repo-renamed", branch: "chore/renamed" }],
       metas: {
         "origin/plan/renamed:.arc/active/meta-renamed.md": metaContent({
@@ -213,9 +215,9 @@ describe("runStatusUserView", () => {
         "origin/feat/mystery",
       ].join("\n"),
       lsRemote: [
-        "sha\trefs/heads/feat/shelved",
-        "sha\trefs/heads/feat/integrating",
-        "sha\trefs/heads/feat/mystery",
+        `${LIVE_REMOTE_TIP}\trefs/heads/feat/shelved`,
+        `${LIVE_REMOTE_TIP}\trefs/heads/feat/integrating`,
+        `${LIVE_REMOTE_TIP}\trefs/heads/feat/mystery`,
       ].join("\n"),
       metas: {
         "origin/feat/shelved:.arc/active/meta-shelved.md": metaContent(),

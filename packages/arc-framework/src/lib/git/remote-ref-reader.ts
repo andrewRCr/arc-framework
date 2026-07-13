@@ -20,6 +20,7 @@ import type { GitExec } from "./exec.js";
 
 /** Default remote whose tracking refs back the no-checkout in-flight reads. */
 const DEFAULT_REMOTE = "origin";
+const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
 /** Ref → commit object id snapshot, serialized as a plain object for JSON callers. */
 export type RefTipMap = Record<string, string>;
@@ -76,32 +77,56 @@ async function runBounded(
   }
 }
 
-/** Parse `git ls-remote --heads` output into short branch → sha tips. */
-function parseLiveMembership(stdout: string): RefTipMap {
-  const tips: RefTipMap = {};
-  for (const line of stdout.split("\n")) {
-    const tab = line.indexOf("\t");
-    if (tab === -1) continue;
-    const sha = line.slice(0, tab).trim();
-    const ref = line.slice(tab + 1).trim();
-    if (!ref.startsWith("refs/heads/")) continue;
-    tips[ref.slice("refs/heads/".length)] = sha;
-  }
-  return tips;
+/** A bounded snapshot of live remote branch heads. */
+export interface LiveRemoteHeadsResult {
+  /** False when the bounded remote query failed or timed out. */
+  reachable: boolean;
+  /** False when any returned record was malformed or not a branch head. */
+  complete: boolean;
+  /** Valid live branch tips keyed by short branch name. */
+  tips: RefTipMap;
 }
 
-/**
- * Read live remote membership, bounded. `ok` distinguishes "unreachable"
- * (degrade target decided by the caller) from a genuinely empty remote.
- */
-async function readLiveMembership(
-  exec: GitExec,
-  timeoutMs: number,
-  remote: string,
-): Promise<{ ok: boolean; tips: RefTipMap }> {
-  const res = await runBounded(exec, ["ls-remote", "--heads", remote], timeoutMs);
-  if (!res.ok) return { ok: false, tips: {} };
-  return { ok: true, tips: parseLiveMembership(res.stdout) };
+function parseLiveMembership(stdout: string): Pick<LiveRemoteHeadsResult, "complete" | "tips"> {
+  const tips: RefTipMap = {};
+  let complete = true;
+  for (const line of stdout.split("\n")) {
+    if (line.trim() === "") continue;
+    const tab = line.indexOf("\t");
+    if (tab === -1) {
+      complete = false;
+      continue;
+    }
+    const sha = line.slice(0, tab).trim();
+    const ref = line.slice(tab + 1).trim();
+    const branch = ref.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : "";
+    if (!GIT_OBJECT_ID_PATTERN.test(sha) || branch === "" || tips[branch] !== undefined) {
+      complete = false;
+      continue;
+    }
+    tips[branch] = sha;
+  }
+  return { complete, tips };
+}
+
+/** Inputs for {@link readLiveRemoteHeads}. */
+export interface ReadLiveRemoteHeadsOptions {
+  /** Injectable git executor. */
+  exec: GitExec;
+  /** Remote to inspect. Defaults to `origin`. */
+  remote?: string;
+  /** Per-read network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
+  timeoutMs?: number;
+}
+
+/** Read a bounded, proof-aware snapshot of live remote branch heads. */
+export async function readLiveRemoteHeads(
+  options: ReadLiveRemoteHeadsOptions,
+): Promise<LiveRemoteHeadsResult> {
+  const { exec, remote = DEFAULT_REMOTE, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
+  const result = await runBounded(exec, ["ls-remote", "--heads", remote], timeoutMs);
+  if (!result.ok) return { reachable: false, complete: false, tips: {} };
+  return { reachable: true, ...parseLiveMembership(result.stdout) };
 }
 
 function emptyLocalRefSnapshot(): LocalInFlightRefSnapshot {
@@ -162,14 +187,7 @@ export async function readLocalInFlightRefSnapshot(
 }
 
 /** Inputs for {@link listLiveRemoteBranches}. */
-export interface ListLiveRemoteBranchesOptions {
-  /** Injectable git executor. */
-  exec: GitExec;
-  /** Remote to inspect. Defaults to `origin`. */
-  remote?: string;
-  /** Per-read network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
-  timeoutMs?: number;
-}
+export type ListLiveRemoteBranchesOptions = ReadLiveRemoteHeadsOptions;
 
 /**
  * Enumerate live remote branch names via `git ls-remote --heads <remote>`.
@@ -185,8 +203,7 @@ export interface ListLiveRemoteBranchesOptions {
 export async function listLiveRemoteBranches(
   options: ListLiveRemoteBranchesOptions,
 ): Promise<string[]> {
-  const { exec, remote = DEFAULT_REMOTE, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
-  return Object.keys((await readLiveMembership(exec, timeoutMs, remote)).tips);
+  return Object.keys((await readLiveRemoteHeads(options)).tips);
 }
 
 /** Inputs for {@link listPrunedRemoteTrackingBranches}. */
@@ -281,8 +298,10 @@ export async function resolveInFlightBranchSetFromLocalRefs(
   const refTipsFor = (branches: readonly string[]): RefTipMap =>
     Object.fromEntries(branches.map((branch) => [`${remote}/${branch}`, refs.remoteTracking[branch] ?? ""]));
   if (localOnly) return { branches: local, refs: refTipsFor(local), liveRefs: {}, reachable: false };
-  const membership = await readLiveMembership(exec, timeoutMs, remote);
-  if (!membership.ok) return { branches: local, refs: refTipsFor(local), liveRefs: {}, reachable: false };
+  const membership = await readLiveRemoteHeads({ exec, timeoutMs, remote });
+  if (!membership.reachable || !membership.complete) {
+    return { branches: local, refs: refTipsFor(local), liveRefs: {}, reachable: false };
+  }
   const live = new Set(Object.keys(membership.tips));
   const branches = local.filter((branch) => live.has(branch));
   return {
@@ -384,7 +403,10 @@ export async function listMetaPathsAtRef(
 ): Promise<ListMetaPathsAtRefResult> {
   const { exec, ref } = options;
   try {
-    const { stdout } = await exec("git", ["ls-tree", "-r", "--name-only", ref, ".arc/active/"]);
+    // --full-tree: without it the `.arc/active/` pathspec resolves relative to
+    // the invoking directory, so a subdirectory cwd reads every branch as
+    // meta-less. Pin the read to the tree root regardless of cwd.
+    const { stdout } = await exec("git", ["ls-tree", "--full-tree", "-r", "--name-only", ref, ".arc/active/"]);
     return {
       ok: true,
       paths: stdout

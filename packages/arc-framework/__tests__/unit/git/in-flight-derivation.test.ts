@@ -8,6 +8,8 @@ import {
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 
+const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
+
 /** A meta-file body carrying the fields the derivation reads (Owner, Design, Cohort, Class, Priority, Depends On). */
 function metaContent(
   fields: {
@@ -93,7 +95,9 @@ function makeExec(opts: {
     if (args[0] === "ls-remote") {
       if (opts.liveBranches === "unreachable") throw new Error("fatal: unreachable");
       return {
-        stdout: (opts.liveBranches ?? []).map((branch) => `deadbeef\trefs/heads/${branch}`).join("\n"),
+        stdout: (opts.liveBranches ?? [])
+          .map((branch) => `${LIVE_REMOTE_TIP}\trefs/heads/${branch}`)
+          .join("\n"),
         stderr: "",
       };
     }
@@ -133,7 +137,9 @@ function makeExec(opts: {
       throw new Error(`fatal: path does not exist in '${target}'`);
     }
     if (args[0] === "ls-tree") {
-      const ref = args[3] ?? "";
+      const ref = (args.includes("--name-only")
+        ? args[args.indexOf("--name-only") + 1]
+        : args[args.length - 1]) ?? "";
       const paths = listedPaths[ref] ?? Object.keys(metas)
         .filter((target) => target.startsWith(`${ref}:`))
         .map((target) => target.slice(target.indexOf(":") + 1));

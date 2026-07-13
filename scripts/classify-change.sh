@@ -7,6 +7,8 @@
 # and the live Checks-API lookback stays behind an injectable seam:
 #
 #   classify <file>...   Decide a changed-file set as code (heavy) or docs (light).
+#   classify --stdin0    Same, but read NUL-delimited paths from standard input.
+#   lane --stdin0        Decide the legacy path-only scheduling lane.
 #   tree-hash <ref>      Compute a rebase/squash-stable code-tree identity at a ref.
 #
 # The pure subcommands (classify, tree-hash) run without network; the Checks-API
@@ -59,6 +61,30 @@ readonly GENUINE_DOCS_GLOBS=(
   "mkdocs.yml"
 )
 
+# Files whose behavior is explicitly exercised by the OS-sensitive portability
+# suite. Changes outside this set retain the required Linux leg without paying
+# the Windows/macOS runner multipliers on every heavy pull request.
+readonly PORTABILITY_SURFACE_GLOBS=(
+  "packages/arc-framework/src/lib/git/ref-tree.ts"
+  "packages/arc-framework/src/lib/errand/*"
+  "packages/arc-framework/src/lib/user-sync/*"
+  "packages/arc-framework/src/commands/user/shared.ts"
+  "packages/arc-framework/__tests__/unit/user-sync-notes-lock.test.ts"
+  "packages/arc-framework/__tests__/integration/ref-tree-cas*.test.ts"
+  "packages/arc-framework/__tests__/integration/sync-state-ref*.test.ts"
+  "packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts"
+  "packages/arc-framework/__tests__/e2e/race-worker.ts"
+  "packages/arc-framework/__tests__/e2e/true-race.ts"
+  "packages/arc-framework/__tests__/e2e/helpers.ts"
+  "packages/arc-framework/__tests__/helpers/integration.ts"
+  "packages/arc-framework/package.json"
+  "packages/arc-framework/vitest.config.ts"
+  "package.json"
+  "package-lock.json"
+  ".github/workflows/ci.yml"
+  "scripts/classify-change.sh"
+)
+
 # --- Heavy verification checks -------------------------------------------------
 #
 # The check-run display names that together prove a code tree was fully verified.
@@ -72,8 +98,6 @@ readonly HEAVY_CHECK_NAMES=(
   "Lint, Typecheck & Unit Tests"
   "Integration & E2E Tests"
   "Portability (concurrency guards) (ubuntu-latest)"
-  "Portability (concurrency guards) (macos-latest)"
-  "Portability (concurrency guards) (windows-latest)"
 )
 
 # True when $1 matches any glob in the remaining args (glob match, not literal).
@@ -112,7 +136,10 @@ usage() {
 Usage: classify-change.sh <command> [args...]
 
 Commands:
-  classify <file>...        Classify a changed-file set as code (heavy) or docs (light)
+  classify <file>...       Classify paths from argv
+  classify --stdin0        Classify NUL-delimited paths from stdin
+  lane --stdin0            Classify NUL-delimited paths as auto or reviewed
+  portability --stdin0     Print true when a path can affect the portability suite
   tree-hash <ref>           Compute the code-tree hash at a git ref
   duplicate-push <event> <ref-name> <head-sha>
                             Print true when a push run duplicates an open PR head
@@ -125,6 +152,27 @@ EOF
 # `heavy` otherwise. Empty input is `heavy` (fail-safe: an unknown change set
 # must run the full suite).
 cmd_classify() {
+  if [[ "${1:-}" == "--stdin0" ]]; then
+    shift
+    if [[ "$#" -ne 0 ]]; then
+      echo "classify --stdin0: paths must be supplied on standard input" >&2
+      return "${EX_USAGE}"
+    fi
+    local seen=false file
+    while IFS= read -r -d '' file; do
+      seen=true
+      if is_code_surface_path "${file}"; then
+        echo "heavy"
+        return 0
+      fi
+    done
+    if [[ "${seen}" == "false" ]]; then
+      echo "heavy"
+    else
+      echo "light"
+    fi
+    return 0
+  fi
   if [[ "$#" -eq 0 ]]; then
     echo "heavy"
     return 0
@@ -137,6 +185,68 @@ cmd_classify() {
     fi
   done
   echo "light"
+}
+
+# Preserve the legacy path-only scheduling lane without newline parsing.
+cmd_lane() {
+  if [[ "${1:-}" != "--stdin0" ]] || [[ "$#" -ne 1 ]]; then
+    echo "lane: paths must be supplied as NUL-delimited standard input" >&2
+    return "${EX_USAGE}"
+  fi
+  local seen=false file
+  while IFS= read -r -d '' file; do
+    seen=true
+    if [[ ! "${file}" =~ ^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)- ]]; then
+      echo "reviewed"
+      return 0
+    fi
+  done
+  if [[ "${seen}" == "true" ]]; then echo "auto"; else echo "reviewed"; fi
+}
+
+# portability --stdin0 — print `true` when any changed path belongs to the
+# OS-sensitive concurrency surface. Empty input is true: an unknown change set
+# must not silently skip the cross-platform check.
+cmd_portability() {
+  if [[ "${1:-}" != "--stdin0" ]] || [[ "$#" -ne 1 ]]; then
+    echo "portability: paths must be supplied as NUL-delimited standard input" >&2
+    return "${EX_USAGE}"
+  fi
+  local seen=false file
+  while IFS= read -r -d '' file; do
+    seen=true
+    if _matches_any "${file}" "${PORTABILITY_SURFACE_GLOBS[@]}"; then
+      echo "true"
+      return 0
+    fi
+  done
+  if [[ "${seen}" == "true" ]]; then echo "false"; else echo "true"; fi
+}
+
+# Classify the exact path set between two refs without passing filenames
+# through a shell string. Git's NUL form preserves every valid pathname.
+_classify_diff_paths() {
+  local event="$1" base="$2" head="$3" paths_file result
+  paths_file="$(mktemp)"
+  if [[ "${event}" == "pull_request" ]]; then
+    if ! git diff --name-only -z "${base}...${head}" >"${paths_file}" 2>/dev/null; then
+      rm -f "${paths_file}"
+      echo "unknown"
+      return 0
+    fi
+  elif ! git diff --name-only -z "${base}" "${head}" >"${paths_file}" 2>/dev/null; then
+    rm -f "${paths_file}"
+    echo "unknown"
+    return 0
+  fi
+  if [[ ! -s "${paths_file}" ]]; then
+    rm -f "${paths_file}"
+    echo "unknown"
+    return 0
+  fi
+  result="$(cmd_classify --stdin0 <"${paths_file}")"
+  rm -f "${paths_file}"
+  printf '%s\n' "${result}"
 }
 
 # Print a deterministic identity for the code surface at <ref>: enumerate every
@@ -287,20 +397,6 @@ _all_heavy_checks_passed() {
   return 0
 }
 
-# True (exit 0) when any path in the newline-delimited set is on the code
-# surface; false (exit 1) when every path is genuine docs. Empty lines are
-# skipped, so a trailing newline never reads as a code path.
-_set_touches_code() {
-  local set="$1" file
-  while IFS= read -r file; do
-    [[ -z "${file}" ]] && continue
-    if is_code_surface_path "${file}"; then
-      return 0
-    fi
-  done <<<"${set}"
-  return 1
-}
-
 # decide <event> <base> <head> — resolve the run weight ∈ {light, heavy} and the
 # reason it was reached ∈ {docs-only, verified, unverified}, the run-vs-skip
 # decision the `classify` job emits. Prints `weight=<w>` and `reason=<r>` on
@@ -322,22 +418,18 @@ cmd_decide() {
   # Whole change over base/head. PRs compare merge-base to head; pushes compare
   # the actual before→after endpoints. Both endpoints must resolve; an
   # unresolvable endpoint leaves the set empty for the fail-safe.
-  local changed=''
+  local classification=unknown
   if [[ -n "${base}" && -n "${head}" ]] \
      && git rev-parse -q --verify "${base}^{commit}" >/dev/null 2>&1 \
      && git rev-parse -q --verify "${head}^{commit}" >/dev/null 2>&1; then
-    if [[ "${event}" == "pull_request" ]]; then
-      changed="$(git diff --name-only "${base}...${head}" 2>/dev/null || true)"
-    else
-      changed="$(git diff --name-only "${base}" "${head}" 2>/dev/null || true)"
-    fi
+    classification="$(_classify_diff_paths "${event}" "${base}" "${head}")"
   fi
 
-  if [[ -z "${changed}" ]]; then
+  if [[ "${classification}" == "unknown" ]]; then
     # Empty or unresolvable change set → fail-safe heavy.
     weight=heavy
     reason=unverified
-  elif ! _set_touches_code "${changed}"; then
+  elif [[ "${classification}" == "light" ]]; then
     # No code-surface path changed → docs-only, no API call.
     weight=light
     reason=docs-only
@@ -385,6 +477,14 @@ main() {
     classify)
       shift
       cmd_classify "$@"
+      ;;
+    lane)
+      shift
+      cmd_lane "$@"
+      ;;
+    portability)
+      shift
+      cmd_portability "$@"
       ;;
     tree-hash)
       shift

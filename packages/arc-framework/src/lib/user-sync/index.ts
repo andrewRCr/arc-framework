@@ -26,7 +26,10 @@ export { removeInboxEntry, type RemoveInboxEntryResult } from "./inbox-writer.js
 export {
   listAnnotatedNoteCommits,
   listNoteEntries,
+  listNoteTreeEntries,
   notePathToCommit,
+  parseNotesHistoryNameStatus,
+  readLocalExclusiveAnnotatedNoteCommits,
   readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
   CROSS_WU_NOTE_WINDOW,
@@ -35,6 +38,12 @@ export {
   type NoteEntry,
   type RecentNote,
 } from "./notes-ref.js";
+
+export {
+  proveNotesPublication,
+  type NotesPublicationProofResult,
+  type ProveNotesPublicationInput,
+} from "./notes-publication-proof.js";
 
 export {
   adoptCompactedNotesRef,
@@ -55,6 +64,13 @@ export {
   type NotesCompactionManifest,
   type NotesCompactionPair,
 } from "./compaction-manifest.js";
+
+export {
+  classifyNoteSetRelation,
+  resolveExcludedNotePairKeys,
+  type NoteSetRelation,
+  type NoteSetSnapshot,
+} from "./note-set-relation.js";
 
 export {
   COMPACTION_ADVISORY_HISTORY_THRESHOLD,

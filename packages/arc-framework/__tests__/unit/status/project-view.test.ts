@@ -89,8 +89,8 @@ function makeInFlightExec(opts: {
     }
     if (args[0] === "worktree") return { stdout: worktreeList, stderr: "" };
     if (args[0] === "ls-remote") throw new Error("local-ref project render must not read the network");
-    if (args[0] === "ls-tree" && args[1] === "-r") {
-      const ref = args[3] ?? "";
+    if (args[0] === "ls-tree" && args.includes("--name-only")) {
+      const ref = args[args.indexOf("--name-only") + 1] ?? "";
       const paths = Object.keys(metas)
         .filter((target) => target.startsWith(`${ref}:`))
         .map((target) => target.slice(target.indexOf(":") + 1));

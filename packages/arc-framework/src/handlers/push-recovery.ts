@@ -3,9 +3,9 @@
  *
  * Wraps `reconcileNotesPush` with spinner output and the local-note-staleness
  * warning. Shared by `arc user push`, `arc sync`, and the save+push flow. On a
- * non-fast-forward rejection — a concurrent worktree pushed the shared notes
- * ref first — the push reconciles losslessly via `git notes merge` and
- * re-pushes, with no prompt. Returns the discriminated outcome so callers
+ * ordinary same-lineage graph divergence, the push reconciles losslessly via
+ * `git notes merge`, recaptures and proves the merged tip, then republishes
+ * with no prompt. Returns the discriminated outcome so callers
  * render context-appropriate messaging without this helper knowing about its
  * embedding.
  *
@@ -43,7 +43,7 @@ export interface PushNotesWithReconcileOptions {
 }
 
 /**
- * Push user notes, auto-reconciling a concurrent-worktree non-fast-forward.
+ * Push user notes, auto-reconciling ordinary same-lineage graph divergence.
  *
  * Brackets {@link reconcileNotesPush} with a spinner and, on a no-op, the
  * local-note-staleness warning. The reconcile itself is automatic and lossless
@@ -81,8 +81,12 @@ function notesPushStopMessage(outcome: NotesPushOutcome): string {
       return "Remote user notes already match local user notes.";
     case "reconciled":
       return "Reconciled concurrent notes and pushed.";
+    case "no-local-notes":
+      return "No local user notes to push.";
     case "no-remote":
       return "No remote configured.";
+    case "refused":
+      return "Publication refused.";
     case "blocked":
       return "Push blocked.";
     case "conflict":

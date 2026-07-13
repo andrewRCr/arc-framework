@@ -78,6 +78,52 @@ describe("classify-change.sh harness", () => {
   });
 });
 
+describe("classify-change.sh lane", () => {
+  async function lane(files: string[]): Promise<string> {
+    const input = files.length === 0 ? Buffer.alloc(0) : Buffer.from(`${files.join("\0")}\0`);
+    const result = await runScript(CLASSIFY_SCRIPT, ["lane", "--stdin0"], { stdin: input });
+    expect(result.exitCode).toBe(0);
+    return result.stdout.trim();
+  }
+
+  it("preserves the legacy auto lane for planning artifacts", async () => {
+    expect(await lane([".arc/active/tasks-example.md", ".arc/backlog/planned/meta-other.md"])).toBe("auto");
+  });
+
+  it("fails safe for empty, mixed, and arbitrary pathnames", async () => {
+    expect(await lane([])).toBe("reviewed");
+    expect(await lane([".arc/active/tasks-example.md", "README.md"])).toBe("reviewed");
+    expect(await lane([".arc/active/tasks-line\nbreak.md"])).toBe("auto");
+  });
+});
+
+describe("classify-change.sh portability", () => {
+  async function portability(files: string[]): Promise<string> {
+    const input = files.length === 0 ? Buffer.alloc(0) : Buffer.from(`${files.join("\0")}\0`);
+    const result = await runScript(CLASSIFY_SCRIPT, ["portability", "--stdin0"], { stdin: input });
+    expect(result.exitCode).toBe(0);
+    return result.stdout.trim();
+  }
+
+  it("targets concurrency primitives and their focused tests", async () => {
+    expect(await portability(["packages/arc-framework/src/lib/user-sync/notes-lock.ts"])).toBe("true");
+    expect(await portability(["packages/arc-framework/src/lib/git/ref-tree.ts"])).toBe("true");
+    expect(await portability(["packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts"])).toBe("true");
+  });
+
+  it("does not target unrelated code changes", async () => {
+    expect(await portability(["packages/arc-framework/src/lib/config.ts"])).toBe("false");
+    expect(await portability(["README.md", "packages/arc-framework/src/commands/status.ts"])).toBe("false");
+  });
+
+  it("fails safe for an empty path set and targets its own scheduling surfaces", async () => {
+    expect(await portability([])).toBe("true");
+    expect(await portability(["package-lock.json"])).toBe("true");
+    expect(await portability([".github/workflows/ci.yml"])).toBe("true");
+    expect(await portability(["scripts/classify-change.sh"])).toBe("true");
+  });
+});
+
 describe("classify-change.sh duplicate-push", () => {
   const tempDirs: string[] = [];
   const headSha = "1111111111111111111111111111111111111111";
@@ -145,6 +191,13 @@ describe("classify-change.sh classify", () => {
     return result.stdout.trim();
   }
 
+  async function classifyNul(files: string[]): Promise<string> {
+    const input = files.length === 0 ? Buffer.alloc(0) : Buffer.from(`${files.join("\0")}\0`);
+    const result = await runScript(CLASSIFY_SCRIPT, ["classify", "--stdin0"], { stdin: input });
+    expect(result.exitCode).toBe(0);
+    return result.stdout.trim();
+  }
+
   it("is light when every changed file is genuine docs", async () => {
     expect(
       await classify(["README.md", ".arc/system/rules/DEV-RULES.ARC.md", "docs/guide.md"]),
@@ -190,6 +243,15 @@ describe("classify-change.sh classify", () => {
     expect(
       await classify(["README.md", "packages/arc-framework/src/cli.ts"]),
     ).toBe("heavy");
+  });
+
+  it("keeps NUL-delimited filenames with whitespace and newlines intact", async () => {
+    expect(await classifyNul(["docs/a file.md", "docs/line\nbreak.md"])).toBe("light");
+    expect(await classifyNul(["docs/a file.md", "packages/arc-framework/src/line\nbreak.ts"])).toBe("heavy");
+  });
+
+  it("is heavy for an empty NUL-delimited input", async () => {
+    expect(await classifyNul([])).toBe("heavy");
   });
 });
 
@@ -416,6 +478,28 @@ describe("classify-change.sh decide (pure arms)", () => {
     });
   });
 
+  it("classifies newline-bearing paths through the NUL-safe diff transport", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "README.md": "v1\n" }, "docs");
+    const docsHead = await writeAndCommit(repo, { "docs/line\nbreak.md": "docs\n" }, "unusual docs path");
+
+    expect(await decide(repo, "pull_request", base, docsHead)).toEqual({
+      weight: "light",
+      reason: "docs-only",
+    });
+
+    const codeHead = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/line\nbreak.ts": "export const value = 1;\n" },
+      "unusual code path",
+    );
+    expect(await decide(repo, "pull_request", docsHead, codeHead)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
   it("is heavy/unverified for an empty change set (base === head)", async () => {
     const repo = await createTempRepo();
     tempDirs.push(repo);
@@ -485,8 +569,6 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     "Lint, Typecheck & Unit Tests",
     "Integration & E2E Tests",
     "Portability (concurrency guards) (ubuntu-latest)",
-    "Portability (concurrency guards) (macos-latest)",
-    "Portability (concurrency guards) (windows-latest)",
   ];
 
   /** Render [name, conclusion] pairs as the normalized "<name>\t<conclusion>" lines the seam returns. */

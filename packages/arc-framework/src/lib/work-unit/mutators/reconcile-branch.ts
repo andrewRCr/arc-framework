@@ -115,7 +115,7 @@ export async function reconcileBranch(
 }
 
 /** Outcome of a live-remote-head delete attempt. */
-export type RemoteBranchDeleteOutcome = "deleted" | "absent";
+export type RemoteBranchDeleteOutcome = "deleted" | "absent" | "stale";
 
 /**
  * Delete `branch`'s live head on `remote` (`git push <remote> --delete`),
@@ -127,23 +127,36 @@ export type RemoteBranchDeleteOutcome = "deleted" | "absent";
  * remote) propagate so the caller reports partial application instead of
  * silently orphaning a remote ref.
  *
+ * When `expectedOid` is given the delete is **leased**
+ * (`--force-with-lease=refs/heads/<branch>:<oid>` with an empty-source
+ * refspec): the remote refuses the delete unless the head still points at the
+ * proven tip, closing the race where a concurrent push advances the head
+ * between the caller's safety proof and the delete. A lease refusal returns
+ * `stale` — the head moved, so the caller's proof no longer covers it.
+ *
  * @param exec - Injected git executor.
  * @param remote - The remote whose head is deleted.
  * @param branch - The branch name whose remote head is deleted.
- * @returns Whether the head was deleted, or was already absent.
+ * @param expectedOid - When set, lease the delete on this expected remote tip.
+ * @returns Whether the head was deleted, was already absent, or moved (stale lease).
  */
 export async function deleteRemoteBranch(
   exec: GitExec,
   remote: string,
   branch: string,
+  expectedOid?: string,
 ): Promise<RemoteBranchDeleteOutcome> {
+  const args = expectedOid === undefined
+    ? ["push", remote, "--delete", branch]
+    : ["push", remote, `--force-with-lease=refs/heads/${branch}:${expectedOid}`, `:refs/heads/${branch}`];
   try {
-    await exec("git", ["push", remote, "--delete", branch]);
+    await exec("git", args);
     return "deleted";
   } catch (err) {
     const detail =
       (err as { stderr?: string }).stderr ?? (err instanceof Error ? err.message : String(err));
-    if (!/remote ref does not exist/i.test(detail)) throw err;
-    return "absent";
+    if (/remote ref does not exist/i.test(detail)) return "absent";
+    if (expectedOid !== undefined && /stale info/i.test(detail)) return "stale";
+    throw err;
   }
 }

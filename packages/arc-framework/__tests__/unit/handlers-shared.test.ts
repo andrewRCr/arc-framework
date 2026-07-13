@@ -58,4 +58,18 @@ describe("handlers/shared remote fetch reporting", () => {
     expect(mockLog.error).not.toHaveBeenCalledWith(expect.stringContaining("No remote configured"));
     expect(process.exitCode).toBe(1);
   });
+
+  it("explains that pull refuses diverged refs and directs to inspection", () => {
+    const result = {
+      kind: "refused-diverged",
+      localTip: "a".repeat(40),
+      remoteTip: "b".repeat(40),
+    } satisfies UserFetchResult;
+
+    reportUserFetchOutcome(result, "andrew", "pull");
+
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("pull refuses diverged notes refs"));
+    expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining("arc user status"));
+    expect(process.exitCode).toBe(1);
+  });
 });

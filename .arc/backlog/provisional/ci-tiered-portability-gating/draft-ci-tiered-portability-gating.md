@@ -8,6 +8,19 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Audit CI job topology for setup and whole-minute rounding waste**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); July 2026 Actions-allowance audit.
+- _Approach:_ measure setup, dependency-install, and per-job rounding cost; evaluate safe consolidation or reusable
+  prepared state while preserving diagnosability, required-context compatibility, least privilege, and truthful
+  aggregate checks. Treat consolidation as an evidence-backed optimization, not an assumed win.
+
+---
+
 ## Problem / Motivation
 
 `ci-content-aware-depth` gates the heavy suite on a single binary code-vs-docs path set. The 3-OS `Portability`
