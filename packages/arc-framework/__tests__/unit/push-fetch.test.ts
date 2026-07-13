@@ -89,25 +89,27 @@ function buildIo(exec: GitExec): UserIOContext {
 }
 
 const NOTES_REF = "refs/notes/arc/user/andrew";
-const REV_PARSE_LOCAL = `rev-parse --verify ${NOTES_REF}`;
-const LS_REMOTE_NOTES = `ls-remote origin ${NOTES_REF}`;
-const PUSH_NOTES = `push origin ${NOTES_REF}`;
-const FETCH_TEMP_NOTES = "fetch --refmap= origin *";
-const DELETE_TEMP_REF = "update-ref -d *";
 const LOCAL_TIP = "1111111111111111111111111111111111111111";
 const REMOTE_TIP = "2222222222222222222222222222222222222222";
 const NEW_LOCAL_TIP = "3333333333333333333333333333333333333333";
+const REV_PARSE_LOCAL = `rev-parse --verify --quiet ${NOTES_REF}`;
+const LS_REMOTE_NOTES = `ls-remote origin ${NOTES_REF}`;
+const PUSH_NOTES = `push origin ${LOCAL_TIP}:${NOTES_REF}`;
+const FETCH_TEMP_NOTES = "fetch --refmap= origin *";
+const DELETE_TEMP_REF = "update-ref -d *";
 
-describe("runUserPush — idempotent no-op recovery", () => {
+describe("runUserPush — proof-gated publication", () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });
 
   it("remote already matches local → no-ops; partial-push marker cleared", async () => {
-    const sameHash = "abc1234567890";
     const { exec, calls } = buildExec({
-      [REV_PARSE_LOCAL]: { stdout: `${sameHash}\n`, stderr: "" },
-      [LS_REMOTE_NOTES]: { stdout: `${sameHash}\t${NOTES_REF}\n`, stderr: "" },
+      [REV_PARSE_LOCAL]: { stdout: `${LOCAL_TIP}\n`, stderr: "" },
+      [LS_REMOTE_NOTES]: { stdout: `${LOCAL_TIP}\t${NOTES_REF}\n`, stderr: "" },
+      [FETCH_TEMP_NOTES]: { stdout: "", stderr: "" },
+      "rev-parse --verify --quiet *": { stdout: `${LOCAL_TIP}\n`, stderr: "" },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
       [PUSH_NOTES]: () => {
         throw new Error("push should not have fired on no-op path");
       },
@@ -123,12 +125,19 @@ describe("runUserPush — idempotent no-op recovery", () => {
     expect(mockClearPartialPushMarker).toHaveBeenCalledWith("/repo", io, "andrew");
   });
 
-  it("re-attempt after transient failure: remote differs → push fires; marker cleared on success", async () => {
-    const localHash = "abc1234567890";
-    const remoteHash = "deadbeefcafe";
+  it("safe absent-remote history pushes the captured tip and clears the marker", async () => {
     const { exec, calls } = buildExec({
-      [REV_PARSE_LOCAL]: { stdout: `${localHash}\n`, stderr: "" },
-      [LS_REMOTE_NOTES]: { stdout: `${remoteHash}\t${NOTES_REF}\n`, stderr: "" },
+      [REV_PARSE_LOCAL]: { stdout: `${LOCAL_TIP}\n`, stderr: "" },
+      [LS_REMOTE_NOTES]: { stdout: "", stderr: "" },
+      [`ls-tree --full-tree ${LOCAL_TIP} -- .arc-user-notes-compaction-manifest.json`]: {
+        stdout: "",
+        stderr: "",
+      },
+      [`log --name-status -z -M100% -m --root --format=ARC-NOTES-HISTORY-COMMIT%x00 ${LOCAL_TIP}`]: {
+        stdout: "",
+        stderr: "",
+      },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
       [PUSH_NOTES]: { stdout: "", stderr: "" },
     });
     const io = buildIo(exec);
@@ -139,18 +148,53 @@ describe("runUserPush — idempotent no-op recovery", () => {
     const pushCalls = calls
       .map((c) => c.args)
       .filter((args) => args[0] === "push");
-    expect(pushCalls).toEqual([["push", "origin", NOTES_REF]]);
+    expect(pushCalls).toEqual([["push", "origin", `${LOCAL_TIP}:${NOTES_REF}`]]);
     expect(mockClearPartialPushMarker).toHaveBeenCalledTimes(1);
     expect(mockClearPartialPushMarker).toHaveBeenCalledWith("/repo", io, "andrew");
   });
 
-  it("force: true skips the no-op probe and pushes unconditionally", async () => {
-    const sameHash = "abc1234567890";
+  it("missing publication plumbing refuses without transport or marker clearing", async () => {
+    const annotated = "a".repeat(40);
     const { exec, calls } = buildExec({
-      [REV_PARSE_LOCAL]: { stdout: `${sameHash}\n`, stderr: "" },
-      [LS_REMOTE_NOTES]: () => {
-        throw new Error("ls-remote should not have fired on force path");
+      [REV_PARSE_LOCAL]: { stdout: `${LOCAL_TIP}\n`, stderr: "" },
+      [LS_REMOTE_NOTES]: { stdout: "", stderr: "" },
+      [`ls-tree --full-tree ${LOCAL_TIP} -- .arc-user-notes-compaction-manifest.json`]: {
+        stdout: "",
+        stderr: "",
       },
+      [`log --name-status -z -M100% -m --root --format=ARC-NOTES-HISTORY-COMMIT%x00 ${LOCAL_TIP}`]: {
+        stdout: `ARC-NOTES-HISTORY-COMMIT\0\0\nA\0${annotated}\0`,
+        stderr: "",
+      },
+      [DELETE_TEMP_REF]: { stdout: "", stderr: "" },
+    });
+    const io = buildIo(exec);
+
+    const result = await runUserPush({ cwd: "/repo", io, identity: "andrew" });
+    expect(result).toMatchObject({
+      kind: "refused",
+      reason: "proof-unavailable",
+    });
+    expect(result.kind === "refused" ? result.message : "").toContain("Restore remote and object visibility");
+    expect(calls.some((call) => call.args[0] === "push")).toBe(false);
+    expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+  });
+
+  it("an absent canonical ref is a non-transport miss and preserves the marker", async () => {
+    const missingRef = Object.assign(new Error("missing ref"), { code: 1 });
+    const { exec, calls } = buildExec({
+      [REV_PARSE_LOCAL]: () => { throw missingRef; },
+    });
+    const io = buildIo(exec);
+
+    await expect(runUserPush({ cwd: "/repo", io, identity: "andrew" }))
+      .resolves.toEqual({ kind: "no-local-notes" });
+    expect(calls.some((call) => call.args[0] === "push")).toBe(false);
+    expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+  });
+
+  it("force: true stays on the planner-free direct push path", async () => {
+    const { exec, calls } = buildExec({
       [`push --force origin ${NOTES_REF}`]: { stdout: "", stderr: "" },
     });
     const io = buildIo(exec);

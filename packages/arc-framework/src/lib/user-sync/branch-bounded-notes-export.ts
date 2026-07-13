@@ -95,14 +95,16 @@ export async function planBranchBoundedNotesExport(
       if (remoteTip === capturedTip) return planned(destinationRef, capturedTip);
     }
 
-    const localManifest = await readStrictOptionalManifest(input.exec, capturedTip);
+    const localManifest = await readStrictOptionalNotesCompactionManifest(input.exec, capturedTip);
     if (remoteTip !== null) {
-      const remoteManifest = await readStrictOptionalManifest(input.exec, fetchedRef);
+      const remoteManifest = await readStrictOptionalNotesCompactionManifest(input.exec, fetchedRef);
       if (!sameManifest(localManifest, remoteManifest)) {
         return refused(
           "compaction-lineage",
           "Local and origin user notes cross an incompatible compaction boundary. Preserve both snapshots and "
-            + "inspect them explicitly before choosing an authoritative state.",
+            + "inspect them explicitly before choosing an authoritative state. Automatic repair is disabled: "
+            + "either accept the remote snapshot, or verify the materialized user state and establish a fresh "
+            + "authoritative save after manual canonical-ref repair.",
         );
       }
       if (!await isAncestorStrict(input.exec, remoteTip, capturedTip)) {
@@ -130,10 +132,15 @@ export async function planBranchBoundedNotesExport(
         return refused(
           "unpublished-history",
           `User-notes history references unpublished commit(s): ${proof.commits.map(shortObjectId).join(", ")}. `
-            + "Publish those commits on a live origin branch, then retry.",
+            + "Publish those commits on a live origin branch, then retry paired sync or the preflighted "
+            + "`arc user push` path.",
         );
       case "unavailable":
-        return refused("proof-unavailable", `User-notes publication proof is unavailable: ${proof.message}`);
+        return refused(
+          "proof-unavailable",
+          `User-notes publication proof is unavailable: ${proof.message} Restore remote and object visibility, `
+            + "then retry a non-force publication path.",
+        );
     }
   } catch (error) {
     return failed(error);
@@ -197,7 +204,14 @@ async function readStrictRemoteRefTip(exec: GitExec, ref: string): Promise<strin
   return tip;
 }
 
-async function readStrictOptionalManifest(
+/**
+ * Read a compaction manifest while distinguishing absence from malformed or unreadable state.
+ *
+ * @param exec - Git runner.
+ * @param commitish - Notes ref or captured notes-history commit to inspect.
+ * @returns The validated manifest, or `null` only when the tree entry is absent.
+ */
+export async function readStrictOptionalNotesCompactionManifest(
   exec: GitExec,
   commitish: string,
 ): Promise<NotesCompactionManifest | null> {

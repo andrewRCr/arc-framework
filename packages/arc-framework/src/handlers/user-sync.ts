@@ -406,11 +406,22 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
       }
       p.outro("Done.");
       return;
+    case "no-local-notes":
+      await recordPartialPushMarkerAfterFailedPush(params);
+      p.log.error("No local user notes ref was available after save; nothing was published.");
+      process.exitCode = 1;
+      return;
     case "no-remote":
       await recordPartialPushMarkerAfterFailedPush(params);
       p.log.error("No remote configured. Push requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
       p.log.warn("User directory was saved locally — push manually with `arc user push`.");
+      process.exitCode = 1;
+      return;
+    case "refused":
+      await recordPartialPushMarkerAfterFailedPush(params);
+      p.log.error(pushResult.message);
+      p.log.warn("User directory was saved locally — publication remains deferred.");
       process.exitCode = 1;
       return;
     case "blocked":

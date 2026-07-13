@@ -105,84 +105,42 @@ target is the captured canonical notes tip.
 _Purpose:_ Put every paired and standalone non-force notes publication behind the shared proof while preserving
 ordinary same-lineage reconciliation and existing partial-publication recovery.
 
-### `[ ]` **4.1 Preflight local-ahead standalone notes publication**
+### `[x]` **4.1 Preflight local-ahead standalone notes publication**
 
 - _Goal:_ `arc user push` cannot bypass a paired-push refusal, while its explicit `--force` escape hatch remains
   unchanged and visibly separate from routine publication.
 
-    - Route the non-force path in `packages/arc-framework/src/commands/user/push-fetch.ts` through the shared planner
-      and proof-bearing push helper, including local-ahead and absent-remote topologies.
-    - Expand `UserPushResult` and `NotesPushOutcome` with a structured refused result carrying the planner reason and
-      message. Let `reconcileNotesPush` route only `history-diverged` into the ordinary merge; propagate every other
-      refusal without transport or mutation.
-    - Preserve `no-local-notes` as a non-transport planning miss. It must not clear a partial-push marker or be
-      confused with an existing deletion-bearing notes ref.
-    - Preserve the existing remote-equals-local no-op and clear the partial-push marker only after `pushed`, `noop`, or
-      successfully reconciled publication; refusal and failure leave any existing marker intact.
-    - Keep `force: true` on the direct explicit override path; automatic and guided recovery never set it.
-    - Build `test-first` across `packages/arc-framework/__tests__/unit/push-fetch.test.ts` and
-      `packages/arc-framework/__tests__/integration/user.test.ts`: safe tips push, unsafe tips refuse without
-      transport, missing stdin plumbing refuses, a persisted partial-push marker grants no bypass, and explicit
-      force remains a planner-free direct push.
+- _Outcome:_ Routine `runUserPush` now plans and transports only a proof-bearing captured tip, returns structured
+  refusal or no-local/no-remote outcomes without clearing recovery state, and routes only ordinary divergence into
+  reconciliation. The explicit force path remains a direct planner-free override.
 
-### `[ ]` **4.2 Merge ordinary divergence, recapture, and re-prove before publication**
+### `[x]` **4.2 Merge ordinary divergence, recapture, and re-prove before publication**
 
 - _Goal:_ Same-lineage graph divergence retains the existing lossless merge convenience, but the merged canonical
   tip reaches the remote only after a fresh containment proof.
 
-    - Keep the notes lock around fetch, ordinary `git notes merge`, manifest validation, and rollback decisions in
-      `reconcileNotesPush`; release it before remote publication.
-    - After the initial planner reports ordinary history divergence, fetch a fresh remote snapshot under the lock and
-      revalidate complete compaction lineage before merge so a remote race cannot cross a snapshot boundary.
-    - After a clean ordinary merge and content validation, release the lock, recapture the resulting canonical tip
-      through the shared planner, and use its proof-bearing push helper instead of calling a direct full-ref push.
-    - Preserve the validated local history merge when later publication refuses; leave the remote unchanged and
-      report the proof failure accurately.
-    - Extend every exhaustive `NotesPushOutcome` consumer in `handlers/push-recovery.ts`, `handlers/user.ts`, and
-      `handlers/sync.ts` so standalone and sync callers render refusal without converting it to conflict or failure.
-    - Build `test-first` in `packages/arc-framework/__tests__/unit/notes-reconcile-push.test.ts` and real-Git
-      integration coverage for merge-before-proof, merged-tip publication, post-merge refusal, remote movement before
-      the locked fetch, rollback, and lock/temp-ref cleanup.
+- _Outcome:_ Ordinary divergence now fetches and validates under the notes lock, preserves existing merge/rollback
+  behavior, then releases the lock before recapturing and proving the merged canonical tip. Refusal after a valid
+  merge leaves that local history intact and the remote unchanged, with structured rendering across callers.
 
-### `[ ]` **4.3 Refuse incompatible compaction lineage before canonical mutation**
+### `[x]` **4.3 Refuse incompatible compaction lineage before canonical mutation**
 
 - _Goal:_ Cross-snapshot histories remain intact for explicit operator repair and never enter compaction adoption,
   ordinary merge, or fresh note authorship automatically.
 
-    - Replace `adoptFetchedCompactionIfNewer` routing with manifest validation and a sticky compaction-lineage
-      refusal before `adoptCompactedNotesRef` or `git notes merge` can run.
-    - Preserve both canonical refs, disk state, the local partial-push marker, and inspection guidance; do not offer
-      a claimed lossless automatic repair.
-    - Remove automatic adoption imports and calls from the standalone path while retaining the compaction command's
-      separate equal-tip, lease-guarded publisher.
-    - Build `test-first` across `user-notes-compaction.test.ts`, `user-notes-interleaving.test.ts`, and reconcile
-      coverage for remote-newer, local-newer, one-sided manifests, same-generation field mismatch, malformed or
-      unreadable manifests, and ordinary same-lineage ancestry.
+- _Outcome:_ Reconciliation strictly compares complete manifests and returns a sticky compaction-lineage refusal
+  before merge or adoption; malformed metadata fails closed. Remote-newer, local-newer, one-sided, field-mismatched,
+  raced, and equal-lineage topologies now preserve canonical refs and recovery state under real and modeled Git.
 
-### `[ ]` **4.4 Preserve paired-push results, markers, and refusal taxonomy**
+### `[x]` **4.4 Preserve paired-push results, markers, and refusal taxonomy**
 
 - _Goal:_ A refused notes leg remains an observable partial publication: the worktree stays published, the local
   recovery marker persists, and no remote notes intent or unsafe target is emitted.
 
-    - Update `packages/arc-framework/src/commands/user/paired-push.ts` to consume structured planner refusals and
-      remove obsolete temporary-target cleanup while retaining worktree-first ordering and worst-outcome exit code.
-    - Carry the refusal reason through `PairedPushNotesPusherResult` and every exhaustive renderer so the plan's
-      safety classification is not flattened into a generic conflict or transport failure.
-    - Map refusal classes to actionable messages: publish unpublished commits, run preflighted `arc user push` for
-      ordinary divergence, or restore proof visibility. For compaction lineage, name the two operator choices at a
-      high level — accept the remote snapshot, or verify materialized disk and establish a fresh authoritative save
-      after manual canonical-ref repair — without prescribing destructive ref-movement commands.
-    - Keep partial-push marker recording for every refused/failed notes leg and suppress remote intent publication
-      when no proof-bearing target exists.
-    - Build `test-first` across `packages/arc-framework/__tests__/unit/paired-push.test.ts`,
-      `packages/arc-framework/__tests__/unit/sync-orchestrator.test.ts`, and focused integration cases:
-        - Planning refusal preserves successful worktree output and returns notes `refused` with a non-zero result.
-        - Marker write failure is reported without hiding the primary refusal.
-        - A planning refusal never invokes the notes pusher or automatic transport retry; later standalone recovery
-          recomputes the proof, while transient retries after a successful plan reuse only its immutable safe target.
-        - Messages never recommend sorting, force-pushing, or blind retry.
-        - A real resurrection induction in `notes-export-state-coherence.test.ts` reaches the formerly reconstructed
-          topology, defers canonical publication, and proves a later load does not restore the tombstoned inbox entry.
+- _Outcome:_ Paired publication now preserves structured proof refusals and worktree success, records local recovery
+  state without publishing unsafe remote intent, and renders reason-specific operator guidance. Unit and real-Git
+  topology coverage proves refusals never reach transport or retry, immutable planned targets survive transient
+  retries, marker failures preserve the primary result, and later loads honor removal tombstones without resurrection.
 
 ## **Phase 5:** Status, Compatibility, and Operating Guidance
 

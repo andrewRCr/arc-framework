@@ -139,11 +139,14 @@ describe("canonical notes publication", () => {
     await git(repo, ["notes", `--ref=${NOTES_REF}`, "add", "-m", "private note", privateCommit]);
     const localBefore = await git(repo, ["rev-parse", NOTES_REF]);
 
-    await expect(planBranchBoundedNotesExport({
+    const plan = await planBranchBoundedNotesExport({
       exec: makeGitExec(repo),
       execInput: makeGitExecInput(repo),
       identity: IDENTITY,
-    })).resolves.toMatchObject({ kind: "refused", reason: "unpublished-history" });
+    });
+    expect(plan).toMatchObject({ kind: "refused", reason: "unpublished-history" });
+    expect(plan.kind === "refused" ? plan.message : "").toContain("Publish those commits on a live origin branch");
+    expect(plan.kind === "refused" ? plan.message : "").toContain("preflighted `arc user push`");
     expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(localBefore);
     expect(await git(remote, ["for-each-ref", "--format=%(refname)", NOTES_REF])).toBe("");
   });
@@ -155,11 +158,14 @@ describe("canonical notes publication", () => {
     await git(ordinary.repo, ["update-ref", NOTES_REF, local.tip]);
     await git(ordinary.repo, ["push", "origin", `${remote.tip}:${NOTES_REF}`]);
 
-    await expect(planBranchBoundedNotesExport({
+    const ordinaryPlan = await planBranchBoundedNotesExport({
       exec: makeGitExec(ordinary.repo),
       execInput: makeGitExecInput(ordinary.repo),
       identity: IDENTITY,
-    })).resolves.toMatchObject({ kind: "refused", reason: "history-diverged" });
+    });
+    expect(ordinaryPlan).toMatchObject({ kind: "refused", reason: "history-diverged" });
+    expect(ordinaryPlan.kind === "refused" ? ordinaryPlan.message : "")
+      .toContain("preflighted `arc user push`");
 
     const compacted = await harness("arc-notes-canonical-compaction-");
     const compactLocal = await makeNotesTreeCommit(compacted.repo, [{ commit: compacted.base, content: "local" }], {
@@ -171,11 +177,61 @@ describe("canonical notes publication", () => {
     await git(compacted.repo, ["update-ref", NOTES_REF, compactLocal.tip]);
     await git(compacted.repo, ["push", "origin", `${compactRemote.tip}:${NOTES_REF}`]);
 
-    await expect(planBranchBoundedNotesExport({
+    const compactionPlan = await planBranchBoundedNotesExport({
       exec: makeGitExec(compacted.repo),
       execInput: makeGitExecInput(compacted.repo),
       identity: IDENTITY,
-    })).resolves.toMatchObject({ kind: "refused", reason: "compaction-lineage" });
+    });
+    expect(compactionPlan).toMatchObject({ kind: "refused", reason: "compaction-lineage" });
+    const compactionMessage = compactionPlan.kind === "refused" ? compactionPlan.message : "";
+    expect(compactionMessage).toContain("accept the remote snapshot");
+    expect(compactionMessage).toContain("fresh authoritative save after manual canonical-ref repair");
+    expect(compactionMessage.toLowerCase()).not.toMatch(/sort|force-push|blind retry/u);
+  });
+
+  it.each(["local-newer", "one-sided", "same-generation-mismatch"] as const)(
+    "refuses %s compaction metadata before ordinary divergence routing",
+    async (variant) => {
+      const { repo, base } = await harness(`arc-notes-canonical-${variant}-`);
+      const pruned = [{ blob: "d".repeat(40), commit: base }];
+      const localManifest = variant === "local-newer"
+        ? { version: 1 as const, generation: 2, preCompactionTip: null, pruned: [] }
+        : { version: 1 as const, generation: 1, preCompactionTip: null, pruned: [] };
+      const remoteManifest = variant === "one-sided"
+        ? null
+        : variant === "local-newer"
+          ? { version: 1 as const, generation: 1, preCompactionTip: null, pruned: [] }
+          : { version: 1 as const, generation: 1, preCompactionTip: null, pruned };
+      const local = await makeNotesTreeCommit(repo, [{ commit: base, content: "local" }], {
+        manifest: localManifest,
+      });
+      const remote = await makeNotesTreeCommit(repo, [{ commit: base, content: "remote" }], {
+        ...(remoteManifest === null ? {} : { manifest: remoteManifest }),
+      });
+      await git(repo, ["update-ref", NOTES_REF, local.tip]);
+      await git(repo, ["push", "origin", `${remote.tip}:${NOTES_REF}`]);
+
+      await expect(planBranchBoundedNotesExport({
+        exec: makeGitExec(repo),
+        execInput: makeGitExecInput(repo),
+        identity: IDENTITY,
+      })).resolves.toMatchObject({ kind: "refused", reason: "compaction-lineage" });
+    },
+  );
+
+  it("routes diverged histories with equal complete manifests to ordinary reconciliation", async () => {
+    const { repo, base } = await harness("arc-notes-canonical-equal-manifest-");
+    const manifest = { version: 1 as const, generation: 1, preCompactionTip: null, pruned: [] };
+    const local = await makeNotesTreeCommit(repo, [{ commit: base, content: "local" }], { manifest });
+    const remote = await makeNotesTreeCommit(repo, [{ commit: base, content: "remote" }], { manifest });
+    await git(repo, ["update-ref", NOTES_REF, local.tip]);
+    await git(repo, ["push", "origin", `${remote.tip}:${NOTES_REF}`]);
+
+    await expect(planBranchBoundedNotesExport({
+      exec: makeGitExec(repo),
+      execInput: makeGitExecInput(repo),
+      identity: IDENTITY,
+    })).resolves.toMatchObject({ kind: "refused", reason: "history-diverged" });
   });
 
   it("keeps non-ancestry command failures out of the ordinary divergence class", async () => {

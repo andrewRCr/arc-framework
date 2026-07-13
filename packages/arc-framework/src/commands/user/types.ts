@@ -11,6 +11,7 @@ import type {
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { CoreIO } from "../../lib/types.js";
 import type {
+  BranchBoundedNotesExportRefusalReason,
   BranchBoundedNotesExportTarget,
   PlanBranchBoundedNotesExportResult,
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
@@ -264,8 +265,16 @@ function buildBlockedMessage(conditions: PushabilityCondition[]): string {
  * - `pushed`: a push was sent to remote.
  * - `noop`: remote ref already matched local; nothing to push (partial-push
  *   marker is still cleared, since the recovery condition is resolved).
+ * - `no-local-notes`: the canonical local notes ref is absent.
+ * - `no-remote`: origin is unavailable.
+ * - `refused`: a well-formed canonical topology failed publication preflight.
  */
-export type UserPushResult = { kind: "pushed" } | { kind: "noop" };
+export type UserPushResult =
+  | { kind: "pushed" }
+  | { kind: "noop" }
+  | { kind: "no-local-notes" }
+  | { kind: "no-remote" }
+  | { kind: "refused"; reason: BranchBoundedNotesExportRefusalReason; message: string };
 
 /** Reason a paired-push leg was skipped without firing. */
 export type PairedPushSkipReason =
@@ -307,10 +316,15 @@ export type PairedPushNotesPusherResult =
   | { status: "ok-recovered"; via: "force" | "merge" }
   | { status: "cancelled" }
   | { status: "no-remote" }
-  | { status: "refused"; message: string }
+  | { status: "refused"; reason: PairedPushNotesRefusalReason; message: string }
   | { status: "failed-nontty-conflict"; message?: string }
   | { status: "blocked"; conditions: PushabilityCondition[] }
   | { status: "failed"; error: Error };
+
+/** Stable safety class for a paired notes leg that never reached transport. */
+export type PairedPushNotesRefusalReason =
+  | BranchBoundedNotesExportRefusalReason
+  | "no-local-notes";
 
 /** Outcome of the notes leg as reported in {@link PairedPushResult}. */
 export type PairedPushNotesOutcome =

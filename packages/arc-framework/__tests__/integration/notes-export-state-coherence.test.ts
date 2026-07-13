@@ -1,12 +1,17 @@
 /** End-to-end regressions for content-aware user-notes divergence. */
 
+import { access, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
   addBareRemote,
   cleanupTempDir,
   createTempRepo,
+  DEFAULT_PROMPTS,
   execFileAsync,
+  initInTempRepo,
   makeCommit,
   makeGitExec,
   makeNotesTreeCommit,
@@ -15,7 +20,10 @@ import {
 import {
   inspectUserSyncRefsDetailed,
   inspectUserSyncState,
+  runPairedPush,
+  runUserLoad,
   runUserPull,
+  runUserSave,
   runUserSessionInitStatus,
   runUserStatus,
 } from "../../src/commands/user.js";
@@ -98,6 +106,79 @@ describe("notes export state coherence", () => {
     if (remote) await cleanupTempDir(remote);
     repo = undefined;
     remote = undefined;
+  });
+
+  it("defers a branch-filter reconstruction topology and keeps a routed inbox entry tombstoned", async () => {
+    repo = await initInTempRepo(DEFAULT_PROMPTS, IDENTITY);
+    await makeCommit(repo, "base");
+    remote = await addBareRemote(repo);
+    const io = makeUserIO(repo);
+    const inboxPath = join(repo, ".arc", "user", IDENTITY, "USER-INBOX.md");
+    const liveEntry = "reconstruction must not restore this capture";
+    const inbox = (entry?: string): string => [
+      "# User Inbox",
+      "",
+      "## Errand",
+      "",
+      ...(entry === undefined
+        ? []
+        : ["### `[ ]` **Resurrection sentinel**", "", `- ${entry}`, ""]),
+      "## Work Unit",
+      "",
+      "---",
+      "",
+    ].join("\n");
+
+    await git(repo, ["checkout", "-b", "work-a"]);
+    await makeCommit(repo, "work A base");
+    await writeFile(inboxPath, inbox(liveEntry), "utf-8");
+    await runUserSave({ cwd: repo, io, identity: IDENTITY });
+    await git(repo, ["push", "-u", "origin", "work-a"]);
+    await git(repo, ["push", "origin", NOTES_REF]);
+    const remoteNotesBefore = await git(repo, ["rev-parse", NOTES_REF]);
+
+    await git(repo, ["checkout", "main"]);
+    await git(repo, ["checkout", "-b", "work-b"]);
+    const unpublishedRemovalCommit = await makeCommit(repo, "unpublished routed removal");
+    await writeFile(inboxPath, inbox(), "utf-8");
+    await runUserSave({ cwd: repo, io, identity: IDENTITY });
+
+    await git(repo, ["checkout", "work-a"]);
+    await makeCommit(repo, "work A publication");
+    let notesPusherCalled = false;
+    const result = await runPairedPush({
+      cwd: repo,
+      io,
+      identity: IDENTITY,
+      access,
+      branch: "work-a",
+      worktreeSyncState: "local-ahead",
+      pushNotes: async () => {
+        notesPusherCalled = true;
+        return { status: "success" };
+      },
+    });
+
+    expect(result).toMatchObject({
+      worktree: { status: "success" },
+      notes: { status: "refused", reason: "unpublished-history" },
+      exitCode: 1,
+      partialPushMarkerRecorded: true,
+    });
+    expect(notesPusherCalled).toBe(false);
+    expect(await git(remote, ["rev-parse", NOTES_REF])).toBe(remoteNotesBefore);
+    expect(await git(remote, ["show-ref", "--verify", `refs/heads/work-a`])).toContain("refs/heads/work-a");
+    expect(await git(remote, ["show-ref", "--verify", `refs/heads/work-b`]).catch(() => "")).toBe("");
+    expect(result.notes).toMatchObject({
+      message: expect.stringContaining(unpublishedRemovalCommit.slice(0, 8)),
+    });
+
+    await writeFile(inboxPath, inbox(), "utf-8");
+    await runUserLoad({ cwd: repo, io, identity: IDENTITY });
+    const loadedInbox = await readFile(inboxPath, "utf-8");
+    expect(loadedInbox).not.toContain(liveEntry);
+    expect(loadedInbox).not.toContain("### `[ ]` **Resurrection sentinel**");
+    expect(loadedInbox).toContain("## Removed: Resurrection sentinel");
   });
 
   it("projects branch-bounded remote-subset residue as non-blocking on every surface", async () => {

@@ -242,10 +242,11 @@ function notesOutcomeForPlanMiss(
     case "skipped":
       return {
         status: "refused",
+        reason: plan.reason,
         message: `Branch-bounded notes export could not find a safe target (${plan.reason}).`,
       };
     case "refused":
-      return { status: "refused", message: plan.message };
+      return { status: "refused", reason: plan.reason, message: plan.message };
     case "failed":
       return { status: "failed", error: plan.error };
   }

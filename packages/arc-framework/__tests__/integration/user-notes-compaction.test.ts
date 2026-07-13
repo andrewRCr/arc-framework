@@ -11,6 +11,7 @@ import {
   makeGitExec,
   makeGitExecInput,
   makeUserIO,
+  readFile,
   writeFile,
 } from "../helpers/integration.js";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
@@ -566,7 +567,7 @@ describe("user notes compaction", () => {
     await expect(noteContent(harness.origin, localOnlyCommit)).rejects.toThrow();
   }, 15_000);
 
-  it("non-fast-forward reconcile push adopts a newer generation instead of merging across the boundary", async () => {
+  it("non-fast-forward reconcile refuses a newer generation without merging or adoption", async () => {
     harness = await setupMultiClone({
       cloneA: { config: { "arc.identity": IDENTITY } },
       cloneB: { config: { "arc.identity": IDENTITY } },
@@ -593,6 +594,13 @@ describe("user notes compaction", () => {
       retained: entries.filter((entry) => entry.commit === keepCommit),
       pruned: entries.filter((entry) => entry.commit === pruneCommit),
     });
+    const localBefore = await git(cloneB, ["rev-parse", NOTES_REF]);
+    const remoteBefore = await git(harness.origin, ["rev-parse", NOTES_REF]);
+    const stateDir = join(cloneB, ".arc", "user", IDENTITY, ".internal");
+    const statePath = join(stateDir, ".sync-state.json");
+    const markerState = '{"partialPush":{"localRefHash":"sentinel","sourceCommit":"sentinel"}}\n';
+    await ensureDir(stateDir);
+    await writeFile(statePath, markerState, "utf-8");
 
     const outcome = await reconcileNotesPush({
       cwd: cloneB,
@@ -600,9 +608,13 @@ describe("user notes compaction", () => {
       identity: IDENTITY,
     });
 
-    expect(outcome.kind).toBe("reconciled");
+    expect(outcome).toMatchObject({ kind: "refused", reason: "compaction-lineage" });
+    expect(await git(cloneB, ["rev-parse", NOTES_REF])).toBe(localBefore);
+    expect(await git(harness.origin, ["rev-parse", NOTES_REF])).toBe(remoteBefore);
+    expect(await readFile(statePath, "utf-8")).toBe(markerState);
     await expect(git(harness.origin, ["notes", `--ref=${NOTES_REF}`, "show", pruneCommit])).rejects.toThrow();
-    expect(await noteContent(harness.origin, localOnlyCommit)).toBe("local-only");
+    await expect(noteContent(harness.origin, localOnlyCommit)).rejects.toThrow();
+    expect(await noteContent(cloneB, localOnlyCommit)).toBe("local-only");
   }, 15_000);
 
   it("arc user compact collapses history, publishes the generation marker, and then no-ops", async () => {
