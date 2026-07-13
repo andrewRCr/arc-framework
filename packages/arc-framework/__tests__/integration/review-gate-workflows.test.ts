@@ -225,8 +225,8 @@ describe("trusted review-gate workflows", () => {
 
   it("proves the checked-in repair workflow is the sole closed status writer", async () => {
     const names = [
-      "ci.yml", "docs.yml", "review-gate-attest.yml", "review-gate-repair.yml", "review-gate-wakeup.yml",
-      "review-gate.yml",
+      "ci.yml", "docs.yml", "review-gate-attest.yml", "review-gate-qualify.yml", "review-gate-repair.yml",
+      "review-gate-wakeup.yml", "review-gate.yml",
     ];
     const files = Object.fromEntries(await Promise.all(names.map(async (name) => [
       `.github/workflows/${name}`,
@@ -243,5 +243,17 @@ describe("trusted review-gate workflows", () => {
       changedPaths: [],
       authorityPaths: [".github/workflows/review-gate-repair.yml"],
     })).toMatchObject({ ok: true, writer: { jobId: "write-status" } });
+  });
+
+  it("keeps token qualification on immutable protected code with sanitized output only", async () => {
+    const qualify = await read("review-gate-qualify.yml");
+    const workflow = load(qualify) as { on?: unknown };
+    expect(workflow.on).toEqual({ repository_dispatch: { types: ["review-gate-qualify"] } });
+    expect(qualify).toContain("environment: review-gate");
+    expect(qualify).toContain("ref: ${{ github.workflow_sha }}");
+    expect(qualify).toContain("persist-credentials: false");
+    expect(qualify).toContain("ARC_REVIEW_GATE_APP_PRIVATE_KEY: ${{ secrets.ARC_REVIEW_GATE_APP_PRIVATE_KEY }}");
+    expect(qualify).toContain("review-gate-token-qualification-${{ github.run_id }}-${{ github.run_attempt }}");
+    expect(qualify).not.toMatch(/echo.*(?:TOKEN|PRIVATE_KEY)|steps\..*\.outputs\.token/iu);
   });
 });

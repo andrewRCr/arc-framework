@@ -653,24 +653,29 @@ acceptance proof before enforcement mutation.
 - _Outcome:_ The inactive self-hosting controller now has one inspectable private composition surface without widening
   the neutral core or published CLI boundary.
 
-### `[ ]` **7.2 Build App identity, token-opacity, and secret-boundary qualification**
+### `[x]` **7.2 Build App identity, token-opacity, and secret-boundary qualification**
 
 - _Goal:_ The dependent qualification work can prove the pinned least-privilege App through the exact controller
   consumer across both token formats without exposing credentials or granting qualification code production authority.
 - **Additional Context:** `notes-review-gate-enforcement-cutover.md` § GitHub App and token evidence.
 
-    - `[ ]` **7.2.a Source-audit pinned Actions and controller token consumers**
-        - Prove opaque token handling and exact selected-repository/permission boundaries; reject prefix, length,
-          dot-count, regex, and storage-width assumptions.
+    - `[x]` **7.2.a Source-audit pinned Actions and controller token consumers**
+        - Added live qualification for the pinned App/bot, exactly one selected repository, and the exact checks,
+          metadata, pull-request, and status permissions. Production-consumer audits prohibit prefix, length, dot,
+          regex, and widened token-storage assumptions.
 
-    - `[ ]` **7.2.b Add qualification-only forced-format probes around the exact controller consumer**
-        - Add `.github/workflows/review-gate-qualify.yml`, dispatchable only from the immutable default branch through
-          the existing protected `review-gate` environment, for bounded App-authenticated and forced-token probes.
-        - Direct-mint stateless and classic forms only inside that workflow, remove the temporary override after each
-          proof, and expose only sanitized typed outcomes to the coordinator.
+    - `[x]` **7.2.b Add qualification-only forced-format probes around the exact controller consumer**
+        - Added typed default-branch `repository_dispatch` qualification in the existing protected environment. It
+          signs a short-lived App JWT, direct-mints stateless and classic tokens with per-request overrides, passes
+          both opaquely through the same consumer, and uploads only a one-day sanitized result artifact.
 
-    - `[ ]` **7.2.c Cover App identity, repository selection, denied capabilities, and secret non-propagation**
-        - Test the qualification runner with redacted fakes and contract fixtures before its live default-branch use.
+    - `[x]` **7.2.c Cover App identity, repository selection, denied capabilities, and secret non-propagation**
+        - Covered signed JWT/mint requests, override isolation, arbitrary token bytes, exact authority parity, added
+          privilege/repository refusal, denied merge/administration/content authority, sanitized failures, and workflow
+          output boundaries with redacted fakes.
+
+- _Outcome:_ Qualification can now prove both installation-token formats end to end without teaching production code
+  either format or allowing private keys, tokens, or credential-shaped failures into durable results.
 
 ### `[ ]` **7.3 Build the hosted-provider and controller acceptance matrix**
 

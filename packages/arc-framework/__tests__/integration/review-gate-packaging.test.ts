@@ -67,6 +67,7 @@ describe("review-gate package boundary", () => {
       "run-reconcile.ts",
       "run-repair-environment.ts",
       "run-repair.ts",
+      "run-token-qualification.ts",
     ];
     const sources = await Promise.all(launchers.map((name) =>
       readFile(resolve(root, "packages/arc-framework/src/scripts/review-gate", name), "utf8")));

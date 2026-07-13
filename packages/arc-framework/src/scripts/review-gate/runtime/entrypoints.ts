@@ -13,6 +13,7 @@ import { runAssertHeadMutable } from "./head-mutability-main.js";
 import { runReconcileMain } from "./reconcile-main.js";
 import { parseRepairDispatchEvent, validateRepairDispatch } from "./repair-main.js";
 import { ensureDirectReply, ensureThreadResolution } from "./settlement-runtime.js";
+import { runTokenQualification } from "./token-qualification.js";
 
 /** Every private executable operation; none is exported by the public CLI bundle. */
 export const SELF_HOSTING_REVIEW_GATE = Object.freeze({
@@ -35,4 +36,5 @@ export const SELF_HOSTING_REVIEW_GATE = Object.freeze({
   parseRepairDispatchEvent,
   validateRepairDispatch,
   provisionRepairEnvironment,
+  runTokenQualification,
 });
