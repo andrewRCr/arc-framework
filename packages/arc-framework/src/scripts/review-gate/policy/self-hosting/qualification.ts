@@ -1,6 +1,6 @@
 /** Qualification rules for the repository-owned independent-analysis rubric. */
 
-import type { SourceQualificationDeclaration } from "./schema.js";
+import { parseSelfHostingPolicy, type SelfHostingPolicy, type SourceQualificationDeclaration } from "./schema.js";
 
 /** Version of the shared independent-analysis rubric. */
 export const INDEPENDENT_ANALYSIS_RUBRIC_VERSION = "independent-analysis/v1";
@@ -53,7 +53,11 @@ export function deriveHostedProviderDeclaration(
     && baseline.closureCapability;
   const partial = baseline.requestQualified
     || baseline.artifactParserQualified
+    || baseline.exactCoverage
+    || baseline.durableResults
+    || baseline.distinctOutcomes
     || baseline.durableFindings
+    || baseline.closureCapability
     || baseline.terminalUnavailableMode === "parser-only";
   return {
     sourceKind: "agent",
@@ -75,6 +79,55 @@ export function deriveHostedProviderDeclaration(
     terminalUnavailableMode: baseline.terminalUnavailableMode,
     requestActor: baseline.requestActor,
   };
+}
+
+/** Build an in-memory, single-provider hypothesis used only by protected live qualification dispatches. */
+export function createHostedProviderProbePolicy(
+  policy: SelfHostingPolicy,
+  provider: "coderabbit" | "codex",
+  codexGuidanceDigest: string | null,
+): SelfHostingPolicy {
+  if (provider === "codex" && !/^[a-f0-9]{64}$/u.test(codexGuidanceDigest ?? "")) {
+    throw new Error("qualification-probe-guidance-invalid");
+  }
+  const selectedIdentity = `${provider}-pr`;
+  return parseSelfHostingPolicy({
+    ...policy,
+    qualifications: policy.qualifications.map((declaration) => declaration.sourceIdentity === selectedIdentity
+      && declaration.transport === "durable-record" ? {
+        ...declaration,
+        mode: "enabled",
+        exactCoverage: true,
+        durableResults: true,
+        distinctOutcomes: true,
+        durableFindings: true,
+        closureCapability: true,
+        guidanceDigest: provider === "codex" ? codexGuidanceDigest : declaration.guidanceDigest,
+      } : declaration),
+  });
+}
+
+/** Select baseline policy or the guarded live-probe hypothesis for one reconciliation launch. */
+export function selectReconcilePolicy(
+  policy: SelfHostingPolicy,
+  input: {
+    eventName: string;
+    qualificationMode?: string;
+    qualificationProvider?: string;
+    qualificationGuidanceDigest?: string;
+  },
+): SelfHostingPolicy {
+  const mode = input.qualificationMode ?? "";
+  const provider = input.qualificationProvider ?? "";
+  const guidance = input.qualificationGuidanceDigest ?? "";
+  if (mode === "" && provider === "" && guidance === "") return policy;
+  if (input.eventName !== "workflow_dispatch"
+    || mode !== "live-provider-probe"
+    || (provider !== "coderabbit" && provider !== "codex")
+    || (provider === "coderabbit" && guidance !== "")) {
+    throw new Error("qualification-probe-policy-refused");
+  }
+  return createHostedProviderProbePolicy(policy, provider, provider === "codex" ? guidance : null);
 }
 
 /** Decide whether a declared source may satisfy the required rubric version. */

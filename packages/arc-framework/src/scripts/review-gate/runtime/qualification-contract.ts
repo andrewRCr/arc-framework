@@ -55,6 +55,12 @@ export const QUALIFICATION_RUBRIC_DIMENSIONS = [
   "coherence",
 ] as const;
 
+export interface QualificationCellScope {
+  pullRequestNumber: number;
+  changeRequestId: string;
+  headSha: string;
+}
+
 export interface QualificationScope {
   repositoryId: string;
   repositoryRef: string;
@@ -62,15 +68,21 @@ export interface QualificationScope {
   defaultBranchSha: string;
   implementationSha: string;
   qualificationPullRequest: number;
-  disposablePullRequest: number;
-  disposableHeadSha: string;
+  cellScopes: Record<QualificationCellId, QualificationCellScope>;
   expectedActorIdentity: string;
+  controllerAppId: string;
+  controllerBotUserId: string;
+  actionsAppId: string;
+  actionsBotUserId: string;
   policyVersion: string;
   parserVersion: string;
   parserDigest: string;
+  providerParserVersions: Record<"coderabbit" | "codex", string>;
   rubricVersion: string;
   guidanceDigests: Record<string, string>;
   sourceIdentities: Record<string, string>;
+  providerAppIds: Record<"coderabbit" | "codex", string | null>;
+  providerBotUserIds: Record<"coderabbit" | "codex", string>;
   terminalUnavailableMode: "parser-only" | "terminal";
 }
 
@@ -78,6 +90,7 @@ export interface QualificationCellResult {
   cellId: QualificationCellId;
   status: string;
   outcome: QualificationOutcome;
+  capabilityProven: boolean;
   repositoryId: string;
   pullRequestNumber: number;
   headSha: string;
@@ -110,7 +123,7 @@ export interface QualificationAcceptanceCandidate {
   checkpointChainHash: string;
 }
 
-const expectedOutcome: Record<QualificationCellId, QualificationOutcome> = {
+export const QUALIFICATION_EXPECTED_OUTCOMES: Record<QualificationCellId, QualificationOutcome> = {
   "pending-first": "pending",
   "coderabbit-label-trigger": "triggered",
   "coderabbit-command-trigger": "triggered",
@@ -144,13 +157,20 @@ function credentialShaped(value: unknown, key = "root"): boolean {
   }
   if (Array.isArray(value)) return value.some((item) => credentialShaped(item, key));
   if (value !== null && typeof value === "object") {
-    return Object.entries(value).some(([childKey, child]) => credentialShaped(child, childKey));
+    return Object.entries(value).some(([childKey, child]) => credentialShaped(
+      child,
+      key === "cellScopes" ? "cellScope" : childKey,
+    ));
   }
   return false;
 }
 
 function digest(value: unknown): string {
   return hashContent(canonicalizePlainJson(value));
+}
+
+function hasExactKeys(value: object, expected: string[]): boolean {
+  return Object.keys(value).sort().join(",") === [...expected].sort().join(",");
 }
 
 /** Stable identity for one immutable qualification scope. */
@@ -165,20 +185,40 @@ export function validateQualificationScope(scope: QualificationScope): string[] 
   if (!/^[1-9][0-9]*$/u.test(scope.repositoryId)
     || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(scope.repositoryRef)
     || scope.defaultBranch.length === 0) errors.push("scope-repository-invalid");
-  if (![scope.defaultBranchSha, scope.implementationSha, scope.disposableHeadSha]
+  if (![scope.defaultBranchSha, scope.implementationSha, ...Object.values(scope.cellScopes).map((item) => item.headSha)]
     .every((value) => /^[a-f0-9]{40}$/u.test(value))) errors.push("scope-sha-invalid");
   if (![scope.policyVersion, scope.parserDigest, ...Object.values(scope.guidanceDigests)]
     .every((value) => /^[a-f0-9]{64}$/u.test(value))) errors.push("scope-digest-invalid");
   if (!Number.isSafeInteger(scope.qualificationPullRequest) || scope.qualificationPullRequest <= 0
-    || !Number.isSafeInteger(scope.disposablePullRequest) || scope.disposablePullRequest <= 0) {
+    || Object.values(scope.cellScopes).some((item) => !Number.isSafeInteger(item.pullRequestNumber)
+      || item.pullRequestNumber <= 0 || item.changeRequestId.length === 0)) {
     errors.push("scope-pull-request-invalid");
   }
+  if (Object.keys(scope.cellScopes).sort().join(",") !== [...QUALIFICATION_CELL_IDS].sort().join(",")) {
+    errors.push("scope-cell-set-invalid");
+  }
+  const cellValues = Object.values(scope.cellScopes);
+  if (new Set(cellValues.map((item) => item.pullRequestNumber)).size !== QUALIFICATION_CELL_IDS.length
+    || new Set(cellValues.map((item) => item.changeRequestId)).size !== QUALIFICATION_CELL_IDS.length
+    || new Set(cellValues.map((item) => item.headSha)).size !== QUALIFICATION_CELL_IDS.length
+    || cellValues.some((item) => item.pullRequestNumber === scope.qualificationPullRequest)) {
+    errors.push("scope-cell-isolation-invalid");
+  }
+  if (!hasExactKeys(scope.sourceIdentities, ["coderabbit", "codex"])
+    || !hasExactKeys(scope.providerParserVersions, ["coderabbit", "codex"])
+    || !hasExactKeys(scope.providerAppIds, ["coderabbit", "codex"])
+    || !hasExactKeys(scope.providerBotUserIds, ["coderabbit", "codex"])
+    || !hasExactKeys(scope.guidanceDigests, ["codex"])) errors.push("scope-provider-set-invalid");
   if (scope.rubricVersion !== "independent-analysis/v1"
     || scope.parserVersion.length === 0
     || !/^[1-9][0-9]*$/u.test(scope.expectedActorIdentity)
+    || ![scope.controllerAppId, scope.controllerBotUserId, scope.actionsAppId, scope.actionsBotUserId,
+      ...Object.values(scope.providerBotUserIds), ...Object.values(scope.providerAppIds).filter((value) => value !== null)]
+      .every((value) => /^[1-9][0-9]*$/u.test(value))
     || !/^[a-f0-9]{64}$/u.test(scope.guidanceDigests.codex ?? "")
-    || (scope.sourceIdentities.coderabbit?.length ?? 0) === 0
-    || (scope.sourceIdentities.codex?.length ?? 0) === 0) errors.push("scope-policy-input-invalid");
+    || Object.values(scope.providerParserVersions).some((value) => value.length === 0)
+    || scope.sourceIdentities.coderabbit !== "coderabbit-pr"
+    || scope.sourceIdentities.codex !== "codex-pr") errors.push("scope-policy-input-invalid");
   return errors;
 }
 
@@ -205,12 +245,17 @@ export function validateQualificationCell(
   if (credentialShaped(candidate)) errors.push("credential-shaped-result");
   if (candidate.status !== "passed") errors.push("cell-status-not-passed");
   if (candidate.cellId !== expectedCell) errors.push("cell-id-mismatch");
-  const requiredOutcome = expectedCell === "codex-connected-account" && scope.terminalUnavailableMode === "terminal"
-    ? "terminal-unavailable" : expectedOutcome[expectedCell];
+  const expectedOutcome = expectedCell === "codex-connected-account" && scope.terminalUnavailableMode === "terminal"
+    ? "terminal-unavailable" : QUALIFICATION_EXPECTED_OUTCOMES[expectedCell];
+  const optionalProviderCapability = expectedCell.startsWith("coderabbit-")
+    || (expectedCell.startsWith("codex-") && expectedCell !== "codex-connected-account");
+  const requiredOutcome = optionalProviderCapability && !candidate.capabilityProven ? "unknown" : expectedOutcome;
   if (candidate.outcome !== requiredOutcome) errors.push("cell-outcome-mismatch");
+  if (typeof candidate.capabilityProven !== "boolean") errors.push("cell-capability-invalid");
+  const cellScope = scope.cellScopes[expectedCell];
   if (candidate.repositoryId !== scope.repositoryId
-    || candidate.pullRequestNumber !== scope.disposablePullRequest
-    || candidate.headSha !== scope.disposableHeadSha) errors.push("cell-scope-mismatch");
+    || candidate.pullRequestNumber !== cellScope.pullRequestNumber
+    || candidate.headSha !== cellScope.headSha) errors.push("cell-scope-mismatch");
   if (candidate.workflowSha !== scope.defaultBranchSha || candidate.workflowSha !== scope.implementationSha) {
     errors.push("cell-workflow-sha-mismatch");
   }
@@ -298,7 +343,8 @@ export function finalizeQualification(
   if (validateQualificationCheckpoint(scope, checkpoint).length > 0
     || checkpoint.blockedCell !== null
     || checkpoint.completed.length !== QUALIFICATION_CELL_IDS.length
-    || !checkpoint.completed.some((cell) => ["coderabbit-clean", "codex-clean"].includes(cell.cellId))) {
+    || !checkpoint.completed.some((cell) => cell.capabilityProven
+      && ["coderabbit-clean", "codex-clean"].includes(cell.cellId))) {
     throw new Error("qualification-matrix-incomplete");
   }
   return {
@@ -327,7 +373,8 @@ export function validateQualificationAcceptanceCandidate(candidate: Qualificatio
   });
   if (candidate.matrixDigest !== digest(candidate.matrix)) errors.push("acceptance-matrix-digest-mismatch");
   if (candidate.checkpointChainHash !== chainHash) errors.push("acceptance-checkpoint-chain-mismatch");
-  if (!candidate.matrix.some((cell) => ["coderabbit-clean", "codex-clean"].includes(cell.cellId))) {
+  if (!candidate.matrix.some((cell) => cell.capabilityProven
+    && ["coderabbit-clean", "codex-clean"].includes(cell.cellId))) {
     errors.push("acceptance-hosted-source-missing");
   }
   return [...new Set(errors)];

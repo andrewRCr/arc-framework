@@ -1,31 +1,45 @@
 import {
+  QUALIFICATION_CELL_IDS,
   QUALIFICATION_RUBRIC_DIMENSIONS,
   type QualificationCellId,
   type QualificationCellResult,
   type QualificationOutcome,
   type QualificationScope,
 } from "../../../../../src/scripts/review-gate/runtime/qualification-contract.js";
+import { computePolicyVersion } from "../../../../../src/scripts/review-gate/core/identity.js";
+import { SELF_HOSTING_POLICY } from "../../../../../src/scripts/review-gate/policy/self-hosting/schema.js";
 
 const SHA = "a".repeat(40);
 const HASH = "b".repeat(64);
 
 export function qualificationScope(): QualificationScope {
+  const cellScopes = Object.fromEntries(QUALIFICATION_CELL_IDS.map((cellId, index) => [cellId, {
+    pullRequestNumber: 7 + index,
+    changeRequestId: `CR_kwDOqualification_${index + 1}`,
+    headSha: (index + 1).toString(16).padStart(40, "0"),
+  }])) as QualificationScope["cellScopes"];
   return {
     repositoryId: "100",
     repositoryRef: "o/r",
     defaultBranch: "main",
     defaultBranchSha: SHA,
     implementationSha: SHA,
-    qualificationPullRequest: 8,
-    disposablePullRequest: 7,
-    disposableHeadSha: "c".repeat(40),
+    qualificationPullRequest: 100,
+    cellScopes,
     expectedActorIdentity: "200",
-    policyVersion: HASH,
+    controllerAppId: "4268856",
+    controllerBotUserId: "302312524",
+    actionsAppId: "15368",
+    actionsBotUserId: "41898282",
+    policyVersion: computePolicyVersion({ policy: SELF_HOSTING_POLICY }),
     parserVersion: "1",
     parserDigest: "d".repeat(64),
+    providerParserVersions: { coderabbit: "coderabbit-evidence/v1", codex: "codex-evidence/v1" },
     rubricVersion: "independent-analysis/v1",
     guidanceDigests: { codex: "e".repeat(64) },
     sourceIdentities: { coderabbit: "coderabbit-pr", codex: "codex-pr" },
+    providerAppIds: { coderabbit: null, codex: "1144995" },
+    providerBotUserIds: { coderabbit: "136622811", codex: "199175422" },
     terminalUnavailableMode: "parser-only",
   };
 }
@@ -59,14 +73,16 @@ const outcomes: Record<QualificationCellId, QualificationOutcome> = {
 
 export function qualificationCell(cellId: QualificationCellId): QualificationCellResult {
   const scope = qualificationScope();
+  const cellScope = scope.cellScopes[cellId];
   const provider = cellId.startsWith("coderabbit-") || cellId.startsWith("codex-");
   return {
     cellId,
     status: "passed",
     outcome: outcomes[cellId],
+    capabilityProven: true,
     repositoryId: scope.repositoryId,
-    pullRequestNumber: scope.disposablePullRequest,
-    headSha: scope.disposableHeadSha,
+    pullRequestNumber: cellScope.pullRequestNumber,
+    headSha: cellScope.headSha,
     workflowSha: scope.defaultBranchSha,
     sourceIdentity: cellId.startsWith("coderabbit-") ? "coderabbit-pr"
       : cellId.startsWith("codex-") ? "codex-pr" : "arc-controller",

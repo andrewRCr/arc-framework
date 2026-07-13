@@ -89,42 +89,53 @@ interface QualificationScope {
   defaultBranchSha: string;
   implementationSha: string;
   qualificationPullRequest: number;
-  disposablePullRequest: number;
-  disposableHeadSha: string;
+  cellScopes: Record<string, {
+    pullRequestNumber: number;
+    changeRequestId: string;
+    headSha: string;
+  }>;
   expectedActorIdentity: string;
+  controllerAppId: string;
+  controllerBotUserId: string;
+  actionsAppId: string;
+  actionsBotUserId: string;
   policyVersion: string;
   parserVersion: string;
   parserDigest: string;
+  providerParserVersions: { coderabbit: string; codex: string };
   rubricVersion: "independent-analysis/v1";
   guidanceDigests: Record<string, string>;
   sourceIdentities: { coderabbit: string; codex: string };
+  providerAppIds: { coderabbit: string | null; codex: string | null };
+  providerBotUserIds: { coderabbit: string; codex: string };
   terminalUnavailableMode: "parser-only" | "terminal";
 }
 
 interface QualificationProbeDescriptor {
   cellId: string;
-  result: {
-    cellId: string;
-    status: "passed";
-    outcome: string;
-    sourceIdentity: string;
-    triggerPath: "label" | "comment" | null;
-    evidenceRef: string;
-    rubricDimensions: string[];
-    admissibleActor: boolean;
-    fixture: false;
-  };
+  preconditionApiPaths?: string[];
   evidenceApiPaths: string[];
   dispatch: "none" | "reconcile" | "qualify-token" | "repair";
+  action?: { requestKey: string; generation: number };
   repairAttestation?: string;
 }
 ```
 
-Provider cells carry all five rubric dimensions in canonical order. The CodeRabbit label and command cells use
-`label` and `comment`; the Codex command cell uses `comment`; every other cell uses `null`. Pending, fallback, event,
-ledger, and all provider cells dispatch reconciliation. Token cells dispatch qualification, repair authority dispatches
-repair, and await/finding/closure cells use no workflow dispatch. Evidence API paths begin with
-`repos/<owner>/<repository>/`; evidence references begin with the matching durable GitHub repository URL.
+Each matrix cell must have a distinct disposable PR, change-request id, and head; the qualification PR must be separate,
+so clean, findings, stale, unknown, trigger, and repair scenarios cannot borrow evidence from one another. CodeRabbit's
+generation-zero label is produced only by the
+controller; CodeRabbit command and every Codex cell require precondition paths proving a durable reservation and
+App-authored pending projection, then run through the typed action contract with the shipped command. Provider-cell
+dispatches select a protected, workflow-dispatch-only in-memory probe policy for exactly that provider; it does not
+mutate the checked-in partial declarations. The action reader re-queries the head, request, and pending projection at
+consumption, and its redispatch preserves those probe inputs. Pending, fallback, ledger, and all provider cells dispatch
+reconciliation. Before each dispatch, the coordinator snapshots existing workflow run ids and accepts exactly one new
+run at the pinned default-branch SHA with the expected actor/event/path. The event-repair cell instead proves a scheduled
+default-branch run plus fresh cell receipt/check evidence; token cells dispatch qualification, repair
+authority dispatches repair, and await/finding/closure cells use no workflow dispatch. Evidence paths begin with
+`repos/<owner>/<repository>/`; arbitrary nonempty JSON is not a result. Provider outcomes are reduced through the
+same CodeRabbit and Codex normalizers used by production, including exact-head review, inline-comment commit, actor,
+App, thread, and pull-request URL correlation.
 
 ## Required Qualification Matrix
 
@@ -164,7 +175,7 @@ These facts predate acceptance and are inputs or parser evidence, not activated 
 | Subject | Sanitized fact | Qualification significance |
 | --- | --- | --- |
 | ARC review App | App id `4268856`; bot user id `302312524` | Re-prove installation, repository selection, permissions, and every emitted source id |
-| GitHub Actions | App id `15368` | Re-prove CI source and the exclusive emergency-status writer |
+| GitHub Actions | App id `15368`; bot user id `41898282` | Re-prove CI source and the exclusive emergency-status writer |
 | Hosted Codex | App id `1144995`; bot user id `199175422` | Pin clean/findings/connected-account parsers to both identities |
 | Codex trigger | A developer-authored request produced exact-head findings and clean artifacts | Re-run the owned full-rubric path through shipped code |
 | Connected account | An App-authored response matched the parser but used an inadmissible actor | Keep parser-only/non-terminal unless an admissible actor proves terminality |
@@ -210,6 +221,7 @@ type GitSha = string;
 interface CutoverMatrixCellProof {
   cellId: string;
   outcome: string;
+  capabilityProven: boolean;
   sourceIdentity: string;
   actorIdentity: string;
   pullRequestNumber: number;

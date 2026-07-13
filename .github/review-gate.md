@@ -178,14 +178,26 @@ npm run review-gate:qualify
 
 Populate both JSON files from the exact `QualificationScope` and `QualificationProbeDescriptor` contracts in the
 evidence manifest. Supply one descriptor per closed matrix cell, use only same-repository API paths, and select the
-declared dispatch class. A descriptor records the expected sanitized interpretation; the runner still requires
-non-empty live GitHub records and independently binds repository, PR, head, workflow SHA, and authenticated actor.
+declared dispatch class. Descriptors contain coordinates only: they cannot state outcomes, source identities, rubric
+coverage, workflow SHAs, or fixture status. Shipped cell validators derive those fields from App-authored receipts and
+checks, pinned provider artifacts, workflow runs, statuses, and artifacts re-queried from GitHub.
+
+Provider-cell reconciliation uses the protected workflow's `live-provider-probe` mode. That mode is accepted only on
+`workflow_dispatch`, enables exactly the selected hosted provider as an in-memory capability hypothesis, and never
+changes the checked-in policy. It exists to break the partial-policy bootstrap cycle: the production reducer, pending
+projection, request adapter, and evidence normalizer run unchanged, while the observed matrix still decides whether
+the activation compiler may persist an enabled declaration.
 
 The coordinator verifies the authenticated developer, clean default-branch checkout, immutable local/remote SHA,
-disposable PR/head, source identities, policy/parser/rubric/guidance inputs, and the closed acceptance matrix. It
+each cell's disposable PR/head, source identities, policy/parser/rubric/guidance inputs, and the closed acceptance
+matrix. It
 performs only assigned developer actions, dispatches protected default-branch workflows for App/token/repair probes,
 and re-queries canonical GitHub evidence. Every accepted cell is hashed and checkpointed before the next cell runs.
 It emits `candidate.json` only after the complete matrix passes and at least one hosted source proves a clean path.
+The scope rejects reused PR, change-request, or head coordinates. Before each dispatch the coordinator snapshots the
+matching workflow's run ids; acceptance requires exactly one new run with the expected event, actor, path, and immutable
+default-branch SHA. Scheduled event repair additionally requires fresh App receipt and aggregate-check records for the
+cell after that scheduled run began.
 
 A stopped run never silently continues. Inspect the sanitized refusal, repair the implementation in a separate
 reviewed change, return to the exact shipped default-branch SHA, and explicitly resume the matching private prefix:
@@ -214,9 +226,11 @@ abandon/supersede/restart before any head change.
 
 An actor-executable adapter returns a canonical `needs-user-trigger` action containing request key, full head,
 generation, exact command, and required GitHub actor id. Self-hosting hosted Codex resolves the PR author's immutable
-id. The coordinator reads the action through the typed `next-action` launcher and consumes it through
-`perform-action`, which revalidates state and actor, posts once, adopts only an exact ambiguous post, dispatches
-reconciliation, and returns its event id. The controller independently re-queries and binds that id.
+id. After canonical receipts and the App projection prove the reservation pending, the coordinator derives the action
+through the shipped typed contract and consumes it through `perform-action`. Its reader re-queries the exact head,
+reservation, and pending projection at consumption; the action port revalidates the actor, posts once, adopts only an
+exact ambiguous post, and redispatches with the same protected provider-probe inputs. The controller independently
+re-queries and binds the returned event id.
 
 Provider output has no controller request id, so every request uses a PR-wide exclusive trigger window. Before
 admission, prove automatic/unowned paths disabled and scan all PR command comments plus label timeline events. Record
@@ -310,26 +324,21 @@ verification, follow-up evidence, and direct reply before thread resolution. The
 verified the individual fix. DEFER/REJECT requires its authorized rationale/direct-reply receipt; provider closure
 requires the qualified source identity. Bare resolution and broad host-actor membership are non-satisfying.
 
-The implementation delivery ships this machinery with project hooks inactive, legacy CI `merge-ok`
-required, and `archive.cadence: manual`. After merge, manually run the complete matrix through the shipped default-
-branch workflow while its branch and workspace remain available. On failure, restore/disable to the safe checkpoint and
-route a separate reviewed repair; never amend the acceptance record with unshipped code.
+The implementation delivery ships this machinery with project hooks inactive and legacy CI `merge-ok` required. It
+integrates and archives through the ordinary repository lifecycle without running live qualification or recording
+observed capability values.
 
-When the baseline matrix proves hosted capabilities, open a qualification-activation housekeeping PR containing only
-the policy/manifest patch produced by the activation compiler. Validate that PR's diff against the same typed baseline
-result; any manual field/path, omission, stale input, identity/version drift, or checkpoint mismatch is a stop. Do not
-archive or restore cadence. After it merges, rerun the complete matrix through the enabled default-branch policy. Only
-that second pass may prove the satisfying aggregate path.
+After that delivery reaches the default branch, open the dedicated qualification delivery. From its clean immutable
+default-branch checkout, run the baseline matrix and retain private checkpoints. On failure, restore or disable to the
+safe checkpoint and route a separate reviewed repair; never amend the acceptance record with unshipped code. On
+success, place only the activation compiler's policy/manifest operations in the qualification PR. Validate its diff
+against the same typed candidate; any manual field/path, omission, stale input, identity/version drift, or checkpoint
+mismatch is a stop. That delivery owns the provisional observed manifest and archives normally after activation.
 
-On final success, open the acceptance-closeout housekeeping PR and run the private root
-`review-gate:closeout` script with `$IMPLEMENTATION_PR_URL`. It validates `CutoverAcceptanceProof` against the live
-default branch, activated policy/version digests, complete matrix, enforcement boundary, and private checkpoint hashes
-before writing `$EVIDENCE_MANIFEST`, marking the implementation's post-merge acceptance gates, or invoking archive.
-The archive verb independently refuses an incomplete acceptance-gate section, and pre-commit rejects marked/archived
-gates without a matching sanitized proof. Restore `archive.cadence: with-integration` in that PR. After it merges,
-run `npx arc user close <implementation-work-unit>` and `npx arc teardown <implementation-work-unit>`.
-These are qualification/archive housekeeping PRs, not additional implementation deliveries. Enforcement promotion
-cannot begin until the closeout merges and the retained workspace/branch tail is fully retired.
+Only after qualification has merged may the dedicated promotion delivery rerun the complete matrix through the
+enabled default-branch policy. Promotion owns the final `CutoverAcceptanceProof`, source-pinned enforcement changes,
+project-hook activation, compatibility-alias removal, and final architecture/evidence closeout. No implementation or
+qualification branch remains open merely to hold later operational state.
 
 ## Enforcement Promotion and Normal Rollback
 

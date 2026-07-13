@@ -19,10 +19,18 @@ describe("review-gate qualification delivery boundary", () => {
 
   it("uses developer authentication only for assigned actions and canonical re-query", async () => {
     const port = await read("packages/arc-framework/src/scripts/review-gate/runtime/gh-qualification-port.ts");
-    expect(port).toContain("labels[]=arc-review-gate");
+    const workflow = await read(".github/workflows/review-gate.yml");
+    const reconcile = await read("packages/arc-framework/src/scripts/review-gate/run-reconcile.ts");
+    expect(port).toContain("runPerformAction");
+    expect(port).toContain("deriveReviewGateAction");
+    expect(port).toContain("assertQualificationPending");
+    expect(port).toContain("buildCodexReviewCommand");
     expect(port).toContain("@coderabbitai full review");
-    expect(port).toContain("@codex review");
+    expect(port).not.toContain("labels[]=arc-review-gate");
     expect(port).toContain("review-gate.yml/dispatches");
+    expect(port).toContain("inputs[qualification_provider]");
+    expect(workflow).toContain("ARC_QUALIFICATION_MODE:");
+    expect(reconcile).toContain("selectReconcilePolicy");
     expect(port).toContain("event_type=review-gate-qualify");
     expect(port).toContain("event_type=review-gate-repair");
     expect(port).not.toMatch(/secrets\.|PRIVATE_KEY|ARC_APP_TOKEN/u);

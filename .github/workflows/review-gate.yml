@@ -22,6 +22,12 @@ on:
       head_sha:
         required: true
         type: string
+      qualification_provider:
+        required: false
+        type: string
+      qualification_guidance_digest:
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -99,5 +105,8 @@ jobs:
           ARC_APP_TOKEN: ${{ steps.app-token.outputs.token }}
           ARC_APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
           ARC_TRIGGER_DELETION: ${{ toJSON(matrix.triggerDeletion) }}
+          ARC_QUALIFICATION_MODE: ${{ inputs.qualification_provider != '' && 'live-provider-probe' || '' }}
+          ARC_QUALIFICATION_PROVIDER: ${{ inputs.qualification_provider }}
+          ARC_QUALIFICATION_GUIDANCE_DIGEST: ${{ inputs.qualification_guidance_digest }}
           GITHUB_TOKEN: ${{ github.token }}
         run: ./node_modules/.bin/tsx packages/arc-framework/src/scripts/review-gate/run-reconcile.ts reconcile

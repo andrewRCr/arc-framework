@@ -89,11 +89,13 @@ function checkSignals(records: CheckSignalRecord[], expectedBotUserId: string): 
     });
 }
 
-function cleanReviewBody(body: string): boolean {
+/** Recognize the provider's substantive zero-actionable-comments review marker. */
+export function isCodeRabbitCleanReviewBody(body: string): boolean {
   return /^\*\*Actionable comments posted: 0\*\*$/mu.test(body);
 }
 
-function findingSeverity(body: string): FindingSeverity | null {
+/** Map a provider-authored finding marker to the neutral severity vocabulary. */
+export function parseCodeRabbitFindingSeverity(body: string): FindingSeverity | null {
   const match = /_([🔴🟠🟡🔵]?)\s*(Critical|Major|Minor|Trivial)_/iu.exec(body);
   switch (match?.[2]?.toLowerCase()) {
     case "critical": return "critical";
@@ -171,7 +173,7 @@ export class GitHubCodeRabbitObservationApi implements Pick<CodeRabbitApi, "read
       const review = providerReviews.find((candidate) => candidate.reviewId === comment.reviewId
         && candidate.state === "changes-requested"
         && candidate.commitId === run.context.headSha);
-      const severity = findingSeverity(comment.body);
+      const severity = parseCodeRabbitFindingSeverity(comment.body);
       const line = comment.line ?? comment.originalLine;
       if (
         review === undefined
@@ -205,7 +207,7 @@ export class GitHubCodeRabbitObservationApi implements Pick<CodeRabbitApi, "read
           url: review.url,
         })),
       ...providerReviews
-        .filter((review) => review.state === "approved" && cleanReviewBody(review.body ?? ""))
+        .filter((review) => review.state === "approved" && isCodeRabbitCleanReviewBody(review.body ?? ""))
         .map((review): CodeRabbitSignal => ({
           kind: "clean",
           reviewNodeId: review.reviewId,

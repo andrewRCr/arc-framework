@@ -3,6 +3,7 @@
 import { appendFile, readFile } from "node:fs/promises";
 
 import { SELF_HOSTING_POLICY } from "./policy/self-hosting/schema.js";
+import { selectReconcilePolicy } from "./policy/self-hosting/qualification.js";
 import { SELF_HOSTING_REVIEW_GATE } from "./runtime/entrypoints.js";
 import { createAuthenticatedGitExec, productionFetch } from "./runtime/production-io.js";
 
@@ -34,11 +35,17 @@ async function main(): Promise<void> {
     return;
   }
   if (operation === "reconcile") {
+    const policy = selectReconcilePolicy(SELF_HOSTING_POLICY, {
+      eventName: required("GITHUB_EVENT_NAME"),
+      qualificationMode: process.env.ARC_QUALIFICATION_MODE,
+      qualificationProvider: process.env.ARC_QUALIFICATION_PROVIDER,
+      qualificationGuidanceDigest: process.env.ARC_QUALIFICATION_GUIDANCE_DIGEST,
+    });
     const result = await SELF_HOSTING_REVIEW_GATE.runReconcileMain(process.env, {
       createRuntime: SELF_HOSTING_REVIEW_GATE.createReconcileRuntime,
       fetch: productionFetch,
       createGitExec: (gitToken) => createAuthenticatedGitExec(gitToken),
-      policy: SELF_HOSTING_POLICY,
+      policy,
       now: new Date(),
     });
     process.stdout.write(JSON.stringify(result));

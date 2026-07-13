@@ -705,6 +705,11 @@ acceptance proof before enforcement mutation.
           missing resume state, dirty/wrong-actor/default-branch workspaces, raw-store boundaries, exact idempotent
           resume, cell failure, restoration failure, blocked-tail suppression, and generated-diff additions/edits.
 
+    - `[x]` **7.3.e Repair live-evidence derivation and activation after adversarial verification**
+        - Replaced descriptor claims with isolated-cell GitHub evidence reduced through the production provider
+          normalizers, bound workflow runs and action redispatches to the exact probe policy, and made activation derive
+          schema-valid enabled/partial declarations plus the provisional manifest from proven capabilities only.
+
 - _Outcome:_ Later qualification can produce a passing activation candidate only by completing the full live matrix
   through shipped default-branch code; every partial, contaminated, or failed path stops at a private hashed checkpoint.
 

@@ -8,6 +8,7 @@ import {
   validateQualificationCell,
   validateQualificationAcceptanceCandidate,
   validateQualificationCheckpoint,
+  validateQualificationScope,
 } from "../../../../../src/scripts/review-gate/runtime/qualification-contract.js";
 import { qualificationCell, qualificationScope } from "./qualification-fixtures.js";
 
@@ -44,6 +45,9 @@ describe("qualification acceptance contract", () => {
       .toContain("cell-evidence-missing");
     expect(validateQualificationCell(scope, "coderabbit-clean", { ...valid, triggerPath: "comment" }))
       .toContain("trigger-path-mismatch");
+    expect(validateQualificationCell(scope, "coderabbit-clean", {
+      ...valid, capabilityProven: false, outcome: "unknown",
+    })).toEqual([]);
   });
 
   it("requires the enabled policy inputs needed by activation", () => {
@@ -55,6 +59,19 @@ describe("qualification acceptance contract", () => {
       )),
       scope: { ...scope, guidanceDigests: {} },
     })).toContain("scope-policy-input-invalid");
+  });
+
+  it("requires every matrix cell to use an isolated PR, change request, and head", () => {
+    const scope = qualificationScope();
+    const duplicate = scope.cellScopes["pending-first"];
+    expect(validateQualificationScope({
+      ...scope,
+      cellScopes: { ...scope.cellScopes, "coderabbit-label-trigger": duplicate },
+    })).toContain("scope-cell-isolation-invalid");
+    expect(validateQualificationScope({
+      ...scope,
+      qualificationPullRequest: duplicate.pullRequestNumber,
+    })).toContain("scope-cell-isolation-invalid");
   });
 
   it("keeps connected-account behavior parser-only until an admissible actor proves terminality", () => {

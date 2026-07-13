@@ -6,6 +6,8 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import type { QualificationScope } from "./runtime/qualification-contract.js";
+import { computePolicyVersion } from "./core/identity.js";
+import { SELF_HOSTING_POLICY } from "./policy/self-hosting/schema.js";
 import { SELF_HOSTING_REVIEW_GATE } from "./runtime/entrypoints.js";
 import { GhQualificationProbePort, type QualificationProbeDescriptor } from "./runtime/gh-qualification-port.js";
 import type { ProcessRunner } from "./runtime/gh-action-port.js";
@@ -61,6 +63,9 @@ async function privateInput(name: string): Promise<string> {
 }
 const scope = await jsonFile<QualificationScope>(await privateInput("ARC_QUALIFICATION_SCOPE"));
 const descriptors = await jsonFile<QualificationProbeDescriptor[]>(await privateInput("ARC_QUALIFICATION_PROBES"));
+if (scope.policyVersion !== computePolicyVersion({ policy: SELF_HOSTING_POLICY })) {
+  throw new Error("qualification-policy-version-mismatch");
+}
 const [owner, repo] = scope.repositoryRef.split("/");
 if (owner === undefined || repo === undefined) throw new Error("qualification-repository-invalid");
 
@@ -80,7 +85,10 @@ const result = await SELF_HOSTING_REVIEW_GATE.runQualification({
   }),
   checkpoints: new FileQualificationCheckpointStore(qualificationRoot),
   raw: new FileQualificationRawStore(qualificationRoot),
-  probes: new GhQualificationProbePort(processRunner, descriptors),
+  probes: new GhQualificationProbePort(processRunner, descriptors, {
+    evidenceAttempts: 60,
+    pause: () => new Promise((resolvePause) => setTimeout(resolvePause, 10_000)),
+  }),
   resume: process.env.ARC_QUALIFICATION_RESUME === "true",
 });
 if (result.status === "qualified") {

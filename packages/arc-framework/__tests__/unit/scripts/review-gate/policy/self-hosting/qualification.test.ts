@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createHostedProviderProbePolicy,
   deriveHostedProviderDeclaration,
   qualifyIndependentAnalysisSource,
+  selectReconcilePolicy,
 } from "../../../../../../src/scripts/review-gate/policy/self-hosting/qualification.js";
 import {
   parseSelfHostingPolicy,
@@ -84,6 +86,47 @@ describe("independent-analysis source qualification", () => {
     };
     expect(deriveHostedProviderDeclaration(baseline)).toMatchObject({ mode: "enabled", sourceIdentity: "codex-pr" });
     expect(deriveHostedProviderDeclaration({ ...baseline, observedLive: false })).toMatchObject({ mode: "partial" });
+  });
+
+  it("builds a schema-valid single-provider probe hypothesis without mutating baseline policy", () => {
+    const guidanceDigest = "a".repeat(64);
+    const probe = createHostedProviderProbePolicy(SELF_HOSTING_POLICY, "codex", guidanceDigest);
+    const codex = probe.qualifications.find((candidate) => candidate.sourceIdentity === "codex-pr");
+    const coderabbit = probe.qualifications.find((candidate) => candidate.sourceIdentity === "coderabbit-pr");
+    expect(codex).toMatchObject({
+      mode: "enabled",
+      exactCoverage: true,
+      durableResults: true,
+      distinctOutcomes: true,
+      durableFindings: true,
+      closureCapability: true,
+      guidanceDigest,
+    });
+    expect(coderabbit?.mode).toBe("partial");
+    expect(SELF_HOSTING_POLICY.qualifications.find((candidate) => candidate.sourceIdentity === "codex-pr")?.mode)
+      .toBe("partial");
+    expect(() => createHostedProviderProbePolicy(SELF_HOSTING_POLICY, "codex", "not-a-digest"))
+      .toThrow(/guidance-invalid/u);
+  });
+
+  it("allows probe hypotheses only on the explicit protected workflow-dispatch mode", () => {
+    const input = {
+      eventName: "workflow_dispatch",
+      qualificationMode: "live-provider-probe",
+      qualificationProvider: "codex",
+      qualificationGuidanceDigest: "a".repeat(64),
+    };
+    expect(selectReconcilePolicy(SELF_HOSTING_POLICY, input).qualifications
+      .find((candidate) => candidate.sourceIdentity === "codex-pr")?.mode).toBe("enabled");
+    expect(selectReconcilePolicy(SELF_HOSTING_POLICY, { eventName: "schedule" })).toBe(SELF_HOSTING_POLICY);
+    expect(() => selectReconcilePolicy(SELF_HOSTING_POLICY, { ...input, eventName: "schedule" }))
+      .toThrow(/policy-refused/u);
+    expect(() => selectReconcilePolicy(SELF_HOSTING_POLICY, { ...input, qualificationMode: "" }))
+      .toThrow(/policy-refused/u);
+    expect(() => selectReconcilePolicy(SELF_HOSTING_POLICY, {
+      ...input,
+      qualificationProvider: "coderabbit",
+    })).toThrow(/policy-refused/u);
   });
 
   it("rejects local transcripts, generic approvals, runtime labels, capacity, and secrets as policy declarations", () => {

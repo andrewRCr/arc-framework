@@ -37,7 +37,8 @@ function repositoryPath(owner: string, repo: string): string {
   return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
 }
 
-function severity(body: string): FindingSeverity | null {
+/** Map a hosted-Codex priority marker to the neutral severity vocabulary. */
+export function parseCodexFindingSeverity(body: string): FindingSeverity | null {
   const match = /\bP([0-3])\b/u.exec(body);
   switch (match?.[1]) {
     case "0": return "critical";
@@ -48,7 +49,8 @@ function severity(body: string): FindingSeverity | null {
   }
 }
 
-function commitMarkers(body: string): string[] {
+/** Extract normalized reviewed-commit markers from a hosted-Codex comment. */
+export function parseCodexCommitMarkers(body: string): string[] {
   return [...body.matchAll(/^Reviewed commit:\s*`?([a-f0-9]{7,40})`?\s*$/gimu)]
     .flatMap((match) => match[1] === undefined ? [] : [match[1].toLowerCase()]);
 }
@@ -125,7 +127,7 @@ export class GitHubCodexObservationApi implements Pick<CodexApi, "readRunContext
       const review = providerReviews.find((candidate) => candidate.reviewId === comment.reviewId
         && candidate.state === "commented"
         && candidate.commitId === run.context.headSha);
-      const findingSeverity = severity(comment.body);
+      const findingSeverity = parseCodexFindingSeverity(comment.body);
       const line = comment.line ?? comment.originalLine;
       if (
         review === undefined
@@ -148,7 +150,7 @@ export class GitHubCodexObservationApi implements Pick<CodexApi, "readRunContext
     }));
     const commentSignals: CodexSignal[] = [];
     for (const comment of comments) {
-      const markers = commitMarkers(comment.body);
+      const markers = parseCodexCommitMarkers(comment.body);
       const resolvedCommitSha = markers.length === 1
         ? await this.resolveCommitPrefix(markers[0] ?? "", run.context.headSha)
         : null;
