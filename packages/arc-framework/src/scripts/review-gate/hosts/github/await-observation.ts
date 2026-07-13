@@ -31,6 +31,14 @@ export function parseAggregateAwaitState(checks: unknown[], scope: AggregateAwai
       && externalId.test(check.external_id)
       && String(app?.id) === scope.expectedAppId;
   });
+  if (checks.length === 0) {
+    return {
+      conclusion: "pending",
+      blockerCodes: ["projection-pending"],
+      ledgerVersion: null,
+      receiptRefs: [],
+    };
+  }
   if (matches.length !== 1) throw new Error("malformed-or-ambiguous-aggregate-projection");
   try {
     const output = record(record(matches[0])?.output);

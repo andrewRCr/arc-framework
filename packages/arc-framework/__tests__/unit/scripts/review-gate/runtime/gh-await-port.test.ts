@@ -31,7 +31,7 @@ describe("developer-authenticated await host port", () => {
     const process = new FakeProcess();
     process.responses = [
       JSON.stringify({ head: { sha: HEAD } }),
-      JSON.stringify({ check_runs: [{ name: "ci-ok", head_sha: HEAD, app: { id: 15368 }, status: "completed", conclusion: "success", created_at: "2026-07-12T10:00:00Z", id: 4 }] }),
+      JSON.stringify({ check_runs: [{ name: "ci-ok", head_sha: HEAD, app: { id: 15368 }, status: "completed", conclusion: "success", started_at: "2026-07-12T10:00:00Z", id: 4 }] }),
     ];
     const host = new GhAwaitHostPort(new GhDeveloperActionPort(process), { expectedAppId: "91", contextName: "review-gate-shadow" });
     await expect(host.readPullRequestHead("owner/repo", 7)).resolves.toEqual({ kind: "ok", value: HEAD });
@@ -75,5 +75,25 @@ describe("developer-authenticated await host port", () => {
       process.responses = ["not-json"];
       await expect(read()).resolves.toEqual({ kind: "malformed-projection" });
     }
+  });
+
+  it("treats a not-yet-published aggregate projection as pending", async () => {
+    const process = new FakeProcess();
+    process.responses = [JSON.stringify({ check_runs: [] })];
+    const host = new GhAwaitHostPort(
+      new GhDeveloperActionPort(process),
+      { expectedAppId: "91", contextName: "review-gate-shadow" },
+    );
+
+    await expect(host.readReviewState({ repositoryRef: "owner/repo", pullRequestNumber: 7, headSha: HEAD }))
+      .resolves.toEqual({
+        kind: "ok",
+        value: {
+          conclusion: "pending",
+          blockerCodes: ["projection-pending"],
+          ledgerVersion: null,
+          receiptRefs: [],
+        },
+      });
   });
 });

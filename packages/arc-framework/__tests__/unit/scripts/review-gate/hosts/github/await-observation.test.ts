@@ -34,9 +34,18 @@ describe("aggregate await observation", () => {
     })).toEqual({ conclusion: "pending", blockerCodes: [], ledgerVersion: 4, receiptRefs: ["receipt:1"] });
   });
 
-  it("fails closed for absent, duplicate, or malformed authoritative projections", () => {
+  it("waits for an aggregate projection that has not been published yet", () => {
     const scope = { expectedAppId: "91", contextName: "review-gate-shadow" as const, pullRequestNumber: 7, headSha: HEAD };
-    expect(() => parseAggregateAwaitState([], scope)).toThrow("malformed-or-ambiguous-aggregate-projection");
+    expect(parseAggregateAwaitState([], scope)).toEqual({
+      conclusion: "pending",
+      blockerCodes: ["projection-pending"],
+      ledgerVersion: null,
+      receiptRefs: [],
+    });
+  });
+
+  it("fails closed for duplicate or malformed authoritative projections", () => {
+    const scope = { expectedAppId: "91", contextName: "review-gate-shadow" as const, pullRequestNumber: 7, headSha: HEAD };
     expect(() => parseAggregateAwaitState([check(), check()], scope)).toThrow("malformed-or-ambiguous-aggregate-projection");
     expect(() => parseAggregateAwaitState([check({ output: { summary: "human prose" } })], scope))
       .toThrow("malformed-or-ambiguous-aggregate-projection");
