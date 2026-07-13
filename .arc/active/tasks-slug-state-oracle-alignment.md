@@ -246,32 +246,24 @@ _Purpose:_ Stop silently dropping or misreporting branch/record residue: no-reco
 branch-less errand records surface as classified entries, and `remoteOnly` means absent locally (no worktree
 and no local branch).
 
-### `[ ]` **6.1 Classify no-record/no-meta branches and branch-less errand records as visible residue**
+### `[x]` **6.1 Classify no-record/no-meta branches and branch-less errand records as visible residue**
 
 - _Goal:_ A merged errand head with a closed record — or any branch carrying neither record nor meta — surfaces
   as a classified residue entry with branch-derived identity instead of vanishing from every cleanup surface
   (SC6); degraded-but-visible behavior is preserved when remote or record reads fail (spec Decision 7).
 
-    - Build `test-first` (one behavior at a time):
-        - A branch with no errand record and no active meta produces a residue entry/warning naming the branch
-          — `classifyInput`'s silent drop is replaced with classification.
-        - A branch-less errand record (record exists, branch gone) surfaces as a visible warning entry.
-        - The base branch remains excluded — never residue.
-        - A failed record or remote read degrades to visible-with-marks, not silence.
+    - `[x]` **6.1.a Emit residue classification from the derivation layer**
+        - `DeriveInFlightResult.residue` now carries branch/record cleanup facts separately from materializable
+          entries, with branch-derived identity, structured reasons and warnings, and degraded/indeterminate
+          marks when record or live-membership reads cannot establish complete truth.
 
-    - `[ ]` **6.1.a Emit residue classification from the derivation layer**
-        - Carrier: an additive `residue` field on `DeriveInFlightResult` (plus structured warnings) — not a
-          third `InFlightEntry` kind, which would touch every `entry.kind` switch across the view, overlap
-          projection, and materialize filters. Consumers opt in.
+    - `[x]` **6.1.b Surface residue on the session-init cleanup consumers**
+        - Session-init threads residue through the shared oracle and errand-state probe, preserves locally
+          observed residue when live discovery is unavailable, and gives the cleanup workflow an advisory-only
+          rendering contract. Errand-record reads now expose completeness instead of collapsing failures to absence.
 
-    - `[ ]` **6.1.b Surface residue on the session-init cleanup consumers**
-        - The errand-state / cleanup surfaces that consume the oracle render the residue entries (the ten
-          observed vanished remote branches become visible); advisory only — nothing auto-removes. The
-          errand-state probe composes its oracle input in `handlers/status.ts` (the session-init probe
-          assembly) — plumb the residue slice through there.
-        - The probe assembly's unreachable arm currently discards oracle entries wholesale; residue derived
-          from local refs must survive that arm marked degraded (visible-with-marks, per spec Decision 7) —
-          not ride the entries discard, which would re-silence residue in exactly the degraded case.
+- _Outcome:_ Branch and errand-record residue is visible from derivation through the session-init envelope,
+  including a real CLI cleanup probe; base remains excluded and degraded reads retain marked evidence.
 
 ### `[ ]` **6.2 Require local-branch absence for `remoteOnly` materialize candidacy**
 

@@ -23,6 +23,7 @@
 
 import { validateState, WORK_UNIT_STATE_ORDER, type WorkUnitState } from "../../commands/active/types.js";
 import { META_FIELDS, parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
+import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
 
 import type { GitExec } from "./exec.js";
 import {
@@ -66,6 +67,9 @@ export interface InFlightBranchProvenance {
 
 /** Structured warning codes emitted by the in-flight derivation. */
 export type InFlightWarningCode =
+  | "branch-residue"
+  | "errand-record-branch-missing"
+  | "errand-record-read-failed"
   | "meta-enumeration-failed"
   | "meta-read-failed"
   | "meta-malformed"
@@ -161,6 +165,24 @@ export interface InFlightErrand extends InFlightLocation {
 /** One derived in-flight entry. */
 export type InFlightEntry = InFlightWorkUnit | InFlightErrand;
 
+/** Why an observed branch/record could not become an in-flight entry. */
+export type InFlightResidueReason =
+  | "no-record-or-meta"
+  | "errand-record-without-branch"
+  | "classification-unavailable";
+
+/** Advisory branch/record residue, kept separate from materializable in-flight entries. */
+export interface InFlightResidue {
+  /** Branch named by the observed ref or errand record. */
+  branch: string;
+  /** Best available stable identity, derived from the branch when no record exists. */
+  slug: string;
+  /** Why this item could not be classified as a work unit or errand. */
+  reason: InFlightResidueReason;
+  /** Degradation/indeterminacy marks; absent when the residue classification is conclusive. */
+  marks?: readonly InFlightEntryMark[];
+}
+
 /** Agreed mutable input snapshot backing this derivation. */
 export interface InFlightInputSnapshot {
   /** Candidate ref tips, keyed as the actual input ref (`origin/<branch>` or local branch name). */
@@ -173,6 +195,8 @@ export interface InFlightInputSnapshot {
 export interface DeriveInFlightResult {
   /** Identity-filtered in-flight work units and errands. */
   entries: InFlightEntry[];
+  /** Branch/record residue for advisory cleanup consumers. */
+  residue: InFlightResidue[];
   /** Structured warning channel; empty for healthy derivations. */
   warnings: InFlightWarning[];
   /** Whole-result quality markers; absent for healthy derivations. */
@@ -214,6 +238,8 @@ export interface DeriveInFlightOptions {
    * meta presence alone.
    */
   errandSlugByBranch?: ReadonlyMap<string, string>;
+  /** Whether the record index was read completely; false degrades record-dependent classification. */
+  errandRecordsComplete?: boolean;
   /** Work-unit slugs parked in the scheduling axis; matching entries are classified, not marked. */
   parkedSlugs?: ReadonlySet<string>;
   /** Open-PR enrichment seam. Absent → refs-only; a rejecting adapter degrades to refs-only. */
@@ -229,6 +255,7 @@ export interface DeriveInFlightOptions {
 export async function deriveInFlight(options: DeriveInFlightOptions): Promise<DeriveInFlightResult> {
   const { exec, branches, identity, teamMode, remote = DEFAULT_REMOTE, prSource, baseBranch = "main" } = options;
   const errandSlugByBranch = options.errandSlugByBranch ?? new Map<string, string>();
+  const errandRecordsComplete = options.errandRecordsComplete ?? true;
   const parkedSlugs = options.parkedSlugs ?? new Set<string>();
   const input = branches === undefined
     ? await resolveAgreedInputs({
@@ -247,11 +274,13 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
     branchSet.reachable,
     input.classificationRefs,
   );
-  const markedInputs = inputs.map((candidate) => markInputCandidate(candidate, input.indeterminate));
+  const markedInputs = inputs
+    .map((candidate) => markInputCandidate(candidate, input.indeterminate))
+    .map((candidate) => errandRecordsComplete ? candidate : markInputDegraded(candidate));
 
   const classified = await Promise.all(
     markedInputs.map((candidate) =>
-      classifyInput(exec, candidate, baseBranch, worktreePaths, errandSlugByBranch),
+      classifyInput(exec, candidate, baseBranch, worktreePaths, errandSlugByBranch, errandRecordsComplete),
     ),
   );
   const expandedEnumerationFailed = classified.some((classification) =>
@@ -287,13 +316,48 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   ]
     .sort((a, b) => a.index - b.index)
     .map(({ entry }) => entry);
+  const remoteReadDegraded = branches === undefined
+    && !(options.localOnly ?? false)
+    && !branchSet.reachable;
+  const classifiedResidue = dedupeResidue(
+    classified
+      .map((classification) => classification.residue)
+      .filter((item): item is IndexedResidue => item !== null),
+  );
+  const observedBranches = new Set(markedInputs.map((input) => input.branch));
+  for (const ref of Object.keys(branchSet.liveRefs)) observedBranches.add(branchFromInputRef(ref, remote));
+  const recordResidue = branches === undefined
+    ? [...errandSlugByBranch.entries()]
+        .filter(([branch]) => branch !== baseBranch && !observedBranches.has(branch))
+        .map(([branch, slug], offset): IndexedResidue => ({
+          residue: {
+            branch,
+            slug,
+            reason: "errand-record-without-branch",
+            ...(remoteReadDegraded ? { marks: ["degraded", "indeterminate"] } : {}),
+          },
+          index: markedInputs.length + offset,
+          source: "remote-tracking",
+        }))
+    : [];
+  const residue = [...classifiedResidue, ...recordResidue]
+    .sort((a, b) => a.index - b.index)
+    .map(({ residue: item }) => remoteReadDegraded ? markResidueDegraded(item) : item)
+    .map((item) => worktreeResult.ok ? item : markResidueDegraded(item));
   const warnings = classified
     .flatMap((classification) => classification.warnings)
-    .concat(deduped.warnings);
+    .concat(
+      deduped.warnings,
+      classifiedResidue
+        .filter(({ residue: item }) => item.reason === "no-record-or-meta")
+        .map(({ residue: item }) => branchResidueWarning(item.branch)),
+      recordResidue.map(({ residue: item }) => errandRecordBranchMissingWarning(item)),
+    );
   if (!worktreeResult.ok) {
     warnings.unshift(worktreeListFailedWarning());
   }
   warnings.unshift(...input.warnings);
+  if (!errandRecordsComplete) warnings.unshift(errandRecordReadFailedWarning());
   const entriesWithWorktreeMarks = worktreeResult.ok ? candidateEntries : candidateEntries.map(markEntryDegraded);
   const entriesForIdentity = entriesWithWorktreeMarks
     .filter((entry) => keepForIdentity(entry, identity, teamMode));
@@ -301,6 +365,7 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   const entries = prSource === undefined ? entriesForIdentity : await enrichWithPrState(entriesForIdentity, prSource);
   return {
     entries,
+    residue,
     warnings,
     ...(resultMarks.length > 0 ? { marks: resultMarks } : {}),
     snapshot: input.snapshot,
@@ -624,6 +689,10 @@ function markInputCandidate(
   return marked ? { ...input, marks: ["indeterminate"] } : input;
 }
 
+function markInputDegraded(input: InputCandidate): InputCandidate {
+  return { ...input, marks: appendMark(input.marks ?? [], "degraded") };
+}
+
 /**
  * Enrich the kept entries with open-PR state, querying only their branches. A
  * rejecting adapter degrades to refs-only — the seam never propagates a throw.
@@ -689,9 +758,16 @@ interface IndexedEntry {
   index: number;
 }
 
+interface IndexedResidue {
+  residue: InFlightResidue;
+  index: number;
+  source: InFlightCandidateSource;
+}
+
 interface InputClassification {
   input: InputCandidate;
   errand: IndexedEntry | null;
+  residue: IndexedResidue | null;
   workUnits: WorkUnitCandidate[];
   warnings: InFlightWarning[];
   shadowsSameBranchRemote: boolean;
@@ -734,6 +810,7 @@ async function classifyInput(
   baseBranch: string,
   worktreePaths: Map<string, string>,
   errandSlugByBranch: ReadonlyMap<string, string>,
+  errandRecordsComplete: boolean,
 ): Promise<InputClassification> {
   const { branch, ref } = input;
   const location = locationOf(branch, worktreePaths);
@@ -754,13 +831,14 @@ async function classifyInput(
         index: input.index,
       },
       workUnits: [],
+      residue: null,
       warnings: [],
       shadowsSameBranchRemote: false,
     };
   }
 
   if (branch === baseBranch) {
-    return { input, errand: null, workUnits: [], warnings: [], shadowsSameBranchRemote: false };
+    return { input, errand: null, residue: null, workUnits: [], warnings: [], shadowsSameBranchRemote: false };
   }
 
   const listed = await listMetaPathsAtRef({ exec, ref });
@@ -768,6 +846,11 @@ async function classifyInput(
     return {
       input,
       errand: null,
+      residue: {
+        residue: branchResidue(input, "classification-unavailable", ["degraded"]),
+        index: input.index,
+        source: input.source,
+      },
       workUnits: [],
       warnings: [
         warning({
@@ -783,6 +866,14 @@ async function classifyInput(
     return {
       input,
       errand: null,
+      residue: {
+        residue: branchResidue(
+          input,
+          errandRecordsComplete ? "no-record-or-meta" : "classification-unavailable",
+        ),
+        index: input.index,
+        source: input.source,
+      },
       workUnits: [],
       warnings: [],
       shadowsSameBranchRemote: input.source === "worktree",
@@ -809,7 +900,7 @@ async function classifyInput(
     shadowedByLocationMatch: hasLocationMatch && meta.relation === "stale",
   }));
 
-  return { input, errand: null, workUnits, warnings, shadowsSameBranchRemote: false };
+  return { input, errand: null, residue: null, workUnits, warnings, shadowsSameBranchRemote: false };
 }
 
 interface DedupeWorkUnitCandidatesOptions {
@@ -1147,6 +1238,68 @@ function locationAmbiguousWarning(candidate: WorkUnitCandidate): InFlightWarning
   });
 }
 
+function branchResidue(
+  input: InputCandidate,
+  reason: Extract<InFlightResidueReason, "no-record-or-meta" | "classification-unavailable">,
+  extraMarks: readonly InFlightEntryMark[] = [],
+): InFlightResidue {
+  const marks = [...(input.marks ?? [])];
+  for (const mark of extraMarks) {
+    if (!marks.includes(mark)) marks.push(mark);
+  }
+  return {
+    branch: input.branch,
+    slug: branchToWorkUnitSlug(input.branch) ?? input.branch,
+    reason,
+    ...(marks.length > 0 ? { marks } : {}),
+  };
+}
+
+function branchResidueWarning(branch: string): InFlightWarning {
+  return warning({
+    code: "branch-residue",
+    branch,
+    rendered: `Branch \`${branch}\` has no errand record or active work-unit meta; cleanup may be required.`,
+  });
+}
+
+function errandRecordBranchMissingWarning(residue: InFlightResidue): InFlightWarning {
+  return warning({
+    code: "errand-record-branch-missing",
+    branch: residue.branch,
+    rendered: `Errand record \`${residue.slug}\` names missing branch \`${residue.branch}\`; cleanup may be required.`,
+  });
+}
+
+function errandRecordReadFailedWarning(): InFlightWarning {
+  return warning({
+    code: "errand-record-read-failed",
+    rendered: "Errand records could not be read completely; record-dependent classification is degraded.",
+  });
+}
+
+function dedupeResidue(items: readonly IndexedResidue[]): IndexedResidue[] {
+  const byBranch = new Map<string, IndexedResidue>();
+  for (const item of items) {
+    const existing = byBranch.get(item.residue.branch);
+    if (existing === undefined || inputSourceRank(item.source) > inputSourceRank(existing.source)) {
+      byBranch.set(item.residue.branch, item);
+    }
+  }
+  return [...byBranch.values()];
+}
+
+function inputSourceRank(source: InFlightCandidateSource): number {
+  switch (source) {
+    case "worktree":
+      return 3;
+    case "remote-live":
+      return 2;
+    case "remote-tracking":
+      return 1;
+  }
+}
+
 function warning(input: {
   code: InFlightWarningCode;
   branch?: string;
@@ -1167,6 +1320,10 @@ function appendMark(marks: readonly InFlightEntryMark[], mark: InFlightEntryMark
 
 function markEntryDegraded(entry: InFlightEntry): InFlightEntry {
   return { ...entry, marks: appendMark(entry.marks ?? [], "degraded") };
+}
+
+function markResidueDegraded(residue: InFlightResidue): InFlightResidue {
+  return { ...residue, marks: appendMark(residue.marks ?? [], "degraded") };
 }
 
 function worktreeListFailedWarning(): InFlightWarning {

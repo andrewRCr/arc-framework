@@ -14,6 +14,7 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import type {
   InFlightEntry,
   InFlightErrand,
+  InFlightResidue,
   InFlightWorkUnit,
 } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ErrandRecord } from "../../../src/lib/errand/record.js";
@@ -271,6 +272,14 @@ describe("runErrandState", () => {
 
   it("skips discovery with a warning when discovery is requested but the oracle was unavailable", async () => {
     const exec = buildExec();
+    const residue: InFlightResidue[] = [
+      {
+        branch: "chore/local-residue",
+        slug: "local-residue",
+        reason: "no-record-or-meta",
+        marks: ["degraded"],
+      },
+    ];
 
     const result = await runErrandState({
       exec,
@@ -278,6 +287,7 @@ describe("runErrandState", () => {
       hasBackingMeta: false,
       includeDiscovery: true,
       entries: null,
+      residue,
       oracleWarnings: ["Meta `.arc/active/meta-x.md` at `origin/feat/x` has unrecognized State `Paused`."],
       records: [],
       baseBranch: "main",
@@ -288,6 +298,7 @@ describe("runErrandState", () => {
 
     expect(result.inFlight.errands).toEqual([]);
     expect(result.materializable.candidates).toEqual([]);
+    expect(result.residue).toEqual(residue);
     expect(result.warnings).toContain(
       "Meta `.arc/active/meta-x.md` at `origin/feat/x` has unrecognized State `Paused`.",
     );

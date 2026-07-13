@@ -159,7 +159,7 @@ describe("in-flight reshuffle fixture", () => {
     }
   });
 
-  it("returns clean local worktree facts after reshuffle activity settles", async () => {
+  it("returns stable local worktree facts alongside record-less baseline residue", async () => {
     const fixture = await setupInFlightReshuffleFixture();
     try {
       const worktreePath = await fixture.createLocalWorkUnit({
@@ -176,7 +176,16 @@ describe("in-flight reshuffle fixture", () => {
       const workUnits = result.entries.filter((entry) => entry.kind === "work-unit");
 
       expect(result.marks).toBeUndefined();
-      expect(result.warnings).toEqual([]);
+      expect(result.residue).toEqual([
+        {
+          branch: "chore/sibling-baseline",
+          slug: "sibling-baseline",
+          reason: "no-record-or-meta",
+        },
+      ]);
+      expect(result.warnings).toEqual([
+        expect.objectContaining({ code: "branch-residue", branch: "chore/sibling-baseline" }),
+      ]);
       expect(workUnits).toHaveLength(1);
       expect(workUnits[0]).toMatchObject({
         name: "calm-local",

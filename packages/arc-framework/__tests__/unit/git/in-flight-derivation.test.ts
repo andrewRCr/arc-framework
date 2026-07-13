@@ -506,7 +506,7 @@ describe("deriveInFlight", () => {
       },
     });
 
-    const { entries, warnings } = await deriveInFlight({
+    const { entries, residue, warnings } = await deriveInFlight({
       exec,
       branches: ["main"],
       identity: null,
@@ -515,7 +515,112 @@ describe("deriveInFlight", () => {
     });
 
     expect(entries).toEqual([]);
+    expect(residue).toEqual([]);
     expect(warnings).toEqual([]);
+  });
+
+  it("classifies a branch with no errand record or active meta as visible residue", async () => {
+    const exec = makeExec({});
+
+    const { entries, residue, warnings } = await deriveInFlight({
+      exec,
+      branches: ["chore/merged-errand"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toEqual([]);
+    expect(residue).toEqual([
+      {
+        branch: "chore/merged-errand",
+        slug: "merged-errand",
+        reason: "no-record-or-meta",
+      },
+    ]);
+    expect(warnings).toEqual([
+      expect.objectContaining({
+        code: "branch-residue",
+        branch: "chore/merged-errand",
+      }),
+    ]);
+  });
+
+  it("surfaces an errand record whose branch no longer exists", async () => {
+    const exec = makeExec({ liveBranches: [] });
+
+    const { entries, residue, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([["chore/closed-record", "closed-record"]]),
+    });
+
+    expect(entries).toEqual([]);
+    expect(residue).toEqual([
+      {
+        branch: "chore/closed-record",
+        slug: "closed-record",
+        reason: "errand-record-without-branch",
+      },
+    ]);
+    expect(warnings).toEqual([
+      expect.objectContaining({
+        code: "errand-record-branch-missing",
+        branch: "chore/closed-record",
+      }),
+    ]);
+  });
+
+  it("keeps branch residue visible and degraded when errand records could not be read", async () => {
+    const exec = makeExec({});
+
+    const { residue, warnings } = await deriveInFlight({
+      exec,
+      branches: ["chore/read-failed"],
+      identity: null,
+      teamMode: false,
+      errandRecordsComplete: false,
+    });
+
+    expect(residue).toEqual([
+      {
+        branch: "chore/read-failed",
+        slug: "read-failed",
+        reason: "classification-unavailable",
+        marks: ["degraded"],
+      },
+    ]);
+    expect(warnings).toEqual([
+      expect.objectContaining({ code: "errand-record-read-failed" }),
+    ]);
+  });
+
+  it("keeps locally observed branch residue visible and degraded when the remote read fails", async () => {
+    const exec = makeExec({
+      localRefs: ["chore/offline-residue"],
+      liveBranches: "unreachable",
+    });
+
+    const { reachable, residue, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(reachable).toBe(false);
+    expect(residue).toEqual([
+      {
+        branch: "chore/offline-residue",
+        slug: "offline-residue",
+        reason: "no-record-or-meta",
+        marks: ["degraded"],
+      },
+    ]);
+    expect(warnings).toEqual([
+      expect.objectContaining({ code: "branch-residue", branch: "chore/offline-residue" }),
+    ]);
   });
 
   it("treats a single meta whose Branch points elsewhere as a stale-location candidate, not an entry", async () => {
@@ -1011,7 +1116,7 @@ describe("deriveInFlight input union", () => {
     });
   });
 
-  it("drops a stale same-branch remote meta when the checked-out branch has no active meta", async () => {
+  it("replaces a stale same-branch remote meta with checked-out branch residue", async () => {
     const exec = makeExec({
       worktrees: [{ path: "/repo.done", branch: "feat/done" }],
       localRefs: ["feat/done"],
@@ -1021,7 +1126,7 @@ describe("deriveInFlight input union", () => {
       },
     });
 
-    const { entries, warnings } = await deriveInFlight({
+    const { entries, residue, warnings } = await deriveInFlight({
       exec,
       localOnly: false,
       identity: null,
@@ -1029,7 +1134,16 @@ describe("deriveInFlight input union", () => {
     });
 
     expect(entries).toEqual([]);
-    expect(warnings).toEqual([]);
+    expect(residue).toEqual([
+      {
+        branch: "feat/done",
+        slug: "done",
+        reason: "no-record-or-meta",
+      },
+    ]);
+    expect(warnings).toEqual([
+      expect.objectContaining({ code: "branch-residue", branch: "feat/done" }),
+    ]);
   });
 
   it("keeps remote-only behavior for refs with no local worktree", async () => {
