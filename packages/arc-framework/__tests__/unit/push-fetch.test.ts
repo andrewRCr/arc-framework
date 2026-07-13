@@ -195,6 +195,7 @@ describe("runUserPush — proof-gated publication", () => {
 
   it("force: true stays on the planner-free direct push path", async () => {
     const { exec, calls } = buildExec({
+      [REV_PARSE_LOCAL]: { stdout: `${LOCAL_TIP}\n`, stderr: "" },
       [`push --force origin ${NOTES_REF}`]: { stdout: "", stderr: "" },
     });
     const io = buildIo(exec);
@@ -212,6 +213,32 @@ describe("runUserPush — proof-gated publication", () => {
       .filter((args) => args[0] === "push");
     expect(pushCalls).toEqual([["push", "--force", "origin", NOTES_REF]]);
     expect(mockClearPartialPushMarker).toHaveBeenCalledTimes(1);
+  });
+
+  it("force: true skips transport when the canonical local ref is absent", async () => {
+    const missingRef = Object.assign(new Error("missing ref"), { code: 1 });
+    const { exec, calls } = buildExec({
+      [REV_PARSE_LOCAL]: () => { throw missingRef; },
+    });
+    const io = buildIo(exec);
+
+    await expect(runUserPush({ cwd: "/repo", io, identity: "andrew", force: true }))
+      .resolves.toEqual({ kind: "no-local-notes" });
+    expect(calls.some((call) => call.args[0] === "push")).toBe(false);
+    expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+  });
+
+  it("force: true propagates unexpected canonical ref read failures", async () => {
+    const readFailure = Object.assign(new Error("ref database unavailable"), { code: 128 });
+    const { exec, calls } = buildExec({
+      [REV_PARSE_LOCAL]: () => { throw readFailure; },
+    });
+    const io = buildIo(exec);
+
+    await expect(runUserPush({ cwd: "/repo", io, identity: "andrew", force: true }))
+      .rejects.toThrow("ref database unavailable");
+    expect(calls.some((call) => call.args[0] === "push")).toBe(false);
+    expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
   });
 });
 

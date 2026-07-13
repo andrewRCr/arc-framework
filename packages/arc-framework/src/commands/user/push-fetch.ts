@@ -17,6 +17,7 @@ import {
 import {
   planBranchBoundedNotesExport,
   pushBranchBoundedNotesExport,
+  readStrictLocalRefTip,
   readStrictOptionalNotesCompactionManifest,
   type BranchBoundedNotesExportRefusalReason,
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
@@ -75,7 +76,9 @@ export async function runUserPush(options: UserPushOptions): Promise<UserPushRes
   }
 
   if (force) {
-    await io.exec("git", ["push", "--force", "origin", `refs/notes/${notesRef(identity)}`]);
+    const ref = `refs/notes/${notesRef(identity)}`;
+    if (await readStrictLocalRefTip(io.exec, ref) === null) return { kind: "no-local-notes" };
+    await io.exec("git", ["push", "--force", "origin", ref]);
     if (cwd) await clearPartialPushMarker(cwd, io, identity);
     return { kind: "pushed" };
   }

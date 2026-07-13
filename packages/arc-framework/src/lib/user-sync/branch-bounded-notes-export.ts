@@ -174,7 +174,8 @@ export async function pushBranchBoundedNotesExport(
   }
 }
 
-async function readStrictLocalRefTip(exec: GitExec, ref: string): Promise<string | null> {
+/** Read a local ref tip, returning `null` only for verified absence. */
+export async function readStrictLocalRefTip(exec: GitExec, ref: string): Promise<string | null> {
   let stdout: string;
   try {
     ({ stdout } = await exec("git", ["rev-parse", "--verify", "--quiet", ref]));
