@@ -21,6 +21,7 @@ import { TOMBSTONE_TTL_MS } from "./merge.js";
 const USER_NOTES_REF = "refs/notes/arc/user";
 const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const EXACT_RENAME_STATUS = ["R", "100"].join("");
+const NOTES_HISTORY_COMMIT_SEPARATOR = "ARC-NOTES-HISTORY-COMMIT";
 
 /**
  * Commit subject of a compaction snapshot — the in-band marker recent-note
@@ -245,6 +246,49 @@ export function parseNotesHistoryNameStatus(output: string): Set<string> {
     throw new Error(`Unknown notes-history status: ${status}`);
   }
 
+  return commits;
+}
+
+/**
+ * Read every annotated commit introduced by a pinned local notes-history range.
+ *
+ * @param exec - Git runner.
+ * @param localTip - Captured local canonical notes tip.
+ * @param remoteTip - Captured ancestor remote tip, or `null` when absent.
+ * @returns The deduplicated annotated commits introduced by the range.
+ */
+export async function readLocalExclusiveAnnotatedNoteCommits(
+  exec: GitExec,
+  localTip: string,
+  remoteTip: string | null,
+): Promise<Set<string>> {
+  const revision = remoteTip === null ? localTip : `${remoteTip}..${localTip}`;
+  const { stdout } = await exec("git", [
+    "log",
+    "--name-status",
+    "-z",
+    "-M100%",
+    "-m",
+    "--root",
+    `--format=${NOTES_HISTORY_COMMIT_SEPARATOR}%x00`,
+    revision,
+  ]);
+
+  if (stdout === "") return new Set();
+  const sections = stdout.split(NOTES_HISTORY_COMMIT_SEPARATOR);
+  if (sections.shift() !== "") {
+    throw new Error("Malformed notes-history commit framing");
+  }
+
+  const commits = new Set<string>();
+  for (const section of sections) {
+    const framing = /^\0\0\r?\n/u.exec(section)?.[0];
+    if (framing === undefined) {
+      throw new Error("Malformed notes-history commit framing");
+    }
+    const records = section.slice(framing.length);
+    for (const commit of parseNotesHistoryNameStatus(records)) commits.add(commit);
+  }
   return commits;
 }
 

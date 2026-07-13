@@ -9,7 +9,7 @@
 _Purpose:_ Derive the complete set of annotated commits introduced by a pinned canonical notes tip, including
 historical and snapshot entries that are absent from the current notes tree.
 
-### `[ ]` **1.1 Read the local-exclusive annotated-commit set from notes history**
+### `[x]` **1.1 Read the local-exclusive annotated-commit set from notes history**
 
 - _Goal:_ A pinned local/remote notes range yields every newly published annotated commit exactly once and fails
   closed on any path or history record it cannot interpret.
@@ -19,19 +19,10 @@ historical and snapshot entries that are absent from the current notes tree.
           excludes deletions, fanout-only renames, and compaction metadata; and rejects malformed paths or records
           before returning any publication set.
 
-    - `[ ]` **1.1.b Read and deduplicate the pinned local-exclusive range**
-        - Add a strict reader separate from the tolerant recency helpers `readNotesRefHistory` and
-          `listChangedNotePaths`; preserve those existing helpers and their callers unchanged.
-        - Run one batched `git log --name-status -z -M100% -m --root` history read with an unambiguous commit
-          separator for `<remote-tip>..<local-tip>`, or the complete local history when no remote notes ref exists.
-        - Return a deduplicated annotated-commit set from pinned tips; do not read the mutable canonical ref after
-          capture. Propagate parse and Git errors for the Phase 3 planner to classify as `failed`; do not introduce a
-          second low-level result taxonomy or convert failures into empty success.
-        - Build `test-first` (one behavior at a time):
-            - The range starts after a remote ancestor and includes complete history when the remote ref is absent.
-            - Root commits and merge-parent diffs expose their published paths.
-            - SHA-1 and SHA-256 note paths survive the complete range-read path.
-            - A successful range with no qualifying paths returns an empty set, while a failed read remains failed.
+    - `[x]` **1.1.b Read and deduplicate the pinned local-exclusive range**
+        - Added a strict, single-call history reader over pinned local and optional remote tips, using root and
+          merge-parent diffs plus explicit commit framing; it deduplicates valid publication paths while propagating
+          every Git, framing, and status parse failure.
 
 ### `[ ]` **1.2 Prove root, merge, fanout, rename, deletion, and malformed-history behavior**
 

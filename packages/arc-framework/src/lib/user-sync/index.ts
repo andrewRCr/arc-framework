@@ -29,6 +29,7 @@ export {
   listNoteTreeEntries,
   notePathToCommit,
   parseNotesHistoryNameStatus,
+  readLocalExclusiveAnnotatedNoteCommits,
   readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
   CROSS_WU_NOTE_WINDOW,
