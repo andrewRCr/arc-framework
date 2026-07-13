@@ -115,6 +115,7 @@ describe("status <slug>", () => {
     const { stdout: branchTip } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: tmpDir });
     await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: tmpDir });
     await execFileAsync("git", ["switch", "main"], { cwd: tmpDir });
+    await execFileAsync("git", ["branch", "-D", branch], { cwd: tmpDir });
     await execFileAsync("git", ["push", "origin", "--delete", branch], { cwd: tmpDir });
     await execFileAsync("git", ["update-ref", `refs/remotes/origin/${branch}`, branchTip.trim()], { cwd: tmpDir });
 

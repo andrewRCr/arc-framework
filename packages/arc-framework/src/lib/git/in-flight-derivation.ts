@@ -12,8 +12,8 @@
  * phase. Classification is record- and content-driven, never branch-name → WU.
  *
  * Worktree paths are not stored: they resolve live from `git worktree list`, so
- * a WU in flight only on the remote (no local worktree) is flagged `remoteOnly`
- * — the materialize-candidate signal. Identity filtering mirrors
+ * a WU in flight only on the remote (no local worktree or local branch) is
+ * flagged `remoteOnly` — the materialize-candidate signal. Identity filtering mirrors
  * `filterRosterByIdentity`: in team mode, entries owned by a different identity
  * drop while the current identity's and every unattributed entry survive; solo
  * mode (or no identity) passes everything through.
@@ -51,7 +51,7 @@ export type InFlightEntryMark = "degraded" | "indeterminate" | "location-ambiguo
 export type InFlightScheduling = "parked";
 
 /** Where one candidate for an in-flight work unit came from. */
-export type InFlightCandidateSource = "remote-live" | "remote-tracking" | "worktree";
+export type InFlightCandidateSource = "remote-live" | "remote-tracking" | "local-branch" | "worktree";
 
 /** Whether the candidate meta's `Branch` field agrees with the candidate branch. */
 export type InFlightCandidateRelation = "consistent" | "missing-branch" | "stale";
@@ -122,7 +122,7 @@ interface InFlightLocation {
   branch: string;
   /** Local worktree path; present only when the branch is checked out here. */
   worktreePath?: string;
-  /** True when in flight on the remote with no local worktree — the materialize-candidate signal. */
+  /** True when in flight on the remote with no local worktree or local branch. */
   remoteOnly: boolean;
   /** Open-PR enrichment; present only when a PR source resolved one for this branch (refs-only otherwise). */
   pr?: OpenPrSignal;
@@ -266,13 +266,15 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
         expandLiveOnly: options.expandLiveOnly ?? false,
       })
     : await resolveSuppliedBranchInputs({ exec, branches, reachable: options.reachable ?? true, remote });
-  const { worktreeResult, worktreePaths, branchSet } = input;
+  const { worktreeResult, worktreePaths, branchSet, localBranches, localBranchesComplete } = input;
   const inputs = buildInputCandidates(
     branchSet.branches,
     worktreePaths,
+    localBranches,
     remote,
     branchSet.reachable,
     input.classificationRefs,
+    branches === undefined,
   );
   const markedInputs = inputs
     .map((candidate) => markInputCandidate(candidate, input.indeterminate))
@@ -280,7 +282,16 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
 
   const classified = await Promise.all(
     markedInputs.map((candidate) =>
-      classifyInput(exec, candidate, baseBranch, worktreePaths, errandSlugByBranch, errandRecordsComplete),
+      classifyInput(
+        exec,
+        candidate,
+        baseBranch,
+        worktreePaths,
+        localBranches,
+        localBranchesComplete,
+        errandSlugByBranch,
+        errandRecordsComplete,
+      ),
     ),
   );
   const expandedEnumerationFailed = classified.some((classification) =>
@@ -378,6 +389,8 @@ interface InputResolution {
   branchSet: InFlightBranchSet;
   worktreeResult: Awaited<ReturnType<typeof resolveWorktreePathsByBranchResult>>;
   worktreePaths: Map<string, string>;
+  localBranches: Set<string>;
+  localBranchesComplete: boolean;
   snapshot: InFlightInputSnapshot;
   indeterminate: {
     refs: ReadonlySet<string>;
@@ -394,7 +407,10 @@ async function resolveSuppliedBranchInputs(input: {
   reachable: boolean;
   remote: string;
 }): Promise<InputResolution> {
-  const worktreeResult = await resolveWorktreePathsByBranchResult(input.exec);
+  const [worktreeResult, refs] = await Promise.all([
+    resolveWorktreePathsByBranchResult(input.exec),
+    readLocalInFlightRefSnapshot(input.exec, input.remote),
+  ]);
   const worktreePaths = worktreeResult.paths;
   const branchSet: InFlightBranchSet = {
     branches: [...input.branches],
@@ -406,7 +422,9 @@ async function resolveSuppliedBranchInputs(input: {
     branchSet,
     worktreeResult,
     worktreePaths,
-    snapshot: snapshotFor(branchSet, worktreePaths, { remoteTracking: {}, localHeads: {} }, input.remote),
+    localBranches: new Set(Object.keys(refs.refs.localHeads)),
+    localBranchesComplete: refs.ok,
+    snapshot: snapshotFor(branchSet, worktreePaths, refs.refs, input.remote),
     indeterminate: { refs: new Set(), worktrees: new Set() },
     resultMarks: [],
     warnings: [],
@@ -466,6 +484,8 @@ async function resolveAgreedInputs(input: {
     branchSet: firstBranchSet,
     worktreeResult: firstWorktree,
     worktreePaths: firstWorktree.paths,
+    localBranches: new Set(Object.keys(firstRefs.refs.localHeads)),
+    localBranchesComplete: firstRefs.ok,
     snapshot: firstSnapshot,
     indeterminate: comparison.wholeResult
       ? { refs: new Set(), worktrees: new Set() }
@@ -567,7 +587,7 @@ function snapshotFor(
   for (const branch of branchSet.branches) {
     snapshotRefs[`${remote}/${branch}`] = refs.remoteTracking[branch] ?? branchSet.refs[`${remote}/${branch}`] ?? "";
   }
-  for (const branch of worktreePaths.keys()) {
+  for (const branch of Object.keys(refs.localHeads)) {
     snapshotRefs[branch] = refs.localHeads[branch] ?? "";
   }
   return {
@@ -714,11 +734,15 @@ async function enrichWithPrState(
 }
 
 /** Build the location fields for a branch from the live worktree map. */
-function locationOf(branch: string, worktreePaths: Map<string, string>): InFlightLocation {
+function locationOf(
+  branch: string,
+  worktreePaths: Map<string, string>,
+  localBranches: ReadonlySet<string>,
+  localBranchesComplete: boolean,
+): InFlightLocation {
   const worktreePath = worktreePaths.get(branch);
-  return worktreePath === undefined
-    ? { branch, remoteOnly: true }
-    : { branch, worktreePath, remoteOnly: false };
+  if (worktreePath !== undefined) return { branch, worktreePath, remoteOnly: false };
+  return { branch, remoteOnly: localBranchesComplete && !localBranches.has(branch) };
 }
 
 interface InputCandidate {
@@ -732,13 +756,22 @@ interface InputCandidate {
 function buildInputCandidates(
   remoteBranches: readonly string[],
   worktreePaths: ReadonlyMap<string, string>,
+  localBranches: ReadonlySet<string>,
   remote: string,
   reachable: boolean,
   classificationRefs: RefTipMap,
+  includeLocalOnlyBranches: boolean,
 ): InputCandidate[] {
   const out: InputCandidate[] = [];
   const remoteSource: InFlightCandidateSource = reachable ? "remote-live" : "remote-tracking";
+  const remoteBranchSet = new Set(remoteBranches);
+  const localCandidateBranches = new Set(
+    [...localBranches].filter((branch) =>
+      !worktreePaths.has(branch) && (includeLocalOnlyBranches || remoteBranchSet.has(branch)),
+    ),
+  );
   for (const branch of remoteBranches) {
+    if (localCandidateBranches.has(branch)) continue;
     const qualifiedRef = `${remote}/${branch}`;
     out.push({
       index: out.length,
@@ -746,6 +779,9 @@ function buildInputCandidates(
       ref: classificationRefs[qualifiedRef] ?? qualifiedRef,
       source: remoteSource,
     });
+  }
+  for (const branch of localCandidateBranches) {
+    out.push({ index: out.length, branch, ref: branch, source: "local-branch" });
   }
   for (const branch of worktreePaths.keys()) {
     out.push({ index: out.length, branch, ref: branch, source: "worktree" });
@@ -809,11 +845,13 @@ async function classifyInput(
   input: InputCandidate,
   baseBranch: string,
   worktreePaths: Map<string, string>,
+  localBranches: ReadonlySet<string>,
+  localBranchesComplete: boolean,
   errandSlugByBranch: ReadonlyMap<string, string>,
   errandRecordsComplete: boolean,
 ): Promise<InputClassification> {
   const { branch, ref } = input;
-  const location = locationOf(branch, worktreePaths);
+  const location = locationOf(branch, worktreePaths, localBranches, localBranchesComplete);
 
   const errandSlug = errandSlugByBranch.get(branch);
   if (errandSlug !== undefined) {
@@ -976,6 +1014,8 @@ async function dedupeWorkUnitCandidates(
 function candidateSourceRank(candidate: WorkUnitCandidate): number {
   switch (candidate.input.source) {
     case "worktree":
+      return 4;
+    case "local-branch":
       return 3;
     case "remote-live":
       return 2;
@@ -1292,6 +1332,8 @@ function dedupeResidue(items: readonly IndexedResidue[]): IndexedResidue[] {
 function inputSourceRank(source: InFlightCandidateSource): number {
   switch (source) {
     case "worktree":
+      return 4;
+    case "local-branch":
       return 3;
     case "remote-live":
       return 2;

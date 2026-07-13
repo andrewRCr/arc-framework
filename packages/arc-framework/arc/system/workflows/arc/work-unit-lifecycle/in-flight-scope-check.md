@@ -16,13 +16,14 @@ proceeds regardless of the outcome.
 **Data input.** The in-flight set is supplied by a data source the step treats as opaque; the step's shape is
 independent of how that set is gathered. The source is the in-flight **oracle** (`arc active in-flight --json` —
 identity-filtered remote refs + PRs), which sees work units and errands in flight across worktrees *and* machines,
-including remote-only ones with no local worktree.
+including remote-only ones with no local branch or worktree.
 
 ## Step
 
 1. **Gather.** Run `arc active in-flight --json`. It returns `entries` (in-flight work units and errands) plus a
    `reachable` flag. A work-unit entry carries `branch`, `name`, `state`, `remoteOnly`, an optional `worktreePath`
-   (absent when remote-only), an optional `design` (the meta's scope pointer), and an optional `cohort`. An errand
+   (absent when no worktree owns the branch), an optional `design` (the meta's scope pointer), and an optional
+   `cohort`. An errand
    entry carries `branch`, `slug`, `remoteOnly`, and an optional `worktreePath`. The work unit being activated is
    not yet in the set — its worktree is new, or, for cold-start, still bare.
 2. **Degrade.** An empty `entries` means nothing else is in flight — skip silently and produce no output.
@@ -35,7 +36,8 @@ including remote-only ones with no local worktree.
    pointer (the meta `**Design:**` field the oracle carries — absent means unstated, which biases toward a flag),
    plus `cohort` for the cohort-sibling tier; an errand carries no meta and no stated scope.
 4. **Surface.** Surface the method's posture as a concern the operator can act on — name the branch, where it is in
-   flight (its `worktreePath`, or "remotely on `origin/<branch>`" when `remoteOnly`), the overlap, and any
+   flight (its `worktreePath`; "remotely on `origin/<branch>`" when `remoteOnly`; otherwise "local branch, no
+   worktree"), the overlap, and any
    design-load note, then offer the choice. For example: `` `feat/x` is in flight in `../repo.x` and touches the
    same module — parallelize, or sequence after it integrates? `` Proceed with activation unless the operator
    redirects.

@@ -270,6 +270,45 @@ describe("runErrandState", () => {
     ]);
   });
 
+  it("uses an unoccupied local errand head for merge and timestamp classification", async () => {
+    const exec = buildExec({
+      refs: [
+        `refs/heads/chore/local-unpushed\t${OLD}`,
+        `refs/remotes/origin/chore/local-unpushed\t${RECENT}`,
+      ].join("\n"),
+      merged: ["chore/local-unpushed"],
+    });
+
+    const result = await runErrandState({
+      exec,
+      currentBranch: "main",
+      hasBackingMeta: false,
+      includeDiscovery: true,
+      entries: [
+        errand({
+          slug: "local-unpushed",
+          branch: "chore/local-unpushed",
+          remoteOnly: false,
+        }),
+      ],
+      records: [record({ slug: "local-unpushed", branch: "chore/local-unpushed" })],
+      baseBranch: "main",
+      staleThresholdDays: 1,
+      nudge: nudge(),
+      now: NOW,
+    });
+
+    expect(result.inFlight.errands).toEqual([
+      {
+        slug: "local-unpushed",
+        branch: "chore/local-unpushed",
+        state: "merged-cleanup",
+        ageDays: 7,
+      },
+    ]);
+    expect(result.materializable.candidates).toEqual([]);
+  });
+
   it("skips discovery with a warning when discovery is requested but the oracle was unavailable", async () => {
     const exec = buildExec();
     const residue: InFlightResidue[] = [

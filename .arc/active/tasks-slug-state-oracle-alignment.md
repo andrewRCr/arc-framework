@@ -265,23 +265,15 @@ and no local branch).
 - _Outcome:_ Branch and errand-record residue is visible from derivation through the session-init envelope,
   including a real CLI cleanup probe; base remains excluded and degraded reads retain marked evidence.
 
-### `[ ]` **6.2 Require local-branch absence for `remoteOnly` materialize candidacy**
+### `[x]` **6.2 Require local-branch absence for `remoteOnly` materialize candidacy**
 
 - _Goal:_ `remoteOnly` means absent locally — no local worktree **and** no local branch — so a local
   unoccupied branch (the live `plan/slug-state-oracle-alignment` case) is a distinct state and never enters
   the cross-machine materialize candidate set (SC6).
 
-    - Build `test-first` (one behavior at a time):
-        - A branch with a local head but no worktree resolves `remoteOnly: false` (the `locationOf` read gains
-          the local-branch check from the ref snapshot already in hand).
-        - That branch is excluded from `findMaterializableWorkUnits` and the errand materialize candidates.
-        - A genuinely remote-only branch (no worktree, no local head) still qualifies as a candidate.
-        - Existing worktree-checked-out behavior unchanged (`remoteOnly: false`, path populated).
-        - Downstream consumers of the flipped semantic are audited, not just the materialize filters: the
-          errand-state sweep's merge-check ref and timestamp reads (`remoteOnly ? origin/<branch> : <branch>`
-          in `lib/session-init/errand-state.ts`) now judge a local unoccupied errand branch against its local
-          head — assert the classification stays truthful for an unpushed local errand branch — and the
-          `arc active in-flight` render's previously unreachable "no worktree" arm becomes live.
+- _Outcome:_ The oracle unions unoccupied local heads into its candidate set and reserves `remoteOnly` for
+  branches absent from both local refs and worktrees. Materialize, errand-state, active rendering, and foreign
+  overlap consumers now preserve the local/no-worktree distinction; a real git fixture locks the behavior.
 
 ## **Phase 7:** Verification
 

@@ -759,6 +759,28 @@ describe("deriveInFlight", () => {
     ]);
   });
 
+  it("classifies an unpushed local errand branch with no worktree as local in-flight work", async () => {
+    const sha = "2".repeat(40);
+    const refs = { localHeads: { "chore/local-errand": sha } };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: [],
+    });
+
+    const { entries, residue } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([["chore/local-errand", "local-errand"]]),
+    });
+
+    expect(entries).toEqual([
+      { kind: "errand", branch: "chore/local-errand", slug: "local-errand", remoteOnly: false },
+    ]);
+    expect(residue).toEqual([]);
+  });
+
   it("keeps errand-record identity authoritative even when the branch carries a meta", async () => {
     const exec = makeExec({
       metas: {
@@ -826,10 +848,10 @@ describe("deriveInFlight", () => {
     });
   });
 
-  it("drops a branch with neither an errand record nor a backing meta (not in flight)", async () => {
+  it("keeps a branch with neither record nor meta out of entries while surfacing residue", async () => {
     const exec = makeExec({ metas: {} });
 
-    const { entries } = await deriveInFlight({
+    const { entries, residue } = await deriveInFlight({
       exec,
       branches: ["chore/orphan"],
       identity: null,
@@ -838,6 +860,13 @@ describe("deriveInFlight", () => {
     });
 
     expect(entries).toEqual([]);
+    expect(residue).toEqual([
+      {
+        branch: "chore/orphan",
+        slug: "orphan",
+        reason: "no-record-or-meta",
+      },
+    ]);
   });
 
   it("filters to the current identity (owner-matched), passing through unattributed entries", async () => {
@@ -1146,7 +1175,39 @@ describe("deriveInFlight input union", () => {
     ]);
   });
 
-  it("keeps remote-only behavior for refs with no local worktree", async () => {
+  it("treats an unoccupied local branch as local rather than remote-only", async () => {
+    const sha = "1".repeat(40);
+    const refs = {
+      remoteTracking: { "feat/local-head": sha },
+      localHeads: { "feat/local-head": sha },
+    };
+    const exec = makeExec({
+      refSnapshots: [refs, refs],
+      liveBranches: ["feat/local-head"],
+      metas: {
+        "feat/local-head:.arc/active/meta-local-head.md": metaContent({
+          branch: "feat/local-head",
+        }),
+      },
+    });
+
+    const { entries } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      kind: "work-unit",
+      branch: "feat/local-head",
+      remoteOnly: false,
+    });
+    expect(entries[0]).not.toHaveProperty("worktreePath");
+  });
+
+  it("keeps remote-only behavior for refs with no local worktree or local branch", async () => {
     const exec = makeExec({
       localRefs: ["feat/remote"],
       liveBranches: ["feat/remote"],

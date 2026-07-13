@@ -134,10 +134,12 @@ describe("formatForeignWriteWarnings", () => {
     const lines = formatForeignWriteWarnings([
       { branch: "feat/wu-a", worktreePath: "/repo.wu-a", matchedPaths: [".arc/active/meta-wu-a.md"] },
       { branch: "feat/wu-b", matchedPaths: [".arc/active/spec-wu-b.md"] },
+      { branch: "feat/wu-c", remoteOnly: false, matchedPaths: [".arc/active/tasks-wu-c.md"] },
     ]);
     expect(lines).toEqual([
       "feat/wu-a also touches .arc/active/meta-wu-a.md (/repo.wu-a)",
       "feat/wu-b also touches .arc/active/spec-wu-b.md (remote-only)",
+      "feat/wu-c also touches .arc/active/tasks-wu-c.md (no worktree)",
     ]);
   });
 

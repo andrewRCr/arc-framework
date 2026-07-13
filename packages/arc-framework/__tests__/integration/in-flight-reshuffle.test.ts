@@ -199,6 +199,39 @@ describe("in-flight reshuffle fixture", () => {
     }
   });
 
+  it("keeps an unoccupied local branch out of cross-machine materialize candidates", async () => {
+    const fixture = await setupInFlightReshuffleFixture();
+    try {
+      const branch = "feat/local-unoccupied";
+      const worktreePath = await fixture.createLocalWorkUnit({
+        name: "local-unoccupied",
+        branch,
+      });
+      await execFileAsync("git", ["worktree", "remove", worktreePath], { cwd: fixture.primary });
+
+      const result = await deriveInFlight({
+        exec: fixture.primaryExec,
+        identity: "andrew",
+        teamMode: false,
+        localOnly: false,
+      });
+      const entry = result.entries.find(
+        (candidate) => candidate.kind === "work-unit" && candidate.name === "local-unoccupied",
+      );
+
+      expect(entry).toMatchObject({
+        kind: "work-unit",
+        branch,
+        remoteOnly: false,
+      });
+      expect(entry).not.toHaveProperty("worktreePath");
+      expect(result.snapshot.refs[branch]).toMatch(/^[0-9a-f]{40}$/u);
+      expect(findMaterializableWorkUnits({ entries: result.entries, identity: "andrew" }).candidates).toEqual([]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
   it("marks ref-set churn indeterminate without surfacing the late branch", async () => {
     const fixture = await setupInFlightReshuffleFixture();
     try {

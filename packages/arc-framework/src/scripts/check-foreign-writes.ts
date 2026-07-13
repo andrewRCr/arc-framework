@@ -120,17 +120,21 @@ async function preferRemoteBaseRef(exec: GitExec, baseBranch: string): Promise<s
  */
 export function formatForeignWriteWarnings(overlaps: ForeignArtifactOverlap[]): string[] {
   return overlaps.map(
-    (o) => `${o.branch} also touches ${o.matchedPaths.join(", ")} (${o.worktreePath ?? "remote-only"})`,
+    (o) => `${o.branch} also touches ${o.matchedPaths.join(", ")} (${overlapLocation(o)})`,
   );
 }
 
 function formatSkippedEntry(entry: ForeignArtifactSkippedEntry): string {
   const marks = entry.marks.join(", ");
-  return `${entry.branch} skipped: entry marked ${marks} (${entry.worktreePath ?? "remote-only"})`;
+  return `${entry.branch} skipped: entry marked ${marks} (${overlapLocation(entry)})`;
 }
 
 function formatIndeterminateProbe(entry: ForeignArtifactIndeterminateProbe): string {
-  return `${entry.branch} skipped: probe indeterminate (${entry.worktreePath ?? "remote-only"})`;
+  return `${entry.branch} skipped: probe indeterminate (${overlapLocation(entry)})`;
+}
+
+function overlapLocation(entry: { worktreePath?: string; remoteOnly?: boolean }): string {
+  return entry.worktreePath ?? (entry.remoteOnly === false ? "no worktree" : "remote-only");
 }
 
 /** Word every advisory line the hook should print to stdout. */

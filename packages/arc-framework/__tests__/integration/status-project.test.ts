@@ -231,6 +231,7 @@ describe("arc status --project", () => {
     const { stdout: branchTip } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
     await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: repo });
     await execFileAsync("git", ["switch", "main"], { cwd: repo });
+    await execFileAsync("git", ["branch", "-D", branch], { cwd: repo });
     await execFileAsync("git", ["push", "origin", "--delete", branch], { cwd: repo });
     await execFileAsync("git", ["update-ref", `refs/remotes/origin/${branch}`, branchTip.trim()], { cwd: repo });
 

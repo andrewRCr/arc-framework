@@ -10,9 +10,9 @@
  * the local worktree roster (`runActiveRoster`) or the cross-machine oracle
  * (`runActiveInFlight`). This module adds the per-path overlap diff on top of
  * it: a committed diff against the base, plus — only for a locally-checked-out
- * entry — an uncommitted-edits probe in its worktree. A worktree-less
- * (remote-only) entry has no local edits to collide with here, so its committed
- * diff against `origin/<branch>` is the whole signal. Returns facts only and
+ * entry — an uncommitted-edits probe in its worktree. A worktree-less entry has
+ * no checkout edits to collide with here, so its committed diff against the
+ * selected local or remote branch ref is the whole signal. Returns facts only and
  * never blocks — the skill turns the facts into an advisory caveat
  * (bias-to-surface judgment lives there, not here).
  *
@@ -38,8 +38,10 @@ export interface OverlapCandidateEntry {
   branch: string;
   /** Content-derived WU name from the in-flight roster; absent for legacy/local roster callers. */
   name?: string;
-  /** Local worktree path; absent for a remote-only entry (no uncommitted probe runs). */
+  /** Local worktree path; absent for remote-only and unoccupied-local entries. */
   worktreePath?: string;
+  /** False distinguishes an unoccupied local branch from legacy/remote worktree-less input. */
+  remoteOnly?: boolean;
   /** Present marks a meta-bearing work unit (in-flight); absent → admin/main checkout. */
   metaFilePath?: string;
   /** Roster-entry state; a `Shipped` WU has merged and is excluded. */
@@ -79,8 +81,10 @@ export interface ForeignArtifactDetectionOptions {
 /** One foreign in-flight WU whose state overlaps the errand's target. */
 export interface ForeignArtifactOverlap {
   branch: string;
-  /** The WU's worktree path; absent for a remote-only entry (in flight elsewhere). */
+  /** The WU's worktree path; absent when no checkout currently owns the branch. */
   worktreePath?: string;
+  /** False when the worktree-less diff ran against an unoccupied local branch. */
+  remoteOnly?: boolean;
   /** The subset of target paths this WU touches. */
   matchedPaths: string[];
 }
@@ -88,8 +92,10 @@ export interface ForeignArtifactOverlap {
 /** One entry whose live probe changed while detection was reading it. */
 export interface ForeignArtifactIndeterminateProbe {
   branch: string;
-  /** The WU's worktree path; absent for a remote-only entry. */
+  /** The WU's worktree path; absent when no checkout currently owns the branch. */
   worktreePath?: string;
+  /** False when the worktree-less probe targeted an unoccupied local branch. */
+  remoteOnly?: boolean;
   /** Determinate matched paths, when any survived before indeterminacy was detected. */
   matchedPaths: string[];
   /** Why the probe cannot be asserted as overlap or no-overlap. */
@@ -103,8 +109,10 @@ export type ForeignArtifactSkippedReason =
 /** One entry skipped because its roster state is too uncertain for advisory overlap assertions. */
 export interface ForeignArtifactSkippedEntry {
   branch: string;
-  /** The WU's worktree path; absent for a remote-only entry. */
+  /** The WU's worktree path; absent when no checkout currently owns the branch. */
   worktreePath?: string;
+  /** False when the skipped worktree-less entry is an unoccupied local branch. */
+  remoteOnly?: boolean;
   /** Entry marks that caused the skip. */
   marks: readonly InFlightEntryMark[];
   /** Stable machine-readable skip reason. */
@@ -191,6 +199,7 @@ export async function detectForeignArtifactOverlap(
       skipped.push({
         branch: entry.branch,
         ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
+        ...(entry.remoteOnly !== undefined ? { remoteOnly: entry.remoteOnly } : {}),
         marks: [...(entry.marks ?? [])],
         reason: skipReason,
       });
@@ -204,8 +213,7 @@ export async function detectForeignArtifactOverlap(
   const indeterminate: ForeignArtifactIndeterminateProbe[] = [];
   for (const entry of candidates) {
     const committed = await committedMatches(exec, baseSha ?? baseBranch, entry.branch, targetPaths, snapshot);
-    // A remote-only entry has no local worktree to probe; its uncommitted edits
-    // live elsewhere and can't collide with a local edit, so committed is all.
+    // A worktree-less entry has no checkout edits to probe, so committed is all.
     const uncommitted = entry.worktreePath === undefined
       ? { matchedPaths: [] }
       : await uncommittedMatches(exec, entry.worktreePath, targetPaths);
@@ -216,6 +224,7 @@ export async function detectForeignArtifactOverlap(
       indeterminate.push({
         branch: entry.branch,
         ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
+        ...(entry.remoteOnly !== undefined ? { remoteOnly: entry.remoteOnly } : {}),
         matchedPaths: matched,
         reason: committed.reason ?? uncommitted.reason ?? "uncommitted-probe-disagreement",
       });
@@ -225,6 +234,7 @@ export async function detectForeignArtifactOverlap(
       overlaps.push({
         branch: entry.branch,
         ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
+        ...(entry.remoteOnly !== undefined ? { remoteOnly: entry.remoteOnly } : {}),
         matchedPaths: matched,
       });
     }
@@ -343,9 +353,9 @@ function underPath(file: string, target: string): boolean {
  * Work units only — errands carry no meta and aren't WU-overlap candidates
  * (mirroring the meta-bearing narrowing the worktree roster applies). A
  * locally-checked-out WU keeps its branch and worktree, so the core runs its
- * full committed + uncommitted probe; a remote-only WU projects its branch as
- * `origin/<branch>` with no worktree, so the committed diff against the remote
- * ref is its overlap signal. The content-derived WU name stays on each
+ * full committed + uncommitted probe. A worktree-less local WU keeps its local
+ * branch ref; a remote-only WU projects as `origin/<branch>`. The committed diff
+ * against that selected ref is its overlap signal. The content-derived WU name stays on each
  * candidate so stale duplicate refs of the originating WU self-exclude by
  * identity instead of by path equality.
  *
@@ -357,9 +367,10 @@ export function projectInFlightToOverlapRoster(entries: readonly InFlightEntry[]
   for (const entry of entries) {
     if (entry.kind !== "work-unit") continue;
     projected.push({
-      branch: entry.worktreePath !== undefined ? entry.branch : `origin/${entry.branch}`,
+      branch: entry.remoteOnly ? `origin/${entry.branch}` : entry.branch,
       name: entry.name,
       ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
+      ...(entry.worktreePath === undefined && !entry.remoteOnly ? { remoteOnly: false } : {}),
       metaFilePath: `.arc/active/meta-${entry.name}.md`,
       state: entry.state,
       ...(entry.marks !== undefined ? { marks: entry.marks } : {}),

@@ -4,7 +4,7 @@
  * to materialize onto this machine.
  *
  * A WU in flight only on the remote (branch + committed meta on `origin`, no
- * local worktree) is a materialize candidate: session-init's Materialize arm
+ * local branch or worktree) is a materialize candidate: session-init's Materialize arm
  * picks the chosen one up via `git worktree add` → `arc user pull` → orient. A
  * WU already checked out here is a resume, not a materialize (git refuses
  * double-checkout anyway — free safety); another identity's WU is not the
@@ -47,9 +47,9 @@ export interface MaterializableWorkUnitsResult {
 /**
  * Select the materializable work units from the oracle's in-flight entries.
  *
- * A WU qualifies when it is remote-only (no local worktree — not already
- * resumable here) and owned by the operator (or unattributed, when an identity
- * is set). Errands are never WU candidates.
+ * A WU qualifies when it is remote-only (no local branch or worktree) and owned
+ * by the operator, or unattributed when an identity exists. Errands are never
+ * WU candidates.
  *
  * @param options - The oracle entries and the operator identity to filter to.
  * @returns The operator's remote-only materializable work units.
