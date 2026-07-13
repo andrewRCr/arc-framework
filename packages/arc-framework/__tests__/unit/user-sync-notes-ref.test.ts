@@ -13,6 +13,7 @@ import {
   listNoteTreeEntries,
   mergeCrossWuFile,
   notePathToCommit,
+  parseNotesHistoryNameStatus,
   readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
 } from "../../src/lib/user-sync/index.js";
@@ -26,6 +27,7 @@ const annotated = (seed: string): string => seed.padEnd(40, "0");
 const annotatedSha256 = (seed: string): string => seed.padEnd(64, "0");
 /** Fan-out note path for an annotated commit (`ab/cdef…`). */
 const notePathFor = (commit: string): string => `${commit.slice(0, 2)}/${commit.slice(2)}`;
+const exactRenameStatus = ["R", "100"].join("");
 
 interface NotesConfig {
   /** Note-history commits, most-recent first. */
@@ -381,6 +383,61 @@ describe("notePathToCommit", () => {
 
     expect(notePathToCommit(notePathFor(sha1))).toBe(sha1);
     expect(notePathToCommit(notePathFor(sha256))).toBe(sha256);
+  });
+});
+
+describe("parseNotesHistoryNameStatus", () => {
+  it("collects added and modified SHA-1 and SHA-256 note paths while excluding deletions", () => {
+    const added = annotated("a1");
+    const modified = annotatedSha256("b2");
+    const deleted = annotated("c3");
+
+    expect(parseNotesHistoryNameStatus([
+      "A", notePathFor(added),
+      "M", notePathFor(modified),
+      "D", notePathFor(deleted),
+      "",
+    ].join("\0"))).toEqual(new Set([added, modified]));
+  });
+
+  it("ignores fanout-only renames and collects a cross-commit rename destination", () => {
+    const fanout = annotated("a1");
+    const source = annotated("b2");
+    const destination = annotated("c3");
+    const fanoutSource = `${fanout.slice(0, 2)}/${fanout.slice(2)}`;
+    const fanoutDestination = `${fanout.slice(0, 2)}/${fanout.slice(2, 4)}/${fanout.slice(4)}`;
+
+    expect(parseNotesHistoryNameStatus([
+      exactRenameStatus, fanoutSource, fanoutDestination,
+      exactRenameStatus, notePathFor(source), notePathFor(destination),
+      "",
+    ].join("\0"))).toEqual(new Set([destination]));
+  });
+
+  it("keeps newline-containing paths as one malformed NUL-framed field", () => {
+    const apparentlyValidSuffix = notePathFor(annotated("a1"));
+
+    expect(() => parseNotesHistoryNameStatus(`A\0not-a-note\n${apparentlyValidSuffix}\0`))
+      .toThrow("Malformed notes-history path");
+  });
+
+  it.each([
+    ["unknown status", "T\0path\0"],
+    ["missing path", "A\0"],
+    ["truncated rename", `${exactRenameStatus}\0${notePathFor(annotated("a1"))}\0`],
+    ["malformed object id", "M\0ab/not-hex\0"],
+    ["unrecognized path", "D\0README.md\0"],
+  ])("rejects %s without returning a partial set", (_label, output) => {
+    expect(() => parseNotesHistoryNameStatus(output)).toThrow();
+  });
+
+  it("ignores compaction manifest metadata records", () => {
+    expect(parseNotesHistoryNameStatus([
+      "A", NOTES_COMPACTION_MANIFEST_PATH,
+      "M", NOTES_COMPACTION_MANIFEST_PATH,
+      "D", NOTES_COMPACTION_MANIFEST_PATH,
+      "",
+    ].join("\0"))).toEqual(new Set());
   });
 });
 

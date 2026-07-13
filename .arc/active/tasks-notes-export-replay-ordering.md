@@ -14,22 +14,10 @@ historical and snapshot entries that are absent from the current notes tree.
 - _Goal:_ A pinned local/remote notes range yields every newly published annotated commit exactly once and fails
   closed on any path or history record it cannot interpret.
 
-    - `[ ]` **1.1.a Parse status-bearing notes-history records**
-        - Extend `packages/arc-framework/src/lib/user-sync/notes-ref.ts` with a strict parser for NUL-framed
-          `--name-status -z` output that distinguishes added, modified, deleted, and exact-rename records without
-          interpreting note payloads.
-        - Normalize both rename paths through `notePathToCommit`; ignore `R100` only when both paths identify the
-          same annotated commit, and include the destination when they identify different commits.
-        - Ignore `NOTES_COMPACTION_MANIFEST_PATH`; reject every other non-note path as malformed history.
-        - Reject unknown status codes, incomplete records, and truncated rename pairs; never return a partial set
-          from malformed output.
-        - Build `test-first` (one behavior at a time):
-            - Added and modified SHA-1 and SHA-256 paths contribute their annotated commits; deletions do not.
-            - Fanout-only exact renames are ignored, while same-blob cross-commit renames contribute the destination.
-            - Newline-containing paths remain one malformed field under NUL framing rather than splitting into
-              apparently valid records.
-            - Unknown or incomplete status records, malformed object IDs, and unrecognized paths reject the read
-              rather than returning an empty or partial set.
+    - `[x]` **1.1.a Parse status-bearing notes-history records**
+        - Added a strict NUL-framed status parser that collects added, modified, and cross-commit rename destinations;
+          excludes deletions, fanout-only renames, and compaction metadata; and rejects malformed paths or records
+          before returning any publication set.
 
     - `[ ]` **1.1.b Read and deduplicate the pinned local-exclusive range**
         - Add a strict reader separate from the tolerant recency helpers `readNotesRefHistory` and
