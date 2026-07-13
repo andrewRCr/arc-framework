@@ -8,10 +8,10 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-notes-export-replay-ordering.md`
+- **Design:** `spec-notes-export-replay-ordering.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
