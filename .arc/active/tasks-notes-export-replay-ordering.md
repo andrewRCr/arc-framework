@@ -167,24 +167,15 @@ compatibility for histories emitted by released versions.
   Later uncontested/contested divergence uses the normal content classifier, and current paired/standalone paths are
   verified not to mint the legacy subject; no write-side union or adoption surface remains.
 
-### `[ ]` **5.3 Update the shared user-notes mutation and recovery guidance**
+### `[x]` **5.3 Update the shared user-notes mutation and recovery guidance**
 
 - _Goal:_ Maintainers can reason about every remaining notes mutator, proof/refusal path, and accepted availability
   residual without relying on retired reconstruction behavior.
 
-    - Update `.arc/reference/strategies/project/strategy-user-notes-concurrency.md` to replace CAS-guarded
-      branch-bounded adoption with the lock-free, read-only proof plus pinned canonical push.
-    - Remove branch-export temp refs and adoption from the shared-state and CAS inventories; document the planner's
-      caller-unique fetched notes ref, strict cleanup ownership, and exact-tip transport in the current mutator set.
-    - Describe ordinary standalone merge, compaction-lineage refusal, force override, marker persistence, and
-      manual-repair-only residuals as current behavior.
-    - Document the compaction-lineage boundary as an explicit operator decision between the remote snapshot and a
-      verified disk-backed fresh authoritative save after manual canonical-ref repair; do not present destructive
-      ref movement as an automated, lossless, or rollback-safe procedure.
-    - Record durable operational caveats without expanding the interim Git-notes model: compact with machines synced,
-      and expect notes for abandoned unpublished commits to block routine publication until made reachable or
-      explicitly overridden. Keep the one-time frozen-annotation release check in this work unit's verification
-      criteria rather than turning it into permanent strategy guidance.
+- _Outcome:_ The concurrency strategy now inventories caller-unique publication/reconcile refs, read-only proof plus
+  pinned transport, lock-scoped ordinary merge and re-proof, explicit force override, and marker persistence. It
+  records compaction lineage as a manual authoritative-state decision, requires coordinated compaction, and explains
+  why abandoned unpublished annotations remain a routine-publication boundary without reviving adoption machinery.
 
 ## **Phase 6:** Verification
 
