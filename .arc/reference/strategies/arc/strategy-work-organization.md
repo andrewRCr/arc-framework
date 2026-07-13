@@ -1068,7 +1068,7 @@ read for a fast offline view; the ready slice is unaffected.
 
 1. Derive your in-flight-mine slice — the render set located in `active/**`, identity-filtered to your WUs. For a
    cross-machine refresh, also include your remote-only in-flight WUs (a WU branch unmerged on the remote with no
-   local worktree).
+   local branch or worktree).
 2. Derive your ready slice — `backlog/planned/**` metas owned by you whose dependencies have all shipped (absent
    from the active + planned + provisional pipeline), each sized by `Class`.
 3. Apply the `STATUS.USER` column sets and the `(priority, cohort, wu-name)` sort key from § Render standard.
