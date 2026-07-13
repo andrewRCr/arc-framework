@@ -92,11 +92,29 @@ describe("trusted review-gate workflows", () => {
   it("publishes independent CI truth and a thin compatibility alias", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("  ci_ok:\n    name: ci-ok");
-    expect(workflow).toContain("needs: [classify, lint-typecheck-unit, integration-e2e, portability]");
+    expect(workflow).toContain(
+      "needs: [classify, lint-typecheck-unit, integration-e2e, portability, portability-cross-platform]",
+    );
     expect(workflow).toMatch(/ {2}merge-ok:\n {4}name: merge-ok\n {4}permissions: \{\}\n {4}needs: ci_ok/u);
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
+    expect(workflow).toContain("scripts/classify-change.sh portability --stdin0");
     expect(workflow).toContain("git diff --name-only -z");
     expect(workflow).not.toContain("changed_all=");
+  });
+
+  it("contains Actions spend while retaining explicit and bounded portability coverage", async () => {
+    const workflow = await read("ci.yml");
+    expect(workflow).toContain("push:\n    branches: [main]");
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("schedule:\n    - cron: '17 8 * * 1'");
+    expect(workflow).toContain("os: [ubuntu-latest]");
+    expect(workflow).toContain("os: [windows-latest, macos-latest]");
+    expect(workflow).toContain("needs.classify.outputs.portability_target == 'true'");
+    const targetedJob = workflow.slice(
+      workflow.indexOf("  portability-cross-platform:"),
+      workflow.indexOf("  ci_ok:"),
+    );
+    expect(targetedJob).not.toContain("needs.classify.outputs.weight");
   });
 
   it("keeps repository controller scripts outside the published CLI graph", async () => {

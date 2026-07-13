@@ -97,6 +97,33 @@ describe("classify-change.sh lane", () => {
   });
 });
 
+describe("classify-change.sh portability", () => {
+  async function portability(files: string[]): Promise<string> {
+    const input = files.length === 0 ? Buffer.alloc(0) : Buffer.from(`${files.join("\0")}\0`);
+    const result = await runScript(CLASSIFY_SCRIPT, ["portability", "--stdin0"], { stdin: input });
+    expect(result.exitCode).toBe(0);
+    return result.stdout.trim();
+  }
+
+  it("targets concurrency primitives and their focused tests", async () => {
+    expect(await portability(["packages/arc-framework/src/lib/user-sync/notes-lock.ts"])).toBe("true");
+    expect(await portability(["packages/arc-framework/src/lib/git/ref-tree.ts"])).toBe("true");
+    expect(await portability(["packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts"])).toBe("true");
+  });
+
+  it("does not target unrelated code changes", async () => {
+    expect(await portability(["packages/arc-framework/src/lib/config.ts"])).toBe("false");
+    expect(await portability(["README.md", "packages/arc-framework/src/commands/status.ts"])).toBe("false");
+  });
+
+  it("fails safe for an empty path set and targets its own scheduling surfaces", async () => {
+    expect(await portability([])).toBe("true");
+    expect(await portability(["package-lock.json"])).toBe("true");
+    expect(await portability([".github/workflows/ci.yml"])).toBe("true");
+    expect(await portability(["scripts/classify-change.sh"])).toBe("true");
+  });
+});
+
 describe("classify-change.sh duplicate-push", () => {
   const tempDirs: string[] = [];
   const headSha = "1111111111111111111111111111111111111111";
@@ -542,8 +569,6 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     "Lint, Typecheck & Unit Tests",
     "Integration & E2E Tests",
     "Portability (concurrency guards) (ubuntu-latest)",
-    "Portability (concurrency guards) (macos-latest)",
-    "Portability (concurrency guards) (windows-latest)",
   ];
 
   /** Render [name, conclusion] pairs as the normalized "<name>\t<conclusion>" lines the seam returns. */

@@ -61,6 +61,30 @@ readonly GENUINE_DOCS_GLOBS=(
   "mkdocs.yml"
 )
 
+# Files whose behavior is explicitly exercised by the OS-sensitive portability
+# suite. Changes outside this set retain the required Linux leg without paying
+# the Windows/macOS runner multipliers on every heavy pull request.
+readonly PORTABILITY_SURFACE_GLOBS=(
+  "packages/arc-framework/src/lib/git/ref-tree.ts"
+  "packages/arc-framework/src/lib/errand/*"
+  "packages/arc-framework/src/lib/user-sync/*"
+  "packages/arc-framework/src/commands/user/shared.ts"
+  "packages/arc-framework/__tests__/unit/user-sync-notes-lock.test.ts"
+  "packages/arc-framework/__tests__/integration/ref-tree-cas*.test.ts"
+  "packages/arc-framework/__tests__/integration/sync-state-ref*.test.ts"
+  "packages/arc-framework/__tests__/e2e/state-ref-race.e2e.test.ts"
+  "packages/arc-framework/__tests__/e2e/race-worker.ts"
+  "packages/arc-framework/__tests__/e2e/true-race.ts"
+  "packages/arc-framework/__tests__/e2e/helpers.ts"
+  "packages/arc-framework/__tests__/helpers/integration.ts"
+  "packages/arc-framework/package.json"
+  "packages/arc-framework/vitest.config.ts"
+  "package.json"
+  "package-lock.json"
+  ".github/workflows/ci.yml"
+  "scripts/classify-change.sh"
+)
+
 # --- Heavy verification checks -------------------------------------------------
 #
 # The check-run display names that together prove a code tree was fully verified.
@@ -74,8 +98,6 @@ readonly HEAVY_CHECK_NAMES=(
   "Lint, Typecheck & Unit Tests"
   "Integration & E2E Tests"
   "Portability (concurrency guards) (ubuntu-latest)"
-  "Portability (concurrency guards) (macos-latest)"
-  "Portability (concurrency guards) (windows-latest)"
 )
 
 # True when $1 matches any glob in the remaining args (glob match, not literal).
@@ -117,6 +139,7 @@ Commands:
   classify <file>...       Classify paths from argv
   classify --stdin0        Classify NUL-delimited paths from stdin
   lane --stdin0            Classify NUL-delimited paths as auto or reviewed
+  portability --stdin0     Print true when a path can affect the portability suite
   tree-hash <ref>           Compute the code-tree hash at a git ref
   duplicate-push <event> <ref-name> <head-sha>
                             Print true when a push run duplicates an open PR head
@@ -179,6 +202,25 @@ cmd_lane() {
     fi
   done
   if [[ "${seen}" == "true" ]]; then echo "auto"; else echo "reviewed"; fi
+}
+
+# portability --stdin0 — print `true` when any changed path belongs to the
+# OS-sensitive concurrency surface. Empty input is true: an unknown change set
+# must not silently skip the cross-platform check.
+cmd_portability() {
+  if [[ "${1:-}" != "--stdin0" ]] || [[ "$#" -ne 1 ]]; then
+    echo "portability: paths must be supplied as NUL-delimited standard input" >&2
+    return "${EX_USAGE}"
+  fi
+  local seen=false file
+  while IFS= read -r -d '' file; do
+    seen=true
+    if _matches_any "${file}" "${PORTABILITY_SURFACE_GLOBS[@]}"; then
+      echo "true"
+      return 0
+    fi
+  done
+  if [[ "${seen}" == "true" ]]; then echo "false"; else echo "true"; fi
 }
 
 # Classify the exact path set between two refs without passing filenames
@@ -439,6 +481,10 @@ main() {
     lane)
       shift
       cmd_lane "$@"
+      ;;
+    portability)
+      shift
+      cmd_portability "$@"
       ;;
     tree-hash)
       shift

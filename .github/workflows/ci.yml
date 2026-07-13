@@ -2,9 +2,12 @@ name: CI
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 8 * * 1'
 
 # Least-privilege default for the whole workflow: every job only reads the repo.
 # Any job that later needs more requests it explicitly.
@@ -40,6 +43,7 @@ jobs:
       weight: ${{ steps.c.outputs.weight }}
       reason: ${{ steps.c.outputs.reason }}
       duplicate_push: ${{ steps.duplicate.outputs.duplicate_push }}
+      portability_target: ${{ steps.c.outputs.portability_target }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
@@ -88,6 +92,20 @@ jobs:
             all_base='${{ github.event.before }}'
             all_head='${{ github.sha }}'
           fi
+
+          # Cross-platform runners are reserved for changes that can affect the
+          # concurrency primitives. An unreadable PR diff fails safe to running
+          # the matrix; non-PR events are dispatched explicitly below.
+          portability_target=false
+          if [ "$event" = 'pull_request' ]; then
+            portability_target=true
+            if git rev-parse -q --verify "$all_base^{commit}" >/dev/null 2>&1 \
+               && git rev-parse -q --verify "$all_head^{commit}" >/dev/null 2>&1; then
+              portability_target="$(git diff --name-only -z "$all_base...$all_head" \
+                | bash scripts/classify-change.sh portability --stdin0)"
+            fi
+          fi
+          echo "portability_target=$portability_target" >> "$GITHUB_OUTPUT"
           lane=reviewed
           if git rev-parse -q --verify "$all_base^{commit}" >/dev/null 2>&1 \
              && git rev-parse -q --verify "$all_head^{commit}" >/dev/null 2>&1; then
@@ -131,7 +149,7 @@ jobs:
     # Run after classification on every push and PR lane. The documentation /
     # ARC-doc linters always run; code checks additionally gate on weight
     # (fail-safe: run unless explicitly light).
-    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' }}
+    if: ${{ !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -166,7 +184,7 @@ jobs:
     permissions:
       contents: read
     needs: classify
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light' }}
+    if: ${{ !cancelled() && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -181,23 +199,45 @@ jobs:
     - run: npm run test:integration
     - run: npm run test:e2e
 
-  # Cross-platform confirmation for the same-machine write-safety guards. The
+  # Linux confirmation for the same-machine write-safety guards. The
   # exclusive-create (`wx`/`O_EXCL`), advisory-lock (`mkdir` + `process.kill`
   # liveness), and CAS primitives - and the bounded true-race smoke that spawns
   # real concurrent writers - are OS-sensitive in a way the ubuntu-only jobs
-  # above can't confirm. The rest of the pipeline stays ubuntu-only by design;
-  # only this suite fans out across the three GitHub-hosted runner OSes (WSL is
-  # Linux syscalls, covered by the ubuntu leg).
+  # above can't confirm. This required PR leg stays on Linux; the costlier
+  # Windows/macOS confirmation below runs only when its focused surface changes.
   portability:
     name: Portability (concurrency guards)
     permissions:
       contents: read
     needs: classify
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light' }}
+    if: ${{ !cancelled() && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run build
+    - run: npm run test:portability
+
+  portability-cross-platform:
+    name: Portability targeted
+    permissions:
+      contents: read
+    needs: classify
+    if: ${{ !cancelled() && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.portability_target == 'true') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -214,7 +254,7 @@ jobs:
   ci_ok:
     name: ci-ok
     permissions: {}
-    needs: [classify, lint-typecheck-unit, integration-e2e, portability]
+    needs: [classify, lint-typecheck-unit, integration-e2e, portability, portability-cross-platform]
     if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
