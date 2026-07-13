@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "review-gate-operator-friction",
+  "origin": "description",
+  "intent": "Remove review-gate launcher friction before enforcement qualification",
+  "branch": "fix/review-gate-operator-friction",
+  "createdAt": "2026-07-13T04:37:48.796Z"
+}
