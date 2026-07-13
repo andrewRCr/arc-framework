@@ -40,6 +40,12 @@ export {
 } from "./notes-ref.js";
 
 export {
+  proveNotesPublication,
+  type NotesPublicationProofResult,
+  type ProveNotesPublicationInput,
+} from "./notes-publication-proof.js";
+
+export {
   adoptCompactedNotesRef,
   compactNotesRefSnapshot,
   readNotesCompactionManifest,

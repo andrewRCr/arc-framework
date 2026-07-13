@@ -53,50 +53,20 @@ against locally readable live tips without fetching branch objects.
           updated their Git fixtures to real object IDs while preserving empty, unreachable, and local-only
           degradation behavior.
 
-### `[ ]` **2.2 Prove publication through the union of locally readable live-head histories**
+### `[x]` **2.2 Prove publication through the union of locally readable live-head histories**
 
 - _Goal:_ Every annotated commit in the publication set is proven reachable from at least one currently live remote
   head using only branch-tip objects already available in the local repository.
 
-- _Approach:_ Implement the proof as a focused `packages/arc-framework/src/lib/user-sync/notes-publication-proof.ts`
-  helper whose typed result distinguishes proven publication, unpublished history, and unavailable proof; the
-  canonical planner maps those outcomes into its public taxonomy in Phase 3.
+    - `[x]` **2.2.a Select locally readable live commit tips in one object check**
+        - Added a typed proof helper that short-circuits verified-empty sets, requires the stdin Git seam, consumes
+          only complete live-head snapshots, deduplicates tips, and strictly validates one batched object-type response
+          without fetching or spawning per-object reads.
 
-    - `[ ]` **2.2.a Select locally readable live commit tips in one object check**
-        - Accept the existing optional `GitExecInput` seam; when it is absent, return unavailable proof without
-          falling back to one Git process per tip or annotated commit.
-        - When the successfully derived publication set is empty, return proven before remote membership or object
-          reads; a failed history read can never enter the helper as an optimistic empty set.
-        - Otherwise consume the shared live-head result and deduplicate all tip IDs before one strict
-          `git cat-file --batch-check=%(objectname) %(objecttype)` call.
-        - Treat an incomplete live-head result as unavailable proof even when every admitted tip is locally readable;
-          existing in-flight consumers may continue using its safe under-approximation under their own contracts.
-        - Require one well-formed response per requested tip and retain only locally readable commit objects. Missing
-          or non-commit tips are safe to omit when another readable head proves the full set; malformed, truncated,
-          reordered, or Git-failed batch output makes the proof unavailable.
-
-    - `[ ]` **2.2.b Walk the live-tip union once and compare the publication set**
-        - Feed the retained tips to one `git rev-list --stdin` traversal and require every annotated commit from the
-          deduplicated local-exclusive set to occur in its strictly validated object-ID output.
-        - Return proven when the readable union covers the set. Before classifying an incomplete union as
-          unpublished history, strictly query `git rev-parse --is-shallow-repository`; classify it as unavailable
-          when any live tip could not be inspected, the shallow-state read fails or is malformed, or the repository
-          is shallow, and as unpublished only when every live tip was inspected in a confirmed non-shallow
-          repository.
-        - Add real-repository coverage in
-          `packages/arc-framework/__tests__/integration/notes-publication-proof.test.ts`, reusing the real shallow-
-          clone fixture patterns from `packages/arc-framework/__tests__/integration/user.test.ts`; use injected
-          failures only for malformed plumbing responses that real Git will not emit on demand.
-        - Build `test-first` (one behavior at a time):
-            - The just-pushed branch and a locally available sibling live head can each satisfy publication.
-            - A stale remote-tracking ref cannot satisfy proof when its head is absent from live membership.
-            - A verified empty publication set succeeds without querying heads, and duplicate heads do not duplicate
-              object checks or traversal roots.
-            - Missing or non-commit tip objects may be bypassed only when another readable live head proves the set;
-              otherwise missing visibility, an empty readable-tip set, malformed output, and Git failures refuse
-              rather than fetch branches or report safe publication.
-            - A shallow clone succeeds when its visible live-head union proves the full set, while an annotated
-              commit beyond the shallow boundary yields unavailable proof rather than unpublished history.
+    - `[x]` **2.2.b Walk the live-tip union once and compare the publication set**
+        - Walks readable live tips through one validated stdin traversal, proves complete coverage immediately, and
+          reports unpublished history only after every live tip is readable in a confirmed non-shallow repository;
+          focused unit failures and real live/stale/shallow repositories cover the refusal boundary.
 
 ## **Phase 3:** Canonical Publication Planner and Transport
 
