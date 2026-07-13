@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "contain-actions-spend",
-  "origin": "inbox",
-  "intent": "Contain runaway GitHub Actions allowance consumption",
-  "branch": "fix/contain-actions-spend",
-  "createdAt": "2026-07-13T04:14:00.674Z",
-  "originEntry": "Contain runaway GitHub Actions allowance consumption"
-}
