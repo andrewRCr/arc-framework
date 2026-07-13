@@ -50,6 +50,7 @@ function makeInFlightExec(options: {
   worktrees?: Array<{ path: string; branch: string }>;
   worktreeError?: boolean;
   metas?: Record<string, string>;
+  fetchFailures?: readonly string[];
 }): GitExec {
   const remoteRefs = options.remoteRefs ?? {};
   const metas = options.metas ?? {};
@@ -85,6 +86,11 @@ function makeInFlightExec(options: {
           .join("\n"),
         stderr: "",
       };
+    }
+    if (args[0] === "fetch") {
+      const branch = args[2] ?? "";
+      if (options.fetchFailures?.includes(branch) === true) throw new Error("fetch failed");
+      return { stdout: "", stderr: "" };
     }
     if (args[0] === "ls-tree" && args.includes("--name-only")) {
       const ref = args[args.indexOf("--name-only") + 1] ?? "";
@@ -186,6 +192,71 @@ describe("resolveComposedLifecycleIndex", () => {
     expect(result.reachable).toBe(true);
     expect(result.liveRefs).toEqual({ [`origin/${branch}`]: sha });
     expect(result.index.get(slug)?.phase).toBe("Active");
+  });
+
+  it("expands a live-only candidate at its membership SHA only when requested", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    const slug = "never-fetched";
+    const branch = `feat/${slug}`;
+    const otherSlug = "also-never-fetched";
+    const otherBranch = `feat/${otherSlug}`;
+    const sha = "b".repeat(40);
+    const otherSha = "e".repeat(40);
+    const exec = makeInFlightExec({
+      liveRefs: { [branch]: sha, [otherBranch]: otherSha },
+      metas: {
+        [`${sha}:.arc/active/meta-${slug}.md`]: oracleMeta(slug, branch),
+        [`${otherSha}:.arc/active/meta-${otherSlug}.md`]: oracleMeta(otherSlug, otherBranch),
+      },
+    });
+
+    const result = await resolveComposedLifecycleIndex({
+      cwd: root,
+      fs,
+      oracle: { exec, localOnly: false, expandLiveOnly: true, baseBranch: "main" },
+    });
+
+    expect(result.index.get(slug)?.phase).toBe("Active");
+    expect(result.index.get(otherSlug)?.phase).toBe("Active");
+    expect(result.qualityFacts.resultMarks).toEqual([]);
+  });
+
+  it("does not expand live-only membership unless the consumer opts in", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    const branch = "feat/query-local-default";
+    const exec = makeInFlightExec({ liveRefs: { [branch]: "c".repeat(40) } });
+
+    await resolveComposedLifecycleIndex({
+      cwd: root,
+      fs,
+      oracle: { exec, localOnly: false, baseBranch: "main" },
+    });
+
+    expect(exec).not.toHaveBeenCalledWith("git", expect.arrayContaining(["fetch"]), expect.anything());
+  });
+
+  it("marks the whole result indeterminate when a live-only expansion fetch fails", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-composed-index-"));
+    const slug = "fetch-failed";
+    const branch = `feat/${slug}`;
+    await writeMeta(
+      join(root, ".arc", "backlog", "planned", `meta-${slug}.md`),
+      meta(slug, "Planning"),
+    );
+    const exec = makeInFlightExec({
+      liveRefs: { [branch]: "d".repeat(40) },
+      fetchFailures: [branch],
+    });
+
+    const result = await resolveComposedLifecycleIndex({
+      cwd: root,
+      fs,
+      oracle: { exec, localOnly: false, expandLiveOnly: true, baseBranch: "main" },
+    });
+
+    expect(result.index.get(slug)?.phase).toBe("Planning");
+    expect(result.qualityFacts.resultMarks).toContain("indeterminate");
+    expect(isComposedLifecycleSlugIndeterminate(result, slug)).toBe(true);
   });
 
   it("degrades an unreachable live oracle to tree truth with an explicit quality fact", async () => {

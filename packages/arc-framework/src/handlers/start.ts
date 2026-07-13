@@ -39,7 +39,10 @@ import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { ensureDir } from "../lib/template/files.js";
 import { renderTrackedProjectReadinessView } from "../lib/status/project-roadmap-render.js";
-import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import {
+  isComposedLifecycleSlugIndeterminate,
+  resolveComposedLifecycleIndex,
+} from "../lib/work-unit/composed-lifecycle-index.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { runResume } from "../lib/work-unit/verbs/park-resume.js";
@@ -105,11 +108,40 @@ export async function handleStart(
     return;
   }
 
-  const index = await buildLifecycleIndex({
+  const { settings } = await readConfigSettings(cwd);
+  const composed = await resolveComposedLifecycleIndex({
     cwd,
     fs: { readdir: (path) => readdir(path, { withFileTypes: true }), readFile: (path) => readFile(path, "utf8") },
+    oracle: {
+      exec: io.exec,
+      baseBranch: settings["branch.base"],
+      localOnly: false,
+      expandLiveOnly: true,
+    },
   });
-  const dispatch = resolveStartDispatch(index, wuName);
+  const dispatch = resolveStartDispatch(composed.index, wuName);
+  let armOptions = opts;
+  const mintsBranch = dispatch.arm === "create-new" || dispatch.arm === "graduate";
+  const explicitHereColdStart = opts.here === true && dispatch.arm === "create-new";
+  if (
+    mintsBranch
+    && !explicitHereColdStart
+    && isComposedLifecycleSlugIndeterminate(composed, wuName)
+  ) {
+    const reason =
+      `Cannot safely start \`${wuName}\`: live lifecycle truth is indeterminate. ` +
+      `Retry with a reachable origin or inspect \`arc status ${wuName} --fetch\` before starting.`;
+    if (skipConfirm(opts)) {
+      p.log.error(reason);
+      process.exitCode = 1;
+      return;
+    }
+    if (!(await confirmStep(`${reason} Proceed with the start anyway?`))) {
+      p.log.info("Start cancelled.");
+      return;
+    }
+    armOptions = { ...opts, yes: true };
+  }
 
   // `--here` is the in-place opt-out, orthogonal to the resolved state: a
   // nonexistent name cold-starts in place (vs. create-new's spawn) and a backlog
@@ -120,14 +152,14 @@ export async function handleStart(
       process.exitCode = 1;
       return;
     case "create-new":
-      if (opts.here) await coldStart(name, opts, { io, cwd, identity });
-      else await createNew(wuName, opts, { io, cwd, identity });
+      if (opts.here) await coldStart(name, armOptions, { io, cwd, identity });
+      else await createNew(wuName, armOptions, { io, cwd, identity });
       return;
     case "graduate":
-      await graduate(wuName, opts, { io, cwd, identity, metaPath: index.get(wuName)?.path });
+      await graduate(wuName, armOptions, { io, cwd, identity, metaPath: composed.index.get(wuName)?.path });
       return;
     case "resume":
-      await resume(wuName, opts, { io, cwd, identity });
+      await resume(wuName, armOptions, { io, cwd, identity });
       return;
     // `cold-start` is reached only via `--here`, handled above.
   }

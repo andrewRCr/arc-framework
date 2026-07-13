@@ -138,6 +138,8 @@ export interface ProjectReadinessOracleOptions {
   exec: GitExec;
   /** `true` skips the network read and renders from last-known local refs. */
   localOnly?: boolean;
+  /** Fetch and classify live membership branches absent from local remote-tracking refs. */
+  expandLiveOnly?: boolean;
   baseBranch?: string;
   errandSlugByBranch?: ReadonlyMap<string, string>;
   parkedSlugs?: ReadonlySet<string>;
@@ -482,6 +484,7 @@ async function resolveOracleCandidates(
   const result = await deriveInFlight({
     exec: options.exec,
     localOnly: options.localOnly ?? false,
+    expandLiveOnly: options.expandLiveOnly ?? false,
     baseBranch: options.baseBranch,
     timeoutMs: options.timeoutMs,
     identity: null,

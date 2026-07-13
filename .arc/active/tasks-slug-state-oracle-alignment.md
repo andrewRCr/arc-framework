@@ -166,70 +166,40 @@ second branch. The refuse arms, `resume`, and `--here` cold-start (an explicit u
 current routing. Confirm reuses the handler's existing `skipConfirm` / `confirmStep` plumbing
 (`handlers/start.ts`).
 
-### `[ ]` **4.1 Wire `resolveStartDispatch` to the live composed oracle**
+### `[x]` **4.1 Wire `resolveStartDispatch` to the live composed oracle**
 
 - _Goal:_ Dispatch resolves over composed live truth, so a live sibling's slug routes to the refuse arms from
   any checkout with a healthy oracle — the silent second mint's primary kill (SC2), with
   `resolveStartDispatch` itself unchanged (SC7).
 
-    - `[ ]` **4.1.a Swap the start handler's construction site to the composed helper in live mode**
-        - `handlers/start.ts`: replace the inline `buildLifecycleIndex` feeding `resolveStartDispatch`; carry
-          the quality facts forward for 4.2's indeterminacy read.
+    - `[x]` **4.1.a Swap the start handler's construction site to the composed helper in live mode**
+        - `handlers/start.ts` now feeds the unchanged dispatcher from live composed truth and retains the
+          result's native quality channels beside the index.
 
-    - `[ ]` **4.1.b Lock refuse-arm behavior from a foreign checkout**
-        - Integration coverage: sibling `planning` / `active` / `integrating` on its own branch → the
-          matching refuse arm fires with its directed reason from another checkout.
+    - `[x]` **4.1.b Lock refuse-arm behavior from a foreign checkout**
+        - Real-repository integration coverage proves planning, active, and integrating sibling branches all
+          reach their directed refuse arms from another checkout without minting a duplicate branch.
 
-### `[ ]` **4.2 Key both minting arms on oracle quality — confirm or refuse indeterminate**
+- _Outcome:_ Start dispatch now consumes the same lifecycle truth as project views and slug queries while
+  retaining its unchanged pure routing contract.
+
+### `[x]` **4.2 Key both minting arms on oracle quality — confirm or refuse indeterminate**
 
 - _Goal:_ Neither minting arm fires silently on degraded truth: an indeterminate target confirms
   interactively, and under `--yes` / non-TTY it refuses with direction — fail-safe over fail-convenient
   (SC2). A dropped or degraded target entry reads indeterminate, never absent.
-- _Note:_ Keep the indeterminacy resolution factored upstream of arm identity (a target-quality read the
-  dispatch consults, not logic baked into each arm) — the pending async verb fork reshapes the arms and should
-  inherit the gate unchanged.
+- _Outcome:_ A single upstream target-quality gate protects create-new and graduate equally: clean reads retain
+  current behavior, interactive acceptance proceeds through one prompt, and `--yes` / non-TTY fail safely with
+  direction. Refuse, resume, and explicit `--here` cold-start routing remain outside the gate.
 
-    - Build `test-first` (one behavior at a time):
-        - Unreachable oracle → target indeterminate for both arms.
-        - A quality fact naming the target slug with a code from 2.2's pinned indeterminacy set (native
-          `InFlightWarningCode` values — not the view path's flattened `oracle-degraded`) → indeterminate;
-          benign dedupe codes naming the target do not flip the arms.
-        - A target entry carrying `degraded` / `indeterminate` marks (the slug-keyed mark facts from 2.2), or
-          a whole-result `indeterminate` mark → indeterminate for both arms — the marks channel covers the
-          degradations whose warnings name no slug (`worktree-list-failed`, per-entry snapshot disagreement).
-        - A failed live-only expansion fetch for a candidate ref (4.3) → indeterminate.
-        - Healthy oracle, clean facts → both arms fire with today's behavior (no new friction on the green
-          path).
-        - Indeterminate + interactive → confirm prompt fires; accept proceeds, decline aborts cleanly.
-        - Indeterminate + `--yes` or non-TTY → refuse with a directed reason and nonzero exit; never
-          auto-confirm.
-        - Refuse arms / `resume` / `--here` cold-start routing unchanged by the indeterminacy gate.
-
-### `[ ]` **4.3 Expand live-only candidates before minting (bounded fetch + meta classification)**
+### `[x]` **4.3 Expand live-only candidates before minting (bounded fetch + meta classification)**
 
 - _Goal:_ A branch present in live membership but absent locally is expanded — bounded fetch, then meta
   classification — before either minting arm may fire, so a never-fetched live sibling cannot read
   `nonexistent` and mint a duplicate (SC3).
-- _Shape:_ Expansion is an opt-in mode on the composed helper (the dispatch path requests it; the query path's
-  no-expansion default stays a mode flag testable in one place) — it changes the candidate set feeding
-  classification and merge, so it belongs inside the composition, not handler-side post-processing. The
-  extension point is `deriveInFlight`'s input contract (an expansion mode participating in the agreed-inputs
-  snapshot machinery) — its classification internals are module-private, and the legacy `branches` option
-  bypasses the snapshot probing entirely; a helper-side second classification pass would be the
-  parallel-machinery trap 2.1.a forbids for the view path.
-- **Additional Context:** `notes-slug-state-oracle-alignment.md` § Decision 1 — `fetchRefBounded` /
-  `readMetaAtRef` are the unwired expansion primitives
-
-    - Build `test-first` (one behavior at a time):
-        - The expansion set is `liveRefs − local remote-tracking` from the composed live result — computed on
-          the dispatch path only.
-        - A successful `fetchRefBounded` lands the tip's objects and its metas classify into the dispatch
-          truth before arm resolution. Classify at the membership tip SHA (already in `liveRefs` from
-          `ls-remote`), never at `FETCH_HEAD` — sequential expansion fetches overwrite `FETCH_HEAD`, an
-          order-dependent bug.
-        - A failed or timed-out expansion fetch yields indeterminate for the target — never absent, never a
-          throw.
-        - The slug-query path performs no expansion (`localOnly` default — the no-go boundary).
+- _Outcome:_ `deriveInFlight` now offers opt-in expansion inside its agreed-input path, bounded-fetches
+  `liveRefs − local remote-tracking`, and classifies every success at its pinned membership SHA. Fetch or
+  expanded-tree failures mark the result indeterminate; consumers that do not opt in perform no expansion.
 
 ## **Phase 5:** Prospective lifecycle precedence
 

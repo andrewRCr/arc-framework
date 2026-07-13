@@ -5,7 +5,7 @@
  * required guard, the `--here` cold-start branch, routing each resolved arm to
  * its core, the directed refusal, confirm gating, and refusal reporting.
  *
- * `@clack/prompts`, the command module, the lifecycle index / executor binder,
+ * `@clack/prompts`, the command module, the composed lifecycle index / executor binder,
  * the resume verb, and the shared helpers are mocked at the module seam.
  */
 
@@ -36,6 +36,7 @@ const mockExec = vi.fn();
 const mockReadFile = vi.fn(async () => "");
 const mockWriteFile = vi.fn();
 const mockMkdir = vi.fn();
+const mockResolveComposedLifecycleIndex = vi.fn();
 
 vi.mock("../../../src/commands/start.js", () => ({
   buildCreateNewCeremonyCommitMessage: (name: string) =>
@@ -54,23 +55,11 @@ vi.mock("../../../src/lib/work-unit/verbs/park-resume.js", () => ({
   runResume: (...args: unknown[]) => mockRunResume(...args),
 }));
 
-vi.mock("../../../src/lib/work-unit/lifecycle-index.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../../src/lib/work-unit/lifecycle-index.js")>();
+vi.mock("../../../src/lib/work-unit/composed-lifecycle-index.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../src/lib/work-unit/composed-lifecycle-index.js")>();
   return {
     ...actual,
-    buildLifecycleIndex: async () => new Map([
-      [
-        "widget",
-        {
-          slug: "widget",
-          phase: "Planning",
-          location: "planned",
-          cohort: null,
-          dependsOn: [],
-          path: ".arc/backlog/planned/widget/meta-widget.md",
-        },
-      ],
-    ]),
+    resolveComposedLifecycleIndex: (...args: unknown[]) => mockResolveComposedLifecycleIndex(...args),
   };
 });
 
@@ -134,6 +123,25 @@ describe("handleStart — dispatch orchestration", () => {
     mockMkdir.mockResolvedValue(undefined);
     mockIsNonInteractive.mockReturnValue(true); // skip confirm by default
     mockIsCancel.mockReturnValue(false);
+    mockResolveComposedLifecycleIndex.mockResolvedValue({
+      index: new Map([
+        [
+          "widget",
+          {
+            slug: "widget",
+            phase: "Planning",
+            location: "planned",
+            cohort: null,
+            dependsOn: [],
+            path: ".arc/backlog/planned/widget/meta-widget.md",
+          },
+        ],
+      ]),
+      qualityFacts: { warnings: [], resultMarks: [], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: true,
+    });
     savedExitCode = process.exitCode;
     process.exitCode = undefined;
   });
@@ -310,6 +318,99 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockRunCreateNew).not.toHaveBeenCalled();
     expect(mockRunGraduate).not.toHaveBeenCalled();
     expect(mockRunResume).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["create-new", "non-interactive", {}, true],
+    ["graduate", "non-interactive", {}, true],
+    ["create-new", "--yes", { yes: true }, false],
+    ["graduate", "--yes", { yes: true }, false],
+  ] as const)("refuses an indeterminate %s minting arm under %s execution", async (
+    arm,
+    _label,
+    opts,
+    nonInteractive,
+  ) => {
+    mockIsNonInteractive.mockReturnValue(nonInteractive);
+    mockResolveStartDispatch.mockReturnValue({ arm });
+    mockResolveComposedLifecycleIndex.mockResolvedValue({
+      index: new Map(),
+      qualityFacts: { warnings: [], resultMarks: ["indeterminate"], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: false,
+    });
+
+    await handleStart("widget", opts);
+
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/cannot safely start.*indeterminate/is));
+    expect(process.exitCode).toBe(1);
+    expect(mockRunCreateNew).not.toHaveBeenCalled();
+    expect(mockRunGraduate).not.toHaveBeenCalled();
+  });
+
+  it("proceeds through an indeterminate minting arm only after interactive confirmation", async () => {
+    mockIsNonInteractive.mockReturnValue(false);
+    mockConfirm.mockResolvedValue(true);
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockResolveComposedLifecycleIndex.mockResolvedValue({
+      index: new Map(),
+      qualityFacts: { warnings: [], resultMarks: ["indeterminate"], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: false,
+    });
+    mockRunCreateNew.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
+    });
+
+    await handleStart("widget", {});
+
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/indeterminate/i) }));
+    expect(mockRunCreateNew).toHaveBeenCalledTimes(1);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("cancels cleanly when interactive indeterminacy confirmation is declined", async () => {
+    mockIsNonInteractive.mockReturnValue(false);
+    mockConfirm.mockResolvedValue(false);
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockResolveComposedLifecycleIndex.mockResolvedValue({
+      index: new Map(),
+      qualityFacts: { warnings: [], resultMarks: ["indeterminate"], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: false,
+    });
+
+    await handleStart("widget", {});
+
+    expect(mockRunGraduate).not.toHaveBeenCalled();
+    expect(mockLog.info).toHaveBeenCalledWith(expect.stringMatching(/cancelled/i));
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("keeps an explicit --here cold-start available when live truth is indeterminate", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockResolveComposedLifecycleIndex.mockResolvedValue({
+      index: new Map(),
+      qualityFacts: { warnings: [], resultMarks: ["indeterminate"], bySlug: new Map() },
+      worktreePathBySlug: new Map(),
+      liveRefs: {},
+      reachable: false,
+    });
+    mockRunColdStart.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repo", branch: "feat/widget", wuName: "widget" },
+    });
+
+    await handleStart("widget", { here: true, yes: true });
+
+    expect(mockRunColdStart).toHaveBeenCalledTimes(1);
+    expect(mockLog.error).not.toHaveBeenCalled();
+    expect(process.exitCode).toBeUndefined();
   });
 
   it("reports an arm refusal — surfaces the reason, sets the exit code, writes no note", async () => {

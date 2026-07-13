@@ -26,6 +26,7 @@ import { META_FIELDS, parseIdentifierList, parseMetaRecord, type MetaRecord } fr
 
 import type { GitExec } from "./exec.js";
 import {
+  fetchRefBounded,
   listMetaPathsAtRef,
   readLocalInFlightRefSnapshot,
   readMetaAtRef,
@@ -196,6 +197,8 @@ export interface DeriveInFlightOptions {
   localOnly?: boolean;
   /** Per-read network timeout in ms; defaults to the branch-set reader's bound. */
   timeoutMs?: number;
+  /** Fetch and classify live membership branches that have no local remote-tracking ref. */
+  expandLiveOnly?: boolean;
   /** Configured base branch; excluded because lifecycle residue there is not an in-flight location. */
   baseBranch?: string;
   /** Owner to filter to; `null` disables filtering. */
@@ -228,10 +231,22 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   const errandSlugByBranch = options.errandSlugByBranch ?? new Map<string, string>();
   const parkedSlugs = options.parkedSlugs ?? new Set<string>();
   const input = branches === undefined
-    ? await resolveAgreedInputs({ exec, localOnly: options.localOnly ?? false, timeoutMs: options.timeoutMs, remote })
+    ? await resolveAgreedInputs({
+        exec,
+        localOnly: options.localOnly ?? false,
+        timeoutMs: options.timeoutMs,
+        remote,
+        expandLiveOnly: options.expandLiveOnly ?? false,
+      })
     : await resolveSuppliedBranchInputs({ exec, branches, reachable: options.reachable ?? true, remote });
   const { worktreeResult, worktreePaths, branchSet } = input;
-  const inputs = buildInputCandidates(branchSet.branches, worktreePaths, remote, branchSet.reachable);
+  const inputs = buildInputCandidates(
+    branchSet.branches,
+    worktreePaths,
+    remote,
+    branchSet.reachable,
+    input.classificationRefs,
+  );
   const markedInputs = inputs.map((candidate) => markInputCandidate(candidate, input.indeterminate));
 
   const classified = await Promise.all(
@@ -239,6 +254,12 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
       classifyInput(exec, candidate, baseBranch, worktreePaths, errandSlugByBranch),
     ),
   );
+  const expandedEnumerationFailed = classified.some((classification) =>
+    input.classificationRefs[`${remote}/${classification.input.branch}`] !== undefined
+    && classification.warnings.some((warning) => warning.code === "meta-enumeration-failed"));
+  const resultMarks = expandedEnumerationFailed
+    ? appendMark(input.resultMarks, "indeterminate")
+    : input.resultMarks;
   // A checked-out branch with no active meta is still authoritative for that
   // branch location; its stale upstream twin must not resurrect old in-flight state.
   const locallyTombstonedBranches = new Set(
@@ -281,7 +302,7 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
   return {
     entries,
     warnings,
-    ...(input.resultMarks.length > 0 ? { marks: input.resultMarks } : {}),
+    ...(resultMarks.length > 0 ? { marks: resultMarks } : {}),
     snapshot: input.snapshot,
     liveRefs: branchSet.liveRefs,
     reachable: branchSet.reachable,
@@ -299,6 +320,7 @@ interface InputResolution {
   };
   resultMarks: InFlightEntryMark[];
   warnings: InFlightWarning[];
+  classificationRefs: RefTipMap;
 }
 
 async function resolveSuppliedBranchInputs(input: {
@@ -323,6 +345,7 @@ async function resolveSuppliedBranchInputs(input: {
     indeterminate: { refs: new Set(), worktrees: new Set() },
     resultMarks: [],
     warnings: [],
+    classificationRefs: {},
   };
 }
 
@@ -331,25 +354,39 @@ async function resolveAgreedInputs(input: {
   localOnly: boolean;
   timeoutMs?: number;
   remote: string;
+  expandLiveOnly: boolean;
 }): Promise<InputResolution> {
   const firstRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const firstWorktree = await resolveWorktreePathsByBranchResult(input.exec);
-  const firstBranchSet = firstRefs.ok ? await resolveInFlightBranchSetFromLocalRefs({
+  const localFirstBranchSet = firstRefs.ok ? await resolveInFlightBranchSetFromLocalRefs({
     exec: input.exec,
     refs: firstRefs.refs,
     remote: input.remote,
     localOnly: input.localOnly,
     timeoutMs: input.timeoutMs,
   }) : emptyInFlightBranchSet();
+  const expansion = await expandLiveOnlyCandidates({
+    exec: input.exec,
+    branchSet: localFirstBranchSet,
+    localRefs: firstRefs.refs,
+    remote: input.remote,
+    timeoutMs: input.timeoutMs,
+    enabled: input.expandLiveOnly,
+  });
+  const firstBranchSet = withExpandedBranches(localFirstBranchSet, expansion.refs, input.remote);
 
   const secondRefs = await readLocalInFlightRefSnapshot(input.exec, input.remote);
   const secondWorktree = await resolveWorktreePathsByBranchResult(input.exec);
-  const secondBranchSet = branchSetFromMembership({
-    refs: secondRefs.refs,
-    firstBranchSet,
-    localOnly: input.localOnly,
-    remote: input.remote,
-  });
+  const secondBranchSet = withExpandedBranches(
+    branchSetFromMembership({
+      refs: secondRefs.refs,
+      firstBranchSet,
+      localOnly: input.localOnly,
+      remote: input.remote,
+    }),
+    expansion.refs,
+    input.remote,
+  );
 
   const firstSnapshot = snapshotFor(firstBranchSet, firstWorktree.paths, firstRefs.refs, input.remote);
   const secondSnapshot = snapshotFor(secondBranchSet, secondWorktree.paths, secondRefs.refs, input.remote);
@@ -368,8 +405,56 @@ async function resolveAgreedInputs(input: {
     indeterminate: comparison.wholeResult
       ? { refs: new Set(), worktrees: new Set() }
       : { refs: comparison.changedRefs, worktrees: comparison.changedWorktrees },
-    resultMarks: comparison.wholeResult ? ["indeterminate"] : [],
+    resultMarks: comparison.wholeResult || expansion.failed ? ["indeterminate"] : [],
     warnings,
+    classificationRefs: expansion.refs,
+  };
+}
+
+interface LiveOnlyExpansionResult {
+  refs: RefTipMap;
+  failed: boolean;
+}
+
+async function expandLiveOnlyCandidates(input: {
+  exec: GitExec;
+  branchSet: InFlightBranchSet;
+  localRefs: LocalInFlightRefSnapshot;
+  remote: string;
+  timeoutMs?: number;
+  enabled: boolean;
+}): Promise<LiveOnlyExpansionResult> {
+  if (!input.enabled || !input.branchSet.reachable) return { refs: {}, failed: false };
+  const localBranches = new Set(Object.keys(input.localRefs.remoteTracking));
+  const refs: RefTipMap = {};
+  let failed = false;
+  for (const [qualifiedRef, sha] of Object.entries(input.branchSet.liveRefs)) {
+    const prefix = `${input.remote}/`;
+    const branch = qualifiedRef.startsWith(prefix) ? qualifiedRef.slice(prefix.length) : qualifiedRef;
+    if (localBranches.has(branch)) continue;
+    const ok = await fetchRefBounded({
+      exec: input.exec,
+      remote: input.remote,
+      branch,
+      ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
+    });
+    if (ok) refs[`${input.remote}/${branch}`] = sha;
+    else failed = true;
+  }
+  return { refs, failed };
+}
+
+function withExpandedBranches(
+  branchSet: InFlightBranchSet,
+  expandedRefs: RefTipMap,
+  remote: string,
+): InFlightBranchSet {
+  const prefix = `${remote}/`;
+  const expandedBranches = Object.keys(expandedRefs).map((ref) => ref.startsWith(prefix) ? ref.slice(prefix.length) : ref);
+  return {
+    ...branchSet,
+    branches: [...new Set([...branchSet.branches, ...expandedBranches])],
+    refs: { ...branchSet.refs, ...expandedRefs },
   };
 }
 
@@ -580,11 +665,18 @@ function buildInputCandidates(
   worktreePaths: ReadonlyMap<string, string>,
   remote: string,
   reachable: boolean,
+  classificationRefs: RefTipMap,
 ): InputCandidate[] {
   const out: InputCandidate[] = [];
   const remoteSource: InFlightCandidateSource = reachable ? "remote-live" : "remote-tracking";
   for (const branch of remoteBranches) {
-    out.push({ index: out.length, branch, ref: `${remote}/${branch}`, source: remoteSource });
+    const qualifiedRef = `${remote}/${branch}`;
+    out.push({
+      index: out.length,
+      branch,
+      ref: classificationRefs[qualifiedRef] ?? qualifiedRef,
+      source: remoteSource,
+    });
   }
   for (const branch of worktreePaths.keys()) {
     out.push({ index: out.length, branch, ref: branch, source: "worktree" });

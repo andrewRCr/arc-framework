@@ -328,7 +328,7 @@ export interface FetchRefBoundedOptions {
  * Bounded-fetch a candidate ref so a never-seen-locally branch's objects become
  * present and readable (the meta of a WU in flight only on another machine).
  * On success the fetched tip is at `FETCH_HEAD`. Degrades to `false` on timeout
- * or unreachable remote — the caller simply skips that live-only candidate.
+ * or unreachable remote; the caller owns the resulting quality posture.
  *
  * @param options - Executor, branch to fetch, and optional timeout.
  * @returns `true` when the fetch succeeded, `false` on timeout/unreachable.
