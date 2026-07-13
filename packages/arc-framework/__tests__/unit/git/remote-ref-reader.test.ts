@@ -407,6 +407,28 @@ describe("resolveInFlightBranchSet", () => {
     });
   });
 
+  it("degrades to local refs when live membership is incomplete", async () => {
+    const exec = execBySubcommand({
+      forEachRef: [
+        "refs/remotes/origin/feat/a\tlocal-a",
+        "refs/remotes/origin/chore/maybe-live\tlocal-maybe",
+      ].join("\n"),
+      lsRemote: [`${oid("a1")}\trefs/heads/feat/a`, "malformed"].join("\n"),
+    });
+
+    const result = await resolveInFlightBranchSet({ exec });
+
+    expect(result).toEqual({
+      branches: ["feat/a", "chore/maybe-live"],
+      refs: {
+        "origin/feat/a": "local-a",
+        "origin/chore/maybe-live": "local-maybe",
+      },
+      liveRefs: {},
+      reachable: false,
+    });
+  });
+
   it("skips the network read entirely in localOnly mode", async () => {
     const exec = execBySubcommand({
       forEachRef: ["origin/feat/a", "origin/feat/b"].join("\n"),

@@ -299,7 +299,9 @@ export async function resolveInFlightBranchSetFromLocalRefs(
     Object.fromEntries(branches.map((branch) => [`${remote}/${branch}`, refs.remoteTracking[branch] ?? ""]));
   if (localOnly) return { branches: local, refs: refTipsFor(local), liveRefs: {}, reachable: false };
   const membership = await readLiveRemoteHeads({ exec, timeoutMs, remote });
-  if (!membership.reachable) return { branches: local, refs: refTipsFor(local), liveRefs: {}, reachable: false };
+  if (!membership.reachable || !membership.complete) {
+    return { branches: local, refs: refTipsFor(local), liveRefs: {}, reachable: false };
+  }
   const live = new Set(Object.keys(membership.tips));
   const branches = local.filter((branch) => live.has(branch));
   return {
