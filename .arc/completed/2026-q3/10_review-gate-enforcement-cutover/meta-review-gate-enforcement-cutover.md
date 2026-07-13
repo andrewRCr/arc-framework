@@ -81,12 +81,13 @@ credential detection, error provenance, workflow authority, receipt congruence, 
 unrelated load-sensitive notes-compaction fixture encountered during integration was stabilized by flattening only
 its synthetic construction history while preserving its 304-entry behavior and assertions. Final integration also
 corrected the head-mutability guard to permit settled head transitions while retaining exact authorization for
-terminal findings.
+terminal findings. The guard's read-only composition now reads an empty ledger without initializing an App anchor,
+preventing developer-authenticated checks from emitting unauthenticated duplicate ledger comments.
 
 Verification passed Markdown, TypeScript, and shell linting; source and test typechecking; build; targeted and full
-integration runs; and the complete 5,118-test suite with one expected skip. The final GitHub Actions run passed CI,
+integration runs; and the complete 5,120-test suite with one expected skip. The final GitHub Actions run passed CI,
 integration/E2E, and portability on Ubuntu, macOS, and Windows. All 18 review threads are resolved, the incremental
-follow-up found no remaining substantive issue, and the final guard correction passed the full local gate without an
-additional provider pass. Alignment checks found no conflict with PROJECT-PRD or TECHNICAL-OVERVIEW: the result
+follow-up found no remaining substantive issue, and the final guard corrections passed the full local gate without
+an additional provider pass. Alignment checks found no conflict with PROJECT-PRD or TECHNICAL-OVERVIEW: the result
 strengthens typed boundaries and preserves judgment-bearing review friction without claiming unproven live
 enforcement or expanding the published CLI surface.
