@@ -24,6 +24,7 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     changeRequestId: "PR_node",
     changeSetId: "a".repeat(64),
     policyVersion: "b".repeat(64),
+    semanticsVersion: "review-gate/v1",
     rubricVersion: "independent-analysis/v1",
     requirementId: "analysis",
     sourceIdentity: "coderabbit",
@@ -32,6 +33,9 @@ function request(overrides: Partial<ReviewRequest> = {}): ReviewRequest {
     coverageThroughSha: "f".repeat(40),
     generation: 0,
     actorIdentity: "7",
+    requestMechanism: "automatic",
+    requiredActorIdentity: "7",
+    requestCommand: null,
     ...overrides,
   };
 }
@@ -46,6 +50,7 @@ function receipt(previousLedgerVersion = 0, overrides: Partial<ReviewReceipt> = 
       result: null,
       evidenceUrlOrId: null,
       findingIds: [],
+      payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
     }),
     ...overrides,
   };
@@ -113,7 +118,12 @@ function writeState(overrides: Partial<ReceiptWriteState> = {}): ReceiptWriteSta
   };
 }
 
-function store(api: MemoryComments, revalidate = async () => writeState(), stateExpected = async () => false) {
+function store(
+  api: MemoryComments,
+  revalidate = async () => writeState(),
+  stateExpected = async () => false,
+  initializeAnchor = true,
+) {
   return new GitHubCommentReceiptStore({
     api,
     authority: AUTHORITY,
@@ -121,10 +131,19 @@ function store(api: MemoryComments, revalidate = async () => writeState(), state
     changeRequestId: "PR_node",
     revalidate,
     stateExpected,
+    initializeAnchor,
   });
 }
 
 describe("GitHub comment receipt append", () => {
+  it("rejects a malformed or identity-incongruent receipt before writing", async () => {
+    const api = new MemoryComments([appComment(1, serializeLedgerAnchor(anchor(0)))]);
+    const malformed = { ...receipt(), receiptHash: "f".repeat(64) };
+
+    await expect(store(api).appendReceipt(malformed, 0)).rejects.toMatchObject({ code: "invalid-receipt" });
+    expect(api.comments).toHaveLength(1);
+  });
+
   it("revalidates current actor and change-set state immediately before appending", async () => {
     const api = new MemoryComments([appComment(1, serializeLedgerAnchor(anchor(0)))]);
     let current = writeState({ changeSetId: "c".repeat(64) });
@@ -198,12 +217,16 @@ describe("GitHub comment receipt reconstruction", () => {
       reason: "accepted risk",
       evidenceUrlOrId: "https://github.test/pull/7#issuecomment-9",
       findingIds: [],
+      payload: { kind: "decision", decidedAt: null },
     });
+    const obsolete = serializeReceiptComment({ ledgerVersion: 1, receipt: first })
+      .replace('"semanticsVersion":"review-gate/v1",', "");
     const cases: Array<[string, GitHubIssueComment[]]> = [
       ["ledger-fork", [appComment(1, serializeLedgerAnchor(anchor(1))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })), appComment(3, serializeReceiptComment({ ledgerVersion: 1, receipt: divergent }))]],
       ["malformed-receipt", [appComment(1, serializeLedgerAnchor(anchor(1))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }), { updated_at: "2026-07-11T11:00:00Z" })]],
       ["ledger-fork", [appComment(1, serializeLedgerAnchor(anchor(2))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first })), appComment(3, serializeReceiptComment({ ledgerVersion: 2, receipt: receipt(0) }))]],
       ["ledger-regression", [appComment(1, serializeLedgerAnchor(anchor(2))), appComment(3, serializeReceiptComment({ ledgerVersion: 2, receipt: receipt(1) }))]],
+      ["malformed-receipt", [appComment(1, serializeLedgerAnchor(anchor(1))), appComment(2, obsolete)]],
     ];
     for (const [diagnostic, comments] of cases) {
       await expect(store(new MemoryComments(comments)).readLedger("PR_node")).resolves.toMatchObject({
@@ -250,6 +273,19 @@ describe("GitHub comment receipt reconstruction", () => {
 });
 
 describe("stable ledger anchor recovery", () => {
+  it("keeps repeated non-initializing reads free of writes", async () => {
+    const api = new MemoryComments();
+    const target = store(api, async () => writeState(), async () => false, false);
+
+    await expect(target.readLedger("PR_node")).resolves.toEqual({
+      kind: "valid", ledgerVersion: 0, receipts: [],
+    });
+    await expect(target.readLedger("PR_node")).resolves.toEqual({
+      kind: "valid", ledgerVersion: 0, receipts: [],
+    });
+    expect(api.comments).toEqual([]);
+  });
+
   it("bootstraps one anchor and repairs only a unique canonical receipt extension", async () => {
     const fresh = new MemoryComments();
     await expect(store(fresh).readLedger("PR_node")).resolves.toMatchObject({
@@ -269,11 +305,14 @@ describe("stable ledger anchor recovery", () => {
 
   it("fails closed for missing, regressed, duplicate, or receipt-mismatched anchors", async () => {
     const first = receipt();
+    const extendedAnchor = serializeLedgerAnchor(anchor(1))
+      .replace('"ledgerVersion":1', '"legacyVersion":1,"ledgerVersion":1');
     const cases = [
       [appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }))],
       [appComment(1, serializeLedgerAnchor(anchor(2))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }))],
       [appComment(1, serializeLedgerAnchor(anchor(1))), appComment(2, serializeLedgerAnchor(anchor(1))), appComment(3, serializeReceiptComment({ ledgerVersion: 1, receipt: first }))],
       [appComment(1, serializeLedgerAnchor(anchor(1, 2))), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }))],
+      [appComment(1, extendedAnchor), appComment(2, serializeReceiptComment({ ledgerVersion: 1, receipt: first }))],
     ];
     for (const comments of cases) {
       await expect(store(new MemoryComments(comments)).readLedger("PR_node")).resolves.toMatchObject({

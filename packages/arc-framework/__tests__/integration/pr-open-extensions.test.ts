@@ -99,10 +99,16 @@ describe("PR-open lifecycle extensions", () => {
       "system/workflows/arc/supplemental/run-errand.md",
     ].map((path) => readFile(resolve(packageArc, path), "utf8")));
     for (const workflow of workflows) {
-      expect(workflow.indexOf("proposedChangeRequest")).toBeLessThan(workflow.indexOf("gh pr create"));
-      expect(workflow.indexOf("openedChangeRequest")).toBeGreaterThan(workflow.indexOf("gh pr create"));
-      expect(workflow.indexOf("pre-merge", workflow.indexOf("openedChangeRequest")))
-        .toBeLessThan(workflow.indexOf("`integration-interlock`", workflow.indexOf("openedChangeRequest")));
+      const proposedChangeRequest = workflow.indexOf("proposedChangeRequest");
+      const prCreate = workflow.indexOf("gh pr create");
+      const openedChangeRequest = workflow.indexOf("openedChangeRequest =", prCreate);
+      const preMerge = workflow.indexOf("pre-merge", openedChangeRequest);
+      const integrationInterlock = workflow.indexOf("`integration-interlock`", openedChangeRequest);
+      expect([proposedChangeRequest, prCreate, openedChangeRequest, preMerge, integrationInterlock]
+        .every((index) => index >= 0)).toBe(true);
+      expect(proposedChangeRequest).toBeLessThan(prCreate);
+      expect(openedChangeRequest).toBeGreaterThan(prCreate);
+      expect(preMerge).toBeLessThan(integrationInterlock);
       expect(workflow.toLowerCase()).toContain("halt before later actions");
     }
   });
@@ -135,12 +141,13 @@ describe("PR-open lifecycle extensions", () => {
   it("routes self-hosting actions through one controller workflow", async () => {
     const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
     expect(workflow).toContain("one caller-supplied `openedChangeRequest");
-    expect(workflow).toContain("**Required:**");
-    expect(workflow).toContain("**Recommended:**");
-    expect(workflow).toContain("**Exempt:**");
-    expect(workflow).toContain("/review-gate refresh");
-    expect(workflow).toContain("/review-gate dismiss");
-    expect(workflow).toContain("Wait for the external review completion signal without polling");
+    expect(workflow).toContain("review-gate:next-action");
+    expect(workflow).toContain("review-gate:perform-action");
+    expect(workflow).toContain("review-gate:await");
+    expect(workflow).toContain("**FIX:**");
+    expect(workflow).toContain("**DEFER or REJECT:**");
+    expect(workflow).toContain("**Provider-owned closure:**");
+    expect(workflow).not.toContain("/review-gate dismiss");
     expect(workflow).not.toMatch(/@coderabbit|resolveReviewThread/iu);
   });
 
@@ -149,7 +156,9 @@ describe("PR-open lifecycle extensions", () => {
 
     expect(workflow).toContain("controller-normalized findings");
     expect(workflow).toContain("provider-native conversations");
-    expect(workflow).toContain("Only controller-normalized findings may use `/review-gate dismiss`");
+    expect(workflow).toContain("explicit FIX, DEFER, or REJECT disposition");
+    expect(workflow).toContain("same qualified source that issued the");
+    expect(workflow).toContain("Thread resolution is a separate observation");
     expect(workflow).toContain("`CHANGES_REQUESTED` remains blocking");
     expect(workflow).toContain("Completion-check success only wakes a canonical re-read");
     expect(workflow).toContain("valid lifecycle-tail projection");

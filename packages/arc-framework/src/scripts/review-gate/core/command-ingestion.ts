@@ -55,7 +55,7 @@ export interface ReviewCommandIngestionInput {
   resolveCapabilities: (actor: ActorAddress) => Promise<CapabilitySet>;
 }
 
-/** Authorized events, exact replays, and rejected command versions. */
+/** Authorized current events, exact replay identities, and rejected command versions. */
 export interface ReviewCommandIngestionResult {
   accepted: AuthorizedReviewCommandEvent[];
   replayedEventIds: string[];
@@ -78,7 +78,7 @@ function orderedComments(comments: ReviewCommandComment[]): ReviewCommandComment
   });
 }
 
-/** Resolve, parse, and authorize only exact, unreceipted command comment versions. */
+/** Resolve, parse, and authorize current command versions, retaining exact replay identity. */
 export async function ingestReviewCommands(input: ReviewCommandIngestionInput): Promise<ReviewCommandIngestionResult> {
   const accepted: AuthorizedReviewCommandEvent[] = [];
   const replayedEventIds: string[] = [];
@@ -90,7 +90,6 @@ export async function ingestReviewCommands(input: ReviewCommandIngestionInput): 
     const eventId = commandEventId(comment);
     if (receipted.has(eventId)) {
       replayedEventIds.push(eventId);
-      continue;
     }
     const parsed = parseReviewCommand(comment.body, input.commandContext);
     if (!parsed.ok) {

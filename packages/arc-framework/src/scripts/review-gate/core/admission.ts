@@ -67,10 +67,12 @@ export function admitAlternate(input: {
   qualified: boolean;
   coverage: CoverageKind;
   sourceChanged: boolean;
+  durableSupersession: boolean;
 }): AdmissionDecision {
   if (!input.qualified) return { admit: false, generation: null, reason: "unqualified-source" };
   if (!input.sourceChanged) return { admit: false, generation: null, reason: "same-source" };
   if (input.coverage !== "full") return { admit: false, generation: null, reason: "alternate-requires-full" };
+  if (!input.durableSupersession) return { admit: false, generation: null, reason: "supersession-not-durable" };
   return { admit: true, generation: 0, reason: "qualified-alternate" };
 }
 

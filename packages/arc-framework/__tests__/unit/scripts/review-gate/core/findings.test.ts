@@ -34,10 +34,8 @@ describe("finding history and closure", () => {
     const result = reduceFindings({
       evidence: [evidence(), evidence({ result: "clean", findings: [], evidenceUrlOrId: "evidence:2" })],
       currentChangeSetId: CHANGE,
-      authorizedDismissers: [],
-      knownHostActors: [],
     });
-    expect(result.openFindings).toHaveLength(1);
+    expect(result.findings).toHaveLength(1);
     expect(result.consistent).toBe(true);
   });
 
@@ -50,13 +48,11 @@ describe("finding history and closure", () => {
         evidenceUrlOrId: "finding:2",
       }] })],
       currentChangeSetId: CHANGE,
-      authorizedDismissers: [],
-      knownHostActors: [],
     });
     expect(result.consistent).toBe(false);
   });
 
-  it("accepts same-source confirmation and authenticated dismissal for named findings only", () => {
+  it("validates same-source confirmation but leaves closure to receipt-backed settlement", () => {
     const sourceClosed = evidence({
       result: "clean",
       findings: [],
@@ -70,34 +66,12 @@ describe("finding history and closure", () => {
     expect(reduceFindings({
       evidence: [evidence(), sourceClosed],
       currentChangeSetId: CHANGE,
-      authorizedDismissers: [],
-      knownHostActors: [],
-    }).openFindings).toEqual([]);
-
-    const dismissed = evidence({
-      result: "clean",
-      findings: [],
-      closures: [{
-        findingId: "f-1",
-        authorityKind: "authorized-dismissal",
-        authorityIdentity: "maintainer-1",
-        evidenceUrlOrId: "receipt:dismiss-1",
-      }],
-    });
-    expect(reduceFindings({
-      evidence: [evidence(), dismissed],
-      currentChangeSetId: CHANGE,
-      authorizedDismissers: ["maintainer-1"],
-      knownHostActors: [],
-    }).openFindings).toEqual([]);
+    }).findings).toHaveLength(1);
   });
 
   const invalidClosures: Array<[string, FindingClosure]> = [
     ["wrong source", {
       findingId: "f-1", authorityKind: "source-confirmed", authorityIdentity: "agent-2", evidenceUrlOrId: "closure:1",
-    }],
-    ["wrong actor", {
-      findingId: "f-1", authorityKind: "authorized-dismissal", authorityIdentity: "reader-1", evidenceUrlOrId: "closure:1",
     }],
     ["unknown finding", {
       findingId: "missing", authorityKind: "source-confirmed", authorityIdentity: "agent-1", evidenceUrlOrId: "closure:1",
@@ -108,8 +82,6 @@ describe("finding history and closure", () => {
     const result = reduceFindings({
       evidence: [evidence(), evidence({ result: "clean", findings: [], closures: [closure] })],
       currentChangeSetId: CHANGE,
-      authorizedDismissers: [],
-      knownHostActors: [],
     });
     expect(result.consistent).toBe(false);
   });
@@ -118,9 +90,7 @@ describe("finding history and closure", () => {
     const result = reduceFindings({
       evidence: [evidence(), evidence({ result: "clean", findings: [], sourceIdentity: "agent-2" })],
       currentChangeSetId: CHANGE,
-      authorizedDismissers: [],
-      knownHostActors: [],
     });
-    expect(result.openFindings.map((finding) => finding.sourceIdentity)).toEqual(["agent-1"]);
+    expect(result.findings.map((finding) => finding.sourceIdentity)).toEqual(["agent-1"]);
   });
 });

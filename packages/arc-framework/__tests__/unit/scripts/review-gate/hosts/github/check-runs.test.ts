@@ -5,8 +5,10 @@ import { GitHubRestClient } from "../../../../../../src/scripts/review-gate/host
 import {
   CheckRunPublishError,
   buildCheckExternalId,
+  confirmPendingGateCheck,
   findAuthoritativeCheckRuns,
   publishGateCheck,
+  parseGateStateMarker,
   reviewGateConcurrency,
   type CheckRunMutation,
   type CheckWriteState,
@@ -148,9 +150,60 @@ describe("authoritative check lookup", () => {
     expect(api.mutations).toHaveLength(1);
     expect(api.mutations[0]?.id).toBe(1);
   });
+
+  it("confirms only an exact pinned-App pending aggregate check", async () => {
+    await expect(confirmPendingGateCheck(
+      new MemoryChecks([run({ status: "in_progress", conclusion: null })]),
+      scope,
+    )).resolves.toBe(true);
+    await expect(confirmPendingGateCheck(
+      new MemoryChecks([run({ status: "completed", conclusion: "failure" })]),
+      scope,
+    )).resolves.toBe(false);
+    await expect(confirmPendingGateCheck(
+      new MemoryChecks([run({ status: "in_progress", conclusion: null, appId: "15368" })]),
+      scope,
+    )).resolves.toBe(false);
+  });
 });
 
 describe("neutral projection publishing", () => {
+  it("publishes and parses a bounded versioned aggregate machine marker", async () => {
+    const api = new MemoryChecks();
+    await publishGateCheck({ api, scope, projection: projection("failure"), anchorReceiptCount: 4, readCurrentState: async () => state() });
+    const summary = api.mutations[0]?.value.output.summary ?? "";
+    expect(parseGateStateMarker(summary)).toEqual({
+      schemaVersion: 1,
+      conclusion: "failure",
+      blockerCodes: ["review-failed"],
+      ledgerVersion: 4,
+      receiptRefs: ["https://github.com/acme/repo/pull/7#issuecomment-1"],
+    });
+    expect(summary.length).toBeLessThanOrEqual(65_535);
+    expect(() => parseGateStateMarker("<!-- arc-review-gate-state:v1:not-json -->")).toThrow("malformed-gate-state-marker");
+  });
+
+  it("retains a parseable marker when every bounded field is oversized", async () => {
+    const oversized = {
+      ...projection("failure"),
+      blockers: Array.from({ length: 40 }, (_, index) => ({
+        code: `${index}-${"b".repeat(1_000)}`,
+        detail: "blocked",
+      })),
+      receiptRefs: Array.from({ length: 40 }, (_, index) => `${index}-${"r".repeat(1_000)}`),
+    };
+    const api = new MemoryChecks();
+    await publishGateCheck({ api, scope, projection: oversized, anchorReceiptCount: 40, readCurrentState: async () => state() });
+
+    const summary = api.mutations[0]?.value.output.summary ?? "";
+    const parsed = parseGateStateMarker(summary);
+    expect(summary.length).toBeLessThanOrEqual(65_535);
+    expect(parsed.blockerCodes).toHaveLength(32);
+    expect(parsed.receiptRefs).toHaveLength(32);
+    expect(parsed.blockerCodes.every((value) => value.length <= 256)).toBe(true);
+    expect(parsed.receiptRefs.every((value) => value.length <= 256)).toBe(true);
+  });
+
   it.each([
     ["pending", "in_progress", null],
     ["failure", "completed", "failure"],

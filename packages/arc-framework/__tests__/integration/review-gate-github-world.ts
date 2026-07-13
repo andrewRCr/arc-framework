@@ -1,6 +1,6 @@
 /**
  * Stateful in-memory GitHub "world" plus order-tolerant routing fakes for the
- * review-gate reconcile composition e2e. The composed `createReconcileRuntime`
+ * review-gate runtime composition integration. The composed `createReconcileRuntime`
  * factory fans its reads out through `Promise.all`, so the transport fake routes
  * by method + URL (never call index) and the git-exec fake routes by subcommand;
  * both mutate the shared world so re-reads, receipt appends, and check
@@ -27,6 +27,16 @@ const APP_ID = 4268856;
 const APP_BOT_USER_ID = 302312524;
 const CODERABBIT_BOT_USER_ID = 136622811;
 const CI_APP_ID = 15368;
+const CODEX_APP_ID = 1144995;
+const CODEX_BOT_USER_ID = 199175422;
+
+export const CODEX_GUIDANCE = `# Agent Bootstrap
+
+## Review guidelines
+
+Apply rubric \`independent-analysis/v1\` across intent and scope; correctness and failure behavior; trust and
+compatibility; verification; coherence and maintainability.
+`;
 
 /** One GitHub issue comment (ledger anchor, receipt, or human command). */
 export interface CommentWire {
@@ -40,7 +50,7 @@ export interface CommentWire {
   performed_via_github_app: { id: number; slug: string } | null;
 }
 
-function commentUrl(world: E2EWorld, id: number): string {
+function commentUrl(world: ReviewGateWorld, id: number): string {
   return `https://github.com/${world.owner}/${world.repo}/pull/${world.pull}#issuecomment-${id}`;
 }
 
@@ -65,6 +75,15 @@ export interface ReviewWire {
   state: string;
   commit_id: string;
   submitted_at: string | null;
+  body: string;
+}
+
+interface TimelineWire {
+  event: "labeled" | "unlabeled";
+  node_id: string;
+  actor: { id: number };
+  label: { name: string };
+  created_at: string;
 }
 
 /** A collaborator's numeric id and role, keyed by login for permission reads. */
@@ -74,7 +93,7 @@ export interface Collaborator {
 }
 
 /** Mutable state the routing fakes read and write for one pull request. */
-export interface E2EWorld {
+export interface ReviewGateWorld {
   owner: string;
   repo: string;
   pull: number;
@@ -99,14 +118,15 @@ export interface E2EWorld {
   commentsUnavailable: boolean;
   comments: CommentWire[];
   labels: string[];
+  timeline: TimelineWire[];
   checks: CheckWire[];
-  counters: { commentCreate: number; commentPatch: number; checkCreate: number; checkPatch: number };
   nextCommentId: number;
   nextCheckId: number;
+  guidanceContent: string;
 }
 
 /** Build a healthy default world; overrides tune per-scenario topology. */
-export function createWorld(overrides: Partial<E2EWorld> = {}): E2EWorld {
+export function createReviewGateWorld(overrides: Partial<ReviewGateWorld> = {}): ReviewGateWorld {
   const author = overrides.author ?? { id: 7, login: "andrewRCr" };
   return {
     owner: "andrewRCr",
@@ -133,17 +153,18 @@ export function createWorld(overrides: Partial<E2EWorld> = {}): E2EWorld {
     commentsUnavailable: false,
     comments: [],
     labels: [],
+    timeline: [],
     checks: [],
-    counters: { commentCreate: 0, commentPatch: 0, checkCreate: 0, checkPatch: 0 },
     nextCommentId: 1000,
     nextCheckId: 2000,
+    guidanceContent: CODEX_GUIDANCE,
     ...overrides,
   };
 }
 
 /** A CodeRabbit review in REST shape, at a given head and disposition. */
 export function coderabbitReview(
-  world: E2EWorld,
+  world: ReviewGateWorld,
   state: "APPROVED" | "CHANGES_REQUESTED",
   commitId: string = world.headSha,
   submittedAt: string = NOW.toISOString(),
@@ -155,11 +176,12 @@ export function coderabbitReview(
     state,
     commit_id: commitId,
     submitted_at: submittedAt,
+    body: "",
   };
 }
 
 /** A human `/review-gate` command comment authored by a named collaborator. */
-export function commandComment(world: E2EWorld, login: string, body: string, id = world.nextCommentId++): CommentWire {
+export function commandComment(world: ReviewGateWorld, login: string, body: string, id = world.nextCommentId++): CommentWire {
   const collaborator = world.collaborators.get(login);
   const comment: CommentWire = {
     id,
@@ -175,11 +197,27 @@ export function commandComment(world: E2EWorld, login: string, body: string, id 
   return comment;
 }
 
+/** A pinned hosted-Codex App comment in GitHub issue-comment shape. */
+export function codexComment(world: ReviewGateWorld, body: string, id = world.nextCommentId++): CommentWire {
+  const comment: CommentWire = {
+    id,
+    node_id: `IC_codex_${id}`,
+    body,
+    created_at: NOW.toISOString(),
+    updated_at: NOW.toISOString(),
+    html_url: commentUrl(world, id),
+    user: { id: CODEX_BOT_USER_ID, node_id: "U_codex", login: "chatgpt-codex-connector[bot]", type: "Bot" },
+    performed_via_github_app: { id: CODEX_APP_ID, slug: "chatgpt-codex-connector" },
+  };
+  world.comments.push(comment);
+  return comment;
+}
+
 /**
  * An App-authored receipt comment that has been edited (created ≠ updated), which
  * the store treats as tampering — corrupting the ledger into a degraded state.
  */
-export function corruptReceiptComment(world: E2EWorld, id = 5000): CommentWire {
+export function corruptReceiptComment(world: ReviewGateWorld, id = 5000): CommentWire {
   const comment: CommentWire = {
     id,
     node_id: `IC_corrupt_${id}`,
@@ -195,17 +233,17 @@ export function corruptReceiptComment(world: E2EWorld, id = 5000): CommentWire {
 }
 
 /** The published `review-gate-shadow` checks currently in the world. */
-export function shadowChecks(world: E2EWorld): CheckWire[] {
+export function shadowChecks(world: ReviewGateWorld): CheckWire[] {
   return world.checks.filter((check) => check.name === "review-gate-shadow");
 }
 
 /** Whether any authenticated receipt comment (non-anchor) has been appended. */
-export function receiptComments(world: E2EWorld): CommentWire[] {
+export function receiptComments(world: ReviewGateWorld): CommentWire[] {
   return world.comments.filter((comment) => comment.body.includes("<!-- arc-review-gate:receipt"));
 }
 
 /** Advance from a reviewed head through a valid bookkeeping tail or a substantive change. */
-export function advanceLifecycleTail(world: E2EWorld, substantive = false): void {
+export function advanceLifecycleTail(world: ReviewGateWorld, substantive = false): void {
   world.lifecycleTailReviewedHead = world.headSha;
   world.headSha = "e".repeat(40);
   world.lifecycleTailChanges = substantive
@@ -224,7 +262,7 @@ function jsonResponse(status: number, body: unknown): HttpResponse {
   return { status, headers: { get: () => null }, text: () => Promise.resolve(text) };
 }
 
-function prFactsBody(world: E2EWorld): unknown {
+function prFactsBody(world: ReviewGateWorld): unknown {
   return {
     node_id: "PR_node",
     number: world.pull,
@@ -245,7 +283,7 @@ function permissionBody(login: string, collaborator: Collaborator): unknown {
   };
 }
 
-function ciCheckRunsBody(world: E2EWorld): unknown {
+function ciCheckRunsBody(world: ReviewGateWorld): unknown {
   if (world.ci === null) return { total_count: 0, check_runs: [] };
   return {
     total_count: 1,
@@ -263,16 +301,16 @@ function ciCheckRunsBody(world: E2EWorld): unknown {
   };
 }
 
-function appCheckRunsBody(world: E2EWorld, checkName: string): unknown {
+function appCheckRunsBody(world: ReviewGateWorld, checkName: string): unknown {
   const runs = world.checks.filter((check) => check.name === checkName);
   return { total_count: runs.length, check_runs: runs };
 }
 
-function reviewsBody(world: E2EWorld): unknown {
+function reviewsBody(world: ReviewGateWorld): unknown {
   return world.reviews;
 }
 
-function graphqlBody(world: E2EWorld, query: string): unknown {
+function graphqlBody(world: ReviewGateWorld, query: string): unknown {
   if (query.includes("ReviewDecision")) {
     return { data: { repository: { pullRequest: { reviewDecision: world.reviewDecision } } } };
   }
@@ -287,8 +325,7 @@ function graphqlBody(world: E2EWorld, query: string): unknown {
   };
 }
 
-function createComment(world: E2EWorld, body: string): CommentWire {
-  world.counters.commentCreate += 1;
+function createComment(world: ReviewGateWorld, body: string): CommentWire {
   const id = world.nextCommentId++;
   const comment: CommentWire = {
     id,
@@ -304,17 +341,15 @@ function createComment(world: E2EWorld, body: string): CommentWire {
   return comment;
 }
 
-function patchComment(world: E2EWorld, id: number, body: string): CommentWire | null {
+function patchComment(world: ReviewGateWorld, id: number, body: string): CommentWire | null {
   const comment = world.comments.find((entry) => entry.id === id);
   if (comment === undefined) return null;
-  world.counters.commentPatch += 1;
   comment.body = body;
   comment.updated_at = NOW.toISOString();
   return comment;
 }
 
-function createCheck(world: E2EWorld, body: Record<string, unknown>): CheckWire {
-  world.counters.checkCreate += 1;
+function createCheck(world: ReviewGateWorld, body: Record<string, unknown>): CheckWire {
   const id = world.nextCheckId++;
   const check: CheckWire = {
     id,
@@ -331,17 +366,16 @@ function createCheck(world: E2EWorld, body: Record<string, unknown>): CheckWire 
   return check;
 }
 
-function patchCheck(world: E2EWorld, id: number, body: Record<string, unknown>): CheckWire | null {
+function patchCheck(world: ReviewGateWorld, id: number, body: Record<string, unknown>): CheckWire | null {
   const check = world.checks.find((entry) => entry.id === id);
   if (check === undefined) return null;
-  world.counters.checkPatch += 1;
   check.status = String(body.status);
   check.conclusion = body.conclusion === undefined ? null : String(body.conclusion);
   return check;
 }
 
 /** Build a method + URL-routing fetch fake over the mutable world. */
-export function routingFetch(world: E2EWorld): HttpFetch {
+export function routingFetch(world: ReviewGateWorld): HttpFetch {
   return (rawUrl: string, init: HttpRequestInit): Promise<HttpResponse> => {
     const url = new URL(rawUrl);
     const path = decodeURIComponent(url.pathname);
@@ -394,15 +428,34 @@ export function routingFetch(world: E2EWorld): HttpFetch {
       }
       if (method === "POST") return Promise.resolve(jsonResponse(201, createComment(world, commentBody(init))));
     }
+    if (/\/issues\/\d+\/timeline$/u.test(path) && method === "GET") {
+      return Promise.resolve(jsonResponse(200, world.timeline));
+    }
 
     if (/\/issues\/\d+\/labels$/u.test(path) && method === "POST") {
       const labels = (JSON.parse(init.body ?? "{}") as { labels?: string[] }).labels ?? [];
       world.labels = [...new Set([...world.labels, ...labels])];
+      for (const label of labels) {
+        world.timeline.push({
+          event: "labeled",
+          node_id: `LE_${world.timeline.length + 1}`,
+          actor: { id: APP_BOT_USER_ID },
+          label: { name: label },
+          created_at: NOW.toISOString(),
+        });
+      }
       return Promise.resolve(jsonResponse(200, world.labels.map((name) => ({ name }))));
     }
     const labelDelete = /\/issues\/\d+\/labels\/([^/]+)$/u.exec(path);
     if (labelDelete?.[1] !== undefined && method === "DELETE") {
       world.labels = world.labels.filter((name) => name !== labelDelete[1]);
+      world.timeline.push({
+        event: "unlabeled",
+        node_id: `LE_${world.timeline.length + 1}`,
+        actor: { id: APP_BOT_USER_ID },
+        label: { name: labelDelete[1] },
+        created_at: NOW.toISOString(),
+      });
       return Promise.resolve(jsonResponse(200, world.labels.map((name) => ({ name }))));
     }
 
@@ -452,7 +505,7 @@ function nameStatusZ(changes: ChangedPath[]): string {
 }
 
 /** Build a git-subcommand-routing exec fake over the mutable world. */
-export function routingExec(world: E2EWorld): GitExec {
+export function routingExec(world: ReviewGateWorld): GitExec {
   return (cmd: string, args: string[]): Promise<{ stdout: string }> => {
     void cmd;
     const [subcommand, ...rest] = args;
@@ -464,6 +517,10 @@ export function routingExec(world: E2EWorld): GitExec {
         const ref = rest.find((arg) => arg.includes("^{commit}")) ?? "";
         if (ref.includes("/head^")) return Promise.resolve({ stdout: `${world.headSha}\n` });
         if (ref.includes("/base^")) return Promise.resolve({ stdout: `${world.baseSha}\n` });
+        if (ref === `${world.headSha}^{commit}`
+          || (ref.length > 0 && world.headSha.startsWith(ref.replace(/\^\{commit\}$/u, "")))) {
+          return Promise.resolve({ stdout: `${world.headSha}\n` });
+        }
         const object = rest.at(-1) ?? "";
         if (object.includes("tasks-review-gate.md")) return Promise.resolve({ stdout: `${"1".repeat(40)}\n` });
         return Promise.reject(new Error(`unexpected rev-parse: ${rest.join(" ")}`));
@@ -476,8 +533,14 @@ export function routingExec(world: E2EWorld): GitExec {
             ? world.lifecycleTailChanges
             : world.changedPaths),
         });
+      case "cat-file": {
+        const object = rest.at(-1) ?? "";
+        if (object === `${world.headSha}:AGENTS.md`) return Promise.resolve({ stdout: "" });
+        return Promise.reject(new Error(`missing object: ${object}`));
+      }
       case "show": {
         const object = rest[0] ?? "";
+        if (object === `${world.headSha}:AGENTS.md`) return Promise.resolve({ stdout: world.guidanceContent });
         if (
           world.lifecycleTailReviewedHead !== null
           && object === `${world.lifecycleTailReviewedHead}:.arc/active/meta-review-gate.md`

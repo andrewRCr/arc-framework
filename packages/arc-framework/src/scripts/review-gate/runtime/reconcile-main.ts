@@ -11,6 +11,12 @@
 import type { GitExec } from "../../../lib/git/exec.js";
 import type { HttpFetch } from "../hosts/github/api/http.js";
 import type { SelfHostingPolicy } from "../policy/self-hosting/schema.js";
+import {
+  appendTriggerDeletionTombstone,
+  parseTriggerDeletionEvent,
+  type TriggerDeletionAppendResult,
+  type TriggerDeletionEvent,
+} from "../core/trigger-tombstone.js";
 import type {
   CompositionIo,
   CompositionSeams,
@@ -30,6 +36,7 @@ export interface ReconcileMainEnv {
   ARC_APP_SLUG?: string;
   GITHUB_TOKEN?: string;
   GITHUB_REPOSITORY?: string;
+  ARC_TRIGGER_DELETION?: string;
 }
 
 /** Injected factory, transport, git-exec builder, policy, and clock. */
@@ -43,6 +50,11 @@ export interface ReconcileMainDependencies {
   createGitExec: (gitToken: string) => GitExec;
   policy: SelfHostingPolicy;
   now: Date;
+  appendTriggerDeletion?: (input: {
+    store: ReconcileComposition["store"];
+    changeRequestId: string;
+    deletion: TriggerDeletionEvent;
+  }) => Promise<TriggerDeletionAppendResult>;
 }
 
 /** Reported reconcile outcome for the workflow log. */
@@ -90,6 +102,20 @@ export async function runReconcileMain(
   };
   const io: CompositionIo = { fetch: deps.fetch, exec: deps.createGitExec(requireEnv(env, "GITHUB_TOKEN")) };
   const composition = await deps.createRuntime(config, io);
+  if (env.ARC_TRIGGER_DELETION !== undefined && env.ARC_TRIGGER_DELETION !== "" && env.ARC_TRIGGER_DELETION !== "null") {
+    let rawDeletion: unknown;
+    try {
+      rawDeletion = JSON.parse(env.ARC_TRIGGER_DELETION) as unknown;
+    } catch {
+      throw new Error("invalid-environment:ARC_TRIGGER_DELETION");
+    }
+    const deletion = parseTriggerDeletionEvent(rawDeletion);
+    await (deps.appendTriggerDeletion ?? appendTriggerDeletionTombstone)({
+      store: composition.store,
+      changeRequestId: composition.changeRequestId,
+      deletion,
+    });
+  }
   const result = await reconcile(composition.runtime, deps.now);
   return { status: result.status, effectInvoked: result.effect?.invoked ?? false };
 }

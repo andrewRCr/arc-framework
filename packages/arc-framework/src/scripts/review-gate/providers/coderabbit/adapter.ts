@@ -36,7 +36,12 @@ export const CODERABBIT_SHADOW_CAPABILITIES: CodeRabbitCapabilities = {
 
 /** One provider trigger result; ambiguous delivery is never retried or rerouted. */
 export type TriggerOutcome =
-  | { kind: "acknowledged"; acknowledgedAt: string; durableRef?: string }
+  | {
+    kind: "acknowledged";
+    acknowledgedAt: string;
+    trigger: RequestAcknowledgement["trigger"];
+    durableRef?: string;
+  }
   | { kind: "rejected"; reason: string }
   | { kind: "ambiguous" };
 
@@ -72,6 +77,13 @@ export type CodeRabbitSignal =
     botUserId: string;
     locus: string;
     severity: FindingSeverity;
+    url: string;
+  }
+  | {
+    kind: "clean";
+    reviewNodeId: string;
+    botUserId: string;
+    headSha: string;
     url: string;
   }
   | { kind: "thread-resolution"; threadNodeId: string; resolvedByBotUserId: string }
@@ -164,27 +176,48 @@ export class CodeRabbitProviderAdapter implements ReviewProviderAdapter {
     };
   }
 
+  qualifyRequest(request: ReviewRequest): Promise<{ qualified: boolean; reason: string }> {
+    try {
+      selectCodeRabbitRequestMechanism(request, this.capabilities);
+      return Promise.resolve({ qualified: true, reason: "qualified" });
+    } catch (error) {
+      return Promise.resolve({
+        qualified: false,
+        reason: error instanceof CodeRabbitRequestError ? error.code : "request-unqualified",
+      });
+    }
+  }
+
   async request(request: ReviewRequest): Promise<RequestAcknowledgement> {
     const current = await this.api.validateCurrent(request);
     if (current !== "current") throw new CodeRabbitRequestError(current);
     const mechanism = selectCodeRabbitRequestMechanism(request, this.capabilities);
-    const outcome = mechanism === "label"
-      ? await this.api.applyTriggerLabel(request)
-      : await this.api.requestFullReview(request);
-    if (outcome.kind === "ambiguous") throw new CodeRabbitRequestError("ambiguous-delivery", true);
-    if (outcome.kind === "rejected") throw new CodeRabbitRequestError(`pre-effect-rejection:${outcome.reason}`);
-    if (mechanism === "label") {
-      try {
-        await this.api.removeTriggerLabel(request);
-      } catch {
-        // The request is already acknowledged; label cleanup is best-effort.
+    try {
+      const outcome = mechanism === "label"
+        ? await this.api.applyTriggerLabel(request)
+        : await this.api.requestFullReview(request);
+      if (outcome.kind === "ambiguous") throw new CodeRabbitRequestError("ambiguous-delivery", true);
+      if (outcome.kind === "rejected") throw new CodeRabbitRequestError(`pre-effect-rejection:${outcome.reason}`);
+      if (
+        outcome.trigger.actorIdentity !== request.requiredActorIdentity
+        || outcome.trigger.headSha !== request.coverageThroughSha
+        || outcome.trigger.occurredAt !== outcome.acknowledgedAt
+      ) throw new CodeRabbitRequestError("trigger-provenance-mismatch", true);
+      return {
+        requestIdentity: computeRequestKey(request),
+        acknowledgedAt: outcome.acknowledgedAt,
+        trigger: outcome.trigger,
+        ...(outcome.durableRef === undefined ? {} : { durableRef: outcome.durableRef }),
+      };
+    } finally {
+      if (mechanism === "label") {
+        try {
+          await this.api.removeTriggerLabel(request);
+        } catch {
+          // Acknowledgement remains authoritative; trigger-label cleanup is best-effort.
+        }
       }
     }
-    return {
-      requestIdentity: computeRequestKey(request),
-      acknowledgedAt: outcome.acknowledgedAt,
-      ...(outcome.durableRef === undefined ? {} : { durableRef: outcome.durableRef }),
-    };
   }
 
   async observe(requestIdentity: string): Promise<ProviderObservation[]> {
@@ -240,6 +273,9 @@ export function normalizeCodeRabbitRun(
     signal.kind === "review");
   const findings = signals.filter((signal): signal is Extract<CodeRabbitSignal, { kind: "finding" }> =>
     signal.kind === "finding");
+  const exactFullCoverage = context.coverage === "full"
+    && context.coverageThroughSha === context.headSha
+    && context.coverageFromSha === context.diffBaseSha;
   const findingReview = reviews.find((review) =>
     review.state === "CHANGES_REQUESTED"
     && review.headSha === context.headSha
@@ -247,7 +283,7 @@ export function normalizeCodeRabbitRun(
 
   if (findings.length > 0) {
     const reasons: string[] = [];
-    if (!capabilities.exactCoverage) reasons.push("exact-coverage-unproven");
+    if (!capabilities.exactCoverage || !exactFullCoverage) reasons.push("exact-coverage-unproven");
     if (!capabilities.durableFindings) reasons.push("durable-findings-unproven");
     if (findingReview === undefined || findingReview.nodeId.length === 0) reasons.push("authoritative-review-missing");
     for (const finding of findings) {
@@ -294,15 +330,46 @@ export function normalizeCodeRabbitRun(
 
   const statusPending = signals.some((signal) => signal.kind === "status" && signal.state === "pending");
   if (statusPending) return { state: "running", qualifying: false, evidence: null, receiptAction, reasons: [] };
-  const cleanCandidate = signals.some((signal) => signal.kind === "status" && signal.state === "success")
-    && signals.some((signal) => signal.kind === "walkthrough" && signal.mutable);
-  if (cleanCandidate) {
+  const clean = signals.find((signal): signal is Extract<CodeRabbitSignal, { kind: "clean" }> =>
+    signal.kind === "clean"
+    && signal.botUserId === expectedBotUserId
+    && signal.headSha === context.headSha
+    && signal.reviewNodeId.length > 0
+    && signal.url.length > 0);
+  if (clean !== undefined) {
+    const reasons: string[] = [];
+    if (!capabilities.exactCoverage || !exactFullCoverage) reasons.push("exact-coverage-unproven");
+    if (!capabilities.durableCleanResults) reasons.push("durable-clean-result-unproven");
+    if (reasons.length > 0) {
+      return { state: "clean", qualifying: false, evidence: null, receiptAction, reasons };
+    }
+    const evidence = parseEvidence({
+      schemaVersion: 1,
+      requirementId: context.requirementId,
+      sourceKind: "agent",
+      sourceIdentity: "coderabbit-pr",
+      result: "clean",
+      evidenceUrlOrId: clean.url,
+      reviewRunId: context.reviewRunId,
+      policyVersion: context.policyVersion,
+      rubricVersion: context.rubricVersion,
+      coverage: context.coverage,
+      coverageFromSha: context.coverageFromSha,
+      coverageThroughSha: context.coverageThroughSha,
+      baseRef: context.baseRef,
+      diffBaseSha: context.diffBaseSha,
+      changeSetId: context.changeSetId,
+      headSha: context.headSha,
+      findings: [],
+      closures: [],
+      observedAt: context.observedAt,
+    });
     return {
       state: "clean",
-      qualifying: capabilities.durableCleanResults,
-      evidence: null,
+      qualifying: true,
+      evidence,
       receiptAction,
-      reasons: capabilities.durableCleanResults ? ["clean-artifact-not-supplied"] : ["durable-clean-result-unproven"],
+      reasons: [],
     };
   }
   return { state: "queued", qualifying: false, evidence: null, receiptAction, reasons: ["result-unproven"] };

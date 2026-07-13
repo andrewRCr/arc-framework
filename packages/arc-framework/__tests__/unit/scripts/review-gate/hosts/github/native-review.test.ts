@@ -115,16 +115,14 @@ describe("reduceNativeReview: conversations and closure authority", () => {
     expect(result.nativeReview.unresolvedRequiredConversations).toBe(2);
   });
 
-  it("closes only the named finding when the host exposes a qualifying resolver", () => {
+  it("keeps native resolution observational even when the host exposes a resolver", () => {
     const result = reduce({
       threads: [
         thread({ threadId: "T1", isResolved: true, resolvedBy: actor(5) }),
         thread({ threadId: "T2", isResolved: false }),
       ],
     });
-    expect(result.closures).toEqual([
-      { findingId: "T1", authorityKind: "host-native", authorityIdentity: "5", evidenceUrlOrId: "T1" },
-    ]);
+    expect(result.closures).toEqual([]);
     expect(result.nativeReview.unresolvedRequiredConversations).toBe(1);
   });
 

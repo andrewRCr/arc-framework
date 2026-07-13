@@ -87,12 +87,17 @@ describe("self-hosting review policy document", () => {
         {
           ...SELF_HOSTING_POLICY.qualifications[0],
           sourceIdentity: "enabled-durable-record",
-          enabled: true,
+          mode: "enabled",
+          exactCoverage: true,
+          durableResults: true,
+          distinctOutcomes: true,
+          durableFindings: true,
+          closureCapability: true,
         },
         {
           ...SELF_HOSTING_POLICY.qualifications[1],
           sourceIdentity: "disabled-attestation",
-          enabled: false,
+          mode: "disabled",
         },
       ],
     });
@@ -109,6 +114,16 @@ describe("self-hosting review policy document", () => {
     const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
 
     expect(parsed.providerIdentities.appBotUserId).toBe("302312524");
+    expect(parsed.providerIdentities).toMatchObject({ codexAppId: "1144995", codexBotUserId: "199175422" });
+  });
+
+  it("pins one immutable fallback maintainer address", () => {
+    const parsed = parseSelfHostingPolicy(JSON.parse(JSON.stringify(SELF_HOSTING_POLICY)));
+    expect(parsed.fallbackMaintainer).toEqual({ login: "andrewRCr", expectedActorId: "44483269" });
+    expect(() => parseSelfHostingPolicy({
+      ...SELF_HOSTING_POLICY,
+      fallbackMaintainer: { ...SELF_HOSTING_POLICY.fallbackMaintainer, expectedActorId: "andrew" },
+    })).toThrow(/fallbackMaintainer/u);
   });
 
   it.each([

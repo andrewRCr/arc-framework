@@ -23,13 +23,10 @@ describe("review command authorization", () => {
     ["require", "write"],
     ["refresh", "write"],
     ["waive", "maintain"],
-    ["dismiss", "maintain"],
   ] as const)("requires %s at %s threshold", (kind, permission) => {
     const command = kind === "refresh"
       ? { kind, requirementId: "analysis", sourceIdentity: "agent-1", coverage: "full", reason: "again" } as const
-      : kind === "dismiss"
-        ? { kind, requirementId: "analysis", sourceIdentity: "agent-1", findingId: "f-1", reason: "invalid" } as const
-        : { kind, requirementId: "analysis", reason: "reason" } as const;
+      : { kind, requirementId: "analysis", reason: "reason" } as const;
     expect(authorizeReviewCommand({
       command,
       capabilities: { schemaVersion: 1, actorIdentity: "actor-1", permissions: [permission] },

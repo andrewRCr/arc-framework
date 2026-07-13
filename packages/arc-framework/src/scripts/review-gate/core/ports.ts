@@ -76,6 +76,14 @@ export interface ReceiptAppendResult {
 export interface RequestAcknowledgement {
   requestIdentity: string;
   acknowledgedAt: string;
+  trigger: {
+    eventKind: "comment" | "label";
+    eventId: string;
+    actorIdentity: string;
+    contentDigest: string;
+    occurredAt: string;
+    headSha: string;
+  };
   durableRef?: string;
 }
 
@@ -164,9 +172,20 @@ export interface VerdictPublicationInput {
   readCurrentState: () => Promise<{ headSha: string; changeSetId: string }>;
 }
 
+/** Exact pending projection coordinates confirmed before a provider effect. */
+export interface PendingProjectionConfirmationInput {
+  hostRef: string;
+  headSha: string;
+  changeSetId: string;
+  projection: GateProjection;
+  mode: "shadow" | "dual" | "final";
+  expectedAppId: string;
+}
+
 /** Boundary for canonical host reads and verdict projection. */
 export interface GitHostAdapter extends GitHostReadAdapter {
   publishVerdict(input: VerdictPublicationInput): Promise<HostProjectionRef[]>;
+  confirmPendingProjection(input: PendingProjectionConfirmationInput): Promise<boolean>;
 }
 
 /** Storage boundary for version-checked receipt persistence. */
@@ -178,6 +197,7 @@ export interface ReviewReceiptStore {
 /** Boundary for source capacity, request admission, and evidence observation. */
 export interface ReviewProviderAdapter {
   readCapacity(sourceIdentity: string): Promise<SourceCapacity>;
+  qualifyRequest(request: ReviewRequest): Promise<{ qualified: boolean; reason: string }>;
   request(request: ReviewRequest): Promise<RequestAcknowledgement>;
   observe(requestIdentity: string): Promise<ProviderObservation[]>;
   normalizeEvidence(observations: ProviderObservation[]): Promise<Evidence[]>;

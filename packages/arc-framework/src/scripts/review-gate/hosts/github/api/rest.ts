@@ -60,6 +60,8 @@ export interface PaginatedRequest<T> {
 /** A single write attempt with an optional idempotency reconcile. */
 export interface WriteRequest<T> {
   body?: unknown;
+  /** Successful empty-body value for endpoints such as DELETE returning 204. */
+  emptyValue?: T;
   parse: (value: unknown) => T;
   /**
    * Re-query the write's effect by its stable idempotency identity. Invoked only
@@ -189,6 +191,9 @@ export class GitHubRestClient {
     if (result.kind === "ambiguous") return this.reconcileWrite(result.reason, request.reconcile);
     if (!successful(result.status)) {
       return { kind: "http-error", status: result.status, message: sanitizeErrorBody(result.body) };
+    }
+    if (result.body.length === 0 && request.emptyValue !== undefined) {
+      return { kind: "ok", status: result.status, value: request.emptyValue };
     }
     const json = parseJson(result.body);
     if (!json.ok) return { kind: "schema-error", message: "response body is not valid JSON" };

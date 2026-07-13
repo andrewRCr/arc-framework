@@ -74,6 +74,54 @@ export interface CheckRunPublishResult {
   duplicateRunIds: number[];
 }
 
+/** Bounded controller state embedded beside the human-readable check summary. */
+export interface GateStateMarker {
+  schemaVersion: 1;
+  conclusion: "pending" | "failure" | "success";
+  blockerCodes: string[];
+  ledgerVersion: number | null;
+  receiptRefs: string[];
+}
+
+const GATE_STATE_MARKER = /<!-- arc-review-gate-state:v1:([A-Za-z0-9_-]+) -->/u;
+const MAX_CHECK_SUMMARY = 65_535;
+const MAX_MARKER_ITEMS = 32;
+const MAX_MARKER_VALUE = 256;
+
+function marker(projection: GateProjection): string {
+  const state: GateStateMarker = {
+    schemaVersion: 1,
+    conclusion: projection.conclusion,
+    blockerCodes: projection.blockers.slice(0, MAX_MARKER_ITEMS).map((item) => item.code.slice(0, MAX_MARKER_VALUE)),
+    ledgerVersion: projection.ledgerVersion,
+    receiptRefs: projection.receiptRefs.slice(0, MAX_MARKER_ITEMS).map((item) => item.slice(0, MAX_MARKER_VALUE)),
+  };
+  return `<!-- arc-review-gate-state:v1:${Buffer.from(JSON.stringify(state), "utf8").toString("base64url")} -->`;
+}
+
+/** Parse only the versioned aggregate state marker; human prose is never interpreted. */
+export function parseGateStateMarker(summary: string): GateStateMarker {
+  const encoded = GATE_STATE_MARKER.exec(summary)?.[1];
+  if (encoded === undefined || encoded.length > 128_000) throw new Error("malformed-gate-state-marker");
+  try {
+    const value = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as unknown;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("shape");
+    const state = value as Record<string, unknown>;
+    if (state.schemaVersion !== 1
+      || !["pending", "failure", "success"].includes(String(state.conclusion))
+      || !Array.isArray(state.blockerCodes)
+      || !state.blockerCodes.every((item) => typeof item === "string")
+      || !(state.ledgerVersion === null || (Number.isSafeInteger(state.ledgerVersion) && (state.ledgerVersion as number) >= 0))
+      || !Array.isArray(state.receiptRefs)
+      || !state.receiptRefs.every((item) => typeof item === "string")
+      || state.blockerCodes.length > MAX_MARKER_ITEMS
+      || state.receiptRefs.length > MAX_MARKER_ITEMS) throw new Error("shape");
+    return state as unknown as GateStateMarker;
+  } catch {
+    throw new Error("malformed-gate-state-marker");
+  }
+}
+
 /** Deterministic identity for one PR/change-set/context projection. */
 export function buildCheckExternalId(pullNumber: number, changeSetId: string, contextName: string): string {
   return `arc-review-gate:${pullNumber}:${changeSetId}:${contextName}`;
@@ -92,6 +140,15 @@ export async function findAuthoritativeCheckRuns(
       && run.name === scope.contextName
       && run.appId === scope.expectedAppId)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.id - left.id);
+}
+
+/** Confirm the pinned App's stable aggregate check is pending on the exact head. */
+export async function confirmPendingGateCheck(
+  api: GitHubCheckRunApi,
+  scope: CheckRunScope,
+): Promise<boolean> {
+  const matches = await findAuthoritativeCheckRuns(api, scope);
+  return matches.length > 0 && matches.every((run) => run.status === "in_progress" && run.conclusion === null);
 }
 
 /** Publish one projection, converging every interrupted duplicate to the same conclusion. */
@@ -157,6 +214,7 @@ function renderCheckMutation(
 function renderSummary(projection: GateProjection, anchorReceiptCount: number | null): string {
   const ledgerVersion = projection.ledgerVersion === null ? "unknown" : String(projection.ledgerVersion);
   const receiptCount = anchorReceiptCount === null ? "unknown" : String(anchorReceiptCount);
+  const stateMarker = marker(projection);
   const lines = [
     `**Result:** ${projection.conclusion}`,
     `**Policy:** ${projection.policyDecision.disposition} / ${projection.policyDecision.reviewRisk}`,
@@ -177,7 +235,9 @@ function renderSummary(projection: GateProjection, anchorReceiptCount: number | 
     lines.push("", "**Evidence:**", ...projection.evidence.map((evidence, index) =>
       `- ${escapeText(evidence.requirementId)}: ${durableLink(`evidence ${index + 1}`, evidence.evidenceRef)}`));
   }
-  return lines.join("\n").slice(0, 65_535);
+  const proseBudget = MAX_CHECK_SUMMARY - stateMarker.length - 1;
+  if (proseBudget < 0) throw new Error("gate-state-marker-exceeds-summary-limit");
+  return `${stateMarker}\n${lines.join("\n").slice(0, proseBudget)}`;
 }
 
 function escapeText(value: string): string {

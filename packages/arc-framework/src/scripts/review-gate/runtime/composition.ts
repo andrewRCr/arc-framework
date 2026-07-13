@@ -12,6 +12,7 @@
  */
 
 import { computePolicyVersion } from "../core/identity.js";
+import { computeRequestKey } from "../core/request-key.js";
 import { meetsMinimumPermission, type CapabilitySet, type ReviewRequirement } from "../core/contracts.js";
 import type { ReviewReceipt } from "../core/execution.js";
 import type { GitHostAdapter, ReviewProviderAdapter, ReviewReceiptStore } from "../core/ports.js";
@@ -30,6 +31,12 @@ import {
 import { GitHubReviewCommandCommentReader } from "../hosts/github/command-comments.js";
 import { resolveCiState } from "../hosts/github/ci.js";
 import { GitLifecycleTailProofAdapter } from "../hosts/github/lifecycle-tail.js";
+import { GitHubSettlementReader } from "../hosts/github/settlement.js";
+import {
+  GitHubRestTriggerHistoryApi,
+  GitHubTriggerHistoryReader,
+  type GitHubTriggerClassifier,
+} from "../hosts/github/trigger-history.js";
 import {
   verifyInstallationAuthority,
   type AppIdentityResult,
@@ -60,6 +67,16 @@ import {
   ReceiptBackedCodeRabbitObservationLocator,
   ReceiptBackedCodeRabbitRequestLocator,
 } from "../providers/coderabbit/locators.js";
+import {
+  CodexProviderAdapter,
+  type CodexApi,
+  type CodexCapabilities,
+} from "../providers/codex/adapter.js";
+import { GitCodexObjectReader, resolveCodexCommitPrefix } from "../providers/codex/git-object.js";
+import { GitHubCodexObservationApi } from "../providers/codex/github-observation.js";
+import { GitHubCodexTriggerApi } from "../providers/codex/github-trigger.js";
+import { ReceiptBackedCodexLocator } from "../providers/codex/locators.js";
+import { QualifiedProviderRouter } from "../providers/router.js";
 import { SelfHostingReconcileRuntime, type ReconcileRuntimeDependencies } from "./reconcile-runtime.js";
 import type { ContextMode } from "./rollout.js";
 
@@ -99,6 +116,7 @@ export interface CompositionSeams {
   resolveChange?: (deps: GitHubChangeRequestDeps, hostRef: string) => Promise<ChangeRequestResolution>;
   resolveActorCapabilities?: () => Promise<CapabilitySet>;
   stateExpected?: () => Promise<boolean>;
+  initializeLedgerAnchor?: boolean;
 }
 
 /** Validated shared graph; carries no publish or provider-invocation capability. */
@@ -117,10 +135,12 @@ export interface SharedInfrastructure {
 /** The wired reconcile runtime plus the constructed graph for inspection. */
 export interface ReconcileComposition {
   runtime: SelfHostingReconcileRuntime;
+  changeRequestId: string;
   host: GitHostAdapter;
   store: ReviewReceiptStore;
   provider: ReviewProviderAdapter;
   checks: GitHubCheckRunApi;
+  settlement: GitHubSettlementReader;
   launchAuthority: AppIdentityResult;
 }
 
@@ -194,7 +214,7 @@ function composeCodeRabbitApi(
 function codeRabbitCapabilities(policy: SelfHostingPolicy): CodeRabbitCapabilities {
   const declaration = policy.qualifications.find((candidate) => candidate.sourceIdentity === "coderabbit-pr"
     && candidate.transport === "durable-record");
-  if (declaration === undefined || !declaration.enabled) return CODERABBIT_SHADOW_CAPABILITIES;
+  if (declaration === undefined || declaration.mode !== "enabled") return CODERABBIT_SHADOW_CAPABILITIES;
   const qualified = declaration.exactCoverage
     && declaration.durableResults
     && declaration.distinctOutcomes
@@ -211,6 +231,48 @@ function codeRabbitCapabilities(policy: SelfHostingPolicy): CodeRabbitCapabiliti
     sourceConfirmedClosures: declaration.closureCapability,
   };
 }
+
+function composeCodexApi(
+  locator: ReceiptBackedCodexLocator,
+  observation: GitHubCodexObservationApi,
+  trigger: GitHubCodexTriggerApi,
+): CodexApi {
+  return {
+    validateCurrent: (request) => trigger.validateCurrent(request),
+    resolveRequestGuidance: (request) => locator.resolveRequestGuidance(request),
+    acknowledgeUserTrigger: (request) => trigger.acknowledgeUserTrigger(request),
+    readRunContext: (requestIdentity) => observation.readRunContext(requestIdentity),
+    readSignals: (requestIdentity) => observation.readSignals(requestIdentity),
+    readCapacity: () => observation.readCapacity(),
+  };
+}
+
+function codexCapabilities(policy: SelfHostingPolicy): CodexCapabilities {
+  const declaration = policy.qualifications.find((candidate) => candidate.sourceIdentity === "codex-pr"
+    && candidate.transport === "durable-record");
+  const enabled = declaration?.mode === "enabled";
+  return {
+    resolvedGuidance: enabled && declaration.guidanceDigest !== null,
+    actorRequiredRequest: enabled && declaration.requestActor === "pr-author",
+    exactFullCoverage: enabled && declaration.exactCoverage,
+    durableFindings: enabled && declaration.durableFindings,
+    durableCleanResults: enabled && declaration.durableResults && declaration.distinctOutcomes,
+    connectedAccountTerminal: enabled && declaration.terminalUnavailableMode === "terminal",
+  };
+}
+
+const classifySelfHostingTrigger: GitHubTriggerClassifier = ({ eventKind, content }) => {
+  if (eventKind === "label" && content === "label:arc-review-gate") {
+    return { providerIdentity: "coderabbit-pr", classification: "trigger" };
+  }
+  if (eventKind === "comment" && /^@codex\s+review(?:\r?\n|$)/iu.test(content)) {
+    return { providerIdentity: "codex-pr", classification: "trigger" };
+  }
+  if (eventKind === "comment" && /@coderabbit(?:ai)?\b/iu.test(content)) {
+    return { providerIdentity: "coderabbit-pr", classification: "trigger" };
+  }
+  return null;
+};
 
 /** Build the authenticated clients, host adapter, and launch-authority verdict. */
 export async function createSharedInfrastructure(
@@ -282,6 +344,7 @@ export async function createReconcileRuntime(
     repositoryId: String(config.repositoryId),
     changeRequestId,
     revalidate: controllerRevalidate,
+    initializeAnchor: seams.initializeLedgerAnchor,
     stateExpected: seams.stateExpected ?? (async () => {
       const current = await resolveChange();
       if (current.kind !== "resolved") throw new Error(`change request unavailable — ${current.kind}`);
@@ -310,13 +373,60 @@ export async function createReconcileRuntime(
     repo: config.repo,
     locator: new ReceiptBackedCodeRabbitRequestLocator(locatorDeps),
   });
-  const provider = new CodeRabbitProviderAdapter({
+  const coderabbit = new CodeRabbitProviderAdapter({
     api: composeCodeRabbitApi(observation, trigger),
     capabilities: codeRabbitCapabilities(config.policy),
     expectedBotUserId: config.policy.providerIdentities.coderabbitBotUserId,
   });
+  const codexLocator = new ReceiptBackedCodexLocator({
+    ...locatorDeps,
+    guidanceReader: new GitCodexObjectReader(io.exec),
+  });
+  const codexObservation = new GitHubCodexObservationApi({
+    rest: shared.rest,
+    gql: shared.gql,
+    owner: config.owner,
+    repo: config.repo,
+    expectedAppId: config.policy.providerIdentities.codexAppId,
+    expectedBotUserId: config.policy.providerIdentities.codexBotUserId,
+    locator: codexLocator,
+    resolveCommitPrefix: (prefix, frozenHeadSha) => resolveCodexCommitPrefix(io.exec, prefix, frozenHeadSha),
+  });
+  const codexTrigger = new GitHubCodexTriggerApi({
+    rest: shared.rest,
+    owner: config.owner,
+    repo: config.repo,
+    locator: codexLocator,
+  });
+  const codex = new CodexProviderAdapter({
+    api: composeCodexApi(codexLocator, codexObservation, codexTrigger),
+    capabilities: codexCapabilities(config.policy),
+    expectedAppId: config.policy.providerIdentities.codexAppId,
+    expectedBotUserId: config.policy.providerIdentities.codexBotUserId,
+  });
+  const enabledProviders = new Map<string, ReviewProviderAdapter>();
+  for (const declaration of config.policy.qualifications) {
+    if (declaration.mode !== "enabled" || declaration.transport !== "durable-record") continue;
+    if (declaration.sourceIdentity === "coderabbit-pr") enabledProviders.set(declaration.sourceIdentity, coderabbit);
+    if (declaration.sourceIdentity === "codex-pr") enabledProviders.set(declaration.sourceIdentity, codex);
+  }
+  const provider = new QualifiedProviderRouter({
+    adapters: enabledProviders,
+    resolveSource: async (requestIdentity) => {
+      const current = await resolveChange();
+      if (current.kind !== "resolved") return null;
+      const ledger = await store.readLedger(current.changeRequest.changeRequestId);
+      if (ledger.kind !== "valid") return null;
+      return ledger.receipts.find((entry) => computeRequestKey(entry.receipt.request) === requestIdentity)
+        ?.receipt.request.sourceIdentity ?? null;
+    },
+  });
 
   const commandReader = new GitHubReviewCommandCommentReader(shared.rest, config.owner, config.repo, config.pullRequestNumber);
+  const triggerHistory = new GitHubTriggerHistoryReader(
+    new GitHubRestTriggerHistoryApi(shared.rest, config.owner, config.repo, config.pullRequestNumber),
+    classifySelfHostingTrigger,
+  );
   const lifecycleTailAdapter = new GitLifecycleTailProofAdapter({ exec: io.exec });
 
   const deps: ReconcileRuntimeDependencies = {
@@ -346,16 +456,19 @@ export async function createReconcileRuntime(
       codeSurface: derivesCodeSurface(changes),
     }),
     listCommandComments: () => commandReader.list(),
+    readTriggerHistory: (headSha) => triggerHistory.read(headSha),
   };
 
   const runtime = new SelfHostingReconcileRuntime(deps);
   commandReceiptAuthorizer = (receipt) => runtime.authorizesCommandReceipt(receipt);
   return {
     runtime,
+    changeRequestId,
     host: shared.host,
     store,
     provider,
     checks: shared.checks,
+    settlement: new GitHubSettlementReader(shared.rest, shared.gql, config.owner, config.repo),
     launchAuthority: shared.launchAuthority,
   };
 }

@@ -1,6 +1,7 @@
 /** Guarded read-reduce-effect-publish orchestration for one pull request. */
 
-import type { GateProjection, ReviewReceipt, ReviewRequest } from "../core/execution.js";
+import type { GateProjection, ReceiptEnvelope, ReviewReceipt, ReviewRequest } from "../core/execution.js";
+import type { ReviewGateAction } from "../core/next-action.js";
 import type { RequestExecutionResult } from "../core/request-execution.js";
 
 export interface CanonicalReconcileState {
@@ -16,23 +17,37 @@ export interface ReconcileDecision {
   request: ReviewRequest | null;
   receiptsToAppend?: ReviewReceipt[];
   requestReservation?: ReviewReceipt | null;
+  reservationEnvelope?: ReceiptEnvelope | null;
   projection: GateProjection;
+  action?: ReviewGateAction;
 }
 
 export interface ReconcileRuntime {
   read(): Promise<CanonicalReconcileState>;
   reduce(state: CanonicalReconcileState, now: Date): Promise<ReconcileDecision>;
   appendReceipts?(receipts: ReviewReceipt[], expectedLedgerVersion: number): Promise<number>;
-  execute(
+  reserve(
     request: ReviewRequest,
     expectedLedgerVersion: number,
     reservation?: ReviewReceipt | null,
-  ): Promise<RequestExecutionResult>;
+  ): Promise<{ envelope: ReceiptEnvelope; created: boolean } | null>;
+  confirmPending(
+    request: ReviewRequest,
+    reservation: ReceiptEnvelope,
+    projection: GateProjection,
+  ): Promise<boolean>;
+  execute(request: ReviewRequest, reservation: ReceiptEnvelope): Promise<RequestExecutionResult>;
   publish(projection: GateProjection): Promise<void>;
 }
 
 export interface ReconcileResult {
-  status: "published" | "stale-before-effect" | "stale-after-effect";
+  status:
+    | "published"
+    | "stale-before-effect"
+    | "stale-after-effect"
+    | "pending-unconfirmed"
+    | "reservation-adopted"
+    | "action-ready";
   effect: RequestExecutionResult | null;
 }
 
@@ -57,7 +72,37 @@ export async function reconcile(runtime: ReconcileRuntime, now: Date): Promise<R
       effectVersion = await runtime.appendReceipts(receiptsToAppend, effectVersion);
     }
     if (decision.request !== null) {
-      effect = await runtime.execute(decision.request, effectVersion, decision.requestReservation);
+      const reserved = await runtime.reserve(decision.request, effectVersion, decision.requestReservation);
+      if (reserved === null) return { status: "pending-unconfirmed", effect: null };
+      const afterReservation = await runtime.read();
+      if (
+        guard(afterReservation) !== guard(initial)
+        || afterReservation.ledgerVersion !== reserved.envelope.ledgerVersion
+      ) {
+        return { status: "stale-before-effect", effect: null };
+      }
+      const pendingDecision = await runtime.reduce(afterReservation, now);
+      await runtime.publish(pendingDecision.projection);
+      const pendingConfirmed = await runtime.confirmPending(
+        decision.request,
+        reserved.envelope,
+        pendingDecision.projection,
+      );
+      if (!pendingConfirmed) return { status: "pending-unconfirmed", effect: null };
+      if (decision.request.requestMechanism === "user-trigger" && reserved.created) {
+        return { status: "action-ready", effect: null };
+      }
+      if (!reserved.created && decision.request.requestMechanism !== "user-trigger") {
+        return { status: "reservation-adopted", effect: null };
+      }
+      const beforeExecute = await runtime.read();
+      if (
+        guard(beforeExecute) !== guard(initial)
+        || beforeExecute.ledgerVersion !== reserved.envelope.ledgerVersion
+      ) {
+        return { status: "stale-before-effect", effect: null };
+      }
+      effect = await runtime.execute(decision.request, reserved.envelope);
     }
   }
   const final = await runtime.read();

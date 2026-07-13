@@ -1,6 +1,6 @@
 /** GitHub App-comment implementation of the neutral receipt-store port. */
 
-import type { ReceiptEnvelope, ReviewReceipt } from "../../core/execution.js";
+import { parseReviewReceipt, type ReceiptEnvelope, type ReviewReceipt } from "../../core/execution.js";
 import type {
   ReceiptAppendResult,
   ReceiptLedger,
@@ -8,6 +8,7 @@ import type {
   ReviewReceiptStore,
 } from "../../core/ports.js";
 import { validateReceiptLedger } from "../../core/receipt-ledger.js";
+import { receiptIdentityValid } from "../../core/request-key.js";
 import { integerAt, objectAt } from "../../core/validation.js";
 import type { GitHubRestClient } from "./api/rest.js";
 import {
@@ -72,6 +73,8 @@ export interface GitHubCommentReceiptStoreOptions {
   revalidate: (receipt: ReviewReceipt) => Promise<ReceiptWriteState>;
   /** Reports whether prior controller state existed outside the comment store. */
   stateExpected: () => Promise<boolean>;
+  /** Creates the initial anchor when an empty ledger is first read. */
+  initializeAnchor?: boolean;
 }
 
 interface AnchorRecord {
@@ -181,6 +184,7 @@ export class GitHubCommentReceiptStore implements ReviewReceiptStore {
       if (state.envelopes.length > 0) return degraded(["ledger-anchor-mismatch"], observedLedgerVersion);
       try {
         if (await this.options.stateExpected()) return degraded(["ledger-disappeared"], null);
+        if (this.options.initializeAnchor === false) return { kind: "valid", ledgerVersion: 0, receipts: [] };
         const created = await this.options.api.create(serializeLedgerAnchor(anchorPayload(this.options, 0)));
         if (created.kind === "ambiguous") return degraded(["ledger-unavailable"], null);
         return { kind: "valid", ledgerVersion: 0, receipts: [] };
@@ -221,39 +225,50 @@ export class GitHubCommentReceiptStore implements ReviewReceiptStore {
   }
 
   async appendReceipt(receipt: ReviewReceipt, expectedLedgerVersion: number): Promise<ReceiptAppendResult> {
+    let canonicalReceipt: ReviewReceipt;
+    try {
+      canonicalReceipt = parseReviewReceipt(receipt);
+    } catch (error) {
+      throw new ReceiptStoreError("invalid-receipt", error instanceof Error ? error.message : String(error));
+    }
+    if (!receiptIdentityValid(canonicalReceipt)) throw new ReceiptStoreError("invalid-receipt", "identity mismatch");
     const current = await this.readLedger(this.options.changeRequestId);
     if (current.kind !== "valid") {
       throw new ReceiptStoreError("degraded-ledger", current.diagnostics.join(","));
     }
-    const replay = current.receipts.find((envelope) => envelope.receipt.idempotencyKey === receipt.idempotencyKey);
+    const replay = current.receipts.find((envelope) =>
+      envelope.receipt.idempotencyKey === canonicalReceipt.idempotencyKey);
     if (replay !== undefined) {
       if (
-        replay.receipt.receiptHash === receipt.receiptHash
-        && replay.receipt.previousLedgerVersion === receipt.previousLedgerVersion
+        replay.receipt.receiptHash === canonicalReceipt.receiptHash
+        && replay.receipt.previousLedgerVersion === canonicalReceipt.previousLedgerVersion
       ) {
         return { ledgerVersion: replay.ledgerVersion, durableEvidenceRef: replay.durableRecordId };
       }
       throw new ReceiptStoreError("inconsistent-ledger", "divergent idempotency replay");
     }
-    if (current.ledgerVersion !== expectedLedgerVersion || receipt.previousLedgerVersion !== expectedLedgerVersion) {
+    if (
+      current.ledgerVersion !== expectedLedgerVersion
+      || canonicalReceipt.previousLedgerVersion !== expectedLedgerVersion
+    ) {
       throw new ReceiptStoreError("version-conflict");
     }
 
-    const guard = await this.options.revalidate(receipt);
-    if (!guard.authorized || guard.actorIdentity !== receipt.request.actorIdentity) {
+    const guard = await this.options.revalidate(canonicalReceipt);
+    if (!guard.authorized || guard.actorIdentity !== canonicalReceipt.request.actorIdentity) {
       throw new ReceiptStoreError("unauthorized-write");
     }
     if (
-      guard.repositoryId !== receipt.request.repositoryId
-      || guard.changeRequestId !== receipt.request.changeRequestId
-      || guard.changeSetId !== receipt.request.changeSetId
-      || guard.policyVersion !== receipt.request.policyVersion
+      guard.repositoryId !== canonicalReceipt.request.repositoryId
+      || guard.changeRequestId !== canonicalReceipt.request.changeRequestId
+      || guard.changeSetId !== canonicalReceipt.request.changeSetId
+      || guard.policyVersion !== canonicalReceipt.request.policyVersion
     ) {
       throw new ReceiptStoreError("stale-write");
     }
 
     const nextVersion = expectedLedgerVersion + 1;
-    const body = serializeReceiptComment({ ledgerVersion: nextVersion, receipt });
+    const body = serializeReceiptComment({ ledgerVersion: nextVersion, receipt: canonicalReceipt });
     const write = await this.options.api.create(body);
     const confirmed = await this.readLedger(this.options.changeRequestId);
     if (confirmed.kind !== "valid") {
@@ -262,8 +277,8 @@ export class GitHubCommentReceiptStore implements ReviewReceiptStore {
     }
     const appended = confirmed.receipts.find((envelope) =>
       envelope.ledgerVersion === nextVersion
-      && envelope.receipt.idempotencyKey === receipt.idempotencyKey
-      && envelope.receipt.receiptHash === receipt.receiptHash);
+      && envelope.receipt.idempotencyKey === canonicalReceipt.idempotencyKey
+      && envelope.receipt.receiptHash === canonicalReceipt.receiptHash);
     if (appended === undefined) {
       throw new ReceiptStoreError(write.kind === "ambiguous" ? "ambiguous-write" : "inconsistent-ledger");
     }

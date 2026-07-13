@@ -105,6 +105,21 @@ function projection(): GateProjection {
   };
 }
 
+function pendingProjection(): GateProjection {
+  return {
+    ...projection(),
+    conclusion: "pending",
+    summary: "independent-analysis: queued",
+    requirementExecutions: [{
+      requirementId: "independent-analysis",
+      state: "queued",
+      sourceIdentity: "coderabbit-pr",
+      detail: "request reserved",
+    }],
+    ledgerVersion: 1,
+  };
+}
+
 class MemoryChecks implements GitHubCheckRunApi {
   readonly mutations: CheckRunMutation[] = [];
   readonly updatedIds: number[] = [];
@@ -191,7 +206,7 @@ describe("GitHub host read adapter", () => {
     expect(result).toMatchObject({
       nativeReview: { decision: "approved", requestedChanges: false },
       peerApprovals: [{ actorIdentity: "42", headSha: HEAD }],
-      closures: [{ findingId: "T_1", authorityIdentity: "9" }],
+      closures: [],
       providerReviews: [{
         reviewId: "PRR_1",
         actorIdentity: "42",
@@ -212,6 +227,34 @@ describe("GitHub host read adapter", () => {
 });
 
 describe("GitHub verdict publication", () => {
+  it("confirms the stable aggregate identity only while the pinned App check is pending", async () => {
+    const pending: GitHubCheckRun = {
+      id: 41,
+      nodeId: "CR_41",
+      name: "review-gate-shadow",
+      externalId: `arc-review-gate:7:${changeRequest.changeSetId}:review-gate-shadow`,
+      appId: "4268856",
+      status: "in_progress",
+      conclusion: null,
+      createdAt: "2026-07-11T19:00:00.000Z",
+      htmlUrl: "https://github.test/checks/41",
+    };
+    const input = {
+      hostRef: changeRequest.hostRef,
+      headSha: changeRequest.headSha,
+      changeSetId: changeRequest.changeSetId,
+      projection: pendingProjection(),
+      mode: "shadow" as const,
+      expectedAppId: "4268856",
+    };
+
+    await expect(fullAdapter(new MemoryChecks([pending])).confirmPendingProjection(input)).resolves.toBe(true);
+    await expect(fullAdapter(new MemoryChecks([{ ...pending, appId: "15368" }]))
+      .confirmPendingProjection(input)).resolves.toBe(false);
+    await expect(fullAdapter(new MemoryChecks([{ ...pending, status: "completed", conclusion: "failure" }]))
+      .confirmPendingProjection(input)).resolves.toBe(false);
+  });
+
   it.each([
     ["shadow", ["review-gate-shadow"]],
     ["dual", ["review-gate-shadow", "merge-ok"]],

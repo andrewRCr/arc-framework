@@ -13,7 +13,6 @@ describe("host-neutral review commands", () => {
     ["/review-gate require analysis investigate this change", "require"],
     ["/review-gate waive analysis accepted operational risk", "waive"],
     ["/review-gate refresh analysis agent-1 incremental review the delta", "refresh"],
-    ["/review-gate dismiss analysis agent-1 finding-1 false positive", "dismiss"],
   ])("parses %s without shell interpretation", (text, kind) => {
     const result = parseReviewCommand(text, context);
     expect(result).toMatchObject({ ok: true, command: { kind } });
@@ -32,8 +31,7 @@ describe("host-neutral review commands", () => {
     ["unknown command", "/review-gate resolve analysis because"],
     ["implicit waive all", "/review-gate waive all because"],
     ["unknown requirement", "/review-gate require missing because"],
-    ["unknown finding", "/review-gate dismiss analysis agent-1 missing because"],
-    ["cross-source finding", "/review-gate dismiss analysis agent-2 finding-1 because"],
+    ["legacy dismissal", "/review-gate dismiss analysis agent-1 finding-1 because"],
     ["invalid coverage", "/review-gate refresh analysis agent-1 partial because"],
     ["control", "/review-gate require analysis bad\nreason"],
     ["trailing ambiguity", "/review-gate refresh analysis agent-1 full"],

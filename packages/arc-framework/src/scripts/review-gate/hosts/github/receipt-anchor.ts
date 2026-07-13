@@ -1,6 +1,6 @@
 /** Stable, mutable ledger-anchor comment format. */
 
-import { integerAt, objectAt, schemaOneAt, stringAt } from "../../core/validation.js";
+import { exactKeys, integerAt, objectAt, schemaOneAt, stringAt } from "../../core/validation.js";
 
 /** HTML marker identifying the one PR-scoped ledger anchor. */
 export const LEDGER_ANCHOR_MARKER = "arc-review-gate:ledger-anchor";
@@ -49,6 +49,7 @@ export function parseLedgerAnchor(
     throw new Error("malformed-anchor-payload");
   }
   const record = objectAt(raw, "anchor");
+  exactKeys(record, ["schemaVersion", "repositoryId", "changeRequestId", "ledgerVersion", "receiptCount"], "anchor");
   const anchor: LedgerAnchorPayload = {
     schemaVersion: schemaOneAt(record.schemaVersion, "anchor.schemaVersion"),
     repositoryId: stringAt(record.repositoryId, "anchor.repositoryId"),

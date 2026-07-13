@@ -65,7 +65,15 @@ export function validateReceiptLedger(input: ReceiptLedgerInput): ReceiptLedgerR
 
 function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]): void {
   const reserved = new Set<string>();
+  const acknowledged = new Set<string>();
+  const terminalFailures = new Map<string, ReviewReceipt>();
+  const abandoned = new Set<string>();
+  const sourceSupersessions = new Set<string>();
   const knownFindings = new Set<string>();
+  const terminalFindings = new Map<string, string[]>();
+  const repairAuthorizations = new Map<string, ReviewReceipt>();
+  const consumedAuthorizations = new Set<string>();
+  const dispositions = new Map<string, ReviewReceipt>();
   for (const envelope of ordered) {
     const receipt = envelope.receipt;
     const requestKey = computeRequestKey(receipt.request);
@@ -81,6 +89,7 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
         if (receipt.result !== null || receipt.findingIds.length > 0) {
           errors.push(`contradictory-acknowledgement:${envelope.ledgerVersion}`);
         }
+        acknowledged.add(requestKey);
         break;
       case "terminal-failure":
         if (!reserved.has(requestKey)) errors.push(`failure-without-reservation:${envelope.ledgerVersion}`);
@@ -90,6 +99,7 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
         ) {
           errors.push(`contradictory-terminal-failure:${envelope.ledgerVersion}`);
         }
+        terminalFailures.set(requestKey, receipt);
         break;
       case "attested":
       case "unadmitted":
@@ -98,17 +108,120 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
         for (const findingId of receipt.findingIds) {
           knownFindings.add(findingKey(receipt.request.sourceIdentity, findingId));
         }
+        if (receipt.result === "findings") terminalFindings.set(requestKey, receipt.findingIds);
         break;
-      case "dismissed":
+      case "running":
+      case "abandoned":
         if (
-          receipt.result !== null
-          || receipt.findingIds.length !== 1
-          || receipt.findingIds.some((findingId) => !knownFindings.has(findingKey(receipt.request.sourceIdentity, findingId)))
-          || !hasCommandProvenance(receipt)
+          !reserved.has(requestKey)
+          || receipt.result !== null
+          || receipt.findingIds.length > 0
+          || receipt.evidenceUrlOrId === null
+          || receipt.payload.kind !== "flight-state"
+          || receipt.payload.state !== receipt.action
+        ) errors.push(`contradictory-${receipt.action}:${envelope.ledgerVersion}`);
+        if (receipt.action === "abandoned") abandoned.add(requestKey);
+        break;
+      case "source-superseded": {
+        const payload = receipt.payload;
+        const identity = payload.kind === "source-supersession"
+          ? `${requestKey}:${payload.alternateSourceIdentity}`
+          : "invalid";
+        const terminal = terminalFailures.get(requestKey);
+        const proofValid = payload.kind === "source-supersession" && (
+          (payload.proofKind === "capacity-exhausted" && !reserved.has(requestKey) && !acknowledged.has(requestKey))
+          || (payload.proofKind === "pre-effect-rejection"
+            && terminal?.reason?.startsWith("pre-effect-rejection:") === true
+            && terminal.payload.kind === "terminal-evidence"
+            && terminal.payload.terminalAt === null
+            && !acknowledged.has(requestKey))
+          || (payload.proofKind === "terminal-failure"
+            && terminal?.payload.kind === "terminal-evidence"
+            && terminal.payload.terminalAt !== null
+            && terminal.evidenceUrlOrId !== null)
+          || (payload.proofKind === "explicit-repair" && abandoned.has(requestKey))
+        );
+        if (
+          payload.kind !== "source-supersession"
+          || payload.priorRequestKey !== requestKey
+          || receipt.result !== null
+          || receipt.findingIds.length > 0
+          || receipt.evidenceUrlOrId !== payload.proofRef
+          || sourceSupersessions.has(identity)
+          || !proofValid
+        ) errors.push(`contradictory-source-supersession:${envelope.ledgerVersion}`);
+        sourceSupersessions.add(identity);
+        break;
+      }
+      case "begin-fix": {
+        const terminal = terminalFindings.get(requestKey);
+        const payload = receipt.payload;
+        if (
+          payload.kind !== "head-update-authorization"
+          || terminal === undefined
+          || !sameStrings(terminal, receipt.findingIds)
+          || payload.terminalRequestKey !== requestKey
+          || repairAuthorizations.has(requestKey)
         ) {
-          errors.push(`contradictory-dismissal:${envelope.ledgerVersion}`);
+          errors.push(`contradictory-begin-fix:${envelope.ledgerVersion}`);
+        } else {
+          repairAuthorizations.set(requestKey, receipt);
         }
         break;
+      }
+      case "head-update-consumed": {
+        const payload = receipt.payload;
+        const authorization = payload.kind === "head-update-consumption"
+          ? [...repairAuthorizations.values()].find((candidate) => candidate.receiptHash === payload.authorizationReceiptHash)
+          : undefined;
+        if (
+          payload.kind !== "head-update-consumption"
+          || authorization === undefined
+          || consumedAuthorizations.has(payload.authorizationReceiptHash)
+          || !sameStrings(authorization.findingIds, receipt.findingIds)
+        ) {
+          errors.push(`contradictory-head-update-consumption:${envelope.ledgerVersion}`);
+        } else {
+          consumedAuthorizations.add(payload.authorizationReceiptHash);
+        }
+        break;
+      }
+      case "trigger-deleted":
+        if (
+          !reserved.has(requestKey)
+          || receipt.result !== null
+          || receipt.findingIds.length > 0
+          || receipt.payload.kind !== "trigger-deleted"
+          || receipt.evidenceUrlOrId !== receipt.payload.authenticatedEventRef
+        ) errors.push(`contradictory-trigger-deletion:${envelope.ledgerVersion}`);
+        break;
+      case "fixed":
+      case "deferred":
+      case "rejected":
+      case "provider-closed": {
+        const payload = receipt.payload;
+        if (
+          payload.kind !== "finding-disposition"
+          || payload.disposition !== receipt.action
+          || !knownFindings.has(findingKey(payload.sourceIdentity, payload.findingId))
+          || dispositions.has(receipt.receiptHash)
+        ) errors.push(`contradictory-${receipt.action}:${envelope.ledgerVersion}`);
+        dispositions.set(receipt.receiptHash, receipt);
+        break;
+      }
+      case "conversation-resolved": {
+        const payload = receipt.payload;
+        const prior = payload.kind === "conversation-resolved"
+          ? dispositions.get(payload.dispositionReceiptHash)
+          : undefined;
+        if (
+          payload.kind !== "conversation-resolved"
+          || prior === undefined
+          || prior.request.sourceIdentity !== payload.sourceIdentity
+          || prior.findingIds[0] !== payload.findingId
+        ) errors.push(`contradictory-conversation-resolution:${envelope.ledgerVersion}`);
+        break;
+      }
       case "required":
       case "waived":
         if (receipt.result !== null || receipt.findingIds.length > 0 || !hasCommandProvenance(receipt)) {
@@ -117,6 +230,10 @@ function validateReceiptSemantics(ordered: ReceiptEnvelope[], errors: string[]):
         break;
     }
   }
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
 }
 
 function findingKey(sourceIdentity: string, findingId: string): string {

@@ -2,7 +2,11 @@
 
 import type { AuthorizedReviewCommandEvent } from "./command-ingestion.js";
 import type { NormalizedChangeRequest, ReviewRequirement } from "./contracts.js";
-import type { ReviewReceipt, ReviewRequest } from "./execution.js";
+import {
+  REVIEW_SEMANTICS_VERSION,
+  type ReviewReceipt,
+  type ReviewRequest,
+} from "./execution.js";
 import { admitRefresh } from "./admission.js";
 import { createReceipt } from "./request-key.js";
 
@@ -27,6 +31,7 @@ export interface DirectCommandReceiptInput {
 export interface CommandRefreshInput extends DirectCommandReceiptInput {
   qualifiedSourceIdentities: string[];
   reviewedChainHead: string | null;
+  controllerActorIdentity: string;
 }
 
 /** Refresh reservation plan, exact replay, or a fail-closed admission result. */
@@ -67,6 +72,7 @@ function commandRequest(
     changeRequestId: input.changeRequest.changeRequestId,
     changeSetId: input.requirement.changeSetId,
     policyVersion: input.requirement.policyVersion,
+    semanticsVersion: REVIEW_SEMANTICS_VERSION,
     rubricVersion: input.requirement.rubricVersion,
     requirementId: input.requirement.id,
     sourceIdentity,
@@ -75,31 +81,30 @@ function commandRequest(
     coverageThroughSha: input.changeRequest.headSha,
     generation: 0,
     actorIdentity: input.event.actorIdentity,
+    requestMechanism: "authorized-command",
+    requiredActorIdentity: input.event.actorIdentity,
+    requestCommand: null,
   };
 }
 
-/** Create or replay one authorized require, waive, or dismiss receipt. */
+/** Create or replay one authorized require or waive receipt. */
 export function createDirectCommandReceipt(input: DirectCommandReceiptInput): DirectCommandReceiptResult {
   const requirementError = currentRequirement(input);
   if (requirementError !== null) return { ok: false, error: requirementError };
   if (input.event.command.kind === "refresh") return { ok: false, error: "refresh-requires-reservation" };
 
-  const action = input.event.command.kind === "require"
-    ? "required" as const
-    : input.event.command.kind === "waive" ? "waived" as const : "dismissed" as const;
-  const sourceIdentity = input.event.command.kind === "dismiss"
-    ? input.event.command.sourceIdentity
-    : COMMAND_RECEIPT_SOURCE;
+  const action = input.event.command.kind === "require" ? "required" as const : "waived" as const;
   const prior = input.priorReceipts.find((receipt) => receipt.eventId === input.event.eventId);
   const receipt = createReceipt({
     eventId: input.event.eventId,
     previousLedgerVersion: prior?.previousLedgerVersion ?? input.expectedLedgerVersion,
     action,
-    request: commandRequest(input, sourceIdentity),
+    request: commandRequest(input, COMMAND_RECEIPT_SOURCE),
     result: null,
     reason: input.event.command.reason,
     evidenceUrlOrId: input.event.durableRef,
-    findingIds: input.event.command.kind === "dismiss" ? [input.event.command.findingId] : [],
+    findingIds: [],
+    payload: { kind: "decision", decidedAt: null },
   });
   if (prior === undefined) return { ok: true, receipt, replay: false };
   if (prior.receiptHash !== receipt.receiptHash) return { ok: false, error: "conflicting-command-replay" };
@@ -147,6 +152,7 @@ function matchingRefreshReservation(input: CommandRefreshInput, receipt: ReviewR
     || request.rubricVersion !== input.requirement.rubricVersion
     || request.requirementId !== input.requirement.id
     || request.actorIdentity !== input.event.actorIdentity
+    || request.requiredActorIdentity !== input.controllerActorIdentity
     || request.coverage !== command.coverage
   ) return false;
   return command.sourceIdentity === "auto" || request.sourceIdentity === command.sourceIdentity;
@@ -184,6 +190,7 @@ export function planCommandRefresh(input: CommandRefreshInput): CommandRefreshRe
     changeRequestId: input.changeRequest.changeRequestId,
     changeSetId: input.requirement.changeSetId,
     policyVersion: input.requirement.policyVersion,
+    semanticsVersion: REVIEW_SEMANTICS_VERSION,
     rubricVersion: input.requirement.rubricVersion,
     requirementId: input.requirement.id,
     sourceIdentity,
@@ -192,6 +199,9 @@ export function planCommandRefresh(input: CommandRefreshInput): CommandRefreshRe
     coverageThroughSha: input.changeRequest.headSha,
     generation: admission.generation,
     actorIdentity: input.event.actorIdentity,
+    requestMechanism: "authorized-command",
+    requiredActorIdentity: input.controllerActorIdentity,
+    requestCommand: null,
   };
   const reservation = createReceipt({
     eventId: input.event.eventId,
@@ -202,6 +212,7 @@ export function planCommandRefresh(input: CommandRefreshInput): CommandRefreshRe
     reason: input.event.command.reason,
     evidenceUrlOrId: input.event.durableRef,
     findingIds: [],
+    payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: input.event.durableRef },
   });
   return { ok: true, request, reservation, replay: false };
 }

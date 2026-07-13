@@ -122,17 +122,30 @@ canonical commit/push path under workflow guidance. Off-workflow commits use raw
 
 This repository carries a repository-only TypeScript review controller under
 `packages/arc-framework/src/scripts/review-gate/`; it is linted, typechecked, and tested with the CLI source but is
-outside the tsup entry graph and npm package manifest. A host/provider-neutral core composes typed policy,
-requirements, authenticated receipts, evidence, admission, findings, and verdicts. GitHub host adapters own REST /
-GraphQL reads, App-authored ledger comments, native review state, and custom check projection. CodeRabbit is one
-provider adapter; generic `independent-analysis/v1` attestations cover qualified agent and human review mechanisms.
+outside the tsup entry graph and npm package manifest. Its immutable private entrypoint registry composes three layers:
+
+- **Neutral contracts and runtimes** — typed policy, request reservation, receipts, evidence, admission, fallback,
+  findings, settlement, passive waiting, head mutability, and verdict reduction depend on injected ports rather than
+  GitHub or provider APIs.
+- **GitHub and provider implementations** — REST/GraphQL readers, App-authored ledger/check writers, native review
+  state, CodeRabbit and hosted-Codex parsers, trigger actions, and exact-head settlement implement those ports.
+- **Repository policy and launchers** — self-hosting source identities, provider order, risk rules, workflow entry
+  points, local watcher, qualification coordinator, and repair tooling remain repository-specific.
 
 The dedicated GitHub App has no webhook or service runtime. Short-lived GitHub Actions runs execute protected
-default-branch code: secretless event discovery emits bounded repository/PR candidates, then environment-scoped App
-jobs re-query canonical state and serialize authoritative writes per PR. Reconcile and attest entry points are
-composed and covered by cross-process integration tests, including durable evidence reload and lifecycle-tail
-carry-forward. Live App emission is not yet proven: `review-gate.yml` remains disabled until the composed code reaches
-`main`, and `review-gate-enforcement-cutover` owns authentication probes, shadow/dual/final promotion, and closeout.
+default-branch code: secretless discovery emits bounded repository/PR candidates, environment-scoped App jobs re-query
+canonical state, and per-PR concurrency serializes authoritative writes. Event reconciliation and scheduled discovery
+converge on the same canonical state. Provider effects are admitted only after a durable reservation and confirmed
+App-authored pending projection; active flights freeze the reviewed head, and finding settlement remains bound to its
+original conversation.
+
+The private qualification launcher runs only from a clean checkout at an immutable remote default-branch SHA. It
+performs assigned developer-authenticated actions, dispatches protected App/token/repair probes, re-queries GitHub,
+and persists mode-restricted raw non-secret evidence plus tamper-evident checkpoints outside the repository. A closed
+typed matrix and deterministic activation compiler emit only sanitized candidates. Incomplete, contaminated,
+credential-shaped, mismatched, or unshipped results cannot activate policy. The checked-in policy remains inactive
+and legacy CI remains authoritative until live baseline qualification and the later source-pinned enforcement
+promotion complete their add-before-remove proofs.
 
 ## 3. Infrastructure
 

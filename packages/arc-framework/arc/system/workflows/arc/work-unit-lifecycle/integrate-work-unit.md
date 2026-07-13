@@ -144,6 +144,8 @@ describing post-merge workflow continuity or next actions — those route to the
 Resolve the one open PR and compose `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open`
 is active, execute its numbered `.actions` in authored order before review iteration. This idempotent hook fires on
 both the newly-created path and every open-PR re-entry; actions derive current controller/host state from `hostRef`.
+Review coordination and every hook invocation share this exact-head contract. If a review action changes the head,
+recompose `openedChangeRequest` from the canonical current head before re-entry; never carry the prior head forward.
 
 Process any reviewer findings per the [`review-triage` method][review-triage]; commit fixes per the
 [`commit-footer` method][commit-footer]. Re-run Tier 1 quality gates on modified files after each review-driven
@@ -267,6 +269,10 @@ What gets pushed varies by cadence:
 (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces
 an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
 
+Resolve the canonical remote PR head as `ARC_HEAD_SHA` and the outgoing local head as `<outgoing-head-sha>`, then
+run `npm run review-gate:assert-head-mutable -- <outgoing-head-sha> [<begin-fix-receipt-hash>]` with the current
+`openedChangeRequest` coordinates. Stop on any typed refusal; never reverse the current/outgoing head order.
+
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
@@ -300,6 +306,10 @@ git merge --no-edit origin/{base-branch}
 ```
 
 Before pushing the reconcile commit, repeat the Step 12 pre-push extension check when active.
+
+Resolve the canonical remote PR head as `ARC_HEAD_SHA` and the outgoing local head as `<outgoing-head-sha>`, then
+run `npm run review-gate:assert-head-mutable -- <outgoing-head-sha> [<begin-fix-receipt-hash>]` with the current
+`openedChangeRequest` coordinates. Stop on any typed refusal; never reverse the current/outgoing head order.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.

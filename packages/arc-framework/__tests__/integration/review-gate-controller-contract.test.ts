@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { ReviewRequirement } from "../../src/scripts/review-gate/core/contracts.js";
 import type { GateVerdictInput } from "../../src/scripts/review-gate/core/verdict.js";
 import { reduceGateVerdict } from "../../src/scripts/review-gate/core/verdict.js";
 import { discoverCandidates } from "../../src/scripts/review-gate/runtime/discovery.js";
+
+const REVIEW_GATE_ROOT = fileURLToPath(new URL("../../src/scripts/review-gate", import.meta.url));
+
+function source(relativePath: string): string {
+  return readFileSync(join(REVIEW_GATE_ROOT, relativePath), "utf8");
+}
+
+function typescriptFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    return entry.isDirectory() ? typescriptFiles(path) : entry.name.endsWith(".ts") ? [path] : [];
+  });
+}
 
 function requirement(obligation: "required" | "recommended"): ReviewRequirement {
   return {
@@ -29,9 +45,34 @@ function input(
 }
 
 describe("integrated review-gate contract", () => {
+  it("keeps neutral core modules independent of repository policy and GitHub implementations", () => {
+    const forbiddenImport = /from\s+["'][^"']*(?:policy\/self-hosting|hosts\/github|providers\/)[^"']*["']/u;
+    const violations = typescriptFiles(join(REVIEW_GATE_ROOT, "core"))
+      .filter((path) => forbiddenImport.test(readFileSync(path, "utf8")));
+    expect(violations).toEqual([]);
+  });
+
+  it("retains one request, receipt, and envelope contract behind the parsing facade", () => {
+    const declarations = typescriptFiles(REVIEW_GATE_ROOT).flatMap((path) => {
+      const content = readFileSync(path, "utf8");
+      return ["ReviewRequest", "ReviewReceipt", "ReceiptEnvelope"]
+        .filter((name) => content.includes(`export interface ${name} {`))
+        .map((name) => `${name}:${path}`);
+    });
+    expect(declarations).toEqual([
+      `ReviewRequest:${join(REVIEW_GATE_ROOT, "core/execution.ts")}`,
+      `ReviewReceipt:${join(REVIEW_GATE_ROOT, "core/execution.ts")}`,
+      `ReceiptEnvelope:${join(REVIEW_GATE_ROOT, "core/execution.ts")}`,
+    ]);
+    expect(source("hosts/github/receipt-comment.ts")).toContain("parseReceiptEnvelope");
+    expect(source("core/ports.ts")).toContain('from "./execution.js"');
+    expect(source("core/receipt-ledger.ts")).toContain('from "./execution.js"');
+  });
+
   it.each([
     ["exempt", "clean", [], "success"],
     ["recommended", "unavailable", [], "success"],
+    ["recommended", "queued", [], "pending"],
     ["required", "clean", [], "success"],
     ["required", "findings", [], "failure"],
     ["required", "stale", [], "pending"],

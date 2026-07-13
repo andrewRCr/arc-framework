@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `d0da7d1d0`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `5ee08de66`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,12 +13,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                         | Priority | Owner  | Depends on | Cohort            |
-| ------------- | --------------------------------- | -------- | ------ | ---------- | ----------------- |
-| `Active`      | finalize-parallelism              | P1       | andrew | —          | agile-parallelism |
-| `Planning`    | slug-state-oracle-alignment       | P1       | andrew | —          | —                 |
-| `Integrating` | review-gate-reconcile-composition | P2       | andrew | —          | —                 |
-| `Active`      | burn-in-probe-b                   | P3       | andrew | —          | —                 |
+| State         | Work unit                       | Priority | Owner  | Depends on | Cohort            |
+| ------------- | ------------------------------- | -------- | ------ | ---------- | ----------------- |
+| `Active`      | finalize-parallelism            | P1       | andrew | —          | agile-parallelism |
+| `Integrating` | review-gate-enforcement-cutover | P1       | andrew | —          | —                 |
+| `Planning`    | slug-state-oracle-alignment     | P1       | andrew | —          | —                 |
+| `Active`      | burn-in-probe-b                 | P3       | andrew | —          | —                 |
 
 ## Ready
 
@@ -81,24 +81,31 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                       | Priority | Owner  | Depends on                        | Cohort                     |
-| ------------------------------- | -------- | ------ | --------------------------------- | -------------------------- |
-| review-gate-enforcement-cutover | P1       | andrew | review-gate-reconcile-composition | —                          |
-| unit-scoped-review              | P2       | andrew | commit-increments                 | approval-flow-refinement   |
-| operational-state-docs          | P2       | andrew | cli-substrate-adoption            | —                          |
-| documentation-surface-routing   | P3       | andrew | handoff-optimization              | agent-context-optimization |
-| instruction-optimization        | P3       | andrew | composable-workflows              | agent-context-optimization |
-| schema-introspection-layer      | P3       | andrew | cli-substrate-adoption            | architecture-remediation   |
-| workflow-template-loads         | P3       | andrew | composable-workflows              | principle-anchored-core    |
-| docs-content-sweep              | P3       | andrew | docs-site-refresh                 | release-readiness          |
-| comprehension-preservation      | P3       | andrew | execution-delegation-doctrine     | —                          |
+| Work unit                             | Priority | Owner  | Depends on                      | Cohort                     |
+| ------------------------------------- | -------- | ------ | ------------------------------- | -------------------------- |
+| review-gate-enforcement-qualification | P1       | andrew | review-gate-enforcement-cutover | —                          |
+| unit-scoped-review                    | P2       | andrew | commit-increments               | approval-flow-refinement   |
+| operational-state-docs                | P2       | andrew | cli-substrate-adoption          | —                          |
+| documentation-surface-routing         | P3       | andrew | handoff-optimization            | agent-context-optimization |
+| instruction-optimization              | P3       | andrew | composable-workflows            | agent-context-optimization |
+| schema-introspection-layer            | P3       | andrew | cli-substrate-adoption          | architecture-remediation   |
+| workflow-template-loads               | P3       | andrew | composable-workflows            | principle-anchored-core    |
+| docs-content-sweep                    | P3       | andrew | docs-site-refresh               | release-readiness          |
+| comprehension-preservation            | P3       | andrew | execution-delegation-doctrine   | —                          |
 
 ### Depth 2
 
-| Work unit          | Priority | Owner  | Depends on                                                  | Cohort            |
-| ------------------ | -------- | ------ | ----------------------------------------------------------- | ----------------- |
-| wu5-public-release | P3       | andrew | docs-content-sweep                                          | release-readiness |
-| local-mode         | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
+| Work unit                         | Priority | Owner  | Depends on                                                  | Cohort            |
+| --------------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------- |
+| review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification                       | —                 |
+| wu5-public-release                | P3       | andrew | docs-content-sweep                                          | release-readiness |
+| local-mode                        | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
+
+### Depth 3
+
+| Work unit                  | Priority | Owner  | Depends on                        | Cohort |
+| -------------------------- | -------- | ------ | --------------------------------- | ------ |
+| review-gate-github-adapter | P1       | andrew | review-gate-enforcement-promotion | —      |
 
 ---
 

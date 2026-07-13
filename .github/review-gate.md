@@ -21,12 +21,17 @@ export APP_ID='4268856'             # numeric evidence/check source identity
 export APP_CLIENT_ID='<client-id>'  # token-minting client id; never substitute APP_ID
 export ACTIONS_APP_ID='15368'        # verified GitHub Actions check source id
 export KEY_FILE="$HOME/dev/arc-review-gate-andrewrcr.private-key.pem"
+export CHECKPOINT_ROOT="$HOME/dev/arc-review-gate-checkpoints"
+export EXPECTED_CHECKPOINT_DIR="$CHECKPOINT_ROOT/expected"
+export EVIDENCE_MANIFEST='.arc/reference/supplemental/analysis/analysis-review-gate-cutover-evidence.md'
 export EXPECT_CLIENT_ID_BEFORE='absent' # `absent` for create, exact current value for repair
 export EXPECT_APP_ID_BEFORE='absent'    # `absent` for create, exact current value for repair
 set -euo pipefail
 gh auth status
 key_mode="$(stat -f '%Lp' "$KEY_FILE" 2>/dev/null || stat -c '%a' "$KEY_FILE")"
 test -r "$KEY_FILE" && test "$key_mode" = '600'
+mkdir -p "$CHECKPOINT_ROOT"
+chmod 700 "$CHECKPOINT_ROOT"
 ```
 
 Every mutation below begins with an exact before-state comparison and ends with an exact-head proof. Stop on any
@@ -43,6 +48,13 @@ checks: [intent-and-scope, correctness-and-failure-behavior, trust-and-compatibi
 
 A rubric change and its `rubric_version` change land in the same reviewed commit. Satisfying evidence covers the full
 current change set and follows [.github/review-gate-attestation.md](review-gate-attestation.md).
+
+Receipt schema v1 is immutable. Schema v2 extends an existing ledger only as
+`v1* → schema-upgrade(v2) → v2*`; the upgrade names the v1 tip/new semantics and requires every legacy effect terminal.
+Every v1 `terminal-failure` is effect-ambiguous and needs separate durable terminal/cancellation proof. If proof is
+impossible, close the PR without merging and replace it with a new v2-ledger PR.
+Historical v1 evidence remains audit-readable but cannot satisfy v2 policy. Any malformed old record still degrades
+the ledger, and the monotonic anchor/version chain never resets.
 
 Provenance: the empirical basis for these inputs — the App permission model (PR ledger comments and the one-shot
 label ride `pull-requests: write`, not `issues: write`), the branch-protection check-source pinning proof, and
@@ -111,7 +123,8 @@ remove the old source.
 
 ### Run authentication probes
 
-Dispatch shadow from main and confirm a non-default ref cannot enter the environment:
+Dispatch shadow from default-branch controller code against an open probe PR's exact head, and confirm a
+non-default ref cannot enter the environment:
 
 ```bash
 gh workflow run review-gate.yml --repo "$REPO" --ref "$BRANCH" -f pull_request='<pr>' -f head_sha='<40-hex-sha>'
@@ -122,22 +135,144 @@ gh workflow run review-gate-attest.yml --repo "$REPO" --ref '<non-default-ref>' 
 probe_run="$(gh run list --repo "$REPO" --workflow review-gate-attest.yml --event workflow_dispatch \
   --branch '<non-default-ref>' --limit 20 --json databaseId,createdAt |
   jq -er --arg started "$probe_started" '[.[] | select(.createdAt >= $started)] | sort_by(.createdAt) | last.databaseId')"
-if gh run watch "$probe_run" --repo "$REPO" --exit-status; then
-  echo 'non-default attestation unexpectedly succeeded' >&2
-  exit 1
-fi
+gh run watch "$probe_run" --repo "$REPO"
 gh run view "$probe_run" --repo "$REPO" --json conclusion,jobs |
-  jq -e '.conclusion == "failure" and any(.jobs[];
-    .name == "attest" and .conclusion == "failure" and ([.steps[]?] | all(.conclusion == "skipped")))'
+  jq -e '.conclusion == "skipped" and any(.jobs[];
+    .name == "attest" and .conclusion == "skipped" and ([.steps[]?] | all(.conclusion == "skipped")))'
 ```
 
-For the main dispatch, prove the emitted `review-gate-shadow` check has `.app.id == $APP_ID`; prove a same-name
-`github-actions` or foreign-App check does not satisfy a source-pinned requirement. Reject comments unless both
+For the main dispatch, record the run's default-branch `headSha` as the controller-code identity and the probe PR's
+head as the reviewed change-set identity. Prove the emitted `review-gate-shadow` check on the PR head has
+`.app.id == $APP_ID`; prove a same-name `github-actions` or foreign-App check does not satisfy a source-pinned
+requirement. Reject comments unless both
 `performed_via_github_app.id` and the stable App-bot user id match and the receipt is unedited. Missing/unsafe
 environment, secret, installation, or credentials must fail before an authoritative write. Confirm the App token sees
-exactly `$REPO`, cannot write contents, and never enters git transport.
+exactly `$REPO`, cannot write contents, and never enters git transport. For the non-default dispatch, additionally
+prove that no App-authored receipt or check appeared for the submitted PR/head after `probe_started`.
 
-## Provider and Evidence Probe Matrix
+### Probe installation-token format compatibility
+
+GitHub's temporary `X-GitHub-Stateless-S2S-Token` override applies only to installation-token mint requests; the
+pinned `actions/create-github-app-token` revision exposes no override input. Use a protected qualification-only direct
+mint job to request `enabled` (stateless `ghs_` JWT) and `disabled` (classic opaque token), then feed each token through
+the exact controller consumer on a disposable PR. Separately source-audit the pinned Action and run it normally to
+prove it passes its output opaquely. Treat every token as opaque: no exact length, dot-count, prefix-validation,
+regex, or storage-width assumption. Both forced forms must authenticate the same pinned App/repository. Remove the
+override after proof; it is temporary migration tooling, not a production setting.
+
+### Run resumable acceptance qualification
+
+Run qualification only after the implementation has merged and the checked-out default branch equals its immutable
+remote SHA. Keep the scope, probe descriptors, checkpoints, and raw non-secret responses in one private directory
+outside the repository. The scope and descriptor files must be mode `0600`; the directory must be mode `0700`.
+
+```bash
+export ARC_QUALIFICATION_DIR="$CHECKPOINT_ROOT/qualification/<default-branch-sha>"
+export ARC_QUALIFICATION_SCOPE="$ARC_QUALIFICATION_DIR/scope.json"
+export ARC_QUALIFICATION_PROBES="$ARC_QUALIFICATION_DIR/probes.json"
+mkdir -p "$ARC_QUALIFICATION_DIR"
+chmod 700 "$ARC_QUALIFICATION_DIR"
+chmod 600 "$ARC_QUALIFICATION_SCOPE" "$ARC_QUALIFICATION_PROBES"
+npm run review-gate:qualify
+```
+
+Populate both JSON files from the exact `QualificationScope` and `QualificationProbeDescriptor` contracts in the
+evidence manifest. Supply one descriptor per closed matrix cell, use only same-repository API paths, and select the
+declared dispatch class. Descriptors contain coordinates only: they cannot state outcomes, source identities, rubric
+coverage, workflow SHAs, or fixture status. Shipped cell validators derive those fields from App-authored receipts and
+checks, pinned provider artifacts, workflow runs, statuses, and artifacts re-queried from GitHub.
+
+Provider-cell reconciliation uses the protected workflow's `live-provider-probe` mode. That mode is accepted only on
+`workflow_dispatch`, enables exactly the selected hosted provider as an in-memory capability hypothesis, and never
+changes the checked-in policy. It exists to break the partial-policy bootstrap cycle: the production reducer, pending
+projection, request adapter, and evidence normalizer run unchanged, while the observed matrix still decides whether
+the activation compiler may persist an enabled declaration.
+
+The coordinator verifies the authenticated developer, clean default-branch checkout, immutable local/remote SHA,
+each cell's disposable PR/head, source identities, policy/parser/rubric/guidance inputs, and the closed acceptance
+matrix. It
+performs only assigned developer actions, dispatches protected default-branch workflows for App/token/repair probes,
+and re-queries canonical GitHub evidence. Every accepted cell is hashed and checkpointed before the next cell runs.
+It emits `candidate.json` only after the complete matrix passes and at least one hosted source proves a clean path.
+The scope rejects reused PR, change-request, or head coordinates. Before each dispatch the coordinator snapshots the
+matching workflow's run ids; acceptance requires exactly one new run with the expected event, actor, path, and immutable
+default-branch SHA. Scheduled event repair additionally requires fresh App receipt and aggregate-check records for the
+cell after that scheduled run began.
+
+A stopped run never silently continues. Inspect the sanitized refusal, repair the implementation in a separate
+reviewed change, return to the exact shipped default-branch SHA, and explicitly resume the matching private prefix:
+
+```bash
+export ARC_QUALIFICATION_RESUME=true
+npm run review-gate:qualify
+```
+
+Missing, blocked, mismatched, fixture-backed, credential-shaped, or non-prefix checkpoints are refusal states. Never
+edit a checkpoint or candidate by hand. Compile activation only from the emitted candidate, and accept only the exact
+generated policy/evidence operation set; additions, omissions, path changes, or digest drift require a fresh run.
+
+## Request, Await, and Provider Qualification
+
+For every required request: durably reserve it, publish/confirm the ARC App's pending aggregate projection on the
+exact head, then initiate the provider effect. Bind the request ledger to provider, PR, full head, generation,
+transport actor, timestamps, and terminal evidence. A queued/running request freezes the head until a terminal
+provider result or explicit supersession.
+
+A confirmed pending trigger or acknowledged/queued/running request is an active flight and freezes the head until a
+terminal provider result. Terminal findings remain blocking but permit repair: DEFER/REJECT settles on the same head;
+FIX records `begin-fix` plus carried finding ids and authorizes exactly one push to a new head, where reconciliation
+consumes the authorization and retains the finding lifecycle tail. A non-terminal flight requires explicit
+abandon/supersede/restart before any head change.
+
+An actor-executable adapter returns a canonical `needs-user-trigger` action containing request key, full head,
+generation, exact command, and required GitHub actor id. Self-hosting hosted Codex resolves the PR author's immutable
+id. After canonical receipts and the App projection prove the reservation pending, the coordinator derives the action
+through the shipped typed contract and consumes it through `perform-action`. Its reader re-queries the exact head,
+reservation, and pending projection at consumption; the action port revalidates the actor, posts once, adopts only an
+exact ambiguous post, and redispatches with the same protected provider-probe inputs. The controller independently
+re-queries and binds the returned event id.
+
+Provider output has no controller request id, so every request uses a PR-wide exclusive trigger window. Before
+admission, prove automatic/unowned paths disabled and scan all PR command comments plus label timeline events. Record
+event id, actor, digest, time, and canonical head observed at the event. The owned comment must remain present,
+unedited, and exact through terminal acceptance. Route comment creation/edit/deletion and label/unlabel; deletion
+records a bounded default-branch event tombstone before canonical state disappears. Any unowned/mutated/deleted
+trigger contaminates across head pushes until provider-specific terminal/cancellation proof. Head equality and time
+alone do not establish causation.
+
+The local change-request watcher observes the aggregate App projection at low frequency and returns only typed state
+changes. It never parses provider prose. Exempt PRs await exact-head `ci-ok`; reviewed PRs await the aggregate
+projection, whose semantics include CI, review request, provider evidence, finding settlement, waiver, fallback, and
+timeout.
+
+Adapter semantic parsers are versioned and fail closed. Hosted Codex clean requires a pinned, unedited App/bot issue
+comment with anchored `Codex Review:`, the exact `Didn't find any major issues.` clause, and one reviewed-commit SHA
+marker that resolves uniquely to the frozen full head. Unknown grammar remains pending. Findings require the standard
+review's full `commit_id`; connected-account failure maps to unavailable only under the correlation and live-
+qualification contract below.
+
+Hosted Codex rubric transport is versioned top-level `AGENTS.md` Review guidelines plus the owned trigger comment,
+which names `independent-analysis/v1` and repeats its five focus dimensions. Resolve the effective guidance digest for
+every changed path and reject missing/conflicting nested guidance. Codex is satisfying only after controlled probes
+exercise every dimension under that digest and trigger; ledger metadata alone is insufficient.
+
+Connected-account failure is eligible for terminal mapping only when its versioned anchored text/link comes from the
+pinned Codex App/bot, is the earliest qualifying response created after the recorded trigger comment and before the
+next generation, and the head remained frozen with no competing trigger in the window. Bind the trigger actor/comment
+id in the request ledger. The App-authored probe proves parser grammar only because that actor is inadmissible.
+Self-hosting keeps this capability parser-only/non-terminal unless an admissible, intentionally unconnected actor
+live-proves the complete production path; stale, unrelated, changed, or contaminated prose stays unknown.
+
+Automatic fallback is legal only after proven pre-effect rejection/capacity exhaustion or explicit terminal failure.
+Record source supersession before selecting an alternate. Effect-ambiguous delivery, acknowledged silence, or
+ambiguous terminal evidence never auto-replays or auto-falls-back.
+
+The versioned policy order is `coderabbit-pr` then `codex-pr`. `unknown` capacity permits one reserved attempt for
+these hosted adapters because neither exposes reliable preflight quota; explicit `exhausted` skips, while proven pre-
+effect rate-limit rejection advances. CLI and qualified-human attestations require explicit repair authorization and
+are never automatic fallbacks.
+
+### Provider and evidence probe matrix
 
 Run this matrix in shadow against disposable PR heads. Record immutable API evidence and the exact head for each row.
 Any unproven native/provider capability falls back to an explicit controller request or generic attestation—never
@@ -155,32 +290,76 @@ state; its presence remains progress evidence only, never verdict.
 | Stale/retarget                    | Prior evidence becomes stale; current policy/change set re-queries                          |
 | CodeRabbit trigger/retrigger      | Label is generation zero; controller `refresh` selects full/incremental coverage            |
 | Resolved CodeRabbit configuration | No inherited label, keyword, global override, or alternate automatic path                   |
-| Direct provider commands          | Cannot satisfy or waive an ARC requirement                                                  |
+| Codex user trigger                | Developer trigger qualifies; App failure is parser-only unless admissible actor proves it   |
+| Codex findings                    | Pinned bot/App standard review plus comments bind full requested `commit_id`                |
+| Codex clean                       | Pinned, unedited App issue-comment SHA prefix resolves uniquely to the frozen full head     |
+| Direct provider commands          | Contaminate the generation; wait terminal, then reserve a new owned generation              |
 | Commit status                     | Exact `CodeRabbit` context wakes progress; creator/status alone is not substantive evidence |
 | Coverage                          | Full starts at diff base; incremental starts at the controller-reported chain head          |
-| Closure                           | Provider-confirmed or authorized dismissal receipt; bare thread resolution is rejected      |
+| Closure                           | Provider-owned or coordinator reply-at-locus settlement; bare resolution is rejected        |
 | Capacity                          | Provenance retained; unknown/lookup failure cannot become availability                      |
 | Waive/dismiss                     | Authorized, reasoned, receipt-backed, exact current policy/change set                       |
 | Agent/human attestation           | Same neutral manifest; authenticated submitter distinct from reviewer claim                 |
 | Reservation ambiguity             | Never replayed; remains blocking until explicitly repaired                                  |
 | Scheduled repair                  | Open PR with no check/anchor is discovered and initial required request occurs once         |
-| Event routing                     | CI via filtered `workflow_run`, CodeRabbit via `status`, reviews via secretless relay       |
+| Event routing                     | Filtered CI/status/review/comment events reconcile every qualified terminal locus           |
 | Candidate fan-out                 | One shared head maps to distinct repository/PR concurrency lanes                            |
 | Native review                     | `REVIEW_REQUIRED`, `CHANGES_REQUESTED`, and `APPROVED` map without parsing CODEOWNERS       |
+| Await wake-up                     | Proxy events wake provider closure; coordinator thread mutations dispatch exact-head repair |
+| Token formats                     | Direct forced tokens pass controller; pinned Action is opaque; override is then absent      |
+| Ledger upgrade                    | v1 history extends once into v2; legacy active/ambiguous effects reject upgrade             |
+| Repair authority                  | Actions source plus exclusive status-writer call graph and exact run are proven             |
 
 Formal self-hosting Code Owner enforcement stays disabled. Reusable team setup/doctor verification belongs in the
-downstream GitHub adapter. CodeRabbit remains non-satisfying unless the live matrix proves durable clean coverage and
-semantic closure authority. If those become proven, the same reviewed enablement commit must author the provider
-instructions implementing `independent-analysis/v1` and update `rubric_version`.
+downstream GitHub adapter. Provider satisfaction and conversation settlement are separate capabilities: a provider
+may qualify while declaring coordinator-owned thread settlement. A CodeRabbit native approval without a controller
+reservation and substantive full-head evidence is non-satisfying; `request_changes_workflow` can approve after thread
+resolution even when no qualifying CodeRabbit review occurred. If CodeRabbit becomes satisfying, the same reviewed
+enablement commit must author the provider instructions implementing `independent-analysis/v1` and update
+`rubric_version`.
 
-## Normal Cutover and Rollback
+Coordinator FIX closure requires an authorized `begin-fix`, one carried-finding head push, exact-head CI, a
+qualifying follow-up full-head review, and an authorized `fixed` receipt linking the original finding, fix head,
+verification, follow-up evidence, and direct reply before thread resolution. The reply never claims the provider
+verified the individual fix. DEFER/REJECT requires its authorized rationale/direct-reply receipt; provider closure
+requires the qualified source identity. Bare resolution and broad host-actor membership are non-satisfying.
 
-Define helpers that snapshot and compare the required status checks, including App source ids:
+The implementation delivery ships this machinery with project hooks inactive and legacy CI `merge-ok` required. It
+integrates and archives through the ordinary repository lifecycle without running live qualification or recording
+observed capability values.
+
+After that delivery reaches the default branch, open the dedicated qualification delivery. From its clean immutable
+default-branch checkout, run the baseline matrix and retain private checkpoints. On failure, restore or disable to the
+safe checkpoint and route a separate reviewed repair; never amend the acceptance record with unshipped code. On
+success, place only the activation compiler's policy/manifest operations in the qualification PR. Validate its diff
+against the same typed candidate; any manual field/path, omission, stale input, identity/version drift, or checkpoint
+mismatch is a stop. That delivery owns the provisional observed manifest and archives normally after activation.
+
+Only after qualification has merged may the dedicated promotion delivery rerun the complete matrix through the
+enabled default-branch policy. Promotion owns the final `CutoverAcceptanceProof`, source-pinned enforcement changes,
+project-hook activation, compatibility-alias removal, and final architecture/evidence closeout. No implementation or
+qualification branch remains open merely to hold later operational state.
+
+## Enforcement Promotion and Normal Rollback
+
+Define helpers that snapshot and compare both enforcement layers, dispatch a post-mutation reconciliation, and
+verify App checks on an exact probe-PR head:
 
 ```bash
-checks() {
+classic_checks() {
   gh api "repos/$REPO/branches/$BRANCH/protection/required_status_checks" |
-    jq -S '{strict,contexts,checks}'
+    jq -S '{strict,checks:(.checks | sort_by(.context))}'
+}
+ruleset_id() {
+  gh api "repos/$REPO/rulesets" |
+    jq -er '.[] | select(.name == "main-protection" and .target == "branch") | .id'
+}
+ruleset() { gh api "repos/$REPO/rulesets/$(ruleset_id)"; }
+ruleset_checks() {
+  ruleset | jq -S '
+    .rules[] | select(.type == "required_status_checks") |
+    {strict:.parameters.strict_required_status_checks_policy,
+     checks:(.parameters.required_status_checks | sort_by(.context))}'
 }
 set_checks() {
   local candidate="$1"
@@ -190,11 +369,33 @@ set_checks() {
       (.app_id | type == "number" and (. == -1 or . > 0))) and
     ((map(.context) | unique | length) == length)
   ' <<<"$candidate" >/dev/null
-  jq -n --argjson checks "$candidate" '{strict:true,checks:$checks}' |
+
+  # Preserve the existing non-strict posture; strictness is outside this cutover.
+  jq -n --argjson checks "$candidate" '{strict:false,checks:$checks}' |
     gh api --method PATCH "repos/$REPO/branches/$BRANCH/protection/required_status_checks" --input -
-  checks | jq -e --argjson expected "$candidate" '.checks == $expected'
+
+  ruleset | jq --argjson checks "$candidate" '
+    .rules |= map(
+      if .type == "required_status_checks" then
+        .parameters.strict_required_status_checks_policy = false |
+        .parameters.required_status_checks = ($checks | map({context,integration_id:.app_id}))
+      else . end
+    ) |
+    {name,target,enforcement,bypass_actors,conditions,rules}
+  ' | gh api --method PUT "repos/$REPO/rulesets/$(ruleset_id)" --input -
+
+  verify_enforcement "$candidate"
 }
-head_sha() { gh api "repos/$REPO/commits/$BRANCH" --jq .sha; }
+verify_enforcement() {
+  local expected="$1"
+  classic_checks | jq -e --argjson expected "$expected" '
+    .strict == false and .checks == ($expected | sort_by(.context))'
+  ruleset_checks | jq -e --argjson expected "$expected" '
+    .strict == false and
+    .checks == ($expected | map({context,integration_id:.app_id}) | sort_by(.context))'
+}
+main_head() { gh api "repos/$REPO/commits/$BRANCH" --jq .sha; }
+pr_head() { gh pr view "$1" --repo "$REPO" --json headRefOid --jq .headRefOid; }
 mode() {
   gh variable list --repo "$REPO" --json name,value |
     jq -er '[.[] | select(.name == "REVIEW_GATE_CONTEXT_MODE")][0].value // "missing"'
@@ -208,7 +409,10 @@ project_actions() {
 snapshot() {
   local destination="$1"
   mkdir -p "$destination"
-  checks >"$destination/checks.json"
+  chmod 700 "$destination"
+  classic_checks >"$destination/classic-checks.json"
+  ruleset | jq -S . >"$destination/main-protection-ruleset.json"
+  gh api "repos/$REPO/branches/$BRANCH/protection" | jq -S . >"$destination/classic-protection.json"
   mode >"$destination/mode.txt"
   gh api "repos/$REPO/environments/review-gate" |
     jq -S '{id,name,protection_rules,deployment_branch_policy}' >"$destination/environment.json"
@@ -216,123 +420,153 @@ snapshot() {
     jq -S '[.[] | select((.name | startswith("ARC_REVIEW_GATE_")) or .name == "REVIEW_GATE_CONTEXT_MODE")]' \
     >"$destination/variables.json"
   project_actions >"$destination/actions.json"
-  head_sha >"$destination/head.txt"
+  main_head >"$destination/main-head.txt"
+  find "$destination" -type f -exec chmod 600 {} +
 }
 compare_checkpoint() {
   local expected="$1" actual="$2"
   diff -ru "$expected" "$actual"
 }
-verify_checkpoint() {
-  local expected_head="$1" expected_mode="$2" expected_checks="$3"
-  test "$(head_sha)" = "$expected_head"
+dispatch_reconcile() {
+  local pull_request="$1" head="$2" started run_id
+  started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  gh workflow run review-gate.yml --repo "$REPO" --ref "$BRANCH" \
+    -f pull_request="$pull_request" -f head_sha="$head" >/dev/null
+  run_id="$(gh run list --repo "$REPO" --workflow review-gate.yml --event workflow_dispatch \
+    --branch "$BRANCH" --limit 20 --json databaseId,createdAt |
+    jq -er --arg started "$started" '[.[] | select(.createdAt >= $started)] | sort_by(.createdAt) | last.databaseId')"
+  gh run watch "$run_id" --repo "$REPO" --exit-status >&2
+  gh run view "$run_id" --repo "$REPO" --json databaseId,createdAt,headSha,event,conclusion |
+    jq -e --arg started "$started" '
+      .event == "workflow_dispatch" and .conclusion == "success" and .createdAt >= $started |
+      . + {mutationStarted:$started}'
+}
+verify_projection() {
+  local expected_mode="$1" expected_checks="$2" pull_request="$3" expected_head="$4" proof="$5"
+  local started controller_head
   test "$(mode)" = "$expected_mode"
-  checks | jq -e --argjson expected "$expected_checks" '.checks == $expected'
+  test "$(pr_head "$pull_request")" = "$expected_head"
+  started="$(jq -er .mutationStarted <<<"$proof")"
+  controller_head="$(jq -er .headSha <<<"$proof")"
+  test "$controller_head" = "$(main_head)"
   gh api "repos/$REPO/commits/$expected_head/check-runs?per_page=100" |
-    jq -e --argjson expected "$expected_checks" '
+    jq -e --argjson expected "$expected_checks" --argjson app "$APP_ID" \
+      --arg started "$started" --arg pr "$pull_request" '
       all($expected[]; . as $need | any(.check_runs[];
         .name == $need.context and .conclusion == "success" and
-        ($need.app_id == -1 or .app.id == $need.app_id)))
+        ($need.app_id == -1 or .app.id == $need.app_id) and
+        (if $need.app_id == $app then
+          .updated_at >= $started and
+          (.external_id | startswith("arc-review-gate:" + $pr + ":")) and
+          (.external_id | endswith(":" + $need.context))
+        else true end)))
     '
+}
+verify_checkpoint() {
+  local expected_mode="$1" expected_checks="$2" pull_request="$3" expected_head="$4" proof="$5"
+  verify_enforcement "$expected_checks"
+  verify_projection "$expected_mode" "$expected_checks" "$pull_request" "$expected_head" "$proof"
 }
 ```
 
-At every checkpoint save `checks`, the repository variable `REVIEW_GATE_CONTEXT_MODE`, App/environment state, project
-extension `active:` values, and `head_sha`. Compare them with the expected before-state before running `set_checks`.
-Store reviewed expected snapshots outside the repository in `$EXPECTED_CHECKPOINT_DIR`; a missing snapshot is a stop.
-After every mutation, `verify_checkpoint` proves the exact head/mode/check sources are green, then `snapshot` plus
-`compare_checkpoint` proves all other state. Any command failure aborts under `set -euo pipefail`.
+At every checkpoint save classic protection, the full `main-protection` ruleset, mode, App/environment state, project
+extension `active:` values, and the default-branch head. Compare them with the expected before-state before running
+`set_checks`. Store reviewed expected snapshots under `$CHECKPOINT_ROOT`; a missing snapshot is a stop. Before adding
+a new required App context, dispatch reconciliation for an open disposable probe PR and retain its exact head plus
+returned run JSON. `verify_projection` accepts App checks only when the dispatch used current default-branch code and
+updated the probe head after the mutation. Add the already-green context to both enforcement layers, then
+`verify_checkpoint`, `snapshot`, and `compare_checkpoint`. Hash sanitized files into `$EVIDENCE_MANIFEST`; never copy
+credentials, tokens, secret values, or private-key material into it. Any command failure aborts under
+`set -euo pipefail`.
 
-1. **Shadow proof.** Keep CI-owned `merge-ok` required. Set `REVIEW_GATE_CONTEXT_MODE=shadow`, add
-   `review-gate-shadow` pinned to `$APP_ID`, and prove both green on the exact head before continuing.
+Set `probe_pr` to one disposable open PR and freeze its `probe_head` throughout these steps.
+
+1. **Non-required shadow and outage rehearsal.** Keep CI-owned `merge-ok` as the sole required machine authority. Set
+   shadow mode and prove the App projection beside the already-green legacy check. Before adding shadow to
+   enforcement, rehearse audited controller outage/restore while its failure cannot deadlock merges. Then add the
+   restored, source-pinned `review-gate-shadow` to both enforcement layers.
 
    ```bash
-   test -d "$EXPECTED_CHECKPOINT_DIR/shadow-before"
    snapshot "$before_dir/shadow-before.actual"
    compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/shadow-before" "$before_dir/shadow-before.actual"
-   shadow_head="$(head_sha)"
+   probe_head="$(pr_head "$probe_pr")"
    shadow_checks="$(jq -n --argjson app "$APP_ID" --argjson actions "$ACTIONS_APP_ID" \
      '[{context:"merge-ok",app_id:$actions},{context:"review-gate-shadow",app_id:$app}]')"
    gh variable set REVIEW_GATE_CONTEXT_MODE --repo "$REPO" --body shadow
+   shadow_proof="$(dispatch_reconcile "$probe_pr" "$probe_head")"
+   verify_projection shadow "$shadow_checks" "$probe_pr" "$probe_head" "$shadow_proof"
    set_checks "$shadow_checks"
-   verify_checkpoint "$shadow_head" shadow "$shadow_checks"
+   verify_checkpoint shadow "$shadow_checks" "$probe_pr" "$probe_head" "$shadow_proof"
    snapshot "$before_dir/shadow-after.actual"
    compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/shadow-after" "$before_dir/shadow-after.actual"
    ```
 
-2. **Remove the legacy alias only after the pair is green.** Require `ci-ok` plus App shadow, verify exact-head green,
-   then remove CI `merge-ok` from the workflow in the reviewed cutover PR. Never let an intermediate revision omit
-   today's `merge-ok` before the replacement pair is proven. Before opening the PR, snapshot/compare
-   `alias-before`; after its protected merge, set the new checks, run `verify_checkpoint` on the new exact head in
-   shadow mode, then snapshot/compare `alias-after`.
+2. **Remove the legacy alias from enforcement, not code.** Prove `ci-ok` plus App shadow first, then require that pair
+   in both enforcement layers. Leave CI `merge-ok` emitted but unrequired until the final-gated delivery PR removes
+   it from the workflow.
 
    ```bash
    snapshot "$before_dir/alias-before.actual"
    compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/alias-before" "$before_dir/alias-before.actual"
-   # Merge the reviewed alias-removal PR normally, then continue on its new main head.
-   alias_head="$(head_sha)"
    alias_checks="$(jq -n --argjson app "$APP_ID" --argjson actions "$ACTIONS_APP_ID" \
      '[{context:"ci-ok",app_id:$actions},{context:"review-gate-shadow",app_id:$app}]')"
+   alias_proof="$(dispatch_reconcile "$probe_pr" "$probe_head")"
+   verify_projection shadow "$alias_checks" "$probe_pr" "$probe_head" "$alias_proof"
    set_checks "$alias_checks"
-   verify_checkpoint "$alias_head" shadow "$alias_checks"
+   verify_checkpoint shadow "$alias_checks" "$probe_pr" "$probe_head" "$alias_proof"
    snapshot "$before_dir/alias-after.actual"
    compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/alias-after" "$before_dir/alias-after.actual"
    ```
 
-3. **Qualification decision.** Enable a satisfying CodeRabbit declaration only if every live probe passed. The change
-   invalidates policy identity; re-run current-head evidence. Otherwise keep CodeRabbit non-satisfying. Compare
-   `qualification-before` before the reviewed policy/rubric PR and `qualification-after` after merge; verify the new
-   exact head with the unchanged shadow check set before accepting the policy identity.
-
-   ```bash
-   snapshot "$before_dir/qualification-before.actual"
-   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/qualification-before" "$before_dir/qualification-before.actual"
-   # Merge the reviewed qualification PR normally only when every probe passed.
-   qualification_head="$(head_sha)"
-   verify_checkpoint "$qualification_head" shadow "$alias_checks"
-   snapshot "$before_dir/qualification-after.actual"
-   compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/qualification-after" "$before_dir/qualification-after.actual"
-   ```
-
-4. **Dual proof.** Set mode `dual`; require `ci-ok`, App `review-gate-shadow`, and App `merge-ok`. Verify the new App
-   `merge-ok` is green and source-pinned before removing shadow. Compare `dual-before`, retain its exact head, mutate
-   mode/checks, run `verify_checkpoint "$dual_head" dual "$dual_checks"`, then compare `dual-after`.
+3. **Dual proof.** While the shadow pair remains required, set dual mode and prove both App contexts. Only then add
+   App `merge-ok` to the required set.
 
    ```bash
    snapshot "$before_dir/dual-before.actual"
    compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/dual-before" "$before_dir/dual-before.actual"
-   dual_head="$(head_sha)"
    dual_checks="$(jq -n --argjson app "$APP_ID" --argjson actions "$ACTIONS_APP_ID" \
      '[{context:"ci-ok",app_id:$actions},{context:"review-gate-shadow",app_id:$app},
        {context:"merge-ok",app_id:$app}]')"
    gh variable set REVIEW_GATE_CONTEXT_MODE --repo "$REPO" --body dual
+   dual_proof="$(dispatch_reconcile "$probe_pr" "$probe_head")"
+   verify_projection dual "$dual_checks" "$probe_pr" "$probe_head" "$dual_proof"
    set_checks "$dual_checks"
-   verify_checkpoint "$dual_head" dual "$dual_checks"
+   verify_checkpoint dual "$dual_checks" "$probe_pr" "$probe_head" "$dual_proof"
    snapshot "$before_dir/dual-after.actual"
    compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/dual-after" "$before_dir/dual-after.actual"
    ```
 
-5. **Final.** Set mode `final`; require `ci-ok` and App `merge-ok`, then remove shadow only after exact-head proof.
-   Compare `final-before`, retain its exact head, mutate mode/checks, run
-   `verify_checkpoint "$final_head" final "$final_checks"`, then compare `final-after`. Open a narrow final-gated
-   closeout PR updating `TECHNICAL-OVERVIEW.md` from delivered shadow state to current final architecture; unpause
-   dependent work only after it merges.
+4. **Final.** While the dual set remains required, set final mode and prove a fresh App `merge-ok`; only then remove
+   shadow from both enforcement layers.
 
    ```bash
    snapshot "$before_dir/final-before.actual"
    compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/final-before" "$before_dir/final-before.actual"
-   final_head="$(head_sha)"
    final_checks="$(jq -n --argjson app "$APP_ID" --argjson actions "$ACTIONS_APP_ID" \
      '[{context:"ci-ok",app_id:$actions},{context:"merge-ok",app_id:$app}]')"
    gh variable set REVIEW_GATE_CONTEXT_MODE --repo "$REPO" --body final
+   final_proof="$(dispatch_reconcile "$probe_pr" "$probe_head")"
+   verify_projection final "$final_checks" "$probe_pr" "$probe_head" "$final_proof"
    set_checks "$final_checks"
-   verify_checkpoint "$final_head" final "$final_checks"
+   verify_checkpoint final "$final_checks" "$probe_pr" "$probe_head" "$final_proof"
    snapshot "$before_dir/final-after.actual"
    compare_checkpoint "$EXPECTED_CHECKPOINT_DIR/final-after" "$before_dir/final-after.actual"
    ```
 
-Activate project `post-pr-open` and `pre-merge` in the cutover PR only after shadow proof. Explicitly invoke
-`coordinate-pr-review.md` for that PR because its integration session may retain the pre-activation extension snapshot;
-verify later sessions load both active actions normally.
+5. **One final-gated delivery PR.** Open it only after final enforcement is proven. It removes the now-unrequired CI
+   alias, activates project `post-pr-open`/`pre-merge`, disables CodeRabbit's native `request_changes_workflow` so
+   empty bot approvals cannot become a parallel authority, and lands the sanitized evidence/architecture closeout.
+   Merge through the final App gate, then use a disposable PR to prove the post-merge default-branch controller state.
+
+At final promotion set generic required approvals to zero: App/bot approvals can satisfy the count, so it is not a
+human gate. Explicit merge authorization remains the ARC integration interlock; any future genuinely human-constrained
+GitHub rule is separate governance scope. Preserve conversation-resolution enforcement independently. Retain classic
+protection beside `main-protection` for this cutover and keep their settings mechanically equivalent; consolidation is
+separate scope.
+
+Activate project `post-pr-open` and `pre-merge` in the final-gated delivery PR only after final proof. Explicitly run
+repository review coordination for that PR because its open integration session may retain the pre-activation
+extension snapshot; verify later sessions load both active actions normally.
 
 The activation PR changes only `active: false` → `active: true` in these project Configurable files; preserve their
 existing `.actions` bodies:
@@ -342,7 +576,7 @@ existing `.actions` bodies:
 .arc/system/extensions/pre-merge.md
 ```
 
-Before merging that same PR, explicitly run `coordinate-pr-review.md` against its current `openedChangeRequest` even
+Before merging that same PR, explicitly coordinate its current open change request even
 though the in-memory extension list may still reflect the pre-activation snapshot. A fresh session must then report
 both `post-pr-open` and `pre-merge` active before the next cutover mutation.
 
@@ -356,21 +590,107 @@ without the other: snapshots treat `{post_pr_open,pre_merge}` as one cutover sta
 
 ## Audited App or Controller Outage Recovery
 
-Rehearse this path before final cutover while shadow remains non-required.
+The emergency workflow has no ARC App credential. GitHub delivers its typed `review-gate-repair`
+`repository_dispatch` only to default-branch workflow code; the developer credential that sends the event never enters
+Actions. The read-only validation job proves the live environment, immutable workflow SHA, complete permission/call
+graph, exact PR head, and bounded `independent-analysis/v1` attestation. The protected writer alone receives
+`statuses: write`, executes no repository code, and writes constant context `review-repair-ok` as Actions App id
+`15368`.
 
-1. Freeze merges and capture the incident id, ruleset/branch-protection JSON, mode, required checks/source ids,
-   environment/App state, action activation, and exact affected head.
-2. Prove independent `ci-ok` on that exact head. A repair PR touching the `ci-ok` producer cannot use its own proof;
-   require an independent trusted workflow/reviewer path instead.
-3. If project coordination cannot reach the controller, the repair PR sets project `post-pr-open` and
-   `pre-merge` inactive and records the incident-scoped suspension. Do not retry dead actions.
-4. Add and prove the substitute required check before removing the dead App context. Merge the repair normally through
-   branch protection—never `--admin` or direct base push.
-5. Require one fresh Codex CLI, Claude Code, CodeRabbit CLI, or qualified-human `independent-analysis/v1` review of the
-   exact repair diff. Link its durable evidence in the PR and incident; do not fabricate a controller receipt.
-6. Restore the App in shadow. Open a reactivation PR, explicitly invoke `coordinate-pr-review.md` for its possibly stale
-   extension snapshot, and prove later sessions load the restored actions.
-7. Repeat normal shadow → dual → final promotion, verify exact-head green after each mutation, then unfreeze merges.
+### Compare the repair environment
 
-An empty requirement set, admin bypass, direct-base repair, controller-manufactured substitute review, or repair PR
-using the CI producer it modifies is prohibited.
+Use the authenticated developer token only in the local setup process. Compare first; `--apply` is a separate,
+explicit mutation. Apply refuses to touch an environment containing any secret.
+
+```bash
+export GITHUB_REPOSITORY="$REPO"
+GITHUB_TOKEN="$(gh auth token)" npm run review-gate:repair-environment
+
+# Only after the comparison stopped on an expected missing or policy-drift state:
+GITHUB_TOKEN="$(gh auth token)" npm run review-gate:repair-environment -- --apply
+GITHUB_TOKEN="$(gh auth token)" npm run review-gate:repair-environment
+```
+
+The final comparison must report `status: ready` and the live default branch. Independently retain the environment
+response, custom deployment-branch policies, and environment-secret names in the private incident directory. Require
+exactly one `branch` policy naming the live default branch and an empty secret-name array. Stop on any extra policy,
+secret, environment consumer, workflow writer, or repository Actions default other than read-only.
+
+### Outage add-before-remove
+
+Set incident-local values without placing the attestation on a command line:
+
+```bash
+export INCIDENT_ID='<non-secret-incident-id>'
+export REPAIR_PR='<pull-request-number>'
+export REPAIR_HEAD="$(pr_head "$REPAIR_PR")"
+export REPAIR_ATTESTATION='<private-path-to-bounded-attestation.json>'
+export REPAIR_DIR="$CHECKPOINT_ROOT/outages/$INCIDENT_ID"
+mkdir -p "$REPAIR_DIR" && chmod 700 "$REPAIR_DIR"
+```
+
+1. Freeze merges operationally. Snapshot classic protection, the full `main-protection` ruleset, current required
+   contexts and source ids, project action activation, both protected environments, App state, default-branch SHA, PR
+   head, and incident id. Compare the snapshot with the reviewed expected checkpoint. Require a non-empty currently
+   green authority set; never remove a requirement during this step.
+2. Prove source-pinned CI on `$REPAIR_HEAD` and retain its run/source identity. If the repair changes any file that
+   produces `ci-ok`, its own CI result is inadmissible: retain separate exact-head evidence from an unchanged producer
+   and an independent reviewer. Both are required; a self-produced `ci-ok` is never proof of its own producer change.
+3. Validate a clean bounded attestation from a maintainer-attested qualified agent or authenticated non-author human.
+   If project coordination cannot reach the controller, the reviewed repair PR sets both `post-pr-open` and
+   `pre-merge` inactive together. Never retry an effect-ambiguous dead action.
+4. Re-run the environment comparison. The workflow then audits repository default permissions, all checked-in
+   workflows/jobs, the sole environment consumer/writer, immutable default-branch SHA, and protected authority paths.
+   Dispatch the typed event with the attestation streamed from its private file:
+
+   ```bash
+   dispatch_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+   jq -n --argjson pull_request "$REPAIR_PR" --rawfile payload "$REPAIR_ATTESTATION" \
+     '{event_type:"review-gate-repair",client_payload:{pull_request:$pull_request,payload:$payload}}' |
+     gh api --method POST "repos/$REPO/dispatches" --input -
+   ```
+
+5. Identify exactly one `review-gate-repair.yml` `repository_dispatch` run created after `$dispatch_started`. Require
+   its actor to match the dispatcher, its head SHA to equal the current default-branch SHA, and its conclusion to be
+   success. Re-query the PR head and the `review-repair-ok` commit status. Require exact `$REPAIR_HEAD`, state success,
+   Actions source id `15368`, and a target linking the run id, workflow path/SHA, PR, and head. Stop on ambiguity.
+6. Read the current required-check array from both enforcement layers and prove they are equal and still contain the
+   unavailable App context. Form an augmented non-empty array by adding
+   `{context:"review-repair-ok",app_id:15368}`. Call `set_checks` once, then prove both layers and the exact repair PR
+   head green. Snapshot and compare this augmented checkpoint before removing anything.
+7. Only after the augmented checkpoint passes, form the next non-empty array by removing the unavailable App context,
+   call `set_checks`, and prove both enforcement layers again. Merge the reviewed repair PR normally through branch
+   protection. Retain the attestation identity, workflow run, status, before/augmented/after enforcement snapshots,
+   and file hashes; never retain tokens, raw secrets, or the attestation body in sanitized evidence.
+
+### Restoration add-before-remove
+
+Restore the App in non-required shadow first. Open and coordinate a reviewed reactivation PR, then prove later
+sessions load both project actions. Freeze merges and compare the live outage checkpoint before each mutation.
+
+1. Produce the restored App context on the exact reactivation head and prove its configured App source id, successful
+   conclusion, external identity, default-branch controller run, and live PR head.
+2. While `review-repair-ok` remains required and green, add the restored App context to both enforcement layers. Prove
+   and snapshot the augmented non-empty set.
+3. Only after that proof, remove `review-repair-ok` from both layers. Prove the restored App context remains required
+   and green, resume the normal shadow → dual → final sequence, and unfreeze merges.
+
+### Shadow rehearsal and retained evidence
+
+The checked-in `.github/review-gate-repair-rehearsal.json` records the non-mutating contract rehearsal and contains no
+live claims. Its executable test fixes the safe ordering before hosted rehearsal is possible.
+
+After this workflow reaches the default branch and before final cutover, rehearse with the App projection still
+non-required and legacy CI still required. Use a disposable PR and sanitized attestation, execute environment compare,
+dispatch, run/status proof, add `review-repair-ok` beside the existing required CI floor, prove the augmented set, then
+remove only `review-repair-ok` and prove the original set is restored. Do not remove or replace the existing authority
+during rehearsal.
+
+Retain private raw responses under `$REPAIR_DIR/raw` with mode `0700`/`0600`. Retain a sanitized rehearsal record with
+only repository id, default-branch/workflow SHA, disposable PR/head, run id/attempt, context/source id, ordered
+checkpoint hashes, timestamps, and pass/fail outcomes. Hash the sanitized record into `$EVIDENCE_MANIFEST`. Delete
+credential-bearing command captures and attestation bodies after their hashes and identities are recorded.
+
+An empty requirement set, admin bypass, direct-base repair, removal-first mutation, controller-manufactured substitute
+review, changed emergency authority/permission graph, alternate status writer, ambiguous run, or CI-producer self-proof
+is prohibited. Stop at the last proven checkpoint on any mismatch.

@@ -10,6 +10,7 @@ permissions: {}
 
 jobs:
   relay:
+    permissions: {}
     runs-on: ubuntu-latest
     steps:
       - run: echo 'Review state changed; privileged reconciliation will re-query canonical state.'

@@ -13,28 +13,50 @@ export interface ReservationConfirmation {
   envelope: ReceiptEnvelope | null;
 }
 
-/** Injected effects for one request execution. */
-export interface RequestExecutionInput {
+/** Injected storage effects for one request reservation. */
+export interface RequestReservationInput {
   request: ReviewRequest;
   expectedLedgerVersion: number;
-  appendReservation: (request: ReviewRequest, expectedLedgerVersion: number) => Promise<ReceiptEnvelope>;
+  appendReservation: (
+    request: ReviewRequest,
+    expectedLedgerVersion: number,
+  ) => Promise<{ envelope: ReceiptEnvelope; created: boolean }>;
   confirmReservation: (requestKey: string) => Promise<ReservationConfirmation>;
+}
+
+/** Injected provider effects after pending state is canonically confirmed. */
+export interface ConfirmedRequestExecutionInput {
+  request: ReviewRequest;
+  reservation: ReceiptEnvelope;
   invoke: (request: ReviewRequest) => Promise<RequestAcknowledgement>;
   appendAcknowledgement: (
     acknowledgement: RequestAcknowledgement,
     reservation: ReceiptEnvelope,
   ) => Promise<void>;
-  appendTerminalFailure: (reservation: ReceiptEnvelope) => Promise<void>;
+  appendTerminalFailure: (
+    reservation: ReceiptEnvelope,
+    failure: { disposition: "pre-effect" | "ambiguous"; reason: string },
+  ) => Promise<void>;
 }
 
 /** Effect result: invocation is explicit so callers never infer replay safety. */
 export interface RequestExecutionResult {
-  status: "acknowledged" | "reservation-unconfirmed" | "invocation-ambiguous";
+  status: "acknowledged" | "pre-effect-rejected" | "invocation-ambiguous";
   invoked: boolean;
 }
 
-/** Append and canonically confirm a reservation before invoking exactly once. */
-export async function executeReservedRequest(input: RequestExecutionInput): Promise<RequestExecutionResult> {
+function invocationFailure(error: unknown): { disposition: "pre-effect" | "ambiguous"; reason: string } {
+  const candidate = typeof error === "object" && error !== null ? error as { code?: unknown } : null;
+  const code = typeof candidate?.code === "string" ? candidate.code : "unclassified-invocation-failure";
+  return code.startsWith("pre-effect-rejection:")
+    ? { disposition: "pre-effect", reason: code }
+    : { disposition: "ambiguous", reason: code };
+}
+
+/** Append and canonically confirm a reservation without performing the provider effect. */
+export async function reserveRequest(
+  input: RequestReservationInput,
+): Promise<{ envelope: ReceiptEnvelope; created: boolean } | null> {
   const reservation = await input.appendReservation(input.request, input.expectedLedgerVersion);
   const requestKey = computeRequestKey(input.request);
   const confirmation = await input.confirmReservation(requestKey);
@@ -43,18 +65,29 @@ export async function executeReservedRequest(input: RequestExecutionInput): Prom
     || confirmation.envelope === null
     || confirmation.envelope.receipt.action !== "reserved"
     || computeRequestKey(confirmation.envelope.receipt.request) !== requestKey
-    || confirmation.envelope.receipt.receiptHash !== reservation.receipt.receiptHash
+    || confirmation.envelope.receipt.receiptHash !== reservation.envelope.receipt.receiptHash
   ) {
-    return { status: "reservation-unconfirmed", invoked: false };
+    return null;
   }
+  return { envelope: confirmation.envelope, created: reservation.created };
+}
+
+/** Invoke one newly reserved request after the caller confirms its pending projection. */
+export async function executeConfirmedRequest(
+  input: ConfirmedRequestExecutionInput,
+): Promise<RequestExecutionResult> {
   let acknowledgement: RequestAcknowledgement;
   try {
     acknowledgement = await input.invoke(input.request);
-  } catch {
-    await input.appendTerminalFailure(reservation);
-    return { status: "invocation-ambiguous", invoked: true };
+  } catch (error) {
+    const failure = invocationFailure(error);
+    await input.appendTerminalFailure(input.reservation, failure);
+    return {
+      status: failure.disposition === "pre-effect" ? "pre-effect-rejected" : "invocation-ambiguous",
+      invoked: true,
+    };
   }
-  await input.appendAcknowledgement(acknowledgement, reservation);
+  await input.appendAcknowledgement(acknowledgement, input.reservation);
   return { status: "acknowledged", invoked: true };
 }
 

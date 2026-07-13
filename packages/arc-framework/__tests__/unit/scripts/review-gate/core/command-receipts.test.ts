@@ -72,7 +72,11 @@ describe("command receipt planning", () => {
           requirementId: "analysis",
           sourceIdentity: COMMAND_RECEIPT_SOURCE,
           actorIdentity: "7",
+          semanticsVersion: "review-gate/v1",
+          requestMechanism: "authorized-command",
+          requiredActorIdentity: "7",
         },
+        payload: { kind: "decision" },
       },
     });
   });
@@ -107,35 +111,6 @@ describe("command receipt planning", () => {
     expect(conflict).toEqual({ ok: false, error: "conflicting-command-replay" });
   });
 
-  it("preserves the named source and finding when planning a dismissal", () => {
-    const result = createDirectCommandReceipt({
-      event: event({
-        permission: "maintain",
-        command: {
-          kind: "dismiss",
-          requirementId: "analysis",
-          sourceIdentity: "agent-1",
-          findingId: "finding-1",
-          reason: "not applicable to this review",
-        },
-      }),
-      changeRequest,
-      requirement,
-      expectedLedgerVersion: 3,
-      priorReceipts: [],
-    });
-
-    expect(result).toMatchObject({
-      ok: true,
-      receipt: {
-        action: "dismissed",
-        findingIds: ["finding-1"],
-        request: { sourceIdentity: "agent-1", actorIdentity: "7" },
-        reason: "not applicable to this review",
-      },
-    });
-  });
-
   it("plans an authorized full refresh as the normal reservation protocol", () => {
     const result = planCommandRefresh({
       event: event({
@@ -153,6 +128,7 @@ describe("command receipt planning", () => {
       priorReceipts: [],
       qualifiedSourceIdentities: ["agent-1"],
       reviewedChainHead: null,
+      controllerActorIdentity: "99",
     });
 
     expect(result).toMatchObject({
@@ -165,11 +141,15 @@ describe("command receipt planning", () => {
         coverageThroughSha: changeRequest.headSha,
         generation: 0,
         actorIdentity: "7",
+        semanticsVersion: "review-gate/v1",
+        requestMechanism: "authorized-command",
+        requiredActorIdentity: "99",
       },
       reservation: {
         eventId: "command:IC_1:2026-07-11T20:00:00Z:body",
         action: "reserved",
         reason: "run the full change again",
+        payload: { kind: "reservation" },
       },
     });
   });
@@ -191,6 +171,7 @@ describe("command receipt planning", () => {
       priorReceipts: [],
       qualifiedSourceIdentities: ["agent-1"],
       reviewedChainHead: null,
+      controllerActorIdentity: "99",
     });
     expect(first).toMatchObject({ ok: true, replay: false });
     if (!first.ok) throw new Error("expected initial reservation");
@@ -212,6 +193,7 @@ describe("command receipt planning", () => {
       priorReceipts: [first.reservation],
       qualifiedSourceIdentities: ["agent-1"],
       reviewedChainHead: null,
+      controllerActorIdentity: "99",
     });
     const incremental = planCommandRefresh({
       event: event({
@@ -230,6 +212,7 @@ describe("command receipt planning", () => {
       priorReceipts: [first.reservation],
       qualifiedSourceIdentities: ["agent-1"],
       reviewedChainHead: "f".repeat(40),
+      controllerActorIdentity: "99",
     });
 
     expect(missingHead).toEqual({ ok: false, error: "incremental-chain-head-missing" });
@@ -254,6 +237,7 @@ describe("command receipt planning", () => {
       priorReceipts: [first.reservation],
       qualifiedSourceIdentities: [],
       reviewedChainHead: null,
+      controllerActorIdentity: "99",
     });
     expect(replay).toMatchObject({ ok: true, replay: true, reservation: first.reservation });
   });

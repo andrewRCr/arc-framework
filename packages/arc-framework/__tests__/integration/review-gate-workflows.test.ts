@@ -3,9 +3,11 @@ import { resolve } from "node:path";
 
 import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
+import { auditRepairWriterGraph } from "../../src/scripts/review-gate/hosts/github/repair-audit.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const read = async (name: string): Promise<string> => readFile(resolve(root, ".github/workflows", name), "utf8");
+const readRepositoryFile = async (path: string): Promise<string> => readFile(resolve(root, path), "utf8");
 
 function jobValue(workflow: string, name: string): Record<string, unknown> {
   const parsed = load(workflow) as { jobs?: Record<string, unknown> };
@@ -66,11 +68,32 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).not.toMatch(/uses: [^\n]+@v\d/u);
   });
 
+  it("routes deleted issue comments directly with their bounded payload", async () => {
+    const workflow = await read("review-gate.yml");
+    expect(workflow).toContain("types: [created, edited, deleted]");
+    expect(workflow).toContain("ARC_TRIGGER_DELETION: ${{ toJSON(matrix.triggerDeletion) }}");
+    expect(workflow).not.toMatch(/issue_comment:[\s\S]*Review Gate Wakeup/u);
+  });
+
+  it("covers every canonical wake-up transport and retains scheduled repair", async () => {
+    const controller = await read("review-gate.yml");
+    const proxy = await read("review-gate-wakeup.yml");
+    expect(controller).toContain("review_requested, review_request_removed");
+    expect(controller).toContain("check_run:\n    types: [created, completed, rerequested]");
+    expect(controller).toContain("workflows: [CI, Review Gate Wakeup]");
+    expect(controller).toContain("issue_comment:\n    types: [created, edited, deleted]");
+    expect(controller).toContain("status:");
+    expect(controller).toContain("schedule:");
+    expect(controller).toContain("workflow_dispatch:");
+    expect(proxy).toContain("pull_request_review:");
+    expect(proxy).toContain("pull_request_review_comment:");
+  });
+
   it("publishes independent CI truth and a thin compatibility alias", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("  ci_ok:\n    name: ci-ok");
     expect(workflow).toContain("needs: [classify, lint-typecheck-unit, integration-e2e, portability]");
-    expect(workflow).toContain("  merge-ok:\n    name: merge-ok\n    needs: ci_ok");
+    expect(workflow).toMatch(/ {2}merge-ok:\n {4}name: merge-ok\n {4}permissions: \{\}\n {4}needs: ci_ok/u);
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
     expect(workflow).toContain("git diff --name-only -z");
     expect(workflow).not.toContain("changed_all=");
@@ -80,10 +103,14 @@ describe("trusted review-gate workflows", () => {
     const tsup = await readFile(resolve(root, "packages/arc-framework/tsup.config.ts"), "utf8");
     const manifest = JSON.parse(await readFile(resolve(root, "packages/arc-framework/package.json"), "utf8")) as {
       files: string[];
+      scripts?: Record<string, string>;
     };
     expect(tsup).toContain('entry: ["src/cli.ts"]');
     expect(tsup).not.toContain("review-gate");
     expect(manifest.files).not.toContain("src");
+    const rootManifest = JSON.parse(await readRepositoryFile("package.json")) as { scripts: Record<string, string> };
+    expect(rootManifest.scripts["review-gate:await"]).toContain("run-await.ts");
+    expect(manifest.scripts?.["review-gate:await"]).toBeUndefined();
   });
 
   it("parses every workflow and pins every external action", async () => {
@@ -145,5 +172,88 @@ describe("trusted review-gate workflows", () => {
       }
     }
     for (const path of referenced) await expect(readFile(resolve(root, path)), path).resolves.toBeDefined();
+  });
+
+  it("guards only opened-change push sites with current and outgoing heads in order", async () => {
+    const packageIntegrationPath = "packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md";
+    const instanceIntegrationPath = ".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md";
+    const packageErrandPath = "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md";
+    const instanceErrandPath = ".arc/system/workflows/arc/supplemental/run-errand.md";
+    const [packageIntegration, instanceIntegration, packageErrand, instanceErrand, coordination] = await Promise.all([
+      readRepositoryFile(packageIntegrationPath),
+      readRepositoryFile(instanceIntegrationPath),
+      readRepositoryFile(packageErrandPath),
+      readRepositoryFile(instanceErrandPath),
+      readRepositoryFile(".arc/system/workflows/project/coordinate-pr-review.md"),
+    ]);
+    const guard = "npm run review-gate:assert-head-mutable -- <outgoing-head-sha>";
+
+    expect(packageIntegration).toBe(instanceIntegration);
+    expect(packageErrand).toBe(instanceErrand);
+    expect(packageIntegration.match(new RegExp(guard, "gu"))).toHaveLength(2);
+    expect(packageIntegration.indexOf(guard)).toBeGreaterThan(packageIntegration.indexOf("### 12) Final push"));
+    expect(packageIntegration.slice(
+      packageIntegration.indexOf("### 3) Open the PR"),
+      packageIntegration.indexOf("### 4) Review iteration"),
+    )).not.toContain(guard);
+    expect(packageIntegration).toContain("canonical remote PR head as `ARC_HEAD_SHA`");
+    expect(packageIntegration).toContain("outgoing local head as `<outgoing-head-sha>`");
+
+    expect(packageErrand.match(new RegExp(guard, "gu"))).toHaveLength(1);
+    expect(packageErrand).toContain("The initial pre-PR push has no `openedChangeRequest` and skips this query.");
+    expect(coordination.indexOf(guard)).toBeLessThan(coordination.indexOf("and push."));
+    expect(coordination).toMatch(/record the\s+authorized\s+`begin-fix` transition before invoking the guard/u);
+  });
+
+  it("keeps exact-head review coordination paired across WU and errand callers", async () => {
+    const [packageIntegration, instanceIntegration, packageErrand, instanceErrand, coordination] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(".arc/system/workflows/arc/supplemental/run-errand.md"),
+      readRepositoryFile(".arc/system/workflows/project/coordinate-pr-review.md"),
+    ]);
+    expect(packageIntegration).toBe(instanceIntegration);
+    expect(packageErrand).toBe(instanceErrand);
+    for (const workflow of [packageIntegration, packageErrand]) {
+      expect(workflow).toMatch(/recompose\s+`openedChangeRequest` from the canonical current head/u);
+      expect(workflow).toContain("exact-head contract");
+    }
+    expect(coordination).toMatch(/`next-action` → `perform-action` → `await` → canonical re-entry/u);
+    expect(coordination).not.toMatch(/provider command|without polling/iu);
+  });
+
+  it("proves the checked-in repair workflow is the sole closed status writer", async () => {
+    const names = [
+      "ci.yml", "docs.yml", "review-gate-attest.yml", "review-gate-qualify.yml", "review-gate-repair.yml",
+      "review-gate-wakeup.yml", "review-gate.yml",
+    ];
+    const files = Object.fromEntries(await Promise.all(names.map(async (name) => [
+      `.github/workflows/${name}`,
+      await read(name),
+    ])));
+    const sha = "a".repeat(40);
+    expect(auditRepairWriterGraph({
+      files,
+      repositoryDefaultPermission: "read",
+      auditedSha: sha,
+      liveDefaultBranchSha: sha,
+      repairWorkflowPath: ".github/workflows/review-gate-repair.yml",
+      repairEnvironment: "review-gate-repair",
+      changedPaths: [],
+      authorityPaths: [".github/workflows/review-gate-repair.yml"],
+    })).toMatchObject({ ok: true, writer: { jobId: "write-status" } });
+  });
+
+  it("keeps token qualification on immutable protected code with sanitized output only", async () => {
+    const qualify = await read("review-gate-qualify.yml");
+    const workflow = load(qualify) as { on?: unknown };
+    expect(workflow.on).toEqual({ repository_dispatch: { types: ["review-gate-qualify"] } });
+    expect(qualify).toContain("environment: review-gate");
+    expect(qualify).toContain("ref: ${{ github.workflow_sha }}");
+    expect(qualify).toContain("persist-credentials: false");
+    expect(qualify).toContain("ARC_REVIEW_GATE_APP_PRIVATE_KEY: ${{ secrets.ARC_REVIEW_GATE_APP_PRIVATE_KEY }}");
+    expect(qualify).toContain("review-gate-token-qualification-${{ github.run_id }}-${{ github.run_attempt }}");
+    expect(qualify).not.toMatch(/echo.*(?:TOKEN|PRIVATE_KEY)|steps\..*\.outputs\.token/iu);
   });
 });

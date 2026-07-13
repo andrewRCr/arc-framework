@@ -2,15 +2,16 @@ name: Review Gate
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited, labeled, unlabeled]
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, edited, labeled, unlabeled,
+      review_requested, review_request_removed]
   status:
   workflow_run:
     workflows: [CI, Review Gate Wakeup]
     types: [completed]
   issue_comment:
-    types: [created, edited]
+    types: [created, edited, deleted]
   check_run:
-    types: [completed, rerequested]
+    types: [created, completed, rerequested]
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
@@ -21,6 +22,12 @@ on:
       head_sha:
         required: true
         type: string
+      qualification_provider:
+        required: false
+        type: string
+      qualification_guidance_digest:
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -30,6 +37,11 @@ permissions:
 
 jobs:
   discover:
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
+      statuses: read
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
@@ -50,6 +62,11 @@ jobs:
         run: ./node_modules/.bin/tsx packages/arc-framework/src/scripts/review-gate/run-reconcile.ts discover
 
   reconcile:
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
+      statuses: read
     needs: discover
     if: ${{ needs.discover.outputs.matrix != '' && needs.discover.outputs.matrix != '{"include":[]}' }}
     strategy:
@@ -87,5 +104,9 @@ jobs:
           REVIEW_GATE_CONTEXT_MODE: ${{ vars.REVIEW_GATE_CONTEXT_MODE }}
           ARC_APP_TOKEN: ${{ steps.app-token.outputs.token }}
           ARC_APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          ARC_TRIGGER_DELETION: ${{ toJSON(matrix.triggerDeletion) }}
+          ARC_QUALIFICATION_MODE: ${{ inputs.qualification_provider != '' && 'live-provider-probe' || '' }}
+          ARC_QUALIFICATION_PROVIDER: ${{ inputs.qualification_provider }}
+          ARC_QUALIFICATION_GUIDANCE_DIGEST: ${{ inputs.qualification_guidance_digest }}
           GITHUB_TOKEN: ${{ github.token }}
         run: ./node_modules/.bin/tsx packages/arc-framework/src/scripts/review-gate/run-reconcile.ts reconcile

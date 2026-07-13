@@ -9,6 +9,7 @@ import type {
   HostProjectionRef,
   NativeReviewObservation,
   NativeReviewReadInput,
+  PendingProjectionConfirmationInput,
   VerdictPublicationInput,
 } from "../../core/ports.js";
 import { projectContexts } from "../../runtime/rollout.js";
@@ -22,7 +23,9 @@ import {
   resolveChangeRequest as resolveChangeRequestLeaf,
 } from "./change-request.js";
 import {
+  confirmPendingGateCheck,
   publishGateCheck,
+  type CheckRunScope,
   type GitHubCheckRunApi,
 } from "./check-runs.js";
 import {
@@ -177,24 +180,41 @@ export class GitHubHostAdapter extends GitHubHostReadAdapter implements GitHostA
     this.checks = checks;
   }
 
-  async publishVerdict(input: VerdictPublicationInput): Promise<HostProjectionRef[]> {
+  private scopeFor(input: {
+    hostRef: string;
+    headSha: string;
+    changeSetId: string;
+    expectedAppId: string;
+  }, contextName: string): CheckRunScope {
     const coordinates = this.coordinates(input.hostRef);
+    return {
+      owner: this.deps.owner,
+      repo: this.deps.repo,
+      pullNumber: coordinates.number,
+      headSha: input.headSha,
+      changeSetId: input.changeSetId,
+      contextName,
+      expectedAppId: input.expectedAppId,
+    };
+  }
+
+  async publishVerdict(input: VerdictPublicationInput): Promise<HostProjectionRef[]> {
     const named = projectContexts(input.mode, input.projection);
     const results = await Promise.all(named.map(async ({ name, projection }) => publishGateCheck({
       api: this.checks,
-      scope: {
-        owner: this.deps.owner,
-        repo: this.deps.repo,
-        pullNumber: coordinates.number,
-        headSha: input.headSha,
-        changeSetId: input.changeSetId,
-        contextName: name,
-        expectedAppId: input.expectedAppId,
-      },
+      scope: this.scopeFor(input, name),
       projection,
       anchorReceiptCount: input.anchorReceiptCount,
       readCurrentState: input.readCurrentState,
     })));
     return results.map((result) => ({ opaqueRef: result.checkRun.htmlUrl }));
+  }
+
+  async confirmPendingProjection(input: PendingProjectionConfirmationInput): Promise<boolean> {
+    if (input.projection.conclusion !== "pending") return false;
+    const named = projectContexts(input.mode, input.projection);
+    const confirmations = await Promise.all(named.map(({ name }) =>
+      confirmPendingGateCheck(this.checks, this.scopeFor(input, name))));
+    return confirmations.length > 0 && confirmations.every(Boolean);
   }
 }

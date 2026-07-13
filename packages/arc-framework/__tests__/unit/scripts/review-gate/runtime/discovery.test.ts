@@ -58,6 +58,26 @@ describe("review-gate discovery matrix output", () => {
     expect(output).toBe(JSON.stringify({ include: [{ repositoryId: 42, pullRequestNumber: 7 }] }));
   });
 
+  it("routes proxy completion exactly when coordinates exist and repairs by bounded scan when absent", async () => {
+    const exact = await resolveMatrixOutput("workflow_run", {
+      action: "completed",
+      repository: { id: 42 },
+      workflow_run: { name: "Review Gate Wakeup", head_sha: sha, pull_requests: [{ number: 7 }, { number: 7 }] },
+    }, 91, EMPTY_PORT);
+    expect(exact).toBe(JSON.stringify({ include: [{ repositoryId: 42, pullRequestNumber: 7 }] }));
+
+    const listOpenPullRequests = vi.fn(async function* () { yield [9, 3]; });
+    const repaired = await resolveMatrixOutput("workflow_run", {
+      action: "completed",
+      repository: { id: 42 },
+      workflow_run: { name: "Review Gate Wakeup", head_sha: sha, pull_requests: [] },
+    }, 91, { ...EMPTY_PORT, listOpenPullRequests });
+    expect(repaired).toBe(JSON.stringify({
+      include: [{ repositoryId: 42, pullRequestNumber: 3 }, { repositoryId: 42, pullRequestNumber: 9 }],
+    }));
+    expect(listOpenPullRequests).toHaveBeenCalledOnce();
+  });
+
   it("suppresses the controller's own completed check before expansion", async () => {
     const output = await resolveMatrixOutput(
       "check_run",
@@ -80,5 +100,41 @@ describe("review-gate discovery matrix output", () => {
       EMPTY_PORT,
     );
     expect(output).toBe(JSON.stringify({ include: [{ repositoryId: 42, pullRequestNumber: 7 }] }));
+  });
+
+  it("carries a bounded deleted-comment tombstone directly into the writer matrix", async () => {
+    const output = await resolveMatrixOutput(
+      "issue_comment",
+      {
+        action: "deleted",
+        repository: { id: 42 },
+        issue: { number: 7, pull_request: {} },
+        comment: {
+          id: 123,
+          node_id: "IC_123",
+          body: "@codex review",
+          updated_at: "2026-07-12T20:00:00.000Z",
+          user: { id: 101 },
+        },
+      },
+      91,
+      {
+        ...EMPTY_PORT,
+        resolvePullRequestHead: async () => "f".repeat(40),
+      },
+    );
+    const parsed = JSON.parse(output ?? "null") as { include: Array<Record<string, unknown>> };
+    expect(parsed.include).toEqual([expect.objectContaining({
+      repositoryId: 42,
+      pullRequestNumber: 7,
+      triggerDeletion: expect.objectContaining({
+        schemaVersion: 1,
+        commentId: "123",
+        actorIdentity: "101",
+        observedHeadSha: "f".repeat(40),
+        providerIdentity: "codex-pr",
+        triggerClassification: "provider-trigger",
+      }),
+    })]);
   });
 });

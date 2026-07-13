@@ -29,9 +29,9 @@ const evidence = {
   }],
   closures: [{
     findingId: "finding-0",
-    authorityKind: "authorized-dismissal",
-    authorityIdentity: "actor-4",
-    evidenceUrlOrId: "receipt:dismiss-1",
+    authorityKind: "source-confirmed",
+    authorityIdentity: "agent-9",
+    evidenceUrlOrId: "evidence:closure-1",
   }],
   observedAt: "2026-07-10T20:00:00.000Z",
 };
@@ -39,6 +39,14 @@ const evidence = {
 describe("normalized evidence", () => {
   it("round-trips coverage, findings, and closure authority", () => {
     expect(parseEvidence(JSON.parse(JSON.stringify(evidence)))).toEqual(evidence);
+  });
+
+  it("round-trips an optional source-authenticated recurrence relation", () => {
+    const recurring = {
+      ...evidence,
+      findings: [{ ...evidence.findings[0], recursFindingId: "finding-0" }],
+    };
+    expect(parseEvidence(recurring).findings[0]?.recursFindingId).toBe("finding-0");
   });
 
   it.each([

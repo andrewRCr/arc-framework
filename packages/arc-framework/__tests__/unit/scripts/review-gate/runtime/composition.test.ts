@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { NormalizedChangeRequest } from "../../../../../src/scripts/review-gate/core/contracts.js";
+import type { ReviewRequest } from "../../../../../src/scripts/review-gate/core/execution.js";
 import type { GitExec } from "../../../../../src/lib/git/exec.js";
 import type { HttpFetch } from "../../../../../src/scripts/review-gate/hosts/github/api/http.js";
 import type { ChangeRequestResolution } from "../../../../../src/scripts/review-gate/hosts/github/change-request.js";
-import { CodeRabbitProviderAdapter } from "../../../../../src/scripts/review-gate/providers/coderabbit/adapter.js";
+import { GitHubSettlementReader } from "../../../../../src/scripts/review-gate/hosts/github/settlement.js";
+import { QualifiedProviderRouter } from "../../../../../src/scripts/review-gate/providers/router.js";
 import {
   SELF_HOSTING_POLICY,
   type SelfHostingPolicy,
@@ -78,7 +80,36 @@ function coderabbitPolicy(): SelfHostingPolicy {
   if (coderabbit === undefined) throw new Error("missing CodeRabbit policy fixture");
   return {
     ...SELF_HOSTING_POLICY,
-    qualifications: [{ ...coderabbit, enabled: true }, ...rest],
+    qualifications: [{
+      ...coderabbit,
+      mode: "enabled",
+      exactCoverage: true,
+      durableResults: true,
+      distinctOutcomes: true,
+      closureCapability: true,
+    }, ...rest],
+  };
+}
+
+function coderabbitRequest(): ReviewRequest {
+  return {
+    schemaVersion: 1,
+    repositoryId: "100",
+    changeRequestId: "PR_node",
+    changeSetId: changeRequest.changeSetId,
+    policyVersion: SELF_HOSTING_POLICY.semanticsVersion,
+    semanticsVersion: SELF_HOSTING_POLICY.semanticsVersion,
+    rubricVersion: "independent-analysis/v1",
+    requirementId: "independent-analysis",
+    sourceIdentity: "coderabbit-pr",
+    coverage: "full",
+    coverageFromSha: changeRequest.diffBaseSha,
+    coverageThroughSha: HEAD,
+    generation: 0,
+    actorIdentity: SELF_HOSTING_POLICY.providerIdentities.appBotUserId,
+    requestMechanism: "automatic",
+    requiredActorIdentity: SELF_HOSTING_POLICY.providerIdentities.appBotUserId,
+    requestCommand: null,
   };
 }
 
@@ -102,9 +133,10 @@ describe("review-gate composition roots", () => {
     const composition = await createReconcileRuntime(baseConfig(), io, verifiedSeams());
 
     expect(composition.runtime).toBeInstanceOf(SelfHostingReconcileRuntime);
-    expect(composition.provider).toBeInstanceOf(CodeRabbitProviderAdapter);
+    expect(composition.provider).toBeInstanceOf(QualifiedProviderRouter);
     expect(composition.store).toBeDefined();
     expect(composition.checks).toBeDefined();
+    expect(composition.settlement).toBeInstanceOf(GitHubSettlementReader);
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -187,12 +219,17 @@ describe("review-gate composition roots", () => {
     await expect(createReconcileRuntime(baseConfig(), io, seams)).rejects.toThrow(/change request unavailable/u);
   });
 
-  it("wires the CodeRabbit boundary under both a disabled and an enabled provider policy", async () => {
+  it("wires the qualified-provider router under both shadow and enabled provider policy", async () => {
     const { io } = makeIo();
     const disabled = await createReconcileRuntime(baseConfig(), io, verifiedSeams());
     const enabled = await createReconcileRuntime(baseConfig({ policy: coderabbitPolicy() }), io, verifiedSeams());
 
-    expect(disabled.provider).toBeInstanceOf(CodeRabbitProviderAdapter);
-    expect(enabled.provider).toBeInstanceOf(CodeRabbitProviderAdapter);
+    expect(disabled.provider).toBeInstanceOf(QualifiedProviderRouter);
+    expect(enabled.provider).toBeInstanceOf(QualifiedProviderRouter);
+    await expect(disabled.provider.qualifyRequest(coderabbitRequest())).rejects.toThrow("source is not qualified");
+    await expect(enabled.provider.qualifyRequest(coderabbitRequest())).resolves.toEqual({
+      qualified: true,
+      reason: "qualified",
+    });
   });
 });

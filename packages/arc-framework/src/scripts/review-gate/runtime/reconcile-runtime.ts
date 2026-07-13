@@ -13,7 +13,12 @@
 
 import { hashContent } from "../../../lib/manifest/hash.js";
 import { ingestReviewCommands, type AuthorizedReviewCommandEvent, type ReviewCommandComment } from "../core/command-ingestion.js";
+import { deriveReviewGateAction } from "../core/next-action.js";
 import { createDirectCommandReceipt, planCommandRefresh } from "../core/command-receipts.js";
+import { planHeadUpdateConsumption } from "../core/head-mutability.js";
+import { resolveSettlementActor } from "../core/settlement.js";
+import { reduceExclusiveTriggerWindow, type TriggerEvent } from "../core/trigger-window.js";
+import type { GitHubTriggerHistoryEvent } from "../hosts/github/trigger-history.js";
 import type { CapabilitySet, NormalizedChangeRequest, ReviewRequirement } from "../core/contracts.js";
 import type { Evidence } from "../core/evidence.js";
 import type { GateProjection, ReceiptEnvelope, ReviewReceipt, ReviewRequest, SourceCapacity } from "../core/execution.js";
@@ -29,11 +34,17 @@ import type {
 } from "../core/ports.js";
 import {
   extractAuthenticatedReceiptEvidence,
+} from "../core/reduction.js";
+import {
   reduceSelfHostingGate,
   type SelfHostingGateReductionInput,
-} from "../core/reduction.js";
+} from "../policy/self-hosting/reduction.js";
 import { createReceipt, computeRequestKey } from "../core/request-key.js";
-import { executeReservedRequest, type RequestExecutionResult } from "../core/request-execution.js";
+import {
+  executeConfirmedRequest,
+  reserveRequest,
+  type RequestExecutionResult,
+} from "../core/request-execution.js";
 import {
   resolveSelfHostingDecision,
   type SelfHostingDecision,
@@ -42,10 +53,6 @@ import type { ChangedPath, LaneDecision } from "../policy/self-hosting/lane.js";
 import { qualifyIndependentAnalysisSource } from "../policy/self-hosting/qualification.js";
 import type { ReviewRiskDecision } from "../policy/self-hosting/risk.js";
 import type { SelfHostingPolicy, SourceQualificationDeclaration } from "../policy/self-hosting/schema.js";
-import {
-  mapCodeRabbitApprovalToEvidence,
-  resolveCodeRabbitDecisiveReview,
-} from "../hosts/github/coderabbit-review.js";
 import type { ContextMode } from "./rollout.js";
 import type {
   CanonicalReconcileState,
@@ -86,6 +93,8 @@ export interface ReconcileRuntimeDependencies {
   resolveRisk: (changes: ChangedPath[]) => ReviewRiskDecision | Promise<ReviewRiskDecision>;
   /** List current PR command comments for authorized-command ingestion. */
   listCommandComments: () => Promise<ReviewCommandComment[]>;
+  /** Read complete current PR comment and immutable label history. */
+  readTriggerHistory?: (headSha: string) => Promise<GitHubTriggerHistoryEvent[]>;
 }
 
 /** Full live resolution retained by `read()` and consumed by `reduce()`. */
@@ -102,12 +111,12 @@ interface ReconcileSnapshot {
   capacities: SourceCapacity[];
   ciState: "pending" | "failure" | "success";
   nativeReview: SelfHostingGateReductionInput["nativeReview"];
-  knownHostActors: string[];
   lifecycleTail: LifecycleTailProof | null;
   commandEvents: AuthorizedReviewCommandEvent[];
   receiptRefs: string[];
   inconsistencies: string[];
   ledgerVersion: number | null;
+  settlementActorIdentity: string | null;
 }
 
 const EMPTY_CAPABILITIES = (actorIdentity: string): CapabilitySet => ({
@@ -124,6 +133,172 @@ function guardKey(state: CanonicalReconcileState): string {
     state.policyVersion,
     state.permissionVersion,
   ].join(":");
+}
+
+function resumableReservation(receipts: ReviewReceipt[]): ReviewReceipt | null {
+  for (let index = receipts.length - 1; index >= 0; index -= 1) {
+    const candidate = receipts[index];
+    if (candidate?.action !== "reserved") continue;
+    const requestKey = computeRequestKey(candidate.request);
+    const terminal = receipts.slice(index + 1).some((receipt) =>
+      computeRequestKey(receipt.request) === requestKey
+      && ["acknowledged", "terminal-failure", "contaminated", "superseded", "source-superseded"]
+        .includes(receipt.action));
+    if (!terminal) return candidate;
+  }
+  return null;
+}
+
+function exclusiveTriggerInconsistencies(
+  receipts: readonly ReviewReceipt[],
+  history: readonly GitHubTriggerHistoryEvent[],
+  observedEvidence: readonly Evidence[],
+): string[] {
+  const errors: string[] = [];
+  const acknowledgements = receipts.filter((receipt) => receipt.action === "acknowledged"
+    && receipt.payload.kind === "acknowledgement");
+  for (const acknowledgement of acknowledgements) {
+    if (acknowledgement.payload.kind !== "acknowledgement") continue;
+    const trigger = acknowledgement.payload.trigger;
+    if (trigger.occurredAt === null) {
+      errors.push(`trigger-window-missing-time:${computeRequestKey(acknowledgement.request)}`);
+      continue;
+    }
+    const providerHistory = history.filter((event) => event.providerIdentity === acknowledgement.request.sourceIdentity
+      && event.classification === "trigger");
+    const tombstones = receipts.filter((receipt) => receipt.action === "trigger-deleted"
+      && receipt.payload.kind === "trigger-deleted"
+      && receipt.request.sourceIdentity === acknowledgement.request.sourceIdentity);
+    const liveTerminalEvidence = observedEvidence.filter((evidence) =>
+      evidence.requirementId === acknowledgement.request.requirementId
+      && evidence.sourceIdentity === acknowledgement.request.sourceIdentity
+      && evidence.policyVersion === acknowledgement.request.policyVersion
+      && evidence.rubricVersion === acknowledgement.request.rubricVersion
+      && evidence.coverage === acknowledgement.request.coverage
+      && evidence.coverageFromSha === acknowledgement.request.coverageFromSha
+      && evidence.coverageThroughSha === acknowledgement.request.coverageThroughSha);
+    const canonicalOwned = providerHistory.some((event) => event.eventId === trigger.eventId
+      && (event.mutation === "created" || event.mutation === "applied"));
+    const ownedTriggerEvent: TriggerEvent = {
+      schemaVersion: 1,
+      eventId: trigger.eventId,
+      providerIdentity: acknowledgement.request.sourceIdentity,
+      classification: "trigger",
+      eventKind: trigger.eventKind,
+      actorIdentity: trigger.actorIdentity,
+      contentDigest: trigger.contentDigest,
+      occurredAt: trigger.occurredAt,
+      observedHeadSha: trigger.headSha,
+      ownership: "controller-owned",
+      mutation: trigger.eventKind === "comment" ? "created" : "applied",
+      terminalForEventId: null,
+      authenticatedEventRef: acknowledgement.evidenceUrlOrId ?? trigger.eventId,
+    };
+    const triggerEvents: TriggerEvent[] = [
+      ownedTriggerEvent,
+      ...providerHistory.map((event): TriggerEvent => ({
+        schemaVersion: 1,
+        eventId: event.eventId,
+        providerIdentity: acknowledgement.request.sourceIdentity,
+        classification: "trigger",
+        eventKind: event.eventKind,
+        actorIdentity: event.actorIdentity,
+        contentDigest: event.contentDigest,
+        occurredAt: event.occurredAt,
+        observedHeadSha: event.observedHeadSha,
+        ownership: event.eventId === trigger.eventId ? "controller-owned" : "unowned",
+        mutation: event.mutation,
+        terminalForEventId: event.eventId === trigger.eventId
+          && ["edited", "removed"].includes(event.mutation) ? trigger.eventId : null,
+        authenticatedEventRef: event.authenticatedEventRef,
+      })),
+      ...tombstones.map((receipt): TriggerEvent => {
+        if (receipt.payload.kind !== "trigger-deleted") throw new Error("invalid trigger tombstone");
+        const payload = receipt.payload;
+        const owned = payload.actorIdentity === trigger.actorIdentity && payload.priorBodyDigest === trigger.contentDigest;
+        return {
+          schemaVersion: 1,
+          eventId: `deleted:${payload.commentId}`,
+          providerIdentity: acknowledgement.request.sourceIdentity,
+          classification: "trigger",
+          eventKind: "comment",
+          actorIdentity: payload.actorIdentity,
+          contentDigest: payload.priorBodyDigest,
+          occurredAt: payload.deletedAt,
+          observedHeadSha: payload.observedHeadSha,
+          ownership: owned ? "controller-owned" : "unowned",
+          mutation: "deleted",
+          terminalForEventId: owned ? trigger.eventId : null,
+          authenticatedEventRef: payload.authenticatedEventRef,
+        };
+      }),
+    ];
+    if (!canonicalOwned && (providerHistory.length > 0 || tombstones.length > 0 || liveTerminalEvidence.length > 0)) {
+      triggerEvents.push({
+        ...ownedTriggerEvent,
+        eventId: `missing:${trigger.eventId}`,
+        mutation: "deleted",
+        terminalForEventId: trigger.eventId,
+        authenticatedEventRef: "canonical-scan:owned-trigger-missing",
+      });
+    }
+    for (const terminal of receipts.filter((receipt) =>
+      computeRequestKey(receipt.request) === computeRequestKey(acknowledgement.request)
+      && receipt.payload.kind === "terminal-evidence"
+      && receipt.payload.terminalAt !== null)) {
+      if (terminal.payload.kind !== "terminal-evidence" || terminal.payload.terminalAt === null) continue;
+      triggerEvents.push({
+        schemaVersion: 1,
+        eventId: terminal.eventId,
+        providerIdentity: acknowledgement.request.sourceIdentity,
+        classification: "terminal",
+        eventKind: "review",
+        actorIdentity: acknowledgement.request.sourceIdentity,
+        contentDigest: hashContent(terminal.evidenceUrlOrId ?? terminal.eventId),
+        occurredAt: terminal.payload.terminalAt,
+        observedHeadSha: acknowledgement.request.coverageThroughSha,
+        ownership: "provider",
+        mutation: "observed",
+        terminalForEventId: trigger.eventId,
+        authenticatedEventRef: terminal.evidenceUrlOrId ?? terminal.eventId,
+      });
+    }
+    for (const evidence of liveTerminalEvidence) {
+      triggerEvents.push({
+        schemaVersion: 1,
+        eventId: `provider-evidence:${evidence.reviewRunId}`,
+        providerIdentity: acknowledgement.request.sourceIdentity,
+        classification: "terminal",
+        eventKind: "review",
+        actorIdentity: acknowledgement.request.sourceIdentity,
+        contentDigest: hashContent(evidence.evidenceUrlOrId),
+        occurredAt: evidence.observedAt,
+        observedHeadSha: evidence.headSha,
+        ownership: "provider",
+        mutation: "observed",
+        terminalForEventId: trigger.eventId,
+        authenticatedEventRef: evidence.evidenceUrlOrId,
+      });
+    }
+    const result = reduceExclusiveTriggerWindow({
+      schemaVersion: 1,
+      requestKey: computeRequestKey(acknowledgement.request),
+      providerIdentity: acknowledgement.request.sourceIdentity,
+      generation: acknowledgement.request.generation,
+      headSha: acknowledgement.request.coverageThroughSha,
+      ownedTrigger: {
+        eventId: trigger.eventId,
+        actorIdentity: trigger.actorIdentity,
+        contentDigest: trigger.contentDigest,
+        occurredAt: trigger.occurredAt,
+      },
+    }, triggerEvents);
+    errors.push(...result.contamination.map((reason) => `trigger-window:${reason}`));
+    if (liveTerminalEvidence.length > 0 && result.status !== "terminal") {
+      errors.push(`trigger-window:provider-evidence-outside-owned-window:${computeRequestKey(acknowledgement.request)}`);
+    }
+  }
+  return errors;
 }
 
 /** Stable digest of the live-resolved author capability facts. */
@@ -177,7 +352,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
 
     const capabilities = await this.resolveAuthorCapabilities(context.author);
     const policyVersion = computePolicyVersion({ policy });
-    const [lane, risk, ciState, nativeObservation, ledger] = await Promise.all([
+    const [lane, risk, ciState, nativeObservation, ledger, triggerHistory] = await Promise.all([
       this.deps.resolveLane({
         authorLogin: context.author.login,
         diffBaseSha: changeRequest.diffBaseSha,
@@ -193,6 +368,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
         expectsNativeReview: false,
       }),
       this.deps.store.readLedger(changeRequest.changeRequestId),
+      this.deps.readTriggerHistory?.(changeRequest.headSha) ?? Promise.resolve([]),
     ]);
 
     const decision = resolveSelfHostingDecision({ policy, changeRequest, lane, risk });
@@ -200,7 +376,12 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     const ledgerEnvelopes = ledgerValid ? ledger.receipts : [];
     const ledgerReceipts = ledgerEnvelopes.map((envelope) => envelope.receipt);
     const ledgerVersion = ledgerValid ? ledger.ledgerVersion : null;
-    const inconsistencies = ledgerValid ? [] : [...ledger.diagnostics];
+    const providerEvidence = ledgerValid
+      ? await this.resolveProviderEvidence(changeRequest, ledgerReceipts)
+      : [];
+    const inconsistencies = ledgerValid && this.deps.readTriggerHistory !== undefined
+      ? exclusiveTriggerInconsistencies(ledgerReceipts, triggerHistory, providerEvidence)
+      : ledgerValid ? [] : [...ledger.diagnostics];
 
     const receiptEvidence = extractAuthenticatedReceiptEvidence(ledgerEnvelopes);
     const lifecycleTail = await this.resolveLifecycleTail(
@@ -208,17 +389,31 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       decision,
       policyVersion,
       receiptEvidence,
-      nativeObservation.providerReviews,
     );
     const evidence = [
-      ...this.resolveEvidence(changeRequest, decision, nativeObservation.providerReviews, lifecycleTail),
+      ...providerEvidence,
       ...receiptEvidence,
     ];
+    const settlementRelevant = evidence.some((item) => item.findings.length > 0)
+      || ledgerReceipts.some((receipt) => receipt.payload.kind === "finding-disposition"
+        && receipt.payload.disposition !== "provider-closed");
+    let settlementActorIdentity: string | null = null;
+    if (settlementRelevant) {
+      try {
+        const settlementActor = await resolveSettlementActor({
+          prAuthor: { login: context.author.login, expectedActorId: context.author.identity },
+          fallbackMaintainer: policy.fallbackMaintainer,
+          resolveCapabilities: async (actor) => actor.expectedActorId === context.author.identity
+            ? capabilities
+            : host.resolveActorCapabilities(actor),
+        });
+        settlementActorIdentity = settlementActor.expectedActorId;
+      } catch {
+        settlementActorIdentity = null;
+      }
+    }
     const capacities = await this.resolveCapacities(decision);
     const commandEvents = await this.resolveCommandEvents(changeRequest, decision, evidence, ledgerReceipts);
-    const knownHostActors = [
-      ...new Set(nativeObservation.peerApprovals.map((approval) => approval.actorIdentity)),
-    ];
 
     const state: CanonicalReconcileState = {
       repositoryId: coordinates.repositoryId,
@@ -242,37 +437,45 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       capacities,
       ciState,
       nativeReview: nativeObservation.nativeReview,
-      knownHostActors,
       lifecycleTail,
       commandEvents,
       receiptRefs: ledgerEnvelopes.map((envelope) => envelope.durableRecordId),
       inconsistencies,
       ledgerVersion,
+      settlementActorIdentity,
     };
     return state;
   }
 
   reduce(state: CanonicalReconcileState, now: Date): Promise<ReconcileDecision> {
-    void now;
     try {
-      return Promise.resolve(this.reduceSnapshot(state));
+      return Promise.resolve(this.reduceSnapshot(state, now));
     } catch (error) {
       return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
   }
 
   /** Pure reduction over the cached snapshot; no side effects so it is safe to re-run. */
-  private reduceSnapshot(state: CanonicalReconcileState): ReconcileDecision {
+  private reduceSnapshot(state: CanonicalReconcileState, now: Date): ReconcileDecision {
     const snapshot = this.snapshot;
     if (snapshot === null || guardKey(snapshot.state) !== guardKey(state) || snapshot.ledgerVersion !== state.ledgerVersion) {
       throw new Error("reconcile-runtime: reduce called without a matching cached read");
     }
 
+    const headUpdate = state.ledgerVersion === null
+      ? { kind: "none" as const, reason: "no-authorization" as const }
+      : planHeadUpdateConsumption({
+          receipts: snapshot.ledgerReceipts,
+          currentHeadSha: snapshot.changeRequest.headSha,
+          expectedLedgerVersion: state.ledgerVersion,
+          consumedAt: now,
+        });
+    const transitionReceipts = headUpdate.kind === "consume" ? headUpdate.receipts : [];
     const commandReceipts: ReviewReceipt[] = [];
-    const receiptsToAppend: ReviewReceipt[] = [];
+    const receiptsToAppend: ReviewReceipt[] = [...transitionReceipts];
     let refreshRequest: ReviewRequest | null = null;
     let requestReservation: ReviewReceipt | null = null;
-    for (const event of state.ledgerVersion === null ? [] : snapshot.commandEvents) {
+    for (const event of state.ledgerVersion === null || transitionReceipts.length > 0 ? [] : snapshot.commandEvents) {
       const ledgerVersion = state.ledgerVersion;
       if (ledgerVersion === null) break;
       const requirement = snapshot.decision.requirements.find((entry) => entry.id === event.command.requirementId);
@@ -292,6 +495,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
               && item.policyVersion === requirement.policyVersion
               && item.rubricVersion === requirement.rubricVersion)
             .sort((left, right) => right.observedAt.localeCompare(left.observedAt))[0]?.coverageThroughSha ?? null,
+          controllerActorIdentity: this.deps.policy.providerIdentities.appBotUserId,
         });
         if (plan.ok) {
           refreshRequest = plan.request;
@@ -319,19 +523,13 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       }
     }
 
-    const authorizedDismissers = [
-      ...new Set(snapshot.commandEvents
-        .filter((event) => event.command.kind === "dismiss")
-        .map((event) => event.actorIdentity)),
-    ];
-
     const reduction = reduceSelfHostingGate({
       policy: this.deps.policy,
       changeRequest: snapshot.changeRequest,
       lane: snapshot.lane,
       risk: snapshot.risk,
       evidence: snapshot.evidence,
-      receipts: [...snapshot.ledgerReceipts, ...commandReceipts],
+      receipts: [...snapshot.ledgerReceipts, ...transitionReceipts, ...commandReceipts],
       capacities: snapshot.capacities,
       readiness: {
         draft: snapshot.context.isDraft,
@@ -340,20 +538,44 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       },
       ciState: snapshot.ciState,
       nativeReview: snapshot.nativeReview,
-      authorizedDismissers,
-      knownHostActors: snapshot.knownHostActors,
-      inconsistencies: snapshot.inconsistencies,
-      ledgerVersion: state.ledgerVersion,
+      inconsistencies: [
+        ...snapshot.inconsistencies,
+        ...(headUpdate.kind === "ambiguous" ? [`head-update-${headUpdate.reason}`] : []),
+      ],
+      ledgerVersion: state.ledgerVersion === null
+        ? null
+        : state.ledgerVersion + receiptsToAppend.length,
       lifecycleTail: snapshot.lifecycleTail,
       receiptRefs: snapshot.receiptRefs,
       actorIdentity: this.deps.policy.providerIdentities.appBotUserId,
+      settlementActorIdentity: snapshot.settlementActorIdentity,
+      prAuthorIdentity: snapshot.context.author.identity,
+      now,
     });
 
+    const effectiveReceipts = [...snapshot.ledgerReceipts, ...transitionReceipts, ...commandReceipts];
+    const priorReservation = resumableReservation(effectiveReceipts);
+    const selectedRequest = headUpdate.kind === "ambiguous"
+      ? null
+      : refreshRequest ?? reduction.request ?? priorReservation?.request ?? null;
+    const selectedReservation = requestReservation ?? priorReservation;
+    const reservationEnvelope = selectedReservation === null
+      ? null
+      : snapshot.ledgerEnvelopes.find((entry) =>
+          entry.receipt.receiptHash === selectedReservation.receiptHash) ?? null;
     return {
-      request: refreshRequest ?? reduction.request,
-      receiptsToAppend,
-      requestReservation,
+      request: selectedRequest,
+      receiptsToAppend: [...receiptsToAppend, ...reduction.receiptsToAppend],
+      requestReservation: selectedReservation,
+      reservationEnvelope,
       projection: reduction.projection,
+      action: deriveReviewGateAction({
+        repositoryId: snapshot.changeRequest.repositoryId,
+        changeRequestId: snapshot.changeRequest.changeRequestId,
+        headSha: snapshot.changeRequest.headSha,
+        request: selectedRequest,
+        projection: reduction.projection,
+      }),
     };
   }
 
@@ -366,14 +588,16 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     return version;
   }
 
-  async execute(
+  async reserve(
     request: ReviewRequest,
     expectedLedgerVersion: number,
     plannedReservation: ReviewReceipt | null = null,
-  ): Promise<RequestExecutionResult> {
-    const { store, provider } = this.deps;
+  ): Promise<{ envelope: ReceiptEnvelope; created: boolean } | null> {
+    const { provider, store } = this.deps;
+    const qualification = await provider.qualifyRequest(request);
+    if (!qualification.qualified) return null;
     const changeRequestId = request.changeRequestId;
-    return executeReservedRequest({
+    return reserveRequest({
       request,
       expectedLedgerVersion,
       appendReservation: async (reservedRequest, version) => {
@@ -385,11 +609,17 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           result: null,
           evidenceUrlOrId: null,
           findingIds: [],
+          payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
         });
-        if (
-          computeRequestKey(receipt.request) !== computeRequestKey(reservedRequest)
-          || receipt.previousLedgerVersion !== version
-        ) {
+        if (computeRequestKey(receipt.request) !== computeRequestKey(reservedRequest)) {
+          throw new Error("reconcile-runtime: planned reservation does not match the request or ledger");
+        }
+        const prior = await store.readLedger(changeRequestId);
+        const existing = prior.kind === "valid"
+          ? prior.receipts.find((entry) => entry.receipt.receiptHash === receipt.receiptHash) ?? null
+          : null;
+        if (existing !== null) return { envelope: existing, created: false };
+        if (receipt.previousLedgerVersion !== version) {
           throw new Error("reconcile-runtime: planned reservation does not match the request or ledger");
         }
         await store.appendReceipt(receipt, version);
@@ -398,7 +628,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           ? ledger.receipts.find((entry) => entry.receipt.receiptHash === receipt.receiptHash) ?? null
           : null;
         if (envelope === null) throw new Error("reconcile-runtime: reservation not durable after append");
-        return envelope;
+        return { envelope, created: true };
       },
       confirmReservation: async (requestKey) => {
         const ledger = await store.readLedger(changeRequestId);
@@ -407,6 +637,39 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           && computeRequestKey(entry.receipt.request) === requestKey) ?? null;
         return { canonical: envelope !== null, envelope };
       },
+    });
+  }
+
+  async confirmPending(
+    request: ReviewRequest,
+    reservation: ReceiptEnvelope,
+    projection: GateProjection,
+  ): Promise<boolean> {
+    if (projection.conclusion !== "pending" || projection.ledgerVersion !== reservation.ledgerVersion) return false;
+    const ledger = await this.deps.store.readLedger(request.changeRequestId);
+    if (ledger.kind !== "valid" || ledger.ledgerVersion !== reservation.ledgerVersion) return false;
+    const requestKey = computeRequestKey(request);
+    const receiptConfirmed = ledger.receipts.some((entry) =>
+      entry.ledgerVersion === reservation.ledgerVersion
+      && entry.receipt.receiptHash === reservation.receipt.receiptHash
+      && entry.receipt.request.generation === request.generation
+      && computeRequestKey(entry.receipt.request) === requestKey);
+    if (!receiptConfirmed) return false;
+    return this.deps.host.confirmPendingProjection({
+      hostRef: this.deps.coordinates.hostRef,
+      headSha: request.coverageThroughSha,
+      changeSetId: request.changeSetId,
+      projection,
+      mode: this.deps.mode,
+      expectedAppId: this.deps.expectedAppId,
+    });
+  }
+
+  async execute(request: ReviewRequest, reservation: ReceiptEnvelope): Promise<RequestExecutionResult> {
+    const { store, provider } = this.deps;
+    return executeConfirmedRequest({
+      request,
+      reservation,
       invoke: (invokedRequest) => provider.request(invokedRequest),
       appendAcknowledgement: async (acknowledgement, reservation) => {
         const receipt = createReceipt({
@@ -415,20 +678,36 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
           action: "acknowledged",
           request: reservation.receipt.request,
           result: null,
-          evidenceUrlOrId: acknowledgement.durableRef ?? null,
+          evidenceUrlOrId: acknowledgement.durableRef ?? acknowledgement.requestIdentity,
           findingIds: [],
+          payload: {
+            kind: "acknowledgement",
+            acknowledgedAt: acknowledgement.acknowledgedAt,
+            acknowledgementRef: acknowledgement.durableRef ?? acknowledgement.requestIdentity,
+            trigger: {
+              mechanism: reservation.receipt.request.requestMechanism,
+              eventKind: acknowledgement.trigger.eventKind,
+              eventId: acknowledgement.trigger.eventId,
+              actorIdentity: acknowledgement.trigger.actorIdentity,
+              occurredAt: acknowledgement.trigger.occurredAt,
+              headSha: acknowledgement.trigger.headSha,
+              contentDigest: acknowledgement.trigger.contentDigest,
+            },
+          },
         });
         await store.appendReceipt(receipt, reservation.ledgerVersion);
       },
-      appendTerminalFailure: async (reservation) => {
+      appendTerminalFailure: async (reservation, failure) => {
         const receipt = createReceipt({
           eventId: `request:${computeRequestKey(reservation.receipt.request)}:terminal-failure`,
           previousLedgerVersion: reservation.ledgerVersion,
           action: "terminal-failure",
           request: reservation.receipt.request,
           result: "unavailable",
+          reason: failure.disposition === "pre-effect" ? failure.reason : `ambiguous:${failure.reason}`,
           evidenceUrlOrId: null,
           findingIds: [],
+          payload: { kind: "terminal-evidence", terminalAt: null, evidenceRefs: [], findingIds: [] },
         });
         await store.appendReceipt(receipt, reservation.ledgerVersion);
       },
@@ -450,12 +729,7 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
       ? receipt.action === "required" && receipt.request.sourceIdentity === "review-gate-command"
       : event.command.kind === "waive"
         ? receipt.action === "waived" && receipt.request.sourceIdentity === "review-gate-command"
-        : event.command.kind === "dismiss"
-          ? receipt.action === "dismissed"
-            && receipt.request.sourceIdentity === event.command.sourceIdentity
-            && receipt.findingIds.length === 1
-            && receipt.findingIds[0] === event.command.findingId
-          : ["reserved", "acknowledged", "terminal-failure"].includes(receipt.action)
+        : ["reserved", "acknowledged", "terminal-failure"].includes(receipt.action)
             && (event.command.sourceIdentity === "auto"
               || receipt.request.sourceIdentity === event.command.sourceIdentity);
     if (!actionMatches) return false;
@@ -505,30 +779,10 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     decision: SelfHostingDecision,
     policyVersion: string,
     receiptEvidence: Evidence[],
-    providerReviews: Parameters<typeof resolveCodeRabbitDecisiveReview>[0]["reviews"],
   ): Promise<LifecycleTailProof | null> {
     const requirement = singleRequirement(decision);
     if (requirement === undefined) return null;
-    const codeRabbitQualified = qualifiedDurableSources(this.deps.policy, requirement)
-      .some((declaration) => declaration.sourceIdentity === "coderabbit-pr");
-    const reviewAuthorities = codeRabbitQualified
-      ? providerReviews
-          .filter((review) => review.actorIdentity === this.deps.policy.providerIdentities.coderabbitBotUserId
-            && review.state === "approved"
-            && review.commitId !== changeRequest.headSha
-            && review.submittedAt !== null)
-          .map((review) => ({
-            requirementId: requirement.id,
-            policyVersion,
-            rubricVersion: requirement.rubricVersion,
-            baseRef: changeRequest.baseRef,
-            diffBaseSha: changeRequest.diffBaseSha,
-            coverageThroughSha: review.commitId,
-            sourceIdentity: "coderabbit-pr",
-            observedAt: review.submittedAt ?? "",
-          }))
-      : [];
-    const reviewed = [...receiptEvidence, ...reviewAuthorities]
+    const reviewed = receiptEvidence
       .filter((item) => item.requirementId === requirement.id
         && item.policyVersion === policyVersion
         && item.rubricVersion === requirement.rubricVersion
@@ -560,28 +814,36 @@ export class SelfHostingReconcileRuntime implements ReconcileRuntime {
     });
   }
 
-  private resolveEvidence(
+  private async resolveProviderEvidence(
     changeRequest: NormalizedChangeRequest,
-    decision: SelfHostingDecision,
-    providerReviews: Parameters<typeof resolveCodeRabbitDecisiveReview>[0]["reviews"],
-    lifecycleTail: LifecycleTailProof | null,
-  ): Evidence[] {
+    receipts: ReviewReceipt[],
+  ): Promise<Evidence[]> {
     const evidence: Evidence[] = [];
-    const decisive = resolveCodeRabbitDecisiveReview({
-      reviews: providerReviews,
-      expectedBotUserId: this.deps.policy.providerIdentities.coderabbitBotUserId,
-      currentHeadSha: changeRequest.headSha,
-      lifecycleTail,
-    });
-    for (const requirement of decision.requirements) {
-      const mapped = mapCodeRabbitApprovalToEvidence({
-        policy: this.deps.policy,
-        requirement,
-        baseRef: changeRequest.baseRef,
-        diffBaseSha: changeRequest.diffBaseSha,
-        decisive,
-      });
-      if (mapped !== null) evidence.push(mapped);
+    const acknowledged = receipts.filter((receipt) => receipt.action === "acknowledged"
+      && receipt.request.coverageThroughSha === changeRequest.headSha);
+    const seen = new Set<string>();
+    for (const receipt of acknowledged) {
+      const requestIdentity = computeRequestKey(receipt.request);
+      if (seen.has(requestIdentity)) continue;
+      seen.add(requestIdentity);
+      const terminalAlreadyRecorded = receipts.some((candidate) =>
+        computeRequestKey(candidate.request) === requestIdentity
+        && candidate.payload.kind === "terminal-evidence");
+      if (terminalAlreadyRecorded) continue;
+      const observations = await this.deps.provider.observe(requestIdentity);
+      const normalized = await this.deps.provider.normalizeEvidence(observations);
+      evidence.push(...normalized.filter((item) =>
+        item.requirementId === receipt.request.requirementId
+        && item.sourceIdentity === receipt.request.sourceIdentity
+        && item.policyVersion === receipt.request.policyVersion
+        && item.rubricVersion === receipt.request.rubricVersion
+        && item.baseRef === changeRequest.baseRef
+        && item.diffBaseSha === changeRequest.diffBaseSha
+        && item.coverage === receipt.request.coverage
+        && item.coverageFromSha === receipt.request.coverageFromSha
+        && item.coverageThroughSha === receipt.request.coverageThroughSha
+        && item.headSha === changeRequest.headSha
+        && item.changeSetId === changeRequest.changeSetId));
     }
     return evidence;
   }

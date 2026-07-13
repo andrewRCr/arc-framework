@@ -43,6 +43,8 @@ const projection: GateProjection = {
 const fakeRuntime: ReconcileRuntime = {
   read: async () => state,
   reduce: async () => ({ request: null, projection }),
+  reserve: async () => null,
+  confirmPending: async () => false,
   execute: async () => ({ status: "acknowledged", invoked: true }),
   publish: async () => undefined,
 };
@@ -121,5 +123,41 @@ describe("runReconcileMain", () => {
     const { deps, createRuntime } = harness();
     await expect(runReconcileMain(baseEnv(overrides), deps)).rejects.toThrow(message);
     expect(createRuntime).not.toHaveBeenCalled();
+  });
+
+  it("appends a deleted-trigger tombstone before ordinary reconciliation reads", async () => {
+    const order: string[] = [];
+    const runtime: ReconcileRuntime = {
+      ...fakeRuntime,
+      read: async () => {
+        order.push("reconcile-read");
+        return state;
+      },
+    };
+    const store = {} as ReconcileComposition["store"];
+    const { deps } = harness();
+    deps.createRuntime = async () => ({ runtime, store, changeRequestId: "change-7" }) as ReconcileComposition;
+    deps.appendTriggerDeletion = async (input) => {
+      order.push("tombstone-append");
+      expect(input.changeRequestId).toBe("change-7");
+      expect(input.deletion).toMatchObject({ commentId: "123", providerIdentity: "codex-pr" });
+      return { status: "appended", receiptHash: "f".repeat(64) };
+    };
+    const deletion = JSON.stringify({
+      schemaVersion: 1,
+      commentId: "123",
+      actorIdentity: "author-1",
+      priorBodyDigest: "b".repeat(64),
+      deletedAt: "2026-07-12T20:00:00.000Z",
+      observedHeadSha: "a".repeat(40),
+      providerIdentity: "codex-pr",
+      triggerClassification: "provider-trigger",
+      authenticatedEventRef: "github-event:issue-comment-deleted:123",
+    });
+
+    await runReconcileMain(baseEnv({ ARC_TRIGGER_DELETION: deletion }), deps);
+
+    expect(order[0]).toBe("tombstone-append");
+    expect(order).toContain("reconcile-read");
   });
 });

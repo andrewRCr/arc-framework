@@ -13,6 +13,7 @@ const request = {
   changeRequestId: "change-7",
   changeSetId: "a".repeat(64),
   policyVersion: "b".repeat(64),
+  semanticsVersion: "review-gate/v1",
   rubricVersion: "independent-analysis/v1",
   requirementId: "independent-analysis",
   sourceIdentity: "agent-9",
@@ -21,6 +22,9 @@ const request = {
   coverageThroughSha: "d".repeat(40),
   generation: 0,
   actorIdentity: "controller-1",
+  requestMechanism: "automatic",
+  requiredActorIdentity: "controller-1",
+  requestCommand: null,
 };
 
 const receipt = {
@@ -35,6 +39,15 @@ const receipt = {
   reason: null,
   evidenceUrlOrId: null,
   findingIds: [],
+  payload: { kind: "reservation", reservedAt: null, pendingProjectionRef: null },
+};
+
+const envelope = {
+  schemaVersion: 1,
+  durableRecordId: "record-9",
+  recordedAt: "2026-07-10T20:00:00.000Z",
+  lastModifiedAt: "2026-07-10T20:00:00.000Z",
+  ledgerVersion: 4,
 };
 
 const evidence = {
@@ -66,6 +79,15 @@ describe("request and projection contracts", () => {
     expect(parseReviewRequest(request)).toEqual(request);
   });
 
+  it("round-trips an exact actor-bound user-trigger request", () => {
+    const triggered = {
+      ...request,
+      requestMechanism: "user-trigger",
+      requestCommand: "@codex review the exact head",
+    };
+    expect(parseReviewRequest(triggered)).toEqual(triggered);
+  });
+
   it("validates capacity status and reason pairs", () => {
     expect(parseCapacity({
       schemaVersion: 1,
@@ -86,15 +108,120 @@ describe("request and projection contracts", () => {
   });
 
   it("round-trips a versioned receipt storage envelope", () => {
-    const envelope = {
-      schemaVersion: 1,
-      durableRecordId: "record-9",
-      recordedAt: "2026-07-10T20:00:00.000Z",
-      lastModifiedAt: "2026-07-10T20:00:00.000Z",
-      ledgerVersion: 4,
-      receipt,
+    const stored = { ...envelope, receipt };
+    expect(parseReceiptEnvelope(stored)).toEqual(stored);
+  });
+
+  it.each([
+    ["reservation", {
+      ...receipt,
+      payload: {
+        kind: "reservation",
+        reservedAt: "2026-07-10T20:00:00.000Z",
+        pendingProjectionRef: "check-run:41",
+      },
+    }],
+    ["acknowledgement", {
+      ...receipt,
+      action: "acknowledged",
+      evidenceUrlOrId: "provider-run:77",
+      payload: {
+        kind: "acknowledgement",
+        acknowledgedAt: "2026-07-10T20:01:00.000Z",
+        acknowledgementRef: "provider-run:77",
+        trigger: {
+          mechanism: request.requestMechanism,
+          eventKind: "label",
+          eventId: "trigger-1",
+          actorIdentity: request.requiredActorIdentity,
+          occurredAt: "2026-07-10T20:00:30.000Z",
+          headSha: request.coverageThroughSha,
+          contentDigest: "f".repeat(64),
+        },
+      },
+    }],
+    ["terminal evidence", {
+      ...receipt,
+      action: "terminal-failure",
+      result: "failed",
+      evidenceUrlOrId: "provider-run:77",
+      payload: {
+        kind: "terminal-evidence",
+        terminalAt: "2026-07-10T20:02:00.000Z",
+        evidenceRefs: ["provider-run:77"],
+        findingIds: [],
+      },
+    }],
+    ["finding lifecycle", {
+      ...receipt,
+      action: "finding-opened",
+      findingIds: ["finding-1"],
+      payload: {
+        kind: "finding-lifecycle",
+        findingId: "finding-1",
+        origin: {
+          sourceIdentity: request.sourceIdentity,
+          evidenceRef: "provider-run:77#finding-1",
+          headSha: request.coverageThroughSha,
+        },
+        carriedThroughHeadSha: "e".repeat(40),
+        settlement: { state: "open", settledAt: null, evidenceRef: null },
+      },
+    }],
+    ["contamination", {
+      ...receipt,
+      action: "contaminated",
+      payload: {
+        kind: "contamination",
+        detectedAt: "2026-07-10T20:03:00.000Z",
+        eventRef: "push:event-9",
+        reason: "unowned head mutation",
+      },
+    }],
+    ["supersession", {
+      ...receipt,
+      action: "superseded",
+      reason: "new request generation",
+      evidenceUrlOrId: "f".repeat(64),
+      payload: {
+        kind: "supersession",
+        supersededAt: "2026-07-10T20:04:00.000Z",
+        successorRequestKey: "f".repeat(64),
+        reason: "new request generation",
+      },
+    }],
+    ["decision", {
+      ...receipt,
+      action: "required",
+      payload: { kind: "decision", decidedAt: "2026-07-10T20:05:00.000Z" },
+    }],
+  ])("round-trips the %s payload", (_name, payloadReceipt) => {
+    const stored = { ...envelope, receipt: payloadReceipt };
+    expect(parseReceiptEnvelope(stored)).toEqual(stored);
+  });
+
+  it.each([
+    ["missing timestamp", { supersededAt: null }],
+    ["successor reference mismatch", { successorRequestKey: "9".repeat(64) }],
+    ["reason mismatch", { reason: "different reason" }],
+  ])("rejects supersession payload %s", (_name, payloadOverrides) => {
+    const stored = {
+      ...envelope,
+      receipt: {
+        ...receipt,
+        action: "superseded",
+        reason: "new request generation",
+        evidenceUrlOrId: "f".repeat(64),
+        payload: {
+          kind: "supersession",
+          supersededAt: "2026-07-10T20:04:00.000Z",
+          successorRequestKey: "f".repeat(64),
+          reason: "new request generation",
+          ...payloadOverrides,
+        },
+      },
     };
-    expect(parseReceiptEnvelope(envelope)).toEqual(envelope);
+    expect(() => parseReceiptEnvelope(stored)).toThrow("envelope.receipt.payload: supersession mismatch");
   });
 
   it("round-trips normalized evidence on an attestation receipt", () => {
@@ -103,6 +230,12 @@ describe("request and projection contracts", () => {
       action: "unadmitted",
       result: "clean",
       evidenceUrlOrId: evidence.evidenceUrlOrId,
+      payload: {
+        kind: "terminal-evidence",
+        terminalAt: null,
+        evidenceRefs: [evidence.evidenceUrlOrId],
+        findingIds: [],
+      },
       evidence,
     };
     expect(parseReceiptEnvelope({
@@ -115,6 +248,59 @@ describe("request and projection contracts", () => {
     }).receipt.evidence).toEqual(evidence);
   });
 
+  it("round-trips sequenced finding disposition and conversation-resolution receipts", () => {
+    const disposition = {
+      ...receipt,
+      action: "deferred",
+      reason: "Bounded rationale",
+      evidenceUrlOrId: "reply:1",
+      findingIds: ["finding-1"],
+      payload: {
+        kind: "finding-disposition",
+        disposition: "deferred",
+        findingId: "finding-1",
+        sourceIdentity: request.sourceIdentity,
+        oldHeadSha: request.coverageThroughSha,
+        fixHeadSha: null,
+        actorIdentity: "44",
+        rationale: "Bounded rationale",
+        directReplyRef: "reply:1",
+        followUpEvidenceRef: null,
+        verificationRefs: [],
+        settledAt: "2026-07-10T20:05:00.000Z",
+      },
+    };
+    expect(parseReceiptEnvelope({ ...envelope, receipt: disposition }).receipt.action).toBe("deferred");
+    for (const rationale of ["   ", "é".repeat(513)]) {
+      expect(() => parseReceiptEnvelope({
+        ...envelope,
+        receipt: {
+          ...disposition,
+          reason: rationale,
+          payload: { ...disposition.payload, rationale },
+        },
+      })).toThrow("invalid non-fix disposition");
+    }
+    const resolution = {
+      ...receipt,
+      action: "conversation-resolved",
+      evidenceUrlOrId: "thread:resolved",
+      findingIds: ["finding-1"],
+      payload: {
+        kind: "conversation-resolved",
+        findingId: "finding-1",
+        sourceIdentity: request.sourceIdentity,
+        headSha: request.coverageThroughSha,
+        threadId: "thread:1",
+        resolvedByActorIdentity: "44",
+        dispositionReceiptHash: "f".repeat(64),
+        hostEvidenceRef: "thread:resolved",
+        resolvedAt: "2026-07-10T20:06:00.000Z",
+      },
+    };
+    expect(parseReceiptEnvelope({ ...envelope, receipt: resolution }).receipt.action).toBe("conversation-resolved");
+  });
+
   it("requires evidence on attestation receipts and forbids it on lifecycle receipts", () => {
     const envelope = {
       schemaVersion: 1,
@@ -125,7 +311,18 @@ describe("request and projection contracts", () => {
     };
     expect(() => parseReceiptEnvelope({
       ...envelope,
-      receipt: { ...receipt, action: "unadmitted", result: "clean", evidenceUrlOrId: evidence.evidenceUrlOrId },
+      receipt: {
+        ...receipt,
+        action: "unadmitted",
+        result: "clean",
+        evidenceUrlOrId: evidence.evidenceUrlOrId,
+        payload: {
+          kind: "terminal-evidence",
+          terminalAt: null,
+          evidenceRefs: [evidence.evidenceUrlOrId],
+          findingIds: [],
+        },
+      },
     })).toThrow(/evidence/u);
     expect(() => parseReceiptEnvelope({ ...envelope, receipt: { ...receipt, evidence } })).toThrow(/evidence/u);
   });
@@ -146,6 +343,12 @@ describe("request and projection contracts", () => {
         action: "unadmitted",
         result: "clean",
         evidenceUrlOrId: evidence.evidenceUrlOrId,
+        payload: {
+          kind: "terminal-evidence",
+          terminalAt: null,
+          evidenceRefs: [evidence.evidenceUrlOrId],
+          findingIds: [],
+        },
         evidence: mismatchedEvidence,
       },
     })).toThrow();
@@ -163,6 +366,13 @@ describe("request and projection contracts", () => {
         action: "unadmitted",
         result: "findings",
         evidenceUrlOrId: evidence.evidenceUrlOrId,
+        findingIds: [],
+        payload: {
+          kind: "terminal-evidence",
+          terminalAt: null,
+          evidenceRefs: [evidence.evidenceUrlOrId],
+          findingIds: [],
+        },
         evidence: {
           ...evidence,
           result: "findings",
@@ -207,8 +417,110 @@ describe("request and projection contracts", () => {
   it.each([
     ["generation", { ...request, generation: -1 }],
     ["coverage", { ...request, coverage: "partial" }],
+    ["obsolete shape", {
+      schemaVersion: 1,
+      repositoryId: request.repositoryId,
+      changeRequestId: request.changeRequestId,
+      changeSetId: request.changeSetId,
+      policyVersion: request.policyVersion,
+      rubricVersion: request.rubricVersion,
+      requirementId: request.requirementId,
+      sourceIdentity: request.sourceIdentity,
+      coverage: request.coverage,
+      coverageFromSha: request.coverageFromSha,
+      coverageThroughSha: request.coverageThroughSha,
+      generation: request.generation,
+      actorIdentity: request.actorIdentity,
+    }],
+    ["unknown causal field", { ...request, triggerIdentity: "trigger-1" }],
+    ["automatic command", { ...request, requestCommand: "@codex review" }],
+    ["trigger without command", { ...request, requestMechanism: "user-trigger" }],
   ])("rejects malformed request %s", (_name, input) => {
     expect(() => parseReviewRequest(input)).toThrow();
+  });
+
+  it.each([
+    ["missing payload", { ...receipt, payload: undefined }],
+    ["unknown payload field", {
+      ...receipt,
+      payload: { ...receipt.payload, migratedFrom: 1 },
+    }],
+    ["trigger mechanism", {
+      ...receipt,
+      action: "acknowledged",
+      evidenceUrlOrId: "provider-run:77",
+      payload: {
+        kind: "acknowledgement",
+        acknowledgedAt: null,
+        acknowledgementRef: "provider-run:77",
+        trigger: {
+          mechanism: "user-trigger",
+          eventKind: "comment",
+          eventId: "trigger-1",
+          actorIdentity: request.requiredActorIdentity,
+          occurredAt: null,
+          headSha: request.coverageThroughSha,
+          contentDigest: "f".repeat(64),
+        },
+      },
+    }],
+    ["trigger actor", {
+      ...receipt,
+      action: "acknowledged",
+      evidenceUrlOrId: "provider-run:77",
+      payload: {
+        kind: "acknowledgement",
+        acknowledgedAt: null,
+        acknowledgementRef: "provider-run:77",
+        trigger: {
+          mechanism: request.requestMechanism,
+          eventKind: "label",
+          eventId: "trigger-1",
+          actorIdentity: "other-actor",
+          occurredAt: null,
+          headSha: request.coverageThroughSha,
+          contentDigest: "f".repeat(64),
+        },
+      },
+    }],
+    ["finding source", {
+      ...receipt,
+      action: "finding-opened",
+      findingIds: ["finding-1"],
+      payload: {
+        kind: "finding-lifecycle",
+        findingId: "finding-1",
+        origin: {
+          sourceIdentity: "other-source",
+          evidenceRef: "provider-run:77#finding-1",
+          headSha: request.coverageThroughSha,
+        },
+        carriedThroughHeadSha: request.coverageThroughSha,
+        settlement: { state: "open", settledAt: null, evidenceRef: null },
+      },
+    }],
+    ["open settlement evidence", {
+      ...receipt,
+      action: "finding-opened",
+      findingIds: ["finding-1"],
+      payload: {
+        kind: "finding-lifecycle",
+        findingId: "finding-1",
+        origin: {
+          sourceIdentity: request.sourceIdentity,
+          evidenceRef: "provider-run:77#finding-1",
+          headSha: request.coverageThroughSha,
+        },
+        carriedThroughHeadSha: request.coverageThroughSha,
+        settlement: {
+          state: "open",
+          settledAt: "2026-07-10T20:05:00.000Z",
+          evidenceRef: "fix:commit-1",
+        },
+      },
+    }],
+  ])("rejects incongruent receipt %s", (_name, malformedReceipt) => {
+    expect(() => parseReceiptEnvelope({ ...envelope, receipt: malformedReceipt })).toThrow();
   });
 
   it("rejects malformed receipt actions and identities", () => {

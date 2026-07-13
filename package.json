@@ -26,6 +26,14 @@
     "lint:arc:triggers": "tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
     "lint:arc:domain-rules": "tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
     "lint:arc:section-refs": "tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
+    "review-gate:next-action": "tsx packages/arc-framework/src/scripts/review-gate/run-next-action.ts",
+    "review-gate:perform-action": "tsx packages/arc-framework/src/scripts/review-gate/run-perform-action.ts",
+    "review-gate:await": "tsx packages/arc-framework/src/scripts/review-gate/run-await.ts",
+    "review-gate:assert-head-mutable": "tsx packages/arc-framework/src/scripts/review-gate/run-assert-head-mutable.ts",
+    "review-gate:repair-environment": "tsx packages/arc-framework/src/scripts/review-gate/run-repair-environment.ts",
+    "review-gate:qualify-token": "tsx packages/arc-framework/src/scripts/review-gate/run-token-qualification.ts",
+    "review-gate:qualify": "tsx packages/arc-framework/src/scripts/review-gate/run-qualification.ts",
+    "review-gate:validate-repair": "tsx packages/arc-framework/src/scripts/review-gate/run-repair.ts",
     "prepare": "husky"
   },
   "devDependencies": {
