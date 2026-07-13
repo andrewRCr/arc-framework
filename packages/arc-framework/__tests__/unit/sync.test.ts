@@ -317,7 +317,8 @@ describe("handleUserSync direction handling", () => {
 
     await handleUserSync();
 
-    expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining("next paired push"));
+    expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining("preflighted `arc user push`"));
+    expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining("Paired push defers"));
     expect(mockSelect).not.toHaveBeenCalled();
     expect(mockRunUserPull).not.toHaveBeenCalled();
     expect(mockRunUserSave).not.toHaveBeenCalled();

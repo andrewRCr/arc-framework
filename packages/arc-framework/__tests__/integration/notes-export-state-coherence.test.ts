@@ -250,7 +250,8 @@ describe("notes export state coherence", () => {
       refState: "diverged",
       contentRelation: "remote-subset",
     });
-    expect(status.detailLines.join(" ")).toContain("branch-export residue");
+    expect(status.detailLines.join(" ")).toContain("publication residue");
+    expect(status.detailLines.join(" ")).toContain("publication still requires proof");
     expect(status.actionHint).not.toContain("arc user pull");
 
     const syncState = await inspectUserSyncState({ cwd: repo, io, identity: IDENTITY });
@@ -314,7 +315,7 @@ describe("notes export state coherence", () => {
     });
     expect(status).toMatchObject({
       contentRelation: "mixed-uncontested",
-      headline: "notes diverged (reconciling)",
+      headline: "notes diverged (reconciliation required)",
     });
     expect(status.detailLines.join(" ")).not.toContain("arc user pull");
     expect(decideSyncAction(await inspectUserSyncState({ cwd: repo, io, identity: IDENTITY })))
@@ -359,9 +360,9 @@ describe("notes export state coherence", () => {
 
   it.each([
     ["remote-subset", "clean", "git note out of date", ["push", "push-load"]],
-    ["local-subset", "conflict", "notes diverged (reconciling)", ["guidance"]],
-    ["equal", "conflict", "notes diverged (reconciling)", ["guidance"]],
-    ["mixed-uncontested", "conflict", "notes diverged (reconciling)", ["guidance"]],
+    ["local-subset", "conflict", "notes diverged (reconciliation required)", ["guidance"]],
+    ["equal", "conflict", "notes diverged (reconciliation required)", ["guidance"]],
+    ["mixed-uncontested", "conflict", "notes diverged (reconciliation required)", ["guidance"]],
     ["conflicting", "conflict", "notes conflict", ["conflict"]],
   ] as const)(
     "keeps %s divergence coherent across session-init, status, and sync",

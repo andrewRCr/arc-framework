@@ -263,7 +263,7 @@ describe("buildUserStatusResult", () => {
     expect(result.actionHint).toContain("arc user fetch");
   });
 
-  it("renders remote-subset divergence with local-ahead export-residue guidance", () => {
+  it("renders remote-subset divergence with proof-gated publication-residue guidance", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -279,10 +279,11 @@ describe("buildUserStatusResult", () => {
     expect(result.headline).toBe("local note ahead");
     expect(result.remoteStatus).toBe("local ahead");
     expect(result.actionHint).toContain("arc user push");
-    expect(result.detailLines.join(" ")).toContain("branch-export residue");
+    expect(result.detailLines.join(" ")).toContain("publication residue");
+    expect(result.detailLines.join(" ")).toContain("publication still requires proof");
   });
 
-  it("treats a branch-export join left locally ahead as settled residue", () => {
+  it("keeps a legacy join left locally ahead non-conflicting without declaring publication safe", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -301,10 +302,11 @@ describe("buildUserStatusResult", () => {
       contentRelation: "remote-subset",
       actionHint: null,
     });
-    expect(result.detailLines.join(" ")).toContain("branch-export residue");
+    expect(result.detailLines.join(" ")).toContain("publication residue");
+    expect(result.detailLines.join(" ")).toContain("publication still requires proof");
   });
 
-  it("renders zero-contested divergence as reconciling rather than conflicting", () => {
+  it("renders zero-contested divergence as reconciliation-required rather than conflicting", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -317,9 +319,10 @@ describe("buildUserStatusResult", () => {
       remoteIdentities: [],
     });
 
-    expect(result.headline).toBe("notes diverged (reconciling)");
+    expect(result.headline).toBe("notes diverged (reconciliation required)");
     expect(result.summary).not.toContain("conflict");
-    expect(result.actionHint).toContain("next paired push");
+    expect(result.actionHint).toContain("arc user push");
+    expect(result.actionHint).not.toContain("next paired push");
     expect(result.detailLines.join(" ")).not.toContain("arc user pull");
   });
 
@@ -2098,7 +2101,7 @@ describe("runUserSessionInitStatus", () => {
     expect(result.summary).toContain("local notes contain remote notes");
   });
 
-  it("renders zero-contested divergence as next-push residue without a pull prompt", async () => {
+  it("renders zero-contested divergence as explicit reconciliation without a pull prompt", async () => {
     for (const contentRelation of ["local-subset", "equal", "mixed-uncontested"] as const) {
       const result = await runUserSessionInitStatus({
         cwd: "/repo",
@@ -2108,7 +2111,8 @@ describe("runUserSessionInitStatus", () => {
       });
 
       expect(result).toMatchObject({ state: "conflict", contentRelation, shouldPromptToPull: false });
-      expect(result.actionHint).toContain("next paired push");
+      expect(result.actionHint).toContain("arc user push");
+      expect(result.detailLines.join(" ")).toContain("paired push defers");
       expect(result.detailLines.join(" ")).not.toContain("run `arc user pull`");
     }
   });

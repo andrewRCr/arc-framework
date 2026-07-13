@@ -147,30 +147,15 @@ ordinary same-lineage reconciliation and existing partial-publication recovery.
 _Purpose:_ Make every user-facing projection describe proof-gated publication accurately while retaining read
 compatibility for histories emitted by released versions.
 
-### `[ ]` **5.1 Align status and sync guidance with explicit reconciliation**
+### `[x]` **5.1 Align status and sync guidance with explicit reconciliation**
 
 - _Goal:_ Session-init, verbose status, terse status, and sync guidance agree on which topologies need explicit
   preflighted reconciliation and which local-ahead residue may publish after proof.
 
-    - Update `packages/arc-framework/src/commands/user/sync-status.ts` and handler projections without adding a
-      sixth spine state or a new content-relation value.
-    - Rename the `UserStatusHeadline` literal `notes diverged (reconciling)` to
-      `notes diverged (reconciliation required)` across its type, summaries, terse and verbose renderers, and
-      exhaustive switches.
-    - Render `local-subset`, `equal`, and `mixed-uncontested` as non-conflicting but reconciliation-required; paired
-      push defers, and the explicit `arc user push` path may still refuse unsafe publication or compaction lineage.
-    - Replace `notes diverged (reconciling)` and every next-paired-push self-heal promise with explicit
-      reconciliation language.
-    - Keep `remote-subset` as local-ahead publication residue, conditioned on the canonical publication proof, and
-      keep its no-pull/non-conflict action routing and genuine `conflicting` guidance unchanged.
-    - Keep status read-only: do not run the live-head proof or label residue intrinsically safe. Say that
-      `arc user push` can preflight publication now or a later paired push can attempt proof-gated publication.
-    - Update the direct guidance in `packages/arc-framework/src/handlers/user-sync.ts` alongside the shared status
-      renderers.
-    - Build `test-first` across `packages/arc-framework/__tests__/unit/user-status.test.ts`,
-      `packages/arc-framework/__tests__/unit/sync.test.ts`, and
-      `packages/arc-framework/__tests__/integration/notes-export-state-coherence.test.ts` so session-init, full and
-      terse status, sync decisions, and handler messages project each content relation consistently.
+- _Outcome:_ Session-init, full/terse status, and sync guidance now name zero-contested divergence as explicit
+  reconciliation, direct operators to the preflighted standalone path, and state that paired push defers.
+  Remote-subset topology remains non-conflicting/no-pull publication residue while every projection keeps safety
+  proof conditional and preserves genuine-conflict routing.
 
 ### `[ ]` **5.2 Preserve legacy join recognition without emitting new join history**
 
