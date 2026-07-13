@@ -66,86 +66,32 @@ locality no-go). Quality facts ride alongside the index because both existing me
 needs those signals for Phase 4's indeterminacy keying. `resolveComposedLifecycleIndex` is the working name;
 settle the final name at implementation (spec Open item).
 
-### `[ ]` **2.1 Build the composed-index resolver over tree + oracle candidates**
+### `[x]` **2.1 Build the composed-index resolver over tree + oracle candidates**
 
 - _Goal:_ One call yields a lifecycle index carrying both tree truth and in-flight-oracle truth merged under
   the existing `mergeProjectReadinessRecords` precedence, in `localOnly` or live mode — so consumers gain
   sibling sight by swapping construction sites only (SC7).
-- _Shape:_ New module (working placement `lib/work-unit/composed-index.ts`) composing existing primitives:
-  tree records, oracle candidates (`deriveInFlight` → candidate projection), `mergeProjectReadinessRecords`,
-  then `buildLifecycleIndexFromRecords`. No new derivation logic — construction plumbing over proven parts.
-  The helper resolves `parkedSlugs` internally from the tree index it already builds (existing callers
-  pre-compute `listParkedSlugs` and pass it in; consumers of the helper should not have to).
-- **Additional Context:** `notes-slug-state-oracle-alignment.md` § Decision 1 — oracle mechanics and cost
-  profile
+    - `[x]` **2.1.a Settle module placement, the shared composition core, and the public signature**
+        - Added `resolveProjectReadinessComposition` as the shared record core and
+          `resolveComposedLifecycleIndex` as its lifecycle projection. The result retains slug worktree paths,
+          live membership tips, reachability, and cwd-relative tree paths while oracle pseudo-paths stay opaque.
 
-    - Build `test-first` (one behavior at a time):
-        - With no oracle input (or an empty derivation), the composed index equals the tree-only
-          `buildLifecycleIndex` projection — tree parity is the floor.
-        - A sibling's at-ref activation overlays its stale tree stub: `planned` tree record + `Active` at-ref
-          meta resolves to the in-flight state, per existing merge precedence.
-        - `localOnly` mode runs with no network read; live mode passes the bounded membership read through
-          (`reachable` reflected in the result).
-        - An unreachable oracle degrades to tree-only truth plus quality facts — never a throw, never a block.
-        - Parked overlay and completed-record precedence behave exactly as the existing merge does (no
-          precedence drift from the swap).
-        - A stale `plan/<slug>` shadow ref alongside the WU's renamed branch dedupes to the renamed tip in the
-          composed index; the shadow surfaces as a warning, never a second WU (the activation-rename
-          harmlessness obligation — residue cleanup itself stays out of scope).
+    - `[x]` **2.1.b Implement the resolver behaviors**
+        - Locked tree parity, local and live oracle modes, unreachable fallback, source precedence, parked
+          overlays, and stale-plan dedupe through the shared project-view composition machinery.
 
-    - `[ ]` **2.1.a Settle module placement, the shared composition core, and the public signature**
-        - The load-bearing decision: `resolveProjectReadinessViewInput` (`lib/status/project-view.ts`) already
-          performs tree + oracle + merge, but its tree loader (`loadProjectRecords`) and candidate projection
-          (`inFlightEntryToCandidate`) are module-private. Extract or export a shared composition core so the
-          `--project` view and the composed helper are the same machinery — never a parallel reimplementation,
-          which would let the slug query and the project view disagree again (the founding defect's shape).
-        - Watch the file cycle: if the view path adopts the helper while the helper imports from
-          `project-view.ts`, relocate the shared core to a module both import.
-        - Input contract — enumerate it here, because the swap sites can't all supply what `deriveInFlight`'s
-          production callers do: `baseBranch` comes from config (the slug-query and start-dispatch swap sites
-          gain a local `readConfigSettings` read — `deriveInFlight`'s silent `"main"` default is not
-          acceptable, since base exclusion is load-bearing); `errandSlugByBranch` is optional (empty is sound
-          for index truth — errand branches carry no meta; consumers wanting errand/residue visibility supply
-          it); identity/team filtering follows the view path (`identity: null`, `teamMode: false`).
-        - Output contract — beyond `{ index, qualityFacts }`, expose what Phases 3–4 consume: a slug →
-          worktree-path enrichment (the candidate projection drops `worktreePath` today), per-slug quality
-          facts, and the live-membership refs (`liveRefs` lives only on the internal branch-set today —
-          `DeriveInFlightResult` or the helper result must surface it for 4.3's expansion set).
-        - Path contract — `LifecycleIndexEntry.path` is documented cwd-relative, and the graduate arm joins it
-          onto `cwd` before reading; the view path's tree loader emits absolute paths and oracle-won entries
-          carry a ref-qualified pseudo-path (`<ref>:.arc/active/meta-*.md`). Tree-record paths entering the
-          composed index must normalize to cwd-relative, and no dispatch consumer may filesystem-read an
-          oracle-won entry's pseudo-path (safe today only because graduate fires solely on tree-won states —
-          pin it, don't inherit it).
-        - Helper final name settles here too.
+- _Outcome:_ Project rendering and lifecycle consumers now derive from one tree-plus-oracle record composition;
+  no parallel merge logic can drift between the project view and slug/dispatch truth.
 
-    - `[ ]` **2.1.b Implement the resolver behaviors**
-
-### `[ ]` **2.2 Surface derivation quality facts past the two silent drop stages**
+### `[x]` **2.2 Surface derivation quality facts past the two silent drop stages**
 
 - _Goal:_ Consumers can read oracle warnings, degraded/unknown-state entries, and indeterminacy marks
   alongside the composed index — a dropped or degraded entry is distinguishable from an absent slug, which is
   what keeps Phase 4's "indeterminate, never absent" rule implementable.
 
-    - Build `test-first` (one behavior at a time):
-        - An unknown-state at-ref entry surfaces as a quality fact naming the slug instead of silently
-          vanishing from the index.
-        - Native `InFlightWarning` codes propagate through the helper's result unflattened — do not adopt the
-          view path's coarse `oracle-degraded` mapping, which folds benign codes into one bucket.
-        - The indeterminacy-relevant code set is pinned here for Phase 4: degraded-read / malformed /
-          unrecognized / ambiguity / snapshot-disagreement codes (`meta-enumeration-failed`,
-          `meta-read-failed`, `meta-malformed`, `state-unrecognized`, `branch-field-missing`,
-          `location-ambiguous`, `input-snapshot-disagreement`) key indeterminacy for a named slug; benign
-          dedupe codes (`candidate-shadowed`, `stale-location-shadow`, `stale-location-dropped`) never do —
-          they fire routinely (2.1's own shadow-ref behavior requires one) and must not flip a minting arm.
-          `worktree-list-failed` is the marks-carried case: its warning names no slug — that degradation
-          reaches targets through the per-slug entry marks above, which is why the marks must be slug-keyed
-          facts, not decoration.
-        - A valid-state entry carrying `degraded` / `indeterminate` marks keeps those marks visible in the
-          quality facts, keyed by slug, even though the entry itself enters the index (the candidate
-          projection drops `marks` today — the second silent stage).
-        - Whole-result and per-entry `indeterminate` marks propagate.
-        - A healthy derivation yields empty quality facts — no noise on the clean path.
+- _Outcome:_ Native warnings, whole-result marks, and slug-keyed entry state/marks survive beside the index,
+  including unknown-state entries the index omits. The destructive-edge indeterminacy code set is exported and
+  tested against benign shadow warnings, worktree degradation, and whole/per-entry snapshot disagreement.
 
 ## **Phase 3:** Slug query and occupancy — composed adoption
 

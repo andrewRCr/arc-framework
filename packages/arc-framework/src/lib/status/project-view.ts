@@ -18,6 +18,7 @@ import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   deriveInFlight,
+  type DeriveInFlightResult,
   type InFlightEntry,
   type InFlightWarning,
   type InFlightWorkUnit,
@@ -120,6 +121,16 @@ export interface ProjectReadinessViewInput {
   sourceWarnings: ProjectReadinessWarning[];
   /** Whether the resolver observed changing in-flight inputs during derivation. */
   indeterminate: boolean;
+}
+
+/** Shared tree + oracle record composition before render-specific warning projection. */
+export interface ProjectReadinessCompositionResult {
+  records: ProjectReadinessRecord[];
+  derivationWarnings: ProjectReadinessDerivationWarning[];
+  sourceWarnings: ProjectReadinessWarning[];
+  indeterminate: boolean;
+  /** Native oracle result retained for non-render consumers; absent on tree-only composition. */
+  oracleResult: DeriveInFlightResult | null;
 }
 
 /** In-flight oracle inputs for project-readiness renders. */
@@ -463,9 +474,10 @@ async function resolveOracleCandidates(
   derivationWarnings: ProjectReadinessDerivationWarning[];
   sourceWarnings: ProjectReadinessWarning[];
   indeterminate: boolean;
+  result: DeriveInFlightResult | null;
 }> {
   if (options === undefined) {
-    return { candidates: [], derivationWarnings: [], sourceWarnings: [], indeterminate: false };
+    return { candidates: [], derivationWarnings: [], sourceWarnings: [], indeterminate: false, result: null };
   }
   const result = await deriveInFlight({
     exec: options.exec,
@@ -501,6 +513,7 @@ async function resolveOracleCandidates(
     derivationWarnings,
     sourceWarnings: appendIndeterminateOracleWarning(sourceWarnings, indeterminate, hasIndeterminateSourceWarning),
     indeterminate,
+    result,
   };
 }
 
@@ -517,21 +530,39 @@ function oracleOptionsFor(options: ResolveProjectReadinessViewInputOptions): Pro
   return { ...options.localRefs, localOnly: true };
 }
 
-/** Resolve tree-backed records and the title read into a compose-ready input. */
-export async function resolveProjectReadinessViewInput(
+/** Resolve the shared tree + oracle record set used by project rendering and lifecycle queries. */
+export async function resolveProjectReadinessComposition(
   options: ResolveProjectReadinessViewInputOptions,
-): Promise<ProjectReadinessViewInput> {
+): Promise<ProjectReadinessCompositionResult> {
   const fs = options.fs ?? DEFAULT_FS;
-  const [treeRecords, localRefs] = await Promise.all([
-    loadProjectRecords(options.cwd, fs),
-    resolveOracleCandidates(oracleOptionsFor(options)),
-  ]);
+  const treeRecords = await loadProjectRecords(options.cwd, fs);
+  const configuredOracle = oracleOptionsFor(options);
+  const parkedSlugs = configuredOracle?.parkedSlugs ?? new Set(
+    treeRecords.filter(isParkedPointer).map((record) => record.slug),
+  );
+  const localRefs = await resolveOracleCandidates(
+    configuredOracle === undefined ? undefined : { ...configuredOracle, parkedSlugs },
+  );
   return {
-    title: resolveTitle(options.title),
     records: mergeProjectReadinessRecords([...treeRecords, ...localRefs.candidates]),
     derivationWarnings: localRefs.derivationWarnings,
     sourceWarnings: localRefs.sourceWarnings,
     indeterminate: localRefs.indeterminate,
+    oracleResult: localRefs.result,
+  };
+}
+
+/** Resolve tree-backed records and the title read into a compose-ready input. */
+export async function resolveProjectReadinessViewInput(
+  options: ResolveProjectReadinessViewInputOptions,
+): Promise<ProjectReadinessViewInput> {
+  const composition = await resolveProjectReadinessComposition(options);
+  return {
+    title: resolveTitle(options.title),
+    records: composition.records,
+    derivationWarnings: composition.derivationWarnings,
+    sourceWarnings: composition.sourceWarnings,
+    indeterminate: composition.indeterminate,
   };
 }
 

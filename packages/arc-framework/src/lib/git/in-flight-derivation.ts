@@ -178,6 +178,8 @@ export interface DeriveInFlightResult {
   marks?: readonly InFlightEntryMark[];
   /** Agreed mutable input snapshot used for derivation and later fire-time probes. */
   snapshot: InFlightInputSnapshot;
+  /** Live remote membership tips, keyed by remote-qualified ref; empty offline or when supplied branches bypass it. */
+  liveRefs: RefTipMap;
   /** Whether live network membership backed the branch set. */
   reachable: boolean;
 }
@@ -281,6 +283,7 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
     warnings,
     ...(input.resultMarks.length > 0 ? { marks: input.resultMarks } : {}),
     snapshot: input.snapshot,
+    liveRefs: branchSet.liveRefs,
     reachable: branchSet.reachable,
   };
 }
