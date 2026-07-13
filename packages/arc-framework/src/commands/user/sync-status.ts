@@ -571,7 +571,11 @@ function buildUserSessionInitStatusResult(input: {
           : `${identity}: session-init local notes match remote notes`,
         detailLines: [
           ...(spine.contentRelation === "remote-subset"
-            ? ["Expected branch-export residue: local notes contain every remote note and need no pull."]
+            ? [
+                "Local-ahead publication residue: local notes contain every remote note and need no pull. "
+                  + "`arc user push` can preflight publication now; a later paired push can attempt proof-gated "
+                  + "publication.",
+              ]
             : spine.refState === "local-ahead"
             ? ["Local notes are newer than remote notes, but no pull is needed before continuing."]
             : ["Remote notes match local notes."]),
@@ -611,10 +615,11 @@ function buildUserSessionInitStatusResult(input: {
           ...refDetailSpread,
           summary: `${identity}: session-init notes diverged without contested entries`,
           detailLines: [
-            "Expected notes residue is safe and will reconcile at the next paired push.",
-            "Next step: continue with local context; no pull is needed.",
+            "Notes histories diverged without contested entries; explicit reconciliation is required.",
+            "Next step: run the preflighted `arc user push` path; paired push defers and no pull is needed.",
+            "Reconciliation can still refuse unsafe publication or incompatible compaction lineage.",
           ],
-          actionHint: "continue; notes reconcile at the next paired push",
+          actionHint: "run the preflighted `arc user push` path; paired push defers",
           shouldPromptToPull: spine.shouldPromptToPull,
           ...(input.localNoteFreshness ? { localNoteFreshness: input.localNoteFreshness } : {}),
         };
@@ -991,7 +996,7 @@ function renderSummaryHeadline(
       return "local notes are ahead of remote notes";
     case "git note out of date":
       return "working files differ from local notes";
-    case "notes diverged (reconciling)":
+    case "notes diverged (reconciliation required)":
       return "local and remote notes diverged without contested content";
     case "notes conflict":
       return "local and remote notes conflict";
@@ -1028,13 +1033,17 @@ function renderUserSyncCauseLine(
 function renderContentRelationLine(contentRelation: NoteSetRelation | undefined): string | null {
   switch (contentRelation) {
     case "remote-subset":
-      return "Content relation: remote entries are a subset of local notes (expected branch-export residue).";
+      return "Content relation: remote entries are a subset of local notes (local-ahead publication residue; "
+        + "publication still requires proof).";
     case "local-subset":
-      return "Content relation: local entries are a subset of remote notes; the next paired push reconciles them.";
+      return "Content relation: local entries are a subset of remote notes; explicit preflighted reconciliation "
+        + "is required.";
     case "equal":
-      return "Content relation: note content is equal despite divergent ref history; the next paired push reconciles it.";
+      return "Content relation: note content is equal despite divergent ref history; explicit preflighted "
+        + "reconciliation is required.";
     case "mixed-uncontested":
-      return "Content relation: both sides have unique entries with no contested commit; the next paired push reconciles them.";
+      return "Content relation: both sides have unique entries with no contested commit; explicit preflighted "
+        + "reconciliation is required.";
     case "conflicting":
       return "Content relation: local and remote carry different note blobs for the same annotated commit.";
     case undefined:
@@ -1054,11 +1063,11 @@ function renderCauseAwareActionHeadline(
 ): string | null {
   switch (spine.contentRelation) {
     case "remote-subset":
-      return "Local notes ahead — expected branch-export residue.";
+      return "Local notes ahead — publication residue requires proof.";
     case "local-subset":
     case "equal":
     case "mixed-uncontested":
-      return "Notes diverged without contested content — reconciling at next paired push.";
+      return "Notes diverged without contested content — reconciliation required.";
     case "conflicting":
       return "Local and remote notes contain a genuine content conflict.";
     case undefined:
@@ -1092,7 +1101,7 @@ function renderActionOrientedHeadline(
     return "Partial-push state unverified — remote notes unavailable.";
   }
   if (spine.refState === "local-ahead" && spine.contentRelation === "remote-subset") {
-    return "Local notes ahead — expected branch-export residue.";
+    return "Local notes ahead — publication residue requires proof.";
   }
   switch (spine.state) {
     case "conflict":
@@ -1101,7 +1110,7 @@ function renderActionOrientedHeadline(
         : spine.contentRelation === "local-subset"
           || spine.contentRelation === "equal"
           || spine.contentRelation === "mixed-uncontested"
-          ? "Notes diverged without contested content — reconciling at next paired push."
+          ? "Notes diverged without contested content — reconciliation required."
           : "Local and remote notes diverged.";
     case "remote-ahead":
       return "Remote notes ahead of local.";
@@ -1373,7 +1382,7 @@ function renderHeadlineExplanation(
         return "Latest local git note is partly reflected in working files, alongside newer local changes.";
       }
       return "Latest local git note is not current with the working files.";
-    case "notes diverged (reconciling)":
+    case "notes diverged (reconciliation required)":
       return "Local and remote git notes diverged without contested note content.";
     case "notes conflict":
       return "Local and remote git notes both moved since common ancestor.";
@@ -1915,7 +1924,7 @@ function determineUserStatusHeadline(
     return contentRelation === "local-subset"
       || contentRelation === "equal"
       || contentRelation === "mixed-uncontested"
-      ? "notes diverged (reconciling)"
+      ? "notes diverged (reconciliation required)"
       : "notes conflict";
   }
   if (remoteStatus === "remote ahead") return "remote note ahead";
@@ -1943,7 +1952,7 @@ function determineUserStatusAction(
         || spine.contentRelation === "equal"
         || spine.contentRelation === "mixed-uncontested"
       ) {
-        return "continue; notes reconcile at the next paired push";
+        return "run the preflighted `arc user push` path; paired push defers";
       }
       if (spine.contentRelation === "conflicting") {
         return "inspect the contested notes before choosing push or repair";

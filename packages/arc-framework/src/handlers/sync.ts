@@ -39,8 +39,9 @@
  * **Force-push handling.** A diverged worktree is decoded by `decideMatrix`
  * as a blocked cell upstream of any push attempt. Defense-in-depth, the
  * paired flow refuses on the `force-push-required` advisory inside
- * `runPairedPush`; the single-leg notes path auto-reconciles a
- * non-fast-forward via `pushNotesWithReconcile` (lossless `git notes merge`).
+ * `runPairedPush`; the single-leg notes path auto-reconciles ordinary
+ * same-lineage graph divergence via a lossless `git notes merge` followed by
+ * a fresh publication proof.
  * No matrix cell auto-opts into force-push.
  *
  * @module
@@ -795,22 +796,20 @@ async function publishMarkerAdapter(context: PairedPushMarkerContext): Promise<v
     io: context.io,
     execInput: context.io.execInput,
     identity: context.identity,
-    intent: context.notesExportTarget.tip,
+    intent: context.notesExportTarget.capturedTip,
   });
 }
 
 /**
- * Notes-leg pusher delegate for `runPairedPush`. Pushes the branch-bounded
- * temporary notes ref planned after the worktree leg lands, so the paired cell
- * never exports sibling-worktree notes for commits outside that branch.
+ * Notes-leg pusher delegate for `runPairedPush`. Pushes the immutable canonical
+ * notes tip planned after the worktree leg lands, so the paired cell transports
+ * only history that passed publication containment.
  */
 async function pairedNotesAdapter(
   context: PairedPushNotesContext,
 ): Promise<PairedPushNotesPusherResult> {
   const outcome = await pushBranchBoundedNotesExport({
     exec: context.io.exec,
-    execInput: context.io.execInput,
-    identity: context.identity,
     target: context.notesExportTarget,
   });
   switch (outcome.kind) {
@@ -846,7 +845,7 @@ function pairedNotesToRecord(result: PairedPushResult): LegOutcomeRecord {
     case "no-remote":
       return { action: "save+push", result: "failed", detail: "no-remote" };
     case "refused":
-      return { action: "save+push", result: "blocked", detail: "branch-bounded-export-refused" };
+      return { action: "save+push", result: "blocked", detail: `publication-refused:${notes.reason}` };
     case "failed-nontty-conflict":
       return { action: "save+push", result: "failed", detail: "nontty-conflict" };
     case "blocked":
@@ -930,7 +929,10 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
       return;
     case "refused":
       output.log.warn(notes.message);
-      output.log.warn(partialPublishRecoveryLine(result, "retry after resolving the notes export target."));
+      output.log.warn(partialPublishRecoveryLine(
+        result,
+        "publication remains deferred until this safety condition is resolved.",
+      ));
       return;
     case "failed-nontty-conflict":
       output.log.warn(
@@ -1258,6 +1260,8 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
       return { action: "push", result: "success", detail: "recovered:merge" };
     case "noop":
       return { action: "push", result: "noop" };
+    case "no-local-notes":
+      return { action: "push", result: "failed", detail: "no-local-notes" };
     case "no-remote":
       ctx.output.log.error("No remote configured. Push requires a remote repository.");
       return { action: "push", result: "failed", detail: "no-remote" };
@@ -1266,6 +1270,9 @@ async function pushNotesLeg(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
         ctx.output.log.error(condition.guidance);
       }
       return { action: "push", result: "blocked" };
+    case "refused":
+      ctx.output.log.error(outcome.message);
+      return { action: "push", result: "failed", detail: `refused:${outcome.reason}` };
     case "conflict":
       ctx.output.log.error(outcome.message);
       return { action: "push", result: "failed", detail: "conflict" };

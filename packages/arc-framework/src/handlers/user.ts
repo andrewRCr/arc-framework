@@ -429,9 +429,17 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
     case "noop":
       p.outro("Done.");
       return;
+    case "no-local-notes":
+      p.log.info("No local user notes to push.");
+      p.outro("Done.");
+      return;
     case "no-remote":
       p.log.error("No remote configured. Push requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
+      process.exitCode = 1;
+      return;
+    case "refused":
+      p.log.error(outcome.message);
       process.exitCode = 1;
       return;
     case "blocked":

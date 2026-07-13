@@ -28,6 +28,8 @@ export {
   listNoteEntries,
   listNoteTreeEntries,
   notePathToCommit,
+  parseNotesHistoryNameStatus,
+  readLocalExclusiveAnnotatedNoteCommits,
   readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
   CROSS_WU_NOTE_WINDOW,
@@ -36,6 +38,12 @@ export {
   type NoteEntry,
   type RecentNote,
 } from "./notes-ref.js";
+
+export {
+  proveNotesPublication,
+  type NotesPublicationProofResult,
+  type ProveNotesPublicationInput,
+} from "./notes-publication-proof.js";
 
 export {
   adoptCompactedNotesRef,

@@ -14,11 +14,14 @@
 
 import type { GitExec } from "../git/index.js";
 
+import { NOTES_COMPACTION_MANIFEST_PATH } from "./compaction-manifest.js";
 import { TOMBSTONE_TTL_MS } from "./merge.js";
 
 /** Notes-ref namespace for ARC user directories; `{identity}` is appended. */
 const USER_NOTES_REF = "refs/notes/arc/user";
 const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const EXACT_RENAME_STATUS = ["R", "100"].join("");
+const NOTES_HISTORY_COMMIT_SEPARATOR = "ARC-NOTES-HISTORY-COMMIT";
 
 /**
  * Commit subject of a compaction snapshot — the in-band marker recent-note
@@ -192,6 +195,116 @@ export async function readNoteContentAtAnnotatedCommit(
 export function notePathToCommit(path: string): string | null {
   const commit = path.replaceAll("/", "");
   return GIT_OBJECT_ID_PATTERN.test(commit) ? commit : null;
+}
+
+/**
+ * Parse NUL-framed `git log --name-status -z` records from notes history.
+ *
+ * Added and modified note paths publish their annotated commits. Deletions do
+ * not, while exact renames publish the destination only when it identifies a
+ * different annotated commit (fanout-only path changes identify the same one).
+ * The compaction manifest is recognized metadata; every other non-note path or
+ * malformed record rejects the entire read.
+ *
+ * @param output - NUL-framed status and path fields emitted by Git.
+ * @returns The deduplicated annotated commits published by the records.
+ */
+export function parseNotesHistoryNameStatus(output: string): Set<string> {
+  if (output === "") return new Set();
+
+  const fields = output.split("\0");
+  if (fields.at(-1) !== "") {
+    throw new Error("Truncated notes-history status record");
+  }
+  fields.pop();
+
+  const commits = new Set<string>();
+  let index = 0;
+  while (index < fields.length) {
+    const status = fields[index];
+    index += 1;
+    if (status === undefined || status === "") {
+      throw new Error("Missing notes-history status");
+    }
+
+    if (status === "A" || status === "M" || status === "D") {
+      const path = fields[index];
+      index += 1;
+      const commit = parseNotesHistoryPath(path);
+      if (status !== "D" && commit !== null) commits.add(commit);
+      continue;
+    }
+
+    if (status === EXACT_RENAME_STATUS) {
+      const source = parseNotesHistoryPath(fields[index]);
+      const destination = parseNotesHistoryPath(fields[index + 1]);
+      index += 2;
+      if (destination !== null && destination !== source) commits.add(destination);
+      continue;
+    }
+
+    throw new Error(`Unknown notes-history status: ${status}`);
+  }
+
+  return commits;
+}
+
+/**
+ * Read every annotated commit introduced by a pinned local notes-history range.
+ *
+ * @param exec - Git runner.
+ * @param localTip - Captured local canonical notes tip.
+ * @param remoteTip - Captured ancestor remote tip, or `null` when absent.
+ * @returns The deduplicated annotated commits introduced by the range.
+ */
+export async function readLocalExclusiveAnnotatedNoteCommits(
+  exec: GitExec,
+  localTip: string,
+  remoteTip: string | null,
+): Promise<Set<string>> {
+  const revision = remoteTip === null ? localTip : `${remoteTip}..${localTip}`;
+  const { stdout } = await exec("git", [
+    "log",
+    "--name-status",
+    "-z",
+    "-M100%",
+    "-m",
+    "--root",
+    `--format=${NOTES_HISTORY_COMMIT_SEPARATOR}%x00`,
+    revision,
+  ]);
+
+  if (stdout === "") return new Set();
+  const sections = stdout.split(NOTES_HISTORY_COMMIT_SEPARATOR);
+  if (sections.shift() !== "") {
+    throw new Error("Malformed notes-history commit framing");
+  }
+
+  const commits = new Set<string>();
+  for (const section of sections) {
+    if (!section.startsWith("\0\0")) {
+      throw new Error("Malformed notes-history commit framing");
+    }
+    const body = section.slice(2);
+    if (body === "") continue;
+    const recordSeparator = /^\r?\n/u.exec(body)?.[0];
+    if (recordSeparator === undefined) {
+      throw new Error("Malformed notes-history commit framing");
+    }
+    const records = body.slice(recordSeparator.length);
+    for (const commit of parseNotesHistoryNameStatus(records)) commits.add(commit);
+  }
+  return commits;
+}
+
+function parseNotesHistoryPath(path: string | undefined): string | null {
+  if (path === undefined || path === "") {
+    throw new Error("Incomplete notes-history status record");
+  }
+  if (path === NOTES_COMPACTION_MANIFEST_PATH) return null;
+  const commit = notePathToCommit(path);
+  if (commit === null) throw new Error(`Malformed notes-history path: ${path}`);
+  return commit;
 }
 
 /** A note blob's content at a given history commit, or `null` when unreadable. */

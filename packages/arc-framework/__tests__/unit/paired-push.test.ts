@@ -28,7 +28,6 @@ const mockRecordPartialPushMarker = vi.fn();
 const mockClearPartialPushMarker = vi.fn();
 const mockRunUserSave = vi.fn();
 const mockPlanNotesExport = vi.fn();
-const mockCleanupNotesExport = vi.fn();
 
 vi.mock("../../src/commands/user/save-load.js", () => ({
   runUserSave: (opts: unknown) => mockRunUserSave(opts),
@@ -177,17 +176,11 @@ const COMMON_OPTIONS = {
   cwd: "/repo",
   branch: "main",
   planNotesExport: mockPlanNotesExport,
-  cleanupNotesExport: mockCleanupNotesExport,
 };
 
 const NOTES_EXPORT_TARGET = {
-  ref: "refs/notes/arc/user/andrew__branch_export_test",
   destinationRef: "refs/notes/arc/user/andrew",
-  tip: "f".repeat(40),
-  annotatedCommits: ["a".repeat(40)],
-  omittedCommits: [],
-  supersedesLocal: true,
-  localIncludesRemote: true,
+  capturedTip: "f".repeat(40),
 };
 
 /** No-op delay so auto-retry tests don't wait on real backoff timers. */
@@ -203,7 +196,6 @@ describe("runPairedPush", () => {
       warnings: [],
     });
     mockPlanNotesExport.mockResolvedValue({ kind: "planned", target: NOTES_EXPORT_TARGET });
-    mockCleanupNotesExport.mockResolvedValue(undefined);
     mockRecordPartialPushMarker.mockResolvedValue(true);
   });
 
@@ -462,6 +454,56 @@ describe("runPairedPush", () => {
   );
 
   it.each([
+    ["unpublished-history", "Publish the unpublished commits on a live origin branch."],
+    ["history-diverged", "Run the preflighted `arc user push` reconciliation path."],
+    ["compaction-lineage", "Choose the remote snapshot or establish a fresh authoritative save."],
+    ["proof-unavailable", "Restore remote and object visibility."],
+  ] as const)(
+    "planning refusal %s preserves the worktree result without notes transport",
+    async (reason, message) => {
+      mockPlanNotesExport.mockResolvedValue({ kind: "refused", reason, message });
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
+      const { publishMarker, calls: markerCalls } = stubPublishMarker();
+
+      const result = await runPairedPush({
+        io, access, pushNotes, publishMarker, ...COMMON_OPTIONS,
+      });
+
+      expect(result).toMatchObject({
+        worktree: { status: "success" },
+        notes: { status: "refused", reason, message },
+        exitCode: 1,
+        retryOffer: { autoRetries: 0 },
+        partialPushMarkerRecorded: true,
+      });
+      expect(notesCalls).toEqual([]);
+      expect(markerCalls).toEqual([]);
+      expect(mockRecordPartialPushMarker).toHaveBeenCalledTimes(1);
+      expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+    },
+  );
+
+  it("marker write failure does not hide the primary planning refusal", async () => {
+    const message = "Restore remote and object visibility.";
+    mockPlanNotesExport.mockResolvedValue({ kind: "refused", reason: "proof-unavailable", message });
+    mockRecordPartialPushMarker.mockResolvedValue(false);
+    const { exec } = buildExec(cleanRepoResponses());
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+    const { pushNotes, calls } = stubPushNotes({ status: "success" });
+
+    const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
+
+    expect(result.notes).toEqual({ status: "refused", reason: "proof-unavailable", message });
+    expect(result.partialPushMarkerRecorded).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(calls).toEqual([]);
+  });
+
+  it.each([
     [{ status: "cancelled" } as const],
     [{ status: "no-remote" } as const],
     [{ status: "failed-nontty-conflict" } as const],
@@ -548,7 +590,7 @@ describe("runPairedPush", () => {
     responses[REV_PARSE_UPSTREAM] = () => {
       throw new Error("fatal: no upstream configured for branch 'main'");
     };
-    mockPlanNotesExport.mockResolvedValue({ kind: "skipped", reason: "empty-export" });
+    mockPlanNotesExport.mockResolvedValue({ kind: "skipped", reason: "no-local-notes" });
     const { exec } = buildExec(responses);
     const io = buildIo(exec);
     const access = buildAccess([]);
@@ -562,7 +604,8 @@ describe("runPairedPush", () => {
     expect(result.worktree).toMatchObject({ status: "success" });
     expect(result.notes).toMatchObject({
       status: "refused",
-      message: expect.stringContaining("empty-export"),
+      reason: "no-local-notes",
+      message: expect.stringContaining("no-local-notes"),
     });
     expect(result.conditions.some((c) => c.kind === "no-upstream-branch")).toBe(false);
   });
@@ -737,6 +780,7 @@ describe("runPairedPush", () => {
       expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
       // Bounded: one initial attempt + maxAutoRetries before surfacing.
       expect(calls).toHaveLength(3);
+      expect(calls.every((context) => context.notesExportTarget === NOTES_EXPORT_TARGET)).toBe(true);
     });
 
     it("a terminal notes failure surfaces the offer without auto-retrying", async () => {

@@ -20,9 +20,14 @@ import { atomicWriteFile } from "./fs.js";
 
 export const execFileAsync = promisify(execFile);
 
+const MAX_GIT_STDOUT_BYTES = 64 * 1024 * 1024;
+
 /** Real git executor wrapping child_process.execFile. */
 export const gitExec: GitExec = async (cmd, args, options) => {
-  const { stdout, stderr } = await execFileAsync(cmd, args, options ?? {});
+  const { stdout, stderr } = await execFileAsync(cmd, args, {
+    ...options,
+    maxBuffer: MAX_GIT_STDOUT_BYTES,
+  });
   return { stdout: stdout.trimEnd(), stderr };
 };
 
@@ -121,9 +126,11 @@ async function readUserDir(dirPath: string): Promise<DirEntry[]> {
   return entries;
 }
 
-/** Real stdin-fed git executor — the {@link GitExecInput} adapter for errand
- * orphan-state-ref plumbing (`hash-object --stdin`, `mktree`). Mirrors
- * {@link writeGitNote}'s spawn-with-stdin shape. */
+/**
+ * Real stdin-fed git executor for batch object reads, reachability proofs,
+ * and orphan-state-ref blob/tree plumbing. Mirrors {@link writeGitNote}'s
+ * spawn-with-stdin shape.
+ */
 export const gitExecInput: GitExecInput = (args, input) => {
   return new Promise((resolve, reject) => {
     const proc = spawn("git", args);

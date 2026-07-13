@@ -317,7 +317,8 @@ describe("handleUserSync direction handling", () => {
 
     await handleUserSync();
 
-    expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining("next paired push"));
+    expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining("preflighted `arc user push`"));
+    expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining("Paired push defers"));
     expect(mockSelect).not.toHaveBeenCalled();
     expect(mockRunUserPull).not.toHaveBeenCalled();
     expect(mockRunUserSave).not.toHaveBeenCalled();
@@ -593,6 +594,25 @@ describe("handleUserSync push policy", () => {
       process.cwd(),
       expect.anything(),
       "andrew",
+    );
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("reassures after save when push finds no local notes ref", async () => {
+    setSyncState("local-ahead", "same");
+    setPolicy("on-sync");
+    mockRunUserSave.mockResolvedValue({ warnings: [] });
+    mockPushWithRecovery.mockResolvedValue({ kind: "no-local-notes" });
+
+    await handleUserSync();
+
+    expect(mockRecordPartialPushMarker).toHaveBeenCalledWith(
+      process.cwd(),
+      expect.anything(),
+      "andrew",
+    );
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      "User directory was saved locally — push manually with `arc user push`.",
     );
     expect(process.exitCode).toBe(1);
   });

@@ -3,7 +3,6 @@ import type { AccessFn, PushabilityCondition } from "../../lib/git/index.js";
 import {
   clearPartialPushMarker,
   acquireAdvisoryLock,
-  adoptCompactedNotesRef,
   getNotesLockPath,
   incomingFetchRefspec,
   incomingNotesRef,
@@ -12,11 +11,17 @@ import {
   isRemoteUnavailableError,
   isResolvedNoteValid,
   notesMergeArgs,
-  readNotesCompactionManifest,
   releaseAdvisoryLock,
   type AdvisoryLockHandle,
-  type NotesCompactionManifest,
 } from "../../lib/user-sync/index.js";
+import {
+  planBranchBoundedNotesExport,
+  pushBranchBoundedNotesExport,
+  readStrictLocalRefTip,
+  readStrictOptionalNotesCompactionManifest,
+  type BranchBoundedNotesExportRefusalReason,
+} from "../../lib/user-sync/branch-bounded-notes-export.js";
+import { serializeNotesCompactionManifest } from "../../lib/user-sync/compaction-manifest.js";
 import { uniqueRefToken } from "../../lib/git/ref-tree.js";
 import { notesRef } from "./shared.js";
 import { runUserLoad } from "./save-load.js";
@@ -43,24 +48,16 @@ const FETCH_UPDATE_CAS_ATTEMPTS = 3;
  * silently after fix.
  *
  * Advisory disposition is **not** refused at this site (single-leg / paired
- * asymmetry — see `lib/git/pushability.ts`). Divergent pushes pass the
- * pre-check and reach `git push`; rejection is then routed through
- * `handlers/push-recovery.ts`'s `[rejected]` branch, which surfaces the
- * conflict and offers force-push only on explicit user selection. The paired
- * flow refuses the advisory at its orchestrator boundary instead. Both paths
- * keep automatic pushes safe; the difference is where the refusal lands.
+ * asymmetry — see `lib/git/pushability.ts`). Canonical graph divergence is
+ * returned as a structured preflight refusal; the reconcile wrapper may merge
+ * ordinary same-lineage histories, while direct callers see the refusal. The
+ * paired flow refuses the advisory at its orchestrator boundary instead.
  *
- * Idempotent recovery: when `force` is unset, the function probes
- * `git ls-remote origin <ref>` and compares against the local ref hash. If
- * they match, no push fires and the result is `{ kind: "noop" }` — the
- * partial-push marker is still cleared since the recovery condition is
- * resolved. `force: true` skips the probe and pushes unconditionally — see
- * `handleUserPush`'s `--force` escape hatch for the only call path that
- * sets it.
+ * Non-force publication always plans and pushes one proof-bearing captured
+ * canonical tip. `force: true` remains the explicit planner-free override.
  *
  * @param options - Push options. Provide `access` to enable the pre-check.
- * @returns Discriminated outcome: `pushed` when a push fired, `noop` when the
- *   remote already matched local.
+ * @returns Discriminated publication, refusal, or no-work outcome.
  * @throws {UserPushBlockedError} when a block-disposition condition is detected.
  */
 export async function runUserPush(options: UserPushOptions): Promise<UserPushResult> {
@@ -78,46 +75,34 @@ export async function runUserPush(options: UserPushOptions): Promise<UserPushRes
     }
   }
 
-  const ref = `refs/notes/${notesRef(identity)}`;
-
-  if (!force) {
-    const local = await readLocalRefHash(io, ref);
-    const remote = await readRemoteRefHash(io, ref);
-    if (local !== null && remote !== null && local === remote) {
-      if (cwd) {
-        await clearPartialPushMarker(cwd, io, identity);
-      }
-      return { kind: "noop" };
-    }
+  if (force) {
+    const ref = `refs/notes/${notesRef(identity)}`;
+    if (await readStrictLocalRefTip(io.exec, ref) === null) return { kind: "no-local-notes" };
+    await io.exec("git", ["push", "--force", "origin", ref]);
+    if (cwd) await clearPartialPushMarker(cwd, io, identity);
+    return { kind: "pushed" };
   }
 
-  const args = force ? ["push", "--force", "origin", ref] : ["push", "origin", ref];
-  await io.exec("git", args);
-  if (cwd) {
-    await clearPartialPushMarker(cwd, io, identity);
-  }
-  return { kind: "pushed" };
+  const plan = await planBranchBoundedNotesExport({
+    exec: io.exec,
+    execInput: io.execInput,
+    identity,
+  });
+  if (plan.kind === "skipped") return { kind: "no-local-notes" };
+  if (plan.kind === "refused") return plan;
+  if (plan.kind === "failed") throw plan.error;
+
+  const pushed = await pushBranchBoundedNotesExport({ exec: io.exec, target: plan.target });
+  if (pushed.kind === "failed") throw pushed.error;
+  if (pushed.kind === "no-remote") return { kind: "no-remote" };
+  if (cwd) await clearPartialPushMarker(cwd, io, identity);
+  return pushed;
 }
 
 async function readLocalRefHash(io: UserIOContext, ref: string): Promise<string | null> {
   try {
     const { stdout } = await io.exec("git", ["rev-parse", "--verify", ref]);
     return stdout.trim() || null;
-  } catch {
-    return null;
-  }
-}
-
-async function readRemoteRefHash(io: UserIOContext, ref: string): Promise<string | null> {
-  try {
-    const { stdout } = await io.exec("git", ["ls-remote", "origin", ref]);
-    const line = stdout
-      .split("\n")
-      .map((entry) => entry.trim())
-      .find((entry) => entry.length > 0);
-    if (!line) return null;
-    const [hash] = line.split(/\s+/u);
-    return hash || null;
   } catch {
     return null;
   }
@@ -308,7 +293,9 @@ export type NotesPushOutcome =
   | { kind: "pushed" }
   | { kind: "noop" }
   | { kind: "reconciled" }
+  | { kind: "no-local-notes" }
   | { kind: "no-remote" }
+  | { kind: "refused"; reason: BranchBoundedNotesExportRefusalReason; message: string }
   | { kind: "blocked"; conditions: PushabilityCondition[] }
   /**
    * The non-ff merge could not be auto-resolved losslessly — either the
@@ -344,15 +331,13 @@ export interface ReconcileNotesLock {
 }
 
 /**
- * Push user notes, auto-reconciling a concurrent-worktree non-fast-forward.
+ * Push user notes, auto-reconciling ordinary same-lineage graph divergence.
  *
- * On the shared user-notes ref, a non-ff rejection means another worktree
- * pushed between this worktree's save and push. Recovery is automatic and
- * lossless: fetch the remote ref into a temp tracking ref, union-merge it with
- * `git notes merge -s cat_sort_uniq`, and re-push. No prompt — unlike the
- * generic interactive recovery, whose "merge" re-saves only this worktree's
- * directory and drops the other side. A clean push needs no merge; force-push
- * stays an explicit opt-in on the single-leg `--force` path.
+ * An ordinary `history-diverged` preflight triggers a fresh fetch under the
+ * notes lock, exact compaction-lineage validation, and a lossless
+ * `git notes merge -s cat_sort_uniq`. After validation the lock is released,
+ * the merged canonical tip is recaptured and re-proven, then transported. A
+ * clean push needs no merge; force-push stays an explicit single-leg opt-in.
  *
  * @param options - See {@link ReconcileNotesPushOptions}.
  * @returns `pushed` / `noop` on a clean push, `reconciled` after a merge,
@@ -364,7 +349,10 @@ export async function reconcileNotesPush(
   const { io, identity, cwd, access, worktreeBranch } = options;
   try {
     const result = await runUserPush({ cwd, io, identity, access, worktreeBranch });
-    return result.kind === "noop" ? { kind: "noop" } : { kind: "pushed" };
+    if (result.kind === "refused" && result.reason === "history-diverged") {
+      return await reconcileAndRepush(options);
+    }
+    return result;
   } catch (err) {
     if (err instanceof UserPushBlockedError) {
       return { kind: "blocked", conditions: err.conditions };
@@ -379,8 +367,9 @@ export async function reconcileNotesPush(
 }
 
 /**
- * Fetch the remote notes ref into a temp tracking ref, union-merge it into the
- * local ref, validate the result, and (only if clean) re-push.
+ * Fetch the remote notes ref into a temp tracking ref, validate compaction
+ * lineage, union-merge it into the local ref, then recapture and prove outside
+ * the lock before publication.
  *
  * `cat_sort_uniq` exits 0 even when two worktrees annotated the same commit and
  * their single-line JSON manifests concatenate into an unparseable note, so the
@@ -396,129 +385,130 @@ async function reconcileAndRepush(
   const shortRef = notesRef(identity);
   const fullRef = `refs/notes/${shortRef}`;
   const incoming = incomingNotesRef(fullRef);
-  const lock = await (options.lock ?? DEFAULT_RECONCILE_LOCK).acquire({ io, cwd, identity });
+  const lockProvider = options.lock ?? DEFAULT_RECONCILE_LOCK;
+  let lock: AdvisoryLockHandle;
+  try {
+    lock = await lockProvider.acquire({ io, cwd, identity });
+  } catch (err) {
+    return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
+  }
   try {
     const preMergeTip = await readRefTip(io, fullRef);
     await io.exec("git", ["fetch", "--refmap=", "origin", incomingFetchRefspec(fullRef, incoming)]);
 
-    const boundary = await adoptFetchedCompactionIfNewer({ io, fullRef, incoming });
-    if (boundary.kind === "conflict") return { kind: "conflict", message: boundary.message };
+    const boundary = await validateReconcileCompactionLineage({ io, fullRef, incoming });
+    if (boundary.kind === "refused") return boundary;
     if (boundary.kind === "failed") return { kind: "failed", error: boundary.error };
 
-    if (boundary.kind === "not-needed") {
-      try {
-        await io.exec("git", notesMergeArgs(shortRef, incoming));
-      } catch (err) {
-        await tryExec(io, ["notes", "--ref", shortRef, "merge", "--abort"]);
-        const detail = err instanceof Error ? err.message : String(err);
-        return {
-          kind: "conflict",
-          message: `Concurrent notes could not be merged (git notes merge failed): ${detail}`,
-        };
-      }
-
-      const postMergeTip = await readRefTip(io, fullRef);
-      const scan = await findCorruptMergedNote(io, shortRef);
-      if (scan.kind === "corrupt") {
-        const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
-        if (rollback.kind === "failed") {
-          return {
-            kind: "conflict",
-            message:
-              `Concurrent notes on commit ${scan.commit.slice(0, 8)} produced an unparseable note, `
-              + "and the rollback could not be applied safely. Nothing was pushed; inspect the local "
-              + "notes ref and retry after resolving the conflict.",
-          };
-        }
-        return {
-          kind: "conflict",
-          message:
-            `Concurrent notes on commit ${scan.commit.slice(0, 8)} could not be auto-merged `
-            + "(the union produced an unparseable note). Your local notes are preserved; resolve the "
-            + "conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
-        };
-      }
-      if (scan.kind === "failed") {
-        const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
-        const scope = scan.commit === undefined
-          ? "Concurrent notes merge"
-          : `Concurrent notes on commit ${scan.commit.slice(0, 8)}`;
-        if (rollback.kind === "failed") {
-          return {
-            kind: "conflict",
-            message:
-              `${scope} could not be verified after merge (${scan.error.message}), and the rollback could not `
-              + "be applied safely. Nothing was pushed; inspect the local notes ref and retry after resolving "
-              + "the conflict.",
-          };
-        }
-        return {
-          kind: "conflict",
-          message:
-            `${scope} could not be verified after merge (${scan.error.message}). Your local notes are `
-            + "preserved; resolve the notes-ref read failure and retry.",
-        };
-      }
+    try {
+      await io.exec("git", notesMergeArgs(shortRef, incoming));
+    } catch (err) {
+      await tryExec(io, ["notes", "--ref", shortRef, "merge", "--abort"]);
+      const detail = err instanceof Error ? err.message : String(err);
+      return {
+        kind: "conflict",
+        message: `Concurrent notes could not be merged (git notes merge failed): ${detail}`,
+      };
     }
 
+    const postMergeTip = await readRefTip(io, fullRef);
+    const scan = await findCorruptMergedNote(io, shortRef);
+    if (scan.kind === "corrupt") {
+      const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
+      if (rollback.kind === "failed") {
+        return {
+          kind: "conflict",
+          message:
+            `Concurrent notes on commit ${scan.commit.slice(0, 8)} produced an unparseable note, `
+            + "and the rollback could not be applied safely. Nothing was pushed; inspect the local "
+            + "notes ref and retry after resolving the conflict.",
+        };
+      }
+      return {
+        kind: "conflict",
+        message:
+          `Concurrent notes on commit ${scan.commit.slice(0, 8)} could not be auto-merged `
+          + "(the union produced an unparseable note). Your local notes are preserved; resolve the "
+          + "conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
+      };
+    }
+    if (scan.kind === "failed") {
+      const rollback = await rollbackCorruptMerge({ io, fullRef, preMergeTip, postMergeTip });
+      const scope = scan.commit === undefined
+        ? "Concurrent notes merge"
+        : `Concurrent notes on commit ${scan.commit.slice(0, 8)}`;
+      if (rollback.kind === "failed") {
+        return {
+          kind: "conflict",
+          message:
+            `${scope} could not be verified after merge (${scan.error.message}), and the rollback could not `
+            + "be applied safely. Nothing was pushed; inspect the local notes ref and retry after resolving "
+            + "the conflict.",
+        };
+      }
+      return {
+        kind: "conflict",
+        message:
+          `${scope} could not be verified after merge (${scan.error.message}). Your local notes are `
+          + "preserved; resolve the notes-ref read failure and retry.",
+      };
+    }
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return isRemoteUnavailableError(error.message)
+      ? { kind: "no-remote" }
+      : { kind: "failed", error };
   } finally {
     await tryExec(io, ["update-ref", "-d", incoming]);
-    await (options.lock ?? DEFAULT_RECONCILE_LOCK).release(lock);
+    await lockProvider.release(lock);
   }
 
+  let repush: UserPushResult;
   try {
-    await runUserPush({ cwd, io, identity, access, worktreeBranch });
+    repush = await runUserPush({ cwd, io, identity, access, worktreeBranch });
   } catch (err) {
     return reconcileRepushFailureOutcome(err);
   }
-  return { kind: "reconciled" };
+  switch (repush.kind) {
+    case "pushed":
+    case "noop":
+      return { kind: "reconciled" };
+    case "no-local-notes":
+    case "no-remote":
+    case "refused":
+      return repush;
+  }
 }
 
-async function adoptFetchedCompactionIfNewer(input: {
+async function validateReconcileCompactionLineage(input: {
   io: UserIOContext;
   fullRef: string;
   incoming: string;
 }): Promise<
-  | { kind: "adopted" | "not-needed" }
-  | { kind: "conflict"; message: string }
+  | { kind: "compatible" }
+  | { kind: "refused"; reason: "compaction-lineage"; message: string }
   | { kind: "failed"; error: Error }
 > {
-  let remoteManifest: NotesCompactionManifest | null;
-  let localManifest: NotesCompactionManifest | null;
   try {
-    remoteManifest = await readNotesCompactionManifest(input.io.exec, input.incoming);
-    localManifest = await readNotesCompactionManifest(input.io.exec, input.fullRef);
+    const [localManifest, remoteManifest] = await Promise.all([
+      readStrictOptionalNotesCompactionManifest(input.io.exec, input.fullRef),
+      readStrictOptionalNotesCompactionManifest(input.io.exec, input.incoming),
+    ]);
+    const same = localManifest === null || remoteManifest === null
+      ? localManifest === remoteManifest
+      : serializeNotesCompactionManifest(localManifest) === serializeNotesCompactionManifest(remoteManifest);
+    if (same) return { kind: "compatible" };
+    return {
+      kind: "refused",
+      reason: "compaction-lineage",
+      message:
+        "Local and origin user notes cross an incompatible compaction boundary. Automatic adoption and merge "
+        + "are disabled; inspect both refs with `arc user status --verbose`. Then either accept the remote "
+        + "snapshot, or verify the materialized user state and establish a fresh authoritative save after manual "
+        + "canonical-ref repair.",
+    };
   } catch (err) {
     return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
-  }
-  if (remoteManifest === null) return { kind: "not-needed" };
-  if (remoteManifest.generation <= (localManifest?.generation ?? 0)) return { kind: "not-needed" };
-  if (input.io.execInput === undefined) {
-    return {
-      kind: "conflict",
-      message: "Concurrent notes crossed a compaction boundary, but this runtime cannot build an adopt snapshot.",
-    };
-  }
-  const adopt = await adoptCompactedNotesRef({
-    exec: input.io.exec,
-    execInput: input.io.execInput,
-    fullRef: input.fullRef,
-    snapshotRef: input.incoming,
-  });
-  switch (adopt.kind) {
-    case "adopted":
-      return { kind: "adopted" };
-    case "not-newer":
-      return { kind: "not-needed" };
-    case "conflict":
-      return { kind: "conflict", message: adopt.message };
-    case "ref-moved":
-      return {
-        kind: "conflict",
-        message: "Concurrent local notes changed during compaction adoption. Retry notes sync.",
-      };
-    case "failed":
-      return { kind: "failed", error: adopt.error };
   }
 }
 

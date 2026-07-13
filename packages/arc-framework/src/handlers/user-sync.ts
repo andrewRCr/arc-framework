@@ -137,11 +137,15 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
       return;
     case "guidance":
       if (state.refState === "local-ahead" && state.contentRelation === "remote-subset") {
-        p.log.info("Local notes contain expected branch-export residue.");
-        p.log.info("No additional push is needed; a later paired push will reconcile it safely.");
+        p.log.info("Local notes contain local-ahead publication residue.");
+        p.log.info(
+          "No pull is needed. `arc user push` can preflight publication now; a later paired push can attempt "
+          + "proof-gated publication.",
+        );
       } else {
-        p.log.info("Local and remote notes diverged without contested note content.");
-        p.log.info("The next paired push will reconcile them; no pull action is needed.");
+        p.log.info("Local and remote notes diverged without contested note content; reconciliation is required.");
+        p.log.info("Run the preflighted `arc user push` path. Paired push defers; no pull action is needed.");
+        p.log.info("Reconciliation can still refuse unsafe publication or incompatible compaction lineage.");
       }
       p.outro("Done.");
       return;
@@ -406,11 +410,23 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
       }
       p.outro("Done.");
       return;
+    case "no-local-notes":
+      await recordPartialPushMarkerAfterFailedPush(params);
+      p.log.error("No local user notes ref was available after save; nothing was published.");
+      p.log.warn("User directory was saved locally — push manually with `arc user push`.");
+      process.exitCode = 1;
+      return;
     case "no-remote":
       await recordPartialPushMarkerAfterFailedPush(params);
       p.log.error("No remote configured. Push requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
       p.log.warn("User directory was saved locally — push manually with `arc user push`.");
+      process.exitCode = 1;
+      return;
+    case "refused":
+      await recordPartialPushMarkerAfterFailedPush(params);
+      p.log.error(pushResult.message);
+      p.log.warn("User directory was saved locally — publication remains deferred.");
       process.exitCode = 1;
       return;
     case "blocked":

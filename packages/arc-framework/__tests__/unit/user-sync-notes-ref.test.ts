@@ -13,6 +13,8 @@ import {
   listNoteTreeEntries,
   mergeCrossWuFile,
   notePathToCommit,
+  parseNotesHistoryNameStatus,
+  readLocalExclusiveAnnotatedNoteCommits,
   readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
 } from "../../src/lib/user-sync/index.js";
@@ -26,6 +28,7 @@ const annotated = (seed: string): string => seed.padEnd(40, "0");
 const annotatedSha256 = (seed: string): string => seed.padEnd(64, "0");
 /** Fan-out note path for an annotated commit (`ab/cdef…`). */
 const notePathFor = (commit: string): string => `${commit.slice(0, 2)}/${commit.slice(2)}`;
+const exactRenameStatus = ["R", "100"].join("");
 
 interface NotesConfig {
   /** Note-history commits, most-recent first. */
@@ -46,6 +49,8 @@ interface NotesConfig {
   sinceAsFilterUnsupported?: boolean;
   notesListThrows?: boolean;
   lsTreeThrows?: boolean;
+  historyNameStatusOutput?: string;
+  historyNameStatusThrows?: boolean;
 }
 
 function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
@@ -60,6 +65,10 @@ function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
   const exec: GitExec = async (_cmd: string, args: string[]) => {
     calls.push(args);
     if (args[0] === "log") {
+      if (args.includes("--name-status")) {
+        if (cfg.historyNameStatusThrows) throw new Error("history read failed");
+        return { stdout: cfg.historyNameStatusOutput ?? "", stderr: "" };
+      }
       if (cfg.logThrows) throw new Error("no such ref");
       const sinceAsFilterArg = args.find((arg) => arg.startsWith("--since-as-filter="));
       if (cfg.sinceAsFilterUnsupported && sinceAsFilterArg) {
@@ -381,6 +390,137 @@ describe("notePathToCommit", () => {
 
     expect(notePathToCommit(notePathFor(sha1))).toBe(sha1);
     expect(notePathToCommit(notePathFor(sha256))).toBe(sha256);
+  });
+});
+
+describe("parseNotesHistoryNameStatus", () => {
+  it("collects added and modified SHA-1 and SHA-256 note paths while excluding deletions", () => {
+    const added = annotated("a1");
+    const modified = annotatedSha256("b2");
+    const deleted = annotated("c3");
+
+    expect(parseNotesHistoryNameStatus([
+      "A", notePathFor(added),
+      "M", notePathFor(modified),
+      "D", notePathFor(deleted),
+      "",
+    ].join("\0"))).toEqual(new Set([added, modified]));
+  });
+
+  it("ignores fanout-only renames and collects a cross-commit rename destination", () => {
+    const fanout = annotated("a1");
+    const source = annotated("b2");
+    const destination = annotated("c3");
+    const fanoutSource = `${fanout.slice(0, 2)}/${fanout.slice(2)}`;
+    const fanoutDestination = `${fanout.slice(0, 2)}/${fanout.slice(2, 4)}/${fanout.slice(4)}`;
+
+    expect(parseNotesHistoryNameStatus([
+      exactRenameStatus, fanoutSource, fanoutDestination,
+      exactRenameStatus, notePathFor(source), notePathFor(destination),
+      "",
+    ].join("\0"))).toEqual(new Set([destination]));
+  });
+
+  it("keeps newline-containing paths as one malformed NUL-framed field", () => {
+    const apparentlyValidSuffix = notePathFor(annotated("a1"));
+
+    expect(() => parseNotesHistoryNameStatus(`A\0not-a-note\n${apparentlyValidSuffix}\0`))
+      .toThrow("Malformed notes-history path");
+  });
+
+  it.each([
+    ["unknown status", "T\0path\0"],
+    ["missing path", "A\0"],
+    ["truncated rename", `${exactRenameStatus}\0${notePathFor(annotated("a1"))}\0`],
+    ["malformed object id", "M\0ab/not-hex\0"],
+    ["unrecognized path", "D\0README.md\0"],
+  ])("rejects %s without returning a partial set", (_label, output) => {
+    expect(() => parseNotesHistoryNameStatus(output)).toThrow();
+  });
+
+  it("ignores compaction manifest metadata records", () => {
+    expect(parseNotesHistoryNameStatus([
+      "A", NOTES_COMPACTION_MANIFEST_PATH,
+      "M", NOTES_COMPACTION_MANIFEST_PATH,
+      "D", NOTES_COMPACTION_MANIFEST_PATH,
+      "",
+    ].join("\0"))).toEqual(new Set());
+  });
+});
+
+describe("readLocalExclusiveAnnotatedNoteCommits", () => {
+  const historyOutput = (...records: string[]): string => records
+    .map((record) => `ARC-NOTES-HISTORY-COMMIT\0\0\n${record}`)
+    .join("");
+
+  it("reads the range after a remote ancestor in one root-aware merge-history call", async () => {
+    const first = annotated("a1");
+    const second = annotated("b2");
+    const { exec, calls } = makeExec({
+      historyNameStatusOutput: historyOutput(
+        `A\0${notePathFor(first)}\0`,
+        `M\0${notePathFor(second)}\0`,
+      ),
+    });
+
+    await expect(readLocalExclusiveAnnotatedNoteCommits(exec, annotated("11"), annotated("22")))
+      .resolves.toEqual(new Set([first, second]));
+    expect(calls).toContainEqual([
+      "log",
+      "--name-status",
+      "-z",
+      "-M100%",
+      "-m",
+      "--root",
+      "--format=ARC-NOTES-HISTORY-COMMIT%x00",
+      `${annotated("22")}..${annotated("11")}`,
+    ]);
+  });
+
+  it("reads complete local history when no remote notes ref exists", async () => {
+    const localTip = annotated("11");
+    const published = annotatedSha256("a1");
+    const { exec, calls } = makeExec({
+      historyNameStatusOutput: historyOutput(`A\0${notePathFor(published)}\0`),
+    });
+
+    await expect(readLocalExclusiveAnnotatedNoteCommits(exec, localTip, null))
+      .resolves.toEqual(new Set([published]));
+    expect(calls.at(-1)?.at(-1)).toBe(localTip);
+  });
+
+  it("deduplicates annotated commits across history records", async () => {
+    const published = annotated("a1");
+    const { exec } = makeExec({
+      historyNameStatusOutput: historyOutput(
+        `A\0${notePathFor(published)}\0`,
+        `M\0${notePathFor(published)}\0`,
+      ),
+    });
+
+    await expect(readLocalExclusiveAnnotatedNoteCommits(exec, annotated("11"), null))
+      .resolves.toEqual(new Set([published]));
+  });
+
+  it("returns an empty set only after a successful history read with no qualifying paths", async () => {
+    const { exec } = makeExec({
+      historyNameStatusOutput: historyOutput(`D\0${notePathFor(annotated("a1"))}\0`),
+    });
+
+    await expect(readLocalExclusiveAnnotatedNoteCommits(exec, annotated("11"), null))
+      .resolves.toEqual(new Set());
+  });
+
+  it("propagates Git and parser failures instead of returning partial success", async () => {
+    const failed = makeExec({ historyNameStatusThrows: true });
+    const malformed = makeExec({
+      historyNameStatusOutput: historyOutput(`A\0${notePathFor(annotated("a1"))}\0T\0README.md\0`),
+    });
+
+    await expect(readLocalExclusiveAnnotatedNoteCommits(failed.exec, annotated("11"), null))
+      .rejects.toThrow("history read failed");
+    await expect(readLocalExclusiveAnnotatedNoteCommits(malformed.exec, annotated("11"), null))
+      .rejects.toThrow("Unknown notes-history status");
   });
 });
 

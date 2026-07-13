@@ -379,6 +379,51 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("paired planning refusal preserves its safety class in JSON and operator guidance", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("clean");
+    const message =
+      "User-notes history references unpublished commits. Publish them on a live origin branch, then use the "
+      + "preflighted `arc user push` path.";
+    mockRunPairedPush.mockResolvedValue({
+      save: {
+        status: "success",
+        result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] },
+      },
+      worktree: { status: "success" },
+      notes: { status: "refused", reason: "unpublished-history", message },
+      conditions: [],
+      exitCode: 1,
+      retryOffer: { autoRetries: 0 },
+      partialPushMarkerRecorded: true,
+    });
+
+    await handleSync();
+    expect(mockLog.warn).toHaveBeenCalledWith(message);
+    expect(mockLog.warn).toHaveBeenCalledWith(
+      "Partial publish recorded; publication remains deferred until this safety condition is resolved.",
+    );
+    const rendered = mockLog.warn.mock.calls.flat().join(" ").toLowerCase();
+    expect(rendered).not.toContain("sort");
+    expect(rendered).not.toContain("force-push");
+    expect(rendered).not.toContain("blind retry");
+    expect(process.exitCode).toBe(1);
+
+    process.exitCode = undefined;
+    const outcome = await captureSyncJson();
+    expect(outcome).toMatchObject({
+      worktree: { action: "push", result: "success" },
+      notes: {
+        action: "save+push",
+        result: "blocked",
+        detail: "publication-refused:unpublished-history",
+      },
+      exitCode: 1,
+    });
+    expect(process.exitCode).toBe(1);
+  });
+
   it("paired-cell save failure reports JSON failure without a separate orchestrator save", async () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");
@@ -1131,13 +1176,8 @@ describe("--yes wiring", () => {
           access: unknown; worktreeBranch: string; notesExportTarget: unknown }) => Promise<unknown>;
       };
       const notesExportTarget = {
-        ref: "refs/notes/arc/user/andrew__branch_export_test",
         destinationRef: "refs/notes/arc/user/andrew",
-        tip: "f".repeat(40),
-        annotatedCommits: ["a".repeat(40)],
-        omittedCommits: [],
-        supersedesLocal: true,
-        localIncludesRemote: true,
+        capturedTip: "f".repeat(40),
       };
       capturedNotesContext = await o.pushNotes({
         io: {},
