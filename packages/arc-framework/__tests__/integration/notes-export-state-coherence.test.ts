@@ -29,6 +29,7 @@ import {
 } from "../../src/commands/user.js";
 import { planBranchBoundedNotesExport } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
 import { inferSessionInitRecommendations } from "../../src/lib/session-init/recommended-action.js";
+import { BRANCH_BOUNDED_NOTES_JOIN_MESSAGE } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
 import { decideSyncAction } from "../../src/handlers/user-sync.js";
 
 const IDENTITY = "test-user";
@@ -172,6 +173,8 @@ describe("notes export state coherence", () => {
     expect(result.notes).toMatchObject({
       message: expect.stringContaining(unpublishedRemovalCommit.slice(0, 8)),
     });
+    expect(await git(repo, ["log", "--format=%s", NOTES_REF]))
+      .not.toContain(BRANCH_BOUNDED_NOTES_JOIN_MESSAGE);
 
     await writeFile(inboxPath, inbox(), "utf-8");
     await runUserLoad({ cwd: repo, io, identity: IDENTITY });
@@ -180,6 +183,118 @@ describe("notes export state coherence", () => {
     expect(loadedInbox).not.toContain("### `[ ]` **Resurrection sentinel**");
     expect(loadedInbox).toContain("## Removed: Resurrection sentinel");
   });
+
+  it("recognizes the released branch-export join signature only at the local tip", async () => {
+    repo = await createTempRepo("arc-notes-legacy-join-");
+    const base = await makeCommit(repo, "base");
+    const localOnly = await makeCommit(repo, "local-only note target");
+    remote = await addBareRemote(repo);
+
+    const remoteTip = (await makeNotesTreeCommit(repo, [
+      { commit: base, content: EMPTY_USER_MANIFEST },
+    ], { message: "remote notes" })).tip;
+    const priorLocalTip = (await makeNotesTreeCommit(repo, [
+      { commit: localOnly, content: EMPTY_USER_MANIFEST },
+    ], { message: "prior local notes" })).tip;
+    const legacyJoinTip = (await makeNotesTreeCommit(repo, [
+      { commit: base, content: EMPTY_USER_MANIFEST },
+      { commit: localOnly, content: EMPTY_USER_MANIFEST },
+    ], {
+      parents: [priorLocalTip, remoteTip],
+      message: BRANCH_BOUNDED_NOTES_JOIN_MESSAGE,
+    })).tip;
+    await git(repo, ["update-ref", NOTES_REF, legacyJoinTip]);
+    await git(repo, ["push", "origin", `${remoteTip}:${NOTES_REF}`]);
+
+    await expect(inspectUserSyncRefsDetailed(makeUserIO(repo), IDENTITY)).resolves.toMatchObject({
+      state: "local-ahead",
+      localHash: legacyJoinTip,
+      remoteHash: remoteTip,
+      contentRelation: "remote-subset",
+    });
+
+    const laterTip = (await makeNotesTreeCommit(repo, [
+      { commit: base, content: EMPTY_USER_MANIFEST },
+      { commit: localOnly, content: EMPTY_USER_MANIFEST },
+    ], { parents: [legacyJoinTip], message: "later canonical save" })).tip;
+    await git(repo, ["update-ref", NOTES_REF, laterTip]);
+    const later = await inspectUserSyncRefsDetailed(makeUserIO(repo), IDENTITY);
+    expect(later).toMatchObject({ state: "local-ahead", localHash: laterTip, remoteHash: remoteTip });
+    expect(later.contentRelation).toBeUndefined();
+  });
+
+  it("rejects a malformed legacy join signature instead of classifying it as residue", async () => {
+    repo = await createTempRepo("arc-notes-malformed-legacy-join-");
+    const base = await makeCommit(repo, "base");
+    const localOnly = await makeCommit(repo, "local-only note target");
+    remote = await addBareRemote(repo);
+
+    const remoteTip = (await makeNotesTreeCommit(repo, [
+      { commit: base, content: EMPTY_USER_MANIFEST },
+    ], { message: "remote notes" })).tip;
+    const otherParent = (await makeNotesTreeCommit(repo, [
+      { commit: localOnly, content: EMPTY_USER_MANIFEST },
+    ], { message: "other local history" })).tip;
+    const malformedTip = (await makeNotesTreeCommit(repo, [
+      { commit: base, content: EMPTY_USER_MANIFEST },
+      { commit: localOnly, content: EMPTY_USER_MANIFEST },
+    ], {
+      parents: [remoteTip, otherParent],
+      message: BRANCH_BOUNDED_NOTES_JOIN_MESSAGE,
+    })).tip;
+    await git(repo, ["update-ref", NOTES_REF, malformedTip]);
+    await git(repo, ["push", "origin", `${remoteTip}:${NOTES_REF}`]);
+
+    const inspection = await inspectUserSyncRefsDetailed(makeUserIO(repo), IDENTITY);
+    expect(inspection).toMatchObject({ state: "local-ahead", localHash: malformedTip, remoteHash: remoteTip });
+    expect(inspection.contentRelation).toBeUndefined();
+  });
+
+  it.each(["mixed-uncontested", "conflicting"] as const)(
+    "classifies later %s divergence by content instead of the legacy join signature",
+    async (expectedRelation) => {
+      repo = await createTempRepo(`arc-notes-later-${expectedRelation}-`);
+      const base = await makeCommit(repo, "base");
+      const localOnly = await makeCommit(repo, "local-only note target");
+      const remoteOnly = await makeCommit(repo, "remote-only note target");
+      remote = await addBareRemote(repo);
+
+      const commonTip = (await makeNotesTreeCommit(repo, [
+        { commit: base, content: EMPTY_USER_MANIFEST },
+      ], { message: "common notes" })).tip;
+      const priorLocalTip = (await makeNotesTreeCommit(repo, [
+        { commit: localOnly, content: EMPTY_USER_MANIFEST },
+      ], { message: "prior local notes" })).tip;
+      const joinTip = (await makeNotesTreeCommit(repo, [
+        { commit: base, content: EMPTY_USER_MANIFEST },
+        { commit: localOnly, content: EMPTY_USER_MANIFEST },
+      ], {
+        parents: [priorLocalTip, commonTip],
+        message: BRANCH_BOUNDED_NOTES_JOIN_MESSAGE,
+      })).tip;
+      const localEntries = expectedRelation === "conflicting"
+        ? [{ commit: base, content: LOCAL_USER_MANIFEST }]
+        : [{ commit: localOnly, content: EMPTY_USER_MANIFEST }];
+      const remoteEntries = expectedRelation === "conflicting"
+        ? [{ commit: base, content: REMOTE_USER_MANIFEST }]
+        : [{ commit: remoteOnly, content: EMPTY_USER_MANIFEST }];
+      const localTip = (await makeNotesTreeCommit(repo, localEntries, {
+        parents: [joinTip],
+        message: "later local history",
+      })).tip;
+      const remoteTip = (await makeNotesTreeCommit(repo, remoteEntries, {
+        parents: [commonTip],
+        message: "later remote history",
+      })).tip;
+      await git(repo, ["update-ref", NOTES_REF, localTip]);
+      await git(repo, ["push", "origin", `${remoteTip}:${NOTES_REF}`]);
+
+      await expect(inspectUserSyncRefsDetailed(makeUserIO(repo), IDENTITY)).resolves.toMatchObject({
+        state: "diverged",
+        contentRelation: expectedRelation,
+      });
+    },
+  );
 
   it("projects branch-bounded remote-subset residue as non-blocking on every surface", async () => {
     repo = await createTempRepo("arc-notes-remote-subset-");

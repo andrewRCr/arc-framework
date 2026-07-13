@@ -157,18 +157,15 @@ compatibility for histories emitted by released versions.
   Remote-subset topology remains non-conflicting/no-pull publication residue while every projection keeps safety
   proof conditional and preserves genuine-conflict routing.
 
-### `[ ]` **5.2 Preserve legacy join recognition without emitting new join history**
+### `[x]` **5.2 Preserve legacy join recognition without emitting new join history**
 
 - _Goal:_ Histories created by released branch-bounded exporters remain classifiable even though current publication
   no longer creates or adopts join commits.
 
-    - Keep `BRANCH_BOUNDED_NOTES_JOIN_MESSAGE` and `isBranchBoundedExportResidue` on the read path while removing
-      write-side union/adoption exports and tests.
-    - Add focused regression coverage in `notes-export-state-coherence.test.ts` proving a well-formed legacy join is
-      still recognized as `remote-subset`, while malformed signatures and later uncontested or contested histories
-      fall through to the normal content classifier.
-    - Verify new paired and standalone publication integration cases inspect notes-ref history and mint no commit
-      carrying the legacy subject.
+- _Outcome:_ Real-Git compatibility coverage preserves the exact released two-parent join signature as local-ahead
+  `remote-subset` residue while rejecting malformed parent ordering and ignoring the signature after later saves.
+  Later uncontested/contested divergence uses the normal content classifier, and current paired/standalone paths are
+  verified not to mint the legacy subject; no write-side union or adoption surface remains.
 
 ### `[ ]` **5.3 Update the shared user-notes mutation and recovery guidance**
 

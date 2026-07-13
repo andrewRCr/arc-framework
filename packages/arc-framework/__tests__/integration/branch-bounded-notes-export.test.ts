@@ -13,6 +13,7 @@ import {
   makeNotesTreeCommit,
 } from "../helpers/integration.js";
 import {
+  BRANCH_BOUNDED_NOTES_JOIN_MESSAGE,
   planBranchBoundedNotesExport,
   pushBranchBoundedNotesExport,
 } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
@@ -339,6 +340,8 @@ describe("canonical notes publication", () => {
       .resolves.toEqual({ kind: "pushed" });
     expect(await git(remote, ["rev-parse", NOTES_REF])).toBe(plan.target.capturedTip);
     expect(await git(repo, ["rev-parse", NOTES_REF])).toBe(localAfter);
+    expect(await git(repo, ["log", "--format=%s", NOTES_REF]))
+      .not.toContain(BRANCH_BOUNDED_NOTES_JOIN_MESSAGE);
   });
 
   it("rejects a remote advance after planning without force or local mutation", async () => {
