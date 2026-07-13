@@ -133,6 +133,11 @@ export interface ProjectReadinessCompositionResult {
   oracleResult: DeriveInFlightResult | null;
 }
 
+/** Checked-out branch whose staged tree record supersedes its own at-ref candidate. */
+export interface ProjectReadinessProspectiveInput {
+  currentBranch: string;
+}
+
 /** In-flight oracle inputs for project-readiness renders. */
 export interface ProjectReadinessOracleOptions {
   exec: GitExec;
@@ -161,6 +166,8 @@ export interface ResolveProjectReadinessViewInputOptions {
   localRefs?: ProjectReadinessLocalRefsOptions;
   /** Optional in-flight oracle input to merge at-ref active metas into the record set. */
   oracle?: ProjectReadinessOracleOptions;
+  /** Treat this staged tree as authoritative for the checked-out branch's own work unit. */
+  prospective?: ProjectReadinessProspectiveInput;
 }
 
 /** Structured freshness stamp rendered in the view header. */
@@ -471,6 +478,7 @@ function appendIndeterminateOracleWarning(
 
 async function resolveOracleCandidates(
   options: ProjectReadinessOracleOptions | undefined,
+  prospective?: ProjectReadinessProspectiveInput & { stagedSlugs: ReadonlySet<string> },
 ): Promise<{
   candidates: ProjectReadinessRecordCandidate[];
   derivationWarnings: ProjectReadinessDerivationWarning[];
@@ -492,7 +500,13 @@ async function resolveOracleCandidates(
     errandSlugByBranch: options.errandSlugByBranch,
     parkedSlugs: options.parkedSlugs,
   });
-  const candidates = result.entries
+  const entries = prospective === undefined
+    ? result.entries
+    : result.entries.filter((entry) =>
+        entry.kind !== "work-unit"
+        || entry.branch !== prospective.currentBranch
+        || !prospective.stagedSlugs.has(entry.name));
+  const candidates = entries
     .map(inFlightEntryToCandidate)
     .filter((candidate): candidate is ProjectReadinessRecordCandidate => candidate !== null);
   const derivationWarnings: ProjectReadinessDerivationWarning[] = [];
@@ -545,6 +559,12 @@ export async function resolveProjectReadinessComposition(
   );
   const localRefs = await resolveOracleCandidates(
     configuredOracle === undefined ? undefined : { ...configuredOracle, parkedSlugs },
+    options.prospective === undefined
+      ? undefined
+      : {
+          ...options.prospective,
+          stagedSlugs: new Set(treeRecords.map((record) => record.slug)),
+        },
   );
   return {
     records: mergeProjectReadinessRecords([...treeRecords, ...localRefs.candidates]),

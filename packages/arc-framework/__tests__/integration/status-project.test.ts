@@ -7,6 +7,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { handleStatus, type StatusCliOptions } from "../../src/handlers/status.js";
 import { writeErrandRecord } from "../../src/lib/errand/record.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
+import {
+  ROADMAP_PATH,
+  renderRoadmapFromIndexResult,
+} from "../../src/lib/status/roadmap-regeneration-assert.js";
+import { runRoadmapRegenerationAssert } from "../../src/scripts/assert-roadmap-regenerated.js";
 import {
   cleanupTempDir,
   createTempRepo,
@@ -43,6 +49,16 @@ function metaAt(slug: string, state: string, branch: string, priority: string): 
 async function commitAll(cwd: string, message: string): Promise<void> {
   await execFileAsync("git", ["add", "-A"], { cwd });
   await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", message], { cwd });
+}
+
+function makeRawGitExec(cwd: string): GitExec {
+  return async (cmd, args, options) => {
+    const { stdout, stderr } = await execFileAsync(cmd, args, {
+      cwd: options?.cwd ?? cwd,
+      signal: options?.signal,
+    });
+    return { stdout, stderr };
+  };
 }
 
 async function captureStdout(fn: () => Promise<void>): Promise<string> {
@@ -288,6 +304,68 @@ describe("arc status --project", () => {
     expect(staged).toMatch(/\|\s*foo\s*\|\s*P2\b/u);
     expect(staged).not.toMatch(/\|\s*foo\s*\|\s*P3\b/u);
     expect(worktree).toMatch(/\|\s*foo\s*\|\s*P3\b/u);
+  });
+
+  it("drops an archiving own-branch row while preserving sibling rows and hook/CLI byte parity", async () => {
+    repo = await createTempRepo("arc-status-archive-window-");
+    remote = `${repo}-origin.git`;
+    const slug = "archiving-own-row";
+    const branch = `feat/${slug}`;
+    const siblingSlug = "active-sibling-row";
+    const siblingBranch = `feat/${siblingSlug}`;
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repo });
+    await execFileAsync("git", ["config", "arc.identity", "andrew"], { cwd: repo });
+    await mkdir(join(repo, ".arc", "system"), { recursive: true });
+    await mkdir(join(repo, ".arc", "backlog"), { recursive: true });
+    await writeFile(
+      join(repo, ".arc", "system", "arc-config.yml"),
+      "branch.base: main\nbranch.protection: partial\npm.mode: arc-in-git\n",
+    );
+    await commitAll(repo, "scaffold archival render");
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: repo });
+
+    await execFileAsync("git", ["switch", "-c", siblingBranch], { cwd: repo });
+    await mkdir(join(repo, ".arc", "active"), { recursive: true });
+    await writeFile(
+      join(repo, ".arc", "active", `meta-${siblingSlug}.md`),
+      meta(siblingSlug, "Active", siblingBranch),
+    );
+    await commitAll(repo, "activate sibling row");
+    await execFileAsync("git", ["push", "-u", "origin", siblingBranch], { cwd: repo });
+
+    await execFileAsync("git", ["switch", "main"], { cwd: repo });
+    await execFileAsync("git", ["switch", "-c", branch], { cwd: repo });
+    await mkdir(join(repo, ".arc", "active"), { recursive: true });
+    const activePath = join(repo, ".arc", "active", `meta-${slug}.md`);
+    await writeFile(activePath, meta(slug, "Integrating", branch));
+    await commitAll(repo, "integrate own row");
+    await execFileAsync("git", ["push", "-u", "origin", branch], { cwd: repo });
+
+    const completedDir = join(repo, ".arc", "completed", "2026-q3");
+    const completedPath = join(completedDir, `meta-${slug}.md`);
+    await mkdir(completedDir, { recursive: true });
+    await execFileAsync("git", ["mv", activePath, completedPath], { cwd: repo });
+    await writeFile(completedPath, meta(slug, "Shipped", branch));
+    await execFileAsync("git", ["add", "-A"], { cwd: repo });
+
+    const exec = makeRawGitExec(repo);
+    const rendered = await renderRoadmapFromIndexResult({ cwd: repo, exec, baseBranch: "main" });
+    expect(rendered.content).not.toContain(`| \`Integrating\` | ${slug}`);
+    expect(rendered.content).toContain(`| \`Active\` | ${siblingSlug}`);
+
+    await writeFile(join(repo, ROADMAP_PATH), rendered.content);
+    await execFileAsync("git", ["add", ROADMAP_PATH], { cwd: repo });
+    const hook = await runRoadmapRegenerationAssert({
+      cwd: repo,
+      exec,
+      baseBranch: "main",
+      stagedPaths: [ROADMAP_PATH],
+    });
+    const cli = await runProject(repo, { project: true, staged: true });
+
+    expect(hook).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    expect(cli).toBe(rendered.content);
   });
 });
 

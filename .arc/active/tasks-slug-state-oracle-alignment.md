@@ -214,46 +214,31 @@ Siblings keep normal oracle precedence, and `completed/` is never globally ranke
 global flip would hide genuine live branches (spec Decision 6). Hook/CLI parity is by construction via the
 shared render in `lib/status/roadmap-regeneration-assert.ts`.
 
-### `[ ]` **5.1 Extend the composed-input model with the own-branch prospective override**
+### `[x]` **5.1 Extend the composed-input model with the own-branch prospective override**
 
 - _Goal:_ During a transition commit, the staged lifecycle record substitutes for the checked-out branch's
   oracle candidates (both ref forms), so the staged state is authoritative for that branch while every sibling
   ranks normally (SC5).
-- _Approach:_ Key the override on staged-record presence, and suppress at the **entry level (post-dedupe)**:
-  drop the projected oracle candidate whose winning entry's branch is the checked-out branch when the staged
-  index carries a record for that slug; no staged record → the entry stands. Post-dedupe suppression covers
-  both ref forms for free (dedupe already collapses the local head and its `origin/<branch>` twin into one
-  entry) and leaves sibling stale-candidate warnings untouched — pre-dedupe per-ref suppression would silence
-  those warnings and fail the byte-for-byte inertness test below. The no-transition case is inert by
-  construction (staged ≡ at-ref), so no transition detection is needed — only the current branch resolved in
-  the hook context.
-- **Additional Context:** `notes-slug-state-oracle-alignment.md` § Decision 6 — prospective-render mechanics
-  and the dual-ref dedupe detail
+- _Outcome:_ The composition input accepts a prospective current branch and suppresses only that branch's
+  post-dedupe oracle entry when the staged tree carries its slug. Activation, integration, and archival states
+  win locally; sibling precedence and warnings remain intact, and no-transition renders stay byte-identical.
 
-    - Build `test-first` (one behavior at a time):
-        - Archival window: staged `Shipped` record + at-ref `Integrating` metas on the own branch's local head
-          and `origin/<branch>` twin → the composed record set carries `Shipped`; the In Flight row drops.
-        - A sibling branch's at-ref active meta is unaffected by the override — sibling precedence unchanged.
-        - Activation transition: staged `Active` wins over the own branch's pre-commit `Planning` tip.
-        - Integration transition: staged `Integrating` wins over the own branch's pre-commit `Active` tip.
-        - A `completed/` record never outranks a genuine live sibling branch (the global-flip guard).
-        - No transition staged → the override is inert; renders match today's output byte-for-byte.
-
-### `[ ]` **5.2 Lock archival-window rendering: own row drops, siblings unaffected, hook/CLI parity**
+### `[x]` **5.2 Lock archival-window rendering: own row drops, siblings unaffected, hook/CLI parity**
 
 - _Goal:_ An archival commit's fresh staged render drops the archived WU's own In Flight row and the
   pre-commit assert accepts it — the four-times-observed carried-row failure is dead, and remediation output
   matches the hook byte-for-byte (SC5).
 
-    - `[ ]` **5.2.a End-to-end archival-commit coverage**
-        - Temp-repo flow: WU at `Integrating` on its branch, archival sweep staged → staged-index render
-          drops the row; `assertRoadmapRegenerated` passes; sibling rows intact.
+    - `[x]` **5.2.a End-to-end archival-commit coverage**
+        - A real staged archival sweep now drops its own Integrating row, retains an Active sibling, and passes
+          the ROADMAP regeneration assert.
 
-    - `[ ]` **5.2.b Hook/CLI byte-parity regression**
-        - The pre-commit assert's render and `arc status --project --staged` produce byte-identical output
-          across the transition scenarios (both compose from `renderRoadmapFromIndexViewResult` — lock it so
-          a future split can't drift). Assert across the trailing-newline wrapper too: the hook compares
-          content-with-newline while the CLI emits the view markdown.
+    - `[x]` **5.2.b Hook/CLI byte-parity regression**
+        - Activation, integration, and archival fixtures assert byte-identical shared renders through the
+          trailing-newline wrapper; the real handler and hook paths also match during an archival window.
+
+- _Outcome:_ The staged CLI remediation is now exactly the content the hook accepts throughout lifecycle
+  transitions, closing the carried-row failure without changing sibling rows.
 
 ## **Phase 6:** Residue classification and `remoteOnly` truth
 

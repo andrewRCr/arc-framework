@@ -19,6 +19,7 @@ import type {
 import type { RefTipMap } from "../git/remote-ref-reader.js";
 import {
   resolveProjectReadinessComposition,
+  type ProjectReadinessProspectiveInput,
   type ProjectReadinessOracleOptions,
   type ProjectViewFs,
 } from "../status/project-view.js";
@@ -47,6 +48,8 @@ export interface ResolveComposedLifecycleIndexOptions {
   fs?: ProjectViewFs;
   /** Omit for exact tree-only parity. `baseBranch` is required because exclusion is load-bearing. */
   oracle?: Omit<ProjectReadinessOracleOptions, "baseBranch"> & { baseBranch: string };
+  /** Optional staged-tree precedence for the checked-out branch's own work unit. */
+  prospective?: ProjectReadinessProspectiveInput;
 }
 
 /** Tree + oracle lifecycle truth and the quality/enrichment channels consumers need beside it. */
@@ -131,6 +134,7 @@ export async function resolveComposedLifecycleIndex(
     cwd: options.cwd,
     ...(options.fs !== undefined ? { fs: options.fs } : {}),
     ...(options.oracle !== undefined ? { oracle: options.oracle } : {}),
+    ...(options.prospective !== undefined ? { prospective: options.prospective } : {}),
   });
   const oracleResult = composition.oracleResult;
   const worktreePathBySlug = new Map<string, string>();
