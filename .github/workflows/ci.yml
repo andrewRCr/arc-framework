@@ -101,8 +101,15 @@ jobs:
             portability_target=true
             if git rev-parse -q --verify "$all_base^{commit}" >/dev/null 2>&1 \
                && git rev-parse -q --verify "$all_head^{commit}" >/dev/null 2>&1; then
-              portability_target="$(git diff --name-only -z "$all_base...$all_head" \
-                | bash scripts/classify-change.sh portability --stdin0)"
+              if ! portability_target="$(git diff --name-only -z "$all_base...$all_head" \
+                | bash scripts/classify-change.sh portability --stdin0)"; then
+                echo "::error::portability classifier failed"
+                exit 1
+              fi
+              if [ "$portability_target" != 'true' ] && [ "$portability_target" != 'false' ]; then
+                echo "::error::invalid portability classifier output: $portability_target"
+                exit 1
+              fi
             fi
           fi
           echo "portability_target=$portability_target" >> "$GITHUB_OUTPUT"

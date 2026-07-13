@@ -110,6 +110,8 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).toContain("os: [ubuntu-latest]");
     expect(workflow).toContain("os: [windows-latest, macos-latest]");
     expect(workflow).toContain("needs.classify.outputs.portability_target == 'true'");
+    expect(workflow).toContain('echo "::error::portability classifier failed"');
+    expect(workflow).toContain('echo "::error::invalid portability classifier output: $portability_target"');
     const targetedJob = workflow.slice(
       workflow.indexOf("  portability-cross-platform:"),
       workflow.indexOf("  ci_ok:"),
