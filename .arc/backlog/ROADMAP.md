@@ -1,7 +1,11 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `05a6335a7`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `7bcf120e9`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
+
+## Warnings
+
+- Meta `.arc/active/meta-slug-state-oracle-alignment.md` at `fix/slug-state-oracle-alignment` points to `plan/slug-state-oracle-alignment`; shadowed by location match. Work unit `slug-state-oracle-alignment` has not shipped; treating the view as degraded.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -13,11 +17,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                   | Priority | Owner  | Depends on | Cohort            |
-| ---------- | --------------------------- | -------- | ------ | ---------- | ----------------- |
-| `Active`   | finalize-parallelism        | P1       | andrew | —          | agile-parallelism |
-| `Planning` | slug-state-oracle-alignment | P1       | andrew | —          | —                 |
-| `Active`   | burn-in-probe-b             | P3       | andrew | —          | —                 |
+| State    | Work unit                   | Priority | Owner  | Depends on | Cohort            |
+| -------- | --------------------------- | -------- | ------ | ---------- | ----------------- |
+| `Active` | finalize-parallelism        | P1       | andrew | —          | agile-parallelism |
+| `Active` | slug-state-oracle-alignment | P1       | andrew | —          | —                 |
+| `Active` | burn-in-probe-b             | P3       | andrew | —          | —                 |
 
 ## Ready
 
