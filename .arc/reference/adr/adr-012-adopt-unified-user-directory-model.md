@@ -399,6 +399,19 @@ unchanged; only the key name and value enum shifted to track the framework-wide 
 alignment. See [strategy-session-operations.md](../strategies/arc/strategy-session-operations.md)
 § Handoff-Interior Toggle Pattern for the canonical shape.
 
+**Amendment (2026-07-13):** Production use showed that the broader user-directory payload made Git-notes history
+semantically load-bearing. Cross-WU projections consume a bounded window of notes-ref authorship events, so
+reconstructing a branch-bounded target from current note blobs can refresh, reorder, or duplicate state even when
+the resulting tree is correct. One observed reconstruction made older inbox content newer than its tombstone and
+resurrected routed entries.
+
+Git notes remains the interim portability mechanism established here. Until the separate materialized backing-store
+substrate supersedes it, investment is limited to keep-the-lights-on correctness: push existing canonical history
+when publication safety is proven, preserve existing ancestry/version checks, and fail closed through the current
+partial-publish recovery surface when safe publication would require history reconstruction. Do not add replay
+metadata, source-event identity, history-rewrite machinery, new marker kinds, or reconciliation arms to recover
+transparent subset export. Those are backing-store event-model concerns, not additions to the retiring transport.
+
 ---
 
 Context: tasks-cli-implementation.md (off-plan — architectural evaluation before Phase 2)

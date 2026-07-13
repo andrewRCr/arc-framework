@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                          | **Class** | **Priority** |
 | ---------- | --------- | ----------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/notes-export-replay-ordering` | `Light`   | `P1`         |
+| `Planning` | `andrew`  | `plan/notes-export-replay-ordering` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
