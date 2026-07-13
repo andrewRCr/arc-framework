@@ -17,7 +17,7 @@
 - **Next Task:** Task 1.1.a — Parse status-bearing notes-history records (line ~17)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1.a — Parse status-bearing notes-history records
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
