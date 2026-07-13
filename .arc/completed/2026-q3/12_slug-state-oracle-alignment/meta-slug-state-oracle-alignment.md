@@ -1,8 +1,8 @@
 # Metadata: slug-state-oracle-alignment
 
-| **State**     | **Owner** | **Branch**                        | **Class** | **Priority** |
-| ------------- | --------- | --------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `fix/slug-state-oracle-alignment` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/233>
+- **Completed:** 2026-07-13
 
 ---
 
@@ -68,6 +68,11 @@ session-start cleanup path. The conditional ready-view adoption was intentionall
 the oracle read without changing readiness, while dependency discharge remains conservatively tree-only as
 designed.
 
-Verification covered focused regressions, the complete 5,256-test suite, strict typechecking, TypeScript,
+The integration archive sweep exposed one missing production connection after review: lifecycle-triggered ROADMAP
+regeneration had not supplied the checked-out branch to the prospective model. A real executor-bound archive
+regression now covers that ceremony path, and the production binding reuses the same scoped precedence contract as
+the staged hook and CLI renderer.
+
+Verification covered focused regressions, the complete 5,257-test suite, strict typechecking, TypeScript,
 Markdown and shell linting, build output, cross-platform CI, and full code review. All checks passed with no open
 actionable findings.
