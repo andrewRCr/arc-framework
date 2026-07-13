@@ -8,7 +8,7 @@ import type { QualificationCellId, QualificationCheckpoint } from "./qualificati
 import type { QualificationCheckpointStore, QualificationRawStore } from "./qualification-runner.js";
 
 function credentialShaped(value: string): boolean {
-  return /gh[opsu]_[A-Za-z0-9._-]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|"(?:token|secret|privateKey|authorization)"\s*:/iu
+  return /(?:gh[oprsu]|github_pat)_[A-Za-z0-9._-]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|"(?:token|secret|privateKey|authorization)"\s*:/iu
     .test(value);
 }
 

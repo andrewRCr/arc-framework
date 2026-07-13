@@ -517,7 +517,8 @@ export function routingExec(world: ReviewGateWorld): GitExec {
         const ref = rest.find((arg) => arg.includes("^{commit}")) ?? "";
         if (ref.includes("/head^")) return Promise.resolve({ stdout: `${world.headSha}\n` });
         if (ref.includes("/base^")) return Promise.resolve({ stdout: `${world.baseSha}\n` });
-        if (ref === `${world.headSha}^{commit}` || world.headSha.startsWith(ref.replace(/\^\{commit\}$/u, ""))) {
+        if (ref === `${world.headSha}^{commit}`
+          || (ref.length > 0 && world.headSha.startsWith(ref.replace(/\^\{commit\}$/u, "")))) {
           return Promise.resolve({ stdout: `${world.headSha}\n` });
         }
         const object = rest.at(-1) ?? "";

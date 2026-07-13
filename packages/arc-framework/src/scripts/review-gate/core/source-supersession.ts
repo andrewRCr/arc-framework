@@ -119,6 +119,7 @@ export function planSourceSupersession(input: {
   supersededAt: Date;
   reason: string;
 }): SourceSupersessionResult {
+  if (input.reason.trim().length === 0) return { ok: false, error: "invalid-reason" };
   if (input.alternateSourceIdentity === input.priorRequest.sourceIdentity) {
     return { ok: false, error: "alternate-source-must-change" };
   }

@@ -45,4 +45,20 @@ describe("qualification-only GitHub App mint", () => {
       { repositories: ["r"], permissions: { checks: "write", pull_requests: "write", statuses: "read" } },
     ]);
   });
+
+  it("retains request status and transport or parsing causes without exposing credentials", async () => {
+    const input = { jwt: "app.jwt.value", installationId: "145772297", repository: "r", format: "classic" as const };
+    const rejected = vi.fn(async () => ({ status: 429, headers: { get: () => null }, text: async () => "failure" })) as unknown as HttpFetch;
+    await expect(mintQualificationToken({ ...input, fetch: rejected }))
+      .rejects.toThrow("token-qualification:app-request-rejected:429");
+
+    const transportCause = new Error("connection reset");
+    const failed = vi.fn(async () => { throw transportCause; }) as unknown as HttpFetch;
+    await expect(mintQualificationToken({ ...input, fetch: failed }))
+      .rejects.toMatchObject({ message: "token-qualification:app-request-failed", cause: transportCause });
+
+    const malformed = vi.fn(async () => ({ status: 200, headers: { get: () => null }, text: async () => "not-json" })) as unknown as HttpFetch;
+    await expect(mintQualificationToken({ ...input, fetch: malformed }))
+      .rejects.toMatchObject({ message: "token-qualification:app-response-malformed", cause: expect.any(SyntaxError) });
+  });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { NormalizedChangeRequest } from "../../../../../src/scripts/review-gate/core/contracts.js";
+import type { ReviewRequest } from "../../../../../src/scripts/review-gate/core/execution.js";
 import type { GitExec } from "../../../../../src/lib/git/exec.js";
 import type { HttpFetch } from "../../../../../src/scripts/review-gate/hosts/github/api/http.js";
 import type { ChangeRequestResolution } from "../../../../../src/scripts/review-gate/hosts/github/change-request.js";
@@ -79,7 +80,36 @@ function coderabbitPolicy(): SelfHostingPolicy {
   if (coderabbit === undefined) throw new Error("missing CodeRabbit policy fixture");
   return {
     ...SELF_HOSTING_POLICY,
-    qualifications: [{ ...coderabbit, mode: "enabled" }, ...rest],
+    qualifications: [{
+      ...coderabbit,
+      mode: "enabled",
+      exactCoverage: true,
+      durableResults: true,
+      distinctOutcomes: true,
+      closureCapability: true,
+    }, ...rest],
+  };
+}
+
+function coderabbitRequest(): ReviewRequest {
+  return {
+    schemaVersion: 1,
+    repositoryId: "100",
+    changeRequestId: "PR_node",
+    changeSetId: changeRequest.changeSetId,
+    policyVersion: SELF_HOSTING_POLICY.semanticsVersion,
+    semanticsVersion: SELF_HOSTING_POLICY.semanticsVersion,
+    rubricVersion: "independent-analysis/v1",
+    requirementId: "independent-analysis",
+    sourceIdentity: "coderabbit-pr",
+    coverage: "full",
+    coverageFromSha: changeRequest.diffBaseSha,
+    coverageThroughSha: HEAD,
+    generation: 0,
+    actorIdentity: SELF_HOSTING_POLICY.providerIdentities.appBotUserId,
+    requestMechanism: "automatic",
+    requiredActorIdentity: SELF_HOSTING_POLICY.providerIdentities.appBotUserId,
+    requestCommand: null,
   };
 }
 
@@ -196,5 +226,10 @@ describe("review-gate composition roots", () => {
 
     expect(disabled.provider).toBeInstanceOf(QualifiedProviderRouter);
     expect(enabled.provider).toBeInstanceOf(QualifiedProviderRouter);
+    await expect(disabled.provider.qualifyRequest(coderabbitRequest())).rejects.toThrow("source is not qualified");
+    await expect(enabled.provider.qualifyRequest(coderabbitRequest())).resolves.toEqual({
+      qualified: true,
+      reason: "qualified",
+    });
   });
 });

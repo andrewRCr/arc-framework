@@ -46,8 +46,8 @@ export interface RequestExecutionResult {
 }
 
 function invocationFailure(error: unknown): { disposition: "pre-effect" | "ambiguous"; reason: string } {
-  const candidate = error as { code?: unknown };
-  const code = typeof candidate.code === "string" ? candidate.code : "unclassified-invocation-failure";
+  const candidate = typeof error === "object" && error !== null ? error as { code?: unknown } : null;
+  const code = typeof candidate?.code === "string" ? candidate.code : "unclassified-invocation-failure";
   return code.startsWith("pre-effect-rejection:")
     ? { disposition: "pre-effect", reason: code }
     : { disposition: "ambiguous", reason: code };

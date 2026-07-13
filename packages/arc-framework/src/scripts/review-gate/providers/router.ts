@@ -22,15 +22,15 @@ export class QualifiedProviderRouter implements ReviewProviderAdapter {
     return adapter;
   }
 
-  readCapacity(sourceIdentity: string): Promise<SourceCapacity> {
+  async readCapacity(sourceIdentity: string): Promise<SourceCapacity> {
     return this.adapter(sourceIdentity).readCapacity(sourceIdentity);
   }
 
-  qualifyRequest(request: ReviewRequest): Promise<{ qualified: boolean; reason: string }> {
+  async qualifyRequest(request: ReviewRequest): Promise<{ qualified: boolean; reason: string }> {
     return this.adapter(request.sourceIdentity).qualifyRequest(request);
   }
 
-  request(request: ReviewRequest): Promise<RequestAcknowledgement> {
+  async request(request: ReviewRequest): Promise<RequestAcknowledgement> {
     return this.adapter(request.sourceIdentity).request(request);
   }
 
@@ -40,7 +40,7 @@ export class QualifiedProviderRouter implements ReviewProviderAdapter {
     return this.adapter(sourceIdentity).observe(requestIdentity);
   }
 
-  normalizeEvidence(observations: ProviderObservation[]): Promise<Evidence[]> {
+  async normalizeEvidence(observations: ProviderObservation[]): Promise<Evidence[]> {
     const sourceIdentity = observations[0]?.sourceIdentity;
     if (sourceIdentity === undefined) return Promise.resolve([]);
     if (observations.some((observation) => observation.sourceIdentity !== sourceIdentity)) {

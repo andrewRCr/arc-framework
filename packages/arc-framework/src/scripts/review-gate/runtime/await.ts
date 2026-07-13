@@ -17,13 +17,17 @@ export interface ReviewAwaitState {
 }
 
 export interface AwaitHostPort {
-  readPullRequestHead(repositoryRef: string, pullRequestNumber: number): Promise<WaitRead<string>>;
-  readCiState(repositoryRef: string, headSha: string): Promise<WaitRead<AwaitConclusion>>;
+  readPullRequestHead(
+    repositoryRef: string,
+    pullRequestNumber: number,
+    options?: { signal?: AbortSignal },
+  ): Promise<WaitRead<string>>;
+  readCiState(repositoryRef: string, headSha: string, options?: { signal?: AbortSignal }): Promise<WaitRead<AwaitConclusion>>;
   readReviewState(input: {
     repositoryRef: string;
     pullRequestNumber: number;
     headSha: string;
-  }): Promise<WaitRead<ReviewAwaitState>>;
+  }, options?: { signal?: AbortSignal }): Promise<WaitRead<ReviewAwaitState>>;
 }
 
 export interface AwaitClock {
@@ -80,6 +84,27 @@ function validate(input: RunAwaitInput): void {
   if (!Number.isSafeInteger(input.timeoutMs) || input.timeoutMs <= 0) throw new Error("invalid-timeout");
 }
 
+function abortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+async function readBeforeDeadline<T>(
+  input: RunAwaitInput,
+  startedAt: number,
+  read: (signal: AbortSignal) => Promise<T>,
+): Promise<{ kind: "value"; value: T } | { kind: "timeout"; elapsedMs: number }> {
+  const elapsed = input.clock.now() - startedAt;
+  const remaining = input.timeoutMs - elapsed;
+  if (remaining <= 0) return { kind: "timeout", elapsedMs: elapsed };
+  const signal = AbortSignal.timeout(remaining);
+  try {
+    return { kind: "value", value: await read(signal) };
+  } catch (error) {
+    if (!signal.aborted && !abortError(error)) throw error;
+    return { kind: "timeout", elapsedMs: Math.max(input.timeoutMs, input.clock.now() - startedAt) };
+  }
+}
+
 /** Wait until canonical state reaches a terminal or attention result. */
 export async function runAwait(input: RunAwaitInput): Promise<AwaitTerminal> {
   validate(input);
@@ -94,7 +119,12 @@ export async function runAwait(input: RunAwaitInput): Promise<AwaitTerminal> {
       return { kind: "timeout", waitKind: input.kind, expectedHeadSha: input.expectedHeadSha, elapsedMs: elapsed };
     }
 
-    const head = await input.host.readPullRequestHead(input.repositoryRef, input.pullRequestNumber);
+    const headRead = await readBeforeDeadline(input, startedAt, (signal) =>
+      input.host.readPullRequestHead(input.repositoryRef, input.pullRequestNumber, { signal }));
+    if (headRead.kind === "timeout") {
+      return { kind: "timeout", waitKind: input.kind, expectedHeadSha: input.expectedHeadSha, elapsedMs: headRead.elapsedMs };
+    }
+    const head = headRead.value;
     if (head.kind !== "ok") return attention(head, input);
     if (head.value !== input.expectedHeadSha) {
       return {
@@ -105,13 +135,26 @@ export async function runAwait(input: RunAwaitInput): Promise<AwaitTerminal> {
       };
     }
 
-    const observation = input.kind === "ci"
-      ? await input.host.readCiState(input.repositoryRef, input.expectedHeadSha)
-      : await input.host.readReviewState({
-        repositoryRef: input.repositoryRef,
-        pullRequestNumber: input.pullRequestNumber,
-        headSha: input.expectedHeadSha,
-      });
+    const observationRead = await readBeforeDeadline<WaitRead<AwaitConclusion | ReviewAwaitState>>(
+      input,
+      startedAt,
+      async (signal) => input.kind === "ci"
+        ? input.host.readCiState(input.repositoryRef, input.expectedHeadSha, { signal })
+        : input.host.readReviewState({
+          repositoryRef: input.repositoryRef,
+          pullRequestNumber: input.pullRequestNumber,
+          headSha: input.expectedHeadSha,
+        }, { signal }),
+    );
+    if (observationRead.kind === "timeout") {
+      return {
+        kind: "timeout",
+        waitKind: input.kind,
+        expectedHeadSha: input.expectedHeadSha,
+        elapsedMs: observationRead.elapsedMs,
+      };
+    }
+    const observation = observationRead.value;
     if (observation.kind !== "ok") return attention(observation, input);
     const state: AwaitState = input.kind === "ci" ? { conclusion: observation.value as AwaitConclusion }
       : observation.value as ReviewAwaitState;

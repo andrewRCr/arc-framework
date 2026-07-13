@@ -141,7 +141,7 @@ describe("durable source supersession", () => {
     })).toEqual({ ok: false, error: "capacity-proof-after-effect" });
   });
 
-  it("rejects acknowledged silence and effect-ambiguous failure without terminal proof", () => {
+  it("rejects effect-ambiguous failure without terminal proof", () => {
     const prior = request();
     const ambiguous = failure(prior, null, null);
     expect(planSourceSupersession({
@@ -154,6 +154,45 @@ describe("durable source supersession", () => {
       supersededAt: NOW,
       reason: "try fallback",
     })).toEqual({ ok: false, error: "terminal-proof-missing" });
+  });
+
+  it("rejects a pre-effect proof recorded after acknowledgement", () => {
+    const prior = request();
+    const preEffect = failure(prior, "pre-effect-rejection:rate-limited", null);
+    const acknowledged = createReceipt({
+      eventId: "acknowledged",
+      previousLedgerVersion: 1,
+      action: "acknowledged",
+      request: prior,
+      result: null,
+      reason: null,
+      evidenceUrlOrId: "comment-1",
+      findingIds: [],
+      payload: {
+        kind: "acknowledgement",
+        acknowledgedAt: NOW.toISOString(),
+        acknowledgementRef: "comment-1",
+        trigger: {
+          mechanism: "automatic",
+          eventKind: "label",
+          eventId: "comment-1",
+          actorIdentity: prior.requiredActorIdentity,
+          occurredAt: NOW.toISOString(),
+          headSha: prior.coverageThroughSha,
+          contentDigest: "d".repeat(64),
+        },
+      },
+    });
+    expect(planSourceSupersession({
+      priorRequest: prior,
+      alternateSourceIdentity: "codex-pr",
+      actorIdentity: "302312524",
+      proof: { kind: "pre-effect-rejection", receipt: preEffect },
+      receipts: [reserved(prior), acknowledged, preEffect],
+      expectedLedgerVersion: 3,
+      supersededAt: NOW,
+      reason: "try fallback",
+    })).toEqual({ ok: false, error: "pre-effect-proof-after-acknowledgement" });
   });
 
   it("requires an authorized durable abandonment before explicit ambiguous-effect repair", () => {

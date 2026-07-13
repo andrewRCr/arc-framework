@@ -113,6 +113,19 @@ describe("reserved request execution", () => {
     expect(appendTerminalFailure).toHaveBeenCalledTimes(1);
   });
 
+  it("treats non-object provider rejections as ambiguous delivery", async () => {
+    const failures: Array<{ disposition: "pre-effect" | "ambiguous"; reason: string }> = [];
+    const result = await executeConfirmedRequest({
+      request: request(),
+      reservation: reservation(),
+      invoke: async () => { throw "transport closed"; },
+      appendAcknowledgement: async () => undefined,
+      appendTerminalFailure: async (_reservation, failure) => { failures.push(failure); },
+    });
+    expect(result).toEqual({ status: "invocation-ambiguous", invoked: true });
+    expect(failures).toEqual([{ disposition: "ambiguous", reason: "unclassified-invocation-failure" }]);
+  });
+
   it("distinguishes a proven pre-effect rejection from ambiguous delivery", async () => {
     const failures: Array<{ disposition: "pre-effect" | "ambiguous"; reason: string }> = [];
     const result = await executeConfirmedRequest({

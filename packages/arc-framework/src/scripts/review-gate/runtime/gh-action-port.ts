@@ -6,7 +6,7 @@ import type { ActionComment, DeveloperActionPort } from "./action-main.js";
 
 /** Minimal injected process runner used by repository-only launchers. */
 export interface ProcessRunner {
-  run(command: string, args: string[]): Promise<{ stdout: string }>;
+  run(command: string, args: string[], options?: { signal?: AbortSignal }): Promise<{ stdout: string }>;
 }
 
 /** Classified process-boundary failure shared by developer-authenticated launchers. */
@@ -77,11 +77,11 @@ export class GhDeveloperActionPort implements DeveloperActionPort {
   }
 
   /** Canonical JSON read shared by repository-only developer launchers. */
-  async readJson(path: string): Promise<unknown> {
+  async readJson(path: string, options?: { signal?: AbortSignal }): Promise<unknown> {
     if (!/^(?:user|repos\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_?=&./-]+)$/u.test(path)) {
       throw new Error("gh-action: invalid API path");
     }
-    const result = await this.process.run("gh", ["api", path]);
+    const result = await this.process.run("gh", ["api", path], options);
     return parseJson(result.stdout, "gh-read");
   }
 
@@ -100,7 +100,7 @@ export class GhDeveloperActionPort implements DeveloperActionPort {
         `${repositoryPath(input.repositoryRef)}/issues/${input.pullRequestNumber}/comments`,
         "--method",
         "POST",
-        "--field",
+        "--raw-field",
         `body=${input.body}`,
       ]);
       return { kind: "created", comment: comment(parseJson(result.stdout, "created-comment"), "created-comment") };
@@ -166,7 +166,7 @@ export class GhDeveloperActionPort implements DeveloperActionPort {
       const result = await this.process.run("gh", [
         "api",
         `${repositoryPath(input.repositoryRef)}/pulls/${input.pullRequestNumber}/comments/${input.commentId}/replies`,
-        "--method", "POST", "--field", `body=${input.body}`,
+        "--method", "POST", "--raw-field", `body=${input.body}`,
       ]);
       const reply = comment(parseJson(result.stdout, "inline-reply"), "inline-reply");
       if (reply.actorIdentity !== input.expectedActorIdentity || reply.body !== input.body) return { kind: "ambiguous" };

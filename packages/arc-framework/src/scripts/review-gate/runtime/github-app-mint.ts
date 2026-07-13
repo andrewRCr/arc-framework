@@ -43,14 +43,16 @@ async function request(fetch: HttpFetch, path: string, jwt: string, init: Partia
       },
       ...(init.body === undefined ? {} : { body: init.body }),
     });
-  } catch {
-    throw new Error("token-qualification:app-request-failed");
+  } catch (cause) {
+    throw new Error("token-qualification:app-request-failed", { cause });
   }
-  if (response.status < 200 || response.status >= 300) throw new Error("token-qualification:app-request-rejected");
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`token-qualification:app-request-rejected:${response.status}`);
+  }
   try {
     return JSON.parse(await response.text()) as unknown;
-  } catch {
-    throw new Error("token-qualification:app-response-malformed");
+  } catch (cause) {
+    throw new Error("token-qualification:app-response-malformed", { cause });
   }
 }
 

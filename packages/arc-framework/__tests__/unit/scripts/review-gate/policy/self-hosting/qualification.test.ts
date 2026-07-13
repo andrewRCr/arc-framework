@@ -59,7 +59,7 @@ describe("independent-analysis source qualification", () => {
     expect(qualifyIndependentAnalysisSource({ ...capable, ...override }, "independent-analysis/v1").qualified).toBe(false);
   });
 
-  it("keeps the pull-request provider declaration disabled during shadow observation", () => {
+  it("keeps the pull-request provider declaration partial during shadow observation", () => {
     const source = SELF_HOSTING_POLICY.qualifications.find((candidate) => candidate.sourceIdentity === "coderabbit-pr");
     expect(source).toBeDefined();
     expect(source?.mode).toBe("partial");

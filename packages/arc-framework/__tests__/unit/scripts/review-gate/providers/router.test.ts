@@ -31,9 +31,9 @@ describe("QualifiedProviderRouter", () => {
 
   it("rejects observation batches that cross provider authority", async () => {
     const router = new QualifiedProviderRouter({ adapters: new Map([["codex-pr", adapter("codex-pr")]]), resolveSource: async () => "codex-pr" });
-    expect(() => router.normalizeEvidence([
+    await expect(router.normalizeEvidence([
       { schemaVersion: 1, requestIdentity: "one", sourceIdentity: "codex-pr", observedAt: "2026-07-12T00:00:00.000Z", opaqueRef: "{}" },
       { schemaVersion: 1, requestIdentity: "two", sourceIdentity: "coderabbit-pr", observedAt: "2026-07-12T00:00:00.000Z", opaqueRef: "{}" },
-    ])).toThrow("mixed-source");
+    ])).rejects.toThrow("mixed-source");
   });
 });

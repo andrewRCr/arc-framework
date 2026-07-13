@@ -192,29 +192,32 @@ export class CodeRabbitProviderAdapter implements ReviewProviderAdapter {
     const current = await this.api.validateCurrent(request);
     if (current !== "current") throw new CodeRabbitRequestError(current);
     const mechanism = selectCodeRabbitRequestMechanism(request, this.capabilities);
-    const outcome = mechanism === "label"
-      ? await this.api.applyTriggerLabel(request)
-      : await this.api.requestFullReview(request);
-    if (outcome.kind === "ambiguous") throw new CodeRabbitRequestError("ambiguous-delivery", true);
-    if (outcome.kind === "rejected") throw new CodeRabbitRequestError(`pre-effect-rejection:${outcome.reason}`);
-    if (
-      outcome.trigger.actorIdentity !== request.requiredActorIdentity
-      || outcome.trigger.headSha !== request.coverageThroughSha
-      || outcome.trigger.occurredAt !== outcome.acknowledgedAt
-    ) throw new CodeRabbitRequestError("trigger-provenance-mismatch", true);
-    if (mechanism === "label") {
-      try {
-        await this.api.removeTriggerLabel(request);
-      } catch {
-        // The request is already acknowledged; label cleanup is best-effort.
+    try {
+      const outcome = mechanism === "label"
+        ? await this.api.applyTriggerLabel(request)
+        : await this.api.requestFullReview(request);
+      if (outcome.kind === "ambiguous") throw new CodeRabbitRequestError("ambiguous-delivery", true);
+      if (outcome.kind === "rejected") throw new CodeRabbitRequestError(`pre-effect-rejection:${outcome.reason}`);
+      if (
+        outcome.trigger.actorIdentity !== request.requiredActorIdentity
+        || outcome.trigger.headSha !== request.coverageThroughSha
+        || outcome.trigger.occurredAt !== outcome.acknowledgedAt
+      ) throw new CodeRabbitRequestError("trigger-provenance-mismatch", true);
+      return {
+        requestIdentity: computeRequestKey(request),
+        acknowledgedAt: outcome.acknowledgedAt,
+        trigger: outcome.trigger,
+        ...(outcome.durableRef === undefined ? {} : { durableRef: outcome.durableRef }),
+      };
+    } finally {
+      if (mechanism === "label") {
+        try {
+          await this.api.removeTriggerLabel(request);
+        } catch {
+          // Acknowledgement remains authoritative; trigger-label cleanup is best-effort.
+        }
       }
     }
-    return {
-      requestIdentity: computeRequestKey(request),
-      acknowledgedAt: outcome.acknowledgedAt,
-      trigger: outcome.trigger,
-      ...(outcome.durableRef === undefined ? {} : { durableRef: outcome.durableRef }),
-    };
   }
 
   async observe(requestIdentity: string): Promise<ProviderObservation[]> {

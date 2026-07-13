@@ -25,7 +25,9 @@ describe("developer-authenticated gh action port", () => {
     await expect(target.currentActorIdentity()).resolves.toBe("7");
     await expect(target.postComment({ repositoryRef: "o/r", pullRequestNumber: 7, body: "@codex review" }))
       .resolves.toMatchObject({ kind: "created", comment: { commentId: "41", actorIdentity: "7" } });
-    expect(process.run).toHaveBeenLastCalledWith("gh", expect.arrayContaining(["body=@codex review"]));
+    const args = process.run.mock.calls.at(-1)?.[1] as string[] | undefined;
+    const bodyField = args?.indexOf("--raw-field") ?? -1;
+    expect(args?.slice(bodyField, bodyField + 2)).toEqual(["--raw-field", "body=@codex review"]);
   });
 
   it("classifies an uncertain post as ambiguous and adopts only filtered comments", async () => {
@@ -86,6 +88,10 @@ describe("developer-authenticated gh action port", () => {
       repositoryRef: "o/r", pullRequestNumber: 7, threadId: "PRRT_1", expectedActorIdentity: "7",
       expectedHeadSha: head,
     })).resolves.toEqual({ kind: "resolved", threadId: "PRRT_1" });
+    const replyArgs = process.run.mock.calls[2]?.[1] as string[] | undefined;
+    const replyBodyField = replyArgs?.indexOf("--raw-field") ?? -1;
+    expect(replyArgs?.slice(replyBodyField, replyBodyField + 2))
+      .toEqual(["--raw-field", "body=Addressed and verified in this head."]);
     expect(process.run).toHaveBeenCalledWith("gh", expect.arrayContaining(["pullRequestReviewThreadId=PRRT_1"]));
   });
 
@@ -97,5 +103,22 @@ describe("developer-authenticated gh action port", () => {
       repositoryRef: "o/r", pullRequestNumber: 7, commentId: "41", expectedActorIdentity: "7",
       expectedHeadSha: head, body: "Bounded rationale",
     })).resolves.toEqual({ kind: "ambiguous" });
+  });
+
+  it("propagates actor and head validation failures before attempting an inline reply", async () => {
+    const head = "a".repeat(40);
+    const actorMismatch = new GhDeveloperActionPort(runner([JSON.stringify({ id: 8 })]));
+    await expect(actorMismatch.postInlineReply({
+      repositoryRef: "o/r", pullRequestNumber: 7, commentId: "41", expectedActorIdentity: "7",
+      expectedHeadSha: head, body: "Bounded rationale",
+    })).rejects.toThrow("actor mismatch");
+
+    const headMismatch = new GhDeveloperActionPort(runner([
+      JSON.stringify({ id: 7 }), JSON.stringify({ head: { sha: "b".repeat(40) } }),
+    ]));
+    await expect(headMismatch.postInlineReply({
+      repositoryRef: "o/r", pullRequestNumber: 7, commentId: "41", expectedActorIdentity: "7",
+      expectedHeadSha: head, body: "Bounded rationale",
+    })).rejects.toThrow("stale head");
   });
 });

@@ -125,4 +125,24 @@ describe("passive review-gate await state machine", () => {
     expect(clock.sleeps).toEqual([1_000, 1_500]);
     expect(result).toEqual({ kind: "timeout", waitKind: "ci", expectedHeadSha: HEAD, elapsedMs: 2_500 });
   });
+
+  it("interrupts a hanging host read at the remaining deadline", async () => {
+    const hangingRead = (_repositoryRef: string, _pullRequestNumber: number, options?: { signal?: AbortSignal }) =>
+      new Promise<WaitRead<string>>((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => reject(new DOMException("timed out", "AbortError")), { once: true });
+      });
+    const result = await runAwait({
+      ...base,
+      kind: "ci",
+      timeoutMs: 10,
+      host: {
+        ...port({}),
+        readPullRequestHead: hangingRead,
+      },
+      clock: new FakeClock(),
+      backoff: () => 1_000,
+      output: { emit: async () => undefined },
+    });
+    expect(result).toEqual({ kind: "timeout", waitKind: "ci", expectedHeadSha: HEAD, elapsedMs: 10 });
+  });
 });

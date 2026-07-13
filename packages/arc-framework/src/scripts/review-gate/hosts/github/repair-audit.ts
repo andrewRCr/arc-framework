@@ -7,6 +7,23 @@ import type { GitHubRestClient, ReadOutcome } from "./api/rest.js";
 
 type JsonObject = Record<string, unknown>;
 
+export const REPAIR_STATUS_CONTEXT = "review-repair-ok";
+export const REPAIR_STATUS_WRITER_SCRIPT = `test "\${#VALIDATION_JSON}" -le 4096
+test "$(jq -r .status <<<"$VALIDATION_JSON")" = qualified
+test "$(jq -r .headSha <<<"$VALIDATION_JSON")" = "$VALIDATED_HEAD"
+test "$(jq -r .pullRequestNumber <<<"$VALIDATION_JSON")" = "$PR_NUMBER"
+test "$(jq -r .workflowPath <<<"$VALIDATION_JSON")" = .github/workflows/review-gate-repair.yml
+test "$(jq -r .workflowSha <<<"$VALIDATION_JSON")" = "$GITHUB_WORKFLOW_SHA"
+test "$(jq -r .runId <<<"$VALIDATION_JSON")" = "$GITHUB_RUN_ID"
+live_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)"
+test "$live_head" = "$VALIDATED_HEAD"
+target="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+target="$target?workflow_path=.github/workflows/review-gate-repair.yml"
+target="$target&workflow_sha=$GITHUB_WORKFLOW_SHA&pr=$PR_NUMBER&head=$VALIDATED_HEAD"
+gh api "repos/$GITHUB_REPOSITORY/statuses/$VALIDATED_HEAD" \\
+  -f state=success -f context="$STATUS_CONTEXT" \\
+  -f description='Bounded independent repair review passed' -f target_url="$target"`;
+
 export interface RepairWriterAuditInput {
   files: Record<string, string>;
   repositoryDefaultPermission: "read" | "write";
@@ -37,7 +54,7 @@ export function validateRepairStatusSource(
   expectedRunUrlPrefix: string,
 ): string[] {
   const errors: string[] = [];
-  if (observation.context !== "review-repair-ok") errors.push("repair-status-context-mismatch");
+  if (observation.context !== REPAIR_STATUS_CONTEXT) errors.push("repair-status-context-mismatch");
   if (observation.headSha !== expectedHeadSha) errors.push("repair-status-head-mismatch");
   if (observation.creatorAppId !== "15368") errors.push("repair-status-source-app-mismatch");
   if (observation.state !== "success") errors.push("repair-status-not-success");
@@ -110,15 +127,8 @@ function writerShapeValid(job: JsonObject, validationJob: JsonObject | undefined
   const step = record(steps[0]);
   if (step === null || "uses" in step || typeof step.run !== "string") return false;
   const env = { ...(record(job.env) ?? {}), ...(record(step.env) ?? {}) };
-  if (env.STATUS_CONTEXT !== "review-repair-ok") return false;
-  const run = step.run;
-  if (!run.includes("gh api")
-    || !run.includes("pulls/$PR_NUMBER")
-    || !run.includes("statuses/$VALIDATED_HEAD")
-    || !run.includes("state=success")
-    || !run.includes("$STATUS_CONTEXT")
-    || !run.includes("$VALIDATED_HEAD")) return false;
-  if (/(?:npm|pnpm|yarn)\s+(?:ci|install)|\bnode\s|\bsource\s|bash\s+\S+\.sh|\.\/\S+/u.test(run)) return false;
+  if (env.STATUS_CONTEXT !== REPAIR_STATUS_CONTEXT) return false;
+  if (step.run.trim() !== REPAIR_STATUS_WRITER_SCRIPT) return false;
   return true;
 }
 

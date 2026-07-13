@@ -29,4 +29,17 @@ describe("App-authenticated settlement reads", () => {
     await expect(reader.findReplies({ pullRequestNumber: 7, commentId: "41", actorIdentity: "7", body: "Fixed", notBefore: "2026-07-12T20:59:00Z" }))
       .rejects.toThrow("settlement-reply-read-failed");
   });
+
+  it("treats a deleted comment author as an empty, non-authoritative identity", async () => {
+    const fake = fetchFake([
+      response(200, JSON.stringify([{ id: 81, in_reply_to_id: 41, user: null, body: "Fixed", created_at: "2026-07-12T21:00:00Z" }])),
+    ]);
+    const reader = new GitHubSettlementReader(
+      new GitHubRestClient({ fetch: fake.fetch, token: "app-token", sleep: fake.sleep, maxReadAttempts: 1 }),
+      new GitHubGraphQLClient({ fetch: fake.fetch, token: "app-token", sleep: fake.sleep, maxReadAttempts: 1 }),
+      "o", "r",
+    );
+    await expect(reader.findReplies({ pullRequestNumber: 7, commentId: "41", actorIdentity: "7", body: "Fixed", notBefore: "2026-07-12T20:59:00Z" }))
+      .resolves.toEqual([]);
+  });
 });

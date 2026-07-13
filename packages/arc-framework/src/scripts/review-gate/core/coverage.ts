@@ -77,7 +77,8 @@ function findChain(input: CoverageInput, sourceEvidence: Evidence[], terminalHea
 
   function walk(chain: Evidence[], through: string, visited: Set<Evidence>): Evidence[] | null {
     const terminal = chain.at(-1);
-    if (through === terminalHeadSha && terminal?.result === "clean") return chain;
+    if (through === terminalHeadSha
+      && (terminal?.result === "clean" || terminal?.result === "findings")) return chain;
     const nextLinks = sourceEvidence.filter((item) =>
       item.coverage === "incremental"
       && item.coverageFromSha === through

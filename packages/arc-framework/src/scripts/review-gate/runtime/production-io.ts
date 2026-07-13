@@ -51,11 +51,21 @@ export function createAuthenticatedGitExec(gitToken: string, base: GitExec = exe
 
 /** `execFile` process boundary for repository-only `gh` action launchers. */
 export const productionProcessRunner: ProcessRunner = {
-  run(command, args) {
+  run(command, args, options) {
     return new Promise((resolve, reject) => {
-      execFile(command, args, { maxBuffer: MAX_PROCESS_STDOUT_BYTES, encoding: "utf8" }, (error, stdout, stderr) => {
+      execFile(command, args, {
+        signal: options?.signal,
+        maxBuffer: MAX_PROCESS_STDOUT_BYTES,
+        encoding: "utf8",
+      }, (error, stdout, stderr) => {
         if (error !== null) {
-          reject(new GhProcessError(/(?:HTTP\s+)?(?:401|403)|auth(?:entication|orization| token)/iu.test(stderr)
+          if (error.name === "AbortError") {
+            const aborted = new Error(error.message, { cause: error });
+            aborted.name = "AbortError";
+            reject(aborted);
+            return;
+          }
+          reject(new GhProcessError(/(?:HTTP\s+)?(?:401|403)|auth(?:entication|orization| token)|not logged into any GitHub hosts|no authentication information found/iu.test(stderr)
             ? "authentication-failure"
             : "host-failure"));
           return;

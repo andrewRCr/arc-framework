@@ -30,19 +30,23 @@ function qualification(
 ): ReviewSourceQualification {
   const qualified = qualifyIndependentAnalysisSource(declaration, declaration.rubricVersion).qualified;
   const userTriggered = declaration.requestActor === "pr-author";
-  return {
+  const base = {
     sourceKind: declaration.sourceKind,
     qualifier: declaration.qualifier,
     sourceIdentity: declaration.sourceIdentity,
     qualifiedRubricVersions: qualified ? [declaration.rubricVersion] : [],
     transport: declaration.transport,
-    requestMechanism: userTriggered ? "user-trigger" : "automatic",
-    requiredActorIdentity: userTriggered ? prAuthorIdentity : null,
-    requestCommand: declaration.sourceIdentity === "codex-pr" && declaration.guidanceDigest !== null
-      ? buildCodexReviewCommand(declaration.guidanceDigest)
-      : null,
     closureCapability: declaration.closureCapability,
   };
+  const requestCommand = declaration.sourceIdentity === "codex-pr" && declaration.guidanceDigest !== null
+    ? buildCodexReviewCommand(declaration.guidanceDigest)
+    : null;
+  if (userTriggered && qualified && requestCommand === null) {
+    throw new Error(`qualified PR-author source is missing its request command: ${declaration.sourceIdentity}`);
+  }
+  return userTriggered && requestCommand !== null
+    ? { ...base, requestMechanism: "user-trigger", requiredActorIdentity: prAuthorIdentity, requestCommand }
+    : { ...base, requestMechanism: "automatic", requiredActorIdentity: null, requestCommand: null };
 }
 
 /** Bind self-hosting policy data before invoking the host-neutral reducer. */

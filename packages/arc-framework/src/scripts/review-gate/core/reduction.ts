@@ -32,18 +32,20 @@ export interface ReviewGatePolicyDecision {
   requirements: ReviewRequirement[];
 }
 
-/** Pre-qualified source capabilities supplied by repository policy. */
-export interface ReviewSourceQualification {
+interface ReviewSourceQualificationBase {
   sourceKind: SourceKind;
   qualifier: string;
   sourceIdentity: string;
   qualifiedRubricVersions: string[];
   transport: "durable-record" | "authenticated-attestation";
-  requestMechanism: "automatic" | "user-trigger";
-  requiredActorIdentity: string | null;
-  requestCommand: string | null;
   closureCapability: boolean;
 }
+
+/** Pre-qualified source capabilities supplied by repository policy. */
+export type ReviewSourceQualification = ReviewSourceQualificationBase & (
+  | { requestMechanism: "automatic"; requiredActorIdentity: null; requestCommand: null }
+  | { requestMechanism: "user-trigger"; requiredActorIdentity: string; requestCommand: string }
+);
 
 /** Canonical state consumed by the production core reduction. */
 export interface ReviewGateReductionInput {
@@ -153,7 +155,6 @@ function requestFor(
   declaration: ReviewSourceQualification,
   generation: number,
 ): ReviewRequest {
-  const requiredActorIdentity = declaration.requiredActorIdentity ?? input.actorIdentity;
   return {
     schemaVersion: 1,
     repositoryId: input.changeRequest.repositoryId,
@@ -170,7 +171,7 @@ function requestFor(
     generation,
     actorIdentity: input.actorIdentity,
     requestMechanism: declaration.requestMechanism,
-    requiredActorIdentity,
+    requiredActorIdentity: declaration.requiredActorIdentity ?? input.actorIdentity,
     requestCommand: declaration.requestCommand,
   };
 }

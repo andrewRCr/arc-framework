@@ -63,7 +63,7 @@ export function reduceRequirementState(input: RequirementStateInput): Requiremen
   if (input.openFindingCount > 0) {
     return result(input.requirement, "findings", "current findings remain open");
   }
-  if (latest?.result === "findings") {
+  if (latest?.result === "findings" && input.coverageSatisfied) {
     return result(input.requirement, "clean", "current coverage findings are completely settled");
   }
   if (latest?.result === "clean" && input.coverageSatisfied) {

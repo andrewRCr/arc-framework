@@ -23,10 +23,14 @@ function record(value: unknown, path: string): Record<string, unknown> {
 
 function reply(value: unknown): SettlementReply & { inReplyToId: string } {
   const item = record(value, "reply");
+  const user = typeof item.user === "object" && item.user !== null && !Array.isArray(item.user)
+    ? item.user as Record<string, unknown>
+    : null;
+  const actorId = user?.id;
   return {
     commentId: String(item.id),
     inReplyToId: String(item.in_reply_to_id),
-    actorIdentity: String(record(item.user, "reply.user").id),
+    actorIdentity: typeof actorId === "string" || typeof actorId === "number" ? String(actorId) : "",
     body: typeof item.body === "string" ? item.body : "",
     createdAt: typeof item.created_at === "string" ? item.created_at : "",
   };
@@ -62,7 +66,7 @@ export class GitHubSettlementReader {
     return outcome.value.filter((candidate) => candidate.inReplyToId === input.commentId
       && candidate.actorIdentity === input.actorIdentity
       && candidate.body === input.body
-      && candidate.createdAt >= input.notBefore)
+      && Date.parse(candidate.createdAt) >= Date.parse(input.notBefore))
       .map((candidate) => ({
         commentId: candidate.commentId,
         actorIdentity: candidate.actorIdentity,

@@ -134,6 +134,20 @@ describe("typed review-gate actions", () => {
       .rejects.toThrow(/could not be adopted exactly/u);
   });
 
+  it("compares adopted comment timestamps by instant rather than string form", async () => {
+    const target = port({
+      postComment: async () => ({ kind: "ambiguous" }),
+      findComments: async () => [{
+        commentId: "IC_2",
+        actorIdentity: "7",
+        body: action().command,
+        createdAt: "2026-07-12T15:00:00-05:00",
+      }],
+    });
+    await expect(runPerformAction(input, { reader: reader(), port: target, now: () => NOW }))
+      .resolves.toMatchObject({ status: "adopted", commentId: "IC_2" });
+  });
+
   it("rejects wrong actors, changed generations, and no-longer-triggerable state", async () => {
     await expect(runPerformAction(input, {
       reader: reader(),

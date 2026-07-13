@@ -183,6 +183,27 @@ describe("neutral projection publishing", () => {
     expect(() => parseGateStateMarker("<!-- arc-review-gate-state:v1:not-json -->")).toThrow("malformed-gate-state-marker");
   });
 
+  it("retains a parseable marker when every bounded field is oversized", async () => {
+    const oversized = {
+      ...projection("failure"),
+      blockers: Array.from({ length: 40 }, (_, index) => ({
+        code: `${index}-${"b".repeat(1_000)}`,
+        detail: "blocked",
+      })),
+      receiptRefs: Array.from({ length: 40 }, (_, index) => `${index}-${"r".repeat(1_000)}`),
+    };
+    const api = new MemoryChecks();
+    await publishGateCheck({ api, scope, projection: oversized, anchorReceiptCount: 40, readCurrentState: async () => state() });
+
+    const summary = api.mutations[0]?.value.output.summary ?? "";
+    const parsed = parseGateStateMarker(summary);
+    expect(summary.length).toBeLessThanOrEqual(65_535);
+    expect(parsed.blockerCodes).toHaveLength(32);
+    expect(parsed.receiptRefs).toHaveLength(32);
+    expect(parsed.blockerCodes.every((value) => value.length <= 256)).toBe(true);
+    expect(parsed.receiptRefs.every((value) => value.length <= 256)).toBe(true);
+  });
+
   it.each([
     ["pending", "in_progress", null],
     ["failure", "completed", "failure"],

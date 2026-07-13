@@ -13,10 +13,10 @@ export interface FindingReductionInput {
   currentChangeSetId: string;
 }
 
-/** Open findings plus consistency diagnostics. */
+/** Reduced findings plus consistency diagnostics; settlement filters closures separately. */
 export interface FindingReductionResult {
   consistent: boolean;
-  openFindings: SourceFinding[];
+  findings: SourceFinding[];
   errors: string[];
 }
 
@@ -65,7 +65,7 @@ export function reduceFindings(input: FindingReductionInput): FindingReductionRe
 
   return {
     consistent: errors.length === 0,
-    openFindings: [...findings.values()],
+    findings: [...findings.values()],
     errors,
   };
 }

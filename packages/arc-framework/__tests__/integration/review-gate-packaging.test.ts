@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
 
@@ -58,20 +58,11 @@ describe("review-gate package boundary", () => {
   });
 
   it("routes every production launcher through the private entrypoint assembly", async () => {
-    const launchers = [
-      "run-attest.ts",
-      "run-assert-head-mutable.ts",
-      "run-await.ts",
-      "run-next-action.ts",
-      "run-perform-action.ts",
-      "run-reconcile.ts",
-      "run-repair-environment.ts",
-      "run-repair.ts",
-      "run-qualification.ts",
-      "run-token-qualification.ts",
-    ];
+    const launcherRoot = resolve(root, "packages/arc-framework/src/scripts/review-gate");
+    const launchers = (await readdir(launcherRoot)).filter((name) => /^run-.*\.ts$/u.test(name)).sort();
+    expect(launchers.length).toBeGreaterThan(0);
     const sources = await Promise.all(launchers.map((name) =>
-      readFile(resolve(root, "packages/arc-framework/src/scripts/review-gate", name), "utf8")));
+      readFile(resolve(launcherRoot, name), "utf8")));
     expect(sources.every((source) => source.includes('from "./runtime/entrypoints.js"'))).toBe(true);
   });
 });

@@ -50,14 +50,19 @@ export class GhAwaitHostPort implements AwaitHostPort {
     this.scope = scope;
   }
 
-  async readPullRequestHead(repositoryRef: string, pullRequestNumber: number): Promise<WaitRead<string>> {
+  async readPullRequestHead(
+    repositoryRef: string,
+    pullRequestNumber: number,
+    options?: { signal?: AbortSignal },
+  ): Promise<WaitRead<string>> {
     try {
-      const pull = record(await this.gh.readJson(`${repositoryPath(repositoryRef)}/pulls/${pullRequestNumber}`));
+      const pull = record(await this.gh.readJson(`${repositoryPath(repositoryRef)}/pulls/${pullRequestNumber}`, options));
       const head = record(pull.head).sha;
       return typeof head === "string" && /^[a-f0-9]{40}$/u.test(head)
         ? { kind: "ok", value: head }
         : { kind: "malformed-projection" };
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") throw error;
       if (error instanceof GhProcessError) return { kind: error.kind };
       return error instanceof SyntaxError || (error instanceof Error && error.message.includes("malformed"))
         ? { kind: "malformed-projection" }
@@ -65,14 +70,23 @@ export class GhAwaitHostPort implements AwaitHostPort {
     }
   }
 
-  async readCiState(repositoryRef: string, headSha: string): Promise<WaitRead<AwaitConclusion>> {
+  async readCiState(
+    repositoryRef: string,
+    headSha: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<WaitRead<AwaitConclusion>> {
     try {
       const values = checks(await this.gh.readJson(
         `${repositoryPath(repositoryRef)}/commits/${headSha}/check-runs?app_id=${GITHUB_ACTIONS_APP_ID}&check_name=ci-ok&filter=all&per_page=100`,
+        options,
       ));
       return { kind: "ok", value: ciState(values, headSha) };
     } catch (error) {
-      return error instanceof GhProcessError ? { kind: error.kind } : { kind: "host-failure" };
+      if (error instanceof Error && error.name === "AbortError") throw error;
+      if (error instanceof GhProcessError) return { kind: error.kind };
+      return error instanceof SyntaxError || (error instanceof Error && error.message.includes("malformed"))
+        ? { kind: "malformed-projection" }
+        : { kind: "host-failure" };
     }
   }
 
@@ -80,13 +94,15 @@ export class GhAwaitHostPort implements AwaitHostPort {
     repositoryRef: string;
     pullRequestNumber: number;
     headSha: string;
-  }): Promise<WaitRead<ReviewAwaitState>> {
+  }, options?: { signal?: AbortSignal }): Promise<WaitRead<ReviewAwaitState>> {
     try {
       const values = checks(await this.gh.readJson(
         `${repositoryPath(input.repositoryRef)}/commits/${input.headSha}/check-runs?app_id=${this.scope.expectedAppId}&check_name=${this.scope.contextName}&filter=all&per_page=100`,
+        options,
       ));
       return { kind: "ok", value: parseAggregateAwaitState(values, { ...this.scope, ...input }) };
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") throw error;
       if (error instanceof GhProcessError) return { kind: error.kind };
       return error instanceof Error && error.message.includes("malformed")
         ? { kind: "malformed-projection" }

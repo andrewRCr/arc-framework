@@ -33,8 +33,8 @@ export async function runTokenQualification(deps: {
       if (minted.observedFormat !== requestedFormat) throw new Error("format override was not honored");
       const authority = await deps.consume(minted.token);
       probes.push({ requestedFormat, observedFormat: minted.observedFormat, authority });
-    } catch {
-      throw new Error(`token-qualification:${requestedFormat}-probe-failed`);
+    } catch (cause) {
+      throw new Error(`token-qualification:${requestedFormat}-probe-failed`, { cause });
     }
   }
   const [stateless, classic] = probes;

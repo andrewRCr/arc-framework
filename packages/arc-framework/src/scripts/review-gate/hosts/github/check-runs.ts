@@ -84,8 +84,9 @@ export interface GateStateMarker {
 }
 
 const GATE_STATE_MARKER = /<!-- arc-review-gate-state:v1:([A-Za-z0-9_-]+) -->/u;
+const MAX_CHECK_SUMMARY = 65_535;
 const MAX_MARKER_ITEMS = 32;
-const MAX_MARKER_VALUE = 2_048;
+const MAX_MARKER_VALUE = 256;
 
 function marker(projection: GateProjection): string {
   const state: GateStateMarker = {
@@ -213,8 +214,8 @@ function renderCheckMutation(
 function renderSummary(projection: GateProjection, anchorReceiptCount: number | null): string {
   const ledgerVersion = projection.ledgerVersion === null ? "unknown" : String(projection.ledgerVersion);
   const receiptCount = anchorReceiptCount === null ? "unknown" : String(anchorReceiptCount);
+  const stateMarker = marker(projection);
   const lines = [
-    marker(projection),
     `**Result:** ${projection.conclusion}`,
     `**Policy:** ${projection.policyDecision.disposition} / ${projection.policyDecision.reviewRisk}`,
     `**CI:** ${projection.ciState}`,
@@ -234,7 +235,9 @@ function renderSummary(projection: GateProjection, anchorReceiptCount: number | 
     lines.push("", "**Evidence:**", ...projection.evidence.map((evidence, index) =>
       `- ${escapeText(evidence.requirementId)}: ${durableLink(`evidence ${index + 1}`, evidence.evidenceRef)}`));
   }
-  return lines.join("\n").slice(0, 65_535);
+  const proseBudget = MAX_CHECK_SUMMARY - stateMarker.length - 1;
+  if (proseBudget < 0) throw new Error("gate-state-marker-exceeds-summary-limit");
+  return `${stateMarker}\n${lines.join("\n").slice(0, proseBudget)}`;
 }
 
 function escapeText(value: string): string {

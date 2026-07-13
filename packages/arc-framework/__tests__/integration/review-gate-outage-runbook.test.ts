@@ -14,7 +14,9 @@ function positions(...phrases: string[]): number[] {
 describe("review-gate outage runbook contract", () => {
   beforeAll(async () => {
     const runbook = await readFile(runbookPath, "utf8");
-    outage = runbook.slice(runbook.indexOf("## Audited App or Controller Outage Recovery"));
+    const outageStart = runbook.indexOf("## Audited App or Controller Outage Recovery");
+    if (outageStart < 0) throw new Error("outage recovery section is missing from the review-gate runbook");
+    outage = runbook.slice(outageStart);
   });
 
   it("uses only the immutable default-branch repository-dispatch path", () => {
@@ -65,8 +67,8 @@ describe("review-gate outage runbook contract", () => {
     expect(rehearsal.steps).toEqual([
       "freeze",
       "prove-existing-ci",
-      "compare-environment",
       "validate-attestation",
+      "compare-environment",
       "audit-exclusive-writer",
       "dispatch-default-branch",
       "prove-repair-status",

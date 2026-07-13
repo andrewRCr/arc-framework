@@ -29,6 +29,8 @@ describe("private qualification storage", () => {
     const root = await mkdtemp(join(tmpdir(), "arc-qualification-"));
     const raw = new FileQualificationRawStore(root);
     await expect(raw.write("pending-first", { token: "credential" })).rejects.toThrow(/credential-shaped/u);
+    await expect(raw.write("pending-first", { value: `ghr_${"a".repeat(36)}` })).rejects.toThrow(/credential-shaped/u);
+    await expect(raw.write("pending-first", { value: `github_pat_${"a".repeat(36)}` })).rejects.toThrow(/credential-shaped/u);
     await writeFile(join(root, "checkpoint.json"), "not-json", "utf8");
     await expect(new FileQualificationCheckpointStore(root).load()).rejects.toThrow(/checkpoint-read-failed/u);
     expect(await readFile(join(root, "checkpoint.json"), "utf8")).toBe("not-json");

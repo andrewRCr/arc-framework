@@ -61,5 +61,19 @@ describe("developer-authenticated await host port", () => {
     process.authenticationFailure = false;
     process.responses = ["not-json"];
     await expect(host.readPullRequestHead("owner/repo", 7)).resolves.toEqual({ kind: "malformed-projection" });
+
+    for (const read of [
+      () => host.readCiState("owner/repo", HEAD),
+      () => host.readReviewState({ repositoryRef: "owner/repo", pullRequestNumber: 7, headSha: HEAD }),
+    ]) {
+      process.fail = true;
+      await expect(read()).resolves.toEqual({ kind: "host-failure" });
+      process.fail = false;
+      process.authenticationFailure = true;
+      await expect(read()).resolves.toEqual({ kind: "authentication-failure" });
+      process.authenticationFailure = false;
+      process.responses = ["not-json"];
+      await expect(read()).resolves.toEqual({ kind: "malformed-projection" });
+    }
   });
 });

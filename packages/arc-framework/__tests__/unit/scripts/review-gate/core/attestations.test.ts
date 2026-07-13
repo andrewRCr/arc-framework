@@ -261,7 +261,10 @@ describe("repair attestation authority", () => {
     }] }, repairContext],
     ["wrong purpose", { purpose: "review-evidence" }, repairContext],
     ["wrong repository", { repositoryIdentity: "101" }, repairContext],
-    ["self review", { authorIdentity: "maintainer-1" }, repairContext],
+    ["self review", {}, {
+      ...repairContext,
+      authenticatedActor: { ...repairContext.authenticatedActor, actorIdentity: repairContext.authorIdentity },
+    }],
     ["changed repair code", {}, { ...repairContext, repair: { ...repairContext.repair, authorityCodeUnchanged: false } }],
   ])("keeps valid-but-ineligible %s evidence from authorizing repair", (_name, overrides, validationContext) => {
     expect(validateRepairAttestation(repairManifest(overrides), validationContext).ok).toBe(false);

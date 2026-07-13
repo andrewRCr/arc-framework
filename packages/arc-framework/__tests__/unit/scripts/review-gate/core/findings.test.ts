@@ -35,7 +35,7 @@ describe("finding history and closure", () => {
       evidence: [evidence(), evidence({ result: "clean", findings: [], evidenceUrlOrId: "evidence:2" })],
       currentChangeSetId: CHANGE,
     });
-    expect(result.openFindings).toHaveLength(1);
+    expect(result.findings).toHaveLength(1);
     expect(result.consistent).toBe(true);
   });
 
@@ -66,7 +66,7 @@ describe("finding history and closure", () => {
     expect(reduceFindings({
       evidence: [evidence(), sourceClosed],
       currentChangeSetId: CHANGE,
-    }).openFindings).toHaveLength(1);
+    }).findings).toHaveLength(1);
   });
 
   const invalidClosures: Array<[string, FindingClosure]> = [
@@ -91,6 +91,6 @@ describe("finding history and closure", () => {
       evidence: [evidence(), evidence({ result: "clean", findings: [], sourceIdentity: "agent-2" })],
       currentChangeSetId: CHANGE,
     });
-    expect(result.openFindings.map((finding) => finding.sourceIdentity)).toEqual(["agent-1"]);
+    expect(result.findings.map((finding) => finding.sourceIdentity)).toEqual(["agent-1"]);
   });
 });

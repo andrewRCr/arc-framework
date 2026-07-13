@@ -18,11 +18,14 @@ describe("settlement mutation adoption", () => {
   });
 
   it("adopts exact resolved state and keeps mismatch blocking", async () => {
-    const resolveReviewThread = vi.fn(async () => ({ kind: "ambiguous" as const }));
-    const readThread = vi.fn(async () => ({ threadId: "PRRT_1", isResolved: true, resolvedByActorIdentity: "44" }));
+    const resolveReviewThread = vi.fn(async () => ({ kind: "resolved" as const, threadId: "PRRT_1" }));
+    const readThread = vi.fn()
+      .mockResolvedValueOnce({ threadId: "PRRT_1", isResolved: false, resolvedByActorIdentity: null })
+      .mockResolvedValueOnce({ threadId: "PRRT_1", isResolved: true, resolvedByActorIdentity: "44" });
     await expect(ensureThreadResolution({ ...base, threadId: "PRRT_1" }, {
       developer: { resolveReviewThread }, canonical: { readThread },
     })).resolves.toMatchObject({ isResolved: true });
+    expect(resolveReviewThread).toHaveBeenCalledOnce();
     readThread.mockResolvedValueOnce({ threadId: "PRRT_1", isResolved: true, resolvedByActorIdentity: "99" });
     await expect(ensureThreadResolution({ ...base, threadId: "PRRT_1" }, {
       developer: { resolveReviewThread }, canonical: { readThread },

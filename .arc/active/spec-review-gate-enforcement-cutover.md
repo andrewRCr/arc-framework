@@ -86,10 +86,11 @@ Extend the neutral request/receipt state to carry:
 - the owned trigger event id and actor;
 - terminal evidence ids, finding ids, settlement state, contamination, and supersession.
 
-The review-gate extensions remain inactive, no open PR exists, and a repository-wide GitHub comment scan found no
-persisted receipt marker. The merged request/receipt code is therefore unused development scaffolding, not a deployed
-protocol. Replace it before activation with one definitive schema-version-1 request and receipt contract; do not
-carry a compatibility parser, mixed-ledger mode, schema-upgrade receipt, or terminal-proof migration path.
+At the design-correction audit recorded by commit `ec19556ef`, the review-gate extensions were inactive, no PR was
+open for the cutover branch, and a repository-wide GitHub comment scan found no persisted receipt marker. The merged
+request/receipt code was therefore unused development scaffolding, not a deployed protocol. Replace it before
+activation with one definitive schema-version-1 request and receipt contract; do not carry a compatibility parser,
+mixed-ledger mode, schema-upgrade receipt, or terminal-proof migration path.
 
 The closed parser rejects obsolete pre-activation shapes rather than silently defaulting them. Canonical request keys
 and receipt hashes bind every causal field and predecessor version. The comment store preserves that exact identity,

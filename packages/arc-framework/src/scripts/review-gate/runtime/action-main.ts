@@ -127,6 +127,12 @@ function matchesInput(action: NeedsUserTriggerAction, input: PerformActionInput)
     && action.generation === input.generation;
 }
 
+function timestampAtOrAfter(candidate: string, boundary: string): boolean {
+  const candidateAt = Date.parse(candidate);
+  const boundaryAt = Date.parse(boundary);
+  return Number.isFinite(candidateAt) && Number.isFinite(boundaryAt) && candidateAt >= boundaryAt;
+}
+
 /** Revalidate and consume one current actor-bound trigger without blind replay. */
 export async function runPerformAction(input: PerformActionInput, deps: {
   reader: NextActionReader;
@@ -168,7 +174,7 @@ export async function runPerformAction(input: PerformActionInput, deps: {
   if (
     comment.actorIdentity !== actorIdentity
     || comment.body !== action.command
-    || (status === "adopted" && comment.createdAt < notBefore)
+    || (status === "adopted" && !timestampAtOrAfter(comment.createdAt, notBefore))
   ) {
     throw new Error("perform-action: comment identity mismatch");
   }

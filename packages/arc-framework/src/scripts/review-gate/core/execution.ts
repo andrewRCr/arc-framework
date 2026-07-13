@@ -260,35 +260,36 @@ export function parseReviewReceipt(input: unknown, path = "receipt"): ReviewRece
   };
 }
 
+const PAYLOAD_KIND_BY_ACTION = {
+  reserved: "reservation",
+  acknowledged: "acknowledgement",
+  "terminal-failure": "terminal-evidence",
+  required: "decision",
+  waived: "decision",
+  attested: "terminal-evidence",
+  unadmitted: "terminal-evidence",
+  "finding-opened": "finding-lifecycle",
+  "finding-settled": "finding-lifecycle",
+  contaminated: "contamination",
+  superseded: "supersession",
+  running: "flight-state",
+  abandoned: "flight-state",
+  "begin-fix": "head-update-authorization",
+  "head-update-consumed": "head-update-consumption",
+  "trigger-deleted": "trigger-deleted",
+  "source-superseded": "source-supersession",
+  fixed: "finding-disposition",
+  deferred: "finding-disposition",
+  rejected: "finding-disposition",
+  "provider-closed": "finding-disposition",
+  "conversation-resolved": "conversation-resolved",
+} satisfies Record<ReviewReceipt["action"], ReviewReceiptPayload["kind"]>;
+
 function validatePayloadCongruence(
   receipt: Pick<ReviewReceipt, "action" | "request" | "result" | "reason" | "evidenceUrlOrId" | "findingIds" | "payload">,
   path: string,
 ): void {
-  const expected = receipt.action === "reserved"
-    ? "reservation"
-    : receipt.action === "acknowledged"
-      ? "acknowledgement"
-      : ["attested", "unadmitted", "terminal-failure"].includes(receipt.action)
-        ? "terminal-evidence"
-        : ["finding-opened", "finding-settled"].includes(receipt.action)
-          ? "finding-lifecycle"
-          : receipt.action === "contaminated"
-            ? "contamination"
-            : receipt.action === "superseded"
-              ? "supersession"
-              : receipt.action === "source-superseded"
-                ? "source-supersession"
-              : ["running", "abandoned"].includes(receipt.action)
-                ? "flight-state"
-                : receipt.action === "begin-fix"
-                  ? "head-update-authorization"
-                  : receipt.action === "head-update-consumed"
-                    ? "head-update-consumption"
-                    : receipt.action === "trigger-deleted"
-                      ? "trigger-deleted"
-                      : ["fixed", "deferred", "rejected", "provider-closed"].includes(receipt.action)
-                        ? "finding-disposition"
-                        : receipt.action === "conversation-resolved" ? "conversation-resolved" : "decision";
+  const expected = PAYLOAD_KIND_BY_ACTION[receipt.action];
   const payload = receipt.payload;
   if (payload.kind !== expected) throw new Error(`${path}.payload: action mismatch`);
   if (payload.kind === "acknowledgement") {

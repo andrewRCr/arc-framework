@@ -94,7 +94,7 @@ describe("requirement execution state", () => {
       receipts: [],
       capacity,
       waived: false,
-      coverageSatisfied: false,
+      coverageSatisfied: true,
       findingsConsistent: true,
       openFindingCount: 0,
     })).toMatchObject({ state: "clean", blocking: false });

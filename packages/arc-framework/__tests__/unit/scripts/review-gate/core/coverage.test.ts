@@ -167,6 +167,22 @@ describe("evidence coverage reduction", () => {
     expect(reduceCoverage({ ...input, evidence: chain })).toMatchObject({ satisfied: true, chain });
   });
 
+  it("recognizes complete coverage when the terminal result contains findings", () => {
+    const findings = evidence({
+      result: "findings",
+      findings: [{
+        findingId: "f-1",
+        severity: "medium",
+        locus: "src/a.ts:1",
+        evidenceUrlOrId: "finding:1",
+      }],
+    });
+    expect(reduceCoverage({ ...input, evidence: [findings] })).toMatchObject({
+      satisfied: true,
+      chain: [findings],
+    });
+  });
+
   it.each([
     ["gap", [
       evidence({ coverageThroughSha: sha("6") }),

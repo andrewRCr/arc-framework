@@ -7,8 +7,8 @@
   "steps": [
     "freeze",
     "prove-existing-ci",
-    "compare-environment",
     "validate-attestation",
+    "compare-environment",
     "audit-exclusive-writer",
     "dispatch-default-branch",
     "prove-repair-status",

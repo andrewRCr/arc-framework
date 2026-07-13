@@ -99,12 +99,16 @@ describe("PR-open lifecycle extensions", () => {
       "system/workflows/arc/supplemental/run-errand.md",
     ].map((path) => readFile(resolve(packageArc, path), "utf8")));
     for (const workflow of workflows) {
+      const proposedChangeRequest = workflow.indexOf("proposedChangeRequest");
       const prCreate = workflow.indexOf("gh pr create");
       const openedChangeRequest = workflow.indexOf("openedChangeRequest =", prCreate);
-      expect(workflow.indexOf("proposedChangeRequest")).toBeLessThan(prCreate);
+      const preMerge = workflow.indexOf("pre-merge", openedChangeRequest);
+      const integrationInterlock = workflow.indexOf("`integration-interlock`", openedChangeRequest);
+      expect([proposedChangeRequest, prCreate, openedChangeRequest, preMerge, integrationInterlock]
+        .every((index) => index >= 0)).toBe(true);
+      expect(proposedChangeRequest).toBeLessThan(prCreate);
       expect(openedChangeRequest).toBeGreaterThan(prCreate);
-      expect(workflow.indexOf("pre-merge", openedChangeRequest))
-        .toBeLessThan(workflow.indexOf("`integration-interlock`", openedChangeRequest));
+      expect(preMerge).toBeLessThan(integrationInterlock);
       expect(workflow.toLowerCase()).toContain("halt before later actions");
     }
   });

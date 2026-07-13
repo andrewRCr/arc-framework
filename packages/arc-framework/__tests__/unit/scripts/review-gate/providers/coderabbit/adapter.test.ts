@@ -163,6 +163,18 @@ describe("CodeRabbit request translation", () => {
     });
   });
 
+  it("removes the one-shot label when acknowledged provenance is invalid", async () => {
+    const api = new MemoryApi();
+    api.outcome = {
+      kind: "acknowledged",
+      acknowledgedAt: "2026-07-11T12:01:00Z",
+      trigger: { ...acknowledgedTrigger, actorIdentity: "wrong-actor" },
+    };
+    const adapter = new CodeRabbitProviderAdapter({ api, capabilities, expectedBotUserId: BOT_ID });
+    await expect(adapter.request(request())).rejects.toMatchObject({ code: "trigger-provenance-mismatch" });
+    expect(api.triggers).toEqual(["label", "remove-label"]);
+  });
+
   it("keeps acknowledged label delivery successful when cleanup fails", async () => {
     const api = new MemoryApi();
     api.cleanupFails = true;
@@ -187,7 +199,7 @@ describe("CodeRabbit request translation", () => {
     api.outcome = { kind: "ambiguous" };
     const adapter = new CodeRabbitProviderAdapter({ api, capabilities, expectedBotUserId: BOT_ID });
     await expect(adapter.request(request())).rejects.toMatchObject({ code: "ambiguous-delivery", effectAmbiguous: true });
-    expect(api.triggers).toEqual(["label"]);
+    expect(api.triggers).toEqual(["label", "remove-label"]);
   });
 });
 

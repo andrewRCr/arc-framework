@@ -27,7 +27,9 @@ describe("Codex exact-head git object reads", () => {
     const exec: GitExec = async () => ({ stdout: `${"b".repeat(40)}\n` });
     const reader = new GitCodexObjectReader(exec);
     await expect(reader.readText(HEAD, "AGENTS.md")).resolves.toEqual({ kind: "unreadable" });
-    await expect(reader.readText(HEAD, "../AGENTS.md")).resolves.toEqual({ kind: "unreadable" });
+    const exactHead: GitExec = async () => ({ stdout: `${HEAD}\n` });
+    await expect(new GitCodexObjectReader(exactHead).readText(HEAD, "../AGENTS.md"))
+      .resolves.toEqual({ kind: "unreadable" });
   });
 
   it("resolves a commit prefix only when it uniquely names the frozen head", async () => {

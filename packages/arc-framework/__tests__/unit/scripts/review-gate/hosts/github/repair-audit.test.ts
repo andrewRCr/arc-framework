@@ -3,24 +3,28 @@ import { describe, expect, it, vi } from "vitest";
 import {
   auditRepairWriterGraph,
   GitHubRestRepairAuditFacts,
+  REPAIR_STATUS_CONTEXT,
+  REPAIR_STATUS_WRITER_SCRIPT,
   validateRepairStatusSource,
 } from "../../../../../../src/scripts/review-gate/hosts/github/repair-audit.js";
 import type { GitHubRestClient } from "../../../../../../src/scripts/review-gate/hosts/github/api/rest.js";
 
 const SHA = "a".repeat(40);
 
-function repairWorkflow(writerStep = `
+function writerStep(run = REPAIR_STATUS_WRITER_SCRIPT): string {
+  const indented = run.split("\n").map((line) => `          ${line}`).join("\n");
+  return `
       - name: Publish bounded repair status
         env:
-          STATUS_CONTEXT: review-repair-ok
+          STATUS_CONTEXT: ${REPAIR_STATUS_CONTEXT}
           VALIDATED_HEAD: \${{ needs.validate.outputs.head_sha }}
           PR_NUMBER: \${{ github.event.client_payload.pull_request }}
         run: |
-          live_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)"
-          test "$live_head" = "$VALIDATED_HEAD"
-          gh api "repos/$GITHUB_REPOSITORY/statuses/$VALIDATED_HEAD" \\
-            -f state=success -f context="$STATUS_CONTEXT" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-`): string {
+${indented}
+`;
+}
+
+function repairWorkflow(writer = writerStep()): string {
   return `
 name: Repair
 on:
@@ -50,7 +54,7 @@ jobs:
       pull-requests: read
       statuses: write
     runs-on: ubuntu-latest
-    steps:${writerStep}
+    steps:${writer}
 `;
 }
 
@@ -185,6 +189,12 @@ jobs:
         env: { TOKEN: \${{ secrets.REPAIR_TOKEN }}, STATUS_CONTEXT: review-repair-ok }
 `),
     } }],
+    ["appended writer command", { files: {
+      ...validFiles(),
+      ".github/workflows/review-gate-repair.yml": repairWorkflow(
+        writerStep(`${REPAIR_STATUS_WRITER_SCRIPT}\necho extra`),
+      ),
+    } }],
     ["dynamic status context", { files: {
       ...validFiles(),
       ".github/workflows/review-gate-repair.yml": repairWorkflow(`
@@ -199,7 +209,7 @@ jobs:
 
 describe("repair status source pin", () => {
   const observation = {
-    context: "review-repair-ok",
+    context: REPAIR_STATUS_CONTEXT,
     headSha: SHA,
     creatorAppId: "15368",
     state: "success" as const,

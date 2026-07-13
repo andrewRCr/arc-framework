@@ -32,10 +32,12 @@ describe("forced-format token qualification", () => {
   });
 
   it("sanitizes mint, format, and consumer failures", async () => {
-    await expect(runTokenQualification({
+    const mintFailure = runTokenQualification({
       mint: async () => { throw new Error("credential-secret"); },
       consume: async () => authority,
-    })).rejects.toThrow("token-qualification:stateless-probe-failed");
+    });
+    await expect(mintFailure).rejects.toThrow("token-qualification:stateless-probe-failed");
+    await expect(mintFailure).rejects.toMatchObject({ cause: expect.objectContaining({ message: "credential-secret" }) });
     await expect(runTokenQualification({
       mint: async (format) => ({ token: "credential-secret", observedFormat: format }),
       consume: async () => { throw new Error("credential-secret"); },
