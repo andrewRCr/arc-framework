@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "housekeep-commit-submission-routing",
+  "origin": "description",
+  "intent": "Route the 2026-07-13 USER-INBOX sweep, including the planned commit-message-submission and workflow-eval-harness work units",
+  "branch": "chore/housekeep-commit-submission-routing",
+  "createdAt": "2026-07-13T12:25:05.308Z"
+}
