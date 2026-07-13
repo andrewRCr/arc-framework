@@ -181,6 +181,8 @@ describe("request and projection contracts", () => {
     ["supersession", {
       ...receipt,
       action: "superseded",
+      reason: "new request generation",
+      evidenceUrlOrId: "f".repeat(64),
       payload: {
         kind: "supersession",
         supersededAt: "2026-07-10T20:04:00.000Z",
@@ -196,6 +198,30 @@ describe("request and projection contracts", () => {
   ])("round-trips the %s payload", (_name, payloadReceipt) => {
     const stored = { ...envelope, receipt: payloadReceipt };
     expect(parseReceiptEnvelope(stored)).toEqual(stored);
+  });
+
+  it.each([
+    ["missing timestamp", { supersededAt: null }],
+    ["successor reference mismatch", { successorRequestKey: "9".repeat(64) }],
+    ["reason mismatch", { reason: "different reason" }],
+  ])("rejects supersession payload %s", (_name, payloadOverrides) => {
+    const stored = {
+      ...envelope,
+      receipt: {
+        ...receipt,
+        action: "superseded",
+        reason: "new request generation",
+        evidenceUrlOrId: "f".repeat(64),
+        payload: {
+          kind: "supersession",
+          supersededAt: "2026-07-10T20:04:00.000Z",
+          successorRequestKey: "f".repeat(64),
+          reason: "new request generation",
+          ...payloadOverrides,
+        },
+      },
+    };
+    expect(() => parseReceiptEnvelope(stored)).toThrow("envelope.receipt.payload: supersession mismatch");
   });
 
   it("round-trips normalized evidence on an attestation receipt", () => {

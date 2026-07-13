@@ -250,7 +250,7 @@ export function planHeadUpdateConsumption(input: {
     evidenceUrlOrId: null,
     findingIds: [],
     payload: { kind: "supersession", supersededAt: input.consumedAt.toISOString(), successorRequestKey: null,
-      reason: "authorized head update consumed" },
+      reason: "superseded by authorized finding repair" },
   });
   version += 1;
   const carried = authorization.findingIds.map((findingId) => {

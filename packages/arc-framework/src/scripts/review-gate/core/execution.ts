@@ -338,6 +338,13 @@ function validatePayloadCongruence(
   if (payload.kind === "flight-state" && payload.state !== receipt.action) {
     throw new Error(`${path}.payload: flight state mismatch`);
   }
+  if (payload.kind === "supersession") {
+    if (payload.supersededAt === null
+      || payload.successorRequestKey !== receipt.evidenceUrlOrId
+      || payload.reason !== receipt.reason) {
+      throw new Error(`${path}.payload: supersession mismatch`);
+    }
+  }
   if (payload.kind === "source-supersession") {
     if (payload.priorSourceIdentity !== receipt.request.sourceIdentity) {
       throw new Error(`${path}.payload: prior source mismatch`);
