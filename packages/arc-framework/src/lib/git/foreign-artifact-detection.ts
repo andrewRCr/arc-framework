@@ -140,6 +140,24 @@ const SELF_EXCLUSION_FALLBACK_NOTE =
   "Originating work unit name was unavailable; self-exclusion fell back to worktree/meta path matching.";
 
 /**
+ * Prefer the fetched remote base so a stale local base cannot masquerade as
+ * sibling-authored work.
+ *
+ * @param exec - Injectable git executor.
+ * @param baseBranch - Configured unqualified base branch.
+ * @returns The remote-qualified base when present, otherwise the local branch.
+ */
+export async function preferRemoteBaseRef(exec: GitExec, baseBranch: string): Promise<string> {
+  const remoteBase = `origin/${baseBranch}`;
+  try {
+    await exec("git", ["rev-parse", "--verify", remoteBase]);
+    return remoteBase;
+  } catch {
+    return baseBranch;
+  }
+}
+
+/**
  * In-flight = a meta-bearing worktree whose WU has not shipped. A `Shipped` WU
  * has already merged to base, so it can plant no future cross-branch conflict;
  * every other state (Planning / Active / Integrating, or an unparseable State)

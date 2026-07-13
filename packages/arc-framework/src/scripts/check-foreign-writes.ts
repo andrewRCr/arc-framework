@@ -30,6 +30,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   classifyPathSurface,
   detectForeignArtifactOverlap,
+  preferRemoteBaseRef,
   projectInFlightToOverlapRoster,
   resolveIdentity,
   type ForeignArtifactDetectionResult,
@@ -101,17 +102,6 @@ export async function detectStagedForeignWrites(
     originatingWorktreePath,
     ...(originatingMetaPath !== undefined ? { originatingMetaPath } : {}),
   });
-}
-
-/** Prefer the fetched remote base so a stale local base cannot masquerade as sibling-authored work. */
-async function preferRemoteBaseRef(exec: GitExec, baseBranch: string): Promise<string> {
-  const remoteBase = `origin/${baseBranch}`;
-  try {
-    await exec("git", ["rev-parse", "--verify", remoteBase]);
-    return remoteBase;
-  } catch {
-    return baseBranch;
-  }
 }
 
 /**

@@ -66,6 +66,7 @@ export {
 
 export {
   detectForeignArtifactOverlap,
+  preferRemoteBaseRef,
   projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionOptions,
   type ForeignArtifactDetectionResult,

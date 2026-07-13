@@ -32,6 +32,7 @@ import {
 } from "../lib/errand/index.js";
 import {
   detectForeignArtifactOverlap,
+  preferRemoteBaseRef,
   projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionResult,
 } from "../lib/git/index.js";
@@ -120,12 +121,13 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     baseBranch,
     parkedSlugs,
   });
+  const baseRef = await preferRemoteBaseRef(gitExec, baseBranch);
 
   const result = await detectForeignArtifactOverlap({
     exec: gitExec,
     roster: projectInFlightToOverlapRoster(entries),
     targetPaths,
-    baseBranch,
+    baseBranch: baseRef,
     originatingWorktreePath: await currentWorktreePath(cwd),
     originatingMetaPath: await resolveOriginatingMetaPath(cwd),
     snapshot,
