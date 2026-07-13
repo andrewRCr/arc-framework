@@ -363,7 +363,9 @@ export async function deriveInFlight(options: DeriveInFlightOptions): Promise<De
       classifiedResidue
         .filter(({ residue: item }) => item.reason === "no-record-or-meta")
         .map(({ residue: item }) => branchResidueWarning(item.branch)),
-      recordResidue.map(({ residue: item }) => errandRecordBranchMissingWarning(item)),
+      remoteReadDegraded
+        ? []
+        : recordResidue.map(({ residue: item }) => errandRecordBranchMissingWarning(item)),
     );
   if (!worktreeResult.ok) {
     warnings.unshift(worktreeListFailedWarning());

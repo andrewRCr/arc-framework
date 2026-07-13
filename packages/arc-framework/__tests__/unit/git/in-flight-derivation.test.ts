@@ -572,6 +572,31 @@ describe("deriveInFlight", () => {
     ]);
   });
 
+  it("keeps a missing errand-record branch indeterminate without a cleanup warning when the remote is unreachable", async () => {
+    const exec = makeExec({ liveBranches: "unreachable" });
+
+    const { reachable, residue, warnings } = await deriveInFlight({
+      exec,
+      localOnly: false,
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([["chore/offline-record", "offline-record"]]),
+    });
+
+    expect(reachable).toBe(false);
+    expect(residue).toEqual([
+      {
+        branch: "chore/offline-record",
+        slug: "offline-record",
+        reason: "errand-record-without-branch",
+        marks: ["degraded", "indeterminate"],
+      },
+    ]);
+    expect(warnings).not.toContainEqual(
+      expect.objectContaining({ code: "errand-record-branch-missing", branch: "chore/offline-record" }),
+    );
+  });
+
   it("keeps branch residue visible and degraded when errand records could not be read", async () => {
     const exec = makeExec({});
 
