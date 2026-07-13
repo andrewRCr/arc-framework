@@ -5,6 +5,7 @@ import { hashContent } from "../../src/lib/manifest/hash.js";
 import { buildCodexReviewCommand } from "../../src/scripts/review-gate/providers/codex/adapter.js";
 import { runAttestMain, type AttestMainDependencies } from "../../src/scripts/review-gate/runtime/attest-main.js";
 import { createAttestRuntime, createReconcileRuntime } from "../../src/scripts/review-gate/runtime/composition.js";
+import { createReadOnlyHeadMutabilityReader } from "../../src/scripts/review-gate/runtime/head-mutability-composition.js";
 import {
   runReconcileMain,
   type ReconcileMainDependencies,
@@ -139,6 +140,34 @@ async function dispatchAttestation(world: ReviewGateWorld): Promise<void> {
 }
 
 describe("review-gate runtime composition", () => {
+  it("keeps repeated head-mutability reads free of ledger writes", async () => {
+    const world = createReviewGateWorld();
+    const reader = await createReadOnlyHeadMutabilityReader({
+      owner: world.owner,
+      repo: world.repo,
+      repositoryId: world.repositoryId,
+      pullRequestNumber: world.pull,
+      token: "ghp_developer",
+      appSlug: world.appSlug,
+      expectedAppId: "4268856",
+      policy: SELF_HOSTING_POLICY,
+      mode: "shadow",
+      fetch: routingFetch(world),
+      exec: routingExec(world),
+    });
+    const scope = {
+      repositoryId: String(world.repositoryId),
+      changeRequestId: "PR_node",
+      currentHeadSha: world.headSha,
+      proposedHeadSha: "f".repeat(40),
+      authorizationReceiptHash: null,
+    };
+
+    await expect(reader.read(scope)).resolves.toMatchObject({ receipts: [] });
+    await expect(reader.read(scope)).resolves.toMatchObject({ receipts: [] });
+    expect(world.comments).toEqual([]);
+  });
+
   it("persists an attestation that a separate reconcile reduces to a satisfied shadow verdict", async () => {
     const world = createReviewGateWorld();
 

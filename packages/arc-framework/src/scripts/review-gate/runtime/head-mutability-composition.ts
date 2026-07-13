@@ -41,6 +41,7 @@ export async function createReadOnlyHeadMutabilityReader(
     mode: input.mode,
   }, { fetch: input.fetch, exec: input.exec }, {
     verifyLaunchAuthority: () => Promise.resolve({ kind: "verified" }),
+    initializeLedgerAnchor: false,
   });
   const hostRef = encodeHostRef({ owner: input.owner, repo: input.repo, number: input.pullRequestNumber });
   return {

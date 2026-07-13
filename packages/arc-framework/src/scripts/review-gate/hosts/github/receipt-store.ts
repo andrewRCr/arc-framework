@@ -73,6 +73,8 @@ export interface GitHubCommentReceiptStoreOptions {
   revalidate: (receipt: ReviewReceipt) => Promise<ReceiptWriteState>;
   /** Reports whether prior controller state existed outside the comment store. */
   stateExpected: () => Promise<boolean>;
+  /** Creates the initial anchor when an empty ledger is first read. */
+  initializeAnchor?: boolean;
 }
 
 interface AnchorRecord {
@@ -182,6 +184,7 @@ export class GitHubCommentReceiptStore implements ReviewReceiptStore {
       if (state.envelopes.length > 0) return degraded(["ledger-anchor-mismatch"], observedLedgerVersion);
       try {
         if (await this.options.stateExpected()) return degraded(["ledger-disappeared"], null);
+        if (this.options.initializeAnchor === false) return { kind: "valid", ledgerVersion: 0, receipts: [] };
         const created = await this.options.api.create(serializeLedgerAnchor(anchorPayload(this.options, 0)));
         if (created.kind === "ambiguous") return degraded(["ledger-unavailable"], null);
         return { kind: "valid", ledgerVersion: 0, receipts: [] };

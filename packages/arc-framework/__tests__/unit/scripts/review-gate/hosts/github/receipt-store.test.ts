@@ -118,7 +118,12 @@ function writeState(overrides: Partial<ReceiptWriteState> = {}): ReceiptWriteSta
   };
 }
 
-function store(api: MemoryComments, revalidate = async () => writeState(), stateExpected = async () => false) {
+function store(
+  api: MemoryComments,
+  revalidate = async () => writeState(),
+  stateExpected = async () => false,
+  initializeAnchor = true,
+) {
   return new GitHubCommentReceiptStore({
     api,
     authority: AUTHORITY,
@@ -126,6 +131,7 @@ function store(api: MemoryComments, revalidate = async () => writeState(), state
     changeRequestId: "PR_node",
     revalidate,
     stateExpected,
+    initializeAnchor,
   });
 }
 
@@ -267,6 +273,19 @@ describe("GitHub comment receipt reconstruction", () => {
 });
 
 describe("stable ledger anchor recovery", () => {
+  it("keeps repeated non-initializing reads free of writes", async () => {
+    const api = new MemoryComments();
+    const target = store(api, async () => writeState(), async () => false, false);
+
+    await expect(target.readLedger("PR_node")).resolves.toEqual({
+      kind: "valid", ledgerVersion: 0, receipts: [],
+    });
+    await expect(target.readLedger("PR_node")).resolves.toEqual({
+      kind: "valid", ledgerVersion: 0, receipts: [],
+    });
+    expect(api.comments).toEqual([]);
+  });
+
   it("bootstraps one anchor and repairs only a unique canonical receipt extension", async () => {
     const fresh = new MemoryComments();
     await expect(store(fresh).readLedger("PR_node")).resolves.toMatchObject({

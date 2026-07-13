@@ -116,6 +116,7 @@ export interface CompositionSeams {
   resolveChange?: (deps: GitHubChangeRequestDeps, hostRef: string) => Promise<ChangeRequestResolution>;
   resolveActorCapabilities?: () => Promise<CapabilitySet>;
   stateExpected?: () => Promise<boolean>;
+  initializeLedgerAnchor?: boolean;
 }
 
 /** Validated shared graph; carries no publish or provider-invocation capability. */
@@ -343,6 +344,7 @@ export async function createReconcileRuntime(
     repositoryId: String(config.repositoryId),
     changeRequestId,
     revalidate: controllerRevalidate,
+    initializeAnchor: seams.initializeLedgerAnchor,
     stateExpected: seams.stateExpected ?? (async () => {
       const current = await resolveChange();
       if (current.kind !== "resolved") throw new Error(`change request unavailable — ${current.kind}`);
