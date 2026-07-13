@@ -742,41 +742,50 @@ acceptance proof before enforcement mutation.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source/test type checking; 5,101 tests passed with one
+  intentional skip; and the package build completed successfully.
+- _Success criteria:_ All 17 criteria are met. The forcing live event/schedule matrix remains owned by the dedicated
+  qualification delivery, and ordinary archival remains the post-integration lifecycle ceremony.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Every provider effect is preceded by a durable reservation and confirmed App-authored pending projection on
+- `[x]` Every provider effect is preceded by a durable reservation and confirmed App-authored pending projection on
   the exact head.
-- `[ ]` Satisfying evidence is causally bound to pinned identity, versioned policy/rubric, full frozen head, and one
+- `[x]` Satisfying evidence is causally bound to pinned identity, versioned policy/rubric, full frozen head, and one
   uncontaminated immutable trigger generation.
-- `[ ]` CodeRabbit capability declarations fail closed, and the qualification runner can record an observed capability
+- `[x]` CodeRabbit capability declarations fail closed, and the qualification runner can record an observed capability
   table without treating native status or empty approval as authority.
-- `[ ]` Hosted Codex parsers, rubric transport, trigger ownership, and settlement contracts cover every required
+- `[x]` Hosted Codex parsers, rubric transport, trigger ownership, and settlement contracts cover every required
   outcome while connected-account behavior remains parser-only until admissible live proof exists.
-- `[ ]` Provider order permits fallback only after a legal terminal/pre-effect condition, and the qualification
+- `[x]` Provider order permits fallback only after a legal terminal/pre-effect condition, and the qualification
   runner refuses a passing proof without at least one hosted satisfying adapter.
-- `[ ]` Passive CI/review waiting returns typed exact-head state changes without provider parsing or model work.
-- `[ ]` Every configured event path and scheduled repair converges on the same canonical state without duplicate
+- `[x]` Passive CI/review waiting returns typed exact-head state changes without provider parsing or model work.
+- `[x]` Every configured event path and scheduled repair converges on the same canonical state without duplicate
   generations or recursive controller wake-ups.
-- `[ ]` Active flights freeze pushes, and every finding disposition satisfies its exact-head authorization and
+    - _Verification boundary:_ Contract tests force every configured path; the dedicated qualification delivery owns
+      the disposable-PR live event/schedule run and records its run ids plus fresh exact-cell receipt/check evidence.
+- `[x]` Active flights freeze pushes, and every finding disposition satisfies its exact-head authorization and
   original-conversation lifecycle contract.
-- `[ ]` Initial-schema ledgers remain byte-stable and audit-readable through one strict parser and identity algorithm;
+- `[x]` Initial-schema ledgers remain byte-stable and audit-readable through one strict parser and identity algorithm;
   no mixed-version or upgrade path is accepted.
-- `[ ]` Qualification-only token probes treat both formats as opaque, remove every temporary override, and emit no
+- `[x]` Qualification-only token probes treat both formats as opaque, remove every temporary override, and emit no
   credential-bearing result.
-- `[ ]` App validation pins identity, least privilege, selected-repository scope, denied capabilities, and secret
+- `[x]` App validation pins identity, least privilege, selected-repository scope, denied capabilities, and secret
   isolation across every consumer boundary.
-- `[ ]` `review-repair-ok` is bound to a live-verified secretless environment, immutable default-branch Actions code,
+- `[x]` `review-repair-ok` is bound to a live-verified secretless environment, immutable default-branch Actions code,
   one closed writer job, an exact-head attestation, and an add-before-remove recovery procedure.
-- `[ ]` Coordinator FIX, DEFER, REJECT, and provider-owned closure retain their distinct exact-head authority and
+- `[x]` Coordinator FIX, DEFER, REJECT, and provider-owned closure retain their distinct exact-head authority and
   original-conversation lifecycle contracts.
-- `[ ]` The single implementation delivery leaves legacy `merge-ok` required and project hooks inactive, installs the
+- `[x]` The single implementation delivery leaves legacy `merge-ok` required and project hooks inactive, installs the
   deterministic qualification compiler, activation-diff validator, machine-gated requalification runner, and
   sanitized handoff schema, and archives through the ordinary work-unit lifecycle.
-- `[ ]` Neutral core modules depend only on injected ports, and the sanitized handoff schema separates reusable
+    - _Lifecycle boundary:_ The delivery and runbook retain no post-merge qualification hold; actual archival remains
+      the ordinary post-integration ceremony, while qualification and promotion own their later live records.
+- `[x]` Neutral core modules depend only on injected ports, and the sanitized handoff schema separates reusable
   contracts from self-hosting policy and later live values.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.

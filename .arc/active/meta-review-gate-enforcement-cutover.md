@@ -16,7 +16,7 @@
 - **Next Task:** Task 4.1 — Implement the injected passive await state machine (line ~340)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 4.1.a test-first with wait inputs, normalized transitions, and terminal results.
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
