@@ -91,15 +91,27 @@ export async function detectStagedForeignWrites(
   const { exec, roster, paths, baseBranch, snapshot, originatingWorktreePath, originatingMetaPath } = options;
   const candidates = selectForeignWriteCandidates(paths);
   if (candidates.length === 0) return { overlaps: [] };
+  const baseRef = await preferRemoteBaseRef(exec, baseBranch);
   return detectForeignArtifactOverlap({
     exec,
     roster,
     targetPaths: candidates,
-    baseBranch,
+    baseBranch: baseRef,
     ...(snapshot !== undefined ? { snapshot } : {}),
     originatingWorktreePath,
     ...(originatingMetaPath !== undefined ? { originatingMetaPath } : {}),
   });
+}
+
+/** Prefer the fetched remote base so a stale local base cannot masquerade as sibling-authored work. */
+async function preferRemoteBaseRef(exec: GitExec, baseBranch: string): Promise<string> {
+  const remoteBase = `origin/${baseBranch}`;
+  try {
+    await exec("git", ["rev-parse", "--verify", remoteBase]);
+    return remoteBase;
+  } catch {
+    return baseBranch;
+  }
 }
 
 /**

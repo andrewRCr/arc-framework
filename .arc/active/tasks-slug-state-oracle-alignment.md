@@ -15,63 +15,44 @@ mechanism-open until 1.2's trace lands. The committed probe is already three-dot
 (`committedMatches`, `lib/git/foreign-artifact-detection.ts`), so the defect enters through what feeds the
 primitive; the five candidate channels are enumerated in `notes-slug-state-oracle-alignment.md` § Problem 2.
 
-### `[ ]` **1.1 Reproduce both observed divergence directions as failing tests**
+### `[x]` **1.1 Reproduce both observed divergence directions as failing tests**
 
 - _Goal:_ Both observed advisory misfires reproduce deterministically in the test suite — red against current
   code — so the trace has live subjects and the fix inherits its regression suite for free.
-- _Approach:_ New integration-tier suite (real temp git repos, no mocked git; precedent:
-  `__tests__/integration/in-flight-reshuffle.test.ts`) driving the hook's own composition path —
-  `runActiveInFlight` → `projectInFlightToOverlapRoster` → `detectStagedForeignWrites` with the returned
-  snapshot — never hand-built roster/snapshot fixtures, which could sidestep the defective feed channel the
-  trace must find. Assert on the structured `ForeignArtifactDetectionResult.overlaps`, not rendered advisory
-  lines. Target paths must classify as the work-unit surface (`selectForeignWriteCandidates` filters
-  everything else before detection).
-- **Additional Context:** `notes-slug-state-oracle-alignment.md` § Problem 2 — reproduction anchors and
-  candidate channels
+    - `[x]` **1.1.a Induce the behind-base direction**
+        - Added a real-repo regression holding local `main` behind a fetched `origin/main`; the hook composition
+          path attributed a base-only work-unit path to the sibling before the fix.
 
-    - `[ ]` **1.1.a Induce the behind-base direction**
-        - Hold the local `main` ref behind while a sibling branch merges a fresher `origin/main`, then stage a
-          commit against a target work-unit path and run the composition path above.
-        - Assert the result is clean (no divergence-shaped overlap list); the test fails pre-fix — that
-          failure is the reproduction.
+    - `[x]` **1.1.b Reproduce the forward direction (own-artifact commit flagged as sibling overlap)**
+        - Reproduced the same feed defect while staging the originating WU's own meta: a sibling inheriting the
+          fresher base was incorrectly reported as its author.
 
-    - `[ ]` **1.1.b Reproduce the forward direction (own-artifact commit flagged as sibling overlap)**
-        - Reconstruct the recorded `4c05c455` arrangement channel-neutrally: a WU staging a commit to its own
-          artifacts with sibling in-flight branches present, refs and base state arranged per the anchors —
-          which candidate channel produces the misfire is 1.2's question, not a premise here.
-        - The notes record a concrete induction recipe only for the behind-base direction; start from that
-          same arrangement (stale local base, siblings carrying fresher base) while staging own artifacts — a
-          stale base plausibly produces this symptom too. If the reconstruction doesn't misfire, escalate to
-          1.2's instrumentation to recover the arrangement rather than stalling here.
-        - Assert the committing WU's own artifacts are not reported as foreign overlaps; fails pre-fix.
+- _Outcome:_ Both observed directions fail through the production composition path with stable oracle snapshots,
+  proving the regression suite exercises the defective feed rather than a hand-built detector fixture.
 
-### `[ ]` **1.2 Trace the producing channel feeding the three-dot primitive**
+### `[x]` **1.2 Trace the producing channel feeding the three-dot primitive**
 
 - _Goal:_ The producing path is identified from the live reproductions and recorded, so the fix lands at the
   source rather than a symptom site — and the spec's open item closes with evidence.
 
-    - Instrument the reproductions from 1.1 across the five candidate channels: candidate branch/SHA pairs
-      from the roster snapshot; stale remote-tracking or shadow refs resolved as candidates; the `baseSha`
-      fallback (`tryResolveRefSha`); the uncommitted-status probe; local-base-ref staleness
-      (`check-foreign-writes.ts` passes `branch.base`, resolved locally — never `origin/<base>`).
-    - Record the traced channel and mechanism in `notes-slug-state-oracle-alignment.md` § Problem 2 (trace
-      outcome); if the trace corrects a spec-level assumption, propagate the correction to the spec.
+- _Outcome:_ Stable candidate snapshots and agreeing uncommitted probes isolated the defect to the base feed:
+  local `main` sat behind fetched `origin/main`, causing three-dot diffs to classify fresher base changes as
+  sibling-authored. The evidence is recorded in `notes-slug-state-oracle-alignment.md` § Problem 2.
 
-### `[ ]` **1.3 Fix the traced producing path and lock regressions**
+### `[x]` **1.3 Fix the traced producing path and lock regressions**
 
 - _Goal:_ The advisory emits no divergence-shaped lists in either observed direction while genuine authored
   overlap still reports — fail-quiet and over-report are both defects here.
-- _Note:_ Subtask shape is provisional until 1.2 names the mechanism; scope the fix to the traced channel,
-  not a blanket rework of the detection module.
+    - `[x]` **1.3.a Fix at the traced site**
+        - `detectStagedForeignWrites` now prefers `origin/<base>` when available and safely falls back to the
+          configured local base when no remote-tracking ref resolves.
 
-    - `[ ]` **1.3.a Fix at the traced site**
-        - Apply the minimal correction the trace names (e.g., resolving the base against `origin/<base>`,
-          refreshing snapshot SHAs, or dropping a stale-ref candidate class — whichever 1.2 identified).
+    - `[x]` **1.3.b Flip the 1.1 reproductions green and add the genuine-overlap guard**
+        - Both false-positive directions now pass, while a sibling-authored target path remains a reported
+          overlap through the same real-repo composition path.
 
-    - `[ ]` **1.3.b Flip the 1.1 reproductions green and add the genuine-overlap guard**
-        - Both direction tests pass post-fix and stay as regressions (SC4).
-        - Add a positive control: a sibling branch that genuinely authored a target path still reports overlap
-          — the fix must not silence true positives.
+- _Outcome:_ The advisory distinguishes inherited base changes from authored sibling changes without weakening
+  genuine overlap detection; focused integration and unit coverage passes across all three cases.
 
 ## **Phase 2:** Composed lifecycle index — shared helper
 

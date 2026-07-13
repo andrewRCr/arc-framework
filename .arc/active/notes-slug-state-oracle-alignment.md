@@ -39,6 +39,13 @@ checkout rendered both `Active`.
   local-base-ref staleness (`check-foreign-writes.ts` passes `branch.base`, resolved locally — never
   `origin/<base>`), which puts merge-base at the old fork point and lists every base-side change a candidate
   merged. Consistent with "went clean once the probes were current."
+- **Trace outcome (2026-07-13):** real-repo integration reproductions isolated the producing channel to the
+  base input. `runActiveInFlight` returned stable candidate SHAs and the uncommitted probes agreed, but
+  `detectStagedForeignWrites` passed local `main` into the three-dot primitive while `origin/main` and the
+  sibling tip shared a fresher base. The primitive therefore attributed base-only paths to the sibling. The
+  same arrangement reproduced both the broad behind-base list and an originating-WU artifact reported as a
+  sibling overlap. The hook feed now prefers the fetched `origin/<base>` ref and falls back to the local base
+  only when the remote-tracking ref is unavailable.
 - Distinct from the 2026-07-06 phantom-meta roster misfire (fixed by `project-state-integrity`).
 
 ## Decision 1 — oracle mechanics (source anchors)
