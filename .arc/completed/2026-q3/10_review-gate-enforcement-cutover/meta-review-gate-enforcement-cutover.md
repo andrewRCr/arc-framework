@@ -79,11 +79,14 @@ The delivery also produced a sanitized qualification and extraction handoff, a p
 runbook, and updated technical architecture. Review-driven corrections tightened trigger cleanup, coverage,
 credential detection, error provenance, workflow authority, receipt congruence, and the complete FIX lifecycle. An
 unrelated load-sensitive notes-compaction fixture encountered during integration was stabilized by flattening only
-its synthetic construction history while preserving its 304-entry behavior and assertions.
+its synthetic construction history while preserving its 304-entry behavior and assertions. Final integration also
+corrected the head-mutability guard to permit settled head transitions while retaining exact authorization for
+terminal findings.
 
 Verification passed Markdown, TypeScript, and shell linting; source and test typechecking; build; targeted and full
-integration runs; and the complete 5,117-test suite with one expected skip. The final GitHub Actions run passed CI,
+integration runs; and the complete 5,118-test suite with one expected skip. The final GitHub Actions run passed CI,
 integration/E2E, and portability on Ubuntu, macOS, and Windows. All 18 review threads are resolved, the incremental
-follow-up found no remaining substantive issue, and the pull request is mergeable. Alignment checks found no conflict
-with PROJECT-PRD or TECHNICAL-OVERVIEW: the result strengthens typed boundaries and preserves judgment-bearing review
-friction without claiming unproven live enforcement or expanding the published CLI surface.
+follow-up found no remaining substantive issue, and the final guard correction passed the full local gate without an
+additional provider pass. Alignment checks found no conflict with PROJECT-PRD or TECHNICAL-OVERVIEW: the result
+strengthens typed boundaries and preserves judgment-bearing review friction without claiming unproven live
+enforcement or expanding the published CLI surface.
