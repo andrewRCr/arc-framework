@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-notes-export-replay-ordering.md`
-- **Task List:** [none]
+- **Task List:** `tasks-notes-export-replay-ordering.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** Off-plan sequencing review — FP-first pause recorded (RELEASE-GATES); spec held up against
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
