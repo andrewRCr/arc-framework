@@ -11,6 +11,7 @@ import { recordProviderClosure, settleFixedFinding, settleNonFixFinding } from "
 import { createReadOnlyHeadMutabilityReader } from "./head-mutability-composition.js";
 import { runAssertHeadMutable } from "./head-mutability-main.js";
 import { runReconcileMain } from "./reconcile-main.js";
+import { runQualification } from "./qualification-runner.js";
 import { parseRepairDispatchEvent, validateRepairDispatch } from "./repair-main.js";
 import { ensureDirectReply, ensureThreadResolution } from "./settlement-runtime.js";
 import { runTokenQualification } from "./token-qualification.js";
@@ -23,6 +24,7 @@ export const SELF_HOSTING_REVIEW_GATE = Object.freeze({
   createReadOnlyHeadMutabilityReader,
   runDiscoveryMain,
   runReconcileMain,
+  runQualification,
   runAttestMain,
   runNextAction,
   runPerformAction,

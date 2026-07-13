@@ -677,36 +677,36 @@ acceptance proof before enforcement mutation.
 - _Outcome:_ Qualification can now prove both installation-token formats end to end without teaching production code
   either format or allowing private keys, tokens, or credential-shaped failures into durable results.
 
-### `[ ]` **7.3 Build the hosted-provider and controller acceptance matrix**
+### `[x]` **7.3 Build the hosted-provider and controller acceptance matrix**
 
 - _Goal:_ One fail-closed runner can exercise and record every required live capability against shipped default-branch
   code without allowing fixtures, partial probes, or unshipped implementations to satisfy acceptance.
 - **Additional Context:** `notes-review-gate-enforcement-cutover.md` §§ Live hosted-Codex probe, CodeRabbit
   observations, and Qualification evidence boundaries.
 
-    - `[ ]` **7.3.a Define the disposable-PR matrix and typed acceptance result**
-        - Cover pending-first ordering, trigger lifecycle, provider outcomes, fallback, await, event repair, finding
-          settlement, receipt-ledger reconstruction, token formats, and repair authority.
-        - Define bounded repository, default-branch SHA, PR/head, matrix-cell, checkpoint, and sanitized-result schemas
-          plus stable resume/refusal outcomes.
-        - Include every input needed to derive policy without inference: source/actor identities, parser, rubric and
-          guidance versions/digests, capability outcomes, terminal-unavailable mode, and checkpoint hashes.
+    - `[x]` **7.3.a Define the disposable-PR matrix and typed acceptance result**
+        - Added a closed 24-cell matrix over pending order, triggers, provider outcomes, fallback, await, event repair,
+          settlement, ledger reconstruction, token formats, and repair. Scope, cell, checkpoint, and candidate contracts
+          bind repository/default/implementation SHA, PR/head, actors/sources, policy/parser/rubric/guidance, and hashes.
 
-    - `[ ]` **7.3.b Implement CodeRabbit and Codex controlled probe orchestration**
-        - Require every rubric dimension, exact-head clean/findings/stale/unknown case, and configured trigger path;
-          keep connected-account behavior parser-only/non-terminal unless an admissible actor proves it live.
+    - `[x]` **7.3.b Implement CodeRabbit and Codex controlled probe orchestration**
+        - Added exact developer-authenticated label and comment actions followed by default-branch reconciliation and
+          canonical GitHub re-query. Every provider cell requires the full rubric and clean/findings/stale/unknown
+          outcomes; connected-account behavior remains parser-only unless an admissible actor proves terminality.
 
-    - `[ ]` **7.3.c Implement controller, watcher, settlement, ledger, and recovery probe orchestration**
-        - Add a repository-only `run-qualification.ts` coordinator and private root script. Require a clean checkout
-          equal to the immutable remote default-branch SHA; use developer-authenticated `gh` only for actor-assigned
-          actions, dispatch the protected workflow for App probes, re-query GitHub, and persist raw non-secret results
-          only through an injected private checkpoint-store port.
+    - `[x]` **7.3.c Implement controller, watcher, settlement, ledger, and recovery probe orchestration**
+        - Added the private `review-gate:qualify` coordinator with clean immutable-default-branch and actor checks,
+          protected workflow dispatch, canonical re-query, mode-restricted out-of-repository checkpoint/raw stores,
+          exact-prefix resume, and sanitized candidate output. Added deterministic activation compilation and an exact
+          generated-operation diff validator.
 
-    - `[ ]` **7.3.d Test incomplete, failed, resumed, and contaminated acceptance runs**
-        - A failure restores or disables to the safe checkpoint, emits no passing manifest, and directs repair to a
-          separate Errand or work unit before the affected tail repeats through shipped code.
-        - Cover changed default branch, dirty checkout, wrong actor, missing checkpoint, result/checkpoint mismatch,
-          fixture substitution, workflow ref drift, credential-shaped output, and exact idempotent resume.
+    - `[x]` **7.3.d Test incomplete, failed, resumed, and contaminated acceptance runs**
+        - Covered incomplete/forged candidates, fixture and credential contamination, workflow/scope/checkpoint drift,
+          missing resume state, dirty/wrong-actor/default-branch workspaces, raw-store boundaries, exact idempotent
+          resume, cell failure, restoration failure, blocked-tail suppression, and generated-diff additions/edits.
+
+- _Outcome:_ Later qualification can produce a passing activation candidate only by completing the full live matrix
+  through shipped default-branch code; every partial, contaminated, or failed path stops at a private hashed checkpoint.
 
 ### `[ ]` **7.4 Publish the runbook, technical overview, sanitized evidence schema, and extraction handoff**
 

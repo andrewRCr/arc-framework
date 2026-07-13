@@ -21,6 +21,7 @@ describe("self-hosting review-gate entrypoint assembly", () => {
       "runDiscoveryMain",
       "runNextAction",
       "runPerformAction",
+      "runQualification",
       "runReconcileMain",
       "runTokenQualification",
       "settleFixedFinding",
