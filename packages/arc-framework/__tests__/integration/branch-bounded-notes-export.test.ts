@@ -19,6 +19,7 @@ import {
   makeCommit,
   makeGitExec,
   makeGitExecInput,
+  makeNotesTreeCommit,
   makeUserIO,
 } from "../helpers/integration.js";
 import { runPairedPush, runUserSave } from "../../src/commands/user.js";
@@ -38,7 +39,6 @@ import { listNoteTreeEntries } from "../../src/lib/user-sync/notes-ref.js";
 import {
   NOTES_COMPACTION_MANIFEST_PATH,
   serializeNotesCompactionManifest,
-  type NotesCompactionManifest,
 } from "../../src/lib/user-sync/compaction-manifest.js";
 
 const IDENTITY = "test-user";
@@ -80,30 +80,6 @@ async function noteContent(cwd: string, commit: string): Promise<string> {
 }
 
 const oid = (seed: string): string => seed.padEnd(40, "0");
-
-async function makeNotesTreeCommit(
-  cwd: string,
-  entries: { commit: string; content: string }[],
-  manifest?: NotesCompactionManifest,
-): Promise<{ blobs: Map<string, string>; manifestBlob: string | null; tip: string }> {
-  const execInput = makeGitExecInput(cwd);
-  const blobs = new Map<string, string>();
-  for (const entry of entries) {
-    blobs.set(entry.commit, (await execInput(["hash-object", "-w", "--stdin"], entry.content)).trim());
-  }
-  const manifestBlob = manifest === undefined
-    ? null
-    : (await execInput(["hash-object", "-w", "--stdin"], serializeNotesCompactionManifest(manifest))).trim();
-  const treeEntries = new Map(blobs);
-  if (manifestBlob !== null) treeEntries.set(NOTES_COMPACTION_MANIFEST_PATH, manifestBlob);
-  const treeInput = [...treeEntries.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([path, blob]) => `100644 blob ${blob}\t${path}`)
-    .join("\n") + "\n";
-  const tree = (await execInput(["mktree"], treeInput)).trim();
-  const tip = await git(cwd, ["commit-tree", tree, "-m", "test notes tree"]);
-  return { blobs, manifestBlob, tip };
-}
 
 describe("branch-bounded notes union commit", () => {
   it("unions both trees with local blobs winning contested commits", async () => {
@@ -151,20 +127,20 @@ describe("branch-bounded notes union commit", () => {
       const local = await makeNotesTreeCommit(repo, [
         { commit: kept, content: "kept" },
         { commit: pruned, content: "pruned" },
-      ], {
+      ], { manifest: {
         version: 1,
         generation: 1,
         preCompactionTip: null,
         pruned: [],
-      });
+      } });
       const prunedBlob = local.blobs.get(pruned);
       expect(prunedBlob).toBeDefined();
-      const pushed = await makeNotesTreeCommit(repo, [], {
+      const pushed = await makeNotesTreeCommit(repo, [], { manifest: {
         version: 1,
         generation: 2,
         preCompactionTip: local.tip,
         pruned: [{ blob: prunedBlob ?? "", commit: pruned }],
-      });
+      } });
 
       const result = await buildBranchBoundedNotesUnionCommit({
         exec: makeGitExec(repo),
@@ -578,22 +554,22 @@ describe("branch-bounded paired notes export", () => {
     const pushed = await makeNotesTreeCommit(repo, [
       { commit: prunedCommit, content: "old pruned note" },
       { commit: remoteOnly, content: "remote only" },
-    ], {
+    ], { manifest: {
       version: 1,
       generation: 1,
       preCompactionTip: null,
       pruned: [],
-    });
+    } });
     const prunedBlob = pushed.blobs.get(prunedCommit);
     expect(prunedBlob).toBeDefined();
     const local = await makeNotesTreeCommit(repo, [
       { commit: keptLocal, content: "kept local" },
-    ], {
+    ], { manifest: {
       version: 1,
       generation: 2,
       preCompactionTip: pushed.tip,
       pruned: [{ blob: prunedBlob ?? "", commit: prunedCommit }],
-    });
+    } });
     const tempRef = `${NOTES_REF}__branch_export_compaction`;
     await git(repo, ["update-ref", NOTES_REF, local.tip]);
     await git(repo, ["update-ref", tempRef, pushed.tip]);

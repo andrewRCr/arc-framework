@@ -10,6 +10,7 @@ import {
   makeCommit,
   makeGitExec,
   makeGitExecInput,
+  makeNotesTreeCommit,
   makeUserIO,
 } from "../helpers/integration.js";
 import {
@@ -23,11 +24,6 @@ import {
   planBranchBoundedNotesExport,
   pushBranchBoundedNotesExport,
 } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
-import {
-  NOTES_COMPACTION_MANIFEST_PATH,
-  serializeNotesCompactionManifest,
-  type NotesCompactionManifest,
-} from "../../src/lib/user-sync/compaction-manifest.js";
 import { listNoteTreeEntries } from "../../src/lib/user-sync/notes-ref.js";
 import { inferSessionInitRecommendations } from "../../src/lib/session-init/recommended-action.js";
 import { decideSyncAction } from "../../src/handlers/user-sync.js";
@@ -62,37 +58,6 @@ async function addRemoteNote(remote: string, commit: string, content: string): P
     "-c", "user.name=Test User",
     "notes", `--ref=${NOTES_REF}`, "add", "-m", content, commit,
   ]);
-}
-
-async function makeNotesTreeCommit(
-  cwd: string,
-  entries: { commit: string; content: string }[],
-  manifest: NotesCompactionManifest | null,
-  message: string,
-): Promise<string> {
-  const execInput = makeGitExecInput(cwd);
-  const treeEntries = new Map<string, string>();
-  for (const entry of entries) {
-    treeEntries.set(
-      entry.commit,
-      (await execInput(["hash-object", "-w", "--stdin"], entry.content)).trim(),
-    );
-  }
-  if (manifest !== null) {
-    treeEntries.set(
-      NOTES_COMPACTION_MANIFEST_PATH,
-      (await execInput(
-        ["hash-object", "-w", "--stdin"],
-        serializeNotesCompactionManifest(manifest),
-      )).trim(),
-    );
-  }
-  const treeInput = [...treeEntries.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([path, blob]) => `100644 blob ${blob}\t${path}`)
-    .join("\n") + "\n";
-  const tree = (await execInput(["mktree"], treeInput)).trim();
-  return git(cwd, ["commit-tree", tree, "-m", message]);
 }
 
 function relationEntries(
@@ -236,15 +201,15 @@ describe("notes export state coherence", () => {
     await git(repo, ["checkout", "-b", "work-b"]);
     const commitB = await makeCommit(repo, "work B");
 
-    const localTip = await makeNotesTreeCommit(repo, [
+    const localTip = (await makeNotesTreeCommit(repo, [
       { commit: commitA, content: EMPTY_USER_MANIFEST },
       { commit: commitB, content: EMPTY_USER_MANIFEST },
-    ], {
+    ], { manifest: {
       version: 1,
       generation: 1,
       preCompactionTip: null,
       pruned: [],
-    }, "local compacted notes");
+    }, message: "local compacted notes" })).tip;
     await git(repo, ["update-ref", NOTES_REF, localTip]);
     await addRemoteNote(remote, base, EMPTY_USER_MANIFEST);
     await git(repo, ["checkout", "work-a"]);
@@ -346,12 +311,12 @@ describe("notes export state coherence", () => {
     const base = await makeCommit(repo, "base");
     remote = await addBareRemote(repo);
 
-    const localTip = await makeNotesTreeCommit(repo, [
+    const localTip = (await makeNotesTreeCommit(repo, [
       { commit: base, content: LOCAL_USER_MANIFEST },
-    ], null, "local contested notes");
-    const remoteTip = await makeNotesTreeCommit(repo, [
+    ], { message: "local contested notes" })).tip;
+    const remoteTip = (await makeNotesTreeCommit(repo, [
       { commit: base, content: REMOTE_USER_MANIFEST },
-    ], null, "remote contested notes");
+    ], { message: "remote contested notes" })).tip;
     await git(repo, ["update-ref", NOTES_REF, localTip]);
     await git(repo, ["push", "origin", `${remoteTip}:${NOTES_REF}`]);
 
@@ -387,8 +352,12 @@ describe("notes export state coherence", () => {
       await git(repo, ["push", "origin", "main"]);
 
       const entries = relationEntries(relation, { shared, localOnly, remoteOnly });
-      const localTip = await makeNotesTreeCommit(repo, entries.local, null, `local ${relation} notes`);
-      const remoteTip = await makeNotesTreeCommit(repo, entries.remote, null, `remote ${relation} notes`);
+      const localTip = (await makeNotesTreeCommit(repo, entries.local, {
+        message: `local ${relation} notes`,
+      })).tip;
+      const remoteTip = (await makeNotesTreeCommit(repo, entries.remote, {
+        message: `remote ${relation} notes`,
+      })).tip;
       await git(repo, ["update-ref", NOTES_REF, localTip]);
       await git(repo, ["push", "origin", `${remoteTip}:${NOTES_REF}`]);
 

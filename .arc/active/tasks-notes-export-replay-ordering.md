@@ -24,22 +24,14 @@ historical and snapshot entries that are absent from the current notes tree.
           merge-parent diffs plus explicit commit framing; it deduplicates valid publication paths while propagating
           every Git, framing, and status parse failure.
 
-### `[ ]` **1.2 Prove root, merge, fanout, rename, deletion, and malformed-history behavior**
+### `[x]` **1.2 Prove root, merge, fanout, rename, deletion, and malformed-history behavior**
 
 - _Goal:_ Real Git histories demonstrate that the range reader protects historical note content that current-tree
   inspection would miss.
 
-    - Add `packages/arc-framework/__tests__/integration/notes-publication-history.test.ts` rather than expanding
-      mock-only coverage of `git log` behavior.
-    - Reuse or extract a focused notes-tree commit fixture from the helpers already duplicated in
-      `branch-bounded-notes-export.test.ts` and `notes-export-state-coherence.test.ts`; do not add a third copy.
-    - Build `test-first` (one behavior at a time):
-        - Root notes commits and compaction snapshots contribute every SHA-1 and SHA-256 annotated path they publish.
-        - A removed current note still contributes its earlier annotated path from local-exclusive history.
-        - Merge commits expose changes from each parent without silently dropping a publication event.
-        - Git fanout restructuring produces same-object `R100` records that do not create false publication entries.
-        - A same-blob move to another annotated object contributes the destination and remains deduplicated.
-        - Malformed tree paths and Git history-read failures preserve the failed outcome and leave refs unchanged.
+- _Outcome:_ Added focused real-Git coverage for root/snapshot history, deletions, merge-parent diffs, fanout and
+  cross-object renames, malformed paths, and Git failures; consolidated the duplicated notes-tree builder into one
+  nested-tree-capable integration fixture shared by all three suites.
 
 ## **Phase 2:** Live Remote Publication Proof
 
