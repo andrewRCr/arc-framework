@@ -12,9 +12,10 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Draft captured (2026-07-09) — design settled at medium depth (D1–D5) with one converged
-  adversarial pass (three majors fixed in place: never-fetched coverage boundary, quality-keyed graduate
-  fail-safe, discharge held tree-only); stage advanced to `create-spec`.
+- **Last Completed:** Spec created (2026-07-13) — outline form off the settled draft, base merged in first
+  (264 behind resolved; ROADMAP regen conflict); one adversarial pass folded (arm-agnostic start-mint
+  protection, composed-helper quality facts, prospective-override ref-form pinning); draft retired with
+  source anchors migrated to `notes-slug-state-oracle-alignment.md`; stage advanced to `generate-tasks`.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
