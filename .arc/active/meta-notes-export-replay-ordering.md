@@ -1,8 +1,8 @@
 # Metadata: notes-export-replay-ordering
 
-| **State** | **Owner** | **Branch**                         | **Class** | **Priority** |
-| --------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `fix/notes-export-replay-ordering` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                         | **Class** | **Priority** |
+| ------------- | --------- | ---------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `fix/notes-export-replay-ordering` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,11 @@
 - **Task List:** `tasks-notes-export-replay-ordering.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Off-plan sequencing review — FP-first pause recorded (RELEASE-GATES); spec held up against
-  the ADR-012 stop-loss (no changes)
-- **Next Task:** Task 1.1.a — Parse status-bearing notes-history records (line ~17)
+- **Last Completed:** Task 6.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** Open the PR for review
 
 - **PR URL:** [none]
 - **Completed:** [none]
