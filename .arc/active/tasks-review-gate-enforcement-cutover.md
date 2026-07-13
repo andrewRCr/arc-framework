@@ -708,32 +708,32 @@ acceptance proof before enforcement mutation.
 - _Outcome:_ Later qualification can produce a passing activation candidate only by completing the full live matrix
   through shipped default-branch code; every partial, contaminated, or failed path stops at a private hashed checkpoint.
 
-### `[ ]` **7.4 Publish the runbook, technical overview, sanitized evidence schema, and extraction handoff**
+### `[x]` **7.4 Publish the runbook, technical overview, sanitized evidence schema, and extraction handoff**
 
 - _Goal:_ Operators receive an exact default-branch qualification and handoff procedure, while downstream work
   receives a stable sanitized schema that later records observed values without conflating reusable contracts and
   self-hosting policy.
 
-    - `[ ]` **7.4.a Complete `.github/review-gate.md` and `.github/review-gate-attestation.md`**
-        - Document current operation, typed agent loop, exclusive trigger/finding authority, qualification, repair,
-          safe checkpoints, and ordinary repository-language reviewer surfaces.
+    - `[x]` **7.4.a Complete `.github/review-gate.md` and `.github/review-gate-attestation.md`**
+        - Added the private resumable qualification procedure, candidate/activation refusal boundary, exclusive
+          trigger and original-locus finding authority, and ordinary engineering-language reviewer contract.
 
-    - `[ ]` **7.4.b Add the self-hosting review-gate section to `.arc/reference/TECHNICAL-OVERVIEW.md`**
-        - Keep internal implementation and extraction boundaries explicit without forward-claiming public adapter
-          setup or promotion state.
+    - `[x]` **7.4.b Add the self-hosting review-gate section to `.arc/reference/TECHNICAL-OVERVIEW.md`**
+        - Documented neutral contracts/runtimes, GitHub/provider implementations, repository policy/launchers, the
+          protected Actions topology, and inactive qualification/promotion boundary without claiming live acceptance.
 
-    - `[ ]` **7.4.c Create the sanitized cutover evidence and handoff schema**
-        - Add `.arc/reference/supplemental/research/research-review-gate-cutover-evidence.md`, separating neutral core
-          contracts, GitHub/provider implementations, self-hosting policy, workflow assumptions, qualification result
-          slots, source identities, and unresolved productization constraints.
-        - Permit the implementation PR to contain schema/instructions and prior sanitized probe facts only. The
-          qualification work unit records baseline-proven declarations and provisional live values after executing
-          shipped code; this delivery never pre-populates them.
-        - Define `CutoverAcceptanceProof` with implementation/qualification PR identities, live default-branch SHA,
-          enabled policy/rubric/guidance/parser digests, complete required-matrix result, enforcement boundary, and
-          raw-checkpoint hashes; credentials and raw responses remain structurally inadmissible.
+    - `[x]` **7.4.c Create the sanitized cutover evidence and handoff schema**
+        - Added `analysis-review-gate-cutover-evidence.md` as the durable acceptance record and extraction map: it
+          separates implementation boundaries, closed qualification inputs, source identities, empty live slots, and
+          the typed `CutoverAcceptanceProof` without admitting credential, secret, or unredacted payload fields.
 
-    - `[ ]` **7.4.d Validate docs, workflow prose, secret redaction, and audience boundaries**
+    - `[x]` **7.4.d Validate docs, workflow prose, secret redaction, and audience boundaries**
+        - Validated the documents with Markdown lint and independent audience/secret review. Executable guarantees stay
+          at their real boundaries: compiler-path unit coverage and the existing attestation/outage contract tests.
+
+- _Outcome:_ Operators and downstream extraction now share one sanitized contract: shipped machinery is documented
+  precisely, live capability slots remain empty until immutable-default-branch proof, and tracked evidence cannot
+  substitute private records or leak review-gate implementation lifecycle jargon into reviewer-facing surfaces.
 
 ## **Phase 8:** Verification
 

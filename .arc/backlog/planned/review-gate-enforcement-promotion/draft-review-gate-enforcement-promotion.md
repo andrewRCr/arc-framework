@@ -95,7 +95,7 @@ rollback ends with the same exact-head verification used for forward promotion.
 ## Required qualification inputs before spec creation
 
 These are observed values, not open design choices. Import them from the provisional
-`.arc/reference/supplemental/research/research-review-gate-cutover-evidence.md`: the baseline capability table,
+`.arc/reference/supplemental/analysis/analysis-review-gate-cutover-evidence.md`: the baseline capability table,
 qualified enabled hosted-adapter subset under the canonical `coderabbit-pr` then `codex-pr` policy order, exact App/
 Actions source ids, controller/workflow SHAs, token-format evidence, repair proof, enforcement boundary, and raw-
 checkpoint hashes. Reject placeholders, missing qualification rows, unverified hashes, activation-diff mismatch, or

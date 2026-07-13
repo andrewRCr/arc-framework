@@ -23,7 +23,7 @@ export ACTIONS_APP_ID='15368'        # verified GitHub Actions check source id
 export KEY_FILE="$HOME/dev/arc-review-gate-andrewrcr.private-key.pem"
 export CHECKPOINT_ROOT="$HOME/dev/arc-review-gate-checkpoints"
 export EXPECTED_CHECKPOINT_DIR="$CHECKPOINT_ROOT/expected"
-export EVIDENCE_MANIFEST='.arc/reference/supplemental/research/research-review-gate-cutover-evidence.md'
+export EVIDENCE_MANIFEST='.arc/reference/supplemental/analysis/analysis-review-gate-cutover-evidence.md'
 export EXPECT_CLIENT_ID_BEFORE='absent' # `absent` for create, exact current value for repair
 export EXPECT_APP_ID_BEFORE='absent'    # `absent` for create, exact current value for repair
 set -euo pipefail
@@ -160,7 +160,46 @@ prove it passes its output opaquely. Treat every token as opaque: no exact lengt
 regex, or storage-width assumption. Both forced forms must authenticate the same pinned App/repository. Remove the
 override after proof; it is temporary migration tooling, not a production setting.
 
-## WU 1 — Request, Await, and Provider Qualification
+### Run resumable acceptance qualification
+
+Run qualification only after the implementation has merged and the checked-out default branch equals its immutable
+remote SHA. Keep the scope, probe descriptors, checkpoints, and raw non-secret responses in one private directory
+outside the repository. The scope and descriptor files must be mode `0600`; the directory must be mode `0700`.
+
+```bash
+export ARC_QUALIFICATION_DIR="$CHECKPOINT_ROOT/qualification/<default-branch-sha>"
+export ARC_QUALIFICATION_SCOPE="$ARC_QUALIFICATION_DIR/scope.json"
+export ARC_QUALIFICATION_PROBES="$ARC_QUALIFICATION_DIR/probes.json"
+mkdir -p "$ARC_QUALIFICATION_DIR"
+chmod 700 "$ARC_QUALIFICATION_DIR"
+chmod 600 "$ARC_QUALIFICATION_SCOPE" "$ARC_QUALIFICATION_PROBES"
+npm run review-gate:qualify
+```
+
+Populate both JSON files from the exact `QualificationScope` and `QualificationProbeDescriptor` contracts in the
+evidence manifest. Supply one descriptor per closed matrix cell, use only same-repository API paths, and select the
+declared dispatch class. A descriptor records the expected sanitized interpretation; the runner still requires
+non-empty live GitHub records and independently binds repository, PR, head, workflow SHA, and authenticated actor.
+
+The coordinator verifies the authenticated developer, clean default-branch checkout, immutable local/remote SHA,
+disposable PR/head, source identities, policy/parser/rubric/guidance inputs, and the closed acceptance matrix. It
+performs only assigned developer actions, dispatches protected default-branch workflows for App/token/repair probes,
+and re-queries canonical GitHub evidence. Every accepted cell is hashed and checkpointed before the next cell runs.
+It emits `candidate.json` only after the complete matrix passes and at least one hosted source proves a clean path.
+
+A stopped run never silently continues. Inspect the sanitized refusal, repair the implementation in a separate
+reviewed change, return to the exact shipped default-branch SHA, and explicitly resume the matching private prefix:
+
+```bash
+export ARC_QUALIFICATION_RESUME=true
+npm run review-gate:qualify
+```
+
+Missing, blocked, mismatched, fixture-backed, credential-shaped, or non-prefix checkpoints are refusal states. Never
+edit a checkpoint or candidate by hand. Compile activation only from the emitted candidate, and accept only the exact
+generated policy/evidence operation set; additions, omissions, path changes, or digest drift require a fresh run.
+
+## Request, Await, and Provider Qualification
 
 For every required request: durably reserve it, publish/confirm the ARC App's pending aggregate projection on the
 exact head, then initiate the provider effect. Bind the request ledger to provider, PR, full head, generation,
@@ -271,10 +310,10 @@ verification, follow-up evidence, and direct reply before thread resolution. The
 verified the individual fix. DEFER/REJECT requires its authorized rationale/direct-reply receipt; provider closure
 requires the qualified source identity. Bare resolution and broad host-actor membership are non-satisfying.
 
-WU 1's one implementation delivery PR ships this machinery with project hooks inactive, legacy CI `merge-ok`
+The implementation delivery ships this machinery with project hooks inactive, legacy CI `merge-ok`
 required, and `archive.cadence: manual`. After merge, manually run the complete matrix through the shipped default-
-branch workflow while WU 1 remains `Integrating`. On failure, restore/disable to the safe checkpoint and route a
-separate repair Errand/work unit; never amend the acceptance record with unshipped code.
+branch workflow while its branch and workspace remain available. On failure, restore/disable to the safe checkpoint and
+route a separate reviewed repair; never amend the acceptance record with unshipped code.
 
 When the baseline matrix proves hosted capabilities, open a qualification-activation housekeeping PR containing only
 the policy/manifest patch produced by the activation compiler. Validate that PR's diff against the same typed baseline
@@ -284,15 +323,15 @@ that second pass may prove the satisfying aggregate path.
 
 On final success, open the acceptance-closeout housekeeping PR and run the private root
 `review-gate:closeout` script with `$IMPLEMENTATION_PR_URL`. It validates `CutoverAcceptanceProof` against the live
-default branch, activated policy/version digests, complete matrix, enforcement boundary, and private checkpoint
-hashes before writing `$EVIDENCE_MANIFEST`, marking WU 1's Post-Merge Acceptance Gates, or invoking archive. The
-archive verb independently refuses an incomplete acceptance-gate section, and pre-commit rejects marked/archived
+default branch, activated policy/version digests, complete matrix, enforcement boundary, and private checkpoint hashes
+before writing `$EVIDENCE_MANIFEST`, marking the implementation's post-merge acceptance gates, or invoking archive.
+The archive verb independently refuses an incomplete acceptance-gate section, and pre-commit rejects marked/archived
 gates without a matching sanitized proof. Restore `archive.cadence: with-integration` in that PR. After it merges,
-run `npx arc user close review-gate-enforcement-cutover` and `npx arc teardown review-gate-enforcement-cutover`.
-These are qualification/archive housekeeping PRs, not additional implementation deliveries. WU 2 cannot begin until
-the closeout merges and the retained workspace/branch tail is fully retired.
+run `npx arc user close <implementation-work-unit>` and `npx arc teardown <implementation-work-unit>`.
+These are qualification/archive housekeeping PRs, not additional implementation deliveries. Enforcement promotion
+cannot begin until the closeout merges and the retained workspace/branch tail is fully retired.
 
-## WU 2 — Normal Cutover and Rollback
+## Enforcement Promotion and Normal Rollback
 
 Define helpers that snapshot and compare both enforcement layers, dispatch a post-mutation reconciliation, and
 verify App checks on an exact probe-PR head:
@@ -516,9 +555,9 @@ GitHub rule is separate governance scope. Preserve conversation-resolution enfor
 protection beside `main-protection` for this cutover and keep their settings mechanically equivalent; consolidation is
 separate scope.
 
-Activate project `post-pr-open` and `pre-merge` in the WU 2 final-gated delivery PR only after final proof. Explicitly
-invoke `coordinate-pr-review.md` for that PR because its integration session may retain the pre-activation extension
-snapshot; verify later sessions load both active actions normally.
+Activate project `post-pr-open` and `pre-merge` in the final-gated delivery PR only after final proof. Explicitly run
+repository review coordination for that PR because its open integration session may retain the pre-activation
+extension snapshot; verify later sessions load both active actions normally.
 
 The activation PR changes only `active: false` → `active: true` in these project Configurable files; preserve their
 existing `.actions` bodies:
@@ -528,7 +567,7 @@ existing `.actions` bodies:
 .arc/system/extensions/pre-merge.md
 ```
 
-Before merging that same PR, explicitly run `coordinate-pr-review.md` against its current `openedChangeRequest` even
+Before merging that same PR, explicitly coordinate its current open change request even
 though the in-memory extension list may still reflect the pre-activation snapshot. A fresh session must then report
 both `post-pr-open` and `pre-merge` active before the next cutover mutation.
 

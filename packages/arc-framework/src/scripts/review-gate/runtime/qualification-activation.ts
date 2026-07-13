@@ -22,7 +22,7 @@ export interface QualificationActivationCandidate {
 }
 
 const POLICY_PATH = "packages/arc-framework/src/scripts/review-gate/policy/self-hosting/schema.ts";
-const MANIFEST_PATH = ".arc/reference/supplemental/research/research-review-gate-cutover-evidence.md";
+const MANIFEST_PATH = ".arc/reference/supplemental/analysis/analysis-review-gate-cutover-evidence.md";
 
 function digest(value: unknown): string {
   return hashContent(canonicalizePlainJson(value));

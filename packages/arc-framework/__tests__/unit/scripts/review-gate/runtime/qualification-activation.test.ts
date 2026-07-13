@@ -28,7 +28,7 @@ describe("qualification activation compiler", () => {
       pointer: "/SELF_HOSTING_POLICY/qualifications",
     });
     expect(candidate.operations[1]).toMatchObject({
-      path: ".arc/reference/supplemental/research/research-review-gate-cutover-evidence.md",
+      path: ".arc/reference/supplemental/analysis/analysis-review-gate-cutover-evidence.md",
       pointer: "/qualification/provisional",
     });
     expect(validateQualificationActivationDiff(candidate, candidate.operations)).toEqual([]);
