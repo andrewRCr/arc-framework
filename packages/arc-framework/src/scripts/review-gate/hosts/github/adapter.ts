@@ -39,11 +39,23 @@ import {
 export class GitHubHostReadError extends Error {
   readonly code: string;
 
-  constructor(code: string) {
-    super(code);
+  constructor(code: string, detail?: string) {
+    super(detail === undefined ? code : `${code}: ${detail}`);
     this.name = "GitHubHostReadError";
     this.code = code;
   }
+}
+
+function readFailureDetail(outcome: {
+  kind: string;
+  message?: string;
+  reason?: string;
+  status?: number;
+}): string | undefined {
+  if (outcome.message !== undefined) {
+    return outcome.status === undefined ? outcome.message : `${outcome.status}: ${outcome.message}`;
+  }
+  return outcome.reason;
 }
 
 /** Immutable dependencies and repository scope for GitHub reads. */
@@ -141,9 +153,15 @@ export class GitHubHostReadAdapter implements GitHostReadAdapter {
       this.functions.resolveReviewDecision(this.deps.gql, coordinates),
       this.functions.resolveThreads(this.deps.gql, coordinates),
     ]);
-    if (reviews.kind !== "ok") throw new GitHubHostReadError(`native-reviews-${reviews.kind}`);
-    if (decision.kind !== "ok") throw new GitHubHostReadError(`native-decision-${decision.kind}`);
-    if (threads.kind !== "ok") throw new GitHubHostReadError(`native-threads-${threads.kind}`);
+    if (reviews.kind !== "ok") {
+      throw new GitHubHostReadError(`native-reviews-${reviews.kind}`, readFailureDetail(reviews));
+    }
+    if (decision.kind !== "ok") {
+      throw new GitHubHostReadError(`native-decision-${decision.kind}`, readFailureDetail(decision));
+    }
+    if (threads.kind !== "ok") {
+      throw new GitHubHostReadError(`native-threads-${threads.kind}`, readFailureDetail(threads));
+    }
     const reduced = reduceNativeReview({
       reviews: reviews.value,
       reviewDecision: decision.value,

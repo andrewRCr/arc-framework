@@ -119,10 +119,9 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    - **Extensions** · `#pre-push-review`: If active, run its `.actions` before the push; halt-on-fail surfaces an
      actionable message, fix-and-retry or explicit-invoke bypasses. Otherwise skip.
 
-   On re-entry with an existing `openedChangeRequest`, resolve the canonical remote PR head as `ARC_HEAD_SHA` and
-   the outgoing local head as `<outgoing-head-sha>`, then run
-   `npm run review-gate:assert-head-mutable -- <outgoing-head-sha> [<begin-fix-receipt-hash>]`. Stop on any typed
-   refusal. The initial pre-PR push has no `openedChangeRequest` and skips this query.
+   On re-entry with an existing `openedChangeRequest`, invoke the active project review coordinator's exact-head
+   mutability action with that change request, the outgoing local head, and any `begin-fix` authorization receipt.
+   Stop on any typed refusal. The initial pre-PR push has no `openedChangeRequest` and skips this query.
 
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.

@@ -206,22 +206,24 @@ describe("trusted review-gate workflows", () => {
       readRepositoryFile(instanceErrandPath),
       readRepositoryFile(".arc/system/workflows/project/coordinate-pr-review.md"),
     ]);
-    const guard = "npm run review-gate:assert-head-mutable -- <outgoing-head-sha>";
+    const genericGuard = "active project review coordinator's exact-head";
+    const projectGuard = "npm run review-gate:assert-head-mutable -- <hostRef> <outgoing-head-sha>";
 
     expect(packageIntegration).toBe(instanceIntegration);
     expect(packageErrand).toBe(instanceErrand);
-    expect(packageIntegration.match(new RegExp(guard, "gu"))).toHaveLength(2);
-    expect(packageIntegration.indexOf(guard)).toBeGreaterThan(packageIntegration.indexOf("### 12) Final push"));
+    expect(packageIntegration.match(new RegExp(genericGuard, "gu"))).toHaveLength(2);
+    expect(packageIntegration).not.toContain("review-gate:assert-head-mutable");
+    expect(packageIntegration.indexOf(genericGuard)).toBeGreaterThan(packageIntegration.indexOf("### 12) Final push"));
     expect(packageIntegration.slice(
       packageIntegration.indexOf("### 3) Open the PR"),
       packageIntegration.indexOf("### 4) Review iteration"),
-    )).not.toContain(guard);
-    expect(packageIntegration).toContain("canonical remote PR head as `ARC_HEAD_SHA`");
-    expect(packageIntegration).toContain("outgoing local head as `<outgoing-head-sha>`");
+    )).not.toContain(genericGuard);
+    expect(packageIntegration).toContain("the outgoing local head");
 
-    expect(packageErrand.match(new RegExp(guard, "gu"))).toHaveLength(1);
+    expect(packageErrand.match(new RegExp(genericGuard, "gu"))).toHaveLength(1);
+    expect(packageErrand).not.toContain("review-gate:assert-head-mutable");
     expect(packageErrand).toContain("The initial pre-PR push has no `openedChangeRequest` and skips this query.");
-    expect(coordination.indexOf(guard)).toBeLessThan(coordination.indexOf("and push."));
+    expect(coordination.indexOf(projectGuard)).toBeLessThan(coordination.indexOf("and push."));
     expect(coordination).toMatch(/record the\s+authorized\s+`begin-fix` transition before invoking the guard/u);
   });
 

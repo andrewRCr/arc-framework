@@ -184,11 +184,15 @@ describe("native review fetch layer", () => {
         pageInfo: { hasNextPage: false, endCursor: null },
       } } } },
     });
-    const { gql } = gqlClient([response(200, payload)]);
+    const { gql, fake } = gqlClient([response(200, payload)]);
     expect(await resolveThreads(gql, { owner: "o", repo: "r", number: 5 })).toEqual({
       kind: "ok",
       value: [{ threadId: "T1", isResolved: true, resolvedBy: { identity: "5", nodeId: "U_5", login: "r", kind: "user" } }],
     });
+    const request = JSON.parse(String(fake.calls[0]?.init.body)) as { query: string };
+    const resolverSelection = /resolvedBy \{([\s\S]*?)\n {10}\}/u.exec(request.query)?.[1];
+    expect(resolverSelection).toContain("id databaseId login");
+    expect(resolverSelection).not.toContain("... on Bot");
   });
 
   it.each([

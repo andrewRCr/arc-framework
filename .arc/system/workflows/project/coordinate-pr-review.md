@@ -16,15 +16,17 @@ closure authority.
 
 ## 1. Run the Typed Action Loop
 
-Resolve `openedChangeRequest` through the host adapter into the exact repository id, PR number, change-request id,
-and current full head required by the repository launchers. Keep that scope unchanged for one loop iteration:
+Pass the explicit `hostRef` to each repository launcher; the launchers resolve and validate the remaining canonical
+coordinates. Keep the resulting scope unchanged for one loop iteration:
 
-1. Run `review-gate:next-action` and parse its JSON contract. Never infer an action from summary prose.
+1. Run `npm run review-gate:next-action -- <hostRef>` and parse its JSON contract. Never infer an action from summary
+   prose.
 2. On `needs-user-trigger`, surface the provider, generation, command, and required actor. After authorization, run
-   `review-gate:perform-action -- <request-key> <generation>`; it revalidates actor and canonical state before the
-   trigger and dispatches exact-PR/head reconciliation afterward.
-3. On `waiting`, or after a performed action, run `review-gate:await -- review --head <full-head>`. An exempt lane
-   uses `ci` instead. The watcher emits typed transition JSON and one terminal/attention result without model work.
+   `npm run review-gate:perform-action -- <hostRef> <request-key> <generation>`; it revalidates actor and canonical
+   state before the trigger and dispatches exact-PR/head reconciliation afterward.
+3. On `waiting`, or after a performed action, run
+   `npm run review-gate:await -- <hostRef> review --head <full-head>`. An exempt lane uses `ci` instead. The watcher
+   emits typed transition JSON and one terminal/attention result without model work.
 4. On `terminal: success`, continue to § 4. On `attention` or an await failure/attention result, enter § 2. On
    `stale-head`, recompose the full `openedChangeRequest` and restart. On timeout, re-read `next-action` before
    deciding whether to wait again. Authentication, host, or malformed-projection results stop for operator repair.
@@ -45,11 +47,11 @@ separate:
   current conversation status. Completion-check success only wakes a canonical re-read; it never closes or cleans a
   conversation.
 
-Run affected quality gates and commit atomically with a `(code review)` context footer. For a FIX, record the authorized
-`begin-fix` transition before invoking the guard. Resolve the canonical remote PR head as `ARC_HEAD_SHA` and the
-outgoing local head as `<outgoing-head-sha>`, then run
-`npm run review-gate:assert-head-mutable -- <outgoing-head-sha> [<begin-fix-receipt-hash>]`. Stop on refusal; only then
-run any active pre-push review action and push.
+Run affected quality gates and commit atomically with a `(code review)` context footer. For a FIX, record the
+authorized `begin-fix` transition before invoking the guard. Resolve the outgoing local head as
+`<outgoing-head-sha>`, then run
+`npm run review-gate:assert-head-mutable -- <hostRef> <outgoing-head-sha> [<begin-fix-receipt-hash>]`. Stop on refusal;
+only then run any active pre-push review action and push.
 
 After a head update, recompose the exact scope and return to § 1. The controller decides whether full or incremental
 coverage is admissible and exposes any actor-owned trigger through `next-action`; never synthesize a command from

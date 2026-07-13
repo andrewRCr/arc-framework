@@ -63,7 +63,7 @@ export interface CheckWire {
   app: { id: number };
   status: string;
   conclusion: string | null;
-  created_at: string;
+  started_at: string;
   html_url: string;
 }
 
@@ -295,7 +295,7 @@ function ciCheckRunsBody(world: ReviewGateWorld): unknown {
       app: { id: CI_APP_ID },
       status: "completed",
       conclusion: world.ci.conclusion,
-      created_at: NOW.toISOString(),
+      started_at: NOW.toISOString(),
       html_url: `https://github.com/${world.owner}/${world.repo}/runs/900`,
     }],
   };
@@ -359,7 +359,7 @@ function createCheck(world: ReviewGateWorld, body: Record<string, unknown>): Che
     app: { id: APP_ID },
     status: String(body.status),
     conclusion: body.conclusion === undefined ? null : String(body.conclusion),
-    created_at: NOW.toISOString(),
+    started_at: NOW.toISOString(),
     html_url: `https://github.com/${world.owner}/${world.repo}/runs/${id}`,
   };
   world.checks.push(check);

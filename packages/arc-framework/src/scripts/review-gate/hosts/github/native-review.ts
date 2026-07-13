@@ -127,9 +127,7 @@ const REVIEW_THREADS_QUERY = `query ReviewThreads($owner: String!, $repo: String
           isResolved
           resolvedBy {
             __typename
-            ... on User { id databaseId login }
-            ... on Bot { id databaseId login }
-            ... on Organization { id databaseId login }
+            id databaseId login
           }
           comments(first: 100) {
             nodes {

@@ -13,6 +13,12 @@ const rootPackage = JSON.parse(readFileSync(resolve(repositoryRoot, "package.jso
 const cliPackage = JSON.parse(readFileSync(resolve(cliRoot, "package.json"), "utf8")) as {
   scripts: Record<string, string>;
 };
+const launcherSources = [
+  "run-next-action.ts",
+  "run-perform-action.ts",
+  "run-await.ts",
+  "run-assert-head-mutable.ts",
+].map((name) => readFileSync(resolve(cliRoot, "src/scripts/review-gate", name), "utf8"));
 
 describe("repository-only review action launchers", () => {
   it("exposes thin root scripts without adding a published package command", () => {
@@ -28,5 +34,14 @@ describe("repository-only review action launchers", () => {
     expect(cliPackage.scripts).not.toHaveProperty("review-gate:next-action");
     expect(cliPackage.scripts).not.toHaveProperty("review-gate:perform-action");
     expect(cliPackage.scripts).not.toHaveProperty("review-gate:assert-head-mutable");
+  });
+
+  it("resolves canonical coordinates from one explicit host reference", () => {
+    for (const source of launcherSources) {
+      expect(source).toContain("resolveLocalReviewContext");
+      expect(source).not.toMatch(
+        /GITHUB_REPOSITORY|ARC_REPOSITORY_ID|ARC_PULL_REQUEST_NUMBER|ARC_CHANGE_REQUEST_ID|ARC_HEAD_SHA|ARC_APP_SLUG/u,
+      );
+    }
   });
 });
