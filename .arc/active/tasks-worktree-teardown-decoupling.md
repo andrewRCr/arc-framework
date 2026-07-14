@@ -311,25 +311,22 @@ detached checkout remains ordinary detached `HEAD`.
 - _Outcome:_ A session inside an exact completed-WU husk now receives a narrowly derived terminal identity while all
   other detached checkouts retain the existing generic orientation contract.
 
-### `[ ]` **3.3 Render husk cleanup and orientation guidance in session initialization**
+### `[x]` **3.3 Render husk cleanup and orientation guidance in session initialization**
 
 - _Goal:_ An agent booting inside a husk receives a clear shipped-pending-teardown terminal frame, while primary-side
   cleanup offers and ordinary detached-head guidance remain accurate.
 
-    - `[ ]` **3.3.a Add the husk payload and orientation branch to the shipped template**
-        - Edit `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/session-init.template.md` first, then
-          apply the corresponding targeted edit to `.arc/system/workflows/arc/session-lifecycle/session-init.md`.
+    - `[x]` **3.3.a Add the husk payload and orientation branch to the shipped template**
+        - Documented the optional payload package-first and added a shipped-pending-teardown orientation that points
+          outside the current worktree for replay or manual cleanup while retaining generic branchless guidance on
+          every non-match.
 
-        - Document the optional probe payload and render `shipped — pending physical teardown`: re-run teardown from
-          outside or delete/prune manually. Suppress the generic detached-head warning only on this derived arm.
+    - `[x]` **3.3.b Extend stale-worktree rendering for branchless husks**
+        - Added kind-aware WU, branch, and errand husk labels plus exact, dirty, and moved-HEAD dispositions without
+          changing branched cleanup reasons, externally managed handling, or the offer-only removal contract.
 
-    - `[ ]` **3.3.b Extend stale-worktree rendering for branchless husks**
-        - Render stamped WU, generic recordless, and reserved errand subjects with removable or blocked dispositions
-          without assuming every report has a branch or claiming WU completion for non-WU subjects; name dirty and
-          moved-`HEAD` husk blockers separately while preserving the legacy uncommitted, user-surface, and unmerged
-          branch reasons.
-
-        - Keep all removal actions offer-only and preserve the externally-managed behavior of markerless worktrees.
+- _Outcome:_ The shipped template and self-hosting instance now render the typed status envelope coherently; their
+  only remaining diff is the expected `pm.mode` template conditional.
 
 ## **Phase 4:** Integration contract and cross-layer regression coverage
 
