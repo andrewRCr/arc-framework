@@ -69,7 +69,11 @@ import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
-import { runBranchTeardown, runTeardown } from "../lib/work-unit/verbs/teardown.js";
+import {
+  runBranchTeardown,
+  runTeardown,
+  type TeardownResult,
+} from "../lib/work-unit/verbs/teardown.js";
 import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
@@ -1032,6 +1036,39 @@ function describeBranchDeletion(result: { branchDeleted: boolean; remoteBranchDe
   return result.remoteBranchDeleted ? "(deleted locally and on the remote)" : "(deleted)";
 }
 
+type TornDownTeardownResult = Extract<TeardownResult, { status: "torn-down" }>;
+
+/** Render the shared branch/worktree disposition for a successful teardown. */
+function reportTeardownResult(
+  result: TornDownTeardownResult,
+  branchLine: string,
+  options: {
+    leadingLines?: string[];
+    tornDownTitle: string;
+    huskedTitle: string;
+  },
+): void {
+  const liveHusk = result.worktreeRemoved === null ? result.husk : null;
+  const lines = [
+    ...(options.leadingLines ?? []),
+    `Branch:    ${branchLine}`,
+    ...(liveHusk === null
+      ? [`Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`]
+      : [
+          `Husk:      ${liveHusk.worktreePath} (detached; physical removal deferred)`,
+          `Marker:    ${liveHusk.stamped ? "stamped" : "externally managed"}`,
+        ]),
+    `Prune:     ${result.pruned ? "done" : "skipped"}`,
+  ];
+  p.note(lines.join("\n"), liveHusk === null ? options.tornDownTitle : options.huskedTitle);
+  if (liveHusk?.stamped === true) {
+    p.log.info("The primary worktree's stale-worktree sweep can offer this disposable husk for removal.");
+  }
+  for (const notice of result.notices) p.log.warn(notice);
+  if (result.suggestion !== null) p.log.info(result.suggestion);
+  p.outro("Done.");
+}
+
 /**
  * `arc teardown <name>` — physical cleanup (branch + worktree) of a retired work
  * unit: reap the branch, remove the linked worktree (in-place is a no-op), and
@@ -1108,26 +1145,10 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
       result.branch === null
         ? `${branchArg} (already reaped)`
         : `${result.branch} ${describeBranchDeletion(result)}`;
-    const liveHusk = result.worktreeRemoved === null ? result.husk : null;
-    const lines = liveHusk === null
-      ? [
-          `Branch:    ${branchLine}`,
-          `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
-          `Prune:     ${result.pruned ? "done" : "skipped"}`,
-        ]
-      : [
-          `Branch:    ${branchLine}`,
-          `Husk:      ${liveHusk.worktreePath} (detached; physical removal deferred)`,
-          `Marker:    ${liveHusk.stamped ? "stamped" : "externally managed"}`,
-          `Prune:     ${result.pruned ? "done" : "skipped"}`,
-        ];
-    p.note(lines.join("\n"), liveHusk === null ? "Branch torn down" : "Branch worktree husked");
-    if (liveHusk?.stamped === true) {
-      p.log.info("The primary worktree's stale-worktree sweep can offer this disposable husk for removal.");
-    }
-    for (const notice of result.notices) p.log.warn(notice);
-    if (result.suggestion !== null) p.log.info(result.suggestion);
-    p.outro("Done.");
+    reportTeardownResult(result, branchLine, {
+      tornDownTitle: "Branch torn down",
+      huskedTitle: "Branch worktree husked",
+    });
     return;
   }
 
@@ -1148,28 +1169,11 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
     result.branch === null
       ? "(already reaped)"
       : `${result.branch} ${describeBranchDeletion(result)}`;
-  const liveHusk = result.worktreeRemoved === null ? result.husk : null;
-  const lines = liveHusk === null
-    ? [
-        `Work unit: ${wuName}`,
-        `Branch:    ${branchLine}`,
-        `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
-        `Prune:     ${result.pruned ? "done" : "skipped"}`,
-      ]
-    : [
-        `Work unit: ${wuName}`,
-        `Branch:    ${branchLine}`,
-        `Husk:      ${liveHusk.worktreePath} (detached; physical removal deferred)`,
-        `Marker:    ${liveHusk.stamped ? "stamped" : "externally managed"}`,
-        `Prune:     ${result.pruned ? "done" : "skipped"}`,
-      ];
-  p.note(lines.join("\n"), liveHusk === null ? "Torn down" : "Worktree husked");
-  if (liveHusk?.stamped === true) {
-    p.log.info("The primary worktree's stale-worktree sweep can offer this disposable husk for removal.");
-  }
-  for (const notice of result.notices) p.log.warn(notice);
-  if (result.suggestion !== null) p.log.info(result.suggestion);
-  p.outro("Done.");
+  reportTeardownResult(result, branchLine, {
+    leadingLines: [`Work unit: ${wuName}`],
+    tornDownTitle: "Torn down",
+    huskedTitle: "Worktree husked",
+  });
 }
 
 // ---------------------------------------------------------------------------
