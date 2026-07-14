@@ -2087,6 +2087,20 @@ describe("runSessionInitStatus — current-husk advisory gating", () => {
     },
   );
 
+  it("keeps a successful null advisory present for a linked branchless worktree", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "detached-head", branch: null })),
+      worktreeIdentity: vi.fn(async () =>
+        worktreeIdentity({ kind: "linked", path: "/wt/unmarked" })),
+      currentHusk: vi.fn(async () => null),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.currentHusk).toHaveBeenCalledWith("/wt/unmarked");
+    expect(result.currentHusk).toEqual({ ok: true, value: null });
+  });
+
   it.each([
     ["linked branched", worktreeSync({ state: "clean", branch: "feat/current" }), { kind: "linked", path: "/wt/current" }],
     ["primary detached", worktreeSync({ state: "detached-head", branch: null }), { kind: "primary" }],
