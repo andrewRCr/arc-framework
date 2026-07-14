@@ -15,13 +15,10 @@ consumer changes validation authority.
   repository facts without importing process or filesystem state into grammar logic.
 - **Additional Context:** `strategy-package-project-sync.md` § Framework files and § Configurable file sync.
 
-    - `[ ]` **1.1.a Pin the public validation contracts**
-        - Add the `commit-check` finding, verdict, policy, and repository-state types under
-          `packages/arc-framework/src/lib/commit-check/`, including stable finding codes, `error` / `warning` severity,
-          structured detail, and discriminated message-line, whole-message, and configuration-key locations.
-        - Model the outer outcome as `skipped` with a typed exemption reason or `validated` with the three-valued
-          `pass` / `pass-with-warnings` / `fail` result.
-        - Export only the contracts consumers need from the module boundary; keep parser and policy internals private.
+    - `[x]` **1.1.a Pin the public validation contracts**
+        - Added the public `commit-check` contract boundary with stable finding codes, typed locations and details,
+          three-valued validated outcomes, exemption outcomes, normalized policy, and injected repository-state seams;
+          parser and policy implementation details remain private.
 
     - `[ ]` **1.1.b Resolve the eight validator configuration keys**
         - Correct `parseArcConfig()` to match `arc_config_get`'s first-definition-wins behavior, then read
