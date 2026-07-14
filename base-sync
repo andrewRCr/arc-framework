@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "base-sync",
+  "origin": "inbox",
+  "intent": "Add a safe base-sync verb usable from any worktree",
+  "branch": "fix/base-sync",
+  "createdAt": "2026-07-14T22:24:55.562Z",
+  "originEntry": "Add a base-sync verb — update local base without reaching into the primary",
+  "returnBranch": "main"
+}
