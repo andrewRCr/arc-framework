@@ -5,6 +5,37 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Guard or migrate dev-repo-only `npx tsx` hook delegations**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
+  `commit-message-submission` draft grooming.
+- *Concern:* shipped pre-commit checks invoke `npx tsx packages/arc-framework/src/scripts/validate-*.ts` without
+  a self-hosting guard. A project staging matching adopter-editable paths can trip a nonexistent source script
+  and dependency rather than receive a validation result.
+- *Approach:* guard genuinely dev-repo-only checks when the source path is absent; migrate project-relevant checks
+  to the installed-CLI delegation pattern established by `commit-message-submission`. Triage per check because
+  packaging a validator as a CLI surface is a different decision from skipping a self-hosting-only assertion.
+
+### `[ ]` **Validate commit-message ranges in CI**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
+  `commit-message-submission` design review.
+- *Concern:* commit-message validation is client-side only. Once the canonical TypeScript validator ships, CI
+  should consume the same module across the PR range rather than duplicate the Bash grammar.
+- *Approach:* add an installed-CLI CI gate after `commit-message-submission`; settle whether every commit or the
+  PR title is authoritative under the repository's merge method, and preserve a defined degraded posture for CI
+  checkouts.
+
+### `[ ]` **Reassess message-only content-gate caching after preflight field data**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured at
+  `commit-message-submission` create-spec scope settlement.
+- *Concern:* editor and passthrough commit paths can repay the full pre-commit gate after only the message fails.
+  The residual value is unknown until wrapper preflight ships, while an incomplete cache key could let a broken
+  staged tree commit.
+- *Approach:* pursue only if post-preflight evidence shows material retry cost. Any cache must fail closed and key
+  every correctness input, including staged tree, HEAD, hook/config implementation, and consumed worktree state.
+
 ### `[ ]` **Markdown-formatting enforcement: table-align auto-fix + emphasis/emoji rules at commit-gate**
 
 - *Routed from:* the `markdown-formatting` WU (`../markdown-formatting/draft-markdown-formatting.md`),
