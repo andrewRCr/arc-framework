@@ -1,11 +1,7 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `b5bec4deb`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `6966113dc`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
-
-## Warnings
-
-- Branch `plan/worktree-teardown-decoupling` has no errand record or active work-unit meta; cleanup may be required.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -21,7 +17,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ---------- | ---------------------------- | -------- | ------ | ---------- | ----------------- |
 | `Active`   | finalize-parallelism         | P1       | andrew | —          | agile-parallelism |
 | `Planning` | commit-message-submission    | P1       | andrew | —          | —                 |
-| `Planning` | worktree-teardown-decoupling | P3       | andrew | —          | —                 |
+| `Planning` | worktree-teardown-decoupling | P1       | andrew | —          | —                 |
 
 ## Ready
 

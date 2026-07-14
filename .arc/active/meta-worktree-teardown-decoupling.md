@@ -2,16 +2,16 @@
 
 | **State**  | **Owner** | **Branch**                          | **Class** | **Priority** |
 | ---------- | --------- | ----------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/worktree-teardown-decoupling` | [TBD]     | `P3`         |
+| `Planning` | `andrew`  | `plan/worktree-teardown-decoupling` | [TBD]     | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-worktree-teardown-decoupling.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
