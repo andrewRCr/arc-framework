@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "route-test-runtime-evidence",
-  "origin": "description",
-  "intent": "Route measured CLI test runtime evidence to its CI topology owner",
-  "branch": "chore/route-test-runtime-evidence",
-  "createdAt": "2026-07-14T23:50:43.530Z",
-  "returnBranch": "main"
-}
