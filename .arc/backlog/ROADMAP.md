@@ -1,11 +1,11 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `b5bec4deb`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `8399bd0ad`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 ## Warnings
 
-- Branch `chore/stub-session-locus-model` has no errand record or active work-unit meta; cleanup may be required.
+- Branch `chore/housekeep-fp-locus-routing` has no errand record or active work-unit meta; cleanup may be required.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -21,7 +21,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ---------- | ---------------------------- | -------- | ------ | ---------- | ----------------- |
 | `Active`   | finalize-parallelism         | P1       | andrew | —          | agile-parallelism |
 | `Planning` | commit-message-submission    | P1       | andrew | —          | —                 |
-| `Planning` | worktree-teardown-decoupling | P3       | andrew | —          | —                 |
+| `Planning` | worktree-teardown-decoupling | P1       | andrew | —          | —                 |
 
 ## Ready
 
@@ -89,6 +89,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                         | Priority | Owner  | Depends on                            | Cohort                     |
 | --------------------------------- | -------- | ------ | ------------------------------------- | -------------------------- |
+| husk-lifecycle-drivers            | P1       | andrew | worktree-teardown-decoupling          | —                          |
 | review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification | —                          |
 | unit-scoped-review                | P2       | andrew | commit-increments                     | approval-flow-refinement   |
 | operational-state-docs            | P2       | andrew | cli-substrate-adoption                | —                          |

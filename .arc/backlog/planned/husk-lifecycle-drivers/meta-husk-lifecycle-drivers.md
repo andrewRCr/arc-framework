@@ -1,14 +1,14 @@
-# Metadata: session-locus-model
+# Metadata: husk-lifecycle-drivers
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| `Planning` | `andrew`  | [none]     | `Light`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** `worktree-teardown-decoupling`
 
 - **Origin:** [internal]
-- **Design:** `draft-session-locus-model.md`
+- **Design:** `draft-husk-lifecycle-drivers.md`
 - **Task List:** [none]
 
 - **Current Workflow:** [none]
