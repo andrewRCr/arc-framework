@@ -16,6 +16,17 @@
 > _captures are this WU's seed material — the core reform plus five activation-mechanics facets and one_
 > _save-location alignment that the reform's activation path settles._
 
+### `[ ]` **Formalize the shipped, pending-teardown worktree terminal condition**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
+  `finalize-parallelism` Task 4.1 slate resolution.
+- _Concern:_ `worktree-teardown-decoupling` deliberately represents a self-teardown husk through existing
+  signals—detached HEAD, ARC ownership marker, and a completed-record match—without adding a lifecycle state.
+  Decide whether that terminal condition graduates into the four-state vocabulary, becomes an annotation, or
+  remains a derived operational projection.
+- _Boundary:_ consume the shipped mechanics and the `session-locus-model` reporting record; do not rebuild them.
+  This WU owns the state vocabulary and may re-vocabulary the locus record later without schema churn.
+
 ### `[ ]` **Unbundle planning-completion from activation — async-first WU lifecycle state model** _(core reform)_
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-07); captured during `finalize-parallelism`
