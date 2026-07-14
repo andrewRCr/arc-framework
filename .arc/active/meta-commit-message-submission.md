@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                       | **Class** | **Priority** |
 | ---------- | --------- | -------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/commit-message-submission` | `Light`   | `P1`         |
+| `Planning` | `andrew`  | `plan/commit-message-submission` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,7 +11,7 @@
 - **Design:** `draft-commit-message-submission.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Planned stub created from the recurring commit-message submission friction capture.
 - **Next Task:** [none]
 - **Blockers:** [none]
