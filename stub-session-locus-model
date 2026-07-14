@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "stub-session-locus-model",
+  "origin": "description",
+  "intent": "Scaffold the session-locus-model backlog stub (pulled forward within FP's GA gate; execution-locus doctrine + session/locus record)",
+  "branch": "chore/stub-session-locus-model",
+  "createdAt": "2026-07-14T14:42:16.328Z"
+}
