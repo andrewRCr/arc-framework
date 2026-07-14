@@ -108,14 +108,9 @@ gating and delegation shim only after parity is demonstrated.
         - Added byte-preserving file/stdin orchestration, fatal built-in decoding, a shared default repository adapter,
           and typed usage, infrastructure, and validation exit results.
 
-    - `[ ]` **2.1.b Register the top-level `check` namespace**
-        - Add the public command export and `cli.ts` wiring for `arc check commit-msg <file | -> [--json]` without
-          colliding with the existing lifecycle-specific `check` verbs.
-        - Give this command a local Commander / repository-root error adapter so missing arguments and setup failures
-          map to exit `2` rather than Commander's or the global boundary's exit `1`; do not reuse
-          `requireArcProjectRoot()` on the JSON path.
-        - Keep process exit assignment in the adapter and validation / formatting in testable library or handler
-          functions.
+    - `[x]` **2.1.b Register the top-level `check` namespace**
+        - Exported and wired `arc check commit-msg <file | -> [--json]` with command-local argument and repository-root
+          handling, typed exit `2` setup failures, and process exit assignment isolated in the Commander adapter.
 
     - `[ ]` **2.1.c Stabilize human and JSON output**
         - Emit the shared human diagnostic by default and exactly one versioned JSON envelope under `--json`:

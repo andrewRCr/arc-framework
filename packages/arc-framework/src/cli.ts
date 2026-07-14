@@ -76,6 +76,10 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleCheckCommitMessage,
+  type HandleCheckCommitMessageOptions,
+} from "./commands/check.js";
+import {
   handleReleaseCommit,
   handleReleaseOptIn,
   handleReleaseOptOut,
@@ -93,6 +97,21 @@ program
   .name("arc")
   .description("CLI for installing, updating, and managing ARC framework files")
   .version(getFrameworkVersion());
+
+// --- Checks ---
+
+const checkCmd = program
+  .command("check")
+  .description("Run standalone repository checks");
+
+checkCmd
+  .command("commit-msg")
+  .description("Validate a commit message without committing")
+  .usage("<file | -> [--json]")
+  .argument("[file]", "Commit-message file path, or - for stdin")
+  .option("--json", "Emit a versioned JSON envelope")
+  .action((file: string | undefined, opts: HandleCheckCommitMessageOptions) =>
+    handleCheckCommitMessage(file, opts));
 
 // --- Init & Join ---
 
