@@ -29,16 +29,10 @@ consumer changes validation authority.
         - Added the injected filesystem resolver with family-specific active/backlog/completed searches, recursive
           design/meta discovery, early found semantics, and distinct inspected-empty versus unavailable results.
 
-    - `[ ]` **1.1.d Assemble the shared exemption and advisory context**
-        - Supply `hooks.commit_msg`, `MERGE_HEAD`, and `arc.role` through one injected context used by both the hook
-          adapter and wrapper preflight.
-        - Build `test-first` (one behavior at a time):
-            - Disabled validation and merge-in-progress contexts return typed `skipped` outcomes before grammar
-              evaluation.
-            - Disabled and merge-exempt outcomes short-circuit before unrelated policy-domain failures; an active
-              unknown `hooks.commit_msg` value fails at its configuration location.
-            - Missing role resolves to the maintainer default.
-            - Contributor role remains advisory input rather than a grammar fork.
+    - `[x]` **1.1.d Assemble the shared exemption and advisory context**
+        - Added one normalized configuration/repository context and preparation gate shared by every consumer: merge
+          and disabled exemptions short-circuit policy work, invalid active modes return typed findings, and role
+          normalization retains contributor advisory input while defaulting other cases to maintainer.
 
     - `[ ]` **1.1.e Align integrity validation and inline configuration guidance**
         - Update both Framework copies of `validate-config.sh` to enforce the canonical unsigned-safe-integer domains

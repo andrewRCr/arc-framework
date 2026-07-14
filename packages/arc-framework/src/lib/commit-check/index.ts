@@ -6,6 +6,7 @@ export {
   resolveCommitCheckPolicy,
 } from "./config.js";
 export { createFilesystemArtifactResolver } from "./artifact-resolver.js";
+export { createCommitCheckContext } from "./context.js";
 
 export type {
   CommitCheckArtifactFamily,
@@ -15,6 +16,8 @@ export type {
   CommitCheckConfiguration,
   CommitCheckConfigurationKey,
   CommitCheckConfigurationLocation,
+  CommitCheckContext,
+  CommitCheckContextInput,
   CommitCheckDetailValue,
   CommitCheckExemptionReason,
   CommitCheckFinding,

@@ -137,6 +137,20 @@ export interface CommitCheckRepositoryState {
   resolveArtifact: CommitCheckArtifactResolver;
 }
 
+/** Unnormalized facts accepted by the shared context constructor. */
+export interface CommitCheckContextInput {
+  configuration: CommitCheckConfiguration;
+  mergeInProgress: boolean;
+  role?: string | null;
+  resolveArtifact: CommitCheckArtifactResolver;
+}
+
+/** One normalized context injected into every validation surface. */
+export interface CommitCheckContext {
+  configuration: CommitCheckConfiguration;
+  repository: CommitCheckRepositoryState;
+}
+
 /** Typed reason for bypassing active grammar validation. */
 export type CommitCheckExemptionReason = "disabled" | "merge-in-progress";
 
