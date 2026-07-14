@@ -146,6 +146,35 @@ describe("arc errand close", () => {
     await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:tidy"])).rejects.toThrow();
   });
 
+  it("restores the pre-open branch when main is held by the primary worktree", async () => {
+    const linkedDir = `${tmpDir}-linked`;
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    await git(tmpDir, ["branch", "feat/active-wu"]);
+    await git(tmpDir, ["worktree", "add", linkedDir, "feat/active-wu"]);
+
+    try {
+      const open = await runArc(["errand", "open", "linked-fix", "--type", "fix"], linkedDir);
+      expect(open.exitCode).toBe(0);
+      expect((await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("fix/linked-fix");
+      const record = await git(
+        linkedDir,
+        ["cat-file", "-p", "refs/arc/user/test-user/errands:linked-fix"],
+      );
+      expect(record).toContain('"returnBranch": "feat/active-wu"');
+
+      const close = await runArc(["errand", "close", "linked-fix"], linkedDir);
+
+      expect(close.exitCode).toBe(0);
+      expect(await git(linkedDir, ["branch", "--list", "fix/linked-fix"])).toBe("");
+      expect((await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("feat/active-wu");
+      expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("main");
+    } finally {
+      await git(tmpDir, ["worktree", "remove", "--force", linkedDir]);
+    }
+  });
+
   it("is a clean no-op when no record exists for the slug", async () => {
     await setFullProtection(tmpDir);
 
