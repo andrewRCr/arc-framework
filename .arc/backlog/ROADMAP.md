@@ -1,7 +1,11 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `6d887afc3`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `6c7f7349b`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
+
+## Warnings
+
+- Branch `chore/stub-worktree-teardown-decoupling` has no errand record or active work-unit meta; cleanup may be required.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -13,21 +17,22 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State    | Work unit            | Priority | Owner  | Depends on | Cohort            |
-| -------- | -------------------- | -------- | ------ | ---------- | ----------------- |
-| `Active` | finalize-parallelism | P1       | andrew | —          | agile-parallelism |
+| State      | Work unit                 | Priority | Owner  | Depends on | Cohort            |
+| ---------- | ------------------------- | -------- | ------ | ---------- | ----------------- |
+| `Active`   | finalize-parallelism      | P1       | andrew | —          | agile-parallelism |
+| `Planning` | commit-message-submission | P1       | andrew | —          | —                 |
 
 ## Ready
 
 | Work unit                             | Priority | Owner  | Depends on | Cohort                     |
 | ------------------------------------- | -------- | ------ | ---------- | -------------------------- |
 | interlock-release-refinement          | P1       | andrew | —          | approval-flow-refinement   |
-| commit-message-submission             | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | pr-decomposition                      | P1       | andrew | —          | —                          |
 | recovery-hardening                    | P1       | andrew | —          | —                          |
 | review-gate-enforcement-qualification | P1       | andrew | —          | —                          |
 | roadmap-tooling                       | P1       | andrew | —          | —                          |
+| worktree-teardown-decoupling          | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model              | P1       | andrew | —          | —                          |
 | composable-workflows                  | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition                   | P2       | andrew | —          | agent-context-optimization |
