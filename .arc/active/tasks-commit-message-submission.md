@@ -149,7 +149,7 @@ gating and delegation shim only after parity is demonstrated.
   repository-pinned or global CLI, while installation and hook-manager boundaries preserve executable and pathname
   semantics without retaining a second grammar.
 
-### `[ ]` **2.3 Prove hook exemptions, delegation, and fail-closed behavior**
+### `[x]` **2.3 Prove hook exemptions, delegation, and fail-closed behavior**
 
 - _Goal:_ Real temporary repositories demonstrate that the thin installed hook is a defense-in-depth consumer rather
   than a second implementation or a weaker enforcement path.
@@ -163,10 +163,12 @@ gating and delegation shim only after parity is demonstrated.
         - Proved local precedence, controlled global fallback, and fail-closed remediation without machine-global
           dependencies, plus one-argument message delivery through direct and managed hooks under spaced paths.
 
-    - `[ ]` **2.3.c Complete the parity flip**
-        - Require the differential corpus to be green before deleting the Bash grammar, then rerun the durable corpus
-          and hook E2E coverage against the TypeScript implementation only.
-        - Confirm no grammar regex or artifact search remains in the shell hook after cutover.
+    - `[x]` **2.3.c Complete the parity flip**
+        - Retired the temporary Bash differential runner after its pre-flip green baseline, kept the TypeScript corpus
+          as the durable acceptance suite, and confirmed the installed shim contains no grammar or artifact search.
+
+- _Outcome:_ Installed-hook E2E now proves exemptions, local/global resolution, fail-closed remediation, delegated
+  output, and spaced-path safety through real Git and managed-hook shapes, with one TypeScript grammar authority.
 
 ## **Phase 3:** Wrapper preflight and retry transport
 
