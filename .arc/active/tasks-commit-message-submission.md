@@ -99,7 +99,7 @@ consumer changes validation authority.
 _Purpose:_ Expose the canonical validator through an adopter-safe CLI primitive, then reduce the installed hook to a
 gating and delegation shim only after parity is demonstrated.
 
-### `[ ]` **2.1 Add the `arc check commit-msg` command surface**
+### `[x]` **2.1 Add the `arc check commit-msg` command surface**
 
 - _Goal:_ Users, hooks, and future automation can validate a file or stdin through one stable command with typed exit
   and JSON contracts.
@@ -112,15 +112,12 @@ gating and delegation shim only after parity is demonstrated.
         - Exported and wired `arc check commit-msg <file | -> [--json]` with command-local argument and repository-root
           handling, typed exit `2` setup failures, and process exit assignment isolated in the Commander adapter.
 
-    - `[ ]` **2.1.c Stabilize human and JSON output**
-        - Emit the shared human diagnostic by default and exactly one versioned JSON envelope under `--json`:
-          `{ schemaVersion, result }` for `skipped` / `validated`, or `{ schemaVersion, error }` for typed usage and
-          infrastructure failures; keep stdout machine-clean on every JSON path.
-        - Build `test-first` (one behavior at a time):
-            - Pass, warning, validation-failure, disabled / merge-skipped, usage-failure, and infrastructure-failure
-              envelopes retain stable discriminators and documented exit codes.
-            - Human output matches the formatter consumed by wrapper preflight.
-            - JSON output remains parseable when findings contain previews or suggestions.
+    - `[x]` **2.1.c Stabilize human and JSON output**
+        - Added a pure output renderer that reuses shared human diagnostics and emits one schema-versioned stdout
+          envelope for every JSON result or error path, with typed contract tests for all verdicts and failures.
+
+- _Outcome:_ The public check command now preserves source bytes through decoding, shares canonical repository and
+  validation state, and exposes deterministic human, JSON, and exit-code contracts from both file and stdin inputs.
 
 ### `[ ]` **2.2 Replace the Bash validator with the local-first hook shim**
 

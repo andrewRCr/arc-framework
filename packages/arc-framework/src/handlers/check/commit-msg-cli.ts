@@ -2,12 +2,12 @@
 
 import { access, readFile } from "node:fs/promises";
 
-import { formatCommitCheckOutcome } from "../../lib/commit-check/diagnostics.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
 import { gitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { ARC_PROJECT_ROOT_ERROR } from "../shared.js";
 import { runCheckCommitMessage } from "./commit-msg.js";
+import { renderCheckCommitMessage } from "./commit-msg-output.js";
 
 /** Options accepted by the public commit-message check command. */
 export interface HandleCheckCommitMessageOptions {
@@ -62,16 +62,9 @@ export async function handleCheckCommitMessage(
     },
   });
 
-  if (options.json === true) {
-    const envelope = outcome.kind === "result"
-      ? { schemaVersion: 1, result: outcome.result }
-      : { schemaVersion: 1, error: outcome.error };
-    process.stdout.write(`${JSON.stringify(envelope)}\n`);
-  } else if (outcome.kind === "result") {
-    process.stdout.write(`${formatCommitCheckOutcome(outcome.result)}\n`);
-  } else {
-    process.stderr.write(`error: ${outcome.error.message}\n`);
-  }
+  const rendered = renderCheckCommitMessage(outcome, options.json === true);
+  if (rendered.stdout !== undefined) process.stdout.write(rendered.stdout);
+  if (rendered.stderr !== undefined) process.stderr.write(rendered.stderr);
 
   process.exitCode = outcome.exitCode;
 }
