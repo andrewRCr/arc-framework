@@ -54,19 +54,29 @@ export async function handleBaseSync(opts: BaseSyncOptions): Promise<void> {
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
-    if (result.status === "refused") process.exitCode = 1;
+    if (result.status === "refused" || result.status === "cleanup-required") process.exitCode = 1;
     return;
   }
 
   p.intro("arc base sync");
   if (result.status === "updated") {
-    const locus = result.worktreePath === null ? "the local ref" : `the clean worktree at \`${result.worktreePath}\``;
+    const locus = result.method === "managed-worktree"
+      ? "a temporary managed worktree"
+      : `the clean worktree at \`${result.worktreePath}\``;
     p.note(
       `Fast-forwarded \`${result.base}\` from \`${result.from ?? "[missing]"}\` to \`${result.to}\` through ${locus}.`,
       "Base synchronized",
     );
   } else if (result.status === "unchanged") {
     p.note(`Local base \`${result.base}\` already matches \`origin/${result.base}\`.`, "Base already current");
+  } else if (result.status === "cleanup-required") {
+    const updateState = result.baseUpdated ? "was updated" : "was not updated";
+    p.log.error(
+      `Local base \`${result.base}\` ${updateState}, but the temporary worktree at `
+      + `\`${result.worktreePath}\` could not be removed. Remove it with `
+      + `\`git worktree remove --force --force ${result.worktreePath}\`.`,
+    );
+    process.exitCode = 1;
   } else {
     p.log.error(refusalMessage(result));
     process.exitCode = 1;

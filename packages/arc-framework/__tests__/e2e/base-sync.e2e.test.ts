@@ -103,20 +103,25 @@ describe("arc base sync", () => {
     const before = await git(primary, ["rev-parse", "main"]);
     const remoteHead = await git(publisher, ["rev-parse", "HEAD"]);
     await git(primary, ["switch", "-c", "chore/coordination"]);
+    await git(primary, ["commit", "--no-verify", "--allow-empty", "-m", "coordination work"]);
+    const coordinationHead = await git(primary, ["rev-parse", "HEAD"]);
+    await git(primary, ["tag", "main", coordinationHead]);
 
     const result = await runArcNoTty(["base", "sync", "--json"], linked);
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout.trim())).toMatchObject({
       status: "updated",
-      method: "direct-ref",
+      method: "managed-worktree",
       base: "main",
       from: before,
       to: remoteHead,
       worktreePath: null,
     });
-    expect(await git(primary, ["rev-parse", "main"])).toBe(remoteHead);
-    expect(await git(primary, ["rev-parse", "HEAD"])).toBe(before);
+    expect(await git(primary, ["rev-parse", "refs/heads/main"])).toBe(remoteHead);
+    expect(await git(primary, ["rev-parse", "refs/tags/main"])).toBe(coordinationHead);
+    expect(await git(primary, ["rev-parse", "HEAD"])).toBe(coordinationHead);
+    expect(await git(primary, ["worktree", "list", "--porcelain"])).not.toContain("branch refs/heads/main");
     await expect(access(join(primary, "remote-change.txt"))).rejects.toThrow();
   });
 });

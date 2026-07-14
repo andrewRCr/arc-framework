@@ -15,12 +15,26 @@ interface RepoState {
   worktreeListFails?: boolean;
   moveAfterStatus?: string;
   ambiguousShortName?: boolean;
+  managedAddFails?: boolean;
+  moveOnManagedAddFailure?: string;
+  moveAfterManagedClaim?: string;
+  managedCleanupFails?: boolean;
 }
 
-function fakeRepo(initial: RepoState): { exec: GitExec; currentBase: () => string | null } {
+const tempDirectories = {
+  create: async (): Promise<string> => "/tmp/arc-base-sync-test",
+  remove: async (): Promise<void> => undefined,
+};
+
+function fakeRepo(initial: RepoState): {
+  exec: GitExec;
+  currentBase: () => string | null;
+  managedWorktreePresent: () => boolean;
+} {
   const state = { ...initial };
   const base = state.base ?? "main";
   let localReads = 0;
+  let managedWorktree = false;
   const ok = (stdout = ""): ExecResult => ({ stdout, stderr: "" });
 
   const exec: GitExec = async (_cmd, args) => {
@@ -41,33 +55,49 @@ function fakeRepo(initial: RepoState): { exec: GitExec; currentBase: () => strin
       return ok(state.local);
     }
     if (args[0] === "rev-list") return ok(state.distance ?? "0 1");
-    if (args[0] === "worktree") {
+    if (args[0] === "worktree" && args[1] === "list") {
       if (state.worktreeListFails) throw new Error("worktree list failed");
       const roster = state.baseWorktree === undefined
         ? ""
         : `worktree ${state.baseWorktree}\nHEAD ${state.local ?? state.remote}\nbranch refs/heads/${base}\n`;
       return ok(roster);
     }
-    if (args[0] === "status") return ok(state.dirty ? "?? local.txt\0" : "");
-    if (args[0] === "merge") {
-      state.local = state.remote;
+    if (args[0] === "worktree" && args[1] === "add") {
+      if (state.managedAddFails) {
+        if (state.moveOnManagedAddFailure !== undefined) state.local = state.moveOnManagedAddFailure;
+        throw new Error("base became busy");
+      }
+      managedWorktree = true;
+      if (args.includes("-b")) state.local = state.remote;
+      if (state.moveAfterManagedClaim !== undefined) state.local = state.moveAfterManagedClaim;
       return ok();
     }
-    if (args[0] === "branch") {
+    if (args[0] === "worktree" && args[1] === "remove") {
+      if (state.managedCleanupFails) throw new Error("cleanup failed");
+      managedWorktree = false;
+      return ok();
+    }
+    if (args[0] === "symbolic-ref") return ok(`refs/heads/${base}`);
+    if (args[0] === "status") return ok(state.dirty ? "?? local.txt\0" : "");
+    if (args[0] === "merge") {
       state.local = state.remote;
       return ok();
     }
     throw new Error(`unexpected git invocation: ${args.join(" ")}`);
   };
 
-  return { exec, currentBase: () => state.local };
+  return {
+    exec,
+    currentBase: () => state.local,
+    managedWorktreePresent: () => managedWorktree,
+  };
 }
 
 describe("syncLocalBase", () => {
   it("reports an already-current base without inspecting worktrees", async () => {
     const repo = fakeRepo({ local: "same", remote: "same", worktreeListFails: true });
 
-    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "main" });
+    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "main", tempDirectories });
 
     expect(result).toEqual({ status: "unchanged", base: "main", at: "same" });
     expect(repo.currentBase()).toBe("same");
@@ -76,7 +106,7 @@ describe("syncLocalBase", () => {
   it("refuses a local-ahead base without moving it", async () => {
     const repo = fakeRepo({ local: "local", remote: "remote", distance: "2 0" });
 
-    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "main" });
+    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "main", tempDirectories });
 
     expect(result).toEqual({ status: "refused", reason: "local-ahead", base: "main" });
     expect(repo.currentBase()).toBe("local");
@@ -103,23 +133,24 @@ describe("syncLocalBase", () => {
   it("creates a missing, non-checked-out local base at the remote head", async () => {
     const repo = fakeRepo({ local: null, remote: "remote" });
 
-    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "main" });
+    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "main", tempDirectories });
 
     expect(result).toEqual({
       status: "updated",
-      method: "direct-ref",
+      method: "managed-worktree",
       base: "main",
       from: null,
       to: "remote",
       worktreePath: null,
     });
     expect(repo.currentBase()).toBe("remote");
+    expect(repo.managedWorktreePresent()).toBe(false);
   });
 
   it("honors a configured non-default base branch", async () => {
     const repo = fakeRepo({ base: "develop", local: "local", remote: "remote" });
 
-    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "develop" });
+    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "develop", tempDirectories });
 
     expect(result).toMatchObject({ status: "updated", base: "develop", to: "remote" });
     expect(repo.currentBase()).toBe("remote");
@@ -132,7 +163,7 @@ describe("syncLocalBase", () => {
       ambiguousShortName: true,
     });
 
-    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "main" });
+    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "main", tempDirectories });
 
     expect(result).toMatchObject({
       status: "updated",
@@ -141,6 +172,54 @@ describe("syncLocalBase", () => {
       to: "remote",
     });
     expect(repo.currentBase()).toBe("remote");
+  });
+
+  it("refuses when the base moves while its managed worktree is being claimed", async () => {
+    const repo = fakeRepo({
+      local: "local",
+      remote: "remote",
+      managedAddFails: true,
+      moveOnManagedAddFailure: "concurrent",
+    });
+
+    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "main", tempDirectories });
+
+    expect(result).toEqual({ status: "refused", reason: "base-moved", base: "main" });
+    expect(repo.currentBase()).toBe("concurrent");
+  });
+
+  it("revalidates the base after claiming its managed worktree", async () => {
+    const repo = fakeRepo({
+      local: "local",
+      remote: "remote",
+      moveAfterManagedClaim: "concurrent",
+    });
+
+    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "main", tempDirectories });
+
+    expect(result).toEqual({ status: "refused", reason: "base-moved", base: "main" });
+    expect(repo.currentBase()).toBe("concurrent");
+    expect(repo.managedWorktreePresent()).toBe(false);
+  });
+
+  it("surfaces a retained managed worktree when cleanup fails after updating", async () => {
+    const repo = fakeRepo({
+      local: "local",
+      remote: "remote",
+      managedCleanupFails: true,
+    });
+
+    const result = await syncLocalBase({ exec: repo.exec, baseBranch: "main", tempDirectories });
+
+    expect(result).toEqual({
+      status: "cleanup-required",
+      base: "main",
+      baseUpdated: true,
+      to: "remote",
+      worktreePath: "/tmp/arc-base-sync-test",
+    });
+    expect(repo.currentBase()).toBe("remote");
+    expect(repo.managedWorktreePresent()).toBe(true);
   });
 
   it("refuses when the checked-out base moves after its cleanliness check", async () => {
