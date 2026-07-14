@@ -47,32 +47,20 @@ worktrees remain outside the shared roster, and physical removability depends on
 
 - _Outcome:_ One Git read now supports both the unchanged branched roster contract and exact detached-husk discovery.
 
-### `[ ]` **1.3 Define the stamped-husk removability oracle**
+### `[x]` **1.3 Define the stamped-husk removability oracle**
 
 - _Goal:_ Every physical husk-removal surface reaches the same conservative decision from marker provenance, worktree
   cleanliness, and exact `HEAD` equality.
 
-    - `[ ]` **1.3.a Add a husk-specific cleanup decision**
-        - Add the shared pure decision beside `decideWorktreeCleanup()` in
-          `packages/arc-framework/src/lib/git/worktree-cleanup.ts`; do not reinterpret the existing branched-worktree
-          merge gate.
+    - `[x]` **1.3.a Add a husk-specific cleanup decision**
+        - Added and exported a terminal-husk oracle beside the unchanged branched-worktree cleanup gate, with explicit
+          removable, blocked, and outside-path dispositions.
 
-        - Treat a valid husk stamp, clean tree, and `HEAD === husk.sha` as removable; distinguish dirty and moved `HEAD`
-          refusals; treat absent, malformed, or unstamped markers as outside the stamped-husk path.
+    - `[x]` **1.3.b Prove the oracle's fail-closed matrix test-first**
+        - Covered exact stamped-`HEAD` success, distinct uncommitted and moved-`HEAD` refusals, and fail-closed handling
+          for absent, malformed, and valid-but-unstamped markers without ancestry inputs.
 
-        - Export the husk decision function and its input/result types from `packages/arc-framework/src/lib/git/index.ts`
-          beside the existing worktree-cleanup API.
-
-    - `[ ]` **1.3.b Prove the oracle's fail-closed matrix test-first**
-        - Keep ancestry and patch-containment signals out of the oracle so squash-merged husks do not become permanent
-          false negatives.
-
-        - Build `test-first` (one behavior at a time):
-            - A clean stamped husk at the stamped `HEAD` is removable.
-
-            - Dirty tree and moved `HEAD` produce distinct blocked decisions.
-
-            - Missing stamp, malformed marker, and markerless inputs remain outside the trusted husk path.
+- _Outcome:_ Physical husk removal now has one conservative decision contract shared independently of merge topology.
 
 ## **Phase 2:** Safe self-teardown and idempotent replay
 

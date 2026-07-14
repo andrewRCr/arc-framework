@@ -160,7 +160,10 @@ export {
 } from "./worktree-scaffold.js";
 
 export {
+  decideHuskCleanup,
   decideWorktreeCleanup,
+  type HuskCleanupDecision,
+  type HuskCleanupInputs,
   type WorktreeCleanupContext,
   type WorktreeCleanupDecision,
   type WorktreeCleanupInputs,
