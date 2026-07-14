@@ -47,17 +47,10 @@ consumer changes validation authority.
 - _Goal:_ One pure TypeScript path accepts, warns, or rejects the exact message bytes according to the complete current
   policy while returning focused, machine-stable diagnostics.
 
-    - `[ ]` **1.2.a Parse the message and its final trailer block**
-        - Represent Conventional Commit subject parts, body lines, and git-style trailers without enforcing ARC policy
-          in the parser.
-        - Build `test-first` (one behavior at a time):
-            - Optional scope, arbitrary type, and the breaking `!` marker parse as syntax.
-            - The final `Key: value` block is separated from body prose.
-            - Continuation lines fold into their preceding trailer value.
-            - Repeated `Context:` trailers select the last occurrence.
-            - A `Context:`-shaped body line outside the final trailer block is not treated as the footer.
-            - Integration cases agree with `git interpret-trailers --parse` for final-block boundaries, continuation
-              folding, and repeated-trailer order before policy selects the last `Context:` value.
+    - `[x]` **1.2.a Parse the message and its final trailer block**
+        - Added a policy-free parser for arbitrary Conventional Commit syntax, physical/body lines, and final Git
+          trailer blocks with continuation folding and last-`Context` selection; integration cases match
+          `git interpret-trailers --parse` for boundaries, folding, and ordering.
 
     - `[ ]` **1.2.b Apply subject and body policy**
         - Enforce conventional, custom, and any-format modes; the current type set and required scope; subject bounds;
