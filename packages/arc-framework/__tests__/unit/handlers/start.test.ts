@@ -37,6 +37,12 @@ const mockReadFile = vi.fn(async () => "");
 const mockWriteFile = vi.fn();
 const mockMkdir = vi.fn();
 const mockResolveComposedLifecycleIndex = vi.fn();
+const mockBaseReadFile = vi.fn(async () => "");
+const mockBaseFs = {
+  readdir: vi.fn(async () => []),
+  readFile: mockBaseReadFile,
+};
+const mockCreateProjectViewRefSnapshot = vi.fn();
 
 vi.mock("../../../src/commands/start.js", () => ({
   buildCreateNewCeremonyCommitMessage: (name: string) =>
@@ -62,6 +68,14 @@ vi.mock("../../../src/lib/work-unit/composed-lifecycle-index.js", async (importO
     resolveComposedLifecycleIndex: (...args: unknown[]) => mockResolveComposedLifecycleIndex(...args),
   };
 });
+
+vi.mock("../../../src/lib/git/refresh-base.js", () => ({
+  refreshBase: async () => "origin/main",
+}));
+
+vi.mock("../../../src/lib/status/project-view-ref.js", () => ({
+  createProjectViewRefSnapshot: (...args: unknown[]) => mockCreateProjectViewRefSnapshot(...args),
+}));
 
 vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({
   buildExecutorContext: () => ({}),
@@ -118,8 +132,14 @@ describe("handleStart — dispatch orchestration", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockExec.mockResolvedValue({ stdout: "", stderr: "" });
+    mockExec.mockImplementation(async (_cmd, args) =>
+      args[0] === "rev-parse" && String(args[1]).endsWith("^{commit}")
+        ? { stdout: "base123\n", stderr: "" }
+        : { stdout: "", stderr: "" },
+    );
     mockReadFile.mockResolvedValue("");
+    mockBaseReadFile.mockResolvedValue("");
+    mockCreateProjectViewRefSnapshot.mockResolvedValue({ ok: true, fs: mockBaseFs });
     mockMkdir.mockResolvedValue(undefined);
     mockIsNonInteractive.mockReturnValue(true); // skip confirm by default
     mockIsCancel.mockReturnValue(false);
@@ -165,9 +185,11 @@ describe("handleStart — dispatch orchestration", () => {
       value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
     });
 
-    await handleStart("widget", {});
+    await handleStart("widget", { new: true });
 
     expect(mockRunCreateNew).toHaveBeenCalledTimes(1);
+    expect(mockResolveStartDispatch).toHaveBeenCalledWith(expect.any(Map), "widget", { create: true });
+    expect(mockRunCreateNew.mock.calls[0]?.[1]).toMatchObject({ baseRef: "base123" });
     expect((mockNote.mock.calls[0]?.[0] as string)).toContain("plan/widget");
     expect(process.exitCode).toBeUndefined();
   });
@@ -182,7 +204,7 @@ describe("handleStart — dispatch orchestration", () => {
       args[0] === "rev-parse" ? { stdout: "abc1234\n", stderr: "" } : { stdout: "", stderr: "" },
     );
 
-    await handleStart("widget", {});
+    await handleStart("widget", { new: true });
 
     expect(mockExec).toHaveBeenCalledWith(
       "git",
@@ -228,7 +250,9 @@ describe("handleStart — dispatch orchestration", () => {
     await handleStart("widget", {});
 
     expect(mockRunGraduate).toHaveBeenCalledTimes(1);
-    expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", baseBranch: "main" });
+    expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", baseBranch: "base123" });
+    expect(mockResolveComposedLifecycleIndex).toHaveBeenCalledWith(expect.objectContaining({ fs: mockBaseFs }));
+    expect(mockBaseReadFile).toHaveBeenCalledWith("/repo/.arc/backlog/planned/widget/meta-widget.md");
     expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Graduated");
   });
 
@@ -521,6 +545,29 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockRunGraduate).toHaveBeenCalledTimes(1);
     expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", inPlace: true });
     expect(mockRunGraduate.mock.calls[0]?.[1]).not.toHaveProperty("baseBranch");
+  });
+
+  it("refuses an in-place graduation when the invoking meta differs from base", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockBaseReadFile.mockResolvedValue("base meta");
+    mockReadFile.mockResolvedValue("stale meta");
+
+    await handleStart("widget", { here: true });
+
+    expect(mockRunGraduate).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/differs from the base snapshot/iu));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("fails closed when the base lifecycle snapshot is unreadable", async () => {
+    mockCreateProjectViewRefSnapshot.mockResolvedValue({ ok: false, reason: "could not read base lifecycle tree" });
+
+    await handleStart("widget", { new: true });
+
+    expect(mockResolveStartDispatch).not.toHaveBeenCalled();
+    expect(mockRunCreateNew).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith("could not read base lifecycle tree");
+    expect(process.exitCode).toBe(1);
   });
 
   it("aborts on confirm-decline — routes nothing", async () => {

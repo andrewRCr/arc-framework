@@ -6,7 +6,7 @@
  * {@link runColdStart} are the per-arm cores (resume reuses the shipped `resume`
  * verb).
  *
- * {@link runCreateNew} is the default (create-new) path: it cuts an isolated
+ * {@link runCreateNew} is the explicit create-new path: it cuts an isolated
  * worktree on a new `plan/<name>` branch via the `reconcile-worktree.spawn` leg
  * (ARC mints it, so the ownership marker lands), then scaffolds the Planning meta
  * + SESSION-NOTES. It is what the `arc-session` skill reaches for when starting
@@ -42,6 +42,7 @@ import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
 import {
   buildLifecycleIndex,
   type LifecycleIndex,
+  type LifecycleIndexFs,
 } from "../lib/work-unit/lifecycle-index.js";
 import {
   resolveSlugPosition,
@@ -66,9 +67,9 @@ import {
 
 /**
  * The arm `start` dispatches to for a resolved lifecycle state. `create-new`
- * and `cold-start` mint a fresh worktree; `graduate` relocates a backlog stub
- * onto its branch; `resume` re-attaches a parked shelf; `refuse` carries a
- * directed reason for the already-live / terminal states.
+ * mints a fresh worktree, `cold-start` scaffolds the current checkout,
+ * `graduate` relocates a backlog stub onto its branch, `resume` re-attaches a
+ * parked shelf, and `refuse` carries a directed reason.
  */
 export type StartArm =
   | { arm: "create-new" }
@@ -76,6 +77,12 @@ export type StartArm =
   | { arm: "graduate" }
   | { arm: "resume" }
   | { arm: "refuse"; reason: string };
+
+/** Explicit intent that can authorize creation for an otherwise-absent slug. */
+export interface StartDispatchOptions {
+  /** Create a fresh work unit when, and only when, the slug is nonexistent. */
+  create?: boolean;
+}
 
 /**
  * Resolve which `start` arm a named work unit routes to, purely from its
@@ -87,12 +94,30 @@ export type StartArm =
  *
  * @param index - The lifecycle-complete index from `buildLifecycleIndex`.
  * @param name - The work-unit name `start` was invoked with.
+ * @param options - Explicit dispatch intent; creation stays disabled by default.
  * @returns The dispatch arm (with a reason on the refuse arm).
  */
-export function resolveStartDispatch(index: LifecycleIndex, name: string): StartArm {
-  switch (resolveSlugState(index, name)) {
+export function resolveStartDispatch(
+  index: LifecycleIndex,
+  name: string,
+  options: StartDispatchOptions = {},
+): StartArm {
+  const state = resolveSlugState(index, name);
+  if (options.create === true && state !== "nonexistent") {
+    return {
+      arm: "refuse",
+      reason: `\`${name}\` already exists — omit \`--new\` to start it from its current lifecycle state.`,
+    };
+  }
+
+  switch (state) {
     case "nonexistent":
-      return { arm: "create-new" };
+      return options.create === true
+        ? { arm: "create-new" }
+        : {
+            arm: "refuse",
+            reason: `\`${name}\` does not exist on the base branch — pass \`--new\` to create it explicitly.`,
+          };
     case "provisional":
     case "planned":
       return { arm: "graduate" };
@@ -204,6 +229,13 @@ interface GraduateBaseParams {
 }
 
 /** Spawn-path `graduate` (the default) — cuts `plan/<name>` in a fresh worktree. */
+export interface GraduateSourceIndex {
+  /** Repository root paths in the source filesystem are relative to. */
+  cwd: string;
+  /** Lifecycle filesystem pinned to the branch-cut source tree. */
+  fs: LifecycleIndexFs;
+}
+
 export interface GraduateSpawnParams extends GraduateBaseParams {
   /** In-place opt-out off by default — this is the spawning path. */
   inPlace?: false;
@@ -221,6 +253,8 @@ export interface GraduateSpawnParams extends GraduateBaseParams {
   primaryWorktreePath?: string;
   /** Comma-separated registered harness dirs to copy from the primary checkout. */
   registeredHarnessDirs?: string;
+  /** Base-pinned lifecycle tree used for the pre-spawn source guard. */
+  sourceIndex?: GraduateSourceIndex;
 }
 
 /**
@@ -301,7 +335,12 @@ export async function runGraduate(
   params: GraduateParams,
 ): Promise<GraduateResult> {
   const branch = `plan/${params.name}`;
-  const preflight = await preflightGraduate(ctx, params.name, params.cls);
+  const preflight = await preflightGraduate(
+    ctx,
+    params.name,
+    params.cls,
+    params.inPlace ? undefined : params.sourceIndex,
+  );
   if (preflight !== null) return { status: "rejected", reason: preflight };
 
   if (!params.inPlace) {
@@ -379,12 +418,14 @@ async function preflightGraduate(
   ctx: ExecuteTransitionContext,
   name: string,
   cls: string,
+  sourceIndex?: GraduateSourceIndex,
 ): Promise<string | null> {
   if (cls === "" || cls === "[TBD]") {
     return "`start` requires a resolved `Class` (not `[TBD]`) supplied in inputs.";
   }
 
-  const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
+  const source = sourceIndex ?? { cwd: ctx.cwd, fs: ctx.indexFs };
+  const index = await buildLifecycleIndex(source);
   const position = resolveSlugPosition(index, name);
   if (
     position === null ||
@@ -402,7 +443,7 @@ async function preflightGraduate(
 
   let content: string;
   try {
-    content = await ctx.indexFs.readFile(join(ctx.cwd, entry.path));
+    content = await source.fs.readFile(join(source.cwd, entry.path));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return `could not validate the backlog meta for \`${name}\` before mutation: ${message}`;
@@ -668,6 +709,8 @@ export interface CreateNewParams {
   identity: string;
   /** Work-unit name — required; create-new cannot derive one from a branch. */
   name?: string;
+  /** Pinned base ref supplied by the dispatching handler; defaults to configured `branch.base`. */
+  baseRef?: string;
 }
 
 /** Outcome detail of a successful create-new spawn. */
@@ -719,7 +762,7 @@ export async function runCreateNew(
   }
 
   const { settings } = await readConfigSettings(params.worktreePath);
-  const baseBranch = settings["branch.base"];
+  const baseBranch = params.baseRef ?? settings["branch.base"];
   const locationTemplate = settings["worktree.location_template"];
   const postCreateScript = settings["worktree.post_create"];
   const registeredHarnessDirs = settings["worktree.harness_dirs"];

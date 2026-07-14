@@ -2,9 +2,9 @@
  * Unit tests for `resolveStartDispatch` — the pure routing core of `arc start`.
  *
  * `start` is the polymorphic entry verb: it resolves the named work unit's
- * lifecycle state and routes to the matching arm — create-new from a nonexistent
- * name, graduate from a backlog tier, resume from a parked shelf, and a directed
- * refusal from the already-live / terminal states. The routing is a pure function
+ * lifecycle state and routes to the matching arm — explicitly create-new from a
+ * nonexistent name, graduate from a backlog tier, resume from a parked shelf,
+ * and a directed refusal from the already-live / terminal states. The routing is a pure function
  * of the lifecycle index, exercised here over hand-built in-memory entries (one
  * per resolved state) so each branch is asserted without touching the filesystem.
  */
@@ -32,8 +32,23 @@ function indexAt(slug: string, position: LifecyclePosition): LifecycleIndex {
 }
 
 describe("resolveStartDispatch — routing on resolved state", () => {
-  it("routes a nonexistent name to create-new", () => {
-    expect(resolveStartDispatch(new Map(), "widget")).toEqual({ arm: "create-new" });
+  it("refuses a nonexistent name without explicit creation intent", () => {
+    const result = resolveStartDispatch(new Map(), "widget");
+    expect(result.arm).toBe("refuse");
+    if (result.arm !== "refuse") return;
+    expect(result.reason).toMatch(/--new/iu);
+  });
+
+  it("routes a nonexistent name to create-new with explicit creation intent", () => {
+    expect(resolveStartDispatch(new Map(), "widget", { create: true })).toEqual({ arm: "create-new" });
+  });
+
+  it("refuses explicit creation when the slug already exists", () => {
+    const index = indexAt("widget", { phase: "Planning", location: "planned" });
+    const result = resolveStartDispatch(index, "widget", { create: true });
+    expect(result.arm).toBe("refuse");
+    if (result.arm !== "refuse") return;
+    expect(result.reason).toMatch(/already exists|omit.*--new/iu);
   });
 
   it("routes a provisional stub to graduate", () => {

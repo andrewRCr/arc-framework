@@ -51,9 +51,9 @@ forcing in-place; the `--here` cold-start path is the one explicit in-place over
   This is the single-worktree path: one work unit at a time in one checkout.
 - **Worktree-creating** — spawning the work unit into a dedicated worktree creates the planning branch, the
   fresh meta file, the seeded SESSION-NOTES, and the worktree ownership marker in a single operation. The
-  spawn entry point performs this; the inline Step 2 and Step 4 (Path B) are its in-place counterpart. Before
-  creating the worktree, run the [in-flight scope check][in-flight-scope-check] — an advisory pass over
-  in-flight work units that surfaces scope overlap and never gates.
+  `arc start {name} --new` entry point performs this; the inline Step 2 and Step 4 (Path B) are its in-place
+  counterpart. Before creating the worktree, run the [in-flight scope check][in-flight-scope-check] — an advisory
+  pass over in-flight work units that surfaces scope overlap and never gates.
 
 **Default mode selection.** Resolve the mode per protection mode ([§ Branch Protection Modes][work-org-protection]):
 
