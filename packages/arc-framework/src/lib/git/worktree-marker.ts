@@ -140,18 +140,19 @@ export function isWorktreeMarker(value: unknown): value is WorktreeMarker {
   const hasWuName = typeof marker.wuName === "string";
   const hasCreatedFor = isWorktreeSubject(marker.createdFor);
   const huskValid = marker.husk === undefined || isWorktreeHuskStamp(marker.husk);
-  const ownershipAgrees = !hasWuName
-    || !hasCreatedFor
-    || (marker.createdFor as WorktreeSubject).kind === "work-unit"
-      && (marker.createdFor as Extract<WorktreeSubject, { kind: "work-unit" }>).name === marker.wuName;
   return typeof marker.spawnedByArc === "boolean"
     && wuNameValid
     && createdForValid
     && (hasWuName || hasCreatedFor)
-    && ownershipAgrees
+    && ownershipIsConsistent(marker.wuName, marker.createdFor)
     && huskValid
     && typeof marker.spawningIdentity === "string"
     && typeof marker.createdAt === "string";
+}
+
+function ownershipIsConsistent(wuName: unknown, createdFor: unknown): boolean {
+  if (typeof wuName !== "string" || !isWorktreeSubject(createdFor)) return true;
+  return createdFor.kind === "work-unit" && createdFor.name === wuName;
 }
 
 function isWorktreeHuskStamp(value: unknown): value is WorktreeHuskStamp {
