@@ -126,7 +126,12 @@ describe("reconcileWorktree — spawn", () => {
     const marker = await readWorktreeMarker(expectedPath);
     expect(marker).toMatchObject({
       kind: "present",
-      marker: { spawnedByArc: true, wuName: "demo-wu", spawningIdentity: "andrew" },
+      marker: {
+        spawnedByArc: true,
+        wuName: "demo-wu",
+        createdFor: { kind: "work-unit", name: "demo-wu" },
+        spawningIdentity: "andrew",
+      },
     });
   });
 
@@ -159,7 +164,12 @@ describe("reconcileWorktree — spawn", () => {
     const marker = await readWorktreeMarker(expectedPath);
     expect(marker).toMatchObject({
       kind: "present",
-      marker: { spawnedByArc: true, wuName: "demo-wu", spawningIdentity: "andrew" },
+      marker: {
+        spawnedByArc: true,
+        wuName: "demo-wu",
+        createdFor: { kind: "work-unit", name: "demo-wu" },
+        spawningIdentity: "andrew",
+      },
     });
   });
 
@@ -356,7 +366,12 @@ describe("reconcileWorktree — spawn", () => {
     const marker = await readWorktreeMarker(expectedPath);
     expect(marker).toMatchObject({
       kind: "present",
-      marker: { spawnedByArc: true, wuName: "demo-wu", spawningIdentity: "andrew" },
+      marker: {
+        spawnedByArc: true,
+        wuName: "demo-wu",
+        createdFor: { kind: "work-unit", name: "demo-wu" },
+        spawningIdentity: "andrew",
+      },
     });
   });
 });

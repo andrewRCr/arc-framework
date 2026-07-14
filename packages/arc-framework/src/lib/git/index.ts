@@ -136,12 +136,16 @@ export {
 
 export {
   readWorktreeMarker,
+  stampWorktreeHusk,
   writeWorktreeMarker,
   writeWorktreeOwnershipMarker,
   resolveWorktreeMarkerPath,
   isWorktreeMarker,
   type WorktreeMarker,
+  type WorktreeHuskStamp,
+  type WorktreeHuskStampResult,
   type WorktreeMarkerReadResult,
+  type WorktreeSubject,
   type WriteWorktreeOwnershipMarkerOptions,
 } from "./worktree-marker.js";
 

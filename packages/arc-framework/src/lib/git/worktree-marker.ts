@@ -18,23 +18,52 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { atomicWriteJson } from "../fs.js";
 import type { GitExec } from "./exec.js";
 
-/** Machine-local marker recording that ARC created a worktree. */
-export interface WorktreeMarker {
+/** Logical target a worktree was created for or terminally husked from. */
+export type WorktreeSubject =
+  | { kind: "work-unit"; name: string }
+  | { kind: "errand"; slug: string }
+  | { kind: "branch"; ref: string };
+
+/** Terminal proof recorded after ARC detaches a worktree for safe later disposal. */
+export interface WorktreeHuskStamp {
+  /** Exact commit checked out when the worktree was detached. */
+  sha: string;
+  /** ISO-8601 timestamp of the detach transition. */
+  at: string;
+  /** Driver-supplied logical target completed by the transition. */
+  subject: WorktreeSubject;
+  /** Exact branch projection occupied immediately before detach. */
+  branch: string;
+}
+
+interface WorktreeMarkerBase {
   /** ARC-created provenance; written `true` — the marker's presence is the signal. */
   spawnedByArc: boolean;
-  /** Work-unit name the worktree was created to host. */
-  wuName: string;
   /** Identity that created the worktree. */
   spawningIdentity: string;
   /** ISO-8601 timestamp of marker creation. */
   createdAt: string;
+  /** Optional proof that ARC completed the terminal detach transition. */
+  husk?: WorktreeHuskStamp;
 }
+
+/** Machine-local marker recording that ARC created a worktree. */
+export type WorktreeMarker = WorktreeMarkerBase &
+  (
+    | { wuName: string; createdFor?: Extract<WorktreeSubject, { kind: "work-unit" }> }
+    | { wuName?: never; createdFor: WorktreeSubject }
+  );
 
 /** Outcome of reading the marker: present, absent, or present-but-invalid. */
 export type WorktreeMarkerReadResult =
   | { kind: "present"; marker: WorktreeMarker }
   | { kind: "absent" }
   | { kind: "malformed"; message: string; path: string };
+
+/** Outcome of extending an existing valid marker with terminal husk proof. */
+export type WorktreeHuskStampResult =
+  | { kind: "stamped"; marker: WorktreeMarker }
+  | Extract<WorktreeMarkerReadResult, { kind: "absent" | "malformed" }>;
 
 const MARKER_PATH_SEGMENTS = [".arc", "system", ".internal", "worktree-marker.json"] as const;
 const MARKER_IGNORE_PATTERN = ".arc/system/.internal/worktree-marker.json";
@@ -106,10 +135,52 @@ export async function ensureWorktreeMarkerIgnored(
 export function isWorktreeMarker(value: unknown): value is WorktreeMarker {
   if (typeof value !== "object" || value === null) return false;
   const marker = value as Record<string, unknown>;
+  const wuNameValid = marker.wuName === undefined || typeof marker.wuName === "string";
+  const createdForValid = marker.createdFor === undefined || isWorktreeSubject(marker.createdFor);
+  const hasWuName = typeof marker.wuName === "string";
+  const hasCreatedFor = isWorktreeSubject(marker.createdFor);
+  const huskValid = marker.husk === undefined || isWorktreeHuskStamp(marker.husk);
+  const ownershipAgrees = !hasWuName
+    || !hasCreatedFor
+    || (marker.createdFor as WorktreeSubject).kind === "work-unit"
+      && (marker.createdFor as Extract<WorktreeSubject, { kind: "work-unit" }>).name === marker.wuName;
   return typeof marker.spawnedByArc === "boolean"
-    && typeof marker.wuName === "string"
+    && wuNameValid
+    && createdForValid
+    && (hasWuName || hasCreatedFor)
+    && ownershipAgrees
+    && huskValid
     && typeof marker.spawningIdentity === "string"
     && typeof marker.createdAt === "string";
+}
+
+function isWorktreeHuskStamp(value: unknown): value is WorktreeHuskStamp {
+  if (typeof value !== "object" || value === null) return false;
+  const husk = value as Record<string, unknown>;
+  if (
+    typeof husk.sha !== "string"
+    || typeof husk.at !== "string"
+    || !isWorktreeSubject(husk.subject)
+    || typeof husk.branch !== "string"
+  ) {
+    return false;
+  }
+  return husk.subject.kind !== "branch" || husk.subject.ref === husk.branch;
+}
+
+function isWorktreeSubject(value: unknown): value is WorktreeSubject {
+  if (typeof value !== "object" || value === null) return false;
+  const subject = value as Record<string, unknown>;
+  switch (subject.kind) {
+    case "work-unit":
+      return typeof subject.name === "string";
+    case "errand":
+      return typeof subject.slug === "string";
+    case "branch":
+      return typeof subject.ref === "string";
+    default:
+      return false;
+  }
 }
 
 /**
@@ -130,8 +201,8 @@ export interface WriteWorktreeOwnershipMarkerOptions {
    * the worktree is externally-created and its cleanup stays advisory.
    */
   createdByArc: boolean;
-  /** Work-unit name the worktree was created to host. */
-  wuName: string;
+  /** Logical target the worktree was created to host. */
+  createdFor: WorktreeSubject;
   /** Identity that created the worktree. */
   spawningIdentity: string;
   /** Marker creation time in epoch millis; defaults to `Date.now()`. Injectable for tests. */
@@ -155,12 +226,37 @@ export async function writeWorktreeOwnershipMarker(
   options: WriteWorktreeOwnershipMarkerOptions,
 ): Promise<void> {
   if (!options.createdByArc) return;
+  const ownership = options.createdFor.kind === "work-unit"
+    ? { wuName: options.createdFor.name, createdFor: options.createdFor }
+    : { createdFor: options.createdFor };
   await writeWorktreeMarker(cwd, {
     spawnedByArc: true,
-    wuName: options.wuName,
+    ...ownership,
     spawningIdentity: options.spawningIdentity,
     createdAt: new Date(options.now ?? Date.now()).toISOString(),
   });
+}
+
+/**
+ * Add terminal husk proof to an existing valid ownership marker.
+ *
+ * Missing and malformed markers are returned unchanged: this operation never
+ * creates provenance or repairs an invalid record.
+ *
+ * @param cwd - Worktree root whose marker should be extended
+ * @param husk - Driver-supplied terminal proof
+ * @returns Whether the marker was stamped, absent, or malformed
+ */
+export async function stampWorktreeHusk(
+  cwd: string,
+  husk: WorktreeHuskStamp,
+): Promise<WorktreeHuskStampResult> {
+  const current = await readWorktreeMarker(cwd);
+  if (current.kind !== "present") return current;
+
+  const marker: WorktreeMarker = { ...current.marker, husk };
+  await writeWorktreeMarker(cwd, marker);
+  return { kind: "stamped", marker };
 }
 
 /**

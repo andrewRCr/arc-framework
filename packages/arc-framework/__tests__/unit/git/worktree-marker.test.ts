@@ -15,10 +15,13 @@ import {
   ensureWorktreeMarkerIgnored,
   nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarker,
+  stampWorktreeHusk,
   writeWorktreeMarker,
   writeWorktreeOwnershipMarker,
   resolveWorktreeMarkerPath,
   type WorktreeMarker,
+  type WorktreeHuskStamp,
+  type WorktreeSubject,
 } from "../../../src/lib/git/worktree-marker.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
@@ -69,6 +72,92 @@ describe("worktree-marker", () => {
 
     expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
   });
+
+  it.each<WorktreeSubject>([
+    { kind: "work-unit", name: "worktree-foundation" },
+    { kind: "errand", slug: "refresh-fixtures" },
+    { kind: "branch", ref: "chore/refresh-fixtures" },
+  ])("round-trips neutral $kind ownership without deriving it from a branch", async (createdFor) => {
+    const marker: WorktreeMarker = {
+      spawnedByArc: true,
+      createdFor,
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+
+    await writeWorktreeMarker(cwd, marker);
+
+    expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker });
+  });
+
+  it("accepts agreeing dual-written WU ownership and rejects conflicting or identity-free markers", async () => {
+    const path = resolveWorktreeMarkerPath(cwd);
+    await mkdir(dirname(path), { recursive: true });
+    const base = {
+      spawnedByArc: true,
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    };
+    const agreeing: WorktreeMarker = {
+      ...base,
+      wuName: "worktree-foundation",
+      createdFor: { kind: "work-unit", name: "worktree-foundation" },
+    };
+
+    await writeFile(path, JSON.stringify(agreeing), "utf8");
+    expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker: agreeing });
+
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...base,
+        wuName: "worktree-foundation",
+        createdFor: { kind: "work-unit", name: "another-work-unit" },
+      }),
+      "utf8",
+    );
+    expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
+
+    await writeFile(path, JSON.stringify(base), "utf8");
+    expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
+  });
+
+  it("round-trips a complete husk stamp without changing its terminal identity or projection", async () => {
+    const husk: WorktreeHuskStamp = {
+      sha: "0123456789abcdef0123456789abcdef01234567",
+      at: "2026-07-14T20:00:00.000Z",
+      subject: { kind: "work-unit", name: "worktree-foundation" },
+      branch: "feat/worktree-foundation",
+    };
+    const marker: WorktreeMarker = { ...sampleMarker, husk };
+
+    await writeWorktreeMarker(cwd, marker);
+
+    expect(await readWorktreeMarker(cwd)).toEqual({ kind: "present", marker });
+  });
+
+  it("rejects partial husk stamps and recordless subjects that disagree with the stamped branch", async () => {
+    const path = resolveWorktreeMarkerPath(cwd);
+    await mkdir(dirname(path), { recursive: true });
+
+    await writeFile(path, JSON.stringify({ ...sampleMarker, husk: { sha: "abc" } }), "utf8");
+    expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
+
+    await writeFile(
+      path,
+      JSON.stringify({
+        ...sampleMarker,
+        husk: {
+          sha: "0123456789abcdef0123456789abcdef01234567",
+          at: "2026-07-14T20:00:00.000Z",
+          subject: { kind: "branch", ref: "chore/one" },
+          branch: "chore/two",
+        },
+      }),
+      "utf8",
+    );
+    expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
+  });
 });
 
 describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write", () => {
@@ -85,7 +174,7 @@ describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write",
   it("writes a spawnedByArc marker with the injected timestamp when ARC created the worktree", async () => {
     await writeWorktreeOwnershipMarker(cwd, {
       createdByArc: true,
-      wuName: "worktree-foundation",
+      createdFor: { kind: "work-unit", name: "worktree-foundation" },
       spawningIdentity: "andrew",
       now: Date.parse("2026-05-27T12:00:00.000Z"),
     });
@@ -95,6 +184,7 @@ describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write",
       marker: {
         spawnedByArc: true,
         wuName: "worktree-foundation",
+        createdFor: { kind: "work-unit", name: "worktree-foundation" },
         spawningIdentity: "andrew",
         createdAt: "2026-05-27T12:00:00.000Z",
       },
@@ -104,11 +194,86 @@ describe("writeWorktreeOwnershipMarker — created-by-arc flag gates the write",
   it("writes no marker for an advisory worktree ARC did not create", async () => {
     await writeWorktreeOwnershipMarker(cwd, {
       createdByArc: false,
-      wuName: "worktree-foundation",
+      createdFor: { kind: "work-unit", name: "worktree-foundation" },
       spawningIdentity: "andrew",
     });
 
     expect(await readWorktreeMarker(cwd)).toEqual({ kind: "absent" });
+  });
+
+  it("writes neutral non-WU ownership without fabricating a legacy WU name", async () => {
+    await writeWorktreeOwnershipMarker(cwd, {
+      createdByArc: true,
+      createdFor: { kind: "errand", slug: "refresh-fixtures" },
+      spawningIdentity: "andrew",
+      now: Date.parse("2026-05-27T12:00:00.000Z"),
+    });
+
+    expect(await readWorktreeMarker(cwd)).toEqual({
+      kind: "present",
+      marker: {
+        spawnedByArc: true,
+        createdFor: { kind: "errand", slug: "refresh-fixtures" },
+        spawningIdentity: "andrew",
+        createdAt: "2026-05-27T12:00:00.000Z",
+      },
+    });
+  });
+});
+
+describe("stampWorktreeHusk", () => {
+  let cwd: string;
+  const husk: WorktreeHuskStamp = {
+    sha: "0123456789abcdef0123456789abcdef01234567",
+    at: "2026-07-14T20:00:00.000Z",
+    subject: { kind: "work-unit", name: "worktree-foundation" },
+    branch: "feat/worktree-foundation",
+  };
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-worktree-husk-stamp-"));
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it.each<WorktreeMarker>([
+    {
+      spawnedByArc: true,
+      wuName: "worktree-foundation",
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    },
+    {
+      spawnedByArc: true,
+      createdFor: { kind: "errand", slug: "refresh-fixtures" },
+      spawningIdentity: "andrew",
+      createdAt: "2026-05-25T00:00:00.000Z",
+    },
+  ])("extends valid ownership without changing its creation fields", async (marker) => {
+    await writeWorktreeMarker(cwd, marker);
+
+    expect(await stampWorktreeHusk(cwd, husk)).toEqual({
+      kind: "stamped",
+      marker: { ...marker, husk },
+    });
+    expect(await readWorktreeMarker(cwd)).toEqual({
+      kind: "present",
+      marker: { ...marker, husk },
+    });
+  });
+
+  it("does not mint or repair ownership when the marker is absent or malformed", async () => {
+    expect(await stampWorktreeHusk(cwd, husk)).toEqual({ kind: "absent" });
+    expect(await readWorktreeMarker(cwd)).toEqual({ kind: "absent" });
+
+    const path = resolveWorktreeMarkerPath(cwd);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, "{ not json", "utf8");
+
+    expect((await stampWorktreeHusk(cwd, husk)).kind).toBe("malformed");
+    expect(await readFile(path, "utf8")).toBe("{ not json");
   });
 });
 

@@ -13,62 +13,25 @@ _Design decisions:_ The optional marker stamp is the only proof that ARC complet
 worktrees remain outside the shared roster, and physical removability depends on tree cleanliness plus exact stamped
 `HEAD` equality rather than branch ancestry.
 
-### `[ ]` **1.1 Add neutral worktree subjects and an optional husk stamp**
+### `[x]` **1.1 Add neutral worktree subjects and an optional husk stamp**
 
 - _Goal:_ An ARC-marked worktree can distinguish its creation owner from the exact logical target and branch husked at
   teardown without invalidating legacy WU markers or turning an absent or malformed marker into ARC ownership.
 
-    - `[ ]` **1.1.a Add the typed subject and husk schemas with round-trip coverage**
-        - Define and export a shared discriminated `WorktreeSubject`: `{ kind: "work-unit"; name: string }`,
-          `{ kind: "errand"; slug: string }`, or genuinely recordless `{ kind: "branch"; ref: string }`. Keep logical
-          identity separate from branch projection.
+    - `[x]` **1.1.a Add the typed subject and husk schemas with round-trip coverage**
+        - Added neutral work-unit, errand, and recordless-branch subjects plus strict creation-ownership and terminal
+          stamp validation, retaining legacy-marker compatibility and rejecting contradictory or partial proof.
 
-        - Evolve `WorktreeMarker` in `packages/arc-framework/src/lib/git/worktree-marker.ts` to accept legacy
-          `wuName` ownership and a neutral `createdFor` subject; newly written WU markers dual-write both during
-          compatibility so existing readers and machine-local markers remain valid. Require at least one ownership
-          identity and reject disagreement when `wuName` and a WU `createdFor` subject coexist.
+    - `[x]` **1.1.b Move marker producers onto the neutral creation-subject API**
+        - Marker producers now accept typed creation subjects; WU spawn paths dual-write agreeing `createdFor` and
+          legacy `wuName` identities, while neutral producers never fabricate WU ownership.
 
-        - Add optional `husk?: { sha: string; at: string; subject: WorktreeSubject; branch: string }`. The terminal
-          subject is driver-supplied and may differ from `createdFor`; `branch` is the exact projection at detach, and
-          a recordless branch subject must carry the same exact value in `subject.ref`.
+    - `[x]` **1.1.c Add a non-minting marker-extension operation**
+        - Added and exported an atomic husk-stamp extension that preserves valid ownership and returns absent or
+          malformed markers untouched.
 
-        - Build `test-first` (one behavior at a time):
-            - Existing `wuName` ownership markers still validate and round-trip unchanged.
-
-            - New WU, errand, and recordless-branch creation subjects validate without deriving identity from a branch.
-
-            - Dual-written WU ownership agrees exactly; conflicting `wuName` / `createdFor` and mismatched recordless
-              subject / projection pairs are malformed.
-
-            - A complete husk stamp preserves its exact SHA, timestamp, subject, and branch projection.
-
-            - Partial or wrongly typed husk stamps make the marker malformed rather than silently dropping proof.
-
-    - `[ ]` **1.1.b Move marker producers onto the neutral creation-subject API**
-        - Replace the WU-only `WriteWorktreeOwnershipMarkerOptions.wuName` input with `createdFor: WorktreeSubject`.
-          When the subject is `work-unit`, persist both `createdFor` and the matching legacy `wuName`; other subject
-          kinds persist no fabricated WU identity.
-
-        - Update the WU spawn paths in `packages/arc-framework/src/lib/git/worktree-scaffold.ts` and
-          `packages/arc-framework/src/lib/work-unit/mutators/reconcile-worktree.ts` to pass the typed WU subject.
-
-        - Update exact marker-shape fixtures and assertions in the focused marker, scaffold, reconcile-worktree, start,
-          and start-dispatch tests so dual-written WU compatibility is explicit while markerless creation stays absent.
-
-    - `[ ]` **1.1.c Add a non-minting marker-extension operation**
-        - Add a helper that reads a currently valid, present ownership marker, preserves every creation-ownership
-          field, and atomically rewrites the driver-supplied terminal stamp through the existing file-replacement
-          primitive.
-
-        - Export the stamp type and marker-extension operation through `packages/arc-framework/src/lib/git/index.ts`
-          alongside the existing marker API.
-
-        - Build `test-first` (one behavior at a time):
-            - A present legacy or neutral marker gains the supplied stamp without changing `createdFor` / `wuName`.
-
-            - An absent marker remains absent and reports that no stamp was written.
-
-            - A malformed marker remains untouched and is never repaired into ARC ownership.
+- _Outcome:_ Creation provenance and terminal teardown identity now share one validated marker contract without
+  widening ARC ownership at the extension boundary.
 
 ### `[ ]` **1.2 Expose detached worktree records without widening the shared roster**
 

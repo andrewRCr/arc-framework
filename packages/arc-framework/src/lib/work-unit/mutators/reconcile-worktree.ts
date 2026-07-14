@@ -294,7 +294,7 @@ export async function reconcileWorktree(
     await ensureWorktreeMarkerIgnored(worktreePath, ctx.exec, ctx.fs);
     await writeWorktreeOwnershipMarker(worktreePath, {
       createdByArc: true,
-      wuName: op.wuName,
+      createdFor: { kind: "work-unit", name: op.wuName },
       spawningIdentity: op.spawningIdentity,
       now: op.now,
     });
