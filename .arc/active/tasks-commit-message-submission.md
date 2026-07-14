@@ -137,10 +137,9 @@ gating and delegation shim only after parity is demonstrated.
         - Kept the package-authoritative and self-hosted hooks byte-identical as regular source files, centralized
           executable installation policy across init and update, and covered installed integrity recognition.
 
-    - `[ ]` **2.2.d Preserve the minimal first-release shim contract**
-        - Cover the matched CLI and a resolved CLI without the verb; accept the latter's unknown-command failure without
-          adding shim-side version negotiation or legacy-pair compatibility machinery.
-        - Run `shellcheck` over the settled shim and retain Git-for-Windows-compatible `sh` constructs.
+    - `[x]` **2.2.d Preserve the minimal first-release shim contract**
+        - Covered matched and verb-missing CLIs, preserving the latter's unknown-command failure without negotiation or
+          compatibility machinery; the settled portable shim remains shellcheck-clean.
 
     - `[ ]` **2.2.e Preserve message-path arguments through hook managers**
         - Make Husky's generated commit-message line forward `"$1"`, and audit the Lefthook / pre-commit adapters so

@@ -61,6 +61,17 @@ async function installFakeArc(path: string): Promise<void> {
   await chmod(path, 0o755);
 }
 
+async function installArcWithoutCheckVerb(path: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, [
+    "#!/bin/sh",
+    "echo \"error: unknown command 'check'\" >&2",
+    "exit 1",
+    "",
+  ].join("\n"));
+  await chmod(path, 0o755);
+}
+
 async function runHook(
   fixture: HookFixture,
   options: { exitCode?: number; path?: string } = {},
@@ -151,6 +162,16 @@ describe("commit-msg shim CLI resolution", () => {
     const result = await runHook(fixture, { exitCode });
 
     expect(result.exitCode).toBe(exitCode);
+  });
+
+  it("forwards the unknown-command failure from a CLI without the check verb", async () => {
+    const fixture = await createFixture();
+    await installArcWithoutCheckVerb(join(fixture.root, "node_modules/.bin/arc"));
+
+    const result = await runHook(fixture);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("unknown command 'check'");
   });
 
   it("fails closed with CLI resolution remediation", async () => {
