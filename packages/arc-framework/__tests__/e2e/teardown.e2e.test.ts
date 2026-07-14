@@ -7,19 +7,10 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
-
-const execFileAsync = promisify(execFile);
-
-async function git(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", ...args], { cwd });
-  return stdout.trim();
-}
+import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
 
 async function prepareSelfTeardown(
   repo: string,

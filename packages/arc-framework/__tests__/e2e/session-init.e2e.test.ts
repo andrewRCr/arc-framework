@@ -21,7 +21,7 @@ import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -159,15 +159,6 @@ function parseJsonEnvelope(stdout: string): SessionInitEnvelope {
 
 function parseRecoverAuditReport(stdout: string): RecoverAuditReport {
   return JSON.parse(stdout.trim()) as RecoverAuditReport;
-}
-
-async function git(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync(
-    "git",
-    ["-c", "core.hooksPath=/dev/null", ...args],
-    { cwd },
-  );
-  return stdout.trim();
 }
 
 function taskListFixture(title: string): string {
