@@ -1,8 +1,8 @@
 # Metadata: commit-message-submission
 
-| **State**  | **Owner** | **Branch**                       | **Class** | **Priority** |
-| ---------- | --------- | -------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/commit-message-submission` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                       | **Class** | **Priority** |
+| --------- | --------- | -------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/commit-message-submission` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,13 +11,13 @@
 - **Design:** `spec-commit-message-submission.md`
 - **Task List:** `tasks-commit-message-submission.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** Spec created — `spec-commit-message-submission.md` (detailed RFC; adversarial loop converged,
   two passes); draft retired.
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Define validator contracts and repository-state seams
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Define validator contracts and repository-state seams
 
 - **PR URL:** [none]
 - **Completed:** [none]
