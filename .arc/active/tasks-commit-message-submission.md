@@ -81,11 +81,10 @@ consumer changes validation authority.
           finding codes across duplicates, partial roots, trailer semantics, astral lengths, and exactly the five
           enumerated post-flip divergence classes.
 
-    - `[ ]` **1.3.b Run both implementations over the corpus**
-        - Add a differential integration harness that invokes the current Bash hook and the TypeScript validator against
-          the same accept, reject, and pass-with-warning fixtures.
-        - Normalize only presentation details needed for comparison; require verdict and warning/error semantics to
-          agree modulo the enumerated divergence markers.
+    - `[x]` **1.3.b Run both implementations over the corpus**
+        - Added durable TypeScript and temporary Bash differential integration runners over the same materialized bytes,
+          config, artifact roots, and role facts; verdicts agree exactly except where each enumerated divergence records
+          its pre-flip Bash result.
 
     - `[ ]` **1.3.c Fold existing hook cases into the durable suite**
         - Migrate the footer matrix and merge-exemption coverage from the existing commit-message integration and E2E
