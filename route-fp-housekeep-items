@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "route-fp-housekeep-items",
+  "origin": "description",
+  "intent": "Route FP-adjacent housekeep captures to planned work-unit homes",
+  "branch": "chore/route-fp-housekeep-items",
+  "createdAt": "2026-07-14T23:58:28.783Z",
+  "returnBranch": "main"
+}
