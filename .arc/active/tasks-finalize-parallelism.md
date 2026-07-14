@@ -615,13 +615,25 @@ notes-entry surfaces they fix. The slug-state fix owns checkout-local blindness 
 false positive and is already in flight; notes coherence follows it as a split-out WU. Both route per the burn-in
 seam rule in `notes-finalize-parallelism.md`.
 
-### `[ ]` **4.1 Prepare and launch the wave-2 workload**
+### `[x]` **4.1 Prepare and launch the wave-2 workload**
 
 - _Goal:_ Two code WUs — `worktree-teardown-decoupling` (new stub cut from the 2026-07-13 self-teardown finding's
   resolution) and `commit-message-submission` (planned P1; steer grooming toward its Light validator-reuse shape) —
   run concurrently alongside FP, deps provisioned by the BI-1 manifest.
 
-    - `[ ]` **4.1.a Confirm the wave-2 slate and spawn**
+    - `[x]` **4.1.a Confirm the wave-2 slate and spawn**
+        - Slate confirmed and both WUs spawned into provisioned worktrees with their init ceremonies on their
+          plan branches (`commit-message-submission` at `cec8fd6a2`, `worktree-teardown-decoupling` at
+          `6966113dc`). The launch itself surfaced and closed a live gap: the Class guard had no CLI input
+          channel, so the launch was blocked agent-driven — split out per the seam rule as the
+          `start-class-flag` errand (PR #236: `start --class` resolves a `[TBD]` meta at graduation,
+          `stub --class` sets it at birth), after which the CMS launch ran agent-driven end-to-end, first try.
+          The teardown stub was minted via a planning errand (PR #237). The split-out cycle also produced the
+          2026-07-14 execution-locus finding (`notes-finalize-parallelism.md`): checkout-identity failures
+          throughout, routed to a pulled-forward `session-locus-model` stub (PR #238) inside the GA gate, with
+          wave 3 re-cast as its evidence collector. 4.3 vehicle note: neither wave-2 stub carries a
+          `Depends On` list, which the 120-wrap check needs — pick the vehicle and the deps question together
+          at 4.3.a.
 
 ### `[ ]` **4.2 Verify off-primary node quality gates and dependency provisioning**
 
