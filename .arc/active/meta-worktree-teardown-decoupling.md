@@ -1,8 +1,8 @@
 # Metadata: worktree-teardown-decoupling
 
-| **State** | **Owner** | **Branch**                         | **Class** | **Priority** |
-| --------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `fix/worktree-teardown-decoupling` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                         | **Class** | **Priority** |
+| ------------- | --------- | ---------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `fix/worktree-teardown-decoupling` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-worktree-teardown-decoupling.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Add neutral worktree subjects and an optional husk stamp (line ~16)
+- **Last Completed:** Task 5.1 — Verify completion
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
