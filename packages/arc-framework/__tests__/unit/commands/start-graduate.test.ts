@@ -340,7 +340,7 @@ describe("runGraduate — backlog stub onto its branch", () => {
   });
 
   it("rejects writeClass when the executor lacks the Class-write seam (wiring error)", async () => {
-    const { ctx, classWrites } = buildCtx(
+    const { ctx, calls, classWrites } = buildCtx(
       [{ slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "[TBD]" }],
       /* occupancyOk */ true,
       /* reconcileBackfill */ [],
@@ -353,6 +353,12 @@ describe("runGraduate — backlog stub onto its branch", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/Class-write seam/i);
     expect(classWrites).toEqual([]);
+    // The refusal fires post-transition: relocate, worktree placement, and the
+    // meta reconcile have already run — the wiring error rejects the ceremony's
+    // Class write, it does not roll the transition back.
+    expect(calls).toContain("relocate:.arc/backlog/planned/widget->.arc/active");
+    expect(calls).toContain("worktree:spawn:in-place");
+    expect(calls).toContain("reconcile-meta");
   });
 
   it("rejects an old-shape meta before spawning or relocating", async () => {
