@@ -125,19 +125,13 @@ gating and delegation shim only after parity is demonstrated.
   delegated to the versioned CLI.
 - **Additional Context:** `strategy-package-project-sync.md` § Framework files (must match between copies).
 
-    - `[ ]` **2.2.a Lock shim behavior before removing Bash grammar**
-        - Add shell-facing tests for disabled validation, `MERGE_HEAD`, local and global CLI resolution, delegated exit
-          codes, and the no-CLI remediation path while the existing hook remains available to the differential harness.
-        - Build `test-first` (one behavior at a time):
-            - Disabled and merge-exempt invocations exit `0` without resolving Node or the CLI.
-            - The repository-local `node_modules/.bin/arc` wins over a global `arc`.
-            - The global path is used only when the local executable is unavailable.
-            - Enabled validation with neither path exits non-zero and names GUI, IDE, and version-manager remediation.
+    - `[x]` **2.2.a Lock shim behavior before removing Bash grammar**
+        - Added shell-facing integration coverage for exemptions, local-first and global resolution, delegated exit
+          codes, and actionable fail-closed remediation under a controlled execution path.
 
-    - `[ ]` **2.2.b Implement the gating and delegation shim**
-        - Retain only `arc-lib.sh` configuration lookup, the merge probe, local-first executable resolution, and
-          `arc check commit-msg "$1"` delegation; forward the child exit code unchanged.
-        - Ensure the shim contains no subject, body, footer, artifact, or diagnostic grammar.
+    - `[x]` **2.2.b Implement the gating and delegation shim**
+        - Replaced the Bash grammar with configuration and merge gates, repository-local/global CLI resolution, exact
+          `check commit-msg` delegation, and fail-closed remediation while forwarding delegated status unchanged.
 
     - `[ ]` **2.2.c Synchronize the shipped and self-hosted hook copies**
         - Edit `packages/arc-framework/arc/system/.internal/githooks/commit-msg` as the authoritative Framework file and
