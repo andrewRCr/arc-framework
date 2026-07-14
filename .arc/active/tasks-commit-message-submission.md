@@ -52,27 +52,10 @@ consumer changes validation authority.
           trailer blocks with continuation folding and last-`Context` selection; integration cases match
           `git interpret-trailers --parse` for boundaries, folding, and ordering.
 
-    - `[ ]` **1.2.b Apply subject and body policy**
-        - Enforce conventional, custom, and any-format modes; the current type set and required scope; subject bounds;
-          body line limits; and dotted-phase rejection as policy over the parsed message.
-        - Preserve the Bash body-limit measurement domain independently of parsed body/trailer structure: omit physical
-          lines 1 and 2, include every line from line 3 onward including trailers, count only non-empty lines for the
-          total, and apply the per-line cap throughout that region.
-        - Compile custom patterns as dependency-free ECMAScript `RegExp` source in Unicode mode: subject patterns test
-          the subject and context patterns test each logical message line, with anchors supplied by the configured
-          source when desired.
-        - Build `test-first` (one behavior at a time):
-            - Valid conventional subjects pass and each current format failure receives its own stable code.
-            - Custom patterns distinguish empty, invalid, matching, and non-matching cases without adding an npm
-              dependency.
-            - POSIX-only bracket, collating, and equivalence classes receive a configuration-located migration
-              diagnostic instead of silent reinterpretation.
-            - `commit.format: any` disables subject-format and subject-length opinions only.
-            - Subject and body limits count Unicode code points, including astral characters, rather than UTF-16 code
-              units.
-            - Body count includes non-empty trailer lines but not blank lines; line 2 remains unmeasured even when it is
-              non-empty, and an overlong trailer receives the same line-located failure as body prose.
-            - Body count, body line length, and `Phase X.Y` failures cite their offending lines and limits.
+    - `[x]` **1.2.b Apply subject and body policy**
+        - Added conventional/custom/any policy with distinct stable subject failures, dependency-free Unicode-mode
+          ECMAScript patterns and POSIX migration diagnostics, code-point length limits, Bash-compatible raw-line body
+          measurement, and line-located dotted-phase failures.
 
     - `[ ]` **1.2.c Apply footer and repository-state policy**
         - Port every accepted `Context:` family, task-reference form, configured footer mode, artifact advisory, and
