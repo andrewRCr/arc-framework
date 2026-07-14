@@ -9,7 +9,7 @@
 _Purpose:_ Establish the typed commit-message engine and prove its behavior against the Bash implementation before any
 consumer changes validation authority.
 
-### `[ ]` **1.1 Define validator contracts and repository-state seams**
+### `[x]` **1.1 Define validator contracts and repository-state seams**
 
 - _Goal:_ Every validation surface can consume one stable result model and the same injected configuration and
   repository facts without importing process or filesystem state into grammar logic.
@@ -34,19 +34,13 @@ consumer changes validation authority.
           and disabled exemptions short-circuit policy work, invalid active modes return typed findings, and role
           normalization retains contributor advisory input while defaulting other cases to maintainer.
 
-    - `[ ]` **1.1.e Align integrity validation and inline configuration guidance**
-        - Update both Framework copies of `validate-config.sh` to enforce the canonical unsigned-safe-integer domains
-          and per-key minima; retain the canonical TypeScript validator as the only custom-pattern compiler.
-        - Update the package and self-hosted configurable `arc-config.yml` sections through targeted edits so custom
-          patterns are documented as ECMAScript source without delimiters or flags and all three numeric bounds are
-          explicit, preserving project-specific values and unrelated overrides.
-        - Build `test-first` (one behavior at a time):
-            - The shell integrity check accepts each boundary value and rejects signs, non-decimal forms, unsafe
-              integers, and values below the per-key minimum with the same key-specific domain as TypeScript.
-            - Custom-pattern presence checks remain intact without evaluating the pattern through `grep -E` or another
-              second grammar implementation.
-            - Framework script copies remain byte-identical; configurable config diffs contain only the intended
-              framework-comment changes.
+    - `[x]` **1.1.e Align integrity validation and inline configuration guidance**
+        - Aligned both integrity scripts with the TypeScript numeric domains while leaving pattern compilation
+          canonical to TypeScript, and updated the configurable comments through targeted package/project edits to
+          document ECMAScript source and numeric bounds without disturbing self-hosted overrides.
+
+- _Outcome:_ All consumers now share stable contracts, exact configuration semantics, exemption ordering, and one
+  repository-resolution seam; integrity checks and author-facing configuration guidance enforce the same input domain.
 
 ### `[ ]` **1.2 Implement validator behavior and diagnostics**
 
