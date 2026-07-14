@@ -43,7 +43,7 @@ describe("integrateHooks — husky", () => {
     await integrateHooks(detection, io.readFile, io.writeFile);
 
     expect(io.written["/repo/.husky/pre-commit"]).toContain(".arc/system/.internal/githooks/pre-commit");
-    expect(io.written["/repo/.husky/commit-msg"]).toContain(".arc/system/.internal/githooks/commit-msg $1");
+    expect(io.written["/repo/.husky/commit-msg"]).toContain('.arc/system/.internal/githooks/commit-msg "$1"');
     // Pre-push forwards the remote args so the canonical hook can name the remote.
     expect(io.written["/repo/.husky/pre-push"]).toContain('.arc/system/.internal/githooks/pre-push "$@"');
     // Preserves existing content
@@ -60,14 +60,14 @@ describe("integrateHooks — husky", () => {
     expect(io.written["/repo/.husky/pre-commit"]).toMatch(/^#!/);
     expect(io.written["/repo/.husky/pre-commit"]).toContain(".arc/system/.internal/githooks/pre-commit");
     expect(io.written["/repo/.husky/commit-msg"]).toMatch(/^#!/);
-    expect(io.written["/repo/.husky/commit-msg"]).toContain(".arc/system/.internal/githooks/commit-msg $1");
+    expect(io.written["/repo/.husky/commit-msg"]).toContain('.arc/system/.internal/githooks/commit-msg "$1"');
     expect(io.written["/repo/.husky/pre-push"]).toMatch(/^#!/);
     expect(io.written["/repo/.husky/pre-push"]).toContain('.arc/system/.internal/githooks/pre-push "$@"');
   });
 
   it("is idempotent — does not duplicate entries on second run", async () => {
     const existing = "#!/usr/bin/env sh\n.arc/system/.internal/githooks/pre-commit\n";
-    const existingMsg = "#!/usr/bin/env sh\n.arc/system/.internal/githooks/commit-msg $1\n";
+    const existingMsg = '#!/usr/bin/env sh\n.arc/system/.internal/githooks/commit-msg "$1"\n';
     const existingPush = '#!/usr/bin/env sh\n.arc/system/.internal/githooks/pre-push "$@"\n';
     const io = makeIO({
       "/repo/.husky/pre-commit": existing,
@@ -79,6 +79,22 @@ describe("integrateHooks — husky", () => {
 
     // Should not write at all — nothing changed
     expect(io.written).toEqual({});
+  });
+
+  it("preserves one message argument when repository and message paths contain spaces", async () => {
+    const spacedDetection: HookManagerResult = {
+      manager: "husky",
+      configPath: "/repo with spaces/.husky",
+    };
+    const io = makeIO({
+      "/repo with spaces/.husky/commit-msg": "#!/usr/bin/env sh\necho existing\n",
+    });
+
+    await integrateHooks(spacedDetection, io.readFile, io.writeFile);
+
+    const output = io.written["/repo with spaces/.husky/commit-msg"];
+    expect(output).toContain("echo existing");
+    expect(output).toContain('.arc/system/.internal/githooks/commit-msg "$1"');
   });
 });
 
@@ -108,7 +124,7 @@ describe("integrateHooks — lefthook", () => {
     expect(output).toContain("arc-pre-commit");
     expect(output).toContain(".arc/system/.internal/githooks/pre-commit");
     expect(output).toContain("arc-commit-msg");
-    expect(output).toContain(".arc/system/.internal/githooks/commit-msg {1}");
+    expect(output).toContain('.arc/system/.internal/githooks/commit-msg "{1}"');
     expect(output).toContain("arc-pre-push");
     expect(output).toContain(".arc/system/.internal/githooks/pre-push {1} {2}");
     // Preserves existing commands
@@ -138,7 +154,7 @@ describe("integrateHooks — lefthook", () => {
       "commit-msg:",
       "  commands:",
       "    arc-commit-msg:",
-      "      run: .arc/system/.internal/githooks/commit-msg {1}",
+      '      run: .arc/system/.internal/githooks/commit-msg "{1}"',
       "pre-push:",
       "  commands:",
       "    arc-pre-push:",
@@ -150,6 +166,22 @@ describe("integrateHooks — lefthook", () => {
     await integrateHooks(detection, io.readFile, io.writeFile);
 
     expect(io.written).toEqual({});
+  });
+
+  it("quotes the message placeholder when the config path contains spaces", async () => {
+    const spacedDetection: HookManagerResult = {
+      manager: "lefthook",
+      configPath: "/repo with spaces/lefthook.yml",
+    };
+    const io = makeIO({
+      "/repo with spaces/lefthook.yml": "pre-commit:\n  commands:\n    keep:\n      run: npm test\n",
+    });
+
+    await integrateHooks(spacedDetection, io.readFile, io.writeFile);
+
+    const output = io.written["/repo with spaces/lefthook.yml"];
+    expect(output).toContain("run: npm test");
+    expect(output).toContain('.arc/system/.internal/githooks/commit-msg "{1}"');
   });
 });
 
@@ -202,6 +234,31 @@ describe("integrateHooks — pre-commit", () => {
     expect(output).toContain("arc-pre-commit");
     expect(output).toContain("arc-pre-push");
     expect(output).toContain("repo: local");
+  });
+
+  it("retains argv-based message passing when the config path contains spaces", async () => {
+    const spacedDetection: HookManagerResult = {
+      manager: "pre-commit",
+      configPath: "/repo with spaces/.pre-commit-config.yaml",
+    };
+    const io = makeIO({
+      "/repo with spaces/.pre-commit-config.yaml": [
+        "repos:",
+        "  - repo: local",
+        "    hooks:",
+        "      - id: keep-me",
+        "        entry: tool --check",
+        "        language: system",
+        "",
+      ].join("\n"),
+    });
+
+    await integrateHooks(spacedDetection, io.readFile, io.writeFile);
+
+    const output = io.written["/repo with spaces/.pre-commit-config.yaml"];
+    expect(output).toContain("id: keep-me");
+    expect(output).toContain("entry: .arc/system/.internal/githooks/commit-msg");
+    expect(output).toContain("- commit-msg");
   });
 
   it("appends to existing local repo entry if one exists", async () => {

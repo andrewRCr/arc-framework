@@ -119,7 +119,7 @@ gating and delegation shim only after parity is demonstrated.
 - _Outcome:_ The public check command now preserves source bytes through decoding, shares canonical repository and
   validation state, and exposes deterministic human, JSON, and exit-code contracts from both file and stdin inputs.
 
-### `[ ]` **2.2 Replace the Bash validator with the local-first hook shim**
+### `[x]` **2.2 Replace the Bash validator with the local-first hook shim**
 
 - _Goal:_ Installed repositories retain cheap exemptions and fail-closed enforcement while all commit-message grammar is
   delegated to the versioned CLI.
@@ -141,12 +141,13 @@ gating and delegation shim only after parity is demonstrated.
         - Covered matched and verb-missing CLIs, preserving the latter's unknown-command failure without negotiation or
           compatibility machinery; the settled portable shim remains shellcheck-clean.
 
-    - `[ ]` **2.2.e Preserve message-path arguments through hook managers**
-        - Make Husky's generated commit-message line forward `"$1"`, and audit the Lefthook / pre-commit adapters so
-          each supported manager passes the message pathname as one argument without changing unrelated integration
-          behavior. Build no legacy-line rewrite path before first public release.
-        - Cover fresh generation, repository and message paths containing spaces, preservation of unrelated hook
-          content, and idempotent regeneration for each touched adapter.
+    - `[x]` **2.2.e Preserve message-path arguments through hook managers**
+        - Quoted Husky and Lefthook message placeholders, retained pre-commit's argv-based adapter, and covered fresh,
+          unrelated-content-preserving, spaced-path, and idempotent generation without legacy rewrites.
+
+- _Outcome:_ Commit-message enforcement now gates cheaply in shell and delegates all active validation to the
+  repository-pinned or global CLI, while installation and hook-manager boundaries preserve executable and pathname
+  semantics without retaining a second grammar.
 
 ### `[ ]` **2.3 Prove hook exemptions, delegation, and fail-closed behavior**
 

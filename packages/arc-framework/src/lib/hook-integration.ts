@@ -80,7 +80,7 @@ async function integrateHusky(
   );
   await integrateHuskyHook(
     join(huskyDir, "commit-msg"),
-    `${ARC_COMMIT_MSG} $1`,
+    `${ARC_COMMIT_MSG} "$1"`,
     readFile,
     writeFile,
   );
@@ -163,7 +163,7 @@ async function integrateLefthook(
     config["commit-msg"].commands = {};
   }
   if (!config["commit-msg"].commands["arc-commit-msg"]) {
-    config["commit-msg"].commands["arc-commit-msg"] = { run: `${ARC_COMMIT_MSG} {1}` };
+    config["commit-msg"].commands["arc-commit-msg"] = { run: `${ARC_COMMIT_MSG} "{1}"` };
     changed = true;
   }
 
