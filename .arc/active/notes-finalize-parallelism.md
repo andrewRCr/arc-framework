@@ -374,6 +374,56 @@ Seam-routing character: observed-only (the ship succeeded; nothing downstream in
 the structural decision it is a Phase 7 / owning-WU candidate, not a wave-2 blocker. Also feed the harness-cwd
 casualty into the incident playbook (Task 8.2) as a known operational limitation.
 
+**Resolution (2026-07-14): structural, pulled forward — the decoupling ships as wave-2 code workload.** The
+interim-vs-structural fork dissolves: the decoupling is substrate mechanics with no state-model dependency, so it
+stands up as its own code WU (provisional slug `worktree-teardown-decoupling`, stub cut at the 4.1.a slate) rather
+than waiting on `wu-lifecycle-state-model`. WLSM keeps only the formalization question — whether "shipped, pending
+teardown" becomes a real state value or an annotation — routed as a slim USER-INBOX capture; it consumes the
+mechanics, it does not build them. Working direction for grooming: **refs-early husk** — detaching the worktree's
+HEAD frees the branch (dissolving the ordering wrinkle above), every reap proceeds as a ref op, and the session
+survives on a disposable detached husk with a clean "shipped" terminal message. Scope sketch: locus-aware
+`arc teardown` (full physical reap from the primary as today; husk mode from inside, keyed on the already-computed
+`locusHopped` bit), stale-worktree-sweep husk detection (detached HEAD + ARC ownership marker — a husk has no
+branch to key on), a session-init husk advisory derived from existing signals (no new state value, no meta-schema
+touch), the `integrate-work-unit` Step 14 edit, and the clean terminal messaging — which subsumes the interim
+messaging errand entirely. Physical-deferred was considered and set aside (leaves a live branch with a deleted
+upstream; its interim states read as branch-gone / orphan-sweep anomalies rather than "shipped"); grooming
+ratifies the variant. The optional probe-A rollout-log check is skipped — the physical asymmetry holds regardless
+of what probe A felt like, so the decision doesn't hinge on it.
+
+### Dogfood finding (2026-07-14): base-drift surface misleads under routine sibling integration
+
+**Surfaced at FP's own session-init** the session after probe-b shipped: "Base `main` has advanced 17 commit(s)
+ahead of this branch … rebase may conflict. Reconcile?" — alarming enough to interrupt orientation and ask what
+had landed on `main`. First-parent truth: **one** integration (PR #235, `burn-in-probe-b`). The raw ancestry count
+includes the merged sibling's entire branch history (planning ceremonies, handoff commits, its own base merges),
+and under working parallelism that is the steady state — every sibling ship inflates every other in-flight
+checkout's behind-count by 10–20 ceremony commits. The number is technically true and semantically wrong.
+
+Four defects in the composed prompt (`baseDistance.recommendedPromptText`):
+
+1. **Granularity.** Counts raw commits; should count first-parent integrations and name them (slug + PR — the
+   completed-roster / oracle machinery already maps merge subjects to WUs).
+2. **Off-doctrine verb.** "rebase may conflict" recommends the operation the concurrent-work doctrine forbids on
+   pushed branches (append-only until integration; a rebase orphans the SHA-keyed notes). For a fresh wave session
+   taking the advisory at face value this is a live corruption vector, not just noise.
+3. **No overlap classification.** `ROADMAP.md` is a derived artifact (regenerate-wins); a conflict there is a
+   non-event resolved by regen, yet it renders with the same weight as genuine content overlap — training
+   flag-blindness exactly where a real code-path overlap deserves attention.
+4. **No calm/attention tiering.** Routine "siblings shipped behind you" (calm: merge in when convenient; required
+   before integration) renders identically to "base moved on paths you are actively editing" (attention).
+
+Reasonable shape, roughly: `Base main: 1 sibling integration ahead — burn-in-probe-b (PR #235). Overlap:
+ROADMAP.md (derived — regenerates on merge). Merge in when convenient; required before integration.`
+
+**Routing (seam rule): split out — consumed.** Every remaining wave session-init reads this surface, fresh wave
+agents rely on its advice, and defect 2 can corrupt a wave operation (a followed rebase suggestion rewrites a
+pushed branch). USER-INBOX capture routed; the shipped `merge-safety-mechanism` built the behind-base primitive
+but the prompt composition lives in the CLI status/session-init layer, so the fix lands as a new stub or errand —
+sizing is errand-to-Light with one design question (how the composer knows a path is derived — hardcode ROADMAP vs
+a small file-classification hook). Candidate for wave 3's live-errand slot if it stays errand-sized. FP keeps the
+verification: the fixed surface gets read again at later wave inits.
+
 ## Wave-1 induction evidence
 
 Deliberate 3.2 matrix-cell inductions (distinct from the opportunistic 2026-07-09 harvest above). Raw command

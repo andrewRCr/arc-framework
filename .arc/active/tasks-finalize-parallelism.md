@@ -603,20 +603,23 @@ well as paths; gating + coordination detail in § Sequencing.
           (hook-env advisory split-out, 7.2 marker-intent seam, synthetic-notes cleanup barrier, probe-b
           integration-path decision).
 
-## **Phase 4:** Burn-in wave 2 — one code WU + one doc WU
+## **Phase 4:** Burn-in wave 2 — two code WUs
 
 _Purpose:_ First real off-primary code exercise — worktree dependency provisioning + per-task quality gates
 off-primary — and a re-graduation that verifies BI-4's ceremony-locus fix. Adds BI-1's node-deps leg to the
-wave-1 gating set. **Additional gates:** `slug-state-oracle-alignment` and `notes-export-state-coherence` merged
-to `main` and into FP — wave sessions consume the slug-state/dispatch and notes-entry surfaces they fix. The
-slug-state fix owns checkout-local blindness + the foreign-write divergence false positive and is already in
-flight; notes coherence follows it as a split-out WU. Both route per the burn-in seam rule in
-`notes-finalize-parallelism.md`.
+wave-1 gating set. Slate re-cut 2026-07-14: the doc partner is dropped — wave 1 already field-verified the
+doc-only cell, and the 2026-07-05 finding shows the Light / doc-only / multi-session shape is near-empty by
+construction — so wave 2 runs two real code WUs instead. **Additional gates:** `slug-state-oracle-alignment` and
+`notes-export-state-coherence` merged to `main` and into FP — wave sessions consume the slug-state/dispatch and
+notes-entry surfaces they fix. The slug-state fix owns checkout-local blindness + the foreign-write divergence
+false positive and is already in flight; notes coherence follows it as a split-out WU. Both route per the burn-in
+seam rule in `notes-finalize-parallelism.md`.
 
 ### `[ ]` **4.1 Prepare and launch the wave-2 workload**
 
-- _Goal:_ One Light code WU (provisional `cli-test-hardening`) and one doc partner run concurrently alongside FP,
-  the code WU's deps provisioned by the BI-1 manifest.
+- _Goal:_ Two code WUs — `worktree-teardown-decoupling` (new stub cut from the 2026-07-13 self-teardown finding's
+  resolution) and `commit-message-submission` (planned P1; steer grooming toward its Light validator-reuse shape) —
+  run concurrently alongside FP, deps provisioned by the BI-1 manifest.
 
     - `[ ]` **4.1.a Confirm the wave-2 slate and spawn**
 
