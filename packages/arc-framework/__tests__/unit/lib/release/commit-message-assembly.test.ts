@@ -1,8 +1,11 @@
 /** Unit tests for deterministic commit-message paragraph assembly. */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { assembleCommitMessageParagraphs } from "../../../../src/lib/release/commit-message-assembly.js";
+import {
+  assembleCommitMessageParagraphs,
+  captureCommitMessageFileSource,
+} from "../../../../src/lib/release/commit-message-assembly.js";
 
 const decoder = new TextDecoder();
 
@@ -36,5 +39,74 @@ describe("commit message paragraph assembly", () => {
     const message = "literal \\n $HOME $(command) 'single' \"double\" \\";
 
     expect(decoder.decode(assembleCommitMessageParagraphs([message]))).toBe(`${message}\n`);
+  });
+});
+
+describe("commit message file capture", () => {
+  it.each([
+    { path: "message.txt", expectedInput: "file" },
+    { path: "-", expectedInput: "stdin" },
+  ])("captures and cleans $expectedInput bytes once", async ({ path, expectedInput }) => {
+    const source = Buffer.from("subject   \n\n\nbody");
+    const readFile = vi.fn().mockResolvedValue(source);
+    const readStdin = vi.fn().mockResolvedValue(source);
+
+    const result = await captureCommitMessageFileSource(path, { readFile, readStdin });
+
+    expect(result).toEqual({
+      kind: "captured",
+      input: expectedInput,
+      rawBytes: Uint8Array.from(source),
+      messageBytes: Uint8Array.from(Buffer.from("subject\n\nbody\n")),
+    });
+    expect(readFile).toHaveBeenCalledTimes(expectedInput === "file" ? 1 : 0);
+    expect(readStdin).toHaveBeenCalledTimes(expectedInput === "stdin" ? 1 : 0);
+  });
+
+  it("preserves non-UTF-8 source bytes in an immutable capture", async () => {
+    const source = Uint8Array.from([0x63, 0x61, 0x66, 0xe9, 0x20]);
+    const result = await captureCommitMessageFileSource("message.txt", {
+      readFile: async () => source,
+      readStdin: async () => new Uint8Array(),
+    });
+    source.fill(0);
+
+    expect(result).toEqual({
+      kind: "captured",
+      input: "file",
+      rawBytes: Uint8Array.from([0x63, 0x61, 0x66, 0xe9, 0x20]),
+      messageBytes: Uint8Array.from([0x63, 0x61, 0x66, 0xe9, 0x0a]),
+    });
+  });
+
+  it.each(["subject", "subject\n\n\n"])(
+    "normalizes file sources with or without terminal newlines",
+    async (source) => {
+      const result = await captureCommitMessageFileSource("message.txt", {
+        readFile: async () => Buffer.from(source),
+        readStdin: async () => new Uint8Array(),
+      });
+
+      expect(result).toMatchObject({
+        kind: "captured",
+        messageBytes: Uint8Array.from(Buffer.from("subject\n")),
+      });
+    },
+  );
+
+  it.each([
+    { path: "message.txt", expectedInput: "file" },
+    { path: "-", expectedInput: "stdin" },
+  ])("returns a bounded input error when $expectedInput capture fails", async ({ path, expectedInput }) => {
+    const failure = new Error("x".repeat(500));
+    const result = await captureCommitMessageFileSource(path, {
+      readFile: async () => Promise.reject(failure),
+      readStdin: async () => Promise.reject(failure),
+    });
+
+    expect(result).toMatchObject({ kind: "error", input: expectedInput, reason: "input" });
+    if (result.kind !== "error") throw new Error("expected capture error");
+    expect(result.message.length).toBeLessThanOrEqual(240);
+    expect(result.message).not.toContain("x".repeat(500));
   });
 });

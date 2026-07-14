@@ -190,16 +190,10 @@ message bytes when the subsequent Git invocation fails.
           whitespace, and collapsed blank lines; non-UTF-8 or replacement-bearing message argv now demotes while raw
           file sources remain eligible.
 
-    - `[ ]` **3.1.c Assemble file-backed messages**
-        - Read `-F <file>` byte-for-byte and accept buffered stdin for `-F -`; classify unreadable files and stdin
-          failures as preflight input errors before Git starts. Retain file/stdin as the canonical non-UTF-8 path.
-        - Carry the captured raw file bytes as the authoritative source for a later transient snapshot; never rely on
-          reopening the caller path after validation.
-        - Build `test-first` (one behavior at a time):
-            - File and stdin sources undergo the same cleanup contract as Git.
-            - A message containing no terminal newline and one containing multiple terminal newlines match Git's result.
-            - Unreadable sources fail with bounded diagnostics and never spawn Git.
-            - Mutating or replacing the caller file after capture cannot change the assembled source bytes.
+    - `[x]` **3.1.c Assemble file-backed messages**
+        - Added single-read file/stdin capture with owned raw bytes, byte-level Git cleanup that retains non-UTF-8
+          content, and bounded typed input failures; later caller mutation cannot alter either validation bytes or the
+          authoritative transport snapshot.
 
     - `[ ]` **3.1.d Ground byte-exactness against Git**
         - Add a real-git integration matrix that captures the message reaching `commit-msg` for every assembled form and
