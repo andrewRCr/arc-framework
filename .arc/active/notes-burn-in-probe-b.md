@@ -1,5 +1,14 @@
 # burn-in-probe-b Evidence Log
 
+## Contents
+
+- [Spawned-Worktree Boot](#spawned-worktree-boot)
+- [Notes Save/Load Convergence](#notes-saveload-convergence)
+- [ROADMAP/Base Contention](#roadmapbase-contention)
+- [Integration Ordering](#integration-ordering)
+- [Cross-Worktree Notes Interleave](#cross-worktree-notes-interleave-wave-1-induction)
+- [Archival/Worktree Cleanup](#archivalworktree-cleanup)
+
 ## Spawned-Worktree Boot
 
 - `burn-in-probe-b` is running in linked worktree
@@ -27,12 +36,18 @@
 - Base drift had already been reconciled by merging `main` before planning continued; no current
   base-overlap conflict was observed at activation.
 - A later `main` merge into `chore/burn-in-probe-b` landed at `edc952d9` after project-state and notes/sync
-  fixes. The merge reported a `ROADMAP.md` conflict, which was resolved before this resume; the worktree is
-  currently clean and tracking `origin/chore/burn-in-probe-b`.
+  fixes. A second append-only merge at `42798b2d` reconciled the branch with the integration base immediately
+  before integration. Both merges reported the expected `ROADMAP.md` conflict; each resolution was regenerated
+  from staged lifecycle sources rather than copied from either parent.
 
 ## Integration Ordering
 
-- Not yet exercised.
+- The branch reconciled with `origin/main` before the `Active` → `Integrating` transition, so the lifecycle
+  commit and PR were created from a zero-behind base without rewriting published history.
+- The transition regenerated `ROADMAP.md`, full Tier 3 verification passed, and PR #235 opened only after the
+  transition commit and reconciled branch were pushed.
+- GitHub classified the fixture into the lightweight lane: the lint/typecheck/unit job and the aggregate
+  `ci-ok` / `merge-ok` checks passed; CodeRabbit explicitly skipped review under the fixture's label policy.
 
 ## Cross-Worktree Notes Interleave (Wave-1 Induction)
 
@@ -42,9 +57,5 @@
 
 ## Archival/Worktree Cleanup
 
-- Not yet exercised.
-
-## Observations Not Exercised
-
-- Integration ordering remains open until the WU enters integration.
-- Archival and worktree cleanup remain open until after integration.
+- Not observed in this tracked evidence log. The archive sweep and linked-worktree teardown occur after the
+  log's final editable integration point.
