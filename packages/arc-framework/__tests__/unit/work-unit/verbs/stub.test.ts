@@ -214,3 +214,45 @@ describe("runStub — never defaults (non-interactive safety)", () => {
     expect(writes).toEqual([]);
   });
 });
+
+describe("runStub — initial Class", () => {
+  it("writes an explicit resolved Class into the scaffolded meta", async () => {
+    const { ctx, writes } = buildHarness();
+
+    const result = await runStub(ctx, { ...BASE, cls: "Light" });
+
+    expect(result.status).toBe("scaffolded");
+    expect(writes).toHaveLength(1);
+    expect(writes[0]!.content).toContain("`Light`");
+    expect(writes[0]!.content).not.toContain("[TBD]");
+  });
+
+  it("normalizes a lowercase Class value to the codified form", async () => {
+    const { ctx, writes } = buildHarness();
+
+    const result = await runStub(ctx, { ...BASE, cls: "heavy" });
+
+    expect(result.status).toBe("scaffolded");
+    expect(writes[0]!.content).toContain("`Heavy`");
+  });
+
+  it("defaults to the [TBD] sentinel when no Class is supplied", async () => {
+    const { ctx, writes } = buildHarness();
+
+    const result = await runStub(ctx, { ...BASE });
+
+    expect(result.status).toBe("scaffolded");
+    expect(writes[0]!.content).toContain("[TBD]");
+  });
+
+  it("rejects an unresolvable Class value without scaffolding", async () => {
+    const { ctx, writes } = buildHarness();
+
+    const result = await runStub(ctx, { ...BASE, cls: "medium" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/not a resolved Class/i);
+    expect(writes).toEqual([]);
+  });
+});
