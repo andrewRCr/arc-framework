@@ -200,3 +200,97 @@ describe("installed commit-msg gating", () => {
     ]);
   });
 });
+
+describe("installed commit-msg CLI resolution", () => {
+  it("prefers the repository-local CLI over a global executable", async () => {
+    const fixture = await createRepository();
+    const globalBin = join(fixture.root, "global-bin");
+    await installHook(fixture);
+    await installFakeArc(join(fixture.root, "node_modules/.bin/arc"), 0, "local validator");
+    await installFakeArc(join(globalBin, "arc"), 1, "global validator");
+
+    const result = await attemptCommit(fixture, "local validation wins", {
+      PATH: `${globalBin}:/usr/bin:/bin`,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout + result.stderr).toContain("local validator");
+    expect(result.stdout + result.stderr).not.toContain("global validator");
+  });
+
+  it("falls back to a global CLI when the repository has no local executable", async () => {
+    const fixture = await createRepository();
+    const globalBin = join(fixture.root, "global-bin");
+    await installHook(fixture);
+    await installFakeArc(join(globalBin, "arc"), 0, "global validator");
+
+    const result = await attemptCommit(fixture, "global validation fallback", {
+      PATH: `${globalBin}:/usr/bin:/bin`,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout + result.stderr).toContain("global validator");
+  });
+
+  it("fails closed with remediation when neither CLI path resolves", async () => {
+    const fixture = await createRepository();
+    await installHook(fixture);
+
+    const result = await attemptCommit(fixture, "validation cannot run", {
+      PATH: "/usr/bin:/bin",
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("node_modules/.bin/arc");
+    expect(result.stderr).toContain("GUI Git clients");
+    expect(result.stderr).toContain("IDE-integrated commits");
+    expect(result.stderr).toContain("version manager shims");
+  });
+
+  it("passes a spaced message path as one argument through the direct hook shape", async () => {
+    const fixture = await createRepository("arc installed commit hook with spaces-");
+    await installHook(fixture);
+    await installFakeArc(join(fixture.root, "node_modules/.bin/arc"), 0);
+    const messagePath = join(fixture.root, "message path with spaces.txt");
+    await writeFile(messagePath, "direct spaced path validation\n");
+
+    const result = await runProcess(
+      join(fixture.root, ".arc/system/.internal/githooks/commit-msg"),
+      [messagePath],
+      fixture.root,
+      { ...process.env, ARC_TEST_CAPTURE: fixture.capturePath, NO_COLOR: "1" },
+    );
+
+    expect(result.exitCode).toBe(0);
+    const args = (await readFile(fixture.capturePath, "utf8")).trimEnd().split("\n");
+    expect(args).toHaveLength(3);
+    expect(args).toEqual(["check", "commit-msg", messagePath]);
+  });
+
+  it("passes a spaced message path as one argument through a hook-manager shape", async () => {
+    const fixture = await createRepository("arc managed commit hook with spaces-");
+    await installHook(fixture);
+    await installFakeArc(join(fixture.root, "node_modules/.bin/arc"), 0);
+    const managedHook = join(fixture.root, ".husky/commit-msg");
+    await mkdir(dirname(managedHook), { recursive: true });
+    await writeFile(managedHook, [
+      "#!/bin/sh",
+      '.arc/system/.internal/githooks/commit-msg "$1"',
+      "",
+    ].join("\n"));
+    await chmod(managedHook, 0o755);
+    const messagePath = join(fixture.root, "managed message path with spaces.txt");
+    await writeFile(messagePath, "managed spaced path validation\n");
+
+    const result = await runProcess(
+      managedHook,
+      [messagePath],
+      fixture.root,
+      { ...process.env, ARC_TEST_CAPTURE: fixture.capturePath, NO_COLOR: "1" },
+    );
+
+    expect(result.exitCode).toBe(0);
+    const args = (await readFile(fixture.capturePath, "utf8")).trimEnd().split("\n");
+    expect(args).toEqual(["check", "commit-msg", messagePath]);
+  });
+});

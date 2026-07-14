@@ -159,11 +159,9 @@ gating and delegation shim only after parity is demonstrated.
           exemptions and delegated accept/reject output; Git normalizes any hook rejection to its own exit `1`, while
           exact delegated statuses remain covered at the installed executable seam.
 
-    - `[ ]` **2.3.b Exercise CLI resolution and remediation paths**
-        - Use controlled PATH and repository-local executables to prove local precedence, global fallback, and
-          fail-closed remediation without depending on the developer machine's global installation.
-        - Run an installed-hook case from a repository path containing spaces and prove the message path reaches the
-          fake or real CLI as one argument through the direct and hook-manager invocation shapes.
+    - `[x]` **2.3.b Exercise CLI resolution and remediation paths**
+        - Proved local precedence, controlled global fallback, and fail-closed remediation without machine-global
+          dependencies, plus one-argument message delivery through direct and managed hooks under spaced paths.
 
     - `[ ]` **2.3.c Complete the parity flip**
         - Require the differential corpus to be green before deleting the Bash grammar, then rerun the durable corpus
