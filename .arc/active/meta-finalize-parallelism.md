@@ -12,17 +12,16 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 3 (burn-in wave 1) complete — all five 3.2 matrix cells + 3.3 detectors verified,
-  3.4 findings recorded; both probes shipped, foreign-write and hook-env seams fixed on `main` and merged into FP.
-- **Next Task:** Task 4.1 — wave-2 slate (one code WU + one doc WU); Phase 4 preamble (line ~593)
-- **Blockers:** [none] — both prior blockers (`slug-state-oracle-alignment`, `notes-export-replay-ordering`,
-  the latter meta's `notes-export-state-coherence`) shipped and merged into FP.
+- **Last Completed:** Task 4.1 — wave-2 workload launched: both code WUs spawned into provisioned worktrees
+  (`commit-message-submission`, `worktree-teardown-decoupling`); `start-class-flag` split-out shipped (PR #236);
+  execution-locus finding recorded and `session-locus-model` stub pulled forward inside the GA gate (PR #238).
+- **Next Task:** Task 4.2 — verify off-primary node quality gates and dependency provisioning (line ~638)
+- **Blockers:** [none]
 
-- **Next Action:** Begin Phase 4, Task 4.1 (wave-2 slate). First, resolve the open design decision captured in
-  `notes-finalize-parallelism.md` § Dogfood finding (2026-07-13): worktree self-teardown terminates the session —
-  decide interim-messaging vs. structural decouple-and-bless-manual-deletion vs. both, coordinating downstream with
-  `wu-lifecycle-state-model`; hold the interim messaging errand until that call. Optional bounded probe-A
-  rollout-log check to settle whether it hit the same self-termination (not a rabbit-hole).
+- **Next Action:** FP-side work is now event-driven off the wave-2 sessions: collect 4.2 gate evidence at either
+  wave WU's first full gate run (or run the gate set directly in a wave worktree), then 4.3 re-graduation
+  (vehicle + `Depends On` question decided there). Wave WUs groom/execute in their own worktree sessions;
+  `session-locus-model` grooming (`--plan`) may run beside wave 2 but executes only after wave-3 evidence.
 
 - **PR URL:** [none]
 - **Completed:** [none]
