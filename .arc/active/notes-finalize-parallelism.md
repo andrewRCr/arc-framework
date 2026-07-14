@@ -442,6 +442,30 @@ sibling-worktree commit), so split-out to `main` recommended over Phase 7 absorp
 Cell verdict: the 2026-07-09 defect is fixed and verified; the residual phantom is a distinct hook-environment
 seam in the uncommitted probe, deterministic and understood, routed for split-out.
 
+### Detector-tests 3.3 — wave-1 session-init detectors fire on induced conditions (2026-07-13) — ALL CONFIRMED
+
+Each of the three detectors wave 1 can exercise was driven by a real or induced condition and observed firing
+through the session-init probe envelope; correct negatives were captured alongside each.
+
+- **Base drift** (`baseDistance`): from probe-b's preserved behind-base worktree the probe returned
+  `diverged`, 12 ahead / 292 behind, `recommendedAction: surface`, with the composed prompt naming the
+  overlapping path (`.arc/backlog/ROADMAP.md`). Negative: the current primary and the freshly-merged FP both
+  resolve `clean`/`skip`. The surface also fired live at this session's own init (FP pre-merge, 292 behind,
+  two overlapping paths named).
+- **Notes lag** (`partialPushMarker`): the three synthetic markers (planted 2026-07-09, intents unreachable by
+  design) rendered from all three worktree contexts — identity-scoped as specified, machine IDs `2f8bb305…` /
+  `7647ac4c…`.
+- **Stale worktree** (`sweep`): induced by recreating probe-a's worktree at its original path on a recreated
+  `chore/burn-in-probe-a` branch (tip = PR #215's second parent) with a hand-written ARC ownership marker. From
+  the primary, the sweep surfaced it with the full green-path decision `removable` (ARC-marked + clean +
+  merged). Negatives: the slot is absent outside the primary, and `errandState.inFlight` did **not** misclaim
+  the `chore/` branch as an in-flight errand — the shipped-WU classification wins. Induction fully torn down
+  (worktree removed, branch deleted).
+
+Verdict: no silent no-ops — every wave-1 detector fires loud on its condition with composed, actionable surface
+text, and the adjacent negatives confirm the gating (primary-only sweep, identity-scoped markers, clean-skip
+base distance).
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification

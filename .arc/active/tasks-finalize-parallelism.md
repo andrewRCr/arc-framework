@@ -576,12 +576,18 @@ well as paths; gating + coordination detail in § Sequencing.
   (marker-intent residue → 7.2; hook-env leakage in the uncommitted probe → split-out). Per-cell evidence in
   `notes-finalize-parallelism.md` § Wave-1 induction evidence.
 
-### `[ ]` **3.3 Induce and confirm the wave-1 detector-tests fire**
+### `[x]` **3.3 Induce and confirm the wave-1 detector-tests fire**
 
 - _Goal:_ The session-init detectors this wave can exercise (base drift, notes lag, stale worktree) fire when
   their condition is induced — a silent no-op is caught as a GA blocker.
 
-    - `[ ]` **3.3.a Induce each detector condition and confirm the surface fires**
+    - `[x]` **3.3.a Induce each detector condition and confirm the surface fires**
+        - All three fire loud with composed surface text, each with correct negatives observed: base drift from
+          probe-b's preserved 292-behind state (`diverged`/`surface`, overlap named; clean-skip on current
+          branches), notes lag from all three worktrees (identity-scoped synthetic markers), and stale worktree
+          via an induced recreation of shipped probe-a's worktree with an ARC marker (primary-only sweep,
+          `removable` green path; errand oracle correctly declined the `chore/` branch). Induction torn down.
+          Evidence in `notes-finalize-parallelism.md` § Detector-tests 3.3.
 
 ### `[ ]` **3.4 Record wave-1 findings**
 
