@@ -6,6 +6,7 @@ export {
   resolveCommitCheckPolicy,
 } from "./config.js";
 export { createFilesystemArtifactResolver } from "./artifact-resolver.js";
+export { createDefaultCommitCheckRepository } from "./repository.js";
 export { createCommitCheckContext } from "./context.js";
 export { validateCommitMessage } from "./validate.js";
 export { formatCommitCheckOutcome } from "./diagnostics.js";
@@ -40,3 +41,7 @@ export type {
   CommitMessageFormat,
   ContextFooterMode,
 } from "./types.js";
+export type {
+  CommitMessageCheckRepository,
+  DefaultCommitCheckRepositoryDeps,
+} from "./repository.js";

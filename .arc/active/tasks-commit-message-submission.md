@@ -104,18 +104,9 @@ gating and delegation shim only after parity is demonstrated.
 - _Goal:_ Users, hooks, and future automation can validate a file or stdin through one stable command with typed exit
   and JSON contracts.
 
-    - `[ ]` **2.1.a Implement file and stdin validation orchestration**
-        - Add a check handler that reads one file path or `-` as raw bytes, resolves Git's `i18n.commitEncoding` with
-          the `utf-8` default, decodes through built-in fatal `TextDecoder`, constructs the default repository adapter,
-          and invokes the canonical validator while retaining source bytes outside the grammar layer.
-        - Keep validation failures distinct from usage and infrastructure failures; unsupported encoding labels,
-          malformed byte sequences, unreadable files, and failed repository setup are infrastructure exit `2`.
-        - Build `test-first` (one behavior at a time):
-            - Readable file and stdin inputs preserve bytes and return the validator result.
-            - UTF-8 and a supported non-UTF-8 `i18n.commitEncoding` decode without an npm dependency.
-            - Unsupported encoding labels and malformed byte sequences exit `2` without invoking validation.
-            - Validation failure exits `1`; pass and pass-with-warnings exit `0`.
-            - Missing input, unreadable files, and failed repository setup exit `2` with actionable diagnostics.
+    - `[x]` **2.1.a Implement file and stdin validation orchestration**
+        - Added byte-preserving file/stdin orchestration, fatal built-in decoding, a shared default repository adapter,
+          and typed usage, infrastructure, and validation exit results.
 
     - `[ ]` **2.1.b Register the top-level `check` namespace**
         - Add the public command export and `cli.ts` wiring for `arc check commit-msg <file | -> [--json]` without
