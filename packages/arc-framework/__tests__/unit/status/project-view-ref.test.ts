@@ -64,4 +64,14 @@ describe("createProjectViewRefSnapshot", () => {
       reason: expect.stringMatching(/read.*meta-widget/iu),
     });
   });
+
+  it("rejects filesystem calls whose path escapes the repository root", async () => {
+    const exec: GitExec = vi.fn(async () => ({ stdout: "", stderr: "" }));
+    const snapshot = await createProjectViewRefSnapshot({ cwd: "/repo", exec, ref: "abc123", slug: "widget" });
+
+    expect(snapshot.ok).toBe(true);
+    if (!snapshot.ok) return;
+    await expect(snapshot.fs.readdir("/outside")).rejects.toThrow("Path is outside repository root");
+    await expect(snapshot.fs.readFile("/outside")).rejects.toThrow("Path is outside repository root");
+  });
 });

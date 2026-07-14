@@ -106,7 +106,9 @@ export function resolveStartDispatch(
   if (options.create === true && state !== "nonexistent") {
     return {
       arm: "refuse",
-      reason: `\`${name}\` already exists — omit \`--new\` to start it from its current lifecycle state.`,
+      reason:
+        `\`${name}\` already exists on the base branch — omit \`--new\`; `
+        + "its current lifecycle state determines whether `start` can act on it.",
     };
   }
 

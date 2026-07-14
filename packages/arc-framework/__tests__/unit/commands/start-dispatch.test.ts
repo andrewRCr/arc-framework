@@ -48,7 +48,8 @@ describe("resolveStartDispatch — routing on resolved state", () => {
     const result = resolveStartDispatch(index, "widget", { create: true });
     expect(result.arm).toBe("refuse");
     if (result.arm !== "refuse") return;
-    expect(result.reason).toMatch(/already exists|omit.*--new/iu);
+    expect(result.reason).toContain("already exists on the base branch");
+    expect(result.reason).toContain("its current lifecycle state determines whether `start` can act on it");
   });
 
   it("routes a provisional stub to graduate", () => {

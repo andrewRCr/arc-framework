@@ -251,7 +251,10 @@ describe("handleStart — dispatch orchestration", () => {
 
     expect(mockRunGraduate).toHaveBeenCalledTimes(1);
     expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", baseBranch: "base123" });
-    expect(mockResolveComposedLifecycleIndex).toHaveBeenCalledWith(expect.objectContaining({ fs: mockBaseFs }));
+    expect(mockResolveComposedLifecycleIndex).toHaveBeenCalledWith(expect.objectContaining({
+      fs: mockBaseFs,
+      oracle: expect.objectContaining({ baseBranch: "main" }),
+    }));
     expect(mockBaseReadFile).toHaveBeenCalledWith("/repo/.arc/backlog/planned/widget/meta-widget.md");
     expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Graduated");
   });

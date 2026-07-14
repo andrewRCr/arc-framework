@@ -99,14 +99,15 @@ export async function createProjectViewRefSnapshot(
   return {
     ok: true,
     fs: {
-      readdir: (path) => Promise.resolve(listDirectory(contentByPath.keys(), repoPath(options.cwd, path))),
-      readFile: (path) => {
+      readdir: (path) => Promise.resolve().then(
+        () => listDirectory(contentByPath.keys(), repoPath(options.cwd, path)),
+      ),
+      readFile: (path) => Promise.resolve().then(() => {
         const relativePath = repoPath(options.cwd, path);
         const content = contentByPath.get(relativePath);
-        return content === undefined
-          ? Promise.reject(new Error(`Path is absent from ref snapshot: ${relativePath}`))
-          : Promise.resolve(content);
-      },
+        if (content === undefined) throw new Error(`Path is absent from ref snapshot: ${relativePath}`);
+        return content;
+      }),
     },
   };
 }
