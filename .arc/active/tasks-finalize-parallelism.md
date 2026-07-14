@@ -522,7 +522,7 @@ well as paths; gating + coordination detail in § Sequencing.
   in-flight siblings; `notes-finalize-parallelism.md` § 2026-07-09 finding), routing decision pending
   (split-out fix off `main` pre-wave-2 recommended vs. Phase 7).
 
-### `[ ]` **3.2 Verify the wave-1 matrix cells**
+### `[x]` **3.2 Verify the wave-1 matrix cells**
 
 - _Goal:_ Each wave-1 cell's predicted failure is induced and observed, confirming (or correcting) its
   loud/silent classification.
@@ -558,22 +558,23 @@ well as paths; gating + coordination detail in § Sequencing.
           Probe-b remains clean and behind for 3.2.e. Full evidence in `notes-finalize-parallelism.md`
           § Cell 3.2.d.
 
-    - `[ ]` **3.2.e Foreign-write advisory under behind-base divergence**
-        - Induce a foreign-write check on a commit while a sibling in-flight WU's branch is well behind base, and
-          confirm the advisory reports only the sibling's _authored_ overlap (three-dot merge-base diff), not its
-          whole behind-base _divergence_ (two-dot). Observed 2026-07-09 during the `main`→probes cascade: with the
-          probes 105 commits behind `main`, the advisory listed ~20 backlog drafts the probes never authored
-          (two-dot = 192 files vs. three-dot = 3); it went clean once the probes were current. Distinct from — and
-          not a regression of — the 2026-07-06 phantom _meta_-overlap, which `project-state-integrity` fixed
-          (verified: detector clean against `meta-finalize-parallelism.md`). If the false-positive reproduces under
-          induction, it is a `detectForeignArtifactOverlap` defect: route as a discovered seam (Phase 7 /
-          follow-up to the roster work), not a silent accept. Detail in `notes-finalize-parallelism.md`
-          § 2026-07-09 finding.
-        - Update (2026-07-09): defect confirmed without induction — reproduced deterministically in the
-          _forward_ direction at FP's own Task 3.1 commit (three-dot-verified false; both directions now
-          observed). Fix split out per the seam-routing rule, riding `slug-state-oracle-alignment` on `main`;
-          this cell's remaining work is verifying the **fixed** detector under the behind-base condition once
-          the fix merges in (naturally available at probe-b's behind-base integration or wave 2).
+    - `[x]` **3.2.e Foreign-write advisory under behind-base divergence**
+        - Verified the fixed detector under the preserved behind-base condition: after merging `origin/main`
+          (292 commits, both blocker fixes) into FP append-only, the merge staged 32 foreign WU-artifact
+          candidates — all inside probe-b's 483-file two-dot divergence, none in its 6-path authored set — and
+          the committed probe reported zero overlap across pre-merge, mid-merge, and post-merge states, while a
+          probe-b-authored path returned the correct single-path advisory. The 2026-07-09 defect is fixed in
+          both directions. One new seam surfaced and bisected: git's hook-exported `GIT_DIR`/`GIT_INDEX_FILE`
+          leak into the advisory's cross-worktree uncommitted probe, phantom-matching the committing tree's
+          staged set as sibling overlap (hook-context-only; deterministic repro). Routed for split-out to
+          `main` per the seam-routing rule — wave 2+ commits consume the surface. Evidence in
+          `notes-finalize-parallelism.md` § Cell 3.2.e.
+
+- _Outcome:_ All five wave-1 cells verified with loud/correct classifications confirmed. The cells also earned
+  their keep as detector-tests: one detector defect (foreign-write three-dot) was caught, split out, fixed
+  upstream, and re-verified under the preserved condition, and two further seams were surfaced and routed
+  (marker-intent residue → 7.2; hook-env leakage in the uncommitted probe → split-out). Per-cell evidence in
+  `notes-finalize-parallelism.md` § Wave-1 induction evidence.
 
 ### `[ ]` **3.3 Induce and confirm the wave-1 detector-tests fire**
 

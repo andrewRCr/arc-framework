@@ -414,6 +414,34 @@ Cell verdict: the integration gate detects a genuine remote-base advance and fai
 is the non-zero distance plus the workflow stop, not a standalone CLI error; no silent stale-premise merge was
 possible once the gate ran.
 
+### Cell 3.2.e — foreign-write advisory under behind-base divergence (2026-07-13) — FIX CONFIRMED + one seam
+
+Condition: with both blocker fixes on `main`, FP merged `origin/main` (292 commits) append-only while probe-b
+stayed preserved at `506a8a8a` — 292 behind base, whole two-dot divergence 483 files, authored three-dot set just
+6 paths (its own WU artifacts + ROADMAP). The merge staged 32 foreign WU-artifact candidates, every one inside
+probe-b's two-dot divergence and none authored by it — the exact phantom-overlap bait.
+
+The shipped committed-probe fix holds. Standalone runs of the advisory over those 32 candidates report zero
+overlap in all three states (pre-merge checkout, mid-merge with the resolution staged, post-merge), and the
+positive control — a path probe-b genuinely authored (`backlog/planned/burn-in-probe-b/meta-burn-in-probe-b.md`)
+— returns the correct single-path advisory naming `chore/burn-in-probe-b` and its worktree. Three-dot
+discrimination confirmed in both directions under the real behind-base condition.
+
+New seam (hook-env leakage, uncommitted probe): at the real merge commit the pre-commit advisory nevertheless
+listed all 32 candidates as probe-b overlap. Bisected deterministically: git exports `GIT_DIR` /
+`GIT_INDEX_FILE` into hook processes, and the advisory's uncommitted probe (`git status --porcelain` with
+`cwd` = the sibling's worktree) inherits them — pinning git to the committing worktree's repo and staged index,
+so it diffs FP's mid-merge index against probe-b's working files and reads every staged path absent there as the
+sibling's "uncommitted change." Exporting the two vars reproduces the phantom standalone; without them the same
+state is clean. Hook-context-only, so it survives every standalone verification; not limited to merges — any
+hook-fired advisory with a sibling worktree checked out can phantom-match its staged set. Fix shape: scrub
+`GIT_DIR` / `GIT_INDEX_FILE` / `GIT_WORK_TREE` in the git exec layer whenever `cwd` overrides to a foreign
+worktree. Routing per the seam-routing rule: wave 2+ commits consume this surface (the advisory fires on every
+sibling-worktree commit), so split-out to `main` recommended over Phase 7 absorption.
+
+Cell verdict: the 2026-07-09 defect is fixed and verified; the residual phantom is a distinct hook-environment
+seam in the uncommitted probe, deterministic and understood, routed for split-out.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
