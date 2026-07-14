@@ -76,13 +76,10 @@ consumer changes validation authority.
 - _Goal:_ The TypeScript port cannot silently change accepted, rejected, warning, configuration, or diagnostic behavior
   before the Bash implementation is retired.
 
-    - `[ ]` **1.3.a Define reusable commit-message fixtures**
-        - Create a corpus under `packages/arc-framework/__tests__/fixtures/commit-msg/` whose cases declare message
-          bytes, configuration, repository facts, expected verdict, and required finding codes.
-        - Mark trailer-position, continuation-folding, last-occurrence, explicit POSIX-ERE-to-ECMAScript dialect, and
-          invalid-active-config hardening cases as the only intentional post-flip divergences.
-        - Cover duplicate config keys, partial resolver roots, trailer continuations, and astral Unicode lengths in the
-          parity and migration matrices.
+    - `[x]` **1.3.a Define reusable commit-message fixtures**
+        - Added a byte-valued shared corpus declaring config, repository facts, three-valued expectations, and required
+          finding codes across duplicates, partial roots, trailer semantics, astral lengths, and exactly the five
+          enumerated post-flip divergence classes.
 
     - `[ ]` **1.3.b Run both implementations over the corpus**
         - Add a differential integration harness that invokes the current Bash hook and the TypeScript validator against
