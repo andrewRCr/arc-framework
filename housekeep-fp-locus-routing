@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "housekeep-fp-locus-routing",
-  "origin": "description",
-  "intent": "Route FP locus and teardown captures to planned work-unit homes",
-  "branch": "chore/housekeep-fp-locus-routing",
-  "createdAt": "2026-07-14T19:33:06.819Z"
-}
