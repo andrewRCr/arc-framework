@@ -31,7 +31,7 @@ describe("parseExtensionFrontmatter", () => {
   it("accepts `related` when provided as a string array", () => {
     const content = [
       "---",
-      "name: pre-merge-review",
+      "name: pre-merge",
       "description: Review ceremony",
       "related:",
       "  - post-task-quality",
@@ -39,7 +39,7 @@ describe("parseExtensionFrontmatter", () => {
       "---",
       "",
     ].join("\n");
-    const result = parseExtensionFrontmatter(content, "pre-merge-review");
+    const result = parseExtensionFrontmatter(content, "pre-merge");
     expect(result.errors).toEqual([]);
     expect(result.frontmatter?.related).toEqual(["post-task-quality"]);
   });
@@ -91,9 +91,9 @@ describe("parseExtensionFrontmatter", () => {
       "---",
       "",
     ].join("\n");
-    const result = parseExtensionFrontmatter(content, "pre-merge-review");
+    const result = parseExtensionFrontmatter(content, "pre-merge");
     expect(result.frontmatter).toBeUndefined();
-    expect(result.errors.some((e) => e.includes("pre-merge-review"))).toBe(true);
+    expect(result.errors.some((e) => e.includes("pre-merge"))).toBe(true);
   });
 
   it("surfaces a missing-frontmatter diagnostic when no triple-dash block", () => {

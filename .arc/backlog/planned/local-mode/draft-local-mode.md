@@ -25,6 +25,20 @@ assumptions — the [Revalidation register](#revalidation-register) below tracks
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
+
+### `[ ]` **Retire git notes into the backing-store abstraction**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); release-gates storage drill-down.
+- *Concern:* make user-notes state an ordinary materialized backing-store artifact class and explicitly retire
+  `refs/notes/arc/user/*`, sync-state refs, and partial-push markers, with one-time import and the `arc user` family
+  repointed at the store. Preserve the sync state machine, version-checked writes, and failure taxonomy; add no new
+  notes-specific machinery beyond keep-the-lights-on fixes before migration.
+
+---
+
 ## Problem / Motivation
 
 ARC's in-repo tier assumes the developer can commit `.arc/` to the project's tracked tree. Four adoption

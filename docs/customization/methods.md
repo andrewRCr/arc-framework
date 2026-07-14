@@ -45,7 +45,7 @@ implementation changes to match your team's tooling.
 ### Available methods
 
 | Method                  | What it controls                                                    |
-| ----------------------- | ------------------------------------------------------------------- |
+|-------------------------|---------------------------------------------------------------------|
 | `commit-format`         | Commit message structure (type, scope, body)                        |
 | `commit-context-format` | Context footer patterns linking commits to tasks                    |
 | `issue-triage`          | Severity thresholds for fix-vs-defer decisions on discovered issues |
@@ -72,7 +72,7 @@ from `arc-config.yml`. The `custom` config value bridges "I want enforcement" an
 *different* enforcement":
 
 | Setting value  | Hook behavior                                                |
-| -------------- | ------------------------------------------------------------ |
+|----------------|--------------------------------------------------------------|
 | `conventional` | Validates against ARC's built-in conventional commit pattern |
 | `custom`       | Validates against the team's `commit.custom_pattern` regex   |
 | `any`          | Skips format validation entirely                             |
@@ -86,7 +86,7 @@ Some methods are coupled — overriding one without updating its related method 
 inconsistent behavior:
 
 | Method                  | Related Methods         | Coupling                        |
-| ----------------------- | ----------------------- | ------------------------------- |
+|-------------------------|-------------------------|---------------------------------|
 | `commit-format`         | `commit-context-format` | Both govern the commit message  |
 | `commit-context-format` | `commit-format`         | Both govern the commit message  |
 | `diff-review`           | `review-triage`         | Uses review-triage for findings |
@@ -123,13 +123,13 @@ and returns to the workflow.
 ### Available extension points
 
 | Extension                 | When it fires                                     |
-| ------------------------- | ------------------------------------------------- |
+|---------------------------|---------------------------------------------------|
 | `post-task-quality`       | After Tier 1 checks, before marking task complete |
 | `post-unit-quality`       | After Tier 2 checks at coherent unit completion   |
 | `post-task-completion`    | After task marked complete, before reporting      |
 | `post-context-load`       | After standard document loading at session start  |
 | `pre-stage-review`        | After staging changes, before creating a commit   |
-| `pre-merge-review`        | After pre-merge review, before push and PR        |
+| `pre-merge`               | After final-head settlement, before merge         |
 | `post-work-unit-activate` | After a work unit moves from backlog to active    |
 | `post-work-unit-archive`  | After a work unit is archived                     |
 

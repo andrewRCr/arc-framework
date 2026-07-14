@@ -12,6 +12,8 @@ import { describe, it, expect, vi } from "vitest";
 import { runActiveInFlight } from "../../../../src/commands/active/in-flight.js";
 import type { ExecResult, GitExec } from "../../../../src/lib/git/exec.js";
 
+const LIVE_REMOTE_TIP = "deadbeef".padEnd(40, "0");
+
 const META = [
   "# Metadata: x",
   "",
@@ -52,13 +54,13 @@ function makeExec(opts: {
     if (args[0] === "ls-remote") {
       if (opts.liveBranches === "unreachable") throw new Error("fatal: unreachable");
       return {
-        stdout: opts.liveBranches.map((b) => `deadbeef\trefs/heads/${b}`).join("\n"),
+        stdout: opts.liveBranches.map((b) => `${LIVE_REMOTE_TIP}\trefs/heads/${b}`).join("\n"),
         stderr: "",
       };
     }
     if (args[0] === "worktree" && args[1] === "list") return { stdout: "", stderr: "" };
-    if (args[0] === "ls-tree" && args[1] === "-r") {
-      const ref = args[3] ?? "";
+    if (args[0] === "ls-tree" && args.includes("--name-only")) {
+      const ref = args[args.indexOf("--name-only") + 1] ?? "";
       const paths = Object.keys(metas)
         .filter((target) => target.startsWith(`${ref}:`))
         .map((target) => target.slice(target.indexOf(":") + 1));

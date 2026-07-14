@@ -22,7 +22,10 @@ import {
   runActiveStatus,
 } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { renderInFlightWarning } from "../lib/git/in-flight-derivation.js";
+import {
+  renderInFlightWarning,
+  type InFlightEntry,
+} from "../lib/git/in-flight-derivation.js";
 import { gitExec } from "../lib/io-context.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
@@ -43,6 +46,14 @@ export interface ActiveInFlightCliOptions {
   local?: boolean;
   /** `--no-fetch`: Commander sets `fetch === false` — same effect as `--local`. */
   fetch?: boolean;
+}
+
+/** Render one oracle entry with its lifecycle and local/remote location. */
+export function formatActiveInFlightLine(entry: InFlightEntry): string {
+  const where = entry.worktreePath ?? (entry.remoteOnly ? "remote-only" : "no worktree");
+  return entry.kind === "work-unit"
+    ? `${entry.branch}  (${entry.state})  ${where}`
+    : `${entry.branch}  (errand)  ${where}`;
 }
 
 export async function handleActiveStatus(opts: ActiveStatusCliOptions): Promise<void> {
@@ -144,12 +155,7 @@ export async function handleActiveInFlight(opts: ActiveInFlightCliOptions): Prom
   if (result.entries.length === 0) {
     p.note(`No work units or errands in flight.${degradedNotice}`, "In-flight");
   } else {
-    const lines = result.entries.map((e) => {
-      const where = e.worktreePath ?? (e.remoteOnly ? "remote-only" : "no worktree");
-      return e.kind === "work-unit"
-        ? `${e.branch}  (${e.state})  ${where}`
-        : `${e.branch}  (errand)  ${where}`;
-    });
+    const lines = result.entries.map(formatActiveInFlightLine);
     p.note(`${lines.join("\n")}${degradedNotice}`, "In-flight");
   }
   for (const warning of result.warnings) {

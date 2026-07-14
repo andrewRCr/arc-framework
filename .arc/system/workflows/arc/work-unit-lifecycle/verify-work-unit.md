@@ -45,6 +45,14 @@ during implementation. Implementation tasks get checked as work progresses; succ
 get checked when the implementer steps back and validates outcomes against the upstream design
 artifact.
 
+Before closing the criteria pass, verify delivery integrity:
+
+- At least one executable check fails when the composed system misses the work unit's top-level intent. If proof
+  is possible only after deployment, record the forcing event and owning follow-on work unit explicitly.
+- Present-tense architecture and completion claims distinguish implemented behavior from behavior proven live.
+- Every deferred part of original intent has a correctly classified, sufficiently specified owner; essential
+  unproven intent never rests on an assumed Errand or an unowned note.
+
 ### Adversarial verify (advisory)
 
 The boundary carries an advisory adversarial fire-point that **augments** the self-verify above, never replaces

@@ -66,6 +66,7 @@ export {
 
 export {
   detectForeignArtifactOverlap,
+  preferRemoteBaseRef,
   projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionOptions,
   type ForeignArtifactDetectionResult,
@@ -79,10 +80,13 @@ export {
 
 export {
   listLiveRemoteBranches,
+  readLiveRemoteHeads,
   listPrunedRemoteTrackingBranches,
   fetchRefBounded,
   readMetaAtRef,
   type ListLiveRemoteBranchesOptions,
+  type LiveRemoteHeadsResult,
+  type ReadLiveRemoteHeadsOptions,
   type ListPrunedRemoteTrackingBranchesOptions,
   type FetchRefBoundedOptions,
   type ReadMetaAtRefOptions,

@@ -1,0 +1,12 @@
+inheritance: true
+reviews:
+  request_changes_workflow: true
+  commit_status: true
+  fail_commit_status: true
+  auto_review:
+    enabled: true
+    labels:
+      - arc-review-gate
+    drafts: false
+    auto_incremental_review: false
+    description_keyword: ""

@@ -45,7 +45,7 @@ import {
   reconcileMetaFields,
 } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
-import type { GitExec } from "../git/exec.js";
+import { getCurrentBranch, type GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
 import { renderTrackedProjectReadinessView } from "../status/project-roadmap-render.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
@@ -252,13 +252,16 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       "reconcile-roadmap": ({ slug, from, to }) =>
         reconcileRoadmap(
           {
-            composeView: async () =>
-              renderTrackedProjectReadinessView({
+            composeView: async () => {
+              const currentBranch = await getCurrentBranch(exec);
+              return renderTrackedProjectReadinessView({
                 cwd,
                 exec,
                 fs: indexFs,
                 ...(baseBranch !== undefined ? { baseBranch } : {}),
-              }),
+                currentBranch,
+              });
+            },
             mkdir: io.mkdir,
             writeFile: io.writeFile,
             stageFile: async (path) => {

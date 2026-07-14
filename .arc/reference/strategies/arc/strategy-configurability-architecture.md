@@ -235,16 +235,16 @@ Personal preferences live in git-config local rather than `arc-config.yml`. Each
 independently; they have no project-level counterpart (with the lone exception of `arc.notesPush`, which
 overrides a yaml-side default).
 
-| Git-config key            | Controls                                          | Values                                         | Default       |
-|---------------------------|---------------------------------------------------|------------------------------------------------|---------------|
-| `arc.identity`            | Developer identity                                | Free-form (no spaces)                          | (required)    |
-| `arc.role`                | Maintainer vs. contributor                        | `maintainer` / `contributor`                   | `maintainer`  |
-| `arc.tools`               | Installed AI harnesses for skill scaffolding      | Comma-separated harness names                  | (none)        |
-| `arc.commitInterlock`     | When the agent fires per-task commits             | `manual` / `on-task-approval` / `on-workflow`  | `manual`      |
-| `arc.pushInterlock`       | When the agent fires pushes                       | `manual` / `on-sync` / `on-workflow`           | `manual`      |
-| `arc.syncInterlock`       | When the agent invokes session sync               | `manual` / `on-handoff` / `on-workflow`        | `on-handoff`  |
-| `arc.notesPush`           | Personal user-directory notes push behavior       | `manual` / `prompt` / `on-sync`                | `on-sync`     |
-| `arc.releaseOptedIn`      | Per-developer release-wrapper opt-in flag         | `true` / `false`                               | `false`       |
+| Git-config key        | Controls                                     | Values                                        | Default      |
+|-----------------------|----------------------------------------------|-----------------------------------------------|--------------|
+| `arc.identity`        | Developer identity                           | Free-form (no spaces)                         | (required)   |
+| `arc.role`            | Maintainer vs. contributor                   | `maintainer` / `contributor`                  | `maintainer` |
+| `arc.tools`           | Installed AI harnesses for skill scaffolding | Comma-separated harness names                 | (none)       |
+| `arc.commitInterlock` | When the agent fires per-task commits        | `manual` / `on-task-approval` / `on-workflow` | `manual`     |
+| `arc.pushInterlock`   | When the agent fires pushes                  | `manual` / `on-sync` / `on-workflow`          | `manual`     |
+| `arc.syncInterlock`   | When the agent invokes session sync          | `manual` / `on-handoff` / `on-workflow`       | `on-handoff` |
+| `arc.notesPush`       | Personal user-directory notes push behavior  | `manual` / `prompt` / `on-sync`               | `on-sync`    |
+| `arc.releaseOptedIn`  | Per-developer release-wrapper opt-in flag    | `true` / `false`                              | `false`      |
 
 `arc.notesPush` is dual-scope: it overrides the project-level `user.notes_push` value in `arc-config.yml`. The
 other entries are per-developer only — there is no project-level counterpart to override.
@@ -373,26 +373,25 @@ Extension files follow `{pre|post}-{lifecycle-event-name}`, where the event-name
 step or git operation:
 
 - `pre-*` fires before the named event; `post-*` fires after.
-- Event-names reflect the **actual local fire-point** — the literal workflow step or git operation — not an
-  upstream UI-level event. For example, `pre-pr-review` names the pre-PR-creation push fire-point, not the
-  GitHub-side "open PR" UI event; `pre-merge-review` names the genuine pre-merge fire-point at
-  `integrate-work-unit.md`, not "before the PR merges from the platform's perspective."
+- Event-names reflect the **actual lifecycle boundary**. For example, `pre-pr-open` fires immediately before
+  creation and `post-pr-open` fires whenever a workflow enters an open change request, including re-entry.
 - The fire-point's **frequency** must match the name's semantic. If an extension is named `pre-commit-review`,
   it must fire at every commit pathway — wiring that catches one workflow's commit step while another's skips
   it violates the convention. Names that promise broad coverage demand broad wiring.
 
 ### Fire-point family
 
-Six extension fire-points span the work-unit lifecycle:
+Seven extension fire-points span the work-unit and Errand lifecycles:
 
-| Extension                      | Fire-point                                                | Wired into                                   | Default                         |
-|--------------------------------|-----------------------------------------------------------|----------------------------------------------|---------------------------------|
-| `pre-spec-finalization-review` | `create-spec.md` finalization gate, post-`spec-review`    | `create-spec.md`                             | inactive; no default `.actions` |
-| `pre-activation`               | `activate-work-unit.md` pre-condition gate                | `activate-work-unit.md`                      | inactive                        |
-| `pre-commit-review`            | After staging, before commit creation                     | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
-| `pre-pr-review`                | `integrate-work-unit.md` pre-PR-creation push             | `integrate-work-unit.md`                     | inactive                        |
-| `pre-push-review`              | Any push via the push wrapper                             | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
-| `pre-merge-review`             | `integrate-work-unit.md` post-review-response, pre-merge  | `integrate-work-unit.md`                     | inactive; no default `.actions` |
+| Extension                      | Fire-point                                                 | Wired into                                   | Default                         |
+|--------------------------------|------------------------------------------------------------|----------------------------------------------|---------------------------------|
+| `pre-spec-finalization-review` | `create-spec.md` finalization gate, post-`spec-review`     | `create-spec.md`                             | inactive; no default `.actions` |
+| `pre-activation`               | `activate-work-unit.md` pre-condition gate                 | `activate-work-unit.md`                      | inactive                        |
+| `pre-commit-review`            | After staging, before commit creation                      | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
+| `pre-pr-open`                  | Pushed head, immediately before change-request creation    | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
+| `post-pr-open`                 | Newly created or existing open change request              | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
+| `pre-push-review`              | Any push via the push wrapper                              | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
+| `pre-merge`                    | Settled final head, immediately before merge authorization | `integrate-work-unit.md`, `run-errand.md`    | inactive; no default `.actions` |
 
 All extensions ship as inactive by default — teams populate `.actions` and flip `active: true` in frontmatter
 to opt in. Entries marked "no default `.actions`" ship as no-op shells without a provided action body; teams
@@ -407,7 +406,7 @@ or for future defaults. Three entries from the family above carry this status to
   self-review. The opt-in seam for a team's own spec-review cadence — an async-PR review of the spec, a fixed
   comment window, a committee sign-off. Those cadences are informative precedents only; ARC enforces none.
 - `pre-push-review` — fires for any push via the push wrapper.
-- `pre-merge-review` — fires post-review-response, pre-merge at `integrate-work-unit.md`.
+- `pre-merge` — fires post-review-response, pre-merge at `integrate-work-unit.md` and `run-errand.md`.
 
 New reserved names land here when codified, keeping the namespace coherent before defaults emerge.
 

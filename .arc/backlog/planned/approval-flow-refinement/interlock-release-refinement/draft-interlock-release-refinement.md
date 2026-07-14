@@ -99,7 +99,7 @@ atomic companion and the personal atomic inbox.
   errand-specific collapse of the whole tail.
 - *Shape (provisional):* a configurable mode — modeled on `commit.interlock: on-task-approval` (the existing
   "one approval releases the next" precedent) — where a single errand increment-approval arms the rest:
-  commit + push + merge + branch-delete fire without re-prompting, with CI + `pre-merge-review` still gating the
+  commit + push + merge + branch-delete fire without re-prompting, with CI + `pre-merge` still gating the
   actual merge (auto-merge-style). Trigger framed as *one increment* (an errand-class property), not "one
   commit." Self-review/lane-aware: in a team the integration stop still carries cross-owner review weight, so
   the collapse is opt-in and self-review-scoped.
@@ -126,7 +126,7 @@ atomic companion and the personal atomic inbox.
   planning artifacts), decision density / ambiguity, ownership context (self-review vs team/foreign-owner), and an
   explicit approval-provenance source with declared scope. The floor remains EDD's principle: no judgment without
   a gate, and no gate without a decision. Outputs may include configurable/autonomy modes for errand and grooming
-  tails, but must preserve CI, `pre-merge-review` when active, lane requirements, and no self-escalation beyond the
+  tails, but must preserve CI, `pre-merge` when active, lane requirements, and no self-escalation beyond the
   human's declared grant.
 - *Composition:* generalizes the errand approval-collapse and integration-stacking items; coordinates with
   `unit-scoped-review` for the WU-scale application and `execution-delegation-doctrine` for the constitutional
@@ -153,29 +153,6 @@ atomic companion and the personal atomic inbox.
   (§ Scope item 3 + the per-phase-cascade buffer entry there) — reconcile the `2_generate-tasks` overlap at
   iteration so the two WUs don't both edit the same callouts.
 - *Scope:* Quick-tier (touches `.arc/system/workflows/`); package-source-primary with `.arc/` mirror sync.
-
-### `[ ]` **Clarify release-wrapper fire-site invocation + make the `arc-commit` path not matter**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: interlock-release-refinement`), housekeep drain
-  (2026-06-08); captured at `scalable-authoring-pipeline` Task 5.R.4.
-- *Concern:* The release wrappers (`arc release commit` / `arc release push`) are thin passthroughs to
-  `git commit` / `git push` (args forwarded; `-m` / `-F` as normal), but that isn't stated where it's needed.
-  `DEV-RULES.ARC § Workflow class-tag routing` says the workflow "supplies the message body in a `text`
-  codeblock," which reads as a special convention and leaves the literal invocation unclear — forcing a
-  mid-session `--help` check. Recurs because the agent hand-rolls the wrapper instead of invoking the
-  `arc-commit` skill the task-loop prescribes.
-- *Proposed:* Two coupled halves. (1) **Fire-site doc fix, on-demand — not session-init** (adding it to
-  `AGENT-BRIEF.ARC` violates ARC's own load-on-demand discipline): add a one-line "thin git passthrough" note +
-  a concrete example (`arc release commit -m "…"` / `-F <file>`) to the `arc-commit` skill (or a release-wrapper
-  reference), and tighten the DEV-RULES routing prose. (2) **Make the orchestration path not matter** — hooks
-  fire on the git event and can't see skill-vs-raw-wrapper; only the artifact (format/footer) is gate-able. The
-  wrapper already runs interlock-validation + audit regardless of caller, so hand-rolling only loses the skill's
-  simple-vs-complex triage (routing multi-concern commits to `prepare-commits`). Fold that triage into the
-  wrapper as a heuristic advisory and hand-rolling becomes harmless; failing that, salience-not-prevention
-  (`arc-reinforce` / commit-msg nudge).
-- *Scope:* Tension to preserve — fixing (1) makes hand-rolling *cheaper*, so the interface clarification is only
-  safe paired with making the outcome path-independent; that coupling is itself the argument for
-  wrapper-owns-the-triage.
 
 ### `[ ]` **Coordinate the "release the tail" pattern with the new sibling `unit-scoped-review`**
 
@@ -222,7 +199,7 @@ atomic companion and the personal atomic inbox.
   (the integration interlock holds; it does not collapse the merge)** — so this proposes *evaluating* whether the
   integration stop itself can fold, which is a cohort design call against that current stance, not a given.
 - *Constraint:* the integration-interlock is constitutionally **always-stop** (`DEV-RULES.ARC` — merge approval may
-  never be inferred). Any collapse must preserve an explicit merge authorization and keep CI / `pre-merge-review`
+  never be inferred). Any collapse must preserve an explicit merge authorization and keep CI / `pre-merge`
   gating; likely opt-in + self-review-scoped (team integration still carries cross-owner review weight).
 - *Cheap tail:* once the lines are drawn, the realization is small — markdown edits to the two workflows' interlock
   callouts. The design (where to draw them, what still gates) is the work, and it is this cohort's, not a

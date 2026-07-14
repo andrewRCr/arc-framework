@@ -1,0 +1,791 @@
+# Task List: Review Gate Enforcement Cutover
+
+- **Design:** `spec-review-gate-enforcement-cutover.md`
+
+---
+
+## **Phase 1:** Request and receipt foundation
+
+_Purpose:_ Establish the controller's initial causal request, receipt, and ledger contract before execution,
+provider, or settlement behavior depends on it.
+
+_Design decisions:_ No live or persisted review-gate receipts exist and the project hooks remain inactive, so the
+merged-but-unused development schema is replaced before activation rather than treated as migration history. One
+closed schema-v1 codec owns parsing, hashing, and semantics. It exposes stable contract name/version metadata so a
+later schema-library implementation can replace its internals without changing consumers; this work adds no schema
+dependency or public registry.
+
+### `[x]` **1.1 Define the initial causal request, receipt, and lifecycle-payload contracts**
+
+- _Goal:_ The first live schema carries the causal, head-flight, actor, trigger, timing, contamination, supersession,
+  terminal-evidence, and finding-settlement identity required by the controller behind one replaceable boundary codec.
+
+    - `[x]` **1.1.a Define the closed request and receipt identities**
+        - Added explicit contract and semantics identities plus required mechanism, actor, generation, and payload
+          fields behind the existing neutral parsing façades.
+
+    - `[x]` **1.1.b Define terminal-evidence and finding-lifecycle payloads**
+        - Added a closed payload union for reservation, acknowledgement and trigger ownership, terminal evidence,
+          finding lifecycle and settlement, contamination, supersession, and decisions while retaining normalized
+          `Evidence` as the sole evidence contract.
+
+    - `[x]` **1.1.c Validate closed contract shapes test-first**
+        - Covered every payload family and the request/envelope boundary, including strict rejection of unknown,
+          missing, obsolete, and causally incongruent shapes without defaults or upgrade paths.
+
+- _Outcome:_ One initial schema now owns the complete causal lifecycle identity; persisted inputs cannot enter the
+  controller through a partial or compatibility shape.
+
+### `[x]` **1.2 Bind canonical identities and authenticated comment storage to the initial schema**
+
+- _Goal:_ Request keys, receipt hashes, serialized comments, and reconstructed ledgers share one closed identity
+  algorithm with literal golden fixtures and no alternate schema path.
+
+    - `[x]` **1.2.a Extend request-key and receipt identity with causal fields**
+        - Bound semantics, mechanism, required actor, lifecycle payload, and predecessor version into canonical
+          identities, with literal fixtures fixing the request key, idempotency key, receipt hash, and serialized bytes.
+
+    - `[x]` **1.2.b Update every production request and receipt producer**
+        - Updated automatic reduction/runtime, authorized-command and refresh, attestation, and provider paths to emit
+          the complete initial request and payload schema through the sole strict creator.
+
+    - `[x]` **1.2.c Preserve the closed schema through authenticated comment storage**
+        - Closed receipt-comment and anchor machine payloads to exact fields; authenticated reconstruction now degrades
+          on obsolete, extended, edited, malformed, or scope-incongruent records.
+
+- _Outcome:_ One canonical byte and hash path now spans request creation, receipt production, authenticated storage,
+  and ledger reconstruction without a compatibility branch.
+
+### `[x]` **1.3 Complete ledger, reduction, and extraction boundaries**
+
+- _Goal:_ The host-neutral controller consumes the definitive ledger through stable injected boundaries, while
+  behavior-specific ports remain vertically owned by the later phases that implement them.
+
+    - `[x]` **1.3.a Keep the ledger port schema-complete and behavior-neutral**
+        - Kept ledger reads and appends on the neutral parsed envelope/receipt types and added pre-write shape and
+          identity validation; behavior-specific ports remain vertically owned by their implementation phases.
+
+    - `[x]` **1.3.b Preserve degradation while reducing the definitive receipts**
+        - Routed authenticated parsed ledger records through the existing requirement, verdict, and projection reducers;
+          malformed history still degrades to failure while later phases retain ownership of new behavioral states.
+
+    - `[x]` **1.3.c Prove neutral dependency direction and replaceable codec boundaries**
+        - Extracted self-hosting policy composition from the neutral reducer and added contract checks rejecting policy,
+          GitHub, or provider imports from core and duplicate request, receipt, or envelope declarations.
+
+- _Outcome:_ The definitive receipt contract now crosses storage, ledger, reduction, and projection through one neutral
+  dependency direction, with self-hosting qualification bound outside core.
+
+## **Phase 2:** Pending-first execution and exact-head control
+
+_Purpose:_ Make every provider effect controller-owned and head-safe: durable reservation and confirmed pending
+projection precede execution, actor-dependent work becomes typed state, and active request flights freeze pushes.
+
+_Design decisions:_ Ambiguous writes are adopted only through canonical re-query. Head changes require an explicit,
+single-use authorization tied to terminal findings; no repository-wide network pre-push hook is introduced. The
+aggregate check keeps its stable PR/change-set/context identity: pending confirmation pairs a pinned exact-head check
+read with a separate canonical read of the matching reservation and ledger version rather than minting a check per
+request generation.
+
+### `[x]` **2.1 Implement pending-first reservation, projection confirmation, and request acknowledgement**
+
+- _Goal:_ No provider effect or trigger-required action becomes live until its reservation and App-authored pending
+  aggregate check are durable and canonically confirmed on the exact frozen head.
+
+    - `[x]` **2.1.a Extend the neutral execution protocol to publish and confirm pending before effect**
+        - Split reservation from confirmed execution and made reconciliation reserve, re-read, publish queued state,
+          confirm pending, re-read, execute, and finally re-reduce before publishing current terminal state.
+
+    - `[x]` **2.1.b Compose pending confirmation through the GitHub host adapter**
+        - Added exact pending-check confirmation for pinned App, context, external id, and head, paired independently
+          with authenticated request-key, generation, receipt-hash, and ledger-version confirmation.
+
+    - `[x]` **2.1.c Prove ordering and fail-closed interruption test-first**
+        - Covered strict publish/confirm/effect ordering, stale and foreign identities, missing or failed confirmation,
+          interrupted reservation adoption without replay, and stale-final-state suppression through unit and composed
+          GitHub integration tests.
+
+- _Outcome:_ A provider effect is now unreachable until both durable controller state and its exact App-authored
+  pending projection are canonically observable; interruption preserves pending state without duplicating spend.
+
+### `[x]` **2.2 Add typed next-action and developer-authenticated action execution launchers**
+
+- _Goal:_ A PR-opening agent can discover and consume one actor-bound hosted trigger from authenticated controller
+  state without parsing display prose or borrowing App credentials.
+
+    - `[x]` **2.2.a Model `needs-user-trigger` and terminal/attention actions in the neutral reducer**
+        - Added strict typed next-state contracts carrying exact scope, request identity, generation, command, and
+          immutable required actor identity; request commands now participate in canonical request identity.
+
+    - `[x]` **2.2.b Implement dependency-injectable next-action and perform-action mains**
+        - Added read-only next-action and actor-authenticated perform-action mains that revalidate exact controller
+          state, expose triggers only after pending confirmation, post once, narrowly adopt ambiguity, and dispatch.
+
+    - `[x]` **2.2.c Add repository-only launcher scripts and JSON contracts**
+        - Added private root scripts and thin `tsx` launchers that use the current developer's `gh` session while
+          keeping the published CLI package surface unchanged.
+
+    - `[x]` **2.2.d Cover actor mismatch, replay, adoption, and stale-action behavior**
+        - Covered wrong actors, changed heads and generations, exact ambiguous-post adoption, duplicate consumption,
+          dispatch failure, pre-confirmation waiting, launcher isolation, and strict typed output parsing.
+
+- _Outcome:_ Actor-dependent provider work now crosses a pending-confirmed, exact-head handoff: neutral reduction
+  describes the single permitted trigger, while only the matching developer session can consume and reconcile it.
+
+### `[x]` **2.3 Model active flights, `begin-fix`, supersession, and one-shot head-update authorization**
+
+- _Goal:_ Request activity and terminal findings produce an explicit mutability state, so every allowed new head is
+  attributable to one authorized repair and every old-head finding remains in the lifecycle tail.
+
+    - `[x]` **2.3.a Reduce exact-head flight and mutability state**
+        - Added neutral receipt and exact-host-observation reduction for pending trigger, queued, acknowledged,
+          running, terminal, contaminated, abandoned, superseded, and ambiguous active generations.
+
+    - `[x]` **2.3.b Add `begin-fix` and carried-finding receipt semantics**
+        - Extended the strict initial receipt schema with flight, `begin-fix`, and head-consumption payloads; repair
+          planning requires an authorized actor, exact terminal request/findings, old head, and one target head.
+
+    - `[x]` **2.3.c Consume authorization on the first reconciled new head**
+        - The first target-head reconciliation now appends consumption, supersession, and per-finding carry receipts
+          before reserving follow-up review through the existing pending-confirmed execution protocol.
+
+    - `[x]` **2.3.d Cover abandon, supersede, repair, and replay transitions test-first**
+        - Covered active and ambiguous refusal, unchanged-head settlement, abandon/supersede/contamination states,
+          exact FIX authorization, wrong targets/actors/findings, replay, strict identities, and runtime carry order.
+
+- _Outcome:_ Every modeled head change is now attributable to a durable single-use transition: active review freezes
+  mutation, while terminal findings cross exactly one authorized target with their original lifecycle authority intact.
+
+### `[x]` **2.4 Expose and compose the exact-head mutability guard at workflow push fire sites**
+
+- _Goal:_ Workflow-driven pushes for an opened PR stop immediately before transport unless canonical controller
+  state authorizes that exact head transition, while pre-PR pushes remain network-hook free.
+
+    - `[x]` **2.4.a Add `review-gate:assert-head-mutable` as a repository-only launcher**
+        - Added a private root launcher and read-only composition that bind repository, PR, canonical current head,
+          outgoing head, and optional authorization hash to stable typed allow/refuse output without consuming it.
+
+    - `[x]` **2.4.b Insert the guard at canonical integration and errand push fire sites**
+        - Guarded final integration, base-reconcile, resumed-open-errand, and review-fix pushes immediately before
+          transport across synchronized package/project workflows; initial pre-PR pushes remain outside the query.
+
+    - `[x]` **2.4.c Extend workflow contract tests for guard placement and no-pre-PR behavior**
+        - Covered launcher isolation and fail-closed output plus initial, review-fix, lifecycle-final, base-reconcile,
+          and resumed-errand placement, package/instance parity, head order, `begin-fix`, and refusal-before-push.
+
+- _Outcome:_ Open-PR workflow pushes now share one exact transition guard, closing the gap between durable flight
+  authority and transport while preserving the intentionally network-free pre-PR path.
+
+## **Phase 3:** Causal provider evidence and deterministic fallback
+
+_Purpose:_ Qualify hosted provider artifacts through one uncontaminated, immutable trigger generation and exact
+frozen head, while retaining partial capabilities and admitting fallback only after effect terminality is proven.
+
+_Design decisions:_ Provider identity, grammar, request transport, and settlement capability are independently
+versioned. Native status and approval remain observations rather than aggregate authority. Trigger-deletion
+tombstones follow the managed-record principle that deletion is an explicit non-projected event, but remain
+domain-specific immutable review-ledger receipts: PR-scoped, actor/head/digest-bound, and retained with the ledger
+rather than sharing user-record projection, sync, TTL, or garbage-collection machinery. Every receipt variant added
+below extends the still-inactive initial schema v1, its strict parser, and literal golden fixtures; no second receipt
+schema, mixed-ledger mode, or upgrade transition is introduced before activation.
+
+### `[x]` **3.1 Build the PR-wide exclusive-trigger window and mutation tombstone model**
+
+- _Goal:_ A terminal provider artifact can satisfy only the controller generation that owns the sole immutable
+  trigger window across the entire PR, including trigger edits, deletions, labels, and old-head effects.
+- **Additional Context:** `draft-operational-state-docs.md` § Treat deletion as an explicit record event, not a
+  state diff. Reuse the principle, not its managed-document storage/projection substrate.
+
+    - `[x]` **3.1.a Define neutral trigger-event and contamination reduction**
+        - Added neutral exclusive-window types and reduction over immutable event identity, actor, digest, time, head,
+          ownership, mutation, live-effect terminality, and generation-wide contamination.
+
+    - `[x]` **3.1.b Read complete GitHub command and label history with immutable provenance**
+        - Added a fully paginated GitHub history adapter for PR-wide issue comments and immutable label timeline
+          events, with injected provider classification and fail-closed incomplete enumeration.
+
+    - `[x]` **3.1.c Capture bounded deletion tombstones before canonical comments disappear**
+        - Added the strict initial-schema `trigger-deleted` payload, stable identity goldens, ledger semantics, and
+          exact replay adoption; the direct deleted-event matrix preserves and appends it before ordinary reconcile.
+        - Scheduled scans combine retained tombstones with canonical comment/timeline history without projecting,
+          expiring, synchronizing, or garbage-collecting deletion records.
+
+    - `[x]` **3.1.d Prove contamination and terminal-release rules test-first**
+        - Covered owned terminal acceptance; unowned, edited, deleted, removed, competing, and old-head effects;
+          bounded/authenticated deletion routing, append ordering, replay, and scheduled missed-event repair.
+
+- _Outcome:_ Provider evidence now has a PR-wide causal envelope: only one immutable owned trigger can satisfy its
+  generation, while complete history and retained deletion events preserve contamination and effect terminality.
+
+### `[x]` **3.2 Qualify CodeRabbit capabilities and full-coverage request generations**
+
+- _Goal:_ CodeRabbit contributes only capabilities proven under the resolved repository configuration, with native
+  approval and progress unable to impersonate substantive exact-head evidence.
+
+    - `[x]` **3.2.a Expand the capability declaration and resolved-configuration audit**
+        - Added fail-closed derivation for exclusive automatic paths, inherited/global/keyword bypasses, path
+          exclusions, request mechanisms, exact coverage, durable outcomes, and source-confirmed settlement while
+          retaining independently proven partial capabilities.
+
+    - `[x]` **3.2.b Bind generation-zero labels and later full-review comments to owned trigger events**
+        - Bound label acknowledgements to the unique post-reservation immutable timeline event and full-review
+          acknowledgements to the unedited App-authored comment, carrying exact actor, digest, time, and head into the
+          ledger; provider observations now enumerate complete inline-comment threads and correlate findings to the
+          pinned bot, submitted review, stable locus, exact head, and durable URL.
+
+    - `[x]` **3.2.c Separate progress, native approval, substantive evidence, and capacity terminality**
+        - Removed the native-approval evidence mapper and its lifecycle-tail shortcut; current-head evidence now enters
+          only through the provider observation/normalization port, while status, empty approval, mutable walkthrough,
+          silence, unknown capacity, and non-terminal failures remain non-satisfying.
+
+    - `[x]` **3.2.d Add capability-matrix and provider-surface coverage**
+        - Covered satisfying and partial declarations, request-mechanism gaps, exact-head clean/findings, stale and
+          empty approvals, silent/progress-only states, quota rejection, settlement capability, incomplete inline
+          enumeration, exact trigger provenance, and provider-port-only runtime satisfaction.
+
+- _Outcome:_ CodeRabbit authority is now causal and substantive end to end: configuration qualification controls the
+  declared capability set, the ledger owns the real GitHub trigger event, and only exact-head durable artifacts
+  normalized by the adapter can satisfy the gate.
+
+### `[x]` **3.3 Add the hosted Codex adapter, pinned evidence parsers, and rubric transport**
+
+- _Goal:_ Hosted Codex can serve as a causally bound satisfying adapter through the PR author's identity, with
+  versioned grammar and guidance that fail closed on every stale, edited, ambiguous, or unrelated artifact.
+- **Additional Context:** `notes-review-gate-enforcement-cutover.md` § Live hosted-Codex probe.
+
+    - `[x]` **3.3.a Add `providers/codex` request, observation, and capability boundaries**
+        - Added actor-required trigger adoption, receipt-backed request/run locators, pinned App `1144995` and bot
+          `199175422` identities, exact-head observations, capability declarations, and neutral provider-port
+          preflight that rejects unqualified requests before reservation.
+
+    - `[x]` **3.3.b Parse findings and clean outcomes with versioned fail-closed grammars**
+        - Added fail-closed parsing for full-commit submitted-review findings and the pinned, unedited `Codex Review:`
+          clean comment with its exact clause and one uniquely resolved frozen-head commit marker.
+
+    - `[x]` **3.3.c Add repository review guidance and effective-guidance digest validation**
+        - Added the `independent-analysis/v1` review-guidelines section and command transport for all five dimensions;
+          exact-head git-object resolution covers changed, deleted, and both renamed paths while rejecting missing,
+          conflicting, unreadable, or head-mismatched effective guidance before reservation.
+
+    - `[x]` **3.3.d Keep connected-account unavailability parser-only until production qualification**
+        - Added the pinned connected-account response grammar/link under the App/bot/request window while leaving its
+          terminal capability disabled pending an admissible unconnected-actor live qualification.
+
+    - `[x]` **3.3.e Cover probe fixtures, grammar drift, rubric transport, and stale rejection**
+        - Covered nested guidance and rename/delete targets, exact-head object reads, conflicts and drift, ambiguous
+          SHA prefixes, edited/foreign/pre-trigger clean comments, full-commit findings, actor-required trigger
+          adoption, parser-only account failure, and reservation preflight.
+
+- _Outcome:_ Hosted Codex now has an independently qualifying path from exact-head repository guidance and an owned
+  author trigger through pinned durable artifacts; unknown grammar, identity drift, and unresolved guidance cannot
+  create either a reservation or satisfying evidence.
+
+### `[x]` **3.4 Enforce one-live-source fallback and explicit ambiguous-effect repair**
+
+- _Goal:_ Provider order advances only after the prior source is proven unable to have a live effect, preventing
+  duplicate quota spend and cross-generation satisfaction.
+
+    - `[x]` **3.4.a Extend admission and requirement reduction with source supersession**
+        - Added ordered one-live-source selection and strict alternate admission behind an initial-schema
+          `source-superseded` receipt carrying prior request/source/generation, proof, alternate, actor, reason, and
+          ledger predecessor; selection advances only on a subsequent canonical pass that sees the durable record.
+
+    - `[x]` **3.4.b Distinguish legal fallback from blocking ambiguity test-first**
+        - Separated proven pre-effect rejection from ambiguous invocation failure, admitted unknown capacity for one
+          owned attempt, and covered exhaustion, terminal proof, acknowledged silence, ambiguous delivery, durable
+          replay convergence, and authorized explicit abandonment repair.
+
+    - `[x]` **3.4.c Keep CLI-agent and qualified-human attestations explicit repair-only paths**
+        - Preserved automatic fallback eligibility for durable-record providers only; CLI-agent and qualified-human
+          authenticated attestations remain out-of-band evidence paths requiring explicit invocation.
+
+- _Outcome:_ Provider fallback is now a ledger transition rather than a retry heuristic: no alternate can start
+  while the prior effect is live or ambiguous, and capacity, pre-effect, terminal, or explicit-repair proof remains
+  reconstructible and idempotent.
+
+### `[x]` **3.5 Compose provider qualification declarations into self-hosting policy and aggregate reduction**
+
+- _Goal:_ The production runtime selects only live-qualified provider capabilities from versioned policy and reduces
+  their evidence through the same neutral aggregate semantics.
+
+    - `[x]` **3.5.a Extend policy schema with ordered provider modes and capability outcomes**
+        - Added closed enabled/partial/disabled declarations with parser and identity pins, guidance digest,
+          terminal-unavailable mode, request actor, cross-field validation, and a pure sanitized-baseline derivation
+          that is the only path from observed hosted-provider outcomes to an enabled declaration.
+
+    - `[x]` **3.5.b Compose multiple provider adapters without widening the neutral port**
+        - Added a ledger-routed provider adapter that delegates capacity, qualification, request, observation, and
+          normalization to exactly one policy-enabled CodeRabbit or Codex source; aggregate reduction now records
+          source supersession before a later ordered provider can be selected.
+
+    - `[x]` **3.5.c Extend production composition and end-to-end reconcile coverage**
+        - Drove CodeRabbit and hosted Codex through production composition with only Git/GitHub transport fakes,
+          covering reservation, pending confirmation, exact author-trigger adoption, pinned clean evidence,
+          ordered capacity fallback, aggregate projection, and restart-safe request routing.
+
+- _Outcome:_ Versioned policy now controls both provider availability and adapter capabilities; production can run
+  one durable hosted source at a time, advance only through a canonical supersession receipt, and reduce either
+  provider's substantive evidence without granting native review state satisfying authority.
+
+## **Phase 4:** Passive waiting and coordination re-entry
+
+_Purpose:_ Give the PR-opening agent a provider-neutral, model-free wait path that returns typed CI or aggregate
+review state, while GitHub events and scheduled discovery reconcile the same canonical controller state.
+
+_Design decisions:_ The watcher reads only source-pinned `ci-ok` or the ARC App projection for one exact head.
+Provider parsing remains inside adapters, and scheduled discovery repairs event loss rather than defining latency.
+The aggregate check retains a bounded machine marker beside its human summary so the watcher can validate typed
+controller state without reconstructing provider semantics or scraping prose.
+
+### `[x]` **4.1 Implement the injected passive await state machine**
+
+- _Goal:_ One reusable runtime waits on exact-head CI or aggregate review state with bounded API use, no provider
+  parsing, no model inference, and explicit terminal or attention outcomes.
+
+    - `[x]` **4.1.a Define wait inputs, normalized transitions, and terminal results**
+        - Added a provider-neutral runtime with injected host reads, clock, backoff, and output ports plus typed
+          success, failure, stale-head, timeout, authentication, and malformed-projection terminals.
+
+    - `[x]` **4.1.b Implement source-pinned CI and aggregate-projection observation loops**
+        - Added exact-head polling with change-only normalized output and a bounded versioned App marker carrying
+          conclusion, blocker codes, ledger version, and receipt references. The aggregate parser pins App id,
+          stable external id, context name, PR, and head before exposing typed state.
+
+    - `[x]` **4.1.c Prove timing, backoff, silence, and every terminal arm test-first**
+        - Fake-clock and injected-port tests cover bounded backoff, unchanged-state silence, exact-head invalidation,
+          both conclusions, timeout, authentication failure, and malformed/ambiguous aggregate projections.
+
+- _Outcome:_ Passive waiting now consumes only typed canonical state: CI remains source-pinned, aggregate review
+  state is authenticated by exact machine coordinates, and provider prose never enters the runtime.
+
+### `[x]` **4.2 Add the self-hosting await launcher and typed terminal output contract**
+
+- _Goal:_ The coordinating developer process can block cheaply on canonical GitHub state and receive a stable JSON
+  result without access to the App private key or installation token.
+
+    - `[x]` **4.2.a Implement a dependency-injectable await main over authenticated `gh` reads**
+        - Added exact repository/PR/head reads through the existing developer `gh` port, including actor/session
+          validation and shared typed authentication, host, and malformed-state attention results.
+
+    - `[x]` **4.2.b Add the `review-gate:await` thin launcher and private root script**
+        - Added the private root launcher with validated `ci|review`, exact-head, interval, and timeout arguments;
+          transitions and terminal results share one injected JSON-lines output boundary.
+
+    - `[x]` **4.2.c Add launcher contract and credential-boundary tests**
+        - Covered canonical `gh api` requests, source pinning, typed failures, argument parsing, JSON output, and the
+          repository-only packaging boundary without introducing App private-key or installation-token access.
+
+- _Outcome:_ The PR coordinator can now wait cheaply through its existing developer authentication while the reusable
+  runtime remains transport-neutral and the repository launcher stays outside the published CLI graph.
+
+### `[x]` **4.3 Expand canonical wake-up routing and scheduled repair coverage**
+
+- _Goal:_ Every relevant GitHub mutation wakes exact-PR reconciliation or leaves scheduled discovery able to repair
+  it, without trusting event payload state or recursively reacting to controller-owned output.
+
+    - `[x]` **4.3.a Extend wake-up normalization for the complete event set**
+        - Added explicit action allowlists for direct PR/label, issue-comment, check, and CI/proxy completion events;
+          status, dispatch, and schedule retain their canonical paths while review payloads remain on the secretless
+          proxy. Controller-owned created/completed checks are suppressed before candidate expansion.
+
+    - `[x]` **4.3.b Update privileged and secretless workflow routing**
+        - Expanded trusted PR-review-request and check-created coverage, retained the checkout-free/permissionless
+          review proxy, consumed the established deletion tombstone route, verified exact-PR default-branch dispatch,
+          and kept scheduled discovery as the repair path.
+
+    - `[x]` **4.3.c Extend workflow and runtime integration tests**
+        - Covered exact and coordinate-less proxy completion, deduplicated candidate expansion, bounded all-open-PR
+          repair, empty discovery, direct deletion consumption, and controller-self-check suppression.
+
+- _Outcome:_ Event-driven reconciliation now covers every supported canonical mutation path without admitting
+  unsupported actions, duplicating exact candidates, or recursively reacting to controller projections; schedule
+  remains repair-only.
+
+### `[x]` **4.4 Integrate action execution, passive waiting, and exact-head re-entry into PR coordination**
+
+- _Goal:_ The PR-opening workflow repeatedly reads canonical action state, performs an admitted developer trigger,
+  waits passively, and re-enters findings coordination until the exact head settles.
+
+    - `[x]` **4.4.a Rewrite `coordinate-pr-review.md` around typed action and await loops**
+        - Replaced provider-command/manual waiting with typed `next-action` → `perform-action` → `await` → canonical
+          re-entry, including head invalidation and typed attention handling while preserving distinct finding
+          authorities.
+
+    - `[x]` **4.4.b Align work-unit and errand integration callers**
+        - Updated paired package/instance WU and errand workflows so review coordination, mutability guards, hook
+          re-entry, and final pre-merge settlement recompose one canonical exact-head contract after every change.
+
+    - `[x]` **4.4.c Extend workflow trigger, package-sync, and prose-contract tests**
+        - Verified paired Framework copies, exact-head prose contracts, guard ordering, repository-only coordination,
+          configured project actions, generic package shells, and inactive `post-pr-open`/`pre-merge` state.
+
+- _Outcome:_ PR coordination now blocks cheaply on typed controller state and always re-enters through canonical
+  exact-head coordinates, while the complete self-hosting machinery remains configured but inactive.
+
+## **Phase 5:** Conversation settlement and finding lifecycle tails
+
+_Purpose:_ Keep provider satisfaction distinct from closure authority and settle every finding at its original
+conversation locus through authorized, receipt-backed FIX, DEFER, REJECT, or provider-owned sequences.
+
+_Design decisions:_ A FIX closes only after the new head has exact CI, qualifying follow-up review, durable direct
+reply, and authorized receipt evidence. Thread resolution alone never removes a blocker. Coordinator-owned replies
+and resolutions run through the authorized developer's GitHub identity; the App independently re-queries and records
+them. Disposition authority is durable before resolution, while resolution is a subsequent observed transition.
+
+### `[x]` **5.1 Add settlement actions, authorization contracts, and lifecycle-tail reduction**
+
+- _Goal:_ Every known finding remains blocking until a source-confirmed or policy-authorized lifecycle transition
+  proves its disposition at the original locus and exact head sequence.
+
+    - `[x]` **5.1.a Define `begin-fix`, `fixed`, `deferred`, `rejected`, and provider-closure receipts**
+        - Added strict disposition payloads binding finding/source, old/fix heads, actor, rationale, direct reply,
+          follow-up evidence, verification, and time. Added a separate `conversation-resolved` receipt keyed to the
+          prior disposition hash, with parser and ledger sequence validation.
+
+    - `[x]` **5.1.b Resolve authorized finding actors from maintain permission and policy**
+        - Added live maintain-capability selection for the PR author or the separately pinned fallback maintainer
+          (`andrewRCr` / `44483269`). Removed `knownHostActors` and native resolver membership from closure authority.
+
+    - `[x]` **5.1.c Reduce finding lifecycle tails test-first**
+        - Added recurrence-aware sequenced reduction across actor, head, CI, follow-up evidence, direct reply,
+          resolution, and provider authority. Bare/reordered resolution, foreign findings, wrong actors, incomplete
+          FIX proof, and native thread resolution remain blocking observations.
+
+- _Outcome:_ Finding closure authority is now explicit, sequence-bound, and source/policy scoped; no broad host actor
+  set or resolved-thread flag can remove a blocker.
+
+### `[x]` **5.2 Implement GitHub direct-reply and thread-resolution adapters with durable provenance**
+
+- _Goal:_ The coordinator can reply and resolve at the original inline conversation while the reducer retains
+  immutable, canonically re-queryable evidence for each mutation under the actor policy that authorized it.
+
+    - `[x]` **5.2.a Add direct inline-reply and thread-resolution host operations**
+        - Extended the developer-authenticated action port with exact-head/actor inline replies and GraphQL thread
+          resolution, retaining comment/thread ids, body digest, timestamps, and mutation identity. The separate App
+          reader exposes only paginated REST and GraphQL queries.
+
+    - `[x]` **5.2.b Adopt ambiguous replies and resolutions only after exact re-query**
+        - Added one-attempt mutation orchestration that adopts only a unique actor/body/time reply and exact
+          actor/thread resolution from canonical App reads; absence, duplication, or mismatch remains blocking.
+
+    - `[x]` **5.2.c Cover durable reply, permission, stale-thread, and ambiguity behavior**
+        - Covered exact provenance, actor/head guards, already-resolved adoption, ambiguous transport, mismatched
+          resolver, and unavailable canonical reads with developer and App-bound fakes.
+
+- _Outcome:_ Settlement writes now have a single developer-authorized attempt and an independent canonical read
+  proof, so network ambiguity cannot cause replay or manufacture durable provenance.
+
+### `[x]` **5.3 Complete the coordinator-owned FIX sequence across old and new heads**
+
+- _Goal:_ A FIX finding closes only after one authorized push, exact new-head CI, qualifying full-head follow-up
+  review, non-recurrence, direct reply, durable `fixed` receipt, and thread resolution.
+
+    - `[x]` **5.3.a Carry terminal findings through `begin-fix` and one consumed push authorization**
+        - The FIX runtime requires one matching `begin-fix` receipt and its single consumed old→new-head
+          authorization before any reply or settlement write.
+
+    - `[x]` **5.3.b Bind new-head CI and follow-up review evidence to the original finding**
+        - Bound FIX to successful exact new-head CI and same-source full-head follow-up evidence. Added optional
+          source-authenticated `recursFindingId`; other findings remain legal, while an explicit recurrence blocks.
+
+    - `[x]` **5.3.c Record accurate direct-reply language and `fixed` authority before resolution**
+        - The reply states that the coordinator addressed and verified the fix and cites follow-up evidence without
+          impersonating provider claims. The runtime confirms `fixed` before resolving, then confirms the canonical
+          thread state and appends `conversation-resolved`.
+
+    - `[x]` **5.3.d Exercise the full FIX path through runtime composition and GitHub fakes**
+        - Covered ordered receipt appends, accurate reply text, other-finding tolerance, explicit recurrence,
+          incomplete head authorization, CI/evidence binding, and canonical reply/thread adapters.
+
+- _Outcome:_ FIX now forms one auditable old-head-to-new-head chain; no push, green check, provider response, reply,
+  or thread mutation can independently close the original finding.
+
+### `[x]` **5.4 Complete DEFER, REJECT, and provider-owned closure paths**
+
+- _Goal:_ Non-fix dispositions close on the unchanged head only through bounded rationale and durable reply, while
+  provider-owned closure is accepted only from the qualified finding source.
+
+    - `[x]` **5.4.a Implement authorized DEFER and REJECT receipt/reply sequences**
+        - Added unchanged-head settlement with byte-bounded developer rationale, canonical direct reply, confirmed
+          disposition receipt, and separately confirmed conversation resolution in strict order.
+
+    - `[x]` **5.4.b Implement source-confirmed provider closure without coordinator impersonation**
+        - Added provider-closure recording and reduction that requires an explicit relation and disposition receipt
+          from the same closure-capable qualified source; native thread state remains observational.
+
+    - `[x]` **5.4.c Update PR coordination triage and cover all closure-authority arms**
+        - Replaced the legacy dismissal command with explicit FIX, DEFER/REJECT, and provider-owned coordination
+          paths, and covered their runtime, reducer, parser, workflow, and removed-command boundaries.
+
+- _Outcome:_ Every finding now remains an aggregate blocker until one exact authority sequence completes; settled
+  current-head findings satisfy the reviewed obligation without manufacturing provider-clean evidence.
+
+## **Phase 6:** Independent outage-repair authority
+
+_Purpose:_ Preinstall a recovery path whose status authority does not depend on the ARC App, and prove that only
+immutable default-branch repair code can write the Actions-pinned recovery context.
+
+_Design decisions:_ GitHub Actions App identity is accepted only with a repository-wide exclusive-writer proof.
+Repair validates bounded exact-head attestations and follows add-before-remove transitions without bypassing merge.
+The emergency writer uses a dedicated `review-gate-repair` environment referenced by no other workflow and executes
+only from immutable default-branch code.
+
+### `[x]` **6.1 Extend bounded attestation validation for exact-head repair authority**
+
+- _Goal:_ Recovery accepts only fresh, bounded, authorized independent-analysis evidence for the live repository,
+  PR, author, diff base, change set, exact head, policy, rubric, and runtime.
+
+    - `[x]` **6.1.a Extend the neutral attestation manifest and validator**
+        - Added host-neutral repair purpose, repository/change/controller execution bindings, author separation, and
+          unchanged-authority proof. Only clean exact-head evidence without findings or closures authorizes repair.
+
+    - `[x]` **6.1.b Add live GitHub context resolution for repair validation**
+        - Added a read-only ordinary-token GitHub adapter and resolver for repository/default branch, PR coverage,
+          workflow run, policy, changed authority paths, and live maintainer or non-author capability.
+
+    - `[x]` **6.1.c Cover agent, human, stale, self-review, and changed-repair-code cases test-first**
+        - Covered qualified agents and humans plus findings, closures, stale scope, wrong purpose/identity, self-review,
+          weak authority, non-default dispatch, and changed repair code as distinct fail-closed cases.
+
+- _Outcome:_ Valid review evidence and emergency success authority are now separate contracts; live host facts narrow
+  the latter without coupling the neutral validator to GitHub or Actions vocabulary.
+
+### `[x]` **6.2 Build the default-branch workflow and call-graph exclusive-writer audit**
+
+- _Goal:_ A `review-repair-ok` status is trusted only after the complete immutable default-branch Actions graph
+  proves no other workflow, token, or protected-environment consumer can write that context.
+
+    - `[x]` **6.2.a Parse workflow permissions, calls, environments, and status-writing paths**
+        - Added deterministic YAML graph parsing for explicit workflow/job permissions, local reusable calls,
+          environment consumers, and status writers, paired with live default-token and default-branch SHA reads.
+
+    - `[x]` **6.2.b Enforce the exclusive-writer and protected-environment invariants**
+        - Enforced one validation-dependent, actionless, secretless inline status writer with exact permissions and
+          sole environment ownership, plus exact context/head/run and GitHub Actions App id `15368` source proof.
+
+    - `[x]` **6.2.c Add fixture and live-repository audit coverage**
+        - Covered direct/reusable competing writers, environment reuse, implicit permissions, forbidden actions and
+          secrets, dynamic context, protected self-change, repository permission drift, and graph SHA disagreement.
+
+- _Outcome:_ The repository now has one closed proof model for Actions-token status authority; all existing jobs also
+  declare explicit permissions so inherited defaults cannot silently widen the audited graph.
+
+### `[x]` **6.3 Add the dispatch-only `review-repair-ok` workflow and protected-environment contract**
+
+- _Goal:_ A maintainer can create one Actions-pinned recovery status from audited default-branch code without the
+  ARC App credential and without opening an alternate automatic authority path.
+
+    - `[x]` **6.3.a Provision and verify the dedicated `review-gate-repair` environment**
+        - Added compare/apply operator logic that resolves the live default branch, refuses secret-bearing state,
+          creates or repairs the exact branch deployment policy, and re-verifies live state after every mutation.
+
+    - `[x]` **6.3.b Add `.github/workflows/review-gate-repair.yml` with split minimal permissions**
+        - Added a typed `repository_dispatch` workflow whose launch credential never enters Actions, whose validation
+          job checks out immutable default-branch code without persisted credentials, and whose sole protected writer
+          receives exactly `contents: read`, `pull-requests: read`, and `statuses: write`.
+
+    - `[x]` **6.3.c Implement validation output and the closed inline writer**
+        - Validation binds the typed event, live context, environment, full workflow graph, and attestation into a
+          bounded result. The actionless writer rechecks it and the live head before publishing a fully linked status;
+          repaired PRs cannot change the authority code or any workflow in the audited graph.
+
+    - `[x]` **6.3.d Extend environment, permissions, secret-boundary, and source-id tests**
+        - Covered missing, secret-bearing, unprotected, and wrong-branch environments; wrong event/type/ref dispatch;
+          exact permission, environment, inline-writer, and no-secret boundaries; graph drift; and source app `15368`.
+
+- _Outcome:_ Emergency status authority now executes only from GitHub's immutable default-branch event path and is
+  closed over its environment, source identity, complete workflow graph, live PR head, and bounded review evidence.
+
+### `[x]` **6.4 Rehearse and document outage and restoration add-before-remove sequences**
+
+- _Goal:_ Operators can replace or restore required review authority without an empty required-check interval,
+  administrative bypass, or unproven source.
+
+    - `[x]` **6.4.a Add compare-and-stop outage and restoration procedures to `.github/review-gate.md`**
+        - Added exact environment, incident snapshot, CI/attestation, graph, dispatch, status-source, enforcement, and
+          restoration checkpoints. CI-producer changes require separate exact-head proof from an unchanged producer
+          and independent reviewer; self-produced proof is inadmissible.
+
+    - `[x]` **6.4.b Rehearse add-before-remove in shadow/non-required mode and retain sanitized evidence**
+        - Retained a non-mutating shadow contract rehearsal with no live claims and an executable exact-order proof;
+          the runbook separately requires hosted rehearsal after default-branch delivery and defines private raw versus
+          sanitized retained evidence.
+
+    - `[x]` **6.4.c Add runbook contract tests for forbidden bypasses and ordering**
+        - Replaced the blanket CI-producer refusal with explicit independent proof and symmetric restoration contracts.
+          Tests cover ordinary and producer-changing repair, self-proof, removal-first mutation, default-branch event
+          choice, documented ordering, evidence retention, and bypass prohibitions.
+
+- _Outcome:_ Outage and restoration now share a mechanically tested add-prove-remove invariant, with a required green
+  authority floor at every checkpoint and no path for admin bypass, self-proof, or source-ambiguous substitution.
+
+## **Phase 7:** Delivery qualification contract and extraction handoff
+
+_Purpose:_ Assemble the inactive self-hosting delivery and the exact qualification machinery the dependent
+qualification work unit will run from default-branch code without changing legacy required-check or project-hook
+authority.
+
+_Design decisions:_ The implementation PR carries the fail-closed qualification runner, activation compiler, diff
+validator, and sanitized manifest schema, but no invented live values or post-merge acceptance state. It archives
+normally after delivery verification; `review-gate-enforcement-qualification` owns baseline qualification, provider-
+policy activation, and the provisional observed manifest; promotion owns enabled-policy requalification and the final
+acceptance proof before enforcement mutation.
+
+### `[x]` **7.1 Complete controller composition and repository-only launcher packaging**
+
+- _Goal:_ All new neutral modules, GitHub/provider adapters, launchers, workflows, and policy declarations compose
+  into one inactive self-hosting controller without leaking repository mechanics into the extraction boundary.
+
+    - `[x]` **7.1.a Assemble production factories and runtime entry points**
+        - Added one immutable repository-only entrypoint assembly spanning reconciliation, attestation, developer
+          actions, passive await, finding settlement, repair validation, and environment provisioning. The reconcile
+          graph now also exposes its canonical settlement reader beside the versioned store and provider router.
+
+    - `[x]` **7.1.b Keep repository-only launchers outside the published CLI surface**
+        - Routed every production launcher through the private assembly while retaining `src/cli.ts` as the sole tsup
+          entry. No package command, CLI command, provider registry, or runtime dependency exposes repository code.
+
+    - `[x]` **7.1.c Extend packaging, architecture-boundary, and production-composition tests**
+        - Extended composition and launcher inventory tests over the assembled paths and canonical settlement read
+          side. Packaging now proves private scripts stay root-only, the public build remains rooted at `src/cli.ts`,
+          and the tarball excludes controller sources and repository workflows.
+
+- _Outcome:_ The inactive self-hosting controller now has one inspectable private composition surface without widening
+  the neutral core or published CLI boundary.
+
+### `[x]` **7.2 Build App identity, token-opacity, and secret-boundary qualification**
+
+- _Goal:_ The dependent qualification work can prove the pinned least-privilege App through the exact controller
+  consumer across both token formats without exposing credentials or granting qualification code production authority.
+- **Additional Context:** `notes-review-gate-enforcement-cutover.md` § GitHub App and token evidence.
+
+    - `[x]` **7.2.a Source-audit pinned Actions and controller token consumers**
+        - Added live qualification for the pinned App/bot, exactly one selected repository, and the exact checks,
+          metadata, pull-request, and status permissions. Production-consumer audits prohibit prefix, length, dot,
+          regex, and widened token-storage assumptions.
+
+    - `[x]` **7.2.b Add qualification-only forced-format probes around the exact controller consumer**
+        - Added typed default-branch `repository_dispatch` qualification in the existing protected environment. It
+          signs a short-lived App JWT, direct-mints stateless and classic tokens with per-request overrides, passes
+          both opaquely through the same consumer, and uploads only a one-day sanitized result artifact.
+
+    - `[x]` **7.2.c Cover App identity, repository selection, denied capabilities, and secret non-propagation**
+        - Covered signed JWT/mint requests, override isolation, arbitrary token bytes, exact authority parity, added
+          privilege/repository refusal, denied merge/administration/content authority, sanitized failures, and workflow
+          output boundaries with redacted fakes.
+
+- _Outcome:_ Qualification can now prove both installation-token formats end to end without teaching production code
+  either format or allowing private keys, tokens, or credential-shaped failures into durable results.
+
+### `[x]` **7.3 Build the hosted-provider and controller acceptance matrix**
+
+- _Goal:_ One fail-closed runner can exercise and record every required live capability against shipped default-branch
+  code without allowing fixtures, partial probes, or unshipped implementations to satisfy acceptance.
+- **Additional Context:** `notes-review-gate-enforcement-cutover.md` §§ Live hosted-Codex probe, CodeRabbit
+  observations, and Qualification evidence boundaries.
+
+    - `[x]` **7.3.a Define the disposable-PR matrix and typed acceptance result**
+        - Added a closed 24-cell matrix over pending order, triggers, provider outcomes, fallback, await, event repair,
+          settlement, ledger reconstruction, token formats, and repair. Scope, cell, checkpoint, and candidate contracts
+          bind repository/default/implementation SHA, PR/head, actors/sources, policy/parser/rubric/guidance, and hashes.
+
+    - `[x]` **7.3.b Implement CodeRabbit and Codex controlled probe orchestration**
+        - Added exact developer-authenticated label and comment actions followed by default-branch reconciliation and
+          canonical GitHub re-query. Every provider cell requires the full rubric and clean/findings/stale/unknown
+          outcomes; connected-account behavior remains parser-only unless an admissible actor proves terminality.
+
+    - `[x]` **7.3.c Implement controller, watcher, settlement, ledger, and recovery probe orchestration**
+        - Added the private `review-gate:qualify` coordinator with clean immutable-default-branch and actor checks,
+          protected workflow dispatch, canonical re-query, mode-restricted out-of-repository checkpoint/raw stores,
+          exact-prefix resume, and sanitized candidate output. Added deterministic activation compilation and an exact
+          generated-operation diff validator.
+
+    - `[x]` **7.3.d Test incomplete, failed, resumed, and contaminated acceptance runs**
+        - Covered incomplete/forged candidates, fixture and credential contamination, workflow/scope/checkpoint drift,
+          missing resume state, dirty/wrong-actor/default-branch workspaces, raw-store boundaries, exact idempotent
+          resume, cell failure, restoration failure, blocked-tail suppression, and generated-diff additions/edits.
+
+    - `[x]` **7.3.e Repair live-evidence derivation and activation after adversarial verification**
+        - Replaced descriptor claims with isolated-cell GitHub evidence reduced through the production provider
+          normalizers, bound workflow runs and action redispatches to the exact probe policy, and made activation derive
+          schema-valid enabled/partial declarations plus the provisional manifest from proven capabilities only.
+
+- _Outcome:_ Later qualification can produce a passing activation candidate only by completing the full live matrix
+  through shipped default-branch code; every partial, contaminated, or failed path stops at a private hashed checkpoint.
+
+### `[x]` **7.4 Publish the runbook, technical overview, sanitized evidence schema, and extraction handoff**
+
+- _Goal:_ Operators receive an exact default-branch qualification and handoff procedure, while downstream work
+  receives a stable sanitized schema that later records observed values without conflating reusable contracts and
+  self-hosting policy.
+
+    - `[x]` **7.4.a Complete `.github/review-gate.md` and `.github/review-gate-attestation.md`**
+        - Added the private resumable qualification procedure, candidate/activation refusal boundary, exclusive
+          trigger and original-locus finding authority, and ordinary engineering-language reviewer contract.
+
+    - `[x]` **7.4.b Add the self-hosting review-gate section to `.arc/reference/TECHNICAL-OVERVIEW.md`**
+        - Documented neutral contracts/runtimes, GitHub/provider implementations, repository policy/launchers, the
+          protected Actions topology, and inactive qualification/promotion boundary without claiming live acceptance.
+
+    - `[x]` **7.4.c Create the sanitized cutover evidence and handoff schema**
+        - Added `analysis-review-gate-cutover-evidence.md` as the durable acceptance record and extraction map: it
+          separates implementation boundaries, closed qualification inputs, source identities, empty live slots, and
+          the typed `CutoverAcceptanceProof` without admitting credential, secret, or unredacted payload fields.
+
+    - `[x]` **7.4.d Validate docs, workflow prose, secret redaction, and audience boundaries**
+        - Validated the documents with Markdown lint and independent audience/secret review. Executable guarantees stay
+          at their real boundaries: compiler-path unit coverage and the existing attestation/outage contract tests.
+
+- _Outcome:_ Operators and downstream extraction now share one sanitized contract: shipped machinery is documented
+  precisely, live capability slots remain empty until immutable-default-branch proof, and tracked evidence cannot
+  substitute private records or leak review-gate implementation lifecycle jargon into reviewer-facing surfaces.
+
+## **Phase 8:** Verification
+
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source/test type checking; 5,101 tests passed with one
+  intentional skip; and the package build completed successfully.
+- _Success criteria:_ All 17 criteria are met. The forcing live event/schedule matrix remains owned by the dedicated
+  qualification delivery, and ordinary archival remains the post-integration lifecycle ceremony.
+
+---
+
+## Success Criteria
+
+- `[x]` Every provider effect is preceded by a durable reservation and confirmed App-authored pending projection on
+  the exact head.
+- `[x]` Satisfying evidence is causally bound to pinned identity, versioned policy/rubric, full frozen head, and one
+  uncontaminated immutable trigger generation.
+- `[x]` CodeRabbit capability declarations fail closed, and the qualification runner can record an observed capability
+  table without treating native status or empty approval as authority.
+- `[x]` Hosted Codex parsers, rubric transport, trigger ownership, and settlement contracts cover every required
+  outcome while connected-account behavior remains parser-only until admissible live proof exists.
+- `[x]` Provider order permits fallback only after a legal terminal/pre-effect condition, and the qualification
+  runner refuses a passing proof without at least one hosted satisfying adapter.
+- `[x]` Passive CI/review waiting returns typed exact-head state changes without provider parsing or model work.
+- `[x]` Every configured event path and scheduled repair converges on the same canonical state without duplicate
+  generations or recursive controller wake-ups.
+    - _Verification boundary:_ Contract tests force every configured path; the dedicated qualification delivery owns
+      the disposable-PR live event/schedule run and records its run ids plus fresh exact-cell receipt/check evidence.
+- `[x]` Active flights freeze pushes, and every finding disposition satisfies its exact-head authorization and
+  original-conversation lifecycle contract.
+- `[x]` Initial-schema ledgers remain byte-stable and audit-readable through one strict parser and identity algorithm;
+  no mixed-version or upgrade path is accepted.
+- `[x]` Qualification-only token probes treat both formats as opaque, remove every temporary override, and emit no
+  credential-bearing result.
+- `[x]` App validation pins identity, least privilege, selected-repository scope, denied capabilities, and secret
+  isolation across every consumer boundary.
+- `[x]` `review-repair-ok` is bound to a live-verified secretless environment, immutable default-branch Actions code,
+  one closed writer job, an exact-head attestation, and an add-before-remove recovery procedure.
+- `[x]` Coordinator FIX, DEFER, REJECT, and provider-owned closure retain their distinct exact-head authority and
+  original-conversation lifecycle contracts.
+- `[x]` The single implementation delivery leaves legacy `merge-ok` required and project hooks inactive, installs the
+  deterministic qualification compiler, activation-diff validator, machine-gated requalification runner, and
+  sanitized handoff schema, and archives through the ordinary work-unit lifecycle.
+    - _Lifecycle boundary:_ The delivery and runbook retain no post-merge qualification hold; actual archival remains
+      the ordinary post-integration ceremony, while qualification and promotion own their later live records.
+- `[x]` Neutral core modules depend only on injected ports, and the sanitized handoff schema separates reusable
+  contracts from self-hosting policy and later live values.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.

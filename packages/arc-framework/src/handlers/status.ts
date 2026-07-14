@@ -59,6 +59,7 @@ import {
   deriveInFlight,
   renderInFlightWarning,
   type InFlightEntry,
+  type InFlightResidue,
   type InFlightWarning,
 } from "../lib/git/in-flight-derivation.js";
 import { findMaterializableWorkUnits } from "../lib/session-init/materializable-work-units.js";
@@ -68,7 +69,7 @@ import {
   RECOVERY_RECENCY_DAYS,
 } from "../lib/session-init/branch-gone-recovery.js";
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
-import { runPlanOrphanSweep } from "../lib/session-init/plan-orphan-sweep.js";
+import { runOrphanBranchSweep } from "../lib/session-init/orphan-branch-sweep.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
 import { runErrandState } from "../lib/session-init/errand-state.js";
@@ -94,8 +95,14 @@ import {
   resolveAllSettings,
   type ResolvedSettingsResult,
 } from "../lib/config/resolved-settings.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
-import { listErrandRecords, type ErrandRecord } from "../lib/errand/record.js";
+import {
+  listErrandRecords,
+  listErrandRecordsResult,
+  type ErrandRecord,
+  type ListErrandRecordsResult,
+} from "../lib/errand/record.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import {
@@ -110,9 +117,11 @@ import {
   resolveProjectReadinessRenderStamp,
   resolveProjectReadinessViewInput,
 } from "../lib/status/project-view.js";
+import { renderRoadmapFromIndexViewResult } from "../lib/status/roadmap-regeneration-assert.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
@@ -126,7 +135,9 @@ export interface StatusCliOptions {
   project?: boolean;
   /** `--local`: render explicit user/project views from local refs without a network read. */
   local?: boolean;
-  /** Commander's negation of `--no-fetch` (defaults to `true`); `false` skips the network read. */
+  /** `--staged`: render the `--project` view's tree inputs from the git index (the pre-commit regen source). */
+  staged?: boolean;
+  /** `true` opts a slug query into live membership; `false` skips network reads for live-default views. */
   fetch?: boolean;
   json?: boolean;
   /** With --session-init: write the machine-local compaction seed sidecar. */
@@ -240,20 +251,38 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // Slug→state query: a subject-keyed read over the lifecycle-complete index,
     // independent of session identity / settings. The index walk binds real I/O;
     // the resolution stays a pure lib projection.
-    const index = await buildLifecycleIndex({
+    const { settings } = await readConfigSettings(cwd);
+    const composed = await resolveComposedLifecycleIndex({
       cwd,
       fs: {
         readdir: (path) => readdir(path, { withFileTypes: true }),
         readFile: (path) => readFile(path, "utf8"),
       },
+      oracle: {
+        exec: gitExec,
+        localOnly: opts.fetch !== true,
+        baseBranch: settings["branch.base"],
+      },
     });
-    const query = resolveSlugQuery(index, slug);
+    const query = resolveSlugQuery(composed.index, slug);
+    const worktreePath = composed.worktreePathBySlug.get(slug);
+    const warnings = [
+      ...composed.qualityFacts.warnings.map(renderInFlightWarning),
+      ...(opts.fetch === true && composed.qualityFacts.unreachable === true
+        ? ["Remote unreachable; query derived from local refs only."]
+        : []),
+    ];
+    const output = {
+      ...query,
+      ...(worktreePath !== undefined ? { worktreePath } : {}),
+      ...(warnings.length > 0 ? { warnings: [...new Set(warnings)] } : {}),
+    };
     if (json) {
-      process.stdout.write(`${JSON.stringify(query)}\n`);
+      process.stdout.write(`${JSON.stringify(output)}\n`);
       return;
     }
     p.intro("arc status");
-    p.note(formatSlugStateQuery(query), "Lifecycle state");
+    p.note(formatSlugStateQuery(query, { worktreePath, warnings: output.warnings ?? [] }), "Lifecycle state");
     p.outro("Done.");
     return;
   }
@@ -376,6 +405,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // session forces neither probe, so the network read never runs there.
     let oraclePromise: Promise<{
       entries: InFlightEntry[];
+      residue: InFlightResidue[];
       warnings: InFlightWarning[];
       reachable: boolean;
     }> | undefined;
@@ -383,15 +413,17 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // derivation (errand-vs-WU classification) and the errand-state probe
     // (resume + discovery). Identity-scoped and local, so read once and reused;
     // empty when no identity resolved (no record ref exists).
-    let errandRecordsPromise: Promise<ErrandRecord[]> | undefined;
-    const getErrandRecords = (): Promise<ErrandRecord[]> => {
+    let errandRecordsPromise: Promise<ListErrandRecordsResult> | undefined;
+    const getErrandRecordsResult = (): Promise<ListErrandRecordsResult> => {
       errandRecordsPromise ??= identity === null
-        ? Promise.resolve([])
-        : listErrandRecords({ exec: gitExec, identity });
+        ? Promise.resolve({ records: [], complete: true, warnings: [] })
+        : listErrandRecordsResult({ exec: gitExec, identity });
       return errandRecordsPromise;
     };
+    const getErrandRecords = async (): Promise<ErrandRecord[]> => (await getErrandRecordsResult()).records;
     const getOracle = (): Promise<{
       entries: InFlightEntry[];
+      residue: InFlightResidue[];
       warnings: InFlightWarning[];
       reachable: boolean;
     }> => {
@@ -401,10 +433,11 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         await pruneRemoteTrackingRefs(gitExec);
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const [records, parkedSlugs] = await Promise.all([
-          getErrandRecords(),
+        const [recordResult, parkedSlugs] = await Promise.all([
+          getErrandRecordsResult(),
           buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
         ]);
+        const records = recordResult.records;
         const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
         const result = await deriveInFlight({
           exec: gitExec,
@@ -413,12 +446,20 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           identity,
           teamMode,
           errandSlugByBranch,
+          errandRecordsComplete: recordResult.complete,
           parkedSlugs,
         });
         // Unreachable: derive nothing rather than a half-resolved view over
         // un-pruned local refs. Consumers surface no candidates / skip discovery.
-        if (!result.reachable) return { entries: [], warnings: result.warnings, reachable: false };
-        return { entries: result.entries, warnings: result.warnings, reachable: result.reachable };
+        if (!result.reachable) {
+          return { entries: [], residue: result.residue, warnings: result.warnings, reachable: false };
+        }
+        return {
+          entries: result.entries,
+          residue: result.residue,
+          warnings: result.warnings,
+          reachable: result.reachable,
+        };
       })();
       return oraclePromise;
     };
@@ -497,11 +538,18 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           exec: gitExec,
         });
       },
-      planOrphanSweep: async (worktreeIdentity) => {
+      orphanBranchSweep: async (worktreeIdentity) => {
         const resolved = await resolvedSettingsP;
-        return runPlanOrphanSweep({
+        // Record-carrying errand branches are excluded — the errand surfaces
+        // (resume, close replay) own their cleanup. With no resolved identity
+        // the records are unreadable, so pass `null` and the sweep declines
+        // rather than offering deletes that could orphan a record.
+        const errandRecords = identity === null ? null : await getErrandRecords();
+        return runOrphanBranchSweep({
           worktreeIdentity,
           baseBranch: resolved.settings["branch.base"],
+          errandBranches:
+            errandRecords === null ? null : new Set(errandRecords.map((record) => record.branch)),
           exec: gitExec,
         });
       },
@@ -527,13 +575,16 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
         // Errand records are the identity oracle for resume + discovery (shared
         // with the in-flight derivation); empty when no identity resolved.
-        const records = await getErrandRecords();
+        const recordResult = await getErrandRecordsResult();
+        const records = recordResult.records;
         let entries: InFlightEntry[] | null = null;
-        let oracleWarnings: string[] = [];
+        let residue: InFlightResidue[] = [];
+        let oracleWarnings: string[] = [...recordResult.warnings];
         if (input.includeDiscovery) {
           const oracle = await getOracle();
           entries = oracle.reachable ? oracle.entries : null;
-          oracleWarnings = oracle.warnings.map(renderInFlightWarning);
+          residue = oracle.residue;
+          oracleWarnings = [...oracleWarnings, ...oracle.warnings.map(renderInFlightWarning)];
         }
         return runErrandState({
           exec: gitExec,
@@ -541,6 +592,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           hasBackingMeta: input.hasBackingMeta,
           includeDiscovery: input.includeDiscovery,
           entries,
+          residue,
           oracleWarnings,
           records,
           baseBranch: resolved.settings["branch.base"],
@@ -663,6 +715,23 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
 
   if (opts.project) {
     const resolved = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    if (opts.staged) {
+      // Render the project view from the git index — the same source the
+      // pre-commit ROADMAP regen check validates against, so
+      // `arc status --project --staged > ROADMAP` produces exactly what the
+      // hook expects (staged sweep or clean tree).
+      const { result } = await renderRoadmapFromIndexViewResult({
+        cwd,
+        exec: gitExec,
+        baseBranch: resolved.settings["branch.base"],
+      });
+      if (json) {
+        process.stdout.write(`${JSON.stringify(result)}\n`);
+        return;
+      }
+      process.stdout.write(`${result.markdown}\n`);
+      return;
+    }
     const localOnly = Boolean(opts.local) || opts.fetch === false;
     const [parkedSlugs, errandRecords] = await Promise.all([
       buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
@@ -772,7 +841,10 @@ function errorMessage(err: unknown): string {
 }
 
 /** Compact human render of a slug→state query for the non-`--json` path. */
-function formatSlugStateQuery(query: SlugStateQuery): string {
+function formatSlugStateQuery(
+  query: SlugStateQuery,
+  enrichment: { worktreePath?: string; warnings?: readonly string[] } = {},
+): string {
   const position =
     query.position === null
       ? "—"
@@ -782,11 +854,13 @@ function formatSlugStateQuery(query: SlugStateQuery): string {
     `position: ${position}`,
     `occupied: ${query.occupied} · shipped: ${query.shipped}`,
   ];
+  if (enrichment.worktreePath !== undefined) lines.push(`worktree: ${enrichment.worktreePath}`);
   if (query.dependsOn.length > 0) {
     lines.push("depends on:");
     for (const dep of query.dependsOn) {
       lines.push(`  - ${dep.slug} — ${dep.landed ? "landed" : "not landed"}`);
     }
   }
+  for (const warning of enrichment.warnings ?? []) lines.push(`warning: ${warning}`);
   return lines.join("\n");
 }

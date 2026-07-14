@@ -202,3 +202,35 @@
   post-reform verb model, not the current synchronous one.
 - _Files:_ `.arc/system/workflows/arc/create-spec.md`, `.arc/system/workflows/arc/generate-tasks.md`, plus the
   `packages/arc-framework/arc/system/workflows/arc/` copies.
+
+### `[ ]` **Preserve PSI's scheduling/readiness axis contract**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain
+  (2026-07-10); settled during `project-state-integrity` grooming.
+- _Contract:_ mint no new stored `State` values and do not re-key existing meanings. `State` remains the
+  scheduling/progress axis; readiness is an orthogonal attested signal; compositions such as
+  `Ready (stale, re-verify)` are projection-time only.
+- _Coordination:_ PSI's composer keys identity and life phase on meta content rather than branch naming, so this
+  WU may freely reshape `plan/` and activation rename mechanics. If the axis contract itself must change,
+  coordinate through PSI's readiness-provider socket rather than the enum.
+
+### `[ ]` **Give parking and backward transitions explicit axis semantics**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain
+  (2026-07-10); surfaced by the PSI adversarial audit and design reckoning.
+- _Concern:_ parked WUs currently encode literal `State: Active` in a `backlog/planned/` pointer and derive
+  “parked” from directory position. Backward verbs likewise mix readiness revocation, de-scheduling, and genuine
+  progress retreat.
+- _Fold-in:_ give parking an explicit scheduling-axis home and settle the backward edges per axis. Preserve PSI's
+  interim single-classifier swap point until this reform replaces it; no parked-WU migration is currently needed.
+
+### `[ ]` **Finish activation-rename remote-ref retirement**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain
+  (2026-07-10); observed during FP wave-1 spawn verification.
+- _Operational slice pulled forward:_ a standalone Errand will clear the renamed branch's stale
+  `origin/plan/<slug>` upstream so the existing release-push wrapper establishes the new
+  `origin/<type>/<slug>` upstream.
+- _Residual owned here:_ retire the remote `plan/` shadow ref safely after the new head lands, and reconcile that
+  cleanup with the post-reform activation model. SSOA must make any interim shadow ref harmless to lifecycle/status
+  truth; this WU owns eliminating the residue.

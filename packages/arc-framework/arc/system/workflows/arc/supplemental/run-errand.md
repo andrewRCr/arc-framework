@@ -7,9 +7,10 @@ arc:
     - commit-footer
   extensions:
     - post-task-quality
-    - pre-pr-review
+    - pre-pr-open
+    - post-pr-open
     - pre-push-review
-    - pre-merge-review
+    - pre-merge
 ---
 
 # Workflow: Run Errand
@@ -118,29 +119,65 @@ The errand's commits are made; now ship and clean up. Integrate branches on prot
    - **Extensions** · `#pre-push-review`: If active, run its `.actions` before the push; halt-on-fail surfaces an
      actionable message, fix-and-retry or explicit-invoke bypasses. Otherwise skip.
 
+   On re-entry with an existing `openedChangeRequest`, invoke the active project review coordinator's exact-head
+   mutability action with that change request, the outgoing local head, and any `begin-fix` authorization receipt.
+   Stop on any typed refusal. The initial pre-PR push has no `openedChangeRequest` and skips this query.
+
    > [!CAUTION]
    > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
 
-3. **Open the PR** with a **lean errand body** — `template-pull-request` assumes a work unit, so inline a minimal
-   body: a one-line Summary, plus a one-line Test Plan only when verification is non-obvious. No Spec /
-   Out-of-Scope / Follow-Up sections — an errand is one concern.
+3. **Resolve the Errand PR** before creation. Paginate the exact current repository + head-owner/branch query and
+   retain each candidate's state, merged time, and head SHA. A lookup error or incomplete enumeration is a stop, not
+   an empty result. Classify the complete result:
 
-   - **Extensions** · `#pre-pr-review`: If active, run its `.actions` before opening the PR; halt-on-fail as above.
-     Otherwise skip.
+   | Result                                                           | Action                                       |
+   |------------------------------------------------------------------|----------------------------------------------|
+   | No match                                                         | Enter the creation arm below                 |
+   | One open match                                                   | Reuse its `hostRef`; do not create or reopen |
+   | One merged match at the current head                             | Skip review/merge and enter Complete cleanup |
+   | Closed-unmerged, stale merged head, multiple/conflicting matches | Stop and surface every candidate             |
+
+   ```bash
+   gh api --method GET --paginate --slurp \
+     "repos/{repository}/pulls?state=all&base={base-branch}&head={owner}:{branch}&per_page=100"
+   ```
+
+   The no-match creation arm uses a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
+   one-line Summary plus a one-line Test Plan only when verification is non-obvious. No Spec / Out-of-Scope /
+   Follow-Up sections.
+
+   Compose `proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }`. If `pre-pr-open` is active,
+   execute numbered actions in authored order immediately before creation; halt before later actions on failure.
+   Retry these retry-safe actions after a failed create, but never run them on the one-open-match reuse path.
+
+   Immediately before `gh pr create`, read `refs/heads/<branch>` from the base repository remote with
+   `git ls-remote --heads origin`. Compare its exact 40-hex SHA with `proposedChangeRequest.headSha`; on absence,
+   ambiguity, or mismatch, stop and restart PR resolution. Never create against a head that changed after validation.
 
    ```bash
    gh pr create --base <base-branch> --head <branch>
    ```
 
-> [!IMPORTANT]
-> `integration-interlock`: Stop before arming auto-merge or merging. Surface PR status (checks, required
-> approvals) and the resolved lane; await explicit integration approval — never infer it from the increment
-> approval above.
+4. **Enter the open PR.** On both newly-created and reused-open paths, compose
+   `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open` is active, execute its idempotent
+   numbered actions before review coordination. Derive current controller/PR state from `hostRef`. Review
+   coordination and both hooks share this exact-head contract. After any head-changing action, recompose
+   `openedChangeRequest` from the canonical current head before re-entry.
 
-4. Fire the pre-merge review, then land per lane:
+5. **Settle the final head.** For reviewed and auto lanes, run review coordination and fire `pre-merge` before
+   merge authorization. If any fix/request action changes the head, repeat base freshness, current-head coordination,
+   and the final hook until the head is unchanged and the controller reports it settled. No review-authored commit or
+   push may occur after the stable checkpoint.
 
-   - **Extensions** · `#pre-merge-review`: If active, run its `.actions` before the merge; halt-on-fail as above.
+   - **Extensions** · `#pre-merge`: If active, run its `.actions` before the merge; halt-on-fail as above.
      Otherwise skip.
+
+> [!IMPORTANT]
+> `integration-interlock`: Stop after the current head is settled and before arming auto-merge or merging. Surface PR
+> status (checks, required approvals) and the resolved lane; await explicit integration approval — never infer it from
+> the increment approval above.
+
+6. Land per lane:
 
    **Auto-merge-lane** — resolve `merge.strategy` via the config probe, then arm native auto-merge with the
    matching method (`merge` → `--merge`, `squash` → `--squash`, `rebase` → `--rebase`):
@@ -161,11 +198,14 @@ follows the project's normal base-push discipline.
 
 On merge (full) or final commit (partial), close out:
 
-- **Full protection** — `arc errand close <slug>` reaps the branch, prunes its tracking ref, removes the record,
-  and drops the originating `USER-INBOX` capture (the entry its record back-points to). The reap is
-  containment-safe: if the branch's commits aren't provably preserved (pushed or merged), it **refuses** and keeps
-  the record — push/merge then retry, or `--force` if you've verified it shipped. The remote PR branch is the
-  host's to delete on merge.
+- **Full protection** — `arc errand close <slug>` reaps the branch, deletes its remote head when the work
+  provably landed in base (a host's delete-on-merge having already removed it is the idempotent no-op), prunes
+  its tracking ref, removes the record, and drops the originating `USER-INBOX` capture (the entry its record
+  back-points to). The reap is containment-safe: if the branch's commits aren't provably preserved (pushed or
+  merged), it **refuses** and keeps the record — push/merge then retry, or `--force` if you've verified it
+  shipped. A remote head that is the only proven preservation (e.g. a multi-commit squash) is kept and surfaced,
+  never deleted. The remote delete is best-effort: on a push failure (auth, connectivity) the local close still
+  completes and the head is surfaced for manual cleanup.
 - **Partial protection** — nothing to close; the errand is already a direct base commit.
 
 **Unattended merge (auto-merge lane).** If the merge lands after the session ends, `arc errand close` is replayed

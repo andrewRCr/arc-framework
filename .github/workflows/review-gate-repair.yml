@@ -1,0 +1,68 @@
+name: Review Gate Repair
+
+on:
+  repository_dispatch:
+    types: [review-gate-repair]
+
+permissions: {}
+
+jobs:
+  validate:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    permissions:
+      actions: read
+      contents: read
+      deployments: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    outputs:
+      head_sha: ${{ steps.validate.outputs.head_sha }}
+      validation_json: ${{ steps.validate.outputs.validation_json }}
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - id: validate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run review-gate:validate-repair
+
+  write-status:
+    needs: validate
+    if: ${{ needs.validate.result == 'success' }}
+    environment: review-gate-repair
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish bounded repair status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.client_payload.pull_request }}
+          STATUS_CONTEXT: review-repair-ok
+          VALIDATED_HEAD: ${{ needs.validate.outputs.head_sha }}
+          VALIDATION_JSON: ${{ needs.validate.outputs.validation_json }}
+        run: |
+          test "${#VALIDATION_JSON}" -le 4096
+          test "$(jq -r .status <<<"$VALIDATION_JSON")" = qualified
+          test "$(jq -r .headSha <<<"$VALIDATION_JSON")" = "$VALIDATED_HEAD"
+          test "$(jq -r .pullRequestNumber <<<"$VALIDATION_JSON")" = "$PR_NUMBER"
+          test "$(jq -r .workflowPath <<<"$VALIDATION_JSON")" = .github/workflows/review-gate-repair.yml
+          test "$(jq -r .workflowSha <<<"$VALIDATION_JSON")" = "$GITHUB_WORKFLOW_SHA"
+          test "$(jq -r .runId <<<"$VALIDATION_JSON")" = "$GITHUB_RUN_ID"
+          live_head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)"
+          test "$live_head" = "$VALIDATED_HEAD"
+          target="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          target="$target?workflow_path=.github/workflows/review-gate-repair.yml"
+          target="$target&workflow_sha=$GITHUB_WORKFLOW_SHA&pr=$PR_NUMBER&head=$VALIDATED_HEAD"
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$VALIDATED_HEAD" \
+            -f state=success -f context="$STATUS_CONTEXT" \
+            -f description='Bounded independent repair review passed' -f target_url="$target"

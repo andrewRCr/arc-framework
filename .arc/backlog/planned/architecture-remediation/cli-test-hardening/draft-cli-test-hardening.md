@@ -27,6 +27,17 @@
   removal-ordering fix — rather than product behavior. Distinct from the two flakes already in this WU's buffer
   (shallow-clone git-notes timeout; save/sync notes-push concurrency race): this is a filesystem cleanup race in the
   fixture teardown itself.
+- _Update (housekeep drain, 2026-07-13):_ the same class recurred in integration tests as
+  `ENOTEMPTY: .git/objects/pack`, with Git auto-gc still writing during teardown. Disable background gc in the
+  shared temp-repo factory and/or make recursive removal retry-safe so every test tier inherits the correction.
+
+### `[ ]` **Normalize integration-test architecture around product surfaces**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured during
+  `review-gate-enforcement-cutover` production-composition review.
+- _Approach:_ evaluate a coherent `integration/review-gate/` layout named by production surfaces, reusable
+  GitHub/Git boundary support, and scenario suites split only at independently navigable behavior. Keep mocks at
+  system boundaries and assertions on observable controller outcomes.
 
 ### `[ ]` **De-flake the shallow-clone git-notes integration test (under-budgeted 5000ms timeout)**
 

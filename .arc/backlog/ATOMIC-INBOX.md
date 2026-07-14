@@ -9,6 +9,22 @@
 
 ## Inbox
 
+### `[ ]` **Freshen the local base after remote integration**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-10); captured after a same-machine integration
+  left local `main` behind `origin/main`.
+- _Observation:_ `integrate-work-unit` fetches the remote-tracking base before merge, but the host-side PR merge
+  does not advance the local base ref. A later local-base consumer can therefore see stale state until
+  session-init detects and heals it.
+- _Reassessment:_ do not auto-update a base that is checked out in another worktree—the common worktree-default
+  case—because that can move files underneath another live session. A simple `git fetch origin base:base` would
+  either be refused or unsafe there, while a skip-only fix would miss the common case.
+- _Approach:_ design a worktree-aware, operator-visible refresh that remains safe for a checked-out/dirty/active
+  primary, or explicitly retain session-init healing as the boundary. The in-place case may still fast-forward
+  directly when no worktree has the base checked out.
+- _Files:_ `integrate-work-unit.md` (both copies) and, if automated safely, the shared worktree/base-refresh
+  primitive.
+
 ### `[ ]` **Return protection mode from housekeep write-context checks**
 
 - _Routed from:_ `USER-INBOX § Atomic`, housekeep drain (2026-06-14); captured during between-WUs handoff /

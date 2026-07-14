@@ -30,6 +30,11 @@ import type { Recipe, Manifest, FileEntry, Classification, Layer } from "../../s
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "../../src/lib/paths.js";
 import { MANIFEST_SCHEMA_VERSION } from "../../src/lib/constants.js";
+import {
+  NOTES_COMPACTION_MANIFEST_PATH,
+  serializeNotesCompactionManifest,
+  type NotesCompactionManifest,
+} from "../../src/lib/user-sync/compaction-manifest.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -62,6 +67,94 @@ export function makeGitExecInput(cwd: string): GitExecInput {
       proc.stdin.write(input);
       proc.stdin.end();
     });
+}
+
+/** One entry in a synthetic notes tree. */
+export interface NotesTreeCommitEntry {
+  /** Annotated commit represented by the entry. */
+  commit: string;
+  /** Note blob content. */
+  content: string;
+  /** Optional raw tree path for fanout and malformed-path fixtures. */
+  path?: string;
+}
+
+/** Options for a synthetic notes-tree commit. */
+export interface NotesTreeCommitOptions {
+  /** Optional compaction manifest tree entry. */
+  manifest?: NotesCompactionManifest | null;
+  /** Commit subject. */
+  message?: string;
+  /** Parent notes-history commits, in order. */
+  parents?: string[];
+}
+
+interface FixtureTreeNode {
+  children: Map<string, FixtureTreeNode>;
+  files: Map<string, string>;
+}
+
+function fixtureTreeNode(): FixtureTreeNode {
+  return { children: new Map(), files: new Map() };
+}
+
+async function writeFixtureTree(execInput: GitExecInput, node: FixtureTreeNode): Promise<string> {
+  const rows = [...node.files.entries()].map(([name, blob]) => ({ name, row: `100644 blob ${blob}\t${name}` }));
+  for (const [name, child] of node.children) {
+    const tree = await writeFixtureTree(execInput, child);
+    rows.push({ name, row: `040000 tree ${tree}\t${name}` });
+  }
+  rows.sort((left, right) => left.name.localeCompare(right.name));
+  const input = rows.length === 0 ? "" : `${rows.map(({ row }) => row).join("\n")}\n`;
+  return (await execInput(["mktree"], input)).trim();
+}
+
+/** Build a notes-tree commit from real blobs and tree objects. */
+export async function makeNotesTreeCommit(
+  cwd: string,
+  entries: NotesTreeCommitEntry[],
+  options: NotesTreeCommitOptions = {},
+): Promise<{ blobs: Map<string, string>; manifestBlob: string | null; tip: string }> {
+  const execInput = makeGitExecInput(cwd);
+  const blobs = new Map<string, string>();
+  const treeEntries = new Map<string, string>();
+  for (const entry of entries) {
+    const blob = (await execInput(["hash-object", "-w", "--stdin"], entry.content)).trim();
+    blobs.set(entry.commit, blob);
+    treeEntries.set(entry.path ?? entry.commit, blob);
+  }
+  const manifestBlob = options.manifest === undefined || options.manifest === null
+    ? null
+    : (await execInput(
+        ["hash-object", "-w", "--stdin"],
+        serializeNotesCompactionManifest(options.manifest),
+      )).trim();
+  if (manifestBlob !== null) treeEntries.set(NOTES_COMPACTION_MANIFEST_PATH, manifestBlob);
+  const root = fixtureTreeNode();
+  for (const [path, blob] of treeEntries) {
+    const segments = path.split("/");
+    const file = segments.pop();
+    if (file === undefined || file === "" || segments.some((segment) => segment === "")) {
+      throw new Error(`Invalid fixture tree path: ${path}`);
+    }
+    let node = root;
+    for (const segment of segments) {
+      const child = node.children.get(segment) ?? fixtureTreeNode();
+      node.children.set(segment, child);
+      node = child;
+    }
+    node.files.set(file, blob);
+  }
+  const tree = await writeFixtureTree(execInput, root);
+  const args = [
+    "commit-tree",
+    tree,
+    ...((options.parents ?? []).flatMap((parent) => ["-p", parent])),
+    "-m",
+    options.message ?? "test notes tree",
+  ];
+  const { stdout } = await execFileAsync("git", args, { cwd });
+  return { blobs, manifestBlob, tip: stdout.trim() };
 }
 
 /**
@@ -102,6 +195,9 @@ export async function createTempRepo(
 ): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix));
   await execFileAsync("git", ["init", "--initial-branch=main", dir]);
+  // Disable background auto-gc: its repacking races temp-repo teardown
+  // (ENOTEMPTY on .git/objects/pack) and concurrent notes-tree reads.
+  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });
   await execFileAsync("git", ["config", "user.email", "test@test.com"], {
     cwd: dir,
   });

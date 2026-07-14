@@ -22,7 +22,7 @@
  */
 
 import type { GitExec } from "../git/exec.js";
-import type { InFlightEntry, InFlightErrand } from "../git/in-flight-derivation.js";
+import type { InFlightEntry, InFlightErrand, InFlightResidue } from "../git/in-flight-derivation.js";
 import { isLandedInBase } from "../git/branch-containment.js";
 import type { ErrandRecord } from "../errand/record.js";
 
@@ -50,6 +50,8 @@ export interface ErrandStateResult {
   inFlight: InFlightErrandSweepResult;
   /** Remote-only `chore/` errands that can be materialized locally. */
   materializable: MaterializableErrandsResult;
+  /** Branch/record residue surfaced for advisory cleanup. */
+  residue: InFlightResidue[];
   /** Rate-limit state shared by reminder and stale-errand surfaces. */
   nudge: ErrandNudgeState;
   /** Soft diagnostics; discovery failures should not block session-init. */
@@ -68,6 +70,8 @@ export interface RunErrandStateOptions {
    * leave in-flight/materialize empty.
    */
   entries: readonly InFlightEntry[] | null;
+  /** Oracle-derived residue; remains visible when entry discovery is unavailable. */
+  residue?: readonly InFlightResidue[];
   /** Soft diagnostics already emitted by the in-flight oracle. */
   oracleWarnings?: readonly string[];
   /**
@@ -94,6 +98,7 @@ export interface RunErrandStateOptions {
  */
 export async function runErrandState(options: RunErrandStateOptions): Promise<ErrandStateResult> {
   const oracleWarnings = [...(options.oracleWarnings ?? [])];
+  const residue = [...(options.residue ?? [])];
   // Branch→slug index: the record-derived identity oracle the probes resolve against.
   const slugByBranch = new Map(options.records.map((record) => [record.branch, record.slug]));
 
@@ -104,12 +109,13 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
   });
 
   if (!options.includeDiscovery) {
-    return emptyDiscovery(resume, options.nudge, oracleWarnings);
+    return emptyDiscovery(resume, options.nudge, residue, oracleWarnings);
   }
   if (options.entries === null) {
     return emptyDiscovery(
       resume,
       options.nudge,
+      residue,
       [...oracleWarnings, "Errand discovery skipped because the in-flight oracle was unavailable."],
     );
   }
@@ -123,6 +129,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
       resume,
       inFlight: { errands: [] },
       materializable,
+      residue,
       nudge: options.nudge,
       warnings: oracleWarnings,
     };
@@ -155,6 +162,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
     resume,
     inFlight,
     materializable,
+    residue,
     nudge: options.nudge,
     warnings: [...oracleWarnings, ...timestamps.warnings],
   };
@@ -177,12 +185,14 @@ function timestampOf(
 function emptyDiscovery(
   resume: ErrandResumeResult,
   nudge: ErrandNudgeState,
+  residue: InFlightResidue[],
   warnings: string[],
 ): ErrandStateResult {
   return {
     resume,
     inFlight: { errands: [] },
     materializable: { candidates: [] },
+    residue,
     nudge,
     warnings,
   };

@@ -16,10 +16,12 @@ export {
   deserializeErrandRecord,
   readErrandRecord,
   listErrandRecords,
+  listErrandRecordsResult,
   writeErrandRecord,
   removeErrandRecord,
   type ErrandRecord,
   type ErrandOrigin,
+  type ListErrandRecordsResult,
 } from "./record.js";
 
 export {
@@ -53,6 +55,7 @@ export {
   closeErrand,
   type CloseErrandParams,
   type CloseErrandResult,
+  type RemoteHeadCleanup,
 } from "./close.js";
 
 export {

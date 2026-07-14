@@ -214,7 +214,7 @@ arc-in-git files are annotated explicitly.
 - `system/workflows/project/README.md`
 - `user/README.md`
 
-### Configurable files (project sections expected to differ) — 25
+### Configurable files (project sections expected to differ) — 26
 
 - `completed/README.md`
 - `system/rules/DEV-RULES.PROJECT.md`
@@ -230,8 +230,9 @@ arc-in-git files are annotated explicitly.
 - `system/extensions/post-work-unit-archive.md`
 - `system/extensions/pre-activation.md`
 - `system/extensions/pre-commit-review.md`
-- `system/extensions/pre-merge-review.md`
-- `system/extensions/pre-pr-review.md`
+- `system/extensions/pre-merge.md`
+- `system/extensions/pre-pr-open.md`
+- `system/extensions/post-pr-open.md`
 - `system/extensions/pre-push-review.md`
 - `system/methods/commit-footer.md`
 - `system/methods/commit-format.md`
@@ -269,11 +270,11 @@ arc-in-git files are annotated explicitly.
 | Classification | Count | Update Behavior                                       |
 |----------------|-------|-------------------------------------------------------|
 | Framework      | 67    | Wholesale replaced. No conflicts.                     |
-| Configurable   | 15    | Three-way merge. Conflicts expected in user sections. |
+| Configurable   | 16    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 7     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Total template files:** 89.
+**Total template files:** 90.
 
 *`DEV-RULES.{DOMAIN}.md` is a naming convention for adopter-created files and is not counted.*
 

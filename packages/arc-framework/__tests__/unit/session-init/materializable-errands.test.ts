@@ -73,6 +73,15 @@ describe("findMaterializableErrands", () => {
     expect(result.candidates).toEqual([]);
   });
 
+  it("excludes an errand with an unoccupied local branch", () => {
+    const result = findMaterializableErrands({
+      entries: [errand({ remoteOnly: false })],
+      slugByBranch: index({ "chore/fix-typo": "fix-typo" }),
+    });
+
+    expect(result.candidates).toEqual([]);
+  });
+
   it("excludes work-unit entries (only errands are materialize-errand candidates)", () => {
     expect(findMaterializableErrands({ entries: [wu()], slugByBranch: index() }).candidates).toEqual([]);
   });

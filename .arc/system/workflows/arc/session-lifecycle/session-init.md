@@ -43,11 +43,11 @@ The probe returns a single JSON envelope the agent consumes:
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `removable` / `external`). Acted on by Step 2's branch-gone recovery precondition (Step 6 narrates declines)                                                                                                                                                                                                                                                                                                  |
 | `sweep`                     | Pre-computed stale-worktree sweep; present only in the primary (main) worktree, and only when `roster` resolved. `value.worktrees`: lingering worktrees whose WU has shipped (against `completed/`), each with `worktreePath`, `branch`, and a marker-gated `decision` (`removable`; `blocked` with `reason` `uncommitted` or `unmerged`; or `external`). Surfaced in Step 6; never auto-removed                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `planOrphanSweep`           | Pre-computed `plan/`-orphan sweep; present only in the primary (main) worktree. `value.orphans`: local `plan/<name>` branches whose upstream is `gone` (a sibling's local-only `plan/ → <type>/` rename), each with a `merged` flag (commits landed in `origin/<base>`). A `merged` orphan earns the interlock-gated `git branch -d` offer in Step 6; an unmerged one is surfaced as not-removable (never `-D`). Branch hygiene; never auto-removed                                                                                                                                                                                                                                                                                                                                                                   |
+| `orphanBranchSweep`         | Pre-computed orphan-branch sweep; present only in the primary (main) worktree. `value.orphans`: type-prefixed local branches whose upstream is `gone` (integration on a sibling machine, or a local-only `plan/ → <type>/` rename) — excluding branches checked out in a worktree, branches carrying an errand record (their own surfaces clean those up), and everything when errand records are unreadable (no resolved identity) — each with a `merged` flag (commits landed in `origin/<base>`) and a `shippedWorkUnit` name (non-null when the slug matches a `completed/` record). Step 6 offers `arc teardown` for a shipped orphan, an interlock-gated `git branch -d` for a `merged` one, and surfaces the rest as not-removable (never `-D`). Branch hygiene; never auto-removed                            |
 | `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and carrying no unpushed local drift. Present whenever identity resolved; omitted only when identity is absent. Enriched with `recommendedAction` / `recommendedPromptText` (gated on `session.init_load.notes`): init may reconcile under policy via Step 2's notes-load dispatch (removal + `.internal/` backup inside `arc user load`); `manual` stays warn-only (Step 6)                                                                                                                                                                                                                                                                                                          |
 | `errandSweep`               | Pre-computed reminder sweep. `value.stale`: `_Remind:_`-flagged `§ Errand` `USER-INBOX` entries pending past `inbox.remind_after_days` (default 1), each with `slug`, `created`, and `ageDays`. Present whenever identity resolved (the inbox is identity-scoped — not worktree-gated, unlike `sweep`); omitted only when identity is absent. Read-only advisory surfaced in Step 6 as a once-per-calendar-day batched nudge — drain via housekeep; never auto-removed                                                                                                                                                                                                                                                                                                                                                |
-| `errandState`               | Pre-computed errand-state probe. `value.resume`: current-branch resume signal (`resumable`, `slug`) on meta-less `chore/` branches. `value.inFlight.errands`: Orient-only advisory over local/remote `chore/` branches (`in-progress` / `awaiting-merge` / `merged-cleanup` / `stale`). `value.materializable.candidates`: remote-only `chore/` branches with no local worktree and no backing meta. `value.nudge`: once-per-calendar-day marker state (`shouldNudge`, `markerPath`, `today`) shared by reminder and stale-errand surfaces. Present if worktree + active probes resolved.                                                                                                                                                                                                                             |
-| `materializableWorkUnits`   | Pre-computed materialize-candidate set. `value.candidates`: the operator's remote-only in-flight work units (branch + committed meta on the remote, no local worktree), each `{name, branch}` — the discovery surface the Materialize arm offers for cross-machine pickup. Present ONLY on the no-active-WU arm (`active.resolution === "none"`), where the oracle's network slice fires; the resume path omits it (zero oracle cost). An empty list means the oracle ran and found none (or the remote was unreachable)                                                                                                                                                                                                                                                                                              |
+| `errandState`               | Pre-computed errand-state probe. `value.resume`: current-branch resume signal (`resumable`, `slug`) on meta-less `chore/` branches. `value.residue`: Orient-only branch/record cleanup advisories (`branch`, `slug`, `reason`, optional degradation `marks`). `value.inFlight.errands`: Orient-only advisory over local/remote `chore/` branches (`in-progress` / `awaiting-merge` / `merged-cleanup` / `stale`). `value.materializable.candidates`: remote-only `chore/` branches with no local branch, worktree, or backing meta. `value.nudge`: once-per-calendar-day marker state (`shouldNudge`, `markerPath`, `today`) shared by reminder and stale-errand surfaces. Present if worktree + active probes resolved.                                                                                              |
+| `materializableWorkUnits`   | Pre-computed materialize-candidate set. `value.candidates`: the operator's remote-only in-flight work units (branch + committed meta on the remote, no local branch or worktree), each `{name, branch}` — the discovery surface the Materialize arm offers for cross-machine pickup. Present ONLY on the no-active-WU arm (`active.resolution === "none"`), where the oracle's network slice fires; the resume path omits it (zero oracle cost). An empty list means the oracle ran and found none (or the remote was unreachable)                                                                                                                                                                                                                                                                                    |
 | `workUnitState`             | Pre-computed work-unit completion sweep over the operator's owned in-flight (`Integrating`) WUs, each classified across the tail (`awaiting-review` / `mergeable` / `blocked` / `merged-needs-archival` / `stale`) with a `behindBase` qualifier and whole-day `ageDays`. Present on the roster-resolved arms (primary / no-active-WU / branch-gone). `value.nudge` carries the once-per-calendar-day marker state gating the batched `stale` surface; the `mergeable` / `merged-needs-archival` events bypass it and surface every session-init. The presence tier is network-free; the mergeable-sharpening tier (live PR via `gh`) fires only on no-active-WU and degrades to presence when `gh` is absent                                                                                                         |
 | `inFlightComposition`       | Pre-computed in-flight `Class` composition — `{novel, heavy, light}` resolved-`Class` counts over the in-flight roster slice (`[TBD]` / field-absent excluded). Present only on the no-active-WU arm when the slice is non-empty; consumed by Step 5's next-work discovery to render the concurrent-workload advisory                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `cohortDocPath`             | Pre-resolved path to the active WU's coordinating `cohort-<leaf>.md` (relative to cwd). Present only when the active meta carries a `Cohort` value and the backing doc exists under `backlog/planned/`; omitted otherwise. Read in Step 3's context-load (item 11) to surface cross-member coordination                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -56,9 +56,10 @@ The probe returns a single JSON envelope the agent consumes:
 | `compactionAdvisory`        | Pre-computed user-notes compaction advisory. `value.historyCommitCount` / `value.threshold` / `value.shouldSuggest` compare the local notes-ref history size to the internal advisory threshold. `value.nudge` carries the once-per-calendar-day marker state gating the orientation offer. Present whenever identity resolved; omitted only when identity is absent. Offer-only — render `arc user compact` when over threshold and nudgable; never auto-run                                                                                                                                                                                                                                                                                                                                                         |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
-pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
-parallel `value.refState?` field preserves raw topology (`same` / `local-ahead` / `remote-ahead` / `diverged` /
-`remote-unavailable`; omitted only when `state == "disabled"`). Step 6 reads it inside the `clean` arm to
+pull-direction dispatch and collapses `same`, `local-ahead`, and diverged `remote-subset` content into `clean`
+(all mean "no pull needed"). The parallel `value.refState?` field preserves raw topology (`same` /
+`local-ahead` / `remote-ahead` / `diverged` / `remote-unavailable`; omitted only when `state == "disabled"`),
+while `value.contentRelation?` preserves the diverged tree relation. Step 6 reads both inside the `clean` arm to
 distinguish the collapsed cases for orientation surfacing.
 
 **Interlock-mode keys on `config.value.settings.{commit.interlock, push.interlock}`**: Both are
@@ -775,7 +776,17 @@ tracked source documents the work.
   `arc user compact` when ready.
   ```
 
-- `user.value.state == "clean"` AND `user.value.refState == "local-ahead"`:
+- `user.value.state == "conflict"` AND `user.value.contentRelation ∈ {local-subset, equal,
+  mixed-uncontested}`: the refs diverged without contested note content. Surface expected residue that reconciles
+  at the next paired push; never offer pull.
+
+  ```text
+  **Notes reconciling:** local and remote notes diverged without contested entries; expected residue will
+  reconcile at the next paired push. No pull action is needed.
+  ```
+
+- `user.value.state == "clean"` AND (`user.value.refState == "local-ahead"` OR
+  (`user.value.refState == "diverged"` AND `user.value.contentRelation == "remote-subset"`)):
 
   ```text
   **Local-ahead notes:** local user-notes ref is ahead of remote. Push (or `arc sync`) when ready; non-blocking.
@@ -828,13 +839,17 @@ tracked source documents the work.
   - `{branch}` — externally-managed (no ARC marker); remove manually if desired
   ```
 
-- `planOrphanSweep.value.orphans` non-empty (primary worktree only): local `plan/<name>` branches whose
-  upstream is `gone` linger — the stale planning branch a sibling's local-only `plan/ → <type>/` rename leaves
-  behind. Offer an interlock-gated `git branch -d` only for a `merged` orphan (commits landed in `origin/<base>`;
-  never `-D`); surface an unmerged orphan as not-removable. Branch hygiene only — never auto-removed.
+- `orphanBranchSweep.value.orphans` non-empty (primary worktree only): type-prefixed local branches whose
+  upstream is `gone` linger — the residue integration leaves on every non-integrating machine (or a sibling's
+  local-only `plan/ → <type>/` rename); worktree-checked-out and errand-record-carrying branches never appear
+  here (their own surfaces clean those up). Prefer the re-runnable `arc teardown {shippedWorkUnit}` when the orphan
+  carries a non-null `shippedWorkUnit` (its own containment guards decide the reap); otherwise offer an
+  interlock-gated `git branch -d` only for a `merged` orphan (commits landed in `origin/<base>`; never `-D`),
+  and surface an unmerged one as not-removable. Branch hygiene only — never auto-removed.
 
   ```text
-  **Plan-branch orphans:** {N} stale `plan/` branch(es) with a deleted upstream linger:
+  **Branch orphans:** {N} stale local branch(es) with a deleted upstream linger:
+  - `{branch}` — work unit shipped → clean up? `arc teardown {shippedWorkUnit}`
   - `{branch}` — merged to base → remove? `git branch -d {branch}`
   - `{branch}` — not merged; surfaced, not removed (never `-D`)
   ```
@@ -861,6 +876,15 @@ tracked source documents the work.
   ```text
   **Reminder:** {N} flagged capture(s) pending past the reminder threshold — drain via `arc-housekeep`:
   - `{slug}` — created {created} ({ageDays}d ago)
+  ```
+
+- `errandState.value.residue` non-empty (Orient arm — no active WU): branches with no errand record or active
+  meta, and errand records whose branch is gone, need operator cleanup. Surface every item as an advisory;
+  never delete a branch or record automatically. Append `({marks})` only when degradation marks are present.
+
+  ```text
+  **Branch / record residue:** {N} cleanup candidate(s) detected:
+  - `{branch}` — `{slug}` ({reason}) {optional marks}
   ```
 
 - `errandState.value.inFlight.errands` non-empty (Orient arm — no active WU): local or remote `chore/` errands

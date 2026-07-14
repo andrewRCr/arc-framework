@@ -15,7 +15,6 @@
 
 import {
   errandsRef,
-  readTreeEntries,
   readTreeEntriesDiscriminating,
   hashBlob,
   type ErrandRecordIO,
@@ -153,13 +152,56 @@ export async function readErrandRecord(
  * @returns The records held in the ref's tree.
  */
 export async function listErrandRecords(io: ErrandRecordReadIO): Promise<ErrandRecord[]> {
-  const entries = await readTreeEntries(io.exec, errandsRef(io.identity));
-  const records: ErrandRecord[] = [];
-  for (const slug of entries.keys()) {
-    const record = await readErrandRecord(io, slug);
-    if (record !== null) records.push(record);
+  return (await listErrandRecordsResult(io)).records;
+}
+
+/** Result of listing errand records without collapsing read failures into absence. */
+export interface ListErrandRecordsResult {
+  /** Every record that was read and parsed successfully. */
+  records: ErrandRecord[];
+  /** True only when the tree and every listed record were read successfully. */
+  complete: boolean;
+  /** Soft diagnostics naming unreadable or malformed records. */
+  warnings: string[];
+}
+
+/**
+ * List errand records while distinguishing clean absence from incomplete reads.
+ *
+ * @param io - Injected git seams and identity.
+ * @returns Successfully parsed records plus completeness and soft diagnostics.
+ */
+export async function listErrandRecordsResult(io: ErrandRecordReadIO): Promise<ListErrandRecordsResult> {
+  const ref = errandsRef(io.identity);
+  const tree = await readTreeEntriesDiscriminating(io.exec, ref);
+  if (tree.kind === "absent") return { records: [], complete: true, warnings: [] };
+  if (tree.kind === "error") {
+    return {
+      records: [],
+      complete: false,
+      warnings: [`Errand record tree read failed: ${tree.error.message}`],
+    };
   }
-  return records;
+
+  const records: ErrandRecord[] = [];
+  const warnings: string[] = [];
+  for (const slug of tree.entries.keys()) {
+    let blob: string;
+    try {
+      ({ stdout: blob } = await io.exec("git", ["cat-file", "-p", `${ref}:${slug}`]));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      warnings.push(`Errand record \`${slug}\` read failed: ${message}`);
+      continue;
+    }
+    const record = deserializeErrandRecord(blob);
+    if (record === null) {
+      warnings.push(`Errand record \`${slug}\` is malformed.`);
+      continue;
+    }
+    records.push(record);
+  }
+  return { records, complete: warnings.length === 0, warnings };
 }
 
 /**

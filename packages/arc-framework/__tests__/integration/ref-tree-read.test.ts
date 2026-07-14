@@ -10,6 +10,9 @@
  * the existing fail-open readers stay empty / null on the same inputs.
  */
 
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
+
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import {
@@ -72,6 +75,26 @@ describe("readTreeEntriesDiscriminating", () => {
     expect(result.kind).toBe("error");
     if (result.kind === "error") {
       expect(result.error).toBeInstanceOf(Error);
+    }
+  });
+
+  it("reads the tree root when invoked from a repo subdirectory", async () => {
+    // A bare `ls-tree <ref>` implicitly scopes to the invoking directory's path
+    // within the tree, so an exec bound to a subdirectory read a record tree as
+    // empty — a record removal precheck then silently no-ops while the caller
+    // reports success. Both readers must pin the read to the tree root.
+    const blob = await hashBlob(io.execInput, "value");
+    await writeTreeCommit(io, REF, new Map([["k", blob]]), "create", [], null);
+
+    const subdir = join(dir, "packages", "nested");
+    await mkdir(subdir, { recursive: true });
+    const subdirExec = makeGitExec(subdir);
+
+    expect(await readTreeEntries(subdirExec, REF)).toEqual(new Map([["k", blob]]));
+    const result = await readTreeEntriesDiscriminating(subdirExec, REF);
+    expect(result.kind).toBe("entries");
+    if (result.kind === "entries") {
+      expect(result.entries.get("k")).toBe(blob);
     }
   });
 
