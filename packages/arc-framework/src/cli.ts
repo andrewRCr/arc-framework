@@ -137,6 +137,7 @@ program
     "--class <value>",
     "Resolved Class (Light | Heavy | Novel) for a stub still `[TBD]` — the start ceremony records it in the meta",
   )
+  .option("--new", "Create a fresh work unit when the name does not exist on the base branch")
   .option("-y, --yes", "Skip the confirm prompt; spawned starts still commit and push the ceremony")
   .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
 

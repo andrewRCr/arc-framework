@@ -4,7 +4,7 @@
  * `--here` is the in-place cold-start override: scaffold a Planning meta into the
  * worktree the session is already in, via {@link runColdStart}. Otherwise the
  * handler dispatches on the named work unit's resolved lifecycle state
- * ({@link resolveStartDispatch}): a nonexistent name creates new
+ * ({@link resolveStartDispatch}): an explicitly-new nonexistent name creates
  * ({@link runCreateNew}), a backlog stub graduates onto its branch
  * ({@link runGraduate}), a parked shelf resumes ({@link runResume}), and an
  * already-started or terminal WU is refused with direction.
@@ -15,7 +15,7 @@
  * @module
  */
 
-import { readFile, readdir, rm, rmdir } from "node:fs/promises";
+import { readdir, rm, rmdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import * as p from "@clack/prompts";
@@ -33,6 +33,7 @@ import { validateClass } from "../commands/active/types.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
+import { refreshBase } from "../lib/git/refresh-base.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
@@ -40,6 +41,8 @@ import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { ensureDir } from "../lib/template/files.js";
 import { renderTrackedProjectReadinessView } from "../lib/status/project-roadmap-render.js";
+import { createProjectViewRefSnapshot } from "../lib/status/project-view-ref.js";
+import type { ProjectViewFs } from "../lib/status/project-view.js";
 import {
   isComposedLifecycleSlugIndeterminate,
   resolveComposedLifecycleIndex,
@@ -62,6 +65,8 @@ export interface StartOptions {
   from?: string;
   /** Resolved `Class` for a stub still `[TBD]` — validated, recorded by the ceremony. */
   class?: string;
+  /** Explicitly create a fresh work unit when the name is absent from base. */
+  new?: boolean;
   /** Skip the confirm prompt. */
   yes?: boolean;
 }
@@ -112,9 +117,27 @@ export async function handleStart(
   }
 
   const { settings } = await readConfigSettings(cwd);
+  const refreshedBase = await refreshBase(io.exec, settings["branch.base"]);
+  let baseRef: string;
+  try {
+    const { stdout } = await io.exec("git", ["rev-parse", `${refreshedBase}^{commit}`], { cwd });
+    baseRef = stdout.trim();
+    if (baseRef === "") throw new Error("resolved an empty object id");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    p.log.error(`could not resolve the start base \`${refreshedBase}\`: ${message}`);
+    process.exitCode = 1;
+    return;
+  }
+  const baseSnapshot = await createProjectViewRefSnapshot({ cwd, exec: io.exec, ref: baseRef, slug: wuName });
+  if (!baseSnapshot.ok) {
+    p.log.error(baseSnapshot.reason);
+    process.exitCode = 1;
+    return;
+  }
   const composed = await resolveComposedLifecycleIndex({
     cwd,
-    fs: { readdir: (path) => readdir(path, { withFileTypes: true }), readFile: (path) => readFile(path, "utf8") },
+    fs: baseSnapshot.fs,
     oracle: {
       exec: io.exec,
       baseBranch: settings["branch.base"],
@@ -122,7 +145,7 @@ export async function handleStart(
       expandLiveOnly: true,
     },
   });
-  const dispatch = resolveStartDispatch(composed.index, wuName);
+  const dispatch = resolveStartDispatch(composed.index, wuName, { create: opts.new === true });
   let armOptions = opts;
   const mintsBranch = dispatch.arm === "create-new" || dispatch.arm === "graduate";
   const explicitHereColdStart = opts.here === true && dispatch.arm === "create-new";
@@ -147,8 +170,8 @@ export async function handleStart(
   }
 
   // `--here` is the in-place opt-out, orthogonal to the resolved state: a
-  // nonexistent name cold-starts in place (vs. create-new's spawn) and a backlog
-  // stub graduates in place (vs. spawning a worktree).
+  // nonexistent name explicitly created with `--new` cold-starts in place (vs.
+  // create-new's spawn) and a backlog stub graduates in place (vs. spawning a worktree).
   switch (dispatch.arm) {
     case "refuse":
       p.log.error(dispatch.reason);
@@ -156,10 +179,17 @@ export async function handleStart(
       return;
     case "create-new":
       if (opts.here) await coldStart(name, armOptions, { io, cwd, identity });
-      else await createNew(wuName, armOptions, { io, cwd, identity });
+      else await createNew(wuName, armOptions, { io, cwd, identity }, baseRef);
       return;
     case "graduate":
-      await graduate(wuName, armOptions, { io, cwd, identity, metaPath: composed.index.get(wuName)?.path });
+      await graduate(wuName, armOptions, {
+        io,
+        cwd,
+        identity,
+        baseRef,
+        metaFs: baseSnapshot.fs,
+        metaPath: composed.index.get(wuName)?.path,
+      });
       return;
     case "resume":
       await resume(wuName, armOptions, { io, cwd, identity });
@@ -206,7 +236,7 @@ async function resolveSpawnConfig(
 }
 
 /** Create-new arm — spawn a fresh worktree on a new `plan/<name>` branch. */
-async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext): Promise<void> {
+async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext, baseRef: string): Promise<void> {
   if (!skipConfirm(opts)) {
     if (!(
       await confirmStep(
@@ -220,7 +250,7 @@ async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext): P
 
   const outcome = await runCreateNew(
     { io: ctx.io, internalTemplateDir: getInternalTemplatePath() },
-    { worktreePath: ctx.cwd, identity: ctx.identity, name: wuName },
+    { worktreePath: ctx.cwd, identity: ctx.identity, name: wuName, baseRef },
   );
   if (!outcome.ok) {
     p.log.error(outcome.reason);
@@ -275,7 +305,7 @@ async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext): P
 async function graduate(
   wuName: string,
   opts: StartOptions,
-  ctx: ArmContext & { metaPath: string | undefined },
+  ctx: ArmContext & { baseRef: string; metaFs: ProjectViewFs; metaPath: string | undefined },
 ): Promise<void> {
   if (ctx.metaPath === undefined) {
     p.log.error(`could not resolve the backlog meta for \`${wuName}\`.`);
@@ -286,7 +316,25 @@ async function graduate(
   // Resolve the stub's recorded Class — the `class-resolved` guard refuses `[TBD]`.
   let cls: string;
   try {
-    const record = parseMetaRecord(await ctx.io.readFile(join(ctx.cwd, ctx.metaPath)));
+    const metaPath = join(ctx.cwd, ctx.metaPath);
+    const baseContent = await ctx.metaFs.readFile(metaPath);
+    if (opts.here) {
+      let localContent: string | null = null;
+      try {
+        localContent = await ctx.io.readFile(metaPath);
+      } catch {
+        // Absence is a base disagreement too; the directed refusal below owns the diagnostic.
+      }
+      if (localContent !== baseContent) {
+        p.log.error(
+          `cannot start \`${wuName}\` in place because its backlog meta differs from the base snapshot; `
+          + "sync this checkout to base or omit `--here`.",
+        );
+        process.exitCode = 1;
+        return;
+      }
+    }
+    const record = parseMetaRecord(baseContent);
     cls = record.Class ?? "[TBD]";
   } catch {
     p.log.error(`could not read the backlog meta for \`${wuName}\`.`);
@@ -380,12 +428,13 @@ async function graduate(
       name: wuName,
       cls,
       writeClass,
-      baseBranch: config.baseBranch,
+      baseBranch: ctx.baseRef,
       locationTemplate: config.locationTemplate,
       postCreateScript: config.postCreateScript,
       primaryWorktreePath: config.primaryWorktreePath,
       registeredHarnessDirs: config.registeredHarnessDirs,
       repo: config.repo,
+      sourceIndex: { cwd: ctx.cwd, fs: ctx.metaFs },
       spawningIdentity: ctx.identity,
     },
   );
