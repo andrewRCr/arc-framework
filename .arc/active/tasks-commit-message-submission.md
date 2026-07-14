@@ -42,7 +42,7 @@ consumer changes validation authority.
 - _Outcome:_ All consumers now share stable contracts, exact configuration semantics, exemption ordering, and one
   repository-resolution seam; integrity checks and author-facing configuration guidance enforce the same input domain.
 
-### `[ ]` **1.2 Implement validator behavior and diagnostics**
+### `[x]` **1.2 Implement validator behavior and diagnostics**
 
 - _Goal:_ One pure TypeScript path accepts, warns, or rejects the exact message bytes according to the complete current
   policy while returning focused, machine-stable diagnostics.
@@ -62,15 +62,14 @@ consumer changes validation authority.
           standalone/integration/contribution grammar, async artifact warnings that distinguish absence from
           unavailability, contributor advisories, and the canonical three-valued validation entry point.
 
-    - `[ ]` **1.2.d Render shared human diagnostics**
-        - Format findings once for both CLI and wrapper output, with typed locations, actual/max values, safely
-          truncated previews, summary counts, and the nearest legal footer forms.
-        - Build `test-first` (one behavior at a time):
-            - Error-only, warning-only, and mixed results render deterministically.
-            - Message-line, whole-message, and configuration findings render without fake or ambiguous line numbers.
-            - Invalid footer output suggests only applicable legal families rather than the complete grammar.
-            - Long or control-bearing source lines cannot escape or flood the diagnostic preview.
-            - Human formatting does not alter the machine-stable finding payload.
+    - `[x]` **1.2.d Render shared human diagnostics**
+        - Added one deterministic human formatter with distinct line/message/config locations, counts and limit detail,
+          applicable footer suggestions, escaped/truncated previews, skipped/pass/warning/failure summaries, and
+          immutable handling of the machine payload.
+
+- _Outcome:_ One canonical async validator now parses before policing, preserves three-valued warning semantics, and
+  returns stable findings plus terminal-safe diagnostics across subject, raw-body, footer, configuration, and
+  repository-state policy.
 
 ### `[ ]` **1.3 Build the three-valued differential fixture corpus**
 
