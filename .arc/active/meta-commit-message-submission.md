@@ -12,8 +12,7 @@
 - **Task List:** `tasks-commit-message-submission.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Spec created — `spec-commit-message-submission.md` (detailed RFC; adversarial loop converged,
-  two passes); draft retired.
+- **Last Completed:** Planning finalized — task list generated and work unit activated for implementation.
 - **Next Task:** Begin Task 1.1 — Define validator contracts and repository-state seams
 - **Blockers:** [none]
 
