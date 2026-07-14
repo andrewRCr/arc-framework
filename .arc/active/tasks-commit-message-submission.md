@@ -154,11 +154,10 @@ gating and delegation shim only after parity is demonstrated.
 - _Goal:_ Real temporary repositories demonstrate that the thin installed hook is a defense-in-depth consumer rather
   than a second implementation or a weaker enforcement path.
 
-    - `[ ]` **2.3.a Exercise hook gating in real repositories**
-        - Extend the commit-message E2E suite through actual `git commit` invocations with `core.hooksPath` pointed at
-          an installed executable hook; do not present direct `bash <source-hook>` execution as installed-hook evidence.
-        - Cover disabled validation and a real `MERGE_HEAD` without placing Node or `arc` on the execution path; assert
-          ordinary commits invoke the delegated validator and retain its exit status and output.
+    - `[x]` **2.3.a Exercise hook gating in real repositories**
+        - Rebuilt E2E coverage around executable installed hooks and actual Git commits/merges, proving Node-free
+          exemptions and delegated accept/reject output; Git normalizes any hook rejection to its own exit `1`, while
+          exact delegated statuses remain covered at the installed executable seam.
 
     - `[ ]` **2.3.b Exercise CLI resolution and remediation paths**
         - Use controlled PATH and repository-local executables to prove local precedence, global fallback, and
