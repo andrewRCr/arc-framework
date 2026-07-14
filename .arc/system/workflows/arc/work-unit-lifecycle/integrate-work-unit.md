@@ -358,14 +358,27 @@ after a partial teardown skips what is already done:
 - deletes the live remote head too when the branch has provably landed in the base (a plain merge leaves it to
   linger; a host's delete-on-merge already removed it — the idempotent no-op). When only the upstream copy proves
   preservation, the remote head is left intact and surfaced;
-- removes the WU's worktree when one is distinct from the primary (the in-place arm has none to remove),
-  clean-checked and never `--force`;
+- from outside a distinct linked worktree, removes it after the existing clean and user-surface guards;
+- from inside that worktree, preflights cleanliness, preservation, and every user-surface reconciliation before
+  detaching `HEAD`; on success it reaps refs but leaves the current directory as a live terminal husk;
+- keeps the primary/in-place arm unchanged — switch away from the WU branch and reap refs without husking;
 - prunes the stale remote-tracking ref a deleted remote branch left behind.
 
-A dirty worktree is refused (no `--force` escape): surface the state and resolve it before re-running. When the
-teardown removed the linked worktree the session occupied, the agent's prior cwd no longer exists — **the session
-terminates here**: start a fresh session in another worktree (typically the primary), where `## Next step` does
-not apply on this arm.
+Interpret a self-teardown result explicitly:
+
+- **Husk created:** This session remains live in a detached, disposable worktree. Report whether the local branch
+  was reaped. If it survived an operational delete failure, report the exact ref and retry `arc teardown <wu-name>`
+  from this husk or the primary; remote deletion is skipped on that attempt and prune still runs. When the marker was
+  stamped, the husk can be removed later by re-running teardown from outside or accepting the primary worktree's
+  stale-worktree offer. When the marker is absent, malformed, or could not be extended, report an externally managed
+  husk: remove/prune it manually from outside; do not promise a sweep backstop. Never reuse a husk for new work.
+- **Cannot husk:** Dirty tree, unproven preservation, and blocked user-surface reconciliation are atomic refusals —
+  the worktree remains branched and unchanged. Resolve a dirty tree or user-surface block and re-run. If preservation
+  cannot be proven in place, inspect and dispose from outside the worktree. Stop at this step until the refusal is
+  resolved; there is no `--force` escape.
+
+An outside re-run may physically remove only a clean stamped husk whose live `HEAD` still equals its stamp. A dirty
+or moved-`HEAD` husk is refused; a re-run from inside the husk never removes its own cwd.
 
 Then run the [same-session finalize pass][session-handoff-finalize] as an opportunistic early catch — a no-op
 unless this session opened another PR that has merged outside an attended ceremony (a concurrent WU, or this one

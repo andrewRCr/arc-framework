@@ -337,25 +337,21 @@ _Design decisions:_ Methodology edits flow package-first and stay synchronized w
 is covered test-first in its owning tasks; this phase adds test-after real-git and CLI regression coverage across the
 composed seams.
 
-### `[ ]` **4.1 Replace the integration tail's session-termination contract with husk outcomes**
+### `[x]` **4.1 Replace the integration tail's session-termination contract with husk outcomes**
 
 - _Goal:_ The integration ceremony treats successful self-teardown as a live terminal state and gives accurate next
   steps for every marked, markerless, retained-ref, and refused outcome.
 
-    - `[ ]` **4.1.a Rewrite Step 14's success and refusal variants package-first**
-        - Update `packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`, then the
-          matching `.arc/` Framework copy, removing the claim that self-teardown necessarily terminates the session.
+    - `[x]` **4.1.a Rewrite Step 14's success and refusal variants package-first**
+        - Replaced deleted-cwd termination with live stamped/external husk success, surviving-ref retry, and atomic
+          dirty, preservation, and user-surface refusal guidance; only stamped husks receive the sweep backstop.
 
-        - Describe disposable-husk success, include the sweep backstop only for a marked husk, preserve surviving-ref
-          notice and retry guidance when local deletion fails, and describe dirty/preservation/user-surface refusal as
-          still-branched atomic failure.
+    - `[x]` **4.1.b Align related teardown terminology and validate copy coherence**
+        - Distinguished inside detach-and-reap, outside physical removal, and unchanged primary/in-place behavior;
+          synchronized identical package and instance copies and retained offer-only exact-stamp fallback rules.
 
-    - `[ ]` **4.1.b Align related teardown terminology and validate copy coherence**
-        - Update adjacent Step 14 assumptions that still equate teardown with physical worktree removal while keeping
-          pre-merge abandon/park and outside-removal instructions unchanged.
-
-        - Verify the package and instance workflow copies differ only where templating or project configuration
-          requires it, then run scoped Markdown linting.
+- _Outcome:_ The integration tail now continues in a live terminal session after successful self-teardown and stops
+  only on a still-branched refusal that requires resolution.
 
 ### `[ ]` **4.2 Exercise self-husk, fallback reap, sweep, and session-init paths end to end**
 
