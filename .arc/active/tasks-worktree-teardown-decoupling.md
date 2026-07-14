@@ -33,35 +33,19 @@ worktrees remain outside the shared roster, and physical removability depends on
 - _Outcome:_ Creation provenance and terminal teardown identity now share one validated marker contract without
   widening ARC ownership at the extension boundary.
 
-### `[ ]` **1.2 Expose detached worktree records without widening the shared roster**
+### `[x]` **1.2 Expose detached worktree records without widening the shared roster**
 
 - _Goal:_ Teardown fallback and sweep code can inspect registered branchless worktrees, their `HEAD` values, and paths
   while `runWorktreeRoster()` continues to return branched work units only.
-- **Additional Context:** `notes-worktree-teardown-decoupling.md` § Implementation loci.
+    - `[x]` **1.2.a Preserve raw worktree identity in the porcelain parser**
+        - The shared porcelain parser now retains each registered path, exact `HEAD`, branch projection, and detached
+          status while leaving branched roster entries and branch-to-path helpers unchanged.
 
-    - `[ ]` **1.2.a Preserve raw worktree identity in the porcelain parser**
-        - Extend the internal `git worktree list --porcelain` record with `HEAD` and detached-state data instead of
-          discarding those fields before the branched roster filter.
+    - `[x]` **1.2.b Publish a bounded detached-worktree scan for projection consumers**
+        - Added and exported a lifecycle-neutral topology scan with a derived primary flag and explicit failure arm, so
+          consumers can distinguish an empty registration set from an unreadable one.
 
-        - Define the bounded projection record as path, `HEAD`, nullable branch, detached flag, and a derived primary
-          flag so teardown and sweep consumers share one topology snapshot rather than re-reading or inferring identity.
-
-        - Keep the existing branch-to-path helpers and `WorktreeRosterEntry.branch` contract unchanged.
-
-    - `[ ]` **1.2.b Publish a bounded detached-worktree scan for projection consumers**
-        - Expose a read-only helper from `packages/arc-framework/src/lib/git/worktree-roster.ts` that returns the raw
-          registered-worktree fields needed by teardown and the sweep without resolving metas. Return an explicit
-          success/failure discriminant so consumers never collapse an unreadable scan into an empty candidate set.
-
-        - Export the helper, result, and record types through `packages/arc-framework/src/lib/git/index.ts`; teardown
-          fallback must refuse/surface an indeterminate read while a successful empty result remains idempotent.
-
-        - Build `test-first` (one behavior at a time):
-            - Detached stanzas retain path and `HEAD` identity.
-
-            - Branched stanzas remain available to existing helpers with no roster-shape change.
-
-            - An unreadable worktree list degrades safely and never fabricates candidates.
+- _Outcome:_ One Git read now supports both the unchanged branched roster contract and exact detached-husk discovery.
 
 ### `[ ]` **1.3 Define the stamped-husk removability oracle**
 

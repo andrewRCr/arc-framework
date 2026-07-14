@@ -47,6 +47,7 @@ export {
 
 export {
   runWorktreeRoster,
+  scanRegisteredWorktrees,
   filterRosterByIdentity,
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
@@ -55,6 +56,8 @@ export {
   type WorktreeRosterResult,
   type WorktreeRosterState,
   type RunWorktreeRosterOptions,
+  type RegisteredWorktree,
+  type RegisteredWorktreeScanResult,
 } from "./worktree-roster.js";
 
 export {
