@@ -38,9 +38,7 @@ export type ErrandOrigin = "description" | "inbox";
  * inbox-promoted errand and a free-description errand differ only in whether
  * {@link originEntry} is present.
  */
-export interface ErrandRecord {
-  /** Schema version — bumped on a shape change; reads retain supported legacy versions. */
-  version: 1 | 2;
+interface ErrandRecordFields {
   /** The errand's stable slug — its logical identity and the tree key. */
   slug: string;
   /** How the errand originated (and whether an inbox back-pointer is present). */
@@ -53,9 +51,15 @@ export interface ErrandRecord {
   createdAt: string;
   /** Originating `USER-INBOX` entry slug — present only when `origin === "inbox"`. */
   originEntry?: string;
-  /** Branch to restore when close reaps the errand branch; absent when open began detached. */
-  returnBranch?: string;
 }
+
+/**
+ * Any supported errand record schema version. Version 2 records may carry the
+ * branch to restore when close reaps the errand; version 1 records cannot.
+ */
+export type ErrandRecord =
+  | (ErrandRecordFields & { version: 1 })
+  | (ErrandRecordFields & { version: 2; returnBranch?: string });
 
 /**
  * Serialize a record to its blob form — a normalized field order so a
@@ -63,7 +67,7 @@ export interface ErrandRecord {
  * tree-merge relies on to treat identical records as idempotent.
  */
 export function serializeErrandRecord(record: ErrandRecord): string {
-  const fields: Omit<ErrandRecord, "version" | "returnBranch"> = {
+  const fields: ErrandRecordFields = {
     slug: record.slug,
     origin: record.origin,
     intent: record.intent,
@@ -121,7 +125,7 @@ export function deserializeErrandRecord(blob: string): ErrandRecord | null {
     return null;
   }
 
-  const fields: Omit<ErrandRecord, "version" | "returnBranch"> = {
+  const fields: ErrandRecordFields = {
     slug: record.slug,
     origin: record.origin,
     intent: record.intent,
