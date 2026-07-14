@@ -58,6 +58,9 @@ drain-time check landed in the rules + strategy). The edges that remain live dur
   reach it, though it never gates FP. Wave fit: `-qualification` is a wave-3 code-slot candidate;
   `-promotion` a wave-4 candidate (cross-machine-resume adjacency). Caution: both are `Heavy`, so slating either
   saturates that wave's design load — apply the `assess-parallel-fit` design-load read at the wave's slate cut.
+  *Update (2026-07-14, locus finding):* `session-locus-model` (pulled forward within the GA gate — see the
+  2026-07-14 locus finding) takes the near-term Heavy design slot; the review-gate pair re-queues for wave 4 or
+  post-GA.
 
 ### Burn-in seam-routing rule (2026-07-09)
 
@@ -429,6 +432,43 @@ but the prompt composition lives in the CLI status/session-init layer, so the fi
 sizing is errand-to-Light with one design question (how the composer knows a path is derived — hardcode ROADMAP vs
 a small file-classification hook). Candidate for wave 3's live-errand slot if it stays errand-sized. FP keeps the
 verification: the fixed surface gets read again at later wave inits.
+
+### Dogfood finding (2026-07-14): execution-locus doctrine is sequential-era; session state is single-frame
+
+Surfaced across the wave-2 split-out cycle (the `start-class-flag` errand and the teardown-stub errand, both run
+warm from FP's worktree). Every hard failure in the cycle was a **checkout-identity failure, none a model
+failure**: warm `errand open` displaced this WU's worktree onto the errand branch, then hard-blocked on FP's own
+uncommitted notes (an unrelated concern forcing a commit decision on the WU's in-flight state); `errand close`
+died on `git switch main` because the base is held by the primary worktree; updating local base required reaching
+into the primary with `git -C`. The abstractions (WU/errand, seam routing, interlocks) answered every ambiguous
+call deterministically — the friction lived entirely in the rules for *where work physically executes*.
+Compounding: a harness compaction landed mid-errand and recovery correctly rehydrated **errand** context only —
+the suspended WU frame (governing workflow, loadset, task cursor) survived only in the harness summary, the
+channel recovery doctrine trusts least.
+
+Diagnosis, two coupled defects:
+
+1. **The execution-locus doctrine generalized "get off the WU branch" from a one-checkout world.** Under linked
+   worktrees, occupying a WU worktree in place is a category error — the worktree *is* the WU's workspace, and
+   the isolation invariant deserves a locus rule of its own: a checkout's role is durable (primary = launchpad,
+   `main` or errand/housekeep-shaped; WU worktree = its WU, spawn to teardown); new work never repurposes an
+   existing workspace. The old "errands stay out of worktrees" premise rested on spawn/teardown cost — BI-1
+   provisioning (shipped) and `worktree-teardown-decoupling` (wave 2) dismantle it.
+2. **Session state is single-frame.** A warm errand pushes a WU→errand frame with no recorded link, so neither
+   recovery nor the return path can restore the suspended frame deterministically. Depth is bounded at two by
+   construction (no warm WU entry exists; errands never nest), so the fix is one recorded parent pointer plus a
+   machine-local locus record — not a general stack.
+
+**Routing (seam rule): split out — consumed, with the design pulled into the GA gate.** `session-locus-model`
+(new stub, capture routed) owns both halves as one design: the locus doctrine and a deterministic machine-local
+session/locus record + read verb, with `errand close` and session-recover as consumers. **Wave 3 is re-cast as
+its evidence collector** — the live-errand wave runs on the *current* model deliberately, so contention and
+drain-shape evidence inform the spec rather than being invalidated by an early redesign; the WU executes within
+the GA gate ahead of the `--here`→spawn default flip (Task 8.3). Three mechanization seams split out around it:
+the `errand close` topology fix (consumed by wave 3's live errand — lands ahead of it), a base-sync verb, and
+mint-to-launch bundling for slate stubs (both errand-sized, captures routed). FP keeps all verification: wave 3
+re-observes the errand surface, and the GA bar for this seam is an operator running an errand beside two live
+WUs without narrating git topology.
 
 ## Wave-1 induction evidence
 
