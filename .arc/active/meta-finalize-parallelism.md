@@ -12,15 +12,17 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.2.d — Base-branch reconcile gate re-verified after probe-a integration advanced
-  `main`; Task 3.2.c's concurrent ROADMAP regeneration cell also closed.
-- **Next Task:** Task 3.2.e — Foreign-write advisory under behind-base divergence (line ~558)
-- **Blockers:** Do not resume FP work until both `slug-state-oracle-alignment` and
-  `notes-export-state-coherence` have shipped to `main` and been merged into FP.
+- **Last Completed:** Phase 3 (burn-in wave 1) complete — all five 3.2 matrix cells + 3.3 detectors verified,
+  3.4 findings recorded; both probes shipped, foreign-write and hook-env seams fixed on `main` and merged into FP.
+- **Next Task:** Task 4.1 — wave-2 slate (one code WU + one doc WU); Phase 4 preamble (line ~593)
+- **Blockers:** [none] — both prior blockers (`slug-state-oracle-alignment`, `notes-export-replay-ordering`,
+  the latter meta's `notes-export-state-coherence`) shipped and merged into FP.
 
-- **Next Action:** Wait for both blockers. Keep probe-b clean and unreconciled; after both fixes ship, merge
-  `origin/main` into FP append-only, then use probe-b's preserved behind-base state for Task 3.2.e's fixed-detector
-  verification before deciding its integration path.
+- **Next Action:** Begin Phase 4, Task 4.1 (wave-2 slate). First, resolve the open design decision captured in
+  `notes-finalize-parallelism.md` § Dogfood finding (2026-07-13): worktree self-teardown terminates the session —
+  decide interim-messaging vs. structural decouple-and-bless-manual-deletion vs. both, coordinating downstream with
+  `wu-lifecycle-state-model`; hold the interim messaging errand until that call. Optional bounded probe-A
+  rollout-log check to settle whether it hit the same self-termination (not a rabbit-hole).
 
 - **PR URL:** [none]
 - **Completed:** [none]
