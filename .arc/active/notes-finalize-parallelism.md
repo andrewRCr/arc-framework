@@ -52,6 +52,12 @@ drain-time check landed in the rules + strategy). The edges that remain live dur
   `origin/main`. Coordinate with any concurrent base writer (sibling WU integration, errand / housekeep PRs) as a
   normal base merge; FP then merges `main` back. Defaults stay unflipped — the mechanism lands, the `--here`→spawn
   default does not (Task 8.3).
+- **`review-gate-enforcement-qualification` / `-promotion` as later-wave candidates (2026-07-14).** The review-gate
+  mechanism shipped across earlier WUs but the last two enforcement WUs never ran, leaving partial state that
+  `integrate-work-unit` currently assumes complete — a loop worth closing sooner than the general backlog would
+  reach it, though it never gates FP. Wave fit: `-qualification` is a wave-3 code-slot candidate;
+  `-promotion` a wave-4 candidate (cross-machine-resume adjacency). Caution: both are `Heavy`, so slating either
+  saturates that wave's design load — apply the `assess-parallel-fit` design-load read at the wave's slate cut.
 
 ### Burn-in seam-routing rule (2026-07-09)
 
