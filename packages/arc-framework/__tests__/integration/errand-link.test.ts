@@ -50,13 +50,14 @@ describe("linkErrandToInbox", () => {
 
     expect(result).toMatchObject({ kind: "linked", changed: true, push: { kind: "pushed" } });
     expect(await readErrandRecord(io, "late-match")).toEqual({
-      version: 1,
+      version: 2,
       slug: "late-match",
       origin: "inbox",
       intent: "late-match",
       branch: "chore/late-match",
       createdAt: CREATED_AT,
       originEntry: "Existing capture",
+      returnBranch: "main",
     });
   });
 

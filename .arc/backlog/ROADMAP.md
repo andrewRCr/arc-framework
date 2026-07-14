@@ -1,7 +1,11 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `6966113dc`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `c69666461`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
+
+## Warnings
+
+- Branch `fix/start-base-resolution` has no errand record or active work-unit meta; cleanup may be required.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -29,6 +33,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | recovery-hardening                    | P1       | andrew | —          | —                          |
 | review-gate-enforcement-qualification | P1       | andrew | —          | —                          |
 | roadmap-tooling                       | P1       | andrew | —          | —                          |
+| session-locus-model                   | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model              | P1       | andrew | —          | —                          |
 | composable-workflows                  | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition                   | P2       | andrew | —          | agent-context-optimization |
@@ -84,6 +89,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                         | Priority | Owner  | Depends on                            | Cohort                     |
 | --------------------------------- | -------- | ------ | ------------------------------------- | -------------------------- |
+| husk-lifecycle-drivers            | P1       | andrew | worktree-teardown-decoupling          | —                          |
 | review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification | —                          |
 | unit-scoped-review                | P2       | andrew | commit-increments                     | approval-flow-refinement   |
 | operational-state-docs            | P2       | andrew | cli-substrate-adoption                | —                          |
