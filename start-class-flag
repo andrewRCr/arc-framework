@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "start-class-flag",
+  "origin": "description",
+  "intent": "Add --class input channel to arc start/stub so the class-resolved guard is satisfiable from the CLI",
+  "branch": "fix/start-class-flag",
+  "createdAt": "2026-07-14T12:48:21.999Z"
+}
