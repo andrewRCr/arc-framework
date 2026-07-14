@@ -186,7 +186,14 @@ export async function runStaleWorktreeSweep(
 
   for (const entry of scan.worktrees) {
     if (!entry.detached) continue;
-    const marker = await readMarker(entry.path);
+    let marker: WorktreeMarkerReadResult;
+    try {
+      marker = await readMarker(entry.path);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      warnings.push(`Could not read detached worktree marker at ${entry.path}: ${detail}`);
+      continue;
+    }
     if (marker.kind !== "present" || marker.marker.husk === undefined) continue;
     if (
       options.teamMode === true

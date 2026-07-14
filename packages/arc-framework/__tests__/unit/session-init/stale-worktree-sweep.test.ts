@@ -394,6 +394,32 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees).toEqual([]);
   });
 
+  it("warns and continues when one detached marker cannot be read", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async (path) => {
+        if (path === "/wt/unreadable") throw new Error("permission denied");
+        return stampedMarker({ kind: "work-unit", name: "work-organization-reform" });
+      },
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [
+          { path: "/wt/unreadable", head: "stamped", branch: null, detached: true, primary: false },
+          { path: "/wt/readable", head: "stamped", branch: null, detached: true, primary: false },
+        ],
+      }),
+    });
+
+    expect(result.worktrees).toHaveLength(1);
+    expect(result.worktrees[0]?.worktreePath).toBe("/wt/readable");
+    expect(result.warnings).toEqual([
+      "Could not read detached worktree marker at /wt/unreadable: permission denied",
+    ]);
+  });
+
   it("preserves branched reports and appends a warning when the detached scan fails", async () => {
     const result = await runStaleWorktreeSweep({
       roster: shippedRoster(),
