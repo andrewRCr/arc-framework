@@ -180,29 +180,10 @@ message bytes when the subsequent Git invocation fails.
 - _Goal:_ The wrapper either reconstructs the exact bytes received by `commit-msg`, refuses the non-interactive editor
   trap, or passes through without guessing.
 
-    - `[ ]` **3.1.a Implement the closed message-source classifier**
-        - Implement a dependency-free, table-driven short-option walker shared with release-commit audit redaction.
-          Model operand-free, required-operand, and ambiguous / optional-operand members far enough to recognize
-          message sources, message modifiers, and editor behavior; stop a cluster when an operand-taking member is
-          reached and leave unsupported grammar to Git.
-        - Classify recognized `-m` / `--message` and `-F` / `--file` forms, including unambiguous Git-style clusters,
-          message-affecting modifiers, editor-bound invocations, reuse/template flags, and the no-message editor path
-          with explicit assembled, refused, or pass-through results.
-        - Build `test-first` (one behavior at a time):
-            - Separated and attached short/long message flags normalize without losing order.
-            - Common combined forms such as `-am <message>`, `-am<message>`, and `-qam<message>` identify the same
-              message source Git consumes; known message modifiers inside a cluster demote or refuse normally.
-            - An earlier operand-taking member prevents an `m` in its payload from becoming a message flag; unknown or
-              ambiguous cluster grammar passes through without reinterpretation.
-            - `--` ends option parsing; later flag-looking tokens stay pathspecs.
-            - Mixed `-m` / `-F`, repeated `-F`, missing operands, and unrecognized or negated source forms pass through
-              for Git to diagnose rather than being reinterpreted.
-            - `--trailer`, signoff, edit, cleanup overrides, and non-default `commit.cleanup` demote to pass-through.
-            - Non-TTY editor-bound forms refuse while the same forms pass through under a TTY, accounting for an
-              explicit message source rather than inferring behavior from a flag name alone.
-            - `-C` and plain `--fixup=<commit>` stay editor-free pass-through; `--fixup=amend:` /
-              `--fixup=reword:` and source-free `--squash` are editor-bound; `--amend` remains owned by the
-              destructive-flag gate.
+    - `[x]` **3.1.a Implement the closed message-source classifier**
+        - Added a dependency-free short-option walker and closed classifier for assembled message/file sources,
+          Git-owned grammar, message modifiers, and TTY-sensitive editor paths; real-Git probes anchor explicit-source
+          conflicts while leaving ambiguous or invalid forms to Git.
 
     - `[ ]` **3.1.b Assemble repeated message paragraphs**
         - Reproduce Git's repeated `-m` paragraph joining and default `whitespace` cleanup, including blank-line
