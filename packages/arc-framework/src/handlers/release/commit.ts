@@ -269,10 +269,10 @@ function buildAuditEntry(opts: BuildEntryOptions): AuditEntry {
     pushInterlock: opts.deps.settings.resolved.pushInterlock,
   };
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     timestamp: new Date().toISOString(),
     command: "release-commit",
-    args: sanitizeArgs(opts.deps.argv),
+    args: sanitizeArgs("release-commit", opts.deps.argv),
     wu: opts.wu,
     interlockState,
     decision: opts.decision,
@@ -280,4 +280,3 @@ function buildAuditEntry(opts: BuildEntryOptions): AuditEntry {
     outcome: opts.outcome,
   };
 }
-

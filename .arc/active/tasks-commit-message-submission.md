@@ -208,27 +208,10 @@ message bytes when the subsequent Git invocation fails.
 - _Goal:_ Deterministic invalid messages stop after release authorization but before `spawnGit`, with the same findings
   the installed hook would emit and a distinct audited refusal.
 
-    - `[ ]` **3.2.a Cut the release audit schema to v2 and extend it for preflight**
-        - Add refusal code `16` with identifier `commit-message-preflight-failed`; move every release-commit,
-          release-push, and sync audit writer plus the runtime validator to the settled `schemaVersion: 2` shape, adding
-          `{ kind: "preflight-failed", reason: "validation" | "input" }` for release-commit while keeping existing
-          refusal code meanings stable.
-        - Treat this as a clean pre-public cutover: retain no v1 writer/reader union, mixed-version compatibility path,
-          or audit-file migration.
-        - Reuse the classifier's short-option walker for release-commit argv sanitization. Preserve option shape and
-          the `--` boundary while redacting separated, attached, and clustered `-m` payloads; conservatively redact a
-          plausible payload in unsupported pre-terminator grammar rather than risk storing message content. Leave
-          non-commit command argv behavior unchanged.
-        - Build `test-first` (one behavior at a time):
-            - The new refusal maps one-to-one to its stable identifier.
-            - Every command's new entries carry version `2`; version `1` and unknown versions fail runtime validation.
-            - Both preflight reasons validate only for `release-commit`, require decision `refused` plus code `16`,
-              carry sanitized argv, and never store message content.
-            - Proceeded, hook-failed, authorization-refused, and preflight-refused release-commit entries redact
-              separate, attached, and combined message forms, including `-am secret` → `-am <redacted>` and
-              `-qamsecret` → `-qam<redacted>`; tokens after `--` remain pathspecs, and operand payloads belonging to an
-              earlier short option are not mistaken for messages.
-            - Existing commit, push, sync, hook-failed, and refusal outcomes retain their v2 command restrictions.
+    - `[x]` **3.2.a Cut the release audit schema to v2 and extend it for preflight**
+        - Cut all release/sync audit writers and validation to v2, added refusal `16` and typed preflight outcomes, and
+          reused the classifier walker for commit-only redaction across separated, attached, clustered, ambiguous,
+          operand-bound, and post-terminator argv without a legacy-version compatibility arm.
 
     - `[ ]` **3.2.b Run classification and validation before `spawnGit`**
         - After the existing interlock-validation cascade, assemble recognized forms and invoke the canonical validator;

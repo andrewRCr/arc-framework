@@ -406,10 +406,10 @@ function buildAuditEntry(opts: BuildEntryOptions): AuditEntry {
     syncInterlock: opts.deps.settings.resolved.syncInterlock,
   };
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     timestamp: new Date().toISOString(),
     command: "release-push",
-    args: sanitizeArgs(opts.deps.argv),
+    args: sanitizeArgs("release-push", opts.deps.argv),
     wu: opts.wu,
     interlockState,
     decision: opts.decision,
