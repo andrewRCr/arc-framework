@@ -6,12 +6,17 @@ import { classifyCommitMessageInput } from "../../../../src/lib/release/commit-m
 
 function classify(
   args: readonly string[],
-  options: { stdinIsTTY?: boolean; commitCleanup?: string | null } = {},
+  options: {
+    stdinIsTTY?: boolean;
+    commitCleanup?: string | null;
+    commitEncoding?: string | null;
+  } = {},
 ) {
   return classifyCommitMessageInput({
     args,
     stdinIsTTY: options.stdinIsTTY ?? false,
     commitCleanup: options.commitCleanup,
+    commitEncoding: options.commitEncoding,
   });
 }
 
@@ -117,6 +122,30 @@ describe("message-affecting options", () => {
   it("passes a template with an explicit source without inferring an editor", () => {
     expect(classify(["--template", "template.txt", "-m", "subject"])).toMatchObject({
       kind: "pass-through",
+    });
+  });
+
+  it("assembles message argv only when Git's encoding resolves to UTF-8", () => {
+    expect(classify(["-m", "subject"], { commitEncoding: "UTF8" })).toMatchObject({
+      kind: "assembled",
+    });
+    expect(classify(["-m", "subject"], { commitEncoding: "iso-8859-1" })).toEqual({
+      kind: "pass-through",
+      reason: "unsupported-encoding",
+    });
+    expect(classify(["-m", "subject"], { commitEncoding: "not-an-encoding" })).toEqual({
+      kind: "pass-through",
+      reason: "unsupported-encoding",
+    });
+  });
+
+  it("demotes replacement-bearing message argv without affecting file sources", () => {
+    expect(classify(["-m", "subject \uFFFD"])).toEqual({
+      kind: "pass-through",
+      reason: "unsupported-encoding",
+    });
+    expect(classify(["-F", "message.txt"], { commitEncoding: "iso-8859-1" })).toMatchObject({
+      kind: "assembled",
     });
   });
 

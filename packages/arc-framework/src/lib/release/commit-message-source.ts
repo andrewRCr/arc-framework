@@ -135,7 +135,11 @@ export type CommitMessageInputClassification =
   | { kind: "refused"; reason: "editor-required" }
   | {
       kind: "pass-through";
-      reason: "unsupported-grammar" | "message-modifier" | "git-managed-message";
+      reason:
+        | "unsupported-grammar"
+        | "unsupported-encoding"
+        | "message-modifier"
+        | "git-managed-message";
     };
 
 /** Inputs needed to classify a release-commit invocation. */
@@ -143,6 +147,7 @@ export interface ClassifyCommitMessageInputOptions {
   args: readonly string[];
   stdinIsTTY: boolean;
   commitCleanup?: string | null;
+  commitEncoding?: string | null;
 }
 
 type ScanState = {
@@ -271,6 +276,14 @@ function takeRequiredLongOperand(
   return { value: args[index + 1], consumedNext: args[index + 1] !== undefined };
 }
 
+function isUtf8Encoding(label: string | null | undefined): boolean {
+  try {
+    return new TextDecoder(label ?? "utf-8").encoding === "utf-8";
+  } catch {
+    return false;
+  }
+}
+
 function applyLongOption(state: ScanState, arg: string, args: readonly string[], index: number): boolean {
   const { name, attached } = splitLongOption(arg);
 
@@ -395,6 +408,9 @@ export function classifyCommitMessageInput(
   const sourceGrammarValid =
     !state.invalidSource &&
     ((hasMessages && !hasFiles) || (!hasMessages && state.files.length === 1));
+  const messageEncodingUnsupported =
+    hasMessages &&
+    (!isUtf8Encoding(options.commitEncoding) || state.messages.some((value) => value.includes("\uFFFD")));
 
   if (
     state.unsupported ||
@@ -406,7 +422,12 @@ export function classifyCommitMessageInput(
     return { kind: "pass-through", reason: "unsupported-grammar" };
   }
 
-  if (sourceGrammarValid && !state.messageModifier && !state.gitManagedMessage) {
+  if (
+    sourceGrammarValid &&
+    !messageEncodingUnsupported &&
+    !state.messageModifier &&
+    !state.gitManagedMessage
+  ) {
     return hasMessages
       ? { kind: "assembled", source: { kind: "messages", values: state.messages } }
       : { kind: "assembled", source: { kind: "file", path: state.files[0] ?? "" } };
@@ -420,6 +441,9 @@ export function classifyCommitMessageInput(
     return { kind: "refused", reason: "editor-required" };
   }
 
+  if (messageEncodingUnsupported) {
+    return { kind: "pass-through", reason: "unsupported-encoding" };
+  }
   if (state.messageModifier) return { kind: "pass-through", reason: "message-modifier" };
   return { kind: "pass-through", reason: "git-managed-message" };
 }

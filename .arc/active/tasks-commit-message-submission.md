@@ -185,15 +185,10 @@ message bytes when the subsequent Git invocation fails.
           Git-owned grammar, message modifiers, and TTY-sensitive editor paths; real-Git probes anchor explicit-source
           conflicts while leaving ambiguous or invalid forms to Git.
 
-    - `[ ]` **3.1.b Assemble repeated message paragraphs**
-        - Reproduce Git's repeated `-m` paragraph joining and default `whitespace` cleanup, including blank-line
-          collapse and trailing-whitespace removal, in a pure assembler. Assemble only when the resolved encoding
-          canonicalizes to UTF-8 and no message value contains `U+FFFD`; otherwise classify `-m` as pass-through.
-        - Build `test-first` (one behavior at a time):
-            - Single and repeated message values produce the bytes observed by `commit-msg`.
-            - Empty paragraphs, CRLF input, trailing whitespace, and multiple blank lines match Git's cleanup behavior.
-            - Literal backslashes and shell metacharacters remain data.
-            - Non-UTF-8 encoding and replacement-bearing argv demote without adding an encoder dependency.
+    - `[x]` **3.1.b Assemble repeated message paragraphs**
+        - Added a pure UTF-8 paragraph assembler matching Git's `whitespace` cleanup for empty edges, CRLF, trailing
+          whitespace, and collapsed blank lines; non-UTF-8 or replacement-bearing message argv now demotes while raw
+          file sources remain eligible.
 
     - `[ ]` **3.1.c Assemble file-backed messages**
         - Read `-F <file>` byte-for-byte and accept buffered stdin for `-F -`; classify unreadable files and stdin
