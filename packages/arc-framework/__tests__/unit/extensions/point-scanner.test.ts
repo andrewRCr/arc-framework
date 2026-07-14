@@ -45,13 +45,13 @@ describe("scanExtensionPoints", () => {
       "",
       "- **Extensions** · `#post-unit-quality`: body",
       "",
-      "### 6) Pre-Merge Review · `#pre-merge-review`",
+      "### 6) Pre-Merge Review · `#pre-merge`",
     ].join("\n");
     const refs = scanExtensionPoints([{ path: "wf.md", content }]);
     expect(refs).toEqual([
       { workflowPath: "wf.md", lineNumber: 1, extensionName: "pre-merge-inbox-review" },
       { workflowPath: "wf.md", lineNumber: 3, extensionName: "post-unit-quality" },
-      { workflowPath: "wf.md", lineNumber: 5, extensionName: "pre-merge-review" },
+      { workflowPath: "wf.md", lineNumber: 5, extensionName: "pre-merge" },
     ]);
   });
 
@@ -69,11 +69,11 @@ describe("scanExtensionPoints", () => {
   });
 
   it("ignores inline-code backticks without the `·` prefix", () => {
-    // Reference-style link targets like `[arc-ext-…]: ../extensions/pre-merge-review.md`
+    // Reference-style link targets like `[arc-ext-…]: ../extensions/pre-merge.md`
     // or hashtag-free mentions shouldn't match — only the anchored marker does.
     const content = [
       "See `#post-task-quality` below.",
-      "[arc-ext-x]: ../extensions/pre-merge-review.md",
+      "[arc-ext-x]: ../extensions/pre-merge.md",
       "",
     ].join("\n");
     expect(scanExtensionPoints([{ path: "wf.md", content }])).toEqual([]);

@@ -32,6 +32,7 @@ import {
 } from "../lib/errand/index.js";
 import {
   detectForeignArtifactOverlap,
+  preferRemoteBaseRef,
   projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionResult,
 } from "../lib/git/index.js";
@@ -64,10 +65,10 @@ export function formatErrandCheckCaveats(result: ForeignArtifactDetectionResult)
   return [
     ...(result.skipped ?? []).map(
       (entry) =>
-        `${entry.branch}  skipped  marked ${entry.marks.join(", ")}  (${entry.worktreePath ?? "remote-only"})`,
+        `${entry.branch}  skipped  marked ${entry.marks.join(", ")}  (${formatOverlapLocation(entry)})`,
     ),
     ...(result.indeterminate ?? []).map(
-      (entry) => `${entry.branch}  caveat  probe indeterminate  (${entry.worktreePath ?? "remote-only"})`,
+      (entry) => `${entry.branch}  caveat  probe indeterminate  (${formatOverlapLocation(entry)})`,
     ),
     ...(result.notes ?? []),
   ];
@@ -120,12 +121,13 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     baseBranch,
     parkedSlugs,
   });
+  const baseRef = await preferRemoteBaseRef(gitExec, baseBranch);
 
   const result = await detectForeignArtifactOverlap({
     exec: gitExec,
     roster: projectInFlightToOverlapRoster(entries),
     targetPaths,
-    baseBranch,
+    baseBranch: baseRef,
     originatingWorktreePath: await currentWorktreePath(cwd),
     originatingMetaPath: await resolveOriginatingMetaPath(cwd),
     snapshot,
@@ -142,7 +144,7 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     p.note("No in-flight work unit touches the target — proceed without a caveat.", "Advisory");
   } else {
     const lines = result.overlaps.map(
-      (o) => `${o.branch}  touches  ${o.matchedPaths.join(", ")}  (${o.worktreePath ?? "remote-only"})`,
+      (o) => `${o.branch}  touches  ${o.matchedPaths.join(", ")}  (${formatOverlapLocation(o)})`,
     );
     p.note(
       [...lines, ...caveats].join("\n"),
@@ -158,6 +160,10 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
     p.log.warn(renderInFlightWarning(warning));
   }
   p.outro("Done.");
+}
+
+function formatOverlapLocation(entry: { worktreePath?: string; remoteOnly?: boolean }): string {
+  return entry.worktreePath ?? (entry.remoteOnly === false ? "no worktree" : "remote-only");
 }
 
 /** Options for the `arc errand open` subcommand. */
@@ -377,14 +383,17 @@ export interface ErrandCloseOptions {
 }
 
 /**
- * Close an errand: reap its branch (containment-safe), remove the identity
- * record and push the removal, then drop the originating inbox capture.
+ * Close an errand: reap its branch (containment-safe), delete its remote head
+ * when the work provably landed in base, remove the identity record and push
+ * the removal, then drop the originating inbox capture.
  *
  * A full-protection verb, like `open`. The reap refuses (record kept) when the
  * branch's commits are not provably preserved, so an abandoned errand stays
  * recoverable; `--force` is the explicit override for the deliberate shipped /
- * abandon case. The inbox drop targets the record's originating entry — present
- * only for inbox-promoted errands — and is an idempotent no-op otherwise.
+ * abandon case. A remote head that may be the only preservation (pushed but not
+ * provably merged) is kept and surfaced, never deleted. The inbox drop targets
+ * the record's originating entry — present only for inbox-promoted errands —
+ * and is an idempotent no-op otherwise.
  */
 export async function handleErrandClose(slug: string, opts: ErrandCloseOptions): Promise<void> {
   p.intro("arc errand close");
@@ -471,7 +480,27 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
   // idempotent — an absent entry or missing inbox file is a clean no-op.
   await dropOriginatingInboxCapture(cwd, io, identity, result.record.originEntry);
 
-  p.log.success(`Closed errand '${slug}' — reaped ${result.record.branch}, record removed.`);
+  switch (result.remoteHead.kind) {
+    case "kept":
+      p.log.warn(
+        `Remote head origin/${result.record.branch} left intact — not provably landed in base, so it may be `
+        + "the only preservation of the work (e.g. a multi-commit squash, or a PR that hasn't merged yet). "
+        + "Delete it manually once you've verified it shipped.",
+      );
+      break;
+    case "failed":
+      p.log.warn(
+        `Could not delete the remote head origin/${result.record.branch} (${result.remoteHead.detail}) — `
+        + "delete it manually.",
+      );
+      break;
+    case "deleted":
+    case "absent":
+      break;
+  }
+
+  const remoteNote = result.remoteHead.kind === "deleted" ? " (local + remote head)" : "";
+  p.log.success(`Closed errand '${slug}' — reaped ${result.record.branch}${remoteNote}, record removed.`);
   p.outro("Done.");
 }
 

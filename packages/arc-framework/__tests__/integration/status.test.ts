@@ -211,7 +211,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),
-    planOrphanSweep: async () => ({ orphans: [] }),
+    orphanBranchSweep: async () => ({ orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
@@ -275,7 +275,7 @@ function makeResolvedReleaseModeSessionInitProbes(
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),
-    planOrphanSweep: async () => ({ orphans: [] }),
+    orphanBranchSweep: async () => ({ orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
@@ -298,6 +298,7 @@ function stubErrandState(): ErrandStateResult {
     resume: { resumable: false, slug: null },
     inFlight: { errands: [] },
     materializable: { candidates: [] },
+    residue: [],
     nudge: { shouldNudge: false, markerPath: null, today: "2026-06-01" },
     warnings: [],
   };
@@ -344,7 +345,7 @@ describe("runStatus — clean state", () => {
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
     await writeExtension(fixture.extDir, "post-task-quality", false);
     await writeStatusFile(fixture.activeDir, "technical", "meta-alpha.md", {
       branch: "technical/alpha",
@@ -390,7 +391,7 @@ describe("runSessionInitStatus — multi-WU state", () => {
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
     await writeStatusFile(fixture.activeDir, "feature", "meta-alpha.md", {
       branch: "feature/alpha",
       state: "Active",
@@ -422,7 +423,7 @@ describe("runSessionInitStatus — multi-WU state", () => {
     }
     expect(result.extensions.ok).toBe(true);
     if (result.extensions.ok) {
-      expect(result.extensions.value.active).toEqual(["pre-merge-review"]);
+      expect(result.extensions.value.active).toEqual(["pre-merge"]);
     }
   });
 });
@@ -432,7 +433,7 @@ describe("runSessionInitStatus — companion-file resolution carry-through", () 
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
     await writeFile(
       join(fixture.activeDir, "meta-foo.md"),
       [
@@ -475,7 +476,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
     const userActiveDir = join(fixture.root, ".arc", "user", "alice", "active");
     await mkdir(userActiveDir, { recursive: true });
     await writeFile(
@@ -512,7 +513,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       roster: async () => ({ entries: [], warnings: [] }),
       recovery: async () => ({ kind: "main-fallback" as const }),
       sweep: async () => ({ worktrees: [], warnings: [] }),
-      planOrphanSweep: async () => ({ orphans: [] }),
+      orphanBranchSweep: async () => ({ orphans: [] }),
       retiredSubdirs: async () => ({ candidates: [] }),
       errandSweep: async () => ({ stale: [] }),
       errandState: async () => stubErrandState(),
@@ -592,7 +593,7 @@ describe("runStatus — identity missing", () => {
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
   });
   afterEach(async () => {
     await rm(fixture.root, { recursive: true, force: true });
@@ -689,7 +690,7 @@ function makeRealWorktreeProbes(
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),
-    planOrphanSweep: async () => ({ orphans: [] }),
+    orphanBranchSweep: async () => ({ orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
@@ -719,7 +720,7 @@ describe("runSessionInitStatus — real worktree probe", () => {
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
     await gitInit(fixture.root);
     remoteDir = undefined;
   });
@@ -838,7 +839,7 @@ describe("runSessionInitStatus — sessionType envelope coverage", () => {
   beforeEach(async () => {
     fixture = await createFixture();
     await writeConfig(fixture.configPath);
-    await writeExtension(fixture.extDir, "pre-merge-review", true);
+    await writeExtension(fixture.extDir, "pre-merge", true);
   });
   afterEach(async () => {
     await rm(fixture.root, { recursive: true, force: true });

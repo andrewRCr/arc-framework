@@ -21,7 +21,7 @@ function fullResult(overrides: Partial<ExtensionsStatusResult> = {}): Extensions
   return {
     mode: "full",
     extensions: [
-      { name: "pre-merge-review", active: true, description: "Review ceremony" },
+      { name: "pre-merge", active: true, description: "Review ceremony" },
       { name: "post-task-quality", active: false, description: "Extra checks" },
     ],
     activeCount: 1,
@@ -43,7 +43,7 @@ describe("buildExtensionsStatusSummary — counts line", () => {
   it("lists active extensions with name and description", () => {
     const summary = buildExtensionsStatusSummary(fullResult());
     expect(summary).toContain("Active:");
-    expect(summary).toContain("pre-merge-review — Review ceremony");
+    expect(summary).toContain("pre-merge — Review ceremony");
   });
 
   it("lists inactive extensions under a separate heading", () => {
@@ -54,7 +54,7 @@ describe("buildExtensionsStatusSummary — counts line", () => {
 
   it("omits the `Inactive` section when every extension is active", () => {
     const summary = buildExtensionsStatusSummary(fullResult({
-      extensions: [{ name: "pre-merge-review", active: true, description: "x" }],
+      extensions: [{ name: "pre-merge", active: true, description: "x" }],
       activeCount: 1,
       inactiveCount: 0,
     }));
@@ -126,9 +126,9 @@ describe("buildExtensionsSessionInitSummary", () => {
   }
 
   it("renders one extension per line with a leading count", () => {
-    const summary = buildExtensionsSessionInitSummary(sessionInit(["pre-merge-review", "post-context-load"]));
+    const summary = buildExtensionsSessionInitSummary(sessionInit(["pre-merge", "post-context-load"]));
     expect(summary).toContain("2 active extensions:");
-    expect(summary).toContain("- pre-merge-review");
+    expect(summary).toContain("- pre-merge");
     expect(summary).toContain("- post-context-load");
   });
 
@@ -154,7 +154,7 @@ describe("JSON wire contract", () => {
   it("round-trips a session-init result through JSON", () => {
     const result: ExtensionsSessionInitResult = {
       mode: "session-init",
-      active: ["pre-merge-review"],
+      active: ["pre-merge"],
       warnings: [],
     };
     const parsed = JSON.parse(JSON.stringify(result)) as ExtensionsSessionInitResult;

@@ -13,6 +13,12 @@ describe("formatErrandCheckCaveats", () => {
           marks: ["location-ambiguous"],
           reason: "entry-location-ambiguous",
         },
+        {
+          branch: "feat/wu-local",
+          remoteOnly: false,
+          marks: ["indeterminate"],
+          reason: "entry-marked-indeterminate",
+        },
       ],
       indeterminate: [
         {
@@ -27,6 +33,7 @@ describe("formatErrandCheckCaveats", () => {
 
     expect(lines).toEqual([
       "feat/wu-a  skipped  marked location-ambiguous  (/repo.wu-a)",
+      "feat/wu-local  skipped  marked indeterminate  (no worktree)",
       "feat/wu-b  caveat  probe indeterminate  (/repo.wu-b)",
       "Originating work unit name was unavailable; self-exclusion fell back to worktree/meta path matching.",
     ]);

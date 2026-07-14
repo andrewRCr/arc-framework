@@ -11,10 +11,12 @@ import type {
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { CoreIO } from "../../lib/types.js";
 import type {
+  BranchBoundedNotesExportRefusalReason,
   BranchBoundedNotesExportTarget,
   PlanBranchBoundedNotesExportResult,
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
 import type { NotesCompactionAdvisory } from "../../lib/user-sync/index.js";
+import type { NoteSetRelation } from "../../lib/user-sync/note-set-relation.js";
 
 /** I/O dependencies for the user command. */
 export interface UserIOContext extends CoreIO {
@@ -25,9 +27,9 @@ export interface UserIOContext extends CoreIO {
   /** Read content from a git note ref on a commit. Returns null if no note. */
   readNote: (ref: string, commit: string) => Promise<string | null>;
   /**
-   * Stdin-fed git executor for orphan-state-ref (errand) blob/tree plumbing.
-   * Optional — present in production and errand-sync tests; when absent, the
-   * errand-ref reconcile is skipped (the leg is additive).
+   * Stdin-fed git executor for batch object reads, reachability proofs, and
+   * orphan-state-ref blob/tree plumbing. Optional — callers that omit it must
+   * explicitly handle proof-unavailable or skip additive state-ref work.
    */
   execInput?: GitExecInput;
 }
@@ -263,8 +265,16 @@ function buildBlockedMessage(conditions: PushabilityCondition[]): string {
  * - `pushed`: a push was sent to remote.
  * - `noop`: remote ref already matched local; nothing to push (partial-push
  *   marker is still cleared, since the recovery condition is resolved).
+ * - `no-local-notes`: the canonical local notes ref is absent.
+ * - `no-remote`: origin is unavailable.
+ * - `refused`: a well-formed canonical topology failed publication preflight.
  */
-export type UserPushResult = { kind: "pushed" } | { kind: "noop" };
+export type UserPushResult =
+  | { kind: "pushed" }
+  | { kind: "noop" }
+  | { kind: "no-local-notes" }
+  | { kind: "no-remote" }
+  | { kind: "refused"; reason: BranchBoundedNotesExportRefusalReason; message: string };
 
 /** Reason a paired-push leg was skipped without firing. */
 export type PairedPushSkipReason =
@@ -306,10 +316,15 @@ export type PairedPushNotesPusherResult =
   | { status: "ok-recovered"; via: "force" | "merge" }
   | { status: "cancelled" }
   | { status: "no-remote" }
-  | { status: "refused"; message: string }
+  | { status: "refused"; reason: PairedPushNotesRefusalReason; message: string }
   | { status: "failed-nontty-conflict"; message?: string }
   | { status: "blocked"; conditions: PushabilityCondition[] }
   | { status: "failed"; error: Error };
+
+/** Stable safety class for a paired notes leg that never reached transport. */
+export type PairedPushNotesRefusalReason =
+  | BranchBoundedNotesExportRefusalReason
+  | "no-local-notes";
 
 /** Outcome of the notes leg as reported in {@link PairedPushResult}. */
 export type PairedPushNotesOutcome =
@@ -331,8 +346,8 @@ export interface PairedPushNotesContext {
 /**
  * Pluggable notes-leg pusher injected into {@link RunPairedPushOptions}.
  *
- * Production wires the branch-bounded notes-export adapter, which pushes the
- * already-planned temporary target. Tests inject a stub that emits a chosen
+ * Production wires the canonical notes-export adapter, which pushes the
+ * already-planned immutable target. Tests inject a stub that emits a chosen
  * outcome.
  */
 export type PairedPushNotesPusher = (
@@ -365,15 +380,10 @@ export type PairedPushMarkerPublisher = (
   context: PairedPushMarkerContext,
 ) => Promise<void>;
 
-/** Planner seam deriving the branch-bounded notes target after the worktree leg lands. */
+/** Planner seam deriving the canonical notes target after the worktree leg lands. */
 export type PairedPushNotesExportPlanner = (
   context: Pick<PairedPushNotesContext, "io" | "identity" | "worktreeBranch">,
 ) => Promise<PlanBranchBoundedNotesExportResult>;
-
-/** Cleanup seam for the temporary branch-bounded notes export target. */
-export type PairedPushNotesExportCleaner = (
-  target: BranchBoundedNotesExportTarget,
-) => Promise<void>;
 
 /**
  * Discriminated result of a paired worktree+notes push.
@@ -442,16 +452,10 @@ export interface RunPairedPushOptions {
    */
   publishMarker?: PairedPushMarkerPublisher;
   /**
-   * Optional planner seam for the branch-bounded notes export target. Production
+   * Optional planner seam for the canonical notes export target. Production
    * uses the real git planner; tests inject a fixed target.
    */
   planNotesExport?: PairedPushNotesExportPlanner;
-  /**
-   * Optional cleaner seam for the temporary branch-bounded notes export target.
-   * Production deletes the temp ref after the notes leg finishes; tests inject a
-   * no-op or spy.
-   */
-  cleanupNotesExport?: PairedPushNotesExportCleaner;
   /**
    * Auto-retry budget for a transient notes-leg failure. Defaults to
    * `DEFAULT_NOTES_PUSH_RETRY` (two silent retries with short backoff) when
@@ -544,6 +548,8 @@ export interface UserSyncSpine {
   state: UserSessionInitState;
   /** Raw notes-ref topology feeding the spine, or `null` when remote probing is disabled. */
   refState: UserSyncRefState | null;
+  /** Content relation carried for divergence or recognized local-ahead branch-export residue. */
+  contentRelation?: NoteSetRelation;
   /** Coherence condition layered on the ref topology, when recovery context exists. */
   coherenceState?: UserSyncCoherenceState;
   /** Full-mode remote-status projection derived from the same ref topology. */
@@ -556,6 +562,7 @@ export interface UserSyncState {
   /** Session-init-compatible five-state verdict for the inspected refs. */
   spineState: UserSessionInitState;
   refState: UserSyncRefState;
+  contentRelation?: NoteSetRelation;
   coherenceState?: UserSyncCoherenceState;
   diskState: UserSyncDiskState;
   remoteStatus: UserRemoteStatus;
@@ -584,6 +591,7 @@ export interface InspectUserSyncOptions {
  * - `local note ahead`  — local git note is newer than remote.
  * - `git note out of date` — working files do not match the latest local git note.
  * - `notes conflict`    — local and remote notes both moved from a common ancestor.
+ * - `notes diverged (reconciliation required)` — refs diverged without contested note content.
  * - `remote unavailable` — remote could not be reached for comparison.
  *
  * These terms must round-trip cleanly from user mental model to behavior — if
@@ -595,6 +603,7 @@ export type UserStatusHeadline =
   | "remote note ahead"
   | "local note ahead"
   | "git note out of date"
+  | "notes diverged (reconciliation required)"
   | "notes conflict"
   | "remote unavailable";
 
@@ -632,6 +641,7 @@ export interface UserStatusResult {
   detailLines: string[];
   remoteChecked: boolean;
   refState: UserSyncRefState | null;
+  contentRelation?: NoteSetRelation;
   diskState: UserSyncDiskState;
   savedCommit: string | null;
   savedFromAncestor: boolean;
@@ -769,6 +779,8 @@ export interface UserSessionInitStatusResult {
    * (`state === "disabled"`); present on every other arm.
    */
   refState?: UserSyncRefState;
+  /** Content relation carried for divergence or recognized local-ahead branch-export residue. */
+  contentRelation?: NoteSetRelation;
   /** Coherence detail preserved without expanding the five-state session-init surface. */
   coherenceState?: UserSyncCoherenceState;
   summary: string;

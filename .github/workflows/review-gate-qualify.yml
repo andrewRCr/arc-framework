@@ -1,0 +1,39 @@
+name: Review Gate Qualify
+
+on:
+  repository_dispatch:
+    types: [review-gate-qualify]
+
+permissions: {}
+
+jobs:
+  qualify-token:
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    environment: review-gate
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - id: qualify
+        env:
+          ARC_QUALIFICATION_RESULT: ${{ runner.temp }}/review-gate-token-qualification.json
+          ARC_REPOSITORY_ID: ${{ github.event.repository.id }}
+          ARC_REVIEW_GATE_APP_CLIENT_ID: ${{ vars.ARC_REVIEW_GATE_APP_CLIENT_ID }}
+          ARC_REVIEW_GATE_APP_ID: ${{ vars.ARC_REVIEW_GATE_APP_ID }}
+          ARC_REVIEW_GATE_APP_PRIVATE_KEY: ${{ secrets.ARC_REVIEW_GATE_APP_PRIVATE_KEY }}
+        run: npm run review-gate:qualify-token
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: review-gate-token-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/review-gate-token-qualification.json
+          if-no-files-found: error
+          retention-days: 1

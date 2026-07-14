@@ -89,8 +89,8 @@ function makeInFlightExec(opts: {
     }
     if (args[0] === "worktree") return { stdout: worktreeList, stderr: "" };
     if (args[0] === "ls-remote") throw new Error("local-ref project render must not read the network");
-    if (args[0] === "ls-tree" && args[1] === "-r") {
-      const ref = args[3] ?? "";
+    if (args[0] === "ls-tree" && args.includes("--name-only")) {
+      const ref = args[args.indexOf("--name-only") + 1] ?? "";
       const paths = Object.keys(metas)
         .filter((target) => target.startsWith(`${ref}:`))
         .map((target) => target.slice(target.indexOf(":") + 1));
@@ -218,6 +218,147 @@ describe("composeProjectReadinessView", () => {
 
     expect(view).toContain("| `Active` | local-live | P1");
     expect(sectionBetween(view, "## Ready", "## Blocked")).not.toContain("local-live");
+  });
+
+  it("lets a prospective shipped record replace both own-branch oracle ref forms", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const slug = "archiving";
+    const branch = `feat/${slug}`;
+    await writeMeta(
+      join(root, ".arc", "completed", "2026-q3", `meta-${slug}.md`),
+      meta(slug, "Shipped", { priority: "P2" }),
+    );
+    const exec = makeInFlightExec({
+      remoteRefs: [branch],
+      worktrees: [{ path: root, branch }],
+      metas: {
+        [`origin/${branch}:.arc/active/meta-${slug}.md`]: oracleMeta({
+          branch,
+          state: "Integrating",
+          priority: "P1",
+        }),
+        [`${branch}:.arc/active/meta-${slug}.md`]: oracleMeta({
+          branch,
+          state: "Integrating",
+          priority: "P1",
+        }),
+      },
+    });
+
+    const input = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      prospective: { currentBranch: branch },
+    });
+
+    expect(input.records.find((record) => record.slug === slug)).toMatchObject({
+      location: "completed",
+      state: "Shipped",
+      priority: "P2",
+    });
+  });
+
+  it.each([
+    ["Active", "Planning"],
+    ["Integrating", "Active"],
+  ])("lets a prospective %s record replace the own branch's pre-commit %s state", async (staged, atRef) => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const slug = `transition-${staged.toLowerCase()}`;
+    const branch = `feat/${slug}`;
+    await writeMeta(join(root, ".arc", "active", `meta-${slug}.md`), meta(slug, staged, { priority: "P2" }));
+    const exec = makeInFlightExec({
+      worktrees: [{ path: root, branch }],
+      metas: {
+        [`${branch}:.arc/active/meta-${slug}.md`]: oracleMeta({
+          branch,
+          state: atRef,
+          priority: "P1",
+        }),
+      },
+    });
+
+    const input = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      prospective: { currentBranch: branch },
+    });
+
+    expect(input.records.find((record) => record.slug === slug)).toMatchObject({
+      location: "active",
+      state: staged,
+      priority: "P2",
+    });
+  });
+
+  it("keeps a genuine live sibling ahead of its completed tree record", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const ownSlug = "own-transition";
+    const ownBranch = `feat/${ownSlug}`;
+    const siblingSlug = "live-sibling";
+    const siblingBranch = `feat/${siblingSlug}`;
+    await writeMeta(
+      join(root, ".arc", "active", `meta-${ownSlug}.md`),
+      meta(ownSlug, "Integrating", { priority: "P2" }),
+    );
+    await writeMeta(
+      join(root, ".arc", "completed", "2026-q3", `meta-${siblingSlug}.md`),
+      meta(siblingSlug, "Shipped", { priority: "P3" }),
+    );
+    const exec = makeInFlightExec({
+      remoteRefs: [siblingBranch],
+      worktrees: [{ path: root, branch: ownBranch }],
+      metas: {
+        [`origin/${siblingBranch}:.arc/active/meta-${siblingSlug}.md`]: oracleMeta({
+          branch: siblingBranch,
+          state: "Active",
+          priority: "P1",
+        }),
+      },
+    });
+
+    const input = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      prospective: { currentBranch: ownBranch },
+    });
+
+    expect(input.records.find((record) => record.slug === siblingSlug)).toMatchObject({
+      location: "active",
+      state: "Active",
+      priority: "P1",
+    });
+  });
+
+  it("renders a no-transition prospective tree byte-identically to normal precedence", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const slug = "stable-own-branch";
+    const branch = `feat/${slug}`;
+    const staleSiblingBranch = "feat/stale-sibling";
+    await writeMeta(join(root, ".arc", "active", `meta-${slug}.md`), meta(slug, "Active", { priority: "P1" }));
+    const exec = makeInFlightExec({
+      remoteRefs: [staleSiblingBranch],
+      worktrees: [{ path: root, branch }],
+      metas: {
+        [`${branch}:.arc/active/meta-${slug}.md`]: oracleMeta({ branch, state: "Active", priority: "P1" }),
+        [`origin/${staleSiblingBranch}:.arc/active/meta-stale-sibling.md`]: oracleMeta({
+          branch: "feat/actual-sibling",
+          state: "Active",
+        }),
+      },
+    });
+
+    const [normal, prospective] = await Promise.all([
+      resolveProjectReadinessViewInput({ cwd: root, localRefs: { exec, baseBranch: "main" } }),
+      resolveProjectReadinessViewInput({
+        cwd: root,
+        localRefs: { exec, baseBranch: "main" },
+        prospective: { currentBranch: branch },
+      }),
+    ]);
+
+    expect(composeProjectReadinessView({ ...prospective, renderedRef: "abc1234" }))
+      .toBe(composeProjectReadinessView({ ...normal, renderedRef: "abc1234" }));
+    expect(prospective.derivationWarnings).toEqual(normal.derivationWarnings);
   });
 
   it("keeps a local-ref work unit parked when the tree carries a park pointer", async () => {

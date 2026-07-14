@@ -43,7 +43,7 @@ import {
 /** Uniform overwrite-confirm prompt copy shared with the user handlers. */
 const OVERWRITE_CONFIRM_MESSAGE = "Local notes will be overwritten by remote. Continue?";
 
-type SyncAction = "noop" | "push" | "pull" | "load" | "push-load" | "conflict";
+type SyncAction = "noop" | "push" | "pull" | "load" | "push-load" | "guidance" | "conflict";
 
 export interface UserSyncOptions {
   yes?: boolean;
@@ -135,6 +135,20 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
         worktreeBranch,
       });
       return;
+    case "guidance":
+      if (state.refState === "local-ahead" && state.contentRelation === "remote-subset") {
+        p.log.info("Local notes contain local-ahead publication residue.");
+        p.log.info(
+          "No pull is needed. `arc user push` can preflight publication now; a later paired push can attempt "
+          + "proof-gated publication.",
+        );
+      } else {
+        p.log.info("Local and remote notes diverged without contested note content; reconciliation is required.");
+        p.log.info("Run the preflighted `arc user push` path. Paired push defers; no pull action is needed.");
+        p.log.info("Reconciliation can still refuse unsafe publication or incompatible compaction lineage.");
+      }
+      p.outro("Done.");
+      return;
     case "conflict":
       await handleConflict({ cwd, io, identity, yes, worktreeBranch });
       return;
@@ -144,12 +158,20 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
 export function decideSyncAction(state: UserSyncState): SyncAction {
   switch (state.remoteStatus) {
     case "conflict":
-      return "conflict";
+      return state.contentRelation === "local-subset"
+        || state.contentRelation === "equal"
+        || state.contentRelation === "mixed-uncontested"
+        ? "guidance"
+        : "conflict";
     case "remote ahead":
       return state.diskStatus === "current" || state.diskStatus === "stale"
         ? "pull"
         : "conflict";
     case "local ahead":
+      if (state.refState === "local-ahead" && state.contentRelation === "remote-subset") {
+        if (state.diskStatus === "current") return "guidance";
+        if (state.diskStatus === "stale") return "load";
+      }
       if (state.diskStatus === "current") return "push";
       if (state.diskStatus === "stale") return "push-load";
       if (state.diskStatus === "local unsaved") return "push";
@@ -182,7 +204,7 @@ async function handleConflict(params: DirectionParams): Promise<void> {
     message: "How would you like to resolve sync?",
     options: [
       { value: "push", label: "Push local state to remote" },
-      { value: "pull", label: "Pull remote state to local disk" },
+      { value: "inspect", label: "Inspect status before deciding" },
       { value: "cancel", label: "Cancel" },
     ],
   });
@@ -202,8 +224,8 @@ async function handleConflict(params: DirectionParams): Promise<void> {
     return;
   }
 
-  p.log.info("→ Pulling the remote git note into local working files.");
-  await handlePullDirection(confirmed);
+  p.log.info("Inspect with `arc user status --verbose`, then choose an explicit push or repair.");
+  p.outro("Done.");
 }
 
 async function degradeConflictToSaveOnly(params: DirectionParams): Promise<void> {
@@ -388,11 +410,23 @@ async function handlePushDirection(params: DirectionParams): Promise<void> {
       }
       p.outro("Done.");
       return;
+    case "no-local-notes":
+      await recordPartialPushMarkerAfterFailedPush(params);
+      p.log.error("No local user notes ref was available after save; nothing was published.");
+      p.log.warn("User directory was saved locally — push manually with `arc user push`.");
+      process.exitCode = 1;
+      return;
     case "no-remote":
       await recordPartialPushMarkerAfterFailedPush(params);
       p.log.error("No remote configured. Push requires a remote repository.");
       p.log.info("Set up a remote with: git remote add origin <url>");
       p.log.warn("User directory was saved locally — push manually with `arc user push`.");
+      process.exitCode = 1;
+      return;
+    case "refused":
+      await recordPartialPushMarkerAfterFailedPush(params);
+      p.log.error(pushResult.message);
+      p.log.warn("User directory was saved locally — publication remains deferred.");
       process.exitCode = 1;
       return;
     case "blocked":

@@ -19,6 +19,14 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Audit lifecycle workflows for stale ROADMAP hand-render advisories**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after `arc integrate` was found
+  to regenerate and stage ROADMAP despite stale workflow prose saying to hand-render it.
+- *Approach:* verify each lifecycle verb's actual render/stage side effects before editing. Correct only workflows
+  whose command already regenerates and stages, in package and project copies; candidate surfaces are promote,
+  deactivate, and planning/init.
+
 ### `[ ]` **STATUS.USER writer offline merge and document chrome**
 
 - *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
@@ -244,6 +252,18 @@
   it.
 - *Scope:* lands with this WU's render-standard reconciliation; sequenced after `project-state-integrity`'s
   substrate adoption.
+
+### `[ ]` **Re-evaluate status/render performance after the surfaces settle**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-10);
+  captured during `project-state-integrity` review.
+- *Concern:* several independent local/network reads are serialized, project-readiness metas load sequentially,
+  tracked renders may scan the same tree twice, and one transition can rebuild the lifecycle index for multiple
+  side effects.
+- *Fold-in:* after STATUS.PROJECT/STATUS.USER writer contracts settle, parallelize independent reads, batch meta
+  loads, reuse already-loaded render records, and memoize lifecycle-index construction per side-effect execution
+  where measurements still justify it. Route any surviving general transition-engine cache debt to
+  `architecture-remediation`.
 
 ---
 

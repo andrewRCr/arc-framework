@@ -220,7 +220,7 @@
       "layer": "core",
       "pristine_hash": "5950b03406d9a491ef0dd91cbde7544ab84fd79120c7b8c4fab5489cf4977ce0"
     },
-    "system/extensions/pre-merge-review.md": {
+    "system/extensions/pre-merge.md": {
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "7540f372e718fb9ac5fd79a28a49d3b02656e489a6d4029fb17c9494e186be0d"

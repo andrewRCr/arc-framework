@@ -49,6 +49,15 @@ describe("findMaterializableWorkUnits", () => {
     expect(result.candidates).toEqual([]);
   });
 
+  it("excludes a WU with an unoccupied local branch", () => {
+    const result = findMaterializableWorkUnits({
+      entries: [wu({ remoteOnly: false })],
+      identity: "andrew",
+    });
+
+    expect(result.candidates).toEqual([]);
+  });
+
   it("excludes another identity's remote-only WU", () => {
     const result = findMaterializableWorkUnits({
       entries: [wu({ owner: "blair" })],

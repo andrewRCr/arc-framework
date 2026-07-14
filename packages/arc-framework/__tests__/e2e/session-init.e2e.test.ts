@@ -68,6 +68,17 @@ interface SessionInitEnvelope {
       recommendedPromptText: string;
     };
   };
+  errandState?: {
+    ok: boolean;
+    value?: {
+      residue: Array<{
+        branch: string;
+        slug: string;
+        reason: string;
+        marks?: string[];
+      }>;
+    };
+  };
 }
 
 interface TaskCursorItemJson {
@@ -405,6 +416,43 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("none");
     expect(envelope.active.value?.sessionType).toBeNull();
+  });
+
+  it("surfaces a record-less remote branch as session-init cleanup residue", async () => {
+    const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-residue-origin-"));
+    try {
+      await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
+      await execFileAsync("git", ["remote", "add", "origin", bareDir], { cwd: tmpDir });
+      await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+      await execFileAsync(
+        "git",
+        ["-c", "core.hooksPath=/dev/null", "commit", "-m", "install ARC"],
+        { cwd: tmpDir },
+      );
+      await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: tmpDir });
+      await execFileAsync("git", ["switch", "-c", "chore/merged-residue"], { cwd: tmpDir });
+      await execFileAsync("git", ["push", "-u", "origin", "chore/merged-residue"], { cwd: tmpDir });
+      await execFileAsync("git", ["switch", "main"], { cwd: tmpDir });
+
+      const result = await runArc(["status", "--session-init", "--json"], tmpDir);
+      expect(result.exitCode).toBe(0);
+
+      const envelope = parseJsonEnvelope(result.stdout);
+      expect(envelope.errandState).toMatchObject({
+        ok: true,
+        value: {
+          residue: [
+            {
+              branch: "chore/merged-residue",
+              slug: "merged-residue",
+              reason: "no-record-or-meta",
+            },
+          ],
+        },
+      });
+    } finally {
+      await rm(bareDir, { recursive: true, force: true });
+    }
   });
 
   it("emits sessionType=execution for a single-WU + Start-Task fixture", async () => {

@@ -149,7 +149,12 @@ export async function readShippedWorkUnitRecordsFromRef(
 ): Promise<Map<string, ShippedWorkUnitRecord>> {
   let stdout: string;
   try {
-    ({ stdout } = await exec("git", ["ls-tree", "-r", "--name-only", ref, "--", COMPLETED_PATH_PREFIX]));
+    // --full-tree: without it the completed-path pathspec resolves relative to
+    // the invoking directory; pin the read to the tree root regardless of cwd.
+    ({ stdout } = await exec(
+      "git",
+      ["ls-tree", "--full-tree", "-r", "--name-only", ref, "--", COMPLETED_PATH_PREFIX],
+    ));
   } catch {
     return new Map();
   }

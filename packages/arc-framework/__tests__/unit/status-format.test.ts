@@ -57,7 +57,7 @@ function okExtensions(): Probe<ExtensionsStatusResult> {
     ok: true,
     value: {
       mode: "full",
-      extensions: [{ name: "pre-merge-review", active: true, description: "d" }],
+      extensions: [{ name: "pre-merge", active: true, description: "d" }],
       activeCount: 1,
       inactiveCount: 0,
       orphanCount: 0,
@@ -184,7 +184,7 @@ function makeSessionInitResult(
     recommendedCombinedPrompt: null,
     extensions: {
       ok: true,
-      value: { mode: "session-init", active: ["pre-merge-review"], warnings: [] },
+      value: { mode: "session-init", active: ["pre-merge"], warnings: [] },
     },
     config: {
       ok: true,

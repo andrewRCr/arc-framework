@@ -22,6 +22,20 @@ establishes the shape, audience fit, and forward-compat discipline; detailed des
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
+
+### `[ ]` **Evaluate review receipts as an event-log consumer**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured during the reviewed-lane gate's
+  storage-boundary audit.
+- *Concern:* decide whether review receipts are backend-canonical operational events, adapter-owned events using
+  the same port, or optional non-materialized state. Preserve expected-version append, change-request identity,
+  private/public projection, host/store eventual consistency, and healing without forcing events into `.arc/`.
+
+---
+
 ## Problem / Motivation
 
 ARC's canonical-store assumption today is "everything in `.arc/` lives in the project repo's tracked tree." This

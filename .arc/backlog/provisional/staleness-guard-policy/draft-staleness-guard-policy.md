@@ -7,6 +7,22 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
+
+### `[ ]` **Content-hash the dev-build guard's bundle inputs**
+
+- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-13); reclassified because the content-hash
+  sidecar and fail-safe detection policy cross the load-bearing dev-build guard's design floor.
+- *Concern:* PR #223 scoped staleness to the bundle's esbuild-metafile input graph, but the verdict remains
+  mtime-based. Checkout or rebase can rewrite input mtimes without changing content and falsely report stale dist.
+- *Approach:* persist a build-time content hash over bundle inputs and compare it at check time, reusing the
+  metafile input selection. A missing, malformed, or unreadable hash sidecar must retain the conservative fallback.
+  Coordinate this correctness mechanism with the WU's hard-fail policy rather than creating a second guard owner.
+
+---
+
 ## Problem / Motivation
 
 `isHandoffCritical` (`packages/arc-framework/src/cli.ts`) hard-fails the stale-compiled-`dist` guard only for

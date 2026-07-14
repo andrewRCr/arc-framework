@@ -10,9 +10,9 @@ function execReturning(stdout: string): GitExec {
   return vi.fn(async (): Promise<ExecResult> => ({ stdout, stderr: "" }));
 }
 
-/** One `for-each-ref` output line: `<short-name>NUL<upstream:track,nobracket>`. */
-function line(name: string, track: string): string {
-  return `${name}${NUL}${track}`;
+/** One `for-each-ref` output line: `<short-name>NUL<upstream:track,nobracket>NUL<worktreepath>`. */
+function line(name: string, track: string, worktreePath = ""): string {
+  return `${name}${NUL}${track}${NUL}${worktreePath}`;
 }
 
 describe("listGoneUpstreamBranches", () => {
@@ -44,6 +44,16 @@ describe("listGoneUpstreamBranches", () => {
     expect(result).toEqual(["plan/gone"]);
   });
 
+  it("excludes a gone branch checked out in a worktree (worktree residue has its own sweep)", async () => {
+    const exec = execReturning(
+      [line("feat/checked-out", "gone", "/wt/feat-checked-out"), line("feat/gone", "gone")].join("\n"),
+    );
+
+    const result = await listGoneUpstreamBranches(exec, "refs/heads/");
+
+    expect(result).toEqual(["feat/gone"]);
+  });
+
   it("returns an empty list when the read fails (hygiene is a soft signal)", async () => {
     const exec: GitExec = vi.fn(async () => {
       throw new Error("for-each-ref failed");
@@ -61,7 +71,7 @@ describe("listGoneUpstreamBranches", () => {
 
     expect(exec).toHaveBeenCalledWith("git", [
       "for-each-ref",
-      "--format=%(refname:short)%00%(upstream:track,nobracket)",
+      "--format=%(refname:short)%00%(upstream:track,nobracket)%00%(worktreepath)",
       "refs/heads/plan/",
     ]);
   });

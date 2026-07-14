@@ -63,7 +63,10 @@ export async function readRefTip(exec: GitExec, ref: string): Promise<string | n
 /** key → blob-sha entries in a ref's tree, or empty when the ref is absent. */
 export async function readTreeEntries(exec: GitExec, ref: string): Promise<Map<string, string>> {
   try {
-    const { stdout } = await exec("git", ["ls-tree", ref]);
+    // --full-tree: a bare `ls-tree <ref>` implicitly scopes to the invoking
+    // directory's path within the tree, so a subdirectory cwd reads a record
+    // tree as empty. Pin the read to the tree root regardless of cwd.
+    const { stdout } = await exec("git", ["ls-tree", "--full-tree", ref]);
     return parseTreeEntries(stdout);
   } catch {
     return new Map();
@@ -100,7 +103,8 @@ export type TreeReadResult =
 export async function readTreeEntriesDiscriminating(exec: GitExec, ref: string): Promise<TreeReadResult> {
   let stdout: string;
   try {
-    ({ stdout } = await exec("git", ["ls-tree", ref]));
+    // --full-tree: pin to the tree root regardless of cwd (see readTreeEntries).
+    ({ stdout } = await exec("git", ["ls-tree", "--full-tree", ref]));
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     return isAbsentRefError(error.message) ? { kind: "absent" } : { kind: "error", error };

@@ -551,6 +551,30 @@ describe("projectInFlightToOverlapRoster", () => {
     expect(roster.entries[0]).not.toHaveProperty("worktreePath");
   });
 
+  it("projects an unoccupied local WU through its local branch", async () => {
+    const entry: InFlightWorkUnit = {
+      kind: "work-unit",
+      branch: "feat/local-unoccupied",
+      name: "local-unoccupied",
+      state: "Active",
+      remoteOnly: false,
+      dependsOn: [],
+    };
+
+    const roster = projectInFlightToOverlapRoster([entry]);
+
+    expect(roster.entries).toEqual([
+      {
+        branch: "feat/local-unoccupied",
+        name: "local-unoccupied",
+        remoteOnly: false,
+        metaFilePath: ".arc/active/meta-local-unoccupied.md",
+        state: "Active",
+      },
+    ]);
+    expect(roster.entries[0]).not.toHaveProperty("worktreePath");
+  });
+
   it("projects roster marks and parked scheduling for advisory filtering", async () => {
     const entry: InFlightWorkUnit = {
       kind: "work-unit",

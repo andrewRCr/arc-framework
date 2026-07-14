@@ -20,9 +20,43 @@ import { atomicWriteFile } from "./fs.js";
 
 export const execFileAsync = promisify(execFile);
 
+const MAX_GIT_STDOUT_BYTES = 64 * 1024 * 1024;
+
+const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_CONFIG",
+  "GIT_CONFIG_PARAMETERS",
+  "GIT_CONFIG_COUNT",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_IMPLICIT_WORK_TREE",
+  "GIT_GRAFT_FILE",
+  "GIT_INDEX_FILE",
+  "GIT_NO_REPLACE_OBJECTS",
+  "GIT_REPLACE_REF_BASE",
+  "GIT_PREFIX",
+  "GIT_SHALLOW_FILE",
+  "GIT_COMMON_DIR",
+]);
+
+function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv | undefined {
+  if (cwd === undefined) return undefined;
+
+  // Git exports repository-local variables to hooks. Once a caller supplies cwd,
+  // that directory must select the repository rather than an inherited hook index.
+  return Object.fromEntries(
+    Object.entries(process.env).filter(([variable]) => !GIT_REPOSITORY_LOCAL_ENVIRONMENT.has(variable)),
+  );
+}
+
 /** Real git executor wrapping child_process.execFile. */
 export const gitExec: GitExec = async (cmd, args, options) => {
-  const { stdout, stderr } = await execFileAsync(cmd, args, options ?? {});
+  const { stdout, stderr } = await execFileAsync(cmd, args, {
+    ...options,
+    env: environmentForGitCwd(options?.cwd),
+    maxBuffer: MAX_GIT_STDOUT_BYTES,
+  });
   return { stdout: stdout.trimEnd(), stderr };
 };
 
@@ -121,9 +155,11 @@ async function readUserDir(dirPath: string): Promise<DirEntry[]> {
   return entries;
 }
 
-/** Real stdin-fed git executor — the {@link GitExecInput} adapter for errand
- * orphan-state-ref plumbing (`hash-object --stdin`, `mktree`). Mirrors
- * {@link writeGitNote}'s spawn-with-stdin shape. */
+/**
+ * Real stdin-fed git executor for batch object reads, reachability proofs,
+ * and orphan-state-ref blob/tree plumbing. Mirrors {@link writeGitNote}'s
+ * spawn-with-stdin shape.
+ */
 export const gitExecInput: GitExecInput = (args, input) => {
   return new Promise((resolve, reject) => {
     const proc = spawn("git", args);

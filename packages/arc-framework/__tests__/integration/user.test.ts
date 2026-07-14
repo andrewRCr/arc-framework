@@ -1804,10 +1804,10 @@ describe("user push and pull", () => {
     await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Version 3 local", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
-    // Regular push should fail with divergence error
+    // Regular push should refuse the diverged topology before transport.
     await expect(
       runUserPush({ io, identity: "test-user" }),
-    ).rejects.toThrow(/rejected/);
+    ).resolves.toMatchObject({ kind: "refused", reason: "history-diverged" });
 
     // Force push should succeed
     await runUserPush({ io, identity: "test-user", force: true });
@@ -1840,18 +1840,20 @@ describe("user push and pull", () => {
     const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
     await mkdir(cloneUserDir, { recursive: true });
     await makeCommit(cloneDir, "clone advances HEAD");
+    await execFileAsync("git", ["push", "origin", "HEAD:clone-work"], { cwd: cloneDir });
     await writeFile(join(cloneUserDir, "WORKING-MEMORY.md"), "# Clone notes", "utf-8");
     await runUserSave({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
     await runUserPush({ io: cloneIO, identity: "test-user", force: true });
 
-    // The first worktree re-saves on its own commit and pushes → non-ff.
+    // The first worktree re-saves on its own commit and preflight refuses divergence.
     await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Local notes v2", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await expect(
       runUserPush({ io, identity: "test-user" }),
-    ).rejects.toThrow(/rejected/);
+    ).resolves.toMatchObject({ kind: "refused", reason: "history-diverged" });
 
     // Auto-reconcile: union-merge the divergent refs and re-push, no prompt.
+    await execFileAsync("git", ["fetch", "origin", "clone-work"], { cwd: tempDir });
     const result = await pushNotesWithReconcile({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
     expect(result).toEqual({ kind: "reconciled" });
     expect(mockSelect).not.toHaveBeenCalled();
@@ -1868,6 +1870,49 @@ describe("user push and pull", () => {
       "git", ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
     );
     expect(remoteTip.trim().split(/\s+/u)[0]).toBe(localTip);
+  });
+
+  it("preserves a clean local merge when the merged publication proof refuses", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Local notes", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+
+    cloneDir = await mkdtemp(join(tmpdir(), "arc-clone-"));
+    await execFileAsync("git", ["clone", remoteDir, cloneDir]);
+    await execFileAsync("git", ["config", "user.email", "c@t.com"], { cwd: cloneDir });
+    await execFileAsync("git", ["config", "user.name", "Clone User"], { cwd: cloneDir });
+    const cloneIO = makeUserIO(cloneDir);
+    const cloneUserDir = join(cloneDir, ".arc", "user", "test-user");
+    await mkdir(cloneUserDir, { recursive: true });
+    await makeCommit(cloneDir, "unpublished clone commit");
+    await writeFile(join(cloneUserDir, "WORKING-MEMORY.md"), "# Clone notes", "utf-8");
+    await runUserSave({ cwd: cloneDir, io: cloneIO, identity: "test-user" });
+    await runUserPush({ io: cloneIO, identity: "test-user", force: true });
+
+    const remoteBefore = (await execFileAsync(
+      "git", ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
+    )).stdout.trim().split(/\s+/u)[0];
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Local notes v2", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    const result = await pushNotesWithReconcile({
+      io,
+      identity: "test-user",
+      cwd: tempDir,
+      output: recoveryOutput,
+    });
+    expect(result).toMatchObject({ kind: "refused", reason: "unpublished-history" });
+
+    const { stdout: noteList } = await execFileAsync(
+      "git", ["notes", "--ref", "arc/user/test-user", "list"], { cwd: tempDir },
+    );
+    expect(noteList.trim().split("\n").filter(Boolean)).toHaveLength(2);
+    const remoteAfter = (await execFileAsync(
+      "git", ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
+    )).stdout.trim().split(/\s+/u)[0];
+    expect(remoteAfter).toBe(remoteBefore);
   });
 
   it("surfaces (not silently pushes) a same-commit collision the union cannot resolve", async () => {
@@ -1898,12 +1943,12 @@ describe("user push and pull", () => {
       "git", ["ls-remote", remoteDir, "refs/notes/arc/user/test-user"],
     )).stdout.trim().split(/\s+/u)[0];
 
-    // First worktree re-saves on the same commit and pushes → non-ff.
+    // First worktree re-saves on the same commit and preflight refuses divergence.
     await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Temp v2", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     await expect(
       runUserPush({ io, identity: "test-user" }),
-    ).rejects.toThrow(/rejected/);
+    ).resolves.toMatchObject({ kind: "refused", reason: "history-diverged" });
 
     const result = await pushNotesWithReconcile({ io, identity: "test-user", cwd: tempDir, output: recoveryOutput });
 
@@ -1956,6 +2001,10 @@ describe("user push and pull", () => {
   });
 
   it("missing remote produces a clear error", async () => {
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Local only", "utf-8");
+    await runUserSave({ cwd: tempDir, io: makeUserIO(tempDir), identity: "test-user" });
+
     // Remove the remote
     await execFileAsync("git", ["-C", tempDir, "remote", "remove", "origin"]);
     const io = makeUserIO(tempDir);

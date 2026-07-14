@@ -30,6 +30,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   classifyPathSurface,
   detectForeignArtifactOverlap,
+  preferRemoteBaseRef,
   projectInFlightToOverlapRoster,
   resolveIdentity,
   type ForeignArtifactDetectionResult,
@@ -91,11 +92,12 @@ export async function detectStagedForeignWrites(
   const { exec, roster, paths, baseBranch, snapshot, originatingWorktreePath, originatingMetaPath } = options;
   const candidates = selectForeignWriteCandidates(paths);
   if (candidates.length === 0) return { overlaps: [] };
+  const baseRef = await preferRemoteBaseRef(exec, baseBranch);
   return detectForeignArtifactOverlap({
     exec,
     roster,
     targetPaths: candidates,
-    baseBranch,
+    baseBranch: baseRef,
     ...(snapshot !== undefined ? { snapshot } : {}),
     originatingWorktreePath,
     ...(originatingMetaPath !== undefined ? { originatingMetaPath } : {}),
@@ -108,17 +110,21 @@ export async function detectStagedForeignWrites(
  */
 export function formatForeignWriteWarnings(overlaps: ForeignArtifactOverlap[]): string[] {
   return overlaps.map(
-    (o) => `${o.branch} also touches ${o.matchedPaths.join(", ")} (${o.worktreePath ?? "remote-only"})`,
+    (o) => `${o.branch} also touches ${o.matchedPaths.join(", ")} (${overlapLocation(o)})`,
   );
 }
 
 function formatSkippedEntry(entry: ForeignArtifactSkippedEntry): string {
   const marks = entry.marks.join(", ");
-  return `${entry.branch} skipped: entry marked ${marks} (${entry.worktreePath ?? "remote-only"})`;
+  return `${entry.branch} skipped: entry marked ${marks} (${overlapLocation(entry)})`;
 }
 
 function formatIndeterminateProbe(entry: ForeignArtifactIndeterminateProbe): string {
-  return `${entry.branch} skipped: probe indeterminate (${entry.worktreePath ?? "remote-only"})`;
+  return `${entry.branch} skipped: probe indeterminate (${overlapLocation(entry)})`;
+}
+
+function overlapLocation(entry: { worktreePath?: string; remoteOnly?: boolean }): string {
+  return entry.worktreePath ?? (entry.remoteOnly === false ? "no worktree" : "remote-only");
 }
 
 /** Word every advisory line the hook should print to stdout. */

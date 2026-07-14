@@ -7,9 +7,10 @@ arc:
     - review-triage
     - commit-footer
   extensions:
-    - pre-pr-review
+    - pre-pr-open
+    - post-pr-open
     - pre-push-review
-    - pre-merge-review
+    - pre-merge
 ---
 
 # Workflow: Integrate Work Unit
@@ -59,12 +60,11 @@ arc integrate {name} --last-completed "{last completed}" --action "{next action}
 ```
 
 The executor fires the full `integrate` edge: flips `**State:** Active → Integrating`, writes `**Last Completed:**`
-/ `**Next Action:**`, resets `**Next Task:** [none]`, and stages the meta. `{name}` defaults to the current
+/ `**Next Action:**`, resets `**Next Task:** [none]`, regenerates `backlog/ROADMAP.md` so the In Flight table's
+`State` column reflects `Integrating`, and stages both the meta and the ROADMAP. `{name}` defaults to the current
 worktree's WU. The `Integrating` state covers PR open through review-response.
 
-Hand-render `backlog/ROADMAP.md` into the same commit per the command's interim ROADMAP advisory, so the In Flight
-table's rendered `State` column reflects `Integrating` (interim until `roadmap-tooling` ships the renderer). Stage
-the ROADMAP edit alongside the meta.
+Confirm the regenerated ROADMAP diff is clean (the `State` flip only) before committing.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit` (subject `chore(arc):` per § Commit
@@ -89,8 +89,8 @@ step:
 
 | Observed state               | Demonstrably already ran   | Resume at                                              |
 | ---------------------------- | -------------------------- | ------------------------------------------------------ |
-| No PR open for the WU branch | transition                 | Step 2 (pre-PR review → open the PR)                   |
-| PR open, not merged          | transition, PR open        | Step 4 (review iteration → Phase 2)                    |
+| No PR open for the WU branch | transition                 | Step 2 (local preflight → creation path)               |
+| PR open, not merged          | transition, PR open        | Step 4 (`post-pr-open` → review iteration → Phase 2)   |
 | PR already merged            | transition, PR open, merge | post-merge tail — Step 13 close, then Step 14 teardown |
 
 Resolve PR state with `gh pr view {type}/{name} --json state,mergedAt` (fall back to `gh pr list --head
@@ -100,16 +100,13 @@ the meta's archive-phase sections, a sweep already committed — observe, don't 
 below) are individually re-runnable and no-op when their target is already gone, so an over-eager resume costs
 nothing.
 
-### 2) Pre-PR review
+### 2) Local diff preflight
 
 If `review.pre_merge` is enabled in [`arc-config.yml`][arc-config]:
 
 1. Execute the [`diff-review` method][diff-review] against the local aggregate diff vs the base branch.
    Classify findings per the [`review-triage` method][review-triage]; commit fixes per the
    [`commit-footer` method][commit-footer].
-2. If `pre-pr-review` appears in the active-extensions list (established at session init), load and execute its
-   `.actions`. Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke bypasses.
-
 When disabled, proceed directly to Step 3.
 
 ### 3) Open the PR
@@ -122,6 +119,12 @@ Push the WU branch upstream.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
+
+Immediately before creation, compose
+`proposedChangeRequest = { repositoryRef, baseRef, headRef, headSha }` from the pushed branch. If `pre-pr-open`
+is active, execute its numbered `.actions` in authored order. Halt before later actions on failure. A failed
+`gh pr create` does not make the hook durable: retry the creation path and its retry-safe actions. Skip this hook
+whenever an open PR already exists.
 
 Open the PR:
 
@@ -137,6 +140,12 @@ describing post-merge workflow continuity or next actions — those route to the
 [DEV-RULES.ARC][dev-rules-arc] § Write for the reader, not the author.
 
 ### 4) Review iteration
+
+Resolve the one open PR and compose `openedChangeRequest = { repositoryRef, hostRef, headSha }`. If `post-pr-open`
+is active, execute its numbered `.actions` in authored order before review iteration. This idempotent hook fires on
+both the newly-created path and every open-PR re-entry; actions derive current controller/host state from `hostRef`.
+Review coordination and every hook invocation share this exact-head contract. If a review action changes the head,
+recompose `openedChangeRequest` from the canonical current head before re-entry; never carry the prior head forward.
 
 Process any reviewer findings per the [`review-triage` method][review-triage]; commit fixes per the
 [`commit-footer` method][commit-footer]. Re-run Tier 1 quality gates on modified files after each review-driven
@@ -160,11 +169,10 @@ The WU stays in `**State:** Integrating` throughout this phase. Composition + sw
 content. If present, propose [`clean-work-unit.md`][clean] `§ Task List Temporal-Noise Pass` before proceeding
 to Step 6.
 
-### 6) Fire `pre-merge-review` extension
+### 6) Confirm review coordination
 
-After review-response settles, fire the `pre-merge-review` extension. If active, load and execute its
-`.actions`; halt-on-fail surfaces an actionable message. Default-inactive — when absent, this step is
-a structural no-op.
+Confirm the open-PR review cycle is settled before alignment and composition. This is not the final-head checkpoint;
+composition, sweep, or base reconciliation can still change the branch.
 
 ### 7) Spec-presence + alignment checks
 
@@ -261,6 +269,10 @@ What gets pushed varies by cadence:
 (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces
 an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
 
+Invoke the active project review coordinator's exact-head mutability action with the current
+`openedChangeRequest`, the outgoing local head, and any `begin-fix` authorization receipt. Stop on any typed refusal;
+never reverse the current/outgoing head order.
+
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
@@ -295,11 +307,21 @@ git merge --no-edit origin/{base-branch}
 
 Before pushing the reconcile commit, repeat the Step 12 pre-push extension check when active.
 
+Invoke the active project review coordinator's exact-head mutability action with the current
+`openedChangeRequest`, the outgoing local head, and any `begin-fix` authorization receipt. Stop on any typed refusal;
+never reverse the current/outgoing head order.
+
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
 Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. Re-run the distance check after the
 push; repeat the reconcile loop until `{behind}` is `0`.
+
+At the zero-behind final head, compose the current `openedChangeRequest` and fire `pre-merge` when active.
+Its actions must report the controller settled for this exact head. Any review action that commits or pushes
+invalidates the checkpoint: repeat the distance check, reconcile if needed, and fire the final hook again. Continue
+only when the head is unchanged and settled. No lifecycle- or review-authored commit or push is allowed after this
+stable checkpoint and before the integration interlock.
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop before merge. Surface PR status (open threads, required approvals, checks) and

@@ -28,6 +28,8 @@ export interface RenderTrackedProjectReadinessViewOptions {
   fs: LifecycleIndexFs;
   /** Resolved base branch for the in-flight oracle. */
   baseBranch?: string;
+  /** Checked-out branch whose transition-mutated tree record is prospective truth. */
+  currentBranch?: string | null;
 }
 
 /** Render the tracked ROADMAP view from tree files plus local refs. */
@@ -43,6 +45,9 @@ export async function renderTrackedProjectReadinessView(
       ...(options.baseBranch !== undefined ? { baseBranch: options.baseBranch } : {}),
       parkedSlugs,
     },
+    ...(options.currentBranch === undefined || options.currentBranch === null
+      ? {}
+      : { prospective: { currentBranch: options.currentBranch } }),
   });
   return composeProjectReadinessView({
     ...input,

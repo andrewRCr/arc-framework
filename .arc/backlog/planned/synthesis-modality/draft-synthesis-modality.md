@@ -18,6 +18,15 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Extend modality selection through the planning terminus**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured from the
+  `reviewed-lane-review-gate` planning-terminus spikes.
+- *Concern:* empirical unknowns can crystallize after spec and tasks are drafted but before finalization. Decide
+  whether modality remains selectable through that boundary or a final "empirical assumptions validated?" check
+  may trigger a bounded spike. Preserve the distinction: unknowns that reshape implementation spike before it;
+  rollout probes select among pre-built fallback paths.
+
 ### `[ ]` **Record compaction-recovery as a prototype-modality live instance**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: synthesis-modality`), housekeep drain (2026-06-30);

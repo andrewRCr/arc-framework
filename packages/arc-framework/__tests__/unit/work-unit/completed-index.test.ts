@@ -127,6 +127,23 @@ describe("readShippedWorkUnits", () => {
 });
 
 describe("readShippedWorkUnitsFromRef", () => {
+  it("pins the tree read to the root — --full-tree in the ls-tree argv", async () => {
+    // Without --full-tree a subdirectory cwd scopes the pathspec under itself
+    // and the shipped index silently reads as empty.
+    let seen: readonly string[] | null = null;
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "ls-tree") {
+        seen = args;
+        return { stdout: "" };
+      }
+      throw new Error(`unexpected git ${args.join(" ")}`);
+    };
+
+    await readShippedWorkUnitsFromRef(exec, "origin/main");
+
+    expect(seen).toContain("--full-tree");
+  });
+
   it("collects NN_<slug> dirs from a ref's recursive completed/ tree", async () => {
     const exec = buildLsTreeExec(
       [

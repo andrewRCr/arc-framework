@@ -144,7 +144,7 @@ substance matters for review, restate it inline; if it's workflow continuity, it
 in the PR body at all. Tracked artifacts (meta files, plans, ADRs, completion docs, strategies)
 are fine to reference.
 
-**Success-criteria status and `pre-pr-review` meta-narration.** PRD success-criteria status
+**Success-criteria status and local-review meta-narration.** PRD success-criteria status
 ("X of Y met + supersessions") and "I reviewed locally before pushing" are post-hoc retrospective
 signals (archive-reader audience), not review signals. They live in the WU's durable record, not
 the PR body. CI status shows gates passed; the diff is what reviewers verify.

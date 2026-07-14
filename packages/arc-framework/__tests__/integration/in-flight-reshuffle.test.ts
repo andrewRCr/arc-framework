@@ -1,16 +1,72 @@
+import { execFile } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { promisify } from "node:util";
+
 import { describe, expect, it } from "vitest";
 
 import { runActiveInFlight } from "../../src/commands/active/in-flight.js";
+import { renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import {
   detectForeignArtifactOverlap,
   projectInFlightToOverlapRoster,
 } from "../../src/lib/git/foreign-artifact-detection.js";
 import { deriveInFlight } from "../../src/lib/git/in-flight-derivation.js";
 import { findMaterializableWorkUnits } from "../../src/lib/session-init/materializable-work-units.js";
+import { detectStagedForeignWrites } from "../../src/scripts/check-foreign-writes.js";
 import {
   gitArgsStartWith,
   setupInFlightReshuffleFixture,
+  type InFlightReshuffleFixture,
 } from "../helpers/in-flight-reshuffle.js";
+
+const execFileAsync = promisify(execFile);
+
+async function commitPaths(cwd: string, paths: Record<string, string>, message: string): Promise<void> {
+  for (const [path, content] of Object.entries(paths)) {
+    await mkdir(dirname(join(cwd, path)), { recursive: true });
+    await writeFile(join(cwd, path), content, "utf-8");
+  }
+  await execFileAsync("git", ["add", ...Object.keys(paths)], { cwd });
+  await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", message], { cwd });
+}
+
+async function createSiblingFromFreshBase(
+  fixture: InFlightReshuffleFixture,
+  basePaths: Record<string, string>,
+): Promise<string> {
+  await commitPaths(fixture.sibling, basePaths, "advance base with target paths");
+  await execFileAsync("git", ["push", "origin", "HEAD:refs/heads/main"], { cwd: fixture.sibling });
+  await execFileAsync(
+    "git",
+    ["fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"],
+    { cwd: fixture.primary },
+  );
+
+  const branch = "feat/foreign-sibling";
+  await execFileAsync("git", ["switch", "-c", branch, "origin/main"], { cwd: fixture.sibling });
+  const metaPath = `.arc/active/meta-foreign-sibling.md`;
+  await commitPaths(
+    fixture.sibling,
+    {
+      [metaPath]: renderMetaFile("foreign-sibling", {
+        State: "Active",
+        Owner: "andrew",
+        Branch: branch,
+        Class: "Light",
+        Priority: "P3",
+      }),
+    },
+    "activate foreign sibling",
+  );
+  await execFileAsync("git", ["push", "origin", `HEAD:refs/heads/${branch}`], { cwd: fixture.sibling });
+  await execFileAsync(
+    "git",
+    ["fetch", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`],
+    { cwd: fixture.primary },
+  );
+  return branch;
+}
 
 describe("in-flight reshuffle fixture", () => {
   it("runs scripted git reshuffle steps from a selected git call boundary", async () => {
@@ -103,7 +159,7 @@ describe("in-flight reshuffle fixture", () => {
     }
   });
 
-  it("returns clean local worktree facts after reshuffle activity settles", async () => {
+  it("returns stable local worktree facts alongside record-less baseline residue", async () => {
     const fixture = await setupInFlightReshuffleFixture();
     try {
       const worktreePath = await fixture.createLocalWorkUnit({
@@ -120,7 +176,16 @@ describe("in-flight reshuffle fixture", () => {
       const workUnits = result.entries.filter((entry) => entry.kind === "work-unit");
 
       expect(result.marks).toBeUndefined();
-      expect(result.warnings).toEqual([]);
+      expect(result.residue).toEqual([
+        {
+          branch: "chore/sibling-baseline",
+          slug: "sibling-baseline",
+          reason: "no-record-or-meta",
+        },
+      ]);
+      expect(result.warnings).toEqual([
+        expect.objectContaining({ code: "branch-residue", branch: "chore/sibling-baseline" }),
+      ]);
       expect(workUnits).toHaveLength(1);
       expect(workUnits[0]).toMatchObject({
         name: "calm-local",
@@ -129,6 +194,39 @@ describe("in-flight reshuffle fixture", () => {
         worktreePath,
       });
       expect(workUnits[0]).not.toHaveProperty("marks");
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("keeps an unoccupied local branch out of cross-machine materialize candidates", async () => {
+    const fixture = await setupInFlightReshuffleFixture();
+    try {
+      const branch = "feat/local-unoccupied";
+      const worktreePath = await fixture.createLocalWorkUnit({
+        name: "local-unoccupied",
+        branch,
+      });
+      await execFileAsync("git", ["worktree", "remove", worktreePath], { cwd: fixture.primary });
+
+      const result = await deriveInFlight({
+        exec: fixture.primaryExec,
+        identity: "andrew",
+        teamMode: false,
+        localOnly: false,
+      });
+      const entry = result.entries.find(
+        (candidate) => candidate.kind === "work-unit" && candidate.name === "local-unoccupied",
+      );
+
+      expect(entry).toMatchObject({
+        kind: "work-unit",
+        branch,
+        remoteOnly: false,
+      });
+      expect(entry).not.toHaveProperty("worktreePath");
+      expect(result.snapshot.refs[branch]).toMatch(/^[0-9a-f]{40}$/u);
+      expect(findMaterializableWorkUnits({ entries: result.entries, identity: "andrew" }).candidates).toEqual([]);
     } finally {
       await fixture.cleanup();
     }
@@ -297,6 +395,118 @@ describe("in-flight reshuffle fixture", () => {
       expect(result.indeterminate).toBeUndefined();
       expect(result.skipped).toBeUndefined();
       expect(result.notes).toBeUndefined();
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("does not attribute a fresher base change to a sibling while local main is behind", async () => {
+    const fixture = await setupInFlightReshuffleFixture();
+    try {
+      const targetPath = ".arc/backlog/planned/meta-shared-target.md";
+      await createSiblingFromFreshBase(fixture, { [targetPath]: "fresh base content\n" });
+      const inFlight = await runActiveInFlight({
+        exec: fixture.primaryExec,
+        identity: "andrew",
+        teamMode: false,
+        localOnly: true,
+        baseBranch: "main",
+      });
+
+      const result = await detectStagedForeignWrites({
+        exec: fixture.primaryExec,
+        roster: projectInFlightToOverlapRoster(inFlight.entries),
+        paths: [targetPath],
+        baseBranch: "main",
+        snapshot: inFlight.snapshot,
+        originatingWorktreePath: fixture.primary,
+      });
+
+      expect(result.overlaps).toEqual([]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("does not report an originating work unit artifact as sibling-authored through a fresher base", async () => {
+    const fixture = await setupInFlightReshuffleFixture();
+    try {
+      const originatingBranch = "fix/originating";
+      const targetPath = ".arc/active/meta-originating.md";
+      const targetContent = renderMetaFile("originating", {
+        State: "Active",
+        Owner: "andrew",
+        Branch: originatingBranch,
+        Class: "Light",
+        Priority: "P3",
+      });
+      await execFileAsync("git", ["switch", "-c", originatingBranch], { cwd: fixture.primary });
+      await createSiblingFromFreshBase(fixture, { [targetPath]: targetContent });
+      await mkdir(dirname(join(fixture.primary, targetPath)), { recursive: true });
+      await writeFile(join(fixture.primary, targetPath), targetContent, "utf-8");
+      await execFileAsync("git", ["add", targetPath], { cwd: fixture.primary });
+
+      const inFlight = await runActiveInFlight({
+        exec: fixture.primaryExec,
+        identity: "andrew",
+        teamMode: false,
+        localOnly: true,
+        baseBranch: "main",
+      });
+      const result = await detectStagedForeignWrites({
+        exec: fixture.primaryExec,
+        roster: projectInFlightToOverlapRoster(inFlight.entries),
+        paths: [targetPath],
+        baseBranch: "main",
+        snapshot: inFlight.snapshot,
+        originatingWorktreePath: fixture.primary,
+        originatingMetaPath: targetPath,
+      });
+
+      expect(result.overlaps).toEqual([]);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("still reports a target path genuinely authored on the sibling branch", async () => {
+    const fixture = await setupInFlightReshuffleFixture();
+    try {
+      const branch = await createSiblingFromFreshBase(fixture, {
+        ".arc/backlog/planned/meta-base-only.md": "fresh base content\n",
+      });
+      const targetPath = ".arc/backlog/planned/meta-genuine-overlap.md";
+      await commitPaths(fixture.sibling, { [targetPath]: "sibling-authored content\n" }, "author target on sibling");
+      await execFileAsync("git", ["push", "origin", `HEAD:refs/heads/${branch}`], { cwd: fixture.sibling });
+      await execFileAsync(
+        "git",
+        ["fetch", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`],
+        { cwd: fixture.primary },
+      );
+      const inFlight = await runActiveInFlight({
+        exec: fixture.primaryExec,
+        identity: "andrew",
+        teamMode: false,
+        localOnly: true,
+        baseBranch: "main",
+      });
+
+      const result = await detectStagedForeignWrites({
+        exec: fixture.primaryExec,
+        roster: projectInFlightToOverlapRoster(inFlight.entries),
+        paths: [targetPath],
+        baseBranch: "main",
+        snapshot: inFlight.snapshot,
+        originatingWorktreePath: fixture.primary,
+      });
+
+      expect(result.overlaps).toEqual([
+        {
+          branch,
+          worktreePath: fixture.sibling,
+          matchedPaths: [targetPath],
+        },
+      ]);
     } finally {
       await fixture.cleanup();
     }

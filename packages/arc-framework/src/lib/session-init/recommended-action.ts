@@ -362,11 +362,12 @@ function composeWorktreePromptText(behind: number, dirty: DirtyStateResult): str
  * Compose the notes channel recommendation.
  *
  * State table (config × state):
- * - `remote-ahead` / `conflict` + `prompt` → action=prompt, channel-named prompt text.
- * - `remote-ahead` / `conflict` + `always` → action=pull, prompt text empty.
- * - `remote-ahead` / `conflict` + `manual` → action=surface, prompt text empty.
+ * - `remote-ahead` + `prompt` → action=prompt, channel-named prompt text.
+ * - `remote-ahead` + `always` → action=pull, prompt text empty.
+ * - `remote-ahead` + `manual` → action=surface, prompt text empty.
+ * - `conflict` → action=surface under every policy; diverged refs cannot be pulled.
  * - `remote-unavailable` → action=surface, prompt text empty.
- * - `clean` + `refState === "local-ahead"` → action=surface (informational orientation; no pull).
+ * - `clean` + local-ahead or diverged remote-subset detail → action=surface (informational orientation).
  * - `clean` (otherwise) / `disabled` → action=skip.
  *
  * The `clean` + local-ahead branch reads `refState` because the 5-state
@@ -387,21 +388,25 @@ function inferUser(
   }
   switch (user.state) {
     case "remote-ahead":
-    case "conflict":
       if (policy === "always") {
         return { recommendedAction: "pull", recommendedPromptText: "" };
       }
       if (policy === "prompt") {
         return {
           recommendedAction: "prompt",
-          recommendedPromptText: composeNotesPromptText(user.state, dirty),
+          recommendedPromptText: composeNotesPromptText(dirty),
         };
       }
+      return { recommendedAction: "surface", recommendedPromptText: "" };
+    case "conflict":
       return { recommendedAction: "surface", recommendedPromptText: "" };
     case "remote-unavailable":
       return { recommendedAction: "surface", recommendedPromptText: "" };
     case "clean":
-      if (user.refState === "local-ahead") {
+      if (
+        user.refState === "local-ahead"
+        || (user.refState === "diverged" && user.contentRelation === "remote-subset")
+      ) {
         return { recommendedAction: "surface", recommendedPromptText: "" };
       }
       return { recommendedAction: "skip", recommendedPromptText: "" };
@@ -411,13 +416,9 @@ function inferUser(
 }
 
 function composeNotesPromptText(
-  state: "remote-ahead" | "conflict",
   dirty: DirtyStateResult,
 ): string {
-  const head =
-    state === "conflict"
-      ? "Notes: notes conflict (local and remote diverged)."
-      : "Notes: remote notes ref ahead of local.";
+  const head = "Notes: remote notes ref ahead of local.";
   const trailer = "Pull?";
   if (dirty.state === "dirty") {
     return `${head}\n${DIRTY_TREE_WARNING}\n${trailer}`;
@@ -427,14 +428,11 @@ function composeNotesPromptText(
 
 function composeCombinedPrompt(
   worktree: WorktreeSyncStatusResult,
-  user: UserSessionInitStatusResult,
   dirty: DirtyStateResult,
 ): string {
   const lines = [
     `Worktree: branch is behind origin by ${worktree.behind} commit(s).`,
-    user.state === "conflict"
-      ? "Notes: notes conflict (local and remote diverged)."
-      : "Notes: remote notes ref ahead of local.",
+    "Notes: remote notes ref ahead of local.",
   ];
   if (dirty.state === "dirty") {
     lines.push(DIRTY_TREE_WARNING);
@@ -464,7 +462,7 @@ export function inferSessionInitRecommendations(
     worktreeRec.recommendedAction === "prompt" &&
     userRec.recommendedAction === "prompt" &&
     input.user !== null
-      ? composeCombinedPrompt(input.worktree, input.user, input.dirty)
+      ? composeCombinedPrompt(input.worktree, input.dirty)
       : null;
 
   return {

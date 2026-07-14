@@ -79,7 +79,7 @@ the system.
 ## Step 3b: Wire as ARC Extension
 
 1. Identify which extension point in [`system/extensions/`][arc-extensions] this content augments
-   (e.g., `post-task-quality`, `pre-merge-review`, `post-context-load`)
+   (e.g., `post-task-quality`, `pre-merge`, `post-context-load`)
 2. Read the extension's **contract** — your actions must satisfy the stated constraints
 3. Adapt the content to fit the extension format:
     - Replace `[No extension configured]` in the `## {extension-name}.actions` section

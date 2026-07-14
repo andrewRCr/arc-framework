@@ -240,7 +240,7 @@ session.init_pull.notes: prompt
 #   prompt - Prompt before fast-forwarding. (default)
 #   always - Fast-forward automatically when fast-forwardable (refused on a dirty tree).
 # See session-init.md § Conditional Sync Pulls for the base-ref pull behavior.
-session.init_pull.base: prompt
+session.init_pull.base: always
 
 # Notes load policy at session init when the local notes ref is current but the
 # user-directory working files are stale relative to the latest local note (the
