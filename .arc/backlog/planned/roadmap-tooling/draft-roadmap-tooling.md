@@ -19,6 +19,18 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Preserve projection diagnostics as out-of-band advisories**
+
+- *Routed from:* `readiness-advisory-ordering` errand, 2026-07-14.
+- *Concern:* the projection base now keeps composer warnings out of the rendered document body while retaining
+  them as structured results. Human `arc status --project` output routes them to stderr, JSON retains the
+  structured warnings, and lifecycle/start callers surface them as summaries. The `ROADMAP → STATUS.PROJECT`
+  rename and final `arc roadmap render` surface must preserve that channel split rather than reintroduce a
+  warnings section into the managed artifact.
+- *Constraint:* prospective lifecycle renders suppress only own-branch residue superseded by the transition tree;
+  genuine source and dependency warnings remain out-of-band advisories. Treat this as a projection-engine
+  contract to carry through the render-standard pass, not a render-standard choice to reopen.
+
 ### `[ ]` **Audit lifecycle workflows for stale ROADMAP hand-render advisories**
 
 - *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after `arc integrate` was found

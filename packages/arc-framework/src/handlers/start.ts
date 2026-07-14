@@ -40,7 +40,8 @@ import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { ensureDir } from "../lib/template/files.js";
-import { renderTrackedProjectReadinessView } from "../lib/status/project-roadmap-render.js";
+import { renderTrackedProjectReadinessViewResult } from "../lib/status/project-roadmap-render.js";
+import type { ProjectReadinessWarning } from "../lib/status/project-view.js";
 import { createProjectViewRefSnapshot } from "../lib/status/project-view-ref.js";
 import type { ProjectViewFs } from "../lib/status/project-view.js";
 import {
@@ -269,12 +270,13 @@ async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext, ba
     "Spawned",
   );
   if (r.postCreateNotice) p.log.info(r.postCreateNotice);
-  const roadmap = await refreshRoadmapForStartCeremony(ctx, r.worktreePath);
+  const roadmap = await refreshRoadmapForStartCeremony(ctx, r.worktreePath, r.branch);
   if (!roadmap.ok) {
     p.log.error(roadmap.reason);
     process.exitCode = 1;
     return;
   }
+  reportProjectReadinessWarnings(roadmap.warnings);
   const ceremony = await commitAndPushStartCeremony(ctx, {
     cwd: r.worktreePath,
     branch: r.branch,
@@ -454,15 +456,16 @@ async function graduate(
     "Graduated",
   );
   if (result.postCreateNotice) p.log.info(result.postCreateNotice);
-  reportAdvisories(result.outcome);
+  const reportedRoadmapWarnings = reportAdvisories(result.outcome);
   if (result.notice) p.log.info(result.notice);
   if (result.worktreePath !== undefined) {
-    const roadmap = await refreshRoadmapForStartCeremony(ctx, result.worktreePath);
+    const roadmap = await refreshRoadmapForStartCeremony(ctx, result.worktreePath, result.branch);
     if (!roadmap.ok) {
       p.log.error(roadmap.reason);
       process.exitCode = 1;
       return;
     }
+    reportProjectReadinessWarnings(roadmap.warnings, reportedRoadmapWarnings);
     const ceremony = await commitAndPushStartCeremony(ctx, {
       cwd: result.worktreePath,
       branch: result.branch,
@@ -640,9 +643,26 @@ async function coldStart(
 }
 
 /** Surface any side-effect advisories (e.g. the interim ROADMAP / STATUS.USER regen lines). */
-function reportAdvisories(outcome: TransitionOutcome): void {
+function reportAdvisories(outcome: TransitionOutcome): Set<string> {
+  const roadmapWarnings = new Set<string>();
   if (outcome.status === "ok") {
-    for (const advisory of outcome.advisories) p.log.info(advisory);
+    for (const advisory of outcome.advisories) {
+      p.log.info(advisory);
+      for (const line of advisory.split("\n")) {
+        const warning = /^ROADMAP advisory: (.+)$/u.exec(line)?.[1];
+        if (warning !== undefined) roadmapWarnings.add(warning);
+      }
+    }
+  }
+  return roadmapWarnings;
+}
+
+function reportProjectReadinessWarnings(
+  warnings: readonly ProjectReadinessWarning[],
+  alreadyReported: ReadonlySet<string> = new Set(),
+): void {
+  for (const warning of warnings) {
+    if (!alreadyReported.has(warning.rendered)) p.log.info(`ROADMAP advisory: ${warning.rendered}`);
   }
 }
 
@@ -696,11 +716,14 @@ async function commitAndPushStartCeremony(
   }
 }
 
-type RefreshRoadmapResult = { ok: true } | { ok: false; reason: string };
+type RefreshRoadmapResult =
+  | { ok: true; warnings: ProjectReadinessWarning[] }
+  | { ok: false; reason: string };
 
 async function refreshRoadmapForStartCeremony(
   ctx: ArmContext,
   cwd: string,
+  currentBranch: string,
 ): Promise<RefreshRoadmapResult> {
   try {
     const { settings } = await readConfigSettings(cwd);
@@ -709,16 +732,20 @@ async function refreshRoadmapForStartCeremony(
       readFile: (p: string) => ctx.io.readFile(p),
       readdir: (p: string) => readdir(p, { withFileTypes: true }),
     };
-    const view = await renderTrackedProjectReadinessView({
+    const view = await renderTrackedProjectReadinessViewResult({
       cwd,
       exec,
       fs,
       baseBranch: settings["branch.base"],
+      currentBranch,
     });
     const dir = join(cwd, ".arc", "backlog");
     await ensureDir(dir, ctx.io.mkdir);
-    await ctx.io.writeFile(join(dir, "ROADMAP.md"), view.endsWith("\n") ? view : `${view}\n`);
-    return { ok: true };
+    await ctx.io.writeFile(
+      join(dir, "ROADMAP.md"),
+      view.markdown.endsWith("\n") ? view.markdown : `${view.markdown}\n`,
+    );
+    return { ok: true, warnings: view.warnings };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `ROADMAP regen failed: ${message}` };
