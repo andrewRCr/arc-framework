@@ -651,17 +651,23 @@ named detector conditions, and the playbook/doctrine closeout absorbs the accept
 
 ### Build gates before waves
 
-- [ ] **BI-1:** spawned worktree provisioning: deps script, registered harness capability handling, per-WU user
-  workspace scaffold, and clean worktree marker state.
-- [ ] **BI-2:** in-place Materialize for cross-machine pickup under the occupancy guard.
-- [ ] **BI-3:** git-common-dir notes lock, branch-bounded paired-notes export, multi-intent sync-state marker
-  handling, and workspace-scoped `.machine-id`.
-- [ ] **BI-4:** CLI-complete start / mini-handoff / spawn-mode ceremony-locus fix.
-- [ ] **BI-5:** validate-first graduate transition crash-class fix.
-- [ ] **BI-6:** identity-global user surfaces resolve to one canonical machine-local materialization from every
-  worktree; per-WU SESSION-NOTES remains worktree-scoped.
-- [ ] **Deterministic ROADMAP renderer:** renderer slice from `roadmap-tooling` available before wave 1; full
-  Heavy WU completion is not the gate.
+- [x] **BI-1:** spawned worktree provisioning: deps script, registered harness capability handling, per-WU user
+  workspace scaffold, and clean worktree marker state. *Landed on base (2.I, #196); field-verified wave 1
+  (§ Dogfood 2026-07-05 launch model; Task 3.1.c evidence).*
+- [x] **BI-2:** in-place Materialize for cross-machine pickup under the occupancy guard. *Landed on base (2.I
+  homogeneity check); field verification is wave 4's.*
+- [x] **BI-3:** git-common-dir notes lock, branch-bounded paired-notes export, multi-intent sync-state marker
+  handling, and workspace-scoped `.machine-id`. *Landed on base; field-verified wave 1 (Cells 3.2.a / 3.2.b).*
+- [x] **BI-4:** CLI-complete start / mini-handoff / spawn-mode ceremony-locus fix. *Landed on base;
+  field-verified wave 1 (rich boot off seeded SESSION-NOTES, Task 3.1.c evidence).*
+- [x] **BI-5:** validate-first graduate transition crash-class fix. *Landed on base (2.I homogeneity check);
+  field verification is wave 2's.*
+- [x] **BI-6:** identity-global user surfaces resolve to one canonical machine-local materialization from every
+  worktree; per-WU SESSION-NOTES remains worktree-scoped. *Landed on base; field-verified wave 1 (cross-worktree
+  captures + notes convergence, Cells 3.2.a / 3.2.b; resolver-backed USER-INBOX writes from linked worktrees).*
+- [x] **Deterministic ROADMAP renderer:** renderer slice from `roadmap-tooling` available before wave 1; full
+  Heavy WU completion is not the gate. *Available and field-verified wave 1 (Cell 3.2.c: one normalized
+  projection from three branch states; stale staged render rejected).*
 
 **2.I.2 homogeneity check (2026-07-06)** — after merging `main` (post-#196) into FP, verified the base-state
 precondition the waves require:
@@ -685,9 +691,17 @@ commit-msg-footer suite tripping the hook's `MERGE_HEAD` merge-exemption mid-mer
 
 ### Wave evidence to collect
 
-- [ ] **Wave 1:** two doc-only WUs in worktrees; verify harness presence, identity-global user-surface visibility,
+- [x] **Wave 1:** two doc-only WUs in worktrees; verify harness presence, identity-global user-surface visibility,
   notes-lock/machine-id behavior, paired-push sibling-note export prevention, multi-intent sync-state marker reads,
-  ROADMAP contention, base-drift surface, and clean marker state.
+  ROADMAP contention, base-drift surface, and clean marker state. *Complete 2026-07-13 — synthetic fixtures
+  (`burn-in-probe-a` shipped via PR #215; probe-b integration-ready). Per-condition evidence: harness presence +
+  rich boot (Task 3.1.c), user-surface visibility + notes lock/machine-id + paired-push filter (Cell 3.2.a),
+  multi-intent markers (Cell 3.2.b), ROADMAP contention (Cell 3.2.c), base-drift gate + surface (Cells 3.2.d /
+  3.2.e, § Detector-tests 3.3), marker state (§ Detector-tests 3.3 sweep exercise). Residue carried forward:
+  hook-env advisory seam (split-out captured, must merge into FP pre-wave-2), marker-intent fulfillment seam
+  (Phase 7.2), synthetic-notes cleanup barrier (Phase 8 task, commit `b5c444532`), probe-b integration-path
+  decision (open — behind-base state served its purpose and may now reconcile + merge as the wave-1 tail or
+  hold for wave-2 overlap).*
 - [ ] **Wave 2:** one code WU plus one doc WU; verify dependency provisioning, off-primary quality gates,
   BI-4 re-graduation, and the graduate-transition crash-class detector.
 - [ ] **Wave 3:** two code WUs plus live errand/drain; verify errand ref merge/conflict behavior, same/different-entry

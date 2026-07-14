@@ -589,13 +589,19 @@ well as paths; gating + coordination detail in § Sequencing.
           `removable` green path; errand oracle correctly declined the `chore/` branch). Induction torn down.
           Evidence in `notes-finalize-parallelism.md` § Detector-tests 3.3.
 
-### `[ ]` **3.4 Record wave-1 findings**
+### `[x]` **3.4 Record wave-1 findings**
 
 - _Goal:_ Wave-1 outcomes are appended to `notes-finalize-parallelism.md` and the in-progress GA checklist
   (seeded at Task 1.1.d), so nothing observed is lost between waves. The incident playbook is distilled from
   these notes later, at Task 8.2.b.
 
-    - `[ ]` **3.4.a Append results to the notes and the in-progress GA checklist**
+    - `[x]` **3.4.a Append results to the notes and the in-progress GA checklist**
+        - Per-cell evidence accumulated in the notes throughout the wave (§ Wave-1 induction evidence,
+          § Detector-tests 3.3); this pass closed the GA checklist's wave-1 tier — all seven build-gate boxes
+          ticked with landed/field-verified status (BI-2 and BI-5 landed, field verification deferred to their
+          waves), and the Wave 1 evidence item ticked with per-condition pointers plus carried-forward residue
+          (hook-env advisory split-out, 7.2 marker-intent seam, synthetic-notes cleanup barrier, probe-b
+          integration-path decision).
 
 ## **Phase 4:** Burn-in wave 2 — one code WU + one doc WU
 
