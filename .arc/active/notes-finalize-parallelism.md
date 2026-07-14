@@ -442,6 +442,14 @@ sibling-worktree commit), so split-out to `main` recommended over Phase 7 absorp
 Cell verdict: the 2026-07-09 defect is fixed and verified; the residual phantom is a distinct hook-environment
 seam in the uncommitted probe, deterministic and understood, routed for split-out.
 
+**Seam resolved (2026-07-13, same day):** the split-out shipped as PR #234 (`fix(git): scrub repository-local
+env for cwd probes`, `io-context.ts`) and merged into FP. Field re-verification against the merged fix: the
+deterministic hook-env repro (`GIT_DIR`/`GIT_INDEX_FILE` exported, the same 32-candidate set) now reports zero
+phantom overlap, and the positive control still detects the authored path under the same hostile env — the
+scrub removes the leak without deadening the probe. Split-out round-trip (capture → parallel errand →
+reviewed-lane ship → FP merge-in → re-verify) completed within the wave, exercising the seam-routing rule's
+consumed path end-to-end.
+
 ### Detector-tests 3.3 — wave-1 session-init detectors fire on induced conditions (2026-07-13) — ALL CONFIRMED
 
 Each of the three detectors wave 1 can exercise was driven by a real or induced condition and observed firing
@@ -698,7 +706,8 @@ commit-msg-footer suite tripping the hook's `MERGE_HEAD` merge-exemption mid-mer
   rich boot (Task 3.1.c), user-surface visibility + notes lock/machine-id + paired-push filter (Cell 3.2.a),
   multi-intent markers (Cell 3.2.b), ROADMAP contention (Cell 3.2.c), base-drift gate + surface (Cells 3.2.d /
   3.2.e, § Detector-tests 3.3), marker state (§ Detector-tests 3.3 sweep exercise). Residue carried forward:
-  hook-env advisory seam (split-out captured, must merge into FP pre-wave-2), marker-intent fulfillment seam
+  hook-env advisory seam (resolved same-day: PR #234 merged into FP, repro re-run clean — see Cell 3.2.e),
+  marker-intent fulfillment seam
   (Phase 7.2), synthetic-notes cleanup barrier (Phase 8 task, commit `b5c444532`), probe-b integration-path
   decision (open — behind-base state served its purpose and may now reconcile + merge as the wave-1 tail or
   hold for wave-2 overlap).*
