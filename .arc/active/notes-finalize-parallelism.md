@@ -470,6 +470,40 @@ mint-to-launch bundling for slate stubs (both errand-sized, captures routed). FP
 re-observes the errand surface, and the GA bar for this seam is an operator running an errand beside two live
 WUs without narrating git topology.
 
+### Wave-2 finding (2026-07-14): `arc start` dispatch split-brain — checkout-local resolution, base-anchored cut
+
+Surfaced at `worktree-teardown-decoupling`'s spawn; reported by its in-worktree session at entry, verified from
+FP. Three symptoms, two roots. Symptoms: the backlog stub was never consumed (orphaned
+`backlog/planned/worktree-teardown-decoupling/` rides the plan branch); the minted active meta carries scaffold
+defaults (`[TBD]`/`P3`) instead of the stub's `Light`/`P1`; the ceremony-committed ROADMAP carries a baked-in
+transient advisory ("Branch `plan/…` has no errand record or active work-unit meta").
+
+Root 1 — **dispatch split-brain with a silent-create fallback.** `start` resolves the slug against the *invoking
+checkout's tree* but cuts the plan branch from *base tip*. FP's branch last merged `main` before PR #237 landed
+the stub, so resolution missed, and the miss silently dispatched to the create arm (fresh default-weighted WU —
+the "Spawned" banner) rather than refusing or asking. The branch cut then inherited the stub from `main`
+unconsumed. Control: `commit-message-submission`'s launch minutes earlier took the graduate arm correctly
+("Graduated" banner, `--class` written, stub relocated) — its stub predated FP's last base merge, so the
+invoking tree had it. Same checkout-local blindness class the slug-state fix closed for status/dispatch
+surfaces; `start` retains it, and compounds it by treating a miss as creation intent.
+
+Root 2 — **the readiness-view composer writes advisories into the document it renders**, and the ceremony's
+regen runs mid-transition (plan branch exists, active meta not yet written), so the transient warning landed in
+the tracked artifact. Retroactively explains the "spurious" errand-record warning observed during the
+`start-class-flag` errand — same composer family reading mid-transition state.
+
+**Routing (seam rule): split out — consumed.** Wave-3 launches consume `start`, and a silent wrong-weight
+create corrupts wave operations (not merely misreports). Two errand-sized fixes captured to USER-INBOX: (1)
+base-anchored slug resolution + explicit creation (a miss refuses or requires an explicit create input — the
+`--class` explicit-input contract precedent; field inheritance is subsumed once the graduate arm consumes the
+real stub, as CMS proved); (2) keep composer advisories out of rendered document bodies + fix ceremony regen
+ordering. Both land before wave 3. Local reconcile is the WTD session's, folded into its grooming ceremony
+(Class restored at the `arc finalize` fire-point; priority restore + orphaned stub-dir removal + ROADMAP regen
+ride the ceremony commit) — no standalone hand-edit channel. 4.3 pencil-in: WTD's botched graduation makes it
+the natural re-graduation vehicle *after* fix (1) lands — verifying BI-4's ceremony locus and the dispatch fix
+in one move. Operational corollary for `session-locus-model`: launched from the launchpad (synced primary),
+this class never fires — resolution and cut read the same tree.
+
 ## Wave-1 induction evidence
 
 Deliberate 3.2 matrix-cell inductions (distinct from the opportunistic 2026-07-09 harvest above). Raw command
