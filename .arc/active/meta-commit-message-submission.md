@@ -12,8 +12,8 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Draft captured formalization-ready (adversarial loop converged, two passes); Class resolved
-  Heavy.
+- **Last Completed:** Spec created — `spec-commit-message-submission.md` (detailed RFC; adversarial loop converged,
+  two passes); draft retired.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
