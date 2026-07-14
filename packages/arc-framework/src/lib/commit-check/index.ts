@@ -7,6 +7,7 @@ export {
 } from "./config.js";
 export { createFilesystemArtifactResolver } from "./artifact-resolver.js";
 export { createCommitCheckContext } from "./context.js";
+export { validateCommitMessage } from "./validate.js";
 
 export type {
   CommitCheckArtifactFamily,

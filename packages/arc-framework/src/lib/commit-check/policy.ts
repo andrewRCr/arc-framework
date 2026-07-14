@@ -46,7 +46,7 @@ function configFinding(
   };
 }
 
-function compilePattern(
+export function compileConfiguredPattern(
   source: string,
   key: CommitCheckConfigurationKey,
 ): { pattern: RegExp | null; finding: CommitCheckFinding | null } {
@@ -132,7 +132,7 @@ export function validateSubjectAndBody(
   if (policy.format === "conventional") {
     findings.push(...validateConventionalSubject(parsed));
   } else if (policy.format === "custom") {
-    const compiled = compilePattern(policy.customPattern, "commit.custom_pattern");
+    const compiled = compileConfiguredPattern(policy.customPattern, "commit.custom_pattern");
     if (compiled.finding) findings.push(compiled.finding);
     else if (compiled.pattern && !compiled.pattern.test(parsed.subject.raw)) {
       findings.push(
@@ -194,5 +194,174 @@ export function validateSubjectAndBody(
     }
   }
 
+  return findings;
+}
+
+const TASK_ID_SOURCE = "[0-9]+(?:\\.[0-9A-Za-z]+)+";
+const TASK_RANGE_SOURCE = `${TASK_ID_SOURCE}-[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*`;
+const TASK_ITEM_SOURCE = `(?:${TASK_ID_SOURCE}|${TASK_RANGE_SOURCE})`;
+const TASK_REFERENCE_PATTERN = new RegExp(
+  `^(?:Task ${TASK_ID_SOURCE}|Tasks ${TASK_RANGE_SOURCE}|Tasks ${TASK_ITEM_SOURCE}(?:, ${TASK_ITEM_SOURCE})+|` +
+    `Task ${TASK_ID_SOURCE}; (?:planning|maintenance)|Tasks .+; (?:planning|maintenance)|` +
+    "incidental during .+|planning|maintenance|code review)$",
+);
+const TASK_FOOTER_PATTERN = /^(tasks-[A-Za-z0-9-]+\.md) \((.+)\)$/;
+const DESIGN_FOOTER_PATTERN = /^((?:draft|spec)-[A-Za-z0-9-]+\.md) \((planning|code review)\)$/;
+const META_FOOTER_PATTERN =
+  /^(meta-[A-Za-z0-9-]+\.md) \((handoff|activation|integration|archival|deactivation|maintenance|incidental during .+)\)$/;
+const STANDALONE_FOOTER_PATTERN = /^standalone \((maintenance|planning|documentation|refactor)\)$/;
+const INTEGRATION_FOOTER_PATTERN = /^integration \((.+)\)$/;
+const CONTRIBUTION_FOOTER_PATTERN = /^contribution \((.+)\)$/;
+
+interface FooterClassification {
+  valid: boolean;
+  artifact?: { family: "tasks" | "design" | "meta"; filename: string };
+  contribution: boolean;
+  suggestions: readonly string[];
+}
+
+function classifyFooter(value: string): FooterClassification {
+  const taskMatch = value.match(TASK_FOOTER_PATTERN);
+  if (taskMatch) {
+    return {
+      valid: TASK_REFERENCE_PATTERN.test(taskMatch[2] ?? ""),
+      artifact: { family: "tasks", filename: taskMatch[1] ?? "" },
+      contribution: false,
+      suggestions: [
+        "single-task task-list footer",
+        "task-range task-list footer",
+        "incidental task-list footer",
+      ],
+    };
+  }
+  const designMatch = value.match(DESIGN_FOOTER_PATTERN);
+  if (designMatch) {
+    return {
+      valid: true,
+      artifact: { family: "design", filename: designMatch[1] ?? "" },
+      contribution: false,
+      suggestions: [],
+    };
+  }
+  const metaMatch = value.match(META_FOOTER_PATTERN);
+  if (metaMatch) {
+    return {
+      valid: true,
+      artifact: { family: "meta", filename: metaMatch[1] ?? "" },
+      contribution: false,
+      suggestions: [],
+    };
+  }
+  if (STANDALONE_FOOTER_PATTERN.test(value) || INTEGRATION_FOOTER_PATTERN.test(value)) {
+    return { valid: true, contribution: false, suggestions: [] };
+  }
+  if (CONTRIBUTION_FOOTER_PATTERN.test(value)) {
+    return { valid: true, contribution: true, suggestions: [] };
+  }
+  return {
+    valid: false,
+    contribution: false,
+    suggestions: [
+      "single-task task-list footer",
+      "planning design footer",
+      "lifecycle metadata footer",
+      "standalone maintenance footer",
+      "contribution footer",
+    ],
+  };
+}
+
+function footerFinding(
+  code: CommitCheckFinding["code"],
+  severity: CommitCheckFinding["severity"],
+  message: string,
+  line: number | null,
+  detail: CommitCheckFinding["detail"] = {},
+): CommitCheckFinding {
+  return {
+    code,
+    severity,
+    location: line === null ? { kind: "whole-message" } : { kind: "message-line", line },
+    message,
+    detail,
+  };
+}
+
+/** Validate Context trailer mode, grammar, artifact state, and role advisory. */
+export async function validateFooter(
+  parsed: ParsedCommitMessage,
+  policy: CommitCheckPolicy,
+  repository: { role: "maintainer" | "contributor"; resolveArtifact: import("./types.js").CommitCheckArtifactResolver },
+): Promise<CommitCheckFinding[]> {
+  if (policy.contextFooter === "disabled") return [];
+  if (policy.contextFooter === "custom") {
+    const compiled = compileConfiguredPattern(policy.contextPattern, "commit.context_pattern");
+    if (compiled.finding) return [compiled.finding];
+    const matched = parsed.physicalLines.some(({ text }) => compiled.pattern?.test(text) === true);
+    return matched
+      ? []
+      : [
+          footerFinding(
+            "footer.custom-mismatch",
+            "error",
+            "No message line matches the custom context pattern",
+            null,
+            { pattern: policy.contextPattern },
+          ),
+        ];
+  }
+
+  const severity = policy.contextFooter === "recommended" ? "warning" : "error";
+  const contextTrailer =
+    parsed.contextTrailer?.key === "Context" ? parsed.contextTrailer : null;
+  if (!contextTrailer) {
+    return [footerFinding("footer.missing", severity, "Missing final Context trailer", null)];
+  }
+
+  const classification = classifyFooter(contextTrailer.value);
+  if (!classification.valid) {
+    return [
+      footerFinding("footer.invalid", severity, "Invalid Context trailer", contextTrailer.line, {
+        value: contextTrailer.value,
+        suggestions: classification.suggestions,
+      }),
+    ];
+  }
+
+  const findings: CommitCheckFinding[] = [];
+  if (classification.artifact) {
+    const resolution = await repository.resolveArtifact(classification.artifact);
+    if (resolution === "not-found") {
+      findings.push(
+        footerFinding(
+          "footer.artifact-not-found",
+          "warning",
+          "Referenced Context artifact was not found",
+          contextTrailer.line,
+          { filename: classification.artifact.filename },
+        ),
+      );
+    } else if (resolution === "unresolvable") {
+      findings.push(
+        footerFinding(
+          "footer.artifact-unresolvable",
+          "warning",
+          "Context artifact lookup could not run",
+          contextTrailer.line,
+          { filename: classification.artifact.filename },
+        ),
+      );
+    }
+  }
+  if (repository.role === "contributor" && !classification.contribution) {
+    findings.push(
+      footerFinding(
+        "footer.contributor-advisory",
+        "warning",
+        "Contributors typically use Context: contribution (description)",
+        contextTrailer.line,
+      ),
+    );
+  }
   return findings;
 }

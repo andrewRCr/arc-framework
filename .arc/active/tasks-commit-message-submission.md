@@ -57,15 +57,10 @@ consumer changes validation authority.
           ECMAScript patterns and POSIX migration diagnostics, code-point length limits, Bash-compatible raw-line body
           measurement, and line-located dotted-phase failures.
 
-    - `[ ]` **1.2.c Apply footer and repository-state policy**
-        - Port every accepted `Context:` family, task-reference form, configured footer mode, artifact advisory, and
-          contributor advisory without broadening grammar policy.
-        - Build `test-first` (one behavior at a time):
-            - Required, recommended, custom, and disabled modes preserve reject-versus-warning behavior.
-            - Every task, planning, lifecycle, standalone, integration, and contribution form matches the current
-              policy.
-            - `not-found` warns and `unresolvable` emits a distinct skip-with-note warning.
-            - Contributor role warns for a valid non-contribution footer without rejecting it.
+    - `[x]` **1.2.c Apply footer and repository-state policy**
+        - Added final-trailer validation for required/recommended/custom/disabled modes, the complete task/design/meta/
+          standalone/integration/contribution grammar, async artifact warnings that distinguish absence from
+          unavailability, contributor advisories, and the canonical three-valued validation entry point.
 
     - `[ ]` **1.2.d Render shared human diagnostics**
         - Format findings once for both CLI and wrapper output, with typed locations, actual/max values, safely
