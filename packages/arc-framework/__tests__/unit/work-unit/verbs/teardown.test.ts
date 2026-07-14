@@ -422,6 +422,33 @@ describe("runTeardown — linked self-husk", () => {
     expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
   });
 
+  it("refuses when the mutating user-surface reconcile becomes blocked", async () => {
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: SELF_PORCELAIN,
+    });
+    enableSelfHusk(ctx);
+    const directory = (name: string) => ({ name, isDirectory: () => true, isFile: () => false });
+    const file = (name: string) => ({ name, isDirectory: () => false, isFile: () => true });
+    if (ctx.worktreeFs === undefined) throw new Error("self-husk filesystem seam missing");
+    ctx.worktreeFs.readDir = async (path) => path.endsWith("/.arc/user")
+      ? [directory("andrew")]
+      : [file("FUTURE.md")];
+    let linkedReads = 0;
+    ctx.worktreeFs.readFile = async (path) => {
+      if (path.startsWith("/repo/.arc/user")) {
+        linkedReads += 1;
+        return "linked\n";
+      }
+      return linkedReads === 1 ? "linked\n" : "primary\n";
+    };
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result).toMatchObject({ status: "rejected", huskRefusal: "user-surfaces" });
+    expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
+  });
+
   it("completes as an externally managed husk when stamping fails", async () => {
     const { ctx } = buildCtx([SHIPPED_META], {
       branches: ["feat/demo"],

@@ -385,12 +385,15 @@ async function teardownBranchProjection(
       if (dryRun.status === "blocked") {
         return { status: "rejected", reason: dryRun.reason, huskRefusal: "user-surfaces" };
       }
-      await reconcileLinkedIdentityGlobalUserSurfaces({
+      const reconciliation = await reconcileLinkedIdentityGlobalUserSurfaces({
         worktreePath: registered.path,
         primaryWorktreePath: primary,
         fs,
         signpost: true,
       });
+      if (reconciliation.status === "blocked") {
+        return { status: "rejected", reason: reconciliation.reason, huskRefusal: "user-surfaces" };
+      }
       await exec("git", ["switch", "--detach"], { cwd: registered.path });
       let stamped = false;
       try {
