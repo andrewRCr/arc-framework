@@ -236,6 +236,9 @@ arc archive [slug] [--pr-url <url>] [--completed <date>]
 # Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 13)
 arc teardown <name> [--force]
 
+# Safely fast-forward the configured local base from any worktree
+arc base sync [--json]
+
 # Classify the planning-entry route — committable, or redirect to start / stub / errand
 arc plan check
 

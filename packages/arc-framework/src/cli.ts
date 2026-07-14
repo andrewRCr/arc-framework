@@ -31,6 +31,7 @@ import {
   type ErrandPromoteOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
+import { handleBaseSync, type BaseSyncOptions } from "./handlers/base.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
@@ -334,6 +335,16 @@ housekeep
   .description("Classify the write context — base-branch (proceed), WU branch (relocate), or degenerate (refuse)")
   .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
   .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
+
+const baseCmd = program
+  .command("base")
+  .description("Local integration-base operations");
+
+baseCmd
+  .command("sync")
+  .description("Safely fast-forward the local base from any worktree")
+  .option("--json", "Emit the typed synchronization outcome as JSON")
+  .action((opts: BaseSyncOptions) => handleBaseSync(opts));
 
 const plan = program
   .command("plan")
