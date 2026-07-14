@@ -79,6 +79,13 @@ interface SessionInitEnvelope {
       }>;
     };
   };
+  currentHusk?: {
+    ok: boolean;
+    value?: {
+      worktreePath: string;
+      subject: { kind: "work-unit"; name: string };
+    } | null;
+  };
 }
 
 interface TaskCursorItemJson {
@@ -152,6 +159,15 @@ function parseJsonEnvelope(stdout: string): SessionInitEnvelope {
 
 function parseRecoverAuditReport(stdout: string): RecoverAuditReport {
   return JSON.parse(stdout.trim()) as RecoverAuditReport;
+}
+
+async function git(cwd: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["-c", "core.hooksPath=/dev/null", ...args],
+    { cwd },
+  );
+  return stdout.trim();
 }
 
 function taskListFixture(title: string): string {
@@ -483,6 +499,75 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("single");
     expect(envelope.active.value?.sessionType).toBe("integration");
+  });
+});
+
+describe("session-init E2E — current detached husk advisory", () => {
+  let repo: string;
+  let worktreeParent: string;
+
+  beforeEach(async () => {
+    repo = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-session-init-husk-wt-"));
+    const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
+    expect(init.exitCode).toBe(0);
+    await git(repo, ["add", "-A"]);
+    await git(repo, ["commit", "-m", "chore: initialize ARC"]);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(repo);
+    await cleanupTempDir(worktreeParent);
+  });
+
+  it("emits the advisory only for the exact stamped completed WU husk", async () => {
+    const canonical = join(worktreeParent, "canonical");
+    const ordinary = join(worktreeParent, "ordinary");
+    await git(repo, ["branch", "feat/shipped-widget"]);
+    await git(repo, ["branch", "feat/ordinary-detached"]);
+    await git(repo, ["worktree", "add", canonical, "feat/shipped-widget"]);
+    await git(repo, ["worktree", "add", ordinary, "feat/ordinary-detached"]);
+    await git(canonical, ["switch", "--detach"]);
+    await git(ordinary, ["switch", "--detach"]);
+
+    const head = await git(canonical, ["rev-parse", "HEAD"]);
+    const completedDir = join(canonical, ".arc", "completed", "2026-q3", "01_shipped-widget");
+    await mkdir(completedDir, { recursive: true });
+    await writeFile(
+      join(completedDir, "meta-shipped-widget.md"),
+      "# Metadata: shipped-widget\n\n- **State:** Shipped\n",
+    );
+    const markerDir = join(canonical, ".arc", "system", ".internal");
+    await mkdir(markerDir, { recursive: true });
+    await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
+      spawnedByArc: true,
+      wuName: "shipped-widget",
+      createdFor: { kind: "work-unit", name: "shipped-widget" },
+      spawningIdentity: "test-user",
+      createdAt: "2026-07-14T00:00:00.000Z",
+      husk: {
+        sha: head,
+        at: "2026-07-14T01:00:00.000Z",
+        subject: { kind: "work-unit", name: "shipped-widget" },
+        branch: "feat/shipped-widget",
+      },
+    }));
+
+    const canonicalResult = await runArc(["status", "--session-init", "--json"], canonical);
+    const ordinaryResult = await runArc(["status", "--session-init", "--json"], ordinary);
+    expect(canonicalResult.exitCode).toBe(0);
+    expect(ordinaryResult.exitCode).toBe(0);
+
+    const canonicalEnvelope = parseJsonEnvelope(canonicalResult.stdout);
+    const ordinaryEnvelope = parseJsonEnvelope(ordinaryResult.stdout);
+    expect(canonicalEnvelope.currentHusk).toEqual({
+      ok: true,
+      value: {
+        worktreePath: await realpath(canonical),
+        subject: { kind: "work-unit", name: "shipped-widget" },
+      },
+    });
+    expect(ordinaryEnvelope.currentHusk).toEqual({ ok: true, value: null });
   });
 });
 

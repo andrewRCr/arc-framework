@@ -353,36 +353,25 @@ composed seams.
 - _Outcome:_ The integration tail now continues in a live terminal session after successful self-teardown and stops
   only on a still-branched refusal that requires resolution.
 
-### `[ ]` **4.2 Exercise self-husk, fallback reap, sweep, and session-init paths end to end**
+### `[x]` **4.2 Exercise self-husk, fallback reap, sweep, and session-init paths end to end**
 
 - _Goal:_ Real repositories and public CLI entry points prove the complete teardown lifecycle rather than only its
   isolated decision helpers.
 
-    - `[ ]` **4.2.a Extend real-git teardown integration coverage**
-        - Add marked and markerless linked self-husk cases to `packages/arc-framework/__tests__/integration/teardown.test.ts`
-          covering detached `HEAD`, ref deletion, retained directory, stamp/no-mint behavior, and notice handling.
+    - `[x]` **4.2.a Extend real-git teardown integration coverage**
+        - Added real-Git marked/markerless self-husk, exact-stamp replay/removal/refusal, retained-ref retry, and manual
+          delete-plus-prune coverage with branch, registration, marker, and cwd assertions.
 
-        - Cover primary-side fallback removal, dirty and moved-`HEAD` refusal, branchless and surviving-ref inside-husk
-          replay, and bare directory deletion followed by `git worktree prune` leaving no local ref or registered
-          worktree residue.
+    - `[x]` **4.2.b Extend CLI and session-init E2E coverage**
+        - Added built-CLI success, external-marker, retained-ref, and atomic-refusal assertions plus paired canonical
+          stamped and ordinary detached session-init worktrees.
 
-    - `[ ]` **4.2.b Extend CLI and session-init E2E coverage**
-        - Assert the marked/markerless success, surviving-local-ref notice, and preflight-refusal messages through
-          `packages/arc-framework/__tests__/e2e/teardown.e2e.test.ts`.
+    - `[x]` **4.2.c Run the cross-layer integration checkpoint**
+        - Exercised the touched unit and teardown/session-init cross-layer suites, warm errand open/close integration
+          and E2E coverage, source/test type checking, linting, and the package build.
 
-        - Add a stamped completed husk and an ordinary unstamped detached worktree to
-          `packages/arc-framework/__tests__/e2e/session-init.e2e.test.ts`, proving the advisory appears only for the
-          canonical husk.
-
-    - `[ ]` **4.2.c Run the cross-layer integration checkpoint**
-        - Run the touched unit suites plus targeted teardown integration, teardown E2E, and session-init E2E tests.
-
-        - Run the errand open/close integration and E2E coverage, including warm entry from a linked WU worktree, to
-          confirm current in-place errand topology still restores its recorded return branch and never stamps or husks
-          the WU-owned worktree.
-
-        - Run source and test type checking plus the package build before entering the final verification workflow;
-          resolve every regression in the owning task rather than weakening assertions.
+- _Outcome:_ Public CLI and real-repository paths now close the same exact-stamp lifecycle proven by the pure oracles,
+  while the current warm errand topology remains branch-restoring and non-husking.
 
 ## **Phase 5:** Verification
 

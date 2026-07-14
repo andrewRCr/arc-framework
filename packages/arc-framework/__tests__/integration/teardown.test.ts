@@ -35,6 +35,10 @@ import {
   runTeardown,
   type TeardownContext,
 } from "../../src/lib/work-unit/verbs/teardown.js";
+import {
+  readWorktreeMarker,
+  writeWorktreeOwnershipMarker,
+} from "../../src/lib/git/worktree-marker.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -196,6 +200,33 @@ async function ignoreArcUserDir(cloneA: string): Promise<void> {
   await git(cloneA, ["add", ".gitignore"]);
   await git(cloneA, ["commit", "-m", "chore: ignore user surfaces"]);
   await git(cloneA, ["push", "origin", "main"]);
+}
+
+async function prepareSelfTeardownWorktree(
+  h: MultiClone,
+  wtParent: string,
+  options: { marked: boolean },
+): Promise<string> {
+  await shipFeature(h, "demo", "merge-commit");
+  await writeFile(
+    join(h.cloneA, ".git", "info", "exclude"),
+    ".arc/completed/\n.arc/system/.internal/worktree-marker.json\n",
+    { flag: "a" },
+  );
+  await writeShippedMeta(h.cloneA, "demo");
+  const wtPath = join(wtParent, "wt");
+  await git(h.cloneA, ["worktree", "add", wtPath, "feat/demo"]);
+  await writeShippedMeta(wtPath, "demo");
+  if (options.marked) {
+    await writeWorktreeOwnershipMarker(wtPath, {
+      createdByArc: true,
+      createdFor: { kind: "work-unit", name: "demo" },
+      spawningIdentity: "clone-a",
+      now: Date.parse("2026-07-14T00:00:00.000Z"),
+    });
+  }
+  expect(await git(wtPath, ["status", "--porcelain"])).toBe("");
+  return wtPath;
 }
 
 describe("arc teardown — merge-strategy-independent branch reaping", () => {
@@ -425,6 +456,145 @@ describe("arc teardown --branch — recordless cheap branches over real git", ()
 });
 
 describe("arc teardown — worktree dispatch over real git", () => {
+  it("leaves a marked self-teardown as a stamped branchless husk and reaps it from primary", async () => {
+    const h = await setupMultiClone();
+    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-husk-"));
+    try {
+      const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: true });
+      const stampedHead = await git(wtPath, ["rev-parse", "HEAD"]);
+
+      const created = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });
+
+      expect(created.status).toBe("torn-down");
+      if (created.status !== "torn-down") return;
+      expect(created.husk).toMatchObject({
+        worktreePath: wtPath,
+        stamped: true,
+        outcome: "created",
+      });
+      expect(created.branchDeleted).toBe(true);
+      expect(created.worktreeRemoved).toBeNull();
+      expect(await git(wtPath, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
+      expect(await git(wtPath, ["rev-parse", "HEAD"])).toBe(stampedHead);
+      expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
+      const marker = await readWorktreeMarker(wtPath);
+      expect(marker.kind).toBe("present");
+      if (marker.kind === "present") {
+        expect(marker.marker.husk).toMatchObject({
+          sha: stampedHead,
+          subject: { kind: "work-unit", name: "demo" },
+          branch: "feat/demo",
+        });
+      }
+
+      const replay = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });
+      expect(replay.status).toBe("torn-down");
+      if (replay.status !== "torn-down") return;
+      expect(replay.husk?.outcome).toBe("already-husked");
+      expect(replay.worktreeRemoved).toBeNull();
+
+      const removed = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      expect(removed.status).toBe("torn-down");
+      if (removed.status !== "torn-down") return;
+      expect(removed.worktreeRemoved?.endsWith("/wt")).toBe(true);
+      expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(wtPath);
+    } finally {
+      await rm(wtParent, { recursive: true, force: true });
+      await h.cleanup();
+    }
+  });
+
+  it("leaves markerless self-teardown live without minting cleanup provenance", async () => {
+    const h = await setupMultiClone();
+    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-husk-"));
+    try {
+      const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: false });
+
+      const result = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });
+
+      expect(result.status).toBe("torn-down");
+      if (result.status !== "torn-down") return;
+      expect(result.husk).toMatchObject({ stamped: false, outcome: "created" });
+      expect(result.branchDeleted).toBe(true);
+      expect(result.worktreeRemoved).toBeNull();
+      expect(await git(wtPath, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
+      expect((await readWorktreeMarker(wtPath)).kind).toBe("absent");
+      expect(await git(h.cloneA, ["worktree", "list"])).toContain(wtPath);
+    } finally {
+      await rm(wtParent, { recursive: true, force: true });
+      await h.cleanup();
+    }
+  });
+
+  it("retries a surviving local ref from inside the husk without removing its cwd", async () => {
+    const h = await setupMultiClone();
+    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-husk-"));
+    try {
+      const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: true });
+      const realExec = execFor(wtPath);
+      let refuseDelete = true;
+      const failingExec: GitExec = async (cmd, args, opts) => {
+        if (refuseDelete && args[0] === "branch" && args[1] === "-D") {
+          refuseDelete = false;
+          throw new Error("simulated ref lock");
+        }
+        return realExec(cmd, args, opts);
+      };
+
+      const first = await runTeardown(
+        { cwd: wtPath, exec: failingExec, indexFs, chdir: () => {} },
+        { name: "demo", base: "main" },
+      );
+      expect(first.status).toBe("torn-down");
+      if (first.status !== "torn-down") return;
+      expect(first.branchDeleted).toBe(false);
+      expect(first.notices.some((notice) => /retry teardown from the husk or primary/iu.test(notice))).toBe(true);
+      expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
+
+      const replay = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });
+      expect(replay.status).toBe("torn-down");
+      if (replay.status !== "torn-down") return;
+      expect(replay.husk?.outcome).toBe("already-husked");
+      expect(replay.branchDeleted).toBe(true);
+      expect(replay.worktreeRemoved).toBeNull();
+      expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
+      expect(await git(wtPath, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
+    } finally {
+      await rm(wtParent, { recursive: true, force: true });
+      await h.cleanup();
+    }
+  });
+
+  it("refuses dirty and moved stamped husks from primary, then prunes a manually deleted husk", async () => {
+    const h = await setupMultiClone();
+    const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-husk-"));
+    try {
+      const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: true });
+      const created = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });
+      expect(created.status).toBe("torn-down");
+
+      await writeFile(join(wtPath, "dirty.txt"), "dirty\n");
+      const dirty = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      expect(dirty).toMatchObject({ status: "rejected" });
+      if (dirty.status === "rejected") expect(dirty.reason).toMatch(/uncommitted/iu);
+      await rm(join(wtPath, "dirty.txt"));
+
+      await git(wtPath, ["switch", "--detach", "main"]);
+      const moved = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+      expect(moved).toMatchObject({ status: "rejected" });
+      if (moved.status === "rejected") expect(moved.reason).toMatch(/head-moved/iu);
+      expect(await git(h.cloneA, ["worktree", "list"])).toContain(wtPath);
+
+      await rm(wtPath, { recursive: true, force: true });
+      await git(h.cloneA, ["worktree", "prune"]);
+      expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(wtPath);
+      expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
+    } finally {
+      await rm(wtParent, { recursive: true, force: true });
+      await h.cleanup();
+    }
+  });
+
   it("removes a linked worktree, then reaps its branch", async () => {
     const h = await setupMultiClone();
     const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-wt-"));
