@@ -175,7 +175,7 @@ gating and delegation shim only after parity is demonstrated.
 _Purpose:_ Assemble deterministic message forms byte-exactly, validate them before Git starts, and preserve approved
 message bytes when the subsequent Git invocation fails.
 
-### `[ ]` **3.1 Classify and assemble commit-message input forms**
+### `[x]` **3.1 Classify and assemble commit-message input forms**
 
 - _Goal:_ The wrapper either reconstructs the exact bytes received by `commit-msg`, refuses the non-interactive editor
   trap, or passes through without guessing.
@@ -195,12 +195,13 @@ message bytes when the subsequent Git invocation fails.
           content, and bounded typed input failures; later caller mutation cannot alter either validation bytes or the
           authoritative transport snapshot.
 
-    - `[ ]` **3.1.d Ground byte-exactness against Git**
-        - Add a real-git integration matrix that captures the message reaching `commit-msg` for every assembled form and
-          compares it with the TypeScript assembler output.
-        - Include repeated `-m`, separated and attached combined short options, file, stdin, cleanup, quoting-sensitive
-          content, option terminators, ambiguous source grammar, editor-bound fixup/squash variants, and modifier- or
-          encoding-demoted controls.
+    - `[x]` **3.1.d Ground byte-exactness against Git**
+        - Added a real-Git hook-capture matrix proving byte parity for repeated/clustered message argv, raw file/stdin,
+          cleanup, quoting-sensitive content, and option terminators, plus Git-oracle controls for demotion and editor
+          boundaries.
+
+- _Outcome:_ Deterministic argv/file/stdin forms now converge on the exact bytes Git exposes to `commit-msg`; ambiguous,
+  modified, encoding-unsafe, and editor-bound forms remain explicitly demoted or refused without guessed parsing.
 
 ### `[ ]` **3.2 Integrate preflight into the release-commit cascade**
 
