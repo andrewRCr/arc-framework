@@ -279,38 +279,46 @@ async function teardownBranchProjection(
   // for a checked-out branch.
   let worktreeRemoved: string | null = null;
   let husk: Extract<TeardownResult, { status: "torn-down" }>["husk"] = null;
-  let createdHusk = false;
   const branchedRegistration = branch === null
     ? undefined
     : scan.worktrees.find((worktree) => worktree.branch === branch);
-  let detachedCandidate:
-    | { path: string; head: string; marker: Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"] }
-    | undefined;
-  if (branchedRegistration === undefined) {
-    const matches: NonNullable<typeof detachedCandidate>[] = [];
-    for (const worktree of scan.worktrees.filter((entry) => entry.detached)) {
-      let marker: WorktreeMarkerReadResult;
-      try {
-        marker = await (ctx.readMarker ?? readWorktreeMarker)(worktree.path);
-      } catch (err) {
-        return {
-          status: "rejected",
-          reason: `Could not read detached worktree marker (${err instanceof Error ? err.message : String(err)}).`,
-        };
-      }
-      if (
-        marker.kind === "present"
-        && marker.marker.husk !== undefined
-        && worktreeSubjectsEqual(marker.marker.husk.subject, subject)
-      ) {
-        matches.push({ path: worktree.path, head: worktree.head, marker: marker.marker });
-      }
+  type DetachedCandidate = {
+    path: string;
+    head: string;
+    marker: Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"];
+  };
+  const matches: DetachedCandidate[] = [];
+  const mismatchedBranches: string[] = [];
+  for (const worktree of scan.worktrees.filter((entry) => entry.detached)) {
+    let marker: WorktreeMarkerReadResult;
+    try {
+      marker = await (ctx.readMarker ?? readWorktreeMarker)(worktree.path);
+    } catch (err) {
+      return {
+        status: "rejected",
+        reason: `Could not read detached worktree marker (${err instanceof Error ? err.message : String(err)}).`,
+      };
     }
-    if (matches.length > 1) {
-      return { status: "rejected", reason: "multiple detached worktrees match the requested terminal subject" };
+    if (marker.kind !== "present" || marker.marker.husk === undefined) continue;
+    if (!worktreeSubjectsEqual(marker.marker.husk.subject, subject)) continue;
+    if (branch !== null && marker.marker.husk.branch !== branch) {
+      mismatchedBranches.push(marker.marker.husk.branch);
+      continue;
     }
-    detachedCandidate = matches[0];
+    matches.push({ path: worktree.path, head: worktree.head, marker: marker.marker });
   }
+  if (matches.length > 1) {
+    return { status: "rejected", reason: "multiple detached worktrees match the requested terminal subject" };
+  }
+  if (matches.length === 0 && branch !== null && mismatchedBranches.length > 0) {
+    return {
+      status: "rejected",
+      reason:
+        `detached husk subject matches the request, but its stamped branch ` +
+        `(${mismatchedBranches.join(", ")}) does not match \`${branch}\``,
+    };
+  }
+  const detachedCandidate = matches[0];
 
   if (detachedCandidate !== undefined) {
     const clean = await isWorktreeClean({ exec, cwd: detachedCandidate.path });
@@ -397,7 +405,6 @@ async function teardownBranchProjection(
         notices.push(`Could not stamp the detached worktree (${err instanceof Error ? err.message : String(err)}).`);
       }
       husk = { worktreePath: registered.path, subject, branch, stamped, outcome: "created" };
-      createdHusk = true;
     } else if (registered !== undefined && registered.path !== primary) {
       try {
         await reconcileWorktree(
@@ -443,6 +450,7 @@ async function teardownBranchProjection(
   // than discarding the completed work.
   let branchDeleted = false;
   let remoteBranchDeleted = false;
+  let localBranchDeleteFailed = false;
   if (branch !== null) {
     if (mode === "shipped") {
       // The landed-in-base proof gates the remote-head delete below. The reap
@@ -454,18 +462,22 @@ async function teardownBranchProjection(
       try {
         await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base: baseRef, remote });
       } catch (err) {
-        if (!createdHusk) throw err;
+        if (husk === null) throw err;
+        localBranchDeleteFailed = true;
+        const retryLocus = worktreeRemoved === null ? "from the husk or primary" : "from the primary";
         notices.push(
           `Could not delete local branch \`${branch}\` after detach ` +
-            `(${err instanceof Error ? err.message : String(err)}); retry teardown from the husk or primary.`,
+            `(${err instanceof Error ? err.message : String(err)}); retry teardown ${retryLocus}.`,
         );
       }
       branchDeleted = !(await branchExists(exec, branch));
       if (!branchDeleted) {
-        notices.push(
-          `Branch \`${branch}\` is not contained on its upstream or landed in \`${baseRef}\` — left intact ` +
-            `(unpushed, unmerged commits would be lost).`,
-        );
+        if (!localBranchDeleteFailed) {
+          notices.push(
+            `Branch \`${branch}\` is not contained on its upstream or landed in \`${baseRef}\` — left intact ` +
+              `(unpushed, unmerged commits would be lost).`,
+          );
+        }
       } else if (landedInBase) {
         // The work provably lives in base, so a live remote head is hygiene, not
         // preservation — delete it (the platform's delete-on-merge covers this on

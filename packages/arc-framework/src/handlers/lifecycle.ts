@@ -1108,7 +1108,8 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
       result.branch === null
         ? `${branchArg} (already reaped)`
         : `${result.branch} ${describeBranchDeletion(result)}`;
-    const lines = result.husk === null
+    const liveHusk = result.worktreeRemoved === null ? result.husk : null;
+    const lines = liveHusk === null
       ? [
           `Branch:    ${branchLine}`,
           `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
@@ -1116,12 +1117,12 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
         ]
       : [
           `Branch:    ${branchLine}`,
-          `Husk:      ${result.husk.worktreePath} (detached; physical removal deferred)`,
-          `Marker:    ${result.husk.stamped ? "stamped" : "externally managed"}`,
+          `Husk:      ${liveHusk.worktreePath} (detached; physical removal deferred)`,
+          `Marker:    ${liveHusk.stamped ? "stamped" : "externally managed"}`,
           `Prune:     ${result.pruned ? "done" : "skipped"}`,
         ];
-    p.note(lines.join("\n"), result.husk === null ? "Branch torn down" : "Branch worktree husked");
-    if (result.husk?.stamped === true) {
+    p.note(lines.join("\n"), liveHusk === null ? "Branch torn down" : "Branch worktree husked");
+    if (liveHusk?.stamped === true) {
       p.log.info("The primary worktree's stale-worktree sweep can offer this disposable husk for removal.");
     }
     for (const notice of result.notices) p.log.warn(notice);
@@ -1147,7 +1148,8 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
     result.branch === null
       ? "(already reaped)"
       : `${result.branch} ${describeBranchDeletion(result)}`;
-  const lines = result.husk === null
+  const liveHusk = result.worktreeRemoved === null ? result.husk : null;
+  const lines = liveHusk === null
     ? [
         `Work unit: ${wuName}`,
         `Branch:    ${branchLine}`,
@@ -1157,12 +1159,12 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
     : [
         `Work unit: ${wuName}`,
         `Branch:    ${branchLine}`,
-        `Husk:      ${result.husk.worktreePath} (detached; physical removal deferred)`,
-        `Marker:    ${result.husk.stamped ? "stamped" : "externally managed"}`,
+        `Husk:      ${liveHusk.worktreePath} (detached; physical removal deferred)`,
+        `Marker:    ${liveHusk.stamped ? "stamped" : "externally managed"}`,
         `Prune:     ${result.pruned ? "done" : "skipped"}`,
       ];
-  p.note(lines.join("\n"), result.husk === null ? "Torn down" : "Worktree husked");
-  if (result.husk?.stamped === true) {
+  p.note(lines.join("\n"), liveHusk === null ? "Torn down" : "Worktree husked");
+  if (liveHusk?.stamped === true) {
     p.log.info("The primary worktree's stale-worktree sweep can offer this disposable husk for removal.");
   }
   for (const notice of result.notices) p.log.warn(notice);

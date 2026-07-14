@@ -44,9 +44,11 @@ async function prepareSelfTeardown(
 
   const worktree = join(worktreeParent, "wt");
   await git(repo, ["worktree", "add", worktree, "feat/demo"]);
-  const completed = join(worktree, ".arc", "completed", "2026-q3", "01_demo");
-  await mkdir(completed, { recursive: true });
-  await writeFile(join(completed, "meta-demo.md"), "# Metadata: demo\n\n- **State:** Shipped\n");
+  for (const root of [repo, worktree]) {
+    const completed = join(root, ".arc", "completed", "2026-q3", "01_demo");
+    await mkdir(completed, { recursive: true });
+    await writeFile(join(completed, "meta-demo.md"), "# Metadata: demo\n\n- **State:** Shipped\n");
+  }
   if (options.marked) {
     const markerDir = join(worktree, ".arc", "system", ".internal");
     await mkdir(markerDir, { recursive: true });
@@ -146,6 +148,22 @@ describe("arc teardown (CLI surface)", () => {
     else expect(output).not.toMatch(/stale-worktree sweep/iu);
   });
 
+  it("reports outside husk replay as physical removal, not another deferred husk", async () => {
+    tmpDir = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    const created = await runArc(["teardown", "demo"], worktree);
+    expect(created.exitCode).toBe(0);
+
+    const replay = await runArc(["teardown", "demo"], tmpDir);
+    const output = replay.stdout + replay.stderr;
+
+    expect(replay.exitCode).toBe(0);
+    expect(output).toMatch(/Worktree:\s+.*\/wt/iu);
+    expect(output).not.toMatch(/physical removal deferred|stale-worktree sweep|Worktree husked/iu);
+    expect(await git(tmpDir, ["worktree", "list"])).not.toContain(worktree);
+  });
+
   it("reports a surviving local ref and retry guidance after detach", async () => {
     tmpDir = await createTempRepo();
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
@@ -160,6 +178,7 @@ describe("arc teardown (CLI surface)", () => {
     expect(result.exitCode).toBe(0);
     expect(output).toMatch(/Could not delete local branch `feat\/demo` after detach/iu);
     expect(output).toMatch(/retry teardown from the husk or primary/iu);
+    expect(output).not.toMatch(/not contained on its upstream/iu);
     expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
     expect(await git(tmpDir, ["branch", "--list", "feat/demo"])).toContain("feat/demo");
   });

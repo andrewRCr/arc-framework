@@ -102,6 +102,8 @@ interface ExecOptions {
   branchDeleteThrows?: boolean;
   /** `git cherry` body — default empty (every commit landed in base). */
   cherryOutput?: string;
+  /** `git rev-list` body — default empty (the branch is contained upstream). */
+  revListOutput?: string;
 }
 
 function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] } {
@@ -114,7 +116,7 @@ function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] }
     if (sub === "for-each-ref") return { stdout: branches.join("\n") + "\n" };
     if (sub === "worktree" && args[1] === "list") return { stdout: opts.worktreePorcelain ?? "" };
     if (sub === "rev-parse") return { stdout: "deadbeef\n" };
-    if (sub === "rev-list") return { stdout: "" }; // contained → safe
+    if (sub === "rev-list") return { stdout: opts.revListOutput ?? "" }; // empty → contained
     if (sub === "cherry") return { stdout: opts.cherryOutput ?? "" }; // default: landed in base
     if (sub === "branch" && args[1] === "-D") {
       if (opts.branchDeleteThrows) throw new Error("git branch -D failed");
@@ -183,6 +185,22 @@ function markerWithHusk(pathBranch = "feat/demo"): WorktreeMarker {
       at: "2026-07-14T20:00:00.000Z",
       subject: { kind: "work-unit", name: "demo" },
       branch: pathBranch,
+    },
+  };
+}
+
+function branchMarkerWithHusk(branch: string): WorktreeMarker {
+  return {
+    spawnedByArc: true,
+    wuName: "demo",
+    createdFor: { kind: "work-unit", name: "demo" },
+    spawningIdentity: "andrew",
+    createdAt: "2026-07-14T19:00:00.000Z",
+    husk: {
+      sha: "def",
+      at: "2026-07-14T20:00:00.000Z",
+      subject: { kind: "branch", ref: branch },
+      branch,
     },
   };
 }
@@ -369,6 +387,57 @@ describe("runTeardown — linked self-husk", () => {
     expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
   });
 
+  it("refuses unproven preservation before detach", async () => {
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: SELF_PORCELAIN,
+      revListOutput: "unpublished\n",
+      cherryOutput: "+ unmerged\n",
+    });
+    enableSelfHusk(ctx);
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result).toMatchObject({ status: "rejected", huskRefusal: "preservation-unproven" });
+    expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
+  });
+
+  it("refuses a blocked user-surface reconcile before detach", async () => {
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: SELF_PORCELAIN,
+    });
+    enableSelfHusk(ctx);
+    const directory = (name: string) => ({ name, isDirectory: () => true, isFile: () => false });
+    const file = (name: string) => ({ name, isDirectory: () => false, isFile: () => true });
+    if (ctx.worktreeFs === undefined) throw new Error("self-husk filesystem seam missing");
+    ctx.worktreeFs.readDir = async (path) => path.endsWith("/.arc/user")
+      ? [directory("andrew")]
+      : [file("FUTURE.md")];
+    ctx.worktreeFs.readFile = async (path) => path.startsWith("/repo/.arc/user") ? "linked\n" : "primary\n";
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result).toMatchObject({ status: "rejected", huskRefusal: "user-surfaces" });
+    expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
+  });
+
+  it("completes as an externally managed husk when stamping fails", async () => {
+    const { ctx } = buildCtx([SHIPPED_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: SELF_PORCELAIN,
+    });
+    enableSelfHusk(ctx);
+    ctx.stampHusk = async () => { throw new Error("disk full"); };
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.husk).toMatchObject({ stamped: false, outcome: "created" });
+    expect(result.notices).toContain("Could not stamp the detached worktree (disk full).");
+  });
+
   it("returns a retained-branch husk when local deletion fails after detach", async () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], {
       branches: ["feat/demo"],
@@ -420,6 +489,85 @@ describe("runTeardown — detached husk replay", () => {
     if (result.status !== "torn-down") return;
     expect(result.worktreeRemoved).toBeNull();
     expect(result.husk?.outcome).toBe("already-husked");
+    expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
+  });
+
+  it("rejects a surviving ref that disagrees with the husk's stamped branch", async () => {
+    const porcelain =
+      "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n"
+      + "worktree /repo.husk\nHEAD def\ndetached\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["fix/demo"],
+      worktreePorcelain: porcelain,
+    });
+    ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk("feat/demo") });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/stamped branch.*does not match `fix\/demo`/iu);
+    expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
+    expect(calls.some((call) => call[1] === "branch" && call[2] === "-D")).toBe(false);
+  });
+
+  it("rejects a checked-out same-slug branch that disagrees with the husk's stamped branch", async () => {
+    const porcelain =
+      "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n"
+      + "worktree /repo.fix\nHEAD fed\nbranch refs/heads/fix/demo\n\n"
+      + "worktree /repo.husk\nHEAD def\ndetached\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["fix/demo"],
+      worktreePorcelain: porcelain,
+    });
+    ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk("feat/demo") });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/stamped branch.*does not match `fix\/demo`/iu);
+    expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
+    expect(calls.some((call) => call[1] === "branch" && call[2] === "-D")).toBe(false);
+  });
+
+  it("refuses multiple detached worktrees with the same exact terminal identity", async () => {
+    const porcelain =
+      "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n"
+      + "worktree /repo.husk-one\nHEAD def\ndetached\n\n"
+      + "worktree /repo.husk-two\nHEAD def\ndetached\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"], worktreePorcelain: porcelain });
+    ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk() });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/multiple detached worktrees/iu);
+    expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
+  });
+
+  it("returns truthful retained-ref state when an inside-husk retry still cannot delete", async () => {
+    const porcelain =
+      "worktree /primary\nHEAD abc\nbranch refs/heads/main\n\n"
+      + "worktree /repo\nHEAD def\ndetached\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: porcelain,
+      branchDeleteThrows: true,
+      branchSurvivesDelete: true,
+    });
+    ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk() });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.husk?.outcome).toBe("already-husked");
+    expect(result.branchDeleted).toBe(false);
+    expect(result.worktreeRemoved).toBeNull();
+    expect(result.notices).toHaveLength(1);
+    expect(result.notices[0]).toMatch(/retry teardown from the husk or primary/iu);
     expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
   });
 
@@ -686,6 +834,28 @@ describe("runBranchTeardown — recordless cheap branches", () => {
     ]);
   });
 
+  it("husks a recordless self-worktree using the terminal branch subject", async () => {
+    const branch = "chore/groom-demo";
+    const porcelain =
+      "worktree /primary\nHEAD abc\nbranch refs/heads/main\n\n"
+      + `worktree /repo\nHEAD def\nbranch refs/heads/${branch}\n`;
+    const { ctx, calls } = buildCtx([], { branches: [branch], worktreePorcelain: porcelain });
+    enableSelfHusk(ctx);
+
+    const result = await runBranchTeardown(ctx, { branch, base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.husk).toMatchObject({
+      subject: { kind: "branch", ref: branch },
+      branch,
+      stamped: true,
+      outcome: "created",
+    });
+    expect(result.worktreeRemoved).toBeNull();
+    expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
+  });
+
   it("is idempotent when the recordless branch is already absent", async () => {
     const { ctx, calls } = buildCtx([], { branches: [] });
 
@@ -697,6 +867,27 @@ describe("runBranchTeardown — recordless cheap branches", () => {
     expect(result.branchDeleted).toBe(false);
     expect(calls.some((c) => c[1] === "branch" && c[2] === "-D")).toBe(false);
     expect(calls).toContainEqual(["git", "fetch", "--prune", "origin"]);
+  });
+
+  it("removes an exact stamped recordless husk from outside", async () => {
+    const branch = "chore/groom-demo";
+    const porcelain =
+      "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n"
+      + "worktree /repo.husk\nHEAD def\ndetached\n";
+    const { ctx, calls } = buildCtx([], { branches: [], worktreePorcelain: porcelain });
+    ctx.readMarker = async () => ({ kind: "present", marker: branchMarkerWithHusk(branch) });
+
+    const result = await runBranchTeardown(ctx, { branch, base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.husk).toMatchObject({
+      subject: { kind: "branch", ref: branch },
+      branch,
+      outcome: "already-husked",
+    });
+    expect(result.worktreeRemoved).toBe("/repo.husk");
+    expect(calls).toContainEqual(["git", "worktree", "remove", "/repo.husk"]);
   });
 
   it("refuses non-chore branches so WU and errand records keep their authoritative teardown paths", async () => {
