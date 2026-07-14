@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "errand-close-topology",
-  "origin": "inbox",
-  "intent": "Make arc errand close leave its branch safely in linked worktrees",
-  "branch": "fix/errand-close-topology",
-  "createdAt": "2026-07-14T19:45:49.773Z",
-  "originEntry": "Make `arc errand close`'s leave-branch step topology-aware (lands before wave 3)"
-}
