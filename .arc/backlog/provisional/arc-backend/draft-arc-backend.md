@@ -26,6 +26,18 @@ establishes the shape, audience fit, and forward-compat discipline; detailed des
 
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
 
+### `[ ]` **Define `Context:` footer validity under materialized backing-store state**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
+  `commit-message-submission` design review.
+- *Concern:* footer validation currently proves artifact existence from tracked `.arc/active`, `backlog`, and
+  `completed` paths in the code checkout. Under the backing-store model, artifacts may be unmaterialized in CI or
+  contributor clones, and permanently publishing artifact names in code-repo history may conflict with
+  `storage.track_design_docs` privacy semantics.
+- *Approach:* define what the injected artifact resolver queries, how it degrades when the substrate is
+  unavailable, and whether footer naming participates in the privacy knob. `commit-message-submission` keeps the
+  current filesystem lookup behind the resolver seam; this WU owns the target semantics.
+
 ### `[ ]` **Evaluate review receipts as an event-log consumer**
 
 - *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured during the reviewed-lane gate's
