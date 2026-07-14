@@ -1,11 +1,11 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `6c7f7349b`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `b5bec4deb`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 ## Warnings
 
-- Branch `chore/stub-worktree-teardown-decoupling` has no errand record or active work-unit meta; cleanup may be required.
+- Branch `chore/stub-session-locus-model` has no errand record or active work-unit meta; cleanup may be required.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -17,10 +17,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                 | Priority | Owner  | Depends on | Cohort            |
-| ---------- | ------------------------- | -------- | ------ | ---------- | ----------------- |
-| `Active`   | finalize-parallelism      | P1       | andrew | —          | agile-parallelism |
-| `Planning` | commit-message-submission | P1       | andrew | —          | —                 |
+| State      | Work unit                    | Priority | Owner  | Depends on | Cohort            |
+| ---------- | ---------------------------- | -------- | ------ | ---------- | ----------------- |
+| `Active`   | finalize-parallelism         | P1       | andrew | —          | agile-parallelism |
+| `Planning` | commit-message-submission    | P1       | andrew | —          | —                 |
+| `Planning` | worktree-teardown-decoupling | P3       | andrew | —          | —                 |
 
 ## Ready
 
@@ -32,7 +33,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | recovery-hardening                    | P1       | andrew | —          | —                          |
 | review-gate-enforcement-qualification | P1       | andrew | —          | —                          |
 | roadmap-tooling                       | P1       | andrew | —          | —                          |
-| worktree-teardown-decoupling          | P1       | andrew | —          | —                          |
+| session-locus-model                   | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model              | P1       | andrew | —          | —                          |
 | composable-workflows                  | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition                   | P2       | andrew | —          | agent-context-optimization |
