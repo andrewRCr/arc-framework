@@ -1,5 +1,11 @@
 /** Public commit-message validation contracts. */
 
+export {
+  COMMIT_CHECK_DEFAULTS,
+  readCommitCheckConfiguration,
+  resolveCommitCheckPolicy,
+} from "./config.js";
+
 export type {
   CommitCheckArtifactFamily,
   CommitCheckArtifactReference,
@@ -17,6 +23,7 @@ export type {
   CommitCheckMessageLineLocation,
   CommitCheckOutcome,
   CommitCheckPolicy,
+  CommitCheckPolicyResolution,
   CommitCheckRepositoryState,
   CommitCheckRole,
   CommitCheckSeverity,

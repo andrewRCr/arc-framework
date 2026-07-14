@@ -107,6 +107,12 @@ export interface CommitCheckPolicy {
   bodyMaxLineLength: number;
 }
 
+/** Result of resolving raw configuration into an active policy. */
+export type CommitCheckPolicyResolution =
+  | { kind: "disabled" }
+  | { kind: "active"; policy: CommitCheckPolicy }
+  | { kind: "invalid"; findings: readonly CommitCheckFinding[] };
+
 /** Artifact families referenced by legal Context trailers. */
 export type CommitCheckArtifactFamily = "tasks" | "design" | "meta";
 

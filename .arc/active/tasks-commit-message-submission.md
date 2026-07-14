@@ -20,26 +20,10 @@ consumer changes validation authority.
           three-valued validated outcomes, exemption outcomes, normalized policy, and injected repository-state seams;
           parser and policy implementation details remain private.
 
-    - `[ ]` **1.1.b Resolve the eight validator configuration keys**
-        - Correct `parseArcConfig()` to match `arc_config_get`'s first-definition-wins behavior, then read
-          `arc-config.yml` through that shared parser. Claim each key at its first physical definition before value
-          normalization: absent and bare empty values use the documented defaults, while quoted empty values strip to
-          explicit empty strings; either first definition masks every later duplicate.
-        - Define active-policy domain validation for exact documented enum values, unsigned base-10 safe integers,
-          `hooks.subject_max_length >= 10`, and both body maxima `>= 1`. Return typed, configuration-located failures
-          rather than reproducing shell case fallthrough or arithmetic coercion.
-        - Audit existing `parseArcConfig()` callers and retain their behavior for non-duplicate input while the shared
-          duplicate-key contract changes.
-        - Build `test-first` (one behavior at a time):
-            - All eight explicit values reach the policy unchanged.
-            - Missing and bare empty values select the Bash defaults.
-            - Single- and double-quoted values normalize identically to `arc_config_get`.
-            - Duplicate keys select the first definition in both the shell and TypeScript readers.
-            - A bare-empty first definition selects the default and masks a later non-empty duplicate; single- and
-              double-quoted empty first definitions normalize to explicit empty strings and also mask later values.
-            - Quoted numeric limits retain their configured values and compare correctly after normalization.
-            - Unknown enums, signed or non-decimal numbers, unsafe integers, and below-minimum limits fail with stable
-              configuration findings on active validation paths.
+    - `[x]` **1.1.b Resolve the eight validator configuration keys**
+        - Made the shared parser first-definition-wins, including bare- and quoted-empty masking, then added exact
+          eight-key default resolution and active enum/numeric domain validation with configuration-located findings;
+          shell/TypeScript parity and existing non-duplicate callers are covered by unit and integration tests.
 
     - `[ ]` **1.1.c Implement the artifact-existence resolver seam**
         - Keep filesystem access behind an injected resolver that applies the distinct search sets for `tasks-*`,

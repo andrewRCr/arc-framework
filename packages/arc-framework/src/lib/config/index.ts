@@ -108,15 +108,19 @@ export function buildInstallConfig(
  */
 export function parseArcConfig(content: string): Record<string, string> {
   const config: Record<string, string> = {};
+  const claimedKeys = new Set<string>();
   // Normalize CRLF to LF before parsing (cross-platform safety)
   const normalized = content.replace(/\r\n/g, "\n");
   for (const line of normalized.split("\n")) {
     const match = line.match(/^([\w.]+):\s*(.*)$/);
     if (match) {
       const [, key = "", rawValue = ""] = match;
+      if (claimedKeys.has(key)) continue;
+      claimedKeys.add(key);
+
       let value = rawValue.trim();
-      // Skip empty values — matches shell-side arc_config_get behavior
-      // where empty values fall through to the default
+      // Bare empty values select the caller's default, while still claiming
+      // the key so later duplicate definitions remain masked.
       if (!value) continue;
       // Strip surrounding quotes (matches shell-side sed patterns)
       // Shell: sed 's/^"\(.*\)"$/\1/' | sed "s/^'\(.*\)'$/\1/"

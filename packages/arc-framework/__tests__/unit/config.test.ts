@@ -83,4 +83,19 @@ describe("parseArcConfig", () => {
     const config = parseArcConfig("key: value:with:colons\n");
     expect(config["key"]).toBe("value:with:colons");
   });
+
+  it("keeps the first physical definition of a key", () => {
+    const config = parseArcConfig("key: first\nkey: second\n");
+    expect(config["key"]).toBe("first");
+  });
+
+  it("lets a bare empty first definition mask later values", () => {
+    const config = parseArcConfig("key:\nkey: second\n");
+    expect(config["key"]).toBeUndefined();
+  });
+
+  it.each(["''", '""'])("preserves quoted empty value %s", (quotedEmpty) => {
+    const config = parseArcConfig(`key: ${quotedEmpty}\nkey: second\n`);
+    expect(config["key"]).toBe("");
+  });
 });
