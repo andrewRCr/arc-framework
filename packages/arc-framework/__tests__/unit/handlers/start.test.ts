@@ -232,6 +232,33 @@ describe("handleStart — dispatch orchestration", () => {
     expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Graduated");
   });
 
+  it("refuses a --class that conflicts with the meta's resolved Class — no arm runs", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+
+    // The mocked meta records `Class: Light`; the flag disagrees.
+    await handleStart("widget", { class: "Heavy" });
+
+    expect(mockRunGraduate).not.toHaveBeenCalled();
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringContaining("conflicts with the meta's recorded Class"));
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("accepts a --class that matches the meta's resolved Class — no persistence write requested", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockRunGraduate.mockResolvedValue({
+      status: "graduated",
+      branch: "plan/widget",
+      metaPath: ".arc/active/meta-widget.md",
+      outcome: { status: "ok", advisories: [] },
+    });
+
+    await handleStart("widget", { class: "Light" });
+
+    expect(mockRunGraduate).toHaveBeenCalledTimes(1);
+    expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", writeClass: false });
+    expect(process.exitCode).toBeUndefined();
+  });
+
   it("shell-completes a graduate spawn with a deterministic commit and push in the spawned worktree", async () => {
     mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
     mockRunGraduate.mockResolvedValue({

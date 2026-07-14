@@ -205,6 +205,8 @@ export interface StubOptions {
   origin?: string;
   design?: string;
   cohort?: string;
+  /** Initial resolved `Class` (`Light` | `Heavy` | `Novel`); omitted → `[TBD]`. */
+  class?: string;
 }
 
 /**
@@ -232,7 +234,7 @@ export async function handleStub(name: string | undefined, opts: StubOptions): P
     { executor, fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile } },
     {
       name: wuName, commitment, priority: opts.priority, owner: base.identity,
-      origin: opts.origin, design: opts.design, cohort: opts.cohort,
+      origin: opts.origin, design: opts.design, cohort: opts.cohort, cls: opts.class,
     },
   );
   if (result.status === "rejected") {

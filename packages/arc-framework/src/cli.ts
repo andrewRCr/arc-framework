@@ -133,6 +133,10 @@ program
     "--from <pointer-or-blurb>",
     "Spec input — issue ref → Origin, spec/draft artifact → Design, else passed through for assessment",
   )
+  .option(
+    "--class <value>",
+    "Resolved Class (Light | Heavy | Novel) for a stub still `[TBD]` — the start ceremony records it in the meta",
+  )
   .option("-y, --yes", "Skip the confirm prompt; spawned starts still commit and push the ceremony")
   .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
 
@@ -148,6 +152,7 @@ program
   .option("--origin <ref>", "External reference (issue / URL) → meta `Origin`")
   .option("--design <ref>", "Design artifact (spec / draft) → meta `Design`")
   .option("--cohort <slug>", "Enrol under a cohort: place at backlog/planned/<cohort>/<name>/ + set meta `Cohort` (planned-tier, single member)")
+  .option("--class <value>", "Initial resolved Class (Light | Heavy | Novel); omitted → `[TBD]`")
   .action((name: string | undefined, opts: StubOptions) => handleStub(name, opts));
 
 program

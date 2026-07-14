@@ -29,6 +29,7 @@ import {
   runGraduate,
   deriveColdStartWuName,
 } from "../commands/start.js";
+import { validateClass } from "../commands/active/types.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
@@ -59,6 +60,8 @@ export interface StartOptions {
   here?: boolean;
   /** Spec input — issue → Origin, spec/draft artifact → Design, else passed through. */
   from?: string;
+  /** Resolved `Class` for a stub still `[TBD]` — validated, recorded by the ceremony. */
+  class?: string;
   /** Skip the confirm prompt. */
   yes?: boolean;
 }
@@ -291,6 +294,32 @@ async function graduate(
     return;
   }
 
+  // `--class` supplies the resolved weight for a stub still `[TBD]`, recorded by the
+  // ceremony. A meta already resolved wins: a conflicting flag refuses — re-cutting
+  // weight is grooming's (`arc finalize`), not the launch flag's.
+  let writeClass = false;
+  const flagClass = opts.class?.trim();
+  if (flagClass !== undefined && flagClass !== "") {
+    const validated = validateClass(flagClass);
+    if (validated === "[TBD]") {
+      p.log.error(`\`${flagClass}\` is not a resolved Class (expected \`Light\` | \`Heavy\` | \`Novel\`).`);
+      process.exitCode = 1;
+      return;
+    }
+    const metaClass = validateClass(cls);
+    if (metaClass === "[TBD]") {
+      cls = validated;
+      writeClass = true;
+    } else if (metaClass !== validated) {
+      p.log.error(
+        `--class ${validated} conflicts with the meta's recorded Class \`${cls}\` — `
+        + "re-cut weight via grooming (`arc finalize`), not the launch flag.",
+      );
+      process.exitCode = 1;
+      return;
+    }
+  }
+
   // In place (`--here`): no worktree spawned, so the spawn config (base / location
   // template / repo) isn't needed — only `team.mode` for the executor's status
   // side-effect. The branch is cut off current HEAD in this checkout.
@@ -309,7 +338,7 @@ async function graduate(
         baseBranch: settings["branch.base"],
         internalTemplateDir: getInternalTemplatePath(),
       }),
-      { name: wuName, cls, inPlace: true },
+      { name: wuName, cls, writeClass, inPlace: true },
     );
     if (result.status === "rejected") {
       p.log.error(result.reason);
@@ -350,6 +379,7 @@ async function graduate(
     {
       name: wuName,
       cls,
+      writeClass,
       baseBranch: config.baseBranch,
       locationTemplate: config.locationTemplate,
       postCreateScript: config.postCreateScript,

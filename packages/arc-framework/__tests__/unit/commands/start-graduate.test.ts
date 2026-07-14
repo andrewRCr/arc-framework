@@ -105,6 +105,11 @@ interface SoftWrite {
   updates: Partial<Record<MetaFieldName, string>>;
 }
 
+interface ClassWrite {
+  metaPath: string;
+  value: string;
+}
+
 interface Harness {
   ctx: ExecuteTransitionContext;
   calls: string[];
@@ -113,12 +118,14 @@ interface Harness {
   softWrites: SoftWrite[];
   stagedMetas: string[];
   worktreeOps: unknown[];
+  classWrites: ClassWrite[];
 }
 
 function buildCtx(
   metas: MetaSpec[],
   occupancyOk = true,
   reconcileBackfill: MetaFieldName[] = [],
+  withClassSeam = true,
 ): Harness {
   const calls: string[] = [];
   const reconcileCalls: ReconcileCall[] = [];
@@ -126,6 +133,7 @@ function buildCtx(
   const softWrites: SoftWrite[] = [];
   const stagedMetas: string[] = [];
   const worktreeOps: unknown[] = [];
+  const classWrites: ClassWrite[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -159,6 +167,14 @@ function buildCtx(
         : { mutation: "teardown", worktreePath: "", locusHopped: false };
     },
     writeBranchField: async () => {},
+    ...(withClassSeam
+      ? {
+          writeClassField: async (metaPath: string, value: string) => {
+            calls.push("class-write");
+            classWrites.push({ metaPath, value });
+          },
+        }
+      : {}),
     writeCurrentWorkflowField: async (metaPath, stage) => {
       calls.push("stage-write");
       stageWrites.push({ metaPath, stage });
@@ -185,7 +201,7 @@ function buildCtx(
   });
   const ctx = makeCtx(CWD);
 
-  return { ctx, calls, reconcileCalls, stageWrites, softWrites, stagedMetas, worktreeOps };
+  return { ctx, calls, reconcileCalls, stageWrites, softWrites, stagedMetas, worktreeOps, classWrites };
 }
 
 const BASE = {
@@ -294,6 +310,55 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(result.reason).toMatch(/class/i);
     // Refusal is total — no relocate, no spawn.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("worktree:"))).toBe(false);
+  });
+
+  it("persists a caller-supplied Class into the relocated meta (writeClass) and stages it", async () => {
+    const { ctx, calls, classWrites, stagedMetas } = buildCtx([
+      { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "[TBD]" },
+    ]);
+
+    // The `--class` path: the stub's meta is still `[TBD]`, the caller resolved it.
+    const result = await runGraduate(ctx, { ...BASE, cls: "Light", writeClass: true });
+
+    expect(result.status).toBe("graduated");
+    expect(classWrites).toEqual([{ metaPath: ".arc/active/meta-widget.md", value: "Light" }]);
+    // The Class write lands before the final post-transition staging, so the
+    // ceremony commit carries it (the transition legs stage earlier passes too).
+    expect(calls.indexOf("class-write")).toBeLessThan(calls.lastIndexOf("stage-meta"));
+    expect(stagedMetas).toContain(".arc/active/meta-widget.md");
+  });
+
+  it("performs no Class write when writeClass is not set", async () => {
+    const { ctx, classWrites } = buildCtx([
+      { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Light" },
+    ]);
+
+    const result = await runGraduate(ctx, { ...BASE, cls: "Light" });
+
+    expect(result.status).toBe("graduated");
+    expect(classWrites).toEqual([]);
+  });
+
+  it("rejects writeClass when the executor lacks the Class-write seam (wiring error)", async () => {
+    const { ctx, calls, classWrites } = buildCtx(
+      [{ slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "[TBD]" }],
+      /* occupancyOk */ true,
+      /* reconcileBackfill */ [],
+      /* withClassSeam */ false,
+    );
+
+    const result = await runGraduate(ctx, { name: "widget", cls: "Light", writeClass: true, inPlace: true });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/Class-write seam/i);
+    expect(classWrites).toEqual([]);
+    // The refusal fires post-transition: relocate, worktree placement, and the
+    // meta reconcile have already run — the wiring error rejects the ceremony's
+    // Class write, it does not roll the transition back.
+    expect(calls).toContain("relocate:.arc/backlog/planned/widget->.arc/active");
+    expect(calls).toContain("worktree:spawn:in-place");
+    expect(calls).toContain("reconcile-meta");
   });
 
   it("rejects an old-shape meta before spawning or relocating", async () => {
