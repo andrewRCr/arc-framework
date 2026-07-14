@@ -16,7 +16,7 @@
 - **Next Task:** Task 1.1 — Add neutral worktree subjects and an optional husk stamp (line ~16)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1.a — Add the typed subject and husk schemas with round-trip coverage
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

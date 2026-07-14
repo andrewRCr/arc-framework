@@ -202,9 +202,9 @@ drivers remain outside this work unit.
           projection and preserve a surviving ref as the retry operand. Never fall back to marker `wuName` or a
           branch-prefix-to-slug conversion for candidate identity.
 
-        - Refuse ambiguous marker matches; keep markerless and malformed worktrees invisible, but let a valid ownership
-          marker without a husk stamp reach the shared oracle's explicit missing-stamp refusal rather than converting it
-          into a removable candidate.
+        - Refuse ambiguous marker matches. Markerless, malformed, and valid-but-unstamped worktrees stay outside the
+          target-specific fallback because they carry no trusted terminal subject; the shared oracle still classifies
+          missing stamps as outside the removable path when evaluated directly.
 
     - `[x]` **2.3.b Re-enter teardown through the shared husk oracle**
         - Add a stamped-husk-approved removal mode to `reconcileWorktree()` that performs only non-force physical
@@ -222,7 +222,8 @@ drivers remain outside this work unit.
         - Build `test-first` (one behavior at a time):
             - A clean candidate whose `HEAD` matches its stamp is removed from outside.
 
-            - Dirty, moved-`HEAD`, missing-stamp, and ambiguous candidates are refused without removal.
+            - Dirty, moved-`HEAD`, and ambiguous candidates are refused without removal; missing stamps fail closed at
+              the oracle boundary and remain invisible to target-specific fallback.
 
             - A re-run from inside a branchless husk is a no-op; when the local branch survived an earlier operational
               delete failure, the same inside-husk path retries its ref cleanup without removing the cwd.
@@ -378,44 +379,49 @@ composed seams.
 _Purpose:_ Validate the settled implementation against the design, repository standards, and complete quality-gate
 suite.
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source and test type checking; build; 423 passing test files
+  with 5,334 passing tests and one skipped file/test — all passed.
+- _Success criteria:_ 13 criteria met after two Heavy-class adversarial passes and primary validation of the complete
+  work-unit diff; confirmed replay identity, retry, and CLI-reporting findings were fixed and regression-covered.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Linked shipped teardown leaves the invoking session in a live detached worktree with no physical self-removal,
+- `[x]` Linked shipped teardown leaves the invoking session in a live detached worktree with no physical self-removal,
   for both marked and externally-managed checkouts; normal completion reaps local refs, while an operational delete
   failure reports and preserves the surviving ref for retry.
 
-- `[ ]` Dirty, preservation-unproven, and blocked user-surface preflights leave the worktree branched and unchanged and
+- `[x]` Dirty, preservation-unproven, and blocked user-surface preflights leave the worktree branched and unchanged and
   report the specific refusal.
 
-- `[ ]` A valid ownership marker records the proven husk `HEAD` when extension succeeds; extension failure remains a
+- `[x]` A valid ownership marker records the proven husk `HEAD` when extension succeeds; extension failure remains a
   reported unstamped external husk and never mints or repairs marker provenance.
 
-- `[ ]` Husk lookup matches a typed terminal subject and exact branch projection, so WU, errand, and recordless targets
+- `[x]` Husk lookup matches a typed terminal subject and exact branch projection, so WU, errand, and recordless targets
   with the same slug text never alias and marker creation ownership never overrides the teardown target.
 
-- `[ ]` Teardown fallback and the stale-worktree sweep remove only clean stamped husks whose live `HEAD` equals the stamp;
+- `[x]` Teardown fallback and the stale-worktree sweep remove only clean stamped husks whose live `HEAD` equals the stamp;
   unsafe or ambiguous candidates remain intact and visible.
 
-- `[ ]` A teardown re-run recognizes a detached stamped husk even when its local ref survived, retries that ref without
+- `[x]` A teardown re-run recognizes a detached stamped husk even when its local ref survived, retries that ref without
   deleting an inside-husk cwd, and reports the resulting branch state truthfully.
 
-- `[ ]` Work-unit and recordless husks are discoverable without admitting detached entries into the shared roster.
+- `[x]` Work-unit and recordless husks are discoverable without admitting detached entries into the shared roster.
 
-- `[ ]` Current warm errand close from a linked WU worktree restores the recorded WU branch without rewriting its
+- `[x]` Current warm errand close from a linked WU worktree restores the recorded WU branch without rewriting its
   ownership marker or entering husk mode; the shared schema leaves a bounded `errand` driver socket for future
   separately spawned errand worktrees.
 
-- `[ ]` Session initialization distinguishes a canonical shipped husk from an ordinary detached checkout and gives
+- `[x]` Session initialization distinguishes a canonical shipped husk from an ordinary detached checkout and gives
   accurate disposal guidance.
 
-- `[ ]` The integration ceremony documents live husk success and atomic refusal instead of a deleted-cwd termination.
+- `[x]` The integration ceremony documents live husk success and atomic refusal instead of a deleted-cwd termination.
 
-- `[ ]` Unit, integration, and E2E coverage exercise every self-husk, fallback, sweep, and advisory leg.
+- `[x]` Unit, integration, and E2E coverage exercise every self-husk, fallback, sweep, and advisory leg.
 
-- `[ ]` All quality gates pass (tests, linting, type checking, build).
+- `[x]` All quality gates pass (tests, linting, type checking, build).
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
