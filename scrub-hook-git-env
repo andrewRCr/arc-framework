@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "scrub-hook-git-env",
+  "origin": "inbox",
+  "intent": "Scrub hook-exported Git environment from cross-worktree probes in the foreign-write advisory",
+  "branch": "fix/scrub-hook-git-env",
+  "createdAt": "2026-07-14T00:36:20.132Z",
+  "originEntry": "Scrub hook-exported git env from cross-worktree probes in the foreign-write advisory"
+}
