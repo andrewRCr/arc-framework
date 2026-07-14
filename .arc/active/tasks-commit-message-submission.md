@@ -71,7 +71,7 @@ consumer changes validation authority.
   returns stable findings plus terminal-safe diagnostics across subject, raw-body, footer, configuration, and
   repository-state policy.
 
-### `[ ]` **1.3 Build the three-valued differential fixture corpus**
+### `[x]` **1.3 Build the three-valued differential fixture corpus**
 
 - _Goal:_ The TypeScript port cannot silently change accepted, rejected, warning, configuration, or diagnostic behavior
   before the Bash implementation is retired.
@@ -86,11 +86,13 @@ consumer changes validation authority.
           config, artifact roots, and role facts; verdicts agree exactly except where each enumerated divergence records
           its pre-flip Bash result.
 
-    - `[ ]` **1.3.c Fold existing hook cases into the durable suite**
-        - Migrate the footer matrix and merge-exemption coverage from the existing commit-message integration and E2E
-          tests where the corpus can own them without losing real-git assertions.
-        - Keep the corpus runnable against the TypeScript implementation after cutover; remove no unique regression
-          case.
+    - `[x]` **1.3.c Fold existing hook cases into the durable suite**
+        - Folded the Bash-only footer smoke matrix into the canonical footer-policy suite, including every retired
+          negative form, while retaining the real-repository merge exemption and installed-hook assertions for their
+          unique process-boundary evidence.
+
+- _Outcome:_ The parity record is explicit and executable: one durable acceptance corpus owns canonical findings,
+  while a temporary differential runner proves pre-flip Bash agreement modulo the five named migration decisions.
 
 ## **Phase 2:** Public check surface and hook cutover
 

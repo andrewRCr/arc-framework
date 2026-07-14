@@ -116,6 +116,20 @@ describe("Context footer families", () => {
       ]),
     );
   });
+
+  it.each([
+    "tasks-example.md (content)",
+    "tasks-example.md (incidental - discovered during Task 1.2)",
+    "draft-example.md (maintenance)",
+    "meta-example.md (planning)",
+    "planning (no associated task list)",
+    "maintenance (atomic / no associated task list)",
+    "atomic-example.md",
+    "standalone (content)",
+  ])("retains rejection of retired footer %s", async (context) => {
+    const result = await findings(message(context));
+    expect(result).toEqual(expect.arrayContaining([expect.objectContaining({ code: "footer.invalid" })]));
+  });
 });
 
 describe("artifact and contributor advisories", () => {
