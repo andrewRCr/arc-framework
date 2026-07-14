@@ -25,16 +25,9 @@ consumer changes validation authority.
           eight-key default resolution and active enum/numeric domain validation with configuration-located findings;
           shell/TypeScript parity and existing non-duplicate callers are covered by unit and integration tests.
 
-    - `[ ]` **1.1.c Implement the artifact-existence resolver seam**
-        - Keep filesystem access behind an injected resolver that applies the distinct search sets for `tasks-*`,
-          `draft-*` / `spec-*`, and `meta-*` references.
-        - Build `test-first` (one behavior at a time):
-            - Each artifact family searches only its allowed active, backlog, or completed roots.
-            - Nested backlog and completed artifacts resolve while a misplaced artifact does not.
-            - A match in any allowed root returns `found`, even if a later root is unavailable.
-            - `not-found` requires every family root to be inspected successfully; unavailable or partially
-              materialized roots otherwise return `unresolvable`.
-            - An absent family directory under an available `.arc` layout behaves as an inspected empty root.
+    - `[x]` **1.1.c Implement the artifact-existence resolver seam**
+        - Added the injected filesystem resolver with family-specific active/backlog/completed searches, recursive
+          design/meta discovery, early found semantics, and distinct inspected-empty versus unavailable results.
 
     - `[ ]` **1.1.d Assemble the shared exemption and advisory context**
         - Supply `hooks.commit_msg`, `MERGE_HEAD`, and `arc.role` through one injected context used by both the hook

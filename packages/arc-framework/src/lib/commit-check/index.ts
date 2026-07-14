@@ -5,6 +5,7 @@ export {
   readCommitCheckConfiguration,
   resolveCommitCheckPolicy,
 } from "./config.js";
+export { createFilesystemArtifactResolver } from "./artifact-resolver.js";
 
 export type {
   CommitCheckArtifactFamily,
