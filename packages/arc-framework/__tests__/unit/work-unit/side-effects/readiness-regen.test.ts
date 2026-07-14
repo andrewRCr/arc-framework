@@ -40,12 +40,15 @@ function buildCtx(view: string): { ctx: ReconcileStatusUserContext; state: CtxSt
 }
 
 /** Build a roadmap context over a fixed composed view, recording all I/O. */
-function buildRoadmapCtx(view: string): { ctx: ReconcileRoadmapContext; state: CtxState } {
+function buildRoadmapCtx(
+  view: string,
+  advisories: readonly string[] = [],
+): { ctx: ReconcileRoadmapContext; state: CtxState } {
   const state: CtxState = { composeCalls: 0, mkdirs: [], writes: [], stages: [] };
   const ctx: ReconcileRoadmapContext = {
     composeView: async () => {
       state.composeCalls += 1;
-      return view;
+      return { content: view, advisories };
     },
     mkdir: async (path) => {
       state.mkdirs.push(path);
@@ -174,6 +177,20 @@ describe("reconcileRoadmap", () => {
     expect(state.mkdirs).toEqual([join("/repo", ".arc", "backlog")]);
     expect(state.writes).toEqual([{ path: expectedPath, content: "# Roadmap\n\nrows\n" }]);
     expect(state.stages).toEqual([expectedPath]);
+  });
+
+  it("returns composer advisories without writing them into ROADMAP", async () => {
+    const { ctx, state } = buildRoadmapCtx("# Roadmap\n\nrows", ["source snapshot degraded"]);
+
+    const advisory = await reconcileRoadmap(ctx, {
+      cwd: "/repo",
+      slug: "demo-wu",
+      from: ACTIVE,
+      to: PARKED,
+    });
+
+    expect(advisory).toBe("ROADMAP advisory: source snapshot degraded");
+    expect(state.writes[0]?.content).toBe("# Roadmap\n\nrows\n");
   });
 
   it("degrades to an advisory naming the WU and move when rendering fails", async () => {
