@@ -46,13 +46,22 @@
  * @module
  */
 
-import { isLandedInBase } from "../../git/branch-containment.js";
+import { assessReapSafety, isLandedInBase } from "../../git/branch-containment.js";
 import type { GitExec } from "../../git/exec.js";
 import { refreshBase } from "../../git/refresh-base.js";
+import { decideHuskCleanup, isWorktreeClean } from "../../git/worktree-cleanup.js";
 import {
-  resolvePrimaryWorktreePath,
-  resolveWorktreePathsByBranch,
+  readWorktreeMarker,
+  stampWorktreeHusk,
+  type WorktreeHuskStampResult,
+  type WorktreeMarkerReadResult,
+  type WorktreeSubject,
+} from "../../git/worktree-marker.js";
+import {
+  scanRegisteredWorktrees,
+  type RegisteredWorktreeScanResult,
 } from "../../git/worktree-roster.js";
+import { reconcileLinkedIdentityGlobalUserSurfaces } from "../../user-surface-migration.js";
 import { branchToWorkUnitSlug } from "../completed-index.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lifecycle-index.js";
 import { isShipped } from "../lifecycle-resolver.js";
@@ -61,6 +70,8 @@ import { deleteRemoteBranch, reconcileBranch } from "../mutators/reconcile-branc
 import {
   nodeReconcileWorktreeFs,
   reconcileWorktree,
+  isSelfTeardown,
+  type ReconcileWorktreeFs,
 } from "../mutators/reconcile-worktree.js";
 import { isSlugSafe } from "../slug.js";
 
@@ -74,6 +85,16 @@ export interface TeardownContext {
   indexFs: LifecycleIndexFs;
   /** Relocate the process locus on a self-teardown (production binds `process.chdir`). */
   chdir: (dir: string) => void;
+  /** Registered-worktree inventory seam. */
+  scanWorktrees?: (exec: GitExec) => Promise<RegisteredWorktreeScanResult>;
+  /** Marker read seam for detached-husk discovery. */
+  readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
+  /** Non-minting marker extension seam. */
+  stampHusk?: (worktreePath: string, stamp: Parameters<typeof stampWorktreeHusk>[1]) => Promise<WorktreeHuskStampResult>;
+  /** Worktree/user-surface filesystem seam. */
+  worktreeFs?: ReconcileWorktreeFs;
+  /** Wall-clock seam for terminal stamps. */
+  now?: () => number;
 }
 
 /**
@@ -123,7 +144,11 @@ export interface BranchTeardownParams {
 
 /** The outcome of a `teardown` attempt — a rejection, or the completed cleanup. */
 export type TeardownResult =
-  | { status: "rejected"; reason: string }
+  | {
+      status: "rejected";
+      reason: string;
+      huskRefusal?: "dirty" | "preservation-unproven" | "user-surfaces";
+    }
   | {
       status: "torn-down";
       /** The reaped WU branch, or `null` when no local branch remained (already reaped). */
@@ -139,6 +164,14 @@ export type TeardownResult =
       remoteBranchDeleted: boolean;
       /** The removed worktree path, or `null` for the in-place / already-absent arm. */
       worktreeRemoved: string | null;
+      /** Terminal detached-worktree transition, when physical self-removal was deferred. */
+      husk: {
+        worktreePath: string;
+        subject: WorktreeSubject;
+        branch: string;
+        stamped: boolean;
+        outcome: "created" | "already-husked";
+      } | null;
       /** Whether the prune leg ran cleanly. */
       pruned: boolean;
       /** Non-fatal advisories (a push-state refusal, a best-effort prune failure). */
@@ -148,6 +181,13 @@ export type TeardownResult =
     };
 
 const CHEAP_BRANCH_PREFIX = "chore/";
+
+function worktreeSubjectsEqual(left: WorktreeSubject, right: WorktreeSubject): boolean {
+  if (left.kind !== right.kind) return false;
+  if (left.kind === "work-unit" && right.kind === "work-unit") return left.name === right.name;
+  if (left.kind === "errand" && right.kind === "errand") return left.slug === right.slug;
+  return left.kind === "branch" && right.kind === "branch" && left.ref === right.ref;
+}
 
 /**
  * Resolve the WU's local branch by enumerating `refs/heads` and matching the slug.
@@ -162,8 +202,8 @@ async function resolveWuBranch(
   let stdout: string;
   try {
     ({ stdout } = await exec("git", ["for-each-ref", "--format=%(refname:short)", "refs/heads"]));
-  } catch {
-    return { branch: null };
+  } catch (err) {
+    return { error: `could not enumerate local branches (${err instanceof Error ? err.message : String(err)})` };
   }
   const matches = stdout
     .split("\n")
@@ -188,12 +228,26 @@ async function branchExists(exec: GitExec, branch: string): Promise<boolean> {
   }
 }
 
+async function readBranchPresence(
+  exec: GitExec,
+  branch: string,
+): Promise<{ ok: true; present: boolean } | { ok: false; message: string }> {
+  try {
+    const { stdout } = await exec("git", ["for-each-ref", "--format=%(refname:short)", `refs/heads/${branch}`]);
+    return { ok: true, present: stdout.split("\n").some((line) => line.trim() === branch) };
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 interface TeardownBranchProjectionParams {
   branch: string | null;
+  subject: WorktreeSubject;
   base: string;
   remote?: string;
   mode: TeardownMode;
   suggestion?: string;
+  allowHusk: boolean;
 }
 
 async function teardownBranchProjection(
@@ -201,8 +255,13 @@ async function teardownBranchProjection(
   params: TeardownBranchProjectionParams,
 ): Promise<TeardownResult> {
   const { cwd, exec, chdir } = ctx;
-  const { branch, base, remote, mode, suggestion } = params;
+  const { branch, subject, base, remote, mode, suggestion, allowHusk } = params;
   const notices: string[] = [];
+  const fs = ctx.worktreeFs ?? nodeReconcileWorktreeFs;
+  const scan = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(exec);
+  if (!scan.ok) {
+    return { status: "rejected", reason: `Could not read registered worktrees (${scan.message}).` };
+  }
 
   // Refresh the base before the reap-safety check and any in-place relocation. The
   // landed-in-base leg checks patch-equivalence against `base`, but right after a
@@ -219,21 +278,137 @@ async function teardownBranchProjection(
   // are presence-guarded no-ops. Worktree first, so the branch delete is not refused
   // for a checked-out branch.
   let worktreeRemoved: string | null = null;
-  if (branch !== null) {
-    const byBranch = await resolveWorktreePathsByBranch(exec);
-    const worktreePath = byBranch.get(branch);
-    const primary = await resolvePrimaryWorktreePath(exec);
-    if (worktreePath !== undefined && worktreePath !== primary) {
+  let husk: Extract<TeardownResult, { status: "torn-down" }>["husk"] = null;
+  let createdHusk = false;
+  const branchedRegistration = branch === null
+    ? undefined
+    : scan.worktrees.find((worktree) => worktree.branch === branch);
+  let detachedCandidate:
+    | { path: string; head: string; marker: Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"] }
+    | undefined;
+  if (branchedRegistration === undefined) {
+    const matches: NonNullable<typeof detachedCandidate>[] = [];
+    for (const worktree of scan.worktrees.filter((entry) => entry.detached)) {
+      let marker: WorktreeMarkerReadResult;
+      try {
+        marker = await (ctx.readMarker ?? readWorktreeMarker)(worktree.path);
+      } catch (err) {
+        return {
+          status: "rejected",
+          reason: `Could not read detached worktree marker (${err instanceof Error ? err.message : String(err)}).`,
+        };
+      }
+      if (
+        marker.kind === "present"
+        && marker.marker.husk !== undefined
+        && worktreeSubjectsEqual(marker.marker.husk.subject, subject)
+      ) {
+        matches.push({ path: worktree.path, head: worktree.head, marker: marker.marker });
+      }
+    }
+    if (matches.length > 1) {
+      return { status: "rejected", reason: "multiple detached worktrees match the requested terminal subject" };
+    }
+    detachedCandidate = matches[0];
+  }
+
+  if (detachedCandidate !== undefined) {
+    const clean = await isWorktreeClean({ exec, cwd: detachedCandidate.path });
+    const decision = decideHuskCleanup({
+      marker: { kind: "present", marker: detachedCandidate.marker },
+      clean,
+      head: detachedCandidate.head,
+    });
+    if (decision.action !== "removable") {
+      return { status: "rejected", reason: `refusing detached husk removal: ${decision.reason}` };
+    }
+    const stamp = detachedCandidate.marker.husk;
+    if (stamp === undefined) {
+      return { status: "rejected", reason: "refusing detached husk removal: missing-stamp" };
+    }
+    if (!isSelfTeardown(detachedCandidate.path, cwd)) {
       try {
         await reconcileWorktree(
-          { exec, chdir, fs: nodeReconcileWorktreeFs },
-          { mutation: "teardown", worktreePath, currentLocus: cwd },
+          { exec, chdir, fs },
+          {
+            mutation: "teardown",
+            worktreePath: detachedCandidate.path,
+            currentLocus: cwd,
+            huskApproved: true,
+          },
         );
       } catch (err) {
         return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
       }
-      worktreeRemoved = worktreePath;
-    } else if (worktreePath === primary) {
+      worktreeRemoved = detachedCandidate.path;
+    }
+    husk = {
+      worktreePath: detachedCandidate.path,
+      subject,
+      branch: stamp.branch,
+      stamped: true,
+      outcome: "already-husked",
+    };
+  } else if (branch !== null) {
+    const registered = branchedRegistration;
+    const primary = scan.worktrees.find((worktree) => worktree.primary)?.path;
+    if (registered !== undefined && registered.path !== primary && allowHusk && isSelfTeardown(registered.path, cwd)) {
+      if (!(await isWorktreeClean({ exec, cwd: registered.path }))) {
+        return {
+          status: "rejected",
+          reason: `cannot husk a dirty worktree: ${registered.path}`,
+          huskRefusal: "dirty",
+        };
+      }
+      const safety = await assessReapSafety(exec, { branch, base: baseRef, remote });
+      if (!safety.safe) {
+        return { status: "rejected", reason: safety.reason, huskRefusal: "preservation-unproven" };
+      }
+      if (primary === undefined) {
+        return { status: "rejected", reason: "cannot resolve the primary worktree before husking" };
+      }
+      const dryRun = await reconcileLinkedIdentityGlobalUserSurfaces({
+        worktreePath: registered.path,
+        primaryWorktreePath: primary,
+        fs,
+        dryRun: true,
+        signpost: true,
+      });
+      if (dryRun.status === "blocked") {
+        return { status: "rejected", reason: dryRun.reason, huskRefusal: "user-surfaces" };
+      }
+      await reconcileLinkedIdentityGlobalUserSurfaces({
+        worktreePath: registered.path,
+        primaryWorktreePath: primary,
+        fs,
+        signpost: true,
+      });
+      await exec("git", ["switch", "--detach"], { cwd: registered.path });
+      let stamped = false;
+      try {
+        const stampResult = await (ctx.stampHusk ?? stampWorktreeHusk)(registered.path, {
+          sha: registered.head,
+          at: new Date((ctx.now ?? Date.now)()).toISOString(),
+          subject,
+          branch,
+        });
+        stamped = stampResult.kind === "stamped";
+      } catch (err) {
+        notices.push(`Could not stamp the detached worktree (${err instanceof Error ? err.message : String(err)}).`);
+      }
+      husk = { worktreePath: registered.path, subject, branch, stamped, outcome: "created" };
+      createdHusk = true;
+    } else if (registered !== undefined && registered.path !== primary) {
+      try {
+        await reconcileWorktree(
+          { exec, chdir, fs },
+          { mutation: "teardown", worktreePath: registered.path, currentLocus: cwd },
+        );
+      } catch (err) {
+        return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
+      }
+      worktreeRemoved = registered.path;
+    } else if (registered?.path === primary) {
       // In-place arm: the branch is checked out in the *primary* worktree, so the
       // delete would be refused ("branch used by worktree"). Relocate the primary
       // onto `base` first (a linked worktree is torn down above; an unmapped branch
@@ -276,7 +451,15 @@ async function teardownBranchProjection(
       // cannot match), the remote head IS the preservation — deleting it would
       // discard the work. Computed before the local delete consumes the ref.
       const landedInBase = await isLandedInBase(exec, branch, baseRef);
-      await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base: baseRef, remote });
+      try {
+        await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base: baseRef, remote });
+      } catch (err) {
+        if (!createdHusk) throw err;
+        notices.push(
+          `Could not delete local branch \`${branch}\` after detach ` +
+            `(${err instanceof Error ? err.message : String(err)}); retry teardown from the husk or primary.`,
+        );
+      }
       branchDeleted = !(await branchExists(exec, branch));
       if (!branchDeleted) {
         notices.push(
@@ -339,6 +522,7 @@ async function teardownBranchProjection(
     branchDeleted,
     remoteBranchDeleted,
     worktreeRemoved,
+    husk,
     pruned,
     notices,
     suggestion: suggestion ?? null,
@@ -369,12 +553,17 @@ export async function runBranchTeardown(
     return { status: "rejected", reason: "`arc teardown --branch` refuses to target the configured base branch." };
   }
 
-  const present = await branchExists(ctx.exec, branch);
+  const presence = await readBranchPresence(ctx.exec, branch);
+  if (!presence.ok) {
+    return { status: "rejected", reason: `Could not resolve local branch \`${branch}\` (${presence.message}).` };
+  }
   return teardownBranchProjection(ctx, {
-    branch: present ? branch : null,
+    branch: presence.present ? branch : null,
+    subject: { kind: "branch", ref: branch },
     base: params.base,
     remote: params.remote,
     mode: "shipped",
+    allowHusk: true,
     suggestion: params.suggestion,
   });
 }
@@ -425,9 +614,11 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
 
   return teardownBranchProjection(ctx, {
     branch,
+    subject: { kind: "work-unit", name },
     base,
     remote,
     mode,
+    allowHusk: mode === "shipped",
     suggestion,
   });
 }

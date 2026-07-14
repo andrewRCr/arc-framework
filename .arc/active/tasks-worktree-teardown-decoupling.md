@@ -71,13 +71,13 @@ _Design decisions:_ Husk mode keys only on self-teardown inside the linked-workt
 all clean, preservation, and user-surface gates before detach; the primary arm never husks, and pre-merge abandon/park
 drivers remain outside this work unit.
 
-### `[ ]` **2.1 Preflight linked self-teardown before any directional mutation**
+### `[x]` **2.1 Preflight linked self-teardown before any directional mutation**
 
 - _Goal:_ Every self-husk refusal leaves the target fully branched and untouched, with a distinct cause the caller can
   report and resolve or route to outside disposal.
 - **Additional Context:** `notes-worktree-teardown-decoupling.md` §§ Implementation loci and Existing-signal pointers.
 
-    - `[ ]` **2.1.a Classify the teardown locus inside the shared branch projection**
+    - `[x]` **2.1.a Classify the teardown locus inside the shared branch projection**
         - Distinguish linked self-teardown, linked outside teardown, primary/in-place teardown, and already-absent
           projections before calling `reconcileWorktree()`.
 
@@ -92,7 +92,7 @@ drivers remain outside this work unit.
           and exact typed terminal subject. Wire the shipped WU driver and recordless exact-branch path without silently
           enabling husking for `abandoned` mode; reserve the `errand` subject for a future errand-worktree driver.
 
-    - `[ ]` **2.1.b Run every refusable shipped-driver gate before detach**
+    - `[x]` **2.1.b Run every refusable shipped-driver gate before detach**
         - Reuse the clean check, `assessReapSafety()` preservation verdict, and a complete dry-run of
           `reconcileLinkedIdentityGlobalUserSurfaces()` in the pinned order before any `git switch --detach`, marker
           write, branch delete, user-surface write, or worktree removal. Discover a logical block across the entire
@@ -114,7 +114,7 @@ drivers remain outside this work unit.
         - Use the same refreshed base ref that the existing merged-safe delete consumes so the pre-gate and delete leg
           prove the same preservation claim.
 
-    - `[ ]` **2.1.c Prove refusal atomicity and unaffected arms test-first**
+    - `[x]` **2.1.c Prove refusal atomicity and unaffected arms test-first**
         - Extend `packages/arc-framework/__tests__/unit/work-unit/verbs/teardown.test.ts` and the focused
           `reconcile-worktree` tests through injected boundary seams, preserving real-git coverage for integration.
 
@@ -133,13 +133,17 @@ drivers remain outside this work unit.
 
             - Already-absent and out-of-scope `abandoned` behavior remains unchanged.
 
-### `[ ]` **2.2 Detach, stamp, and reap refs through the shared teardown projection**
+- _Outcome:_ Teardown now classifies the registered projection once and clears cleanliness, preservation, and complete
+  user-surface safety before any self-husk mutation, while outside, primary, absent, and abandoned arms retain their
+  prior behavior.
+
+### `[x]` **2.2 Detach, stamp, and reap refs through the shared teardown projection**
 
 - _Goal:_ A cleared linked self-teardown ends with a live detached cwd and a result that distinguishes completed ref
   reaps from a retained-branch notice without claiming physical removal.
 - **Additional Context:** `notes-worktree-teardown-decoupling.md` §§ Existing-signal pointers and Rationale detail.
 
-    - `[ ]` **2.2.a Detach the target and stamp only proven ARC ownership**
+    - `[x]` **2.2.a Detach the target and stamp only proven ARC ownership**
         - Run `git switch --detach` in the target worktree after preflight, capture the proven `HEAD`, and extend a valid
           ownership marker through Task 1.1's non-minting helper with the driver-supplied terminal subject and exact
           branch projection.
@@ -149,7 +153,7 @@ drivers remain outside this work unit.
         - Treat an operational marker-extension failure after detach as a non-fatal notice and continue the ref reaps as
           an unstamped, externally-managed husk; marker visibility is a backstop, not permission to strand a half-husk.
 
-    - `[ ]` **2.2.b Reuse the existing ref-reap and best-effort cleanup legs**
+    - `[x]` **2.2.b Reuse the existing ref-reap and best-effort cleanup legs**
         - Continue through merged-safe local branch deletion, landed-proof-gated remote-head deletion, and fetch-prune
           after detach; do not call `process.chdir` or `git worktree remove` in husk mode.
 
@@ -160,7 +164,7 @@ drivers remain outside this work unit.
           `branchDeleted: false`, skip remote-head deletion, continue best-effort prune, and return the husk result so a
           re-run can retry the surviving ref instead of throwing after the directional transition.
 
-    - `[ ]` **2.2.c Emit and verify the husk transition result**
+    - `[x]` **2.2.c Emit and verify the husk transition result**
         - Add `husk: { worktreePath: string; subject: WorktreeSubject; branch: string; stamped: boolean; outcome:
           "created" | "already-husked" } | null` to the successful teardown result while retaining
           `worktreeRemoved: null` for physical-removal accounting. Add a typed optional husk-refusal cause (`dirty`,
@@ -179,12 +183,15 @@ drivers remain outside this work unit.
 
             - Remote-head and prune failures retain their existing best-effort notice behavior.
 
-### `[ ]` **2.3 Resolve and reap detached husks idempotently**
+- _Outcome:_ A cleared self-teardown detaches and optionally stamps its live cwd before best-effort ref cleanup, with
+  typed reporting for both complete reaps and retained local refs.
+
+### `[x]` **2.3 Resolve and reap detached husks idempotently**
 
 - _Goal:_ A later teardown can find a stamped detached husk whether its local branch is gone or survived a failed reap,
   while a re-run from inside that husk or against an unsafe candidate never deletes the caller's cwd or uncertain work.
 
-    - `[ ]` **2.3.a Add marker fallback when no branched worktree maps**
+    - `[x]` **2.3.a Add marker fallback when no branched worktree maps**
         - Preserve success/failure discrimination in WU-ref enumeration, local-branch resolution, and recordless
           exact-ref existence. An unreadable ref, branch, or detached-worktree scan refuses rather than masquerading as
           already reaped.
@@ -199,7 +206,7 @@ drivers remain outside this work unit.
           marker without a husk stamp reach the shared oracle's explicit missing-stamp refusal rather than converting it
           into a removable candidate.
 
-    - `[ ]` **2.3.b Re-enter teardown through the shared husk oracle**
+    - `[x]` **2.3.b Re-enter teardown through the shared husk oracle**
         - Add a stamped-husk-approved removal mode to `reconcileWorktree()` that performs only non-force physical
           removal after the caller-owned oracle, refuses a self-locus, and does not reapply the already-completed
           identity-global user-surface reconcile. From outside the candidate, call it only after Task 1.3 returns
@@ -209,7 +216,7 @@ drivers remain outside this work unit.
           survived, and report the already-husked state with truthful `branchDeleted` accounting. If neither candidate
           nor ref exists, preserve the existing already-reaped idempotent result.
 
-    - `[ ]` **2.3.c Cover fallback removal, refusal, and inside-husk replay test-first**
+    - `[x]` **2.3.c Cover fallback removal, refusal, and inside-husk replay test-first**
         - Include the recordless marked-husk path so shared-projection placement remains WU-agnostic.
 
         - Build `test-first` (one behavior at a time):
@@ -228,12 +235,15 @@ drivers remain outside this work unit.
             - Failed WU-ref enumeration, recordless exact-ref existence, and detached-worktree scan refuse; only a
               successful empty resolution produces the existing already-reaped result.
 
-### `[ ]` **2.4 Report husk transitions and refusal causes at the CLI boundary**
+- _Outcome:_ Exact terminal-subject fallback and the shared cleanup oracle make detached-husk replay safe from both
+  outside and inside the candidate without inferring identity from creation ownership or branch prefixes.
+
+### `[x]` **2.4 Report husk transitions and refusal causes at the CLI boundary**
 
 - _Goal:_ `arc teardown` clearly distinguishes a successful husk transition, later physical disposal, and a preflight
   refusal without promising cleanup that did not occur.
 
-    - `[ ]` **2.4.a Render marked and externally-managed husk outcomes**
+    - `[x]` **2.4.a Render marked and externally-managed husk outcomes**
         - Update `packages/arc-framework/src/handlers/lifecycle.ts` to report refs reaped, the disposable detached cwd,
           and deferred physical teardown; mention the primary sweep backstop only when the husk was stamped.
 
@@ -243,11 +253,14 @@ drivers remain outside this work unit.
         - Preserve the existing physical-removal, in-place, already-reaped, remote-notice, prune, and suggestion lines
           on their respective result arms.
 
-    - `[ ]` **2.4.b Render distinct atomic-refusal guidance**
+    - `[x]` **2.4.b Render distinct atomic-refusal guidance**
         - Surface dirty tree, preservation unproven, and user-surface reconcile blocked as `cannot husk` outcomes that
           explicitly state the worktree remains branched and unchanged.
 
         - Extend handler/CLI-focused tests without coupling assertions to clack rendering internals.
+
+- _Outcome:_ CLI reporting distinguishes physical removal, disposable marked or external husks, retained refs, and
+  atomic preflight refusal without claiming that the current cwd was removed.
 
 ## **Phase 3:** Sweep and session-init husk surfaces
 

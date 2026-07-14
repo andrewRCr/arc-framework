@@ -35,7 +35,7 @@
  * @module
  */
 
-import { cp, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
@@ -76,6 +76,8 @@ export interface ReconcileWorktreeFs {
   mkdir(path: string, options: { recursive: boolean }): Promise<void>;
   /** Read directory entries. */
   readDir(path: string): Promise<UserSurfaceMigrationDirent[]>;
+  /** Remove a machine-local user-surface cache. */
+  removeFile?(path: string): Promise<void>;
 }
 
 /** Production filesystem adapter for {@link reconcileWorktree}. */
@@ -97,6 +99,7 @@ export const nodeReconcileWorktreeFs: ReconcileWorktreeFs = {
     await mkdir(path, options);
   },
   readDir: (path) => readdir(path, { withFileTypes: true }),
+  removeFile: (path) => rm(path, { force: true }),
 };
 
 /**
@@ -161,6 +164,8 @@ export type ReconcileWorktreeOp =
       worktreePath: string;
       /** The directory the transition runs from — a self-teardown when inside `worktreePath`. */
       currentLocus: string;
+      /** Caller has approved a detached husk; skip standard teardown preflight. */
+      huskApproved?: boolean;
     };
 
 /** Outcome of a {@link reconcileWorktree} call. */
@@ -176,7 +181,7 @@ const POST_CREATE_UNCONFIGURED_NOTICE =
  * Whether `locus` sits inside (or at) `worktreePath` — the self-teardown test.
  * A non-`..`, non-absolute relative path means `locus` is contained.
  */
-function isSelfTeardown(worktreePath: string, locus: string): boolean {
+export function isSelfTeardown(worktreePath: string, locus: string): boolean {
   const rel = relative(resolve(worktreePath), resolve(locus));
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
@@ -232,6 +237,13 @@ export async function reconcileWorktree(
   ctx: ReconcileWorktreeContext,
   op: ReconcileWorktreeOp,
 ): Promise<ReconcileWorktreeResult> {
+  if (op.mutation === "teardown" && op.huskApproved === true) {
+    if (isSelfTeardown(op.worktreePath, op.currentLocus)) {
+      throw new Error(`refusing to remove the current detached worktree: ${op.worktreePath}`);
+    }
+    await ctx.exec("git", ["worktree", "remove", op.worktreePath]);
+    return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };
+  }
   if (op.mutation === "spawn" && op.inPlace) {
     // In place: cut/attach the branch in the current worktree — no `worktree add`,
     // no ownership marker (ARC did not mint this checkout). `deferCheckout` skips

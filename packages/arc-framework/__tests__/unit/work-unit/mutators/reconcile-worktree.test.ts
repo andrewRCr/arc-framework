@@ -413,6 +413,36 @@ describe("reconcileWorktree — spawn in place (--here)", () => {
 });
 
 describe("reconcileWorktree — teardown", () => {
+  it("removes an oracle-approved husk from outside without replaying standard preflight", async () => {
+    const worktreePath = "/work/wt/demo";
+    const { ctx, events } = buildCtx({ status: " M ignored-by-approved-mode" });
+
+    const result = await reconcileWorktree(ctx, {
+      mutation: "teardown",
+      worktreePath,
+      currentLocus: "/work/primary",
+      huskApproved: true,
+    });
+
+    expect(result).toEqual({ mutation: "teardown", worktreePath, locusHopped: false });
+    expect(events).toEqual([["git", "worktree", "remove", worktreePath]]);
+  });
+
+  it("refuses oracle-approved husk removal from inside the target", async () => {
+    const worktreePath = "/work/wt/demo";
+    const { ctx, events } = buildCtx();
+
+    await expect(
+      reconcileWorktree(ctx, {
+        mutation: "teardown",
+        worktreePath,
+        currentLocus: `${worktreePath}/nested`,
+        huskApproved: true,
+      }),
+    ).rejects.toThrow(/current detached worktree/iu);
+    expect(events).toEqual([]);
+  });
+
   it("removes a clean worktree without --force and without a locus hop (non-self)", async () => {
     const worktreePath = "/work/wt/demo";
     const { ctx, events } = buildCtx({ status: "", worktreeList: porcelain("/work/primary", worktreePath) });

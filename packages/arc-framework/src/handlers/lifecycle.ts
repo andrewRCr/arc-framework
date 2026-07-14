@@ -1096,7 +1096,11 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
       { branch: branchArg, base: baseBranch },
     );
     if (result.status === "rejected") {
-      refuse(result.reason);
+      if (result.huskRefusal !== undefined) {
+        refuse(`Cannot husk: ${result.reason}. The worktree remains branched and unchanged.`);
+      } else {
+        refuse(result.reason);
+      }
       return;
     }
 
@@ -1104,12 +1108,22 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
       result.branch === null
         ? `${branchArg} (already reaped)`
         : `${result.branch} ${describeBranchDeletion(result)}`;
-    const lines = [
-      `Branch:    ${branchLine}`,
-      `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
-      `Prune:     ${result.pruned ? "done" : "skipped"}`,
-    ];
-    p.note(lines.join("\n"), "Branch torn down");
+    const lines = result.husk === null
+      ? [
+          `Branch:    ${branchLine}`,
+          `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
+          `Prune:     ${result.pruned ? "done" : "skipped"}`,
+        ]
+      : [
+          `Branch:    ${branchLine}`,
+          `Husk:      ${result.husk.worktreePath} (detached; physical removal deferred)`,
+          `Marker:    ${result.husk.stamped ? "stamped" : "externally managed"}`,
+          `Prune:     ${result.pruned ? "done" : "skipped"}`,
+        ];
+    p.note(lines.join("\n"), result.husk === null ? "Branch torn down" : "Branch worktree husked");
+    if (result.husk?.stamped === true) {
+      p.log.info("The primary worktree's stale-worktree sweep can offer this disposable husk for removal.");
+    }
     for (const notice of result.notices) p.log.warn(notice);
     if (result.suggestion !== null) p.log.info(result.suggestion);
     p.outro("Done.");
@@ -1121,7 +1135,11 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
     { name: wuName ?? "", base: baseBranch, mode: opts.force ? "abandoned" : "shipped" },
   );
   if (result.status === "rejected") {
-    refuse(result.reason);
+    if (result.huskRefusal !== undefined) {
+      refuse(`Cannot husk: ${result.reason}. The worktree remains branched and unchanged.`);
+    } else {
+      refuse(result.reason);
+    }
     return;
   }
 
@@ -1129,13 +1147,24 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
     result.branch === null
       ? "(already reaped)"
       : `${result.branch} ${describeBranchDeletion(result)}`;
-  const lines = [
-    `Work unit: ${wuName}`,
-    `Branch:    ${branchLine}`,
-    `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
-    `Prune:     ${result.pruned ? "done" : "skipped"}`,
-  ];
-  p.note(lines.join("\n"), "Torn down");
+  const lines = result.husk === null
+    ? [
+        `Work unit: ${wuName}`,
+        `Branch:    ${branchLine}`,
+        `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
+        `Prune:     ${result.pruned ? "done" : "skipped"}`,
+      ]
+    : [
+        `Work unit: ${wuName}`,
+        `Branch:    ${branchLine}`,
+        `Husk:      ${result.husk.worktreePath} (detached; physical removal deferred)`,
+        `Marker:    ${result.husk.stamped ? "stamped" : "externally managed"}`,
+        `Prune:     ${result.pruned ? "done" : "skipped"}`,
+      ];
+  p.note(lines.join("\n"), result.husk === null ? "Torn down" : "Worktree husked");
+  if (result.husk?.stamped === true) {
+    p.log.info("The primary worktree's stale-worktree sweep can offer this disposable husk for removal.");
+  }
   for (const notice of result.notices) p.log.warn(notice);
   if (result.suggestion !== null) p.log.info(result.suggestion);
   p.outro("Done.");
