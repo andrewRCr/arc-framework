@@ -576,6 +576,20 @@ describe("scanRegisteredWorktrees", () => {
       message: "fatal: cannot list worktrees",
     });
   });
+
+  it("fails closed when a topology stanza omits HEAD", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: {
+        stdout: "worktree /home/dev/repo.husk\ndetached\n",
+        stderr: "",
+      },
+    });
+
+    expect(await scanRegisteredWorktrees(exec)).toEqual({
+      ok: false,
+      message: "worktree listing omitted HEAD for /home/dev/repo.husk",
+    });
+  });
 });
 
 describe("runWorktreeRoster — shared-reader field recovery", () => {
