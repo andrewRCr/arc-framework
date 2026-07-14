@@ -118,6 +118,29 @@ const presentMarker: WorktreeMarkerReadResult = {
   },
 };
 
+function stampedMarker(
+  subject: { kind: "work-unit"; name: string } | { kind: "errand"; slug: string } | { kind: "branch"; ref: string },
+  options: { identity?: string; sha?: string; branch?: string } = {},
+): WorktreeMarkerReadResult {
+  const branch = options.branch
+    ?? (subject.kind === "branch" ? subject.ref : `feat/${subject.kind === "work-unit" ? subject.name : subject.slug}`);
+  return {
+    kind: "present",
+    marker: {
+      spawnedByArc: true,
+      createdFor: subject,
+      spawningIdentity: options.identity ?? "andrew",
+      createdAt: "2026-05-01T00:00:00.000Z",
+      husk: {
+        sha: options.sha ?? "stamped",
+        at: "2026-07-14T20:00:00.000Z",
+        subject,
+        branch,
+      },
+    },
+  };
+}
+
 const emptyUserSurfaceFs: UserSurfaceMigrationFs = {
   readDir: async () => [],
   readFile: async () => "",
@@ -229,5 +252,161 @@ describe("runStaleWorktreeSweep", () => {
     });
 
     expect(result.worktrees).toHaveLength(1);
+  });
+
+  it("reports detached stamped husks through exact-HEAD cleanup decisions", async () => {
+    const huskMarker = stampedMarker({ kind: "work-unit", name: "work-organization-reform" });
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async () => huskMarker,
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [
+          { path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
+          { path: "/wt/moved", head: "moved", branch: null, detached: true, primary: false },
+        ],
+      }),
+    });
+
+    expect(result.worktrees).toEqual([
+      {
+        kind: "husk",
+        worktreePath: "/wt/husk",
+        branch: null,
+        subject: { kind: "work-unit", name: "work-organization-reform" },
+        completedWorkUnit: "work-organization-reform",
+        decision: { action: "removable" },
+      },
+      {
+        kind: "husk",
+        worktreePath: "/wt/moved",
+        branch: null,
+        subject: { kind: "work-unit", name: "work-organization-reform" },
+        completedWorkUnit: "work-organization-reform",
+        decision: { action: "blocked", reason: "head-moved" },
+      },
+    ]);
+  });
+
+  it("blocks a dirty stamped husk", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: false, merged: true }),
+      readMarker: async () => stampedMarker({ kind: "work-unit", name: "work-organization-reform" }),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [{ path: "/wt/dirty", head: "stamped", branch: null, detached: true, primary: false }],
+      }),
+    });
+
+    expect(result.worktrees[0]?.decision).toEqual({ action: "blocked", reason: "uncommitted" });
+  });
+
+  it("reports recordless and errand husks without claiming WU completion", async () => {
+    const markers = new Map<string, WorktreeMarkerReadResult>([
+      ["/wt/recordless", stampedMarker({ kind: "branch", ref: "review/orphan" }, { branch: "review/orphan" })],
+      ["/wt/errand", stampedMarker({ kind: "errand", slug: "tidy-hooks" }, { branch: "chore/tidy-hooks" })],
+    ]);
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async (path) => markers.get(path) ?? { kind: "absent" },
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [
+          { path: "/wt/recordless", head: "stamped", branch: null, detached: true, primary: false },
+          { path: "/wt/errand", head: "stamped", branch: null, detached: true, primary: false },
+        ],
+      }),
+    });
+
+    expect(result.worktrees).toEqual([
+      {
+        kind: "husk",
+        worktreePath: "/wt/recordless",
+        branch: null,
+        subject: { kind: "branch", ref: "review/orphan" },
+        completedWorkUnit: null,
+        decision: { action: "removable" },
+      },
+      {
+        kind: "husk",
+        worktreePath: "/wt/errand",
+        branch: null,
+        subject: { kind: "errand", slug: "tidy-hooks" },
+        completedWorkUnit: null,
+        decision: { action: "removable" },
+      },
+    ]);
+  });
+
+  it("filters another identity's husk only in team mode", async () => {
+    const options = {
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" } as const,
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      identity: "andrew",
+      readMarker: async () => stampedMarker(
+        { kind: "work-unit", name: "work-organization-reform" },
+        { identity: "someone-else" },
+      ),
+      scanWorktrees: async () => ({
+        ok: true as const,
+        worktrees: [{ path: "/wt/other", head: "stamped", branch: null, detached: true, primary: false }],
+      }),
+    };
+
+    const teamResult = await runStaleWorktreeSweep({ ...options, teamMode: true });
+    const soloResult = await runStaleWorktreeSweep({ ...options, teamMode: false });
+
+    expect(teamResult.worktrees).toEqual([]);
+    expect(soloResult.worktrees).toHaveLength(1);
+  });
+
+  it("excludes absent and malformed detached markers", async () => {
+    const markers = new Map<string, WorktreeMarkerReadResult>([
+      ["/wt/absent", { kind: "absent" }],
+      ["/wt/malformed", { kind: "malformed", path: "/wt/malformed/.arc/marker", message: "invalid JSON" }],
+    ]);
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async (path) => markers.get(path) ?? { kind: "absent" },
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [
+          { path: "/wt/absent", head: "one", branch: null, detached: true, primary: false },
+          { path: "/wt/malformed", head: "two", branch: null, detached: true, primary: false },
+        ],
+      }),
+    });
+
+    expect(result.worktrees).toEqual([]);
+  });
+
+  it("preserves branched reports and appends a warning when the detached scan fails", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: shippedRoster(),
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true }),
+      readMarker: async () => presentMarker,
+      userSurfaceFs: emptyUserSurfaceFs,
+      scanWorktrees: async () => ({ ok: false, message: "topology unavailable" }),
+    });
+
+    expect(result.worktrees).toHaveLength(1);
+    expect(result.worktrees[0]?.kind).toBe("branched");
+    expect(result.warnings).toEqual(["Could not scan detached worktrees: topology unavailable"]);
   });
 });

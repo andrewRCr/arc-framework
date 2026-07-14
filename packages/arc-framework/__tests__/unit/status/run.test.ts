@@ -1997,7 +1997,12 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
   it("fires the sweep in the primary worktree, passing the resolved roster and identity", async () => {
     const rosterValue = rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/shipped" }] });
     const sweepValue: StaleWorktreeSweepResult = {
-      worktrees: [{ worktreePath: "/wt", branch: "feat/shipped", decision: { action: "removable" } }],
+      worktrees: [{
+        kind: "branched",
+        worktreePath: "/wt",
+        branch: "feat/shipped",
+        decision: { action: "removable" },
+      }],
       warnings: [],
     };
     const probes = sessionInitProbes({

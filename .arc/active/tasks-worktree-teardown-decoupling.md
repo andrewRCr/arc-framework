@@ -271,55 +271,26 @@ _Design decisions:_ The stale-worktree sweep performs its own detached scan and 
 Session-init carries an optional derived advisory payload instead of adding a worktree-state enum value; an unstamped
 detached checkout remains ordinary detached `HEAD`.
 
-### `[ ]` **3.1 Add detached husks to the stale-worktree sweep**
+### `[x]` **3.1 Add detached husks to the stale-worktree sweep**
 
 - _Goal:_ A primary-worktree session surfaces every ARC-stamped husk with the same exact-head removal policy used by
   teardown fallback, including generic recordless husks, without scanning siblings on normal linked-WU resumes.
 
-    - `[ ]` **3.1.a Enumerate stamped detached candidates beside the roster arm**
-        - Extend `packages/arc-framework/src/lib/session-init/stale-worktree-sweep.ts` with a sweep-local scan over Task
-          1.2's raw records; do not admit detached entries into `WorktreeRosterResult`.
+    - `[x]` **3.1.a Enumerate stamped detached candidates beside the roster arm**
+        - Added a primary-only raw topology scan that selects valid stamped detached worktrees, applies the team-mode
+          identity boundary, preserves typed terminal subjects, and reports scan failures without losing branched
+          results.
 
-        - Select detached worktrees only when a valid marker carries a husk stamp. Thread the resolved identity and
-          `team.mode` into the sweep and apply the roster's existing ownership boundary through marker
-          `spawningIdentity`: in team mode, omit another identity's husks; solo mode remains a pass-through.
+    - `[x]` **3.1.b Apply the shared stamped-husk cleanup decision**
+        - Split sweep reports into discriminated branched and husk arms, retaining the existing branched checks while
+          routing husk cleanliness and exact-`HEAD` evidence through the shared cleanup oracle.
 
-        - Derive labels from `husk.subject`: check `completed/` membership only for `work-unit`, use generic
-          shipped-husk wording for exact `branch`, and keep the reserved `errand` arm distinct without claiming WU
-          completion. Never label from the marker's creation owner.
+    - `[x]` **3.1.c Cover typed-subject sweep reports test-first**
+        - Covered exact, moved, dirty, recordless, errand, identity-filtered, invalid-marker, scan-failure, and
+          linked-worktree behaviors through the public sweep result.
 
-        - Preserve raw-scan failure as a sweep warning while still reporting any resolved branched candidates; never
-          silently equate an indeterminate detached scan with a successful empty scan.
-
-    - `[ ]` **3.1.b Apply the shared stamped-husk cleanup decision**
-        - Resolve live `HEAD` and cleanliness, then map through Task 1.3's oracle: clean exact-head husks are removable;
-          dirty or moved-head husks are blocked and never auto-removed.
-
-        - Keep the existing branched shipped-worktree marker, user-surface, and merge checks unchanged; do not reapply
-          ancestry or identity-global user-surface gates to the stamp-keyed husk arm.
-
-        - Evolve `StaleWorktreeReport` into a discriminated `branched` / `husk` union: preserve `branch` on the legacy
-          arm, and carry the typed terminal subject plus nullable completed-WU identity on the branchless arm so
-          renderers never guess logical identity or a display label from optional fields.
-
-    - `[ ]` **3.1.c Cover typed-subject sweep reports test-first**
-        - Confirm linked-worktree sessions still skip the sibling sweep entirely.
-
-        - Build `test-first` (one behavior at a time):
-            - Exact-`HEAD` and moved-`HEAD` WU husks report removable and blocked respectively.
-
-            - A dirty stamped husk reports blocked and is never removed.
-
-            - A stamped recordless husk receives generic naming.
-
-            - A synthetic stamped errand subject remains distinct from WU completion and receives neutral terminal
-              naming, keeping the reserved arm executable before its producer ships.
-
-            - Another identity's stamped husk is excluded in team mode and remains eligible in solo mode.
-
-            - Markerless and malformed worktrees are excluded while existing branched candidates stay unchanged.
-
-            - A failed raw detached scan appends a warning while preserving every resolved branched report.
+- _Outcome:_ Detached topology remains outside the shared roster while session-init can distinguish every trusted
+  terminal subject and preserve indeterminate scans as explicit warnings.
 
 ### `[ ]` **3.2 Derive the current-locus husk advisory in the session-init probe**
 

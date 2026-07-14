@@ -536,6 +536,8 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           worktreeIdentity,
           baseBranch: resolved.settings["branch.base"],
           exec: gitExec,
+          identity,
+          teamMode: resolved.settings["team.mode"] === "true",
         });
       },
       orphanBranchSweep: async (worktreeIdentity) => {

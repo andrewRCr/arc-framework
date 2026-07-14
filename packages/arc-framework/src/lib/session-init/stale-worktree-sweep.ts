@@ -20,14 +20,22 @@
 import type { GitExec } from "../git/exec.js";
 import { isLandedInBase } from "../git/branch-containment.js";
 import {
+  decideHuskCleanup,
   decideWorktreeCleanup,
   isWorktreeClean,
+  type HuskCleanupDecision,
   type WorktreeCleanupDecision,
 } from "../git/worktree-cleanup.js";
-import { readWorktreeMarker, type WorktreeMarkerReadResult } from "../git/worktree-marker.js";
+import {
+  readWorktreeMarker,
+  type WorktreeMarkerReadResult,
+  type WorktreeSubject,
+} from "../git/worktree-marker.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
 import {
   resolvePrimaryWorktreePath,
+  scanRegisteredWorktrees,
+  type RegisteredWorktreeScanResult,
   type WorktreeRosterEntry,
   type WorktreeRosterResult,
 } from "../git/worktree-roster.js";
@@ -78,12 +86,21 @@ export function findStaleWorktreeCandidates(
 }
 
 /** One swept worktree paired with its marker-gated cleanup disposition. */
-export interface StaleWorktreeReport {
-  worktreePath: string;
-  branch: string;
-  /** Removability state: `removable` only when ARC-marked, clean, and merged. */
-  decision: WorktreeCleanupDecision;
-}
+export type StaleWorktreeReport =
+  | {
+      kind: "branched";
+      worktreePath: string;
+      branch: string;
+      decision: WorktreeCleanupDecision;
+    }
+  | {
+      kind: "husk";
+      worktreePath: string;
+      branch: null;
+      subject: WorktreeSubject;
+      completedWorkUnit: string | null;
+      decision: HuskCleanupDecision;
+    };
 
 export interface StaleWorktreeSweepResult {
   /** Lingering shipped-WU worktrees, each with its cleanup disposition. */
@@ -104,6 +121,12 @@ export interface RunStaleWorktreeSweepOptions {
   readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
   /** Filesystem seam for ignored identity-global user-surface safety scans. */
   userSurfaceFs?: UserSurfaceMigrationFs;
+  /** Resolved developer identity for team-mode ownership filtering. */
+  identity?: string | null;
+  /** Whether another identity's stamped husks should be omitted. */
+  teamMode?: boolean;
+  /** Registered topology scan seam. */
+  scanWorktrees?: (exec: GitExec) => Promise<RegisteredWorktreeScanResult>;
 }
 
 /**
@@ -129,10 +152,12 @@ export async function runStaleWorktreeSweep(
   }
 
   const shipped = await readShippedWorkUnitsFromRef(exec, integrationTarget);
-  const { candidates, warnings } = findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity });
+  const selected = findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity });
+  const warnings = [...selected.warnings];
+  const candidates = selected.candidates;
   const primaryWorktreePath = candidates.length === 0 ? null : await resolvePrimaryWorktreePath(exec);
 
-  const worktrees = await Promise.all(
+  const worktrees: StaleWorktreeReport[] = await Promise.all(
     candidates.map(async (entry) => {
       const [marker, clean, merged, userSurfacesSafe] = await Promise.all([
         readMarker(entry.worktreePath),
@@ -145,12 +170,46 @@ export async function runStaleWorktreeSweep(
         }),
       ]);
       return {
+        kind: "branched" as const,
         worktreePath: entry.worktreePath,
         branch: entry.branch,
         decision: decideWorktreeCleanup({ marker, clean, userSurfacesSafe, merged, context: "shipped" }),
       };
     }),
   );
+
+  const scan = await (options.scanWorktrees ?? scanRegisteredWorktrees)(exec);
+  if (!scan.ok) {
+    warnings.push(`Could not scan detached worktrees: ${scan.message}`);
+    return { worktrees, warnings };
+  }
+
+  for (const entry of scan.worktrees) {
+    if (!entry.detached) continue;
+    const marker = await readMarker(entry.path);
+    if (marker.kind !== "present" || marker.marker.husk === undefined) continue;
+    if (
+      options.teamMode === true
+      && options.identity !== null
+      && options.identity !== undefined
+      && marker.marker.spawningIdentity !== options.identity
+    ) {
+      continue;
+    }
+    const stamp = marker.marker.husk;
+    const clean = await isWorktreeClean({ exec, cwd: entry.path });
+    worktrees.push({
+      kind: "husk",
+      worktreePath: entry.path,
+      branch: null,
+      subject: stamp.subject,
+      completedWorkUnit:
+        stamp.subject.kind === "work-unit" && shipped.has(stamp.subject.name)
+          ? stamp.subject.name
+          : null,
+      decision: decideHuskCleanup({ marker, clean, head: entry.head }),
+    });
+  }
 
   return { worktrees, warnings };
 }
