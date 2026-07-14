@@ -8,10 +8,10 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-commit-message-submission.md`
+- **Design:** `spec-commit-message-submission.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Draft captured formalization-ready (adversarial loop converged, two passes); Class resolved
   Heavy.
 - **Next Task:** [none]
