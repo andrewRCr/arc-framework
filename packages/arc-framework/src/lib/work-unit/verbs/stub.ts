@@ -23,6 +23,7 @@
 
 import { join } from "node:path";
 
+import { validateClass } from "../../../commands/active/types.js";
 import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
 import { renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
@@ -74,6 +75,12 @@ export interface StubParams {
    * batch cohort-tree scaffold is `decompose-matrix`'s.
    */
   cohort?: string;
+  /**
+   * Initial resolved `Class` (`Light` | `Heavy` | `Novel`) written into the
+   * scaffolded meta; omitted → the template's `[TBD]`. An unresolvable value is
+   * refused (no silent `[TBD]` downgrade of an explicit judgment).
+   */
+  cls?: string;
 }
 
 /** The outcome of a `stub` attempt — a rejection reason, or the scaffolded meta path. */
@@ -110,6 +117,21 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
       status: "rejected",
       reason: "`stub` requires an explicit priority — refusing to default (no silent `P3`).",
     };
+  }
+
+  // An explicit `--class` must be a resolved weight — refuse an unresolvable value
+  // rather than silently minting `[TBD]` over the caller's judgment.
+  const clsArg = params.cls?.trim();
+  let cls: string | undefined;
+  if (clsArg !== undefined && clsArg !== "") {
+    const validated = validateClass(clsArg);
+    if (validated === "[TBD]") {
+      return {
+        status: "rejected",
+        reason: `\`${clsArg}\` is not a resolved Class (expected \`Light\` | \`Heavy\` | \`Novel\`).`,
+      };
+    }
+    cls = validated;
   }
 
   const commitment = params.commitment;
@@ -160,6 +182,7 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
     };
     if (params.origin !== undefined) overrides.Origin = params.origin;
     if (params.design !== undefined) overrides.Design = params.design;
+    if (cls !== undefined) overrides.Class = cls;
     if (hasCohort) overrides.Cohort = cohort;
 
     await ensureDir(join(ctx.executor.cwd, toDir), ctx.fs.mkdir);

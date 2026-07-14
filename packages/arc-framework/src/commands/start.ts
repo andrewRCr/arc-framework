@@ -193,6 +193,12 @@ interface GraduateBaseParams {
   name: string;
   /** The WU's resolved `Class` — the `class-resolved` guard input; an unresolved `[TBD]` is refused. */
   cls: string;
+  /**
+   * Persist `cls` into the relocated meta post-transition (the `--class` path: the
+   * caller supplied a resolved weight the stub's meta lacked). Off when the meta
+   * already carried the value — the write would be a no-op rewrite.
+   */
+  writeClass?: boolean;
   /** Optional mini-handoff seed for the user workspace open side-effect. */
   sessionNotesSeed?: string;
 }
@@ -432,6 +438,18 @@ async function runGraduateThroughExecutor(
   const metaPath = `${ACTIVE_DIR}/meta-${params.name}.md`;
   const backfilled =
     (await ctx.reconcileMeta?.(metaPath, { "Current Workflow": PLANNING_WORKFLOWS[0] })) ?? [];
+  // Persist a caller-supplied Class the stub's meta lacked — the same core-table
+  // seam the planning-finalize ceremonies write through. The guard validated the
+  // value upstream; a missing seam is an internal wiring error, not operator-facing.
+  if (params.writeClass === true) {
+    if (ctx.writeClassField === undefined) {
+      return {
+        status: "rejected",
+        reason: "`start --class` requires the executor's Class-write seam (internal wiring error).",
+      };
+    }
+    await ctx.writeClassField(metaPath, params.cls);
+  }
   // Set the planning-entry stage pointer explicitly, mirroring the fresh scaffold.
   // The backfill above only *inserts* absent bullets, but every stub-minted meta
   // already carries a present `Current Workflow: [none]`, so it can't advance the
