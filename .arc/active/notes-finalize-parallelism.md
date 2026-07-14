@@ -295,6 +295,85 @@ latent-defect pattern). These surfaces are consumed (blast radius 1–2 above), 
 `arc start` while the probes and FP are in flight, and a Phase 7 fix would reach `main` only at FP's own
 integration — after all waves. Lean: extract as a dedicated fix WU off `main` before wave 2.
 
+### Dogfood finding (2026-07-13): worktree self-teardown terminates the session — a substrate/lifecycle seam
+
+**Open design question, not a defect.** Surfaced at probe-b's real integration tail (PR #235, the first attended
+integrate-and-teardown observed from inside a spawned linked worktree). The ship itself was flawless — merged,
+archived to `completed/2026-q3/13_burn-in-probe-b/`, branch + worktree reaped, nothing lost. The finding is about
+*how* the terminal ceremony behaves, and it wants a product decision before GA. **Coordinate downstream with
+`wu-lifecycle-state-model`** (it owns the lifecycle-state surface this touches).
+
+**What happened.** `integrate-work-unit.md` Step 14 runs `arc teardown <wu>` post-merge. When that teardown removes
+the linked worktree the session occupies (a *self-teardown*), the session's cwd is deleted out from under it and
+the session terminates — which the workflow explicitly documents ("the session terminates here: start a fresh
+session in another worktree"). The agent read this correctly and warned up front. The rough surface is harness-side:
+the Codex harness process stayed in the removed cwd, so its `PostToolUse` / `Stop` hooks and skills-reload all
+failed with `No such file or directory (os error 2)` — a cascade of cryptic errors rather than a clean "shipped;
+this session is done" signal.
+
+**Why the CLI's own guard doesn't cover it.** `reconcile-worktree.ts` self-teardown handling calls
+`process.chdir(primary)` *before* `git worktree remove` — but that hops only the **arc CLI subprocess's** cwd so its
+own remaining git ops succeed. It cannot move the **parent harness process**, which is the one left stranded. This is
+the same structural class as the 2026-07-05 relocate-desync finding: a child process cannot reconfigure its parent's
+cwd/terminal. A full fix of the *harness* symptom is above ARC's layer.
+
+**probe-A comparison (recollection was that A didn't hit this).** Unconfirmed and the evidence leans the other way:
+both probes ran identical lifecycle-commit sequences, teardown is physical (branch delete + worktree remove + prune)
+so it leaves **no commit** in either history, and **both probes' evidence logs stop before any teardown record** —
+consistent with both sessions self-terminating at teardown. The alarming ENOENT cascade is harness-runtime, never
+captured in ARC artifacts, so if A genuinely felt different the likely cause is the harness driving the final reap
+(Claude's per-worktree `.claude/` vs Codex's primary-resolved `.codex/` hooks fail differently when the cwd
+vanishes) or A's reap running from a different locus. A bounded rollout-log check next session could settle it;
+explicitly **not** worth a rabbit-hole.
+
+**Why this is a genuine seam, not messaging.** The lifecycle model (handoff, land-on-base, decide-what's-next) was
+built for the *branch* substrate, where "leave the work" is a free ref switch. Worktrees add a *physical* substrate:
+you cannot stand in the directory you are deleting. So worktree-WU completion **cannot** be made symmetric with
+in-place / errand completion *from within the worktree* — the asymmetry is irreducible at that locus. Two angles
+converge on the same resolution:
+
+- **Symmetry.** In-place WU / errand completion reaps the branch (a ref), lands you on `main`, session alive, ready
+  for handoff / housekeep / errand. Recovering that for a worktree WU requires the final reap to be performed by a
+  **primary** session, not the worktree session.
+- **Lifecycle integrity.** Self-teardown bypasses `session-handoff` entirely (no `Commit at Handoff` baseline, no
+  WORKING-MEMORY review, no notes push, no clean next-action moment). **Do not anchor the justification on
+  notes-sync** — git notes are the interim bridge to `arc-backend` (`strategy-storage-evolution`, `draft-arc-backend`,
+  `draft-local-mode`, `RELEASE-GATES`). The durable justification is **physical and arc-backend-invariant**: a
+  worktree stays a directory-you-can't-delete-from-within regardless of where WU state lives.
+
+**Refined design direction (settled far enough to hand off; details are the next session's).** Decouple the
+ARC-ceremony work from the physical worktree removal, so the terminal state is *"shipped, pending physical
+teardown"* and the bare directory is a disposable husk:
+
+- The worktree is **already fully disposable** in the current design. The one worktree-coupled teardown step —
+  `reconcileLinkedIdentityGlobalUserSurfaces` — is a **legacy safety net** (its docstring: for worktrees "created
+  before identity-global user surfaces were bound to the primary checkout"). Post-BI-6, WORKING-MEMORY / USER-INBOX
+  are primary-bound and SESSION-NOTES is per-WU (retired by `arc user close`), so a current spawned worktree carries
+  **no exclusive state**. Every other teardown step (branch delete, remote-head delete, prune) is a ref op that does
+  not need the worktree.
+- **Bless manual deletion as a first-class, idempotent path.** ARC must not gate an operation the developer can
+  already perform (Herdr's delete-worktree button, `git worktree remove`, `rm -rf` + `git worktree prune`). Reframe
+  `arc teardown`'s physical step as *convenience automation over a manual operation*, with the primary's
+  stale-worktree sweep (exercised in Task 3.3) as the "if you didn't, I'll get it eventually" backstop. A tool that
+  makes you wait for its blessing to delete a directory would read as gratuitous friction.
+- **Ordering wrinkle to resolve.** git refuses to delete a branch checked out in a worktree (why teardown is
+  worktree-first today). Two decoupling variants: **refs-early husk** — switch the worktree off its branch, reap
+  branch/remote/prune at ship, leave a detached directory so a manual delete leaves *nothing* dangling (closest to
+  the ideal); vs **physical-deferred** — keep branch+worktree+prune together in the deferred reap, so a manual `rm`
+  removes the dir but leaves refs for the next sweep. Pick at design time.
+- **Legibility gap (→ `wu-lifecycle-state-model`).** A session-init *inside* the shipped worktree today finds the
+  archived meta and falls to the orphan path. It should recognize *"shipped — pending teardown; reap me or just
+  delete me."* That WU owns whether this is a real state value or an annotation.
+
+**Two tracks, and the gate between them.** (a) *Cheap interim:* an errand off `main` that surfaces the CLI's
+already-computed `locusHopped` bit as a clean self-teardown notice ("this removed the worktree this session
+occupied — its cwd is gone; start a fresh session in the primary"), so wave 2 could dogfood improved messaging. (b)
+*Structural:* the decouple-and-bless-manual design above. **Decide interim-only vs. structural vs. both** before
+spending either — hold the messaging errand until that call, so it isn't superseded by the structural fix.
+Seam-routing character: observed-only (the ship succeeded; nothing downstream in FP consumes it broken), so absent
+the structural decision it is a Phase 7 / owning-WU candidate, not a wave-2 blocker. Also feed the harness-cwd
+casualty into the incident playbook (Task 8.2) as a known operational limitation.
+
 ## Wave-1 induction evidence
 
 Deliberate 3.2 matrix-cell inductions (distinct from the opportunistic 2026-07-09 harvest above). Raw command
