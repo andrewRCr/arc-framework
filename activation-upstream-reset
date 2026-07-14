@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "activation-upstream-reset",
-  "origin": "inbox",
-  "intent": "Clear inherited plan upstream during activation branch rename",
-  "branch": "fix/activation-upstream-reset",
-  "createdAt": "2026-07-14T21:52:56.631Z",
-  "originEntry": "Clear the stale plan upstream when activation renames a branch"
-}
