@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "housekeep-backlog-routing",
+  "origin": "description",
+  "intent": "Route general USER-INBOX work-unit captures to existing backlog homes",
+  "branch": "chore/housekeep-backlog-routing",
+  "createdAt": "2026-07-14T19:37:15.133Z"
+}
