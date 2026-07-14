@@ -292,37 +292,24 @@ detached checkout remains ordinary detached `HEAD`.
 - _Outcome:_ Detached topology remains outside the shared roster while session-init can distinguish every trusted
   terminal subject and preserve indeterminate scans as explicit warnings.
 
-### `[ ]` **3.2 Derive the current-locus husk advisory in the session-init probe**
+### `[x]` **3.2 Derive the current-locus husk advisory in the session-init probe**
 
 - _Goal:_ Session initialization can identify that its detached cwd is a shipped stamped husk and name the completed
   work unit without changing the meaning of the existing `detached-head` sync state.
-- **Additional Context:** `notes-worktree-teardown-decoupling.md` § Implementation loci.
+    - `[x]` **3.2.a Add a pure current-husk derivation**
+        - Added an exact-evidence derivation requiring branchless state, a valid WU stamp, matching live `HEAD`, and
+          local completed membership; every incomplete or untrusted evidence set returns no advisory.
 
-    - `[ ]` **3.2.a Add a pure current-husk derivation**
-        - Add `packages/arc-framework/src/lib/session-init/current-husk-advisory.ts` and combine a branch-null current
-          worktree (the `detached-head` state, plus the disabled-sync `skipped` arm), its valid husk-stamped marker, live
-          `HEAD` equality, a stamped `work-unit` subject, and local `completed/` membership into an optional advisory
-          value.
+    - `[x]` **3.2.b Thread the derived payload through status orchestration**
+        - Added a linked-and-branch-null-gated `currentHusk` probe and optional session-init slot without widening sync
+          state or adding marker/archive reads to ordinary branched resumes.
 
-        - Return no advisory for a markerless, malformed, unstamped, moved-`HEAD`, or non-completed worktree so those
-          sessions retain the ordinary detached-head surface.
+    - `[x]` **3.2.c Prove advisory specificity test-first**
+        - Covered matching and non-matching marker, stamp, head, subject, completion, worktree-locus, sync-state, and
+          probe-degradation cases through the pure derivation and status envelope.
 
-    - `[ ]` **3.2.b Thread the derived payload through status orchestration**
-        - Add a linked-and-branch-null-gated `currentHusk` probe and optional
-          `Probe<{ worktreePath: string; subject: { kind: "work-unit"; name: string } } | null>` result across
-          `packages/arc-framework/src/commands/status/types.ts`, `run.ts`, and `handlers/status.ts`; do not add another
-          `WorktreeSyncStatusResult.state` value or make the common branched-resume path pay for marker/archive reads.
-
-        - Document the optional payload as an interim derived orientation signal that a future locus record may
-          supersede.
-
-    - `[ ]` **3.2.c Prove advisory specificity test-first**
-        - Build `test-first` (one behavior at a time):
-            - A matching stamped completed WU emits the derived advisory.
-
-            - Markerless, malformed, unstamped, moved-`HEAD`, and non-completed worktrees emit no advisory.
-
-            - Probe degradation and every non-detached arm omit the optional envelope payload safely.
+- _Outcome:_ A session inside an exact completed-WU husk now receives a narrowly derived terminal identity while all
+  other detached checkouts retain the existing generic orientation contract.
 
 ### `[ ]` **3.3 Render husk cleanup and orientation guidance in session initialization**
 

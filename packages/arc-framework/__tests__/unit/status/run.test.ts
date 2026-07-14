@@ -356,6 +356,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     user: vi.fn(async () => userSessionInit()),
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
+    currentHusk: vi.fn(async () => null),
     baseDistance: vi.fn(async () => baseDistance()),
     baseBranchSync: vi.fn(async () => baseBranchSync()),
     supersession: vi.fn(async () => supersessionResult()),
@@ -2060,6 +2061,58 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
     if (result.sweep && !result.sweep.ok) {
       expect(result.sweep.error.message).toBe("sweep boom");
     }
+    expect(result.worktree.ok).toBe(true);
+  });
+});
+
+describe("runSessionInitStatus — current-husk advisory gating", () => {
+  it.each(["detached-head", "skipped"] as const)(
+    "emits the advisory for a linked branchless %s worktree",
+    async (state) => {
+      const advisory = {
+        worktreePath: "/wt/shipped",
+        subject: { kind: "work-unit" as const, name: "shipped" },
+      };
+      const probes = sessionInitProbes({
+        worktree: vi.fn(async () => worktreeSync({ state, branch: null })),
+        worktreeIdentity: vi.fn(async () =>
+          worktreeIdentity({ kind: "linked", path: "/wt/shipped" })),
+        currentHusk: vi.fn(async () => advisory),
+      });
+
+      const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+      expect(probes.currentHusk).toHaveBeenCalledWith("/wt/shipped");
+      expect(result.currentHusk).toEqual({ ok: true, value: advisory });
+    },
+  );
+
+  it.each([
+    ["linked branched", worktreeSync({ state: "clean", branch: "feat/current" }), { kind: "linked", path: "/wt/current" }],
+    ["primary detached", worktreeSync({ state: "detached-head", branch: null }), { kind: "primary" }],
+  ] as const)("omits the probe on the %s arm", async (_label, worktreeValue, identityValue) => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeValue),
+      worktreeIdentity: vi.fn(async () => identityValue),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.currentHusk).not.toHaveBeenCalled();
+    expect("currentHusk" in result).toBe(false);
+  });
+
+  it("omits a degraded advisory without rejecting session-init", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "detached-head", branch: null })),
+      worktreeIdentity: vi.fn(async () =>
+        worktreeIdentity({ kind: "linked", path: "/wt/shipped" })),
+      currentHusk: vi.fn(async () => { throw new Error("marker read failed"); }),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect("currentHusk" in result).toBe(false);
     expect(result.worktree.ok).toBe(true);
   });
 });
