@@ -133,11 +133,9 @@ gating and delegation shim only after parity is demonstrated.
         - Replaced the Bash grammar with configuration and merge gates, repository-local/global CLI resolution, exact
           `check commit-msg` delegation, and fail-closed remediation while forwarding delegated status unchanged.
 
-    - `[ ]` **2.2.c Synchronize the shipped and self-hosted hook copies**
-        - Edit `packages/arc-framework/arc/system/.internal/githooks/commit-msg` as the authoritative Framework file and
-          apply the matching change to `.arc/system/.internal/githooks/commit-msg`.
-        - Verify the tracked source copies are byte-identical regular files; verify `arc init` / update installation
-          applies executable mode and the installed integrity check recognizes the resulting hook.
+    - `[x]` **2.2.c Synchronize the shipped and self-hosted hook copies**
+        - Kept the package-authoritative and self-hosted hooks byte-identical as regular source files, centralized
+          executable installation policy across init and update, and covered installed integrity recognition.
 
     - `[ ]` **2.2.d Preserve the minimal first-release shim contract**
         - Cover the matched CLI and a resolved CLI without the verb; accept the latter's unknown-command failure without

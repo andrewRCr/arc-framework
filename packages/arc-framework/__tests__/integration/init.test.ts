@@ -376,6 +376,16 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     }
   });
 
+  it("installs a commit-msg hook accepted by the integrity verifier", async () => {
+    const verifier = join(arcDir, "system/.internal/scripts/verify-integrity.sh");
+
+    const stdout = await execFileAsync("bash", [verifier], { cwd: tempDir })
+      .then((result) => result.stdout)
+      .catch((cause: unknown) => (cause as { stdout?: string }).stdout ?? "");
+
+    expect(stdout).toContain("commit-msg hook: exists and executable");
+  });
+
   // --- Pristine Store ---
 
   it("pristine store includes Framework and Configurable files", async () => {

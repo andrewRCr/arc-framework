@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp } from "node:fs/promises";
+import { chmod, mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 
 import {
@@ -104,6 +104,20 @@ describe("update integration — baseline (real recipe)", () => {
 
     const manifest = await readManifestFile(tempDir);
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
+  });
+
+  it("restores executable permissions on installed hooks", async () => {
+    const hook = join(tempDir, ".arc/system/.internal/githooks/commit-msg");
+    await chmod(hook, 0o644);
+
+    await runUpdate({
+      cwd: tempDir,
+      io: makeIOContext(tempDir),
+      templateDir: realTemplateDir,
+      recipe: await loadRecipe(),
+    });
+
+    expect((await stat(hook)).mode & 0o100).toBeTruthy();
   });
 
   it("re-update on post-restructure .arc/ is idempotent for per-file methods/extensions", async () => {
