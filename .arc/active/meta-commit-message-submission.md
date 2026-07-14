@@ -12,7 +12,8 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Planned stub created from the recurring commit-message submission friction capture.
+- **Last Completed:** Draft captured formalization-ready (adversarial loop converged, two passes); Class resolved
+  Heavy.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
