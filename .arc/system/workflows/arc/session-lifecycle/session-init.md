@@ -856,6 +856,7 @@ tracked source documents the work.
     `git worktree remove {worktreePath}`
   - `branch husk {subject.ref}` — {dirty | HEAD moved}; surfaced, not removed
   - `errand husk {subject.slug}` — {dirty | HEAD moved}; surfaced, not removed
+  - `{husk label}` — untrusted terminal evidence; surfaced for manual-only cleanup
   ```
 
 - `orphanBranchSweep.value.orphans` non-empty (primary worktree only): type-prefixed local branches whose
