@@ -337,6 +337,8 @@ arc release commit -F - <<'ARC_COMMIT_MESSAGE'
 feat(scope): sufficiently descriptive subject
 
 - Explain the change and its impact.
+
+Context: standalone (maintenance)
 ARC_COMMIT_MESSAGE
 
 # Validate a message file or stdin independently; add --json for a machine envelope
