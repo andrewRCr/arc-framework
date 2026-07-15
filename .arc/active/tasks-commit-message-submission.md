@@ -323,7 +323,7 @@ cross-surface first-release checks without leaking transport mechanics into work
           release sections differ only in their established project link style. All changed documentation passes Markdown
           lint, and shipped additions contain no internal work-unit references or implementation-only migration framing.
 
-### `[ ]` **4.2 Reconcile setup guidance and inherited commit flows**
+### `[x]` **4.2 Reconcile setup guidance and inherited commit flows**
 
 - _Goal:_ Harness setup examples permit the canonical transport where their matcher can express it, while existing
   commit workflows inherit the guidance without duplicating or contradicting it.
@@ -339,13 +339,10 @@ cross-surface first-release checks without leaking transport mechanics into work
           frontmatter. Both package/self-hosted pairs are synchronized and contain no direct commit invocation that
           bypasses the transport authority, so no guidance edit was required.
 
-    - `[ ]` **4.2.c Preserve content-only workflow fire-points**
-        - Search workflow commit fire-points for transport instructions and confirm they still supply only the message
-          body and class tag.
-        - Update both Framework copies of `strategy-workflow-authoring.md` so the agent selects the routed command and
-          loads transport from `commit-format`, removing its direct `git commit -m` recommendation.
-        - Keep shell invocation mechanics out of lifecycle and task-processing workflow prose; edit no fire-point unless
-          the search finds an actual contradiction.
+    - `[x]` **4.2.c Preserve content-only workflow fire-points**
+        - Updated both Framework authoring strategies so routed command selection loads transport from `commit-format`
+          while fire-points retain only class tags and message bodies. A package/self-hosted workflow search found no
+          embedded commit transport outside the dedicated setup workflow, so no fire-point required editing.
 
 ### `[ ]` **4.3 Amend the accepted release-wrapper trust record**
 
