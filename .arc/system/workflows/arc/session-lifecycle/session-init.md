@@ -376,8 +376,9 @@ primary; otherwise the primary's base, per `resolveWriteContext`), and the Erran
    adopt that capture as the originating entry. Launch classifies errand-vs-Work-Unit (with the stop-and-route
    exit when the work is really a Work Unit), runs the advisory `arc errand check` overlap, and resolves the
    base + relocates by opening the `chore/<slug>` branch off `branch.base` (default `main`) via
-   `arc errand open <slug>` (folds cut→occupy; add `--from-inbox <entry-title>` when the seed is a flagged
-   capture, so the adopted entry drops at `arc errand close`) in this worktree;
+   `arc errand open <slug>` (folds cut→occupy; adopt a flagged capture with `--from-inbox <entry-title>`, or with
+   `--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title, so the adopted entry drops at
+   `arc errand close`) in this worktree;
    its Execute phase runs the Errand as a normal review increment.
 4. **Orient on the Errand.** Frame the Step 6 summary on the Errand — its goal, the `chore/<slug>` branch, and
    any coordination caveat — rather than on a work unit, then continue into the Errand as the session's work.

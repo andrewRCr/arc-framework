@@ -298,7 +298,8 @@ arc base sync [--json]
 arc plan check
 
 # Errand lifecycle — chore/<slug> branch, no meta (run-errand.md)
-arc errand open <slug> [--type <fix|chore|refactor|hotfix>] [--intent <text>] [--from-inbox <entry>]
+arc errand open <slug> [--type <fix|chore|refactor|hotfix>] [--intent <text>] [--from-inbox <entry>] [--inbox-entry-file <path|->]
+arc errand link <slug> (--from-inbox <entry> | --inbox-entry-file <path|->)
 arc errand close <slug>
 arc errand promote <slug>
 arc errand retire <slug>

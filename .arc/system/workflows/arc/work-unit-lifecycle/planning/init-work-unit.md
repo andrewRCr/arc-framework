@@ -320,7 +320,8 @@ unit from the base, and carry any landed errand commit as context in the new WU'
    ```
 
    When the errand was adopted from a `USER-INBOX` entry (recorded as the errand's origin back-pointer), drop
-   that entry now — the intent is a tracked WU: `arc user inbox-remove {origin-entry}` (idempotent; a no-op for a
+   that entry now — the intent is a tracked WU: `arc user inbox-remove {origin-entry}` (or
+   `--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title; idempotent and a no-op for a
    free-description errand).
 
 5. **Push the WU branch; retire the old remote ref.**
