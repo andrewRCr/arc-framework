@@ -635,12 +635,18 @@ seam rule in `notes-finalize-parallelism.md`.
           `Depends On` list, which the 120-wrap check needs — pick the vehicle and the deps question together
           at 4.3.a.
 
-### `[ ]` **4.2 Verify off-primary node quality gates and dependency provisioning**
+### `[x]` **4.2 Verify off-primary node quality gates and dependency provisioning**
 
 - _Goal:_ typecheck / test / build / lint run green in a BI-1-provisioned spawned worktree — the flip-decisive
   `node_modules` gap is closed in practice, with no bare-`npx arc` foreign-registry edge.
 
-    - `[ ]` **4.2.a Run the full gate set off-primary and confirm green**
+    - `[x]` **4.2.a Run the full gate set off-primary and confirm green**
+        - Two evidence legs, both BI-1-provisioned wave-2 worktrees. First-hand: the live `commit-message-submission`
+          worktree ran the full set (markdown/TS/shell lint, both typecheck configs, build, full test suite) all green,
+          with `node_modules/.bin/arc` resolving locally — no foreign-registry edge. Retrospective: `worktree-teardown-decoupling`
+          ran its entire lifecycle off-primary — per-task gates through Tier 3 verification plus portability and
+          integration/E2E CI — and shipped (PR #246, archived record). Collection was retrospective for the WTD leg;
+          its worktree was already torn down when FP resumed.
 
 ### `[ ]` **4.3 Re-graduate a WU to verify BI-4's ceremony-locus fix**
 
@@ -681,6 +687,12 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
 
 - _Goal:_ Two Light code WUs (provisional `ci-cross-platform-hardening` + one further pick) and a live errand
   drain session run alongside FP, creating real primary-singleton contention.
+- _Context:_ Slate consideration (consumed from USER-INBOX, 2026-07-14): prefer `cli-test-hardening` — already
+  `Light`, with bounded sacrificial scope (stabilize the notes-compaction fixture, retry-safe temp-repo cleanup,
+  reverify the shallow-clone timeout, discard stale race scope) — for a code slot over the provisional
+  `ci-cross-platform-hardening` pick, whose `[TBD]` class and cross-platform shakeout may expand. Never pair both
+  full scopes in one wave (shared test/CI infrastructure and a named save/sync race overlap): swap, or sharply
+  partition both before the slate cut. Decide at 5.1.a.
 
     - `[ ]` **5.1.a Confirm the wave-3 slate and launch (incl. the errand drain session)**
 
