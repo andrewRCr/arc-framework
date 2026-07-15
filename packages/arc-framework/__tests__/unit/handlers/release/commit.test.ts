@@ -155,6 +155,7 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
     createMessageSnapshot: opts.createMessageSnapshot ?? (() => {
       throw new Error("createMessageSnapshot must not be called without a captured file source");
     }),
+    preflightRemedy: "arc release commit -F <message-file>",
   };
   return { deps, stderr, spawnGit, resolveHead, preflightCommitMessage };
 }
@@ -449,7 +450,7 @@ describe("runReleaseCommit — success path", () => {
     "refuses %s preflight before spawning Git",
     async (reason) => {
       await writeStatus(fixture.root, "sample");
-      const { deps, spawnGit } = buildDeps(fixture.root, {
+      const { deps, spawnGit, stderr } = buildDeps(fixture.root, {
         argv: ["-am", "secret"],
         settings: authorizingSettings(),
         preflightCommitMessage: () => Promise.resolve({
@@ -463,6 +464,14 @@ describe("runReleaseCommit — success path", () => {
 
       expect(result.exitCode).toBe(16);
       expect(spawnGit).not.toHaveBeenCalled();
+      expect(stderr.join("")).toBe([
+        `preflight ${reason}`,
+        "Refused: commit-message-preflight-failed (code 16)",
+        `Commit-message preflight failed (${reason}).`,
+        "Correct the commit-message input and retry.",
+        "arc release commit -F <message-file>",
+        "",
+      ].join("\n"));
       const [entry] = await readAuditEntries(fixture.root);
       expect(entry).toMatchObject({
         args: ["-am", "<redacted>"],

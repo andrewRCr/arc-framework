@@ -133,6 +133,8 @@ export interface ReleaseCommitDeps {
   preflightCommitMessage: PreflightCommitMessage;
   /** Creates a private worktree-Git-dir snapshot for captured file sources. */
   createMessageSnapshot: CreateCommitMessageSnapshot;
+  /** Wrapper-only safe resubmission guidance selected for the resident harness. */
+  preflightRemedy: string;
   /** Sink for refusal messages. Defaults to `process.stderr.write`. */
   writeStderr?: (msg: string) => void;
   /** Audit-entry writer. Defaults to {@link appendAuditEntry}. */
@@ -269,7 +271,7 @@ async function refusePreflight(
     identifier: "commit-message-preflight-failed",
     reason,
   };
-  ctx.writeStderr(`${message}\n${formatRefusal(refusal)}\n`);
+  ctx.writeStderr(`${message}\n${formatRefusal(refusal)}\n${ctx.deps.preflightRemedy}\n`);
   const auditResult = await ctx.appendAudit({
     cwd: ctx.deps.cwd,
     identity: ctx.deps.identity,

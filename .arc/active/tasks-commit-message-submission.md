@@ -203,7 +203,7 @@ message bytes when the subsequent Git invocation fails.
 - _Outcome:_ Deterministic argv/file/stdin forms now converge on the exact bytes Git exposes to `commit-msg`; ambiguous,
   modified, encoding-unsafe, and editor-bound forms remain explicitly demoted or refused without guessed parsing.
 
-### `[ ]` **3.2 Integrate preflight into the release-commit cascade**
+### `[x]` **3.2 Integrate preflight into the release-commit cascade**
 
 - _Goal:_ Deterministic invalid messages stop after release authorization but before `spawnGit`, with the same findings
   the installed hook would emit and a distinct audited refusal.
@@ -228,11 +228,14 @@ message bytes when the subsequent Git invocation fails.
           outcomes; an injected Git-path/executable probe also demotes runnable `prepare-commit-msg` hooks before source
           capture, preserving disabled, merge, and mutation-hook parity.
 
-    - `[ ]` **3.2.e Surface the safe resubmission shape on preflight failure**
-        - Append the quoted-heredoc `-F -` remedy to wrapper-surface diagnostics, using the plain `-F <file>` form where
-          the resident harness matcher cannot allow redirection syntax.
-        - Keep validator findings byte-for-byte identical across wrapper and `arc check`; the transport remedy is the
-          only wrapper-specific addition.
+    - `[x]` **3.2.e Surface the safe resubmission shape on preflight failure**
+        - Appended harness-aware retry guidance after the canonical findings and refusal: Codex or unknown setup uses a
+          prepared `-F <file>`, while compatible recorded harnesses receive the quoted-heredoc `-F -` form; exact-output
+          tests pin the validator message as the unchanged prefix.
+
+- _Outcome:_ Authorized deterministic messages now validate once before Git and retain one captured transport through
+  execution; failures audit distinctly and return harness-safe retry guidance, while exemptions and mutating hooks
+  continue through the installed Git path without duplicated policy authority.
 
 ### `[ ]` **3.3 Persist and surface the worktree-local retry message**
 

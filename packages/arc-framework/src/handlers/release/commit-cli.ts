@@ -20,6 +20,8 @@ import { formatError, UserFacingError } from "../../lib/errors.js";
 import { execFileAsync, gitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
+import { readMarker } from "../../lib/release/setup-marker.js";
+import { renderCommitMessageRemedy } from "../../lib/release/commit-message-remedy.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
 
 import {
@@ -68,6 +70,8 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
   });
 
   const currentBranch = (await resolveCurrentBranchName(gitExec)) ?? "";
+  const marker = await readMarker({ cwd, identity });
+  const preflightRemedy = renderCommitMessageRemedy(marker.ok ? marker.marker.harnesses : []);
 
   const result = await runReleaseCommit({
     cwd,
@@ -78,6 +82,7 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
     spawnGit: realSpawnGit,
     resolveHead: realResolveHead,
     createMessageSnapshot: createRealCommitMessageSnapshot,
+    preflightRemedy,
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: process.stdin.isTTY,
       readFile: (path) => readFile(path),
