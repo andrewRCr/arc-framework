@@ -46,4 +46,3 @@ and IDE-integrated commits often use a restricted PATH; version manager shims
 must also be initialized for that environment.
 EOF
 exit 1
-
