@@ -128,6 +128,10 @@ export function runArcWithStdin(
     const stderr: Buffer[] = [];
     child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    // The command may exit before buffered input drains; consume only the expected EPIPE.
+    child.stdin.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code !== "EPIPE") rejectResult(err);
+    });
     child.stdin.end(stdin);
 
     const timer = setTimeout(() => {

@@ -7,14 +7,26 @@ describe("resolveInboxEntryOperand", () => {
     vi.resetAllMocks();
   });
 
-  it("preserves the existing literal operand path", async () => {
+  it("preserves literal boundary whitespace without reading another source", async () => {
     const readFile = vi.fn();
     const readStdin = vi.fn();
 
     await expect(resolveInboxEntryOperand(
-      { literal: "Ordinary capture title" },
+      { literal: "  Ordinary capture title  " },
       { readFile, readStdin },
-    )).resolves.toBe("Ordinary capture title");
+    )).resolves.toBe("  Ordinary capture title  ");
+    expect(readFile).not.toHaveBeenCalled();
+    expect(readStdin).not.toHaveBeenCalled();
+  });
+
+  it("rejects a literal title containing a trailing newline", async () => {
+    const readFile = vi.fn();
+    const readStdin = vi.fn();
+
+    await expect(resolveInboxEntryOperand(
+      { literal: "Ordinary capture title\n" },
+      { readFile, readStdin },
+    )).rejects.toThrow("must be a single line");
     expect(readFile).not.toHaveBeenCalled();
     expect(readStdin).not.toHaveBeenCalled();
   });

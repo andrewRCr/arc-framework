@@ -31,8 +31,9 @@ const defaultIO: InboxEntryOperandIO = {
  * Resolve one exact USER-INBOX entry title from a literal or file-backed source.
  *
  * A file path of `-` reads stdin. One conventional trailing line ending is
- * discarded; embedded line endings are rejected because inbox titles are
- * single-line values.
+ * discarded from file/stdin content; literal operands are preserved exactly.
+ * Embedded line endings are rejected because inbox titles are single-line
+ * values.
  *
  * @param operand - The mutually exclusive literal and file-backed sources.
  * @param io - Injectable filesystem and stdin boundary.
@@ -53,12 +54,11 @@ export async function resolveInboxEntryOperand(
     : operand.file === "-"
       ? await io.readStdin()
       : await io.readFile(operand.file ?? "");
-  const withoutTerminator = raw.replace(/\r?\n$/, "");
-  if (withoutTerminator.includes("\0") || /[\r\n]/.test(withoutTerminator)) {
+  const title = hasLiteral ? raw : raw.replace(/\r?\n$/, "");
+  if (title.includes("\0") || /[\r\n]/.test(title)) {
     throw new Error("The inbox entry title must be a single line without NUL bytes.");
   }
-  const title = withoutTerminator.trim();
-  if (title === "") throw new Error("The inbox entry title must not be empty.");
+  if (title.trim() === "") throw new Error("The inbox entry title must not be empty.");
   return title;
 }
 
