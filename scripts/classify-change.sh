@@ -95,10 +95,18 @@ readonly PORTABILITY_SURFACE_GLOBS=(
 # include the `(<os>)` suffix the runner appends to the job name). A drift fails
 # safe to heavy but silently defeats the skip, so the two surfaces move together.
 readonly HEAVY_CHECK_NAMES=(
-  "Lint, Typecheck & Unit Tests"
-  "Integration & E2E Tests"
+  "Lint & Typecheck"
+  "Unit Tests"
+  "Integration Tests"
+  "E2E Tests"
   "Portability (concurrency guards) (ubuntu-latest)"
 )
+
+# Upper bound on Checks-API fetches during the verified-tree lookback. Each
+# same-tree commit costs a paginated API call; a deep stack of tree-identical
+# commits would otherwise stretch the classify job by ~2s per commit. Hitting
+# the cap leaves the fail-safe heavy default in place — never a wrong skip.
+readonly LOOKBACK_MAX_FETCHES=8
 
 # True when $1 matches any glob in the remaining args (glob match, not literal).
 _matches_any() {
@@ -450,11 +458,13 @@ cmd_decide() {
     reason=unverified
     local head_hash
     if head_hash="$(_code_tree_hash "${head}")"; then
-      local sha sha_hash runs
+      local sha sha_hash runs fetches=0
       while IFS= read -r sha; do
         [[ -z "${sha}" ]] && continue
         sha_hash="$(_code_tree_hash "${sha}")" || continue
         [[ "${sha_hash}" != "${head_hash}" ]] && continue
+        (( fetches >= LOOKBACK_MAX_FETCHES )) && break
+        fetches=$((fetches + 1))
         runs="$(_fetch_check_runs "${sha}")"
         if _all_heavy_checks_passed "${runs}"; then
           weight=light

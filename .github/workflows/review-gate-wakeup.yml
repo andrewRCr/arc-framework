@@ -8,6 +8,15 @@ on:
 
 permissions: {}
 
+# Collapse per-comment event bursts: one relay running, one pending per pull
+# request; further events replace the pending relay. Safe because the relay is
+# a pure wake-up hint — the controller re-queries canonical state, and a missed
+# event only delays reconciliation until its scheduled repair. Never cancels a
+# running relay.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   relay:
     permissions: {}

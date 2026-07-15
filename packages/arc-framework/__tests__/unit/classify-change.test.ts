@@ -566,8 +566,10 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
 
   /** Heavy check-run display names — must mirror HEAVY_CHECK_NAMES in classify-change.sh. */
   const HEAVY_CHECKS = [
-    "Lint, Typecheck & Unit Tests",
-    "Integration & E2E Tests",
+    "Lint & Typecheck",
+    "Unit Tests",
+    "Integration Tests",
+    "E2E Tests",
     "Portability (concurrency guards) (ubuntu-latest)",
   ];
 
@@ -677,7 +679,51 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     });
   });
 
-  const TARGET = "Integration & E2E Tests";
+  /**
+   * A layered repo padded with `docsCommits` additional docs-only commits above
+   * the verified code commit, so the lookback must fetch through that many
+   * same-tree commits before reaching the green run.
+   */
+  async function paddedRepo(docsCommits: number): Promise<{
+    repo: string;
+    checksDir: string;
+    base: string;
+    code: string;
+    head: string;
+  }> {
+    const { repo, checksDir, base, code } = await layeredRepo();
+    let head = "";
+    for (let i = 0; i < docsCommits; i += 1) {
+      head = await writeAndCommit(repo, { "README.md": `docs v${i + 2}\n` }, `docs ${i + 2}`);
+    }
+    return { repo, checksDir, base, code, head };
+  }
+
+  it("still finds the green run at the last fetch inside the lookback cap", async () => {
+    // layeredRepo has 1 docs commit; 6 more put the green code commit at
+    // same-tree fetch #8 — the LOOKBACK_MAX_FETCHES boundary itself.
+    const { repo, checksDir, base, code, head } = await paddedRepo(6);
+    await injectChecks(checksDir, code, allGreen());
+
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
+      weight: "light",
+      reason: "verified",
+    });
+  });
+
+  it("is heavy/unverified (fail-safe) when the green run sits beyond the lookback cap", async () => {
+    // 7 more docs commits put the green code commit at same-tree fetch #9,
+    // one past the cap; the bounded lookback must give up, not keep fetching.
+    const { repo, checksDir, base, code, head } = await paddedRepo(7);
+    await injectChecks(checksDir, code, allGreen());
+
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  const TARGET = "E2E Tests";
 
   it("uses the latest duplicate check run when reruns share a display name", async () => {
     const { repo, checksDir, base, code, head } = await layeredRepo();
