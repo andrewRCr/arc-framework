@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "standalone-code-review-footer",
+  "origin": "inbox",
+  "intent": "standalone-code-review-footer",
+  "branch": "chore/standalone-code-review-footer",
+  "createdAt": "2026-07-15T17:15:53.560Z",
+  "originEntry": "Add a review-driven category to the standalone commit-footer set",
+  "returnBranch": "main"
+}
