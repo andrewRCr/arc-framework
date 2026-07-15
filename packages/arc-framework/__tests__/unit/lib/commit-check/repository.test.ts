@@ -47,4 +47,39 @@ describe("createDefaultCommitCheckRepository", () => {
       reason: "merge-in-progress",
     });
   });
+
+  it("routes footer artifact validation through the injected resolver", async () => {
+    const exec: GitExec = async (_command, args) => {
+      const key = args.join(" ");
+      const values: Record<string, string> = {
+        "config --get --default utf-8 i18n.commitEncoding": "utf-8\n",
+        "config --get --default default commit.cleanup": "default\n",
+        "config --get --default maintainer arc.role": "maintainer\n",
+        "rev-parse --path-format=absolute --git-path MERGE_HEAD": "/repo/.git/MERGE_HEAD\n",
+      };
+      const stdout = values[key];
+      if (stdout === undefined) throw new Error(`unexpected git invocation: ${key}`);
+      return { stdout };
+    };
+    const repository = await createDefaultCommitCheckRepository("/repo", {
+      exec,
+      readFile: async () => "hooks.commit_msg: enabled\n",
+      pathExists: async () => false,
+      createArtifactResolver: () => async () => "not-found" as const,
+    });
+
+    const outcome = await validateCommitMessage([
+      "feat(test): route artifact lookup through the repository adapter",
+      "",
+      "Context: spec-missing.md (planning)",
+    ].join("\n"), repository.context);
+
+    expect(outcome).toMatchObject({
+      kind: "validated",
+      verdict: "pass-with-warnings",
+      findings: expect.arrayContaining([
+        expect.objectContaining({ code: "footer.artifact-not-found" }),
+      ]),
+    });
+  });
 });
