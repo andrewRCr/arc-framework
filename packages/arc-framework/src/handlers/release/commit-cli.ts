@@ -40,7 +40,7 @@ export interface HandleReleaseCommitOptions {
 /**
  * `arc release commit` Commander entry point. Resolves the I/O surface
  * needed by the orchestrator and delegates. Refusal paths print to
- * stderr and exit with the matched refusal code (10–13); the authorize
+ * stderr and exit with the matched refusal code (10–13 or message-preflight 16); the authorize
  * path forwards to a wrapped `git commit` invocation that bubbles git's
  * stdout, stderr, and exit code verbatim.
  */
