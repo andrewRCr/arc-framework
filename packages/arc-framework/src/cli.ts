@@ -78,6 +78,10 @@ import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
+  handleCheckCommitMessage,
+  type HandleCheckCommitMessageOptions,
+} from "./commands/check.js";
+import {
   handleReleaseCommit,
   handleReleaseOptIn,
   handleReleaseOptOut,
@@ -95,6 +99,41 @@ program
   .name("arc")
   .description("CLI for installing, updating, and managing ARC framework files")
   .version(getFrameworkVersion());
+
+// --- Checks ---
+
+const checkCmd = program
+  .command("check")
+  .description("Run standalone repository checks");
+
+function isDashPrefixedCheckSourceEscaped(
+  rawArgs: readonly string[],
+  input: readonly string[],
+): boolean {
+  if (input.length !== 1) return false;
+  const commandIndex = rawArgs.findIndex(
+    (value, index) => value === "check" && rawArgs[index + 1] === "commit-msg",
+  );
+  if (commandIndex === -1) return false;
+  const tail = rawArgs.slice(commandIndex + 2);
+  const terminator = tail.indexOf("--");
+  return terminator !== -1
+    && tail.length === terminator + 2
+    && tail[terminator + 1] === input[0];
+}
+
+checkCmd
+  .command("commit-msg")
+  .description("Validate a commit message without committing")
+  .usage("<file | -> [--json]")
+  .argument("[input...]", "Commit-message file path, or - for stdin")
+  .allowUnknownOption(true)
+  .option("--json", "Emit a versioned JSON envelope")
+  .action((input: string[], opts: HandleCheckCommitMessageOptions) =>
+    handleCheckCommitMessage(input, {
+      ...opts,
+      dashPrefixedSourceAllowed: isDashPrefixedCheckSourceEscaped(process.argv, input),
+    }));
 
 // --- Init & Join ---
 

@@ -284,6 +284,26 @@ Trust-model framing, two-layer authorization, wrapper authorization scaffolding,
 umbrella, and bypass-universality clause are unchanged. This is a behavior refinement at the
 caller-side of the matrix surface, not a reversal of the decision.
 
+**2026-07-14 — Commit-message preflight and audit schema v2.** Subsequent wrapper hardening clarified active-WU
+resolution: zero candidates is accepted and audited with `wu: null`; only multiple-candidate ambiguity refuses
+with code `10` (`ambiguous-active-wu`). The refusal family now spans codes `10–16`:
+`ambiguous-active-wu`, `interlock-not-authorized`, `destructive-flag`, `branch-protection-violation`,
+`pushability-precheck-failed`, `arg-grammar-fallthrough`, and `commit-message-preflight-failed`.
+
+Release-commit now captures and assembles author-supplied message input, then runs the canonical commit-message
+validation before invoking Git. Validation failures and input failures refuse with code `16`; the audit outcome is
+`{ kind: "preflight-failed", reason: "validation" | "input" }`. This extends the wrapper's trust check to the
+message bytes crossing the boundary, while the installed Git hook remains defense in depth for post-mutation and
+raw-Git paths.
+
+The new outcome was the forcing function anticipated by the original schema-lock risk. Because no public v1
+consumer contract existed, all release-audit writers and the runtime validator moved together in a clean cutover to
+`schemaVersion: 2`; no v1 reader, mixed-version compatibility layer, or audit-file migration was introduced. The
+decision itself is unchanged: whenever a release wrapper is invoked, its authorization, message preflight where
+applicable, and audit behavior remain unconditional, and the wrapper remains the per-invocation trust boundary.
+The original *Schema lock at v1* risk remains the point-in-time record; this amendment supersedes its version
+reference, and `schemaVersion: 2` is now the locked writer and validator schema.
+
 ---
 
 [adr-016]: adr-016-configurable-autonomy-interlocks-for-session-operations.md

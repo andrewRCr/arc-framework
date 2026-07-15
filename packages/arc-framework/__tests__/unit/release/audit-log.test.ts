@@ -20,6 +20,7 @@ import {
   sanitizeArgs,
   toAuditWorkUnit,
 } from "../../../src/lib/release/audit-log.js";
+import { REFUSAL_IDENTIFIERS } from "../../../src/lib/release/types.js";
 import type { AuditEntry } from "../../../src/lib/release/types.js";
 
 interface Fixture {
@@ -66,7 +67,7 @@ describe("ensureAuditLogParent", () => {
 
 describe("sanitizeArgs — commit-message redaction rules", () => {
   it("redacts the `-m` payload (separated form)", () => {
-    expect(sanitizeArgs(["commit", "-m", "subject"])).toEqual([
+    expect(sanitizeArgs("release-commit", ["commit", "-m", "subject"])).toEqual([
       "commit",
       "-m",
       "<redacted>",
@@ -74,7 +75,7 @@ describe("sanitizeArgs — commit-message redaction rules", () => {
   });
 
   it("redacts the `--message` payload (separated form)", () => {
-    expect(sanitizeArgs(["commit", "--message", "subject"])).toEqual([
+    expect(sanitizeArgs("release-commit", ["commit", "--message", "subject"])).toEqual([
       "commit",
       "--message",
       "<redacted>",
@@ -82,21 +83,28 @@ describe("sanitizeArgs — commit-message redaction rules", () => {
   });
 
   it("redacts `-msubject` attached-short form, preserving the `-m` prefix", () => {
-    expect(sanitizeArgs(["commit", "-msubject"])).toEqual([
+    expect(sanitizeArgs("release-commit", ["commit", "-msubject"])).toEqual([
       "commit",
       "-m<redacted>",
     ]);
   });
 
   it("redacts `--message=subject` attached-long form, preserving the `--message=` prefix", () => {
-    expect(sanitizeArgs(["commit", "--message=subject"])).toEqual([
+    expect(sanitizeArgs("release-commit", ["commit", "--message=subject"])).toEqual([
       "commit",
       "--message=<redacted>",
     ]);
   });
 
+  it.each([
+    { args: ["--m", "secret"], expected: ["--m", "<redacted>"] },
+    { args: ["--mess=secret"], expected: ["--mess=<redacted>"] },
+  ])("redacts Git-accepted abbreviated long message form $args", ({ args, expected }) => {
+    expect(sanitizeArgs("release-commit", args)).toEqual(expected);
+  });
+
   it("redacts each `-m` flag independently when chained", () => {
-    expect(sanitizeArgs(["commit", "-m", "subject", "-m", "body"])).toEqual([
+    expect(sanitizeArgs("release-commit", ["commit", "-m", "subject", "-m", "body"])).toEqual([
       "commit",
       "-m",
       "<redacted>",
@@ -106,7 +114,7 @@ describe("sanitizeArgs — commit-message redaction rules", () => {
   });
 
   it("keeps `--file path` verbatim (path is not sensitive)", () => {
-    expect(sanitizeArgs(["commit", "--file", "/tmp/msg.txt"])).toEqual([
+    expect(sanitizeArgs("release-commit", ["commit", "--file", "/tmp/msg.txt"])).toEqual([
       "commit",
       "--file",
       "/tmp/msg.txt",
@@ -114,7 +122,7 @@ describe("sanitizeArgs — commit-message redaction rules", () => {
   });
 
   it("keeps `--file=path` verbatim", () => {
-    expect(sanitizeArgs(["commit", "--file=/tmp/msg.txt"])).toEqual([
+    expect(sanitizeArgs("release-commit", ["commit", "--file=/tmp/msg.txt"])).toEqual([
       "commit",
       "--file=/tmp/msg.txt",
     ]);
@@ -122,19 +130,54 @@ describe("sanitizeArgs — commit-message redaction rules", () => {
 
   it("keeps remote URLs and refspecs verbatim on push", () => {
     expect(
-      sanitizeArgs(["push", "git@github.com:foo/bar.git", "main"]),
+      sanitizeArgs("release-push", ["push", "git@github.com:foo/bar.git", "main"]),
     ).toEqual(["push", "git@github.com:foo/bar.git", "main"]);
   });
 
   it("keeps unrelated args verbatim", () => {
-    expect(sanitizeArgs(["status", "--porcelain"])).toEqual([
+    expect(sanitizeArgs("release-commit", ["status", "--porcelain"])).toEqual([
       "status",
       "--porcelain",
     ]);
   });
 
   it("returns an empty array for empty input", () => {
-    expect(sanitizeArgs([])).toEqual([]);
+    expect(sanitizeArgs("release-commit", [])).toEqual([]);
+  });
+
+  it.each([
+    { args: ["-am", "secret"], expected: ["-am", "<redacted>"] },
+    { args: ["-qamsecret"], expected: ["-qam<redacted>"] },
+    { args: ["-Smsecret"], expected: ["-Sm<redacted>"] },
+  ])("redacts clustered message form $args", ({ args, expected }) => {
+    expect(sanitizeArgs("release-commit", args)).toEqual(expected);
+  });
+
+  it("honors operand boundaries and the option terminator", () => {
+    expect(
+      sanitizeArgs("release-commit", ["-Cmessage", "-C", "-msecret", "--", "-m", "pathspec"]),
+    ).toEqual([
+      "-Cmessage",
+      "-C",
+      "-msecret",
+      "--",
+      "-m",
+      "pathspec",
+    ]);
+  });
+
+  it("leaves non-commit argv byte-for-byte unchanged", () => {
+    expect(sanitizeArgs("release-push", ["-m", "not-a-message", "--message=literal"])).toEqual([
+      "-m",
+      "not-a-message",
+      "--message=literal",
+    ]);
+  });
+});
+
+describe("refusal taxonomy", () => {
+  it("maps refusal code 16 to commit-message-preflight-failed", () => {
+    expect(REFUSAL_IDENTIFIERS[16]).toBe("commit-message-preflight-failed");
   });
 });
 
@@ -154,7 +197,7 @@ describe("toAuditWorkUnit — resolver-result mapping", () => {
 
 function commitEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     timestamp: "2026-05-08T12:00:00.000Z",
     command: "release-commit",
     args: ["-m", "<redacted>"],
@@ -173,7 +216,7 @@ function commitEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
 
 function pushEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     timestamp: "2026-05-08T12:00:01.000Z",
     command: "release-push",
     args: ["push", "origin", "main"],
@@ -192,7 +235,7 @@ function pushEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
 
 function syncEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     timestamp: "2026-05-08T12:00:02.000Z",
     command: "sync",
     args: ["sync"],
@@ -265,11 +308,9 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
 
   const ctx = (root: string) => ({ cwd: root, identity: "alice" });
 
-  it("throws when schemaVersion is not 1", async () => {
-    const entry = commitEntry({ schemaVersion: 2 as unknown as 1 });
-    await expect(
-      appendAuditEntry({ ...ctx(fixture.root), entry }),
-    ).rejects.toThrow(/schemaVersion/);
+  it.each([1, 99])("throws when schemaVersion is %i", async (schemaVersion) => {
+    const entry = commitEntry({ schemaVersion: schemaVersion as 2 });
+    await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).rejects.toThrow(/schemaVersion/);
   });
 
   it("throws on unknown command discriminator", async () => {
@@ -364,6 +405,38 @@ describe("appendAuditEntry — schema enforcement (throws on violation)", () => 
     await expect(
       appendAuditEntry({ ...ctx(fixture.root), entry }),
     ).resolves.toEqual({ ok: true });
+  });
+
+  it.each(["validation", "input"] as const)(
+    "allows release-commit preflight failure reason %s",
+    async (reason) => {
+      const entry = commitEntry({
+        decision: "refused",
+        refusalCode: 16,
+        outcome: { kind: "preflight-failed", reason },
+      });
+      await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).resolves.toEqual({ ok: true });
+    },
+  );
+
+  it("rejects preflight failure for non-commit commands", async () => {
+    const entry = pushEntry({
+      decision: "refused",
+      refusalCode: 16,
+      outcome: { kind: "preflight-failed", reason: "validation" },
+    });
+    await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).rejects.toThrow(/outcome/);
+  });
+
+  it.each([
+    { decision: "proceeded" as const, refusalCode: null },
+    { decision: "refused" as const, refusalCode: 15 as const },
+  ])("rejects preflight outcome with an inconsistent decision/code", async (overrides) => {
+    const entry = commitEntry({
+      ...overrides,
+      outcome: { kind: "preflight-failed", reason: "input" },
+    });
+    await expect(appendAuditEntry({ ...ctx(fixture.root), entry })).rejects.toThrow(/preflight/);
   });
 });
 

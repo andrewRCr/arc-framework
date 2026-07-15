@@ -155,8 +155,10 @@ unannotated; they route as `raw` regardless of opt-in state.
 **Admonition pattern.** Class-tagged fire sites use a `[!CAUTION]` admonition mirroring the
 interlock-marker shape (gate/fire structural symmetry: both backtick-wrap the interlock name in
 leading position). The admonition names the interlock being released and the class tag firing —
-the agent supplies `git commit -m` / `arc release commit` (or `git push` / `arc release push`) per
-the resolved routing.
+the agent selects `git commit` / `arc release commit` (or `git push` / `arc release push`) from the
+resolved routing and loads commit-message transport from [commit-format][commit-format]. Commit fire
+sites stay transport-agnostic: they supply the class tag and message body, never `-m`, `-F`, or shell
+redirection mechanics.
 
 - **Commit fire sites:** admonition with backtick-wrapped interlock name + class tag + colon,
   then message body in a `text` codeblock:
@@ -202,3 +204,4 @@ established contract regardless of how the push itself routes.
 [template-workflow]: ../../templates/arc/template-workflow.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [agent-brief-arc]: ../../../reference/briefs/AGENT-BRIEF.ARC.md
+[commit-format]: ../../../system/methods/commit-format.md

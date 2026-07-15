@@ -37,6 +37,8 @@ import {
   formatRefusal,
 } from "../../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../../lib/release/wu-resolution.js";
+import { rewriteCommitFileSource } from "../../lib/release/commit-message-source.js";
+import { renderCommitMessageRetryCommand } from "../../lib/release/commit-message-retry.js";
 import type {
   AuditEntry,
   AuditInterlockState,
@@ -58,6 +60,8 @@ export interface SpawnGitOptions {
   args: readonly string[];
   /** Forwarded into the spawned process; defaults to the handler's `cwd`. */
   cwd: string;
+  /** Captured stdin for `-F -`; absent means inherit the caller stream. */
+  stdin?: Uint8Array;
 }
 
 export type SpawnGit = (opts: SpawnGitOptions) => Promise<SpawnGitResult>;
@@ -68,6 +72,56 @@ export type SpawnGit = (opts: SpawnGitOptions) => Promise<SpawnGitResult>;
  * resolves with `exitCode: 0`.
  */
 export type ResolveHead = (opts: { cwd: string }) => Promise<string>;
+
+/** Result of classifying and validating deterministic commit-message input. */
+export type CommitMessagePreflightResult =
+  | { kind: "pass-through" }
+  | {
+      kind: "passed";
+      verdict: "pass" | "pass-with-warnings";
+      /** Canonical assembled bytes approved by the validator. */
+      messageBytes: Uint8Array;
+      transport?:
+        | { kind: "messages" }
+        | {
+            kind: "file";
+            rawBytes: Uint8Array;
+            sourcePath: string;
+            sourceIdentity?: string;
+          }
+        | { kind: "stdin"; rawBytes: Uint8Array };
+    }
+  | { kind: "refused"; reason: "validation" | "input"; message: string };
+
+/** In-process commit-message preflight boundary. */
+export type PreflightCommitMessage = (opts: {
+  args: readonly string[];
+  cwd: string;
+}) => Promise<CommitMessagePreflightResult>;
+
+/** Private snapshot used to hand captured file bytes to Git exactly once. */
+export interface CommitMessageSnapshot {
+  path: string;
+  cleanup: () => Promise<void>;
+}
+
+export type CreateCommitMessageSnapshot = (opts: {
+  cwd: string;
+  bytes: Uint8Array;
+}) => Promise<CommitMessageSnapshot>;
+
+/** Persist the latest approved retry message beneath the active worktree Git dir. */
+export type PersistCommitMessageRetry = (opts: {
+  cwd: string;
+  bytes: Uint8Array;
+}) => Promise<{ path: string }>;
+
+/** Remove a successfully consumed wrapper-owned retry source when its generation still matches. */
+export type CleanupConsumedMessageRetry = (opts: {
+  cwd: string;
+  sourcePath: string;
+  sourceIdentity: string;
+}) => Promise<boolean>;
 
 /**
  * Audit-entry writer signature. Defaulted to {@link appendAuditEntry}; tests
@@ -96,6 +150,16 @@ export interface ReleaseCommitDeps {
    * the audit entry. Called only on `spawnGit` exit code 0.
    */
   resolveHead: ResolveHead;
+  /** Classifies and validates deterministic message input after authorization. */
+  preflightCommitMessage: PreflightCommitMessage;
+  /** Creates a private worktree-Git-dir snapshot for captured file sources. */
+  createMessageSnapshot: CreateCommitMessageSnapshot;
+  /** Atomically replaces the worktree-local latest approved retry message. */
+  persistMessageRetry: PersistCommitMessageRetry;
+  /** Removes the exact wrapper-owned retry file after successful consumption. */
+  cleanupConsumedMessageRetry: CleanupConsumedMessageRetry;
+  /** Wrapper-only safe prepared-file resubmission guidance. */
+  preflightRemedy: string;
   /** Sink for refusal messages. Defaults to `process.stderr.write`. */
   writeStderr?: (msg: string) => void;
   /** Audit-entry writer. Defaults to {@link appendAuditEntry}. */
@@ -155,8 +219,74 @@ export async function runReleaseCommit(
     return refuse(decision, { wu: wuAudit, deps, writeStderr, appendAudit });
   }
 
+  const preflight = await deps.preflightCommitMessage({ args: deps.argv, cwd: deps.cwd });
+  if (preflight.kind === "refused") {
+    return refusePreflight(preflight.reason, preflight.message, {
+      deps, wu: wuAudit, writeStderr, appendAudit,
+    });
+  }
+
   // Authorize: run wrapped `git commit`, attribute the outcome, audit, exit.
-  const spawned = await deps.spawnGit({ args: deps.argv, cwd: deps.cwd });
+  let spawnArgs = deps.argv;
+  let spawnStdin: Uint8Array | undefined;
+  let snapshot: CommitMessageSnapshot | undefined;
+  if (preflight.kind === "passed" && preflight.transport?.kind === "file") {
+    try {
+      snapshot = await deps.createMessageSnapshot({ cwd: deps.cwd, bytes: preflight.transport.rawBytes });
+      spawnArgs = rewriteCommitFileSource(deps.argv, snapshot.path);
+    } catch (cause: unknown) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      return refusePreflight("input", `Could not create commit-message snapshot: ${detail}`, {
+        deps, wu: wuAudit, writeStderr, appendAudit,
+      });
+    }
+  } else if (preflight.kind === "passed" && preflight.transport?.kind === "stdin") {
+    spawnStdin = preflight.transport.rawBytes;
+  }
+
+  let spawned: SpawnGitResult;
+  try {
+    spawned = await deps.spawnGit({
+      args: spawnArgs,
+      cwd: deps.cwd,
+      ...(spawnStdin === undefined ? {} : { stdin: spawnStdin }),
+    });
+  } finally {
+    if (snapshot !== undefined) {
+      try {
+        await snapshot.cleanup();
+      } catch (cause: unknown) {
+        const detail = cause instanceof Error ? cause.message : String(cause);
+        writeStderr(`warn: commit-message snapshot cleanup failed: ${detail}\n`);
+      }
+    }
+  }
+  if (spawned.exitCode !== 0 && preflight.kind === "passed") {
+    try {
+      const retry = await deps.persistMessageRetry({ cwd: deps.cwd, bytes: preflight.messageBytes });
+      writeStderr(`Retry the approved message with:\n${renderCommitMessageRetryCommand(retry.path)}\n`);
+    } catch (cause: unknown) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      writeStderr(`warn: latest commit-message retry could not be persisted: ${detail}\n`);
+    }
+  }
+  if (
+    spawned.exitCode === 0
+    && preflight.kind === "passed"
+    && preflight.transport?.kind === "file"
+    && preflight.transport.sourceIdentity !== undefined
+  ) {
+    try {
+      await deps.cleanupConsumedMessageRetry({
+        cwd: deps.cwd,
+        sourcePath: preflight.transport.sourcePath,
+        sourceIdentity: preflight.transport.sourceIdentity,
+      });
+    } catch (cause: unknown) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      writeStderr(`warn: consumed commit-message retry could not be removed: ${detail}\n`);
+    }
+  }
   const outcome: AuditOutcome = spawned.exitCode === 0
     ? { kind: "commit", hash: await safeResolveHead(deps, writeStderr) }
     : {
@@ -179,6 +309,33 @@ export async function runReleaseCommit(
   surfaceAuditFailure(auditResult, writeStderr);
 
   return { exitCode: spawned.exitCode };
+}
+
+async function refusePreflight(
+  reason: "validation" | "input",
+  message: string,
+  ctx: RefuseContext,
+): Promise<ReleaseCommitResult> {
+  const refusal: Extract<AuthorizationDecision, { code: 16 }> = {
+    kind: "refuse",
+    code: 16,
+    identifier: "commit-message-preflight-failed",
+    reason,
+  };
+  ctx.writeStderr(`${message}\n${formatRefusal(refusal)}\n${ctx.deps.preflightRemedy}\n`);
+  const auditResult = await ctx.appendAudit({
+    cwd: ctx.deps.cwd,
+    identity: ctx.deps.identity,
+    entry: buildAuditEntry({
+      deps: ctx.deps,
+      wu: ctx.wu,
+      decision: "refused",
+      refusalCode: 16,
+      outcome: { kind: "preflight-failed", reason },
+    }),
+  });
+  surfaceAuditFailure(auditResult, ctx.writeStderr);
+  return { exitCode: 16 };
 }
 
 /**
@@ -269,10 +426,10 @@ function buildAuditEntry(opts: BuildEntryOptions): AuditEntry {
     pushInterlock: opts.deps.settings.resolved.pushInterlock,
   };
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     timestamp: new Date().toISOString(),
     command: "release-commit",
-    args: sanitizeArgs(opts.deps.argv),
+    args: sanitizeArgs("release-commit", opts.deps.argv),
     wu: opts.wu,
     interlockState,
     decision: opts.decision,
@@ -280,4 +437,3 @@ function buildAuditEntry(opts: BuildEntryOptions): AuditEntry {
     outcome: opts.outcome,
   };
 }
-

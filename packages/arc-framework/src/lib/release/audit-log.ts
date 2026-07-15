@@ -19,6 +19,8 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
+import { walkCommitShortOption } from "./commit-message-source.js";
+
 import type {
   AuditCommand,
   AuditEntry,
@@ -49,20 +51,31 @@ export async function ensureAuditLogParent(ctx: AuditLogContext): Promise<void> 
 }
 
 const REDACTED = "<redacted>";
+const MESSAGE_LONG_OPTION = "--message";
+
+function isMessageLongOption(option: string): boolean {
+  return option.length > 2 && MESSAGE_LONG_OPTION.startsWith(option);
+}
 
 /**
  * Redact commit-message payloads from a wrapped-git argv: replace any
  * `-m` / `--message` value — separated (`-m subj`), attached-short
- * (`-msubj`), or attached-long (`--message=subj`) — with `<redacted>`,
- * preserving flag shape so the audit entry remains structurally
- * faithful. Non-message args (including `--file` paths and push
- * remotes/refspecs) are kept verbatim.
+ * (`-msubj`), attached-long (`--message=subj`), or a Git-accepted
+ * abbreviated long form — with `<redacted>`, preserving flag shape so
+ * the audit entry remains structurally faithful. Non-message args
+ * (including `--file` paths and push remotes/refspecs) are kept verbatim.
  */
-export function sanitizeArgs(args: readonly string[]): string[] {
+export function sanitizeArgs(command: AuditCommand, args: readonly string[]): string[] {
+  if (command !== "release-commit") return [...args];
+
   const out: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i] as string;
-    if (a === "-m" || a === "--message") {
+    if (a === "--") {
+      out.push(...args.slice(i));
+      break;
+    }
+    if (isMessageLongOption(a)) {
       out.push(a);
       if (i + 1 < args.length) {
         out.push(REDACTED);
@@ -70,13 +83,49 @@ export function sanitizeArgs(args: readonly string[]): string[] {
       }
       continue;
     }
-    if (a.startsWith("-m") && a.length > 2 && !a.startsWith("--")) {
-      out.push(`-m${REDACTED}`);
-      continue;
+    if (a.startsWith("--")) {
+      const separator = a.indexOf("=");
+      if (separator !== -1) {
+        const option = a.slice(0, separator);
+        if (isMessageLongOption(option)) {
+          out.push(`${option}=${REDACTED}`);
+          continue;
+        }
+      }
     }
-    if (a.startsWith("--message=")) {
-      out.push(`--message=${REDACTED}`);
-      continue;
+    if (a.startsWith("-") && !a.startsWith("--") && a !== "-") {
+      const walk = walkCommitShortOption(a, args[i + 1]);
+      if (walk.kind === "recognized") {
+        const message = walk.members.find((member) => member.role === "message");
+        if (message?.operand.kind === "attached") {
+          out.push(`${a.slice(0, message.offset + 1)}${REDACTED}`);
+          continue;
+        }
+        if (message?.operand.kind === "separated") {
+          out.push(a, REDACTED);
+          i += 1;
+          continue;
+        }
+        out.push(a);
+        if (walk.consumedNext && i + 1 < args.length) {
+          out.push(args[i + 1] as string);
+          i += 1;
+        }
+        continue;
+      }
+
+      const plausibleMessage = a.indexOf("m", Math.max(1, walk.offset));
+      if (plausibleMessage !== -1) {
+        if (plausibleMessage + 1 < a.length) {
+          out.push(`${a.slice(0, plausibleMessage + 1)}${REDACTED}`);
+        } else if (i + 1 < args.length) {
+          out.push(a, REDACTED);
+          i += 1;
+        } else {
+          out.push(a);
+        }
+        continue;
+      }
     }
     out.push(a);
   }
@@ -133,8 +182,8 @@ function validateEntry(entry: unknown): asserts entry is AuditEntry {
   }
   const e = entry as Record<string, unknown>;
 
-  if (e.schemaVersion !== 1) {
-    throw new Error(`audit-log: schemaVersion must be 1, got ${String(e.schemaVersion)}`);
+  if (e.schemaVersion !== 2) {
+    throw new Error(`audit-log: schemaVersion must be 2, got ${String(e.schemaVersion)}`);
   }
   if (typeof e.timestamp !== "string") {
     throw new Error("audit-log: timestamp must be a string");
@@ -165,11 +214,19 @@ function validateEntry(entry: unknown): asserts entry is AuditEntry {
   if (typeof e.outcome !== "object" || e.outcome === null) {
     throw new Error("audit-log: outcome must be an object");
   }
-  const outcomeKind = (e.outcome as Record<string, unknown>).kind;
+  const outcome = e.outcome as Record<string, unknown>;
+  const outcomeKind = outcome.kind;
   if (typeof outcomeKind !== "string") {
     throw new Error("audit-log: outcome.kind must be a string");
   }
   validateOutcomeForCommand(command, outcomeKind);
+  if (
+    outcomeKind === "preflight-failed"
+    && outcome.reason !== "validation"
+    && outcome.reason !== "input"
+  ) {
+    throw new Error("audit-log: preflight-failed reason must be validation or input");
+  }
 
   if (e.wu !== null && typeof e.wu !== "object") {
     throw new Error("audit-log: wu must be an object or null");
@@ -186,12 +243,26 @@ function validateEntry(entry: unknown): asserts entry is AuditEntry {
   if (e.decision === "refused" && e.refusalCode === null) {
     throw new Error("audit-log: decision \"refused\" requires refusalCode to be populated");
   }
+  if (
+    outcomeKind === "preflight-failed"
+    && (e.decision !== "refused" || e.refusalCode !== 16)
+  ) {
+    throw new Error("audit-log: preflight-failed requires decision refused and refusalCode 16");
+  }
+  if (e.refusalCode === 16 && outcomeKind !== "preflight-failed") {
+    throw new Error("audit-log: refusalCode 16 requires preflight-failed outcome");
+  }
 }
 
 function validateOutcomeForCommand(command: AuditCommand, kind: string): void {
   switch (command) {
     case "release-commit":
-      if (kind !== "commit" && kind !== "hook-failed" && kind !== "refused") {
+      if (
+        kind !== "commit"
+        && kind !== "hook-failed"
+        && kind !== "preflight-failed"
+        && kind !== "refused"
+      ) {
         throw outcomeMismatch(command, kind);
       }
       return;

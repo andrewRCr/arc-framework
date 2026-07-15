@@ -37,6 +37,7 @@ import {
 } from "../lib/classification.js";
 import { UserFacingError } from "../lib/errors.js";
 import { atomicWriteJson } from "../lib/fs.js";
+import { applyExecutableInstallPermissions } from "../lib/install-permissions.js";
 
 // --- Types ---
 
@@ -205,12 +206,8 @@ export async function runInit(
   await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);
   await atomicWriteJson(join(internalDir, PRISTINE_FILENAME), pristineStore);
 
-  // Set executable permissions on hooks and shell scripts
-  for (const relPath of filesWritten) {
-    if (relPath.startsWith("system/.internal/githooks/") || relPath.endsWith(".sh")) {
-      await io.chmod(join(arcDir, relPath), 0o755);
-    }
-  }
+  // Set executable permissions on hooks and shell scripts.
+  await applyExecutableInstallPermissions(arcDir, filesWritten, io.chmod);
 
   // Git integration (hooks path)
   await configureGitIntegration({

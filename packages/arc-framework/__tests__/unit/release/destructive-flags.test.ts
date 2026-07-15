@@ -22,6 +22,7 @@ describe("destructive-flags — commit refusal list", () => {
       "--amend",
       "--allow-empty",
       "--no-verify",
+      "-n",
     ]);
   });
 });
@@ -52,12 +53,36 @@ describe("detectCommitDestructive", () => {
     ["--amend"],
     ["--allow-empty"],
     ["--no-verify"],
+    ["-n"],
   ])("returns the flag identifier when %s is present", (flag) => {
     expect(detectCommitDestructive(["-m", "msg", flag])).toBe(flag);
   });
 
   it("returns the first match when multiple destructive flags are present", () => {
     expect(detectCommitDestructive(["--no-verify", "--amend"])).toBe("--no-verify");
+  });
+
+  it.each(["-qn", "-nq", "-qnmmessage"])(
+    "returns -n when no-verify appears in short-option cluster %s",
+    (flag) => {
+      expect(detectCommitDestructive([flag])).toBe("-n");
+    },
+  );
+
+  it("does not mistake an attached message operand for -n", () => {
+    expect(detectCommitDestructive(["-mnarrative"])).toBeNull();
+  });
+
+  it.each([
+    ["separated short message", ["-m", "-n"]],
+    ["separated long message", ["--message", "--no-verify"]],
+    ["separated file source", ["-F", "--amend"]],
+    ["ordinary required operand", ["--author", "--allow-empty"]],
+    ["short message cluster", ["-qm", "-n"]],
+    ["pathspec after terminator", ["--", "-n"]],
+    ["long pathspec after terminator", ["--", "--no-verify"]],
+  ])("does not reinterpret destructive-looking %s data", (_label, args) => {
+    expect(detectCommitDestructive(args)).toBeNull();
   });
 
   it("does not match destructive flags from the push list", () => {

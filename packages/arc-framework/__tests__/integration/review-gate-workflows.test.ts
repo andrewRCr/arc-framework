@@ -89,11 +89,27 @@ describe("trusted review-gate workflows", () => {
     expect(proxy).toContain("pull_request_review_comment:");
   });
 
+  it("collapses hint-class event bursts without cancelling running work or deletion payloads", async () => {
+    const controller = await read("review-gate.yml");
+    const proxy = await read("review-gate-wakeup.yml");
+    const controllerConcurrency = (load(controller) as { concurrency?: Record<string, unknown> }).concurrency;
+    const proxyConcurrency = (load(proxy) as { concurrency?: Record<string, unknown> }).concurrency;
+    // Both transports collapse pending bursts but never cancel a running run.
+    expect(controllerConcurrency?.["cancel-in-progress"]).toBe(false);
+    expect(proxyConcurrency?.["cancel-in-progress"]).toBe(false);
+    expect(proxyConcurrency?.group).toContain("github.event.pull_request.number");
+    // Deletion events carry a bounded payload canonical re-query cannot
+    // recover; they and targeted dispatches must opt out of the shared group.
+    expect(controllerConcurrency?.group).toContain("github.event_name == 'workflow_dispatch'");
+    expect(controllerConcurrency?.group).toContain("github.event.action == 'deleted'");
+    expect(controllerConcurrency?.group).toContain("github.run_id");
+  });
+
   it("publishes independent CI truth and a thin compatibility alias", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("  ci_ok:\n    name: ci-ok");
     expect(workflow).toContain(
-      "needs: [classify, lint-typecheck-unit, integration-e2e, portability, portability-cross-platform]",
+      "needs: [classify, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
     );
     expect(workflow).toMatch(/ {2}merge-ok:\n {4}name: merge-ok\n {4}permissions: \{\}\n {4}needs: ci_ok/u);
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");

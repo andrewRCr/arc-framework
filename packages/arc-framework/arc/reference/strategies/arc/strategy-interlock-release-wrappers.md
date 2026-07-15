@@ -159,11 +159,14 @@ against the existing `permissions.allow` array.
 
 **Codex CLI.** Allowlist install lands in `~/.codex/rules/default.rules` as Starlark
 `prefix_rule()` calls. Mode detection inspects `approval_policy` in `~/.codex/config.toml`.
-Codex's matcher unwraps `bash -lc` / `zsh -lc` shell wrappings via a narrow word-only grammar
-before pattern matching — environment-prefixed, output-redirected, command-substituted, and
-ANSI-C `$'...'` quoted invocations fall through to harness prompt by design. Agent-issued
-invocations follow the supported grammar by convention; the fall-through is reachable mainly via
-hand-typed edge cases.
+Codex matches direct command argv; it does not split a shell script containing redirection for
+inner-prefix matching. Commit through direct prepared-file argv —
+`arc release commit -F <message-file>` — and verify that shape with `codex execpolicy check` against
+the installed rules. Never claim a shell-wrapped heredoc matches the commit prefix rule.
+
+For any harness, use the quoted-heredoc transport with a verified non-colliding delimiter only after its resident
+matcher verifies redirection; otherwise use direct prepared-file argv. The push shape is the argument-free
+`arc release push`.
 
 For patterns, paths, mode-detection details, and the matcher's full supported / fall-through
 table, see [`setup-release-wrapper.md`][setup-workflow] § Per-Harness Reference Notes. For
@@ -201,8 +204,8 @@ For the procedure, see [`setup-release-wrapper.md`][setup-workflow] § Agent-Ada
 
 opencode uses the agent-adaptive path with two documented upstream limitations:
 
-- [sst/opencode#6676] — flag-parsing bug may cause `arc release commit -m "..."` to not match
-  patterns reliably.
+- [sst/opencode#6676] — flag parsing may cause argument-bearing `arc release commit` invocations to miss
+  permission patterns.
 - [sst/opencode#15507] — silent config-validation failure: typos in opencode permission keys are
   ignored without error.
 

@@ -1,51 +1,75 @@
 /**
- * E2E: commit-msg merge-commit exemption.
+ * E2E coverage for the installed commit-msg hook.
  *
- * Exercises the canonical hook script against real temp git repositories. A merge
- * in progress carries MERGE_HEAD; git invokes commit-msg on the merge as it does
- * any commit, but the auto-generated merge message follows no conventional format
- * and has no Context: footer. Asserts the hook short-circuits to exit 0 when
- * MERGE_HEAD is present, and still validates ordinary (non-merge) commits.
- *
- * Standalone — imports only node builtins, not CLI source.
+ * Exercises real Git hook invocation against executable installed copies in
+ * temporary repositories. The tests remain standalone and import only Node builtins.
  */
 
-import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { execFile, spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  chmod,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+
 const execFileAsync = promisify(execFile);
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+const sourceHook = join(
+  repositoryRoot,
+  "packages/arc-framework/arc/system/.internal/githooks/commit-msg",
+);
+const sourceLibrary = join(
+  repositoryRoot,
+  "packages/arc-framework/arc/system/.internal/scripts/arc-lib.sh",
+);
+let restrictedPath = "";
 
-// __tests__/e2e/ → repo root is four levels up.
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
-const HOOK_PATH = join(REPO_ROOT, ".arc/system/.internal/githooks/commit-msg");
-
-interface HookResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
+interface RepositoryFixture {
+  capturePath: string;
+  root: string;
 }
 
-/** Write a commit message to a file and invoke the hook against it. */
-async function runHook(cwd: string, message: string): Promise<HookResult> {
-  const msgPath = join(cwd, ".git", "ARC_TEST_MSG");
-  await writeFile(msgPath, message);
-  return new Promise((resolvePromise, reject) => {
-    const child = spawn("bash", [HOOK_PATH, msgPath], {
-      cwd,
-      env: { ...process.env, NO_COLOR: "1" },
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
-    child.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
-    child.on("error", reject);
-    child.on("close", (code) => resolvePromise({ stdout, stderr, exitCode: code ?? 0 }));
-  });
+interface ProcessResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+const repositories: string[] = [];
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveGitDirectory(): Promise<string> {
+  const pathEntries = (process.env.PATH ?? "").split(delimiter);
+  const extensions = process.platform === "win32"
+    ? (process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";")
+    : [""];
+  for (const rawEntry of pathEntries) {
+    const entry = rawEntry.replace(/^"(.*)"$/, "$1");
+    if (entry === "") continue;
+    for (const extension of extensions) {
+      if (await exists(join(entry, `git${extension}`))) return entry;
+    }
+  }
+  throw new Error("git executable could not be resolved from PATH");
 }
 
 async function git(args: string[], cwd: string): Promise<string> {
@@ -53,112 +77,241 @@ async function git(args: string[], cwd: string): Promise<string> {
   return stdout.trim();
 }
 
-async function makeRepo(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "arc-commitmsg-"));
-  await execFileAsync("git", ["init", "-b", "main", dir]);
-  await git(["config", "user.email", "test@test.com"], dir);
-  await git(["config", "user.name", "Test User"], dir);
-  return dir;
+async function createRepository(prefix = "arc-installed-commit-hook-"): Promise<RepositoryFixture> {
+  const root = await mkdtemp(join(tmpdir(), prefix));
+  repositories.push(root);
+  await execFileAsync("git", ["init", "-q", "-b", "main", root]);
+  await git(["config", "user.email", "test@example.com"], root);
+  await git(["config", "user.name", "Test User"], root);
+  await writeFile(join(root, "initial.txt"), "initial\n");
+  await git(["add", "initial.txt"], root);
+  await git(["commit", "-m", "initial"], root);
+  return { capturePath: join(root, "arc-invocation.txt"), root };
 }
 
-/** Commit a single file with its own content — distinct files merge cleanly. */
-async function commit(dir: string, file: string, content: string): Promise<string> {
-  await writeFile(join(dir, file), `${content}\n`);
-  await git(["add", file], dir);
-  await git(["commit", "-m", `chore(test): add ${file}\n\nContext: standalone (maintenance)`], dir);
-  return git(["rev-parse", "HEAD"], dir);
+async function installHook(
+  fixture: RepositoryFixture,
+  config = "hooks.commit_msg: enabled\n",
+): Promise<void> {
+  const hook = join(fixture.root, ".arc/system/.internal/githooks/commit-msg");
+  const library = join(fixture.root, ".arc/system/.internal/scripts/arc-lib.sh");
+  const configPath = join(fixture.root, ".arc/system/arc-config.yml");
+  await mkdir(dirname(hook), { recursive: true });
+  await mkdir(dirname(library), { recursive: true });
+  await copyFile(sourceHook, hook);
+  await copyFile(sourceLibrary, library);
+  await writeFile(configPath, config);
+  await chmod(hook, 0o755);
+  await chmod(library, 0o755);
+  await git(["config", "core.hooksPath", ".arc/system/.internal/githooks"], fixture.root);
 }
 
-let repos: string[] = [];
+async function installFakeArc(
+  path: string,
+  exitCode: number,
+  label = "delegated validator",
+): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, [
+    "#!/bin/sh",
+    "printf '%s\\n' \"$@\" > \"$ARC_TEST_CAPTURE\"",
+    `echo "${label}"`,
+    `exit ${exitCode}`,
+    "",
+  ].join("\n"));
+  await chmod(path, 0o755);
+}
 
-beforeAll(() => {
-  // The hook must be present in the canonical location for this suite to mean anything.
-  expect(HOOK_PATH).toContain(".arc/system/.internal/githooks/commit-msg");
+async function runProcess(
+  command: string,
+  args: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<ProcessResult> {
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn(command, args, { cwd, env });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    child.on("error", reject);
+    child.on("close", (code) => resolvePromise({ exitCode: code ?? 1, stdout, stderr }));
+  });
+}
+
+async function attemptCommit(
+  fixture: RepositoryFixture,
+  message: string,
+  envOverrides: NodeJS.ProcessEnv = {},
+): Promise<ProcessResult> {
+  const filename = `change-${Math.random().toString(16).slice(2)}.txt`;
+  await writeFile(join(fixture.root, filename), "change\n");
+  await git(["add", filename], fixture.root);
+  return runProcess("git", ["commit", "-m", message], fixture.root, {
+    ...process.env,
+    ARC_TEST_CAPTURE: fixture.capturePath,
+    NO_COLOR: "1",
+    ...envOverrides,
+  });
+}
+
+beforeAll(async () => {
+  const gitDirectory = await resolveGitDirectory();
+  restrictedPath = [...new Set([gitDirectory, "/usr/bin", "/bin"])].join(delimiter);
 });
 
 afterEach(async () => {
-  await Promise.all(repos.map((d) => rm(d, { recursive: true, force: true })));
-  repos = [];
+  await Promise.all(repositories.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-describe("commit-msg merge-commit exemption", () => {
-  it("exempts a real merge-in-progress (MERGE_HEAD present) — exit 0, no validation", async () => {
-    const dir = await makeRepo();
-    repos.push(dir);
+describe("installed commit-msg gating", () => {
+  it("skips disabled validation without resolving the CLI", async () => {
+    const fixture = await createRepository();
+    await installHook(fixture, "hooks.commit_msg: disabled\n");
 
-    await commit(dir, "base.txt", "base");
-    await git(["checkout", "-b", "feature"], dir);
-    await commit(dir, "feature.txt", "feature work");
-    await git(["checkout", "main"], dir);
-    await commit(dir, "main.txt", "main work");
-
-    // Divergent histories touching distinct files → clean automatic merge.
-    // --no-commit stops just before the merge commit, leaving MERGE_HEAD set.
-    await execFileAsync("git", ["merge", "--no-ff", "--no-commit", "feature"], { cwd: dir });
-    await git(["rev-parse", "--verify", "MERGE_HEAD"], dir); // sanity: merge is in progress
-
-    // git's auto-merge subject ("Merge branch 'feature'") would fail conventional
-    // format and the Context: footer rule — the exemption must short-circuit it.
-    const result = await runHook(dir, "Merge branch 'feature'");
+    const result = await attemptCommit(fixture, "unrestricted message", {
+      PATH: restrictedPath,
+    });
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe(""); // short-circuits before "Validating commit message..."
-    expect(result.stderr).toBe("");
+    expect(result.stdout + result.stderr).not.toContain("could not be resolved");
+    expect(await exists(fixture.capturePath)).toBe(false);
   });
 
-  it("still validates an ordinary commit — well-formed message passes", async () => {
-    const dir = await makeRepo();
-    repos.push(dir);
-    await commit(dir, "base.txt", "base");
+  it("skips a real merge commit without resolving the CLI", async () => {
+    const fixture = await createRepository();
+    await git(["checkout", "-b", "feature"], fixture.root);
+    await writeFile(join(fixture.root, "feature.txt"), "feature\n");
+    await git(["add", "feature.txt"], fixture.root);
+    await git(["commit", "-m", "feature"], fixture.root);
+    await git(["checkout", "main"], fixture.root);
+    await writeFile(join(fixture.root, "main.txt"), "main\n");
+    await git(["add", "main.txt"], fixture.root);
+    await git(["commit", "-m", "main"], fixture.root);
+    await installHook(fixture);
 
-    const result = await runHook(
-      dir,
-      "feat(hook): add a thing\n\nContext: standalone (maintenance)",
+    const result = await runProcess(
+      "git",
+      ["merge", "--no-ff", "feature", "-m", "Merge feature"],
+      fixture.root,
+      { ...process.env, PATH: restrictedPath, NO_COLOR: "1" },
     );
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("Validating commit message...");
-    expect(result.stdout).toContain("PASSED");
+    expect(result.stdout + result.stderr).not.toContain("could not be resolved");
+    expect(await exists(fixture.capturePath)).toBe(false);
   });
 
-  it("still validates an ordinary commit — malformed subject is rejected", async () => {
-    const dir = await makeRepo();
-    repos.push(dir);
-    await commit(dir, "base.txt", "base");
+  it.each([0, 1, 2])("preserves delegated validator outcome %i during git commit", async (exitCode) => {
+    const fixture = await createRepository();
+    await installHook(fixture);
+    await installFakeArc(join(fixture.root, "node_modules/.bin/arc"), exitCode);
 
-    const result = await runHook(dir, "not a conventional subject");
+    const result = await attemptCommit(fixture, "message validated by fake CLI");
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stdout).toContain("Conventional Commits format");
+    // Git maps every hook rejection to its own status 1; the installed hook's
+    // exact status forwarding is covered at the direct executable boundary.
+    expect(result.exitCode).toBe(exitCode === 0 ? 0 : 1);
+    expect(result.stdout + result.stderr).toContain("delegated validator");
+    expect((await readFile(fixture.capturePath, "utf8")).split("\n")).toEqual([
+      "check",
+      "commit-msg",
+      expect.stringContaining("COMMIT_EDITMSG"),
+      "",
+    ]);
   });
 });
 
-describe("commit-msg standalone integration footer kind", () => {
-  it("accepts Context: integration (...) on a single-parent commit", async () => {
-    const dir = await makeRepo();
-    repos.push(dir);
-    await commit(dir, "base.txt", "base");
+describe("installed commit-msg CLI resolution", () => {
+  it("prefers the repository-local CLI over a global executable", async () => {
+    const fixture = await createRepository();
+    const globalBin = join(fixture.root, "global-bin");
+    await installHook(fixture);
+    await installFakeArc(join(fixture.root, "node_modules/.bin/arc"), 0, "local validator");
+    await installFakeArc(join(globalBin, "arc"), 1, "global validator");
 
-    const result = await runHook(
-      dir,
-      "chore(arc): integrate feature-x\n\nContext: integration (squash-merge of feature-x)",
+    const result = await attemptCommit(fixture, "local validation wins", {
+      PATH: `${globalBin}${delimiter}${restrictedPath}`,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout + result.stderr).toContain("local validator");
+    expect(result.stdout + result.stderr).not.toContain("global validator");
+  });
+
+  it("falls back to a global CLI when the repository has no local executable", async () => {
+    const fixture = await createRepository();
+    const globalBin = join(fixture.root, "global-bin");
+    await installHook(fixture);
+    await installFakeArc(join(globalBin, "arc"), 0, "global validator");
+
+    const result = await attemptCommit(fixture, "global validation fallback", {
+      PATH: `${globalBin}${delimiter}${restrictedPath}`,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout + result.stderr).toContain("global validator");
+  });
+
+  it("fails closed with remediation when neither CLI path resolves", async () => {
+    const fixture = await createRepository();
+    await installHook(fixture);
+
+    const result = await attemptCommit(fixture, "validation cannot run", {
+      PATH: restrictedPath,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("node_modules/.bin/arc");
+    expect(result.stderr).toContain("GUI Git clients");
+    expect(result.stderr).toContain("IDE-integrated commits");
+    expect(result.stderr).toContain("version manager shims");
+  });
+
+  it("passes a spaced message path as one argument through the direct hook shape", async () => {
+    const fixture = await createRepository("arc installed commit hook with spaces-");
+    await installHook(fixture);
+    await installFakeArc(join(fixture.root, "node_modules/.bin/arc"), 0);
+    const messagePath = join(fixture.root, "message path with spaces.txt");
+    await writeFile(messagePath, "direct spaced path validation\n");
+
+    const result = await runProcess(
+      join(fixture.root, ".arc/system/.internal/githooks/commit-msg"),
+      [messagePath],
+      fixture.root,
+      { ...process.env, ARC_TEST_CAPTURE: fixture.capturePath, NO_COLOR: "1" },
     );
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("PASSED");
+    const args = (await readFile(fixture.capturePath, "utf8")).trimEnd().split("\n");
+    expect(args).toHaveLength(3);
+    expect(args).toEqual(["check", "commit-msg", messagePath]);
   });
 
-  it("still rejects an unrecognized footer kind", async () => {
-    const dir = await makeRepo();
-    repos.push(dir);
-    await commit(dir, "base.txt", "base");
+  it("passes a spaced message path as one argument through a hook-manager shape", async () => {
+    const fixture = await createRepository("arc managed commit hook with spaces-");
+    await installHook(fixture);
+    await installFakeArc(join(fixture.root, "node_modules/.bin/arc"), 0);
+    const managedHook = join(fixture.root, ".husky/commit-msg");
+    await mkdir(dirname(managedHook), { recursive: true });
+    await writeFile(managedHook, [
+      "#!/bin/sh",
+      '.arc/system/.internal/githooks/commit-msg "$1"',
+      "",
+    ].join("\n"));
+    await chmod(managedHook, 0o755);
+    const messagePath = join(fixture.root, "managed message path with spaces.txt");
+    await writeFile(messagePath, "managed spaced path validation\n");
 
-    const result = await runHook(
-      dir,
-      "chore(arc): do a thing\n\nContext: bogus (whatever)",
+    const result = await runProcess(
+      managedHook,
+      [messagePath],
+      fixture.root,
+      { ...process.env, ARC_TEST_CAPTURE: fixture.capturePath, NO_COLOR: "1" },
     );
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stdout).toContain("Invalid Context: format");
+    expect(result.exitCode).toBe(0);
+    const args = (await readFile(fixture.capturePath, "utf8")).trimEnd().split("\n");
+    expect(args).toEqual(["check", "commit-msg", messagePath]);
   });
 });
