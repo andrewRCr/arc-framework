@@ -60,10 +60,9 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
       const capture = await captureCommitMessageFileSource(classification.source.path, deps);
       if (capture.kind === "error") return inputFailure(capture.message);
       messageBytes = capture.messageBytes;
-      transport = {
-        kind: capture.input,
-        rawBytes: capture.rawBytes,
-      };
+      transport = capture.input === "file"
+        ? { kind: "file", rawBytes: capture.rawBytes, sourcePath: classification.source.path }
+        : { kind: "stdin", rawBytes: capture.rawBytes };
     }
 
     const checked = await validateCommitMessageBytes(messageBytes, repository);

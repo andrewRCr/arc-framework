@@ -38,6 +38,7 @@ import {
 } from "../../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../../lib/release/wu-resolution.js";
 import { rewriteCommitFileSource } from "../../lib/release/commit-message-source.js";
+import { renderCommitMessageRetryCommand } from "../../lib/release/commit-message-retry.js";
 import type {
   AuditEntry,
   AuditInterlockState,
@@ -82,7 +83,7 @@ export type CommitMessagePreflightResult =
       messageBytes: Uint8Array;
       transport?:
         | { kind: "messages" }
-        | { kind: "file"; rawBytes: Uint8Array }
+        | { kind: "file"; rawBytes: Uint8Array; sourcePath: string }
         | { kind: "stdin"; rawBytes: Uint8Array };
     }
   | { kind: "refused"; reason: "validation" | "input"; message: string };
@@ -109,6 +110,13 @@ export type PersistCommitMessageRetry = (opts: {
   cwd: string;
   bytes: Uint8Array;
 }) => Promise<{ path: string }>;
+
+/** Remove a successfully consumed wrapper-owned retry source when it is still unchanged. */
+export type CleanupConsumedMessageRetry = (opts: {
+  cwd: string;
+  sourcePath: string;
+  bytes: Uint8Array;
+}) => Promise<boolean>;
 
 /**
  * Audit-entry writer signature. Defaulted to {@link appendAuditEntry}; tests
@@ -143,6 +151,8 @@ export interface ReleaseCommitDeps {
   createMessageSnapshot: CreateCommitMessageSnapshot;
   /** Atomically replaces the worktree-local latest approved retry message. */
   persistMessageRetry: PersistCommitMessageRetry;
+  /** Removes the exact wrapper-owned retry file after successful consumption. */
+  cleanupConsumedMessageRetry: CleanupConsumedMessageRetry;
   /** Wrapper-only safe resubmission guidance selected for the resident harness. */
   preflightRemedy: string;
   /** Sink for refusal messages. Defaults to `process.stderr.write`. */
@@ -248,10 +258,27 @@ export async function runReleaseCommit(
   }
   if (spawned.exitCode !== 0 && preflight.kind === "passed") {
     try {
-      await deps.persistMessageRetry({ cwd: deps.cwd, bytes: preflight.messageBytes });
+      const retry = await deps.persistMessageRetry({ cwd: deps.cwd, bytes: preflight.messageBytes });
+      writeStderr(`Retry the approved message with:\n${renderCommitMessageRetryCommand(retry.path)}\n`);
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       writeStderr(`warn: latest commit-message retry could not be persisted: ${detail}\n`);
+    }
+  }
+  if (
+    spawned.exitCode === 0
+    && preflight.kind === "passed"
+    && preflight.transport?.kind === "file"
+  ) {
+    try {
+      await deps.cleanupConsumedMessageRetry({
+        cwd: deps.cwd,
+        sourcePath: preflight.transport.sourcePath,
+        bytes: preflight.transport.rawBytes,
+      });
+    } catch (cause: unknown) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      writeStderr(`warn: consumed commit-message retry could not be removed: ${detail}\n`);
     }
   }
   const outcome: AuditOutcome = spawned.exitCode === 0

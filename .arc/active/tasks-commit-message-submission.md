@@ -237,7 +237,7 @@ message bytes when the subsequent Git invocation fails.
   execution; failures audit distinctly and return harness-safe retry guidance, while exemptions and mutating hooks
   continue through the installed Git path without duplicated policy authority.
 
-### `[ ]` **3.3 Persist and surface the worktree-local retry message**
+### `[x]` **3.3 Persist and surface the worktree-local retry message**
 
 - _Goal:_ Any resolved non-zero Git result after successful assembled preflight leaves the already-approved message
   available for an exact retry without exposing stale Git-managed content.
@@ -248,13 +248,15 @@ message bytes when the subsequent Git invocation fails.
           replacement use real Git/filesystem coverage, while persistence failures remain warnings that preserve Git's
           exit code and pass-through/refusal paths never write.
 
-    - `[ ]` **3.3.b Render and verify the reuse path**
-        - Render `arc release commit -F <path>` with a tested host-shell-quoted absolute path and prove it reproduces
-          the original message through a second wrapper invocation, including repository paths containing spaces and
-          shell metacharacters.
-        - Remove the latest-retry file after a successful wrapper invocation consumes that exact path; retain it across
-          unrelated outcomes until successful consumption or replacement.
-        - Assert no code path or diagnostic offers `.git/COMMIT_EDITMSG` as the retry source.
+    - `[x]` **3.3.b Render and verify the reuse path**
+        - Added expansion-safe shell quoting and emitted `arc release commit -F <path>` only after successful retry
+          persistence; real-shell and two-run wrapper coverage replays exact bytes from a linked-worktree path with
+          spaces/metacharacters, then removes only the unchanged wrapper-owned source after successful consumption.
+          Unrelated, replaced, failed, and `COMMIT_EDITMSG` paths remain ineligible for cleanup or reuse guidance.
+
+- _Outcome:_ Every resolved Git failure after assembled preflight now retains the approved bytes in its worktree-local
+  Git directory and returns an executable exact-retry command; consuming that wrapper-owned retry successfully clears
+  it without turning unrelated or concurrently replaced message files into stale reusable state.
 
 ### `[ ]` **3.4 Exercise transport and failure ordering end to end**
 

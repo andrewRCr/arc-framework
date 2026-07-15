@@ -13,7 +13,7 @@
 import { spawn } from "node:child_process";
 import { access, constants, open, readFile, rename, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
@@ -22,6 +22,7 @@ import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
 import { readMarker } from "../../lib/release/setup-marker.js";
 import { renderCommitMessageRemedy } from "../../lib/release/commit-message-remedy.js";
+import { COMMIT_MESSAGE_RETRY_FILENAME } from "../../lib/release/commit-message-retry.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
 
 import {
@@ -83,6 +84,7 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
     resolveHead: realResolveHead,
     createMessageSnapshot: createRealCommitMessageSnapshot,
     persistMessageRetry: persistRealCommitMessageRetry,
+    cleanupConsumedMessageRetry: cleanupRealConsumedMessageRetry,
     preflightRemedy,
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: process.stdin.isTTY,
@@ -197,7 +199,7 @@ export async function persistRealCommitMessageRetry(opts: {
 }): Promise<{ path: string }> {
   const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], { cwd: opts.cwd });
   const gitDir = stdout.trim();
-  const path = join(gitDir, ".arc-release-commit-message-retry");
+  const path = join(gitDir, COMMIT_MESSAGE_RETRY_FILENAME);
   const temporaryPath = join(gitDir, `.arc-release-commit-message-retry-${randomUUID()}.tmp`);
   const handle = await open(temporaryPath, "wx", 0o600);
   try {
@@ -210,6 +212,39 @@ export async function persistRealCommitMessageRetry(opts: {
     throw cause;
   }
   return { path };
+}
+
+/**
+ * Remove an unchanged wrapper-owned retry file after successful consumption.
+ *
+ * @param opts - Repository root, original file operand, and captured source bytes.
+ * @returns Whether the wrapper-owned path was removed.
+ */
+export async function cleanupRealConsumedMessageRetry(opts: {
+  cwd: string;
+  sourcePath: string;
+  bytes: Uint8Array;
+}): Promise<boolean> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], { cwd: opts.cwd });
+  const path = join(stdout.trim(), COMMIT_MESSAGE_RETRY_FILENAME);
+  if (resolve(opts.cwd, opts.sourcePath) !== path) return false;
+
+  let current: Uint8Array;
+  try {
+    current = await readFile(path);
+  } catch (cause: unknown) {
+    if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return false;
+    throw cause;
+  }
+  if (current.length !== opts.bytes.length || current.some((byte, index) => byte !== opts.bytes[index])) {
+    return false;
+  }
+  try {
+    await unlink(path);
+  } catch (cause: unknown) {
+    if (!(cause instanceof Error && "code" in cause && cause.code === "ENOENT")) throw cause;
+  }
+  return true;
 }
 
 /** Resolves `HEAD` post-success for the audit entry's `hash` field. */

@@ -13,10 +13,14 @@ import {
   cleanupCommitMessageBytes,
 } from "../../src/lib/release/commit-message-assembly.js";
 import { classifyCommitMessageInput } from "../../src/lib/release/commit-message-source.js";
+import { renderCommitMessageRetryCommand } from "../../src/lib/release/commit-message-retry.js";
+import type { ResolvedSettingsResult } from "../../src/lib/config/resolved-settings.js";
 import {
+  cleanupRealConsumedMessageRetry,
   createRealCommitMessageSnapshot,
   persistRealCommitMessageRetry,
 } from "../../src/handlers/release/commit-cli.js";
+import { runReleaseCommit } from "../../src/handlers/release/commit.js";
 
 interface GitResult {
   exitCode: number;
@@ -49,6 +53,24 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function authorizingSettings(): ResolvedSettingsResult {
+  return {
+    settings: {
+      "branch.base": "main",
+      "branch.protection": "partial",
+    } as ResolvedSettingsResult["settings"],
+    resolved: {
+      commitInterlock: { value: "on-task-approval", source: "default" },
+      pushInterlock: { value: "manual", source: "default" },
+      syncInterlock: { value: "on-handoff", source: "default" },
+      notesPush: { value: "on-sync", source: "default" },
+      releaseOptedIn: { value: "true", source: "default" },
+    },
+    defaultsApplied: [],
+    warnings: [],
+  };
 }
 
 beforeEach(async () => {
@@ -203,5 +225,107 @@ describe("latest retry message", () => {
       Uint8Array.from(Buffer.from("replacement message")),
     );
     expect((await stat(second.path)).mode & 0o777).toBe(0o600);
+  });
+
+  it("removes only an unchanged retry file consumed through its exact path", async () => {
+    const firstBytes = Buffer.from("first message");
+    const retry = await persistRealCommitMessageRetry({ cwd: repository, bytes: firstBytes });
+
+    expect(await cleanupRealConsumedMessageRetry({
+      cwd: repository,
+      sourcePath: join(repository, "unrelated-message"),
+      bytes: firstBytes,
+    })).toBe(false);
+    expect(await exists(retry.path)).toBe(true);
+
+    const replacementBytes = Buffer.from("replacement message");
+    await persistRealCommitMessageRetry({ cwd: repository, bytes: replacementBytes });
+    expect(await cleanupRealConsumedMessageRetry({
+      cwd: repository,
+      sourcePath: retry.path,
+      bytes: firstBytes,
+    })).toBe(false);
+    expect(await exists(retry.path)).toBe(true);
+
+    expect(await cleanupRealConsumedMessageRetry({
+      cwd: repository,
+      sourcePath: retry.path,
+      bytes: replacementBytes,
+    })).toBe(true);
+    expect(await exists(retry.path)).toBe(false);
+  });
+
+  it("replays exact bytes through a second wrapper run from a metacharacter path", async () => {
+    const linkedParent = await mkdtemp(join(tmpdir(), "arc-release-message-replay-"));
+    const linked = join(linkedParent, "repo $HOME;it's linked");
+    const messageBytes = Buffer.from("feat(release): replay the exact approved message\n");
+    let retryPath = "";
+    const stderr: string[] = [];
+    try {
+      expect((await runGit(["worktree", "add", "--detach", linked])).exitCode).toBe(0);
+
+      const first = await runReleaseCommit({
+        cwd: linked,
+        identity: "alice",
+        argv: ["-m", "feat(release): replay the exact approved message"],
+        settings: authorizingSettings(),
+        currentBranch: "HEAD",
+        preflightCommitMessage: async () => ({
+          kind: "passed",
+          verdict: "pass",
+          messageBytes,
+          transport: { kind: "messages" },
+        }),
+        spawnGit: async () => ({ exitCode: 7, stdout: "", stderr: "hook failed" }),
+        resolveHead: async () => "unused",
+        createMessageSnapshot: createRealCommitMessageSnapshot,
+        persistMessageRetry: async (opts) => {
+          const retry = await persistRealCommitMessageRetry(opts);
+          retryPath = retry.path;
+          return retry;
+        },
+        cleanupConsumedMessageRetry: cleanupRealConsumedMessageRetry,
+        preflightRemedy: "unused",
+        writeStderr: (message) => { stderr.push(message); },
+        appendAudit: async () => ({ ok: true }),
+      });
+
+      expect(first.exitCode).toBe(7);
+      expect(stderr.join("")).toContain(renderCommitMessageRetryCommand(retryPath));
+      expect(Uint8Array.from(await readFile(retryPath))).toEqual(Uint8Array.from(messageBytes));
+
+      const second = await runReleaseCommit({
+        cwd: linked,
+        identity: "alice",
+        argv: ["-F", retryPath],
+        settings: authorizingSettings(),
+        currentBranch: "HEAD",
+        preflightCommitMessage: async () => {
+          const rawBytes = await readFile(retryPath);
+          return {
+            kind: "passed",
+            verdict: "pass",
+            messageBytes: Uint8Array.from(rawBytes),
+            transport: { kind: "file", rawBytes, sourcePath: retryPath },
+          };
+        },
+        spawnGit: async ({ args }) => {
+          expect(Uint8Array.from(await readFile(args[1] ?? ""))).toEqual(Uint8Array.from(messageBytes));
+          return { exitCode: 0, stdout: "", stderr: "" };
+        },
+        resolveHead: async () => "1a2b3c4d5e6f7890abcdef1234567890abcdef12",
+        createMessageSnapshot: createRealCommitMessageSnapshot,
+        persistMessageRetry: persistRealCommitMessageRetry,
+        cleanupConsumedMessageRetry: cleanupRealConsumedMessageRetry,
+        preflightRemedy: "unused",
+        writeStderr: (message) => { stderr.push(message); },
+        appendAudit: async () => ({ ok: true }),
+      });
+
+      expect(second.exitCode).toBe(0);
+      expect(await exists(retryPath)).toBe(false);
+    } finally {
+      await cleanupTempDir(linkedParent);
+    }
   });
 });

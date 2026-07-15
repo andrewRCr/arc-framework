@@ -116,7 +116,11 @@ describe("createCommitMessagePreflight", () => {
       kind: "passed",
       verdict: "pass",
       messageBytes: Uint8Array.from(bytes),
-      transport: { kind, rawBytes: Uint8Array.from(bytes) },
+      transport: {
+        kind,
+        rawBytes: Uint8Array.from(bytes),
+        ...(kind === "file" ? { sourcePath: path } : {}),
+      },
     });
   });
 

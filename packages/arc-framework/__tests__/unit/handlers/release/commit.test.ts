@@ -124,6 +124,7 @@ interface BuildDepsOptions {
   preflightCommitMessage?: ReleaseCommitDeps["preflightCommitMessage"];
   createMessageSnapshot?: ReleaseCommitDeps["createMessageSnapshot"];
   persistMessageRetry?: ReleaseCommitDeps["persistMessageRetry"];
+  cleanupConsumedMessageRetry?: ReleaseCommitDeps["cleanupConsumedMessageRetry"];
 }
 
 function buildDeps(root: string, opts: BuildDepsOptions = {}): {
@@ -159,6 +160,7 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
     persistMessageRetry: opts.persistMessageRetry ?? (() => {
       throw new Error("persistMessageRetry must not be called without a qualifying Git failure");
     }),
+    cleanupConsumedMessageRetry: opts.cleanupConsumedMessageRetry ?? (async () => false),
     preflightRemedy: "arc release commit -F <message-file>",
   };
   return { deps, stderr, spawnGit, resolveHead, preflightCommitMessage };
@@ -518,7 +520,7 @@ describe("runReleaseCommit — success path", () => {
         kind: "passed",
         verdict: "pass",
         messageBytes: rawBytes,
-        transport: { kind: "file", rawBytes },
+        transport: { kind: "file", rawBytes, sourcePath: "caller.txt" },
       }),
       createMessageSnapshot: async ({ bytes }) => {
         expect(bytes).toEqual(rawBytes);
@@ -558,8 +560,8 @@ describe("runReleaseCommit — success path", () => {
   it("persists approved message bytes after a resolved non-zero Git result", async () => {
     await writeStatus(fixture.root, "sample");
     const messageBytes = Buffer.from("feat(release): a sufficiently long valid subject\n");
-    const persistMessageRetry = vi.fn().mockResolvedValue({ path: "/repo/.git/latest-retry" });
-    const { deps } = buildDeps(fixture.root, {
+    const persistMessageRetry = vi.fn().mockResolvedValue({ path: "/repo with spaces/.git/latest-retry" });
+    const { deps, stderr } = buildDeps(fixture.root, {
       argv: ["-m", "feat(release): a sufficiently long valid subject"],
       settings: authorizingSettings(),
       preflightCommitMessage: () => Promise.resolve({
@@ -575,6 +577,7 @@ describe("runReleaseCommit — success path", () => {
 
     expect(result.exitCode).toBe(7);
     expect(persistMessageRetry).toHaveBeenCalledWith({ cwd: fixture.root, bytes: messageBytes });
+    expect(stderr.join("")).toContain("arc release commit -F '/repo with spaces/.git/latest-retry'");
   });
 
   it("preserves Git's exit code when retry persistence fails without offering an unusable path", async () => {
@@ -632,13 +635,44 @@ describe("runReleaseCommit — success path", () => {
         kind: "passed",
         verdict: "pass",
         messageBytes: Buffer.from("message"),
-        transport: { kind: "file", rawBytes: Buffer.from("message") },
+        transport: { kind: "file", rawBytes: Buffer.from("message"), sourcePath: "caller.txt" },
       }),
       createMessageSnapshot: async () => Promise.reject(new Error("disk full")),
     });
 
     expect((await runReleaseCommit(deps)).exitCode).toBe(16);
     expect(spawnGit).not.toHaveBeenCalled();
+  });
+
+  it("cleans the exact retry source only after its successful wrapper invocation", async () => {
+    await writeStatus(fixture.root, "sample");
+    const rawBytes = Buffer.from("approved retry");
+    const cleanupConsumedMessageRetry = vi.fn().mockResolvedValue(true);
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["-F", "/repo/.git/.arc-release-commit-message-retry"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes: rawBytes,
+        transport: {
+          kind: "file",
+          rawBytes,
+          sourcePath: "/repo/.git/.arc-release-commit-message-retry",
+        },
+      }),
+      createMessageSnapshot: async () => ({ path: "/private", cleanup: async () => undefined }),
+      spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+      resolveHead: () => Promise.resolve(FULL_HASH),
+    });
+
+    await runReleaseCommit({ ...deps, cleanupConsumedMessageRetry });
+
+    expect(cleanupConsumedMessageRetry).toHaveBeenCalledWith({
+      cwd: fixture.root,
+      sourcePath: "/repo/.git/.arc-release-commit-message-retry",
+      bytes: rawBytes,
+    });
   });
 
   it("cleans a file snapshot after spawn failure", async () => {
@@ -651,7 +685,7 @@ describe("runReleaseCommit — success path", () => {
         kind: "passed",
         verdict: "pass",
         messageBytes: Buffer.from("message"),
-        transport: { kind: "file", rawBytes: Buffer.from("message") },
+        transport: { kind: "file", rawBytes: Buffer.from("message"), sourcePath: "caller.txt" },
       }),
       createMessageSnapshot: async () => ({ path: "/private", cleanup }),
       spawnGit: async () => Promise.reject(new Error("spawn failed")),
@@ -670,7 +704,7 @@ describe("runReleaseCommit — success path", () => {
         kind: "passed",
         verdict: "pass",
         messageBytes: Buffer.from("message"),
-        transport: { kind: "file", rawBytes: Buffer.from("message") },
+        transport: { kind: "file", rawBytes: Buffer.from("message"), sourcePath: "caller.txt" },
       }),
       createMessageSnapshot: async () => ({
         path: "/private",
