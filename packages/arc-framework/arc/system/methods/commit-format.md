@@ -34,26 +34,27 @@ Conventional commit format.
 ### Message submission
 
 Submit multiline messages as file-backed input so the shell cannot interpolate or reshape the content. Use a quoted
-heredoc with `-F -` for either routed command:
+heredoc with `-F -` for either routed command, choosing a delimiter that does not occur as a complete line in the
+message. The examples use `ARC_COMMIT_MESSAGE_9F3D`; verify it is absent or replace it before running them:
 
 ```sh
-arc release commit -F - <<'ARC_COMMIT_MESSAGE'
+arc release commit -F - <<'ARC_COMMIT_MESSAGE_9F3D'
 <type>(scope): Brief description
 
 - Key change or rationale
 
 Context: tasks-example.md (Task 1.2)
-ARC_COMMIT_MESSAGE
+ARC_COMMIT_MESSAGE_9F3D
 ```
 
 ```sh
-git commit -F - <<'ARC_COMMIT_MESSAGE'
+git commit -F - <<'ARC_COMMIT_MESSAGE_9F3D'
 <type>(scope): Brief description
 
 - Key change or rationale
 
 Context: tasks-example.md (Task 1.2)
-ARC_COMMIT_MESSAGE
+ARC_COMMIT_MESSAGE_9F3D
 ```
 
 When the resident harness matcher cannot verify shell redirection, write the complete message to a prepared file and

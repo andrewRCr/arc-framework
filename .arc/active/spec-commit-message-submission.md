@@ -294,20 +294,21 @@ runnable hook at Git's resolved hook path and demotes the invocation to pass-thr
 hook validates the post-mutation bytes on that path.
 
 **Canonical shapes.** Exact message-file/stdin transport is the canonical wrapper path — `-F -` with a quoted
-heredoc as the primary documented shape. Where a harness allowlist matcher cannot verify redirection syntax, the
-canonical degrades to direct prepared-file argv: write the message file, then invoke `arc release commit -F
-<file>` without a shell wrapper. Codex documents shell scripts containing redirection as unsplittable for inner
-prefix-rule matching; the direct argv form is verified with `codex execpolicy check` rather than assumed safe
-from a generic word-only grammar.
+heredoc as the primary documented shape. The author chooses and verifies a delimiter that does not occur as a
+complete message line; quoting prevents interpolation but does not prevent delimiter collision. Where a harness
+allowlist matcher cannot verify redirection syntax, the canonical degrades to direct prepared-file argv: write the
+message file, then invoke `arc release commit -F <file>` without a shell wrapper. Codex documents shell scripts
+containing redirection as unsplittable for inner prefix-rule matching; the direct argv form is verified with
+`codex execpolicy check` rather than assumed safe from a generic word-only grammar.
 
 **Preflight failure semantics.** A validation or assembled-input failure exits before `spawnGit` with refusal
 code `16`, identifier `commit-message-preflight-failed`, and one release-commit audit outcome shaped as
 `{ kind: "preflight-failed", reason: "validation" | "input" }`. The broader reason keeps unreadable sources,
 stdin failures, and unsupported or malformed encodings audited without storing message content. Validation
 diagnostics are the validator's — identical to what the hook would have printed — with one wrapper-surface
-addition: the failure output ends with the safe invocation shape (quoted-heredoc `-F -`, or the matcher-degraded
-`-F <file>` where that applies), so the transport remedy is visible at the point of failure, not only in the
-durable `commit-format` guidance.
+addition: the failure output always ends with the prepared-file `-F <file>` shape. The corrected message does not
+exist when the remedy is rendered, so the wrapper cannot verify a heredoc delimiter against it. The safe transport
+remedy remains visible at the point of failure, not only in the durable `commit-format` guidance.
 
 **Audit schema cutover.** The new outcome is the forcing function anticipated by the accepted v1 schema lock.
 Before the first public release, all release audit writers move together to `schemaVersion: 2`; the runtime
@@ -360,9 +361,9 @@ The Bash rules port against a shared fixture corpus under the package's test tre
 Transport is documented once; the cascade when it ships:
 
 - **`commit-format` method** — the durable home for submission guidance. It presents the same quoted-heredoc
-  `-F -` and prepared `-F <file>` transports for both routed command prefixes: `arc release commit` when the
-  release route is active, raw `git commit` otherwise. Wrapper-only preflight and latest-retry behavior stay
-  labeled as such.
+  `-F -` with a verified non-colliding delimiter and prepared `-F <file>` transports for both routed command
+  prefixes: `arc release commit` when the release route is active, raw `git commit` otherwise. Wrapper-only
+  preflight and latest-retry behavior stay labeled as such.
 - **Release-wrapper setup doc** — its invocation examples show single-line `-m`, contradicting every multi-line
   template the workflows emit. Updated as a capability-based matcher-compatibility edit, not an examples-only
   touch. Codex compatibility is grounded through direct prepared-file argv plus `codex execpolicy check`: its
@@ -456,10 +457,10 @@ its own unknown-command error; the shim adds no version negotiation or compatibi
    output appears, the exit code is the preflight refusal code, and an audit entry with the preflight outcome
    kind is written under the settled v2 audit schema. Every release-commit outcome redacts message payloads from
    separate, attached, and combined short-option forms.
-2. A multiline message submitted via the canonical quoted-heredoc `-F -` shape (and via `-F <file>`) reaches
-   the hook byte-identical to the assembled preflight input — newlines preserved, no interpolation. Mutating the
-   original file after wrapper capture cannot change the committed bytes; the transient snapshot is removed after
-   Git settles and file-backed invocations retain inherited stdin.
+2. A multiline message submitted via the canonical quoted-heredoc `-F -` shape with a verified non-colliding
+   delimiter (and via `-F <file>`) reaches the hook byte-identical to the assembled preflight input — newlines
+   preserved, no interpolation. Mutating the original file after wrapper capture cannot change the committed bytes;
+   the transient snapshot is removed after Git settles and file-backed invocations retain inherited stdin.
 3. The fixture corpus passes three-valued (accept / reject / pass-with-warning) against both implementations
    pre-flip, modulo only the enumerated divergence list; post-flip it passes against the single TS
    implementation and runs in the standard test suite.

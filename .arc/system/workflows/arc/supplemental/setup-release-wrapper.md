@@ -53,10 +53,10 @@ route lives under § Agent-Adaptive Path.
    Matcher-compatible example: `arc release commit -F <message-file>` and `arc release push`.
 
 2. **Prefix-match semantics.** Patterns match by command prefix plus forwarded git arguments. The
-   harness must verify the complete invocation shape it authorizes. Use the quoted-heredoc `-F -` transport
-   only where the resident matcher verifies shell redirection; otherwise prepare the complete message file and
-   invoke `arc release commit -F <message-file>` as direct argv. Patterns absorb forwarded Git flags without
-   re-prompting; wrapper policy still decides whether those flags are allowed.
+   harness must verify the complete invocation shape it authorizes. Use the quoted-heredoc `-F -` transport with
+   a verified non-colliding delimiter only where the resident matcher verifies shell redirection; otherwise prepare
+   the complete message file and invoke `arc release commit -F <message-file>` as direct argv. Patterns absorb
+   forwarded Git flags without re-prompting; wrapper policy still decides whether those flags are allowed.
 
 3. **Scope.** Per-developer, per-machine. The allowlist install lives in the developer's harness
    permission surface on the current machine. Other developers and other machines re-run setup

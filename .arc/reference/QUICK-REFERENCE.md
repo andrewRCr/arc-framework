@@ -333,16 +333,19 @@ model, `arc sync` direction semantics, and `user.notes_push` push policy.
 ```bash
 # Wrapped `git commit` — validates interlock state and branch protection, refuses
 # destructive flags, preflights deterministic messages, writes one audit entry
-arc release commit -F - <<'ARC_COMMIT_MESSAGE'
+# Choose a quoted delimiter absent as a complete message line
+arc release commit -F - <<'ARC_COMMIT_MESSAGE_9F3D'
 feat(scope): sufficiently descriptive subject
 
 - Explain the change and its impact.
 
 Context: standalone (maintenance)
-ARC_COMMIT_MESSAGE
+ARC_COMMIT_MESSAGE_9F3D
 
-# Validate a message file or stdin independently; add --json for a machine envelope
-arc check commit-msg <file | -> [--json]
+# Validate a message file independently
+arc check commit-msg path/to/message.txt
+# Or validate stdin with a machine envelope
+arc check commit-msg - --json
 
 # Wrapped `git push` (worktree leg) — validates pushability matrix and interlock,
 # refuses destructive flags (--force, --force-with-lease, --mirror, +refspec, --delete)

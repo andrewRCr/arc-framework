@@ -20,7 +20,6 @@ import { formatError, UserFacingError } from "../../lib/errors.js";
 import { environmentForGitCwd, execFileAsync, gitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
-import { readMarker } from "../../lib/release/setup-marker.js";
 import { renderCommitMessageRemedy } from "../../lib/release/commit-message-remedy.js";
 import { createCommitMessageRetryStore } from "../../lib/release/commit-message-retry-store.js";
 import {
@@ -75,8 +74,7 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
   });
 
   const currentBranch = (await resolveCurrentBranchName(gitExec)) ?? "";
-  const marker = await readMarker({ cwd, identity });
-  const preflightRemedy = renderCommitMessageRemedy(marker.ok ? marker.marker.harnesses : []);
+  const preflightRemedy = renderCommitMessageRemedy();
 
   const result = await runReleaseCommit({
     cwd,

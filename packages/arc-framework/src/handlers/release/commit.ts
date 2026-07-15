@@ -153,7 +153,7 @@ export interface ReleaseCommitDeps {
   persistMessageRetry: PersistCommitMessageRetry;
   /** Removes the exact wrapper-owned retry file after successful consumption. */
   cleanupConsumedMessageRetry: CleanupConsumedMessageRetry;
-  /** Wrapper-only safe resubmission guidance selected for the resident harness. */
+  /** Wrapper-only safe prepared-file resubmission guidance. */
   preflightRemedy: string;
   /** Sink for refusal messages. Defaults to `process.stderr.write`. */
   writeStderr?: (msg: string) => void;

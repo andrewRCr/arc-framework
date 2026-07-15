@@ -164,8 +164,9 @@ inner-prefix matching. Commit through direct prepared-file argv —
 `arc release commit -F <message-file>` — and verify that shape with `codex execpolicy check` against
 the installed rules. Never claim a shell-wrapped heredoc matches the commit prefix rule.
 
-For any harness, use the quoted-heredoc transport only after its resident matcher verifies redirection;
-otherwise use direct prepared-file argv. The push shape is the argument-free `arc release push`.
+For any harness, use the quoted-heredoc transport with a verified non-colliding delimiter only after its resident
+matcher verifies redirection; otherwise use direct prepared-file argv. The push shape is the argument-free
+`arc release push`.
 
 For patterns, paths, mode-detection details, and the matcher's full supported / fall-through
 table, see [`setup-release-wrapper.md`][setup-workflow] § Per-Harness Reference Notes. For

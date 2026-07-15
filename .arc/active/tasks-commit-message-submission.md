@@ -229,9 +229,9 @@ message bytes when the subsequent Git invocation fails.
           capture, preserving disabled, merge, and mutation-hook parity.
 
     - `[x]` **3.2.e Surface the safe resubmission shape on preflight failure**
-        - Appended harness-aware retry guidance after the canonical findings and refusal: Codex or unknown setup uses a
-          prepared `-F <file>`, while compatible recorded harnesses receive the quoted-heredoc `-F -` form; exact-output
-          tests pin the validator message as the unchanged prefix.
+        - Appended retry guidance after the canonical findings and refusal using prepared `-F <file>` for every harness;
+          the corrected message is not yet available to verify a heredoc delimiter. Exact-output tests pin the validator
+          message as the unchanged prefix.
 
 - _Outcome:_ Authorized deterministic messages now validate once before Git and retain one captured transport through
   execution; failures audit distinctly and return harness-safe retry guidance, while exemptions and mutating hooks
@@ -298,15 +298,17 @@ cross-surface first-release checks without leaking transport mechanics into work
 - **Additional Context:** `strategy-package-project-sync.md` § Configurable file sync — never `cp`.
 
     - `[x]` **4.1.a Make `commit-format` the transport authority**
-        - Added synchronized package/self-hosted guidance making quoted-heredoc `-F -` authoritative for multiline
-          wrapper and raw routes, with direct prepared-file argv for matchers that cannot verify redirection. The method
-          now defines repeated `-m` as separate paragraphs and scopes deterministic preflight, atomic latest-retry
-          replacement/command rendering, and successful exact-consumption cleanup to the release wrapper.
+        - Added synchronized package/self-hosted guidance making quoted-heredoc `-F -` with a verified non-colliding
+          delimiter authoritative for multiline wrapper and raw routes, with direct prepared-file argv for matchers that
+          cannot verify redirection. The method now defines repeated `-m` as separate paragraphs and scopes deterministic
+          preflight, atomic latest-retry replacement/command rendering, and successful exact-consumption cleanup to the
+          release wrapper.
 
     - `[x]` **4.1.b Correct the quick-reference invocation**
-        - Replaced the package-template and self-hosted single-`-m` example independently with quoted-heredoc `-F -`,
-          linked the transport authority, documented `arc check commit-msg <file | -> [--json]`, and corrected the
-          refusal range to codes `10–16` with all seven implemented identifiers while preserving project-only content.
+        - Replaced the package-template and self-hosted single-`-m` example independently with quoted-heredoc `-F -`
+          using a verified non-colliding delimiter, linked the transport authority, added runnable standalone file/stdin
+          check examples, and corrected the refusal range to codes `10–16` with all seven implemented identifiers while
+          preserving project-only content.
 
     - `[x]` **4.1.c Align footer guidance with trailer semantics**
         - Added one synchronized author-facing clarification to `commit-footer`: `Context:` belongs in the final Git
