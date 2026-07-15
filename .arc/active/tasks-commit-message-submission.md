@@ -303,12 +303,10 @@ cross-surface first-release checks without leaking transport mechanics into work
           now defines repeated `-m` as separate paragraphs and scopes deterministic preflight, atomic latest-retry
           replacement/command rendering, and successful exact-consumption cleanup to the release wrapper.
 
-    - `[ ]` **4.1.b Correct the quick-reference invocation**
-        - Replace the single-line-biased release-commit example in `QUICK-REFERENCE` with the safe shape and point to
-          `commit-format` for the full contract.
-        - Document `arc check commit-msg <file | -> [--json]` and replace the stale `10–14` / `no-active-wu` refusal
-          summary with codes `10–16` and their implemented identifiers.
-        - Update the package template and self-hosted instance separately, preserving project-specific content.
+    - `[x]` **4.1.b Correct the quick-reference invocation**
+        - Replaced the package-template and self-hosted single-`-m` example independently with quoted-heredoc `-F -`,
+          linked the transport authority, documented `arc check commit-msg <file | -> [--json]`, and corrected the
+          refusal range to codes `10–16` with all seven implemented identifiers while preserving project-only content.
 
     - `[ ]` **4.1.c Align footer guidance with trailer semantics**
         - Verify `commit-footer` already describes a final `Context:` trailer; add only the minimal clarification needed

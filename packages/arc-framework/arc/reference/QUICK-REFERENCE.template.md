@@ -278,8 +278,15 @@ State Portability for the portability model, `arc sync` direction semantics, and
 
 ```bash
 # Wrapped `git commit` — validates interlock state and branch protection, refuses
-# destructive flags (--amend, --no-verify, --allow-empty), writes one audit entry
-arc release commit -m "feat(scope): subject"
+# destructive flags, preflights deterministic messages, writes one audit entry
+arc release commit -F - <<'ARC_COMMIT_MESSAGE'
+feat(scope): sufficiently descriptive subject
+
+- Explain the change and its impact.
+ARC_COMMIT_MESSAGE
+
+# Validate a message file or stdin independently; add --json for a machine envelope
+arc check commit-msg <file | -> [--json]
 
 # Wrapped `git push` (worktree leg) — validates pushability matrix and interlock,
 # refuses destructive flags (--force, --force-with-lease, --mirror, +refspec, --delete)
@@ -299,10 +306,14 @@ arc release status
 arc release status --json
 ```
 
-Refusal exit codes 10–14 cover `no-active-wu`, `interlock-not-authorized`, `destructive-flag`,
-`branch-protection-violation`, and `pushability-precheck-failed`; audit entries land at
+See [`commit-format`](../system/methods/commit-format.md) for multiline transport, direct-file matcher fallback,
+message structure, and wrapper retry behavior.
+
+Refusal exit codes 10–16 cover `ambiguous-active-wu`, `interlock-not-authorized`, `destructive-flag`,
+`branch-protection-violation`, `pushability-precheck-failed`, `arg-grammar-fallthrough`, and
+`commit-message-preflight-failed`; audit entries land at
 `.arc/user/{identity}/.internal/.audit-log.jsonl`. See
-[DEV-RULES.ARC](constitution/DEV-RULES.ARC.md) § Commit Discipline for the trust model and
+[DEV-RULES.ARC](../system/rules/DEV-RULES.ARC.md) § Commit Discipline for the trust model and
 opt-in semantics.
 
 ### Standalone Work History
