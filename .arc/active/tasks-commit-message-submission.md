@@ -376,45 +376,50 @@ cross-surface first-release checks without leaking transport mechanics into work
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ TypeScript lint, shellcheck, source and test typechecks, 445 Vitest files (5,572 passed and 1
+  skipped), build, and 451-file Markdown lint all passed.
+- _Success criteria:_ All 11 task-list criteria and all 11 upstream design criteria are met; fresh adversarial
+  findings were resolved and rechecked against source.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Invalid deterministic wrapper messages fail before Git and staged-content hooks start, with a typed refusal and
+- `[x]` Invalid deterministic wrapper messages fail before Git and staged-content hooks start, with a typed refusal and
   v2 preflight audit outcome; every release audit writer emits the settled v2 schema, and no separate, attached, or
   combined short-option message payload enters a release-commit audit entry.
 
-- `[ ]` Quoted-heredoc `-F -` and file-backed `-F <file>` submissions preserve the exact bytes validated by preflight;
+- `[x]` Quoted-heredoc `-F -` and file-backed `-F <file>` submissions preserve the exact bytes validated by preflight;
   file mutation after capture cannot change Git's input, transient snapshots are removed, and file-backed Git retains
   inherited stdin.
 
-- `[ ]` The shared corpus proves accept, reject, and pass-with-warning parity modulo only the recorded trailer,
+- `[x]` The shared corpus proves accept, reject, and pass-with-warning parity modulo only the recorded trailer,
   regex-dialect, and invalid-active-config divergences, and remains the acceptance suite after cutover.
 
-- `[ ]` Diagnostics identify offending message lines, bounded values, safe previews, and focused legal footer
+- `[x]` Diagnostics identify offending message lines, bounded values, safe previews, and focused legal footer
   suggestions.
 
-- `[ ]` Ordinary commits retain `pre-commit` then `commit-msg` defense in depth; disabled and merge-exempt hooks no-op,
+- `[x]` Ordinary commits retain `pre-commit` then `commit-msg` defense in depth; disabled and merge-exempt hooks no-op,
   and enabled validation fails closed when no CLI is resolvable.
 
-- `[ ]` `arc check commit-msg` supports files and stdin with stable exit codes and a versioned `--json` envelope.
+- `[x]` `arc check commit-msg` supports files and stdin with stable exit codes and a versioned `--json` envelope.
 
-- `[ ]` Any resolved non-zero Git result after successful assembled preflight leaves a restrictively written reusable
+- `[x]` Any resolved non-zero Git result after successful assembled preflight leaves a restrictively written reusable
   message under the absolute worktree git directory, and successful consumption removes it; no path points callers to
   `.git/COMMIT_EDITMSG`.
 
-- `[ ]` All eight validator configuration keys preserve Bash defaults and configuration-reading semantics, including
+- `[x]` All eight validator configuration keys preserve Bash defaults and configuration-reading semantics, including
   bare-empty-first and quoted-empty-first duplicates; custom patterns honor the documented regex-dialect cutover,
   invalid active domains fail with configuration-located findings, and unavailable artifact resolution degrades to a
   non-blocking warning.
 
-- `[ ]` Durable commit guidance is route-aware; hook and setup docs describe the shim and verified matcher boundaries;
+- `[x]` Durable commit guidance is route-aware; hook and setup docs describe the shim and verified matcher boundaries;
   config integrity and inline comments match runtime domains; `QUICK-REFERENCE` documents `arc check commit-msg` plus
   refusal codes `10–16`; workflow fire-points remain content-only, and accepted `ADR-017` carries a dated append-only
   amendment for the expanded trust surface and clean v2 audit cutover.
 
-- `[ ]` All quality gates pass (tests, linting, type checking, build, and shellcheck).
+- `[x]` All quality gates pass (tests, linting, type checking, build, and shellcheck).
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.
