@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "start-cut-base-provenance",
+  "origin": "inbox",
+  "intent": "start-cut-base-provenance",
+  "branch": "chore/start-cut-base-provenance",
+  "createdAt": "2026-07-15T17:52:04.495Z",
+  "originEntry": "### `[ ]` **`arc start` names the base ref and sha it cut from**",
+  "returnBranch": "main"
+}
