@@ -35,6 +35,7 @@ describe("commit parser trailer parity", () => {
   it.each([
     "feature(api): description\n\nBody.\n\nTrace: one\nContext: final\n",
     "feature(api): description\n\nContext: first\n continuation\nContext: last\n",
+    "feature(api): description\n\nContext: final\n   \t\n",
     "feature(api): description\n\nContext: body-shaped\nBody prose follows.\n",
   ])("matches git interpret-trailers --parse", async (message) => {
     const gitTrailers = await parseWithGit(message);

@@ -81,7 +81,7 @@ function parseTrailerBlock(
 export function parseCommitMessage(message: string): ParsedCommitMessage {
   const lines = message.replace(/\r\n/g, "\n").split("\n");
   let effectiveEnd = lines.length;
-  while (effectiveEnd > 1 && lines[effectiveEnd - 1] === "") effectiveEnd -= 1;
+  while (effectiveEnd > 1 && lines[effectiveEnd - 1]?.trim() === "") effectiveEnd -= 1;
 
   const candidateStart = findTrailerStart(lines, effectiveEnd);
   const parsedTrailers =
