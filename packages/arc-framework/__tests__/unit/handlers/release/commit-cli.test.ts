@@ -1,0 +1,56 @@
+/** Failure-path coverage for the real wrapped Git subprocess adapter. */
+
+import { spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
+import { PassThrough, Writable } from "node:stream";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { createSpawnGit } from "../../../../src/handlers/release/commit-cli.js";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("createSpawnGit", () => {
+  it("returns Git's exit status when Git closes before consuming piped stdin", async () => {
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    const result = await createSpawnGit(spawn)({
+      args: ["--arc-invalid-option", "-F", "-"],
+      cwd: process.cwd(),
+      stdin: Buffer.alloc(16 * 1024 * 1024, "x"),
+    });
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("arc-invalid-option");
+  });
+
+  it("terminates Git and rejects after a fatal stdin write error", async () => {
+    const stdin = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback(Object.assign(new Error("stdin write failed"), { code: "EIO" }));
+      },
+    });
+    const events = new EventEmitter();
+    const proc = Object.assign(events, {
+      stdin,
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      killed: false,
+      kill() {
+        this.killed = true;
+        queueMicrotask(() => events.emit("close", null));
+        return true;
+      },
+    });
+    const spawnProcess = vi.fn(() => proc) as unknown as typeof spawn;
+
+    await expect(createSpawnGit(spawnProcess)({
+      args: ["-F", "-"],
+      cwd: process.cwd(),
+      stdin: Buffer.from("message"),
+    })).rejects.toThrow("stdin write failed");
+    expect(proc.killed).toBe(true);
+  });
+});

@@ -144,17 +144,35 @@ async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
  * prompt, interactive rebase) works as expected; pipes stdout and stderr so the
  * captured streams support hash extraction and hook-failure attribution while
  * being teed verbatim to the user's terminal.
+ *
+ * @param spawnProcess - Child-process factory used for the wrapped Git invocation
+ * @returns A `SpawnGit` adapter with captured output and guarded stdin transport
  */
-const realSpawnGit: SpawnGit = ({ args, cwd, stdin }) =>
-  new Promise((resolve, reject) => {
-    const proc = spawn("git", ["commit", ...args], {
+export function createSpawnGit(spawnProcess: typeof spawn): SpawnGit {
+  return ({ args, cwd, stdin }) => new Promise((resolve, reject) => {
+    const proc = spawnProcess("git", ["commit", ...args], {
       stdio: [stdin === undefined ? "inherit" : "pipe", "pipe", "pipe"],
       cwd,
     });
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    let fatalTransportError: Error | null = null;
+    const toError = (cause: unknown): Error => cause instanceof Error
+      ? cause
+      : new Error("git commit subprocess failed", { cause });
+    const rejectOnce = (cause: unknown): void => {
+      if (settled) return;
+      settled = true;
+      reject(toError(cause));
+    };
+    const terminateForTransportError = (cause: unknown): void => {
+      if (settled || fatalTransportError !== null) return;
+      fatalTransportError = toError(cause);
+      proc.kill("SIGKILL");
+    };
     if (proc.stdout === null || proc.stderr === null) {
-      reject(new Error("git commit did not expose captured output streams"));
+      terminateForTransportError(new Error("git commit did not expose captured output streams"));
       return;
     }
     proc.stdout.on("data", (chunk: Buffer) => {
@@ -165,12 +183,31 @@ const realSpawnGit: SpawnGit = ({ args, cwd, stdin }) =>
       stderr += chunk.toString();
       process.stderr.write(chunk);
     });
-    proc.on("error", reject);
+    proc.on("error", rejectOnce);
     proc.on("close", (code) => {
+      if (settled) return;
+      if (fatalTransportError !== null) {
+        rejectOnce(fatalTransportError);
+        return;
+      }
+      settled = true;
       resolve({ exitCode: code ?? 1, stdout, stderr });
     });
-    if (stdin !== undefined && proc.stdin !== null) proc.stdin.end(stdin);
+    if (stdin !== undefined) {
+      if (proc.stdin === null) {
+        terminateForTransportError(new Error("git commit did not expose writable stdin"));
+        return;
+      }
+      proc.stdin.on("error", (cause: unknown) => {
+        if (cause instanceof Error && "code" in cause && cause.code === "EPIPE") return;
+        terminateForTransportError(cause);
+      });
+      proc.stdin.end(stdin);
+    }
   });
+}
+
+const realSpawnGit = createSpawnGit(spawn);
 
 export const createRealCommitMessageSnapshot: CreateCommitMessageSnapshot = async ({ cwd, bytes }) => {
   const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], { cwd });
