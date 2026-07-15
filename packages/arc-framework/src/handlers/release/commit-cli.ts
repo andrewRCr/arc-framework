@@ -13,7 +13,7 @@
 import { spawn } from "node:child_process";
 import { access, constants, open, readFile, rename, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
@@ -22,7 +22,11 @@ import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
 import { readMarker } from "../../lib/release/setup-marker.js";
 import { renderCommitMessageRemedy } from "../../lib/release/commit-message-remedy.js";
-import { COMMIT_MESSAGE_RETRY_FILENAME } from "../../lib/release/commit-message-retry.js";
+import { createCommitMessageRetryStore } from "../../lib/release/commit-message-retry-store.js";
+import {
+  acquireAdvisoryLock,
+  releaseAdvisoryLock,
+} from "../../lib/user-sync/notes-lock.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
 
 import {
@@ -229,6 +233,29 @@ export const createRealCommitMessageSnapshot: CreateCommitMessageSnapshot = asyn
   return { path, cleanup: () => unlink(path) };
 };
 
+const realCommitMessageRetryStore = createCommitMessageRetryStore({
+  resolveGitDir: async (cwd) => {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], {
+      cwd,
+      env: environmentForGitCwd(cwd),
+    });
+    return stdout.trim();
+  },
+  randomId: randomUUID,
+  openPrivate: async (path) => open(path, "wx", 0o600),
+  readFile,
+  rename,
+  unlink,
+  withLock: async (path, operation) => {
+    const handle = await acquireAdvisoryLock(path);
+    try {
+      return await operation();
+    } finally {
+      await releaseAdvisoryLock(handle);
+    }
+  },
+});
+
 /**
  * Atomically replace the worktree-local latest-retry message with private bytes.
  *
@@ -239,24 +266,7 @@ export async function persistRealCommitMessageRetry(opts: {
   cwd: string;
   bytes: Uint8Array;
 }): Promise<{ path: string }> {
-  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], {
-    cwd: opts.cwd,
-    env: environmentForGitCwd(opts.cwd),
-  });
-  const gitDir = stdout.trim();
-  const path = join(gitDir, COMMIT_MESSAGE_RETRY_FILENAME);
-  const temporaryPath = join(gitDir, `.arc-release-commit-message-retry-${randomUUID()}.tmp`);
-  const handle = await open(temporaryPath, "wx", 0o600);
-  try {
-    await handle.writeFile(opts.bytes);
-    await handle.close();
-    await rename(temporaryPath, path);
-  } catch (cause: unknown) {
-    await handle.close().catch(() => undefined);
-    await unlink(temporaryPath).catch(() => undefined);
-    throw cause;
-  }
-  return { path };
+  return realCommitMessageRetryStore.persist(opts);
 }
 
 /**
@@ -270,29 +280,7 @@ export async function cleanupRealConsumedMessageRetry(opts: {
   sourcePath: string;
   bytes: Uint8Array;
 }): Promise<boolean> {
-  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], {
-    cwd: opts.cwd,
-    env: environmentForGitCwd(opts.cwd),
-  });
-  const path = join(stdout.trim(), COMMIT_MESSAGE_RETRY_FILENAME);
-  if (resolve(opts.cwd, opts.sourcePath) !== path) return false;
-
-  let current: Uint8Array;
-  try {
-    current = await readFile(path);
-  } catch (cause: unknown) {
-    if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return false;
-    throw cause;
-  }
-  if (current.length !== opts.bytes.length || current.some((byte, index) => byte !== opts.bytes[index])) {
-    return false;
-  }
-  try {
-    await unlink(path);
-  } catch (cause: unknown) {
-    if (!(cause instanceof Error && "code" in cause && cause.code === "ENOENT")) throw cause;
-  }
-  return true;
+  return realCommitMessageRetryStore.cleanup(opts);
 }
 
 /** Resolves `HEAD` post-success for the audit entry's `hash` field. */
