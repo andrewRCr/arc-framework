@@ -742,6 +742,32 @@ append-only (no force-push). Backup refs `refs/arc-backup/notes-pre-retirement` 
   back at cross-machine resume; the 14-day TTL (~2026-07-23) expires their surface before wave 4 realistically
   runs, and re-cleaning is cheap if one resurrects.
 
+## Wave-3 launch evidence
+
+### Launch (2026-07-15, Task 5.1 partial — drain leg pending)
+
+CMS merged (PR #251, 13:00Z); both WU legs launched same-day from the synced primary. Cut base verified by hand:
+`main` ≡ `origin/main` ≡ the parked grooming checkout at `567a3c237` at cut time — clean dispatch, both `plan/`
+branches cut from the synced tree (the PR #242 live check's positive leg), no split-brain. HLD's landed
+`worktree-teardown-decoupling` edge resolved via `arc status` and graduation proceeded ungated — the `Depends On`
+discharge observation (4.3 re-anchor) confirmed. BI-1 provisioning held for both spawns: `node_modules` + harness
+layer present, seeded mini-handoffs landed; zero by-hand steps. `-y` covered the non-TTY confirm.
+
+### Launch-session friction findings (2026-07-15)
+
+Eight findings routed per the seam-routing rule — three errand captures (ROADMAP conflict auto-regen; base-drift
+prompt text suggesting rebase on a pushed branch; `arc start` naming its cut base), five WU captures
+(`husk-lifecycle-drivers`: husk surfacing for linked-worktree sessions; `session-locus-model`: groom-branch
+advisory false positive + dedup; `cli-substrate-adoption`: stale-dist auto-rebuild; `composable-workflows`:
+session-init growth datapoint + interim schema-extraction candidate; `interlock-release-refinement`: routine
+base-reconcile tail wrapper coverage). The systemic seam — hygiene/completion surfaces gated to loci a
+worktree-resident operator never occupies — landed as Task 7.3. Notable single instance: the CMS husk was
+invisible to every session until hand-discovered, and FP's own merge-gate event (CMS merging) was probe-invisible
+on the resume arm, resolved only by a manual `gh` query; teardown ran clean from the primary once known
+(2026-07-15). Positive evidence for interlock-friction-by-work-character (5.1 design decision): the launch
+ceremony itself was low-friction; the friction concentrated in routine reconcile ops and advisory noise, not in
+decision-bearing gates.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification

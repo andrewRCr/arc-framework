@@ -833,6 +833,22 @@ the waves run rather than authored up front.
 - _Surfaced by:_ wave-1 cell 3.2.b induction, 2026-07-09 — see `notes-finalize-parallelism.md` § Wave-1
   induction evidence.
 
+### `[ ]` **7.3 Disposition the locus-gated awareness seam (hygiene/completion surfaces vs. worktree-resident operators)**
+
+- _Goal:_ The arm/locus gating of the probe's hygiene and completion-tail surfaces is dispositioned — absorbed,
+  re-gated, or spawned as a follow-up WU — with wave evidence recorded.
+- _Context:_ Under real parallelism the operator resides in linked worktrees, but `sweep` and `orphanBranchSweep`
+  emit primary-only, `errandState.residue` / `inFlight` are Orient-arm-only, and `workUnitState` (completion
+  tail) skips linked resume arms — so shipped-WU husks, orphan branches, errand residue, and merged-sibling
+  events accumulate invisibly. Wave-3 instance: the CMS husk went unsurfaced post-ship until hand-discovered,
+  and the CMS merge gate (FP's own Next Action trigger) was probe-invisible on FP's resume arm, needing a manual
+  `gh` query. The presence tiers are network-free, so lifting them (nudge-gated) to linked resume arms looks
+  cheap; alternatives: a hygiene verb/view runnable anywhere, or `session-locus-model`'s locus-record read-verb
+  as the carrier. Coordination captures routed to `husk-lifecycle-drivers` and `session-locus-model`
+  (2026-07-15).
+- _Surfaced by:_ wave-3 launch session, 2026-07-15 — see `notes-finalize-parallelism.md` § Wave-3 launch
+  evidence.
+
 ## **Phase 8:** GA closeout
 
 _Purpose:_ Bless worktree-by-default for GA — reconcile the concurrency doctrine to the as-built shape, finalize
