@@ -230,6 +230,16 @@ the display name is plain prose, matching the `# Metadata:` / `# Task List:` H1s
 which form and the form ↔ `Class` constraints, see [Work Organization][work-org] § Planning depth and spec
 forms.
 
+**Location** (lifecycle position first; `pm.mode` only when nothing is on disk yet — same rule as
+[`create-spec`][create-spec] / [`generate-tasks`][generate-tasks]):
+
+- **After planning init** (`active/meta-{name}.md` present): `.arc/active/` — co-located with the meta and
+  task list. [Activation][activate-work-unit] is a state-flip + branch rename only; it does not relocate
+  these files from backlog.
+- **arc-in-git, still incubating** (pre-start stub / `--plan` grooming only):
+  `.arc/backlog/{provisional,planned}/<wu-name>/` — uncommon; most specs are authored after init.
+- **none / external**: `.arc/active/` throughout.
+
 **Key conventions:**
 
 - **One spec per work unit** — a spec maps to a branch and task list. "I want both a PRD and an RFC" is a
@@ -313,6 +323,8 @@ course-correction is still cheap.
 [init-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [draft-design]: ../../../system/workflows/arc/draft-design.md
 [create-spec]: ../../../system/workflows/arc/create-spec.md
+[generate-tasks]: ../../../system/workflows/arc/generate-tasks.md
+[activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [resolve-planning-depth]: ../../../system/methods/resolve-planning-depth.md
 [classify-work-unit]: ../../../system/methods/classify-work-unit.md
 [template-draft]: ../../templates/arc/work-unit/template-draft.md

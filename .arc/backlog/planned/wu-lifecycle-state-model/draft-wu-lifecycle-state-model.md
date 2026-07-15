@@ -12,9 +12,9 @@
 ## Inbound Buffer — Pending Integration
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
-> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration. These seven_
-> _captures are this WU's seed material — the core reform plus five activation-mechanics facets and one_
-> _save-location alignment that the reform's activation path settles._
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration. Seed material_
+> _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
+> _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
 ### `[ ]` **Formalize the shipped, pending-teardown worktree terminal condition**
 
@@ -193,26 +193,6 @@
   BI-5's internal `runGraduate` "preflight" (meta-shape validation-before-mutation) usage to something else (e.g.
   `validate-first`). The prime name goes to the user-facing surface.
 - _Cross-ref:_ `naming-conventions` (the `preflight` term overload).
-
-### `[ ]` **Align planning-artifact save-location guidance (active-branch vs backlog/grooming contexts)**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-07) — re-triaged here at drain: the save-location
-  rule shifts with this WU's activation/verb refinements (active-branch `active/` vs backlog `--plan` grooming),
-  so it settles as part of the reform rather than as a standalone doc errand. Captured during `burn-in-probe-a`
-  task-generation finalization, 2026-07-06.
-- _Observation:_ `create-spec.md` and `generate-tasks.md` say `arc-in-git` specs/tasks save under
-  `.arc/backlog/{provisional,planned}/{name}/`, but an occupied planning branch created by `arc start` has its meta
-  in `.arc/active/`; session-init resolves bare `Task List` filenames beside that active meta, and
-  `activate-work-unit.md` requires `.arc/active/spec-{name}.md` plus `.arc/active/tasks-{name}.md`. Following the
-  workflow wording during `burn-in-probe-a` left session-init reporting the task list missing until the artifacts
-  were moved into `.arc/active/`.
-- _Approach:_ clarify the save-location rule for active planning branches versus unstarted backlog/grooming
-  contexts, and update the package + project workflow copies together so `create-spec`, `generate-tasks`,
-  session-init resolution, and activation preconditions agree. Note the async split may reshape _which_ contexts
-  exist (backlog `--plan` grooming vs. spawn-then-plan worktree) — settle the save-location rule against the
-  post-reform verb model, not the current synchronous one.
-- _Files:_ `.arc/system/workflows/arc/create-spec.md`, `.arc/system/workflows/arc/generate-tasks.md`, plus the
-  `packages/arc-framework/arc/system/workflows/arc/` copies.
 
 ### `[ ]` **Preserve PSI's scheduling/readiness axis contract**
 

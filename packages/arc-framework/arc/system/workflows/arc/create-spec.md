@@ -186,12 +186,18 @@ markers are stripped.
 concise, descriptive slug (e.g., `api-modernization`, `cli-implementation`). Avoid abbreviations that only make
 sense in context or overly long compound names.
 
-**Save location** depends on your project's PM mode ([`arc-config.yml`][arc-config] → `pm.mode`):
+**Save location** — co-locate with the work unit's existing artifacts (lifecycle position first; `pm.mode`
+only when nothing is on disk yet):
 
-- **arc-in-git**: `.arc/backlog/{provisional,planned}/{name}/spec-{name}.md` — specs start in backlog and
-  relocate to `active/` during [activation][activate-work-unit]
-- **none / external**: `.arc/active/spec-{name}.md` — specs save directly to active (no backlog directory).
-  Create the directory first if it doesn't exist: `mkdir -p .arc/active/`
+1. **Sibling present** — write beside an existing `meta-{name}.md`, `draft-{name}.md`, or other planning
+   artifact for this name (same directory). After [`init-work-unit`][init-work-unit] / `arc start`, that is
+   almost always `.arc/active/spec-{name}.md`. Do **not** write under `backlog/` when the meta already lives
+   in `active/` — [activation][activate-work-unit] is a state-flip + branch rename only, not a backlog→active
+   relocate.
+2. **No sibling yet, arc-in-git incubating** — `.arc/backlog/{provisional,planned}/{name}/spec-{name}.md`
+   (pre-start stub / `--plan` grooming only; uncommon — most specs are authored after init).
+3. **none / external** — `.arc/active/spec-{name}.md` (create the directory first if needed:
+   `mkdir -p .arc/active/`).
 
 ## Finalize — review, retire the draft, persist `Class`, commit
 
@@ -302,5 +308,4 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: work-unit-lifecycle/integrate-work-unit.md
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
-[arc-config]: ../../arc-config.yml
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
