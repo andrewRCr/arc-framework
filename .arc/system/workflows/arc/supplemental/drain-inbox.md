@@ -122,8 +122,9 @@ boundaries (there are no routing PRs to chunk). Surface the chunk plan at the in
 ### 5. Route — write to homes
 
 Each entry takes exactly one route. Routing **moves** the source line out of `USER-INBOX` (never copies):
-`arc user inbox-remove <slug>` drops it (matched on the entry title in v1; idempotent), paired with each routing
-write.
+`arc user inbox-remove <entry-title>` drops it (matched on the title in v1; idempotent); use
+`--inbox-entry-file <path>` (`-` reads stdin) for Markdown- or shell-active titles. Pair the removal with each
+routing write.
 
 - **Existing-stub home** — a multi-step entry whose home is a live `active/` or `backlog/` stub. Write the note
   into that stub's `draft-*` / `notes-*` in one of **two integration modes**:
@@ -177,9 +178,10 @@ write.
 
 For each **execute-now** atomic, hand off to the [`run-errand`][run-errand] lifecycle — the drain never executes
 atomic work itself. The atomic's `USER-INBOX` entry is the errand's **originating capture**: pass it to
-`run-errand` so its `arc errand open --from-inbox <entry-title>` mints an `inbox`-origin record, and the entry
-drops at the errand's `close` off that back-pointer rather than being orphaned. Two explicit paths, the user's
-choice by context budget (never a structural gate):
+`run-errand` so `arc errand open` mints an `inbox`-origin record, using `--from-inbox <entry-title>` or
+`--inbox-entry-file <path>` / `--inbox-entry-file -` for a shell-active title. The entry drops at the errand's
+`close` off that back-pointer rather than being orphaned. Two explicit paths, the user's choice by context budget
+(never a structural gate):
 
 - **Same session** — transition into `run-errand`, then **return here for the next**. Run the committed atomics
   **one at a time, sequentially** (batch only when they are genuinely one concern). `run-errand`'s Launch

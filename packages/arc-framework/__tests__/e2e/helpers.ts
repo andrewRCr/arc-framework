@@ -7,7 +7,7 @@
  * not source modules.
  */
 
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -117,6 +117,56 @@ export async function runArcNoTty(
     const exitCode = typeof e.code === "number" ? e.code : 1;
     return { stdout: e.stdout ?? "", stderr: e.stderr ?? "", exitCode };
   }
+}
+
+/**
+ * Invoke the built CLI with caller-provided stdin and real pipes.
+ *
+ * @param args - CLI arguments.
+ * @param cwd - Working directory for the CLI process.
+ * @param stdin - UTF-8 content supplied to standard input.
+ * @param options - Optional timeout and environment overrides.
+ * @returns Captured stdout, stderr, and exit code.
+ */
+export function runArcWithStdin(
+  args: string[],
+  cwd: string,
+  stdin: string,
+  options?: { timeout?: number; env?: Record<string, string> },
+): Promise<RunResult> {
+  assertCliBuilt();
+  const timeout = options?.timeout ?? 30_000;
+  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+
+  return new Promise<RunResult>((resolveResult, rejectResult) => {
+    const child = spawn(process.execPath, [CLI_PATH, ...args], { cwd, env, stdio: "pipe" });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    // The command may exit before buffered input drains; consume only the expected EPIPE.
+    child.stdin.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code !== "EPIPE") rejectResult(err);
+    });
+    child.stdin.end(stdin);
+
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      rejectResult(new Error(`CLI invocation timed out after ${timeout}ms`));
+    }, timeout);
+    child.on("error", (err) => {
+      clearTimeout(timer);
+      rejectResult(err);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolveResult({
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+        exitCode: code ?? 1,
+      });
+    });
+  });
 }
 
 function buildScriptCommand(args: string[]): string {

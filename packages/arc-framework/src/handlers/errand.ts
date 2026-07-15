@@ -41,6 +41,7 @@ import {
   type InFlightWarning,
 } from "../lib/git/in-flight-derivation.js";
 import { gitExec, createUserIOContext } from "../lib/io-context.js";
+import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
   clearErrandPartialPushMarker,
@@ -178,6 +179,8 @@ export interface ErrandOpenOptions {
    * for a free-description launch.
    */
   fromInbox?: string;
+  /** UTF-8 file containing the originating capture title, or `-` for stdin. */
+  inboxEntryFile?: string;
 }
 
 /**
@@ -223,6 +226,17 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
     return;
   }
 
+  let originEntry: string | undefined;
+  if (opts.fromInbox !== undefined || opts.inboxEntryFile !== undefined) {
+    try {
+      originEntry = await resolveInboxEntryOperand({ literal: opts.fromInbox, file: opts.inboxEntryFile });
+    } catch (err) {
+      p.log.error(`Could not resolve the inbox entry title: ${err instanceof Error ? err.message : String(err)}`);
+      process.exitCode = 1;
+      return;
+    }
+  }
+
   const identity = await resolveIdentityWithPrompt(false);
   if (!identity) {
     p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
@@ -241,7 +255,7 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
   try {
     result = await openErrand(
       { exec: io.exec, execInput: io.execInput, identity },
-      { slug, base, type, intent: opts.intent, originEntry: opts.fromInbox, createdAt: new Date().toISOString() },
+      { slug, base, type, intent: opts.intent, originEntry, createdAt: new Date().toISOString() },
     );
   } catch (err) {
     p.log.error(`Could not open the errand: ${err instanceof Error ? err.message : String(err)}`);
@@ -280,6 +294,8 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
 export interface ErrandLinkOptions {
   /** USER-INBOX capture title to associate with this errand. */
   fromInbox?: string;
+  /** UTF-8 file containing the capture title, or `-` for stdin. */
+  inboxEntryFile?: string;
 }
 
 /**
@@ -305,9 +321,11 @@ export async function handleErrandLink(slug: string, opts: ErrandLinkOptions): P
     return;
   }
 
-  const originEntry = opts.fromInbox?.trim();
-  if (originEntry === undefined || originEntry === "") {
-    p.log.error("`arc errand link` requires `--from-inbox <entry-title>`.");
+  let originEntry: string;
+  try {
+    originEntry = await resolveInboxEntryOperand({ literal: opts.fromInbox, file: opts.inboxEntryFile });
+  } catch (err) {
+    p.log.error(`Could not resolve the inbox entry title: ${err instanceof Error ? err.message : String(err)}`);
     process.exitCode = 1;
     return;
   }

@@ -67,6 +67,7 @@ import {
 import {
   handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
   handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
+  type UserInboxRemoveOptions,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
@@ -294,12 +295,14 @@ errand
   .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
   .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its title): inbox-origin record, dropped at close")
+  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
   .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
 
 errand
   .command("link <slug>")
   .description("Link an in-flight errand to a USER-INBOX capture so close/promote can drop it")
-  .requiredOption("--from-inbox <entry-title>", "USER-INBOX capture title to associate with the errand")
+  .option("--from-inbox <entry-title>", "USER-INBOX capture title to associate with the errand")
+  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
   .action((slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts));
 
 errand
@@ -402,9 +405,10 @@ userCmd
   .action(handleUserClose);
 
 userCmd
-  .command("inbox-remove <slug>")
-  .description("Drop the slug-matched USER-INBOX entry (title-keyed in v1; idempotent — no-op when absent)")
-  .action(handleUserInboxRemove);
+  .command("inbox-remove [slug]")
+  .description("Drop the title-matched USER-INBOX entry (idempotent — no-op when absent)")
+  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
+  .action((slug: string | undefined, opts: UserInboxRemoveOptions) => handleUserInboxRemove(slug, opts));
 
 userCmd
   .command("save")
