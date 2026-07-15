@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `bb10cf706`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `956a87214`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,9 +13,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State    | Work unit            | Priority | Owner  | Depends on | Cohort            |
-| -------- | -------------------- | -------- | ------ | ---------- | ----------------- |
-| `Active` | finalize-parallelism | P1       | andrew | —          | agile-parallelism |
+| State      | Work unit              | Priority | Owner  | Depends on | Cohort                   |
+| ---------- | ---------------------- | -------- | ------ | ---------- | ------------------------ |
+| `Active`   | finalize-parallelism   | P1       | andrew | —          | agile-parallelism        |
+| `Planning` | husk-lifecycle-drivers | P1       | andrew | —          | —                        |
+| `Active`   | cli-test-hardening     | P3       | andrew | —          | architecture-remediation |
 
 ## Ready
 
@@ -24,7 +26,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | interlock-release-refinement          | P1       | andrew | —          | approval-flow-refinement   |
 | base-drift-guidance                   | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
-| husk-lifecycle-drivers                | P1       | andrew | —          | —                          |
 | pr-decomposition                      | P1       | andrew | —          | —                          |
 | recovery-hardening                    | P1       | andrew | —          | —                          |
 | review-gate-enforcement-qualification | P1       | andrew | —          | —                          |
@@ -47,7 +48,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | workflow-eval-harness                 | P2       | andrew | —          | —                          |
 | handoff-optimization                  | P3       | andrew | —          | agent-context-optimization |
 | ci-cross-platform-hardening           | P3       | andrew | —          | architecture-remediation   |
-| cli-test-hardening                    | P3       | andrew | —          | architecture-remediation   |
 | lib-layer-type-extraction             | P3       | andrew | —          | architecture-remediation   |
 | sync-handler-decomposition            | P3       | andrew | —          | architecture-remediation   |
 | user-sync-module-split                | P3       | andrew | —          | architecture-remediation   |
@@ -68,6 +68,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cold-start-init-polish                | P3       | andrew | —          | —                          |
 | contributor-path                      | P3       | andrew | —          | —                          |
 | external-coord-probe                  | P3       | andrew | —          | —                          |
+| grok-compaction-recovery              | P3       | andrew | —          | —                          |
 | idiomatic-alignment                   | P3       | andrew | —          | —                          |
 | inbound-routing-method                | P3       | andrew | —          | —                          |
 | knowledge-lint                        | P3       | andrew | —          | —                          |
