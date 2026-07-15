@@ -2,6 +2,12 @@
 
 import { join } from "node:path";
 
+const EXECUTABLE_GITHOOKS = new Set([
+  "system/.internal/githooks/commit-msg",
+  "system/.internal/githooks/pre-commit",
+  "system/.internal/githooks/pre-push",
+]);
+
 /** Filesystem boundary used to apply one installed mode. */
 export type InstallChmod = (path: string, mode: number) => Promise<void>;
 
@@ -12,7 +18,7 @@ export type InstallChmod = (path: string, mode: number) => Promise<void>;
  * @returns Whether installation owns its executable mode
  */
 export function isExecutableInstallPath(relativePath: string): boolean {
-  return relativePath.startsWith("system/.internal/githooks/") || relativePath.endsWith(".sh");
+  return EXECUTABLE_GITHOOKS.has(relativePath) || relativePath.endsWith(".sh");
 }
 
 /**

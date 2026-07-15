@@ -374,6 +374,9 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       // Check owner-execute bit (0o100)
       expect(s.mode & 0o100, `${relPath} should be executable`).toBeTruthy();
     }
+
+    const hooksReadme = await stat(join(arcDir, "system/.internal/githooks/README.md"));
+    expect(hooksReadme.mode & 0o100, "githooks README should not be executable").toBeFalsy();
   });
 
   it("installs a commit-msg hook accepted by the integrity verifier", async () => {

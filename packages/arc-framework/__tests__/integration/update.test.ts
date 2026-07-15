@@ -108,7 +108,9 @@ describe("update integration — baseline (real recipe)", () => {
 
   it("restores executable permissions on installed hooks", async () => {
     const hook = join(tempDir, ".arc/system/.internal/githooks/commit-msg");
+    const hooksReadme = join(tempDir, ".arc/system/.internal/githooks/README.md");
     await chmod(hook, 0o644);
+    await chmod(hooksReadme, 0o644);
 
     await runUpdate({
       cwd: tempDir,
@@ -118,6 +120,7 @@ describe("update integration — baseline (real recipe)", () => {
     });
 
     expect((await stat(hook)).mode & 0o100).toBeTruthy();
+    expect((await stat(hooksReadme)).mode & 0o100).toBeFalsy();
   });
 
   it("re-update on post-restructure .arc/ is idempotent for per-file methods/extensions", async () => {
