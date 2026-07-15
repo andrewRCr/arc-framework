@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "planning-artifact-save-location",
+  "origin": "description",
+  "intent": "Align create-spec/generate-tasks save-location with active planning branches vs backlog incubation",
+  "branch": "fix/planning-artifact-save-location",
+  "createdAt": "2026-07-15T22:15:27.042Z",
+  "returnBranch": "main"
+}
