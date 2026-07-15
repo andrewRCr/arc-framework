@@ -13,10 +13,12 @@ import type { CommitMessageCheckFailure } from "./commit-msg.js";
 /** Options accepted by the public commit-message check command. */
 export interface HandleCheckCommitMessageOptions {
   json?: boolean;
+  dashPrefixedSourceAllowed?: boolean;
 }
 
 function normalizeSourceInput(
   source: string | string[] | undefined,
+  dashPrefixedSourceAllowed: boolean,
 ): string | undefined | CommitMessageCheckFailure {
   const operands = Array.isArray(source) ? source : source === undefined ? [] : [source];
   if (operands.length > 1) {
@@ -31,7 +33,12 @@ function normalizeSourceInput(
     };
   }
   const candidate = operands[0];
-  if (candidate !== undefined && candidate !== "-" && candidate.startsWith("-")) {
+  if (
+    candidate !== undefined
+    && candidate !== "-"
+    && candidate.startsWith("-")
+    && !dashPrefixedSourceAllowed
+  ) {
     return {
       kind: "error",
       exitCode: 2,
@@ -76,7 +83,7 @@ export async function handleCheckCommitMessage(
   options: HandleCheckCommitMessageOptions,
 ): Promise<void> {
   const root = resolveArcRoot(process.cwd());
-  const normalizedSource = normalizeSourceInput(source);
+  const normalizedSource = normalizeSourceInput(source, options.dashPrefixedSourceAllowed === true);
   const outcome = typeof normalizedSource === "object"
     ? normalizedSource
     : await runCheckCommitMessage(normalizedSource, {

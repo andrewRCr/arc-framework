@@ -202,4 +202,23 @@ describe("commit-message consumer parity", () => {
       error: { kind: "usage" },
     });
   });
+
+  it("accepts a dash-prefixed message path after the option terminator", async () => {
+    const fixture = matrixFixtures[0];
+    if (fixture === undefined) throw new Error("missing valid fixture");
+    await setupFixture(fixture.config, fixture.messageBytes);
+    await writeFile(join(repository, "--message-file"), fixture.messageBytes);
+
+    const result = await runCli(
+      ["check", "commit-msg", "--json", "--", "--message-file"],
+      { cwd: repository, env: { NO_COLOR: "1" } },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: 1,
+      result: { kind: "validated", verdict: fixture.expected.verdict },
+    });
+  });
 });

@@ -104,6 +104,22 @@ const checkCmd = program
   .command("check")
   .description("Run standalone repository checks");
 
+function isDashPrefixedCheckSourceEscaped(
+  rawArgs: readonly string[],
+  input: readonly string[],
+): boolean {
+  if (input.length !== 1) return false;
+  const commandIndex = rawArgs.findIndex(
+    (value, index) => value === "check" && rawArgs[index + 1] === "commit-msg",
+  );
+  if (commandIndex === -1) return false;
+  const tail = rawArgs.slice(commandIndex + 2);
+  const terminator = tail.indexOf("--");
+  return terminator !== -1
+    && tail.length === terminator + 2
+    && tail[terminator + 1] === input[0];
+}
+
 checkCmd
   .command("commit-msg")
   .description("Validate a commit message without committing")
@@ -112,7 +128,10 @@ checkCmd
   .allowUnknownOption(true)
   .option("--json", "Emit a versioned JSON envelope")
   .action((input: string[], opts: HandleCheckCommitMessageOptions) =>
-    handleCheckCommitMessage(input, opts));
+    handleCheckCommitMessage(input, {
+      ...opts,
+      dashPrefixedSourceAllowed: isDashPrefixedCheckSourceEscaped(process.argv, input),
+    }));
 
 // --- Init & Join ---
 
