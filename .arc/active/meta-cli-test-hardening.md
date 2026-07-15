@@ -12,12 +12,13 @@
 - **Task List:** `tasks-cli-test-hardening.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task list generated (`tasks-cli-test-hardening.md`, 5 phases + verification) and WU
-  activated to `chore/cli-test-hardening` (2026-07-15).
-- **Next Task:** Begin Task 1.1 — Retry-safe git-backed removal primitive
+- **Last Completed:** Phase 1 complete (Tasks 1.1–1.4) — retry-safe removal primitive, unified `createTempRepo`
+  core, and all git-backed teardowns routed through it with gc-disable closed on inline bare origins.
+- **Next Task:** Task 2.1 — De-cost the notes-compaction fixture, flake (a) (line ~105)
 - **Blockers:** [none]
 
-- **Next Action:** Begin implementation — load process-task-loop and start Task 1.1
+- **Next Action:** Start Task 2.1 — shrink the 302-filler loop to ~35 per the recorded reduce-count approach
+  (spec Decision 2 finding + `notes-cli-test-hardening.md`); update count assertions, add partition-dump diagnostic.
 
 - **PR URL:** [none]
 - **Completed:** [none]
