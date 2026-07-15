@@ -172,7 +172,8 @@ export function createSpawnGit(spawnProcess: typeof spawn): SpawnGit {
       proc.kill("SIGKILL");
     };
     if (proc.stdout === null || proc.stderr === null) {
-      terminateForTransportError(new Error("git commit did not expose captured output streams"));
+      proc.kill("SIGKILL");
+      rejectOnce(new Error("git commit did not expose captured output streams"));
       return;
     }
     proc.stdout.on("data", (chunk: Buffer) => {

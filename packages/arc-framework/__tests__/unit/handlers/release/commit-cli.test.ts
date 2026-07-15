@@ -12,6 +12,27 @@ afterEach(() => {
 });
 
 describe("createSpawnGit", () => {
+  it("terminates and rejects when captured output streams are unavailable", async () => {
+    const events = new EventEmitter();
+    const proc = Object.assign(events, {
+      stdin: null,
+      stdout: null,
+      stderr: new PassThrough(),
+      killed: false,
+      kill() {
+        this.killed = true;
+        return true;
+      },
+    });
+    const spawnProcess = vi.fn(() => proc) as unknown as typeof spawn;
+
+    await expect(createSpawnGit(spawnProcess)({
+      args: ["-m", "message"],
+      cwd: process.cwd(),
+    })).rejects.toThrow("git commit did not expose captured output streams");
+    expect(proc.killed).toBe(true);
+  });
+
   it("returns Git's exit status when Git closes before consuming piped stdin", async () => {
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     vi.spyOn(process.stderr, "write").mockImplementation(() => true);
