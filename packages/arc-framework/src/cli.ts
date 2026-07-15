@@ -757,7 +757,7 @@ logCmd
   .option("--all", "Show all matching commits (no limit)")
   .option(
     "--category <category>",
-    "Filter by standalone category (maintenance|planning|documentation|refactor)",
+    "Filter by standalone category (maintenance|planning|documentation|refactor|code review)",
   )
   .action(handleLogStandalone);
 
