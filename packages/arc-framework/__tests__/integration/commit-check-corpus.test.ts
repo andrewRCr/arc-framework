@@ -11,7 +11,7 @@ describe("canonical commit-message corpus", () => {
       expect(outcome).toMatchObject({ kind: "validated", verdict: fixture.expected.verdict });
       if (outcome.kind !== "validated") throw new Error("expected validated outcome");
       const codes = outcome.findings.map(({ code }) => code);
-      for (const code of fixture.expected.findingCodes) expect(codes).toContain(code);
+      expect(codes).toEqual(fixture.expected.findingCodes);
     });
   }
 });
