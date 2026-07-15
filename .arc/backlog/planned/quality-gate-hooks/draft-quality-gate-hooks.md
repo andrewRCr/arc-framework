@@ -5,6 +5,25 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Distinguish runtime examples from meta-project references in code**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
+  `commit-message-submission` integration preflight.
+- *Concern:* the production-code meta-reference guard rejects legal runtime `Context:` footer examples because
+  their filenames resemble planning-artifact references. User-facing diagnostics and validation fixtures need to
+  show canonical inputs without weakening the prohibition on comments or identifiers coupled to planning state.
+- *Approach:* define and test a semantic boundary that permits executable string data, diagnostics, and fixtures
+  while preserving the guard against durable code-to-planning coupling.
+
+### `[ ]` **Make integrity verification accurate for mode-scoped installs**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
+  `commit-message-submission` CodeRabbit review fixes.
+- *Concern:* the installed integrity verifier reports eight false failures in a fresh `pm.mode=none` project: it
+  requires mode-excluded strategies and still checks the retired `3_process-task-loop.md` path.
+- *Approach:* derive structural expectations from the installed manifest and active PM mode, update renamed
+  workflow paths, and add fresh-install fixtures whose complete integrity result is clean in every supported mode.
+
 ### `[ ]` **Guard or migrate dev-repo-only `npx tsx` hook delegations**
 
 - *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during

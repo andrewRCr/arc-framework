@@ -31,6 +31,16 @@ post-trio architecture-remediation plans consume.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Auto-rebuild or gate on stale self-hosting CLI bundles**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during the FP wave-3 launch
+  session.
+- *Concern:* after a base merge, ignored `dist/cli.js` bundles can remain stale per worktree. A required ROADMAP
+  regeneration then runs through a binary the CLI itself distrusts, and clearing the state currently requires a
+  manual build in each affected worktree.
+- *Approach:* add a self-hosting affordance that rebuilds on stale detection or refuses hook-critical operations
+  with a precise rebuild path. Coordinate with this WU's uniform non-interactive command contract.
+
 ### `[ ]` **Finish the explicit Class-input contract at `promote`**
 
 - *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during FP wave-2 launch.
