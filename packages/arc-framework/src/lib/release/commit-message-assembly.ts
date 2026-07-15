@@ -7,6 +7,10 @@ const encoder = new TextEncoder();
 /** Injected byte readers used to capture `-F` sources exactly once. */
 export interface CommitMessageFileSourceReaders {
   readFile: (path: string) => Promise<Uint8Array>;
+  readFileWithIdentity?: (path: string) => Promise<{
+    bytes: Uint8Array;
+    identity: string;
+  }>;
   readStdin: () => Promise<Uint8Array>;
 }
 
@@ -16,6 +20,7 @@ export interface CapturedCommitMessageFileSource {
   input: "file" | "stdin";
   rawBytes: Uint8Array;
   messageBytes: Uint8Array;
+  sourceIdentity?: string;
 }
 
 /** Input failure raised while capturing a file- or stdin-backed source. */
@@ -110,13 +115,19 @@ export async function captureCommitMessageFileSource(
 ): Promise<CaptureCommitMessageFileSourceResult> {
   const input = path === "-" ? "stdin" : "file";
   try {
-    const source = input === "stdin" ? await readers.readStdin() : await readers.readFile(path);
+    const identified = input === "file" && readers.readFileWithIdentity !== undefined
+      ? await readers.readFileWithIdentity(path)
+      : undefined;
+    const source = input === "stdin"
+      ? await readers.readStdin()
+      : (identified?.bytes ?? await readers.readFile(path));
     const rawBytes = Uint8Array.from(source);
     return {
       kind: "captured",
       input,
       rawBytes,
       messageBytes: cleanupCommitMessageBytes(rawBytes),
+      ...(identified === undefined ? {} : { sourceIdentity: identified.identity }),
     };
   } catch (cause: unknown) {
     return {

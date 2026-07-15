@@ -16,6 +16,10 @@ import type { CommitMessagePreflightResult, PreflightCommitMessage } from "./com
 export interface CommitMessagePreflightDeps {
   stdinIsTTY: boolean;
   readFile: (path: string) => Promise<Uint8Array>;
+  readFileWithIdentity?: (path: string) => Promise<{
+    bytes: Uint8Array;
+    identity: string;
+  }>;
   readStdin: () => Promise<Uint8Array>;
   setupRepository: (cwd: string) => Promise<CommitMessageCheckRepository>;
   hasPrepareCommitMsgHook: (cwd: string) => Promise<boolean>;
@@ -68,7 +72,14 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
       if (capture.kind === "error") return inputFailure(capture.message);
       messageBytes = capture.messageBytes;
       transport = capture.input === "file"
-        ? { kind: "file", rawBytes: capture.rawBytes, sourcePath: classification.source.path }
+        ? {
+            kind: "file",
+            rawBytes: capture.rawBytes,
+            sourcePath: classification.source.path,
+            ...(capture.sourceIdentity === undefined
+              ? {}
+              : { sourceIdentity: capture.sourceIdentity }),
+          }
         : { kind: "stdin", rawBytes: capture.rawBytes };
     }
 

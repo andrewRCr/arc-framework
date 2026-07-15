@@ -660,6 +660,7 @@ describe("runReleaseCommit — success path", () => {
           kind: "file",
           rawBytes,
           sourcePath: "/repo/.git/.arc-release-commit-message-retry",
+          sourceIdentity: "retry-generation",
         },
       }),
       createMessageSnapshot: async () => ({ path: "/private", cleanup: async () => undefined }),
@@ -672,7 +673,7 @@ describe("runReleaseCommit — success path", () => {
     expect(cleanupConsumedMessageRetry).toHaveBeenCalledWith({
       cwd: fixture.root,
       sourcePath: "/repo/.git/.arc-release-commit-message-retry",
-      bytes: rawBytes,
+      sourceIdentity: "retry-generation",
     });
   });
 

@@ -83,7 +83,12 @@ export type CommitMessagePreflightResult =
       messageBytes: Uint8Array;
       transport?:
         | { kind: "messages" }
-        | { kind: "file"; rawBytes: Uint8Array; sourcePath: string }
+        | {
+            kind: "file";
+            rawBytes: Uint8Array;
+            sourcePath: string;
+            sourceIdentity?: string;
+          }
         | { kind: "stdin"; rawBytes: Uint8Array };
     }
   | { kind: "refused"; reason: "validation" | "input"; message: string };
@@ -111,11 +116,11 @@ export type PersistCommitMessageRetry = (opts: {
   bytes: Uint8Array;
 }) => Promise<{ path: string }>;
 
-/** Remove a successfully consumed wrapper-owned retry source when it is still unchanged. */
+/** Remove a successfully consumed wrapper-owned retry source when its generation still matches. */
 export type CleanupConsumedMessageRetry = (opts: {
   cwd: string;
   sourcePath: string;
-  bytes: Uint8Array;
+  sourceIdentity: string;
 }) => Promise<boolean>;
 
 /**
@@ -269,12 +274,13 @@ export async function runReleaseCommit(
     spawned.exitCode === 0
     && preflight.kind === "passed"
     && preflight.transport?.kind === "file"
+    && preflight.transport.sourceIdentity !== undefined
   ) {
     try {
       await deps.cleanupConsumedMessageRetry({
         cwd: deps.cwd,
         sourcePath: preflight.transport.sourcePath,
-        bytes: preflight.transport.rawBytes,
+        sourceIdentity: preflight.transport.sourceIdentity,
       });
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);

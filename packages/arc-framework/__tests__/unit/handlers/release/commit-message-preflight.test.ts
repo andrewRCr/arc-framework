@@ -32,6 +32,7 @@ function repository(
 
 function create(overrides: {
   readFile?: (path: string) => Promise<Uint8Array>;
+  readFileWithIdentity?: (path: string) => Promise<{ bytes: Uint8Array; identity: string }>;
   readStdin?: () => Promise<Uint8Array>;
   repo?: CommitMessageCheckRepository;
   setupRepository?: () => Promise<CommitMessageCheckRepository>;
@@ -46,6 +47,9 @@ function create(overrides: {
     preflight: createCommitMessagePreflight({
       stdinIsTTY: overrides.stdinIsTTY ?? false,
       readFile,
+      ...(overrides.readFileWithIdentity === undefined
+        ? {}
+        : { readFileWithIdentity: overrides.readFileWithIdentity }),
       readStdin,
       setupRepository: overrides.setupRepository ?? (async () => overrides.repo ?? repository()),
       hasPrepareCommitMsgHook: overrides.hasPrepareCommitMsgHook ?? (async () => false),
@@ -102,6 +106,27 @@ describe("createCommitMessagePreflight", () => {
       reason: "input",
       message: "Commit-message input requires an interactive editor.",
     });
+  });
+
+  it("retains file-generation identity for successful retry cleanup", async () => {
+    const bytes = Buffer.from("feat(release): a sufficiently long valid subject\n");
+    const { preflight, readFile } = create({
+      readFileWithIdentity: async () => ({ bytes, identity: "retry-generation" }),
+      repo: repository({ "commit.context_footer": "disabled" }),
+    });
+
+    await expect(preflight({ args: ["-F", "message.txt"], cwd: "/repo" })).resolves.toEqual({
+      kind: "passed",
+      verdict: "pass",
+      messageBytes: Uint8Array.from(bytes),
+      transport: {
+        kind: "file",
+        rawBytes: Uint8Array.from(bytes),
+        sourcePath: "message.txt",
+        sourceIdentity: "retry-generation",
+      },
+    });
+    expect(readFile).not.toHaveBeenCalled();
   });
 
   it.each([

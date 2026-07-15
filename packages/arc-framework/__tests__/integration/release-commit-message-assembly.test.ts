@@ -19,6 +19,7 @@ import {
   cleanupRealConsumedMessageRetry,
   createRealCommitMessageSnapshot,
   persistRealCommitMessageRetry,
+  readRealCommitMessageFileWithIdentity,
 } from "../../src/handlers/release/commit-cli.js";
 import { runReleaseCommit } from "../../src/handlers/release/commit.js";
 
@@ -249,30 +250,32 @@ describe("latest retry message", () => {
     expect((await stat(second.path)).mode & 0o777).toBe(0o600);
   });
 
-  it("removes only an unchanged retry file consumed through its exact path", async () => {
+  it("removes only the consumed retry generation at its exact path", async () => {
     const firstBytes = Buffer.from("first message");
     const retry = await persistRealCommitMessageRetry({ cwd: repository, bytes: firstBytes });
+    const firstGeneration = await readRealCommitMessageFileWithIdentity(retry.path);
 
     expect(await cleanupRealConsumedMessageRetry({
       cwd: repository,
       sourcePath: join(repository, "unrelated-message"),
-      bytes: firstBytes,
+      sourceIdentity: firstGeneration.identity,
     })).toBe(false);
     expect(await exists(retry.path)).toBe(true);
 
-    const replacementBytes = Buffer.from("replacement message");
+    const replacementBytes = Buffer.from("first message");
     await persistRealCommitMessageRetry({ cwd: repository, bytes: replacementBytes });
     expect(await cleanupRealConsumedMessageRetry({
       cwd: repository,
       sourcePath: retry.path,
-      bytes: firstBytes,
+      sourceIdentity: firstGeneration.identity,
     })).toBe(false);
     expect(await exists(retry.path)).toBe(true);
 
+    const replacementGeneration = await readRealCommitMessageFileWithIdentity(retry.path);
     expect(await cleanupRealConsumedMessageRetry({
       cwd: repository,
       sourcePath: retry.path,
-      bytes: replacementBytes,
+      sourceIdentity: replacementGeneration.identity,
     })).toBe(true);
     expect(await exists(retry.path)).toBe(false);
   });
@@ -323,12 +326,17 @@ describe("latest retry message", () => {
         settings: authorizingSettings(),
         currentBranch: "HEAD",
         preflightCommitMessage: async () => {
-          const rawBytes = await readFile(retryPath);
+          const captured = await readRealCommitMessageFileWithIdentity(retryPath);
           return {
             kind: "passed",
             verdict: "pass",
-            messageBytes: Uint8Array.from(rawBytes),
-            transport: { kind: "file", rawBytes, sourcePath: retryPath },
+            messageBytes: Uint8Array.from(captured.bytes),
+            transport: {
+              kind: "file",
+              rawBytes: captured.bytes,
+              sourcePath: retryPath,
+              sourceIdentity: captured.identity,
+            },
           };
         },
         spawnGit: async ({ args }) => {

@@ -11,7 +11,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { access, constants, open, readFile, rename, unlink } from "node:fs/promises";
+import { access, constants, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
@@ -91,6 +91,7 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: process.stdin.isTTY,
       readFile: (path) => readFile(path),
+      readFileWithIdentity: readRealCommitMessageFileWithIdentity,
       readStdin,
       setupRepository: (root) => createDefaultCommitCheckRepository(root, {
         exec: gitExec,
@@ -231,6 +232,29 @@ export const createRealCommitMessageSnapshot: CreateCommitMessageSnapshot = asyn
   return { path, cleanup: () => unlink(path) };
 };
 
+function formatFileIdentity(stats: { dev: bigint; ino: bigint }): string {
+  return `${String(stats.dev)}:${String(stats.ino)}`;
+}
+
+/**
+ * Read one file generation through one handle.
+ *
+ * @param path - Commit-message file to capture.
+ * @returns Captured bytes plus opaque filesystem identity.
+ */
+export async function readRealCommitMessageFileWithIdentity(path: string): Promise<{
+  bytes: Uint8Array;
+  identity: string;
+}> {
+  const handle = await open(path, "r");
+  try {
+    const identity = formatFileIdentity(await handle.stat({ bigint: true }));
+    return { bytes: await handle.readFile(), identity };
+  } finally {
+    await handle.close();
+  }
+}
+
 const realCommitMessageRetryStore = createCommitMessageRetryStore({
   resolveGitDir: async (cwd) => {
     const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], {
@@ -241,7 +265,7 @@ const realCommitMessageRetryStore = createCommitMessageRetryStore({
   },
   randomId: randomUUID,
   openPrivate: async (path) => open(path, "wx", 0o600),
-  readFile,
+  identifyFile: async (path) => formatFileIdentity(await stat(path, { bigint: true })),
   rename,
   unlink,
   withLock: async (path, operation) => {
@@ -268,15 +292,15 @@ export async function persistRealCommitMessageRetry(opts: {
 }
 
 /**
- * Remove an unchanged wrapper-owned retry file after successful consumption.
+ * Remove the same wrapper-owned retry generation after successful consumption.
  *
- * @param opts - Repository root, original file operand, and captured source bytes.
+ * @param opts - Repository root, original file operand, and captured generation identity.
  * @returns Whether the wrapper-owned path was removed.
  */
 export async function cleanupRealConsumedMessageRetry(opts: {
   cwd: string;
   sourcePath: string;
-  bytes: Uint8Array;
+  sourceIdentity: string;
 }): Promise<boolean> {
   return realCommitMessageRetryStore.cleanup(opts);
 }

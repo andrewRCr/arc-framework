@@ -1,4 +1,4 @@
-/** Serialized storage for the worktree-local latest commit-message retry. */
+/** Generation-aware storage for the worktree-local latest commit-message retry. */
 
 import { join, resolve } from "node:path";
 
@@ -18,7 +18,7 @@ export interface CommitMessageRetryStoreDeps {
   resolveGitDir: (cwd: string) => Promise<string>;
   randomId: () => string;
   openPrivate: (path: string) => Promise<CommitMessageRetryFileHandle>;
-  readFile: (path: string) => Promise<Uint8Array>;
+  identifyFile: (path: string) => Promise<string>;
   rename: (from: string, to: string) => Promise<void>;
   unlink: (path: string) => Promise<void>;
   withLock: <T>(path: string, operation: () => Promise<T>) => Promise<T>;
@@ -30,16 +30,12 @@ export interface CommitMessageRetryStore {
   cleanup: (opts: {
     cwd: string;
     sourcePath: string;
-    bytes: Uint8Array;
+    sourceIdentity: string;
   }) => Promise<boolean>;
 }
 
 function isErrnoCode(cause: unknown, code: string): boolean {
   return cause instanceof Error && "code" in cause && cause.code === code;
-}
-
-function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
-  return left.length === right.length && left.every((byte, index) => byte === right[index]);
 }
 
 /**
@@ -83,14 +79,14 @@ export function createCommitMessageRetryStore(
       const lockPath = join(gitDir, COMMIT_MESSAGE_RETRY_LOCK_FILENAME);
 
       return deps.withLock(lockPath, async () => {
-        let current: Uint8Array;
+        let currentIdentity: string;
         try {
-          current = await deps.readFile(path);
+          currentIdentity = await deps.identifyFile(path);
         } catch (cause: unknown) {
           if (isErrnoCode(cause, "ENOENT")) return false;
           throw cause;
         }
-        if (!sameBytes(current, opts.bytes)) return false;
+        if (currentIdentity !== opts.sourceIdentity) return false;
         try {
           await deps.unlink(path);
         } catch (cause: unknown) {
