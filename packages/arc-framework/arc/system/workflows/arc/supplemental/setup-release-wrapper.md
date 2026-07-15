@@ -1,6 +1,9 @@
 ---
 purpose: Engage interlock release wrappers (`arc release commit` / `arc release push`) by translating the workflow's six-element allowlist contract into the resident harness's permission surface.
 audience: collaborative (human and agent)
+arc:
+  methods:
+    - commit-format
 ---
 
 # Workflow: Set Up Release Wrappers
@@ -44,14 +47,16 @@ route lives under § Agent-Adaptive Path.
 
 1. **Canonical command shape.** Match `arc release commit` and `arc release push`. These are the only
    invocations the wrapper allowlist authorizes — `arc release status`, `arc release opt-in`, and the rest
-   of the `arc release` surface stay under existing harness gates.
+   of the `arc release` surface stay under existing harness gates. Load `commit-format` for message transport;
+   `arc release push` is argument-free.
 
-   Example: `arc release commit -m "<message>"` and `arc release push origin <branch>`.
+   Matcher-compatible example: `arc release commit -F <message-file>` and `arc release push`.
 
 2. **Prefix-match semantics.** Patterns match by command prefix plus forwarded git arguments. The
-   harness's matcher unwraps shell wrappings (`bash -lc`, `zsh -lc`) before pattern matching where
-   supported. Patterns must absorb forwarded git flags (`-m`, `--amend`, `--allow-empty`, etc.) without
-   re-prompting.
+   harness must verify the complete invocation shape it authorizes. Use the quoted-heredoc `-F -` transport
+   only where the resident matcher verifies shell redirection; otherwise prepare the complete message file and
+   invoke `arc release commit -F <message-file>` as direct argv. Patterns absorb forwarded Git flags without
+   re-prompting; wrapper policy still decides whether those flags are allowed.
 
 3. **Scope.** Per-developer, per-machine. The allowlist install lives in the developer's harness
    permission surface on the current machine. Other developers and other machines re-run setup
@@ -173,6 +178,10 @@ The behavioral test catches a real failure class agent-report alone misses: subt
 (JSON escaping, Starlark indentation, key-path mismatch) that pass agent self-read ("I wrote the file,
 re-read, entry is present") but fail at the harness's matcher boundary.
 
+Verify the chosen message transport at the matcher boundary too. A heredoc is eligible only after the
+resident matcher verifies its redirection shape; otherwise verify and use direct prepared-file argv. Codex's
+exact static check is documented under its reference notes below.
+
 ### Step 5: Record state
 
 State persistence is the install command's responsibility. On verify-pass plus user-confirm, the CLI
@@ -258,25 +267,21 @@ prefix_rule(pattern=["arc", "release", "commit"])
 prefix_rule(pattern=["arc", "release", "push"])
 ```
 
-Codex unwraps `bash -lc` / `zsh -lc` shell wrappings via a narrow word-only grammar before
-`prefix_rule` matching; if unwrapping fails, the matcher sees the literal shell binary as `cmd[0]`
-and the canonical patterns cannot match.
-
 **Install target.** Codex's user-scoped permission rules file (typically `~/.codex/rules/default.rules`).
 Append the patterns; do not overwrite existing rules.
 
-**Matcher boundary.** Codex unwraps `bash -lc` / `zsh -lc` shell wrappings via a narrow
-word-only grammar before `prefix_rule` matching. Unwrap behavior is empirical and may widen
-across codex-cli versions — use plain positional invocation shapes for reliable matching:
+**Matcher boundary.** Codex evaluates direct command argv against `prefix_rule`; it does not split a shell
+script containing redirection into an inner command for prefix matching. Do not claim a shell-wrapped heredoc
+matches the `arc release commit` rule. Prepare the complete message file, invoke
+`arc release commit -F <message-file>` directly, and verify that argv against the installed rule:
 
-- Plain positional: `arc release commit -m "fix: foo"`
-- Special characters inside double quotes: `arc release commit -m "fix: foo & bar"`
-- Sequences joined by `&&` or `;` where every simple command is allowed:
-  `arc release commit -m "msg" && arc release push origin main`
+```bash
+codex execpolicy check --rules ~/.codex/rules/default.rules \
+  arc release commit -F <message-file>
+```
 
-Other shell shapes (environment prefixes, output redirection, command substitution, `$'...'`
-quoting) may or may not unwrap depending on codex-cli version. Agent-issued invocations
-follow the plain positional shape by convention — robust across matcher-grammar shifts.
+The result must report the commit prefix rule as matched with an allow decision. Pushes use the direct,
+argument-free `arc release push` shape.
 
 For paste-ready output, run `arc release setup print-patterns --harness codex`.
 
@@ -306,8 +311,8 @@ translation.
 
 opencode projects use the agent-adaptive path with two documented limitations:
 
-- [sst/opencode#6676] — flag-parsing bug may cause `arc release commit -m "..."` to not match patterns
-  reliably.
+- [sst/opencode#6676] — flag parsing may cause argument-bearing `arc release commit` invocations to miss
+  permission patterns.
 - [sst/opencode#15507] — silent config-validation failure: typos in opencode permission keys are ignored
   without error.
 

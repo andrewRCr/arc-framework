@@ -329,13 +329,10 @@ cross-surface first-release checks without leaking transport mechanics into work
   commit workflows inherit the guidance without duplicating or contradicting it.
 - **Additional Context:** `strategy-interlock-release-wrappers.md` § Per-Harness Reference Implementations.
 
-    - `[ ]` **4.2.a Update release-wrapper setup examples**
-        - State a capability-based matcher rule in the setup workflow and release-wrapper strategy: use heredoc only
-          where the resident matcher verifies redirection; otherwise use direct prepared-file argv.
-        - Document direct `arc release commit -F <file>` plus `codex execpolicy check` as the verified Codex path. Do
-          not claim a shell-wrapped heredoc matches the `arc release commit` prefix rule.
-        - Normalize push examples to canonical argument-free `arc release push`.
-        - Update authoritative package files first and keep their self-hosted Framework copies synchronized.
+    - `[x]` **4.2.a Update release-wrapper setup examples**
+        - Updated the synchronized setup workflow and release-wrapper strategy with capability-based transport selection:
+          heredocs require matcher proof, while Codex uses direct prepared-file argv verified by
+          `codex execpolicy check`. Push examples now use canonical argument-free `arc release push`.
 
     - `[ ]` **4.2.b Verify inherited `arc-commit` and preparation flows**
         - Confirm `arc-commit` and `prepare-commits` load the updated commit methods and contain no direct `-m` guidance
