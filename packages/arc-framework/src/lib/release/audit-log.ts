@@ -51,14 +51,19 @@ export async function ensureAuditLogParent(ctx: AuditLogContext): Promise<void> 
 }
 
 const REDACTED = "<redacted>";
+const MESSAGE_LONG_OPTION = "--message";
+
+function isMessageLongOption(option: string): boolean {
+  return option.length > 2 && MESSAGE_LONG_OPTION.startsWith(option);
+}
 
 /**
  * Redact commit-message payloads from a wrapped-git argv: replace any
  * `-m` / `--message` value — separated (`-m subj`), attached-short
- * (`-msubj`), or attached-long (`--message=subj`) — with `<redacted>`,
- * preserving flag shape so the audit entry remains structurally
- * faithful. Non-message args (including `--file` paths and push
- * remotes/refspecs) are kept verbatim.
+ * (`-msubj`), attached-long (`--message=subj`), or a Git-accepted
+ * abbreviated long form — with `<redacted>`, preserving flag shape so
+ * the audit entry remains structurally faithful. Non-message args
+ * (including `--file` paths and push remotes/refspecs) are kept verbatim.
  */
 export function sanitizeArgs(command: AuditCommand, args: readonly string[]): string[] {
   if (command !== "release-commit") return [...args];
@@ -70,7 +75,7 @@ export function sanitizeArgs(command: AuditCommand, args: readonly string[]): st
       out.push(...args.slice(i));
       break;
     }
-    if (a === "--message") {
+    if (isMessageLongOption(a)) {
       out.push(a);
       if (i + 1 < args.length) {
         out.push(REDACTED);
@@ -78,9 +83,15 @@ export function sanitizeArgs(command: AuditCommand, args: readonly string[]): st
       }
       continue;
     }
-    if (a.startsWith("--message=")) {
-      out.push(`--message=${REDACTED}`);
-      continue;
+    if (a.startsWith("--")) {
+      const separator = a.indexOf("=");
+      if (separator !== -1) {
+        const option = a.slice(0, separator);
+        if (isMessageLongOption(option)) {
+          out.push(`${option}=${REDACTED}`);
+          continue;
+        }
+      }
     }
     if (a.startsWith("-") && !a.startsWith("--") && a !== "-") {
       const walk = walkCommitShortOption(a, args[i + 1]);

@@ -96,6 +96,13 @@ describe("sanitizeArgs — commit-message redaction rules", () => {
     ]);
   });
 
+  it.each([
+    { args: ["--m", "secret"], expected: ["--m", "<redacted>"] },
+    { args: ["--mess=secret"], expected: ["--mess=<redacted>"] },
+  ])("redacts Git-accepted abbreviated long message form $args", ({ args, expected }) => {
+    expect(sanitizeArgs("release-commit", args)).toEqual(expected);
+  });
+
   it("redacts each `-m` flag independently when chained", () => {
     expect(sanitizeArgs("release-commit", ["commit", "-m", "subject", "-m", "body"])).toEqual([
       "commit",
