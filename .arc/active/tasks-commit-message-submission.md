@@ -258,7 +258,7 @@ message bytes when the subsequent Git invocation fails.
   Git directory and returns an executable exact-retry command; consuming that wrapper-owned retry successfully clears
   it without turning unrelated or concurrently replaced message files into stale reusable state.
 
-### `[ ]` **3.4 Exercise transport and failure ordering end to end**
+### `[x]` **3.4 Exercise transport and failure ordering end to end**
 
 - _Goal:_ The wrapper's observable behavior proves early deterministic refusal, ordinary Git defense in depth, and exact
   message reuse across real process boundaries.
@@ -275,14 +275,16 @@ message bytes when the subsequent Git invocation fails.
           `prepare-commit-msg` demotes preflight so its repairs can commit while its invalidations are rejected by the
           installed canonical `commit-msg` backstop.
 
-    - `[ ]` **3.4.c Prove byte preservation and retry**
-        - Exercise quoted-heredoc stdin and file transport with interpolation-sensitive content, force a post-preflight
-          non-zero Git result, and retry from the emitted worktree-local path.
-        - Assert the preflight input, hook-observed message, persisted retry bytes, and retried message are identical;
-          successful consumption removes the retry file while Git's original non-zero exit remains authoritative if
-          persistence itself fails.
-        - Pause after wrapper capture, replace the original `-F <file>` contents, and prove Git still consumes the
-          captured snapshot, inherits caller stdin, and leaves no transient snapshot after either success or failure.
+    - `[x]` **3.4.c Prove byte preservation and retry**
+        - Extended built-CLI coverage with interpolation-sensitive quoted-heredoc and file sources: a post-preflight
+          hook failure leaves hook/retry bytes identical to submitted input, the emitted command replays the same bytes
+          and removes the retry file, and an obstructed retry destination preserves Git's exit without an unusable
+          command. File runs mutate the caller source during `pre-commit` yet consume the captured snapshot, retain the
+          caller stdin pipe, and clean transient snapshots after both success and failure.
+
+- _Outcome:_ Release-commit now has process-boundary proof that deterministic failures precede staged-content work,
+  Git-managed mutation remains defense-in-depth, captured sources cannot drift between validation and Git, and every
+  approved non-zero outcome is either exactly retryable or reports persistence failure without masking Git.
 
 ## **Phase 4:** Documentation and first-release acceptance
 
