@@ -209,6 +209,18 @@ describe("createCommitMessagePreflight", () => {
     });
   });
 
+  it.each([
+    { label: "disabled validation", repo: repository({ "hooks.commit_msg": "disabled" }) },
+    { label: "merge exemption", repo: repository({}, { mergeInProgress: true }) },
+  ])("leaves stdin untouched when $label demotes -F - to pass-through", async ({ repo }) => {
+    const { preflight, readStdin } = create({ repo });
+
+    expect(await preflight({ args: ["-F", "-"], cwd: "/repo" })).toEqual({
+      kind: "pass-through",
+    });
+    expect(readStdin).not.toHaveBeenCalled();
+  });
+
   it("demotes a runnable prepare-commit-msg hook before reading the source", async () => {
     const { preflight, readFile, readStdin } = create({
       hasPrepareCommitMsgHook: async () => true,

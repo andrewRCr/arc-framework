@@ -171,6 +171,32 @@ describe("release commit hook ordering", () => {
     expect(await readHookLog()).toEqual(["pre-commit", "commit-msg"]);
   });
 
+  it.runIf(process.platform !== "win32")(
+    "leaves -F - stdin available to Git when validation is disabled",
+    async () => {
+      await writeFile(join(repository, ".arc", "system", "arc-config.yml"), [
+        "branch.base: main",
+        "branch.protection: partial",
+        "hooks.commit_msg: disabled",
+        "commit.format: conventional",
+        "commit.context_footer: disabled",
+        "",
+      ].join("\n"));
+
+      const result = await runShell([
+        "arc release commit -F - <<'ARC_TEST_MESSAGE'",
+        "unrestricted disabled message",
+        "ARC_TEST_MESSAGE",
+      ].join("\n"), {
+        ARC_HOOK_LOG: hookLog,
+        PATH: `${arcBin}:${process.env.PATH ?? ""}`,
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(await gitOutput(["log", "-1", "--format=%B"])).toBe("unrestricted disabled message");
+    },
+  );
+
   it("lets prepare-commit-msg repair invalid input before the installed backstop", async () => {
     await installPrepareHook();
 

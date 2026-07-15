@@ -5,6 +5,7 @@ import {
   captureCommitMessageFileSource,
 } from "../../lib/release/commit-message-assembly.js";
 import { classifyCommitMessageInput } from "../../lib/release/commit-message-source.js";
+import { prepareCommitCheckContext } from "../../lib/commit-check/context.js";
 import type { CommitMessageCheckRepository } from "../../lib/commit-check/repository.js";
 import { validateCommitMessageBytes } from "../check/commit-msg.js";
 import { renderCheckCommitMessage } from "../check/commit-msg-output.js";
@@ -32,6 +33,11 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       return inputFailure(`Could not prepare commit-message preflight: ${detail}`);
+    }
+
+    const preparedContext = prepareCommitCheckContext(repository.context);
+    if (preparedContext.kind === "outcome" && preparedContext.outcome.kind === "skipped") {
+      return { kind: "pass-through" };
     }
 
     const classification = classifyCommitMessageInput({
