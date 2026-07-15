@@ -111,7 +111,10 @@ describe("Context footer families", () => {
       expect.arrayContaining([
         expect.objectContaining({
           code: "footer.invalid",
-          detail: expect.objectContaining({ suggestions: expect.arrayContaining([expect.stringContaining("task")]) }),
+          detail: expect.objectContaining({
+            preview: "Context: tasks-example.md (handoff)",
+            suggestions: expect.arrayContaining(["Context: tasks-example.md (planning)"]),
+          }),
         }),
       ]),
     );
@@ -139,7 +142,11 @@ describe("artifact and contributor advisories", () => {
   ] as const)("maps %s to warning %s", async (artifact, code) => {
     const result = await findings(message("spec-example.md (planning)"), { artifact });
 
-    expect(result).toEqual(expect.arrayContaining([expect.objectContaining({ code, severity: "warning" })]));
+    expect(result).toEqual(expect.arrayContaining([expect.objectContaining({
+      code,
+      severity: "warning",
+      detail: expect.objectContaining({ preview: "Context: spec-example.md (planning)" }),
+    })]));
   });
 
   it("advises contributors without rejecting a valid non-contribution footer", async () => {
@@ -147,7 +154,11 @@ describe("artifact and contributor advisories", () => {
 
     expect(result).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ code: "footer.contributor-advisory", severity: "warning" }),
+        expect.objectContaining({
+          code: "footer.contributor-advisory",
+          severity: "warning",
+          detail: expect.objectContaining({ preview: "Context: standalone (maintenance)" }),
+        }),
       ]),
     );
     expect(result.some(({ severity }) => severity === "error")).toBe(false);

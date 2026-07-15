@@ -97,7 +97,7 @@ describe("formatCommitCheckOutcome", () => {
           severity: "error",
           location: { kind: "message-line", line: 3 },
           message: "Commit body line exceeds the configured maximum",
-          detail: { preview },
+          detail: { preview, value: preview },
         },
       ],
     };

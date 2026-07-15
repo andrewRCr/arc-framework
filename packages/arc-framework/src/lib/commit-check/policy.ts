@@ -223,14 +223,15 @@ interface FooterClassification {
 function classifyFooter(value: string): FooterClassification {
   const taskMatch = value.match(TASK_FOOTER_PATTERN);
   if (taskMatch) {
+    const filename = taskMatch[1] ?? "";
     return {
       valid: TASK_REFERENCE_PATTERN.test(taskMatch[2] ?? ""),
-      artifact: { family: "tasks", filename: taskMatch[1] ?? "" },
+      artifact: { family: "tasks", filename },
       contribution: false,
       suggestions: [
-        "single-task task-list footer",
-        "task-range task-list footer",
-        "incidental task-list footer",
+        `Context: ${filename} (planning)`,
+        `Context: ${filename} (maintenance)`,
+        `Context: ${filename} (code review)`,
       ],
     };
   }
@@ -262,11 +263,10 @@ function classifyFooter(value: string): FooterClassification {
     valid: false,
     contribution: false,
     suggestions: [
-      "single-task task-list footer",
-      "planning design footer",
-      "lifecycle metadata footer",
-      "standalone maintenance footer",
-      "contribution footer",
+      "Context: standalone (maintenance)",
+      "Context: standalone (planning)",
+      "Context: contribution (describe the change)",
+      "Context: integration (describe the integration)",
     ],
   };
 }
@@ -318,11 +318,15 @@ export async function validateFooter(
     return [footerFinding("footer.missing", severity, "Missing final Context trailer", null)];
   }
 
+  const contextPreview = parsed.physicalLines.find(({ line }) => line === contextTrailer.line)?.text
+    ?? `Context: ${contextTrailer.value}`;
+
   const classification = classifyFooter(contextTrailer.value);
   if (!classification.valid) {
     return [
       footerFinding("footer.invalid", severity, "Invalid Context trailer", contextTrailer.line, {
         value: contextTrailer.value,
+        preview: contextPreview,
         suggestions: classification.suggestions,
       }),
     ];
@@ -338,7 +342,7 @@ export async function validateFooter(
           "warning",
           "Referenced Context artifact was not found",
           contextTrailer.line,
-          { filename: classification.artifact.filename },
+          { filename: classification.artifact.filename, preview: contextPreview },
         ),
       );
     } else if (resolution === "unresolvable") {
@@ -348,7 +352,7 @@ export async function validateFooter(
           "warning",
           "Context artifact lookup could not run",
           contextTrailer.line,
-          { filename: classification.artifact.filename },
+          { filename: classification.artifact.filename, preview: contextPreview },
         ),
       );
     }
@@ -360,6 +364,7 @@ export async function validateFooter(
         "warning",
         "Contributors typically use Context: contribution (description)",
         contextTrailer.line,
+        { preview: contextPreview },
       ),
     );
   }

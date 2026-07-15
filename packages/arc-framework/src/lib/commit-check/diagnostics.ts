@@ -40,7 +40,8 @@ function safePreview(value: string): string {
 }
 
 function detailValue(value: CommitCheckDetailValue): string {
-  return Array.isArray(value) ? value.join(", ") : String(value);
+  if (Array.isArray(value)) return value.map(safePreview).join(", ");
+  return typeof value === "string" ? safePreview(value) : String(value);
 }
 
 function findingLines(finding: CommitCheckFinding): string[] {
