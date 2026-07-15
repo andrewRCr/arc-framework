@@ -53,6 +53,17 @@ describe("createFilesystemArtifactResolver", () => {
     ).resolves.toBe("not-found");
   });
 
+  it("does not resolve task artifacts nested beneath active", async () => {
+    await mkdir(join(arcRoot, "active", "nested"), { recursive: true });
+    await writeFile(join(arcRoot, "active", "nested", "tasks-example.md"), "fixture");
+
+    const resolveArtifact = createFilesystemArtifactResolver(arcRoot);
+
+    await expect(
+      resolveArtifact({ family: "tasks", filename: "tasks-example.md" }),
+    ).resolves.toBe("not-found");
+  });
+
   it("returns found when a later root matches after an unavailable root", async () => {
     await writeFile(join(arcRoot, "active"), "not a directory");
     await mkdir(join(arcRoot, "backlog", "nested"), { recursive: true });

@@ -13,6 +13,7 @@ const SEARCH_ROOTS: Readonly<Record<CommitCheckArtifactFamily, readonly string[]
   design: ["active", "backlog"],
   meta: ["active", "completed"],
 };
+const RECURSIVE_FAMILIES = new Set<CommitCheckArtifactFamily>(["design", "meta"]);
 
 function isMissing(error: unknown): boolean {
   return (
@@ -22,9 +23,13 @@ function isMissing(error: unknown): boolean {
   );
 }
 
-async function inspectRoot(root: string, filename: string): Promise<CommitCheckArtifactResolution> {
+async function inspectRoot(
+  root: string,
+  filename: string,
+  recursive: boolean,
+): Promise<CommitCheckArtifactResolution> {
   try {
-    const entries = await readdir(root, { recursive: true, withFileTypes: true });
+    const entries = await readdir(root, { recursive, withFileTypes: true });
     return entries.some((entry) => entry.isFile() && entry.name === filename)
       ? "found"
       : "not-found";
@@ -50,7 +55,11 @@ export function createFilesystemArtifactResolver(arcRoot: string): CommitCheckAr
 
     let unavailable = false;
     for (const relativeRoot of SEARCH_ROOTS[family]) {
-      const result = await inspectRoot(join(arcRoot, relativeRoot), filename);
+      const result = await inspectRoot(
+        join(arcRoot, relativeRoot),
+        filename,
+        RECURSIVE_FAMILIES.has(family),
+      );
       if (result === "found") return "found";
       if (result === "unresolvable") unavailable = true;
     }
