@@ -218,22 +218,10 @@ message bytes when the subsequent Git invocation fails.
           canonical byte validator; validation and input failures audit once as code `16`, pass/warnings spawn once,
           pass-through skips source reads, and destructive/authorization refusals retain precedence.
 
-    - `[ ]` **3.2.c Hand captured message sources to Git without a second read**
-        - Buffer caller stdin only for assembled `-F -`; preserve inherited stdin for `-m`, file-backed, editor, and
-          pass-through invocations.
-        - After file-backed preflight passes, create a unique transient snapshot under the absolute worktree git
-          directory from the captured raw bytes with mode `0600` where supported, rewrite only the spawned file
-          operand, and remove the snapshot after the process settles.
-        - Treat snapshot creation or write failure as input-reason code `16`; surface cleanup failure without masking
-          Git's result. Thread bytes and the git-dir/snapshot adapters through the CLI boundary without coupling the
-          pure release handler to Node streams or subprocess creation.
-        - Build `test-first` (one behavior at a time):
-            - File-backed Git receives only the rewritten snapshot operand while audit sanitization retains caller argv.
-            - Replacing the caller file after capture cannot alter Git's bytes; the snapshot is removed after success,
-              non-zero exit, or spawn failure.
-            - File-backed forms retain inherited stdin, buffered stdin forms receive the captured bytes and close, and
-              all pass-through forms preserve the existing process contract.
-            - Snapshot setup fails before Git; cleanup failure is diagnostic only and never changes Git's exit code.
+    - `[x]` **3.2.c Hand captured message sources to Git without a second read**
+        - Threaded owned transport bytes through preflight: file sources become mode-`0600` snapshots beneath the
+          absolute worktree Git directory with shape-preserving argv rewrite and finally cleanup, while `-F -` pipes
+          captured stdin; setup failures refuse before Git and cleanup failures remain diagnostic-only.
 
     - `[ ]` **3.2.d Preserve hook exemption parity**
         - Thread the same enabled, merge, role, configuration, and artifact-resolution context into preflight that the

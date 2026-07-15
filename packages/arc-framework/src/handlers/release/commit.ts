@@ -37,6 +37,7 @@ import {
   formatRefusal,
 } from "../../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../../lib/release/wu-resolution.js";
+import { rewriteCommitFileSource } from "../../lib/release/commit-message-source.js";
 import type {
   AuditEntry,
   AuditInterlockState,
@@ -58,6 +59,8 @@ export interface SpawnGitOptions {
   args: readonly string[];
   /** Forwarded into the spawned process; defaults to the handler's `cwd`. */
   cwd: string;
+  /** Captured stdin for `-F -`; absent means inherit the caller stream. */
+  stdin?: Uint8Array;
 }
 
 export type SpawnGit = (opts: SpawnGitOptions) => Promise<SpawnGitResult>;
@@ -72,7 +75,14 @@ export type ResolveHead = (opts: { cwd: string }) => Promise<string>;
 /** Result of classifying and validating deterministic commit-message input. */
 export type CommitMessagePreflightResult =
   | { kind: "pass-through" }
-  | { kind: "passed"; verdict: "pass" | "pass-with-warnings" }
+  | {
+      kind: "passed";
+      verdict: "pass" | "pass-with-warnings";
+      transport?:
+        | { kind: "messages" }
+        | { kind: "file"; rawBytes: Uint8Array }
+        | { kind: "stdin"; rawBytes: Uint8Array };
+    }
   | { kind: "refused"; reason: "validation" | "input"; message: string };
 
 /** In-process commit-message preflight boundary. */
@@ -80,6 +90,17 @@ export type PreflightCommitMessage = (opts: {
   args: readonly string[];
   cwd: string;
 }) => Promise<CommitMessagePreflightResult>;
+
+/** Private snapshot used to hand captured file bytes to Git exactly once. */
+export interface CommitMessageSnapshot {
+  path: string;
+  cleanup: () => Promise<void>;
+}
+
+export type CreateCommitMessageSnapshot = (opts: {
+  cwd: string;
+  bytes: Uint8Array;
+}) => Promise<CommitMessageSnapshot>;
 
 /**
  * Audit-entry writer signature. Defaulted to {@link appendAuditEntry}; tests
@@ -110,6 +131,8 @@ export interface ReleaseCommitDeps {
   resolveHead: ResolveHead;
   /** Classifies and validates deterministic message input after authorization. */
   preflightCommitMessage: PreflightCommitMessage;
+  /** Creates a private worktree-Git-dir snapshot for captured file sources. */
+  createMessageSnapshot: CreateCommitMessageSnapshot;
   /** Sink for refusal messages. Defaults to `process.stderr.write`. */
   writeStderr?: (msg: string) => void;
   /** Audit-entry writer. Defaults to {@link appendAuditEntry}. */
@@ -171,30 +194,46 @@ export async function runReleaseCommit(
 
   const preflight = await deps.preflightCommitMessage({ args: deps.argv, cwd: deps.cwd });
   if (preflight.kind === "refused") {
-    const refusal: Extract<AuthorizationDecision, { code: 16 }> = {
-      kind: "refuse",
-      code: 16,
-      identifier: "commit-message-preflight-failed",
-      reason: preflight.reason,
-    };
-    writeStderr(`${preflight.message}\n${formatRefusal(refusal)}\n`);
-    const auditResult = await appendAudit({
-      cwd: deps.cwd,
-      identity: deps.identity,
-      entry: buildAuditEntry({
-        deps,
-        wu: wuAudit,
-        decision: "refused",
-        refusalCode: 16,
-        outcome: { kind: "preflight-failed", reason: preflight.reason },
-      }),
+    return refusePreflight(preflight.reason, preflight.message, {
+      deps, wu: wuAudit, writeStderr, appendAudit,
     });
-    surfaceAuditFailure(auditResult, writeStderr);
-    return { exitCode: 16 };
   }
 
   // Authorize: run wrapped `git commit`, attribute the outcome, audit, exit.
-  const spawned = await deps.spawnGit({ args: deps.argv, cwd: deps.cwd });
+  let spawnArgs = deps.argv;
+  let spawnStdin: Uint8Array | undefined;
+  let snapshot: CommitMessageSnapshot | undefined;
+  if (preflight.kind === "passed" && preflight.transport?.kind === "file") {
+    try {
+      snapshot = await deps.createMessageSnapshot({ cwd: deps.cwd, bytes: preflight.transport.rawBytes });
+      spawnArgs = rewriteCommitFileSource(deps.argv, snapshot.path);
+    } catch (cause: unknown) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      return refusePreflight("input", `Could not create commit-message snapshot: ${detail}`, {
+        deps, wu: wuAudit, writeStderr, appendAudit,
+      });
+    }
+  } else if (preflight.kind === "passed" && preflight.transport?.kind === "stdin") {
+    spawnStdin = preflight.transport.rawBytes;
+  }
+
+  let spawned: SpawnGitResult;
+  try {
+    spawned = await deps.spawnGit({
+      args: spawnArgs,
+      cwd: deps.cwd,
+      ...(spawnStdin === undefined ? {} : { stdin: spawnStdin }),
+    });
+  } finally {
+    if (snapshot !== undefined) {
+      try {
+        await snapshot.cleanup();
+      } catch (cause: unknown) {
+        const detail = cause instanceof Error ? cause.message : String(cause);
+        writeStderr(`warn: commit-message snapshot cleanup failed: ${detail}\n`);
+      }
+    }
+  }
   const outcome: AuditOutcome = spawned.exitCode === 0
     ? { kind: "commit", hash: await safeResolveHead(deps, writeStderr) }
     : {
@@ -217,6 +256,33 @@ export async function runReleaseCommit(
   surfaceAuditFailure(auditResult, writeStderr);
 
   return { exitCode: spawned.exitCode };
+}
+
+async function refusePreflight(
+  reason: "validation" | "input",
+  message: string,
+  ctx: RefuseContext,
+): Promise<ReleaseCommitResult> {
+  const refusal: Extract<AuthorizationDecision, { code: 16 }> = {
+    kind: "refuse",
+    code: 16,
+    identifier: "commit-message-preflight-failed",
+    reason,
+  };
+  ctx.writeStderr(`${message}\n${formatRefusal(refusal)}\n`);
+  const auditResult = await ctx.appendAudit({
+    cwd: ctx.deps.cwd,
+    identity: ctx.deps.identity,
+    entry: buildAuditEntry({
+      deps: ctx.deps,
+      wu: ctx.wu,
+      decision: "refused",
+      refusalCode: 16,
+      outcome: { kind: "preflight-failed", reason },
+    }),
+  });
+  surfaceAuditFailure(auditResult, ctx.writeStderr);
+  return { exitCode: 16 };
 }
 
 /**

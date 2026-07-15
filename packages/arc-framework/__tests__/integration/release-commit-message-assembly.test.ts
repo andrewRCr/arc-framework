@@ -1,7 +1,7 @@
 /** Real-Git parity coverage for deterministic commit-message assembly. */
 
 import { spawn } from "node:child_process";
-import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,6 +12,7 @@ import {
   cleanupCommitMessageBytes,
 } from "../../src/lib/release/commit-message-assembly.js";
 import { classifyCommitMessageInput } from "../../src/lib/release/commit-message-source.js";
+import { createRealCommitMessageSnapshot } from "../../src/handlers/release/commit-cli.js";
 
 interface GitResult {
   exitCode: number;
@@ -142,5 +143,19 @@ describe("Git-managed controls", () => {
 
     expect(result.exitCode).not.toBe(0);
     expect(await exists(capturePath)).toBe(reachesHook);
+  });
+});
+
+describe("captured file snapshot", () => {
+  it("writes private bytes under the absolute worktree Git directory and removes them", async () => {
+    const bytes = Uint8Array.from([0x63, 0x61, 0x66, 0xe9]);
+
+    const snapshot = await createRealCommitMessageSnapshot({ cwd: repository, bytes });
+
+    expect(snapshot.path.startsWith(`${join(repository, ".git")}/`)).toBe(true);
+    expect(Uint8Array.from(await readFile(snapshot.path))).toEqual(bytes);
+    expect((await stat(snapshot.path)).mode & 0o777).toBe(0o600);
+    await snapshot.cleanup();
+    expect(await exists(snapshot.path)).toBe(false);
   });
 });

@@ -447,3 +447,41 @@ export function classifyCommitMessageInput(
   if (state.messageModifier) return { kind: "pass-through", reason: "message-modifier" };
   return { kind: "pass-through", reason: "git-managed-message" };
 }
+
+/**
+ * Rewrite the single recognized `-F` / `--file` operand while preserving its
+ * original separated, attached, long, or clustered option shape.
+ *
+ * @param args - Caller commit argv already classified as one file source.
+ * @param path - Replacement snapshot path.
+ * @returns A copied argv with only the file operand replaced.
+ */
+export function rewriteCommitFileSource(args: readonly string[], path: string): string[] {
+  const rewritten = [...args];
+  for (let index = 0; index < rewritten.length; index += 1) {
+    const arg = rewritten[index];
+    if (arg === undefined || arg === "--") break;
+    if (arg === "--file") {
+      if (index + 1 < rewritten.length) rewritten[index + 1] = path;
+      return rewritten;
+    }
+    if (arg.startsWith("--file=")) {
+      rewritten[index] = `--file=${path}`;
+      return rewritten;
+    }
+    if (!arg.startsWith("-") || arg.startsWith("--") || arg === "-") continue;
+    const walk = walkCommitShortOption(arg, rewritten[index + 1]);
+    if (walk.kind !== "recognized") continue;
+    const file = walk.members.find((member) => member.role === "file");
+    if (file?.operand.kind === "attached") {
+      rewritten[index] = `${arg.slice(0, file.offset + 1)}${path}`;
+      return rewritten;
+    }
+    if (file?.operand.kind === "separated") {
+      rewritten[index + 1] = path;
+      return rewritten;
+    }
+    if (walk.consumedNext) index += 1;
+  }
+  return rewritten;
+}

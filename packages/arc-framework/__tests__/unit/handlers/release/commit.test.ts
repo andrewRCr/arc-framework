@@ -122,6 +122,7 @@ interface BuildDepsOptions {
   spawnGit?: ReleaseCommitDeps["spawnGit"];
   resolveHead?: ReleaseCommitDeps["resolveHead"];
   preflightCommitMessage?: ReleaseCommitDeps["preflightCommitMessage"];
+  createMessageSnapshot?: ReleaseCommitDeps["createMessageSnapshot"];
 }
 
 function buildDeps(root: string, opts: BuildDepsOptions = {}): {
@@ -151,6 +152,9 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
     spawnGit,
     resolveHead,
     preflightCommitMessage,
+    createMessageSnapshot: opts.createMessageSnapshot ?? (() => {
+      throw new Error("createMessageSnapshot must not be called without a captured file source");
+    }),
   };
   return { deps, stderr, spawnGit, resolveHead, preflightCommitMessage };
 }
@@ -485,6 +489,109 @@ describe("runReleaseCommit — success path", () => {
       expect(spawnGit).toHaveBeenCalledTimes(1);
     },
   );
+
+  it("rewrites a captured file source to a private snapshot and cleans it", async () => {
+    await writeStatus(fixture.root, "sample");
+    const rawBytes = Buffer.from("message source");
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+    const { deps, spawnGit } = buildDeps(fixture.root, {
+      argv: ["-aF", "caller.txt"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        transport: { kind: "file", rawBytes },
+      }),
+      createMessageSnapshot: async ({ bytes }) => {
+        expect(bytes).toEqual(rawBytes);
+        return { path: "/repo/.git/private-message", cleanup };
+      },
+      spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+      resolveHead: () => Promise.resolve(FULL_HASH),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(0);
+    expect(spawnGit).toHaveBeenCalledWith({
+      args: ["-aF", "/repo/.git/private-message"],
+      cwd: fixture.root,
+    });
+    expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it("pipes captured stdin bytes while ordinary preflight keeps inherited stdin", async () => {
+    await writeStatus(fixture.root, "sample");
+    const rawBytes = Buffer.from("stdin message");
+    const { deps, spawnGit } = buildDeps(fixture.root, {
+      argv: ["-F", "-"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        transport: { kind: "stdin", rawBytes },
+      }),
+      spawnGit: () => Promise.resolve({ exitCode: 1, stdout: "", stderr: "hook failed" }),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(1);
+    expect(spawnGit).toHaveBeenCalledWith({ args: ["-F", "-"], cwd: fixture.root, stdin: rawBytes });
+  });
+
+  it("turns snapshot setup failure into an input refusal before Git", async () => {
+    await writeStatus(fixture.root, "sample");
+    const { deps, spawnGit } = buildDeps(fixture.root, {
+      argv: ["-F", "caller.txt"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        transport: { kind: "file", rawBytes: Buffer.from("message") },
+      }),
+      createMessageSnapshot: async () => Promise.reject(new Error("disk full")),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(16);
+    expect(spawnGit).not.toHaveBeenCalled();
+  });
+
+  it("cleans a file snapshot after spawn failure", async () => {
+    await writeStatus(fixture.root, "sample");
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["-F", "caller.txt"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        transport: { kind: "file", rawBytes: Buffer.from("message") },
+      }),
+      createMessageSnapshot: async () => ({ path: "/private", cleanup }),
+      spawnGit: async () => Promise.reject(new Error("spawn failed")),
+    });
+
+    await expect(runReleaseCommit(deps)).rejects.toThrow("spawn failed");
+    expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it("surfaces snapshot cleanup failure without changing Git's exit code", async () => {
+    await writeStatus(fixture.root, "sample");
+    const { deps, stderr } = buildDeps(fixture.root, {
+      argv: ["-F", "caller.txt"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        transport: { kind: "file", rawBytes: Buffer.from("message") },
+      }),
+      createMessageSnapshot: async () => ({
+        path: "/private",
+        cleanup: async () => Promise.reject(new Error("busy")),
+      }),
+      spawnGit: () => Promise.resolve({ exitCode: 7, stdout: "", stderr: "failed" }),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(7);
+    expect(stderr.join("")).toContain("snapshot cleanup failed: busy");
+  });
 
   it("forwards argv to spawnGit when authorized and bubbles exit code 0", async () => {
     await writeStatus(fixture.root, "sample");

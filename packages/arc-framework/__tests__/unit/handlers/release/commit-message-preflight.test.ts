@@ -62,7 +62,7 @@ describe("createCommitMessagePreflight", () => {
       cwd: "/repo",
     });
 
-    expect(result).toEqual({ kind: "passed", verdict: expected });
+    expect(result).toEqual({ kind: "passed", verdict: expected, transport: { kind: "messages" } });
   });
 
   it.each([
@@ -87,6 +87,24 @@ describe("createCommitMessagePreflight", () => {
     expect(await preflight({ args: ["-F", "message.txt"], cwd: "/repo" })).toMatchObject({
       kind: "refused",
       reason: "input",
+    });
+  });
+
+  it.each([
+    { path: "message.txt", kind: "file" as const },
+    { path: "-", kind: "stdin" as const },
+  ])("retains captured raw bytes for $kind transport", async ({ path, kind }) => {
+    const bytes = Buffer.from("feat(release): a sufficiently long valid subject\n");
+    const { preflight } = create({
+      readFile: async () => bytes,
+      readStdin: async () => bytes,
+      repo: repository({ "commit.context_footer": "disabled" }),
+    });
+
+    expect(await preflight({ args: ["-F", path], cwd: "/repo" })).toEqual({
+      kind: "passed",
+      verdict: "pass",
+      transport: { kind, rawBytes: Uint8Array.from(bytes) },
     });
   });
 

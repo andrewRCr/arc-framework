@@ -2,7 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { classifyCommitMessageInput } from "../../../../src/lib/release/commit-message-source.js";
+import {
+  classifyCommitMessageInput,
+  rewriteCommitFileSource,
+} from "../../../../src/lib/release/commit-message-source.js";
 
 function classify(
   args: readonly string[],
@@ -190,5 +193,18 @@ describe("editor-bound and reuse forms", () => {
     expect(classify(["--squash=HEAD", "-m", "subject"])).toMatchObject({
       kind: "pass-through",
     });
+  });
+});
+
+describe("file-source rewriting", () => {
+  it.each([
+    { args: ["-F", "caller"], expected: ["-F", "snapshot"] },
+    { args: ["-Fcaller"], expected: ["-Fsnapshot"] },
+    { args: ["-aF", "caller"], expected: ["-aF", "snapshot"] },
+    { args: ["-aFcaller"], expected: ["-aFsnapshot"] },
+    { args: ["--file", "caller"], expected: ["--file", "snapshot"] },
+    { args: ["--file=caller"], expected: ["--file=snapshot"] },
+  ])("preserves the option shape for $args", ({ args, expected }) => {
+    expect(rewriteCommitFileSource(args, "snapshot")).toEqual(expected);
   });
 });

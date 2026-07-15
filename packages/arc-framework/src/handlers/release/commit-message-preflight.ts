@@ -45,12 +45,18 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
     }
 
     let messageBytes: Uint8Array;
+    let transport: NonNullable<Extract<CommitMessagePreflightResult, { kind: "passed" }>["transport"]>;
     if (classification.source.kind === "messages") {
       messageBytes = assembleCommitMessageParagraphs(classification.source.values);
+      transport = { kind: "messages" };
     } else {
       const capture = await captureCommitMessageFileSource(classification.source.path, deps);
       if (capture.kind === "error") return inputFailure(capture.message);
       messageBytes = capture.messageBytes;
+      transport = {
+        kind: capture.input,
+        rawBytes: capture.rawBytes,
+      };
     }
 
     const checked = await validateCommitMessageBytes(messageBytes, repository);
@@ -64,6 +70,6 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
       };
     }
     const verdict = checked.result.kind === "validated" ? checked.result.verdict : "pass";
-    return { kind: "passed", verdict: verdict === "pass-with-warnings" ? verdict : "pass" };
+    return { kind: "passed", verdict: verdict === "pass-with-warnings" ? verdict : "pass", transport };
   };
 }

@@ -11,7 +11,9 @@
  */
 
 import { spawn } from "node:child_process";
-import { access, readFile } from "node:fs/promises";
+import { access, open, readFile, unlink } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
@@ -20,7 +22,12 @@ import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
 
-import { runReleaseCommit, type ResolveHead, type SpawnGit } from "./commit.js";
+import {
+  runReleaseCommit,
+  type CreateCommitMessageSnapshot,
+  type ResolveHead,
+  type SpawnGit,
+} from "./commit.js";
 import { createCommitMessagePreflight } from "./commit-message-preflight.js";
 
 export interface HandleReleaseCommitOptions {
@@ -70,6 +77,7 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
     currentBranch,
     spawnGit: realSpawnGit,
     resolveHead: realResolveHead,
+    createMessageSnapshot: createRealCommitMessageSnapshot,
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: process.stdin.isTTY,
       readFile: (path) => readFile(path),
@@ -109,14 +117,18 @@ async function readStdin(): Promise<Uint8Array> {
  * captured streams support hash extraction and hook-failure attribution while
  * being teed verbatim to the user's terminal.
  */
-const realSpawnGit: SpawnGit = ({ args, cwd }) =>
+const realSpawnGit: SpawnGit = ({ args, cwd, stdin }) =>
   new Promise((resolve, reject) => {
     const proc = spawn("git", ["commit", ...args], {
-      stdio: ["inherit", "pipe", "pipe"],
+      stdio: [stdin === undefined ? "inherit" : "pipe", "pipe", "pipe"],
       cwd,
     });
     let stdout = "";
     let stderr = "";
+    if (proc.stdout === null || proc.stderr === null) {
+      reject(new Error("git commit did not expose captured output streams"));
+      return;
+    }
     proc.stdout.on("data", (chunk: Buffer) => {
       stdout += chunk.toString();
       process.stdout.write(chunk);
@@ -129,7 +141,23 @@ const realSpawnGit: SpawnGit = ({ args, cwd }) =>
     proc.on("close", (code) => {
       resolve({ exitCode: code ?? 1, stdout, stderr });
     });
+    if (stdin !== undefined && proc.stdin !== null) proc.stdin.end(stdin);
   });
+
+export const createRealCommitMessageSnapshot: CreateCommitMessageSnapshot = async ({ cwd, bytes }) => {
+  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], { cwd });
+  const path = join(stdout.trim(), `.arc-release-commit-message-${randomUUID()}`);
+  const handle = await open(path, "wx", 0o600);
+  try {
+    await handle.writeFile(bytes);
+  } catch (cause: unknown) {
+    await handle.close();
+    await unlink(path).catch(() => undefined);
+    throw cause;
+  }
+  await handle.close();
+  return { path, cleanup: () => unlink(path) };
+};
 
 /** Resolves `HEAD` post-success for the audit entry's `hash` field. */
 const realResolveHead: ResolveHead = async ({ cwd }) => {
