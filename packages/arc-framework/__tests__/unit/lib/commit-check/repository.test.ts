@@ -13,6 +13,9 @@ describe("createDefaultCommitCheckRepository", () => {
       if (key === "config --get --default utf-8 i18n.commitEncoding") {
         return { stdout: "windows-1252\n" };
       }
+      if (key === "config --get --default default commit.cleanup") {
+        return { stdout: "whitespace\n" };
+      }
       if (key === "config --get --default maintainer arc.role") {
         return { stdout: "contributor\n" };
       }
@@ -34,6 +37,7 @@ describe("createDefaultCommitCheckRepository", () => {
     });
 
     expect(repository.encoding).toBe("windows-1252");
+    expect(repository.cleanup).toBe("whitespace");
     expect(repository.context.repository).toMatchObject({
       mergeInProgress: true,
       role: "contributor",

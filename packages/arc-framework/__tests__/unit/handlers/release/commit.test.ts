@@ -121,6 +121,7 @@ interface BuildDepsOptions {
   currentBranch?: string;
   spawnGit?: ReleaseCommitDeps["spawnGit"];
   resolveHead?: ReleaseCommitDeps["resolveHead"];
+  preflightCommitMessage?: ReleaseCommitDeps["preflightCommitMessage"];
 }
 
 function buildDeps(root: string, opts: BuildDepsOptions = {}): {
@@ -128,6 +129,7 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
   stderr: string[];
   spawnGit: ReturnType<typeof vi.fn>;
   resolveHead: ReturnType<typeof vi.fn>;
+  preflightCommitMessage: ReturnType<typeof vi.fn>;
 } {
   const stderr: string[] = [];
   const spawnGit = vi.fn(opts.spawnGit ?? (() => {
@@ -136,6 +138,9 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
   const resolveHead = vi.fn(opts.resolveHead ?? (() => {
     throw new Error("resolveHead must not be called without an authorized success");
   }));
+  const preflightCommitMessage = vi.fn(
+    opts.preflightCommitMessage ?? (() => Promise.resolve({ kind: "pass-through" as const })),
+  );
   const deps: ReleaseCommitDeps = {
     cwd: root,
     identity: IDENTITY,
@@ -145,8 +150,9 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
     writeStderr: (msg) => { stderr.push(msg); },
     spawnGit,
     resolveHead,
+    preflightCommitMessage,
   };
-  return { deps, stderr, spawnGit, resolveHead };
+  return { deps, stderr, spawnGit, resolveHead, preflightCommitMessage };
 }
 
 async function readAuditEntries(root: string): Promise<AuditEntry[]> {
@@ -176,12 +182,15 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
     ["--no-verify"],
   ])("refuses with code 12 and audit entry carrying flag detail (%s)", async (flag) => {
     await writeStatus(fixture.root, "sample");
-    const { deps, spawnGit } = buildDeps(fixture.root, { argv: [flag, "-m", "subject"] });
+    const { deps, spawnGit, preflightCommitMessage } = buildDeps(fixture.root, {
+      argv: [flag, "-m", "subject"],
+    });
 
     const result = await runReleaseCommit(deps);
 
     expect(result.exitCode).toBe(12);
     expect(spawnGit).not.toHaveBeenCalled();
+    expect(preflightCommitMessage).not.toHaveBeenCalled();
 
     const entries = await readAuditEntries(fixture.root);
     expect(entries).toHaveLength(1);
@@ -265,7 +274,7 @@ describe("runReleaseCommit — code 13 (branch-protection-violation)", () => {
       branchBase: "main",
       commitInterlock: "on-workflow",
     });
-    const { deps, spawnGit, stderr } = buildDeps(fixture.root, {
+    const { deps, spawnGit, stderr, preflightCommitMessage } = buildDeps(fixture.root, {
       argv: ["-m", "subject"],
       settings,
       currentBranch: "main",
@@ -275,6 +284,7 @@ describe("runReleaseCommit — code 13 (branch-protection-violation)", () => {
 
     expect(result.exitCode).toBe(13);
     expect(spawnGit).not.toHaveBeenCalled();
+    expect(preflightCommitMessage).not.toHaveBeenCalled();
 
     const composed = stderr.join("");
     expect(composed).toContain("Refused: branch-protection-violation (code 13)");
@@ -339,7 +349,7 @@ describe("runReleaseCommit — code 11 (interlock-not-authorized)", () => {
   it("refuses with code 11 when commit_interlock=manual", async () => {
     await writeStatus(fixture.root, "sample");
     const settings = buildSettings({ commitInterlock: "manual" });
-    const { deps, spawnGit, stderr } = buildDeps(fixture.root, {
+    const { deps, spawnGit, stderr, preflightCommitMessage } = buildDeps(fixture.root, {
       argv: ["-m", "subject"],
       settings,
     });
@@ -348,6 +358,7 @@ describe("runReleaseCommit — code 11 (interlock-not-authorized)", () => {
 
     expect(result.exitCode).toBe(11);
     expect(spawnGit).not.toHaveBeenCalled();
+    expect(preflightCommitMessage).not.toHaveBeenCalled();
 
     const composed = stderr.join("");
     expect(composed).toContain("Refused: interlock-not-authorized (code 11)");
@@ -429,6 +440,51 @@ describe("runReleaseCommit — success path", () => {
   function authorizingSettings(): ResolvedSettingsResult {
     return buildSettings({ commitInterlock: "on-task-approval" });
   }
+
+  it.each(["validation", "input"] as const)(
+    "refuses %s preflight before spawning Git",
+    async (reason) => {
+      await writeStatus(fixture.root, "sample");
+      const { deps, spawnGit } = buildDeps(fixture.root, {
+        argv: ["-am", "secret"],
+        settings: authorizingSettings(),
+        preflightCommitMessage: () => Promise.resolve({
+          kind: "refused",
+          reason,
+          message: `preflight ${reason}`,
+        }),
+      });
+
+      const result = await runReleaseCommit(deps);
+
+      expect(result.exitCode).toBe(16);
+      expect(spawnGit).not.toHaveBeenCalled();
+      const [entry] = await readAuditEntries(fixture.root);
+      expect(entry).toMatchObject({
+        args: ["-am", "<redacted>"],
+        decision: "refused",
+        refusalCode: 16,
+        outcome: { kind: "preflight-failed", reason },
+      });
+    },
+  );
+
+  it.each(["pass", "pass-with-warnings"] as const)(
+    "spawns Git once after preflight %s",
+    async (verdict) => {
+      await writeStatus(fixture.root, "sample");
+      const { deps, spawnGit } = buildDeps(fixture.root, {
+        argv: ["-m", "subject"],
+        settings: authorizingSettings(),
+        preflightCommitMessage: () => Promise.resolve({ kind: "passed", verdict }),
+        spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+        resolveHead: () => Promise.resolve(FULL_HASH),
+      });
+
+      expect((await runReleaseCommit(deps)).exitCode).toBe(0);
+      expect(spawnGit).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("forwards argv to spawnGit when authorized and bubbles exit code 0", async () => {
     await writeStatus(fixture.root, "sample");

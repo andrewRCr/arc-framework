@@ -213,17 +213,10 @@ message bytes when the subsequent Git invocation fails.
           reused the classifier walker for commit-only redaction across separated, attached, clustered, ambiguous,
           operand-bound, and post-terminator argv without a legacy-version compatibility arm.
 
-    - `[ ]` **3.2.b Run classification and validation before `spawnGit`**
-        - After the existing interlock-validation cascade, assemble recognized forms and invoke the canonical validator;
-          leave pass-through forms on the existing wrapped-Git path.
-        - Build `test-first` (one behavior at a time):
-            - Invalid assembled input writes one refusal audit entry and never calls `spawnGit`.
-            - Unreadable files, stdin failures, and unsupported or malformed assembled encodings write one input-reason
-              audit entry and never call `spawnGit`.
-            - Pass and pass-with-warnings reach `spawnGit` exactly once.
-            - Pass-through forms skip preflight and retain ordinary hook enforcement.
-            - Destructive flags still win before message classification, and authorization refusals still win before
-              message validation.
+    - `[x]` **3.2.b Run classification and validation before `spawnGit`**
+        - Added production in-process preflight after authorization, composing deterministic assembly/capture with the
+          canonical byte validator; validation and input failures audit once as code `16`, pass/warnings spawn once,
+          pass-through skips source reads, and destructive/authorization refusals retain precedence.
 
     - `[ ]` **3.2.c Hand captured message sources to Git without a second read**
         - Buffer caller stdin only for assembled `-F -`; preserve inherited stdin for `-m`, file-backed, editor, and

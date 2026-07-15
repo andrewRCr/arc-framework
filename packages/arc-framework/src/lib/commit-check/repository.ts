@@ -15,6 +15,7 @@ import type {
 /** Repository facts needed before a message can be decoded and validated. */
 export interface CommitMessageCheckRepository {
   encoding: string;
+  cleanup?: string;
   context: CommitCheckContext;
 }
 
@@ -38,9 +39,10 @@ export async function createDefaultCommitCheckRepository(
   deps: DefaultCommitCheckRepositoryDeps,
 ): Promise<CommitMessageCheckRepository> {
   const arcRoot = join(root, ".arc");
-  const [configurationText, encodingResult, roleResult, mergePathResult] = await Promise.all([
+  const [configurationText, encodingResult, cleanupResult, roleResult, mergePathResult] = await Promise.all([
     deps.readFile(join(arcRoot, "system", "arc-config.yml")),
     deps.exec("git", ["config", "--get", "--default", "utf-8", "i18n.commitEncoding"], { cwd: root }),
+    deps.exec("git", ["config", "--get", "--default", "default", "commit.cleanup"], { cwd: root }),
     deps.exec("git", ["config", "--get", "--default", "maintainer", "arc.role"], { cwd: root }),
     deps.exec("git", ["rev-parse", "--path-format=absolute", "--git-path", "MERGE_HEAD"], { cwd: root }),
   ]);
@@ -49,6 +51,7 @@ export async function createDefaultCommitCheckRepository(
 
   return {
     encoding: encodingResult.stdout.trim(),
+    cleanup: cleanupResult.stdout.trim(),
     context: createCommitCheckContext({
       configuration: readCommitCheckConfiguration(parseArcConfig(configurationText)),
       mergeInProgress,

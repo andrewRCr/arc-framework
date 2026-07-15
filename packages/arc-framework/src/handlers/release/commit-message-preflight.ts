@@ -1,0 +1,69 @@
+/** In-process assembly and canonical validation for release-commit input. */
+
+import {
+  assembleCommitMessageParagraphs,
+  captureCommitMessageFileSource,
+} from "../../lib/release/commit-message-assembly.js";
+import { classifyCommitMessageInput } from "../../lib/release/commit-message-source.js";
+import type { CommitMessageCheckRepository } from "../../lib/commit-check/repository.js";
+import { validateCommitMessageBytes } from "../check/commit-msg.js";
+import { renderCheckCommitMessage } from "../check/commit-msg-output.js";
+import type { CommitMessagePreflightResult, PreflightCommitMessage } from "./commit.js";
+
+/** I/O and repository boundaries needed by release preflight. */
+export interface CommitMessagePreflightDeps {
+  stdinIsTTY: boolean;
+  readFile: (path: string) => Promise<Uint8Array>;
+  readStdin: () => Promise<Uint8Array>;
+  setupRepository: (cwd: string) => Promise<CommitMessageCheckRepository>;
+}
+
+function inputFailure(message: string): CommitMessagePreflightResult {
+  return { kind: "refused", reason: "input", message };
+}
+
+/** Create the production preflight function from injected system boundaries. */
+export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): PreflightCommitMessage {
+  return async ({ args, cwd }) => {
+    let repository: CommitMessageCheckRepository;
+    try {
+      repository = await deps.setupRepository(cwd);
+    } catch (cause: unknown) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      return inputFailure(`Could not prepare commit-message preflight: ${detail}`);
+    }
+
+    const classification = classifyCommitMessageInput({
+      args,
+      stdinIsTTY: deps.stdinIsTTY,
+      commitCleanup: repository.cleanup,
+      commitEncoding: repository.encoding,
+    });
+    if (classification.kind === "pass-through") return classification;
+    if (classification.kind === "refused") {
+      return inputFailure("Commit-message input requires an interactive editor.");
+    }
+
+    let messageBytes: Uint8Array;
+    if (classification.source.kind === "messages") {
+      messageBytes = assembleCommitMessageParagraphs(classification.source.values);
+    } else {
+      const capture = await captureCommitMessageFileSource(classification.source.path, deps);
+      if (capture.kind === "error") return inputFailure(capture.message);
+      messageBytes = capture.messageBytes;
+    }
+
+    const checked = await validateCommitMessageBytes(messageBytes, repository);
+    if (checked.kind === "error") return inputFailure(checked.error.message);
+    if (checked.exitCode === 1) {
+      const rendered = renderCheckCommitMessage(checked, false);
+      return {
+        kind: "refused",
+        reason: "validation",
+        message: (rendered.stderr ?? rendered.stdout ?? "Commit-message validation failed.").trimEnd(),
+      };
+    }
+    const verdict = checked.result.kind === "validated" ? checked.result.verdict : "pass";
+    return { kind: "passed", verdict: verdict === "pass-with-warnings" ? verdict : "pass" };
+  };
+}

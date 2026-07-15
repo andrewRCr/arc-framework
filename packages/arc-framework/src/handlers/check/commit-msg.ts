@@ -95,6 +95,21 @@ export async function runCheckCommitMessage(
     );
   }
 
+  return validateCommitMessageBytes(sourceBytes, repository);
+}
+
+/**
+ * Decode and validate already-captured message bytes through the canonical
+ * commit-check engine.
+ *
+ * @param sourceBytes - Git-cleaned commit-message bytes.
+ * @param repository - Shared decoder and validation context.
+ * @returns Typed validation result or encoding failure.
+ */
+export async function validateCommitMessageBytes(
+  sourceBytes: Uint8Array,
+  repository: CommitMessageCheckRepository,
+): Promise<RunCheckCommitMessageResult> {
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(repository.encoding, { fatal: true });

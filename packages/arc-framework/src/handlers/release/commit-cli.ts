@@ -11,15 +11,17 @@
  */
 
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
 import { execFileAsync, gitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
+import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
 import { ARC_PROJECT_ROOT_ERROR, resolveCurrentBranchName, resolveUserIdentity } from "../shared.js";
 
 import { runReleaseCommit, type ResolveHead, type SpawnGit } from "./commit.js";
+import { createCommitMessagePreflight } from "./commit-message-preflight.js";
 
 export interface HandleReleaseCommitOptions {
   args: readonly string[];
@@ -68,11 +70,37 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
     currentBranch,
     spawnGit: realSpawnGit,
     resolveHead: realResolveHead,
+    preflightCommitMessage: createCommitMessagePreflight({
+      stdinIsTTY: process.stdin.isTTY,
+      readFile: (path) => readFile(path),
+      readStdin,
+      setupRepository: (root) => createDefaultCommitCheckRepository(root, {
+        exec: gitExec,
+        readFile: (path) => readFile(path, "utf8"),
+        pathExists,
+      }),
+    }),
   });
 
   if (result.exitCode !== 0) {
     process.exitCode = result.exitCode;
   }
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch (cause: unknown) {
+    if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return false;
+    throw cause;
+  }
+}
+
+async function readStdin(): Promise<Uint8Array> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin as AsyncIterable<Buffer>) chunks.push(chunk);
+  return Buffer.concat(chunks);
 }
 
 /**

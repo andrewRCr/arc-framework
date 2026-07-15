@@ -69,6 +69,18 @@ export type SpawnGit = (opts: SpawnGitOptions) => Promise<SpawnGitResult>;
  */
 export type ResolveHead = (opts: { cwd: string }) => Promise<string>;
 
+/** Result of classifying and validating deterministic commit-message input. */
+export type CommitMessagePreflightResult =
+  | { kind: "pass-through" }
+  | { kind: "passed"; verdict: "pass" | "pass-with-warnings" }
+  | { kind: "refused"; reason: "validation" | "input"; message: string };
+
+/** In-process commit-message preflight boundary. */
+export type PreflightCommitMessage = (opts: {
+  args: readonly string[];
+  cwd: string;
+}) => Promise<CommitMessagePreflightResult>;
+
 /**
  * Audit-entry writer signature. Defaulted to {@link appendAuditEntry}; tests
  * inject a custom writer (or rely on the default and read the JSONL after
@@ -96,6 +108,8 @@ export interface ReleaseCommitDeps {
    * the audit entry. Called only on `spawnGit` exit code 0.
    */
   resolveHead: ResolveHead;
+  /** Classifies and validates deterministic message input after authorization. */
+  preflightCommitMessage: PreflightCommitMessage;
   /** Sink for refusal messages. Defaults to `process.stderr.write`. */
   writeStderr?: (msg: string) => void;
   /** Audit-entry writer. Defaults to {@link appendAuditEntry}. */
@@ -153,6 +167,30 @@ export async function runReleaseCommit(
 
   if (decision.kind === "refuse") {
     return refuse(decision, { wu: wuAudit, deps, writeStderr, appendAudit });
+  }
+
+  const preflight = await deps.preflightCommitMessage({ args: deps.argv, cwd: deps.cwd });
+  if (preflight.kind === "refused") {
+    const refusal: Extract<AuthorizationDecision, { code: 16 }> = {
+      kind: "refuse",
+      code: 16,
+      identifier: "commit-message-preflight-failed",
+      reason: preflight.reason,
+    };
+    writeStderr(`${preflight.message}\n${formatRefusal(refusal)}\n`);
+    const auditResult = await appendAudit({
+      cwd: deps.cwd,
+      identity: deps.identity,
+      entry: buildAuditEntry({
+        deps,
+        wu: wuAudit,
+        decision: "refused",
+        refusalCode: 16,
+        outcome: { kind: "preflight-failed", reason: preflight.reason },
+      }),
+    });
+    surfaceAuditFailure(auditResult, writeStderr);
+    return { exitCode: 16 };
   }
 
   // Authorize: run wrapped `git commit`, attribute the outcome, audit, exit.
