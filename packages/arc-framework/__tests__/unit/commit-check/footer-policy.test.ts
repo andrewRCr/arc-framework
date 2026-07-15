@@ -97,6 +97,7 @@ describe("Context footer families", () => {
     "standalone (planning)",
     "standalone (documentation)",
     "standalone (refactor)",
+    "standalone (code review)",
     "integration (squash-merge cleanup)",
     "contribution (fix typo in README)",
   ])("accepts %s", async (context) => {
