@@ -22,8 +22,10 @@ interface MaterializedFixture {
   arcRoot: string;
 }
 
-async function materializeFixture(fixture: CommitMessageFixture): Promise<MaterializedFixture> {
-  const root = await mkdtemp(join(tmpdir(), "arc-commit-corpus-"));
+async function materializeFixture(
+  fixture: CommitMessageFixture,
+  root: string,
+): Promise<MaterializedFixture> {
   const arcRoot = join(root, ".arc");
   const configPath = join(arcRoot, "system", "arc-config.yml");
   const messagePath = join(root, "COMMIT_EDITMSG");
@@ -51,11 +53,12 @@ async function withFixture<T>(
   fixture: CommitMessageFixture,
   run: (materialized: MaterializedFixture) => Promise<T>,
 ): Promise<T> {
-  const materialized = await materializeFixture(fixture);
+  const root = await mkdtemp(join(tmpdir(), "arc-commit-corpus-"));
   try {
+    const materialized = await materializeFixture(fixture, root);
     return await run(materialized);
   } finally {
-    await rm(materialized.root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true });
   }
 }
 
