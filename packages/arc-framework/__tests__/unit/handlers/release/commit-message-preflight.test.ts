@@ -11,11 +11,16 @@ import type { CommitMessageCheckRepository } from "../../../../src/lib/commit-ch
 
 function repository(
   overrides: Partial<typeof COMMIT_CHECK_DEFAULTS> = {},
-  facts: { mergeInProgress?: boolean; role?: string } = {},
+  facts: {
+    mergeInProgress?: boolean;
+    role?: string;
+    cleanup?: string;
+    encoding?: string;
+  } = {},
 ): CommitMessageCheckRepository {
   return {
-    cleanup: "default",
-    encoding: "utf-8",
+    cleanup: facts.cleanup ?? "default",
+    encoding: facts.encoding ?? "utf-8",
     context: createCommitCheckContext({
       configuration: { ...COMMIT_CHECK_DEFAULTS, ...overrides },
       mergeInProgress: facts.mergeInProgress ?? false,
@@ -30,6 +35,7 @@ function create(overrides: {
   readStdin?: () => Promise<Uint8Array>;
   repo?: CommitMessageCheckRepository;
   hasPrepareCommitMsgHook?: (cwd: string) => Promise<boolean>;
+  stdinIsTTY?: boolean;
 } = {}) {
   const readFile = vi.fn(overrides.readFile ?? (() => Promise.resolve(new Uint8Array())));
   const readStdin = vi.fn(overrides.readStdin ?? (() => Promise.resolve(new Uint8Array())));
@@ -37,7 +43,7 @@ function create(overrides: {
     readFile,
     readStdin,
     preflight: createCommitMessagePreflight({
-      stdinIsTTY: false,
+      stdinIsTTY: overrides.stdinIsTTY ?? false,
       readFile,
       readStdin,
       setupRepository: async () => overrides.repo ?? repository(),
@@ -53,6 +59,64 @@ describe("createCommitMessagePreflight", () => {
     const result = await preflight({ args: ["-m", "short"], cwd: "/repo" });
 
     expect(result).toMatchObject({ kind: "refused", reason: "validation" });
+    expect(result).toHaveProperty("message", expect.stringContaining("Commit validation FAILED"));
+  });
+
+  it.each([
+    { label: "unsupported short grammar", args: ["-Smsecret"], repo: repository() },
+    {
+      label: "explicit trailer modifier",
+      args: ["-m", "subject", "--trailer", "Reviewed-by: Person"],
+      repo: repository(),
+    },
+    { label: "implicit cleanup modifier", args: ["-m", "subject"], repo: repository({}, { cleanup: "strip" }) },
+    {
+      label: "unsupported message encoding",
+      args: ["-m", "subject"],
+      repo: repository({}, { encoding: "iso-8859-1" }),
+    },
+    { label: "editor-free reuse", args: ["-C", "HEAD"], repo: repository() },
+    { label: "template with explicit source", args: ["-t", "template", "-m", "subject"], repo: repository() },
+  ])("passes $label through without reading a source", async ({ args, repo }) => {
+    const { preflight, readFile, readStdin } = create({ repo });
+
+    expect(await preflight({ args, cwd: "/repo" })).toMatchObject({ kind: "pass-through" });
+    expect(readFile).not.toHaveBeenCalled();
+    expect(readStdin).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { label: "source-free commit", args: [] },
+    { label: "explicit edit", args: ["--edit", "-m", "subject"] },
+    { label: "reedit", args: ["-c", "HEAD"] },
+    { label: "template", args: ["-t", "template"] },
+    { label: "amend fixup", args: ["--fixup=amend:HEAD"] },
+    { label: "reword fixup", args: ["--fixup=reword:HEAD"] },
+    { label: "squash", args: ["--squash=HEAD"] },
+  ])("refuses non-TTY $label editor input", async ({ args }) => {
+    const { preflight } = create();
+
+    expect(await preflight({ args, cwd: "/repo" })).toEqual({
+      kind: "refused",
+      reason: "input",
+      message: "Commit-message input requires an interactive editor.",
+    });
+  });
+
+  it.each([
+    { label: "source-free commit", args: [] },
+    { label: "explicit edit", args: ["--edit", "-m", "subject"] },
+    { label: "reedit", args: ["-c", "HEAD"] },
+    { label: "template", args: ["-t", "template"] },
+    { label: "amend fixup", args: ["--fixup=amend:HEAD"] },
+    { label: "reword fixup", args: ["--fixup=reword:HEAD"] },
+    { label: "squash", args: ["--squash=HEAD"] },
+  ])("passes TTY $label input through", async ({ args }) => {
+    const { preflight, readFile, readStdin } = create({ stdinIsTTY: true });
+
+    expect(await preflight({ args, cwd: "/repo" })).toMatchObject({ kind: "pass-through" });
+    expect(readFile).not.toHaveBeenCalled();
+    expect(readStdin).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -263,10 +263,11 @@ message bytes when the subsequent Git invocation fails.
 - _Goal:_ The wrapper's observable behavior proves early deterministic refusal, ordinary Git defense in depth, and exact
   message reuse across real process boundaries.
 
-    - `[ ]` **3.4.a Complete the release-commit unit matrix**
-        - Cover every assembled, pass-through, and editor-refusal class; modifier demotions; TTY state; exemption
-          parity; refusal ordering; combined short-option classification and redaction across every audit outcome; and
-          diagnostic rendering in the release handler tests.
+    - `[x]` **3.4.a Complete the release-commit unit matrix**
+        - Completed production-preflight coverage across assembled, modifier/encoding/grammar/Git-managed pass-through,
+          non-TTY refusal and TTY demotion, disabled/merge/prepare-hook exemptions, and canonical diagnostics; release
+          cascade tests now pin combined short-option redaction for ordinary refusals, preflight failures, successful
+          commits, and non-zero Git audit outcomes without changing refusal precedence.
 
     - `[ ]` **3.4.b Prove preflight precedes staged-content hooks**
         - In a temporary repository, install sentinel `pre-commit`, `prepare-commit-msg`, and `commit-msg` hooks and

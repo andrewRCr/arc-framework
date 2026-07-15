@@ -236,12 +236,12 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
 
   it("redacts -m payload in the audit args field", async () => {
     await writeStatus(fixture.root, "sample");
-    const { deps } = buildDeps(fixture.root, { argv: ["--amend", "-m", "secret"] });
+    const { deps } = buildDeps(fixture.root, { argv: ["--amend", "-qamsecret"] });
 
     await runReleaseCommit(deps);
 
     const [entry] = await readAuditEntries(fixture.root);
-    expect(entry?.args).toEqual(["--amend", "-m", "<redacted>"]);
+    expect(entry?.args).toEqual(["--amend", "-qam<redacted>"]);
   });
 });
 
@@ -457,7 +457,7 @@ describe("runReleaseCommit — success path", () => {
     async (reason) => {
       await writeStatus(fixture.root, "sample");
       const { deps, spawnGit, stderr } = buildDeps(fixture.root, {
-        argv: ["-am", "secret"],
+        argv: ["-qamsecret"],
         settings: authorizingSettings(),
         preflightCommitMessage: () => Promise.resolve({
           kind: "refused",
@@ -480,7 +480,7 @@ describe("runReleaseCommit — success path", () => {
       ].join("\n"));
       const [entry] = await readAuditEntries(fixture.root);
       expect(entry).toMatchObject({
-        args: ["-am", "<redacted>"],
+        args: ["-qam<redacted>"],
         decision: "refused",
         refusalCode: 16,
         outcome: { kind: "preflight-failed", reason },
@@ -773,7 +773,7 @@ describe("runReleaseCommit — success path", () => {
   it("writes a proceeded audit entry with kind: commit and the resolved hash", async () => {
     await writeStatus(fixture.root, "sample");
     const { deps, resolveHead } = buildDeps(fixture.root, {
-      argv: ["-m", "subject"],
+      argv: ["-amsubject"],
       settings: authorizingSettings(),
       spawnGit: () => Promise.resolve({
         exitCode: 0,
@@ -796,13 +796,13 @@ describe("runReleaseCommit — success path", () => {
       wu: { name: "sample" },
     });
     // -m payload still redacted on the success path.
-    expect(entries[0]?.args).toEqual(["-m", "<redacted>"]);
+    expect(entries[0]?.args).toEqual(["-am<redacted>"]);
   });
 
   it("bubbles non-zero git exit code and writes a hook-failed entry attributed via stderr", async () => {
     await writeStatus(fixture.root, "sample");
     const { deps, resolveHead } = buildDeps(fixture.root, {
-      argv: ["-m", "subject"],
+      argv: ["-qamsubject"],
       settings: authorizingSettings(),
       spawnGit: () => Promise.resolve({
         exitCode: 1,
@@ -824,6 +824,7 @@ describe("runReleaseCommit — success path", () => {
       refusalCode: null,
       outcome: { kind: "hook-failed", hook: "pre-commit", exitCode: 1 },
     });
+    expect(entries[0]?.args).toEqual(["-qam<redacted>"]);
   });
 
   it("attributes commit-msg hook rejection from captured output", async () => {
