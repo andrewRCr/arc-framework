@@ -81,6 +81,37 @@ describe("integrateHooks — husky", () => {
     expect(io.written).toEqual({});
   });
 
+  it("migrates only the exact legacy generated commit-msg line", async () => {
+    const io = makeIO({
+      "/repo/.husky/commit-msg": [
+        "#!/usr/bin/env sh",
+        ".arc/system/.internal/githooks/commit-msg $1",
+        "if custom; then .arc/system/.internal/githooks/commit-msg $1; fi",
+        "",
+      ].join("\n"),
+    });
+
+    await integrateHooks(detection, io.readFile, io.writeFile);
+
+    const output = io.written["/repo/.husky/commit-msg"];
+    expect(output).toContain('.arc/system/.internal/githooks/commit-msg "$1"');
+    expect(output).not.toContain("\n.arc/system/.internal/githooks/commit-msg $1\n");
+    expect(output).toContain("if custom; then .arc/system/.internal/githooks/commit-msg $1; fi");
+  });
+
+  it("preserves a customized commit-msg invocation", async () => {
+    const existing = [
+      "#!/usr/bin/env sh",
+      "ARC_MODE=custom .arc/system/.internal/githooks/commit-msg $1",
+      "",
+    ].join("\n");
+    const io = makeIO({ "/repo/.husky/commit-msg": existing });
+
+    await integrateHooks(detection, io.readFile, io.writeFile);
+
+    expect(io.written["/repo/.husky/commit-msg"]).toBeUndefined();
+  });
+
   it("preserves one message argument when repository and message paths contain spaces", async () => {
     const spacedDetection: HookManagerResult = {
       manager: "husky",
@@ -166,6 +197,42 @@ describe("integrateHooks — lefthook", () => {
     await integrateHooks(detection, io.readFile, io.writeFile);
 
     expect(io.written).toEqual({});
+  });
+
+  it("migrates the exact legacy generated commit-msg command", async () => {
+    const io = makeIO({
+      "/repo/lefthook.yml": [
+        "commit-msg:",
+        "  commands:",
+        "    arc-commit-msg:",
+        "      run: .arc/system/.internal/githooks/commit-msg {1}",
+        "      glob: '*.md'",
+        "",
+      ].join("\n"),
+    });
+
+    await integrateHooks(detection, io.readFile, io.writeFile);
+
+    const output = io.written["/repo/lefthook.yml"];
+    expect(output).toContain('.arc/system/.internal/githooks/commit-msg "{1}"');
+    expect(output).toContain("glob: '*.md'");
+  });
+
+  it("preserves a customized commit-msg command", async () => {
+    const existing = [
+      "commit-msg:",
+      "  commands:",
+      "    arc-commit-msg:",
+      "      run: ARC_MODE=custom .arc/system/.internal/githooks/commit-msg {1}",
+      "",
+    ].join("\n");
+    const io = makeIO({ "/repo/lefthook.yml": existing });
+
+    await integrateHooks(detection, io.readFile, io.writeFile);
+
+    expect(io.written["/repo/lefthook.yml"]).toContain(
+      "run: ARC_MODE=custom .arc/system/.internal/githooks/commit-msg {1}",
+    );
   });
 
   it("quotes the message placeholder when the config path contains spaces", async () => {
