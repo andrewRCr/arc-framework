@@ -663,12 +663,19 @@ seam rule in `notes-finalize-parallelism.md`.
           vehicle; no wrap-shaped multi-dep graduation exists on the FP timeline, so wrap-specific rendering rests
           on unit coverage.
 
-### `[ ]` **4.4 Verify wave-2 detector-tests and record findings**
+### `[x]` **4.4 Verify wave-2 detector-tests and record findings**
 
 - _Goal:_ Wave-2 detectors fire on induction and findings are recorded to `notes-finalize-parallelism.md` and
   the in-progress GA checklist.
 
-    - `[ ]` **4.4.a Induce detectors, confirm firing, record**
+    - `[x]` **4.4.a Induce detectors, confirm firing, record**
+        - Wave 2's conditions arose from the real workload rather than deliberate induction; evidence recorded
+          in `notes-finalize-parallelism.md` § Wave-2 induction evidence and the GA checklist's Wave 2 item
+          ticked with per-condition pointers. BI-5 verified partial (fail-loud Class guard live; old-shape lane
+          on test coverage); the dispatch split-brain finding stands as the wave's marquee detector catch, with
+          both split-out fixes shipped and the composer fix consumed live at the 2026-07-15 base merge. Detector
+          re-probe at wave close: base drift, notes-lag markers, and the ROADMAP regen gate all fired correctly —
+          no silent no-ops.
 
 ### `[ ]` **4.5 Retire synthetic remote notes state before routine writes resume**
 

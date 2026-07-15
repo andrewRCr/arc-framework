@@ -683,6 +683,40 @@ Verdict: no silent no-ops — every wave-1 detector fires loud on its condition 
 text, and the adjacent negatives confirm the gating (primary-only sweep, identity-scoped markers, clean-skip
 base distance).
 
+## Wave-2 induction evidence
+
+Wave 2 ran as two real code WUs (slate re-cut 2026-07-14): `commit-message-submission` (still in flight) and
+`worktree-teardown-decoupling` (shipped, PR #246). Unlike wave 1's deliberate matrix-cell inductions, wave 2's
+conditions arose from the real workload; collection was partly retrospective — FP resumed after WTD's full
+lifecycle had completed and its worktree was torn down.
+
+- **Dependency provisioning + off-primary gates (BI-1 node-deps leg) — CONFIRMED.** First-hand: the live CMS
+  worktree ran the full gate set green (markdown/TS/shell lint, both typecheck configs, build, full suite),
+  `node_modules/.bin/arc` resolving locally — no foreign-registry edge. Retrospective: WTD's archived record
+  attests per-task gates through Tier 3 plus portability and integration/E2E CI across its whole off-primary
+  lifecycle. The flip-decisive `node_modules` gap is closed in practice (Task 4.2 - `tasks-finalize-parallelism.md`).
+- **BI-4 ceremony locus — CONFIRMED, retrospectively; re-graduation vehicle superseded.** All WTD ceremony
+  commits (init `6966113dc`, activation `130b9b600`, ROADMAP refresh `770d6b2dc`) rode the plan/fix branch,
+  none on main's first-parent line; pairs with 4.1's init-locus evidence for both wave-2 spawns. The penciled
+  re-graduation never ran (WTD's split-brain reconcile folded into grooming/activation and it shipped);
+  dispatch-fix live verification and the `Depends On` discharge vehicle re-anchor at the wave-3 slate cut.
+- **BI-5 graduate-transition crash-class — PARTIAL.** Fail-loud-before-mutation observed live: the `[TBD]`-Class
+  guard blocked CMS's agent-driven launch cleanly (no partial state; after `start --class` shipped via PR #236
+  the relaunch ran end-to-end first try, with no residue to clean). The old-shape-meta rejection lane was not
+  induced — no old-shape meta existed in the wave; it rests on 2.5.a's staged-validation and test coverage. WTD's
+  launch bypassed graduate validation entirely via the create-arm miss — the split-brain finding below — so its
+  refusal-contract successor (PR #242's fail-closed resolution) carries the remaining live check into wave 3.
+- **Dispatch split-brain (wave-2 finding, 2026-07-14) — DETECTED + fixed as split-outs.** The wave's marquee
+  catch: `start` resolved slugs checkout-locally while cutting from base, silently creating a default-weighted
+  meta (§ Wave-2 finding). Both split-out fixes shipped (PR #242 base-anchored resolution + refusal hardening;
+  PR #243 composer advisories out of rendered bodies). The composer fix was consumed live at FP's 2026-07-15
+  base merge: the pre-commit hook demanded a staged re-render and the regenerated ROADMAP came out clean — no
+  baked advisory.
+- **Detector re-probe (playbook discipline).** At FP's wave-close session-init, base drift fired correctly
+  (62 behind, both overlapping paths named), the three synthetic partial-push markers still rendered
+  identity-scoped, and the ROADMAP regen gate refused a stale render at the merge commit before accepting the
+  regenerated one. No silent no-ops observed in wave 2.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
@@ -920,8 +954,16 @@ commit-msg-footer suite tripping the hook's `MERGE_HEAD` merge-exemption mid-mer
   (Phase 7.2), synthetic-notes cleanup barrier (Phase 8 task, commit `b5c444532`), probe-b integration-path
   decision (open — behind-base state served its purpose and may now reconcile + merge as the wave-1 tail or
   hold for wave-2 overlap).*
-- [ ] **Wave 2:** one code WU plus one doc WU; verify dependency provisioning, off-primary quality gates,
-  BI-4 re-graduation, and the graduate-transition crash-class detector.
+- [x] **Wave 2:** two code WUs (slate re-cut 2026-07-14); verify dependency provisioning, off-primary quality
+  gates, BI-4 re-graduation, and the graduate-transition crash-class detector. *Complete 2026-07-15 — real
+  workload (`commit-message-submission` in flight; `worktree-teardown-decoupling` shipped, PR #246).
+  Per-condition evidence: dependency provisioning + off-primary gates confirmed first-hand and retrospectively
+  (§ Wave-2 induction evidence; Task 4.2), BI-4 locus confirmed retrospectively with the re-graduation vehicle
+  superseded (Task 4.3 `[~]`), BI-5 partial — fail-loud Class guard observed live, old-shape lane on test
+  coverage. Marquee catch: the `arc start` dispatch split-brain (§ Wave-2 finding), fixed via split-outs
+  PR #242 / PR #243, composer fix consumed live at the 2026-07-15 base merge. Residue carried forward:
+  dispatch-fix live verification + `Depends On` discharge vehicle at the wave-3 slate cut (5.1.a); synthetic
+  notes/marker retirement (4.5) still gates wave 3.*
 - [ ] **Wave 3:** two code WUs plus live errand/drain; verify errand ref merge/conflict behavior, same/different-entry
   `USER-INBOX` removal reconciliation, teardown symmetry, primary/errand concurrency fork evidence, and
   interlock-friction observations.
