@@ -12,6 +12,31 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Accept direct review-thread replies without submitted-review metadata**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
+  `commit-message-submission` final integration.
+- _Concern:_ GitHub returns `pullRequestReview: null` for a direct reply added to an inline review thread outside
+  a submitted review. The native-thread parser currently requires the relation on every comment and rejects an
+  otherwise valid, resolved thread with `native-threads-schema-error`.
+- _Approach:_ preserve the opening comment's submitted review as finding authority while permitting later replies
+  to omit the relation; keep strict validation elsewhere and add a GraphQL fixture covering reduction and
+  settlement with a null reply relation.
+
+### `[ ]` **Preserve deletion events when wake-up bursts collapse**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during the CI-speed errand.
+- _Concern:_ concurrency-group collapse is safe while wake-up events are only transport hints over canonical
+  re-query, but not after mutation/deletion tombstones land: a deleted comment must be recorded before canonical
+  re-query loses its evidence.
+- _Approach:_ when designing tombstones, either exempt deletion-class deliveries from burst collapse or record the
+  tombstone before any dedupe/cancel point. Bind the design to the workflow concurrency shape that actually ships.
+
 ## Product boundary
 
 The review gate is an ARC feature whose first installation happens to be this repository. The predecessor work must

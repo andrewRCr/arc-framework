@@ -7,6 +7,21 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Make the base-drift prompt safe for pushed branches**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-15); captured during FP wave-3 session
+  orientation.
+- _Concern:_ `baseDistance.recommendedPromptText` currently says that a rebase may conflict even though ARC's
+  append-only doctrine forbids rebasing pushed branches because it orphans SHA-keyed notes. Session-init renders
+  the precomposed text verbatim, so the live guidance suggests a forbidden reconciliation path.
+- _Approach:_ make prompt composition branch-state-aware (`merge main in` when the branch is published) or use
+  operation-neutral overlap wording, and cover the composer behavior with focused tests.
+
 ## Problem / Motivation
 
 Under routine parallelism, one merged sibling contributes its whole branch history to every other branch's raw
