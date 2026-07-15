@@ -648,12 +648,20 @@ seam rule in `notes-finalize-parallelism.md`.
           integration/E2E CI — and shipped (PR #246, archived record). Collection was retrospective for the WTD leg;
           its worktree was already torn down when FP resumed.
 
-### `[ ]` **4.3 Re-graduate a WU to verify BI-4's ceremony-locus fix**
+### `[~]` **4.3 Re-graduate a WU to verify BI-4's ceremony-locus fix**
 
 - _Goal:_ A wave-2 re-graduation lands its init ceremony on the plan branch with a 120-wrapped `Depends On` —
   BI-4's spawn-mode ceremony-locus fix verified live.
 
-    - `[ ]` **4.3.a Re-graduate and confirm ceremony locus + wrap**
+    - `[~]` **4.3.a Re-graduate and confirm ceremony locus + wrap**
+        - Superseded by events: the penciled vehicle (a WTD re-graduation after the dispatch fix) never ran — WTD's
+          split-brain reconcile folded into its grooming and activation ceremonies and the WU shipped. The locus half
+          is verified retrospectively: every WTD ceremony commit (init `6966113dc`, activation `130b9b600`, ROADMAP
+          refresh `770d6b2dc`) rode the plan/fix branch, none on main's first-parent line — together with 4.1's
+          init-locus evidence, BI-4's fix is field-verified. Residuals re-anchored at 5.1.a: the wave-3 launches
+          exercise the start-dispatch fix (PR #242) live, and the slate cut decides the `Depends On` discharge
+          vehicle; no wrap-shaped multi-dep graduation exists on the FP timeline, so wrap-specific rendering rests
+          on unit coverage.
 
 ### `[ ]` **4.4 Verify wave-2 detector-tests and record findings**
 
@@ -693,6 +701,10 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
   `ci-cross-platform-hardening` pick, whose `[TBD]` class and cross-platform shakeout may expand. Never pair both
   full scopes in one wave (shared test/CI infrastructure and a named save/sync race overlap): swap, or sharply
   partition both before the slate cut. Decide at 5.1.a.
+- _Context:_ Re-anchored from 4.3 (`[~]`): the wave-3 launches double as the live verification of the
+  start-dispatch fix (PR #242), and the slate cut decides the `Depends On` discharge vehicle —
+  `husk-lifecycle-drivers` (Ready P1, single dep on shipped `worktree-teardown-decoupling`) is the nearest
+  real-deps candidate if wanted.
 
     - `[ ]` **5.1.a Confirm the wave-3 slate and launch (incl. the errand drain session)**
 
