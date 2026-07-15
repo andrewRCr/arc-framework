@@ -354,7 +354,7 @@ cross-surface first-release checks without leaking transport mechanics into work
       acceptance versus multi-candidate refusal, codes `10–16`, message preflight and its audited outcome, the clean v2
       cutover, and the wrapper's unchanged unconditional trust boundary without citing movable work-unit artifacts.
 
-### `[ ]` **4.4 Certify the first release across all consumers**
+### `[x]` **4.4 Certify the first release across all consumers**
 
 - _Goal:_ The settled repository ships one validator, one durable corpus, synchronized hook and guidance copies, and no
   temporary migration machinery or conflicting invocation examples.
@@ -369,13 +369,10 @@ cross-surface first-release checks without leaking transport mechanics into work
           machine/human output, the real installed hook, and release-wrapper preflight; the durable corpus runner covers
           the library path. Finding codes and diagnostics match exactly, with only the wrapper refusal/remedy appended.
 
-    - `[ ]` **4.4.c Close first-release and synchronization checks**
-        - Verify package/self-hosted hook identity as byte-identical regular source files, installed-hook executability
-          through a real Git invocation, configurable-doc targeted diffs, and CLI build output.
-        - Confirm no stale `arc release commit -m` multiline example, Bash commit-message grammar instruction, or
-          undocumented public check/refusal surface remains.
-        - Run the relevant unit, integration, E2E, shellcheck, Markdown, typecheck, and build gates before entering the
-          dedicated work-unit verification phase.
+    - `[x]` **4.4.c Close first-release and synchronization checks**
+        - Certified byte-identical regular hook sources, executable installed-hook behavior through real Git, exact
+          Framework mirrors, targeted configurable-doc differences, and built CLI help. Shipped guidance contains no
+          stale multiline `-m`, Bash grammar, refusal-range, or standalone-check documentation gaps.
 
 ## **Phase 5:** Verification
 
