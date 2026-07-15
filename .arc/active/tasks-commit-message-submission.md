@@ -344,19 +344,15 @@ cross-surface first-release checks without leaking transport mechanics into work
           while fire-points retain only class tags and message bodies. A package/self-hosted workflow search found no
           embedded commit transport outside the dedicated setup workflow, so no fire-point required editing.
 
-### `[ ]` **4.3 Amend the accepted release-wrapper trust record**
+### `[x]` **4.3 Amend the accepted release-wrapper trust record**
 
 - _Goal:_ The accepted trust decision remains a truthful architectural reference after commit-message preflight expands
   the wrapper's validation, refusal, and audit surfaces.
 - **Additional Context:** `strategy-adr-methodology.md` § Amending Accepted ADRs.
 
-    - Append a dated Tier 2 amendment to `adr-017-release-wrapper-trust-model.md`; do not rewrite its point-in-time
-      Context, Decision, or original Consequences.
-    - Record the current no-WU ambiguity behavior, refusal family through code `16`, message-preflight trust check, and
-      `{ kind: "preflight-failed", reason: "validation" | "input" }` audit outcome. Record the new outcome as the
-      forcing function for the clean v2 cutover anticipated by the original schema-lock risk, while affirming that the
-      wrapper remains the unconditional trust boundary when invoked.
-    - Verify the amendment does not cite movable work-unit artifacts and passes Markdown lint.
+    - Appended a dated Tier 2 amendment to ADR 017 without rewriting its accepted record. It captures zero-candidate
+      acceptance versus multi-candidate refusal, codes `10–16`, message preflight and its audited outcome, the clean v2
+      cutover, and the wrapper's unchanged unconditional trust boundary without citing movable work-unit artifacts.
 
 ### `[ ]` **4.4 Certify the first release across all consumers**
 
