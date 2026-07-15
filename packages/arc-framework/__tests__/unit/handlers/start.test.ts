@@ -43,6 +43,7 @@ const mockBaseFs = {
   readFile: mockBaseReadFile,
 };
 const mockCreateProjectViewRefSnapshot = vi.fn();
+const mockRefreshBase = vi.fn(async () => "origin/main");
 
 vi.mock("../../../src/commands/start.js", () => ({
   buildCreateNewCeremonyCommitMessage: (name: string) =>
@@ -70,7 +71,7 @@ vi.mock("../../../src/lib/work-unit/composed-lifecycle-index.js", async (importO
 });
 
 vi.mock("../../../src/lib/git/refresh-base.js", () => ({
-  refreshBase: async () => "origin/main",
+  refreshBase: () => mockRefreshBase(),
 }));
 
 vi.mock("../../../src/lib/status/project-view-ref.js", () => ({
@@ -140,6 +141,7 @@ describe("handleStart — dispatch orchestration", () => {
     mockReadFile.mockResolvedValue("");
     mockBaseReadFile.mockResolvedValue("");
     mockCreateProjectViewRefSnapshot.mockResolvedValue({ ok: true, fs: mockBaseFs });
+    mockRefreshBase.mockResolvedValue("origin/main");
     mockMkdir.mockResolvedValue(undefined);
     mockIsNonInteractive.mockReturnValue(true); // skip confirm by default
     mockIsCancel.mockReturnValue(false);
@@ -191,6 +193,67 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockResolveStartDispatch).toHaveBeenCalledWith(expect.any(Map), "widget", { create: true });
     expect(mockRunCreateNew.mock.calls[0]?.[1]).toMatchObject({ baseRef: "base123" });
     expect((mockNote.mock.calls[0]?.[0] as string)).toContain("plan/widget");
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it.each([
+    ["0\t0", "synced with origin"],
+    ["0\t3", "3 behind origin"],
+    ["2\t0", "local base 2 ahead of origin"],
+    ["2\t3", "local base diverged from origin: 2 ahead, 3 behind"],
+  ])("reports the exact create-new cut base (%s)", async (distance, qualifier) => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockRunCreateNew.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
+    });
+    mockExec.mockImplementation(async (_cmd, args) => {
+      if (args[0] === "rev-parse" && String(args[1]).endsWith("^{commit}")) {
+        return { stdout: "base123\n", stderr: "" };
+      }
+      if (args[0] === "rev-list") return { stdout: distance, stderr: "" };
+      return { stdout: "", stderr: "" };
+    });
+
+    await handleStart("widget", { new: true });
+
+    expect(mockLog.info).toHaveBeenCalledWith(`Cut from: main @ base123 (${qualifier})`);
+  });
+
+  it("reports a local-base fallback when origin cannot supply the cut", async () => {
+    mockRefreshBase.mockResolvedValue("main");
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockRunCreateNew.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
+    });
+
+    await handleStart("widget", { new: true });
+
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "Cut from: main @ base123 (local base; origin unavailable)",
+    );
+  });
+
+  it("does not block the start when the origin relationship cannot be read", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockRunCreateNew.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
+    });
+    mockExec.mockImplementation(async (_cmd, args) => {
+      if (args[0] === "rev-parse" && String(args[1]).endsWith("^{commit}")) {
+        return { stdout: "base123\n", stderr: "" };
+      }
+      if (args[0] === "rev-list") throw new Error("relationship unavailable");
+      return { stdout: "", stderr: "" };
+    });
+
+    await handleStart("widget", { new: true });
+
+    expect(mockLog.info).toHaveBeenCalledWith(
+      "Cut from: main @ base123 (origin relation unavailable)",
+    );
     expect(process.exitCode).toBeUndefined();
   });
 
