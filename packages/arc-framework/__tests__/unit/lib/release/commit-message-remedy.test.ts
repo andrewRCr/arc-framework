@@ -10,11 +10,12 @@ describe("renderCommitMessageRemedy", () => {
   it.each([
     { harnesses: [] },
     { harnesses: [{ name: "codex", mode: "default-prompt" as const, installedAt }] },
+    { harnesses: [{ name: "unrecognized", mode: "default-prompt" as const, installedAt }] },
     { harnesses: [
       { name: "claude-code", mode: "default-prompt" as const, installedAt },
       { name: "codex", mode: "default-prompt" as const, installedAt },
     ] },
-  ])("uses prepared-file argv when matcher support is absent or includes Codex", ({ harnesses }) => {
+  ])("uses prepared-file argv unless every harness has verified heredoc support", ({ harnesses }) => {
     expect(renderCommitMessageRemedy(harnesses)).toContain("arc release commit -F <message-file>");
     expect(renderCommitMessageRemedy(harnesses)).not.toContain("<<");
   });

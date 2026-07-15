@@ -10,7 +10,7 @@ import type { HarnessEntry } from "./setup-marker.js";
  */
 export function renderCommitMessageRemedy(harnesses: readonly HarnessEntry[]): string {
   const heredocSupported = harnesses.length > 0
-    && harnesses.every((entry) => entry.name !== "codex");
+    && harnesses.every((entry) => entry.name === "claude-code");
   if (!heredocSupported) {
     return [
       "Write the corrected message to a prepared file, then retry:",
