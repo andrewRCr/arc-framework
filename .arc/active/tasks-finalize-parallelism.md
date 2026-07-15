@@ -716,6 +716,11 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
   start-dispatch fix (PR #242), and the slate cut decides the `Depends On` discharge vehicle —
   `husk-lifecycle-drivers` (Ready P1, single dep on shipped `worktree-teardown-decoupling`) is the nearest
   real-deps candidate if wanted.
+- _Decision (2026-07-15):_ Slate cut — `cli-test-hardening` + `husk-lifecycle-drivers` + the live errand drain.
+  HLD takes the second slot as the dep-discharge vehicle (its shipped WTD edge discharges at graduation, closing
+  the 4.3 re-anchor) with no test-infra overlap against CTH. Launch holds until `commit-message-submission`
+  merges, so the spawns cut from a base carrying both wave-2 WUs' surfaces and the dispatch-fix live check runs
+  against the freshest base.
 
     - `[ ]` **5.1.a Confirm the wave-3 slate and launch (incl. the errand drain session)**
 
