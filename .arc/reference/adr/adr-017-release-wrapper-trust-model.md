@@ -301,6 +301,8 @@ consumer contract existed, all release-audit writers and the runtime validator m
 `schemaVersion: 2`; no v1 reader, mixed-version compatibility layer, or audit-file migration was introduced. The
 decision itself is unchanged: whenever a release wrapper is invoked, its authorization, message preflight where
 applicable, and audit behavior remain unconditional, and the wrapper remains the per-invocation trust boundary.
+The original *Schema lock at v1* risk remains the point-in-time record; this amendment supersedes its version
+reference, and `schemaVersion: 2` is now the locked writer and validator schema.
 
 ---
 
