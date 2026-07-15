@@ -32,7 +32,7 @@ const DEFAULT_REMOTE = "origin";
 
 /** Dependencies for {@link reconcileBranch}. */
 export interface ReconcileBranchContext {
-  /** Git executor — runs `git branch` / `git push`. */
+  /** Git executor — runs `git branch` / `git for-each-ref` / `git push`. */
   exec: GitExec;
 }
 
@@ -66,8 +66,8 @@ export type ReconcileBranchOp =
 /**
  * Reconcile a work unit's branch per `op`.
  *
- * Rotate renames locally (`git branch -m`), with same-name renames treated as
- * no-ops; teardown force-deletes the local
+ * Rotate renames locally (`git branch -m`) and clears any inherited upstream,
+ * with same-name renames treated as no-ops; teardown force-deletes the local
  * branch (`git branch -D`) then best-effort deletes the remote ref — an unpushed
  * planning branch has no remote to delete, so that failure is swallowed while the
  * authoritative local teardown still lands. Merged-safe delete removes only the
@@ -82,10 +82,19 @@ export async function reconcileBranch(
   op: ReconcileBranchOp,
 ): Promise<void> {
   switch (op.mutation) {
-    case "rename":
+    case "rename": {
       if (op.branch === op.toBranch) return;
       await ctx.exec("git", ["branch", "-m", op.branch, op.toBranch]);
+      const { stdout: upstream } = await ctx.exec("git", [
+        "for-each-ref",
+        "--format=%(upstream)",
+        `refs/heads/${op.toBranch}`,
+      ]);
+      if (upstream.trim() !== "") {
+        await ctx.exec("git", ["branch", "--unset-upstream", op.toBranch]);
+      }
       return;
+    }
     case "delete": {
       await ctx.exec("git", ["branch", "-D", op.branch]);
       await deleteRemoteBranch(ctx.exec, op.remote ?? DEFAULT_REMOTE, op.branch);

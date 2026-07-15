@@ -235,13 +235,10 @@
 - _Fold-in:_ give parking an explicit scheduling-axis home and settle the backward edges per axis. Preserve PSI's
   interim single-classifier swap point until this reform replaces it; no parked-WU migration is currently needed.
 
-### `[ ]` **Finish activation-rename remote-ref retirement**
+### `[ ]` **Retire activation's remote plan shadow in the lifecycle model**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain
   (2026-07-10); observed during FP wave-1 spawn verification.
-- _Operational slice pulled forward:_ a standalone Errand will clear the renamed branch's stale
-  `origin/plan/<slug>` upstream so the existing release-push wrapper establishes the new
-  `origin/<type>/<slug>` upstream.
-- _Residual owned here:_ retire the remote `plan/` shadow ref safely after the new head lands, and reconcile that
-  cleanup with the post-reform activation model. SSOA must make any interim shadow ref harmless to lifecycle/status
-  truth; this WU owns eliminating the residue.
+- _Concern:_ retire the remote `plan/` shadow ref safely after the new head lands, and reconcile that cleanup with
+  the post-reform activation model. SSOA must make any interim shadow ref harmless to lifecycle/status truth; this
+  WU owns eliminating the residue.

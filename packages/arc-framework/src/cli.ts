@@ -31,6 +31,7 @@ import {
   type ErrandPromoteOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
+import { handleBaseSync, type BaseSyncOptions } from "./handlers/base.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
@@ -137,6 +138,7 @@ program
     "--class <value>",
     "Resolved Class (Light | Heavy | Novel) for a stub still `[TBD]` — the start ceremony records it in the meta",
   )
+  .option("--new", "Create a fresh work unit when the name does not exist on the base branch")
   .option("-y, --yes", "Skip the confirm prompt; spawned starts still commit and push the ceremony")
   .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
 
@@ -333,6 +335,16 @@ housekeep
   .description("Classify the write context — base-branch (proceed), WU branch (relocate), or degenerate (refuse)")
   .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
   .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
+
+const baseCmd = program
+  .command("base")
+  .description("Local integration-base operations");
+
+baseCmd
+  .command("sync")
+  .description("Safely fast-forward the local base from any worktree")
+  .option("--json", "Emit the typed synchronization outcome as JSON")
+  .action((opts: BaseSyncOptions) => handleBaseSync(opts));
 
 const plan = program
   .command("plan")

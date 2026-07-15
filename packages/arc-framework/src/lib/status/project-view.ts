@@ -23,6 +23,7 @@ import {
   type InFlightWarning,
   type InFlightWorkUnit,
 } from "../git/in-flight-derivation.js";
+import { branchToWorkUnitSlug } from "../work-unit/completed-index.js";
 import { buildLifecycleIndexFromRecords, type LifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { resolveSlugQuery } from "../work-unit/lifecycle-query.js";
 
@@ -80,7 +81,7 @@ export interface ProjectReadinessDerivationWarning {
   rendered: string;
 }
 
-/** Structured composer warning codes rendered with the project view. */
+/** Structured composer warning codes returned alongside the project view. */
 export type ProjectReadinessWarningCode =
   | "dangling-dependency"
   | "oracle-degraded"
@@ -203,7 +204,7 @@ export interface ComposeProjectReadinessViewOptions {
   readinessProvider?: ProjectReadinessProvider;
 }
 
-/** Render result plus the structured warnings displayed in the header. */
+/** Render result plus structured warnings for the caller to surface separately. */
 export interface ProjectReadinessViewResult {
   markdown: string;
   warnings: ProjectReadinessWarning[];
@@ -513,6 +514,16 @@ async function resolveOracleCandidates(
   const sourceWarnings: ProjectReadinessWarning[] = [];
   let hasIndeterminateSourceWarning = false;
   for (const warning of result.warnings) {
+    const warningSlug = warning.branch === undefined ? null : branchToWorkUnitSlug(warning.branch);
+    if (
+      warning.code === "branch-residue"
+      && prospective !== undefined
+      && warning.branch === prospective.currentBranch
+      && warningSlug !== null
+      && prospective.stagedSlugs.has(warningSlug)
+    ) {
+      continue;
+    }
     if (warning.code === "input-snapshot-disagreement") hasIndeterminateSourceWarning = true;
     const stale = staleWarningFromInFlight(warning);
     if (stale === null) sourceWarnings.push(sourceWarningFromInFlight(warning));
@@ -742,11 +753,6 @@ function renderTier(rows: readonly StatusViewRow[], columns: readonly StatusColu
   return rows.length === 0 ? empty : renderStatusTable(rows, columns);
 }
 
-function renderWarnings(warnings: readonly ProjectReadinessWarning[]): string[] {
-  if (warnings.length === 0) return [];
-  return ["", "## Warnings", "", ...warnings.map((warning) => `- ${warning.rendered}`)];
-}
-
 function renderStamp(stamp: string | ProjectReadinessRenderStamp): string {
   const resolved = typeof stamp === "string" ? { ref: stamp } : stamp;
   const lines = [
@@ -811,7 +817,6 @@ export function composeProjectReadinessViewResult(
     `# ${options.title}`,
     "",
     renderStamp(options.renderedRef),
-    ...renderWarnings(warnings),
     "",
     "This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a",
     "unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many",

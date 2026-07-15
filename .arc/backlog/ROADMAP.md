@@ -1,11 +1,7 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `4d0d54838`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `2de212a31`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
-
-## Warnings
-
-- Branch `fix/base-sync` has no errand record or active work-unit meta; cleanup may be required.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -28,12 +24,14 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                             | Priority | Owner  | Depends on | Cohort                     |
 | ------------------------------------- | -------- | ------ | ---------- | -------------------------- |
 | interlock-release-refinement          | P1       | andrew | —          | approval-flow-refinement   |
+| base-drift-guidance                   | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | pr-decomposition                      | P1       | andrew | —          | —                          |
 | recovery-hardening                    | P1       | andrew | —          | —                          |
 | review-gate-enforcement-qualification | P1       | andrew | —          | —                          |
 | roadmap-tooling                       | P1       | andrew | —          | —                          |
 | session-locus-model                   | P1       | andrew | —          | —                          |
+| stub-mint-to-launch                   | P1       | andrew | —          | —                          |
 | wu-lifecycle-state-model              | P1       | andrew | —          | —                          |
 | composable-workflows                  | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition                   | P2       | andrew | —          | agent-context-optimization |

@@ -119,6 +119,7 @@ import {
   composeProjectReadinessViewResult,
   resolveProjectReadinessRenderStamp,
   resolveProjectReadinessViewInput,
+  type ProjectReadinessWarning,
 } from "../lib/status/project-view.js";
 import { renderRoadmapFromIndexViewResult } from "../lib/status/roadmap-regeneration-assert.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
@@ -145,6 +146,10 @@ export interface StatusCliOptions {
   json?: boolean;
   /** With --session-init: write the machine-local compaction seed sidecar. */
   writeCompactionSeed?: boolean;
+}
+
+function writeProjectReadinessWarnings(warnings: readonly ProjectReadinessWarning[]): void {
+  for (const warning of warnings) process.stderr.write(`warning: ${warning.rendered}\n`);
 }
 
 /** Normalize a `git config` readback — `undefined`, empty, and whitespace-only become `null`. */
@@ -751,6 +756,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         process.stdout.write(`${JSON.stringify(result)}\n`);
         return;
       }
+      writeProjectReadinessWarnings(result.warnings);
       process.stdout.write(`${result.markdown}\n`);
       return;
     }
@@ -784,6 +790,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;
     }
+    writeProjectReadinessWarnings(result.warnings);
     process.stdout.write(`${result.markdown}\n`);
     return;
   }
