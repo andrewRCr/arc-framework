@@ -35,6 +35,7 @@ import {
   serializeNotesCompactionManifest,
   type NotesCompactionManifest,
 } from "../../src/lib/user-sync/compaction-manifest.js";
+import { createTempRepoCore, removeGitBackedDir } from "./temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -190,26 +191,13 @@ export async function ensureDir(dirPath: string): Promise<void> {
 }
 
 /** Initialize a temp directory with git repo and config. */
-export async function createTempRepo(
-  prefix = "arc-test-",
-): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), prefix));
-  await execFileAsync("git", ["init", "--initial-branch=main", dir]);
-  // Disable background auto-gc: its repacking races temp-repo teardown
-  // (ENOTEMPTY on .git/objects/pack) and concurrent notes-tree reads.
-  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });
-  await execFileAsync("git", ["config", "user.email", "test@test.com"], {
-    cwd: dir,
-  });
-  await execFileAsync("git", ["config", "user.name", "Test User"], {
-    cwd: dir,
-  });
-  return dir;
+export function createTempRepo(prefix = "arc-test-"): Promise<string> {
+  return createTempRepoCore({ prefix });
 }
 
-/** Clean up a temp directory. */
-export async function cleanupTempDir(dir: string): Promise<void> {
-  await rm(dir, { recursive: true, force: true });
+/** Clean up a temp directory via the shared retry-safe removal primitive. */
+export function cleanupTempDir(dir: string): Promise<void> {
+  return removeGitBackedDir(dir);
 }
 
 /** Load the real init recipe from the template directory. */

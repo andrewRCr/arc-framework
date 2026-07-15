@@ -8,12 +8,10 @@
  */
 
 import { execFile, spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { CLI_PATH, assertCliBuilt } from "../helpers/cli-spawn.js";
+import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -181,42 +179,22 @@ function shellEscape(value: string): string {
 /**
  * Create a temporary git repo for E2E testing.
  *
- * Initialises a temp directory with `git init`, configures a test user,
- * and pre-sets `arc.identity` to avoid interactive prompts when running
- * `arc init --yes`.
+ * Layers e2e personality — the `arc-e2e-` prefix and a pre-set `arc.identity`
+ * (so `arc init --yes` skips the interactive identity prompt) — over the shared
+ * factory core.
  *
  * @param prefix - Temp directory name prefix (default: `"arc-e2e-"`)
  * @returns Absolute path to the temp repo
  */
-export async function createTempRepo(
-  prefix = "arc-e2e-",
-): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), prefix));
-  // Pin the initial branch to the configured `branch.base` (`main`) rather than
-  // inheriting the ambient `init.defaultBranch` — otherwise a runner defaulting
-  // to `master` mismatches the base and write-context resolves `relocate`.
-  await execFileAsync("git", ["init", "-b", "main", dir]);
-  // Disable background auto-gc: its repacking races temp-repo teardown
-  // (ENOTEMPTY on .git/objects/pack) and concurrent notes-tree reads.
-  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });
-  await execFileAsync("git", ["config", "user.email", "test@test.com"], {
-    cwd: dir,
-  });
-  await execFileAsync("git", ["config", "user.name", "Test User"], {
-    cwd: dir,
-  });
-  // Pre-set identity so `arc init --yes` skips the interactive identity prompt
-  await execFileAsync("git", ["config", "arc.identity", "test-user"], {
-    cwd: dir,
-  });
-  return dir;
+export function createTempRepo(prefix = "arc-e2e-"): Promise<string> {
+  return createTempRepoCore({ prefix, identity: "test-user" });
 }
 
 /**
- * Remove a temporary directory.
+ * Remove a temporary directory via the shared retry-safe removal primitive.
  *
  * @param dir - Absolute path to the directory to remove
  */
-export async function cleanupTempDir(dir: string): Promise<void> {
-  await rm(dir, { recursive: true, force: true });
+export function cleanupTempDir(dir: string): Promise<void> {
+  return removeGitBackedDir(dir);
 }

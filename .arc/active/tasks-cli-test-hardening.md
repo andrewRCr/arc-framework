@@ -32,23 +32,24 @@ the full suite green (Consequences: suite-wide blast radius accepted). See `note
   behaviors exercise real filesystem teardown. Not yet adopted by callers — the factory/helper/inline sweep
   in Tasks 1.2–1.4 routes existing teardowns onto it.
 
-### `[ ]` **1.2 Shared `createTempRepo` core + thin e2e wrapper**
+### `[x]` **1.2 Shared `createTempRepo` core + thin e2e wrapper**
 
 - _Goal:_ The factory invariants (`gc.auto 0`, `user.email`/`user.name`, hardened removal via 1.1) live in one
   core; the e2e wrapper adds only tier personality, so the two fronts can never drift again.
 
-- _Approach:_ Extract the shared core from `helpers/integration.ts` (`createTempRepo`, ~L193-208) and
-  `e2e/helpers.ts` (`createTempRepo`, ~L191-213); the e2e wrapper layers `arc.identity=test-user` (~L209) and the
-  `arc-e2e-` prefix over it. Collapse both `cleanupTempDir` definitions into the 1.1 primitive.
+    - `[x]` **1.2.a Extract the shared core and re-point the integration factory**
+        - `createTempRepoCore` (init `-b main` + `gc.auto 0` + user config, optional `arc.identity`) landed in
+          `temp-repo.ts`; `helpers/integration.ts` `createTempRepo` now wraps it with the `arc-test-` prefix and
+          `cleanupTempDir` delegates to `removeGitBackedDir`. `makeNotesTreeCommit` and the other exports unchanged.
 
-    - `[ ]` **1.2.a Extract the shared core and re-point the integration factory**
-        - Core carries init + `gc.auto 0` + user config + the 1.1 removal path; `helpers/integration.ts`
-          re-exports/wraps it with the `arc-test-` prefix. Preserve `makeNotesTreeCommit` and the other exports
-          in place.
+    - `[x]` **1.2.b Re-point the e2e factory onto the core**
+        - `e2e/helpers.ts` `createTempRepo` now wraps the core, layering only `arc.identity=test-user` + the
+          `arc-e2e-` prefix; `cleanupTempDir` delegates to the primitive. Node-builtins-only boundary preserved
+          (imports the test helper, not CLI source).
 
-    - `[ ]` **1.2.b Re-point the e2e factory onto the core**
-        - `e2e/helpers.ts` wrapper adds `arc.identity` + `arc-e2e-` prefix only; its `cleanupTempDir` delegates to
-          the primitive.
+- _Outcome:_ Both factory fronts collapse onto one `createTempRepoCore`, so the drift-prone invariants (gc-disable,
+  user config, hardened removal) have a single home; the `--initial-branch=main` / `-b main` spelling is now
+  uniform. Behavior-preserving — full integration and e2e tiers green with no fixture changes.
 
 ### `[ ]` **1.3 Route the named helper-level teardowns through the primitive**
 

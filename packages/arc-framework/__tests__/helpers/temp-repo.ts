@@ -10,7 +10,13 @@
  * drift between call sites.
  */
 
-import { rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 /** Options controlling retry behavior and injectable seams for testing. */
 export interface RemoveGitBackedDirOptions {
@@ -80,4 +86,43 @@ export async function removeGitBackedDir(
   throw new Error(
     `Failed to remove '${path}' after ${attempts} attempts (last error: ${lastErrno}).`,
   );
+}
+
+/** Options for the shared temp-repo factory core. */
+export interface CreateTempRepoOptions {
+  /** Temp directory name prefix (tier personality). */
+  prefix?: string;
+  /**
+   * When provided, sets `arc.identity` on the repo so `arc init --yes` skips
+   * the interactive identity prompt. E2E fixtures pre-set `"test-user"`;
+   * integration fixtures omit it.
+   */
+  identity?: string;
+}
+
+/**
+ * Initialize a temp git repo carrying the invariants that must not drift
+ * between the integration and e2e factory fronts.
+ *
+ * Pins the initial branch to `main` (matching the configured `branch.base`
+ * rather than the ambient `init.defaultBranch`, so a runner defaulting to
+ * `master` doesn't mismatch the base and resolve a `relocate` write-context),
+ * disables background auto-gc (its repacking races temp-repo teardown), and
+ * sets a test git user. Tier-specific personality (prefix, pre-set identity)
+ * layers via {@link CreateTempRepoOptions}.
+ *
+ * @param options - Prefix and optional pre-set identity (see {@link CreateTempRepoOptions}).
+ * @returns Absolute path to the initialized temp repo. Caller owns teardown via {@link removeGitBackedDir}.
+ */
+export async function createTempRepoCore(options: CreateTempRepoOptions = {}): Promise<string> {
+  const { prefix = "arc-test-", identity } = options;
+  const dir = await mkdtemp(join(tmpdir(), prefix));
+  await execFileAsync("git", ["init", "-b", "main", dir]);
+  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });
+  await execFileAsync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
+  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
+  if (identity !== undefined) {
+    await execFileAsync("git", ["config", "arc.identity", identity], { cwd: dir });
+  }
+  return dir;
 }
