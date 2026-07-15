@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "housekeep-wave3-inbox",
+  "origin": "description",
+  "intent": "housekeep-wave3-inbox",
+  "branch": "chore/housekeep-wave3-inbox",
+  "createdAt": "2026-07-15T16:26:27.408Z",
+  "returnBranch": "main"
+}
