@@ -11,7 +11,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { access, open, readFile, unlink } from "node:fs/promises";
+import { access, constants, open, readFile, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
@@ -87,6 +87,7 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
         readFile: (path) => readFile(path, "utf8"),
         pathExists,
       }),
+      hasPrepareCommitMsgHook,
     }),
   });
 
@@ -109,6 +110,25 @@ async function readStdin(): Promise<Uint8Array> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin as AsyncIterable<Buffer>) chunks.push(chunk);
   return Buffer.concat(chunks);
+}
+
+async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["rev-parse", "--path-format=absolute", "--git-path", "hooks/prepare-commit-msg"],
+    { cwd },
+  );
+  try {
+    await access(stdout.trim(), constants.X_OK);
+    return true;
+  } catch (cause: unknown) {
+    if (
+      cause instanceof Error
+      && "code" in cause
+      && (cause.code === "ENOENT" || cause.code === "EACCES")
+    ) return false;
+    throw cause;
+  }
 }
 
 /**

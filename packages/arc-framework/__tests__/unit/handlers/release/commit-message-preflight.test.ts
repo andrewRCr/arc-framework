@@ -9,13 +9,17 @@ import {
 } from "../../../../src/lib/commit-check/index.js";
 import type { CommitMessageCheckRepository } from "../../../../src/lib/commit-check/repository.js";
 
-function repository(overrides: Partial<typeof COMMIT_CHECK_DEFAULTS> = {}): CommitMessageCheckRepository {
+function repository(
+  overrides: Partial<typeof COMMIT_CHECK_DEFAULTS> = {},
+  facts: { mergeInProgress?: boolean; role?: string } = {},
+): CommitMessageCheckRepository {
   return {
     cleanup: "default",
     encoding: "utf-8",
     context: createCommitCheckContext({
       configuration: { ...COMMIT_CHECK_DEFAULTS, ...overrides },
-      mergeInProgress: false,
+      mergeInProgress: facts.mergeInProgress ?? false,
+      role: facts.role,
       resolveArtifact: () => "found",
     }),
   };
@@ -25,6 +29,7 @@ function create(overrides: {
   readFile?: (path: string) => Promise<Uint8Array>;
   readStdin?: () => Promise<Uint8Array>;
   repo?: CommitMessageCheckRepository;
+  hasPrepareCommitMsgHook?: (cwd: string) => Promise<boolean>;
 } = {}) {
   const readFile = vi.fn(overrides.readFile ?? (() => Promise.resolve(new Uint8Array())));
   const readStdin = vi.fn(overrides.readStdin ?? (() => Promise.resolve(new Uint8Array())));
@@ -36,6 +41,7 @@ function create(overrides: {
       readFile,
       readStdin,
       setupRepository: async () => overrides.repo ?? repository(),
+      hasPrepareCommitMsgHook: overrides.hasPrepareCommitMsgHook ?? (async () => false),
     }),
   };
 }
@@ -112,6 +118,29 @@ describe("createCommitMessagePreflight", () => {
     const { preflight, readFile, readStdin } = create();
 
     expect(await preflight({ args: ["-Smsecret"], cwd: "/repo" })).toMatchObject({
+      kind: "pass-through",
+    });
+    expect(readFile).not.toHaveBeenCalled();
+    expect(readStdin).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { label: "disabled validation", repo: repository({ "hooks.commit_msg": "disabled" }) },
+    { label: "merge exemption", repo: repository({}, { mergeInProgress: true }) },
+  ])("demotes $label to pass-through", async ({ repo }) => {
+    const { preflight } = create({ repo });
+
+    expect(await preflight({ args: ["-m", "short"], cwd: "/repo" })).toEqual({
+      kind: "pass-through",
+    });
+  });
+
+  it("demotes a runnable prepare-commit-msg hook before reading the source", async () => {
+    const { preflight, readFile, readStdin } = create({
+      hasPrepareCommitMsgHook: async () => true,
+    });
+
+    expect(await preflight({ args: ["-F", "message.txt"], cwd: "/repo" })).toEqual({
       kind: "pass-through",
     });
     expect(readFile).not.toHaveBeenCalled();

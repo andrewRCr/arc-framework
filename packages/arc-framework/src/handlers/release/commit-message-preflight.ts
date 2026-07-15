@@ -16,6 +16,7 @@ export interface CommitMessagePreflightDeps {
   readFile: (path: string) => Promise<Uint8Array>;
   readStdin: () => Promise<Uint8Array>;
   setupRepository: (cwd: string) => Promise<CommitMessageCheckRepository>;
+  hasPrepareCommitMsgHook: (cwd: string) => Promise<boolean>;
 }
 
 function inputFailure(message: string): CommitMessagePreflightResult {
@@ -43,6 +44,12 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
     if (classification.kind === "refused") {
       return inputFailure("Commit-message input requires an interactive editor.");
     }
+    try {
+      if (await deps.hasPrepareCommitMsgHook(cwd)) return { kind: "pass-through" };
+    } catch (cause: unknown) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      return inputFailure(`Could not inspect prepare-commit-msg hook: ${detail}`);
+    }
 
     let messageBytes: Uint8Array;
     let transport: NonNullable<Extract<CommitMessagePreflightResult, { kind: "passed" }>["transport"]>;
@@ -61,6 +68,7 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
 
     const checked = await validateCommitMessageBytes(messageBytes, repository);
     if (checked.kind === "error") return inputFailure(checked.error.message);
+    if (checked.result.kind === "skipped") return { kind: "pass-through" };
     if (checked.exitCode === 1) {
       const rendered = renderCheckCommitMessage(checked, false);
       return {
@@ -69,7 +77,7 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
         message: (rendered.stderr ?? rendered.stdout ?? "Commit-message validation failed.").trimEnd(),
       };
     }
-    const verdict = checked.result.kind === "validated" ? checked.result.verdict : "pass";
+    const verdict = checked.result.verdict;
     return { kind: "passed", verdict: verdict === "pass-with-warnings" ? verdict : "pass", transport };
   };
 }

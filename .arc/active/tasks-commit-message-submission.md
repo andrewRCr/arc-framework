@@ -223,13 +223,10 @@ message bytes when the subsequent Git invocation fails.
           absolute worktree Git directory with shape-preserving argv rewrite and finally cleanup, while `-F -` pipes
           captured stdin; setup failures refuse before Git and cleanup failures remain diagnostic-only.
 
-    - `[ ]` **3.2.d Preserve hook exemption parity**
-        - Thread the same enabled, merge, role, configuration, and artifact-resolution context into preflight that the
-          standalone check path uses.
-        - Resolve Git's active `prepare-commit-msg` hook path behind an injected adapter and demote runnable-hook
-          invocations to pass-through, since the hook may repair or invalidate the message before `commit-msg`.
-        - Prove disabled, merge-exempt, and prepare-hook invocations skip preflight rather than becoming stricter under
-          the wrapper.
+    - `[x]` **3.2.d Preserve hook exemption parity**
+        - Preflight now consumes the standalone check path's shared repository context and demotes canonical exemption
+          outcomes; an injected Git-path/executable probe also demotes runnable `prepare-commit-msg` hooks before source
+          capture, preserving disabled, merge, and mutation-hook parity.
 
     - `[ ]` **3.2.e Surface the safe resubmission shape on preflight failure**
         - Append the quoted-heredoc `-F -` remedy to wrapper-surface diagnostics, using the plain `-F <file>` form where
