@@ -23,6 +23,16 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Evaluate bounded execution for configured commit regexes**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
+  `commit-message-submission` CodeRabbit review triage.
+- _Concern:_ `commit.custom_pattern` and `commit.context_pattern` intentionally accept arbitrary ECMAScript
+  pattern source from trusted repository configuration. A length cap would break that contract without preventing
+  short catastrophic expressions, while a pathological pattern can hang local commit validation.
+- _Approach:_ compare static safety analysis, isolated or time-bounded evaluation, a restricted dialect, and
+  explicit risk acceptance; settle the compatibility policy before adding enforcement or diagnostics.
+
 ### `[ ]` **Extension firing-proportionality — a context/scope gate, not just enable/disable**
 
 - _Routed from:_ follow-up housekeep drain (2026-06-01), surfaced running this session's errands.

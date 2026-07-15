@@ -23,6 +23,16 @@ atomic companion and the personal atomic inbox.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Cover the routine base-reconcile tail with one approved operation**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during the FP wave-3 base
+  merge.
+- *Concern:* reconciling a pushed WU with base is deterministic — fetch the base ref, merge, regenerate derived
+  artifacts, commit, and push — but currently costs repeated harness prompts and judgment at each leg.
+- *Approach:* add `routine base reconcile` to the known-safe operation classes and evaluate a wrapper-shaped verb
+  such as `arc reconcile` or `arc sync --base` that owns the tail under one approval while preserving failure
+  stops and append-only history.
+
 ### `[ ]` **Fold in the dotfiles safety-gate audit**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: interlock-release-refinement`), housekeep drain
