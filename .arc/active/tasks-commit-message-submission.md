@@ -218,7 +218,7 @@ message bytes when the subsequent Git invocation fails.
           canonical byte validator; validation and input failures audit once as code `16`, pass/warnings spawn once,
           pass-through skips source reads, and destructive/authorization refusals retain precedence.
 
-    - `[x]` **3.2.c Hand captured message sources to Git without a second read**
+    - `[x]` **3.2.c Hand-captured message sources to Git without a second read**
         - Threaded owned transport bytes through preflight: file sources become mode-`0600` snapshots beneath the
           absolute worktree Git directory with shape-preserving argv rewrite and finally cleanup, while `-F -` pipes
           captured stdin; setup failures refuse before Git and cleanup failures remain diagnostic-only.
