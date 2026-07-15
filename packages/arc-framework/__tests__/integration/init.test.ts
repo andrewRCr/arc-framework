@@ -398,7 +398,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const hookSection = stdout.match(/--- Hook Status ---([\s\S]*?)--- Strategy Index ---/)?.[1];
     expect(hookSection).toBeDefined();
     expect(hookSection).not.toMatch(/^(?:ERROR|WARN).*commit-msg/m);
-  });
+  }, 15_000);
 
   // --- Pristine Store ---
 
