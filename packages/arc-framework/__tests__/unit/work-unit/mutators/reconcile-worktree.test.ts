@@ -126,7 +126,12 @@ describe("reconcileWorktree — spawn", () => {
     const marker = await readWorktreeMarker(expectedPath);
     expect(marker).toMatchObject({
       kind: "present",
-      marker: { spawnedByArc: true, wuName: "demo-wu", spawningIdentity: "andrew" },
+      marker: {
+        spawnedByArc: true,
+        wuName: "demo-wu",
+        createdFor: { kind: "work-unit", name: "demo-wu" },
+        spawningIdentity: "andrew",
+      },
     });
   });
 
@@ -159,7 +164,12 @@ describe("reconcileWorktree — spawn", () => {
     const marker = await readWorktreeMarker(expectedPath);
     expect(marker).toMatchObject({
       kind: "present",
-      marker: { spawnedByArc: true, wuName: "demo-wu", spawningIdentity: "andrew" },
+      marker: {
+        spawnedByArc: true,
+        wuName: "demo-wu",
+        createdFor: { kind: "work-unit", name: "demo-wu" },
+        spawningIdentity: "andrew",
+      },
     });
   });
 
@@ -356,7 +366,12 @@ describe("reconcileWorktree — spawn", () => {
     const marker = await readWorktreeMarker(expectedPath);
     expect(marker).toMatchObject({
       kind: "present",
-      marker: { spawnedByArc: true, wuName: "demo-wu", spawningIdentity: "andrew" },
+      marker: {
+        spawnedByArc: true,
+        wuName: "demo-wu",
+        createdFor: { kind: "work-unit", name: "demo-wu" },
+        spawningIdentity: "andrew",
+      },
     });
   });
 });
@@ -398,6 +413,65 @@ describe("reconcileWorktree — spawn in place (--here)", () => {
 });
 
 describe("reconcileWorktree — teardown", () => {
+  it("removes an oracle-approved husk from outside after reconciling final user surfaces", async () => {
+    const worktreePath = "/work/wt/demo";
+    const { ctx, events } = buildCtx({
+      status: " M ignored-by-approved-mode",
+      worktreeList: porcelain("/work/primary", worktreePath),
+    });
+
+    const result = await reconcileWorktree(ctx, {
+      mutation: "teardown",
+      worktreePath,
+      currentLocus: "/work/primary",
+      huskApproved: true,
+    });
+
+    expect(result).toEqual({ mutation: "teardown", worktreePath, locusHopped: false });
+    expect(events).toEqual([
+      ["git", "worktree", "list", "--porcelain"],
+      ["git", "worktree", "remove", worktreePath],
+    ]);
+  });
+
+  it("refuses an approved husk whose identity-global user surface cannot be reconciled", async () => {
+    const worktreePath = "/work/wt/demo";
+    const primary = "/work/primary";
+    const { ctx, events } = buildCtx({ worktreeList: porcelain(primary, worktreePath) });
+    const directory = (name: string) => ({ name, isDirectory: () => true, isFile: () => false });
+    const file = (name: string) => ({ name, isDirectory: () => false, isFile: () => true });
+    ctx.fs.readDir = async (path) => path.endsWith("/.arc/user")
+      ? [directory("andrew")]
+      : [file("FUTURE.md")];
+    ctx.fs.readFile = async (path) => path.startsWith(worktreePath) ? "linked\n" : "primary\n";
+
+    await expect(
+      reconcileWorktree(ctx, {
+        mutation: "teardown",
+        worktreePath,
+        currentLocus: primary,
+        huskApproved: true,
+      }),
+    ).rejects.toThrow(/identity-global user surface/iu);
+
+    expect(events).toEqual([["git", "worktree", "list", "--porcelain"]]);
+  });
+
+  it("refuses oracle-approved husk removal from inside the target", async () => {
+    const worktreePath = "/work/wt/demo";
+    const { ctx, events } = buildCtx();
+
+    await expect(
+      reconcileWorktree(ctx, {
+        mutation: "teardown",
+        worktreePath,
+        currentLocus: `${worktreePath}/nested`,
+        huskApproved: true,
+      }),
+    ).rejects.toThrow(/current detached worktree/iu);
+    expect(events).toEqual([]);
+  });
+
   it("removes a clean worktree without --force and without a locus hop (non-self)", async () => {
     const worktreePath = "/work/wt/demo";
     const { ctx, events } = buildCtx({ status: "", worktreeList: porcelain("/work/primary", worktreePath) });

@@ -12,6 +12,8 @@
  *   *worktree* (not the action) — each caller chooses its action per its own
  *   approval model: the branch-gone cascade's user-offer, the stale-worktree
  *   sweep's user-offer.
+ * - {@link decideHuskCleanup} — the independent terminal-husk oracle, keyed
+ *   only on stamp provenance, tree cleanliness, and exact HEAD equality.
  *
  * The `merged` signal `decideWorktreeCleanup` consumes is resolved by the callers
  * from the shared branch-containment oracle (`isLandedInBase`), which proves
@@ -80,6 +82,22 @@ export interface WorktreeCleanupInputs {
   context: WorktreeCleanupContext;
 }
 
+/** Conservative disposition of a detached worktree at a husk-removal site. */
+export type HuskCleanupDecision =
+  | { action: "removable" }
+  | { action: "blocked"; reason: "uncommitted" | "head-moved" }
+  | { action: "outside"; reason: "untrusted-marker" | "missing-stamp" };
+
+/** Signals used by the terminal-husk removability oracle. */
+export interface HuskCleanupInputs {
+  /** Result of reading the worktree ownership marker. */
+  marker: WorktreeMarkerReadResult;
+  /** Whether the detached worktree has no uncommitted changes. */
+  clean: boolean;
+  /** Exact live HEAD reported by Git for the registered worktree. */
+  head: string;
+}
+
 /**
  * Map marker / clean / merged / context signals to a removability state.
  *
@@ -112,6 +130,33 @@ export function decideWorktreeCleanup(inputs: WorktreeCleanupInputs): WorktreeCl
   }
   if (!merged && context === "shipped") {
     return { action: "blocked", reason: "unmerged" };
+  }
+  return { action: "removable" };
+}
+
+/**
+ * Decide whether a detached worktree is a safely removable stamped husk.
+ *
+ * This oracle deliberately does not accept merge or ancestry signals. The
+ * stamp proves the expected terminal commit, and exact live-HEAD equality
+ * detects any post-transition movement.
+ *
+ * @param inputs - Marker provenance, tree cleanliness, and live HEAD
+ * @returns Removable, blocked, or outside the stamped-husk path
+ */
+export function decideHuskCleanup(inputs: HuskCleanupInputs): HuskCleanupDecision {
+  if (inputs.marker.kind !== "present") {
+    return { action: "outside", reason: "untrusted-marker" };
+  }
+  const stamp = inputs.marker.marker.husk;
+  if (stamp === undefined) {
+    return { action: "outside", reason: "missing-stamp" };
+  }
+  if (!inputs.clean) {
+    return { action: "blocked", reason: "uncommitted" };
+  }
+  if (inputs.head !== stamp.sha) {
+    return { action: "blocked", reason: "head-moved" };
   }
   return { action: "removable" };
 }

@@ -7,16 +7,65 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
+
+async function prepareSelfTeardown(
+  repo: string,
+  worktreeParent: string,
+  options: { marked: boolean },
+): Promise<string> {
+  const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
+  expect(init.exitCode).toBe(0);
+  await git(repo, ["add", "."]);
+  await git(repo, ["commit", "--allow-empty", "-m", "chore: initialize ARC"]);
+  await git(repo, ["checkout", "-b", "feat/demo"]);
+  await writeFile(join(repo, "demo.txt"), "demo\n");
+  await git(repo, ["add", "demo.txt"]);
+  await git(repo, ["commit", "-m", "feat: demo"]);
+  await git(repo, ["checkout", "main"]);
+  await git(repo, ["merge", "--no-ff", "feat/demo", "-m", "merge: demo"]);
+  await writeFile(
+    join(repo, ".git", "info", "exclude"),
+    ".arc/completed/\n.arc/system/.internal/worktree-marker.json\n",
+    { flag: "a" },
+  );
+
+  const worktree = join(worktreeParent, "wt");
+  await git(repo, ["worktree", "add", worktree, "feat/demo"]);
+  for (const root of [repo, worktree]) {
+    const completed = join(root, ".arc", "completed", "2026-q3", "01_demo");
+    await mkdir(completed, { recursive: true });
+    await writeFile(join(completed, "meta-demo.md"), "# Metadata: demo\n\n- **State:** Shipped\n");
+  }
+  if (options.marked) {
+    const markerDir = join(worktree, ".arc", "system", ".internal");
+    await mkdir(markerDir, { recursive: true });
+    await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
+      spawnedByArc: true,
+      wuName: "demo",
+      createdFor: { kind: "work-unit", name: "demo" },
+      spawningIdentity: "test-user",
+      createdAt: "2026-07-14T00:00:00.000Z",
+    }));
+  }
+  expect(await git(worktree, ["status", "--porcelain"])).toBe("");
+  return worktree;
+}
 
 describe("arc teardown (CLI surface)", () => {
   let tmpDir: string | undefined;
+  let worktreeParent: string | undefined;
 
   afterEach(async () => {
     // Guard the assignment: a setup throw before `tmpDir` is set must not have its
     // original error masked by a cleanup on `undefined`.
     if (tmpDir !== undefined) await cleanupTempDir(tmpDir);
+    if (worktreeParent !== undefined) await cleanupTempDir(worktreeParent);
     tmpDir = undefined;
+    worktreeParent = undefined;
   });
 
   it("refuses without a work-unit name", async () => {
@@ -68,5 +117,75 @@ describe("arc teardown (CLI surface)", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout + result.stderr).toMatch(/already reaped/i);
+  });
+
+  it.each([
+    ["marked", true, /Marker:\s+stamped/iu],
+    ["markerless", false, /Marker:\s+externally managed/iu],
+  ] as const)("reports %s self-teardown as a live husk", async (_label, marked, markerLine) => {
+    tmpDir = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked });
+
+    const result = await runArc(["teardown", "demo"], worktree);
+    const output = result.stdout + result.stderr;
+
+    expect(result.exitCode).toBe(0);
+    expect(output).toMatch(/Worktree husked/iu);
+    expect(output).toMatch(/physical removal deferred/iu);
+    expect(output).toMatch(markerLine);
+    expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
+    if (marked) expect(output).toMatch(/stale-worktree sweep/iu);
+    else expect(output).not.toMatch(/stale-worktree sweep/iu);
+  });
+
+  it("reports outside husk replay as physical removal, not another deferred husk", async () => {
+    tmpDir = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    const created = await runArc(["teardown", "demo"], worktree);
+    expect(created.exitCode).toBe(0);
+
+    const replay = await runArc(["teardown", "demo"], tmpDir);
+    const output = replay.stdout + replay.stderr;
+
+    expect(replay.exitCode).toBe(0);
+    expect(output).toMatch(/Worktree:\s+.*\/wt/iu);
+    expect(output).not.toMatch(/physical removal deferred|stale-worktree sweep|Worktree husked/iu);
+    expect(await git(tmpDir, ["worktree", "list"])).not.toContain(worktree);
+  });
+
+  it("reports a surviving local ref and retry guidance after detach", async () => {
+    tmpDir = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    const lock = join(tmpDir, ".git", "refs", "heads", "feat", "demo.lock");
+    await mkdir(join(tmpDir, ".git", "refs", "heads", "feat"), { recursive: true });
+    await writeFile(lock, "locked\n");
+
+    const result = await runArc(["teardown", "demo"], worktree);
+    const output = result.stdout + result.stderr;
+
+    expect(result.exitCode).toBe(0);
+    expect(output).toMatch(/Could not delete local branch `feat\/demo` after detach/iu);
+    expect(output).toMatch(/retry teardown from the husk or primary/iu);
+    expect(output).not.toMatch(/not contained on its upstream/iu);
+    expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
+    expect(await git(tmpDir, ["branch", "--list", "feat/demo"])).toContain("feat/demo");
+  });
+
+  it("reports a dirty preflight refusal as still branched and unchanged", async () => {
+    tmpDir = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    await writeFile(join(worktree, "dirty.txt"), "dirty\n");
+
+    const result = await runArc(["teardown", "demo"], worktree);
+    const output = result.stdout + result.stderr;
+
+    expect(result.exitCode).toBe(1);
+    expect(output).toMatch(/Cannot husk:.*dirty worktree/isu);
+    expect(output).toMatch(/remains branched and unchanged/iu);
+    expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/demo");
   });
 });

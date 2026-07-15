@@ -25,6 +25,22 @@ export interface RunResult {
 }
 
 /**
+ * Run Git in an E2E fixture repository with project hooks disabled.
+ *
+ * @param cwd - Fixture repository root
+ * @param args - Git arguments after the executable name
+ * @returns Trimmed standard output
+ */
+export async function git(cwd: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync(
+    "git",
+    ["-c", "core.hooksPath=/dev/null", ...args],
+    { cwd },
+  );
+  return stdout.trim();
+}
+
+/**
  * Invoke the built CLI as a subprocess.
  *
  * Spawns `node dist/cli.js ...args` in the given working directory. Captures

@@ -156,7 +156,7 @@ export async function scaffoldIntoWorktree(
 
   await writeWorktreeOwnershipMarker(params.worktreePath, {
     createdByArc: params.createdByArc ?? true,
-    wuName: params.wuName,
+    createdFor: { kind: "work-unit", name: params.wuName },
     spawningIdentity: params.spawningIdentity,
     now: params.now,
   });
