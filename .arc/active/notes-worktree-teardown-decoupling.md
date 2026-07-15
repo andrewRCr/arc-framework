@@ -3,6 +3,13 @@
 Reference material for task generation and execution — implementation loci, existing-signal pointers, and
 design rationale detail beneath the spec's decision grain.
 
+## Contents
+
+- [Implementation loci](#implementation-loci)
+- [Existing-signal pointers](#existing-signal-pointers)
+- [Forward-compatibility boundaries](#forward-compatibility-boundaries)
+- [Rationale detail](#rationale-detail)
+
 ## Implementation loci
 
 - `packages/arc-framework/src/lib/work-unit/verbs/teardown.ts` — the three arms live here: linked-worktree
