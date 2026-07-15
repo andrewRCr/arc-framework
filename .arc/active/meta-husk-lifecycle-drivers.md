@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                    | **Class** | **Priority** |
 | ---------- | --------- | ----------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/husk-lifecycle-drivers` | `Light`   | `P1`         |
+| `Planning` | `andrew`  | `plan/husk-lifecycle-drivers` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** `worktree-teardown-decoupling`
@@ -11,7 +11,7 @@
 - **Design:** `draft-husk-lifecycle-drivers.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
