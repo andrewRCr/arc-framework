@@ -88,6 +88,14 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
   passes. This is the at-drain reclassification [DEV-RULES.ARC § Task Execution][dev-rules-arc] promises.
 - **Home** — an **existing** stub (`active/` or `backlog/`), a **new** stub identifiable now, or **none**
   (homeless).
+- **In-flight target adoption.** When an entry carries `WU_Target`, resolve the slug with
+  `arc status <slug> --json` before proposing a home. An in-flight target defaults to **owner adoption**: leave
+  the capture in `USER-INBOX`, mark it `_Hold: true` with `_Created:` re-stamped to the adoption date, surface the
+  handoff at the confirmation interlock, and let the target's owning session absorb it. The managed hold keeps the
+  triaged entry out of repeated `housekeepNeeded` offers while retaining the normal delayed reminder. The user may
+  explicitly override the default, but the drain never writes to a graduated stub's main-side ghost. A failed or
+  ambiguous status lookup is a stop-and-surface diagnostic, not permission to fall back to checkout-local path
+  inference.
 - **Group by concern.** Multiple homeless multi-step captures that share **one logical concern** consolidate
   into a **single** stub, not one-per-entry — concern-identity, not entry count (the anti-rider test applied to
   stub creation). Propose the grouping with rationale.
@@ -106,8 +114,8 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
 
 > [!IMPORTANT]
 > Stop. Present the **full routing plan** — every entry's proposed route, the groupings, new-stub commitment levels,
-> atomic dispositions, and the chunk plan (§ 4) if the sweep is large — and await explicit confirmation. **The
-> drain makes no write before this gate.**
+> in-flight owner-adoption handoffs, atomic dispositions, and the chunk plan (§ 4) if the sweep is large — and await
+> explicit confirmation. **The drain makes no write before this gate.**
 
 The user may adjust any proposal: regroup, change a commitment level, flip an atomic between execute-now / defer /
 retain, or **retain** an entry that would otherwise route. Routing (§ 5) proceeds only on the confirmed plan.
@@ -139,6 +147,12 @@ routing write.
       invariant-compliant because the obligation below drains it. An `## Inbound Buffer — Pending Integration`
       section is **mandatorily** integrated into the body at the WU's next planning iteration (minimal hook:
       `create-spec.md` § Resolve depth & Class); the richer iteration-time ceremony is `arc-plan-conductor`'s.
+- **In-flight owner adoption** — the default for an entry whose resolved `WU_Target` is in flight. Make no routing
+  write; set `_Hold: true`, re-stamp `_Created:` to the adoption date, and leave the entry in `USER-INBOX` for the
+  owning session to adopt. This reuses the retain route's managed-field grammar without reclassifying the Work Unit
+  entry as atomic. In particular, never append to the stale backlog copy left on the base branch after
+  `backlog/ → active/` graduation. An explicit override may route the entry only through the live target resolved
+  by `arc status`, with owner coordination; it never licenses a write to the main-side ghost.
 - **New stub** — a multi-step entry (or a grouped set) with no existing home, or a tier-reclassified atomic.
   Scaffold the stub at the confirmed commitment level (`meta-*`, plus `draft-*` when scope warrants) and write the note
   in. A `provisional` stub carries no design authority.
@@ -207,10 +221,11 @@ session, by this sweep — idempotent backstops to the authoritative removal in 
 
 The drain **closes on dispositions, not on a physically empty file.** Verify every entry has a terminal
 disposition — **routed** / **dismissed** / **flushed** (line removed with the write), **retained** (`_Hold:_`,
-line stays), or **execute-bound** (dispatched in-flight, or pending a fresh `--errand` — line stays until the
-errand completes). No entry is left **un-triaged**. The lines that remain are only the retained and
-execute-bound ones; their async tail is owned by `run-errand` plus session-init's in-flight sweep, not the
-drain. Report what routed where, which entries were retained, and which errands are in flight. Surface
+line stays), **owner-adoption** (live target; line stays for its owning session), or **execute-bound** (dispatched
+in-flight, or pending a fresh `--errand` — line stays until the errand completes). No entry is left
+**un-triaged**. The lines that remain are only the retained, owner-adoption, and execute-bound entries; their async
+tail is owned by the target's session or by `run-errand` plus session-init's in-flight sweep, not the drain. Report
+what routed where, which entries were retained or handed to live owners, and which errands are in flight. Surface
 shared-inbox (`ATOMIC-INBOX`) aging as an advisory while there — reminder nudges for personal captures and
 in-flight-errand staleness belong to session-init orientation, not the drain.
 
