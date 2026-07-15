@@ -201,6 +201,11 @@ function composeBody(
         "Use raw `git` for this operation.",
       ];
     }
+    case 16:
+      return [
+        `Commit-message preflight failed (${decision.reason}).`,
+        "Correct the commit-message input and retry.",
+      ];
   }
 }
 

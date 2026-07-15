@@ -22,7 +22,8 @@ override-active: false
 
 ## commit-footer.default
 
-`Context:` footer naming the artifact this commit edits.
+`Context:` footer naming the artifact this commit edits. Place it in the message's final Git trailer block; if that
+block contains more than one `Context:` trailer, the last occurrence governs.
 
 **Chain naming.** The footer names the deepest spec-shaped artifact under edit along the WU chain:
 

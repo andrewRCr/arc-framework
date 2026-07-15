@@ -34,6 +34,7 @@ import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
 import { lt as semverLt } from "semver";
 import { atomicWriteJson } from "../lib/fs.js";
+import { applyExecutableInstallPermissions } from "../lib/install-permissions.js";
 import type { Recipe, Manifest } from "../lib/types.js";
 import {
   ARC_IN_GIT_CONDITION,
@@ -355,6 +356,13 @@ export async function runUpdate(
       mkdir: io.mkdir,
     },
     { templateDir, tokens, config, configKeyOverrides },
+  );
+
+  // Restore executable installation modes even when file content is unchanged.
+  await applyExecutableInstallPermissions(
+    arcDir,
+    Object.keys(applyResult.newManifestFiles),
+    io.chmod,
   );
 
   // Regenerate skills — deterministic copies, always overwrite

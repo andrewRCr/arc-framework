@@ -75,6 +75,36 @@ validate_enum() {
     fi
 }
 
+# Commit-message numeric limits use the same domain as the TypeScript
+# validator: unsigned base-10 safe integers with a key-specific minimum.
+validate_commit_limit() {
+    local key="$1"
+    local default="$2"
+    local minimum="$3"
+    local value
+    local normalized
+
+    value=$(arc_config_get "$key" "$default")
+    case "$value" in
+        '' | *[!0-9]*)
+            error "$key: '$value' must be an unsigned base-10 safe integer >= $minimum"
+            return
+            ;;
+    esac
+
+    normalized="${value#"${value%%[!0]*}"}"
+    if [ -z "$normalized" ]; then
+        normalized=0
+    fi
+    if [ "${#normalized}" -gt 16 ] || [ "$normalized" -gt 9007199254740991 ]; then
+        error "$key: '$value' must be an unsigned base-10 safe integer >= $minimum"
+    elif [ "$normalized" -lt "$minimum" ]; then
+        error "$key: '$value' must be an unsigned base-10 safe integer >= $minimum"
+    else
+        pass "$key: $value"
+    fi
+}
+
 # Branch model
 # branch.base is freeform (any branch name) — just check presence
 bb_value=$(arc_config_get "branch.base" "")
@@ -96,7 +126,9 @@ validate_enum "hooks.commit_msg" "enabled disabled" "enabled"
 validate_enum "hooks.pre_push" "enabled disabled" "enabled"
 validate_enum "hooks.task_numbering" "error warning off" "error"
 # hooks.code_extensions and hooks.test_patterns are free-form regex patterns — no enum validation
-# hooks.subject_* are numeric thresholds — no enum validation
+validate_commit_limit "hooks.subject_max_length" "72" "10"
+validate_commit_limit "hooks.body_max_lines" "100" "1"
+validate_commit_limit "hooks.body_max_line_length" "100" "1"
 
 # Review
 validate_enum "review.pre_merge" "enabled disabled" "enabled"

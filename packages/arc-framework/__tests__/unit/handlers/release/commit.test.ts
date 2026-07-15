@@ -121,6 +121,10 @@ interface BuildDepsOptions {
   currentBranch?: string;
   spawnGit?: ReleaseCommitDeps["spawnGit"];
   resolveHead?: ReleaseCommitDeps["resolveHead"];
+  preflightCommitMessage?: ReleaseCommitDeps["preflightCommitMessage"];
+  createMessageSnapshot?: ReleaseCommitDeps["createMessageSnapshot"];
+  persistMessageRetry?: ReleaseCommitDeps["persistMessageRetry"];
+  cleanupConsumedMessageRetry?: ReleaseCommitDeps["cleanupConsumedMessageRetry"];
 }
 
 function buildDeps(root: string, opts: BuildDepsOptions = {}): {
@@ -128,6 +132,7 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
   stderr: string[];
   spawnGit: ReturnType<typeof vi.fn>;
   resolveHead: ReturnType<typeof vi.fn>;
+  preflightCommitMessage: ReturnType<typeof vi.fn>;
 } {
   const stderr: string[] = [];
   const spawnGit = vi.fn(opts.spawnGit ?? (() => {
@@ -136,6 +141,9 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
   const resolveHead = vi.fn(opts.resolveHead ?? (() => {
     throw new Error("resolveHead must not be called without an authorized success");
   }));
+  const preflightCommitMessage = vi.fn(
+    opts.preflightCommitMessage ?? (() => Promise.resolve({ kind: "pass-through" as const })),
+  );
   const deps: ReleaseCommitDeps = {
     cwd: root,
     identity: IDENTITY,
@@ -145,8 +153,17 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
     writeStderr: (msg) => { stderr.push(msg); },
     spawnGit,
     resolveHead,
+    preflightCommitMessage,
+    createMessageSnapshot: opts.createMessageSnapshot ?? (() => {
+      throw new Error("createMessageSnapshot must not be called without a captured file source");
+    }),
+    persistMessageRetry: opts.persistMessageRetry ?? (() => {
+      throw new Error("persistMessageRetry must not be called without a qualifying Git failure");
+    }),
+    cleanupConsumedMessageRetry: opts.cleanupConsumedMessageRetry ?? (async () => false),
+    preflightRemedy: "arc release commit -F <message-file>",
   };
-  return { deps, stderr, spawnGit, resolveHead };
+  return { deps, stderr, spawnGit, resolveHead, preflightCommitMessage };
 }
 
 async function readAuditEntries(root: string): Promise<AuditEntry[]> {
@@ -174,19 +191,23 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
     ["--amend"],
     ["--allow-empty"],
     ["--no-verify"],
+    ["-n"],
   ])("refuses with code 12 and audit entry carrying flag detail (%s)", async (flag) => {
     await writeStatus(fixture.root, "sample");
-    const { deps, spawnGit } = buildDeps(fixture.root, { argv: [flag, "-m", "subject"] });
+    const { deps, spawnGit, preflightCommitMessage } = buildDeps(fixture.root, {
+      argv: [flag, "-m", "subject"],
+    });
 
     const result = await runReleaseCommit(deps);
 
     expect(result.exitCode).toBe(12);
     expect(spawnGit).not.toHaveBeenCalled();
+    expect(preflightCommitMessage).not.toHaveBeenCalled();
 
     const entries = await readAuditEntries(fixture.root);
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       command: "release-commit",
       decision: "refused",
       refusalCode: 12,
@@ -216,12 +237,12 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
 
   it("redacts -m payload in the audit args field", async () => {
     await writeStatus(fixture.root, "sample");
-    const { deps } = buildDeps(fixture.root, { argv: ["--amend", "-m", "secret"] });
+    const { deps } = buildDeps(fixture.root, { argv: ["--amend", "-qamsecret"] });
 
     await runReleaseCommit(deps);
 
     const [entry] = await readAuditEntries(fixture.root);
-    expect(entry?.args).toEqual(["--amend", "-m", "<redacted>"]);
+    expect(entry?.args).toEqual(["--amend", "-qam<redacted>"]);
   });
 });
 
@@ -265,7 +286,7 @@ describe("runReleaseCommit — code 13 (branch-protection-violation)", () => {
       branchBase: "main",
       commitInterlock: "on-workflow",
     });
-    const { deps, spawnGit, stderr } = buildDeps(fixture.root, {
+    const { deps, spawnGit, stderr, preflightCommitMessage } = buildDeps(fixture.root, {
       argv: ["-m", "subject"],
       settings,
       currentBranch: "main",
@@ -275,6 +296,7 @@ describe("runReleaseCommit — code 13 (branch-protection-violation)", () => {
 
     expect(result.exitCode).toBe(13);
     expect(spawnGit).not.toHaveBeenCalled();
+    expect(preflightCommitMessage).not.toHaveBeenCalled();
 
     const composed = stderr.join("");
     expect(composed).toContain("Refused: branch-protection-violation (code 13)");
@@ -339,7 +361,7 @@ describe("runReleaseCommit — code 11 (interlock-not-authorized)", () => {
   it("refuses with code 11 when commit_interlock=manual", async () => {
     await writeStatus(fixture.root, "sample");
     const settings = buildSettings({ commitInterlock: "manual" });
-    const { deps, spawnGit, stderr } = buildDeps(fixture.root, {
+    const { deps, spawnGit, stderr, preflightCommitMessage } = buildDeps(fixture.root, {
       argv: ["-m", "subject"],
       settings,
     });
@@ -348,6 +370,7 @@ describe("runReleaseCommit — code 11 (interlock-not-authorized)", () => {
 
     expect(result.exitCode).toBe(11);
     expect(spawnGit).not.toHaveBeenCalled();
+    expect(preflightCommitMessage).not.toHaveBeenCalled();
 
     const composed = stderr.join("");
     expect(composed).toContain("Refused: interlock-not-authorized (code 11)");
@@ -430,6 +453,272 @@ describe("runReleaseCommit — success path", () => {
     return buildSettings({ commitInterlock: "on-task-approval" });
   }
 
+  it.each(["validation", "input"] as const)(
+    "refuses %s preflight before spawning Git",
+    async (reason) => {
+      await writeStatus(fixture.root, "sample");
+      const { deps, spawnGit, stderr } = buildDeps(fixture.root, {
+        argv: ["-qamsecret"],
+        settings: authorizingSettings(),
+        preflightCommitMessage: () => Promise.resolve({
+          kind: "refused",
+          reason,
+          message: `preflight ${reason}`,
+        }),
+      });
+
+      const result = await runReleaseCommit(deps);
+
+      expect(result.exitCode).toBe(16);
+      expect(spawnGit).not.toHaveBeenCalled();
+      expect(stderr.join("")).toBe([
+        `preflight ${reason}`,
+        "Refused: commit-message-preflight-failed (code 16)",
+        `Commit-message preflight failed (${reason}).`,
+        "Correct the commit-message input and retry.",
+        "arc release commit -F <message-file>",
+        "",
+      ].join("\n"));
+      const [entry] = await readAuditEntries(fixture.root);
+      expect(entry).toMatchObject({
+        args: ["-qam<redacted>"],
+        decision: "refused",
+        refusalCode: 16,
+        outcome: { kind: "preflight-failed", reason },
+      });
+    },
+  );
+
+  it.each(["pass", "pass-with-warnings"] as const)(
+    "spawns Git once after preflight %s",
+    async (verdict) => {
+      await writeStatus(fixture.root, "sample");
+      const { deps, spawnGit } = buildDeps(fixture.root, {
+        argv: ["-m", "subject"],
+        settings: authorizingSettings(),
+        preflightCommitMessage: () => Promise.resolve({
+          kind: "passed",
+          verdict,
+          messageBytes: new Uint8Array(),
+        }),
+        spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+        resolveHead: () => Promise.resolve(FULL_HASH),
+      });
+
+      expect((await runReleaseCommit(deps)).exitCode).toBe(0);
+      expect(spawnGit).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("rewrites a captured file source to a private snapshot and cleans it", async () => {
+    await writeStatus(fixture.root, "sample");
+    const rawBytes = Buffer.from("message source");
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+    const { deps, spawnGit } = buildDeps(fixture.root, {
+      argv: ["-aF", "caller.txt"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes: rawBytes,
+        transport: { kind: "file", rawBytes, sourcePath: "caller.txt" },
+      }),
+      createMessageSnapshot: async ({ bytes }) => {
+        expect(bytes).toEqual(rawBytes);
+        return { path: "/repo/.git/private-message", cleanup };
+      },
+      spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+      resolveHead: () => Promise.resolve(FULL_HASH),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(0);
+    expect(spawnGit).toHaveBeenCalledWith({
+      args: ["-aF", "/repo/.git/private-message"],
+      cwd: fixture.root,
+    });
+    expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it("pipes captured stdin bytes while ordinary preflight keeps inherited stdin", async () => {
+    await writeStatus(fixture.root, "sample");
+    const rawBytes = Buffer.from("stdin message");
+    const { deps, spawnGit } = buildDeps(fixture.root, {
+      argv: ["-F", "-"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes: rawBytes,
+        transport: { kind: "stdin", rawBytes },
+      }),
+      spawnGit: () => Promise.resolve({ exitCode: 1, stdout: "", stderr: "hook failed" }),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(1);
+    expect(spawnGit).toHaveBeenCalledWith({ args: ["-F", "-"], cwd: fixture.root, stdin: rawBytes });
+  });
+
+  it("persists approved message bytes after a resolved non-zero Git result", async () => {
+    await writeStatus(fixture.root, "sample");
+    const messageBytes = Buffer.from("feat(release): a sufficiently long valid subject\n");
+    const persistMessageRetry = vi.fn().mockResolvedValue({ path: "/repo with spaces/.git/latest-retry" });
+    const { deps, stderr } = buildDeps(fixture.root, {
+      argv: ["-m", "feat(release): a sufficiently long valid subject"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes,
+        transport: { kind: "messages" },
+      }),
+      spawnGit: () => Promise.resolve({ exitCode: 7, stdout: "", stderr: "failed" }),
+    });
+
+    const result = await runReleaseCommit({ ...deps, persistMessageRetry });
+
+    expect(result.exitCode).toBe(7);
+    expect(persistMessageRetry).toHaveBeenCalledWith({ cwd: fixture.root, bytes: messageBytes });
+    expect(stderr.join("")).toContain("arc release commit -F '/repo with spaces/.git/latest-retry'");
+  });
+
+  it("preserves Git's exit code when retry persistence fails without offering an unusable path", async () => {
+    await writeStatus(fixture.root, "sample");
+    const { deps, stderr } = buildDeps(fixture.root, {
+      argv: ["-m", "feat(release): a sufficiently long valid subject"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes: Buffer.from("approved message"),
+        transport: { kind: "messages" },
+      }),
+      spawnGit: () => Promise.resolve({ exitCode: 9, stdout: "", stderr: "failed" }),
+      persistMessageRetry: () => Promise.reject(new Error("disk full")),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(9);
+    expect(stderr.join("")).toContain("latest commit-message retry could not be persisted: disk full");
+    expect(stderr.join("")).not.toContain("arc release commit -F");
+  });
+
+  it.each([
+    { label: "pass-through", preflight: { kind: "pass-through" as const } },
+    {
+      label: "preflight refusal",
+      preflight: {
+        kind: "refused" as const,
+        reason: "validation" as const,
+        message: "invalid message",
+      },
+    },
+  ])("does not persist $label message bytes", async ({ preflight }) => {
+    await writeStatus(fixture.root, "sample");
+    const persistMessageRetry = vi.fn().mockResolvedValue({ path: "/unused" });
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["-m", "message"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve(preflight),
+      spawnGit: () => Promise.resolve({ exitCode: 1, stdout: "", stderr: "failed" }),
+      persistMessageRetry,
+    });
+
+    await runReleaseCommit(deps);
+
+    expect(persistMessageRetry).not.toHaveBeenCalled();
+  });
+
+  it("turns snapshot setup failure into an input refusal before Git", async () => {
+    await writeStatus(fixture.root, "sample");
+    const { deps, spawnGit } = buildDeps(fixture.root, {
+      argv: ["-F", "caller.txt"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes: Buffer.from("message"),
+        transport: { kind: "file", rawBytes: Buffer.from("message"), sourcePath: "caller.txt" },
+      }),
+      createMessageSnapshot: async () => Promise.reject(new Error("disk full")),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(16);
+    expect(spawnGit).not.toHaveBeenCalled();
+  });
+
+  it("cleans the exact retry source only after its successful wrapper invocation", async () => {
+    await writeStatus(fixture.root, "sample");
+    const rawBytes = Buffer.from("approved retry");
+    const cleanupConsumedMessageRetry = vi.fn().mockResolvedValue(true);
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["-F", "/repo/.git/.arc-release-commit-message-retry"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes: rawBytes,
+        transport: {
+          kind: "file",
+          rawBytes,
+          sourcePath: "/repo/.git/.arc-release-commit-message-retry",
+          sourceIdentity: "retry-generation",
+        },
+      }),
+      createMessageSnapshot: async () => ({ path: "/private", cleanup: async () => undefined }),
+      spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+      resolveHead: () => Promise.resolve(FULL_HASH),
+    });
+
+    await runReleaseCommit({ ...deps, cleanupConsumedMessageRetry });
+
+    expect(cleanupConsumedMessageRetry).toHaveBeenCalledWith({
+      cwd: fixture.root,
+      sourcePath: "/repo/.git/.arc-release-commit-message-retry",
+      sourceIdentity: "retry-generation",
+    });
+  });
+
+  it("cleans a file snapshot after spawn failure", async () => {
+    await writeStatus(fixture.root, "sample");
+    const cleanup = vi.fn().mockResolvedValue(undefined);
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["-F", "caller.txt"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes: Buffer.from("message"),
+        transport: { kind: "file", rawBytes: Buffer.from("message"), sourcePath: "caller.txt" },
+      }),
+      createMessageSnapshot: async () => ({ path: "/private", cleanup }),
+      spawnGit: async () => Promise.reject(new Error("spawn failed")),
+    });
+
+    await expect(runReleaseCommit(deps)).rejects.toThrow("spawn failed");
+    expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it("surfaces snapshot cleanup failure without changing Git's exit code", async () => {
+    await writeStatus(fixture.root, "sample");
+    const { deps, stderr } = buildDeps(fixture.root, {
+      argv: ["-F", "caller.txt"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes: Buffer.from("message"),
+        transport: { kind: "file", rawBytes: Buffer.from("message"), sourcePath: "caller.txt" },
+      }),
+      createMessageSnapshot: async () => ({
+        path: "/private",
+        cleanup: async () => Promise.reject(new Error("busy")),
+      }),
+      spawnGit: () => Promise.resolve({ exitCode: 7, stdout: "", stderr: "failed" }),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(7);
+    expect(stderr.join("")).toContain("snapshot cleanup failed: busy");
+  });
+
   it("forwards argv to spawnGit when authorized and bubbles exit code 0", async () => {
     await writeStatus(fixture.root, "sample");
     const argv = ["-m", "subject"];
@@ -486,7 +775,7 @@ describe("runReleaseCommit — success path", () => {
   it("writes a proceeded audit entry with kind: commit and the resolved hash", async () => {
     await writeStatus(fixture.root, "sample");
     const { deps, resolveHead } = buildDeps(fixture.root, {
-      argv: ["-m", "subject"],
+      argv: ["-amsubject"],
       settings: authorizingSettings(),
       spawnGit: () => Promise.resolve({
         exitCode: 0,
@@ -509,13 +798,13 @@ describe("runReleaseCommit — success path", () => {
       wu: { name: "sample" },
     });
     // -m payload still redacted on the success path.
-    expect(entries[0]?.args).toEqual(["-m", "<redacted>"]);
+    expect(entries[0]?.args).toEqual(["-am<redacted>"]);
   });
 
   it("bubbles non-zero git exit code and writes a hook-failed entry attributed via stderr", async () => {
     await writeStatus(fixture.root, "sample");
     const { deps, resolveHead } = buildDeps(fixture.root, {
-      argv: ["-m", "subject"],
+      argv: ["-qamsubject"],
       settings: authorizingSettings(),
       spawnGit: () => Promise.resolve({
         exitCode: 1,
@@ -537,6 +826,7 @@ describe("runReleaseCommit — success path", () => {
       refusalCode: null,
       outcome: { kind: "hook-failed", hook: "pre-commit", exitCode: 1 },
     });
+    expect(entries[0]?.args).toEqual(["-qam<redacted>"]);
   });
 
   it("attributes commit-msg hook rejection from captured output", async () => {

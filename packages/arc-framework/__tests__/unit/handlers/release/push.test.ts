@@ -204,7 +204,7 @@ describe("runReleasePush — code 12 (destructive-flag)", () => {
     const entries = await readAuditEntries(fixture.root);
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       command: "release-push",
       decision: "refused",
       refusalCode: 12,

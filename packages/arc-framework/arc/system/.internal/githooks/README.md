@@ -44,10 +44,17 @@ chmod +x .arc/system/.internal/githooks/commit-msg .arc/system/.internal/githook
 Enforces the commit message standard defined in
 [DEV-RULES.ARC.md](../../../system/rules/DEV-RULES.ARC.md) § Commit format:
 
+The `commit-msg` hook is a thin shim. When validation is enabled, it resolves the repository-local
+`node_modules/.bin/arc` executable first, falls back to `arc` on `PATH`, and delegates to
+`arc check commit-msg <message-file>`. If neither executable is available, validation fails closed and
+blocks the commit. Disabling `hooks.commit_msg` or committing Git's generated merge message bypasses the
+delegation intentionally.
+
 **Errors (blocks commit):**
 
 - Conventional Commits format: `<type>(scope): description` (when `commit.format: conventional`)
-- Custom format pattern match (when `commit.format: custom`)
+- Custom format pattern match against the `commit.custom_pattern` ECMAScript source (when
+  `commit.format: custom`)
 - Subject line length: 10–`hooks.subject_max_length` characters (default 72; skipped when
   `commit.format: any`)
 - Body line count over `hooks.body_max_lines` (default 100 — runaway backstop)
@@ -123,7 +130,9 @@ Hook behavior is controlled by settings in `.arc/system/arc-config.yml`. Key set
 | `hooks.commit_msg` | `enabled` | Enable/disable commit-msg hook |
 | `hooks.pre_push` | `enabled` | Enable/disable pre-push force-push advisory |
 | `commit.format` | `conventional` | Format validation (`conventional` / `custom` / `any`) |
+| `commit.custom_pattern` | empty | ECMAScript pattern source used by `commit.format: custom` |
 | `commit.context_footer` | `required` | Footer validation (`required` / `recommended` / `custom` / `disabled`) |
+| `commit.context_pattern` | empty | ECMAScript pattern source used by `commit.context_footer: custom` |
 | `hooks.subject_max_length` | `72` | Hard limit for subject line length |
 | `hooks.body_max_lines` | `100` | Hard limit for commit body line count (runaway backstop) |
 | `hooks.body_max_line_length` | `100` | Hard limit for body per-line length (runaway backstop) |
@@ -146,9 +155,9 @@ GNU-specific dependencies required.
 
 ## Shared Library
 
-Both hooks source `.arc/system/.internal/scripts/arc-lib.sh` for config reading (`arc_config_get`) and
-color definitions. If you add custom hooks, source the same library to avoid duplicating the
-config parser:
+All three hooks source `.arc/system/.internal/scripts/arc-lib.sh` for config reading (`arc_config_get`);
+the shell-owned `pre-commit` and `pre-push` checks also use its color definitions. If you add custom
+shell checks, source the same library to avoid duplicating the config parser:
 
 ```bash
 . "$(dirname "$0")/../scripts/arc-lib.sh"
@@ -156,9 +165,11 @@ config parser:
 
 ## Customization
 
-Edit the hook scripts directly to add project-specific checks. Common additions:
+Commit-message grammar belongs in `arc-config.yml`, not the shell shim. Set `commit.format` and its
+related keys there; `commit.custom_pattern` is ECMAScript pattern source consumed by the CLI validator.
 
-- Additional commit types in the `grep -qE` pattern (commit-msg, Rule 1)
+Edit the scripts directly only for project-specific checks that remain shell-owned. Common additions:
+
 - Project-specific sensitive file patterns (pre-commit, Check 3)
 - Additional debug statement patterns (pre-commit, Check 5)
 
@@ -198,8 +209,11 @@ chmod +x .arc/system/.internal/githooks/commit-msg .arc/system/.internal/githook
 **Testing hooks locally:**
 
 ```bash
-# Test commit-msg
+# Test commit-message policy directly
 echo "test message" > /tmp/test-msg
+arc check commit-msg /tmp/test-msg
+
+# Test the shim's CLI resolution and delegation
 .arc/system/.internal/githooks/commit-msg /tmp/test-msg
 
 # Test pre-commit

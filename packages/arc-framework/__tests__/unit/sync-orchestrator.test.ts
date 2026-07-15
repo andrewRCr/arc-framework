@@ -1363,7 +1363,7 @@ describe("audit-log integration", () => {
     expect(call.cwd).toBe("/repo");
     expect(call.identity).toBe("andrew");
     expect(call.entry).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       command: "sync",
       args: [],
       wu: { name: "test" },

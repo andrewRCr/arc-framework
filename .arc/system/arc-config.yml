@@ -59,24 +59,26 @@ worktree.harness_dirs: .claude,.codex,.gemini,.opencode
 
 # Commit message format enforced by commit-msg hook.
 #   conventional - type(scope): description (default)
-#   custom       - validates against commit.custom_pattern regex
+#   custom       - validates against commit.custom_pattern ECMAScript source
 #   any          - no format validation
 commit.format: conventional
 
 # Context footer requirement enforced by commit-msg hook.
 #   required    - Context: line must be present and valid (default)
 #   recommended - warns if missing, does not block
-#   custom      - validates against commit.context_pattern regex
+#   custom      - validates against commit.context_pattern ECMAScript source
 #   disabled    - no context footer validation
 commit.context_footer: required
 
-# Custom commit format regex (used when commit.format: custom).
+# Custom commit format ECMAScript pattern source (used when commit.format: custom).
+# Supply source only, without /.../ delimiters or flags.
 # Examples:
 #   "^\[?[A-Z]+-[0-9]+\]? .+"              — Jira prefix
 #   "^[A-Z]+-[0-9]+ (feat|fix|chore): .+"  — ticket + type
 commit.custom_pattern:
 
-# Custom context footer regex (used when commit.context_footer: custom).
+# Custom context footer ECMAScript pattern source (used when commit.context_footer: custom).
+# Supply source only, without /.../ delimiters or flags.
 # Examples:
 #   "^(Closes|Fixes|Relates to) [A-Z]+-[0-9]+"  — Jira reference
 #   "^#[0-9]+ .+"                                 — GitHub issue
@@ -152,12 +154,13 @@ hooks.meta_ref_patterns: '[Tt]ask [0-9]+\.[0-9]+|[Pp]hase [0-9]+|(tasks|plan|prd
 # Subject line hard limit for commit-msg hook.
 # Aligns with GitHub's truncation point and `git log --oneline` width.
 # Skipped entirely when commit.format: any.
-#   default: 72
+#   domain: unsigned base-10 safe integer >= 10; default: 72
 hooks.subject_max_length: 72
 
 # Body runaway backstops for commit-msg hook. Authorial discipline aims at
 # ~72-char wrap; these limits catch accidental paste / forgotten wrap, not
 # style. Past either, the commit is usually better split or moved to a doc.
+#   domain: unsigned base-10 safe integer >= 1 for each key
 #   defaults: 100 lines, 100 chars per line
 hooks.body_max_lines: 100
 hooks.body_max_line_length: 100

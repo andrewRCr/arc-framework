@@ -1310,7 +1310,7 @@ async function writeSyncAuditEntry(args: {
   };
 
   const entry: AuditEntry = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     timestamp: new Date().toISOString(),
     command: "sync",
     args: [],

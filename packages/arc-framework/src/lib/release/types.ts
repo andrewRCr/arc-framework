@@ -35,7 +35,7 @@ import type { PushabilityCondition } from "../git/index.js";
  * git's parser; the code's name preserves the broader category for future
  * detections.
  */
-export type RefusalCode = 10 | 11 | 12 | 13 | 14 | 15;
+export type RefusalCode = 10 | 11 | 12 | 13 | 14 | 15 | 16;
 
 /** Stable string identifier for each refusal code. Pairs 1-to-1 with `RefusalCode`. */
 export type RefusalIdentifier =
@@ -44,7 +44,8 @@ export type RefusalIdentifier =
   | "destructive-flag"
   | "branch-protection-violation"
   | "pushability-precheck-failed"
-  | "arg-grammar-fallthrough";
+  | "arg-grammar-fallthrough"
+  | "commit-message-preflight-failed";
 
 /**
  * Mapping from `RefusalCode` to `RefusalIdentifier`. Single source of
@@ -58,6 +59,7 @@ export const REFUSAL_IDENTIFIERS: Readonly<Record<RefusalCode, RefusalIdentifier
   13: "branch-protection-violation",
   14: "pushability-precheck-failed",
   15: "arg-grammar-fallthrough",
+  16: "commit-message-preflight-failed",
 };
 
 // --- Authorization decision ---
@@ -100,6 +102,12 @@ export type AuthorizationDecision =
         attempted: { remote: string; branch: string };
         expected: { remote: string; branch: string };
       };
+    }
+  | {
+      kind: "refuse";
+      code: 16;
+      identifier: "commit-message-preflight-failed";
+      reason: "validation" | "input";
     };
 
 // --- Audit entry ---
@@ -146,6 +154,7 @@ export type AuditOutcome =
       exitCode: number;
     }
   | { kind: "hook-failed"; hook: string; exitCode: number }
+  | { kind: "preflight-failed"; reason: "validation" | "input" }
   | { kind: "refused" };
 
 /**
@@ -159,12 +168,12 @@ export interface AuditWorkUnit {
 }
 
 /**
- * One audit-log entry (one JSONL line). Schema v1 — append-only,
+ * One audit-log entry (one JSONL line). Schema v2 — append-only,
  * gitignored, per-identity at
  * `.arc/user/{identity}/.internal/.audit-log.jsonl`.
  */
 export interface AuditEntry {
-  schemaVersion: 1;
+  schemaVersion: 2;
   /** ISO 8601, produced via `new Date().toISOString()`. */
   timestamp: string;
   command: AuditCommand;

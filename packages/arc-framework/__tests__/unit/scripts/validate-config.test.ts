@@ -101,3 +101,40 @@ describe("validate-config.sh — worktree provisioning keys", () => {
     expect(result.stdout).not.toContain("Unknown key: 'worktree.harness_dirs'");
   });
 });
+
+describe("validate-config.sh — commit-message numeric domains", () => {
+  it.each([
+    ["hooks.subject_max_length", "10"],
+    ["hooks.subject_max_length", "9007199254740991"],
+    ["hooks.body_max_lines", "1"],
+    ["hooks.body_max_lines", "9007199254740991"],
+    ["hooks.body_max_line_length", "1"],
+    ["hooks.body_max_line_length", "9007199254740991"],
+  ])("accepts %s boundary %s", async (key, value) => {
+    const result = await runValidateConfig(`${key}: ${value}\n`);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(`PASS  ${key}: ${value}`);
+  });
+
+  it.each([
+    ["hooks.subject_max_length", "9"],
+    ["hooks.subject_max_length", "+10"],
+    ["hooks.subject_max_length", "0x10"],
+    ["hooks.subject_max_length", "9007199254740992"],
+    ["hooks.body_max_lines", "0"],
+    ["hooks.body_max_line_length", "-1"],
+  ])("rejects out-of-domain %s value %s", async (key, value) => {
+    const result = await runValidateConfig(`${key}: ${value}\n`);
+
+    expect(result.code).toBe(2);
+    expect(result.stdout).toContain(`ERROR ${key}: '${value}'`);
+  });
+
+  it("checks custom-pattern presence without compiling a second regex dialect", async () => {
+    const result = await runValidateConfig("commit.format: custom\ncommit.custom_pattern: '[.'\n");
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("PASS  commit.custom_pattern is set for custom format");
+  });
+});
