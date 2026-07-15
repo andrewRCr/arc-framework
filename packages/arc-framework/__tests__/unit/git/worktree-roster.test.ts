@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   filterRosterByIdentity,
+  scanRegisteredWorktrees,
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranchResult,
   runWorktreeRoster,
@@ -537,6 +538,57 @@ describe("resolveWorktreePathsByBranchResult", () => {
 
     expect(result.ok).toBe(false);
     expect([...result.paths.entries()]).toEqual([]);
+  });
+});
+
+describe("scanRegisteredWorktrees", () => {
+  it("retains detached and branched topology without widening roster entries", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: {
+        stdout:
+          "worktree /home/dev/repo\nHEAD aaa\nbranch refs/heads/main\n\n"
+          + "worktree /home/dev/repo.husk\nHEAD bbb\ndetached\n\n",
+        stderr: "",
+      },
+    });
+
+    expect(await scanRegisteredWorktrees(exec)).toEqual({
+      ok: true,
+      worktrees: [
+        { path: "/home/dev/repo", head: "aaa", branch: "main", detached: false, primary: true },
+        { path: "/home/dev/repo.husk", head: "bbb", branch: null, detached: true, primary: false },
+      ],
+    });
+
+    const branchMap = await resolveWorktreePathsByBranchResult(exec);
+    expect([...branchMap.paths.entries()]).toEqual([["main", "/home/dev/repo"]]);
+  });
+
+  it("returns an explicit failure instead of fabricating an empty candidate set", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: () => {
+        throw new Error("fatal: cannot list worktrees");
+      },
+    });
+
+    expect(await scanRegisteredWorktrees(exec)).toEqual({
+      ok: false,
+      message: "fatal: cannot list worktrees",
+    });
+  });
+
+  it("fails closed when a topology stanza omits HEAD", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: {
+        stdout: "worktree /home/dev/repo.husk\ndetached\n",
+        stderr: "",
+      },
+    });
+
+    expect(await scanRegisteredWorktrees(exec)).toEqual({
+      ok: false,
+      message: "worktree listing omitted HEAD for /home/dev/repo.husk",
+    });
   });
 });
 

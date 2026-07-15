@@ -18,6 +18,14 @@
 - _Approach:_ measure setup, dependency-install, and per-job rounding cost; evaluate safe consolidation or reusable
   prepared state while preserving diagnosability, required-context compatibility, least privilege, and truthful
   aggregate checks. Treat consolidation as an evidence-backed optimization, not an assumed win.
+- _Runtime evidence (2026-07-14):_ PR #247's green attempt measured integration at 114.82s and E2E at 91.32s.
+  E2E's global setup rebuilt the CLI for about five seconds after the same job had already run `npm run build`;
+  the notes-heavy `user.test.ts` took 31.68s and the high-churn notes-compaction file took 12.67s. Separate
+  integration and E2E jobs could remove roughly 90 seconds of wall latency, but would add setup and billed-minute
+  overhead and reverse `ci-content-aware-depth`'s deliberate fixed-job decision. First evaluate removing the
+  redundant in-job build and fixture-cost reductions that also improve reliability. Revisit job splitting only
+  if faster feedback now outweighs the recorded Actions-cost rationale; do not restructure the retiring
+  notes-user test surface purely for speed.
 
 ---
 

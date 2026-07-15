@@ -73,12 +73,13 @@ describe("openErrand", () => {
 
     expect(result.push).toEqual({ kind: "pushed" });
     expect(await readErrandRecord(io, "bump-deps")).toEqual({
-      version: 1,
+      version: 2,
       slug: "bump-deps",
       origin: "description",
       intent: "bump-deps",
       branch: "chore/bump-deps",
       createdAt: CREATED_AT,
+      returnBranch: "main",
     });
     expect(await remoteSlugs(dir)).toEqual(["bump-deps"]);
   });

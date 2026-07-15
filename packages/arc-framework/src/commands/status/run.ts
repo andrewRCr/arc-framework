@@ -342,6 +342,16 @@ export async function runSessionInitStatus(
     }
     : worktree;
 
+  // Current-locus husk orientation is a linked + branchless refinement, not a
+  // new sync state. Ordinary branched resumes skip marker/archive reads. A
+  // degraded advisory probe is omitted so detached-head guidance remains the
+  // conservative fallback.
+  const currentHuskSlot =
+    worktreeIdentity.kind === "linked" && worktree.ok && worktree.value.branch === null
+      ? await safeProbe(() => probes.currentHusk(worktreeIdentity.path))
+      : undefined;
+  const currentHusk = currentHuskSlot?.ok ? currentHuskSlot : undefined;
+
   // Base-distance enrichment mirrors the worktree slot's shape. Its
   // recommendation is an independent advisory (behind-base reconcile offer),
   // composed straight from the slot — orthogonal to the worktree+notes pull
@@ -565,6 +575,7 @@ export async function runSessionInitStatus(
     ...(roster !== undefined ? { roster } : {}),
     ...(recovery !== undefined ? { recovery } : {}),
     ...(sweep !== undefined ? { sweep } : {}),
+    ...(currentHusk !== undefined ? { currentHusk } : {}),
     ...(orphanBranchSweep !== undefined ? { orphanBranchSweep } : {}),
     ...(enrichedRetiredSubdirs !== undefined ? { retiredSubdirs: enrichedRetiredSubdirs } : {}),
     ...(errandSweep !== null ? { errandSweep } : {}),

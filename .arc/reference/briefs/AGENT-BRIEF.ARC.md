@@ -82,6 +82,9 @@ Precise meanings — assume the technical sense.
 └── user/        — Per-developer session state
 ```
 
+`backlog/planned/` may nest work units one directory deeper under cohort directories; resolve work units by slug
+rather than assuming the planned backlog is flat.
+
 ---
 
 _Shared ARC framework entry point for all AI agents. Project-specific context lives in

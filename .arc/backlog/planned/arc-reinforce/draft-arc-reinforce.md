@@ -17,6 +17,25 @@ destinations. Artifact named `arc-reinforce`; "backpressure" is the working term
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Codify the dev-internal friction and idiom-divergence feedback loop**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); trialled as a standing
+  `WORKING-MEMORY` instruction during FP wave-2 planning.
+- _Concern:_ agents routinely route around methodology friction and design-idiom divergence in their reasoning,
+  leaving the operator blind unless they watch tool traces. The capture loop needs two distinct thresholds:
+  factual, systemic friction; and opinion-marked idiom divergence only when it has an observable cost and engages
+  existing rationale.
+- _Approach:_ batch proposed observations at natural report boundaries, capture through `arc-inbox` after
+  confirmation, and capture directly during unattended deferred review so the thought is not lost. Put the
+  dev-internal standing rule in `DEV-RULES.PROJECT`; keep the shipped `arc-reinforce` variant limited to
+  user/team-configurable ARC surfaces that projects can actually change.
+- _Coordination:_ `frictionless-capture` owns out-of-session CLI capture, not the in-session feedback trigger.
+
 ## Problem / Motivation
 
 When the user observes an unwanted agent behavior that traces clearly to a guidance gap (no rule,

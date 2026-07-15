@@ -56,6 +56,25 @@ export interface WorktreeRosterResult {
   warnings: string[];
 }
 
+/** Registered worktree topology without meta or lifecycle resolution. */
+export interface RegisteredWorktree {
+  /** Filesystem root registered with Git. */
+  path: string;
+  /** Exact commit currently checked out. */
+  head: string;
+  /** Local branch name, or `null` for a detached worktree. */
+  branch: string | null;
+  /** Whether Git reports the worktree at detached HEAD. */
+  detached: boolean;
+  /** Whether this is Git's primary worktree (the first porcelain stanza). */
+  primary: boolean;
+}
+
+/** Result of reading registered worktree topology. */
+export type RegisteredWorktreeScanResult =
+  | { ok: true; worktrees: RegisteredWorktree[] }
+  | { ok: false; message: string };
+
 export interface RunWorktreeRosterOptions {
   exec: GitExec;
   fs: WorktreeRosterFs;
@@ -170,6 +189,37 @@ export async function resolveWorktreePathsByBranchResult(
     if (wt.branch !== null) byBranch.set(wt.branch, wt.path);
   }
   return { ok: true, paths: byBranch };
+}
+
+/**
+ * Read Git's registered worktree topology without resolving managed metadata.
+ *
+ * @param exec - Injectable command executor (local only — no remote)
+ * @returns A bounded topology snapshot or an explicit read/parse failure
+ */
+export async function scanRegisteredWorktrees(exec: GitExec): Promise<RegisteredWorktreeScanResult> {
+  let worktrees: RawWorktree[];
+  try {
+    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+  }
+
+  const missingHead = worktrees.find((worktree) => worktree.head === null);
+  if (missingHead !== undefined) {
+    return { ok: false, message: `worktree listing omitted HEAD for ${missingHead.path}` };
+  }
+
+  return {
+    ok: true,
+    worktrees: worktrees.map((worktree, index) => ({
+      path: worktree.path,
+      head: worktree.head as string,
+      branch: worktree.branch,
+      detached: worktree.detached,
+      primary: index === 0,
+    })),
+  };
 }
 
 interface EntryResolution {
@@ -336,7 +386,9 @@ function buildEntry(
 
 interface RawWorktree {
   path: string;
+  head: string | null;
   branch: string | null;
+  detached: boolean;
 }
 
 function parseWorktreeList(result: { stdout: string }): RawWorktree[] {
@@ -345,15 +397,21 @@ function parseWorktreeList(result: { stdout: string }): RawWorktree[] {
   for (const stanza of stanzas) {
     if (stanza.trim() === "") continue;
     let path: string | null = null;
+    let head: string | null = null;
     let branch: string | null = null;
+    let detached = false;
     for (const line of stanza.split("\n")) {
       if (line.startsWith("worktree ")) {
         path = line.slice("worktree ".length);
+      } else if (line.startsWith("HEAD ")) {
+        head = line.slice("HEAD ".length);
       } else if (line.startsWith("branch refs/heads/")) {
         branch = line.slice("branch refs/heads/".length);
+      } else if (line === "detached") {
+        detached = true;
       }
     }
-    if (path !== null) worktrees.push({ path, branch });
+    if (path !== null) worktrees.push({ path, head, branch, detached });
   }
   return worktrees;
 }

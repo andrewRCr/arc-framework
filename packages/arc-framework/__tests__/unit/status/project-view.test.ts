@@ -290,6 +290,31 @@ describe("composeProjectReadinessView", () => {
     });
   });
 
+  it("suppresses own-branch residue when the prospective tree contains that work unit", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const slug = "starting";
+    const branch = `plan/${slug}`;
+    await writeMeta(join(root, ".arc", "active", `meta-${slug}.md`), meta(slug, "Planning"));
+    const exec = makeInFlightExec({ worktrees: [{ path: root, branch }] });
+
+    const normal = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+    });
+    const prospective = await resolveProjectReadinessViewInput({
+      cwd: root,
+      localRefs: { exec, baseBranch: "main" },
+      prospective: { currentBranch: branch },
+    });
+
+    expect(normal.sourceWarnings).toContainEqual(expect.objectContaining({
+      rendered: expect.stringContaining("cleanup may be required"),
+    }));
+    expect(prospective.sourceWarnings).not.toContainEqual(expect.objectContaining({
+      rendered: expect.stringContaining("cleanup may be required"),
+    }));
+  });
+
   it("keeps a genuine live sibling ahead of its completed tree record", async () => {
     root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
     const ownSlug = "own-transition";
@@ -420,7 +445,7 @@ describe("composeProjectReadinessView", () => {
       .toEqual(composeProjectReadinessView({ ...second, renderedRef: "abc1234" }));
   });
 
-  it("renders degraded local-ref warnings instead of a silently tree-only view", async () => {
+  it("returns degraded local-ref warnings without adding them to the rendered document", async () => {
     const exec = makeInFlightExec({
       worktrees: [{ path: "/repo", branch: "feat/bad-state" }],
       metas: {
@@ -439,8 +464,14 @@ describe("composeProjectReadinessView", () => {
     });
     const result = composeProjectReadinessViewResult({ ...input, renderedRef: "abc1234" });
 
-    expect(result.markdown).toContain("## Warnings");
-    expect(result.markdown).toContain("unrecognized State");
+    expect(result.warnings).toEqual([
+      expect.objectContaining({
+        code: "oracle-degraded",
+        rendered: expect.stringContaining("unrecognized State"),
+      }),
+    ]);
+    expect(result.markdown).not.toContain("## Warnings");
+    expect(result.markdown).not.toContain("unrecognized State");
     expect(result.markdown).not.toContain("bad-state |");
   });
 
@@ -487,7 +518,7 @@ describe("composeProjectReadinessView", () => {
     expect(input.sourceWarnings.some((warning) => warning.rendered.includes("changed during"))).toBe(true);
   });
 
-  it("renders a generic degraded warning when the source only marks indeterminate", () => {
+  it("returns a generic degraded warning when the source only marks indeterminate", () => {
     const result = composeProjectReadinessViewResult({
       renderedRef: "abc1234",
       title: "Roadmap",
@@ -495,13 +526,13 @@ describe("composeProjectReadinessView", () => {
       indeterminate: true,
     });
 
-    expect(result.markdown).toContain("In-flight inputs were indeterminate during derivation");
     expect(result.warnings).toEqual([
       expect.objectContaining({
         code: "oracle-degraded",
         rendered: expect.stringContaining("indeterminate"),
       }),
     ]);
+    expect(result.markdown).not.toContain("In-flight inputs were indeterminate during derivation");
   });
 
   it("notes live-oracle fallback when the remote is unreachable", async () => {
@@ -523,7 +554,11 @@ describe("composeProjectReadinessView", () => {
     });
     const result = composeProjectReadinessViewResult({ ...input, renderedRef: "abc1234" });
 
-    expect(result.markdown).toContain("Remote unreachable; rendering project view from local refs only.");
+    expect(result.warnings).toContainEqual(expect.objectContaining({
+      code: "oracle-degraded",
+      rendered: "Remote unreachable; rendering project view from local refs only.",
+    }));
+    expect(result.markdown).not.toContain("Remote unreachable; rendering project view from local refs only.");
     expect(result.markdown).toContain("| `Active` | ref-only");
     expect(result.markdown).toContain("| ref-only  | P1");
   });
@@ -690,7 +725,8 @@ describe("project-readiness dependency classification", () => {
         dependency: "ghost-dep",
       }),
     ]);
-    expect(result.markdown).toContain("## Warnings");
+    expect(result.markdown).not.toContain("## Warnings");
+    expect(result.markdown).not.toContain("depends on missing work unit");
     expect(result.markdown).toContain("ghost-dep");
     const readySection = sectionBetween(result.markdown, "## Ready", "## Blocked");
     expect(readySection).toContain("ready-control");

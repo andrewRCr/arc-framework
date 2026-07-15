@@ -16,6 +16,17 @@
 > _captures are this WU's seed material — the core reform plus five activation-mechanics facets and one_
 > _save-location alignment that the reform's activation path settles._
 
+### `[ ]` **Formalize the shipped, pending-teardown worktree terminal condition**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
+  `finalize-parallelism` Task 4.1 slate resolution.
+- _Concern:_ `worktree-teardown-decoupling` deliberately represents a self-teardown husk through existing
+  signals—detached HEAD, ARC ownership marker, and a completed-record match—without adding a lifecycle state.
+  Decide whether that terminal condition graduates into the four-state vocabulary, becomes an annotation, or
+  remains a derived operational projection.
+- _Boundary:_ consume the shipped mechanics and the `session-locus-model` reporting record; do not rebuild them.
+  This WU owns the state vocabulary and may re-vocabulary the locus record later without schema churn.
+
 ### `[ ]` **Unbundle planning-completion from activation — async-first WU lifecycle state model** _(core reform)_
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-07); captured during `finalize-parallelism`
@@ -224,13 +235,10 @@
 - _Fold-in:_ give parking an explicit scheduling-axis home and settle the backward edges per axis. Preserve PSI's
   interim single-classifier swap point until this reform replaces it; no parked-WU migration is currently needed.
 
-### `[ ]` **Finish activation-rename remote-ref retirement**
+### `[ ]` **Retire activation's remote plan shadow in the lifecycle model**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain
   (2026-07-10); observed during FP wave-1 spawn verification.
-- _Operational slice pulled forward:_ a standalone Errand will clear the renamed branch's stale
-  `origin/plan/<slug>` upstream so the existing release-push wrapper establishes the new
-  `origin/<type>/<slug>` upstream.
-- _Residual owned here:_ retire the remote `plan/` shadow ref safely after the new head lands, and reconcile that
-  cleanup with the post-reform activation model. SSOA must make any interim shadow ref harmless to lifecycle/status
-  truth; this WU owns eliminating the residue.
+- _Concern:_ retire the remote `plan/` shadow ref safely after the new head lands, and reconcile that cleanup with
+  the post-reform activation model. SSOA must make any interim shadow ref harmless to lifecycle/status truth; this
+  WU owns eliminating the residue.

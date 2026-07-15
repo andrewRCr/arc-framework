@@ -13,6 +13,21 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **De-flake the high-churn notes-compaction retention fixture**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during reviewed-lane
+  integration of `fix/scrub-hook-git-env`, after PR #234 CI failed while creating retention-history filler.
+- _Concern:_ `user-notes-compaction.test.ts` creates hundreds of sequential commits and note commits inside a
+  temp repo. Under full-suite concurrency Git failed to write an object mid-fixture, while the unrelated change
+  and a local full-suite run were clean.
+- _Approach:_ reduce fixture filesystem/process pressure using existing synthetic notes-tree helpers where that
+  preserves the retention assertion; otherwise isolate or serialize this resource-heavy case and improve its
+  diagnostics.
+- _Stop-loss constraint:_ git notes are an interim bridge under `RELEASE-GATES.md` § Git-notes verdict. Keep this
+  strictly keep-the-lights-on: stabilize confidence in existing retention behavior, but add no marker type,
+  reconciliation arm, or deeper notes-specific machinery. If the fixture cannot be made cheap, prefer bounded
+  isolation over substrate investment; retirement belongs to `local-mode` / `arc-backend`.
+
 ### `[ ]` **Harden e2e temp-repo teardown against the `rmdir` ENOTEMPTY race**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: cli-test-hardening`), housekeep drain (2026-07-07); captured

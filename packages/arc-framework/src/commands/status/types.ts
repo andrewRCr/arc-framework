@@ -41,6 +41,7 @@ import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
 import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-worktree-sweep.js";
+import type { CurrentHuskAdvisory } from "../../lib/session-init/current-husk-advisory.js";
 import type { OrphanBranchSweepResult } from "../../lib/session-init/orphan-branch-sweep.js";
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
@@ -243,6 +244,13 @@ export interface SessionInitProbeResult {
    * worktrees (the resume path never sweeps) and when the roster failed.
    */
   sweep?: Probe<StaleWorktreeSweepResult>;
+  /**
+   * Derived orientation for a linked branchless checkout that is an exact,
+   * locally completed stamped WU husk. This interim advisory is separate from
+   * worktree sync state and may be superseded by a durable locus record.
+   * Omitted on ordinary branched/primary paths and when the probe degrades.
+   */
+  currentHusk?: Probe<CurrentHuskAdvisory | null>;
   /**
    * Pre-computed orphan-branch sweep — type-prefixed local branches whose
    * upstream is gone (integration on a sibling machine, or a local-only
@@ -528,6 +536,11 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * slot in the orchestrator rather than surfaced as a top-level slot.
    */
   worktreeIdentity: () => Promise<WorktreeIdentity>;
+  /**
+   * Resolve terminal husk orientation for the current linked worktree. Called
+   * only when the worktree sync slot reports `branch: null`.
+   */
+  currentHusk: (worktreePath: string) => Promise<CurrentHuskAdvisory | null>;
   /**
    * Base-distance probe — HEAD vs `origin/<base>`. Session-init-only (not a
    * shared slot): a between-WU resume is where behind-base drift matters. The

@@ -21,6 +21,18 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Conform the enforced conventional-commit policy to its named standard**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
+  `commit-message-submission` design review.
+- *Concern:* ARC's enforced `conventional` grammar makes scope mandatory, rejects the standard `!` breaking-change
+  marker, and omits common `build` / `ci` / `style` types. Projects using commitlint, semantic-release, or
+  conventional-changelog therefore face policy conflicts, and ARC cannot emit a standard semver signal.
+- *Approach:* decide each divergence deliberately—accept `!`, settle optional versus intentionally strict scope,
+  extend or configure the type set, and consider a scope vocabulary axis. This WU owns commit-message policy and
+  the commit-msg convention surface; `commit-message-submission` owns the canonical parser/transport mechanism,
+  so policy decisions become fixture and configuration deltas rather than a parser rewrite.
+
 ### `[ ]` **Run a vocabulary-budget pass over adopter-facing coined terms**
 
 - *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); release-gates portfolio review.

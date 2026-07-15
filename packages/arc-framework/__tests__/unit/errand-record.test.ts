@@ -32,6 +32,16 @@ const descriptionRecord: ErrandRecord = {
   createdAt: "2026-06-19T13:30:00.000Z",
 };
 
+const returnableRecord: ErrandRecord = {
+  version: 2,
+  slug: "fix-from-wu",
+  origin: "description",
+  intent: "Fix an issue beside active WU work",
+  branch: "fix/fix-from-wu",
+  createdAt: "2026-07-14T12:00:00.000Z",
+  returnBranch: "feat/active-wu",
+};
+
 describe("errand record (de)serialization", () => {
   it("round-trips an inbox-originated record with no field loss", () => {
     const restored = deserializeErrandRecord(serializeErrandRecord(inboxRecord));
@@ -41,6 +51,17 @@ describe("errand record (de)serialization", () => {
   it("round-trips a free-description record with no field loss", () => {
     const restored = deserializeErrandRecord(serializeErrandRecord(descriptionRecord));
     expect(restored).toEqual(descriptionRecord);
+  });
+
+  it("round-trips a v2 record carrying its pre-open return branch", () => {
+    const restored = deserializeErrandRecord(serializeErrandRecord(returnableRecord));
+    expect(restored).toEqual(returnableRecord);
+  });
+
+  it("continues to accept legacy v1 records without a return branch", () => {
+    const restored = deserializeErrandRecord(JSON.stringify(descriptionRecord));
+    expect(restored).toEqual(descriptionRecord);
+    expect(restored).not.toHaveProperty("returnBranch");
   });
 
   it("carries the origin field uniformly across both origins", () => {

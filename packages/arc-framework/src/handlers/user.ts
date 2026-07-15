@@ -24,6 +24,7 @@ import {
   type UserIOContext,
 } from "../commands/user.js";
 import { isRefusalCondition, slugifyIdentity } from "../lib/git/index.js";
+import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveCurrentWuName } from "../lib/user-sync/index.js";
 import { formatError, UserFacingError, type ArcErrorCode } from "../lib/errors.js";
 import { getInternalTemplatePath, resolveArcRoot } from "../lib/paths.js";
@@ -227,8 +228,26 @@ export async function handleUserClose(wuName: string): Promise<void> {
  * an absent entry or a missing inbox reports a clean no-op rather than failing,
  * so the errand-completion / drain / finalize call sites can replay it freely.
  */
-export async function handleUserInboxRemove(slug: string): Promise<void> {
+/** Options for the `arc user inbox-remove` subcommand. */
+export interface UserInboxRemoveOptions {
+  /** UTF-8 file containing the capture title, or `-` for stdin. */
+  inboxEntryFile?: string;
+}
+
+export async function handleUserInboxRemove(
+  literal: string | undefined,
+  opts: UserInboxRemoveOptions,
+): Promise<void> {
   p.intro("arc user inbox-remove");
+
+  let slug: string;
+  try {
+    slug = await resolveInboxEntryOperand({ literal, file: opts.inboxEntryFile });
+  } catch (err) {
+    p.log.error(`Could not resolve the inbox entry title: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+    return;
+  }
 
   let identity: string;
   try {

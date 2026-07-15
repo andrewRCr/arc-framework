@@ -201,8 +201,9 @@ arc status <slug> [--json]
 # Create a backlog stub at a committed tier — no ceremony (judgment-light; required fields per strategy-work-organization.md § Stub required fields)
 arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <ref>] [--design <ref>] [--cohort <slug>]
 
-# Start a work unit on a plan/<name> branch, fresh or from a backlog stub — spawns a worktree (--here uses the current checkout) (init-work-unit.md)
-arc start [name] [--here] [--from <pointer-or-blurb>]
+# Start an existing work unit on plan/<name>; --new explicitly creates an absent name.
+# Spawns a worktree; --here uses the current checkout (init-work-unit.md).
+arc start [name] [--new] [--here] [--from <pointer-or-blurb>]
 
 # Promote a provisional stub to planned, requires a resolved Class (promote-work-unit.md)
 arc promote <slug>
@@ -235,11 +236,15 @@ arc archive [slug] [--pr-url <url>] [--completed <date>]
 # Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 13)
 arc teardown <name> [--force]
 
+# Safely fast-forward the configured local base from any worktree
+arc base sync [--json]
+
 # Classify the planning-entry route — committable, or redirect to start / stub / errand
 arc plan check
 
 # Errand lifecycle — chore/<slug> branch, no meta (run-errand.md)
-arc errand open <slug> [--type <fix|chore|refactor|hotfix>] [--intent <text>] [--from-inbox <entry>]
+arc errand open <slug> [--type <fix|chore|refactor|hotfix>] [--intent <text>] [--from-inbox <entry>] [--inbox-entry-file <path|->]
+arc errand link <slug> (--from-inbox <entry> | --inbox-entry-file <path|->)
 arc errand close <slug>
 arc errand promote <slug>
 arc errand retire <slug>

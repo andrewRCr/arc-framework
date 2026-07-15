@@ -9,7 +9,10 @@
 
 import { describe, it, expect } from "vitest";
 
-import { decideWorktreeCleanup } from "../../../src/lib/git/worktree-cleanup.js";
+import {
+  decideHuskCleanup,
+  decideWorktreeCleanup,
+} from "../../../src/lib/git/worktree-cleanup.js";
 import type { WorktreeMarker, WorktreeMarkerReadResult } from "../../../src/lib/git/index.js";
 
 const marker: WorktreeMarker = {
@@ -100,6 +103,56 @@ describe("decideWorktreeCleanup", () => {
           context: "abandonment",
         }),
       ).toEqual({ action: "external" });
+    });
+  });
+});
+
+describe("decideHuskCleanup", () => {
+  const stampedMarker: WorktreeMarkerReadResult = {
+    kind: "present",
+    marker: {
+      ...marker,
+      husk: {
+        sha: "0123456789abcdef0123456789abcdef01234567",
+        at: "2026-07-14T20:00:00.000Z",
+        subject: { kind: "work-unit", name: "worktree-foundation" },
+        branch: "feat/worktree-foundation",
+      },
+    },
+  };
+
+  it("is removable only when a clean husk remains at its stamped HEAD", () => {
+    expect(
+      decideHuskCleanup({
+        marker: stampedMarker,
+        clean: true,
+        head: "0123456789abcdef0123456789abcdef01234567",
+      }),
+    ).toEqual({ action: "removable" });
+  });
+
+  it("distinguishes dirty and moved-HEAD refusals", () => {
+    expect(
+      decideHuskCleanup({
+        marker: stampedMarker,
+        clean: false,
+        head: "0123456789abcdef0123456789abcdef01234567",
+      }),
+    ).toEqual({ action: "blocked", reason: "uncommitted" });
+    expect(decideHuskCleanup({ marker: stampedMarker, clean: true, head: "moved" })).toEqual({
+      action: "blocked",
+      reason: "head-moved",
+    });
+  });
+
+  it.each([
+    [absent, "untrusted-marker"],
+    [malformed, "untrusted-marker"],
+    [present, "missing-stamp"],
+  ] as const)("keeps untrusted and unstamped markers outside the husk path", (inputMarker, reason) => {
+    expect(decideHuskCleanup({ marker: inputMarker, clean: true, head: "abc" })).toEqual({
+      action: "outside",
+      reason,
     });
   });
 });

@@ -34,6 +34,7 @@ import {
   openErrand,
   closeErrand,
   readErrandRecord,
+  writeErrandRecord,
   errandsRef,
   type ErrandRecordIO,
 } from "../../src/lib/errand/index.js";
@@ -132,6 +133,25 @@ describe("closeErrand", () => {
     expect(await remoteSlugs(dir)).toEqual([]);
     expect(await currentBranch(dir)).toBe("main");
     expect(await branchExists(dir, "chore/done")).toBe(false);
+  });
+
+  it("detaches at base when a legacy record has no return branch", async () => {
+    await git(dir, ["branch", "chore/legacy"]);
+    await git(dir, ["switch", "chore/legacy"]);
+    await writeErrandRecord(io, {
+      version: 1,
+      slug: "legacy",
+      origin: "description",
+      intent: "legacy errand",
+      branch: "chore/legacy",
+      createdAt: CREATED_AT,
+    });
+
+    const result = await closeErrand(io, { slug: "legacy", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    expect(await currentBranch(dir)).toBe("HEAD");
+    expect(await branchExists(dir, "chore/legacy")).toBe(false);
   });
 
   it("reaps a pushed branch and prunes its remote-tracking ref", async () => {
