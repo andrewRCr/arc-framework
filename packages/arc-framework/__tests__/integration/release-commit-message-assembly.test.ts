@@ -170,6 +170,28 @@ describe("Git-managed controls", () => {
     expect(result.exitCode).not.toBe(0);
     expect(await exists(capturePath)).toBe(reachesHook);
   });
+
+  it.each([
+    { args: ["--dry-run"] },
+    { args: ["--short"] },
+    { args: ["--porcelain"] },
+    { args: ["--long"] },
+    { args: ["--null"] },
+    { args: ["-z"] },
+  ])("tracks Git's report-only boundary for $args", async ({ args }) => {
+    await writeFile(join(repository, "tracked.txt"), "updated\n");
+    await runGit(["add", "tracked.txt"]);
+
+    expect(classifyCommitMessageInput({ args, stdinIsTTY: false })).toEqual({
+      kind: "pass-through",
+      reason: "git-managed-message",
+    });
+
+    const result = await runGit(["commit", ...args]);
+
+    expect(result.exitCode).toBe(0);
+    expect(await exists(capturePath)).toBe(false);
+  });
 });
 
 describe("captured file snapshot", () => {

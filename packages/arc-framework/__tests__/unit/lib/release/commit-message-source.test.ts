@@ -189,6 +189,18 @@ describe("editor-bound and reuse forms", () => {
     expect(classify(args)).toMatchObject({ kind: "pass-through" });
   });
 
+  it.each([
+    { args: ["--dry-run"] },
+    { args: ["--short"] },
+    { args: ["--porcelain"] },
+    { args: ["--long"] },
+    { args: ["--null"] },
+    { args: ["-z"] },
+    { args: ["--dry-run", "-m", "subject"] },
+  ])("keeps report-only form $args as pass-through without a TTY", ({ args }) => {
+    expect(classify(args)).toEqual({ kind: "pass-through", reason: "git-managed-message" });
+  });
+
   it("does not refuse squash when an explicit message source is present", () => {
     expect(classify(["--squash=HEAD", "-m", "subject"])).toMatchObject({
       kind: "pass-through",

@@ -10,6 +10,7 @@
 /** The semantic role of a recognized short `git commit` option. */
 export type CommitShortOptionRole =
   | "ordinary"
+  | "no-commit"
   | "message"
   | "file"
   | "modifier"
@@ -55,7 +56,7 @@ const SHORT_OPTIONS: Readonly<Record<string, ShortOptionSpec>> = {
   n: { operand: "none", role: "ordinary" },
   o: { operand: "none", role: "ordinary" },
   i: { operand: "none", role: "ordinary" },
-  z: { operand: "none", role: "ordinary" },
+  z: { operand: "none", role: "no-commit" },
   s: { operand: "none", role: "modifier" },
   e: { operand: "none", role: "edit" },
   m: { operand: "required", role: "message" },
@@ -161,6 +162,7 @@ type ScanState = {
   sourceFreeEditor: boolean;
   editorFreeMessage: boolean;
   sourceExclusiveMessage: boolean;
+  noCommit: boolean;
 };
 
 const LONG_ORDINARY_OPTIONS: ReadonlySet<string> = new Set([
@@ -172,12 +174,7 @@ const LONG_ORDINARY_OPTIONS: ReadonlySet<string> = new Set([
   "--quiet",
   "--verbose",
   "--no-verify",
-  "--dry-run",
-  "--short",
   "--branch",
-  "--porcelain",
-  "--long",
-  "--null",
   "--status",
   "--no-status",
   "--allow-empty",
@@ -186,6 +183,14 @@ const LONG_ORDINARY_OPTIONS: ReadonlySet<string> = new Set([
   "--no-post-rewrite",
   "--pathspec-file-nul",
   "--no-gpg-sign",
+]);
+
+const LONG_NO_COMMIT_OPTIONS: ReadonlySet<string> = new Set([
+  "--dry-run",
+  "--short",
+  "--porcelain",
+  "--long",
+  "--null",
 ]);
 
 const LONG_ORDINARY_REQUIRED: ReadonlySet<string> = new Set([
@@ -211,6 +216,7 @@ function createScanState(commitCleanup: string | null | undefined): ScanState {
     sourceFreeEditor: false,
     editorFreeMessage: false,
     sourceExclusiveMessage: false,
+    noCommit: false,
   };
 }
 
@@ -256,6 +262,9 @@ function applyShortMember(state: ScanState, member: CommitShortOptionMember): vo
       state.sourceFreeEditor = true;
       break;
     case "ordinary":
+      break;
+    case "no-commit":
+      state.noCommit = true;
       break;
   }
 }
@@ -351,6 +360,12 @@ function applyLongOption(state: ScanState, arg: string, args: readonly string[],
     return operand.consumedNext;
   }
 
+  if (LONG_NO_COMMIT_OPTIONS.has(name)) {
+    if (attached !== undefined) state.unsupported = true;
+    state.noCommit = true;
+    return false;
+  }
+
   if (LONG_ORDINARY_OPTIONS.has(name)) {
     if (attached !== undefined) state.unsupported = true;
     return false;
@@ -420,6 +435,10 @@ export function classifyCommitMessageInput(
     (hasExplicitSource && state.sourceExclusiveMessage)
   ) {
     return { kind: "pass-through", reason: "unsupported-grammar" };
+  }
+
+  if (state.noCommit) {
+    return { kind: "pass-through", reason: "git-managed-message" };
   }
 
   if (
