@@ -11,7 +11,7 @@
 - **Design:** `draft-cli-test-hardening.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Stub created at the work-routing-discipline `BACKLOG-INBOX` retirement (2026-06-01) from a
   routed capture.
 - **Next Task:** [none]
