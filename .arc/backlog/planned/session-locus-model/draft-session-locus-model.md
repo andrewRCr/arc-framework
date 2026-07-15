@@ -56,6 +56,21 @@
   locus model does not subsume the raw materialize arm, provide an Errand-materialize verb or an explicit marker
   write at that boundary.
 
+### `[ ]` **Make stamped-husk cleanup occupancy-aware and automatic**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
+  `worktree-teardown-decoupling` review and integration.
+- _Concern:_ trusted ARC provenance, a clean tree, exact terminal `HEAD`, shipped-subject state, and successful ref
+  reaps can prove a stamped husk's contents disposable, but session-init cannot yet prove that no live agent
+  session occupies the directory. Prompting for every husk creates recurring noise; removing one without liveness
+  proof recreates the deleted-working-directory failure class.
+- _Approach:_ extend the machine-local locus record with a definitive live-locus lease. Suppress cleanup while a
+  lease is live; auto-remove only when the lease is conclusively released or dead and every existing cleanup
+  predicate passes; prompt when occupancy remains unknown or comes from a legacy client. Dirty, moved-`HEAD`,
+  retained-ref, untrusted-marker, and cross-identity cases stay manual. Age alone is never liveness proof.
+- _Concurrency boundary:_ keep classification and output deterministic, use bounded parallel reads only where
+  useful, and do not carry unbounded concurrency into physical removal.
+
 ## Boundaries carried from FP
 
 - The pre-wave-3 topology-aware close fix is an interim split-out Errand, not this WU's execution.
