@@ -322,6 +322,28 @@ describe("handleStart — dispatch orchestration", () => {
     expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Graduated");
   });
 
+  it("reports a behind-origin cut base for a graduated spawn", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockRunGraduate.mockResolvedValue({
+      status: "graduated",
+      branch: "plan/widget",
+      metaPath: ".arc/active/meta-widget.md",
+      worktreePath: "/repos/myrepo.plan-widget",
+      outcome: { status: "ok", advisories: [] },
+    });
+    mockExec.mockImplementation(async (_cmd, args) => {
+      if (args[0] === "rev-parse" && String(args[1]).endsWith("^{commit}")) {
+        return { stdout: "base123\n", stderr: "" };
+      }
+      if (args[0] === "rev-list") return { stdout: "0\t3", stderr: "" };
+      return { stdout: "", stderr: "" };
+    });
+
+    await handleStart("widget", {});
+
+    expect(mockLog.info).toHaveBeenCalledWith("Cut from: main @ base123 (3 behind origin)");
+  });
+
   it("refuses a --class that conflicts with the meta's resolved Class — no arm runs", async () => {
     mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
 
