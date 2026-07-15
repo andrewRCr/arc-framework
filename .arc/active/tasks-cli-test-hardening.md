@@ -19,21 +19,18 @@ inline-created bare origins — the proven drift that let the race recur post-`9
 the full suite green (Consequences: suite-wide blast radius accepted). See `notes-cli-test-hardening.md`
 § Teardown-sweep starting points and § Flake forensics.
 
-### `[ ]` **1.1 Retry-safe git-backed removal primitive**
+### `[x]` **1.1 Retry-safe git-backed removal primitive**
 
 - _Goal:_ A single hardened removal helper retries transient `ENOTEMPTY`/`EBUSY` (git background repack racing
   teardown) with bounded backoff, then fails with a clear diagnostic — replacing every bare `rm` teardown of a
   git-backed dir.
 
-    - Land the primitive in a shared helper module (proposed `__tests__/helpers/temp-repo.ts`) so both tiers and
-      the inline sweep import one implementation.
-
-    Build `test-first` (one behavior at a time):
-
-    - removes a populated directory tree in the common case
-    - retries and succeeds when the first removal attempt raises `ENOTEMPTY`, then the path clears
-    - gives up after the bounded attempt budget and throws an error naming the path and the last errno
-    - `force`-semantics: a missing path resolves cleanly (no throw)
+- _Outcome:_ `removeGitBackedDir` landed in `temp-repo.ts` — retries `ENOTEMPTY`/`EBUSY` with bounded backoff
+  (10-attempt budget, capped per-attempt delay), propagates a non-transient errno immediately, and throws a
+  path+errno diagnostic on budget exhaustion. Injectable `remove`/`sleep` seams keep the retry and
+  budget-exhaustion branches deterministic in unit tests; the common-case and missing-path (force-semantics)
+  behaviors exercise real filesystem teardown. Not yet adopted by callers — the factory/helper/inline sweep
+  in Tasks 1.2–1.4 routes existing teardowns onto it.
 
 ### `[ ]` **1.2 Shared `createTempRepo` core + thin e2e wrapper**
 
