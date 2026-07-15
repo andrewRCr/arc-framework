@@ -9,10 +9,13 @@ import { createSpawnGit } from "../../../../src/handlers/release/commit-cli.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("createSpawnGit", () => {
   it("terminates and rejects when captured output streams are unavailable", async () => {
+    vi.stubEnv("GIT_DIR", "/poisoned/repository");
+    vi.stubEnv("ARC_TEST_SENTINEL", "preserved");
     const events = new EventEmitter();
     const proc = Object.assign(events, {
       stdin: null,
@@ -24,13 +27,22 @@ describe("createSpawnGit", () => {
         return true;
       },
     });
-    const spawnProcess = vi.fn(() => proc) as unknown as typeof spawn;
+    const spawnMock = vi.fn(() => proc);
+    const spawnProcess = spawnMock as unknown as typeof spawn;
 
     await expect(createSpawnGit(spawnProcess)({
       args: ["-m", "message"],
       cwd: process.cwd(),
     })).rejects.toThrow("git commit did not expose captured output streams");
     expect(proc.killed).toBe(true);
+    const calls = spawnMock.mock.calls as unknown as Array<[
+      string,
+      string[],
+      { env?: NodeJS.ProcessEnv },
+    ]>;
+    const options = calls[0]?.[2];
+    expect(options?.env).toMatchObject({ ARC_TEST_SENTINEL: "preserved" });
+    expect(options?.env).not.toHaveProperty("GIT_DIR");
   });
 
   it("returns Git's exit status when Git closes before consuming piped stdin", async () => {

@@ -17,7 +17,7 @@ import { join, resolve } from "node:path";
 
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
-import { execFileAsync, gitExec } from "../../lib/io-context.js";
+import { environmentForGitCwd, execFileAsync, gitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
 import { readMarker } from "../../lib/release/setup-marker.js";
@@ -124,7 +124,7 @@ async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
   const { stdout } = await execFileAsync(
     "git",
     ["rev-parse", "--path-format=absolute", "--git-path", "hooks/prepare-commit-msg"],
-    { cwd },
+    { cwd, env: environmentForGitCwd(cwd) },
   );
   try {
     await access(stdout.trim(), constants.X_OK);
@@ -153,6 +153,7 @@ export function createSpawnGit(spawnProcess: typeof spawn): SpawnGit {
     const proc = spawnProcess("git", ["commit", ...args], {
       stdio: [stdin === undefined ? "inherit" : "pipe", "pipe", "pipe"],
       cwd,
+      env: environmentForGitCwd(cwd),
     });
     let stdout = "";
     let stderr = "";
@@ -211,7 +212,10 @@ export function createSpawnGit(spawnProcess: typeof spawn): SpawnGit {
 const realSpawnGit = createSpawnGit(spawn);
 
 export const createRealCommitMessageSnapshot: CreateCommitMessageSnapshot = async ({ cwd, bytes }) => {
-  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], { cwd });
+  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], {
+    cwd,
+    env: environmentForGitCwd(cwd),
+  });
   const path = join(stdout.trim(), `.arc-release-commit-message-${randomUUID()}`);
   const handle = await open(path, "wx", 0o600);
   try {
@@ -235,7 +239,10 @@ export async function persistRealCommitMessageRetry(opts: {
   cwd: string;
   bytes: Uint8Array;
 }): Promise<{ path: string }> {
-  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], { cwd: opts.cwd });
+  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], {
+    cwd: opts.cwd,
+    env: environmentForGitCwd(opts.cwd),
+  });
   const gitDir = stdout.trim();
   const path = join(gitDir, COMMIT_MESSAGE_RETRY_FILENAME);
   const temporaryPath = join(gitDir, `.arc-release-commit-message-retry-${randomUUID()}.tmp`);
@@ -263,7 +270,10 @@ export async function cleanupRealConsumedMessageRetry(opts: {
   sourcePath: string;
   bytes: Uint8Array;
 }): Promise<boolean> {
-  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], { cwd: opts.cwd });
+  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], {
+    cwd: opts.cwd,
+    env: environmentForGitCwd(opts.cwd),
+  });
   const path = join(stdout.trim(), COMMIT_MESSAGE_RETRY_FILENAME);
   if (resolve(opts.cwd, opts.sourcePath) !== path) return false;
 
@@ -287,6 +297,9 @@ export async function cleanupRealConsumedMessageRetry(opts: {
 
 /** Resolves `HEAD` post-success for the audit entry's `hash` field. */
 const realResolveHead: ResolveHead = async ({ cwd }) => {
-  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd });
+  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
+    cwd,
+    env: environmentForGitCwd(cwd),
+  });
   return stdout.trim();
 };

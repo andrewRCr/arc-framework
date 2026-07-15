@@ -40,7 +40,13 @@ const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
   "GIT_COMMON_DIR",
 ]);
 
-function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv | undefined {
+/**
+ * Build an environment where `cwd` selects the Git repository.
+ *
+ * @param cwd - Repository working directory, when the command is cwd-scoped.
+ * @returns The inherited environment without repository-local Git overrides.
+ */
+export function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv | undefined {
   if (cwd === undefined) return undefined;
 
   // Git exports repository-local variables to hooks. Once a caller supplies cwd,
