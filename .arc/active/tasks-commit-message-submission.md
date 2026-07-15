@@ -308,10 +308,10 @@ cross-surface first-release checks without leaking transport mechanics into work
           linked the transport authority, documented `arc check commit-msg <file | -> [--json]`, and corrected the
           refusal range to codes `10–16` with all seven implemented identifiers while preserving project-only content.
 
-    - `[ ]` **4.1.c Align footer guidance with trailer semantics**
-        - Verify `commit-footer` already describes a final `Context:` trailer; add only the minimal clarification needed
-          for final-block and last-occurrence behavior.
-        - Keep footer grammar guidance focused on author-visible policy rather than parser internals.
+    - `[x]` **4.1.c Align footer guidance with trailer semantics**
+        - Added one synchronized author-facing clarification to `commit-footer`: `Context:` belongs in the final Git
+          trailer block and the last occurrence governs when that block contains more than one, without exposing parser
+          mechanics or changing the existing grammar catalog.
 
     - `[ ]` **4.1.d Align hook operator guidance with the shim**
         - Update both Framework copies of `system/.internal/githooks/README.md` to describe local-first CLI resolution,
