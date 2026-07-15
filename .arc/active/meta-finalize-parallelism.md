@@ -12,16 +12,15 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.1 — wave-2 workload launched: both code WUs spawned into provisioned worktrees
-  (`commit-message-submission`, `worktree-teardown-decoupling`); `start-class-flag` split-out shipped (PR #236);
-  execution-locus finding recorded and `session-locus-model` stub pulled forward inside the GA gate (PR #238).
-- **Next Task:** Task 4.2 — verify off-primary node quality gates and dependency provisioning (line ~638)
+- **Last Completed:** Phase 4 closed (wave 2) — off-primary gates verified both legs (4.2); 4.3 `[~]` with
+  locus verified retrospectively and residuals re-anchored at 5.1.a; wave-2 evidence + GA Wave 2 item recorded
+  (4.4); synthetic notes state retired and published (4.5).
+- **Next Task:** Task 5.1 — Prepare and launch the wave-3 workload (line ~705)
 - **Blockers:** [none]
 
-- **Next Action:** FP-side work is now event-driven off the wave-2 sessions: collect 4.2 gate evidence at either
-  wave WU's first full gate run (or run the gate set directly in a wave worktree), then 4.3 re-graduation
-  (vehicle + `Depends On` question decided there). Wave WUs groom/execute in their own worktree sessions;
-  `session-locus-model` grooming (`--plan`) may run beside wave 2 but executes only after wave-3 evidence.
+- **Next Action:** Launch wave 3 when `commit-message-submission` merges — slate cut at 5.1 context
+  (`cli-test-hardening` + `husk-lifecycle-drivers` + live errand drain). In the hold window:
+  `session-locus-model` grooming (`--plan`) is sanctioned; it executes only after wave-3 evidence.
 
 - **PR URL:** [none]
 - **Completed:** [none]
