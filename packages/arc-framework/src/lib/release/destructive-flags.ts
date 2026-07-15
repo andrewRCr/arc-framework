@@ -10,19 +10,22 @@
  * @module
  */
 
+import { walkCommitShortOption } from "./commit-message-source.js";
+
 /**
  * Flags that `arc release commit` refuses unconditionally.
  *
  * - `--amend`: amends route through raw git; the wrapper is the
  *   single-decision point for new commits.
  * - `--allow-empty`: smell signal; raw git for empty-commit intent.
- * - `--no-verify`: bypasses pre-commit gates; refused here so the
+ * - `--no-verify` / `-n`: bypasses pre-commit gates; refused here so the
  *   wrapper never lets a commit slip past hook validation.
  */
 export const COMMIT_DESTRUCTIVE_FLAGS = [
   "--amend",
   "--allow-empty",
   "--no-verify",
+  "-n",
 ] as const;
 
 /**
@@ -72,8 +75,22 @@ export function detectCommitDestructive(argv: readonly string[]): string | null 
   for (const token of argv) {
     const match = matchDestructive(token, COMMIT_DESTRUCTIVE_FLAGS);
     if (match !== null) return match;
+    if (containsNoVerifyShortOption(token)) return "-n";
   }
   return null;
+}
+
+function containsNoVerifyShortOption(token: string): boolean {
+  if (!token.startsWith("-") || token.startsWith("--") || token === "-") return false;
+
+  const walk = walkCommitShortOption(token, undefined);
+  if (walk.kind === "recognized") {
+    return walk.members.some((member) => member.option === "n");
+  }
+
+  // Every member before an unsupported offset is a recognized no-operand
+  // option; required-operand members terminate the walk as recognized.
+  return token.slice(1, walk.offset).includes("n");
 }
 
 /**

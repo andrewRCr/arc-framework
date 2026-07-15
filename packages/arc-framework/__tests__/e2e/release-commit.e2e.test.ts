@@ -263,6 +263,28 @@ describe("release commit hook ordering", () => {
     expect(await gitOutput(["rev-parse", "HEAD"])).toBe(headBefore);
     expect(await gitOutput(["diff", "--cached", "--name-only"])).toContain("tracked.txt");
   });
+
+  it.each(["-n", "--no-verify"])(
+    "refuses %s before a prepare-commit-msg hook can bypass validation",
+    async (flag) => {
+      await installPrepareHook();
+
+      const result = await runCli([
+        "release",
+        "commit",
+        flag,
+        "-m",
+        "feat(release): refuse hook bypass aliases",
+      ], {
+        cwd: repository,
+        env: { ARC_HOOK_LOG: hookLog, ARC_PREPARE_MODE: "invalidate" },
+      });
+
+      expect(result.exitCode).toBe(12);
+      expect(`${result.stdout}\n${result.stderr}`).toContain("destructive-flag");
+      expect(await readHookLog()).toEqual([]);
+    },
+  );
 });
 
 it.runIf(process.platform !== "win32")("terminates a blocked shell helper", async () => {

@@ -191,6 +191,7 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
     ["--amend"],
     ["--allow-empty"],
     ["--no-verify"],
+    ["-n"],
   ])("refuses with code 12 and audit entry carrying flag detail (%s)", async (flag) => {
     await writeStatus(fixture.root, "sample");
     const { deps, spawnGit, preflightCommitMessage } = buildDeps(fixture.root, {
