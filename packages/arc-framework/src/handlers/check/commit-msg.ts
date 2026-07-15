@@ -16,6 +16,7 @@ export interface CheckCommitMessageDeps {
 /** Stable error identifiers for usage and infrastructure failures. */
 export type CommitMessageCheckErrorCode =
   | "input.required"
+  | "input.invalid"
   | "input.unreadable"
   | "repository.setup-failed"
   | "encoding.unsupported"

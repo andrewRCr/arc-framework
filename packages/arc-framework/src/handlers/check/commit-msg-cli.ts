@@ -8,10 +8,37 @@ import { resolveArcRoot } from "../../lib/paths.js";
 import { ARC_PROJECT_ROOT_ERROR } from "../shared.js";
 import { runCheckCommitMessage } from "./commit-msg.js";
 import { renderCheckCommitMessage } from "./commit-msg-output.js";
+import type { CommitMessageCheckFailure } from "./commit-msg.js";
 
 /** Options accepted by the public commit-message check command. */
 export interface HandleCheckCommitMessageOptions {
   json?: boolean;
+}
+
+function normalizeSourceInput(
+  source: string | string[] | undefined,
+): string | undefined | CommitMessageCheckFailure {
+  const operands = Array.isArray(source) ? source : source === undefined ? [] : [source];
+  if (operands.length > 1) {
+    return {
+      kind: "error",
+      exitCode: 2,
+      error: {
+        kind: "usage",
+        code: "input.invalid",
+        message: "Provide exactly one commit-message file path, or - for stdin.",
+      },
+    };
+  }
+  const candidate = operands[0];
+  if (candidate !== undefined && candidate !== "-" && candidate.startsWith("-")) {
+    return {
+      kind: "error",
+      exitCode: 2,
+      error: { kind: "usage", code: "input.invalid", message: `Unknown option: ${candidate}` },
+    };
+  }
+  return candidate;
 }
 
 function isMissingPath(cause: unknown): boolean {
@@ -40,27 +67,30 @@ async function readStdin(): Promise<Uint8Array> {
 /**
  * Run standalone commit-message validation through real process I/O.
  *
- * @param source - Message file path, or `-` for stdin
+ * @param source - Parsed message-file operands, a message path, or `-` for stdin
  * @param options - Output-mode options
  * @returns Resolves after output and process exit state are assigned
  */
 export async function handleCheckCommitMessage(
-  source: string | undefined,
+  source: string | string[] | undefined,
   options: HandleCheckCommitMessageOptions,
 ): Promise<void> {
   const root = resolveArcRoot(process.cwd());
-  const outcome = await runCheckCommitMessage(source, {
-    readFile: (path) => readFile(path),
-    readStdin,
-    setupRepository: async () => {
-      if (root === null) throw new Error(ARC_PROJECT_ROOT_ERROR);
-      return createDefaultCommitCheckRepository(root, {
-        exec: gitExec,
-        readFile: (path) => readFile(path, "utf8"),
-        pathExists,
+  const normalizedSource = normalizeSourceInput(source);
+  const outcome = typeof normalizedSource === "object"
+    ? normalizedSource
+    : await runCheckCommitMessage(normalizedSource, {
+        readFile: (path) => readFile(path),
+        readStdin,
+        setupRepository: async () => {
+          if (root === null) throw new Error(ARC_PROJECT_ROOT_ERROR);
+          return createDefaultCommitCheckRepository(root, {
+            exec: gitExec,
+            readFile: (path) => readFile(path, "utf8"),
+            pathExists,
+          });
+        },
       });
-    },
-  });
 
   const rendered = renderCheckCommitMessage(outcome, options.json === true);
   if (rendered.stdout !== undefined) process.stdout.write(rendered.stdout);

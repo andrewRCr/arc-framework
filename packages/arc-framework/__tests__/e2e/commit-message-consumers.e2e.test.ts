@@ -180,4 +180,26 @@ describe("commit-message consumer parity", () => {
 
     expect(await readFile(messagePath)).toEqual(Buffer.from(fixture.messageBytes));
   });
+
+  it.each([
+    { label: "unknown option", tail: ["--bogus"] },
+    { label: "excess positional input", tail: ["message.txt", "extra.txt"] },
+  ])("keeps JSON usage errors versioned for $label", async ({ tail }) => {
+    const fixture = matrixFixtures[0];
+    if (fixture === undefined) throw new Error("missing valid fixture");
+    await setupFixture(fixture.config, fixture.messageBytes);
+
+    const result = await runCli(["check", "commit-msg", ...tail, "--json"], {
+      cwd: repository,
+      env: { NO_COLOR: "1" },
+    });
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stderr).toBe("");
+    expect(result.stdout.trim().split("\n")).toHaveLength(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      schemaVersion: 1,
+      error: { kind: "usage" },
+    });
+  });
 });

@@ -108,10 +108,11 @@ checkCmd
   .command("commit-msg")
   .description("Validate a commit message without committing")
   .usage("<file | -> [--json]")
-  .argument("[file]", "Commit-message file path, or - for stdin")
+  .argument("[input...]", "Commit-message file path, or - for stdin")
+  .allowUnknownOption(true)
   .option("--json", "Emit a versioned JSON envelope")
-  .action((file: string | undefined, opts: HandleCheckCommitMessageOptions) =>
-    handleCheckCommitMessage(file, opts));
+  .action((input: string[], opts: HandleCheckCommitMessageOptions) =>
+    handleCheckCommitMessage(input, opts));
 
 // --- Init & Join ---
 
