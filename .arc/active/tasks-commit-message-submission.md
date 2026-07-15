@@ -291,7 +291,7 @@ message bytes when the subsequent Git invocation fails.
 _Purpose:_ Make the shell-safe transport discoverable at every authoring surface and close the package/project and
 cross-surface first-release checks without leaking transport mechanics into workflow fire-points.
 
-### `[ ]` **4.1 Publish the canonical transport and retry guidance**
+### `[x]` **4.1 Publish the canonical transport and retry guidance**
 
 - _Goal:_ Commit authors encounter one shell-safe multiline submission contract, its matcher-compatible alternative, and
   the exact post-failure reuse path wherever durable commit guidance is loaded.
@@ -318,10 +318,10 @@ cross-surface first-release checks without leaking transport mechanics into work
           enabled-validation fail-closed behavior, and ECMAScript configuration contract. Commit-message grammar now
           routes through `arc-config.yml`; direct script customization is limited to shell-owned checks.
 
-    - `[ ]` **4.1.e Verify the documentation copies and audience boundary**
-        - Compare package and self-hosted framework sections, confirm only intended configurable differences remain, and
-          run Markdown lint over every changed documentation file.
-        - Ensure shipped guidance contains no internal work-unit references or implementation-only migration framing.
+    - `[x]` **4.1.e Verify the documentation copies and audience boundary**
+        - Confirmed byte-identical package/self-hosted Framework methods and hook guidance; the configurable quick-reference
+          release sections differ only in their established project link style. All changed documentation passes Markdown
+          lint, and shipped additions contain no internal work-unit references or implementation-only migration framing.
 
 ### `[ ]` **4.2 Reconcile setup guidance and inherited commit flows**
 
