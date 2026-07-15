@@ -269,12 +269,11 @@ message bytes when the subsequent Git invocation fails.
           cascade tests now pin combined short-option redaction for ordinary refusals, preflight failures, successful
           commits, and non-zero Git audit outcomes without changing refusal precedence.
 
-    - `[ ]` **3.4.b Prove preflight precedes staged-content hooks**
-        - In a temporary repository, install sentinel `pre-commit`, `prepare-commit-msg`, and `commit-msg` hooks and
-          show an invalid assembled message emits no `pre-commit` evidence while a valid one retains Git's normal hook
-          order.
-        - Prove an active `prepare-commit-msg` hook demotes to pass-through: an invalid message repaired by the hook can
-          commit, while a passing message invalidated by the hook is rejected by the installed `commit-msg` backstop.
+    - `[x]` **3.4.b Prove preflight precedes staged-content hooks**
+        - Added built-CLI temporary-repository coverage with sentinel hooks: invalid deterministic input exits `16`
+          without `pre-commit`, valid input records Git's `pre-commit` → `commit-msg` order, and executable
+          `prepare-commit-msg` demotes preflight so its repairs can commit while its invalidations are rejected by the
+          installed canonical `commit-msg` backstop.
 
     - `[ ]` **3.4.c Prove byte preservation and retry**
         - Exercise quoted-heredoc stdin and file transport with interpolation-sensitive content, force a post-preflight
