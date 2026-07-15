@@ -12,8 +12,8 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Draft captured formalization-ready — buffer integrated, adversarial pass converged, stage
-  advanced to create-spec (2026-07-15).
+- **Last Completed:** Spec finalized at `outline` form — inbox capture absorbed, adversarial pass converged and
+  folded, draft retired to `notes-cli-test-hardening.md`, stage advanced to generate-tasks (2026-07-15).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
