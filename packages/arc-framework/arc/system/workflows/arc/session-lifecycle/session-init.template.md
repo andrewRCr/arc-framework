@@ -850,9 +850,11 @@ tracked source documents the work.
     - `branched`: label with `branch`. `removable` offers an interlock-gated
       `git worktree remove {worktreePath}`; map `blocked.reason` as `uncommitted`, `user-surfaces`, or `unmerged`;
       `external` is externally managed. Keep every action offer-only and never use `--force`.
-    - `husk`: label a non-null `completedWorkUnit` as work unit `{name}`; otherwise label `subject.kind == "branch"`
-      as branch husk `{subject.ref}` and `subject.kind == "errand"` as errand husk `{subject.slug}`. `removable`
-      means clean at the exact stamped `HEAD` and offers the same removal command. Map `blocked.reason` as dirty
+    - `husk`: label a non-null `completedWorkUnit` as work unit `{name}`; otherwise label a `work-unit` subject as
+      work unit `{subject.name}`, a `branch` subject as branch husk `{subject.ref}`, and an `errand` subject as errand
+      husk `{subject.slug}`. `removable` means clean at the exact stamped `HEAD`; offer `arc teardown {subject.name}`
+      for work units or `arc teardown --branch {subject.ref}` for branches so final user-surface reconciliation runs.
+      The reserved errand subject has no shipped cleanup driver and stays manual. Map `blocked.reason` as dirty
       (`uncommitted`) or moved `HEAD` (`head-moved`); `outside` has untrusted terminal evidence and stays manual.
   Removal runs from the current primary worktree.
 
@@ -862,9 +864,13 @@ tracked source documents the work.
   - `{branch}` — {uncommitted | user surfaces not reconciled | unmerged}; surfaced, not removed
   - `{branch}` — externally-managed (no ARC marker); remove manually if desired
   - `work unit {completedWorkUnit}` — stamped husk, clean & exact HEAD → remove?
-    `git worktree remove {worktreePath}`
-  - `branch husk {subject.ref}` — {dirty | HEAD moved}; surfaced, not removed
-  - `errand husk {subject.slug}` — {dirty | HEAD moved}; surfaced, not removed
+    `arc teardown {subject.name}`
+  - `work unit {subject.name}` — no local completion match; clean & exact HEAD → clean up?
+    `arc teardown {subject.name}`
+  - `branch husk {subject.ref}` — stamped husk, clean & exact HEAD → clean up?
+    `arc teardown --branch {subject.ref}`
+  - `{husk label}` — {dirty | HEAD moved}; surfaced, not removed
+  - `errand husk {subject.slug}` — no shipped cleanup driver; surfaced for manual-only cleanup
   - `{husk label}` — untrusted terminal evidence; surfaced for manual-only cleanup
   ```
 

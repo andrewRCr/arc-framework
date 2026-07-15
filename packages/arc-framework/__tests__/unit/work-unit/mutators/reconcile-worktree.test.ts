@@ -413,9 +413,12 @@ describe("reconcileWorktree — spawn in place (--here)", () => {
 });
 
 describe("reconcileWorktree — teardown", () => {
-  it("removes an oracle-approved husk from outside without replaying standard preflight", async () => {
+  it("removes an oracle-approved husk from outside after reconciling final user surfaces", async () => {
     const worktreePath = "/work/wt/demo";
-    const { ctx, events } = buildCtx({ status: " M ignored-by-approved-mode" });
+    const { ctx, events } = buildCtx({
+      status: " M ignored-by-approved-mode",
+      worktreeList: porcelain("/work/primary", worktreePath),
+    });
 
     const result = await reconcileWorktree(ctx, {
       mutation: "teardown",
@@ -425,7 +428,33 @@ describe("reconcileWorktree — teardown", () => {
     });
 
     expect(result).toEqual({ mutation: "teardown", worktreePath, locusHopped: false });
-    expect(events).toEqual([["git", "worktree", "remove", worktreePath]]);
+    expect(events).toEqual([
+      ["git", "worktree", "list", "--porcelain"],
+      ["git", "worktree", "remove", worktreePath],
+    ]);
+  });
+
+  it("refuses an approved husk whose identity-global user surface cannot be reconciled", async () => {
+    const worktreePath = "/work/wt/demo";
+    const primary = "/work/primary";
+    const { ctx, events } = buildCtx({ worktreeList: porcelain(primary, worktreePath) });
+    const directory = (name: string) => ({ name, isDirectory: () => true, isFile: () => false });
+    const file = (name: string) => ({ name, isDirectory: () => false, isFile: () => true });
+    ctx.fs.readDir = async (path) => path.endsWith("/.arc/user")
+      ? [directory("andrew")]
+      : [file("FUTURE.md")];
+    ctx.fs.readFile = async (path) => path.startsWith(worktreePath) ? "linked\n" : "primary\n";
+
+    await expect(
+      reconcileWorktree(ctx, {
+        mutation: "teardown",
+        worktreePath,
+        currentLocus: primary,
+        huskApproved: true,
+      }),
+    ).rejects.toThrow(/identity-global user surface/iu);
+
+    expect(events).toEqual([["git", "worktree", "list", "--porcelain"]]);
   });
 
   it("refuses oracle-approved husk removal from inside the target", async () => {

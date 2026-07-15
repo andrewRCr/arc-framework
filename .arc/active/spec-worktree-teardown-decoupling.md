@@ -136,6 +136,10 @@ of where WU state lives. This gates the GA `--here` → spawn default flip, so i
    The fallback removal keys on the same removability oracle as the sweep (Decision 5): it removes only a stamped husk
    that is clean **and** whose HEAD still equals the stamped sha; anything else — HEAD moved past the stamp, dirty tree,
    or no husk stamp — is refused and surfaced, mirroring the sweep's `blocked` disposition, never silently deleted.
+   Before an outside ARC replay physically removes the approved husk, the shared worktree mutator reconciles
+   identity-global user surfaces into the primary and refuses removal on a block. This catches ignored user content
+   written by the still-live session after husk creation; direct manual removal remains the explicit operator-managed
+   bypass.
    Run from *inside* the husk itself, the re-run performs no physical removal (the cwd-deletion class this WU exists to
    eliminate must not re-enter through the new path), retries presence-guarded ref cleanup when a local branch survived,
    and reports the already-husked state with truthful branch accounting. Husk-mode run, then a later primary-side
@@ -154,6 +158,8 @@ of where WU state lives. This gates the GA `--here` → spawn default flip, so i
    `branch` subjects use generic shipped-husk wording; the reserved `errand` subject remains distinct without claiming
    WU completion. The arm preserves the roster sweep's existing ownership boundary: when team mode and an identity are
    active, marker `spawningIdentity` filters out another identity's husks; solo mode remains a pass-through.
+   A removable work-unit or branch husk is offered through its typed `arc teardown` replay rather than raw
+   `git worktree remove`, preserving the outside replay's final user-surface reconciliation.
 
 6. **Session-init husk advisory — derived, explicitly interim.** A session initing inside a husk derives a
    *"shipped — pending teardown; reap me or just delete me"* orientation line from existing signals (the
@@ -240,8 +246,10 @@ of where WU state lives. This gates the GA `--here` → spawn default flip, so i
 4. Re-running `arc teardown <wu>` against a husk resolves the worktree via the marker fallback whenever no
    branched worktree maps, including when a local ref survived. From the primary it removes the husk physically
    **only** when the removability oracle clears (stamped, clean, HEAD equals the stamped sha), refusing and surfacing
-   it otherwise. From inside the husk it removes no worktree, retries presence-guarded cleanup of any surviving ref,
-   and reports the already-husked state with truthful branch accounting. Teardown is idempotent across the husk state.
+   it otherwise, and reconciles identity-global user surfaces before removal so post-husk ignored writes are
+   preserved or block the reap. From inside the husk it removes no worktree, retries presence-guarded cleanup of any
+   surviving ref, and reports the already-husked state with truthful branch accounting. Teardown is idempotent across
+   the husk state.
    Resolution matches the exact stamped `work-unit` subject; recordless branch teardown matches the exact stamped
    `branch` subject, so equal slugs across target kinds or branch prefixes never alias.
 5. The stale-worktree sweep surfaces a husk: `removable` when clean and HEAD equals the stamped sha;

@@ -460,6 +460,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
     const h = await setupMultiClone();
     const wtParent = await mkdtemp(join(tmpdir(), "arc-teardown-husk-"));
     try {
+      await ignoreArcUserDir(h.cloneA);
       const wtPath = await prepareSelfTeardownWorktree(h, wtParent, { marked: true });
       const stampedHead = await git(wtPath, ["rev-parse", "HEAD"]);
 
@@ -493,10 +494,16 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(replay.husk?.outcome).toBe("already-husked");
       expect(replay.worktreeRemoved).toBeNull();
 
+      const linkedUserDir = join(wtPath, ".arc", "user", "andrew");
+      const primaryUserDir = join(h.cloneA, ".arc", "user", "andrew");
+      await mkdir(linkedUserDir, { recursive: true });
+      await writeFile(join(linkedUserDir, "FUTURE.md"), "written after husking\n");
+
       const removed = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
       expect(removed.status).toBe("torn-down");
       if (removed.status !== "torn-down") return;
       expect(removed.worktreeRemoved?.endsWith("/wt")).toBe(true);
+      expect(await readFile(join(primaryUserDir, "FUTURE.md"), "utf8")).toBe("written after husking\n");
       expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(wtPath);
     } finally {
       await rm(wtParent, { recursive: true, force: true });

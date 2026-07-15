@@ -164,7 +164,7 @@ export type ReconcileWorktreeOp =
       worktreePath: string;
       /** The directory the transition runs from — a self-teardown when inside `worktreePath`. */
       currentLocus: string;
-      /** Caller has approved a detached husk; skip standard teardown preflight. */
+      /** Caller has approved a detached husk; skip the redundant cleanliness probe, but reconcile user surfaces. */
       huskApproved?: boolean;
     };
 
@@ -241,6 +241,7 @@ export async function reconcileWorktree(
     if (isSelfTeardown(op.worktreePath, op.currentLocus)) {
       throw new Error(`refusing to remove the current detached worktree: ${op.worktreePath}`);
     }
+    await reconcileUserSurfacesForRemoval(ctx, op.worktreePath);
     await ctx.exec("git", ["worktree", "remove", op.worktreePath]);
     return { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: false };
   }
@@ -323,18 +324,7 @@ export async function reconcileWorktree(
     throw new Error(`refusing to tear down a dirty worktree: ${worktreePath}`);
   }
 
-  const primary = await resolvePrimaryWorktreePath(ctx.exec);
-  if (primary === null) {
-    throw new Error(`cannot resolve the primary worktree before teardown of ${worktreePath}`);
-  }
-  const userSurfaceReconcile = await reconcileLinkedIdentityGlobalUserSurfaces({
-    worktreePath,
-    primaryWorktreePath: primary,
-    fs: ctx.fs,
-  });
-  if (userSurfaceReconcile.status === "blocked") {
-    throw new Error(userSurfaceReconcile.reason);
-  }
+  const primary = await reconcileUserSurfacesForRemoval(ctx, worktreePath);
 
   let locusHopped = false;
   if (isSelfTeardown(worktreePath, currentLocus)) {
@@ -344,4 +334,21 @@ export async function reconcileWorktree(
 
   await ctx.exec("git", ["worktree", "remove", worktreePath]);
   return { mutation: "teardown", worktreePath, locusHopped };
+}
+
+async function reconcileUserSurfacesForRemoval(
+  ctx: ReconcileWorktreeContext,
+  worktreePath: string,
+): Promise<string> {
+  const primary = await resolvePrimaryWorktreePath(ctx.exec);
+  if (primary === null) {
+    throw new Error(`cannot resolve the primary worktree before teardown of ${worktreePath}`);
+  }
+  const result = await reconcileLinkedIdentityGlobalUserSurfaces({
+    worktreePath,
+    primaryWorktreePath: primary,
+    fs: ctx.fs,
+  });
+  if (result.status === "blocked") throw new Error(result.reason);
+  return primary;
 }
