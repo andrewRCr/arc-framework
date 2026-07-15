@@ -33,7 +33,8 @@ for the unit tier), and the flake and cost hot spots overlap — acting on them 
    are designed as one intervention at each shared fixture (cheaper synthetic fixtures, isolation-by-construction),
    not as separate reliability and performance passes.
 2. **Flake (a) — notes-compaction fixture pressure** (`user-notes-compaction.test.ts`, PR #234): reduce fixture
-   filesystem/process pressure using the existing synthetic notes-tree helpers where that preserves the retention
+   filesystem/process pressure by adopting synthetic notes-tree construction (`makeNotesTreeCommit`) in place of the
+   file's current real `git notes add`/commit round-trips, where that preserves the retention
    assertion; otherwise isolate or serialize this resource-heavy case and improve its diagnostics. Subject to the
    notes stop-loss boundary (Decision 10).
 3. **Flake (b) — temp-repo teardown `ENOTEMPTY` race** (PRs #202, #206; integration recurrence 2026-07-13):
@@ -75,15 +76,19 @@ for the unit tier), and the flake and cost hot spots overlap — acting on them 
    job names, and matrix legs rename check runs, so the classifier updates in the same change. Stop-loss:
    structural rework of the workflow legs, or more than a bounded couple of in-CI tuning iterations, stops and
    captures the remainder.
-9. **Coverage — land the confirmed gaps; two in-scope product edges ride along.** Confirmed gaps by source locus:
-   template rendering (`src/lib/template/render.ts` — unbalanced `arc:if`/`arc:endif` recovery, regex
-   metacharacters in tokens); filesystem edges (`src/lib/io-context.ts` `readUserDir`, `src/commands/diff.ts`,
-   `src/commands/status/run.ts` — symlinks inside `.arc/`, `readdir()`/`readFile()` TOCTOU vanish-between-calls);
-   network errors (`src/lib/version.ts` `checkLatestVersion` — invalid JSON, malformed body, timeout); command-level
+9. **Coverage — land the confirmed gaps; three in-scope product edges ride along.** Confirmed gaps by source locus:
+   template rendering (`src/lib/template/render.ts` — no balance guard for unbalanced `arc:if`/`arc:endif` today
+   (silent mis-scoping of installed content), regex metacharacters in token values); filesystem edges
+   (`src/lib/io-context.ts` `readUserDir`, `src/commands/diff.ts`, and the status probes under `src/lib/status/*`
+   and `src/handlers/status.ts` — symlinks inside `.arc/`, `readdir()`/`readFile()` TOCTOU vanish-between-calls;
+   `src/commands/status/run.ts` itself is a pure orchestrator with no fs calls); network errors
+   (`src/lib/version.ts` `checkLatestVersion` — no timeout/abort mechanism, wrong-shape body; invalid JSON already
+   resolves null via `response.json()`); command-level
    `init` + `update` concurrency (the existing race harness targets git-ref writes only); entry-point wiring
    (`writeGitNote` stdin/EPIPE, `readGitNote` against corrupt refs, the real `runWithSpinner` error path). The
-   `readUserDir` symlink cycle/realpath guard and a timeout/abort mechanism for `checkLatestVersion` are small
-   product hardening deliverables paired with their tests — the timeout case is untestable without the mechanism.
+   `readUserDir` symlink cycle/realpath guard, a timeout/abort mechanism for `checkLatestVersion`, and a render-time
+   unbalanced-conditional guard are small product hardening deliverables paired with their tests — the timeout case
+   is untestable without the mechanism, and the balance guard converts silent mis-scoping into a testable contract.
 10. **Notes stop-loss boundary.** Git notes are an interim bridge (retirement belongs to `local-mode` /
     `arc-backend`). Default posture: keep-the-lights-on — no new marker type, reconciliation arm, or deeper
     notes-specific machinery. Light interim investment is considerable only where it clearly earns its keep over
@@ -124,8 +129,9 @@ for the unit tier), and the flake and cost hot spots overlap — acting on them 
   failure mode; the consolidation lands with the full suite green.
 - **Timing-evidence staleness (cheap re-check):** the 2026-07-15 measurements are assumed representative;
   re-measure via `vitest run --reporter=json` before tuning if the suite has shifted.
-- **Product edges ride a test WU (bounded):** the symlink guard and version-check timeout are small behavior
-  changes paired with their tests, sharing the hardening intent — not scope creep into feature work.
+- **Product edges ride a test WU (bounded):** the symlink guard, version-check timeout, and unbalanced-conditional
+  guard are small behavior changes paired with their tests, sharing the hardening intent — not scope creep into
+  feature work.
 - **E2E stays spawn-bound per-test (accepted):** the lever is CI parallelism, not per-test optimization; runner
   minutes are spent instead, bounded by the sharding stop-loss.
 
@@ -142,8 +148,9 @@ for the unit tier), and the flake and cost hot spots overlap — acting on them 
 4. Teardown of git-backed temp directories routes through the shared retry-safe removal primitive — the two
    factories, the three named helpers, and the per-test-file inline sites enumerated by the implementation-time
    sweep (any exclusion recorded); gc/user config and hardened removal live in one core.
-5. Every confirmed coverage gap has a landed test or a recorded rejection, with the full suite green; the two
-   product edges (symlink guard, version-check timeout/abort) land paired with their tests.
+5. Every confirmed coverage gap has a landed test or a recorded rejection, with the full suite green; the three
+   product edges (symlink guard, version-check timeout/abort, unbalanced-conditional guard) land paired with their
+   tests.
 6. `scripts/classify-change.sh` `HEAVY_CHECK_NAMES` matches the post-matrix CI job names byte-identically in the
    same change that introduces sharding.
 

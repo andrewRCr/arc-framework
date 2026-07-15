@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-cli-test-hardening.md`
-- **Task List:** [none]
+- **Task List:** `tasks-cli-test-hardening.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** Spec finalized at `outline` form — inbox capture absorbed, adversarial pass converged and
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
