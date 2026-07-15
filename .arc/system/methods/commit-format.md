@@ -31,6 +31,41 @@ Conventional commit format.
 - Impact if significant
 ```
 
+### Message submission
+
+Submit multiline messages as file-backed input so the shell cannot interpolate or reshape the content. Use a quoted
+heredoc with `-F -` for either routed command:
+
+```sh
+arc release commit -F - <<'ARC_COMMIT_MESSAGE'
+<type>(scope): Brief description
+
+- Key change or rationale
+
+Context: tasks-example.md (Task 1.2)
+ARC_COMMIT_MESSAGE
+```
+
+```sh
+git commit -F - <<'ARC_COMMIT_MESSAGE'
+<type>(scope): Brief description
+
+- Key change or rationale
+
+Context: tasks-example.md (Task 1.2)
+ARC_COMMIT_MESSAGE
+```
+
+When the resident harness matcher cannot verify shell redirection, write the complete message to a prepared file and
+pass it as direct argv: `arc release commit -F <message-file>` for wrapper routes or
+`git commit -F <message-file>` for raw routes. Repeated `-m` options remain valid for intentionally separate
+paragraphs: Git inserts one blank line between each option's value; they are not line-fragment continuations.
+
+The release wrapper preflights deterministic message input before Git. If Git later returns non-zero, the wrapper
+atomically replaces its worktree-local latest-retry file and prints a shell-quoted `arc release commit -F <path>`
+command. A successful wrapper invocation consuming that exact file removes it. Preflight, latest-retry replacement,
+and successful-consumption cleanup are wrapper-only behavior; raw `git commit` does not provide them.
+
 **Types:** `feat` `fix` `chore` `docs` `refactor` `test` `perf` `revert`
 
 **Type selection:** Type is chosen by intent, not file extension.

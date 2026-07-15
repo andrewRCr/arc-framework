@@ -297,14 +297,11 @@ cross-surface first-release checks without leaking transport mechanics into work
   the exact post-failure reuse path wherever durable commit guidance is loaded.
 - **Additional Context:** `strategy-package-project-sync.md` § Configurable file sync — never `cp`.
 
-    - `[ ]` **4.1.a Make `commit-format` the transport authority**
-        - Document quoted-heredoc `-F -` as the primary multiline transport and plain `-F <file>` for harness matchers
-          that cannot verify redirection under both routed prefixes: `arc release commit` for wrapper routes and
-          `git commit` for raw routes.
-        - Explain repeated `-m` paragraph semantics; label preflight, latest-retry reuse, replacement, and successful
-          cleanup as wrapper-only behavior.
-        - Apply targeted edits to the package source and self-hosted configurable copies without overwriting project
-          overrides.
+    - `[x]` **4.1.a Make `commit-format` the transport authority**
+        - Added synchronized package/self-hosted guidance making quoted-heredoc `-F -` authoritative for multiline
+          wrapper and raw routes, with direct prepared-file argv for matchers that cannot verify redirection. The method
+          now defines repeated `-m` as separate paragraphs and scopes deterministic preflight, atomic latest-retry
+          replacement/command rendering, and successful exact-consumption cleanup to the release wrapper.
 
     - `[ ]` **4.1.b Correct the quick-reference invocation**
         - Replace the single-line-biased release-commit example in `QUICK-REFERENCE` with the safe shape and point to
