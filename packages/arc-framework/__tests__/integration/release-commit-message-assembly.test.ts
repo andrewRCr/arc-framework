@@ -1,8 +1,9 @@
 /** Real-Git parity coverage for deterministic commit-message assembly. */
 
 import { spawn } from "node:child_process";
-import { access, chmod, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -12,7 +13,10 @@ import {
   cleanupCommitMessageBytes,
 } from "../../src/lib/release/commit-message-assembly.js";
 import { classifyCommitMessageInput } from "../../src/lib/release/commit-message-source.js";
-import { createRealCommitMessageSnapshot } from "../../src/handlers/release/commit-cli.js";
+import {
+  createRealCommitMessageSnapshot,
+  persistRealCommitMessageRetry,
+} from "../../src/handlers/release/commit-cli.js";
 
 interface GitResult {
   exitCode: number;
@@ -157,5 +161,47 @@ describe("captured file snapshot", () => {
     expect((await stat(snapshot.path)).mode & 0o777).toBe(0o600);
     await snapshot.cleanup();
     expect(await exists(snapshot.path)).toBe(false);
+  });
+});
+
+describe("latest retry message", () => {
+  it("resolves primary and linked worktree destinations beneath their absolute Git directories", async () => {
+    const linkedParent = await mkdtemp(join(tmpdir(), "arc-release-message-linked-"));
+    const linked = join(linkedParent, "linked repo");
+    try {
+      expect((await runGit(["worktree", "add", "--detach", linked])).exitCode).toBe(0);
+
+      const primaryRetry = await persistRealCommitMessageRetry({
+        cwd: repository,
+        bytes: Buffer.from("primary"),
+      });
+      const linkedRetry = await persistRealCommitMessageRetry({
+        cwd: linked,
+        bytes: Buffer.from("linked"),
+      });
+
+      expect(primaryRetry.path.startsWith(`${join(repository, ".git")}/`)).toBe(true);
+      expect(linkedRetry.path.startsWith(`${join(repository, ".git", "worktrees")}/`)).toBe(true);
+      expect(linkedRetry.path).not.toBe(primaryRetry.path);
+    } finally {
+      await cleanupTempDir(linkedParent);
+    }
+  });
+
+  it("uses private permissions and atomically replaces the latest bytes", async () => {
+    const first = await persistRealCommitMessageRetry({
+      cwd: repository,
+      bytes: Buffer.from("first message"),
+    });
+    const second = await persistRealCommitMessageRetry({
+      cwd: repository,
+      bytes: Buffer.from("replacement message"),
+    });
+
+    expect(second.path).toBe(first.path);
+    expect(Uint8Array.from(await readFile(second.path))).toEqual(
+      Uint8Array.from(Buffer.from("replacement message")),
+    );
+    expect((await stat(second.path)).mode & 0o777).toBe(0o600);
   });
 });

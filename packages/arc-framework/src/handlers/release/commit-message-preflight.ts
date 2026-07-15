@@ -78,6 +78,11 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
       };
     }
     const verdict = checked.result.verdict;
-    return { kind: "passed", verdict: verdict === "pass-with-warnings" ? verdict : "pass", transport };
+    return {
+      kind: "passed",
+      verdict: verdict === "pass-with-warnings" ? verdict : "pass",
+      messageBytes,
+      transport,
+    };
   };
 }

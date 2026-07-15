@@ -78,6 +78,8 @@ export type CommitMessagePreflightResult =
   | {
       kind: "passed";
       verdict: "pass" | "pass-with-warnings";
+      /** Canonical assembled bytes approved by the validator. */
+      messageBytes: Uint8Array;
       transport?:
         | { kind: "messages" }
         | { kind: "file"; rawBytes: Uint8Array }
@@ -101,6 +103,12 @@ export type CreateCommitMessageSnapshot = (opts: {
   cwd: string;
   bytes: Uint8Array;
 }) => Promise<CommitMessageSnapshot>;
+
+/** Persist the latest approved retry message beneath the active worktree Git dir. */
+export type PersistCommitMessageRetry = (opts: {
+  cwd: string;
+  bytes: Uint8Array;
+}) => Promise<{ path: string }>;
 
 /**
  * Audit-entry writer signature. Defaulted to {@link appendAuditEntry}; tests
@@ -133,6 +141,8 @@ export interface ReleaseCommitDeps {
   preflightCommitMessage: PreflightCommitMessage;
   /** Creates a private worktree-Git-dir snapshot for captured file sources. */
   createMessageSnapshot: CreateCommitMessageSnapshot;
+  /** Atomically replaces the worktree-local latest approved retry message. */
+  persistMessageRetry: PersistCommitMessageRetry;
   /** Wrapper-only safe resubmission guidance selected for the resident harness. */
   preflightRemedy: string;
   /** Sink for refusal messages. Defaults to `process.stderr.write`. */
@@ -234,6 +244,14 @@ export async function runReleaseCommit(
         const detail = cause instanceof Error ? cause.message : String(cause);
         writeStderr(`warn: commit-message snapshot cleanup failed: ${detail}\n`);
       }
+    }
+  }
+  if (spawned.exitCode !== 0 && preflight.kind === "passed") {
+    try {
+      await deps.persistMessageRetry({ cwd: deps.cwd, bytes: preflight.messageBytes });
+    } catch (cause: unknown) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      writeStderr(`warn: latest commit-message retry could not be persisted: ${detail}\n`);
     }
   }
   const outcome: AuditOutcome = spawned.exitCode === 0

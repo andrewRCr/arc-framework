@@ -68,7 +68,12 @@ describe("createCommitMessagePreflight", () => {
       cwd: "/repo",
     });
 
-    expect(result).toEqual({ kind: "passed", verdict: expected, transport: { kind: "messages" } });
+    expect(result).toEqual({
+      kind: "passed",
+      verdict: expected,
+      messageBytes: Uint8Array.from(Buffer.from("feat(release): a sufficiently long valid subject\n")),
+      transport: { kind: "messages" },
+    });
   });
 
   it.each([
@@ -110,6 +115,7 @@ describe("createCommitMessagePreflight", () => {
     expect(await preflight({ args: ["-F", path], cwd: "/repo" })).toEqual({
       kind: "passed",
       verdict: "pass",
+      messageBytes: Uint8Array.from(bytes),
       transport: { kind, rawBytes: Uint8Array.from(bytes) },
     });
   });

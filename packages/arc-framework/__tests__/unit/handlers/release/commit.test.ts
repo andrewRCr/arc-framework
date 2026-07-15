@@ -123,6 +123,7 @@ interface BuildDepsOptions {
   resolveHead?: ReleaseCommitDeps["resolveHead"];
   preflightCommitMessage?: ReleaseCommitDeps["preflightCommitMessage"];
   createMessageSnapshot?: ReleaseCommitDeps["createMessageSnapshot"];
+  persistMessageRetry?: ReleaseCommitDeps["persistMessageRetry"];
 }
 
 function buildDeps(root: string, opts: BuildDepsOptions = {}): {
@@ -154,6 +155,9 @@ function buildDeps(root: string, opts: BuildDepsOptions = {}): {
     preflightCommitMessage,
     createMessageSnapshot: opts.createMessageSnapshot ?? (() => {
       throw new Error("createMessageSnapshot must not be called without a captured file source");
+    }),
+    persistMessageRetry: opts.persistMessageRetry ?? (() => {
+      throw new Error("persistMessageRetry must not be called without a qualifying Git failure");
     }),
     preflightRemedy: "arc release commit -F <message-file>",
   };
@@ -489,7 +493,11 @@ describe("runReleaseCommit — success path", () => {
       const { deps, spawnGit } = buildDeps(fixture.root, {
         argv: ["-m", "subject"],
         settings: authorizingSettings(),
-        preflightCommitMessage: () => Promise.resolve({ kind: "passed", verdict }),
+        preflightCommitMessage: () => Promise.resolve({
+          kind: "passed",
+          verdict,
+          messageBytes: new Uint8Array(),
+        }),
         spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
         resolveHead: () => Promise.resolve(FULL_HASH),
       });
@@ -509,6 +517,7 @@ describe("runReleaseCommit — success path", () => {
       preflightCommitMessage: () => Promise.resolve({
         kind: "passed",
         verdict: "pass",
+        messageBytes: rawBytes,
         transport: { kind: "file", rawBytes },
       }),
       createMessageSnapshot: async ({ bytes }) => {
@@ -536,6 +545,7 @@ describe("runReleaseCommit — success path", () => {
       preflightCommitMessage: () => Promise.resolve({
         kind: "passed",
         verdict: "pass",
+        messageBytes: rawBytes,
         transport: { kind: "stdin", rawBytes },
       }),
       spawnGit: () => Promise.resolve({ exitCode: 1, stdout: "", stderr: "hook failed" }),
@@ -543,6 +553,74 @@ describe("runReleaseCommit — success path", () => {
 
     expect((await runReleaseCommit(deps)).exitCode).toBe(1);
     expect(spawnGit).toHaveBeenCalledWith({ args: ["-F", "-"], cwd: fixture.root, stdin: rawBytes });
+  });
+
+  it("persists approved message bytes after a resolved non-zero Git result", async () => {
+    await writeStatus(fixture.root, "sample");
+    const messageBytes = Buffer.from("feat(release): a sufficiently long valid subject\n");
+    const persistMessageRetry = vi.fn().mockResolvedValue({ path: "/repo/.git/latest-retry" });
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["-m", "feat(release): a sufficiently long valid subject"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes,
+        transport: { kind: "messages" },
+      }),
+      spawnGit: () => Promise.resolve({ exitCode: 7, stdout: "", stderr: "failed" }),
+    });
+
+    const result = await runReleaseCommit({ ...deps, persistMessageRetry });
+
+    expect(result.exitCode).toBe(7);
+    expect(persistMessageRetry).toHaveBeenCalledWith({ cwd: fixture.root, bytes: messageBytes });
+  });
+
+  it("preserves Git's exit code when retry persistence fails without offering an unusable path", async () => {
+    await writeStatus(fixture.root, "sample");
+    const { deps, stderr } = buildDeps(fixture.root, {
+      argv: ["-m", "feat(release): a sufficiently long valid subject"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes: Buffer.from("approved message"),
+        transport: { kind: "messages" },
+      }),
+      spawnGit: () => Promise.resolve({ exitCode: 9, stdout: "", stderr: "failed" }),
+      persistMessageRetry: () => Promise.reject(new Error("disk full")),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(9);
+    expect(stderr.join("")).toContain("latest commit-message retry could not be persisted: disk full");
+    expect(stderr.join("")).not.toContain("arc release commit -F");
+  });
+
+  it.each([
+    { label: "pass-through", preflight: { kind: "pass-through" as const } },
+    {
+      label: "preflight refusal",
+      preflight: {
+        kind: "refused" as const,
+        reason: "validation" as const,
+        message: "invalid message",
+      },
+    },
+  ])("does not persist $label message bytes", async ({ preflight }) => {
+    await writeStatus(fixture.root, "sample");
+    const persistMessageRetry = vi.fn().mockResolvedValue({ path: "/unused" });
+    const { deps } = buildDeps(fixture.root, {
+      argv: ["-m", "message"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve(preflight),
+      spawnGit: () => Promise.resolve({ exitCode: 1, stdout: "", stderr: "failed" }),
+      persistMessageRetry,
+    });
+
+    await runReleaseCommit(deps);
+
+    expect(persistMessageRetry).not.toHaveBeenCalled();
   });
 
   it("turns snapshot setup failure into an input refusal before Git", async () => {
@@ -553,6 +631,7 @@ describe("runReleaseCommit — success path", () => {
       preflightCommitMessage: () => Promise.resolve({
         kind: "passed",
         verdict: "pass",
+        messageBytes: Buffer.from("message"),
         transport: { kind: "file", rawBytes: Buffer.from("message") },
       }),
       createMessageSnapshot: async () => Promise.reject(new Error("disk full")),
@@ -571,6 +650,7 @@ describe("runReleaseCommit — success path", () => {
       preflightCommitMessage: () => Promise.resolve({
         kind: "passed",
         verdict: "pass",
+        messageBytes: Buffer.from("message"),
         transport: { kind: "file", rawBytes: Buffer.from("message") },
       }),
       createMessageSnapshot: async () => ({ path: "/private", cleanup }),
@@ -589,6 +669,7 @@ describe("runReleaseCommit — success path", () => {
       preflightCommitMessage: () => Promise.resolve({
         kind: "passed",
         verdict: "pass",
+        messageBytes: Buffer.from("message"),
         transport: { kind: "file", rawBytes: Buffer.from("message") },
       }),
       createMessageSnapshot: async () => ({

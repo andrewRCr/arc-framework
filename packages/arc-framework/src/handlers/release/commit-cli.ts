@@ -11,7 +11,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { access, constants, open, readFile, unlink } from "node:fs/promises";
+import { access, constants, open, readFile, rename, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
@@ -82,6 +82,7 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
     spawnGit: realSpawnGit,
     resolveHead: realResolveHead,
     createMessageSnapshot: createRealCommitMessageSnapshot,
+    persistMessageRetry: persistRealCommitMessageRetry,
     preflightRemedy,
     preflightCommitMessage: createCommitMessagePreflight({
       stdinIsTTY: process.stdin.isTTY,
@@ -183,6 +184,33 @@ export const createRealCommitMessageSnapshot: CreateCommitMessageSnapshot = asyn
   await handle.close();
   return { path, cleanup: () => unlink(path) };
 };
+
+/**
+ * Atomically replace the worktree-local latest-retry message with private bytes.
+ *
+ * @param opts - Repository root and canonical approved message bytes.
+ * @returns The absolute wrapper-owned retry path.
+ */
+export async function persistRealCommitMessageRetry(opts: {
+  cwd: string;
+  bytes: Uint8Array;
+}): Promise<{ path: string }> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], { cwd: opts.cwd });
+  const gitDir = stdout.trim();
+  const path = join(gitDir, ".arc-release-commit-message-retry");
+  const temporaryPath = join(gitDir, `.arc-release-commit-message-retry-${randomUUID()}.tmp`);
+  const handle = await open(temporaryPath, "wx", 0o600);
+  try {
+    await handle.writeFile(opts.bytes);
+    await handle.close();
+    await rename(temporaryPath, path);
+  } catch (cause: unknown) {
+    await handle.close().catch(() => undefined);
+    await unlink(temporaryPath).catch(() => undefined);
+    throw cause;
+  }
+  return { path };
+}
 
 /** Resolves `HEAD` post-success for the audit entry's `hash` field. */
 const realResolveHead: ResolveHead = async ({ cwd }) => {

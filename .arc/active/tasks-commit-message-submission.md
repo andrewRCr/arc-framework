@@ -242,15 +242,11 @@ message bytes when the subsequent Git invocation fails.
 - _Goal:_ Any resolved non-zero Git result after successful assembled preflight leaves the already-approved message
   available for an exact retry without exposing stale Git-managed content.
 
-    - `[ ]` **3.3.a Resolve and write the retry destination**
-        - Resolve the active worktree git directory with `git rev-parse --absolute-git-dir` and atomically replace one
-          wrapper-owned latest-retry file only after assembled preflight passed and Git returned non-zero.
-        - Build `test-first` (one behavior at a time):
-            - Primary and linked worktrees write beneath their own git directories.
-            - The file uses mode `0600` where supported; a later qualifying failure atomically replaces its bytes.
-            - A write failure is surfaced without masking Git's original exit code or printing an unusable reuse
-              command.
-            - Pass-through and preflight-failure paths do not persist guessed or rejected bytes.
+    - `[x]` **3.3.a Resolve and write the retry destination**
+        - Retained canonical approved bytes through preflight and atomically replaced one mode-`0600` latest-retry file
+          beneath `git rev-parse --absolute-git-dir` after resolved non-zero Git outcomes; primary/linked isolation and
+          replacement use real Git/filesystem coverage, while persistence failures remain warnings that preserve Git's
+          exit code and pass-through/refusal paths never write.
 
     - `[ ]` **3.3.b Render and verify the reuse path**
         - Render `arc release commit -F <path>` with a tested host-shell-quoted absolute path and prove it reproduces
