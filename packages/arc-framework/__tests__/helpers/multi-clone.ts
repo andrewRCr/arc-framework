@@ -12,13 +12,24 @@
  * the topology without re-implementing the bootstrap.
  */
 
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import { removeGitBackedDir } from "./temp-repo.js";
+
 const execFileAsync = promisify(execFile);
+
+/**
+ * Disable background auto-gc on a repo: its repacking races temp-repo teardown
+ * (ENOTEMPTY on `.git/objects/pack`). Worktrees inherit it via the shared
+ * common dir, so configuring the backing clone/origin covers its siblings.
+ */
+async function disableAutoGc(cwd: string): Promise<void> {
+  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd });
+}
 
 /** Per-clone setup overrides. */
 export interface CloneSetupOptions {
@@ -137,6 +148,7 @@ async function seedOrigin(origin: string): Promise<void> {
   const seed = await mkdtemp(join(tmpdir(), "arc-mc-seed-"));
   try {
     await execFileAsync("git", ["init", "--initial-branch=main", seed]);
+    await disableAutoGc(seed);
     await execFileAsync("git", ["config", "user.name", "Multi-Clone Seed"], { cwd: seed });
     await execFileAsync("git", ["config", "user.email", "seed@example.com"], { cwd: seed });
     await execFileAsync(
@@ -147,7 +159,7 @@ async function seedOrigin(origin: string): Promise<void> {
     await execFileAsync("git", ["remote", "add", "origin", origin], { cwd: seed });
     await execFileAsync("git", ["push", "origin", "main"], { cwd: seed });
   } finally {
-    await rm(seed, { recursive: true, force: true });
+    await removeGitBackedDir(seed);
   }
 }
 
@@ -158,6 +170,7 @@ async function createClone(
 ): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix));
   await execFileAsync("git", ["clone", origin, dir]);
+  await disableAutoGc(dir);
   await execFileAsync("git", ["config", "user.name", options.authorName], { cwd: dir });
   await execFileAsync("git", ["config", "user.email", options.authorEmail], { cwd: dir });
   for (const [key, value] of Object.entries(options.config)) {
@@ -195,9 +208,7 @@ export async function setupMultiClone(
 
   const createdPaths: string[] = [];
   const cleanup = async (): Promise<void> => {
-    await Promise.allSettled(
-      createdPaths.map((path) => rm(path, { recursive: true, force: true })),
-    );
+    await Promise.allSettled(createdPaths.map((path) => removeGitBackedDir(path)));
     createdPaths.length = 0;
   };
 
@@ -205,6 +216,7 @@ export async function setupMultiClone(
     const origin = await mkdtemp(join(tmpdir(), "arc-mc-origin-"));
     createdPaths.push(origin);
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
+    await disableAutoGc(origin);
 
     if (initialCommit) {
       await seedOrigin(origin);
@@ -240,9 +252,7 @@ export async function setupWorktreeSiblings(
 
   const createdPaths: string[] = [];
   const cleanup = async (): Promise<void> => {
-    await Promise.allSettled(
-      createdPaths.map((path) => rm(path, { recursive: true, force: true })),
-    );
+    await Promise.allSettled(createdPaths.map((path) => removeGitBackedDir(path)));
     createdPaths.length = 0;
   };
 
@@ -250,6 +260,7 @@ export async function setupWorktreeSiblings(
     const origin = await mkdtemp(join(tmpdir(), "arc-wt-origin-"));
     createdPaths.push(origin);
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", origin]);
+    await disableAutoGc(origin);
 
     await seedOrigin(origin);
 

@@ -1,7 +1,7 @@
 /** Runtime adapters for the shared commit-message fixture corpus. */
 
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -11,6 +11,7 @@ import {
   readCommitCheckConfiguration,
   validateCommitMessage,
 } from "../../src/lib/commit-check/index.js";
+import { removeGitBackedDir } from "./temp-repo.js";
 import { parseArcConfig } from "../../src/lib/config/index.js";
 import type { CommitCheckOutcome } from "../../src/lib/commit-check/index.js";
 import type { CommitMessageFixture } from "../fixtures/commit-msg/cases.js";
@@ -33,6 +34,8 @@ async function materializeFixture(
   await writeFile(configPath, fixture.config);
   await writeFile(messagePath, fixture.messageBytes);
   await execFileAsync("git", ["init", "-q"], { cwd: root });
+  // Disable background auto-gc: its repacking races temp-repo teardown.
+  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: root });
   if (fixture.repository.role) {
     await execFileAsync("git", ["config", "arc.role", fixture.repository.role], { cwd: root });
   }
@@ -58,7 +61,7 @@ async function withFixture<T>(
     const materialized = await materializeFixture(fixture, root);
     return await run(materialized);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await removeGitBackedDir(root);
   }
 }
 

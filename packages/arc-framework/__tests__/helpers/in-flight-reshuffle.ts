@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -9,6 +9,7 @@ import type { GitExec, GitExecOptions } from "../../src/lib/git/exec.js";
 
 import { makeGitExec } from "./integration.js";
 import { setupWorktreeSiblings } from "./multi-clone.js";
+import { removeGitBackedDir } from "./temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -127,7 +128,7 @@ export async function setupInFlightReshuffleFixture(): Promise<InFlightReshuffle
   const siblingExec = makeGitExec(base.sibling);
 
   const cleanup = async (): Promise<void> => {
-    await Promise.allSettled(ownedPaths.map((path) => rm(path, { recursive: true, force: true })));
+    await Promise.allSettled(ownedPaths.map((path) => removeGitBackedDir(path)));
     ownedPaths.length = 0;
     await base.cleanup();
   };

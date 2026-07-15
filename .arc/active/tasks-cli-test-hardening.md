@@ -51,16 +51,17 @@ the full suite green (Consequences: suite-wide blast radius accepted). See `note
   user config, hardened removal) have a single home; the `--initial-branch=main` / `-b main` spelling is now
   uniform. Behavior-preserving — full integration and e2e tiers green with no fixture changes.
 
-### `[ ]` **1.3 Route the named helper-level teardowns through the primitive**
+### `[x]` **1.3 Route the named helper-level teardowns through the primitive**
 
 - _Goal:_ The three named helper files route every git-backed removal through the 1.1 primitive, and the helpers
   that build git repos without gc-disable get it.
 
-- _Note:_ In `helpers/multi-clone.ts`, route the `setupMultiClone`/`setupWorktreeSiblings` cleanup closures
-  (~L197-202, ~L242-247) **and** the `seedOrigin` teardown (~L150, which `git init`s a real seed repo) — currently
-  bare `rm` with no `gc.auto 0`. `helpers/in-flight-reshuffle.ts` (~L129-133) and
-  `helpers/commit-message-fixture.ts` (~L61) are the same. Route every git-backed removal in these files and close
-  the gc-disable gap where they back a git repo.
+- _Outcome:_ `multi-clone.ts` (`seedOrigin` teardown + both `setup*` cleanup closures), `in-flight-reshuffle.ts`
+  (worktree-parent cleanup), and `commit-message-fixture.ts` (`withFixture` teardown) now route every git-backed
+  removal through `removeGitBackedDir`. The gc-disable gap is closed at each repo-creation site that lacked it —
+  the multi-clone seed, both bare origins, and each clone (via a local `disableAutoGc` helper), plus the
+  commit-message fixture repo; reshuffle worktrees inherit it through the primary clone's shared common dir.
+  Verified against the consuming integration + e2e tests.
 
 ### `[ ]` **1.4 Inline-site sweep across the test suite**
 
