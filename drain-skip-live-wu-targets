@@ -4,7 +4,7 @@
   "origin": "inbox",
   "intent": "drain-skip-live-wu-targets",
   "branch": "chore/drain-skip-live-wu-targets",
-  "createdAt": "2026-07-15T16:32:39.374Z",
+  "createdAt": "2026-07-15T16:40:56.987Z",
   "originEntry": "Drain skips in-flight-owned `WU_Target` captures (owner-adoption default)",
   "returnBranch": "main"
 }
