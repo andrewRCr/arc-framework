@@ -723,6 +723,11 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
   against the freshest base.
 
     - `[ ]` **5.1.a Confirm the wave-3 slate and launch (incl. the errand drain session)**
+        - Progress (2026-07-15): both WU legs launched from the synced primary after the CMS merge —
+          `plan/cli-test-hardening` (`2ae559b98`) and `plan/husk-lifecycle-drivers` (`dfe08394e`), BI-1
+          provisioning + seeded handoffs verified. Live checks clean: dispatch cut both branches from the synced
+          base (PR #242 contract), and HLD's landed `worktree-teardown-decoupling` edge discharged ungated at
+          graduation. The errand-drain session has not yet run — 5.1.a stays open until it does.
 
 ### `[ ]` **5.2 Verify the wave-3 matrix cells**
 
