@@ -382,11 +382,22 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
   it("installs a commit-msg hook accepted by the integrity verifier", async () => {
     const verifier = join(arcDir, "system/.internal/scripts/verify-integrity.sh");
 
+    let exitCode = 0;
     const stdout = await execFileAsync("bash", [verifier], { cwd: tempDir })
       .then((result) => result.stdout)
-      .catch((cause: unknown) => (cause as { stdout?: string }).stdout ?? "");
+      .catch((cause: unknown) => {
+        const failure = cause as { stdout?: unknown; code?: unknown };
+        if (typeof failure.stdout !== "string" || typeof failure.code !== "number") throw cause;
+        exitCode = failure.code;
+        return failure.stdout;
+      });
 
+    // This pm.mode=none fixture intentionally omits files checked by other verifier sections.
+    expect(exitCode).toBe(2);
     expect(stdout).toContain("commit-msg hook: exists and executable");
+    const hookSection = stdout.match(/--- Hook Status ---([\s\S]*?)--- Strategy Index ---/)?.[1];
+    expect(hookSection).toBeDefined();
+    expect(hookSection).not.toMatch(/^(?:ERROR|WARN).*commit-msg/m);
   });
 
   // --- Pristine Store ---

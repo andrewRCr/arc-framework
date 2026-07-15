@@ -61,23 +61,57 @@ interface ShellResult {
   stderr: string;
 }
 
-async function runShell(script: string, env: NodeJS.ProcessEnv = {}): Promise<ShellResult> {
+async function runShell(
+  script: string,
+  env: NodeJS.ProcessEnv = {},
+  timeoutMs = 10_000,
+): Promise<ShellResult> {
   return new Promise((resolveResult, rejectResult) => {
     const child = spawn("/bin/sh", ["-c", script], {
       cwd: repository,
+      detached: process.platform !== "win32",
       env: { ...process.env, ...env },
       stdio: ["ignore", "pipe", "pipe"],
     });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
+    let settled = false;
+    let timeoutError: Error | null = null;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      timeoutError = new Error(`runShell timed out after ${timeoutMs}ms`);
+      if (process.platform !== "win32" && child.pid !== undefined) {
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch {
+          child.kill("SIGKILL");
+        }
+      } else {
+        child.kill("SIGKILL");
+      }
+    }, timeoutMs);
     child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-    child.on("error", rejectResult);
-    child.on("close", (code) => resolveResult({
-      exitCode: code ?? 1,
-      stdout: Buffer.concat(stdout).toString("utf8"),
-      stderr: Buffer.concat(stderr).toString("utf8"),
-    }));
+    child.on("error", (cause: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      rejectResult(cause);
+    });
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (timeoutError !== null) {
+        rejectResult(timeoutError);
+        return;
+      }
+      resolveResult({
+        exitCode: code ?? 1,
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+      });
+    });
   });
 }
 
@@ -211,6 +245,7 @@ describe("release commit hook ordering", () => {
 
   it("lets commit-msg reject a passing message invalidated by prepare-commit-msg", async () => {
     await installPrepareHook();
+    const headBefore = await gitOutput(["rev-parse", "HEAD"]);
 
     const result = await runCli([
       "release",
@@ -225,8 +260,15 @@ describe("release commit hook ordering", () => {
     expect(result.exitCode).toBe(1);
     expect(`${result.stdout}\n${result.stderr}`).toContain("Commit validation FAILED");
     expect(await readHookLog()).toEqual(["pre-commit", "prepare-commit-msg", "commit-msg"]);
-    await expect(access(join(repository, "tracked.txt"))).resolves.toBeUndefined();
+    expect(await gitOutput(["rev-parse", "HEAD"])).toBe(headBefore);
+    expect(await gitOutput(["diff", "--cached", "--name-only"])).toContain("tracked.txt");
   });
+});
+
+it.runIf(process.platform !== "win32")("terminates a blocked shell helper", async () => {
+  await expect(runShell("sh -c 'while :; do :; done' & wait", {}, 20)).rejects.toThrow(
+    "runShell timed out after 20ms",
+  );
 });
 
 describe("release commit byte preservation", () => {
