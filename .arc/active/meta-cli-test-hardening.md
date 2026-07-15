@@ -8,10 +8,10 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-cli-test-hardening.md`
+- **Design:** `spec-cli-test-hardening.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Draft captured formalization-ready — buffer integrated, adversarial pass converged, stage
   advanced to create-spec (2026-07-15).
 - **Next Task:** [none]
