@@ -717,6 +717,31 @@ lifecycle had completed and its worktree was torn down.
   identity-scoped, and the ROADMAP regen gate refused a stale render at the merge commit before accepting the
   regenerated one. No silent no-ops observed in wave 2.
 
+### Synthetic-state retirement (2026-07-15, Task 4.5) — COMPLETE
+
+Executed after wave-2 evidence closed; both refs were local ≡ origin before surgery, and every change was
+append-only (no force-push). Backup refs `refs/arc-backup/notes-pre-retirement` (`1f1d8f1a7`) and
+`refs/arc-backup/sync-state-pre-retirement` (`22024b68a`) remain local as the undo anchors.
+
+- **Notes ref `refs/notes/arc/user/andrew`:** removed the 4 entries anchored at unreachable burn-in commits
+  `8314d4d7` / `9d44106a` (C1 intents) and `a06e26dc` / `f96fc372` (C2 intents); 362 ordinary entries retained,
+  zero unreachable anchors after removal. New tip `c79d609db`, published via the routine proof-gated
+  `arc user push` — which first refused on the branch-before-notes invariant (67 unpushed branch commits) and
+  succeeded after the branch push: the export gate observed working as designed, and routine publication
+  succeeding is itself the confirmation that no unreachable-anchored note blocks it.
+- **Sync-state ref `refs/arc/user/andrew/sync-state`:** dropped the 7 synthetic marker entries (intents
+  `10780b41`, `456bc5d0`, `9e501bc6`, `aaf7bc2d`, `ccc1e6f2`, `dd3231da`, `fd1cb334`; machineIds `2f8bb305…` /
+  `7647ac4c…`; all 2026-07-09) via a tree commit parented on the old tip and a CAS ref move; 57 real-machine
+  entries retained. New tip `69f91327a`, fast-forward pushed.
+- **Errands ref:** already empty — nothing to retire.
+- **Verification:** post-push session-init probe renders zero partial-push markers and notes `clean`/`same`;
+  the canonical local notes ref carries only ordinary reachable-anchor content. Deliberate non-action: no
+  history rewrite/compaction (coordinated cross-machine boundary FP doesn't need; 142 history commits ≪ the
+  2000 advisory threshold) — burn-in-era DAG commits are inert with content clean.
+- **Wave-4 caveat:** a second real machine holding a stale local sync-state ref could union retired markers
+  back at cross-machine resume; the 14-day TTL (~2026-07-23) expires their surface before wave 4 realistically
+  runs, and re-cleaning is cheap if one resurrects.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification

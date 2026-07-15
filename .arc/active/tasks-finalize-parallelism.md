@@ -677,16 +677,20 @@ seam rule in `notes-finalize-parallelism.md`.
           re-probe at wave close: base drift, notes-lag markers, and the ROADMAP regen gate all fired correctly —
           no silent no-ops.
 
-### `[ ]` **4.5 Retire synthetic remote notes state before routine writes resume**
+### `[x]` **4.5 Retire synthetic remote notes state before routine writes resume**
 
 - _Goal:_ The wave-2 notes topology remains intact for its planned verification, then the synthetic bulk history
   and synthetic partial-push markers are removed before wave 3's live Errand/drain starts routine paired writes.
   This prevents the first post-NESC paired push from adopting the burn-in-only history into ordinary local refs.
 
-    - `[ ]` **4.5.a Clean the shared remote notes fixture and synthetic markers**
-        - Verify wave 2 no longer needs the induced topology, record the exact refs/markers being retired, and
-          clean them with an explicit destructive-action surface. Confirm the canonical local notes ref still
-          carries only ordinary history before launching wave 3.
+    - `[x]` **4.5.a Clean the shared remote notes fixture and synthetic markers**
+        - Retired after wave-2 evidence closed, with the destructive surface confirmed and the exact set recorded
+          in `notes-finalize-parallelism.md` § Synthetic-state retirement: 4 unreachable-anchored notes entries
+          removed (tip `c79d609db`, published via routine `arc user push` after the branch-before-notes gate
+          fired as designed) and 7 synthetic sync-state markers dropped via CAS tree commit (tip `69f91327a`,
+          fast-forward pushed). Append-only throughout; local backup refs anchor the undo. Post-push probe:
+          zero markers rendered, notes `clean`/`same`, only ordinary reachable-anchor content on the canonical
+          ref. Wave-4 marker-resurrection caveat recorded.
 
 ## **Phase 5:** Burn-in wave 3 — code + code + live errand
 
