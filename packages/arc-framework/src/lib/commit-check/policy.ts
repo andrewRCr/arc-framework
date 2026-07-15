@@ -187,7 +187,7 @@ export function validateSubjectAndBody(
     }
   }
   for (const line of parsed.physicalLines) {
-    if (/\bPhase \d+\.\d+(?![\d.])/.test(line.text)) {
+    if (/Phase [0-9]+\.[0-9]+(?:$|[^.])/.test(line.text)) {
       findings.push(
         lineFinding("message.dotted-phase", line, "Dotted identifiers must use Task, not Phase"),
       );

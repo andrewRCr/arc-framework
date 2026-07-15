@@ -129,4 +129,11 @@ export const COMMIT_MESSAGE_FIXTURES: readonly CommitMessageFixture[] = [
     repository: {},
     expected: { verdict: "pass", findingCodes: [] },
   },
+  {
+    name: "embedded dotted phase retains Bash rejection",
+    messageBytes: bytes("feat(core): add stable behavior\n\nSubPhase 1.2 is still rejected\n"),
+    config: "commit.context_footer: disabled\n",
+    repository: {},
+    expected: { verdict: "fail", findingCodes: ["message.dotted-phase"] },
+  },
 ] as const;
