@@ -114,6 +114,9 @@ async function setupFixture(fixtureConfig: string, messageBytes: Uint8Array): Pr
   messagePath: string;
 }> {
   repository = await createTempRepo("arc-commit-consumers-");
+  const emptyHooks = join(repository, ".git", "empty-hooks");
+  await mkdir(emptyHooks, { recursive: true });
+  await git(["config", "core.hooksPath", emptyHooks]);
   await writeFile(join(repository, "tracked.txt"), "initial\n");
   await git(["add", "tracked.txt"]);
   await git(["commit", "-m", "initial"]);
