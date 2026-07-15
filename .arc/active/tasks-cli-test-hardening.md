@@ -107,10 +107,21 @@ construction where it preserves the retention assertion. See `notes-cli-test-har
 - _Goal:_ `user-notes-compaction.test.ts` file wall-time drops (absolute, not merely tier share) and the (a)
   signature stops recurring, with the retention assertion preserved.
 
-- _Approach:_ Replace sequential `makeCommit` + `git notes add` + `push` round-trips with synthetic notes-tree
-  construction (`makeNotesTreeCommit`-style `hash-object`/`mktree`/`commit-tree`, per `helpers/integration.ts`
-  ~L113-158) wherever that preserves the assertion; where a real round-trip is load-bearing, isolate or serialize
-  that case and improve its failure diagnostics. Stay within the Decision 10 stop-loss.
+- _Approach:_ The cost is concentrated in one test ("retains old shipped-WU notes until the archive age and
+  local-subdir gates clear"): a 302-iteration loop building 302 empty dated commits + 302 notes (~900 git
+  subprocess spawns, ~6.4s of the file's ~13s isolated). Synthetic notes-tree construction (`makeNotesTreeCommit`)
+  does **not** fit here — retention ranks notes by their annotated commit's real committer date (`runUserCompact`
+  → `buildRetentionEntry` → `readCommitTimestamp` in `src/commands/user/compact.ts`), so fabricated target SHAs
+  break the retained/pruned partition. Instead, shrink the filler loop from 302 to ~35, kept above **both**
+  boundaries the test exercises — the retention window `CROSS_WU_NOTE_WINDOW` (10) and the read-concurrency batch
+  `RETENTION_ENTRY_READ_CONCURRENCY` (16), so more than one batch still runs — and update the count assertions
+  (`retainedCount` stays 12 = 10-window + 2 gated specials; `prunedCount` becomes filler − 10, i.e. 25 at 35
+  filler). Add a diagnostic that dumps the retained/pruned partition on a count mismatch. This preserves the
+  retention _behavior_ (the substrate-independent part that carries to the backing-store substrate) at ~88% less
+  loop cost. fast-import batching was considered and rejected: intricate, notes-shaped test scaffolding with a
+  ~1-month shelf life is bridge over-investment under the git-notes retirement posture
+  (`strategy-storage-evolution`). Stay within the Decision 10 stop-loss (no new production notes machinery). The
+  file's other 17 tests are already fast (<0.7s each); no other case in this file needs rework.
 
 ### `[ ]` **2.2 Shallow-clone per-test budget (flake c)**
 

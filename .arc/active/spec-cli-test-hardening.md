@@ -37,6 +37,14 @@ for the unit tier), and the flake and cost hot spots overlap — acting on them 
    file's current real `git notes add`/commit round-trips, where that preserves the retention
    assertion; otherwise isolate or serialize this resource-heavy case and improve its diagnostics. Subject to the
    notes stop-loss boundary (Decision 10).
+   - _Pre-implementation finding (2026-07-15):_ synthetic notes-tree construction does **not** fit the
+     cost-dominant case (the 302-filler retention test). Retention ranks notes by the annotated commit's real
+     committer date (`buildRetentionEntry` → `readCommitTimestamp`), so fabricated target SHAs break the
+     retained/pruned partition — the real dated commits are load-bearing. Chosen path: shrink that one test's
+     filler loop (302 → ~35, kept above the retention window of 10 and the read-concurrency batch of 16) and add
+     a partition-dump diagnostic, preserving the retention behavior at ~88% less loop cost. fast-import batching
+     was rejected as bridge over-investment (intricate notes-shaped test scaffolding for a substrate near
+     phase-out). The file's other tests are already fast and need no rework.
 3. **Flake (b) — temp-repo teardown `ENOTEMPTY` race** (PRs #202, #206; integration recurrence 2026-07-13):
    consolidate teardown into one shared retry-safe removal primitive as the single removal path for git-backed
    temp directories, and merge the factory fronts — a shared `createTempRepo` core carrying what must not drift
