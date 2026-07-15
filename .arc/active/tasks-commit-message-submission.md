@@ -313,11 +313,10 @@ cross-surface first-release checks without leaking transport mechanics into work
           trailer block and the last occurrence governs when that block contains more than one, without exposing parser
           mechanics or changing the existing grammar catalog.
 
-    - `[ ]` **4.1.d Align hook operator guidance with the shim**
-        - Update both Framework copies of `system/.internal/githooks/README.md` to describe local-first CLI resolution,
-          `arc check commit-msg`, enabled-validation fail-closed behavior, and ECMAScript custom-pattern source.
-        - Remove instructions to extend commit-message grammar in the shell hook or its retired `grep -E` rules; retain
-          direct script-customization guidance only for checks that remain shell-owned.
+    - `[x]` **4.1.d Align hook operator guidance with the shim**
+        - Updated both Framework hook guides with the shim's local-first CLI resolution, standalone checker command,
+          enabled-validation fail-closed behavior, and ECMAScript configuration contract. Commit-message grammar now
+          routes through `arc-config.yml`; direct script customization is limited to shell-owned checks.
 
     - `[ ]` **4.1.e Verify the documentation copies and audience boundary**
         - Compare package and self-hosted framework sections, confirm only intended configurable differences remain, and
