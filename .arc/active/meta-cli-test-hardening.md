@@ -12,8 +12,8 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Stub created at the work-routing-discipline `BACKLOG-INBOX` retirement (2026-06-01) from a
-  routed capture.
+- **Last Completed:** Draft captured formalization-ready — buffer integrated, adversarial pass converged, stage
+  advanced to create-spec (2026-07-15).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
