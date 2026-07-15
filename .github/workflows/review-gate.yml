@@ -35,6 +35,19 @@ permissions:
   pull-requests: read
   statuses: read
 
+# Collapse wake-up event bursts (statuses, check runs, comment creation/edits,
+# workflow completions, the repair cron): one run in progress, one pending;
+# further events replace the pending run. Safe for these hint-class events —
+# every discover pass re-queries canonical state, and a missed event only
+# delays reconciliation until scheduled repair. Two classes are exempt via a
+# per-run group and never collapse: targeted `workflow_dispatch` runs, and
+# `issue_comment` deletions, whose bounded prior-body payload rides the event
+# into the reconcile matrix and is unrecoverable from canonical re-query.
+# Never cancels a running reconciliation.
+concurrency:
+  group: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'issue_comment' && github.event.action == 'deleted')) && format('review-gate-uncollapsed-{0}', github.run_id) || 'review-gate-events' }}
+  cancel-in-progress: false
+
 jobs:
   discover:
     permissions:
