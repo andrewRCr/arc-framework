@@ -359,10 +359,10 @@ cross-surface first-release checks without leaking transport mechanics into work
 - _Goal:_ The settled repository ships one validator, one durable corpus, synchronized hook and guidance copies, and no
   temporary migration machinery or conflicting invocation examples.
 
-    - `[ ]` **4.4.a Retire differential-only machinery after parity**
-        - Remove the temporary Bash-side runner only after the pre-flip parity record is green; retain the shared corpus
-          as the TypeScript acceptance suite.
-        - Confirm the final tree has no second grammar implementation hidden in tests, shell, or wrapper code.
+    - `[x]` **4.4.a Retire differential-only machinery after parity**
+        - Confirmed the pre-flip green record precedes removal of the Bash differential runner, while the three-valued
+          corpus and its five intentional cutover annotations remain under the durable TypeScript acceptance suite.
+          Shell is delegation-only and wrapper preflight imports the canonical check path; no second grammar remains.
 
     - `[ ]` **4.4.b Run the cross-consumer acceptance matrix**
         - Exercise the same valid, warning, and invalid fixtures through the library, `arc check commit-msg`, installed
