@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "ci-speed",
-  "origin": "description",
-  "intent": "CI speed pass: parallelize integration/e2e jobs, collapse review-gate event bursts, skip redundant e2e rebuild",
-  "branch": "chore/ci-speed",
-  "createdAt": "2026-07-15T13:14:09.021Z",
-  "returnBranch": "main"
-}
