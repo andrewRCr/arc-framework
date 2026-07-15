@@ -12,8 +12,8 @@
 - **Task List:** `tasks-cli-test-hardening.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Spec finalized at `outline` form — inbox capture absorbed, adversarial pass converged and
-  folded, draft retired to `notes-cli-test-hardening.md`, stage advanced to generate-tasks (2026-07-15).
+- **Last Completed:** Task list generated (`tasks-cli-test-hardening.md`, 5 phases + verification) and WU
+  activated to `chore/cli-test-hardening` (2026-07-15).
 - **Next Task:** Begin Task 1.1 — Retry-safe git-backed removal primitive
 - **Blockers:** [none]
 
