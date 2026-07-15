@@ -308,6 +308,7 @@ describe("scaffoldIntoWorktree — ownership marker semantics (created-by-arc fl
       marker: {
         spawnedByArc: true,
         wuName: "manual-tool",
+        createdFor: { kind: "work-unit", name: "manual-tool" },
         spawningIdentity: "andrew",
         createdAt: "2026-05-27T12:00:00.000Z",
       },

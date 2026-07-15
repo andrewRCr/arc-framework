@@ -17,8 +17,9 @@
 import { cutErrandBranch } from "../session-init/errand-branch-cut.js";
 import { DEFAULT_ERRAND_BRANCH_TYPE, type ErrandBranchType } from "./branch-type.js";
 import { reconcileErrandPush, type ErrandPushOutcome } from "./merge.js";
-import { writeErrandRecord, type ErrandRecord } from "./record.js";
+import { readErrandRecord, writeErrandRecord, type ErrandRecord } from "./record.js";
 import type { ErrandRecordIO } from "./ref-tree.js";
+import type { GitExec } from "../git/exec.js";
 
 /** Operands for {@link openErrand}. */
 export interface OpenErrandParams {
@@ -70,6 +71,9 @@ export async function openErrand(
   const slug = params.slug.trim();
   if (slug === "") throw new Error("openErrand: slug must be non-empty");
 
+  const previous = await readErrandRecord(io, slug);
+  const launchBranch = await symbolicBranch(io.exec);
+
   const cut = await cutErrandBranch(
     { exec: io.exec },
     { slug, base: params.base, type: params.type ?? DEFAULT_ERRAND_BRANCH_TYPE },
@@ -78,14 +82,18 @@ export async function openErrand(
   const intent = params.intent?.trim();
   const originEntry = params.originEntry?.trim();
   const adopted = originEntry !== undefined && originEntry !== "";
+  const returnBranch = previous?.version === 2 && previous.returnBranch !== undefined
+    ? previous.returnBranch
+    : launchBranch !== cut.branch ? launchBranch : null;
   const record: ErrandRecord = {
-    version: 1,
+    version: 2,
     slug,
     origin: adopted ? "inbox" : "description",
     intent: intent !== undefined && intent !== "" ? intent : slug,
     branch: cut.branch,
     createdAt: params.createdAt,
     ...(adopted ? { originEntry } : {}),
+    ...(returnBranch !== null ? { returnBranch } : {}),
   };
   await writeErrandRecord(io, record);
   const push = await reconcileErrandPush(io);
@@ -95,4 +103,14 @@ export async function openErrand(
   await io.exec("git", ["switch", cut.branch]);
 
   return { record, branchCreated: cut.created, push };
+}
+
+/** The current symbolic branch, or `null` when HEAD is detached. */
+async function symbolicBranch(exec: GitExec): Promise<string | null> {
+  try {
+    const { stdout } = await exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
 }

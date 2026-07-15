@@ -14,6 +14,20 @@
 > *Routed-in concern pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`).*
 
+### `[ ]` **Harden the seed-to-recovery-marker handoff against silent loss**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured after automatic Codex
+  compaction during `notes-export-replay-ordering` planning.
+- *Concern:* the compaction seed updated immediately before compaction, but the first post-compaction tool
+  boundary received no pending recovery envelope and no marker or claim survived. A controlled PreCompact run
+  proved the configured marker writer works; the unresolved window is seed emission → marker persistence or an
+  immediate cleanup-only `SessionStart(clear)` sweep.
+- *Approach:* make seed success, marker write, claim, and cleanup durably distinguishable; reproduce automatic
+  event ordering; prevent a compaction from sweeping its own pending marker; and make seed success without a
+  recoverable marker fail visibly or self-heal at the next recovery channel.
+- *Disposition:* keep in this load-bearing recovery WU. The investigation and durable evidence cross the Errand
+  floor even though the current FP session would benefit from the result.
+
 ### `[ ]` **Close the Codex no-tool post-compaction recovery gap**
 
 - *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); reproduced during

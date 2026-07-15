@@ -16,10 +16,12 @@
  * reap (pushed but not provably merged, e.g. a multi-commit squash or a
  * not-yet-merged PR) the remote head IS the preservation and is kept; proving
  * the remote tip rather than the local one also protects a head pushed ahead
- * from another clone. Stale remote-tracking refs are pruned,
- * and the local `base` is fast-forwarded to the freshly-fetched remote base so
- * the primary lands current after the merge rather than on a stale base. The
- * inbox drop is the caller's composition (file I/O over the gitignored inbox,
+ * from another clone. Stale remote-tracking refs are pruned. Close restores the
+ * branch recorded at open; legacy records and unavailable return branches detach
+ * at the freshly-fetched base instead, so a base branch owned by another worktree
+ * never blocks cleanup. When the recorded return branch is `base`, it is
+ * fast-forwarded to the fetched remote base so the primary lands current rather
+ * than stale. The inbox drop is the caller's composition (file I/O over the gitignored inbox,
  * keyed by the record's origin back-pointer) and lands only on a successful close.
  *
  * The git seams and identity are injected (three-layer architecture).
@@ -92,12 +94,13 @@ export type CloseErrandResult =
  * Resolves the record by slug — an absent record is `no-record` (nothing to
  * close). Unless `force` is set, when the branch's commits are not provably
  * preserved it returns `unsafe-reap` without removing the record. Otherwise
- * fetches the authoritative remote base (so containment and the base fast-forward
- * evaluate against the post-merge remote), hops off the branch if occupied,
+ * fetches the authoritative remote base (so containment and any base fast-forward
+ * evaluate against the post-merge remote), restores the recorded pre-open branch
+ * (or detaches at the refreshed base when no safe return branch is available),
  * force-deletes it, deletes the remote head when the landed-in-base proof holds
  * (kept otherwise — it may be the only preservation), prunes stale
- * remote-tracking refs, fast-forwards local `base`, removes the record, and
- * pushes the removal.
+ * remote-tracking refs, fast-forwards local `base` when it is the return target,
+ * removes the record, and pushes the removal.
  *
  * @param io - Injected git seams and identity.
  * @param params - The errand slug, base, remote, and force override.
@@ -123,14 +126,13 @@ export async function closeErrand(
 
   const current = await currentBranch(io.exec);
   const branchPresent = await localBranchExists(io.exec, record.branch);
-  let switchedToBase = false;
+  let returnedToBase = false;
   // Hop off a dangling HEAD (the branch ref was deleted out from under us) only on
   // the force path — the non-force `!branchPresent` arm below returns `unsafe-reap`
   // without reaping, so it must not mutate HEAD (nor risk throwing on a conflicting
   // checkout) on a rejected close.
   if (params.force === true && !branchPresent && current === record.branch) {
-    await io.exec("git", ["switch", params.base]);
-    switchedToBase = true;
+    returnedToBase = await leaveErrandBranch(io.exec, record, baseRef, params.base);
   }
 
   if (params.force !== true) {
@@ -156,8 +158,7 @@ export async function closeErrand(
   if (branchPresent) {
     // Hop off the branch before deleting it — `git branch -D` refuses the current branch.
     if (current === record.branch) {
-      await io.exec("git", ["switch", params.base]);
-      switchedToBase = true;
+      returnedToBase = await leaveErrandBranch(io.exec, record, baseRef, params.base);
     }
     // Containment is proven, so force-delete: `-d` re-checks base-reachability,
     // which false-negatives under squash / rebase merges.
@@ -209,7 +210,7 @@ export async function closeErrand(
   // refreshed remote base after hopping off the errand branch (best-effort; a
   // non-ff local base or unresolved remote base is left as-is). Skipped when the
   // remote base did not resolve (`baseRef === params.base`) or we never hopped.
-  if (switchedToBase && baseRef !== params.base) {
+  if (returnedToBase && baseRef !== params.base) {
     try {
       await io.exec("git", ["merge", "--ff-only", baseRef]);
     } catch {
@@ -221,6 +222,38 @@ export async function closeErrand(
   const push = await reconcileErrandPush(io);
 
   return { kind: "closed", record, branchReaped: branchPresent, remoteHead, push };
+}
+
+/**
+ * Leave an occupied errand branch without assuming the base branch is available
+ * in this worktree. Prefer the v2 record's pre-open branch; legacy records, a
+ * missing return branch, or an unavailable return branch detach at `baseRef`.
+ *
+ * @returns True only when the worktree returned to the local base branch.
+ */
+async function leaveErrandBranch(
+  exec: GitExec,
+  record: ErrandRecord,
+  baseRef: string,
+  base: string,
+): Promise<boolean> {
+  const returnBranch = record.version === 2 ? record.returnBranch : undefined;
+  if (
+    returnBranch !== undefined
+    && returnBranch !== record.branch
+    && await localBranchExists(exec, returnBranch)
+  ) {
+    try {
+      await exec("git", ["switch", returnBranch]);
+      return returnBranch === base;
+    } catch {
+      // The branch may be occupied by another worktree. The topology-neutral
+      // detached fallback below still leaves the errand branch safely.
+    }
+  }
+
+  await exec("git", ["switch", "--detach", baseRef]);
+  return false;
 }
 
 /** The current branch name, including a symbolic HEAD whose branch ref was deleted. */

@@ -47,6 +47,7 @@ export {
 
 export {
   runWorktreeRoster,
+  scanRegisteredWorktrees,
   filterRosterByIdentity,
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
@@ -55,6 +56,8 @@ export {
   type WorktreeRosterResult,
   type WorktreeRosterState,
   type RunWorktreeRosterOptions,
+  type RegisteredWorktree,
+  type RegisteredWorktreeScanResult,
 } from "./worktree-roster.js";
 
 export {
@@ -136,12 +139,16 @@ export {
 
 export {
   readWorktreeMarker,
+  stampWorktreeHusk,
   writeWorktreeMarker,
   writeWorktreeOwnershipMarker,
   resolveWorktreeMarkerPath,
   isWorktreeMarker,
   type WorktreeMarker,
+  type WorktreeHuskStamp,
+  type WorktreeHuskStampResult,
   type WorktreeMarkerReadResult,
+  type WorktreeSubject,
   type WriteWorktreeOwnershipMarkerOptions,
 } from "./worktree-marker.js";
 
@@ -153,7 +160,10 @@ export {
 } from "./worktree-scaffold.js";
 
 export {
+  decideHuskCleanup,
   decideWorktreeCleanup,
+  type HuskCleanupDecision,
+  type HuskCleanupInputs,
   type WorktreeCleanupContext,
   type WorktreeCleanupDecision,
   type WorktreeCleanupInputs,

@@ -69,6 +69,7 @@ import {
   RECOVERY_RECENCY_DAYS,
 } from "../lib/session-init/branch-gone-recovery.js";
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
+import { deriveCurrentHuskAdvisory } from "../lib/session-init/current-husk-advisory.js";
 import { runOrphanBranchSweep } from "../lib/session-init/orphan-branch-sweep.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
@@ -89,6 +90,8 @@ import { runBaseDistanceStatus } from "../lib/git/base-distance.js";
 import { runBaseBranchSyncStatus } from "../lib/git/base-branch-sync.js";
 import { detectSupersession } from "../lib/git/supersession.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
+import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
+import { readShippedWorkUnits } from "../lib/work-unit/completed-index.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
 import { resolveSessionNotesPath } from "../lib/handoff/session-notes-path.js";
 import {
@@ -116,6 +119,7 @@ import {
   composeProjectReadinessViewResult,
   resolveProjectReadinessRenderStamp,
   resolveProjectReadinessViewInput,
+  type ProjectReadinessWarning,
 } from "../lib/status/project-view.js";
 import { renderRoadmapFromIndexViewResult } from "../lib/status/roadmap-regeneration-assert.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
@@ -142,6 +146,10 @@ export interface StatusCliOptions {
   json?: boolean;
   /** With --session-init: write the machine-local compaction seed sidecar. */
   writeCompactionSeed?: boolean;
+}
+
+function writeProjectReadinessWarnings(warnings: readonly ProjectReadinessWarning[]): void {
+  for (const warning of warnings) process.stderr.write(`warning: ${warning.rendered}\n`);
 }
 
 /** Normalize a `git config` readback — `undefined`, empty, and whitespace-only become `null`. */
@@ -475,6 +483,23 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
       },
       worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
+      currentHusk: async (worktreePath) => {
+        const [marker, headResult, completed] = await Promise.all([
+          readWorktreeMarker(worktreePath),
+          gitExec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
+          readShippedWorkUnits({
+            cwd: worktreePath,
+            fs: { readdir: (path) => readdir(path) },
+          }),
+        ]);
+        return deriveCurrentHuskAdvisory({
+          worktreePath,
+          branch: null,
+          head: headResult.stdout,
+          marker,
+          completed,
+        });
+      },
       baseDistance: async () => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
@@ -536,6 +561,8 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           worktreeIdentity,
           baseBranch: resolved.settings["branch.base"],
           exec: gitExec,
+          identity,
+          teamMode: resolved.settings["team.mode"] === "true",
         });
       },
       orphanBranchSweep: async (worktreeIdentity) => {
@@ -729,6 +756,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         process.stdout.write(`${JSON.stringify(result)}\n`);
         return;
       }
+      writeProjectReadinessWarnings(result.warnings);
       process.stdout.write(`${result.markdown}\n`);
       return;
     }
@@ -762,6 +790,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;
     }
+    writeProjectReadinessWarnings(result.warnings);
     process.stdout.write(`${result.markdown}\n`);
     return;
   }

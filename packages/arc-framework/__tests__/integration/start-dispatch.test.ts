@@ -10,7 +10,7 @@
  * called directly so the assertions read the on-disk result.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { execFile } from "node:child_process";
 import { mkdir, rm, writeFile, stat, readFile, readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
@@ -31,6 +31,25 @@ import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integrat
 const execFileAsync = promisify(execFile);
 
 const IDENTITY = "test-user";
+
+async function captureProcessOutput(fn: () => Promise<void>): Promise<string> {
+  const chunks: string[] = [];
+  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
+    chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
+    return true;
+  });
+  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
+    chunks.push(typeof chunk === "string" ? chunk : chunk.toString());
+    return true;
+  });
+  try {
+    await fn();
+  } finally {
+    stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
+  }
+  return chunks.join("");
+}
 
 /** A minimal managed meta for a stub at a given State. */
 function metaFor(slug: string, state: string, branch: string, cls = "Light"): string {
@@ -161,9 +180,10 @@ describe("arc start dispatch — against real worktrees", () => {
     const savedExitCode = process.exitCode;
     process.exitCode = undefined;
     let observedExitCode: typeof process.exitCode;
+    let output: string;
     try {
       process.chdir(h.repo);
-      await handleStart("shell-alpha", { yes: true });
+      output = await captureProcessOutput(() => handleStart("shell-alpha", { new: true, yes: true }));
       observedExitCode = process.exitCode;
     } finally {
       process.chdir(originalCwd);
@@ -179,6 +199,8 @@ describe("arc start dispatch — against real worktrees", () => {
     const roadmap = await readFile(join(wt, ".arc", "backlog", "ROADMAP.md"), "utf8");
     expect(roadmap).toContain("shell-alpha");
     expect(roadmap).toContain("Generated from meta files");
+    expect(roadmap).not.toContain("## Warnings");
+    expect(output).not.toContain("cleanup may be required");
     const notes = await readFile(join(wt, ".arc", "user", IDENTITY, "shell-alpha", "SESSION-NOTES.md"), "utf8");
     const { stdout: shortHead } = await execFileAsync("git", ["rev-parse", "--short", "HEAD"], { cwd: wt });
     expect(notes).toContain("**Working On:** meta-shell-alpha.md");
@@ -187,6 +209,33 @@ describe("arc start dispatch — against real worktrees", () => {
     const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: wt });
     const { stdout: remoteHead } = await execFileAsync("git", ["ls-remote", "origin", "refs/heads/plan/shell-alpha"], { cwd: h.repo });
     expect(remoteHead).toContain(head.trim());
+  });
+
+  it("create-new handler: refuses an absent slug without --new", async () => {
+    const slug = "implicit-create";
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+    await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+
+    const originalCwd = process.cwd();
+    const savedExitCode = process.exitCode;
+    process.exitCode = undefined;
+    let observedExitCode: typeof process.exitCode;
+    try {
+      process.chdir(h.repo);
+      await handleStart(slug, { yes: true });
+      observedExitCode = process.exitCode;
+    } finally {
+      process.chdir(originalCwd);
+      process.exitCode = savedExitCode;
+    }
+
+    expect(observedExitCode).toBe(1);
+    const { stdout: branch } = await execFileAsync("git", ["branch", "--list", `plan/${slug}`], { cwd: h.repo });
+    expect(branch.trim()).toBe("");
   });
 
   it("graduate handler: shell invocation commits and pushes the spawned plan branch", async () => {
@@ -210,9 +259,10 @@ describe("arc start dispatch — against real worktrees", () => {
     const savedExitCode = process.exitCode;
     process.exitCode = undefined;
     let observedExitCode: typeof process.exitCode;
+    let output: string;
     try {
       process.chdir(h.repo);
-      await handleStart("shell-widget", { yes: true });
+      output = await captureProcessOutput(() => handleStart("shell-widget", { yes: true }));
       observedExitCode = process.exitCode;
     } finally {
       process.chdir(originalCwd);
@@ -228,6 +278,9 @@ describe("arc start dispatch — against real worktrees", () => {
     const { stdout: body } = await execFileAsync("git", ["log", "-1", "--format=%b"], { cwd: wt });
     expect(subject.trim()).toBe("chore(arc): graduate shell-widget into active");
     expect(body).toContain("Context: meta-shell-widget.md (activation)");
+    const roadmap = await readFile(join(wt, ".arc", "backlog", "ROADMAP.md"), "utf8");
+    expect(roadmap).not.toContain("## Warnings");
+    expect(output).not.toContain("cleanup may be required");
     const notes = await readFile(join(wt, ".arc", "user", IDENTITY, "shell-widget", "SESSION-NOTES.md"), "utf8");
     const { stdout: shortHead } = await execFileAsync("git", ["rev-parse", "--short", "HEAD"], { cwd: wt });
     expect(notes).toContain("**Working On:** meta-shell-widget.md");
@@ -236,6 +289,51 @@ describe("arc start dispatch — against real worktrees", () => {
     const { stdout: head } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: wt });
     const { stdout: remoteHead } = await execFileAsync("git", ["ls-remote", "origin", "refs/heads/plan/shell-widget"], { cwd: h.repo });
     expect(remoteHead).toContain(head.trim());
+  });
+
+  it("graduate handler: resolves a stub from refreshed base when the invoking checkout predates it", async () => {
+    const slug = "base-only-widget";
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
+    await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
+    await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+
+    await execFileAsync("git", ["branch", "feat/stale-launcher"], { cwd: h.repo });
+    await commitMeta(h.repo, `backlog/planned/${slug}`, slug, "Planning", "[none]");
+    await execFileAsync("git", ["push", "origin", "main"], { cwd: h.repo });
+    await execFileAsync("git", ["switch", "feat/stale-launcher"], { cwd: h.repo });
+
+    const wt = resolveWorktreeLocation({
+      template: h.locationTemplate,
+      repo: basename(h.repo),
+      name: slug,
+      branch: `plan/${slug}`,
+    });
+    h.spawned.push(wt);
+    expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", slug, `meta-${slug}.md`))).toBe(false);
+
+    const originalCwd = process.cwd();
+    const savedExitCode = process.exitCode;
+    process.exitCode = undefined;
+    let observedExitCode: typeof process.exitCode;
+    let output: string;
+    try {
+      process.chdir(h.repo);
+      output = await captureProcessOutput(() => handleStart(slug, { yes: true }));
+      observedExitCode = process.exitCode;
+    } finally {
+      process.chdir(originalCwd);
+      process.exitCode = savedExitCode;
+    }
+
+    expect(observedExitCode).toBeUndefined();
+    expect(await pathExists(join(wt, ".arc", "active", `meta-${slug}.md`))).toBe(true);
+    expect(await pathExists(join(wt, ".arc", "backlog", "planned", slug, `meta-${slug}.md`))).toBe(false);
+    const record = parseMetaRecord(await readFile(join(wt, ".arc", "active", `meta-${slug}.md`), "utf8"));
+    expect(record.Class).toBe("Light");
+    expect(output.match(/Branch `feat\/stale-launcher`[^\n]+cleanup may be required\./gu)).toHaveLength(1);
   });
 
   it("create-new: registers the ownership marker ignore rule before leaving the spawned worktree", async () => {

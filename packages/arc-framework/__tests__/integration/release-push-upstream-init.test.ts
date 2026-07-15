@@ -1,9 +1,9 @@
 /**
  * Integration test for the `arc release push` no-upstream auto-resolution
- * path. Wires the real pushability matrix against a tmpdir git repo with a
- * fresh branch (no upstream configured), threads the result through
- * `runReleasePush`, and asserts the wrapper auto-injects `-u` into the
- * spawned argv when `pushInterlock` permits.
+ * path. Wires the real pushability matrix against tmpdir git repositories
+ * with either a fresh branch or an activation rename that inherited its plan
+ * upstream, threads the result through `runReleasePush`, and asserts the
+ * wrapper auto-injects `-u` when `pushInterlock` permits.
  *
  * Unit tests in `__tests__/unit/handlers/release/push.test.ts` cover the
  * orchestrator's decision logic with synthetic conditions. This test
@@ -11,9 +11,9 @@
  * surfaces `no-upstream-branch` as `caller-resolvable` against real git
  * state, and that the orchestrator picks it up correctly.
  *
- * Closes the latent activation bug: wrapper-routed `workflowPush` on a
- * no-upstream branch under `pushInterlock: on-workflow` previously refused
- * with code 14; now succeeds via auto-`-u`.
+ * Covers both activation failures: a genuinely no-upstream branch previously
+ * refused with code 14, while a renamed branch could retain the obsolete plan
+ * upstream and bypass auto-`-u` entirely.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -34,6 +34,7 @@ import type {
   ResolvedSettingsResult,
 } from "../../src/lib/config/resolved-settings.js";
 import type { ConfigSettings } from "../../src/commands/config/types.js";
+import { reconcileBranch } from "../../src/lib/work-unit/mutators/reconcile-branch.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -118,6 +119,44 @@ describe("arc release push — no-upstream auto-resolution (integration)", () =>
 
   it("wrapper-routed push on no-upstream branch + pushInterlock=on-workflow injects -u", async () => {
     const exec = buildGitExec(root);
+    const spawnCalls: Array<{ args: readonly string[] }> = [];
+    const deps: ReleasePushDeps = {
+      cwd: root,
+      identity: "alice",
+      argv: [],
+      settings: buildSettings("on-workflow"),
+      currentBranch: BRANCH,
+      runPushability: () => runPushabilityStatus({
+        exec,
+        access,
+        target: "worktree",
+      }),
+      spawnPush: async (opts) => {
+        spawnCalls.push({ args: opts.args });
+        return { status: "success", stdout: "", stderr: "" };
+      },
+    };
+
+    const result = await runReleasePush(deps);
+
+    expect(result.exitCode).toBe(0);
+    expect(spawnCalls).toHaveLength(1);
+    expect(spawnCalls[0]?.args).toEqual(["-u"]);
+  });
+
+  it("activation rename clears the inherited plan upstream before wrapper-routed push", async () => {
+    await execFileAsync("git", ["branch", "-m", BRANCH, "plan/sample"], { cwd: root });
+    const origin = join(root, ".git", "test-origin.git");
+    await execFileAsync("git", ["init", "--bare", origin]);
+    await execFileAsync("git", ["remote", "add", "origin", origin], { cwd: root });
+    await execFileAsync("git", ["push", "-u", "origin", "plan/sample"], { cwd: root });
+
+    const exec = buildGitExec(root);
+    await reconcileBranch(
+      { exec },
+      { mutation: "rename", branch: "plan/sample", toBranch: BRANCH },
+    );
+
     const spawnCalls: Array<{ args: readonly string[] }> = [];
     const deps: ReleasePushDeps = {
       cwd: root,

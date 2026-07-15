@@ -38,9 +38,7 @@ export type ErrandOrigin = "description" | "inbox";
  * inbox-promoted errand and a free-description errand differ only in whether
  * {@link originEntry} is present.
  */
-export interface ErrandRecord {
-  /** Schema version — bumped on a shape change; reads tolerate and normalize. */
-  version: 1;
+interface ErrandRecordFields {
   /** The errand's stable slug — its logical identity and the tree key. */
   slug: string;
   /** How the errand originated (and whether an inbox back-pointer is present). */
@@ -56,13 +54,20 @@ export interface ErrandRecord {
 }
 
 /**
+ * Any supported errand record schema version. Version 2 records may carry the
+ * branch to restore when close reaps the errand; version 1 records cannot.
+ */
+export type ErrandRecord =
+  | (ErrandRecordFields & { version: 1 })
+  | (ErrandRecordFields & { version: 2; returnBranch?: string });
+
+/**
  * Serialize a record to its blob form — a normalized field order so a
  * round-trip (and a same-slug re-write) is byte-stable, which the per-slug
  * tree-merge relies on to treat identical records as idempotent.
  */
 export function serializeErrandRecord(record: ErrandRecord): string {
-  const normalized: ErrandRecord = {
-    version: 1,
+  const fields: ErrandRecordFields = {
     slug: record.slug,
     origin: record.origin,
     intent: record.intent,
@@ -70,6 +75,13 @@ export function serializeErrandRecord(record: ErrandRecord): string {
     createdAt: record.createdAt,
     ...(record.originEntry !== undefined ? { originEntry: record.originEntry } : {}),
   };
+  const normalized: ErrandRecord = record.version === 2
+    ? {
+      version: 2,
+      ...fields,
+      ...(record.returnBranch !== undefined ? { returnBranch: record.returnBranch } : {}),
+    }
+    : { version: 1, ...fields };
   return `${JSON.stringify(normalized, null, 2)}\n`;
 }
 
@@ -89,7 +101,7 @@ export function deserializeErrandRecord(blob: string): ErrandRecord | null {
   const record = parsed as Record<string, unknown>;
 
   if (
-    record.version !== 1
+    (record.version !== 1 && record.version !== 2)
     || !isNonEmptyString(record.slug)
     || (record.origin !== "description" && record.origin !== "inbox")
     || typeof record.intent !== "string"
@@ -106,9 +118,14 @@ export function deserializeErrandRecord(blob: string): ErrandRecord | null {
   if (record.origin === "description" && record.originEntry !== undefined) {
     return null;
   }
+  if (record.version === 1 && record.returnBranch !== undefined) {
+    return null;
+  }
+  if (record.version === 2 && record.returnBranch !== undefined && !isNonEmptyString(record.returnBranch)) {
+    return null;
+  }
 
-  return {
-    version: 1,
+  const fields: ErrandRecordFields = {
     slug: record.slug,
     origin: record.origin,
     intent: record.intent,
@@ -116,6 +133,13 @@ export function deserializeErrandRecord(blob: string): ErrandRecord | null {
     createdAt: record.createdAt,
     ...(isNonEmptyString(record.originEntry) ? { originEntry: record.originEntry } : {}),
   };
+  return record.version === 2
+    ? {
+      version: 2,
+      ...fields,
+      ...(isNonEmptyString(record.returnBranch) ? { returnBranch: record.returnBranch } : {}),
+    }
+    : { version: 1, ...fields };
 }
 
 function isNonEmptyString(value: unknown): value is string {

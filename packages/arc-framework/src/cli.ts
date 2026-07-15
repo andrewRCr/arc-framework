@@ -31,6 +31,7 @@ import {
   type ErrandPromoteOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
+import { handleBaseSync, type BaseSyncOptions } from "./handlers/base.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
@@ -66,6 +67,7 @@ import {
 import {
   handleUserAdd, handleUserClose, handleUserCompact, handleUserInboxRemove, handleUserOpen,
   handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
+  type UserInboxRemoveOptions,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
@@ -137,6 +139,7 @@ program
     "--class <value>",
     "Resolved Class (Light | Heavy | Novel) for a stub still `[TBD]` — the start ceremony records it in the meta",
   )
+  .option("--new", "Create a fresh work unit when the name does not exist on the base branch")
   .option("-y, --yes", "Skip the confirm prompt; spawned starts still commit and push the ceremony")
   .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
 
@@ -292,12 +295,14 @@ errand
   .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
   .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its title): inbox-origin record, dropped at close")
+  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
   .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
 
 errand
   .command("link <slug>")
   .description("Link an in-flight errand to a USER-INBOX capture so close/promote can drop it")
-  .requiredOption("--from-inbox <entry-title>", "USER-INBOX capture title to associate with the errand")
+  .option("--from-inbox <entry-title>", "USER-INBOX capture title to associate with the errand")
+  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
   .action((slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts));
 
 errand
@@ -333,6 +338,16 @@ housekeep
   .description("Classify the write context — base-branch (proceed), WU branch (relocate), or degenerate (refuse)")
   .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
   .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
+
+const baseCmd = program
+  .command("base")
+  .description("Local integration-base operations");
+
+baseCmd
+  .command("sync")
+  .description("Safely fast-forward the local base from any worktree")
+  .option("--json", "Emit the typed synchronization outcome as JSON")
+  .action((opts: BaseSyncOptions) => handleBaseSync(opts));
 
 const plan = program
   .command("plan")
@@ -390,9 +405,10 @@ userCmd
   .action(handleUserClose);
 
 userCmd
-  .command("inbox-remove <slug>")
-  .description("Drop the slug-matched USER-INBOX entry (title-keyed in v1; idempotent — no-op when absent)")
-  .action(handleUserInboxRemove);
+  .command("inbox-remove [slug]")
+  .description("Drop the title-matched USER-INBOX entry (idempotent — no-op when absent)")
+  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
+  .action((slug: string | undefined, opts: UserInboxRemoveOptions) => handleUserInboxRemove(slug, opts));
 
 userCmd
   .command("save")

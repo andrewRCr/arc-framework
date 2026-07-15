@@ -75,6 +75,26 @@ async function captureStdout(fn: () => Promise<void>): Promise<string> {
   return chunks.join("");
 }
 
+async function captureProcessOutput(fn: () => Promise<void>): Promise<{ stdout: string; stderr: string }> {
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: string | Uint8Array) => {
+    stdout.push(typeof chunk === "string" ? chunk : chunk.toString());
+    return true;
+  });
+  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: string | Uint8Array) => {
+    stderr.push(typeof chunk === "string" ? chunk : chunk.toString());
+    return true;
+  });
+  try {
+    await fn();
+  } finally {
+    stdoutSpy.mockRestore();
+    stderrSpy.mockRestore();
+  }
+  return { stdout: stdout.join(""), stderr: stderr.join("") };
+}
+
 async function runProject(cwd: string, opts: StatusCliOptions): Promise<string> {
   const originalCwd = process.cwd();
   const savedExitCode: ProcessExitCode = process.exitCode;
@@ -82,6 +102,22 @@ async function runProject(cwd: string, opts: StatusCliOptions): Promise<string> 
   try {
     process.chdir(cwd);
     return await captureStdout(() => handleStatus(undefined, opts));
+  } finally {
+    process.chdir(originalCwd);
+    process.exitCode = savedExitCode;
+  }
+}
+
+async function runProjectWithDiagnostics(
+  cwd: string,
+  opts: StatusCliOptions,
+): Promise<{ stdout: string; stderr: string }> {
+  const originalCwd = process.cwd();
+  const savedExitCode: ProcessExitCode = process.exitCode;
+  process.exitCode = undefined;
+  try {
+    process.chdir(cwd);
+    return await captureProcessOutput(() => handleStatus(undefined, opts));
   } finally {
     process.chdir(originalCwd);
     process.exitCode = savedExitCode;
@@ -306,6 +342,31 @@ describe("arc status --project", () => {
     expect(staged).not.toMatch(/\|\s*foo\s*\|\s*P3\b/u);
     expect(worktree).toMatch(/\|\s*foo\s*\|\s*P3\b/u);
   });
+
+  it.each([
+    ["staged", { project: true, staged: true }],
+    ["live", { project: true, local: true }],
+  ] satisfies [string, StatusCliOptions][])(
+    "writes %s project-readiness warnings to stderr without contaminating stdout",
+    async (_mode, options) => {
+      repo = await createTempRepo("arc-status-warning-channel-");
+      await mkdir(join(repo, ".arc", "system"), { recursive: true });
+      await mkdir(join(repo, ".arc", "backlog", "planned", "warning-source"), { recursive: true });
+      await writeFile(join(repo, ".arc", "system", "arc-config.yml"), "branch.base: main\n");
+      await writeFile(
+        join(repo, ".arc", "backlog", "planned", "warning-source", "meta-warning-source.md"),
+        meta("warning-source", "Planning", "[none]")
+          .replace("- **Depends On:** [none]", "- **Depends On:** missing-dependency"),
+      );
+      await commitAll(repo, "scaffold warning source");
+
+      const output = await runProjectWithDiagnostics(repo, options);
+
+      expect(output.stdout).not.toContain("## Warnings");
+      expect(output.stdout).not.toContain("depends on missing work unit");
+      expect(output.stderr).toContain("warning: `warning-source` depends on missing work unit `missing-dependency`");
+    },
+  );
 
   it("drops an archiving own-branch row while preserving sibling rows and hook/CLI byte parity", async () => {
     repo = await createTempRepo("arc-status-archive-window-");

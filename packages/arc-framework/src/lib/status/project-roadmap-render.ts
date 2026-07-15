@@ -13,9 +13,10 @@ import { buildLifecycleIndex, type LifecycleIndexFs } from "../work-unit/lifecyc
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
 
 import {
-  composeProjectReadinessView,
+  composeProjectReadinessViewResult,
   resolveProjectReadinessRenderStamp,
   resolveProjectReadinessViewInput,
+  type ProjectReadinessViewResult,
 } from "./project-view.js";
 
 /** Inputs for rendering the tracked project readiness view. */
@@ -32,10 +33,10 @@ export interface RenderTrackedProjectReadinessViewOptions {
   currentBranch?: string | null;
 }
 
-/** Render the tracked ROADMAP view from tree files plus local refs. */
-export async function renderTrackedProjectReadinessView(
+/** Render the tracked ROADMAP view and its separate advisories from tree files plus local refs. */
+export async function renderTrackedProjectReadinessViewResult(
   options: RenderTrackedProjectReadinessViewOptions,
-): Promise<string> {
+): Promise<ProjectReadinessViewResult> {
   const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: options.cwd, fs: options.fs }));
   const input = await resolveProjectReadinessViewInput({
     cwd: options.cwd,
@@ -49,7 +50,7 @@ export async function renderTrackedProjectReadinessView(
       ? {}
       : { prospective: { currentBranch: options.currentBranch } }),
   });
-  return composeProjectReadinessView({
+  return composeProjectReadinessViewResult({
     ...input,
     renderedRef: await resolveProjectReadinessRenderStamp({
       exec: options.exec,
@@ -58,4 +59,11 @@ export async function renderTrackedProjectReadinessView(
       liveView: "arc status --project",
     }),
   });
+}
+
+/** Render only the tracked ROADMAP body from tree files plus local refs. */
+export async function renderTrackedProjectReadinessView(
+  options: RenderTrackedProjectReadinessViewOptions,
+): Promise<string> {
+  return (await renderTrackedProjectReadinessViewResult(options)).markdown;
 }

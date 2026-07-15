@@ -31,6 +31,15 @@ post-trio architecture-remediation plans consume.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Finish the explicit Class-input contract at `promote`**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during FP wave-2 launch.
+- *Resolved context:* the split-out `start-class-flag` Errand shipped `start --class` and `stub --class`, so the
+  original launch deadlock is closed.
+- *Residual:* `promote` still requires a resolved Class without an equivalent verb-level input. Low urgency now
+  that `stub --class` closes the gap at birth, but retain the asymmetry for this WU's uniform validation and
+  explicit-input pass rather than rebuilding the shipped start/stub work.
+
 ### `[ ]` **Guard self-hosting recovery against broken generated CLI bundles**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-07);

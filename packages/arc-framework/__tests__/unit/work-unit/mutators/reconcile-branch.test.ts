@@ -31,7 +31,9 @@ function buildCtx(
 
 describe("reconcileBranch", () => {
   it("rotates plan/ → <type>/ at activate (local rename)", async () => {
-    const { ctx, calls } = buildCtx();
+    const { ctx, calls } = buildCtx(undefined, undefined, (args) =>
+      args[0] === "for-each-ref" ? "refs/remotes/origin/plan/demo-wu\n" : "",
+    );
 
     await reconcileBranch(ctx, {
       mutation: "rename",
@@ -39,7 +41,28 @@ describe("reconcileBranch", () => {
       toBranch: "feat/demo-wu",
     });
 
-    expect(calls).toEqual([["git", "branch", "-m", "plan/demo-wu", "feat/demo-wu"]]);
+    expect(calls).toEqual([
+      ["git", "branch", "-m", "plan/demo-wu", "feat/demo-wu"],
+      ["git", "for-each-ref", "--format=%(upstream)", "refs/heads/feat/demo-wu"],
+      ["git", "branch", "--unset-upstream", "feat/demo-wu"],
+    ]);
+  });
+
+  it("rotates an untracked branch when there is no inherited upstream to clear", async () => {
+    const { ctx, calls } = buildCtx();
+
+    await expect(
+      reconcileBranch(ctx, {
+        mutation: "rename",
+        branch: "plan/demo-wu",
+        toBranch: "feat/demo-wu",
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(calls).toEqual([
+      ["git", "branch", "-m", "plan/demo-wu", "feat/demo-wu"],
+      ["git", "for-each-ref", "--format=%(upstream)", "refs/heads/feat/demo-wu"],
+    ]);
   });
 
   it("skips a same-name rename", async () => {

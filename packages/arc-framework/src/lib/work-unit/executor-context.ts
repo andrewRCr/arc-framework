@@ -47,7 +47,7 @@ import {
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import { getCurrentBranch, type GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
-import { renderTrackedProjectReadinessView } from "../status/project-roadmap-render.js";
+import { renderTrackedProjectReadinessViewResult } from "../status/project-roadmap-render.js";
 import { resolveUserSurfaceResolver } from "../user-surfaces.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
@@ -254,13 +254,17 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
           {
             composeView: async () => {
               const currentBranch = await getCurrentBranch(exec);
-              return renderTrackedProjectReadinessView({
+              const result = await renderTrackedProjectReadinessViewResult({
                 cwd,
                 exec,
                 fs: indexFs,
                 ...(baseBranch !== undefined ? { baseBranch } : {}),
                 currentBranch,
               });
+              return {
+                content: result.markdown,
+                advisories: result.warnings.map((warning) => warning.rendered),
+              };
             },
             mkdir: io.mkdir,
             writeFile: io.writeFile,

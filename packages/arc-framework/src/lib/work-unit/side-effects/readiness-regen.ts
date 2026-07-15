@@ -133,9 +133,16 @@ export interface ReconcileRoadmapParams {
 }
 
 /** Dependencies for {@link reconcileRoadmap}. */
+export interface ReconcileRoadmapView {
+  /** Rendered artifact body, excluding advisory text. */
+  content: string;
+  /** Advisory messages for the lifecycle outcome to surface separately. */
+  advisories: readonly string[];
+}
+
 export interface ReconcileRoadmapContext {
-  /** Compose the rendered ROADMAP body. */
-  composeView: () => Promise<string>;
+  /** Compose the rendered ROADMAP body plus separate advisories. */
+  composeView: () => Promise<ReconcileRoadmapView>;
   /** Create the backlog directory if absent. */
   mkdir: MkdirFn;
   /** Write `ROADMAP.md`. */
@@ -170,11 +177,13 @@ export async function reconcileRoadmap(
     const dir = join(params.cwd, ".arc", "backlog");
     const path = join(dir, "ROADMAP.md");
     const view = await ctx.composeView();
-    const body = view.endsWith("\n") ? view : `${view}\n`;
+    const body = view.content.endsWith("\n") ? view.content : `${view.content}\n`;
     await ensureDir(dir, ctx.mkdir);
     await ctx.writeFile(path, body);
     await ctx.stageFile(path);
-    return undefined;
+    return view.advisories.length === 0
+      ? undefined
+      : view.advisories.map((advisory) => `ROADMAP advisory: ${advisory}`).join("\n");
   } catch {
     return `ROADMAP regen failed: \`${params.slug}\` ${move} — refresh the project readiness view manually.`;
   }

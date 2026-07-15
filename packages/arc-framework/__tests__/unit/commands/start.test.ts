@@ -476,6 +476,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
       worktreePath: primaryRoot,
       identity: "andrew",
       name: "widget",
+      baseRef: "abc123",
     });
 
     expect(outcome.ok).toBe(true);
@@ -490,7 +491,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
     });
     // The branch forks from the base via `git worktree add … -b plan/widget <base>`.
     expect(rec.calls).toContainEqual([
-      "git", "worktree", "add", expectedPath, "-b", "plan/widget", "main",
+      "git", "worktree", "add", expectedPath, "-b", "plan/widget", "abc123",
     ]);
     // Spawn ran to completion: meta scaffolded + ownership marker written (ARC-created).
     const record = parseMetaRecord(

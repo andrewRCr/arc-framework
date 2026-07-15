@@ -146,6 +146,35 @@ describe("arc errand close", () => {
     await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:tidy"])).rejects.toThrow();
   });
 
+  it("restores the pre-open branch when main is held by the primary worktree", async () => {
+    const linkedDir = `${tmpDir}-linked`;
+    await setFullProtection(tmpDir);
+    await git(tmpDir, ["add", ".arc/system/arc-config.yml"]);
+    await git(tmpDir, ["commit", "--no-verify", "-m", "enable full protection"]);
+    await git(tmpDir, ["branch", "feat/active-wu"]);
+    await git(tmpDir, ["worktree", "add", linkedDir, "feat/active-wu"]);
+
+    try {
+      const open = await runArc(["errand", "open", "linked-fix", "--type", "fix"], linkedDir);
+      expect(open.exitCode).toBe(0);
+      expect((await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("fix/linked-fix");
+      const record = await git(
+        linkedDir,
+        ["cat-file", "-p", "refs/arc/user/test-user/errands:linked-fix"],
+      );
+      expect(record).toContain('"returnBranch": "feat/active-wu"');
+
+      const close = await runArc(["errand", "close", "linked-fix"], linkedDir);
+
+      expect(close.exitCode).toBe(0);
+      expect(await git(linkedDir, ["branch", "--list", "fix/linked-fix"])).toBe("");
+      expect((await git(linkedDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("feat/active-wu");
+      expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("main");
+    } finally {
+      await git(tmpDir, ["worktree", "remove", "--force", linkedDir]);
+    }
+  });
+
   it("is a clean no-op when no record exists for the slug", async () => {
     await setFullProtection(tmpDir);
 
@@ -209,6 +238,29 @@ describe("arc errand close", () => {
     expect(await readFile(inboxPath, "utf-8")).not.toContain("**Drain me**");
   });
 
+  it("adopts a Markdown-bearing capture title from a file operand", async () => {
+    await setFullProtection(tmpDir);
+    const title = "Run `arc user inbox-remove` after $(capture)";
+    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+    const inboxPath = join(inboxDir, "USER-INBOX.md");
+    const operandPath = join(tmpDir, "inbox-entry-title.txt");
+    const inbox = `# User Inbox\n\n## Errand\n\n### \`[ ]\` **${title}**\n\n- _Observation:_ adopt safely.\n\n---\n`;
+    await mkdir(inboxDir, { recursive: true });
+    await writeFile(inboxPath, inbox, "utf-8");
+    await writeFile(operandPath, `${title}\n`, "utf-8");
+
+    const open = await runArc([
+      "errand", "open", "safe-title", "--type", "chore", "--inbox-entry-file", operandPath,
+    ], tmpDir);
+    expect(open.exitCode).toBe(0);
+    const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:safe-title"]);
+    expect(record).toContain(`"originEntry": ${JSON.stringify(title)}`);
+
+    const close = await runArc(["errand", "close", "safe-title"], tmpDir);
+    expect(close.exitCode).toBe(0);
+    expect(await readFile(inboxPath, "utf-8")).not.toContain(title);
+  });
+
   it("leaves unrelated inbox captures untouched (a description errand drops nothing)", async () => {
     await setFullProtection(tmpDir);
     const inboxDir = join(tmpDir, ".arc", "user", "test-user");
@@ -243,6 +295,27 @@ describe("arc errand close", () => {
     const close = await runArc(["errand", "close", "late-adopt"], tmpDir);
     expect(close.exitCode).toBe(0);
     expect(await readFile(inboxPath, "utf-8")).not.toContain("**Link me**");
+  });
+
+  it("links a Markdown-bearing capture title from a file operand", async () => {
+    await setFullProtection(tmpDir);
+    const title = "Link `arc errand` after $(capture)";
+    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+    const inboxPath = join(inboxDir, "USER-INBOX.md");
+    const operandPath = join(tmpDir, "link-entry-title.txt");
+    const inbox = `# User Inbox\n\n## Errand\n\n### \`[ ]\` **${title}**\n\n- _Observation:_ link safely.\n\n---\n`;
+    await mkdir(inboxDir, { recursive: true });
+    await writeFile(inboxPath, inbox, "utf-8");
+    await writeFile(operandPath, `${title}\n`, "utf-8");
+
+    const open = await runArc(["errand", "open", "safe-link", "--type", "chore"], tmpDir);
+    expect(open.exitCode).toBe(0);
+    const link = await runArc([
+      "errand", "link", "safe-link", "--inbox-entry-file", operandPath,
+    ], tmpDir);
+    expect(link.exitCode).toBe(0);
+    const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:safe-link"]);
+    expect(record).toContain(`"originEntry": ${JSON.stringify(title)}`);
   });
 });
 
