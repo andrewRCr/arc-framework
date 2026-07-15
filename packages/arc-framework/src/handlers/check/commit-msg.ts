@@ -1,6 +1,7 @@
 /** Orchestration for standalone commit-message validation. */
 
 import { validateCommitMessage } from "../../lib/commit-check/validate.js";
+import { formatDiagnosticPreview } from "../../lib/commit-check/diagnostics.js";
 import type { CommitMessageCheckRepository } from "../../lib/commit-check/repository.js";
 import type {
   CommitCheckOutcome,
@@ -55,8 +56,8 @@ function error(
   return { kind: "error", exitCode: 2, error: { kind, code, message } };
 }
 
-function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : String(cause);
+function errorDetail(cause: unknown): string {
+  return formatDiagnosticPreview(cause instanceof Error ? cause.message : String(cause));
 }
 
 /**
@@ -81,7 +82,7 @@ export async function runCheckCommitMessage(
     return error(
       "infrastructure",
       "repository.setup-failed",
-      `Could not prepare commit-message validation: ${errorMessage(cause)}`,
+      `Could not prepare commit-message validation: ${errorDetail(cause)}`,
     );
   }
 
@@ -92,7 +93,9 @@ export async function runCheckCommitMessage(
     return error(
       "infrastructure",
       "input.unreadable",
-      `Could not read commit-message input ${source === "-" ? "from stdin" : source}: ${errorMessage(cause)}`,
+      `Could not read commit-message input ${
+        source === "-" ? "from stdin" : formatDiagnosticPreview(source)
+      }: ${errorDetail(cause)}`,
     );
   }
 
@@ -118,7 +121,7 @@ export async function validateCommitMessageBytes(
     return error(
       "infrastructure",
       "encoding.unsupported",
-      `Git i18n.commitEncoding names unsupported encoding: ${repository.encoding}`,
+      `Git i18n.commitEncoding names unsupported encoding: ${formatDiagnosticPreview(repository.encoding)}`,
     );
   }
 
@@ -129,7 +132,7 @@ export async function validateCommitMessageBytes(
     return error(
       "infrastructure",
       "encoding.malformed",
-      `Commit-message input is not valid ${decoder.encoding}.`,
+      `Commit-message input is not valid ${formatDiagnosticPreview(decoder.encoding)}.`,
     );
   }
 

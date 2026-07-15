@@ -34,6 +34,7 @@ function create(overrides: {
   readFile?: (path: string) => Promise<Uint8Array>;
   readStdin?: () => Promise<Uint8Array>;
   repo?: CommitMessageCheckRepository;
+  setupRepository?: () => Promise<CommitMessageCheckRepository>;
   hasPrepareCommitMsgHook?: (cwd: string) => Promise<boolean>;
   stdinIsTTY?: boolean;
 } = {}) {
@@ -46,7 +47,7 @@ function create(overrides: {
       stdinIsTTY: overrides.stdinIsTTY ?? false,
       readFile,
       readStdin,
-      setupRepository: async () => overrides.repo ?? repository(),
+      setupRepository: overrides.setupRepository ?? (async () => overrides.repo ?? repository()),
       hasPrepareCommitMsgHook: overrides.hasPrepareCommitMsgHook ?? (async () => false),
     }),
   };
@@ -163,6 +164,34 @@ describe("createCommitMessagePreflight", () => {
       kind: "refused",
       reason: "input",
     });
+  });
+
+  it.each([
+    {
+      label: "repository setup",
+      createOverrides: {
+        setupRepository: async () => Promise.reject(new Error(`\u001b[31m${"x".repeat(200)}`)),
+      },
+      expectedPrefix: "Could not prepare commit-message preflight: ",
+    },
+    {
+      label: "prepare-commit-msg inspection",
+      createOverrides: {
+        hasPrepareCommitMsgHook: async () => Promise.reject(new Error(`\u001b[31m${"x".repeat(200)}`)),
+      },
+      expectedPrefix: "Could not inspect prepare-commit-msg hook: ",
+    },
+  ])("bounds and escapes $label failures", async ({ createOverrides, expectedPrefix }) => {
+    const { preflight } = create(createOverrides);
+
+    const result = await preflight({ args: ["-m", "subject"], cwd: "/repo" });
+
+    expect(result).toMatchObject({ kind: "refused", reason: "input" });
+    if (result.kind !== "refused") throw new Error("expected input refusal");
+    expect(result.message).toMatch(new RegExp(`^${expectedPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    expect(result.message).toContain("\\u001b");
+    expect(result.message).not.toContain("\u001b");
+    expect(result.message).toMatch(/…$/);
   });
 
   it.each([

@@ -98,7 +98,7 @@ describe("commit message file capture", () => {
     { path: "message.txt", expectedInput: "file" },
     { path: "-", expectedInput: "stdin" },
   ])("returns a bounded input error when $expectedInput capture fails", async ({ path, expectedInput }) => {
-    const failure = new Error("x".repeat(500));
+    const failure = new Error(`\u001b[31m${"x".repeat(500)}`);
     const result = await captureCommitMessageFileSource(path, {
       readFile: async () => Promise.reject(failure),
       readStdin: async () => Promise.reject(failure),
@@ -108,5 +108,7 @@ describe("commit message file capture", () => {
     if (result.kind !== "error") throw new Error("expected capture error");
     expect(result.message.length).toBeLessThanOrEqual(240);
     expect(result.message).not.toContain("x".repeat(500));
+    expect(result.message).toContain("\\u001b");
+    expect(result.message).not.toContain("\u001b");
   });
 });

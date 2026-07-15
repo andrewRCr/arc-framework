@@ -1,7 +1,8 @@
 /** Pure assembly of deterministic `git commit -m` message bytes. */
 
+import { formatDiagnosticPreview } from "../commit-check/diagnostics.js";
+
 const encoder = new TextEncoder();
-const MAX_ERROR_DETAIL_LENGTH = 160;
 
 /** Injected byte readers used to capture `-F` sources exactly once. */
 export interface CommitMessageFileSourceReaders {
@@ -91,9 +92,7 @@ export function assembleCommitMessageParagraphs(values: readonly string[]): Uint
 
 function boundedErrorDetail(cause: unknown): string {
   const detail = cause instanceof Error ? cause.message : String(cause);
-  return detail.length <= MAX_ERROR_DETAIL_LENGTH
-    ? detail
-    : `${detail.slice(0, MAX_ERROR_DETAIL_LENGTH - 3)}...`;
+  return formatDiagnosticPreview(detail);
 }
 
 /**

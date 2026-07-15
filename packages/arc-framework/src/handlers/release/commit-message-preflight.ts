@@ -6,6 +6,7 @@ import {
 } from "../../lib/release/commit-message-assembly.js";
 import { classifyCommitMessageInput } from "../../lib/release/commit-message-source.js";
 import { prepareCommitCheckContext } from "../../lib/commit-check/context.js";
+import { formatDiagnosticPreview } from "../../lib/commit-check/diagnostics.js";
 import type { CommitMessageCheckRepository } from "../../lib/commit-check/repository.js";
 import { validateCommitMessageBytes } from "../check/commit-msg.js";
 import { renderCheckCommitMessage } from "../check/commit-msg-output.js";
@@ -31,7 +32,7 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
     try {
       repository = await deps.setupRepository(cwd);
     } catch (cause: unknown) {
-      const detail = cause instanceof Error ? cause.message : String(cause);
+      const detail = formatDiagnosticPreview(cause instanceof Error ? cause.message : String(cause));
       return inputFailure(`Could not prepare commit-message preflight: ${detail}`);
     }
 
@@ -53,7 +54,7 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
     try {
       if (await deps.hasPrepareCommitMsgHook(cwd)) return { kind: "pass-through" };
     } catch (cause: unknown) {
-      const detail = cause instanceof Error ? cause.message : String(cause);
+      const detail = formatDiagnosticPreview(cause instanceof Error ? cause.message : String(cause));
       return inputFailure(`Could not inspect prepare-commit-msg hook: ${detail}`);
     }
 

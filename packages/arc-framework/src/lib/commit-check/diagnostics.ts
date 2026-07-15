@@ -28,7 +28,13 @@ function escapeControl(character: string): string {
   return `\\u${code.toString(16).padStart(4, "0")}`;
 }
 
-function safePreview(value: string): string {
+/**
+ * Bound and escape untrusted text before including it in human diagnostics.
+ *
+ * @param value - Untrusted text that may contain control characters.
+ * @returns A terminal-safe preview bounded by escaped output length.
+ */
+export function formatDiagnosticPreview(value: string): string {
   const escaped = Array.from(value, (character) => {
     const code = character.codePointAt(0) ?? 0;
     return code <= 31 || code === 127 ? escapeControl(character) : character;
@@ -40,8 +46,8 @@ function safePreview(value: string): string {
 }
 
 function detailValue(value: CommitCheckDetailValue): string {
-  if (Array.isArray(value)) return value.map(safePreview).join(", ");
-  return typeof value === "string" ? safePreview(value) : String(value);
+  if (Array.isArray(value)) return value.map(formatDiagnosticPreview).join(", ");
+  return typeof value === "string" ? formatDiagnosticPreview(value) : String(value);
 }
 
 function findingLines(finding: CommitCheckFinding): string[] {
@@ -55,7 +61,7 @@ function findingLines(finding: CommitCheckFinding): string[] {
     lines.push(`  ${scalarDetails.map(([key, value]) => `${key}: ${detailValue(value)}`).join("; ")}`);
   }
   const preview = finding.detail["preview"];
-  if (typeof preview === "string") lines.push(`  preview: "${safePreview(preview)}"`);
+  if (typeof preview === "string") lines.push(`  preview: "${formatDiagnosticPreview(preview)}"`);
   const suggestions = finding.detail["suggestions"];
   if (Array.isArray(suggestions) && suggestions.length > 0) {
     lines.push("  suggestions:", ...suggestions.map((suggestion) => `  - ${suggestion}`));

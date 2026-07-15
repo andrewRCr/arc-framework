@@ -168,9 +168,9 @@ describe("runCheckCommitMessage", () => {
   });
 
   it("returns an infrastructure error when the input is unreadable", async () => {
-    const outcome = await runCheckCommitMessage("missing.txt", {
+    const outcome = await runCheckCommitMessage("missing\u001b[31m.txt", {
       readFile: async () => {
-        throw new Error("permission denied");
+        throw new Error(`permission denied \u001b[31m${"x".repeat(200)}`);
       },
       readStdin: async () => new Uint8Array(),
       setupRepository: async () => repository(),
@@ -182,9 +182,13 @@ describe("runCheckCommitMessage", () => {
       error: {
         kind: "infrastructure",
         code: "input.unreadable",
-        message: expect.stringContaining("permission denied"),
+        message: expect.stringMatching(/^Could not read commit-message input missing\\u001b\[31m\.txt: /),
       },
     });
+    if (outcome.kind !== "error") throw new Error("expected infrastructure error");
+    expect(outcome.error.message).toContain("permission denied \\u001b");
+    expect(outcome.error.message).not.toContain("\u001b");
+    expect(outcome.error.message).toMatch(/…$/);
   });
 
   it("returns an infrastructure error when repository setup fails", async () => {
@@ -192,7 +196,7 @@ describe("runCheckCommitMessage", () => {
       readFile: async () => Buffer.from("A sufficiently long subject\n"),
       readStdin: async () => new Uint8Array(),
       setupRepository: async () => {
-        throw new Error("not a git repository");
+        throw new Error(`not a git repository \u001b[31m${"x".repeat(200)}`);
       },
     });
 
@@ -202,8 +206,11 @@ describe("runCheckCommitMessage", () => {
       error: {
         kind: "infrastructure",
         code: "repository.setup-failed",
-        message: expect.stringContaining("not a git repository"),
+        message: expect.stringContaining("not a git repository \\u001b"),
       },
     });
+    if (outcome.kind !== "error") throw new Error("expected infrastructure error");
+    expect(outcome.error.message).not.toContain("\u001b");
+    expect(outcome.error.message).toMatch(/…$/);
   });
 });
