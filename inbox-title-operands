@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "inbox-title-operands",
+  "origin": "inbox",
+  "intent": "Make exact USER-INBOX titles safe for shell-driven ARC commands",
+  "branch": "fix/inbox-title-operands",
+  "createdAt": "2026-07-15T00:08:03.659Z",
+  "originEntry": "Make Markdown-bearing inbox titles safe to pass through ARC CLI operands",
+  "returnBranch": "main"
+}
