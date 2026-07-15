@@ -521,6 +521,9 @@ export async function addBareRemote(cwd: string): Promise<string> {
 
 // Re-export for convenience
 export { readFile, writeFile, mkdir, rm, readdir, stat, join, dirname };
+// Re-export the teardown primitive so integration tests route inline
+// git-backed removals through it without reaching past the tier helper.
+export { removeGitBackedDir };
 export { execFileAsync };
 export { getArcTemplatePath, getInternalTemplatePath };
 export type { IOContext, GitExec, GitExecInput, Recipe, InitPromptResult, Manifest, DirEntry, UserIOContext };

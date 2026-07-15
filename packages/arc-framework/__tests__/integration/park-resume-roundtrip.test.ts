@@ -33,7 +33,7 @@ import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.j
 import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../../src/lib/work-unit/lifecycle-resolver.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
-import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
+import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -206,7 +206,7 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
   afterEach(async () => {
     for (const wt of h.spawned) {
       await execFileAsync("git", ["worktree", "remove", "--force", wt], { cwd: h.repo }).catch(() => {});
-      await rm(wt, { recursive: true, force: true }).catch(() => {});
+      await removeGitBackedDir(wt).catch(() => {});
     }
     await cleanupTempDir(h.repo);
   });

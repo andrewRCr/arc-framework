@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { execFile } from "node:child_process";
-import { mkdir, rm, writeFile, stat, readFile, readdir } from "node:fs/promises";
+import { mkdir, writeFile, stat, readFile, readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
@@ -26,7 +26,7 @@ import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { buildLifecycleIndex } from "../../src/lib/work-unit/lifecycle-index.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
-import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
+import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -128,10 +128,10 @@ describe("arc start dispatch — against real worktrees", () => {
   afterEach(async () => {
     for (const wt of h.spawned) {
       await execFileAsync("git", ["worktree", "remove", "--force", wt], { cwd: h.repo }).catch(() => {});
-      await rm(wt, { recursive: true, force: true });
+      await removeGitBackedDir(wt);
     }
     for (const path of h.cleanupPaths) {
-      await rm(path, { recursive: true, force: true });
+      await removeGitBackedDir(path);
     }
     await cleanupTempDir(h.repo);
   });
@@ -164,6 +164,7 @@ describe("arc start dispatch — against real worktrees", () => {
     const remote = `${h.repo}-origin.git`;
     h.cleanupPaths.push(remote);
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
     await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
     await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
     await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
@@ -216,6 +217,7 @@ describe("arc start dispatch — against real worktrees", () => {
     const remote = `${h.repo}-origin.git`;
     h.cleanupPaths.push(remote);
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
     await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
     await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
     await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
@@ -243,6 +245,7 @@ describe("arc start dispatch — against real worktrees", () => {
     const remote = `${h.repo}-origin.git`;
     h.cleanupPaths.push(remote);
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
     await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
     await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
     await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
@@ -296,6 +299,7 @@ describe("arc start dispatch — against real worktrees", () => {
     const remote = `${h.repo}-origin.git`;
     h.cleanupPaths.push(remote);
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
     await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
     await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
     await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
@@ -524,6 +528,7 @@ describe("arc start dispatch — against real worktrees", () => {
       const remote = `${h.repo}-origin.git`;
       h.cleanupPaths.push(remote);
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+      await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
       await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
       await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
       await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
@@ -567,6 +572,7 @@ describe("arc start dispatch — against real worktrees", () => {
     h.cleanupPaths.push(remote, sibling);
     h.spawned.push(duplicateWorktree);
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
     await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
     await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
     await execFileAsync("git", ["clone", remote, sibling]);

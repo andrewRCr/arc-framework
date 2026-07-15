@@ -25,7 +25,7 @@ import { promisify } from "node:util";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -146,7 +146,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   afterEach(async () => {
     for (const wt of worktrees) {
       await git(repo, ["worktree", "remove", "--force", wt]).catch(() => undefined);
-      await rm(wt, { recursive: true, force: true }).catch(() => undefined);
+      await removeGitBackedDir(wt).catch(() => undefined);
     }
     await cleanupTempDir(repo);
   });

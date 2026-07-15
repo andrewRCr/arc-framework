@@ -1,13 +1,15 @@
 /** Integration coverage for the installed commit-msg delegation shim. */
 
 import { execFile, spawn } from "node:child_process";
-import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
+
+import { removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -44,6 +46,7 @@ async function createFixture(config = "hooks.commit_msg: enabled\n"): Promise<Ho
   const messagePath = join(root, ".git/COMMIT_EDITMSG");
   const capturePath = join(root, "arc-invocation.txt");
   await execFileAsync("git", ["init", "-q", root]);
+  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: root });
   await mkdir(dirname(configPath), { recursive: true });
   await writeFile(configPath, config);
   await writeFile(messagePath, "feat(hook): delegate message validation\n");
@@ -98,7 +101,7 @@ async function runHook(
 }
 
 afterEach(async () => {
-  await Promise.all(fixtures.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await Promise.all(fixtures.splice(0).map((root) => removeGitBackedDir(root)));
 });
 
 describe("commit-msg shim gating", () => {

@@ -198,3 +198,7 @@ export function createTempRepo(prefix = "arc-e2e-"): Promise<string> {
 export function cleanupTempDir(dir: string): Promise<void> {
   return removeGitBackedDir(dir);
 }
+
+// Re-export so e2e tests route inline git-backed teardowns through the same
+// retry-safe primitive without reaching past the tier helper.
+export { removeGitBackedDir };

@@ -63,26 +63,29 @@ the full suite green (Consequences: suite-wide blast radius accepted). See `note
   commit-message fixture repo; reshuffle worktrees inherit it through the primary clone's shared common dir.
   Verified against the consuming integration + e2e tests.
 
-### `[ ]` **1.4 Inline-site sweep across the test suite**
+### `[x]` **1.4 Inline-site sweep across the test suite**
 
 - _Goal:_ Every git-backed temp-directory teardown outside the factories/helpers routes through the primitive,
   with `gc.auto 0` on the inline-created bare origins; any conscious exclusion is recorded.
 
-- _Context:_ ~68 files match `rm\(.*recursive` under `__tests__/`. The highest-risk sites are inline
-  `git init --bare` origins that never received the gc-disable fix — the candidate mechanism for the 2026-07-13
-  recurrence: `e2e/session-init.e2e.test.ts` (~L429/L461, ~L579/L613), `integration/status.test.ts`
-  (`pushToBareRemote` ~L659, remote removal ~L734; ~15 inline removals total), `integration/user.test.ts` (~22
-  `rm` sites), plus the broader inline set enumerated at sweep time.
-- **Additional Context:** `notes-cli-test-hardening.md` § Teardown-sweep starting points (grep seed, known
-  out-of-factory sites, the five helper-level sites).
+    - `[x]` **1.4.a Enumerate and classify the inline sites**
+        - Classified every inline `rm(..., { recursive })` across the 63-file surface (factory `cleanupTempDir`
+          calls excluded — already routed). Git-backed sites: **0** in the unit tier (all mocked-git or plain
+          `mkdtemp` fs fixtures), 19 across 8 integration files, 9 across 6 e2e files. Recorded exclusions
+          (left as non-git fixtures): unit-tier plain fixtures; integration `userDir` / `.arc`-subtree removals
+          and single-file `rm`s; and `user.test.ts`'s pre-`worktree add` wipe of an empty placeholder dir
+          (not git-backed at removal time).
 
-    - `[ ]` **1.4.a Enumerate and classify the inline sites**
-        - Walk the grep surface; classify each as git-backed (route) or non-git fs fixture (leave). Record the
-          classification so exclusions are auditable against Success Criterion 4.
-
-    - `[ ]` **1.4.b Route git-backed removals and gc-disable inline bare origins**
-        - Convert git-backed teardowns to the primitive; add `gc.auto 0` to inline-created bare/origin repos.
-          Full suite green after the sweep.
+    - `[x]` **1.4.b Route git-backed removals and gc-disable inline bare origins**
+        - Integration (routed via the `integration.js` re-export, or a direct `temp-repo.js` import where the
+          file doesn't use the tier helper): `status`, `user`, `teardown`, `status-project`, `start-dispatch`,
+          `release-push-upstream-init`, `park-resume-roundtrip`, `commit-msg-shim`. E2E (via the `helpers.js`
+          re-export, direct import for the standalone `pre-push`/`commit-msg`): `session-init`, `base-sync`,
+          `state-ref-race`, `pre-push`, `lifecycle-exit`, `commit-msg`. Every inline-created bare/`git init`
+          origin that lacked it got `gc.auto 0`. Sweep verified green (typecheck, lint, and the touched tiers);
+          the sole full-suite red is the pre-existing unit-tier contention timeout in `validate-config.test.ts`
+          (passes 20/20 in isolation) — a documented flake owned by the Phase 3 pool tuning, independent of this
+          sweep.
 
 ---
 

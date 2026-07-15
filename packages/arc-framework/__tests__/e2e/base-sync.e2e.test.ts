@@ -6,14 +6,14 @@
  */
 
 import { execFile } from "node:child_process";
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { cleanupTempDir, createTempRepo, runArcNoTty } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, removeGitBackedDir, runArcNoTty } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -40,10 +40,12 @@ describe("arc base sync", () => {
     await git(primary, ["commit", "--no-verify", "-m", "init"]);
 
     await execFileAsync("git", ["init", "--bare", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
     await git(primary, ["remote", "add", "origin", remote]);
     await git(primary, ["push", "-u", "origin", "main"]);
 
     await execFileAsync("git", ["clone", "--branch", "main", remote, publisher]);
+    await git(publisher, ["config", "gc.auto", "0"]);
     await git(publisher, ["config", "user.email", "publisher@test.com"]);
     await git(publisher, ["config", "user.name", "Publisher"]);
     await writeFile(join(publisher, "remote-change.txt"), "remote\n", "utf-8");
@@ -58,8 +60,8 @@ describe("arc base sync", () => {
   afterEach(async () => {
     await git(primary, ["worktree", "remove", "--force", linked]).catch(() => "");
     await cleanupTempDir(primary);
-    await rm(publisher, { recursive: true, force: true });
-    await rm(remote, { recursive: true, force: true });
+    await removeGitBackedDir(publisher);
+    await removeGitBackedDir(remote);
   });
 
   it("fast-forwards a clean checked-out base when invoked from a linked worktree", async () => {

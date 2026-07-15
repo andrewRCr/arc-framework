@@ -13,7 +13,6 @@ import {
   mkdir,
   mkdtemp,
   readFile,
-  rm,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -22,6 +21,8 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
+
+import { removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -81,6 +82,7 @@ async function createRepository(prefix = "arc-installed-commit-hook-"): Promise<
   const root = await mkdtemp(join(tmpdir(), prefix));
   repositories.push(root);
   await execFileAsync("git", ["init", "-q", "-b", "main", root]);
+  await git(["config", "gc.auto", "0"], root);
   await git(["config", "user.email", "test@example.com"], root);
   await git(["config", "user.name", "Test User"], root);
   await writeFile(join(root, "initial.txt"), "initial\n");
@@ -161,7 +163,7 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  await Promise.all(repositories.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await Promise.all(repositories.splice(0).map((root) => removeGitBackedDir(root)));
 });
 
 describe("installed commit-msg gating", () => {

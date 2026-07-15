@@ -12,11 +12,13 @@
 
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { execFile, spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+
+import { removeGitBackedDir } from "../helpers/temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -62,6 +64,7 @@ async function git(args: string[], cwd: string): Promise<string> {
 async function makeRepo(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "arc-prepush-"));
   await execFileAsync("git", ["init", "-b", "feature", dir]);
+  await git(["config", "gc.auto", "0"], dir);
   await git(["config", "user.email", "test@test.com"], dir);
   await git(["config", "user.name", "Test User"], dir);
   return dir;
@@ -82,7 +85,7 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
-  await Promise.all(repos.map((d) => rm(d, { recursive: true, force: true })));
+  await Promise.all(repos.map((d) => removeGitBackedDir(d)));
   repos = [];
 });
 

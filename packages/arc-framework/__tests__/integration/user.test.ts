@@ -15,6 +15,7 @@ import {
   cleanupTempDir,
   createTempRepo,
   initInTempRepo,
+  removeGitBackedDir,
   makeUserIO,
   makeCommit,
   addBareRemote,
@@ -826,7 +827,7 @@ describe("user load — retired-subdir reconciliation", () => {
     try {
       await execFileAsync("git", ["-C", tempDir, "worktree", "remove", "--force", linked]);
     } catch {
-      await rm(linked, { recursive: true, force: true });
+      await removeGitBackedDir(linked);
     }
   }
 
