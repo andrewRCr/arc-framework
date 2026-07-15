@@ -10,7 +10,10 @@
  * @module
  */
 
-import { walkCommitShortOption } from "./commit-message-source.js";
+import {
+  commitOptionConsumesNext,
+  walkCommitShortOption,
+} from "./commit-message-source.js";
 
 /**
  * Flags that `arc release commit` refuses unconditionally.
@@ -67,15 +70,18 @@ function matchDestructive(token: string, flags: readonly string[]): string | nul
 }
 
 /**
- * Return the matched commit-side destructive-flag identifier on first hit
- * across `argv`, or null when none match. Matches both bare flag tokens
- * and `<flag>=<value>` parameterized forms (see {@link matchDestructive}).
+ * Return the matched commit-side destructive-flag identifier on first option
+ * hit across `argv`, or null when none match. Option operands and tokens after
+ * `--` remain data rather than being reinterpreted as flags.
  */
 export function detectCommitDestructive(argv: readonly string[]): string | null {
-  for (const token of argv) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (token === undefined || token === "--") break;
     const match = matchDestructive(token, COMMIT_DESTRUCTIVE_FLAGS);
     if (match !== null) return match;
     if (containsNoVerifyShortOption(token)) return "-n";
+    if (commitOptionConsumesNext(token, argv[index + 1])) index += 1;
   }
   return null;
 }

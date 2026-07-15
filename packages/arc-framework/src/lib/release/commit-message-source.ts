@@ -387,6 +387,22 @@ function applyLongOption(state: ScanState, arg: string, args: readonly string[],
 }
 
 /**
+ * Report whether one recognized commit option consumes the following argv token.
+ *
+ * @param token - Candidate short or long commit option.
+ * @param nextArg - Following argv token, when present.
+ * @returns Whether the recognized option consumes `nextArg` as its operand.
+ */
+export function commitOptionConsumesNext(token: string, nextArg: string | undefined): boolean {
+  if (token.startsWith("--")) {
+    const state = createScanState(undefined);
+    return applyLongOption(state, token, nextArg === undefined ? [token] : [token, nextArg], 0);
+  }
+  const walk = walkCommitShortOption(token, nextArg);
+  return walk.kind === "recognized" && walk.consumedNext;
+}
+
+/**
  * Classify the commit-message input represented by `args`.
  *
  * @param options - Invocation argv, stdin TTY state, and resolved cleanup config.

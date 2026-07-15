@@ -73,6 +73,18 @@ describe("detectCommitDestructive", () => {
     expect(detectCommitDestructive(["-mnarrative"])).toBeNull();
   });
 
+  it.each([
+    ["separated short message", ["-m", "-n"]],
+    ["separated long message", ["--message", "--no-verify"]],
+    ["separated file source", ["-F", "--amend"]],
+    ["ordinary required operand", ["--author", "--allow-empty"]],
+    ["short message cluster", ["-qm", "-n"]],
+    ["pathspec after terminator", ["--", "-n"]],
+    ["long pathspec after terminator", ["--", "--no-verify"]],
+  ])("does not reinterpret destructive-looking %s data", (_label, args) => {
+    expect(detectCommitDestructive(args)).toBeNull();
+  });
+
   it("does not match destructive flags from the push list", () => {
     expect(detectCommitDestructive(["--force"])).toBeNull();
   });
