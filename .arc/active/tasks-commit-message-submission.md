@@ -334,9 +334,10 @@ cross-surface first-release checks without leaking transport mechanics into work
           heredocs require matcher proof, while Codex uses direct prepared-file argv verified by
           `codex execpolicy check`. Push examples now use canonical argument-free `arc release push`.
 
-    - `[ ]` **4.2.b Verify inherited `arc-commit` and preparation flows**
-        - Confirm `arc-commit` and `prepare-commits` load the updated commit methods and contain no direct `-m` guidance
-          that bypasses the transport authority; edit only an actual contradiction.
+    - `[x]` **4.2.b Verify inherited `arc-commit` and preparation flows**
+        - Confirmed `arc-commit` explicitly loads both commit methods and `prepare-commits` declares them in workflow
+          frontmatter. Both package/self-hosted pairs are synchronized and contain no direct commit invocation that
+          bypasses the transport authority, so no guidance edit was required.
 
     - `[ ]` **4.2.c Preserve content-only workflow fire-points**
         - Search workflow commit fire-points for transport instructions and confirm they still supply only the message
