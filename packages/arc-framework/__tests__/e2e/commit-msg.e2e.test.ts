@@ -17,11 +17,11 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
@@ -33,6 +33,7 @@ const sourceLibrary = join(
   repositoryRoot,
   "packages/arc-framework/arc/system/.internal/scripts/arc-lib.sh",
 );
+let restrictedPath = "";
 
 interface RepositoryFixture {
   capturePath: string;
@@ -54,6 +55,21 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function resolveGitDirectory(): Promise<string> {
+  const pathEntries = (process.env.PATH ?? "").split(delimiter);
+  const extensions = process.platform === "win32"
+    ? (process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";")
+    : [""];
+  for (const rawEntry of pathEntries) {
+    const entry = rawEntry.replace(/^"(.*)"$/, "$1");
+    if (entry === "") continue;
+    for (const extension of extensions) {
+      if (await exists(join(entry, `git${extension}`))) return entry;
+    }
+  }
+  throw new Error("git executable could not be resolved from PATH");
 }
 
 async function git(args: string[], cwd: string): Promise<string> {
@@ -139,6 +155,11 @@ async function attemptCommit(
   });
 }
 
+beforeAll(async () => {
+  const gitDirectory = await resolveGitDirectory();
+  restrictedPath = [...new Set([gitDirectory, "/usr/bin", "/bin"])].join(delimiter);
+});
+
 afterEach(async () => {
   await Promise.all(repositories.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
@@ -149,7 +170,7 @@ describe("installed commit-msg gating", () => {
     await installHook(fixture, "hooks.commit_msg: disabled\n");
 
     const result = await attemptCommit(fixture, "unrestricted message", {
-      PATH: "/usr/bin:/bin",
+      PATH: restrictedPath,
     });
 
     expect(result.exitCode).toBe(0);
@@ -173,7 +194,7 @@ describe("installed commit-msg gating", () => {
       "git",
       ["merge", "--no-ff", "feature", "-m", "Merge feature"],
       fixture.root,
-      { ...process.env, PATH: "/usr/bin:/bin", NO_COLOR: "1" },
+      { ...process.env, PATH: restrictedPath, NO_COLOR: "1" },
     );
 
     expect(result.exitCode).toBe(0);
@@ -210,7 +231,7 @@ describe("installed commit-msg CLI resolution", () => {
     await installFakeArc(join(globalBin, "arc"), 1, "global validator");
 
     const result = await attemptCommit(fixture, "local validation wins", {
-      PATH: `${globalBin}:/usr/bin:/bin`,
+      PATH: `${globalBin}${delimiter}${restrictedPath}`,
     });
 
     expect(result.exitCode).toBe(0);
@@ -225,7 +246,7 @@ describe("installed commit-msg CLI resolution", () => {
     await installFakeArc(join(globalBin, "arc"), 0, "global validator");
 
     const result = await attemptCommit(fixture, "global validation fallback", {
-      PATH: `${globalBin}:/usr/bin:/bin`,
+      PATH: `${globalBin}${delimiter}${restrictedPath}`,
     });
 
     expect(result.exitCode).toBe(0);
@@ -237,7 +258,7 @@ describe("installed commit-msg CLI resolution", () => {
     await installHook(fixture);
 
     const result = await attemptCommit(fixture, "validation cannot run", {
-      PATH: "/usr/bin:/bin",
+      PATH: restrictedPath,
     });
 
     expect(result.exitCode).toBe(1);
