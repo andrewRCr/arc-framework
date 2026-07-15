@@ -200,9 +200,10 @@ export function validateSubjectAndBody(
 const TASK_ID_SOURCE = "[0-9]+(?:\\.[0-9A-Za-z]+)+";
 const TASK_RANGE_SOURCE = `${TASK_ID_SOURCE}-[0-9A-Za-z]+(?:\\.[0-9A-Za-z]+)*`;
 const TASK_ITEM_SOURCE = `(?:${TASK_ID_SOURCE}|${TASK_RANGE_SOURCE})`;
+const TASK_LIST_SOURCE = `(?:${TASK_RANGE_SOURCE}|${TASK_ITEM_SOURCE}(?:, ${TASK_ITEM_SOURCE})+)`;
 const TASK_REFERENCE_PATTERN = new RegExp(
-  `^(?:Task ${TASK_ID_SOURCE}|Tasks ${TASK_RANGE_SOURCE}|Tasks ${TASK_ITEM_SOURCE}(?:, ${TASK_ITEM_SOURCE})+|` +
-    `Task ${TASK_ID_SOURCE}; (?:planning|maintenance)|Tasks .+; (?:planning|maintenance)|` +
+  `^(?:Task ${TASK_ID_SOURCE}|Tasks ${TASK_LIST_SOURCE}|` +
+    `Task ${TASK_ID_SOURCE}; (?:planning|maintenance)|Tasks ${TASK_LIST_SOURCE}; (?:planning|maintenance)|` +
     "incidental during .+|planning|maintenance|code review)$",
 );
 const TASK_FOOTER_PATTERN = /^(tasks-[A-Za-z0-9-]+\.md) \((.+)\)$/;

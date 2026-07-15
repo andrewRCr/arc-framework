@@ -122,6 +122,7 @@ describe("Context footer families", () => {
 
   it.each([
     "tasks-example.md (content)",
+    "tasks-example.md (Tasks nonsense; planning)",
     "tasks-example.md (incidental - discovered during Task 1.2)",
     "draft-example.md (maintenance)",
     "meta-example.md (planning)",
