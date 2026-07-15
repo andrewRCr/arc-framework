@@ -124,12 +124,16 @@ describe("Context footer families", () => {
     "tasks-example.md (content)",
     "tasks-example.md (Tasks nonsense; planning)",
     "tasks-example.md (incidental - discovered during Task 1.2)",
+    "tasks-example.md (incidental during  )",
     "draft-example.md (maintenance)",
     "meta-example.md (planning)",
+    "meta-example.md (incidental during  )",
     "planning (no associated task list)",
     "maintenance (atomic / no associated task list)",
     "atomic-example.md",
     "standalone (content)",
+    "integration ( )",
+    "contribution ( )",
   ])("retains rejection of retired footer %s", async (context) => {
     const result = await findings(message(context));
     expect(result).toEqual(expect.arrayContaining([expect.objectContaining({ code: "footer.invalid" })]));

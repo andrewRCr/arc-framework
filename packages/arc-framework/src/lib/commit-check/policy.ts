@@ -204,15 +204,15 @@ const TASK_LIST_SOURCE = `(?:${TASK_RANGE_SOURCE}|${TASK_ITEM_SOURCE}(?:, ${TASK
 const TASK_REFERENCE_PATTERN = new RegExp(
   `^(?:Task ${TASK_ID_SOURCE}|Tasks ${TASK_LIST_SOURCE}|` +
     `Task ${TASK_ID_SOURCE}; (?:planning|maintenance)|Tasks ${TASK_LIST_SOURCE}; (?:planning|maintenance)|` +
-    "incidental during .+|planning|maintenance|code review)$",
+    "incidental during \\S(?:.*\\S)?|planning|maintenance|code review)$",
 );
 const TASK_FOOTER_PATTERN = /^(tasks-[A-Za-z0-9-]+\.md) \((.+)\)$/;
 const DESIGN_FOOTER_PATTERN = /^((?:draft|spec)-[A-Za-z0-9-]+\.md) \((planning|code review)\)$/;
 const META_FOOTER_PATTERN =
-  /^(meta-[A-Za-z0-9-]+\.md) \((handoff|activation|integration|archival|deactivation|maintenance|incidental during .+)\)$/;
+  /^(meta-[A-Za-z0-9-]+\.md) \((handoff|activation|integration|archival|deactivation|maintenance|incidental during \S(?:.*\S)?)\)$/;
 const STANDALONE_FOOTER_PATTERN = /^standalone \((maintenance|planning|documentation|refactor)\)$/;
-const INTEGRATION_FOOTER_PATTERN = /^integration \((.+)\)$/;
-const CONTRIBUTION_FOOTER_PATTERN = /^contribution \((.+)\)$/;
+const INTEGRATION_FOOTER_PATTERN = /^integration \(\S(?:.*\S)?\)$/;
+const CONTRIBUTION_FOOTER_PATTERN = /^contribution \(\S(?:.*\S)?\)$/;
 
 interface FooterClassification {
   valid: boolean;
