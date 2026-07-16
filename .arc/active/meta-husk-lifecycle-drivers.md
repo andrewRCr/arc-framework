@@ -1,22 +1,22 @@
 # Metadata: husk-lifecycle-drivers
 
-| **State**  | **Owner** | **Branch**                    | **Class** | **Priority** |
-| ---------- | --------- | ----------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/husk-lifecycle-drivers` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                    | **Class** | **Priority** |
+| --------- | --------- | ----------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/husk-lifecycle-drivers` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** `worktree-teardown-decoupling`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-husk-lifecycle-drivers.md`
 - **Task List:** `tasks-husk-lifecycle-drivers.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Canonical JSON serialization and CanonicalDigest primitives (line ~18)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin implementation — Task 1.1 via the task loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
