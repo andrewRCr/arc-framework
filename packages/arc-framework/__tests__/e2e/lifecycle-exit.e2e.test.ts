@@ -138,19 +138,21 @@ async function scaffoldCommittedParkTransition(
 /** Author a symmetric two-member cut-map JSON for `origin`, written to `<repo>/cut.json`. */
 async function writeCutMap(repo: string, origin: string, cohort: string, members: string[]): Promise<string> {
   const cut = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     origin: { slug: origin, phase: "Planning", location: "active" },
     shape: "symmetric",
     parentPosition: "standalone",
     cohort,
     entries: members.map((slug) => ({
       kind: "new-member",
+      destinationId: slug,
       slug,
       workClass: "Light",
-      dependsOn: [],
-      receives: ["problem-statement"],
     })),
     internalEdges: [],
+    sourceAllocations: [],
+    incomingEdges: [],
+    outgoingEdges: [],
   };
   const path = join(repo, "cut.json");
   await writeFile(path, JSON.stringify(cut, null, 2));

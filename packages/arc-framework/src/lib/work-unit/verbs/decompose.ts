@@ -31,7 +31,6 @@ import type {
   DecomposeAllocationMap,
 } from "../decompose-cut-map.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
-import { resolveReverseDeps } from "../lifecycle-deps.js";
 import {
   executeTransition,
   type ArtifactRunner,
@@ -376,12 +375,9 @@ export async function runDecompose(
   let teardown: OriginTeardown | null = null;
 
   if (originRetired) {
-    // Leg 3 — incoming-edge re-point sweep (scans the index directly, so it catches
-    // dependents the cut-map didn't enumerate). The origin's deliverable is now the
-    // whole cohort, so each dependent re-points to the full new-member set; the
-    // workflow's allocation map narrows specific edges as judgment.
-    const deliveringMembers = newMembers.map((m) => m.slug);
-    repointed = await sweepIncomingEdges(ctx, index, originSlug, deliveringMembers);
+    // Leg 3 — apply each prepared incoming-edge disposition exactly. Coverage
+    // against the live reverse-edge inventory is proven before this mutation.
+    repointed = await sweepIncomingEdges(ctx, index, originSlug, cut.incomingEdges);
 
     // Leg 2 — origin artifact retirement via the reserved edge; its render side-effect fires Leg 4.
     const outcome = await tearDownOrigin(ctx, originSlug);
@@ -408,30 +404,29 @@ export async function runDecompose(
 }
 
 /**
- * Re-point every incoming `Depends On` edge that names `originSlug` to the
- * delivering members. Discovers dependents over the index ({@link
- * resolveReverseDeps}), rewrites each via {@link repointDependsOn}, and writes +
- * stages only the metas that actually changed (the rewrite is a no-op when the
- * origin is absent, so a non-edge prose mention never triggers a write).
+ * Apply each declared incoming-edge disposition at the origin's existing slot.
+ * Writes and stages only metas that actually change; a stale declaration whose
+ * dependent no longer names the origin remains byte-identical.
  */
 async function sweepIncomingEdges(
   ctx: RunDecomposeContext,
   index: LifecycleIndex,
   originSlug: string,
-  deliveringMembers: string[],
+  incomingEdges: DecomposeAllocationMap["incomingEdges"],
 ): Promise<RepointedEdge[]> {
   const { executor } = ctx;
   const repointed: RepointedEdge[] = [];
-  for (const slug of resolveReverseDeps(index, originSlug)) {
-    const entry = index.get(slug);
+  for (const edge of incomingEdges) {
+    const entry = index.get(edge.dependent);
     if (entry === undefined) continue;
     const abs = join(executor.cwd, entry.path);
     const before = await executor.indexFs.readFile(abs);
-    const after = repointDependsOn(before, originSlug, deliveringMembers);
+    const replacements = edge.disposition.kind === "replace" ? edge.disposition.replacementTargets : [];
+    const after = repointDependsOn(before, originSlug, replacements);
     if (after === before) continue;
     await ctx.fs.writeFile(abs, after);
     if (executor.stageMeta !== undefined) await executor.stageMeta(entry.path);
-    repointed.push({ dependent: slug, to: deliveringMembers });
+    repointed.push({ dependent: edge.dependent, to: replacements });
   }
   return repointed;
 }

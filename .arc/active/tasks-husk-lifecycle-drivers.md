@@ -234,19 +234,14 @@ for a shape with no surviving origin.
   stages only that record, and returns its exact locator plus the post-write authority version. Exact retries resume
   idempotently; drift, coverage gaps, unrelated staged paths, and mismatched records fail closed before mutation.
 
-### `[ ]` **4.5 Mechanical dependency-edge transform**
+### `[x]` **4.5 Mechanical dependency-edge transform**
 
 - _Goal:_ The transform derives each new member's external `Depends On` from `outgoingEdges` and rewrites each
   dependent's origin slot in place, preserving every unrelated prerequisite.
 
-- _Context:_ Extend `repointDependsOn` (`decompose-sweep.ts`) from blanket repoint to slot-precise replacement.
-
-    - Build `test-first` (one behavior at a time):
-        - an incoming origin edge is replaced at its existing position with `replacementTargets`; a reasoned drop
-          removes only that slot
-        - every unrelated prerequisite is preserved; duplicates collapse in first-occurrence order
-        - it no longer points every dependent at every new member
-        - a dependent without the origin is byte-identical (a pure no-op)
+- _Outcome:_ Member prerequisites now derive only from declared outgoing consumers, and each incoming disposition
+  replaces or drops the origin at its existing slot. Unrelated prerequisites retain first-occurrence order, duplicate
+  results collapse, undeclared blanket fan-out is gone, and a stale non-edge remains byte-identical.
 
 ### `[ ]` **4.6 `finalizeDecompose` and the commit-hook record gate**
 

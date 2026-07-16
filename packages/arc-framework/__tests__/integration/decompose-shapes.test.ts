@@ -124,7 +124,9 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
       entries: [newMember("alpha"), newMember("beta")],
       internalEdges: [{ from: "beta", to: "alpha" }],
       sourceAllocations: [],
-      incomingEdges: [],
+      incomingEdges: [
+        { dependent: "dep", disposition: { kind: "replace", replacementTargets: ["alpha", "beta"] } },
+      ],
       outgoingEdges: [],
     };
 

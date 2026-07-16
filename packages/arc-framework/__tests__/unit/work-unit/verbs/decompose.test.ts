@@ -395,7 +395,9 @@ function symmetricCut(over: Partial<DecomposeParams> = {}): DecomposeParams {
     entries: [newMember("alpha"), newMember("beta")],
     internalEdges: [],
     sourceAllocations: [],
-    incomingEdges: [],
+    incomingEdges: [
+      { dependent: "dependent", disposition: { kind: "replace", replacementTargets: ["alpha", "beta"] } },
+    ],
     outgoingEdges: [],
     ...over,
   };
@@ -512,6 +514,32 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
     expect(h.staged).toContain(".arc/active/meta-dependent.md");
   });
 
+  it("applies each declared incoming disposition instead of pointing every dependent at every member", async () => {
+    const h = buildRunHarness([
+      { slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" },
+      { slug: "consumer-a", tier: "active", subdir: "", state: "Active", dependsOn: ["before", "mono"] },
+      { slug: "consumer-b", tier: "active", subdir: "", state: "Active", dependsOn: ["mono", "after"] },
+    ], { [`${CWD}/.arc/active`]: ["meta-mono.md"] });
+
+    const result = await runDecompose(h.ctx, {
+      cut: symmetricCut({
+        incomingEdges: [
+          { dependent: "consumer-a", disposition: { kind: "replace", replacementTargets: ["alpha"] } },
+          { dependent: "consumer-b", disposition: { kind: "drop", reason: "no longer required" } },
+        ],
+      }),
+    });
+
+    expect(result.status).toBe("decomposed");
+    if (result.status !== "decomposed") return;
+    expect(result.result.repointed).toEqual([
+      { dependent: "consumer-a", to: ["alpha"] },
+      { dependent: "consumer-b", to: [] },
+    ]);
+    expect(writeFor(h.writes, "/meta-consumer-a.md").content).toContain("`before`, `alpha`");
+    expect(writeFor(h.writes, "/meta-consumer-b.md").content).toContain("`after`");
+  });
+
   it("regenerates the ROADMAP on a retired shape — carried by the teardown edge", async () => {
     const h = buildRunHarness([{ slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" }], {
       [`${CWD}/.arc/active`]: ["meta-mono.md"],
@@ -609,7 +637,9 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
         { from: "closeout", to: "transition-core" },
       ],
       sourceAllocations: [],
-      incomingEdges: [],
+      incomingEdges: [
+        { dependent: "downstream", disposition: { kind: "replace", replacementTargets: ["resolver", "transition-core", "closeout"] } },
+      ],
       outgoingEdges: [],
     };
 
