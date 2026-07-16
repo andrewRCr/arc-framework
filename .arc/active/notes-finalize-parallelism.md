@@ -930,6 +930,27 @@ Induced cross-machine in a two-clone rig (local bare origin, synthetic identity 
   points at a non-existent `repair` verb, the refusal message misdescribes the failure and offers no
   procedure, and status renders the annotated commit's age as the note's save time.
 
+### Cell 5.2.c — compaction-seed shared-checkout race (2026-07-16) — CONFIRMED + refined benign
+
+Induced in a single-clone rig (synthetic identity, real `arc status --session-init --write-compaction-seed` and
+`arc recover audit` driving the seed end-to-end):
+
+- **Clobber shape confirmed:** one per-checkout seed file, no session discriminator, atomic write — a second
+  session's emission replaces the first cleanly (last-write-wins, never corruption).
+- **"Loud after baseline" is enforced, not just visible:** a divergent-state clobber (branch switch + dirty
+  file between emissions) makes the victim's `arc recover audit` **stop** (`ready: false`,
+  `dirty-path-drift` with expected/actual path sets) — the foreign frame is refused, not injected.
+- **"First-write silent" refined benign:** state-coincident sessions (the realistic drain + errand pair sharing
+  the primary at one tip) produce seeds differing **only in `emittedAt`** — the seed is wholly
+  checkout-derived, carrying no session-private state, so a silent clobber injects an *equivalent* frame.
+  Harm is bounded to state drift, which the audit catches. Better than the matrix's classification.
+- **Gap (routed to Task 7.6):** branch identity is not audited — a clean-tree seed emitted on a sibling
+  session's branch audits `ready: true` against a `main` checkout (loadset, task cursor, and dirty paths are
+  compared; `seed.branch` is not). Bounded — the next probe self-corrects the narration — but branch is
+  exactly the dimension an errand-beside-base shared-checkout clobber always changes.
+- **Practice:** one-session-per-checkout has held across all waves; the primary under drain + errand overlap
+  is the only realistic shared-checkout candidate — the same serialization 5.3's pin-primary leaning protects.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification

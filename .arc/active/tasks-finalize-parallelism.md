@@ -725,7 +725,7 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
   machine-load contention flaked shell-spawn quality gates same-day (captured to CTH) — evidence in
   `notes-finalize-parallelism.md` § Wave-3 launch evidence.
 
-### `[ ]` **5.2 Verify the wave-3 matrix cells**
+### `[x]` **5.2 Verify the wave-3 matrix cells**
 
 - _Goal:_ Each wave-3 cell's predicted failure is induced and observed (errands-ref same-slug collision,
   same/different-entry `USER-INBOX` removal reconciliation, the compaction-seed shared-checkout race).
@@ -751,7 +751,20 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
           reconcile, sequenced behind wave 4); guidance seams routed to Task 7.5. Evidence in
           `notes-finalize-parallelism.md` § Wave-3 induction evidence.
 
-    - `[ ]` **5.2.c Compaction-seed shared-checkout race**
+    - `[x]` **5.2.c Compaction-seed shared-checkout race**
+        - Single-clone induction with the real emit/audit verbs. Clobber is atomic last-write-wins (one
+          per-checkout file, no session discriminator); a divergent-state clobber is refused at recovery
+          (`recover audit` stops on dirty-path drift); a state-coincident clobber is content-benign — seeds
+          differ only in `emittedAt` because the seed is wholly checkout-derived. One gap routed to Task 7.6:
+          branch identity is not audited (clean-tree foreign-branch seed audits ready). Evidence in
+          `notes-finalize-parallelism.md` § Wave-3 induction evidence.
+
+- _Outcome:_ All three wave-3 cells verified with real-verb inductions in isolated rigs; every matrix
+  prediction held, two refined in ARC's favor (recover-audit enforcement; benign coincident seed clobber) and
+  one extended against it (removal resurrection via stale sibling copies). Actionable seams routed: Tasks
+  7.4–7.6 (collision surfacing, diverged-notes guidance, seed branch audit), one split-out capture (same-commit
+  notes-union wedge, behind wave 4), and the serialized pull-before-write playbook discipline recorded for
+  5.3/5.4's weigh-in.
 
 ### `[ ]` **5.3 Resolve the parallel-errand fork and batch-errand sub-decision**
 
@@ -882,6 +895,17 @@ the waves run rather than authored up front.
 - _Files:_ `commands/user/push-fetch.ts` (~431), `commands/user/sync-status.ts`,
   `lib/user-sync/compaction.ts` (conflict message).
 - _Surfaced by:_ wave-3 cell 5.2.b induction, 2026-07-16 — see `notes-finalize-parallelism.md` § Wave-3
+  induction evidence.
+
+### `[ ]` **7.6 Audit seed branch identity at recovery**
+
+- _Goal:_ `arc recover audit` compares the seed's branch (and head lineage) to the live checkout and surfaces a
+  mismatch as a stop reason or explained drift — today a clean-tree seed emitted on a sibling session's branch
+  audits `ready: true` against a different live branch. Loadset, task cursor, and dirty paths are audited;
+  branch is not — yet branch is exactly the dimension an errand-beside-base shared-checkout clobber always
+  changes.
+- _Files:_ `lib/recover/audit.ts` (`auditRecoveryState`), recover-audit tests.
+- _Surfaced by:_ wave-3 cell 5.2.c induction, 2026-07-16 — see `notes-finalize-parallelism.md` § Wave-3
   induction evidence.
 
 ## **Phase 8:** GA closeout
