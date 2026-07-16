@@ -8,7 +8,7 @@
  * in, so tests supply bytes directly.
  */
 
-import { type CanonicalDigest, digestBytes } from "./canonical-json.js";
+import { canonicalDigest, type CanonicalDigest, digestBytes } from "./canonical-json.js";
 import type { ManagedPath } from "./managed-path.js";
 
 /**
@@ -72,4 +72,24 @@ export function writeOperation(path: ManagedPath, bytes: Uint8Array): PatchOpera
  */
 export function deleteOperation(path: ManagedPath): PatchOperation {
   return { operation: "delete", path };
+}
+
+/**
+ * Digest a complete patch write set ordered by managed path and operation.
+ *
+ * @param operations - Closed write/delete operations; each path may occur once
+ * @returns Canonical digest of the deterministically ordered operation set
+ */
+export function patchDigest(operations: readonly PatchOperation[]): CanonicalDigest {
+  const paths = new Set<string>();
+  for (const operation of operations) {
+    if (paths.has(operation.path)) throw new Error(`duplicate patch path: ${operation.path}`);
+    paths.add(operation.path);
+  }
+  const sorted = [...operations].sort((left, right) => {
+    const pathOrder = Buffer.compare(Buffer.from(left.path, "utf8"), Buffer.from(right.path, "utf8"));
+    if (pathOrder !== 0) return pathOrder;
+    return left.operation < right.operation ? -1 : left.operation > right.operation ? 1 : 0;
+  });
+  return canonicalDigest(sorted);
 }

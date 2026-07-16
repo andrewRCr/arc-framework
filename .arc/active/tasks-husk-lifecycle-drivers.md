@@ -96,18 +96,14 @@ location. Decompose's `prepareDecompose`/`finalizeDecompose` are declared here b
   record state, storage schema, and the Git index tree. The returned canonical token stays opaque and byte-compared;
   any ref, record, storage, inventory, or index drift resolves to `authority-conflict`.
 
-### `[ ]` **2.4 Receipt relation validation — `direct-transition` and `unchanged`**
+### `[x]` **2.4 Receipt relation validation — `direct-transition` and `unchanged`**
 
 - _Goal:_ Authorization validates the complete transition relation against committed projections rather than
   trusting a receipt's self-claims.
 
-    - Build `test-first` (one behavior at a time):
-        - `direct-transition`: the retiring `HEAD` is a single-parent commit atop `source.head` that introduces
-          the receipt and matches the non-receipt patch digest
-        - `unchanged`: the retiring branch still resolves to `source.head` and a result-side commit introduces
-          the receipt with the matching allocation write set
-        - an amended, recreated, or later-descendant receipt fails the relation
-        - unrelated staged content (a write-set mismatch) fails
+- _Outcome:_ Added injected committed-relation validation for both projection shapes. It requires an exact
+  single-parent transition, proves the receipt was introduced at that commit, and recomputes the complete
+  non-record patch digest, rejecting later descendants, recreated evidence, and unrelated writes.
 
 ### `[ ]` **2.5 `authorize` and `revalidate`**
 

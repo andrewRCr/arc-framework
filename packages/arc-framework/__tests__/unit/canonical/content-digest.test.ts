@@ -5,6 +5,7 @@ import {
   type StoredBlobReader,
   contentDigest,
   deleteOperation,
+  patchDigest,
   resolveArtifactEntry,
   writeOperation,
 } from "../../../src/lib/canonical/content-digest.js";
@@ -66,5 +67,18 @@ describe("content digests over stored bytes", () => {
     expect(contentDigest(encode("x"))).toMatch(/^sha256:[0-9a-f]{64}$/u);
     // Same wire format, different inputs: raw content byte "x" vs the canonical JSON string "x" ('"x"').
     expect(contentDigest(encode("x"))).not.toBe(canonicalDigest("x"));
+  });
+
+  it("digests patch operations independently of input order", () => {
+    const otherPath = validateManagedPath("other.txt");
+    const operations = [deleteOperation(path), writeOperation(otherPath, encode("payload"))];
+
+    expect(patchDigest(operations)).toBe(patchDigest([...operations].reverse()));
+  });
+
+  it("rejects duplicate patch paths", () => {
+    expect(() => patchDigest([deleteOperation(path), writeOperation(path, encode("payload"))])).toThrow(
+      "duplicate patch path",
+    );
   });
 });
