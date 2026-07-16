@@ -39,6 +39,21 @@ describe("findVersionFromDir", () => {
 });
 
 describe("checkLatestVersion", () => {
+  it("aborts a stalled registry request and returns null", async () => {
+    const mockFetch = (async (...args: unknown[]) => {
+      const options = args[1] as { signal?: AbortSignal } | undefined;
+      return new Promise<never>((_resolve, reject) => {
+        options?.signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+          once: true,
+        });
+      });
+    }) as FetchFn;
+
+    const result = await checkLatestVersion("@arc-framework/cli", mockFetch, 5);
+
+    expect(result).toBeNull();
+  }, 250);
+
   it("returns version string on successful registry response", async () => {
     const mockFetch: FetchFn = async () => ({
       ok: true,
@@ -65,6 +80,20 @@ describe("checkLatestVersion", () => {
     });
 
     const result = await checkLatestVersion("@arc-framework/cli", mockFetch);
+    expect(result).toBeNull();
+  });
+
+  it.each([
+    ["missing", {}],
+    ["non-string", { version: 123 }],
+  ])("returns null when the registry version field is %s", async (_label, body) => {
+    const mockFetch: FetchFn = async () => ({
+      ok: true,
+      json: async () => body,
+    });
+
+    const result = await checkLatestVersion("@arc-framework/cli", mockFetch);
+
     expect(result).toBeNull();
   });
 

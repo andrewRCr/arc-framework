@@ -261,19 +261,14 @@ and `src/handlers/status.ts` (`commands/status/run.ts` is a pure orchestrator wi
   Diff preserves its non-fatal per-file error contract when the current file disappears, and the real status
   filesystem sources now cover both guarded project-view reads and ready-mine metas vanishing after discovery.
 
-### `[ ]` **5.3 Network edge & version-check timeout (product edge)**
+### `[x]` **5.3 Network edge & version-check timeout (product edge)**
 
 - _Goal:_ `checkLatestVersion` bounds its fetch with a timeout/abort mechanism, covered by a test, plus a
   wrong-shape-body case.
 
-- _Context:_ `checkLatestVersion` (`src/lib/version.ts` ~L81-102) has no `AbortController`/timeout — a stalled
-  socket hangs unbounded. It parses via `response.json()` (invalid JSON already rejects → null) and guards
-  `typeof version === "string"`; the `FetchFn` DI seam (~L67) makes both fully mockable.
-
-    Build `test-first` (one behavior at a time):
-
-    - `checkLatestVersion` aborts and resolves null when the fetch exceeds the timeout budget
-    - a well-formed-but-wrong-shape body (missing/non-string `version`) resolves null
+- _Outcome:_ `checkLatestVersion` now supplies an abort signal with a five-second default budget, clears its timer
+  on every exit, and preserves the non-fatal `null` result for stalled requests. Missing and non-string registry
+  version fields are covered alongside the existing network and HTTP failure paths.
 
 ### `[ ]` **5.4 Entry-point & command-concurrency coverage**
 

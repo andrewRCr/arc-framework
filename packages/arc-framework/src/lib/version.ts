@@ -64,9 +64,13 @@ export interface FetchResponse {
 }
 
 /** Injectable fetch function for testability. */
-export type FetchFn = (url: string) => Promise<FetchResponse>;
+export type FetchFn = (
+  url: string,
+  options?: { signal?: AbortSignal },
+) => Promise<FetchResponse>;
 
 const NPM_REGISTRY = "https://registry.npmjs.org";
+const DEFAULT_TIMEOUT_MS = 5_000;
 
 /**
  * Check the npm registry for the latest published version of a package.
@@ -76,13 +80,13 @@ const NPM_REGISTRY = "https://registry.npmjs.org";
  *
  * @param packageName - npm package name (supports scoped packages)
  * @param fetchImpl - Injectable fetch function (defaults to global `fetch`)
+ * @param timeoutMs - Maximum registry request duration in milliseconds
  * @returns Latest version string, or null if the registry is unreachable
  */
 export async function checkLatestVersion(
   packageName: string,
-  // Double cast: FetchFn defines a minimal response interface for DI/testability
-  // that doesn't structurally match globalThis.fetch's full Response type.
   fetchImpl: FetchFn = fetch,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<string | null> {
   // Encode scoped package names: @scope/name → @scope%2Fname
   const parts = packageName.split("/");
@@ -90,13 +94,19 @@ export async function checkLatestVersion(
     ? `${parts[0]}%2F${encodeURIComponent(parts[1] ?? "")}`
     : encodeURIComponent(packageName);
   const url = `${NPM_REGISTRY}/${encoded}/latest`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
 
   try {
-    const response = await fetchImpl(url);
+    const response = await fetchImpl(url, { signal: controller.signal });
     if (!response.ok) return null;
     const pkg = await response.json() as { version?: string };
     return typeof pkg.version === "string" ? pkg.version : null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
