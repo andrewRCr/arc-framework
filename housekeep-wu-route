@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "housekeep-wu-route",
+  "origin": "description",
+  "intent": "Route two WU captures to stub inbound buffers; retain errands in USER-INBOX for later execution",
+  "branch": "chore/housekeep-wu-route",
+  "createdAt": "2026-07-16T00:15:46.778Z",
+  "returnBranch": "main"
+}
