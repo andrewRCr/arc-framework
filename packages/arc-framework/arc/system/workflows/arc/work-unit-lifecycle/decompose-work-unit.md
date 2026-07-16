@@ -109,26 +109,49 @@ to a scratch path (an input artifact, never committed). The validated shape:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "origin": { "slug": "<origin>", "phase": "Planning|Active", "location": "provisional|planned|active" },
   "shape": "symmetric|extraction|backlog-stub-source|heterogeneous-home",
   "parentPosition": "standalone|in-cohort|at-cap",
   "cohort": "<cohort>[/<subcohort>]",
   "entries": [
-    { "kind": "new-member", "slug": "<m>", "workClass": "Light|Heavy|Novel", "dependsOn": [], "receives": ["<section>"] },
-    { "kind": "surviving-origin", "slug": "<origin>", "disposition": "keep-active|park" },
-    { "kind": "existing-home", "target": "<slug|draft-block|doc-path>", "home": "fold|atomic-edit", "receives": ["<section>"] }
+    { "kind": "new-member", "destinationId": "member:<m>", "slug": "<m>", "workClass": "Light|Heavy|Novel" },
+    { "kind": "surviving-origin", "destinationId": "origin:<origin>", "slug": "<origin>", "disposition": "keep-active|park" },
+    { "kind": "existing-home", "destinationId": "home:<name>", "target": { "kind": "work-unit", "slug": "<slug>" }, "home": "fold" },
+    { "kind": "cohort-coordination", "destinationId": "cohort:<cohort>", "cohort": "<cohort>[/<subcohort>]" }
   ],
-  "internalEdges": [ { "from": "<m2>", "to": "<m1>" } ]
+  "internalEdges": [ { "from": "<m2>", "to": "<m1>" } ],
+  "sourceAllocations": [
+    {
+      "sourceId": "sha256:<64-lower-hex>",
+      "disposition": {
+        "kind": "target",
+        "destinationId": "member:<m>",
+        "targetLocator": { "artifact": "draft-<m>.md", "kind": "section", "headingSource": "<H2 text>", "occurrence": 0 }
+      }
+    },
+    { "sourceId": "sha256:<64-lower-hex>", "disposition": { "kind": "drop", "reason": "<why>" } }
+  ],
+  "incomingEdges": [
+    { "dependent": "<dependent>", "disposition": { "kind": "replace", "replacementTargets": ["<m>"] } }
+  ],
+  "outgoingEdges": [
+    { "prerequisite": "<prerequisite>", "disposition": { "kind": "targets", "targets": ["<m>"] } }
+  ]
 }
 ```
 
-Field rules the verb enforces from the cut (it never fabricates judgment): `Origin` / `Owner` / `Priority`
-inherit from the origin; `Class` is per-member; `Cohort` is dual-placed (meta + draft header); `State` is
-`Planning`; `Depends On` is distributed by **actual need** — a member inherits an origin edge only where it
-genuinely depends, internal edges come from the cut's delivery order, and incoming edges are re-pointed by the
-verb's sweep. Omit `cohort` only on the at-cap arm. The entry kinds each arm uses are named in its
-[arm block](#transform-shape-arms).
+Each source ID is the canonical `sha256:` digest of `{ "schemaVersion": 2, "sourcePath": <path>,
+"sourceLocator": <locator> }`. Markdown companions split into a preamble plus top-level H2 sections; repeated
+normalized H2 source uses zero-based `occurrence`. Non-Markdown companions use `whole-file`. Allocate each live
+source ID and each incoming/outgoing edge exactly once; a no-target disposition requires a non-empty reason.
+Existing-home targets use a structured `work-unit`, `draft-block`, or `document` object. Omit `cohort` only on the
+at-cap arm.
+
+The verb inherits `Origin` / `Owner` / `Priority` from the origin, takes `Class` per member, dual-places `Cohort`
+in meta + draft, and writes `State: Planning`. `Depends On` comes only from `internalEdges` and the exact outgoing
+dispositions; the incoming sweep applies each declared replacement or drop without disturbing unrelated targets.
+The entry kinds each arm uses are named in its [arm block](#transform-shape-arms).
 
 ### 5) Run `arc decompose`
 
@@ -145,13 +168,16 @@ Run the verb with the cut-map from the run-context the [shape arm](#transform-sh
 arc decompose <origin> --cut-map <scratch-path>
 ```
 
-The verb validates the cut-map (refusing a malformed file before any mutation), then runs the deterministic legs:
-batch-scaffold the members under `backlog/planned/<cohort>[/<subcohort>]/<member>/` (`meta-` + skeleton `draft-`),
-retire the origin through its reserved edge (**skipped on the [extraction arm](#extraction-arm)**, where the origin
-survives), re-point every incoming `Depends On` edge off the retired origin to the delivering members, and
-regenerate the ROADMAP. It **stages** its result; it does not commit. A started origin's branch + worktree are
+For a retirement shape, the verb validates the map and complete live inventories, writes and stages the durable
+preparation **before mutation**, then runs the token-bound deterministic legs: batch-scaffold the members under
+`backlog/planned/<cohort>[/<subcohort>]/<member>/` (`meta-` + skeleton `draft-`), retire the origin through its
+reserved edge, apply the exact incoming dependency dispositions, and regenerate the ROADMAP. It stages the closed
+prepared result and prints the receipt ID required by Step 7; it does not commit.
+
+The [extraction arm](#extraction-arm) has no retirement preparation or receipt: the origin survives, so the verb
+scaffolds and stages the extracted members in one invocation. A started retired origin's branch + worktree are
 **not** torn down in-verb — that teardown is out-of-band, a post-merge `arc teardown <origin> --force`
-([Step 7](#7-ship-per-protection-mode)); the verb retires the origin's artifacts only.
+([Step 7](#7-ship-per-protection-mode)); the verb retires only the origin artifacts.
 
 ### 6) Verify cohort consistency
 
@@ -170,7 +196,19 @@ drift at the Step 5 interlock rather than after the origin is gone.
 
 `arc decompose` left the transform staged. Distribute the design into the scaffolded member drafts and author any
 [heterogeneous direct edits](#heterogeneous-home-arm) per the Step 2 allocation — content the verb does not write —
-then commit and ship per [Work Organization Strategy § Branch Protection Modes][work-org-protection]:
+then, for every retirement shape, finalize the exact preparation using the receipt ID printed in Step 5:
+
+```bash
+arc decompose <origin> --finalize <receipt-id>
+```
+
+Finalization reopens that one record directly; the scratch map is no longer required. It verifies the unchanged
+source/result refs, complete source and dependency dispositions, resolved destination locators, closed staged-path
+set, and exact transition patch before atomically replacing the preparation with the finalized receipt. A refusal
+leaves the preparation recoverable for correction and retry. Only the finalized receipt may commit. The extraction
+arm skips this command because it did not retire the origin.
+
+Then commit and ship per [Work Organization Strategy § Branch Protection Modes][work-org-protection]:
 
 - **Partial** — a direct base commit.
 - **Full** — ship on a short-lived `chore/decompose-<name>` branch + PR (the auto-merge lane), cut from the base

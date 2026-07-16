@@ -253,7 +253,7 @@ for a shape with no surviving origin.
   results, allowed staged paths, and target/patch digests before atomically replacing preparation with its receipt.
   The canonical pre-commit hook now blocks missing, still-prepared, amended, and patch-mismatched decompose evidence.
 
-### `[ ]` **4.7 Production two-stage decompose lifecycle**
+### `[x]` **4.7 Production two-stage decompose lifecycle**
 
 - _Goal:_ The production `arc decompose` path prepares before mutation, resumes safely across interruption, and
   finalizes through an explicit receipt-addressed second invocation before the allocation can commit.
@@ -270,9 +270,13 @@ for a shape with no surviving origin.
     - `[x]` **4.7.d Production CLI and adapter binding**
         - The initial invocation prepares before entering the token-bound mutation path and stages only its closed
           result set; `--finalize <receipt-id>` reopens that exact record without the scratch map or a namespace scan.
-    - `[ ]` **4.7.e Workflow and end-to-end proof**
-        - Publish the version-2/two-stage workflow contract and exercise prepare → mutation → manual distribution →
-          finalize, interruption recovery, and record-gate refusal through real CLI boundaries.
+    - `[x]` **4.7.e Workflow and end-to-end proof**
+        - The mirrored workflow now publishes the version-2 allocation and explicit finalization contract; a built-CLI
+          E2E proves prepared commit refusal, recoverable failed finalization, manual distribution, and successful retry.
+
+- _Outcome:_ Retirement-shaped decomposition is now a receipt-addressed two-stage transaction: the first invocation
+  durably prepares and stages a closed mutation, while the second independently verifies that exact allocation and
+  replaces its preparation with the only evidence the commit gate accepts. Extraction remains single-stage.
 
 ## **Phase 5:** Directional teardown, husk stamp, and replay
 

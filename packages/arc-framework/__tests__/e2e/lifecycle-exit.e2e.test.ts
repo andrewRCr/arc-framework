@@ -19,15 +19,19 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile, readdir, rm, stat } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile, readdir, rm, stat } from "node:fs/promises";
 import { join, dirname, basename } from "node:path";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
+import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
+const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
+const workspaceRoot = join(packageRoot, "..", "..");
 
 /** Run a git command in `cwd`, returning trimmed stdout. */
 async function git(cwd: string, args: string[]): Promise<string> {
@@ -39,6 +43,37 @@ async function git(cwd: string, args: string[]): Promise<string> {
 async function commitAll(cwd: string, message: string): Promise<void> {
   await git(cwd, ["add", "-A"]);
   await git(cwd, ["-c", "core.hooksPath=/dev/null", "commit", "-m", message]);
+}
+
+/** Run a real Git commit and retain hook output on refusal. */
+async function commitAttempt(cwd: string, message: string): Promise<{
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}> {
+  try {
+    const result = await execFileAsync("git", ["commit", "-m", message], { cwd });
+    return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    const failure = error as Error & { code?: number; stdout?: string; stderr?: string };
+    return {
+      exitCode: typeof failure.code === "number" ? failure.code : 1,
+      stdout: failure.stdout ?? "",
+      stderr: failure.stderr ?? failure.message,
+    };
+  }
+}
+
+/** Install the shipped validator as the temp repository's real pre-commit hook. */
+async function installDecomposeRecordHook(repo: string): Promise<void> {
+  const hooks = join(repo, ".git", "arc-test-hooks");
+  const hook = join(hooks, "pre-commit");
+  const tsx = join(workspaceRoot, "node_modules", ".bin", "tsx");
+  const validator = join(packageRoot, "src", "scripts", "validate-decompose-record.ts");
+  await mkdir(hooks, { recursive: true });
+  await writeFile(hook, `#!/bin/sh\nexec "${tsx}" "${validator}"\n`);
+  await chmod(hook, 0o755);
+  await git(repo, ["config", "core.hooksPath", hooks]);
 }
 
 /** Whether a path exists on disk. */
@@ -137,20 +172,36 @@ async function scaffoldCommittedParkTransition(
 
 /** Author a symmetric two-member cut-map JSON for `origin`, written to `<repo>/cut.json`. */
 async function writeCutMap(repo: string, origin: string, cohort: string, members: string[]): Promise<string> {
+  const sourcePath = `.arc/active/draft-${origin}.md`;
+  const sourceId = canonicalDigest({
+    schemaVersion: 2,
+    sourcePath,
+    sourceLocator: { artifact: `draft-${origin}.md`, kind: "preamble" },
+  });
   const cut = {
     schemaVersion: 2,
     origin: { slug: origin, phase: "Planning", location: "active" },
     shape: "symmetric",
     parentPosition: "standalone",
     cohort,
-    entries: members.map((slug) => ({
-      kind: "new-member",
-      destinationId: slug,
-      slug,
-      workClass: "Light",
-    })),
+    entries: [
+      ...members.map((slug) => ({
+        kind: "new-member",
+        destinationId: slug,
+        slug,
+        workClass: "Light",
+      })),
+      { kind: "cohort-coordination", destinationId: "coordination", cohort },
+    ],
     internalEdges: [],
-    sourceAllocations: [],
+    sourceAllocations: [{
+      sourceId,
+      disposition: {
+        kind: "target",
+        destinationId: "coordination",
+        targetLocator: { artifact: `cohort-${basename(cohort)}.md`, kind: "preamble" },
+      },
+    }],
     incomingEdges: [],
     outgoingEdges: [],
   };
@@ -183,7 +234,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // arc decompose (CLI) — retire artifacts in-verb, defer teardown out-of-band
   // -------------------------------------------------------------------------
 
-  it("arc decompose retires the origin's artifacts but defers branch + worktree teardown", async () => {
+  it("arc decompose prepares, refuses premature commit, and finalizes one recoverable receipt", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     expect(worktree).toBeDefined();
     if (worktree !== undefined) worktrees.push(worktree);
@@ -200,6 +251,36 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await branchExists(repo, "plan/mono")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
     expect(result.stdout + result.stderr).toMatch(/arc teardown mono --force/);
+
+    const output = result.stdout + result.stderr;
+    const receiptId = /sha256:[0-9a-f]{64}/u.exec(output)?.[0];
+    expect(receiptId).toBeDefined();
+    if (receiptId === undefined) return;
+    const receiptPath = join(
+      repo,
+      ".arc/.internal/retirement-receipts",
+      `${receiptId.replace(":", "-")}.json`,
+    );
+    expect(JSON.parse(await readFile(receiptPath, "utf8"))).toMatchObject({ kind: "prepared-decompose" });
+
+    await installDecomposeRecordHook(repo);
+    const premature = await commitAttempt(repo, "premature decompose");
+    expect(premature.exitCode).not.toBe(0);
+    expect(premature.stdout + premature.stderr).toContain("decompose record is prepared but not finalized");
+
+    const incomplete = await runArc(["decompose", "mono", "--finalize", receiptId], repo);
+    expect(incomplete.exitCode).not.toBe(0);
+    expect(JSON.parse(await readFile(receiptPath, "utf8"))).toMatchObject({ kind: "prepared-decompose" });
+
+    const cohortDoc = join(repo, ".arc/backlog/planned/mono/cohort-mono.md");
+    await writeFile(cohortDoc, "# Cohort: mono\n\nPurpose: split the origin safely.\n");
+    await git(repo, ["add", "--", ".arc/backlog/planned/mono/cohort-mono.md"]);
+    const finalized = await runArc(["decompose", "mono", "--finalize", receiptId], repo);
+    expect(finalized.exitCode, finalized.stdout + finalized.stderr).toBe(0);
+    expect(JSON.parse(await readFile(receiptPath, "utf8"))).toMatchObject({ transition: "decompose" });
+
+    const committed = await commitAttempt(repo, "finalized decompose");
+    expect(committed.exitCode, committed.stdout + committed.stderr).toBe(0);
   });
 
   // -------------------------------------------------------------------------
