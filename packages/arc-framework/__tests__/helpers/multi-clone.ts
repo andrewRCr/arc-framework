@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { removeGitBackedDir } from "./temp-repo.js";
+import { removeGitBackedDir, removeGitBackedDirs } from "./temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -208,7 +208,7 @@ export async function setupMultiClone(
 
   const createdPaths: string[] = [];
   const cleanup = async (): Promise<void> => {
-    await Promise.allSettled(createdPaths.map((path) => removeGitBackedDir(path)));
+    await removeGitBackedDirs(createdPaths);
     createdPaths.length = 0;
   };
 
@@ -252,7 +252,7 @@ export async function setupWorktreeSiblings(
 
   const createdPaths: string[] = [];
   const cleanup = async (): Promise<void> => {
-    await Promise.allSettled(createdPaths.map((path) => removeGitBackedDir(path)));
+    await removeGitBackedDirs(createdPaths);
     createdPaths.length = 0;
   };
 

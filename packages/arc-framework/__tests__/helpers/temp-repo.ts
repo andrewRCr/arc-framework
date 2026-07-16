@@ -88,6 +88,26 @@ export async function removeGitBackedDir(
   );
 }
 
+/** Removal function used by {@link removeGitBackedDirs}. */
+export type GitBackedDirRemover = (path: string) => Promise<void>;
+
+/**
+ * Remove multiple git-backed directories, attempting every path before
+ * propagating the first teardown failure.
+ *
+ * @param paths - Absolute paths to remove.
+ * @param remove - Removal implementation; injectable for deterministic tests.
+ * @throws The first removal failure after every path has been attempted.
+ */
+export async function removeGitBackedDirs(
+  paths: readonly string[],
+  remove: GitBackedDirRemover = removeGitBackedDir,
+): Promise<void> {
+  const results = await Promise.allSettled(paths.map((path) => remove(path)));
+  const failure = results.find((result) => result.status === "rejected");
+  if (failure?.status === "rejected") throw failure.reason;
+}
+
 /** Options for the shared temp-repo factory core. */
 export interface CreateTempRepoOptions {
   /** Temp directory name prefix (tier personality). */

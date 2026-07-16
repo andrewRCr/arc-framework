@@ -9,7 +9,7 @@ import type { GitExec, GitExecOptions } from "../../src/lib/git/exec.js";
 
 import { makeGitExec } from "./integration.js";
 import { setupWorktreeSiblings } from "./multi-clone.js";
-import { removeGitBackedDir } from "./temp-repo.js";
+import { removeGitBackedDirs } from "./temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -128,9 +128,21 @@ export async function setupInFlightReshuffleFixture(): Promise<InFlightReshuffle
   const siblingExec = makeGitExec(base.sibling);
 
   const cleanup = async (): Promise<void> => {
-    await Promise.allSettled(ownedPaths.map((path) => removeGitBackedDir(path)));
+    let ownedRemovalError: unknown;
+    try {
+      await removeGitBackedDirs(ownedPaths);
+    } catch (error) {
+      ownedRemovalError = error;
+    }
     ownedPaths.length = 0;
-    await base.cleanup();
+    let baseRemovalError: unknown;
+    try {
+      await base.cleanup();
+    } catch (error) {
+      baseRemovalError = error;
+    }
+    if (ownedRemovalError !== undefined) throw ownedRemovalError;
+    if (baseRemovalError !== undefined) throw baseRemovalError;
   };
 
   const writeMeta = async (cwd: string, input: {

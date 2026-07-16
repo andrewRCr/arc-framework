@@ -12,7 +12,7 @@ import { mkdtemp, mkdir, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { removeGitBackedDir } from "../../helpers/temp-repo.js";
+import { removeGitBackedDir, removeGitBackedDirs } from "../../helpers/temp-repo.js";
 
 async function pathExists(path: string): Promise<boolean> {
   try {
@@ -90,5 +90,24 @@ describe("removeGitBackedDir", () => {
 
     expect(error).toBeInstanceOf(Error);
     expect((error as NodeJS.ErrnoException).code).toBe("EACCES");
+  });
+});
+
+describe("removeGitBackedDirs", () => {
+  it("attempts every removal before propagating a teardown failure", async () => {
+    const removed = new Set<string>();
+    const remove = async (path: string): Promise<void> => {
+      if (path === "/tmp/stuck") throw new Error("stuck teardown diagnostic");
+      removed.add(path);
+    };
+
+    const error = await removeGitBackedDirs(
+      ["/tmp/first", "/tmp/stuck", "/tmp/last"],
+      remove,
+    ).catch((candidate: unknown) => candidate);
+
+    expect(removed).toEqual(new Set(["/tmp/first", "/tmp/last"]));
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain("stuck teardown diagnostic");
   });
 });
