@@ -881,6 +881,38 @@ Recorded, not routed: sibling-machine records whose branches aren't pushed yet r
 the window between record sync and first branch push. Wave 4's cross-machine cells re-observe this surface
 naturally; disposition it there.
 
+### Cell 5.2.b — `USER-INBOX` removal reconciliation (2026-07-16) — PREDICTION EXTENDED + one new wedge
+
+Induced cross-machine in a two-clone rig (local bare origin, synthetic identity `bi-probe`, real
+`user inbox-remove` / `save` / `push` / `pull` verbs). Four results:
+
+- **Different-entry removal race from a stale copy → silent resurrection (the predicted lost-update, extended
+  to removals).** A removes X and publishes the tombstone; B — holding a stale copy with X live — removes Y and
+  saves on a later commit; the recency walk takes B's note's live mention of X over A's older tombstone. X
+  resurrects on the merged view, propagates back to A (its own removal silently undone), and the tombstone
+  vanishes without residue. Direct evidence for Task 5.4's disposition: the `resolveCrossWuState` recency
+  limitation covers removals, not just body edits.
+- **Same-entry removal race → converges.** Both sides tombstone Z; the merged view stays removed. The
+  matrix-predicted safe case holds.
+- **Serialized practice prevents resurrection — structurally.** Pull-before-write materializes the winning
+  tombstones into the on-disk file (`## Removed:` sections); the next save re-parses and re-publishes them, so
+  recency protects the removal. Confirmed live: with B pulling first, X stayed dead everywhere. The
+  pull-at-init + single-drain-locus practice is a real mitigation; record it in the playbook as the operative
+  discipline until 5.4's disposition lands.
+- **NEW — same-commit concurrent-save wedge (unpredicted, loud, no sanctioned exit).** Two machines saving
+  divergent notes onto the *same* base commit — routine when both drain at the same `main` tip — cannot
+  converge through any verb: the push auto-reconcile unions manifests per-file and refuses on any same-path
+  divergence (misreported as "the union produced an unparseable note"; the manifests parse fine),
+  `user pull` refuses diverged refs to preserve local notes, and `arc sync`'s paired push hits the identical
+  wall. The only offered exit is `arc user push --force` — destructive and contagious (the overwrite makes the
+  other machine diverge in turn). The entry-aware `mergeCrossWuFile` machinery (union + tombstones + recency)
+  that resolves exactly this sits on the load path but is never consulted by the push reconcile
+  (`mergeManifestContent`, `lib/user-sync/compaction.ts`). Routed as a split-out capture (`USER-INBOX`,
+  target TBD — candidate `sync-primitive-discipline`; `notes-export-state-coherence` shipped), sequenced behind
+  wave 4's cross-machine cells, which observe this surface. Guidance seams routed to Task 7.5: `user status`
+  points at a non-existent `repair` verb, the refusal message misdescribes the failure and offers no
+  procedure, and status renders the annotated commit's age as the note's save time.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification

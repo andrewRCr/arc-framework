@@ -739,9 +739,17 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
           no-trace, whole-ref wedge) routed to Task 7.4; full evidence in `notes-finalize-parallelism.md`
           § Wave-3 induction evidence.
 
-    - `[ ]` **5.2.b `USER-INBOX` removal reconciliation**
-        - Induce same-entry and different-entry removal races from the live errand/drain shape; confirm whether
-          serialized-primary practice prevents local resurrection, or record the accepted playbook limitation.
+    - `[x]` **5.2.b `USER-INBOX` removal reconciliation**
+        - Cross-machine two-clone induction with the real inbox-remove/save/push/pull verbs. Same-entry removal
+          races converge (both sides tombstone); a different-entry removal from a stale copy silently resurrects
+          the other side's removed entry (the predicted recency lost-update, extended to removals — feeds 5.4).
+          Serialized pull-before-write practice prevents resurrection structurally (tombstones materialize into
+          the file and re-publish with the next save) — confirmed live and recorded as the playbook discipline.
+        - New unpredicted wedge: same-commit concurrent saves (both machines at the same base tip) cannot
+          converge through any sanctioned verb — per-file union refuses, pull refuses, sync refuses; only exit
+          is the destructive, contagious `--force`. Split-out capture routed (entry-aware union at push
+          reconcile, sequenced behind wave 4); guidance seams routed to Task 7.5. Evidence in
+          `notes-finalize-parallelism.md` § Wave-3 induction evidence.
 
     - `[ ]` **5.2.c Compaction-seed shared-checkout race**
 
@@ -862,6 +870,18 @@ the waves run rather than authored up front.
 - _Files:_ `handlers/errand.ts` (five conflict arms), `handlers/sync.ts` (`errandPartialPushDetail`),
   `lib/user-sync/sync-state.ts` (`recordErrandPartialPushMarker` no-record arm).
 - _Surfaced by:_ wave-3 cell 5.2.a induction, 2026-07-16 — see `notes-finalize-parallelism.md` § Wave-3
+  induction evidence.
+
+### `[ ]` **7.5 Give diverged-notes surfaces honest guidance**
+
+- _Goal:_ The diverged-notes conflict surfaces stop pointing at wrong or missing remedies: `arc user status`'s
+  next-step names a `repair` verb that doesn't exist; the push-refusal message says "the union produced an
+  unparseable note" when the manifests parse fine (it is a per-file content collision) and offers no procedure
+  beyond `--force`; status renders the annotated commit's age as the note's save time. Message/guidance honesty
+  only — the structural fix (entry-aware same-commit union) is the separate split-out capture from cell 5.2.b.
+- _Files:_ `commands/user/push-fetch.ts` (~431), `commands/user/sync-status.ts`,
+  `lib/user-sync/compaction.ts` (conflict message).
+- _Surfaced by:_ wave-3 cell 5.2.b induction, 2026-07-16 — see `notes-finalize-parallelism.md` § Wave-3
   induction evidence.
 
 ## **Phase 8:** GA closeout
