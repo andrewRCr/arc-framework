@@ -92,13 +92,13 @@ async function branchExists(cwd: string, branch: string): Promise<boolean> {
 }
 
 /** A minimal but schema-valid `meta-<slug>.md` for a started (`Planning`) WU. */
-function startedMeta(slug: string): string {
+function startedMeta(slug: string, cohort = "[none]"): string {
   return (
     `# Metadata: ${slug}\n\n` +
     `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
     `| --------- | --------- | ----------- | --------- | ------------ |\n` +
     `| \`Planning\` | \`test-user\` | \`plan/${slug}\` | \`Novel\` | \`P1\` |\n\n` +
-    `- **Cohort:** [none]\n` +
+    `- **Cohort:** ${cohort}\n` +
     `- **Depends On:** [none]\n\n` +
     `- **Origin:** [internal]\n` +
     `- **Design:** \`draft-${slug}.md\`\n\n---\n`
@@ -120,10 +120,11 @@ async function scaffoldStartedWu(
   repo: string,
   slug: string,
   model: "in-place" | "linked",
+  cohort = "[none]",
 ): Promise<{ worktree?: string }> {
   const dir = join(repo, ".arc", "active");
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, `meta-${slug}.md`), startedMeta(slug));
+  await writeFile(join(dir, `meta-${slug}.md`), startedMeta(slug, cohort));
   await writeFile(join(dir, `draft-${slug}.md`), `# Draft: ${slug}\n\n- **Purpose:** —\n\n---\n`);
   await commitAll(repo, `scaffold origin ${slug}`);
 
@@ -147,8 +148,9 @@ async function scaffoldStartedWu(
 async function scaffoldCommittedParkTransition(
   repo: string,
   slug: string,
+  cohort = "[none]",
 ): Promise<{ worktree: string; transition: string; receiptFile: string }> {
-  const { worktree } = await scaffoldStartedWu(repo, slug, "linked");
+  const { worktree } = await scaffoldStartedWu(repo, slug, "linked", cohort);
   expect(worktree).toBeDefined();
 
   // The planning branch owns the live artifacts; the base has no competing
@@ -377,6 +379,19 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await git(repo, ["rev-parse", `:${receiptPath}`])).toBe(
       await git(worktree, ["rev-parse", `${transition}:${receiptPath}`]),
     );
+  });
+
+  it("arc park --land preserves nested cohort placement", async () => {
+    const cohort = "portfolio/subgroup";
+    const { worktree, transition } = await scaffoldCommittedParkTransition(repo, "solo", cohort);
+    worktrees.push(worktree);
+
+    const land = await runArc(["park", "solo", "--land", transition], repo);
+
+    expect(land.exitCode, land.stdout + land.stderr).toBe(0);
+    const plannedPath = `.arc/backlog/planned/${cohort}/solo/meta-solo.md`;
+    expect(await git(repo, ["diff", "--cached", "--name-only"])).toContain(plannedPath);
+    expect(await readFile(join(repo, plannedPath))).toEqual(await readFile(join(worktree, plannedPath)));
   });
 
   it("full-protection park commit round-trips to a stamped planning husk", async () => {

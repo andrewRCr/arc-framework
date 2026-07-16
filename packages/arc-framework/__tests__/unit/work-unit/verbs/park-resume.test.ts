@@ -270,6 +270,14 @@ const PARKED_NO_BRANCH: MetaSpec = {
   state: "Active",
   branch: "[none]",
 };
+const NESTED_PARKED: MetaSpec = {
+  slug: "foo",
+  tier: "backlog/planned",
+  subdir: "demo-cohort/subgroup/foo",
+  state: "Active",
+  branch: "feat/foo",
+  cohort: "demo-cohort/subgroup",
+};
 
 const BASE_PARK: ParkParams = {
   name: "foo",
@@ -351,6 +359,22 @@ describe("runPark — park@Planning", () => {
     // No pointer-record on the Planning arm — there is no preserved branch to point at.
     expect(result.pointerRecord).toBeUndefined();
   });
+
+  it.each(["demo-cohort", "demo-cohort/subgroup"])(
+    "preserves the %s cohort placement when parking Planning work",
+    async (cohort) => {
+      const planning = { ...PLANNING, cohort };
+      const { ctx, calls } = buildCtx([planning]);
+
+      const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(planning) });
+
+      expect(result).toMatchObject({
+        status: "parked",
+        metaPath: `.arc/backlog/planned/${cohort}/foo/meta-foo.md`,
+      });
+      expect(calls).toContain(`relocate:.arc/active->.arc/backlog/planned/${cohort}/foo`);
+    },
+  );
 });
 
 describe("runPark — park@Active", () => {
@@ -393,7 +417,7 @@ describe("runPark — park@Active", () => {
     if (result.status !== "parked") return;
     // The pointer-record lands fresh at the parked meta path and is returned for surfacing.
     expect(writes).toHaveLength(1);
-    expect(writes[0]!.path).toBe("/repo/.arc/backlog/planned/foo/meta-foo.md");
+    expect(writes[0]!.path).toBe("/repo/.arc/backlog/planned/demo-cohort/foo/meta-foo.md");
     const pointer = writes[0]!.content;
     expect(result.pointerRecord).toBe(pointer);
     // Derived-state callout: parked notice, authoritative branch, the reason.
@@ -514,6 +538,18 @@ describe("runResume — the inverse", () => {
 
     expect(result.status).toBe("resumed");
     expect(worktreeOps[0]).toMatchObject({ mutation: "spawn", postCreateScript: "npm run setup:worktree" });
+  });
+
+  it("resolves and removes a nested cohort pointer from the lifecycle index", async () => {
+    const { ctx, removals } = buildCtx([NESTED_PARKED]);
+
+    const result = await runResume(ctx, BASE_RESUME);
+
+    expect(result.status).toBe("resumed");
+    expect(removals).toContain(
+      "/repo/.arc/backlog/planned/demo-cohort/subgroup/foo/meta-foo.md",
+    );
+    expect(removals).toContain("rmdir:/repo/.arc/backlog/planned/demo-cohort/subgroup/foo");
   });
 
   it("re-attaches in place (`--here`) — removes the pointer but defers the checkout", async () => {

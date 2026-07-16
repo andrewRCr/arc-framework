@@ -9,6 +9,8 @@
 
 import { posix, join, resolve } from "node:path";
 
+import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import { canonicalDigest, isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 import {
   contentDigest,
@@ -219,14 +221,37 @@ async function readCommittedTransition(
     const recordBytes = await requireBlob(deps, commit, recordPath);
     const receipt = parseParkReceipt(recordBytes);
 
-    const plannedDir = `.arc/backlog/planned/${params.name}`;
+    const plannedRoot = ".arc/backlog/planned";
     const sourceDir = ".arc/active";
     const matcher = artifactMatcher(params.name);
-    const [plannedTree, sourceTree, operations] = await Promise.all([
-      readTreeEntries(deps, commit, plannedDir),
+    const [plannedRootTree, sourceTree, operations] = await Promise.all([
+      readTreeEntries(deps, commit, plannedRoot),
       readTreeEntries(deps, parent, sourceDir),
       readDiffOperations(deps, parent, commit, recordPath),
     ]);
+    const plannedCandidates = plannedRootTree.filter((entry) => matcher.test(posix.basename(entry.path)));
+    const plannedMetas = plannedCandidates.filter(
+      (entry) => posix.basename(entry.path) === `meta-${params.name}.md`,
+    );
+    const plannedMeta = plannedMetas[0];
+    if (plannedMetas.length !== 1 || plannedMeta === undefined) {
+      return { status: "rejected", reason: "The transition does not contain a complete planning artifact group." };
+    }
+    const plannedDir = posix.dirname(plannedMeta.path);
+    const plannedMetaBytes = await requireBlob(deps, commit, plannedMeta.path);
+    const cohort = parseMetaRecord(decodeUtf8(plannedMetaBytes)).Cohort?.trim() ?? "";
+    if (!isSafeCohortPath(cohort) || validateCohortPath(cohort) !== null) {
+      return { status: "rejected", reason: "The planned result carries an invalid Cohort path." };
+    }
+    const expectedPlannedDir = cohort === "" || cohort === "[none]"
+      ? `${plannedRoot}/${params.name}`
+      : `${plannedRoot}/${cohort}/${params.name}`;
+    if (plannedDir !== expectedPlannedDir) {
+      return { status: "rejected", reason: "The planned result does not match its Cohort placement." };
+    }
+    const plannedTree = plannedRootTree.filter(
+      (entry) => entry.path === plannedDir || entry.path.startsWith(`${plannedDir}/`),
+    );
     const plannedEntries = selectExactArtifactGroup(plannedTree, plannedDir, matcher);
     const sourceEntries = selectExactArtifactGroup(sourceTree, sourceDir, matcher);
     const metaName = `meta-${params.name}.md`;

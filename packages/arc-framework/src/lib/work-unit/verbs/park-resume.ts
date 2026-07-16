@@ -42,12 +42,14 @@
 
 import { join } from "node:path";
 
+import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
 import { parseMetaRecord, type MetaFieldName, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
 import type { ManagedPath } from "../../canonical/managed-path.js";
 import { receiptId } from "../../canonical/receipt-id.js";
 import type { WriteFileFn } from "../../template/files.js";
 import type { LifecyclePosition } from "../lifecycle-state.js";
+import { buildLifecycleIndex } from "../lifecycle-index.js";
 import {
   executeTransition,
   type EncodingLeg,
@@ -68,9 +70,15 @@ import { isSlugSafe } from "../slug.js";
 /** The flat `active/` tier — where a started WU's artifacts live. */
 const ACTIVE_DIR = ".arc/active";
 
-/** The per-WU parked directory (cwd-relative); `parked` / `planned` both live here. */
-function parkedDir(name: string): string {
-  return `.arc/backlog/planned/${name}`;
+/** The cohort-aware per-WU parked directory (cwd-relative). */
+function parkedDir(name: string, rawCohort: string | null): string {
+  const cohort = rawCohort?.trim() ?? "";
+  if (cohort === "" || cohort === "[none]") return `.arc/backlog/planned/${name}`;
+  const shapeError = validateCohortPath(cohort);
+  if (!isSafeCohortPath(cohort) || shapeError !== null) {
+    throw new Error(`Cannot park \`${name}\`: invalid Cohort path \`${rawCohort ?? ""}\`.`);
+  }
+  return `.arc/backlog/planned/${cohort}/${name}`;
 }
 
 /**
@@ -282,9 +290,16 @@ export async function runPark(ctx: ParkContext, params: ParkParams): Promise<Par
     return { status: "rejected", reason: "withdraw the PR via `reopen` before parking an Integrating WU." };
   }
 
+  let toDir: string;
+  try {
+    toDir = parkedDir(name, sourceRecord.Cohort);
+  } catch (err) {
+    return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
+  }
+
   return sourceRecord.State === "Active"
-    ? parkActive(ctx, name, reason, sourceRecord, worktreePath, currentLocus)
-    : parkPlanning(ctx, name, sourceRecord);
+    ? parkActive(ctx, name, reason, sourceRecord, worktreePath, currentLocus, toDir)
+    : parkPlanning(ctx, name, sourceRecord, toDir);
 }
 
 /**
@@ -299,8 +314,8 @@ async function parkPlanning(
   ctx: ParkContext,
   name: string,
   sourceRecord: Record<MetaFieldName, string | null>,
+  toDir: string,
 ): Promise<ParkResult> {
-  const toDir = parkedDir(name);
   const retirement = ctx.planningRetirement;
   if (retirement === undefined) {
     return { status: "rejected", reason: "park-at-Planning retirement authority is not wired." };
@@ -459,6 +474,7 @@ async function parkActive(
   sourceRecord: Record<MetaFieldName, string | null>,
   worktreePath: string,
   currentLocus: string,
+  toDir: string,
 ): Promise<ParkResult> {
   // An Active WU must carry its preserved branch: `resume` hard-rejects a
   // pointer with `Branch: [none]`, so parking one would be unresumable. Reject
@@ -479,7 +495,6 @@ async function parkActive(
     return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
   }
 
-  const toDir = parkedDir(name);
   const metaPath = `${toDir}/meta-${name}.md`;
   const pointerRecord = composePointerRecord({
     name,
@@ -569,8 +584,13 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     };
   }
 
-  const parkedSubdir = parkedDir(name);
-  const sourceMetaPath = `${parkedSubdir}/meta-${name}.md`;
+  const index = await buildLifecycleIndex({ cwd: ctx.executor.cwd, fs: ctx.executor.indexFs });
+  const entry = index.get(name);
+  if (entry === undefined || entry.location !== "planned") {
+    return { status: "rejected", reason: `\`${name}\` is not a parked WU — nothing to resume.` };
+  }
+  const sourceMetaPath = entry.path;
+  const parkedSubdir = sourceMetaPath.slice(0, sourceMetaPath.lastIndexOf("/"));
   let record: Record<MetaFieldName, string | null>;
   try {
     record = parseMetaRecord(await ctx.executor.indexFs.readFile(join(ctx.executor.cwd, sourceMetaPath)));
