@@ -125,6 +125,48 @@ describe("arc errand open", () => {
   });
 });
 
+describe("tracked ROADMAP regen with errand records", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(
+      ["init", "--yes", "--name", "test-project", "--pm-mode", "arc-in-git"],
+      tmpDir,
+    );
+    expect(init.exitCode).toBe(0);
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    await setFullProtection(tmpDir);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("does not flag a just-opened errand branch as residue in the regen advisory", async () => {
+    const opened = await runArc(["errand", "open", "residue-probe", "--type", "fix"], tmpDir);
+    expect(opened.exitCode).toBe(0);
+
+    const stub = await runArc(
+      ["stub", "advisory-probe", "--commitment", "provisional", "--priority", "P3"],
+      tmpDir,
+    );
+    expect(stub.exitCode).toBe(0);
+    expect(stub.stdout + stub.stderr).not.toMatch(/no errand record or active work-unit meta/i);
+  });
+
+  it("still flags a record-less typed branch as residue (fail-safe preserved)", async () => {
+    await git(tmpDir, ["switch", "-c", "chore/no-record"]);
+
+    const stub = await runArc(
+      ["stub", "advisory-probe", "--commitment", "provisional", "--priority", "P3"],
+      tmpDir,
+    );
+    expect(stub.exitCode).toBe(0);
+    expect(stub.stdout + stub.stderr).toMatch(/no errand record or active work-unit meta/i);
+  });
+});
+
 describe("arc errand close", () => {
   let tmpDir: string;
 

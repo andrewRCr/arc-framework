@@ -8,7 +8,8 @@
  * @module
  */
 
-import type { GitExec } from "../git/exec.js";
+import { gitConfigGet, type GitExec } from "../git/exec.js";
+import { listErrandRecordsResult, type ListErrandRecordsResult } from "../errand/record.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
 
@@ -38,6 +39,20 @@ export async function renderTrackedProjectReadinessViewResult(
   options: RenderTrackedProjectReadinessViewOptions,
 ): Promise<ProjectReadinessViewResult> {
   const parkedSlugs = listParkedSlugs(await buildLifecycleIndex({ cwd: options.cwd, fs: options.fs }));
+
+  // Errand records feed the local-ref oracle so recorded `chore/`/`fix/` errand
+  // branches are not mis-emitted as `no-record-or-meta` residue advisories —
+  // resolved here, not per caller, so every tracked-ROADMAP regen (stub, start,
+  // lifecycle ceremonies) inherits the read. No identity ⇒ no errand-record ref
+  // to read; empty+complete is authoritative (not degraded).
+  const identity = await gitConfigGet(options.exec, "arc.identity");
+  const recordResult: ListErrandRecordsResult = identity === undefined || identity === ""
+    ? { records: [], complete: true, warnings: [] }
+    : await listErrandRecordsResult({ exec: options.exec, identity });
+  const errandSlugByBranch = new Map(
+    recordResult.records.map((record) => [record.branch, record.slug]),
+  );
+
   const input = await resolveProjectReadinessViewInput({
     cwd: options.cwd,
     fs: options.fs,
@@ -45,6 +60,8 @@ export async function renderTrackedProjectReadinessViewResult(
       exec: options.exec,
       ...(options.baseBranch !== undefined ? { baseBranch: options.baseBranch } : {}),
       parkedSlugs,
+      errandSlugByBranch,
+      errandRecordsComplete: recordResult.complete,
     },
     ...(options.currentBranch === undefined || options.currentBranch === null
       ? {}
