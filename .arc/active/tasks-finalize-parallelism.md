@@ -702,32 +702,28 @@ _Design decisions:_ The live errand drain doubles as the drain-shape evidence co
 dispatched; batch size + file-overlap frequency; post-BI-1 spawn cost). Interlock-friction evidence by work
 character is recorded here for `interlock-release-refinement` to consume post-waves.
 
-### `[ ]` **5.1 Prepare and launch the wave-3 workload**
+### `[x]` **5.1 Prepare and launch the wave-3 workload**
 
 - _Goal:_ Two Light code WUs (provisional `ci-cross-platform-hardening` + one further pick) and a live errand
   drain session run alongside FP, creating real primary-singleton contention.
-- _Context:_ Slate consideration (consumed from USER-INBOX, 2026-07-14): prefer `cli-test-hardening` — already
-  `Light`, with bounded sacrificial scope (stabilize the notes-compaction fixture, retry-safe temp-repo cleanup,
-  reverify the shallow-clone timeout, discard stale race scope) — for a code slot over the provisional
-  `ci-cross-platform-hardening` pick, whose `[TBD]` class and cross-platform shakeout may expand. Never pair both
-  full scopes in one wave (shared test/CI infrastructure and a named save/sync race overlap): swap, or sharply
-  partition both before the slate cut. Decide at 5.1.a.
-- _Context:_ Re-anchored from 4.3 (`[~]`): the wave-3 launches double as the live verification of the
-  start-dispatch fix (PR #242), and the slate cut decides the `Depends On` discharge vehicle —
-  `husk-lifecycle-drivers` (Ready P1, single dep on shipped `worktree-teardown-decoupling`) is the nearest
-  real-deps candidate if wanted.
 - _Decision (2026-07-15):_ Slate cut — `cli-test-hardening` + `husk-lifecycle-drivers` + the live errand drain.
   HLD takes the second slot as the dep-discharge vehicle (its shipped WTD edge discharges at graduation, closing
   the 4.3 re-anchor) with no test-infra overlap against CTH. Launch holds until `commit-message-submission`
   merges, so the spawns cut from a base carrying both wave-2 WUs' surfaces and the dispatch-fix live check runs
   against the freshest base.
 
-    - `[ ]` **5.1.a Confirm the wave-3 slate and launch (incl. the errand drain session)**
-        - Progress (2026-07-15): both WU legs launched from the synced primary after the CMS merge —
-          `plan/cli-test-hardening` (`2ae559b98`) and `plan/husk-lifecycle-drivers` (`dfe08394e`), BI-1
-          provisioning + seeded handoffs verified. Live checks clean: dispatch cut both branches from the synced
-          base (PR #242 contract), and HLD's landed `worktree-teardown-decoupling` edge discharged ungated at
-          graduation. The errand-drain session has not yet run — 5.1.a stays open until it does.
+    - `[x]` **5.1.a Confirm the wave-3 slate and launch (incl. the errand drain session)**
+        - All three legs launched 2026-07-15, same day CMS merged: `plan/cli-test-hardening` (`2ae559b98`) and
+          `plan/husk-lifecycle-drivers` (`dfe08394e`) spawned from the synced primary with BI-1 provisioning +
+          seeded handoffs verified; the errand/housekeep drain session ran (PR #255) plus follow-on errand
+          sessions.
+
+- _Outcome:_ Wave 3 is live with real contention on day one — CTH activated (`chore/` branch, Phase 1 complete)
+  and HLD through task generation in parallel. Both 4.3-re-anchored live checks recorded clean (dispatch cut
+  from the synced base; HLD's `Depends On` discharged ungated at graduation). The drain leg already supplied
+  5.3's first drain-shape datapoints (sequential-primary ten-entry batch; interruption-safety capture), and
+  machine-load contention flaked shell-spawn quality gates same-day (captured to CTH) — evidence in
+  `notes-finalize-parallelism.md` § Wave-3 launch evidence.
 
 ### `[ ]` **5.2 Verify the wave-3 matrix cells**
 

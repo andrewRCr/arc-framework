@@ -768,6 +768,30 @@ on the resume arm, resolved only by a manual `gh` query; teardown ran clean from
 ceremony itself was low-friction; the friction concentrated in routine reconcile ops and advisory noise, not in
 decision-bearing gates.
 
+### Day-1 evidence accumulation (2026-07-15, close-of-day)
+
+Wave 3's first day produced contention and drain-shape evidence ahead of the 5.2 inductions:
+
+- **Drain shape (5.3 input):** the housekeep drain ran sequential-primary (PR #255, ten entries) — matching the
+  pin-primary / sequential-first leaning. Its friction captures: interruption-unsafe cross-store moves (routed
+  `shared-inbox-model`), destination-overlap surfacing at the routing interlock (§ Errand), plus the live
+  drain-vs-owner contention question answered same-day by the drain-skip rule (PR #256).
+- **Errand-loop throughput:** five same-day capture → route/adopt → execute → merge cycles (PRs #256–#259 + the
+  wording/footer fixes), all beside two live WU sessions. Interlock friction stayed in routine ops (reconcile,
+  advisory noise), not decision-bearing gates — 5.3 / `interlock-release-refinement` input.
+- **Resource-axis contention (unpredicted cell):** at load average ~30 (sibling suites + builds), shell-spawn
+  quality-gate tests flake against flat 5s timeouts (`validate-config.test.ts`, unchanged by any merge; passes
+  at normal load). Captured to `cli-test-hardening` — the shared-machine resource axis alongside the predicted
+  shared-state axes.
+- **Advisory-register finding:** HLD's first boot rendered cautionary notes/disk drift ("mixed") from two
+  healthy-parallelism states (own seeded SESSION-NOTES; sibling churn on identity-global surfaces) — graded-
+  advisory fix captured (§ Errand, "Grade the notes/disk drift advisory"). Sequential-era advisory semantics
+  colliding with parallel steady-state is the day's recurring shape (see also the FP-first memory-entry
+  amendment: errands un-frozen, two sanctioned classes).
+- **Ops note:** both FP base-merges today conflicted only on ROADMAP's render stamp (auto-remedy pull-back
+  captured); second merge verified green post-regen (build + 4854/4856 unit — the 2 fails are the load flake
+  above).
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
