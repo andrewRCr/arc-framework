@@ -12,11 +12,11 @@
 - **Task List:** `tasks-husk-lifecycle-drivers.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.4 — Deterministic receipt/preparation IDs and inventory digests
-- **Next Task:** Task 2.1 — Port type vocabulary and closed refusal set (line ~72)
+- **Last Completed:** Task 4.7 — Production two-stage decompose lifecycle
+- **Next Task:** Task 5.1 — Port-authorized teardown replacing the `allowHusk` switch (line ~292)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 2 — Task 2.1 via the task loop
+- **Next Action:** Begin Phase 5 — Task 5.1 via the task loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
