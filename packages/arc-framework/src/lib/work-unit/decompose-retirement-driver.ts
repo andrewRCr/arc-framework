@@ -204,7 +204,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             targets,
           };
         };
-        return await finalizeDecomposeRetirement(
+        const finalized = await finalizeDecomposeRetirement(
           {
             readAuthoritySnapshot: async () => await readDecomposeAuthorityVersion(
               deps,
@@ -249,8 +249,14 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
                   throw new Error("finalized record is absent from the staged index");
                 }
               } catch (error) {
-                await write(path, expected);
-                await stageDecomposePaths(deps, [relativePath]).catch(() => {});
+                const rollbackFailure = await restorePreparedRecord(deps, write, path, relativePath, expected);
+                if (rollbackFailure !== null) {
+                  throw new Error(
+                    `finalized record update failed: ${errorMessage(error)}. `
+                    + `Rollback was incomplete: ${rollbackFailure}.`,
+                    { cause: error },
+                  );
+                }
                 throw error;
               }
             },
@@ -258,11 +264,47 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
           record.locator,
           snapshot.authorityVersion,
         );
+        if (finalized.status === "refused" && finalized.diagnostic !== undefined) {
+          return { status: "refused", reason: `${finalized.reason}: ${finalized.diagnostic}` };
+        }
+        return finalized;
       } catch (error) {
         return { status: "refused", reason: error instanceof Error ? error.message : "authority-unavailable" };
       }
     },
   };
+}
+
+async function restorePreparedRecord(
+  deps: InRepoDecomposeRetirementDeps,
+  write: typeof atomicWriteFile,
+  path: string,
+  relativePath: string,
+  expected: string,
+): Promise<string | null> {
+  try {
+    await write(path, expected);
+  } catch (error) {
+    return `prepared record working-tree restoration failed: ${errorMessage(error)}`;
+  }
+  try {
+    await stageDecomposePaths(deps, [relativePath]);
+  } catch (error) {
+    return `prepared record index restoration failed: ${errorMessage(error)}`;
+  }
+  try {
+    const staged = await deps.readBlob(null, validateManagedPath(relativePath));
+    if (staged === null || new TextDecoder("utf-8", { fatal: true }).decode(staged) !== expected) {
+      return "prepared record is absent from the restored index";
+    }
+  } catch (error) {
+    return `prepared record index verification failed: ${errorMessage(error)}`;
+  }
+  return null;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /** Build the production two-stage decompose retirement binding. */

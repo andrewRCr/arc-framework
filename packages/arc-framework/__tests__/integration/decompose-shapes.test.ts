@@ -31,7 +31,9 @@ import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.j
 import type { DecomposeParams } from "../../src/lib/work-unit/decompose-cut-map.js";
 import { createInRepoDecomposeRetirementDriver } from "../../src/lib/work-unit/decompose-retirement-driver.js";
 import {
+  RETIREMENT_RECORD_NAMESPACE,
   resolveRetirementRecordPath,
+  resolveRetirementRecordRelativePath,
   writeRetirementRecord,
 } from "../../src/lib/work-unit/retirement-record-store.js";
 import {
@@ -94,12 +96,28 @@ function decomposeCtx(repo: string): RunDecomposeContext {
   };
 }
 
-function decomposeDriver(repo: string, failStage = false) {
+interface DecomposeDriverFaults {
+  failFinalReceiptVerification?: boolean;
+  failRollbackStage?: boolean;
+}
+
+function decomposeDriver(repo: string, faults: DecomposeDriverFaults = {}) {
   const baseExec = repoExec(repo);
+  let receiptStageCount = 0;
   const exec: GitExec = async (cmd, args, options) => {
-    if (failStage && cmd === "git" && args[0] === "add") throw new Error("injected final staging failure");
+    if (
+      cmd === "git"
+      && args[0] === "add"
+      && args.some((arg) => arg.startsWith(`${RETIREMENT_RECORD_NAMESPACE}/`))
+    ) {
+      receiptStageCount += 1;
+      if (faults.failRollbackStage === true && receiptStageCount === 2) {
+        throw new Error("injected prepared-record rollback staging failure");
+      }
+    }
     return await baseExec(cmd, args, options);
   };
+  let finalVerificationInjected = false;
   return createInRepoDecomposeRetirementDriver({
     cwd: repo,
     exec,
@@ -108,7 +126,18 @@ function decomposeDriver(repo: string, failStage = false) {
       readFile: (path) => readFile(path, "utf8"),
     },
     readFile: (path) => readFile(path, "utf8"),
-    readBlob: (ref, path) => readGitBlobBytes(repo, ref, path),
+    readBlob: async (ref, path) => {
+      if (
+        faults.failFinalReceiptVerification === true
+        && !finalVerificationInjected
+        && ref === null
+        && path.startsWith(`${RETIREMENT_RECORD_NAMESPACE}/`)
+      ) {
+        finalVerificationInjected = true;
+        return Buffer.from("injected finalized-record mismatch", "utf8");
+      }
+      return await readGitBlobBytes(repo, ref, path);
+    },
     createRecord: (receiptId, content) => writeRetirementRecord(repo, receiptId, content),
     removeRecord: (receiptId) => rm(resolveRetirementRecordPath(repo, receiptId)),
   });
@@ -244,12 +273,41 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
       cwd: repo,
     })).stdout;
 
-    const failed = await decomposeDriver(repo, true).finalize("mono", prepared.preparation.locator.receiptId);
-    expect(failed).toMatchObject({ status: "refused", reason: "authority-unavailable" });
+    const verificationFailed = await decomposeDriver(repo, {
+      failFinalReceiptVerification: true,
+    }).finalize("mono", prepared.preparation.locator.receiptId);
+    expect(verificationFailed).toMatchObject({
+      status: "refused",
+      reason: expect.stringContaining("finalized record is absent from the staged index"),
+    });
+    expect(verificationFailed).not.toMatchObject({ reason: expect.stringContaining("Rollback was incomplete") });
     expect(JSON.parse(await readFile(
       resolveRetirementRecordPath(repo, prepared.preparation.locator.receiptId),
       "utf8",
     ))).toMatchObject({ kind: "prepared-decompose" });
+    const recordPath = resolveRetirementRecordRelativePath(prepared.preparation.locator.receiptId);
+    expect(JSON.parse((await execFileAsync("git", ["show", `:${recordPath}`], { cwd: repo })).stdout)).toMatchObject({
+      kind: "prepared-decompose",
+    });
+
+    const rollbackFailed = await decomposeDriver(repo, {
+      failFinalReceiptVerification: true,
+      failRollbackStage: true,
+    }).finalize("mono", prepared.preparation.locator.receiptId);
+    expect(rollbackFailed).toMatchObject({
+      status: "refused",
+      reason: expect.stringMatching(
+        /Rollback was incomplete: prepared record index restoration failed: injected prepared-record rollback staging failure/u,
+      ),
+    });
+    expect(JSON.parse(await readFile(
+      resolveRetirementRecordPath(repo, prepared.preparation.locator.receiptId),
+      "utf8",
+    ))).toMatchObject({ kind: "prepared-decompose" });
+    expect(JSON.parse((await execFileAsync("git", ["show", `:${recordPath}`], { cwd: repo })).stdout)).toMatchObject({
+      transition: "decompose",
+    });
+    await execFileAsync("git", ["add", "--", recordPath], { cwd: repo });
 
     // A post-snapshot working-tree edit must remain unstaged: the receipt binds
     // the already-staged version, not whichever bytes happen to be on disk when
