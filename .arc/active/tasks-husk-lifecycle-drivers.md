@@ -69,22 +69,14 @@ namespace is adapter-owned operational state with no package-source mirror; `aut
 compare-and-set token obtained only from `readSnapshot`; workflow logic never branches on the physical record
 location. Decompose's `prepareDecompose`/`finalizeDecompose` are declared here but implemented in Phase 4.
 
-### `[ ]` **2.1 Port type vocabulary and closed refusal set**
+### `[x]` **2.1 Port type vocabulary and closed refusal set**
 
 - _Goal:_ The port's public type surface names preservation facts and exposes one closed refusal union, so
   orchestration and rendering branch only on typed codes.
 
-- _Note:_ `prepareDecompose`/`finalizeDecompose` signatures are declared here; their bodies and the full
-  decompose allocation type surface (`DecomposeAllocationMap`, `DecomposePreparationLocator`,
-  `PreparedDecomposeRetirement`, `DecomposeContentLocator`, and the allocation/disposition unions) are authored
-  in `4.1`, which these port signatures forward-reference.
-
-    - Build `test-first` (one behavior at a time):
-        - the `TeardownAuthorizationRefusal` union is exhaustively handled (compile-time + runtime switch)
-        - `WorktreeSubject` distinguishes work-unit / errand / branch even when text suffixes match
-        - the reserved `errand` subject resolves `unsupported-transition`
-        - the receipt cross-field matrix accepts only the fixed (transition, authorization, expected-lifecycle,
-          result) combinations; every other combination is `evidence-mismatch`
+- _Outcome:_ Added the storage-agnostic authority port, preservation/evidence vocabulary, typed worktree-subject
+  identity, exhaustive refusal rendering, and the fixed receipt cross-field validator. Decompose signatures expose
+  the narrow forward contract while their allocation internals remain reserved for the decompose driver.
 
 ### `[ ]` **2.2 Receipt-record namespace and digest-to-record-key codec**
 
