@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "grade-notes-disk-drift",
+  "origin": "inbox",
+  "intent": "Grade the notes/disk drift advisory for parallel-session steady state",
+  "branch": "fix/grade-notes-disk-drift",
+  "createdAt": "2026-07-16T02:15:52.204Z",
+  "originEntry": "Grade the notes/disk drift advisory for parallel-session steady state",
+  "returnBranch": "main"
+}
