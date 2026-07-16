@@ -89,6 +89,59 @@ describe("scanDecomposeContent", () => {
     ]);
   });
 
+  it("uses the complete top-level paragraph as a multiline Setext heading", () => {
+    const source = "intro\n\nFirst *line*\nsecond `line`\n---\nbody\n";
+    const result = scanDecomposeContent("draft-sample.md", bytes(source));
+
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+    expect(result.units.map((unit) => unit.locator)).toEqual([
+      { artifact: "draft-sample.md", kind: "preamble" },
+      {
+        artifact: "draft-sample.md",
+        kind: "section",
+        headingSource: "First *line*\nsecond `line`",
+        occurrence: 0,
+      },
+    ]);
+    expect(result.units[1]?.content).toBe("First *line*\nsecond `line`\n---\nbody\n");
+  });
+
+  it("does not turn non-paragraph block content into top-level Setext headings", () => {
+    const source = [
+      "# H1",
+      "---",
+      "    indented code",
+      "---",
+      "[reference]: /target",
+      "---",
+      "> quoted",
+      "lazy quote continuation",
+      "---",
+      "",
+      "- list item",
+      "lazy list continuation",
+      "---",
+      "",
+      "<div>",
+      "html block content",
+      "---",
+      "</div>",
+      "",
+      "Real paragraph",
+      "---",
+      "body",
+      "",
+    ].join("\n");
+    const result = scanDecomposeContent("draft-sample.md", bytes(source));
+
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+    expect(result.units.slice(1).map((unit) => unit.locator)).toEqual([
+      { artifact: "draft-sample.md", kind: "section", headingSource: "Real paragraph", occurrence: 0 },
+    ]);
+  });
+
   it("normalizes heading source and numbers equal normalized headings from zero", () => {
     const source = "##  A\t e\u0301 **bold**  ##\nfirst\n## A   é **bold**\nsecond\n";
     const result = scanDecomposeContent("draft-sample.md", bytes(source));

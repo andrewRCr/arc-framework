@@ -67,10 +67,54 @@ function isSetextH2Underline(line: string): boolean {
   return /^ {0,3}-+[ \t]*$/u.test(line);
 }
 
-function isTopLevelSetextText(line: string): boolean {
-  if (line.trim() === "" || /^ {4}/u.test(line)) return false;
-  if (/^ {0,3}(?:>|[-+*](?:[ \t]+|$)|\d+[.)](?:[ \t]+|$))/u.test(line)) return false;
-  return openingFence(line) === null && atxH2Source(line) === null && !isSetextH2Underline(line);
+function isSetextH1Underline(line: string): boolean {
+  return /^ {0,3}=+[ \t]*$/u.test(line);
+}
+
+function isAtxHeading(line: string): boolean {
+  return /^ {0,3}#{1,6}(?:[ \t]+|$)/u.test(line);
+}
+
+function isThematicBreak(line: string): boolean {
+  if (/^(?: {4}|\t)/u.test(line)) return false;
+  const compact = line.replace(/^ {0,3}/u, "").replace(/[ \t]/gu, "");
+  return /^(?:\*{3,}|-{3,}|_{3,})$/u.test(compact);
+}
+
+function isContainerStart(line: string, interruptsParagraph: boolean): boolean {
+  if (/^ {0,3}>/u.test(line)) return true;
+  if (/^ {0,3}[-+*](?:[ \t]+|$)/u.test(line)) return true;
+  const ordered = /^ {0,3}(\d{1,9})[.)](?:[ \t]+|$)/u.exec(line);
+  return ordered !== null && (!interruptsParagraph || ordered[1] === "1");
+}
+
+function isReferenceDefinition(line: string): boolean {
+  return /^ {0,3}\[[^\]\r\n]+\]:[ \t]*(?:<[^>\r\n]*>|\S+)/u.test(line);
+}
+
+interface HtmlBlock {
+  closing: RegExp | null;
+  interruptsParagraph: boolean;
+}
+
+const HTML_BLOCK_TAG = /^(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)(?:[ \t\n/>]|$)/iu;
+
+function openingHtmlBlock(line: string, paragraphActive: boolean): HtmlBlock | null {
+  const source = line.replace(/^ {0,3}/u, "");
+  if (/^<(?:script|pre|style|textarea)(?:[ \t>]|$)/iu.test(source)) {
+    const tag = /^<([A-Za-z]+)/u.exec(source)?.[1] ?? "";
+    return { closing: new RegExp(`</${tag}[ \\t]*>`, "iu"), interruptsParagraph: true };
+  }
+  if (source.startsWith("<!--")) return { closing: /-->/u, interruptsParagraph: true };
+  if (source.startsWith("<?")) return { closing: /\?>/u, interruptsParagraph: true };
+  if (/^<![A-Z]/u.test(source)) return { closing: />/u, interruptsParagraph: true };
+  if (source.startsWith("<![CDATA[")) return { closing: /\]\]>/u, interruptsParagraph: true };
+  const tagSource = /^<\/?([^\s/>]+)/u.exec(source)?.[1] ?? "";
+  if (HTML_BLOCK_TAG.test(tagSource)) return { closing: null, interruptsParagraph: true };
+  if (!paragraphActive && /^<\/?[A-Za-z][^>]*>[ \t]*$/u.test(source)) {
+    return { closing: null, interruptsParagraph: false };
+  }
+  return null;
 }
 
 function openingFence(line: string): { marker: "`" | "~"; length: number } | null {
@@ -89,34 +133,76 @@ function closesFence(line: string, fence: { marker: "`" | "~"; length: number })
 function markdownBoundaries(content: string): HeadingBoundary[] {
   const lines = sourceLines(content);
   const headings: HeadingBoundary[] = [];
-  const setextTextLines = new Set<number>();
   let fence: { marker: "`" | "~"; length: number } | null = null;
+  let html: HtmlBlock | null = null;
+  let paragraph: SourceLine[] = [];
+  let insideContainer = false;
 
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    if (line === undefined) continue;
+  for (const line of lines) {
     if (fence !== null) {
       if (closesFence(line.body, fence)) fence = null;
       continue;
     }
+    if (html !== null) {
+      if (html.closing === null) {
+        if (line.body.trim() === "") html = null;
+      } else if (html.closing.test(line.body)) {
+        html = null;
+      }
+      continue;
+    }
     const opened = openingFence(line.body);
     if (opened !== null) {
+      paragraph = [];
       fence = opened;
       continue;
     }
     const atx = atxH2Source(line.body);
     if (atx !== null) {
+      paragraph = [];
       headings.push({ start: line.start, headingSource: atx });
       continue;
     }
     if (isSetextH2Underline(line.body)) {
-      if (index === 0 || !setextTextLines.has(index - 1)) continue;
-      const previous = lines[index - 1];
-      if (previous === undefined) continue;
-      headings.push({ start: previous.start, headingSource: normalizeDecomposeHeadingSource(previous.body) });
+      const first = paragraph[0];
+      if (first !== undefined) {
+        headings.push({
+          start: first.start,
+          headingSource: normalizeDecomposeHeadingSource(paragraph.map((part) => part.body).join("\n")),
+        });
+      }
+      paragraph = [];
       continue;
     }
-    if (isTopLevelSetextText(line.body)) setextTextLines.add(index);
+    if (isSetextH1Underline(line.body) && paragraph.length > 0) {
+      paragraph = [];
+      continue;
+    }
+    if (line.body.trim() === "") {
+      paragraph = [];
+      insideContainer = false;
+      continue;
+    }
+    if (insideContainer) continue;
+    if (isAtxHeading(line.body) || isThematicBreak(line.body)) {
+      paragraph = [];
+      continue;
+    }
+    if (isContainerStart(line.body, paragraph.length > 0)) {
+      paragraph = [];
+      insideContainer = true;
+      continue;
+    }
+    const openedHtml = openingHtmlBlock(line.body, paragraph.length > 0);
+    if (openedHtml !== null && (paragraph.length === 0 || openedHtml.interruptsParagraph)) {
+      paragraph = [];
+      if (openedHtml.closing === null || !openedHtml.closing.test(line.body)) html = openedHtml;
+      continue;
+    }
+    if (paragraph.length === 0 && (/^(?: {4}|\t)/u.test(line.body) || isReferenceDefinition(line.body))) {
+      continue;
+    }
+    paragraph.push(line);
   }
   return headings;
 }
