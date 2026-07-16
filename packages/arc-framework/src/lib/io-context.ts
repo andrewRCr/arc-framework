@@ -86,7 +86,9 @@ export const gitExec: GitExec = async (cmd, args, options) => {
   const environment = environmentForGitCwd(execOptions.cwd);
   const { stdout, stderr } = await execFileAsync(cmd, args, {
     ...execOptions,
-    env: indexFile === undefined ? environment : { ...environment, GIT_INDEX_FILE: indexFile },
+    env: indexFile === undefined
+      ? environment
+      : { ...(environment ?? process.env), GIT_INDEX_FILE: indexFile },
     maxBuffer: MAX_GIT_STDOUT_BYTES,
   });
   return { stdout: stdout.trimEnd(), stderr };

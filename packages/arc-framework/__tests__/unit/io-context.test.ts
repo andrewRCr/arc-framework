@@ -56,6 +56,21 @@ describe("gitExec", () => {
 
     expect(JSON.parse(result.stdout)).toEqual({ present: [], sentinel: "preserved" });
   });
+
+  it("preserves the inherited environment when an index file is supplied without cwd", async () => {
+    vi.stubEnv("ARC_TEST_SENTINEL", "preserved");
+    const indexFile = "/tmp/arc-test-index";
+    const script = [
+      "process.stdout.write(JSON.stringify({",
+      "sentinel: process.env.ARC_TEST_SENTINEL,",
+      "indexFile: process.env.GIT_INDEX_FILE",
+      "}));",
+    ].join("");
+
+    const result = await gitExec(execPath, ["-e", script], { indexFile });
+
+    expect(JSON.parse(result.stdout)).toEqual({ sentinel: "preserved", indexFile });
+  });
 });
 
 describe("createUserIOContext readDir", () => {
