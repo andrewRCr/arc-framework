@@ -225,18 +225,14 @@ for a shape with no surviving origin.
   dependency-edge inventories from the live lifecycle projection. Coverage is exact across all three inventories,
   while each dependent's captured `currentTargets` retains its authored `Depends On` order for final comparison.
 
-### `[ ]` **4.4 `prepareDecompose` durable preparation record**
+### `[x]` **4.4 `prepareDecompose` durable preparation record**
 
 - _Goal:_ `prepareDecompose` atomically writes a durable `prepared-decompose` record at the deterministic path
   before any mutation, and an interrupted run resumes idempotently through the exact locator.
 
-    - Build `test-first` (one behavior at a time):
-        - preparation captures origin branch/`HEAD`, base `HEAD`, and all inventory/cut-map digests, then stages
-          the record before any transition mutation
-        - the returned locator, digests, and next version are the only token accepted downstream
-        - a repeat with the same scope and map re-derives the path and returns the stored locator idempotently
-        - a changed origin, base, inventory, map, or pre-existing write set refuses
-        - a staging failure removes the new record or leaves it discoverable without touching the origin
+- _Outcome:_ The in-repo authority now persists a complete deterministic preparation at the receipt-keyed path,
+  stages only that record, and returns its exact locator plus the post-write authority version. Exact retries resume
+  idempotently; drift, coverage gaps, unrelated staged paths, and mismatched records fail closed before mutation.
 
 ### `[ ]` **4.5 Mechanical dependency-edge transform**
 

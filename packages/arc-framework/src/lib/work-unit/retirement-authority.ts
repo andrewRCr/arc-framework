@@ -10,6 +10,11 @@ import type { CanonicalDigest } from "../canonical/canonical-json.js";
 import type { RetirementTransition } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 import type { DecomposeAllocationMap } from "./decompose-cut-map.js";
+import type {
+  DecomposeIncomingEdgeInventoryEntry,
+  DecomposeOutgoingEdgeInventoryEntry,
+  DecomposeSourceInventoryEntry,
+} from "./decompose-inventory.js";
 
 /** Preservation fact that can authorize a terminal worktree transition. */
 export type HuskAuthorization = "merged-preserved" | "discard-confirmed" | "planning-relocated";
@@ -64,8 +69,25 @@ export interface DecomposePreparationLocator {
 /** Prepared decompose state returned to its driver. */
 export interface PreparedDecomposeRetirement {
   locator: DecomposePreparationLocator;
-  record: Readonly<Record<string, unknown>>;
+  record: DecomposePreparationRecord;
   authorityVersion: string;
+}
+
+/** Durable compare-and-set envelope written before decompose mutates artifacts. */
+export interface DecomposePreparationRecord {
+  kind: "prepared-decompose";
+  schemaVersion: 1;
+  locator: DecomposePreparationLocator;
+  allocation: DecomposeAllocationMap;
+  sourceInventory: DecomposeSourceInventoryEntry[];
+  incomingEdgeInventory: DecomposeIncomingEdgeInventoryEntry[];
+  outgoingEdgeInventory: DecomposeOutgoingEdgeInventoryEntry[];
+  allowedPaths: string[];
+  sourceArtifactDigest: CanonicalDigest;
+  sourceInventoryDigest: CanonicalDigest;
+  incomingEdgeInventoryDigest: CanonicalDigest;
+  outgoingEdgeInventoryDigest: CanonicalDigest;
+  cutMapDigest: CanonicalDigest;
 }
 
 /** Canonical non-shipped retirement receipt. */
