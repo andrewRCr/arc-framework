@@ -61,7 +61,17 @@ export function decodeRetirementRecordKey(key: string): CanonicalDigest {
  * @returns Absolute path to the record JSON file
  */
 export function resolveRetirementRecordPath(cwd: string, receiptId: CanonicalDigest): string {
-  return join(cwd, RETIREMENT_RECORD_NAMESPACE, `${encodeRetirementRecordKey(receiptId)}.json`);
+  return join(cwd, resolveRetirementRecordRelativePath(receiptId));
+}
+
+/**
+ * Resolve the repository-relative path staged with a retirement transition.
+ *
+ * @param receiptId - Canonical receipt digest
+ * @returns POSIX repository-relative record path
+ */
+export function resolveRetirementRecordRelativePath(receiptId: CanonicalDigest): string {
+  return `${RETIREMENT_RECORD_NAMESPACE}/${encodeRetirementRecordKey(receiptId)}.json`;
 }
 
 /**

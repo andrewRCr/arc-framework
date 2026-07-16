@@ -114,16 +114,14 @@ location. Decompose's `prepareDecompose`/`finalizeDecompose` are declared here b
   relation validation, and absent/delete/retain remote proofs. Revalidation repeats the decision immediately and
   byte-compares its version and refs; every drift fails with `authority-conflict` before any directional mutation.
 
-### `[ ]` **2.6 `record` — direct-receipt write with version-checked staging**
+### `[x]` **2.6 `record` — direct-receipt write with version-checked staging**
 
 - _Goal:_ `record` writes a driver's receipt against the read version and refuses any pre-existing staged change
   or path outside the owned transition set, so unrelated content is never legitimized by inclusion in the digest.
 
-    - Build `test-first` (one behavior at a time):
-        - a version-matched write records and returns the next `authorityVersion`
-        - a changed version returns `authority-conflict` and leaves prior state intact
-        - staged paths outside the transition write set are refused
-        - the receipt record itself is excluded from `transitionPatchDigest`
+- _Outcome:_ Added the direct-record boundary and composed in-repo port adapter. Recording requires the exact prior
+  version, an empty index, and an adapter-derived patch matching `transitionPatchDigest`; it then creates and stages
+  the receipt separately, rolls it back on staging failure, and returns the next opaque version.
 
 ## **Phase 3:** Abandon and park-at-Planning drivers
 
