@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "hook-roadmap-conflict-auto-remedy",
+  "origin": "inbox",
+  "intent": "Hook auto-remedy for ROADMAP-only merge conflicts (pull-back)",
+  "branch": "fix/hook-roadmap-conflict-auto-remedy",
+  "createdAt": "2026-07-16T00:27:31.255Z",
+  "originEntry": "Hook auto-remedy for ROADMAP-only merge conflicts (pull-back)",
+  "returnBranch": "main"
+}
