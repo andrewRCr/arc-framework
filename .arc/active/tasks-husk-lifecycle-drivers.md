@@ -261,8 +261,9 @@ for a shape with no surviving origin.
     - `[x]` **4.7.a CommonMark boundary hardening**
         - The scanner now excludes fenced delimiters, indented content, block quotes, and list items from the
           top-level Setext candidate set while retaining genuine adjacent Setext headings.
-    - `[ ]` **4.7.b Prepared-result recovery**
-        - Resume an exact preparation while only its admitted transition paths are staged.
+    - `[x]` **4.7.b Prepared-result recovery**
+        - Exact retries now admit the staged preparation plus any subset of its closed allowed-path set and refuse
+          any foreign staged path without recreating or restaging the record.
     - `[ ]` **4.7.c Transactional finalization and complete missing-record gate**
         - Roll back the worktree record on index-staging failure and reject recordless retirement shapes even when
           every destination is an existing home.

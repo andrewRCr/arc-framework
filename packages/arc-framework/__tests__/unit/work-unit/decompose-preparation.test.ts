@@ -152,6 +152,30 @@ describe("prepareDecomposeRetirement", () => {
     expect(retry.operations).toEqual([]);
   });
 
+  it("resumes after mutation when every staged path was admitted by the preparation", async () => {
+    const first = harness();
+    const prepared = await prepareDecomposeRetirement(first.ctx, scope, allocation, "version-absent");
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared") return;
+
+    const retry = harness({ version: "version-prepared", state: "prepared-decompose" });
+    retry.record = first.record;
+    retry.staged = [
+      resolveRetirementRecordRelativePath(prepared.preparation.locator.receiptId),
+      ...projection.allowedPaths,
+    ];
+
+    await expect(
+      prepareDecomposeRetirement(retry.ctx, scope, allocation, "version-prepared"),
+    ).resolves.toEqual(prepared);
+    expect(retry.operations).toEqual([]);
+
+    retry.staged.push("unrelated.md");
+    await expect(
+      prepareDecomposeRetirement(retry.ctx, scope, allocation, "version-prepared"),
+    ).resolves.toMatchObject({ status: "refused", reason: "authority-conflict" });
+  });
+
   it("refuses changed authority, coverage, map, and pre-existing staged paths", async () => {
     expect(await prepareDecomposeRetirement(harness().ctx, scope, allocation, "stale")).toMatchObject({
       status: "refused",

@@ -45,11 +45,6 @@ function compareCanonicalStrings(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
-function samePaths(left: readonly string[], right: readonly string[]): boolean {
-  if (left.length !== right.length) return false;
-  return left.every((path, index) => path === right[index]);
-}
-
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
 }
@@ -111,40 +106,35 @@ export async function prepareDecomposeRetirement(
     const content = canonicalize(record);
     const recordPath = resolveRetirementRecordRelativePath(deterministicReceiptId);
     const stagedPaths = [...await ctx.readStagedPaths()].sort(compareCanonicalStrings);
-    if (!samePaths(stagedPaths, []) && !samePaths(stagedPaths, [recordPath])) {
-      return { status: "refused", reason: "authority-conflict" };
-    }
     const existing = await ctx.readRecord(deterministicReceiptId);
     if (existing !== null) {
       if (snapshot.recordState !== "prepared-decompose" || existing !== content) {
         return { status: "refused", reason: "authority-conflict" };
       }
-      if (samePaths(stagedPaths, [recordPath])) {
-        return {
-          status: "prepared",
-          preparation: { locator, record, authorityVersion: snapshot.authorityVersion },
-        };
+      const admitted = new Set([recordPath, ...record.allowedPaths]);
+      if (!stagedPaths.includes(recordPath) || stagedPaths.some((path) => !admitted.has(path))) {
+        return { status: "refused", reason: "authority-conflict" };
       }
+      return {
+        status: "prepared",
+        preparation: { locator, record, authorityVersion: snapshot.authorityVersion },
+      };
     } else if (snapshot.recordState !== "absent" || stagedPaths.length !== 0) {
       return { status: "refused", reason: "authority-conflict" };
     }
 
-    let created = false;
-    if (existing === null) {
-      try {
-        await ctx.createRecord(deterministicReceiptId, content);
-        created = true;
-      } catch (error) {
-        if (isNodeError(error) && error.code === "EEXIST") {
-          return { status: "refused", reason: "authority-conflict" };
-        }
-        throw error;
+    try {
+      await ctx.createRecord(deterministicReceiptId, content);
+    } catch (error) {
+      if (isNodeError(error) && error.code === "EEXIST") {
+        return { status: "refused", reason: "authority-conflict" };
       }
+      throw error;
     }
     try {
       await ctx.stagePaths([recordPath]);
     } catch {
-      if (created) await ctx.removeRecord(deterministicReceiptId).catch(() => {});
+      await ctx.removeRecord(deterministicReceiptId).catch(() => {});
       return { status: "refused", reason: "authority-unavailable" };
     }
     const preparedSnapshot = await ctx.readAuthoritySnapshot(scope);
