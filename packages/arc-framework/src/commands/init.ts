@@ -47,10 +47,21 @@ export type AccessFn = (path: string) => Promise<void>;
 /** Set file permissions (mode is octal, e.g. 0o755). */
 export type ChmodFn = (path: string, mode: number) => Promise<void>;
 
+/**
+ * Atomically create a file, rejecting with a `NodeJS.ErrnoException` whose
+ * `code` is `"EEXIST"` when the path already exists. Used for the init lock.
+ */
+export type ExclusiveCreateFn = (path: string, content: string) => Promise<void>;
+
+/** Remove a file (unlink). Used to release the init lock. */
+export type RemoveFileFn = (path: string) => Promise<void>;
+
 /** Bundled I/O dependencies for testability. */
 export interface IOContext extends CoreIO {
   access: AccessFn;
   chmod: ChmodFn;
+  exclusiveCreate: ExclusiveCreateFn;
+  removeFile: RemoveFileFn;
 }
 
 // --- Installation Detection ---
@@ -110,6 +121,7 @@ export interface InitResult {
  * @param options - Init options with all dependencies injected
  * @returns Init result, or null if user cancelled
  * @throws UserFacingError with code 'ALREADY_INSTALLED' if ARC is already installed
+ * @throws UserFacingError with code 'INIT_IN_PROGRESS' if another init holds the lock file
  */
 export async function runInit(
   options: InitOptions,
@@ -121,135 +133,170 @@ export async function runInit(
     return null;
   }
 
-  // Check for existing installation
-  if (await isArcInstalled(cwd, io.access)) {
+  const lockPath = join(cwd, ".arc-init.lock");
+
+  // Acquire the init lock. A concurrent `arc init` racing for the same
+  // directory either lost the install (ALREADY_INSTALLED) or is still
+  // mid-install (INIT_IN_PROGRESS) — both are structured, user-facing outcomes
+  // instead of a raw filesystem error surfacing from a mid-install collision.
+  try {
+    await io.exclusiveCreate(
+      lockPath,
+      `pid=${process.pid}\nstarted_at=${new Date().toISOString()}\n`,
+    );
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
+      throw err;
+    }
+    if (await isArcInstalled(cwd, io.access)) {
+      throw alreadyInstalledError();
+    }
     throw new UserFacingError({
-      code: "ALREADY_INSTALLED",
-      whatHappened: "ARC is already installed in this project",
-      why: "The .arc/system/arc-config.yml file already exists.",
-      whatToDo: "To change settings: arc init --reconfigure\nTo join as a developer: arc join\nTo update framework files: arc update",
+      code: "INIT_IN_PROGRESS",
+      whatHappened: "Another arc init appears to be in progress in this directory",
+      why: "The lock file .arc-init.lock exists.",
+      whatToDo: "Wait for the other init to finish, then re-run 'arc init' if needed.\nIf a previous init crashed, delete .arc-init.lock and retry.",
     });
   }
 
-  const arcDir = join(cwd, ".arc");
-
-  // Build maps
-  const config = buildConfigMap(prompts);
-  const tokens = buildTokenMap(prompts);
-
-  // Resolve file list
-  const templateFiles = resolveFileList(recipe, config);
-
-  // Build config_key overrides for arc-config.yml
-  const configKeyOverrides = buildConfigKeyOverrides(prompts);
-
-  // Determine arc-in-git files for layer classification
-  const arcInGitFiles = new Set<string>();
-  if (recipe.conditions[ARC_IN_GIT_CONDITION]) {
-    for (const f of recipe.conditions[ARC_IN_GIT_CONDITION].include_files) {
-      arcInGitFiles.add(f);
+  try {
+    // Check for existing installation
+    if (await isArcInstalled(cwd, io.access)) {
+      throw alreadyInstalledError();
     }
+
+    const arcDir = join(cwd, ".arc");
+
+    // Build maps
+    const config = buildConfigMap(prompts);
+    const tokens = buildTokenMap(prompts);
+
+    // Resolve file list
+    const templateFiles = resolveFileList(recipe, config);
+
+    // Build config_key overrides for arc-config.yml
+    const configKeyOverrides = buildConfigKeyOverrides(prompts);
+
+    // Determine arc-in-git files for layer classification
+    const arcInGitFiles = new Set<string>();
+    if (recipe.conditions[ARC_IN_GIT_CONDITION]) {
+      for (const f of recipe.conditions[ARC_IN_GIT_CONDITION].include_files) {
+        arcInGitFiles.add(f);
+      }
+    }
+
+    // Render and write files, tracking content for manifest and pristine
+    const filesWritten: string[] = [];
+    const fileContents: Record<string, string> = {};
+    const templatePathMap: Record<string, string> = {};
+    const pristineStore: Record<string, string> = {};
+    const ARC_CONFIG_PATH = ARC_CONFIG_TEMPLATE_PATH;
+
+    for (const templateFile of templateFiles) {
+      const srcPath = join(templateDir, templateFile);
+      const outputRelPath = toOutputPath(templateFile);
+      const destPath = join(arcDir, outputRelPath);
+      const classification = classifyFile(templateFile);
+
+      // Ensure destination directory exists
+      await ensureDir(dirname(destPath), io.mkdir);
+
+      // Render content: arc-config.yml has its own path, .template files get
+      // token + conditional rendering, everything else is copied as-is.
+      const raw = await io.readFile(srcPath);
+      let renderedContent: string;
+      if (templateFile === ARC_CONFIG_PATH) {
+        renderedContent = renderConfigOverrides(raw, configKeyOverrides);
+      } else if (needsRendering(templateFile)) {
+        renderedContent = renderConditionals(renderTokens(raw, tokens), config, templateFile);
+      } else {
+        renderedContent = raw;
+      }
+
+      // Write to .arc/
+      await io.writeFile(destPath, renderedContent);
+      filesWritten.push(outputRelPath);
+      fileContents[outputRelPath] = renderedContent;
+      templatePathMap[outputRelPath] = templateFile;
+
+      // Collect pristine content for Framework and Configurable files (not Scaffolded)
+      if (classification !== "Scaffolded") {
+        pristineStore[outputRelPath] = renderedContent;
+      }
+    }
+
+    // Write manifest and pristine store to .arc/system/.internal/
+    const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
+    await ensureDir(internalDir, io.mkdir);
+
+    const manifestFiles = buildManifestFiles(fileContents, arcInGitFiles, templatePathMap);
+    const manifest: Manifest = {
+      schema_version: MANIFEST_SCHEMA_VERSION,
+      framework_version: getFrameworkVersion(),
+      installed_at: new Date().toISOString(),
+      install_config: buildInstallConfig(prompts),
+      files: manifestFiles,
+    };
+    await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);
+    await atomicWriteJson(join(internalDir, PRISTINE_FILENAME), pristineStore);
+
+    // Set executable permissions on hooks and shell scripts.
+    await applyExecutableInstallPermissions(arcDir, filesWritten, io.chmod);
+
+    // Git integration (hooks path)
+    await configureGitIntegration({
+      cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
+    });
+    const gitignorePath = join(cwd, ".gitignore");
+
+    // Skill generation — copy canonical skills to per-tool directories
+    // Detect pre-existing skill dirs so universal tools (codex, cursor, etc.)
+    // resolve to their native directory instead of the fallback .agents/skills/
+    const existingSkillDirs = await detectExistingSkillDirs(cwd, io.access);
+    const skillResult = await generateSkills(
+      prompts.tools,
+      join(templateDir, "system", ".internal", "skills"),
+      existingSkillDirs,
+      cwd,
+      { readFile: io.readFile },
+    );
+    await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
+
+    // Write managed gitignore block with all ARC entries
+    const gitignoreEntries = [
+      ".arc/system/.internal/pristine.json",
+      ".arc/system/.internal/worktree-marker.json",
+      ".arc/user/*/",
+      ...skillGitignoreEntries(skillResult.targetDirs),
+    ];
+    await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
+
+    // Set role — init is always the maintainer (contributors use arc join)
+    await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);
+
+    // Identity and user directory setup
+    await runPostInitSetup({
+      arcDir, internalTemplateDir, io, identityResult,
+    });
+
+    return {
+      filesWritten,
+      tools: prompts.tools,
+      team_mode: prompts.team_mode,
+    };
+  } finally {
+    await io.removeFile(lockPath).catch(() => {});
   }
+}
 
-  // Render and write files, tracking content for manifest and pristine
-  const filesWritten: string[] = [];
-  const fileContents: Record<string, string> = {};
-  const templatePathMap: Record<string, string> = {};
-  const pristineStore: Record<string, string> = {};
-  const ARC_CONFIG_PATH = ARC_CONFIG_TEMPLATE_PATH;
-
-  for (const templateFile of templateFiles) {
-    const srcPath = join(templateDir, templateFile);
-    const outputRelPath = toOutputPath(templateFile);
-    const destPath = join(arcDir, outputRelPath);
-    const classification = classifyFile(templateFile);
-
-    // Ensure destination directory exists
-    await ensureDir(dirname(destPath), io.mkdir);
-
-    // Render content: arc-config.yml has its own path, .template files get
-    // token + conditional rendering, everything else is copied as-is.
-    const raw = await io.readFile(srcPath);
-    let renderedContent: string;
-    if (templateFile === ARC_CONFIG_PATH) {
-      renderedContent = renderConfigOverrides(raw, configKeyOverrides);
-    } else if (needsRendering(templateFile)) {
-      renderedContent = renderConditionals(renderTokens(raw, tokens), config, templateFile);
-    } else {
-      renderedContent = raw;
-    }
-
-    // Write to .arc/
-    await io.writeFile(destPath, renderedContent);
-    filesWritten.push(outputRelPath);
-    fileContents[outputRelPath] = renderedContent;
-    templatePathMap[outputRelPath] = templateFile;
-
-    // Collect pristine content for Framework and Configurable files (not Scaffolded)
-    if (classification !== "Scaffolded") {
-      pristineStore[outputRelPath] = renderedContent;
-    }
-  }
-
-  // Write manifest and pristine store to .arc/system/.internal/
-  const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
-  await ensureDir(internalDir, io.mkdir);
-
-  const manifestFiles = buildManifestFiles(fileContents, arcInGitFiles, templatePathMap);
-  const manifest: Manifest = {
-    schema_version: MANIFEST_SCHEMA_VERSION,
-    framework_version: getFrameworkVersion(),
-    installed_at: new Date().toISOString(),
-    install_config: buildInstallConfig(prompts),
-    files: manifestFiles,
-  };
-  await atomicWriteJson(join(internalDir, MANIFEST_FILENAME), manifest);
-  await atomicWriteJson(join(internalDir, PRISTINE_FILENAME), pristineStore);
-
-  // Set executable permissions on hooks and shell scripts.
-  await applyExecutableInstallPermissions(arcDir, filesWritten, io.chmod);
-
-  // Git integration (hooks path)
-  await configureGitIntegration({
-    cwd, exec: io.exec, readFile: io.readFile, writeFile: io.writeFile, access: io.access,
+/** Build the ALREADY_INSTALLED error, shared between the in-lock installed check and the lock's EEXIST path. */
+function alreadyInstalledError(): UserFacingError {
+  return new UserFacingError({
+    code: "ALREADY_INSTALLED",
+    whatHappened: "ARC is already installed in this project",
+    why: "The .arc/system/arc-config.yml file already exists.",
+    whatToDo: "To change settings: arc init --reconfigure\nTo join as a developer: arc join\nTo update framework files: arc update",
   });
-  const gitignorePath = join(cwd, ".gitignore");
-
-  // Skill generation — copy canonical skills to per-tool directories
-  // Detect pre-existing skill dirs so universal tools (codex, cursor, etc.)
-  // resolve to their native directory instead of the fallback .agents/skills/
-  const existingSkillDirs = await detectExistingSkillDirs(cwd, io.access);
-  const skillResult = await generateSkills(
-    prompts.tools,
-    join(templateDir, "system", ".internal", "skills"),
-    existingSkillDirs,
-    cwd,
-    { readFile: io.readFile },
-  );
-  await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
-
-  // Write managed gitignore block with all ARC entries
-  const gitignoreEntries = [
-    ".arc/system/.internal/pristine.json",
-    ".arc/system/.internal/worktree-marker.json",
-    ".arc/user/*/",
-    ...skillGitignoreEntries(skillResult.targetDirs),
-  ];
-  await writeArcGitignoreBlock(gitignorePath, gitignoreEntries, io.readFile, io.writeFile);
-
-  // Set role — init is always the maintainer (contributors use arc join)
-  await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);
-
-  // Identity and user directory setup
-  await runPostInitSetup({
-    arcDir, internalTemplateDir, io, identityResult,
-  });
-
-  return {
-    filesWritten,
-    tools: prompts.tools,
-    team_mode: prompts.team_mode,
-  };
 }
 
 // --- Post-Init Messaging ---

@@ -102,6 +102,8 @@ function mockIO(
     exec: vi.fn(async () => ({ stdout: "", stderr: "" })),
     access: vi.fn(async () => {}),
     chmod: vi.fn(async () => {}),
+    exclusiveCreate: vi.fn(async () => {}),
+    removeFile: vi.fn(async () => {}),
   };
 }
 
