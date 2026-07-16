@@ -217,6 +217,7 @@ program
   .command("park [slug]")
   .description("Shelve a started work unit off the active set (defaults to the current WU)")
   .option("--reason <text>", "Why the work unit is being parked (required)")
+  .option("--land <commit>", "Stage an exact planning transition on a partial-protection base")
   .action((slug: string | undefined, opts: ParkOptions) => handlePark(slug, opts));
 
 program

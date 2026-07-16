@@ -19,7 +19,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdir, writeFile, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, readFile, writeFile, readdir, rm, stat } from "node:fs/promises";
 import { join, dirname, basename } from "node:path";
 import { promisify } from "node:util";
 
@@ -107,6 +107,32 @@ async function scaffoldStartedWu(
   await writeFile(join(worktree, ".arc", "active", `draft-${slug}.md`), `# Draft: ${slug}\n\n- **Purpose:** drafting\n\n---\n`);
   await commitAll(worktree, `wip on plan/${slug}`);
   return { worktree };
+}
+
+/** Produce one committed, genuine park transition while leaving base conflict-free. */
+async function scaffoldCommittedParkTransition(
+  repo: string,
+  slug: string,
+): Promise<{ worktree: string; transition: string; receiptFile: string }> {
+  const { worktree } = await scaffoldStartedWu(repo, slug, "linked");
+  expect(worktree).toBeDefined();
+
+  // The planning branch owns the live artifacts; the base has no competing
+  // projection of this slug when the transition is materialized.
+  await rm(join(repo, `.arc/active/meta-${slug}.md`));
+  await rm(join(repo, `.arc/active/draft-${slug}.md`));
+  await commitAll(repo, `remove in-flight ${slug} from base`);
+
+  const park = await runArc(
+    ["park", slug, "--reason", "pivoting to a dependency first"],
+    worktree!,
+  );
+  expect(park.exitCode, park.stdout + park.stderr).toBe(0);
+  await commitAll(worktree!, `park ${slug}`);
+  const transition = await git(worktree!, ["rev-parse", "HEAD"]);
+  const receiptFile = (await readdir(join(worktree!, ".arc/.internal/retirement-receipts")))[0];
+  expect(receiptFile).toBeDefined();
+  return { worktree: worktree!, transition, receiptFile: receiptFile! };
 }
 
 /** Author a symmetric two-member cut-map JSON for `origin`, written to `<repo>/cut.json`. */
@@ -202,6 +228,104 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await branchExists(repo, "plan/solo")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
     expect(result.stdout + result.stderr).toMatch(/arc teardown solo --force/);
+  });
+
+  it("arc park --land stages the exact planning result on a partial-protection base", async () => {
+    const { worktree, transition, receiptFile } = await scaffoldCommittedParkTransition(repo, "solo");
+    worktrees.push(worktree);
+
+    const land = await runArc(["park", "solo", "--land", transition], repo);
+
+    expect(land.exitCode, land.stdout + land.stderr).toBe(0);
+    const plannedPath = ".arc/backlog/planned/solo/meta-solo.md";
+    const receiptPath = `.arc/.internal/retirement-receipts/${receiptFile}`;
+    const staged = await git(repo, ["diff", "--cached", "--name-only"]);
+    expect(staged).toContain(plannedPath);
+    expect(staged).toContain(receiptPath);
+    expect(await readFile(join(repo, plannedPath))).toEqual(await readFile(join(worktree!, plannedPath)));
+    expect(await readFile(join(repo, receiptPath))).toEqual(await readFile(join(worktree!, receiptPath)));
+    expect(await git(repo, ["rev-parse", `:${plannedPath}`])).toBe(
+      await git(worktree, ["rev-parse", `${transition}:${plannedPath}`]),
+    );
+    expect(await git(repo, ["rev-parse", `:${receiptPath}`])).toBe(
+      await git(worktree, ["rev-parse", `${transition}:${receiptPath}`]),
+    );
+  });
+
+  it("arc park --land refuses a non-tip transition without writing the base", async () => {
+    const { worktree, transition, receiptFile } = await scaffoldCommittedParkTransition(repo, "solo");
+    worktrees.push(worktree);
+    await writeFile(join(worktree, "later.txt"), "later\n");
+    await commitAll(worktree, "advance planning tip");
+
+    const land = await runArc(["park", "solo", "--land", transition], repo);
+
+    expect(land.exitCode).toBe(1);
+    expect(land.stdout + land.stderr).toMatch(/not the exact local tip/);
+    expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
+    expect(await pathExists(join(repo, `.arc/.internal/retirement-receipts/${receiptFile}`))).toBe(false);
+  });
+
+  it("arc park --land refuses a planning branch without a registered owner", async () => {
+    const { worktree, transition, receiptFile } = await scaffoldCommittedParkTransition(repo, "solo");
+    worktrees.push(worktree);
+    await git(repo, ["worktree", "remove", worktree]);
+
+    const land = await runArc(["park", "solo", "--land", transition], repo);
+
+    expect(land.exitCode).toBe(1);
+    expect(land.stdout + land.stderr).toMatch(/not owned by a registered worktree/);
+    expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
+    expect(await pathExists(join(repo, `.arc/.internal/retirement-receipts/${receiptFile}`))).toBe(false);
+  });
+
+  it("arc park --land refuses a broken direct-transition relation", async () => {
+    const { worktree, receiptFile } = await scaffoldCommittedParkTransition(repo, "solo");
+    worktrees.push(worktree);
+    await writeFile(join(worktree, "later.txt"), "later\n");
+    await commitAll(worktree, "advance beyond the transition");
+    const descendant = await git(worktree, ["rev-parse", "HEAD"]);
+
+    const land = await runArc(["park", "solo", "--land", descendant], repo);
+
+    expect(land.exitCode).toBe(1);
+    expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
+    expect(await pathExists(join(repo, `.arc/.internal/retirement-receipts/${receiptFile}`))).toBe(false);
+  });
+
+  it("arc park --land refuses an outside transition path without writing the base", async () => {
+    const { worktree } = await scaffoldStartedWu(repo, "solo", "linked");
+    expect(worktree).toBeDefined();
+    worktrees.push(worktree!);
+    await rm(join(repo, ".arc/active/meta-solo.md"));
+    await rm(join(repo, ".arc/active/draft-solo.md"));
+    await commitAll(repo, "remove in-flight solo from base");
+    const park = await runArc(["park", "solo", "--reason", "pivoting"], worktree!);
+    expect(park.exitCode, park.stdout + park.stderr).toBe(0);
+    await writeFile(join(worktree!, "outside.txt"), "outside\n");
+    await commitAll(worktree!, "park solo with an outside path");
+    const transition = await git(worktree!, ["rev-parse", "HEAD"]);
+
+    const land = await runArc(["park", "solo", "--land", transition], repo);
+
+    expect(land.exitCode).toBe(1);
+    expect(land.stdout + land.stderr).toMatch(/outside its result/);
+    expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
+  });
+
+  it("arc park --land refuses a conflicting base slug without a partial write", async () => {
+    const { worktree, transition, receiptFile } = await scaffoldCommittedParkTransition(repo, "solo");
+    worktrees.push(worktree);
+    const conflictDir = join(repo, ".arc/backlog/provisional/solo");
+    await mkdir(conflictDir, { recursive: true });
+    await writeFile(join(conflictDir, "meta-solo.md"), startedMeta("solo"));
+
+    const land = await runArc(["park", "solo", "--land", transition], repo);
+
+    expect(land.exitCode).toBe(1);
+    expect(land.stdout + land.stderr).toMatch(/conflicting work-unit result/);
+    expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(false);
+    expect(await pathExists(join(repo, `.arc/.internal/retirement-receipts/${receiptFile}`))).toBe(false);
   });
 
   // -------------------------------------------------------------------------

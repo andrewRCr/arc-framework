@@ -20,7 +20,7 @@
  */
 
 import { basename, join, resolve } from "node:path";
-import { readFile, readdir, rm, rmdir } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, rmdir, writeFile } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
 
@@ -71,6 +71,10 @@ import {
   createInRepoParkPlanningRetirementContext,
   type InRepoDirectRetirementDeps,
 } from "../lib/work-unit/direct-retirement-driver.js";
+import {
+  createInRepoParkPlanningLandingContext,
+  landParkPlanningTransition,
+} from "../lib/work-unit/park-planning-landing.js";
 import {
   resolveRetirementRecordPath,
   writeRetirementRecord,
@@ -469,6 +473,8 @@ export async function handleDeactivate(slug: string | undefined): Promise<void> 
 /** Options for `arc park`. */
 export interface ParkOptions {
   reason?: string;
+  /** Exact planning transition to materialize on a partial-protection base. */
+  land?: string;
 }
 
 /**
@@ -559,6 +565,47 @@ export async function handlePark(slug: string | undefined, opts: ParkOptions): P
 
   const target = await resolveVerbTargetOrReport("park", slug, base.cwd);
   if (target === null) return;
+
+  if (opts.land !== undefined) {
+    const { settings } = await buildExecutor(base);
+    if (settings["branch.protection"] !== "partial") {
+      refuse("`park --land` is available only when `branch.protection` is `partial`.");
+      return;
+    }
+    const wc = await resolveWriteContext({ exec: base.io.exec, baseBranch: settings["branch.base"] });
+    if (wc.verdict !== "proceed") {
+      refuse("`park --land` must run from the configured base-branch checkout.");
+      return;
+    }
+    const result = await landParkPlanningTransition(
+      createInRepoParkPlanningLandingContext({
+        cwd: base.cwd,
+        exec: base.io.exec,
+        readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+        fs: {
+          mkdir,
+          writeFile: (path, content, options) => writeFile(path, content, options),
+          rm: (path, options) => rm(path, options),
+        },
+      }),
+      { name: target, commit: opts.land },
+    );
+    if (result.status === "rejected") {
+      refuse(result.reason);
+      return;
+    }
+    p.note(
+      [
+        `Work unit: ${target}`,
+        `Commit:    ${result.commit}`,
+        `Receipt:   ${result.receiptPath}`,
+        `Artifacts: ${result.plannedPaths.length} staged`,
+      ].join("\n"),
+      "Park result landed",
+    );
+    p.outro("Done.");
+    return;
+  }
 
   const source = await resolveParkSource(base, target);
   if (source === null) {

@@ -32,12 +32,15 @@ vi.mock("../../../src/lib/io-context.js", () => ({
     writeFile: vi.fn(),
     mkdir: vi.fn(),
   }),
+  readGitBlobBytes: vi.fn(),
 }));
 
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
   readConfigSettings: async () => ({
     settings: {
       "team.mode": "false",
+      "branch.base": "main",
+      "branch.protection": "partial",
       "worktree.location_template": "../{repo}-{branch}",
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
@@ -52,6 +55,15 @@ vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
   resolvePrimaryWorktreePath: async () => "/repos/myrepo",
   resolveWorktreePathsByBranch: async () => new Map<string, string>(),
   runWorktreeRoster: async () => ({ entries: [], warnings: [] }),
+}));
+
+vi.mock("../../../src/lib/git/write-context.js", () => ({
+  resolveWriteContext: async () => ({
+    verdict: "proceed",
+    currentBranch: "main",
+    baseBranch: "main",
+    primaryWorktreePath: "/repo",
+  }),
 }));
 
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
@@ -103,6 +115,12 @@ const mockRunResume = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/park-resume.js", () => ({
   runPark: (...a: unknown[]) => mockRunPark(...a),
   runResume: (...a: unknown[]) => mockRunResume(...a),
+}));
+
+const mockLandParkPlanningTransition = vi.fn();
+vi.mock("../../../src/lib/work-unit/park-planning-landing.js", () => ({
+  createInRepoParkPlanningLandingContext: () => ({ kind: "landing-context" }),
+  landParkPlanningTransition: (...a: unknown[]) => mockLandParkPlanningTransition(...a),
 }));
 
 const mockRunMaterialize = vi.fn();
@@ -194,6 +212,12 @@ beforeEach(() => {
     status: "parked",
     outcome: { ...okOutcome, from: { phase: "Active", location: "active" } },
     metaPath: ".arc/backlog/planned/foo/meta-foo.md",
+  });
+  mockLandParkPlanningTransition.mockResolvedValue({
+    status: "landed",
+    commit: "abc123",
+    receiptPath: ".arc/.internal/retirement-receipts/receipt.json",
+    plannedPaths: [".arc/backlog/planned/foo/meta-foo.md"],
   });
   mockRunResume.mockResolvedValue({ status: "resumed", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunMaterialize.mockResolvedValue({ status: "materialized", outcome: okOutcome, branch: "feat/foo", inPlace: false });
@@ -351,6 +375,14 @@ describe("handlePark", () => {
       worktreePath: "/repo",
       currentLocus: "/repo",
     });
+  });
+
+  it("routes --land through the partial-protection landing arm without re-running park", async () => {
+    await handlePark("foo", { land: "abc123" });
+
+    expect(mockLandParkPlanningTransition).toHaveBeenCalledTimes(1);
+    expect(mockRunPark).not.toHaveBeenCalled();
+    expect(mockNote).toHaveBeenCalledWith(expect.stringContaining("abc123"), "Park result landed");
   });
 });
 

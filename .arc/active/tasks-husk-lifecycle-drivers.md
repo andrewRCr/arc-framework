@@ -155,28 +155,26 @@ receipt in the same direct-transition commit; park-at-Active is out of scope and
   covers the planned artifact group. The phase dispatch leaves park-at-Active's preserved-branch pointer path
   outside retirement recording.
 
-### `[ ]` **3.3 Partial-protection `arc park <name> --land <commit>` landing arm**
+### `[x]` **3.3 Partial-protection `arc park <name> --land <commit>` landing arm**
 
 - _Goal:_ `arc park <name> --land <commit>` lets a partial-protection base checkout materialize the parked
   result by validating the planning branch's transition and staging its byte-identical snapshot on the base.
 
-    - `[ ]` **3.3.a Add the `--land <commit>` CLI option and handler wiring**
-        - extend `arc park` (`cli.ts`, `handlePark` in `lifecycle.ts`); `--land` drives the partial-protection
-          path and is distinct from the full-protection PR flow
+    - `[x]` **3.3.a Add the `--land <commit>` CLI option and handler wiring**
+        - added the dedicated partial-protection base arm; it bypasses the source-side park transition and
+          refuses full-protection or non-base invocation contexts
 
-    - `[ ]` **3.3.b Validate the exact `plan/<name>` tip and direct-transition relation**
-        - the commit must be the local `refs/heads/plan/<name>` tip owned by the registered source worktree
-        - Build `test-first` (one behavior at a time):
-            - a non-tip commit, a foreign-owned branch, or a broken direct-transition relation refuses
+    - `[x]` **3.3.b Validate the exact `plan/<name>` tip and direct-transition relation**
+        - validates the exact local planning tip and registered worktree ownership, derives and parses the
+          deterministic receipt, and proves its single-parent patch relation before any base-side write
 
-    - `[ ]` **3.3.c Read the receipt and planned artifact group and stage on base**
-        - read the exact receipt and complete slug-matched planning artifact group from the transition commit;
-          do not create/rewrite a receipt or cherry-pick the branch-relative deletion patch
-        - Build `test-first` (one behavior at a time):
-            - the staged base snapshot is byte-identical to the branch result
-            - a conflicting base slug or a path outside the park result refuses without a partial base write
-            - a changed base re-reads under a fresh version and proceeds only if slug/result paths stay
-              non-conflicting
+    - `[x]` **3.3.c Read the receipt and planned artifact group and stage on base**
+        - stages the source commit's existing receipt and complete planned group with their exact Git blob IDs;
+          versioned base rereads admit unrelated movement but reject staged, slug, or result-path conflicts
+
+- _Outcome:_ Partial-protection landing now treats the planning transition as proof and the base write as an exact
+  result materialization. Typed patch-path validation and a final base compare-and-set prevent branch-relative
+  deletion or stale/conflicting state from reaching the base index.
 
 ### `[ ]` **3.4 Park authorization proof-target and derive-to-`planned` gate**
 
