@@ -455,91 +455,134 @@ describe("inferBaseBranchSync — config-gated base-ref freshen", () => {
   function baseBranchSync(
     overrides: Partial<BaseBranchSyncStatusResult> = {},
   ): BaseBranchSyncStatusResult {
-    return { state: "clean", ahead: 0, behind: 0, base: "main", ...overrides };
+    return {
+      state: "clean",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" },
+      ...overrides,
+    };
   }
 
   const policy = (p: BaseBranchSyncPullPolicy): BaseBranchSyncPullPolicy => p;
 
   it("always + behind & fast-forwardable → pull, no prompt text", () => {
-    const result = inferBaseBranchSync(
-      baseBranchSync({ state: "remote-ahead", behind: 3 }),
-      policy("always"),
-      dirty("clean"),
-    );
+    const result = inferBaseBranchSync(baseBranchSync({ state: "remote-ahead", behind: 3 }), policy("always"));
     expect(result.recommendedAction).toBe("pull");
     expect(result.recommendedPromptText).toBe("");
   });
 
   it("prompt + behind & fast-forwardable → prompt with the fast-forward offer", () => {
-    const result = inferBaseBranchSync(
-      baseBranchSync({ state: "remote-ahead", behind: 3 }),
-      policy("prompt"),
-      dirty("clean"),
-    );
+    const result = inferBaseBranchSync(baseBranchSync({ state: "remote-ahead", behind: 3 }), policy("prompt"));
     expect(result.recommendedAction).toBe("prompt");
     expect(result.recommendedPromptText).toContain("Local base `main` is behind `origin/main` by 3 commit(s)");
     expect(result.recommendedPromptText).toContain("Fast-forward base?");
   });
 
   it("manual + behind → surface only (advisory, no offer)", () => {
-    const result = inferBaseBranchSync(
-      baseBranchSync({ state: "remote-ahead", behind: 2 }),
-      policy("manual"),
-      dirty("clean"),
-    );
+    const result = inferBaseBranchSync(baseBranchSync({ state: "remote-ahead", behind: 2 }), policy("manual"));
     expect(result.recommendedAction).toBe("surface");
     expect(result.recommendedPromptText).not.toContain("Fast-forward base?");
   });
 
   it("diverged → surface + refuse, regardless of policy", () => {
     for (const p of ["manual", "prompt", "always"] as const) {
-      const result = inferBaseBranchSync(
-        baseBranchSync({ state: "diverged", ahead: 1, behind: 4 }),
-        policy(p),
-        dirty("clean"),
-      );
+      const result = inferBaseBranchSync(baseBranchSync({ state: "diverged", ahead: 1, behind: 4 }), policy(p));
       expect(result.recommendedAction).toBe("surface");
       expect(result.recommendedPromptText).toContain("not fast-forwardable");
     }
   });
 
-  it("dirty tree → surface + refuse, even under always/prompt", () => {
+  it("current-worktree dirt is irrelevant — not-checked-out base still pulls under always", () => {
+    // Current dirty used to refuse this channel; fetch-into-ref does not touch
+    // the current tree, so a non-checked-out base stays auto-pullable.
+    const result = inferBaseBranchSync(
+      baseBranchSync({ state: "remote-ahead", behind: 3, checkout: { kind: "not-checked-out" } }),
+      policy("always"),
+    );
+    expect(result.recommendedAction).toBe("pull");
+    expect(result.recommendedPromptText).toBe("");
+  });
+
+  it("base checked out elsewhere → surface (never pull/prompt), primary-aware text", () => {
     for (const p of ["always", "prompt"] as const) {
       const result = inferBaseBranchSync(
-        baseBranchSync({ state: "remote-ahead", behind: 3 }),
+        baseBranchSync({
+          state: "remote-ahead",
+          behind: 3,
+          checkout: { kind: "elsewhere", path: "/repo", primary: true },
+        }),
         policy(p),
-        dirty("dirty"),
       );
       expect(result.recommendedAction).toBe("surface");
-      expect(result.recommendedPromptText).toContain("Working tree dirty");
+      expect(result.recommendedPromptText).toContain("behind `origin/main` by 3 commit(s)");
+      expect(result.recommendedPromptText).toContain("checked out at `/repo` (primary worktree)");
+      expect(result.recommendedPromptText).toContain("arc base sync");
+      expect(result.recommendedPromptText).not.toContain("Fast-forward base?");
     }
   });
 
+  it("base checked out elsewhere in a non-primary worktree → path without primary note", () => {
+    const result = inferBaseBranchSync(
+      baseBranchSync({
+        state: "remote-ahead",
+        behind: 2,
+        checkout: { kind: "elsewhere", path: "/linked", primary: false },
+      }),
+      policy("always"),
+    );
+    expect(result.recommendedAction).toBe("surface");
+    expect(result.recommendedPromptText).toContain("checked out at `/linked`");
+    expect(result.recommendedPromptText).not.toContain("primary worktree");
+  });
+
+  it("base checked out here → skip (worktree channel owns pull)", () => {
+    for (const p of ["always", "prompt", "manual"] as const) {
+      const result = inferBaseBranchSync(
+        baseBranchSync({
+          state: "remote-ahead",
+          behind: 3,
+          checkout: { kind: "current", path: "/repo", primary: true },
+        }),
+        policy(p),
+      );
+      expect(result.recommendedAction).toBe("skip");
+      expect(result.recommendedPromptText).toBe("");
+    }
+  });
+
+  it("base checkout locus unknown → surface with arc base sync guidance under always/prompt", () => {
+    const result = inferBaseBranchSync(
+      baseBranchSync({ state: "remote-ahead", behind: 1, checkout: { kind: "unknown" } }),
+      policy("always"),
+    );
+    expect(result.recommendedAction).toBe("surface");
+    expect(result.recommendedPromptText).toContain("Base checkout locus unknown");
+    expect(result.recommendedPromptText).toContain("arc base sync");
+  });
+
   it("clean (base at parity) → skip", () => {
-    const result = inferBaseBranchSync(baseBranchSync({ state: "clean" }), policy("prompt"), dirty("clean"));
+    const result = inferBaseBranchSync(baseBranchSync({ state: "clean" }), policy("prompt"));
     expect(result.recommendedAction).toBe("skip");
     expect(result.recommendedPromptText).toBe("");
   });
 
   it("local-ahead (local base carries unpushed commits) → skip", () => {
-    const result = inferBaseBranchSync(
-      baseBranchSync({ state: "local-ahead", ahead: 2 }),
-      policy("always"),
-      dirty("clean"),
-    );
+    const result = inferBaseBranchSync(baseBranchSync({ state: "local-ahead", ahead: 2 }), policy("always"));
     expect(result.recommendedAction).toBe("skip");
   });
 
   it("degraded states (no-remote / skipped / remote-unavailable) → skip", () => {
     for (const state of ["no-remote", "skipped", "remote-unavailable"] as const) {
       expect(
-        inferBaseBranchSync(baseBranchSync({ state }), policy("always"), dirty("clean")).recommendedAction,
+        inferBaseBranchSync(baseBranchSync({ state }), policy("always")).recommendedAction,
       ).toBe("skip");
     }
   });
 
   it("null slot (probe failed) → skip", () => {
-    expect(inferBaseBranchSync(null, policy("prompt"), dirty("clean")).recommendedAction).toBe("skip");
+    expect(inferBaseBranchSync(null, policy("prompt")).recommendedAction).toBe("skip");
   });
 });
 

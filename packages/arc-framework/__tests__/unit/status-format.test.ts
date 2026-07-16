@@ -175,6 +175,7 @@ function makeSessionInitResult(
         ahead: 0,
         behind: 0,
         base: "main",
+        checkout: { kind: "not-checked-out" },
         recommendedAction: "skip",
         recommendedPromptText: "",
       },

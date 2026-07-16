@@ -196,7 +196,14 @@ function baseDistance(
 function baseBranchSync(
   overrides: Partial<BaseBranchSyncStatusResult> = {},
 ): BaseBranchSyncStatusResult {
-  return { state: "clean", ahead: 0, behind: 0, base: "main", ...overrides };
+  return {
+    state: "clean",
+    ahead: 0,
+    behind: 0,
+    base: "main",
+    checkout: { kind: "not-checked-out" },
+    ...overrides,
+  };
 }
 
 function supersessionResult(
@@ -1327,7 +1334,7 @@ describe("runSessionInitStatus — base-branch-sync slot", () => {
     }
   });
 
-  it("refuses the fast-forward on a dirty tree (surface, not pull)", async () => {
+  it("current-worktree dirt does not refuse a not-checked-out base under always", async () => {
     const probes = sessionInitProbes({
       baseBranchSync: vi.fn(async () => baseBranchSync({ state: "remote-ahead", behind: 2 })),
       config: vi.fn(async () => configWithBasePolicy("always")),
@@ -1335,8 +1342,44 @@ describe("runSessionInitStatus — base-branch-sync slot", () => {
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("pull");
+    }
+  });
+
+  it("degrades pull to primary-aware surface when base is checked out elsewhere", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({
+        state: "remote-ahead",
+        behind: 2,
+        checkout: { kind: "elsewhere", path: "/primary", primary: true },
+      })),
+      config: vi.fn(async () => configWithBasePolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
       expect(result.baseBranchSync.value.recommendedAction).toBe("surface");
-      expect(result.baseBranchSync.value.recommendedPromptText).toContain("Working tree dirty");
+      expect(result.baseBranchSync.value.recommendedPromptText).toContain("primary worktree");
+      expect(result.baseBranchSync.value.recommendedPromptText).toContain("arc base sync");
+      expect(result.baseBranchSync.value.checkout).toEqual({
+        kind: "elsewhere",
+        path: "/primary",
+        primary: true,
+      });
+    }
+  });
+
+  it("skips base-channel action when this worktree holds the base", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({
+        state: "remote-ahead",
+        behind: 2,
+        checkout: { kind: "current", path: "/primary", primary: true },
+      })),
+      config: vi.fn(async () => configWithBasePolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("skip");
     }
   });
 
