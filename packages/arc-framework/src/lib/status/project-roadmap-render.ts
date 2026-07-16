@@ -8,7 +8,7 @@
  * @module
  */
 
-import { gitConfigGet, type GitExec } from "../git/exec.js";
+import type { GitExec } from "../git/exec.js";
 import { listErrandRecordsResult, type ListErrandRecordsResult } from "../errand/record.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
@@ -44,11 +44,28 @@ export async function renderTrackedProjectReadinessViewResult(
   // branches are not mis-emitted as `no-record-or-meta` residue advisories —
   // resolved here, not per caller, so every tracked-ROADMAP regen (stub, start,
   // lifecycle ceremonies) inherits the read. No identity ⇒ no errand-record ref
-  // to read; empty+complete is authoritative (not degraded).
-  const identity = await gitConfigGet(options.exec, "arc.identity");
-  const recordResult: ListErrandRecordsResult = identity === undefined || identity === ""
-    ? { records: [], complete: true, warnings: [] }
-    : await listErrandRecordsResult({ exec: options.exec, identity });
+  // to read; empty+complete is authoritative (not degraded). A failed identity
+  // read is NOT authoritative: it degrades completeness so record-less branches
+  // soften to `classification-unavailable` instead of asserting residue.
+  let identity: string | undefined;
+  let identityReadFailed = false;
+  try {
+    const { stdout } = await options.exec("git", ["config", "--get", "arc.identity"]);
+    identity = stdout.trim();
+  } catch (err) {
+    // `git config --get` exits 1 for an unset key — authoritative absence.
+    // Any other failure (usage error, spawn failure) is a degraded read.
+    if ((err as { code?: number | string }).code === 1) {
+      identity = undefined;
+    } else {
+      identityReadFailed = true;
+    }
+  }
+  const recordResult: ListErrandRecordsResult = identityReadFailed
+    ? { records: [], complete: false, warnings: ["arc.identity read failed; errand records unavailable"] }
+    : identity === undefined || identity === ""
+      ? { records: [], complete: true, warnings: [] }
+      : await listErrandRecordsResult({ exec: options.exec, identity });
   const errandSlugByBranch = new Map(
     recordResult.records.map((record) => [record.branch, record.slug]),
   );
