@@ -81,6 +81,22 @@ describe("validateDecomposeCommitGate", () => {
     )).toEqual([]);
   });
 
+  it("ignores a batch containing only non-decompose retirement records", () => {
+    const otherId = canonicalDigest("other-receipt");
+    const otherPath = resolveRetirementRecordRelativePath(otherId);
+    const abandon = (id: string) => bytes(canonicalize({
+      ...receipt,
+      receiptId: id,
+      transition: "abandon",
+      result: { kind: "discard", artifactDigest: "absent" },
+    }));
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "A", path: recordPath }, { status: "A", path: otherPath }],
+      readIndexBytes: (path) => path === recordPath ? abandon(receiptId) : abandon(otherId),
+      readHeadBytes: () => null,
+    })).toEqual([]);
+  });
+
   it("rejects amended and patch-mismatched records", () => {
     expect(
       validate(

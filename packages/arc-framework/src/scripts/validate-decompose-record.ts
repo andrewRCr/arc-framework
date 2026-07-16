@@ -1,6 +1,7 @@
 /** Commit-time gate requiring exact finalized evidence for decompose writes. */
 
 import { execFile } from "node:child_process";
+import { basename } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -47,7 +48,22 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
     }
     return errors;
   }
-  if (recordChanges.length !== 1) return ["decompose write set must carry exactly one retirement record"];
+  if (recordChanges.length > 1) {
+    let decomposeRecords = 0;
+    for (const change of recordChanges) {
+      const bytes = input.readIndexBytes(change.path);
+      if (bytes === null) continue;
+      try {
+        const record = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as Record<string, unknown>;
+        if (record.kind === "prepared-decompose") return ["decompose record is prepared but not finalized"];
+        const result = record.result as Record<string, unknown> | undefined;
+        if (record.transition === "decompose" && result?.kind === "decompose") decomposeRecords += 1;
+      } catch {
+        continue;
+      }
+    }
+    return decomposeRecords === 0 ? [] : ["decompose write set must carry exactly one retirement record"];
+  }
   const recordChange = recordChanges[0];
   if (recordChange === undefined) return ["decompose retirement record is missing"];
   const bytes = input.readIndexBytes(recordChange.path);
@@ -110,7 +126,8 @@ async function gitBytes(args: string[]): Promise<Uint8Array | null> {
   }
 }
 
-async function main(): Promise<void> {
+/** Validate the current index and set a failing exit code on refusal. */
+export async function runDecomposeRecordValidation(): Promise<void> {
   const { stdout } = await execFileAsync("git", ["diff", "--cached", "--name-status", "--no-renames"], { encoding: "utf8" });
   const changes = stdout.trim().split("\n").filter(Boolean).flatMap((line): StagedPathChange[] => {
     const [rawStatus, path] = line.split("\t");
@@ -145,8 +162,9 @@ async function main(): Promise<void> {
 const cachedIndex = new Map<string, Uint8Array>();
 const cachedHead = new Map<string, Uint8Array>();
 
-if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  void main().catch((error: unknown) => {
+const modulePath = fileURLToPath(import.meta.url);
+if (modulePath === process.argv[1] && basename(modulePath).startsWith("validate-decompose-record.")) {
+  void runDecomposeRecordValidation().catch((error: unknown) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
   });

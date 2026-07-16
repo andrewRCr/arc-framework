@@ -66,12 +66,13 @@ describe("foreign-write advisory backstop wiring", () => {
 });
 
 describe("decompose retirement record gate wiring", () => {
-  it("invokes the finalized-record validator as an error gate", () => {
+  it("uses the source validator when present and the packaged CLI otherwise", () => {
     const block = preCommitSource.slice(
       preCommitSource.indexOf("CHECK 20"),
       preCommitSource.indexOf("CHECK 21"),
     );
     expect(block).toContain("npx tsx packages/arc-framework/src/scripts/validate-decompose-record.ts");
+    expect(block).toContain("arc hook-validate-decompose-record");
     expect(block).toContain("errors=$((errors + 1))");
   });
 });

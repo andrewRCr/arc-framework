@@ -92,6 +92,7 @@ import {
   handleReleaseSetupVerify,
   handleReleaseStatus,
 } from "./commands/release.js";
+import { runDecomposeRecordValidation } from "./scripts/validate-decompose-record.js";
 
 const program = new Command();
 
@@ -105,6 +106,10 @@ program
 const checkCmd = program
   .command("check")
   .description("Run standalone repository checks");
+
+program
+  .command("hook-validate-decompose-record", { hidden: true })
+  .action(runDecomposeRecordValidation);
 
 function isDashPrefixedCheckSourceEscaped(
   rawArgs: readonly string[],

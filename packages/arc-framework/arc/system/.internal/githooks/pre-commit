@@ -528,7 +528,13 @@ fi
 # A decompose commit must introduce one finalized receipt whose exact non-record
 # patch matches the staged write set. Prepared, missing, amended, and mismatched
 # records fail closed.
-if ! decompose_record_output=$(npx tsx packages/arc-framework/src/scripts/validate-decompose-record.ts 2>&1); then
+decompose_record_status=0
+if [ -f packages/arc-framework/src/scripts/validate-decompose-record.ts ]; then
+    decompose_record_output=$(npx tsx packages/arc-framework/src/scripts/validate-decompose-record.ts 2>&1) || decompose_record_status=$?
+else
+    decompose_record_output=$(arc hook-validate-decompose-record 2>&1) || decompose_record_status=$?
+fi
+if [ "$decompose_record_status" -ne 0 ]; then
     echo -e "${RED}Error: Decompose retirement record validation failed:${NC}"
     echo "$decompose_record_output" | sed 's/^/   /'
     errors=$((errors + 1))

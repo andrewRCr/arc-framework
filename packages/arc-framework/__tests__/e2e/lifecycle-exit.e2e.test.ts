@@ -31,7 +31,6 @@ import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
-const workspaceRoot = join(packageRoot, "..", "..");
 
 /** Run a git command in `cwd`, returning trimmed stdout. */
 async function git(cwd: string, args: string[]): Promise<string> {
@@ -68,10 +67,9 @@ async function commitAttempt(cwd: string, message: string): Promise<{
 async function installDecomposeRecordHook(repo: string): Promise<void> {
   const hooks = join(repo, ".git", "arc-test-hooks");
   const hook = join(hooks, "pre-commit");
-  const tsx = join(workspaceRoot, "node_modules", ".bin", "tsx");
-  const validator = join(packageRoot, "src", "scripts", "validate-decompose-record.ts");
+  const cli = join(packageRoot, "dist", "cli.js");
   await mkdir(hooks, { recursive: true });
-  await writeFile(hook, `#!/bin/sh\nexec "${tsx}" "${validator}"\n`);
+  await writeFile(hook, `#!/bin/sh\nexec "${process.execPath}" "${cli}" hook-validate-decompose-record\n`);
   await chmod(hook, 0o755);
   await git(repo, ["config", "core.hooksPath", hooks]);
 }
