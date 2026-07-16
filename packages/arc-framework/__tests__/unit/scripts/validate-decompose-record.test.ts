@@ -63,6 +63,24 @@ describe("validateDecomposeCommitGate", () => {
     ).toContainEqual(expect.stringMatching(/prepared.*not finalized/i));
   });
 
+  it("rejects a recordless retirement with only existing-home destinations", () => {
+    expect(validate([
+      { status: "D", path: ".arc/active/meta-origin.md" },
+      { status: "M", path: ".arc/reference/PROJECT-PRD.md" },
+    ])).toContainEqual(expect.stringMatching(/missing.*retirement record/i));
+  });
+
+  it("allows same-slug relocations and other finalized retirement records", () => {
+    expect(validate([
+      { status: "D", path: ".arc/active/meta-origin.md" },
+      { status: "A", path: ".arc/backlog/planned/origin/meta-origin.md" },
+    ])).toEqual([]);
+    expect(validate(
+      [{ status: "A", path: recordPath }, { status: "D", path: ".arc/active/meta-origin.md" }],
+      canonicalize({ ...receipt, transition: "abandon", result: { kind: "discard", artifactDigest: "absent" } }),
+    )).toEqual([]);
+  });
+
   it("rejects amended and patch-mismatched records", () => {
     expect(
       validate(

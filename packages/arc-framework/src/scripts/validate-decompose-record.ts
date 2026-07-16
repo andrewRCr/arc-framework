@@ -25,16 +25,16 @@ export interface DecomposeCommitGateInput {
 
 const RECORD_PATTERN = new RegExp(`^${RETIREMENT_RECORD_NAMESPACE}/(sha256-[0-9a-f]{64})\\.json$`, "u");
 
-function looksLikeDecompose(changes: readonly StagedPathChange[]): boolean {
+function looksLikeRecordlessRetirement(changes: readonly StagedPathChange[]): boolean {
   const deletedOrigins = changes
     .filter((change) => change.status === "D")
     .map((change) => /(^|\/)meta-([^/]+)\.md$/u.exec(change.path)?.[2])
     .filter((slug): slug is string => slug !== undefined);
   const addedTargets = changes
-    .filter((change) => change.status === "A" && change.path.includes("backlog/planned"))
+    .filter((change) => change.status === "A")
     .map((change) => /(^|\/)meta-([^/]+)\.md$/u.exec(change.path)?.[2])
     .filter((slug): slug is string => slug !== undefined);
-  return deletedOrigins.some((origin) => addedTargets.some((target) => target !== origin));
+  return deletedOrigins.some((origin) => !addedTargets.includes(origin));
 }
 
 /** Validate the staged decompose record and exact non-record patch. */
@@ -42,7 +42,9 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
   const errors: string[] = [];
   const recordChanges = input.changes.filter((change) => RECORD_PATTERN.test(change.path));
   if (recordChanges.length === 0) {
-    if (looksLikeDecompose(input.changes)) errors.push("decompose write set is missing a finalized retirement record");
+    if (looksLikeRecordlessRetirement(input.changes)) {
+      errors.push("lifecycle retirement is missing a finalized retirement record");
+    }
     return errors;
   }
   if (recordChanges.length !== 1) return ["decompose write set must carry exactly one retirement record"];
@@ -59,9 +61,7 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
   if (record.kind === "prepared-decompose") return ["decompose record is prepared but not finalized"];
   const result = record.result as Record<string, unknown> | undefined;
   if (record.transition !== "decompose" || result?.kind !== "decompose") {
-    return looksLikeDecompose(input.changes)
-      ? ["decompose write set is missing a finalized decompose receipt"]
-      : [];
+    return [];
   }
   if (recordChange.status !== "A" || input.readHeadBytes(recordChange.path) !== null) {
     errors.push("decompose retirement record already exists or was amended");
@@ -111,7 +111,7 @@ async function gitBytes(args: string[]): Promise<Uint8Array | null> {
 }
 
 async function main(): Promise<void> {
-  const { stdout } = await execFileAsync("git", ["diff", "--cached", "--name-status"], { encoding: "utf8" });
+  const { stdout } = await execFileAsync("git", ["diff", "--cached", "--name-status", "--no-renames"], { encoding: "utf8" });
   const changes = stdout.trim().split("\n").filter(Boolean).flatMap((line): StagedPathChange[] => {
     const [rawStatus, path] = line.split("\t");
     const status = rawStatus?.[0];
