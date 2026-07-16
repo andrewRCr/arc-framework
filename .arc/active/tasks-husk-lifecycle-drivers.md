@@ -105,18 +105,14 @@ location. Decompose's `prepareDecompose`/`finalizeDecompose` are declared here b
   single-parent transition, proves the receipt was introduced at that commit, and recomputes the complete
   non-record patch digest, rejecting later descendants, recreated evidence, and unrelated writes.
 
-### `[ ]` **2.5 `authorize` and `revalidate`**
+### `[x]` **2.5 `authorize` and `revalidate`**
 
 - _Goal:_ `authorize` returns a typed decision from committed evidence and live ref state, and `revalidate`
   repeats the version and exact-ref checks immediately before any directional operation.
 
-    - Build `test-first` (one behavior at a time):
-        - the current-branch teardown path produces only `merged-preserved`
-        - a valid non-shipped receipt makes a matching origin remote ref `delete`; only `merged-preserved` may
-          `retain`
-        - an advanced or foreign-owned same-name branch is `projection-mismatch`
-        - remote ref reads resolve to absent, `delete`, or `retain` correctly
-        - `revalidate` returns `authority-conflict` on a version or ref change and leaves the worktree branched
+- _Outcome:_ Added read-only authorization over exact local ownership, shipped or receipt evidence, committed
+  relation validation, and absent/delete/retain remote proofs. Revalidation repeats the decision immediately and
+  byte-compares its version and refs; every drift fails with `authority-conflict` before any directional mutation.
 
 ### `[ ]` **2.6 `record` — direct-receipt write with version-checked staging**
 
