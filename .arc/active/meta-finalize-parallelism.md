@@ -12,15 +12,14 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 4 closed (wave 2) — off-primary gates verified both legs (4.2); 4.3 `[~]` with
-  locus verified retrospectively and residuals re-anchored at 5.1.a; wave-2 evidence + GA Wave 2 item recorded
-  (4.4); synthetic notes state retired and published (4.5).
-- **Next Task:** Task 5.1 — Prepare and launch the wave-3 workload (line ~705)
+- **Last Completed:** Task 5.1 — wave-3 workload launched (CTH + HLD spawned and live, errand-drain session ran
+  PR #255); day-1 contention + drain-shape evidence recorded in `notes-finalize-parallelism.md` § Wave-3.
+- **Next Task:** Task 5.2 — Verify the wave-3 matrix cells (line ~728)
 - **Blockers:** [none]
 
-- **Next Action:** Launch wave 3 when `commit-message-submission` merges — slate cut at 5.1 context
-  (`cli-test-hardening` + `husk-lifecycle-drivers` + live errand drain). In the hold window:
-  `session-locus-model` grooming (`--plan`) is sanctioned; it executes only after wave-3 evidence.
+- **Next Action:** Run the 5.2 induction cells (5.2.a errands-ref collision first) in a fresh session beside
+  live wave sessions — any time; not gated on the wave WUs shipping. 5.3/5.4/5.5 close when both wave WUs ship
+  and tear down (teardown-symmetry evidence) with the accumulated drain/contention evidence weighed then.
 
 - **PR URL:** [none]
 - **Completed:** [none]
