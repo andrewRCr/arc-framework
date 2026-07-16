@@ -47,18 +47,16 @@ bytes.
   `canonical-json.ts`. Hashing takes stored bytes directly; reading the Git tree/index blob is the injected
   adapter boundary (lands with the drivers), where the LF/CRLF-checkout invariance verifies against real git.
 
-### `[ ]` **1.4 Deterministic receipt/preparation IDs and inventory digests**
+### `[x]` **1.4 Deterministic receipt/preparation IDs and inventory digests**
 
 - _Goal:_ Every ID and inventory digest is a deterministic function of its canonical tuple, so an exact retry
   re-derives the same key and a changed input cannot alias an existing record.
 
-    - Build `test-first` (one behavior at a time):
-        - `receiptId` is the digest of schema version, typed subject, transition, source branch, and source `HEAD`
-        - `preparationId` is the digest of the receipt ID, base `HEAD`, source/incoming/outgoing inventory
-          digests, and cut-map digest
-        - artifact-group digests hash canonical path-sorted artifact-set entries
-        - the discard result digest uses the literal `"absent"` schema value
-        - inputs differing in any hashed field produce different IDs; identical inputs produce identical IDs
+- _Outcome:_ `lib/canonical/receipt-id.ts` — `receiptId`, `preparationId`, `artifactGroupDigest` (path-sorted),
+  and the `DISCARD_RESULT` literal-`"absent"` sentinel, plus the `RetirementTransition` union and typed input
+  shapes. The typed subject reuses the existing `WorktreeSubject` from `git/worktree-marker.ts` (work-unit /
+  errand / branch), so a subject-kind change alters the ID even when text suffixes match. A committed golden
+  `receiptId` anchors cross-environment determinism.
 
 ## **Phase 2:** Retirement authority port & in-repo adapter
 
