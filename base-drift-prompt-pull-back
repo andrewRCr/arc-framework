@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "base-drift-prompt-pull-back",
+  "origin": "description",
+  "intent": "Make the base-drift prompt safe for pushed branches (pull-back from base-drift-guidance)",
+  "branch": "fix/base-drift-prompt-pull-back",
+  "createdAt": "2026-07-16T02:07:18.251Z",
+  "returnBranch": "main"
+}
