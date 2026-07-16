@@ -9,6 +9,7 @@
 import type { CanonicalDigest } from "../canonical/canonical-json.js";
 import type { RetirementTransition } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
+import type { DecomposeAllocationMap } from "./decompose-cut-map.js";
 
 /** Preservation fact that can authorize a terminal worktree transition. */
 export type HuskAuthorization = "merged-preserved" | "discard-confirmed" | "planning-relocated";
@@ -51,10 +52,7 @@ export type DecodedRetirementEvidence =
       value: { kind: string } & Readonly<Record<string, unknown>>;
     };
 
-/** Allocation contract filled by the decompose driver. */
-export interface DecomposeAllocationMap extends Readonly<Record<string, unknown>> {
-  schemaVersion: 2;
-}
+export type { DecomposeAllocationMap } from "./decompose-cut-map.js";
 
 /** Safe direct locator for one persisted decompose preparation. */
 export interface DecomposePreparationLocator {

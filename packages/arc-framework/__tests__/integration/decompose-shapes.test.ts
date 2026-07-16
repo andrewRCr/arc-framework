@@ -84,7 +84,8 @@ function decomposeCtx(repo: string): RunDecomposeContext {
 }
 
 function newMember(slug: string, dependsOn: string[] = []): DecomposeParams["entries"][number] {
-  return { kind: "new-member", slug, workClass: "Light", dependsOn, receives: ["problem-statement"] };
+  void dependsOn;
+  return { kind: "new-member", destinationId: slug, slug, workClass: "Light" };
 }
 
 describe("runDecompose shapes — end-to-end against a real repo", () => {
@@ -115,13 +116,16 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     await commitAll(repo, "origin + dependent");
 
     const cut: DecomposeParams = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       origin: { slug: "mono", phase: "Planning", location: "active" },
       shape: "symmetric",
       parentPosition: "standalone",
       cohort: "mono",
       entries: [newMember("alpha"), newMember("beta")],
       internalEdges: [{ from: "beta", to: "alpha" }],
+      sourceAllocations: [],
+      incomingEdges: [],
+      outgoingEdges: [],
     };
 
     const result = await runDecompose(decomposeCtx(repo), { cut });
@@ -157,13 +161,19 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     await commitAll(repo, "active origin");
 
     const cut: DecomposeParams = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       origin: { slug: "mono", phase: "Active", location: "active" },
       shape: "extraction",
       parentPosition: "standalone",
       cohort: "mono",
-      entries: [newMember("alpha", ["mono"]), { kind: "surviving-origin", slug: "mono", disposition: "keep-active" }],
+      entries: [
+        newMember("alpha", ["mono"]),
+        { kind: "surviving-origin", destinationId: "mono", slug: "mono", disposition: "keep-active" },
+      ],
       internalEdges: [],
+      sourceAllocations: [],
+      incomingEdges: [],
+      outgoingEdges: [{ prerequisite: "mono", disposition: { kind: "targets", targets: ["alpha"] } }],
     };
 
     const result = await runDecompose(decomposeCtx(repo), { cut });
@@ -187,12 +197,15 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     await commitAll(repo, "backlog stub origin");
 
     const cut: DecomposeParams = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       origin: { slug: "mono", phase: "Planning", location: "planned" },
       shape: "backlog-stub-source",
       parentPosition: "at-cap",
       entries: [newMember("alpha"), newMember("beta")],
       internalEdges: [],
+      sourceAllocations: [],
+      incomingEdges: [],
+      outgoingEdges: [],
     };
 
     const result = await runDecompose(decomposeCtx(repo), { cut });

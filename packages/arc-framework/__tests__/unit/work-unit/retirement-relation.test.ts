@@ -7,7 +7,10 @@ import {
   type PatchOperation,
 } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
-import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
+import type {
+  DecomposeAllocationMap,
+  RetirementReceipt,
+} from "../../../src/lib/work-unit/retirement-authority.js";
 import {
   validateRetirementReceiptRelation,
   type RetirementRelationContext,
@@ -47,7 +50,7 @@ function unchangedReceipt(operations: readonly PatchOperation[]): RetirementRece
     result: {
       kind: "decompose",
       preparationId: contentDigest(new TextEncoder().encode("preparation")),
-      allocation: { schemaVersion: 2 },
+      allocation: { schemaVersion: 2 } as DecomposeAllocationMap,
       cutMapDigest: contentDigest(new TextEncoder().encode("cut-map")),
       sourceInventoryDigest: contentDigest(new TextEncoder().encode("source-inventory")),
       incomingEdgeInventoryDigest: contentDigest(new TextEncoder().encode("incoming-inventory")),

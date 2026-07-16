@@ -60,10 +60,9 @@ function buildHarness(): Harness {
 function member(slug: string, over: Partial<NewMemberEntry> = {}): NewMemberEntry {
   return {
     kind: "new-member",
+    destinationId: slug,
     slug,
     workClass: "Light",
-    dependsOn: [],
-    receives: ["problem-statement"],
     ...over,
   };
 }
@@ -150,10 +149,9 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     await scaffoldCohortMembers(ctx, {
       cohort: "neo",
       originContext: ORIGIN_CONTEXT,
-      members: [
-        member("alpha", { dependsOn: ["external-x"] }),
-        member("beta"),
-        member("gamma"),
+      members: [member("alpha"), member("beta"), member("gamma")],
+      outgoingEdges: [
+        { prerequisite: "external-x", disposition: { kind: "targets", targets: ["alpha"] } },
       ],
       // beta depends on alpha (delivery order); gamma carries no edge.
       internalEdges: [{ from: "beta", to: "alpha" }],
@@ -174,7 +172,11 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     await scaffoldCohortMembers(ctx, {
       cohort: "neo",
       originContext: ORIGIN_CONTEXT,
-      members: [member("alpha"), member("beta", { dependsOn: ["alpha", "external-x"] })],
+      members: [member("alpha"), member("beta")],
+      outgoingEdges: [
+        { prerequisite: "alpha", disposition: { kind: "targets", targets: ["beta"] } },
+        { prerequisite: "external-x", disposition: { kind: "targets", targets: ["beta"] } },
+      ],
       internalEdges: [{ from: "beta", to: "alpha" }],
     });
 
@@ -379,19 +381,22 @@ function buildRunHarness(metas: MetaSpec[], removeTree: Record<string, string[]>
 }
 
 function newMember(slug: string, over: Partial<NewMemberEntry> = {}): NewMemberEntry {
-  return { kind: "new-member", slug, workClass: "Light", dependsOn: [], receives: ["problem-statement"], ...over };
+  return { kind: "new-member", destinationId: slug, slug, workClass: "Light", ...over };
 }
 
 /** A symmetric, standalone two-member cut over origin `mono` → cohort `mono`. */
 function symmetricCut(over: Partial<DecomposeParams> = {}): DecomposeParams {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     origin: { slug: "mono", phase: "Planning", location: "active" },
     shape: "symmetric",
     parentPosition: "standalone",
     cohort: "mono",
     entries: [newMember("alpha"), newMember("beta")],
     internalEdges: [],
+    sourceAllocations: [],
+    incomingEdges: [],
+    outgoingEdges: [],
     ...over,
   };
 }
@@ -463,7 +468,10 @@ describe("runDecompose — origin teardown via the reserved edges (Task 3.2)", (
     const cut = symmetricCut({
       shape: "extraction",
       origin: { slug: "mono", phase: "Active", location: "active" },
-      entries: [newMember("alpha"), { kind: "surviving-origin", slug: "mono", disposition: "keep-active" }],
+      entries: [
+        newMember("alpha"),
+        { kind: "surviving-origin", destinationId: "mono", slug: "mono", disposition: "keep-active" },
+      ],
     });
     const result = await runDecompose(h.ctx, { cut });
 
@@ -521,7 +529,10 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
       cut: symmetricCut({
         shape: "extraction",
         origin: { slug: "mono", phase: "Active", location: "active" },
-        entries: [newMember("alpha"), { kind: "surviving-origin", slug: "mono", disposition: "keep-active" }],
+        entries: [
+          newMember("alpha"),
+          { kind: "surviving-origin", destinationId: "mono", slug: "mono", disposition: "keep-active" },
+        ],
       }),
     });
 
@@ -582,21 +593,24 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
     );
 
     const cut: DecomposeParams = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       origin: { slug: "monolith", phase: "Planning", location: "active" },
       shape: "symmetric",
       parentPosition: "standalone",
       cohort: "lifecycle-machine",
       entries: [
-        newMember("resolver", { workClass: "Heavy", dependsOn: [] }),
-        newMember("transition-core", { workClass: "Heavy", dependsOn: [] }),
-        newMember("closeout", { workClass: "Light", dependsOn: [] }),
+        newMember("resolver", { workClass: "Heavy" }),
+        newMember("transition-core", { workClass: "Heavy" }),
+        newMember("closeout", { workClass: "Light" }),
       ],
       // Authored from the cut's delivery order: core after resolver, closeout last.
       internalEdges: [
         { from: "transition-core", to: "resolver" },
         { from: "closeout", to: "transition-core" },
       ],
+      sourceAllocations: [],
+      incomingEdges: [],
+      outgoingEdges: [],
     };
 
     const result = await runDecompose(h.ctx, { cut });

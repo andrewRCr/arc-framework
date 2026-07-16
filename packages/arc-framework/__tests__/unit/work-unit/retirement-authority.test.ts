@@ -6,6 +6,7 @@ import {
   retirementSubjectRefusal,
   validateReceiptMatrix,
   worktreeSubjectsEqual,
+  type DecomposeAllocationMap,
   type RetirementReceipt,
   type TeardownAuthorizationRefusal,
 } from "../../../src/lib/work-unit/retirement-authority.js";
@@ -79,7 +80,7 @@ describe("receipt cross-field matrix", () => {
         result: {
           kind: "decompose",
           preparationId: digest("prep"),
-          allocation: { schemaVersion: 2 },
+          allocation: { schemaVersion: 2 } as DecomposeAllocationMap,
           cutMapDigest: digest("cut-map"),
           sourceInventoryDigest: digest("source-inventory"),
           incomingEdgeInventoryDigest: digest("incoming-inventory"),

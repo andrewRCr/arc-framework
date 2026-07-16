@@ -198,24 +198,14 @@ _Design decisions:_ Schema version 2 replaces per-entry `receives`/`dependsOn` a
 preamble/section/whole-file scan; preparation is durable across process interruption; retirement is legal only
 for a shape with no surviving origin.
 
-### `[ ]` **4.1 Version-2 `DecomposeAllocationMap` schema and reader**
+### `[x]` **4.1 Version-2 `DecomposeAllocationMap` schema and reader**
 
 - _Goal:_ The cut map parses as a schema-version-2 `DecomposeAllocationMap` whose allocation and edge lists are
   complete, closed, and reject any ill-formed or ineligible entry.
 
-- _Context:_ Replace the per-entry `receives`/`dependsOn` arrays (schema version 1, `decompose-cut-map.ts`) with
-  the canonical `sourceAllocations`/`incomingEdges`/`outgoingEdges` lists; keep the hand-rolled validator shape.
-
-    - Build `test-first` (one behavior at a time):
-        - unknown fields, duplicate destination IDs, and duplicate identities are rejected
-        - an incoming replacement target or outgoing consumer that is not a WU-slug member or existing-home
-          work-unit is rejected
-        - draft blocks, standing documents, and cohort coordination cannot receive WU dependencies
-        - at most one cohort-coordination entry may name the declared cohort; a surviving-origin shape is illegal
-          for retirement
-        - ownerless shared material with no minted cohort-coordination destination is rejected
-        - an empty destination set must use a reasoned `drop`; a reasonless drop is rejected
-        - a schema-version-1 map returns an upgrade diagnostic and cannot authorize retirement
+- _Outcome:_ `decompose-cut-map.ts` now reads the closed version-2 destination, source-allocation, and dependency-edge
+  contract with canonical set ordering and retirement eligibility checks. The executor and authority vocabulary use
+  that single type; version-1 input receives an explicit upgrade diagnostic.
 
 ### `[ ]` **4.2 Markdown source-unit scanner and content locators**
 

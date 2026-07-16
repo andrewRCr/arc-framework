@@ -24,7 +24,12 @@ import { join } from "node:path";
 import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import { repointDependsOn } from "../decompose-sweep.js";
-import type { DecomposeParams, InternalEdge, NewMemberEntry } from "../decompose-cut-map.js";
+import type {
+  DecomposeParams,
+  InternalEdge,
+  NewMemberEntry,
+  DecomposeAllocationMap,
+} from "../decompose-cut-map.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
 import { resolveReverseDeps } from "../lifecycle-deps.js";
 import {
@@ -83,6 +88,8 @@ export interface ScaffoldCohortMembersParams {
   members: NewMemberEntry[];
   /** Internal dependency edges among the members (`from` depends on `to`). */
   internalEdges: InternalEdge[];
+  /** Allocation of the origin's external prerequisites to destination slugs. */
+  outgoingEdges?: DecomposeAllocationMap["outgoingEdges"];
 }
 
 /** One scaffolded member's repo-relative artifact paths — the substrate the verb's result reports. */
@@ -101,8 +108,14 @@ export interface ScaffoldedMember {
  * duplicates collapsed. Never blanket-inherits the origin's edges — a member
  * that does not touch `X` is not gated behind it.
  */
-function memberDependsOn(slug: string, member: NewMemberEntry, internalEdges: InternalEdge[]): string[] {
-  const deps = [...member.dependsOn];
+function memberDependsOn(
+  slug: string,
+  internalEdges: InternalEdge[],
+  outgoingEdges: DecomposeAllocationMap["outgoingEdges"],
+): string[] {
+  const deps = outgoingEdges
+    .filter((edge) => edge.disposition.kind === "targets" && edge.disposition.targets.includes(slug))
+    .map((edge) => edge.prerequisite);
   for (const edge of internalEdges) {
     if (edge.from === slug && !deps.includes(edge.to)) deps.push(edge.to);
   }
@@ -174,7 +187,7 @@ export async function scaffoldCohortMembers(
   ctx: ScaffoldCohortMembersContext,
   params: ScaffoldCohortMembersParams,
 ): Promise<ScaffoldedMember[]> {
-  const { cohort, originContext, members, internalEdges } = params;
+  const { cohort, originContext, members, internalEdges, outgoingEdges = [] } = params;
   const scaffolded: ScaffoldedMember[] = [];
 
   for (const member of members) {
@@ -192,7 +205,7 @@ export async function scaffoldCohortMembers(
       Origin: originContext.origin,
       Design: `draft-${member.slug}.md`,
     };
-    const deps = memberDependsOn(member.slug, member, internalEdges);
+    const deps = memberDependsOn(member.slug, internalEdges, outgoingEdges);
     if (deps.length > 0) overrides["Depends On"] = deps.join(", ");
 
     await ensureDir(join(ctx.cwd, dir), ctx.fs.mkdir);
@@ -350,6 +363,7 @@ export async function runDecompose(
       },
       members: newMembers,
       internalEdges: cut.internalEdges,
+      outgoingEdges: cut.outgoingEdges,
     },
   );
 
