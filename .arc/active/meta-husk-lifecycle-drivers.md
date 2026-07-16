@@ -1,8 +1,8 @@
 # Metadata: husk-lifecycle-drivers
 
-| **State** | **Owner** | **Branch**                    | **Class** | **Priority** |
-| --------- | --------- | ----------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/husk-lifecycle-drivers` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                    | **Class** | **Priority** |
+| ------------- | --------- | ----------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/husk-lifecycle-drivers` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-husk-lifecycle-drivers.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.7 — Production two-stage decompose lifecycle
-- **Next Task:** Task 5.1 — Port-authorized teardown replacing the `allowHusk` switch (line ~292)
+- **Last Completed:** Task 7.1 — verification complete; 13 of 13 success criteria met
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** Open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
