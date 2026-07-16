@@ -14,6 +14,7 @@ import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/
 const metaPath = validateManagedPath(".arc/active/meta-sample.md");
 const operations = [{ operation: "delete", path: metaPath }] as const satisfies readonly PatchOperation[];
 const initialVersion = canonicalDigest({ version: "initial" });
+const recordedVersion = canonicalDigest({ version: "recorded" });
 
 function receipt(): RetirementReceipt {
   const subject = { kind: "work-unit", name: "sample" } as const;
@@ -46,12 +47,22 @@ function context(): RetirementRecordContext & { version: { value: string }; stag
   const staged: string[] = [];
   return {
     cwd: "/repo",
+    withTransaction: vi.fn(async (operation) => await operation()),
     readAuthorityVersion: vi.fn(async () => version.value),
+    readRecordedAuthorityVersion: vi.fn(async () => recordedVersion),
     readStagedPaths: vi.fn(async () => [...staged]),
     readTransitionPatch: vi.fn().mockResolvedValue(operations),
     createRecord: vi.fn().mockResolvedValue(undefined),
     removeRecord: vi.fn().mockResolvedValue(undefined),
-    stagePaths: vi.fn().mockResolvedValue(undefined),
+    stagePaths: vi.fn(async (paths: readonly string[]) => {
+      for (const path of paths) if (!staged.includes(path)) staged.push(path);
+    }),
+    rollbackPaths: vi.fn(async (paths: readonly string[]) => {
+      for (const path of paths) {
+        const index = staged.indexOf(path);
+        if (index >= 0) staged.splice(index, 1);
+      }
+    }),
     version,
     staged,
   };
@@ -67,11 +78,7 @@ describe("recordRetirementReceipt", () => {
 
     expect(result).toEqual({
       status: "recorded",
-      authorityVersion: canonicalDigest({
-        previousAuthorityVersion: initialVersion,
-        receipt: candidate,
-        stagedPaths: [metaPath, recordPath],
-      }),
+      authorityVersion: recordedVersion,
     });
     expect(ctx.createRecord).toHaveBeenCalledExactlyOnceWith(
       candidate.receiptId,
@@ -135,6 +142,23 @@ describe("recordRetirementReceipt", () => {
       status: "refused",
       reason: "authority-unavailable",
     });
+    expect(ctx.removeRecord).toHaveBeenCalledExactlyOnceWith(candidate.receiptId);
+    expect(ctx.rollbackPaths).toHaveBeenCalled();
+  });
+
+  it("rolls back when authority drifts after staging but before the transaction commits", async () => {
+    const ctx = context();
+    vi.mocked(ctx.stagePaths).mockImplementation(async (paths) => {
+      for (const path of paths) if (!ctx.staged.includes(path)) ctx.staged.push(path);
+      ctx.version.value = canonicalDigest({ version: "concurrent-ref-change" });
+    });
+    const candidate = receipt();
+
+    await expect(recordRetirementReceipt(ctx, candidate, initialVersion)).resolves.toEqual({
+      status: "refused",
+      reason: "authority-conflict",
+    });
+    expect(ctx.rollbackPaths).toHaveBeenCalled();
     expect(ctx.removeRecord).toHaveBeenCalledExactlyOnceWith(candidate.receiptId);
   });
 });

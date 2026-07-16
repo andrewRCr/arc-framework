@@ -7,9 +7,9 @@
  * the authority port.
  */
 
-import { posix } from "node:path";
+import { join, posix, resolve } from "node:path";
 
-import { canonicalize } from "../canonical/canonical-json.js";
+import { canonicalDigest, canonicalize } from "../canonical/canonical-json.js";
 import {
   contentDigest,
   deleteOperation,
@@ -20,6 +20,7 @@ import {
 import { artifactGroupDigest, receiptId } from "../canonical/receipt-id.js";
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import { getCurrentBranch, type GitExec } from "../git/exec.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock } from "../user-sync/notes-lock.js";
 import {
   validateReceiptMatrix,
   type RetirementAuthorityScope,
@@ -27,6 +28,7 @@ import {
 } from "./retirement-authority.js";
 import { readRetirementAuthoritySnapshot } from "./retirement-authority-snapshot.js";
 import { recordRetirementReceipt } from "./retirement-record.js";
+import { resolveRetirementRecordPath } from "./retirement-record-store.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import type { AbandonRetirementContext } from "./verbs/abandon.js";
 import type { ParkPlanningRetirementContext } from "./verbs/park-resume.js";
@@ -81,6 +83,7 @@ interface DirectTransitionRetirementContext {
     expectedBranch: string | null;
   }): Promise<DirectTransitionSourceEvidence>;
   stageTransition(source: DirectTransitionSourceEvidence): Promise<void>;
+  rollbackTransition(source: DirectTransitionSourceEvidence): Promise<void>;
   readTransitionPatch(source: DirectTransitionSourceEvidence): Promise<readonly PatchOperation[]>;
   readResultArtifactDigest(
     source: DirectTransitionSourceEvidence,
@@ -203,6 +206,7 @@ function createInRepoDirectRetirementContext(
       return await recordRetirementReceipt(
         {
           cwd: deps.cwd,
+          withTransaction: (operation) => withRetirementTransaction(deps, operation),
           readAuthorityVersion: async () => {
             const [sourceOid, resultOid, branch] = await Promise.all([
               resolveRef(deps.exec, deps.cwd, binding.scope.source.branch),
@@ -215,11 +219,20 @@ function createInRepoDirectRetirementContext(
               ? binding.authorityVersion
               : `${binding.authorityVersion}:conflict`;
           },
+          readRecordedAuthorityVersion: async () => canonicalDigest({
+            schemaVersion: 1,
+            sourceOid: await resolveRef(deps.exec, deps.cwd, binding.scope.source.branch),
+            resultOid: await resolveRef(deps.exec, deps.cwd, binding.scope.resultProjection.ref),
+            branch: await getCurrentBranch(deps.exec),
+            stagedPaths: await readStagedPaths(deps.exec, deps.cwd),
+            receipt: await deps.readFile(resolveRetirementRecordPath(deps.cwd, receipt.receiptId)),
+          }),
           readStagedPaths: () => readStagedPaths(deps.exec, deps.cwd),
           readTransitionPatch: () => readTransitionPatch(binding.source),
           createRecord: (receiptId, content) => deps.createRecord(receiptId, content),
           removeRecord: (receiptId) => deps.removeRecord(receiptId),
           stagePaths: (paths) => stageUnstagedPaths(deps.exec, deps.cwd, paths),
+          rollbackPaths: (paths) => unstagePaths(deps.exec, deps.cwd, paths),
         },
         receipt,
         expectedAuthorityVersion,
@@ -237,6 +250,10 @@ function createInRepoDirectRetirementContext(
         deps.cwd,
         [...bound.sourceArtifactPaths, ...bound.resultArtifactPaths, ROADMAP_PATH],
       );
+    },
+    rollbackTransition: async (source) => {
+      const bound = requireCaptured(captured, source);
+      await restoreTransition(deps.exec, deps.cwd, bound);
     },
     readTransitionPatch,
     readResultArtifactDigest,
@@ -256,6 +273,7 @@ export function createInRepoAbandonRetirementContext(
     authority: direct.authority,
     captureSource: (params) => direct.captureSource({ ...params, resultDir: null }),
     stageTransition: (source) => direct.stageTransition(source),
+    rollbackTransition: (source) => direct.rollbackTransition(source),
     readTransitionPatch: (source) => direct.readTransitionPatch(source),
   };
 }
@@ -273,6 +291,7 @@ export function createInRepoParkPlanningRetirementContext(
     authority: direct.authority,
     captureSource: (params) => direct.captureSource(params),
     stageTransition: (source) => direct.stageTransition(source),
+    rollbackTransition: (source) => direct.rollbackTransition(source),
     readTransitionPatch: (source) => direct.readTransitionPatch(source),
     readResultArtifactDigest: (source) => direct.readResultArtifactDigest(source),
   };
@@ -365,6 +384,45 @@ async function stagePaths(exec: GitExec, cwd: string, paths: readonly string[]):
 async function stageUnstagedPaths(exec: GitExec, cwd: string, paths: readonly string[]): Promise<void> {
   const alreadyStaged = new Set(await readStagedPaths(exec, cwd));
   await stagePaths(exec, cwd, paths.filter((path) => !alreadyStaged.has(path)));
+}
+
+async function unstagePaths(exec: GitExec, cwd: string, paths: readonly string[]): Promise<void> {
+  if (paths.length === 0) return;
+  await exec("git", ["restore", "--staged", "--", ...paths], { cwd });
+}
+
+async function restoreTransition(
+  exec: GitExec,
+  cwd: string,
+  source: CapturedDirectSource,
+): Promise<void> {
+  const paths = [
+    ...source.sourceArtifactPaths,
+    ...source.resultArtifactPaths,
+    ROADMAP_PATH,
+  ];
+  await exec(
+    "git",
+    ["restore", `--source=${source.scope.source.head}`, "--staged", "--worktree", "--", ...paths],
+    { cwd },
+  );
+}
+
+async function withRetirementTransaction<T>(
+  deps: InRepoDirectRetirementDeps,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const { stdout } = await deps.exec("git", ["rev-parse", "--git-common-dir"], { cwd: deps.cwd });
+  const gitCommonDir = stdout.trim();
+  if (gitCommonDir === "") throw new Error("Git did not resolve its common directory.");
+  const handle = await acquireAdvisoryLock(
+    join(resolve(deps.cwd, gitCommonDir), "arc-retirement-record.lock"),
+  );
+  try {
+    return await operation();
+  } finally {
+    await releaseAdvisoryLock(handle);
+  }
 }
 
 function bytesEqual(left: Uint8Array | null, right: Uint8Array | null): boolean {

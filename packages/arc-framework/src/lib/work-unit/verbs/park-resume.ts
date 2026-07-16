@@ -120,6 +120,7 @@ export interface ParkPlanningRetirementContext {
     expectedBranch: string | null;
   }): Promise<ParkPlanningSourceEvidence>;
   stageTransition(source: ParkPlanningSourceEvidence): Promise<void>;
+  rollbackTransition(source: ParkPlanningSourceEvidence): Promise<void>;
   readTransitionPatch(source: ParkPlanningSourceEvidence): Promise<readonly PatchOperation[]>;
   readResultArtifactDigest(
     source: ParkPlanningSourceEvidence,
@@ -329,7 +330,21 @@ async function parkPlanning(
     return { status: "rejected", reason: "Cannot record park evidence: retirement authority already exists." };
   }
 
-  const outcome = await executeTransition(ctx.executor, { verb: "park", slug: name, inputs: { toDir } });
+  const workspaceHandler = ctx.executor.sideEffects?.["user-workspace"];
+  const deferredWorkspace: Array<() => Promise<string | undefined>> = [];
+  const transitionExecutor = workspaceHandler === undefined
+    ? ctx.executor
+    : {
+        ...ctx.executor,
+        sideEffects: {
+          ...ctx.executor.sideEffects,
+          "user-workspace": (effectCtx: Parameters<typeof workspaceHandler>[0]) => {
+            deferredWorkspace.push(async () => await workspaceHandler(effectCtx));
+            return Promise.resolve(undefined);
+          },
+        },
+      };
+  const outcome = await executeTransition(transitionExecutor, { verb: "park", slug: name, inputs: { toDir } });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
   let transitionPatch: readonly PatchOperation[];
@@ -341,11 +356,13 @@ async function parkPlanning(
       retirement.readResultArtifactDigest(source),
     ]);
   } catch (err) {
+    const rollbackFailure = await rollbackParkPlanning(ctx, retirement, source, outcome, name);
     return {
       status: "rejected",
       reason:
-        "The park transition was applied, but its retirement receipt could not be prepared: "
-        + `${err instanceof Error ? err.message : "retirement authority is unavailable"}.`,
+        "The park transition was rolled back because its retirement receipt could not be prepared: "
+        + `${err instanceof Error ? err.message : "retirement authority is unavailable"}.`
+        + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
   const receipt: RetirementReceipt = {
@@ -371,20 +388,58 @@ async function parkPlanning(
   };
   const recorded = await retirement.authority.record(receipt, snapshot.snapshot.authorityVersion);
   if (recorded.status === "refused") {
+    const rollbackFailure = await rollbackParkPlanning(ctx, retirement, source, outcome, name);
     return {
       status: "rejected",
       reason:
-        "The park transition was applied, but its retirement receipt could not be recorded: "
-        + `${describeTeardownAuthorizationRefusal(recorded.reason)}.`,
+        "The park transition was rolled back because its retirement receipt could not be recorded: "
+        + `${describeTeardownAuthorizationRefusal(recorded.reason)}.`
+        + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
+  }
+  let completedOutcome = outcome;
+  for (const runWorkspaceCleanup of deferredWorkspace) {
+    try {
+      await runWorkspaceCleanup();
+    } catch (err) {
+      completedOutcome = {
+        ...outcome,
+        advisories: [
+          ...outcome.advisories,
+          `Park evidence was recorded, but the user workspace could not be closed: ${err instanceof Error ? err.message : String(err)}.`,
+        ],
+      };
+    }
   }
   return {
     status: "parked",
-    outcome,
+    outcome: completedOutcome,
     metaPath: `${toDir}/meta-${name}.md`,
     receipt,
     authorityVersion: recorded.authorityVersion,
   };
+}
+
+async function rollbackParkPlanning(
+  ctx: ParkContext,
+  retirement: ParkPlanningRetirementContext,
+  source: ParkPlanningSourceEvidence,
+  outcome: Extract<TransitionOutcome, { status: "ok" }>,
+  name: string,
+): Promise<string | null> {
+  try {
+    await retirement.rollbackTransition(source);
+    await ctx.executor.sideEffects?.["reconcile-status-user"]?.({
+      cwd: ctx.executor.cwd,
+      slug: name,
+      from: outcome.to,
+      to: outcome.from,
+      inputs: {},
+    });
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
+  }
 }
 
 /**

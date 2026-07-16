@@ -203,6 +203,9 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     stageTransition: async () => {
       calls.push("retirement:stage-transition");
     },
+    rollbackTransition: async () => {
+      calls.push("retirement:rollback-transition");
+    },
     readTransitionPatch: async () => TRANSITION_OPERATIONS,
   };
 
@@ -256,6 +259,18 @@ describe("runAbandon — started WU (active)", () => {
     expect(calls).toContain("retirement:record");
     expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("retirement:record"));
     expect(recordedReceipts).toHaveLength(1);
+  });
+
+  it("rolls back the transition and leaves destructive cleanup deferred when recording refuses", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+    ctx.retirement.authority.record = async () => ({ status: "refused", reason: "authority-conflict" });
+
+    const result = await runAbandon(ctx, BASE);
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/rolled back/i) });
+    expect(calls).toContain("retirement:rollback-transition");
+    expect(calls).not.toContain("side:user-workspace");
+    expect(calls.some((call) => call.startsWith("branch:"))).toBe(false);
   });
 
   it("records the explicit absent result for a nonexistent lifecycle outcome", async () => {

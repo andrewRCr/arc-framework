@@ -93,6 +93,7 @@ export interface AbandonRetirementContext {
     expectedBranch: string | null;
   }): Promise<AbandonSourceEvidence>;
   stageTransition(source: AbandonSourceEvidence): Promise<void>;
+  rollbackTransition(source: AbandonSourceEvidence): Promise<void>;
   readTransitionPatch(source: AbandonSourceEvidence): Promise<readonly PatchOperation[]>;
 }
 
@@ -215,7 +216,29 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
     return { status: "rejected", reason: "Cannot record abandon evidence: retirement authority already exists." };
   }
 
-  const outcome = await executeTransition({ ...executor, scaffoldOrRemove }, { verb: "abandon", slug: name, inputs });
+  const deferredCleanup: Array<{ label: string; run: () => Promise<unknown> }> = [];
+  const workspaceHandler = executor.sideEffects?.["user-workspace"];
+  const transitionExecutor = {
+    ...executor,
+    scaffoldOrRemove,
+    reconcileBranch: (op: Parameters<typeof executor.reconcileBranch>[0]) => {
+      deferredCleanup.push({ label: "branch cleanup", run: () => executor.reconcileBranch(op) });
+      return Promise.resolve();
+    },
+    sideEffects: workspaceHandler === undefined
+      ? executor.sideEffects
+      : {
+          ...executor.sideEffects,
+          "user-workspace": (effectCtx: Parameters<typeof workspaceHandler>[0]) => {
+            deferredCleanup.push({
+              label: "user workspace cleanup",
+              run: async () => await workspaceHandler(effectCtx),
+            });
+            return Promise.resolve(undefined);
+          },
+        },
+  };
+  const outcome = await executeTransition(transitionExecutor, { verb: "abandon", slug: name, inputs });
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
@@ -224,11 +247,13 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
     await retirement.stageTransition(source);
     transitionPatch = await retirement.readTransitionPatch(source);
   } catch (err) {
+    const rollbackFailure = await rollbackAbandon(executor, retirement, source, outcome, name);
     return {
       status: "rejected",
       reason:
-        "The abandon transition was applied, but its retirement receipt could not be prepared: "
-        + `${err instanceof Error ? err.message : "retirement authority is unavailable"}.`,
+        "The abandon transition was rolled back because its retirement receipt could not be prepared: "
+        + `${err instanceof Error ? err.message : "retirement authority is unavailable"}.`
+        + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
   const receipt: RetirementReceipt = {
@@ -254,14 +279,53 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
   };
   const recorded = await retirement.authority.record(receipt, snapshot.snapshot.authorityVersion);
   if (recorded.status === "refused") {
+    const rollbackFailure = await rollbackAbandon(executor, retirement, source, outcome, name);
     return {
       status: "rejected",
       reason:
-        "The abandon transition was applied, but its retirement receipt could not be recorded: "
-        + `${describeTeardownAuthorizationRefusal(recorded.reason)}.`,
+        "The abandon transition was rolled back because its retirement receipt could not be recorded: "
+        + `${describeTeardownAuthorizationRefusal(recorded.reason)}.`
+        + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
-  return { status: "abandoned", outcome, receipt, authorityVersion: recorded.authorityVersion };
+  const advisories = [...outcome.advisories];
+  for (const { label, run } of deferredCleanup) {
+    try {
+      await run();
+    } catch (err) {
+      advisories.push(
+        `Abandon evidence was recorded, but ${label} did not complete: ${err instanceof Error ? err.message : String(err)}.`,
+      );
+    }
+  }
+  return {
+    status: "abandoned",
+    outcome: advisories.length === outcome.advisories.length ? outcome : { ...outcome, advisories },
+    receipt,
+    authorityVersion: recorded.authorityVersion,
+  };
+}
+
+async function rollbackAbandon(
+  executor: AbandonContext["executor"],
+  retirement: AbandonRetirementContext,
+  source: AbandonSourceEvidence,
+  outcome: Extract<TransitionOutcome, { status: "ok" }>,
+  name: string,
+): Promise<string | null> {
+  try {
+    await retirement.rollbackTransition(source);
+    await executor.sideEffects?.["reconcile-status-user"]?.({
+      cwd: executor.cwd,
+      slug: name,
+      from: outcome.to,
+      to: outcome.from,
+      inputs: {},
+    });
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
+  }
 }
 
 /** Read and parse a meta from its cwd-relative index path. */

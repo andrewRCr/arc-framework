@@ -235,6 +235,9 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     stageTransition: async () => {
       calls.push("retirement:stage-transition");
     },
+    rollbackTransition: async () => {
+      calls.push("retirement:rollback-transition");
+    },
     readTransitionPatch: async () => PARK_TRANSITION_OPERATIONS,
     readResultArtifactDigest: async () => canonicalDigest({ artifact: "planned-foo" }),
   };
@@ -313,6 +316,18 @@ describe("runPark — park@Planning", () => {
     if (recorded === undefined) throw new Error("expected a park receipt");
     expect(validateReceiptMatrix(recorded, "planned")).toBeNull();
     expect(validateReceiptMatrix(recorded, "nonexistent")).toBe("evidence-mismatch");
+  });
+
+  it("rolls back the relocation and leaves workspace cleanup deferred when recording refuses", async () => {
+    const { ctx, calls } = buildCtx([PLANNING]);
+    if (ctx.planningRetirement === undefined) throw new Error("missing planning retirement context");
+    ctx.planningRetirement.authority.record = async () => ({ status: "refused", reason: "authority-conflict" });
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/rolled back/i) });
+    expect(calls).toContain("retirement:rollback-transition");
+    expect(calls).not.toContain("side:user-workspace");
   });
 
   it("relocates to backlog/planned/ but defers branch + worktree teardown out-of-band (resolves planned)", async () => {
