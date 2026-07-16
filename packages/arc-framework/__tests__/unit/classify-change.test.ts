@@ -230,6 +230,17 @@ describe("classify-change.sh classify", () => {
     expect(await classify(files)).toBe("heavy");
   });
 
+  it.each([
+    ["an activated project extension", [".arc/system/extensions/pre-pr-open.md"]],
+    ["any project extension surface", [".arc/system/extensions/pre-merge.md"]],
+  ])("is heavy for behavior-bearing extension surfaces: %s", async (_label, files) => {
+    expect(await classify(files)).toBe("heavy");
+  });
+
+  it("keeps non-extension .arc/system markdown light", async () => {
+    expect(await classify([".arc/system/workflows/arc/process-task-loop.md"])).toBe("light");
+  });
+
   it("is heavy (fail-safe) for a path in neither the code nor genuine-docs set", async () => {
     expect(await classify(["some/unknown/asset.bin"])).toBe("heavy");
     expect(await classify(["LICENSE"])).toBe("heavy");
@@ -348,6 +359,26 @@ describe("classify-change.sh tree-hash", () => {
     const after = await writeAndCommit(repo, { ".arc/notes.md": "b\n" }, "arc docs only");
 
     expect(await treeHash(repo, after)).toBe(await treeHash(repo, before));
+  });
+
+  it("changes when a project extension surface changes", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const before = await writeAndCommit(
+      repo,
+      {
+        "packages/arc-framework/src/a.ts": "export const x = 1;\n",
+        ".arc/system/extensions/pre-merge.md": "---\nactive: false\n---\n",
+      },
+      "code + inactive extension",
+    );
+    const after = await writeAndCommit(
+      repo,
+      { ".arc/system/extensions/pre-merge.md": "---\nactive: true\n---\n" },
+      "extension activation only",
+    );
+
+    expect(await treeHash(repo, after)).not.toBe(await treeHash(repo, before));
   });
 
   it("changes when a code-surface file is removed", async () => {

@@ -50,6 +50,13 @@ readonly CODE_SURFACE_GLOBS=(
   "package-lock.json"
   "scripts/*.sh"
   ".github/workflows/ci.yml"
+  # Project extension surfaces are behavior-bearing, not prose: integration
+  # suites assert on the project copy's activation state (`active:` frontmatter
+  # and `.actions`), so an extension edit must select the test-bearing lane
+  # even though the rest of .arc/ is genuine docs. Path-based on purpose —
+  # content-sensitivity would break classify/tree-hash symmetry (tree-hash has
+  # no diff to inspect, only surface membership).
+  ".arc/system/extensions/*"
 )
 
 # Genuine docs (light-safe). Root-level markdown (README / CONTRIBUTING / AGENTS
