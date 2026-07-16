@@ -250,9 +250,10 @@ describe("init", () => {
     const args = ["init", "--yes", "--name", "test-project"];
     const results = await Promise.all([runArc(args, tmpDir), runArc(args, tmpDir)]);
 
-    expect(results.some((result) => result.exitCode === 0)).toBe(true);
+    expect(results.filter((result) => result.exitCode === 0)).toHaveLength(1);
     for (const result of results.filter((candidate) => candidate.exitCode !== 0)) {
-      expect(result.stdout + result.stderr).toContain("already installed");
+      const output = result.stdout + result.stderr;
+      expect(output.includes("already installed") || output.includes("in progress")).toBe(true);
     }
 
     const internalDir = join(tmpDir, ".arc", "system", ".internal");

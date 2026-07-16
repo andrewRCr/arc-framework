@@ -177,6 +177,10 @@ export function makeIOContext(cwd: string): IOContext {
     access: (path) => access(path),
     chmod: (path, mode) => chmod(path, mode),
     exec: makeGitExec(cwd),
+    // Inert virtual defaults — type-conformance only, not exercised by these
+    // real-fs integration tests (none run concurrent runInit calls).
+    exclusiveCreate: async () => {},
+    removeFile: async () => {},
   };
 }
 
