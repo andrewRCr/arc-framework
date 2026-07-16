@@ -1121,7 +1121,12 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
-          notesDrift: { direction: "missing", missingFiles: ["my-wu/SESSION-NOTES.md"] },
+          notesDrift: {
+            direction: "missing",
+            missingFiles: ["my-wu/SESSION-NOTES.md"],
+            extraFiles: [],
+            modifiedFiles: [],
+          },
         }),
       ),
     });
@@ -1139,7 +1144,12 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
-          notesDrift: { direction: "mixed", missingFiles: [] },
+          notesDrift: {
+            direction: "mixed",
+            missingFiles: [],
+            extraFiles: ["other-wu/scratch.md"],
+            modifiedFiles: ["my-wu/SESSION-NOTES.md"],
+          },
         }),
       ),
     });
@@ -1147,7 +1157,36 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
       expect(result.user.value.loadNeeded).toBe(false);
-      expect(result.user.value.notesDriftSurface).toEqual({ direction: "mixed" });
+      expect(result.user.value.notesDriftSurface).toEqual({
+        direction: "mixed",
+        register: "caution",
+      });
+    }
+  });
+
+  it("surfaces expected mixed for seed + identity-global sibling churn", async () => {
+    const probes = sessionInitProbes({
+      active: activeWu.active,
+      user: vi.fn(async () =>
+        userSessionInit({
+          refState: "same",
+          notesDrift: {
+            direction: "mixed",
+            missingFiles: [],
+            extraFiles: ["my-wu/SESSION-NOTES.md"],
+            modifiedFiles: ["USER-INBOX.md"],
+          },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBe(false);
+      expect(result.user.value.notesDriftSurface).toEqual({
+        direction: "mixed",
+        register: "expected",
+      });
     }
   });
 
@@ -1160,6 +1199,8 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
           notesDrift: {
             direction: "missing",
             missingFiles: ["my-wu/SESSION-NOTES.md", "other-wu/SESSION-NOTES.md"],
+            extraFiles: [],
+            modifiedFiles: [],
           },
         }),
       ),
@@ -1168,7 +1209,10 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
       expect(result.user.value.loadNeeded).toBe(false);
-      expect(result.user.value.notesDriftSurface).toEqual({ direction: "missing" });
+      expect(result.user.value.notesDriftSurface).toEqual({
+        direction: "missing",
+        register: "caution",
+      });
     }
   });
 
@@ -2621,7 +2665,12 @@ describe("runSessionHandoffStatus — orchestration", () => {
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
-          notesDrift: { direction: "behind", missingFiles: [] },
+          notesDrift: {
+            direction: "behind",
+            missingFiles: [],
+            extraFiles: [],
+            modifiedFiles: [],
+          },
         }),
       ),
     });
@@ -2646,7 +2695,12 @@ describe("runSessionHandoffStatus — orchestration", () => {
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
-          notesDrift: { direction: "missing", missingFiles: ["my-wu/SESSION-NOTES.md"] },
+          notesDrift: {
+            direction: "missing",
+            missingFiles: ["my-wu/SESSION-NOTES.md"],
+            extraFiles: [],
+            modifiedFiles: [],
+          },
         }),
       ),
     });
@@ -2665,16 +2719,28 @@ describe("runSessionHandoffStatus — orchestration", () => {
   });
 
   it.each([
-    { direction: "mixed" as const, missingFiles: [] },
-    { direction: "missing" as const, missingFiles: ["old-wu/SESSION-NOTES.md"] },
+    {
+      direction: "mixed" as const,
+      missingFiles: [] as string[],
+      extraFiles: ["other-wu/scratch.md"],
+      modifiedFiles: ["my-wu/SESSION-NOTES.md"],
+      register: "caution" as const,
+    },
+    {
+      direction: "missing" as const,
+      missingFiles: ["old-wu/SESSION-NOTES.md"],
+      extraFiles: [] as string[],
+      modifiedFiles: [] as string[],
+      register: "caution" as const,
+    },
   ])(
     "finalizes notesDriftSurface on the handoff user slot for $direction disk drift",
-    async ({ direction, missingFiles }) => {
+    async ({ direction, missingFiles, extraFiles, modifiedFiles, register }) => {
       const probes = sessionHandoffProbes({
         user: vi.fn(async () =>
           userSessionInit({
             refState: "same",
-            notesDrift: { direction, missingFiles },
+            notesDrift: { direction, missingFiles, extraFiles, modifiedFiles },
           }),
         ),
       });
@@ -2686,7 +2752,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       expect(result.user.ok).toBe(true);
       if (result.user.ok) {
         expect(result.user.value.loadNeeded).toBe(false);
-        expect(result.user.value.notesDriftSurface).toEqual({ direction });
+        expect(result.user.value.notesDriftSurface).toEqual({ direction, register });
       }
     },
   );

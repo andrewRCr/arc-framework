@@ -284,7 +284,7 @@ reshape on its own — could ship independently as a separate WU or fold in if s
 - The method's `.override` mechanic is sufficient for projects wanting alternative bundling
   semantics. If the override surface needs to be richer than today's inline-content pattern
   (e.g., signal-set customization), the override-mechanic extension proposed in
-  `plan-review-method-family.md` (workflow-pointer variant) may be the right composition
+  `draft-review-architecture.md` (workflow-pointer variant) may be the right composition
   point.
 
 ## Scope Estimate

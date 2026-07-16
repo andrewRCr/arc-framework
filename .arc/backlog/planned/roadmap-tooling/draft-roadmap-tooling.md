@@ -19,6 +19,19 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Merge-driver ownership for ROADMAP conflict auto-resolve**
+
+- *Routed from:* residual of the 2026-07-15 pull-back errand `hook-roadmap-conflict-auto-remedy` (inbox capture
+  "Hook auto-remedy for ROADMAP-only merge conflicts (pull-back)"); original capture from housekeep drain /
+  FP wave-3 base merge.
+- *Landed interim:* pre-commit hook-side regenerate-and-restage when `ROADMAP.md` is the only conflicted (or
+  marker-bearing) path — uses the existing staged-index regenerate-wins projection (`remedy-roadmap-conflict.ts`).
+  Covers the post-stage commit path; pure unmerged ROADMAP-only still needs a stage or driver to fire before
+  `git commit` will invoke hooks.
+- *Residual concern:* settle whether a scoped **merge driver** with install wiring should own recovery at merge
+  time (before pre-commit), or whether the hook-side path is sufficient long-term. Keep any driver constrained to
+  ROADMAP-only conflicts and coordinated with the same projection engine (no second renderer).
+
 ### `[ ]` **Preserve projection diagnostics as out-of-band advisories**
 
 - *Routed from:* `readiness-advisory-ordering` errand, 2026-07-14.

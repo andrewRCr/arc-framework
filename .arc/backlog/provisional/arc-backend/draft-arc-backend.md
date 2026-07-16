@@ -417,7 +417,7 @@ their own promotion time. (Not re-audited in the 2026-06-10 pass — the model s
 | `plan-roadmap-evolution.md`               | Compatible  | ROADMAP form-factor is independent of storage. In backend tier, ROADMAP is one of the artifacts the backend stores.                              |
 | `plan-arc-plan-conductor.md`              | Compatible  | Planning workflow conductor is mostly storage-agnostic. Status-file creation point composes with materialization layer.                          |
 | `plan-quality-gate-hooks.md`              | Compatible  | Hooks are local to each developer's clone; orthogonal to backend storage.                                                                        |
-| `plan-review-method-family.md`            | Compatible  | Review methods are workflow-level; orthogonal to storage.                                                                                        |
+| `draft-review-architecture.md`            | Compatible  | Review methods are workflow-level; orthogonal to storage.                                                                                        |
 | `plan-post-release-methodology.md`        | Compatible  | Living collection; items get B-compat assessment at promotion-to-PRD time.                                                                       |
 | `plan-docs-content-sweep.md`              | Compatible  | Docs site content; orthogonal to backend storage.                                                                                                |
 | `plan-wu5-public-release.md`              | Compatible  | Public release infrastructure; orthogonal.                                                                                                       |

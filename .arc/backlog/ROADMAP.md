@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `1662d0db4`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `bad887f6e`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -27,6 +27,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | pr-decomposition                      | P1       | andrew | —          | —                          |
 | recovery-hardening                    | P1       | andrew | —          | —                          |
+| review-architecture                   | P1       | andrew | —          | —                          |
 | review-gate-enforcement-qualification | P1       | andrew | —          | —                          |
 | roadmap-tooling                       | P1       | andrew | —          | —                          |
 | session-locus-model                   | P1       | andrew | —          | —                          |
@@ -67,13 +68,13 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cold-start-init-polish                | P3       | andrew | —          | —                          |
 | contributor-path                      | P3       | andrew | —          | —                          |
 | external-coord-probe                  | P3       | andrew | —          | —                          |
+| grok-compaction-recovery              | P3       | andrew | —          | —                          |
 | idiomatic-alignment                   | P3       | andrew | —          | —                          |
 | inbound-routing-method                | P3       | andrew | —          | —                          |
 | knowledge-lint                        | P3       | andrew | —          | —                          |
 | markdown-formatting                   | P3       | andrew | —          | —                          |
 | planning-iteration-mechanics          | P3       | andrew | —          | —                          |
 | quality-gate-hooks                    | P3       | andrew | —          | —                          |
-| review-method-family                  | P3       | andrew | —          | —                          |
 | rules-restructure                     | P3       | andrew | —          | —                          |
 | shared-inbox-model                    | P3       | andrew | —          | —                          |
 | skill-infrastructure-cleanup          | P3       | andrew | —          | —                          |

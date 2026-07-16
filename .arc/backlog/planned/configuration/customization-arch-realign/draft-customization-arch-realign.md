@@ -23,6 +23,16 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Evaluate bounded execution for configured commit regexes**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
+  `commit-message-submission` CodeRabbit review triage.
+- _Concern:_ `commit.custom_pattern` and `commit.context_pattern` intentionally accept arbitrary ECMAScript
+  pattern source from trusted repository configuration. A length cap would break that contract without preventing
+  short catastrophic expressions, while a pathological pattern can hang local commit validation.
+- _Approach:_ compare static safety analysis, isolated or time-bounded evaluation, a restricted dialect, and
+  explicit risk acceptance; settle the compatibility policy before adding enforcement or diagnostics.
+
 ### `[ ]` **Extension firing-proportionality — a context/scope gate, not just enable/disable**
 
 - _Routed from:_ follow-up housekeep drain (2026-06-01), surfaced running this session's errands.
@@ -34,7 +44,7 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
 - _Shape (provisional):_ a proportionality/scope gate — universal across extensions, or per-extension via a
   frontmatter field (e.g. a minimum-tier or applies-to-context declaration). Composes with this WU's
   method/extension `active`-flag architecture (same frontmatter + loading surface). Cross-ref
-  `review-method-family` (the trigger was a review extension).
+  `review-architecture` (the trigger was a review extension).
 
 ### `[ ]` **`branch-format`'s overridable type set needs a code-readable projection (first method→code consumer)**
 
@@ -285,12 +295,12 @@ scope activation question until then.
 
 ### (d) Migration sequencing
 
-- This plan depends on `plan-review-method-family` for the `review.pre_merge → diff-review.active`
+- This plan depends on `review-architecture` for the `review.pre_merge → diff-review.active`
   migration (avoid double-touching `diff-review` method content). Either the review-family WU
   ships first and lands the migration as part of its scope, or this plan ships first and the
   review-family WU coordinates.
 - This plan can ship the method `active` flag (frontmatter + loading) independently of either
-  user-scope or review-method-family.
+  user-scope or review-architecture.
 - Decision-tree update is no-dependencies; could ship at any time.
 
 ### (e) Commit/push interlock enum granularity
@@ -332,7 +342,7 @@ config validators. Surfaced 2026-05-25 during Worktree Foundation execution kick
 
 ## Cross-Plan Coordination
 
-- **`plan-review-method-family`** — owns the `diff-review`/`review-triage` reshape; the
+- **`review-architecture`** — owns the `diff-review`/`review-triage` reshape; the
   `review.pre_merge → diff-review.active` migration should ride that WU (avoid double-touching
   the `diff-review` method file). Add a § Coordination note to that plan referencing this one.
 - **`plan-config-storage-architecture`** — owns the user-scope substrate; the user-scope
@@ -364,7 +374,7 @@ config validators. Surfaced 2026-05-25 during Worktree Foundation execution kick
 ## Sequencing
 
 No firm dependencies; soft dependencies on `plan-config-storage-architecture` (for the
-user-scope activation question) and `plan-review-method-family` (for the diff-review migration).
+user-scope activation question) and `review-architecture` (for the diff-review migration).
 Could ship in parallel with either; should not ship before the others without coordinating.
 
 ---
@@ -373,7 +383,7 @@ Could ship in parallel with either; should not ship before the others without co
 
 **Status:** Draft. Pre-PRD exploration.
 
-**Next action:** Iterate this plan when picked up. Coordinate with `plan-review-method-family`,
+**Next action:** Iterate this plan when picked up. Coordinate with `review-architecture`,
 `plan-config-storage-architecture`, `plan-instruction-optimization`, and
 `plan-workflow-template-loads` authors before promoting to PRD.
 

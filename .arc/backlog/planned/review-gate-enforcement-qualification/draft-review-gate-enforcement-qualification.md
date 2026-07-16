@@ -11,6 +11,24 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
+
+### `[ ]` **Evaluate the `integration/review-gate/` test layout against the test-architecture principle**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during `cli-test-hardening`
+  create-spec planning close.
+- *Concern:* `cli-test-hardening` (spec Decision 11) codifies the test-architecture principle — layouts named by
+  production surfaces, mocks at system boundaries, assertions on observable outcomes, scenario suites split only
+  at independently navigable behavior — and applies it to files it touches, but defers the full
+  `integration/review-gate/` layout evaluation: the surface is half-built with a three-WU chain pending
+  (qualification → promotion → github-adapter), so restructuring its tests now would churn under active
+  downstream work. Ride the layout evaluation on this chain — at qualification, or later at planning discretion —
+  where the surface is being reworked anyway and the evaluation lands without independent churn.
+
+---
+
 ## Role in the three-work-unit sequence
 
 This work unit owns baseline qualification and hosted-provider policy activation, not controller construction or

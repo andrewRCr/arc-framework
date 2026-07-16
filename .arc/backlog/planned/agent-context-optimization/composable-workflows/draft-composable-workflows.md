@@ -19,6 +19,15 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Update the session-init growth evidence and consume the interim schema extraction**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during FP wave-3 session-init.
+- _Evidence:_ `session-init.md` has grown to roughly 1,023 lines and 29.5k metered tokens, up 113 lines in 13 days,
+  and now exceeds common single-read caps. The dense Step 1 slot table remains the clearest early extraction seam.
+- _Fold-in:_ update D3's growth-rate motivation with the measurement. The companion schema-table extraction
+  errand executes ahead of this WU; consume its out-of-band reference as the seed for D1's eventual
+  generated-from-types envelope schema rather than reconstructing the table.
+
 ### `[ ]` **Consume `adversarial-review`'s method invocation-contract prototype**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-07-03);

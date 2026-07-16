@@ -330,14 +330,23 @@ function composeRetiredSubdirPromptText(count: number, dirty: boolean): string {
   return dirty ? `${DIRTY_LOAD_WARNING}\n${head}` : head;
 }
 
+/**
+ * Compose the behind-base advisory text.
+ *
+ * Recommends merging the base in — never rebasing. Concurrent-work doctrine
+ * forbids rewriting a pushed branch (SHA-keyed notes, shared worktrees, review
+ * stability); merge is also correct in the private unpushed window, so one
+ * append-only recommendation covers both cases. Session-init renders this
+ * text verbatim.
+ */
 function composeBaseDistancePromptText(baseDistance: BaseDistanceStatusResult): string {
   const base = baseDistance.base ?? "base";
   const head = `Base \`${base}\` has advanced ${baseDistance.behind} commit(s) ahead of this branch.`;
   const overlap =
     baseDistance.overlappingPaths.length > 0
-      ? `Overlapping paths: ${formatOverlap(baseDistance.overlappingPaths)} — rebase may conflict.`
+      ? `Overlapping paths: ${formatOverlap(baseDistance.overlappingPaths)} — merge may conflict.`
       : "No overlapping paths.";
-  return `${head}\n${overlap}\nReconcile?`;
+  return `${head}\n${overlap}\nMerge the base in?`;
 }
 
 function formatOverlap(paths: string[]): string {

@@ -1,14 +1,14 @@
-# Metadata: Review Method Family Reshape
+# Metadata: review-architecture
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** `work-organization-reform`
 
 - **Origin:** [internal]
-- **Design:** `draft-review-method-family.md`
+- **Design:** `draft-review-architecture.md`
 - **Task List:** [none]
 
 - **Last Completed:** [none]

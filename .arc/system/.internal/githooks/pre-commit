@@ -114,6 +114,24 @@ done
 # ============================================================================
 # CHECK 4: Check for common merge conflict markers
 # ============================================================================
+# Pre-flight (arc-in-git only): when a merge-like operation leaves
+# .arc/backlog/ROADMAP.md as the only conflicted (or marker-bearing) path,
+# regenerate from the staged-index projection and restage — regeneration is
+# always the correct resolution for this derived file. Wider conflicts fall
+# through to the hard error below. Merge-driver install wiring is out of scope
+# for this interim hook path.
+pm_mode=$(arc_config_get "pm.mode" "none")
+
+if [ "$pm_mode" = "arc-in-git" ]; then
+    if ! roadmap_remedy_output=$(npx tsx packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts 2>&1); then
+        echo -e "${RED}Error: ROADMAP conflict auto-remedy failed:${NC}"
+        echo "$roadmap_remedy_output" | sed 's/^/   /'
+        errors=$((errors + 1))
+    elif [ -n "$roadmap_remedy_output" ]; then
+        echo -e "${GREEN}${roadmap_remedy_output}${NC}"
+    fi
+fi
+
 conflict_markers=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
     if git show ":$file" 2>/dev/null | grep -qE '^(<<<<<<<|=======|>>>>>>>)'; then
         echo "$file"

@@ -388,12 +388,18 @@ pre-save checklist and bundles the commit.
       Audience][task-list-formatting]
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
-**Destination path** (referenced by **Structural decomposition**'s file creation; depends on
-[`arc-config.yml`][arc-config] → `pm.mode`):
+**Destination path** (referenced by **Structural decomposition**'s file creation) — co-locate with the
+work unit's existing artifacts (lifecycle position first; `pm.mode` only when nothing is on disk yet):
 
-- **arc-in-git** (backlog pipeline): `.arc/backlog/{provisional,planned}/{name}/tasks-{name}.md`
-- **none / external** (no backlog): `.arc/active/tasks-{name}.md` (create the directory first if it
-  doesn't exist: `mkdir -p .arc/active/`)
+1. **Sibling present** — write beside an existing `meta-{name}.md`, `spec-{name}.md`, or other planning
+   artifact for this name (same directory). After [`init-work-unit`][init-work-unit] / `arc start`, that is
+   almost always `.arc/active/tasks-{name}.md`. Do **not** write under `backlog/` when the meta already
+   lives in `active/` — [activation][activate-work-unit] is a state-flip + branch rename only, not a
+   backlog→active relocate; session-init resolves bare `Task List` filenames beside the active meta.
+2. **No sibling yet, arc-in-git incubating** — `.arc/backlog/{provisional,planned}/{name}/tasks-{name}.md`
+   (pre-start stub / `--plan` grooming only; uncommon — most task lists are authored after init).
+3. **none / external** — `.arc/active/tasks-{name}.md` (create the directory first if needed:
+   `mkdir -p .arc/active/`).
 
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
@@ -477,5 +483,4 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [task-audit]: ../../methods/task-audit.md
 [template-tasks]: ../../../reference/templates/arc/work-unit/template-tasks.md
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
-[arc-config]: ../../arc-config.yml
 [activate-work-unit]: work-unit-lifecycle/activate-work-unit.md

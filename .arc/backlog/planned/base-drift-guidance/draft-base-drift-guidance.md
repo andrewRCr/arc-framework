@@ -7,12 +7,26 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[x]` **Make the base-drift prompt safe for pushed branches**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-15); captured during FP wave-3 session
+  orientation.
+- _Landed:_ wording floor pulled back via `fix/base-drift-prompt-pull-back` (PR #264) — composer now recommends
+  merging the base in and never suggests rebase; residual for this WU is first-parent naming, derived-path
+  classification, and calm routine-sibling register (not the forbidden-path wording).
+
 ## Problem / Motivation
 
 Under routine parallelism, one merged sibling contributes its whole branch history to every other branch's raw
-behind count. The current prompt therefore turns normal progress into an alarming large number, gives an
-off-doctrine rebase suggestion, and weighs regenerate-wins paths such as `ROADMAP.md` like substantive code
-overlap. Repeated false urgency trains operators to ignore the surface that should flag genuine contention.
+behind count. The current prompt therefore turns normal progress into an alarming large number and weighs
+regenerate-wins paths such as `ROADMAP.md` like substantive code overlap. Repeated false urgency trains operators
+to ignore the surface that should flag genuine contention. (The off-doctrine rebase suggestion was removed by the
+wording-floor pull-back above.)
 
 ## Candidate Shape
 

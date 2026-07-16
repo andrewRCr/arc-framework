@@ -12,6 +12,31 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Accept direct review-thread replies without submitted-review metadata**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
+  `commit-message-submission` final integration.
+- _Concern:_ GitHub returns `pullRequestReview: null` for a direct reply added to an inline review thread outside
+  a submitted review. The native-thread parser currently requires the relation on every comment and rejects an
+  otherwise valid, resolved thread with `native-threads-schema-error`.
+- _Approach:_ preserve the opening comment's submitted review as finding authority while permitting later replies
+  to omit the relation; keep strict validation elsewhere and add a GraphQL fixture covering reduction and
+  settlement with a null reply relation.
+
+### `[ ]` **Preserve deletion events when wake-up bursts collapse**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during the CI-speed errand.
+- _Concern:_ concurrency-group collapse is safe while wake-up events are only transport hints over canonical
+  re-query, but not after mutation/deletion tombstones land: a deleted comment must be recorded before canonical
+  re-query loses its evidence.
+- _Approach:_ when designing tombstones, either exempt deletion-class deliveries from burst collapse or record the
+  tombstone before any dedupe/cancel point. Bind the design to the workflow concurrency shape that actually ships.
+
 ## Product boundary
 
 The review gate is an ARC feature whose first installation happens to be this repository. The predecessor work must
@@ -109,7 +134,7 @@ Design one idempotent supported surface, with exact command naming settled at sp
 
 ## ARC workflow integration
 
-Coordinate reusable review actions with `review-method-family`. Consume action-neutral `pre-pr-open`, `post-pr-open`,
+Coordinate reusable review actions with `review-architecture`. Consume action-neutral `pre-pr-open`, `post-pr-open`,
 review-response, and `pre-merge` lifecycle seams rather than creating CodeRabbit- or GitHub-named methodology hooks.
 The project adapter supplies ordered actions that admit a request, expose an authenticated user trigger when needed,
 await typed aggregate state, settle findings, guard active-review heads, and verify final state.
@@ -123,7 +148,7 @@ differently, but a configured required review remains exact-head, pending-first,
 - **`review-gate-enforcement-cutover`:** produces extraction-ready contracts and provider/runtime qualification.
 - **`review-gate-enforcement-promotion`:** produces the final installed-state, enforcement, rollback, and activation
   evidence this work uses as its reference installation.
-- **`review-method-family`:** owns reusable lifecycle action/method presentation; this work owns adapter distribution
+- **`review-architecture`:** owns reusable lifecycle action/method presentation; this work owns adapter distribution
   and GitHub-specific execution.
 - **Configuration cohort:** owns eventual project/user configuration substrate. Do not mint a receipt-store axis or
   conflate project enforcement policy with a developer's hosted-provider subscriptions.
