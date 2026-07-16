@@ -64,10 +64,31 @@ function receiptCoveredRetirements(
   return covered;
 }
 
+function hasPreparedDecomposeRecord(
+  changes: readonly StagedPathChange[],
+  readIndexBytes: DecomposeCommitGateInput["readIndexBytes"],
+): boolean {
+  for (const change of changes) {
+    if (!RECORD_PATTERN.test(change.path)) continue;
+    const bytes = readIndexBytes(change.path);
+    if (bytes === null) continue;
+    try {
+      const record = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as Record<string, unknown>;
+      if (record.kind === "prepared-decompose") return true;
+    } catch {
+      continue;
+    }
+  }
+  return false;
+}
+
 /** Validate the staged decompose record and exact non-record patch. */
 export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): string[] {
   const errors: string[] = [];
   const recordChanges = input.changes.filter((change) => RECORD_PATTERN.test(change.path));
+  if (hasPreparedDecomposeRecord(recordChanges, (path) => input.readIndexBytes(path))) {
+    return ["decompose record is prepared but not finalized"];
+  }
   if (input.mergeInProgress !== true) {
     const covered = receiptCoveredRetirements(
       input.changes,
@@ -90,7 +111,6 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
       if (bytes === null) continue;
       try {
         const record = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as Record<string, unknown>;
-        if (record.kind === "prepared-decompose") return ["decompose record is prepared but not finalized"];
         const result = record.result as Record<string, unknown> | undefined;
         if (record.transition === "decompose" && result?.kind === "decompose") decomposeRecords += 1;
       } catch {
@@ -109,7 +129,6 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
   } catch {
     return ["decompose retirement record is not valid UTF-8 JSON"];
   }
-  if (record.kind === "prepared-decompose") return ["decompose record is prepared but not finalized"];
   const result = record.result as Record<string, unknown> | undefined;
   if (record.transition !== "decompose" || result?.kind !== "decompose") {
     return [];

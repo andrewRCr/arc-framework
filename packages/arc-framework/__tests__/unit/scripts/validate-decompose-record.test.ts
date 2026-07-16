@@ -84,7 +84,11 @@ describe("validateDecomposeCommitGate", () => {
     ])).toContainEqual(expect.stringMatching(/missing.*finalized/i));
     expect(
       validate(
-        [{ status: "A", path: recordPath }, { status: "A", path: targetPath }],
+        [
+          { status: "D", path: ".arc/active/meta-origin.md" },
+          { status: "A", path: recordPath },
+          { status: "A", path: targetPath },
+        ],
         canonicalize({ kind: "prepared-decompose", schemaVersion: 1 }),
       ),
     ).toContainEqual(expect.stringMatching(/prepared.*not finalized/i));
