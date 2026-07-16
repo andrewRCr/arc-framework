@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "housekeep-route-overlap",
+  "origin": "inbox",
+  "intent": "Surface housekeep destination overlap before routing approval",
+  "branch": "fix/housekeep-route-overlap",
+  "createdAt": "2026-07-16T02:25:17.814Z",
+  "originEntry": "Surface housekeep destination overlap before routing approval",
+  "returnBranch": "main"
+}
