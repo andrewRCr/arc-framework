@@ -281,9 +281,10 @@ co-occur there.
 
 **Notes/disk drift surface.** Independent of both dispatches above, when `user.value.notesDriftSurface`
 is present (clean arm; the on-disk user tree diverges from the latest note in a way that is neither a
-safe auto-load nor benign — `mixed` may carry local edits, `missing` files the note has are absent on
-disk), carry it into Step 6's advisory tier only. No pull, no load, never auto-resolves — the safe
-sub-case (a live WU's purely-missing `SESSION-NOTES.md`) already folded into `loadNeeded` upstream.
+safe auto-load nor silent local-only work — `register: expected` for parallel-session steady state,
+`register: caution` for genuine inspect-before-rely drift), carry it into Step 6's advisory tier only.
+No pull, no load, never auto-resolves — the safe sub-case (a live WU's purely-missing `SESSION-NOTES.md`)
+already folded into `loadNeeded` upstream.
 
 **Combined prompt.** When more than one acceptance prompt would fire simultaneously, issue a single
 combined prompt with per-channel choices instead of multiple per-channel prompts. The envelope
@@ -770,9 +771,19 @@ tracked source documents the work.
   ```
 
 - `user.value.notesDriftSurface` present (clean arm): the on-disk user tree diverges from the latest note
-  in a way that is neither a safe auto-load nor benign — `mixed` (may carry local edits) or `missing`
-  (files the note has are absent on disk). Advisory, never gates or auto-resolves; inspect with
-  `arc user status` before relying on session notes. `{direction}` is `notesDriftSurface.direction`.
+  in a way that is neither a safe auto-load nor silent local-only work. Branch on
+  `notesDriftSurface.register`:
+    - `expected` — parallel-session steady state (fresh seeded `SESSION-NOTES` and/or sibling edits to
+      identity-global `USER-INBOX` / `WORKING-MEMORY`). Calm Aware; converges at next save or handoff.
+    - `caution` — genuine inspect-before-rely drift (`mixed` may carry local edits; `missing` files the
+      note has are absent on disk). Inspect with `arc user status` before relying on session notes.
+  `{direction}` is `notesDriftSurface.direction` (whole-tree unsaved kind). Advisory, never gates or
+  auto-resolves.
+
+  ```text
+  **Notes/disk drift:** expected with live sibling sessions or a fresh seed ({direction}); converges at
+  next save or handoff — lag, not loss.
+  ```
 
   ```text
   **Notes/disk drift:** on-disk user files diverge from the latest note ({direction}); inspect with

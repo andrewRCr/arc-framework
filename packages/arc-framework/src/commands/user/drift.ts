@@ -116,6 +116,88 @@ export function hasUnpushedLocalDriftForScope(
 const SESSION_NOTES_BASENAME = "SESSION-NOTES.md";
 
 /**
+ * Identity-global surfaces siblings edit between notes exports. Disk-ahead
+ * divergence confined to these is the parallel-session steady state, not an anomaly.
+ */
+const IDENTITY_GLOBAL_SURFACES = new Set(["USER-INBOX.md", "WORKING-MEMORY.md"]);
+
+/**
+ * Manifest paths the disk carries that the note does not (disk-ahead extras).
+ *
+ * @param diskManifest - The disk-side manifest.
+ * @param noteManifest - The note-side manifest.
+ * @returns Paths present only on disk.
+ */
+export function listExtraFiles(
+  diskManifest: SyncManifest,
+  noteManifest: SyncManifest,
+): string[] {
+  return Object.keys(diskManifest.files).filter(
+    (path) => noteManifest.files[path] === undefined,
+  );
+}
+
+/**
+ * Manifest paths both sides carry with differing content.
+ *
+ * @param diskManifest - The disk-side manifest.
+ * @param noteManifest - The note-side manifest.
+ * @returns Paths present on both sides with unequal content hashes.
+ */
+export function listModifiedFiles(
+  diskManifest: SyncManifest,
+  noteManifest: SyncManifest,
+): string[] {
+  const modified: string[] = [];
+  for (const [path, diskHash] of Object.entries(diskManifest.files)) {
+    const noteHash = noteManifest.files[path];
+    if (noteHash !== undefined && noteHash !== diskHash) modified.push(path);
+  }
+  return modified;
+}
+
+/**
+ * Manifest paths the note carries that the disk does not.
+ *
+ * @param diskManifest - The disk-side manifest, or `null` when disk is empty.
+ * @param noteManifest - The note-side manifest.
+ * @returns Paths present only in the note.
+ */
+export function listMissingFiles(
+  diskManifest: SyncManifest | null,
+  noteManifest: SyncManifest,
+): string[] {
+  return Object.keys(noteManifest.files).filter(
+    (path) => diskManifest?.files[path] === undefined,
+  );
+}
+
+/**
+ * Whether every disk-ahead path is a parallel-session expected surface: the
+ * active WU's own `SESSION-NOTES.md` and/or identity-global
+ * `USER-INBOX.md` / `WORKING-MEMORY.md`. Requires no missing files (ahead, not
+ * behind) and at least one disk-ahead path.
+ *
+ * @param input - Active WU name and the three path sets from the manifest diff.
+ * @returns `true` when the divergence is expected healthy parallelism.
+ */
+export function isExpectedParallelSessionDrift(input: {
+  activeWuName: string | null;
+  extraFiles: readonly string[];
+  modifiedFiles: readonly string[];
+  missingFiles: readonly string[];
+}): boolean {
+  if (input.missingFiles.length > 0) return false;
+  const aheadPaths = [...input.extraFiles, ...input.modifiedFiles];
+  if (aheadPaths.length === 0) return false;
+  const activeSessionNotes =
+    input.activeWuName !== null ? `${input.activeWuName}/${SESSION_NOTES_BASENAME}` : null;
+  return aheadPaths.every(
+    (path) => IDENTITY_GLOBAL_SURFACES.has(path) || path === activeSessionNotes,
+  );
+}
+
+/**
  * Whether a note-present/disk-absent file set is intentional retirement rather
  * than real drift, judged against the authoritative shipped-WU oracle.
  *
@@ -152,7 +234,7 @@ export function missingFilesAreIntentionalRetirement(input: {
 /**
  * The session-init clean-arm verdict over a notes/disk divergence: whether to
  * auto-load (non-destructive, safe) or surface an advisory (possible stale or
- * unsaved state the developer should inspect).
+ * expected parallel-session state the developer should see graded correctly).
  */
 export interface CleanArmNotesVerdict {
   /**
@@ -161,43 +243,58 @@ export interface CleanArmNotesVerdict {
    */
   loadNeeded: boolean;
   /**
-   * Advisory surface when the divergence is neither a safe auto-load nor benign:
-   * `mixed` (may carry real edits) or a genuine `missing` arrival the developer
-   * should inspect. Absent when there is nothing to surface.
+   * Advisory surface when the divergence is neither a safe auto-load nor silent
+   * local-only work. Carries `register: "expected"` for parallel-session steady
+   * state (fresh seed / sibling identity-global churn) and `"caution"` for
+   * genuine inspect-before-rely drift. Absent when there is nothing to surface.
    */
-  driftSurface?: { direction: "mixed" | "missing" };
+  driftSurface?: {
+    direction: Exclude<UserUnsavedDirection, "behind">;
+    register: "expected" | "caution";
+  };
 }
 
 /**
  * Decide the clean-arm notes/disk verdict (D3) from the whole-tree divergence
- * direction, the note-present/disk-absent file set, and the active work unit.
+ * direction, the three path sets from the manifest diff, and the active work unit.
  *
  * - `behind` → auto-load: the note advanced past a disk that matches the
  *   materialized basis, so loading overwrites nothing local.
  * - `missing` → auto-load **only** the narrow safe sub-case: the sole missing
  *   file is the active WU's `SESSION-NOTES.md` (a live WU's notes that arrived
  *   in the note but were never materialized — pure-additive). Anything else is a
- *   genuine arrival and surfaces. Benign retirement (a note-only ghost of a
- *   shipped WU) never reaches here — it is resolved upstream against the
+ *   genuine arrival and surfaces as caution. Benign retirement (a note-only ghost
+ *   of a shipped WU) never reaches here — it is resolved upstream against the
  *   shipped-set oracle, where such a divergence collapses to no divergence.
- * - `mixed` → surface: the disk both adds and drops files, so it may carry
- *   local-only edits a load would clobber.
- * - `edits` / `modified` / `null` → no action: local unsaved work (not a stale
- *   arrival D3 owns) or no divergence at all.
+ * - Disk-ahead paths (`edits` / `modified` / `mixed` with no missing files)
+ *   confined to the active WU's `SESSION-NOTES.md` and/or identity-global
+ *   `USER-INBOX.md` / `WORKING-MEMORY.md` → calm `expected` surface (parallel-
+ *   session steady state; converges at next save or handoff).
+ * - Other `mixed` → caution surface (may carry real local edits a load would
+ *   clobber).
+ * - Other `edits` / `modified` / `null` → no action: ordinary unsaved work (not a
+ *   stale arrival D3 owns) or no divergence at all.
  *
- * Pure and side-effect-free. The active-WU-dependent sub-case is resolved by the
+ * Pure and side-effect-free. The active-WU-dependent sub-cases are resolved by the
  * caller that knows the active WU name (the session-init orchestrator).
  *
- * @param input - The whole-tree direction, the missing-file set (manifest paths
- *   present in the note and absent on disk), and the active WU name or `null`.
+ * @param input - Direction, path sets, and the active WU name or `null`.
  * @returns The auto-load decision plus any advisory surface.
  */
 export function resolveCleanArmNotesVerdict(input: {
   direction: UserUnsavedDirection | null;
   missingFiles: string[];
+  extraFiles?: string[];
+  modifiedFiles?: string[];
   activeWuName: string | null;
 }): CleanArmNotesVerdict {
-  const { direction, missingFiles, activeWuName } = input;
+  const {
+    direction,
+    missingFiles,
+    extraFiles = [],
+    modifiedFiles = [],
+    activeWuName,
+  } = input;
 
   if (direction === "behind") return { loadNeeded: true };
 
@@ -207,11 +304,37 @@ export function resolveCleanArmNotesVerdict(input: {
       missingFiles.length === 1 &&
       missingFiles[0] === `${activeWuName}/${SESSION_NOTES_BASENAME}`;
     if (onlyActiveSessionNotesMissing) return { loadNeeded: true };
-    return { loadNeeded: false, driftSurface: { direction: "missing" } };
+    return {
+      loadNeeded: false,
+      driftSurface: { direction: "missing", register: "caution" },
+    };
   }
 
-  if (direction === "mixed") {
-    return { loadNeeded: false, driftSurface: { direction: "mixed" } };
+  if (
+    direction === "edits" ||
+    direction === "modified" ||
+    direction === "mixed"
+  ) {
+    if (
+      isExpectedParallelSessionDrift({
+        activeWuName,
+        extraFiles,
+        modifiedFiles,
+        missingFiles,
+      })
+    ) {
+      return {
+        loadNeeded: false,
+        driftSurface: { direction, register: "expected" },
+      };
+    }
+    if (direction === "mixed") {
+      return {
+        loadNeeded: false,
+        driftSurface: { direction: "mixed", register: "caution" },
+      };
+    }
+    return { loadNeeded: false };
   }
 
   return { loadNeeded: false };
