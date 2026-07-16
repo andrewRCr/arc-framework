@@ -166,11 +166,12 @@ for the unit tier), and the flake and cost hot spots overlap — acting on them 
 
 ## Open items
 
-- **Pool/`isolate` spike outcome** — **resolved GO (2026-07-15)**: neither hazard is present (no unit-test
-  `process.chdir()`; module state is instance-scoped via factories/DI), so `isolate` may be relaxed / the pool
-  switched for the wall-time criterion (Decision 7). Flake (e) is pool-orthogonal and is fixed separately by the
-  spawn-loop `it.each` restructure (Decision 6). Full-suite `isolate:false` confirmation folds into the tuning
-  re-measure at quiet load.
+- **Pool/`isolate` spike outcome** — **resolved GO (2026-07-15)** on the two named hazards (no unit-test
+  `process.chdir()`; module state is instance-scoped via factories/DI). Flake (e) is pool-orthogonal and is fixed
+  separately by the spawn-loop `it.each` restructure (Decision 6). The full-suite `isolate:false` confirmation then
+  surfaced a third mechanism — hoisted module-mock leakage in `handlers/lifecycle-verbs.test.ts` (+ latent siblings)
+  breaking the real-module `archive`/`promote-demote` tests — so `isolate:false` is gated on an in-WU test-hardening
+  prerequisite (module-mock containment) before the wall-time tuning lands. See `notes-cli-test-hardening.md`.
 - **Shard count and balance** — resolved through the bounded in-CI tuning iterations (Decision 8).
 - **Fixture-trim vs. timeout-budget for flake (c)** — either path clears the criterion; picked at implementation
   against the measured setup cost.

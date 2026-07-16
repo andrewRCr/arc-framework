@@ -101,6 +101,28 @@ runs a single ~1.7s spawn against the default 5s budget (~3× headroom, holding 
 consistent with the file's existing `it.each` idiom (the numeric-domain tests). Lands in the Decision-7 tuning task
 alongside the pool change.
 
+## `isolate:false` empirical outcome — module-mock leak (2026-07-15)
+
+Running the full unit suite under `isolate:false` (the deferred safety confirmation from the spike) surfaced a
+**third** mechanism beyond the two named hazards: hoisted module-mock leakage. 359/361 files pass; 14 tests fail in
+`work-unit/verbs/archive.test.ts` (7) and `promote-demote.test.ts` (7). Order-dependent — each victim passes alone —
+so it is a shared-worker leak, not a per-file defect. Not contention (machine idle, load ~0).
+
+**Polluter (found by static scan + one exclusion run, no bisection):** `handlers/lifecycle-verbs.test.ts` — 549
+lines, 25 module-level `vi.mock` calls, including `lifecycle-index.js` and `verbs/promote-demote.js`. The victims
+import the real `lifecycle-index` (archive) and _are_ the real `promote-demote`; under `isolate:false` the hoisted
+mocks persist in the shared worker and leak into them. Proof: full suite EXCLUDING `lifecycle-verbs.test.ts` → green
+(360 files / 4824 tests) under `isolate:false`. Four sibling files (`handlers/{errand-check,start,lifecycle}.test.ts`,
+`work-unit/executor-context.test.ts`) mock the same modules and are latent worker-assignment-dependent collisions.
+None of it is git-notes machinery — it is WU-lifecycle test infrastructure.
+
+**Measured prize (idle box):** summed `import` 95.95s → 59.39s, `transform` 54.5s → 41.7s (`tests` ~12–16s either
+way). Locally the win is hidden by 24-core parallelism (wall 8.0s → 3.9s); the payoff is CI wall on low-core runners,
+where the per-file re-import can't be parallelized away.
+
+**Disposition:** the flake (e) fix (Task 3.2) landed independently; `isolate:false` tuning is gated on hardening the
+module-mock files (Task 3.3, blocks 3.4) — kept in-WU, not deferred.
+
 ## Coverage — candidates verified already-covered (dropped, 2026-07-15)
 
 - Deeply nested conditionals (3+ levels): covered in `render.test.ts`.

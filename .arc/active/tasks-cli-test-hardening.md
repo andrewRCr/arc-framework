@@ -164,17 +164,41 @@ config is a single `vitest.config.ts` with three projects; only the e2e project 
   wall-time criterion only; flake (e) is decoupled and fixed by an `it.each` restructure. Detail in
   `notes-cli-test-hardening.md`.
 
-### `[ ]` **3.2 Apply unit-pool tuning (spike-gated)**
+### `[x]` **3.2 Fix flake (e): spawn-loop → `it.each`**
 
-- _Goal:_ Unit-tier CI wall approaches its ~45s aggregate test time (via pool/`isolate` tuning) and flake (e) stops
-  reproducing (via the spawn-loop `it.each` restructure) — pool tuning being safe per the 3.1 GO.
+- _Goal:_ Flake (e) stops reproducing — the two contention-timeout tests become robust under machine load.
 
-- _Note:_ Spike cleared (3.1 GO). Two decoupled changes here: (1) tune the `unit` project's pool/`isolate` in
-  `vitest.config.ts` and re-measure via `vitest run --reporter=json` (wall-time criterion); (2) restructure the two
-  spawn-loop tests in `validate-config.test.ts` to per-value `it.each` (flake (e) — pool tuning is orthogonal to it
-  per 3.1). Run the wall-time re-measure at quiet load, and fold the full-suite `isolate:false` safety confirmation
-  in here. If tuning can't approach the number, re-target Success Criterion 2 (e.g. sharded unit leg) per the
-  stop-loss — never force unsafe tuning.
+- _Outcome:_ Restructured the two 3-spawn `for`-loop tests in `validate-config.test.ts` to per-value `it.each`
+  (matching the file's existing idiom); each test is now a single ~1.7s spawn against the default 5s budget, so
+  the flat-timeout-under-contention signature can't recur. Decoupled from the pool tuning per the 3.1 spike.
+
+### `[ ]` **3.3 Harden module-mock unit tests for `isolate:false` safety**
+
+- _Goal:_ The unit suite stays green under `isolate:false` so the pool tuning (3.4) can land — this **blocks 3.4**.
+  Contain the hoisted module-mock leakage that breaks real-module tests when files share a worker.
+
+- _Context:_ 3.2's `isolate:false` confirmation ran the full suite green **except** 14 tests in
+  `work-unit/verbs/archive.test.ts` + `promote-demote.test.ts`. Root cause (diagnosed, not bisected):
+  `handlers/lifecycle-verbs.test.ts` module-mocks `lifecycle-index.js` + `verbs/promote-demote.js`; under
+  `isolate:false` those hoisted mocks persist in the shared worker and leak into the real-module victims. Excluding
+  that one file → full suite green (360 files, 4824 tests). Four sibling files (`errand-check`, `start`,
+  `lifecycle`, `executor-context`) mock the same modules and are latent worker-assignment-dependent collisions. Not
+  git-notes-related.
+
+- _Approach:_ Contain each collision-prone file's module mocks so they don't cross file boundaries (e.g.
+  `vi.doUnmock` + `vi.resetModules` teardown), or move the ~15 module-mock files into an isolated project tier; add
+  a guard so a new leak can't silently regress. Verify: full unit suite green under `isolate:false`.
+
+### `[ ]` **3.4 Apply unit-pool tuning (`isolate:false`) + re-measure**
+
+- _Goal:_ Unit-tier CI wall approaches its ~45s aggregate test time; the per-file module re-import overhead of
+  `isolate:true` is removed. Depends on 3.3.
+
+- _Note:_ Gated on 3.3 (suite must be green under `isolate:false` first). Set `isolate:false` on the `unit` project
+  in `vitest.config.ts`; re-measure via `vitest run --reporter=json` at quiet load. Measured prize (2026-07-15,
+  idle box): summed import 95.95s → 59.39s, transform 54.5s → 41.7s. If it still can't approach the number after
+  hardening, re-target Success Criterion 2 (e.g. sharded unit leg) per the Decision 7 stop-loss — never force
+  unsafe tuning.
 
 ---
 
