@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveCurrentHuskAdvisory,
+  resolveCurrentHuskAdvisory,
 } from "../../../src/lib/session-init/current-husk-advisory.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 
@@ -44,7 +45,7 @@ describe("deriveCurrentHuskAdvisory", () => {
     });
   });
 
-  it("surfaces decoded authorization, validated evidence, and remote proof without completion membership", () => {
+  it("surfaces structurally decoded authorization, evidence, and remote proof without completion membership", () => {
     const digest = `sha256:${"a".repeat(64)}` as const;
     const result = derive({
       marker: {
@@ -79,6 +80,37 @@ describe("deriveCurrentHuskAdvisory", () => {
         resultDigest: digest,
       },
     });
+  });
+
+  it("falls back to ordinary detached guidance when known evidence does not revalidate", async () => {
+    const digest = `sha256:${"a".repeat(64)}` as const;
+    const marker: WorktreeMarkerReadResult = {
+      kind: "present",
+      marker: {
+        ...stampedMarker.marker,
+        husk: {
+          ...stampedMarker.marker.husk!,
+          authorization: "discard-confirmed",
+          remoteRef: null,
+          evidence: {
+            kind: "receipt",
+            receiptId: digest,
+            transition: "abandon",
+            expectedLifecycle: "nonexistent",
+            resultDigest: digest,
+          },
+        },
+      },
+    };
+
+    const result = await resolveCurrentHuskAdvisory({
+      worktreePath: "/wt/shipped-widget",
+      branch: null,
+      head: "abc123",
+      marker,
+    }, async () => false);
+
+    expect(result).toBeNull();
   });
 
   it("recognizes an unknown authorization as manual-only", () => {

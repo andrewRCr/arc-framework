@@ -450,42 +450,48 @@ offer-only with no nudge marker or persistent write.
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source and test typechecks; build; package/project sync;
+  focused unit/E2E forcing cases; and the full suite (474 files passed, 1 skipped; 6,021 tests passed, 1 skipped) all
+  passed.
+- _Success criteria:_ 13 of 13 met. Two Heavy adversarial verify passes completed; every blocker/major finding from
+  both passes was remediated and forced through focused regressions before the final full-suite attestation.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Authorized linked abandon, park-at-Planning, and decompose retirement leave the invoking harness in a
+- `[x]` Authorized linked abandon, park-at-Planning, and decompose retirement leave the invoking harness in a
   readable detached checkout stamped with exact subject, branch, `HEAD`, authorization, evidence identity, and
   remote disposition.
-- `[ ]` Every non-shipped detach traces to a version-checked driver receipt whose source, transition patch,
+- `[x]` Every non-shipped detach traces to a version-checked driver receipt whose source, transition patch,
   result, and relation match committed projections; `--force`, snapshots, or derived state alone never authorize
   it, and decompose additionally traces to a durable preparation covering every source unit and dependency edge.
-- `[ ]` Missing, malformed, ambiguous, stale, unconserved, uncommitted, or projection-mismatched evidence
+- `[x]` Missing, malformed, ambiguous, stale, unconserved, uncommitted, or projection-mismatched evidence
   refuses before detach with a typed reason; a late authority conflict leaves at most idempotent user-surface
   reconciliation.
-- `[ ]` A present remote ref is deleted only with its exact authorized lease, retained and re-confirmed when it
+- `[x]` A present remote ref is deleted only with its exact authorized lease, retained and re-confirmed when it
   is the sole preservation proof, and never inferred from legacy absence.
-- `[ ]` Local ref deletion always compares against the authorized OID; replay exempts the exact
+- `[x]` Local ref deletion always compares against the authorized OID; replay exempts the exact
   evidence-matched planned/completed result but leaves a moved ref untouched; a competing projection found before
   the remote operation prevents both ref mutations, while one found afterward prevents only local mutation and
   leaves the path-addressable husk with the completed remote outcome.
-- `[ ]` Stamp preparation completes before detach for ARC-managed non-shipped worktrees; a stamp-write failure
+- `[x]` Stamp preparation completes before detach for ARC-managed non-shipped worktrees; a stamp-write failure
   leaves the checkout branched; branchless plus exact stamped/live `HEAD` remains the terminal-recognition
   condition.
-- `[ ]` Repeated same-subject husks are individually selectable with `--husk <absolute-path>`; unqualified
+- `[x]` Repeated same-subject husks are individually selectable with `--husk <absolute-path>`; unqualified
   teardown works only for one exact candidate and never batches ambiguous candidates.
-- `[ ]` Session-init from any linked worktree identifies an exact current husk and batches real sibling
+- `[x]` Session-init from any linked worktree identifies an exact current husk and batches real sibling
   husks/orphan refs with authorization/ref-aware, path-qualified offers or manual-only labels; the current path
   is never duplicated; team-mode `spawningIdentity` boundary and missing-identity narrowing hold.
-- `[ ]` Primary cleanup behavior remains available, linked cleanup does not enable broader roster consumers, and
+- `[x]` Primary cleanup behavior remains available, linked cleanup does not enable broader roster consumers, and
   an empty machine-local residue scan emits no section and performs no persistent write.
-- `[ ]` Legacy stamps and shipped markerless cleanup retain their safe behavior; unknown future authorization or
+- `[x]` Legacy stamps and shipped markerless cleanup retain their safe behavior; unknown future authorization or
   evidence values stay recognizable but cannot trigger destructive automated replay.
-- `[ ]` The feature adds no lifecycle state, meta schema, user-notes machinery, nudge/claim state, storage
+- `[x]` The feature adds no lifecycle state, meta schema, user-notes machinery, nudge/claim state, storage
   configuration, or storage-mode branch in workflows.
-- `[ ]` All quality gates pass (unit, integration, E2E, type, lint, build, package/project sync, documentation).
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (unit, integration, E2E, type, lint, build, package/project sync, documentation).
+- `[x]` Ready for integration
 
 ---

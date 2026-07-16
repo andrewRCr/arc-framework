@@ -31,17 +31,16 @@
  * - **`abandoned`** — cleanup of a *retired* / *parked* origin (a decompose
  *   origin removed into its members, a `park@Planning` shelf) whose branch is
  *   *unmerged by construction*. The gate is the inverse (any un-shipped WU; a
- *   `completed/` one is refused), and the branch is force-deleted (local +
- *   remote). Git-containment cannot prove safety for an unmerged branch, so the
- *   safety is the *caller's* conservation gate — passing this mode is that
- *   authorization.
+ *   `completed/` one is refused). Git-containment cannot prove safety for an
+ *   unmerged branch, so committed retirement evidence and its exact live
+ *   projection authorize leased remote cleanup and local OID compare-delete;
+ *   the mode flag is never destructive authority.
  *
  * The branch name is resolved by enumerating local refs and matching the WU slug
  * ({@link branchToWorkUnitSlug}) — a ref-projection lookup, type-prefix agnostic,
- * because the meta `Branch` field is cleared to `[none]` at archive. The legs fire
- * in the only constraint-safe order: free the checked-out branch first — a linked
- * worktree is torn down, an in-place branch is relocated by switching the primary
- * worktree to `base` — then the branch delete, then the prune.
+ * because the meta `Branch` field is cleared to `[none]` at archive. A non-shipped
+ * linked checkout is stamped and detached before remote/local ref resolution, and
+ * outside physical removal waits until those persisted obligations resolve.
  *
  * @module
  */
@@ -49,6 +48,7 @@
 import { isLandedInBase } from "../../git/branch-containment.js";
 import type { GitExec } from "../../git/exec.js";
 import { refreshBase } from "../../git/refresh-base.js";
+import type { ProtectionMode } from "../../git/write-context.js";
 import { decideHuskCleanup, isWorktreeClean } from "../../git/worktree-cleanup.js";
 import {
   readWorktreeMarker,
@@ -128,9 +128,9 @@ export interface TeardownContext {
  * - `abandoned` — a *retired* / *parked* origin (decompose's removed origin, a
  *   `park@Planning` shelf) whose branch is **unmerged by construction**. Gate: the
  *   inverse — anything *not* shipped (a `completed/` WU must use the merged-safe
- *   path). Branch delete: a caller-authorized force delete (local + remote). The
- *   conservation gate the caller enforced is the upstream safety here, not
- *   git-containment; passing this mode *is* that authorization.
+ *   path). The committed retirement receipt and exact ref projection authorize
+ *   leased remote cleanup and local compare-and-delete; the mode flag alone never
+ *   grants destructive authority.
  */
 export type TeardownMode = "shipped" | "abandoned";
 
@@ -144,6 +144,8 @@ export interface TeardownParams {
   remote?: string;
   /** Teardown mode (default `shipped`). See {@link TeardownMode}. */
   mode?: TeardownMode;
+  /** Configured result-projection model (unknown values normalize to `partial` at the handler). */
+  protection?: ProtectionMode;
   /** Ephemeral next-step suggestion to surface (advisory; never persisted). */
   suggestion?: string;
   /** Exact absolute registered detached-husk path to replay. */
@@ -274,17 +276,32 @@ async function hasCompetingLifecycleProjection(
   ctx: TeardownContext,
   branch: string,
   proof: Extract<TeardownAuthorizationDecision, { status: "authorized" }>,
+  retiringPath: string,
 ): Promise<boolean> {
   const index = await buildLifecycleIndex({ cwd: ctx.cwd, fs: ctx.indexFs });
   const slug = branchToWorkUnitSlug(branch);
   if (slug === null) return false;
   const entry = index.get(slug);
-  if (entry === undefined) return proof.evidence.expectedLifecycle !== "nonexistent";
-  if (proof.evidence.expectedLifecycle === "completed" && entry.location === "completed") return false;
-  if (proof.evidence.expectedLifecycle === "planned" && entry.location === "planned") return false;
+  if (entry === undefined) return false;
   try {
     const content = await ctx.indexFs.readFile(join(ctx.cwd, entry.path));
-    return parseMetaRecord(content).Branch === branch;
+    const declaredBranch = parseMetaRecord(content).Branch;
+    if (
+      (proof.evidence.expectedLifecycle === "completed" && entry.location === "completed")
+      || (proof.evidence.expectedLifecycle === "planned" && entry.location === "planned")
+    ) {
+      return declaredBranch === branch && !isSelfTeardown(retiringPath, ctx.cwd);
+    }
+    if (
+      proof.evidence.kind === "receipt"
+      && proof.evidence.transition === "decompose"
+      && proof.evidence.expectedLifecycle === "nonexistent"
+      && declaredBranch === branch
+      && isSelfTeardown(retiringPath, ctx.cwd)
+    ) {
+      return false;
+    }
+    return declaredBranch === branch;
   } catch {
     return true;
   }
@@ -296,6 +313,7 @@ interface TeardownBranchProjectionParams {
   base: string;
   remote?: string;
   mode: TeardownMode;
+  protection?: ProtectionMode;
   suggestion?: string;
   huskPath?: string;
 }
@@ -322,16 +340,23 @@ async function teardownBranchProjection(
   // `origin/<base>` and evaluate against that authoritative ref instead. Best-effort:
   // offline / no-remote degrades to the local ref (prior behavior). Only meaningful
   // when a branch remains to reap.
-  const baseRef = branch === null ? base : await refreshBase(exec, base, remote);
+  const protection = params.protection ?? "partial";
+  const baseRef = mode === "shipped" || protection === "full"
+    ? await refreshBase(exec, base, remote)
+    : base;
+  const evidenceBaseRef = mode === "abandoned" && protection === "partial" ? base : baseRef;
 
-  // Worktree arm: tear down a *linked* worktree (distinct from the primary). The
-  // in-place arm (branch in the primary worktree) and an already-removed worktree
-  // are presence-guarded no-ops. Worktree first, so the branch delete is not refused
-  // for a checked-out branch.
+  // Worktree arm: shipped non-self cleanup retains the legacy physical-removal
+  // choreography. Non-shipped linked projections instead become stamped detached
+  // husks before any ref mutation; outside callers remove that husk only after its
+  // persisted remote and local obligations resolve.
   let worktreeRemoved: string | null = null;
   let pendingHuskRemoval: DetachedCandidate | null = null;
   let husk: Extract<TeardownResult, { status: "torn-down" }>["husk"] = null;
   let directionalAuthorization: Extract<TeardownAuthorizationDecision, { status: "authorized" }> | null = null;
+  let retiringProjectionPath: string | undefined;
+  let pendingCreatedHuskRemoval: string | null = null;
+  let directionalObligationsResolved = true;
   const branchedRegistration = branch === null
     ? undefined
     : scan.worktrees.find((worktree) => worktree.branch === branch);
@@ -407,7 +432,7 @@ async function teardownBranchProjection(
         evidence: decoded.evidence,
         refs: { localOid: stamp.sha, remote: decoded.remoteRef },
       };
-      if (!(await revalidateHuskRetirementEvidence(exec, stamp, directionalAuthorization, baseRef, ctx.readBlob))) {
+      if (!(await revalidateHuskRetirementEvidence(exec, stamp, directionalAuthorization, evidenceBaseRef, ctx.readBlob))) {
         return { status: "rejected", reason: "refusing detached husk removal: retirement evidence mismatch" };
       }
     } else {
@@ -431,15 +456,32 @@ async function teardownBranchProjection(
   } else if (branch !== null) {
     const registered = branchedRegistration;
     const primary = scan.worktrees.find((worktree) => worktree.primary)?.path;
-    if (registered !== undefined && registered.path !== primary && isSelfTeardown(registered.path, cwd)) {
-      const authorizationRequest: TeardownAuthorizationRequest = {
+    const selfTeardown = registered !== undefined
+      && registered.path !== primary
+      && isSelfTeardown(registered.path, cwd);
+    if (mode === "abandoned" && registered === undefined) {
+      return {
+        status: "rejected",
+        reason: describeTeardownAuthorizationRefusal("projection-mismatch"),
+        huskRefusal: "authorization-refused",
+      };
+    }
+    const authorizationRequired = registered !== undefined && (mode === "abandoned" || selfTeardown);
+    let authorizationRequest: TeardownAuthorizationRequest | null = null;
+    let authority: Pick<RetirementAuthorityPort, "authorize" | "revalidate"> | null = null;
+    if (authorizationRequired) {
+      authorizationRequest = {
         subject,
         branch,
         head: registered.head,
         remote: remote ?? "origin",
         requestedMode: mode,
       };
-      const authority = ctx.authority ?? createTeardownRetirementAuthority(exec, baseRef);
+      authority = ctx.authority ?? createTeardownRetirementAuthority(
+        exec,
+        evidenceBaseRef,
+        ctx.readBlob,
+      );
       const authorization = await authority.authorize(authorizationRequest);
       if (authorization.status === "refused") {
         return {
@@ -449,6 +491,9 @@ async function teardownBranchProjection(
         };
       }
       directionalAuthorization = authorization;
+      retiringProjectionPath = registered.path;
+    }
+    if (registered !== undefined && registered.path !== primary && (selfTeardown || mode === "abandoned")) {
       if (!(await isWorktreeClean({ exec, cwd: registered.path }))) {
         return {
           status: "rejected",
@@ -478,7 +523,10 @@ async function teardownBranchProjection(
       if (reconciliation.status === "blocked") {
         return { status: "rejected", reason: reconciliation.reason, huskRefusal: "user-surfaces" };
       }
-      const revalidation = await authority.revalidate(authorizationRequest, authorization);
+      if (authority === null || authorizationRequest === null || directionalAuthorization === null) {
+        return { status: "rejected", reason: "retirement authority is unavailable" };
+      }
+      const revalidation = await authority.revalidate(authorizationRequest, directionalAuthorization);
       if (revalidation.status === "refused") {
         return {
           status: "rejected",
@@ -493,9 +541,9 @@ async function teardownBranchProjection(
           at: new Date((ctx.now ?? Date.now)()).toISOString(),
           subject,
           branch,
-          authorization: authorization.authorization,
-          remoteRef: authorization.refs.remote,
-          evidence: authorization.evidence,
+          authorization: directionalAuthorization.authorization,
+          remoteRef: directionalAuthorization.refs.remote,
+          evidence: directionalAuthorization.evidence,
         });
         stamped = stampResult.kind === "stamped";
         if (!stamped && mode !== "shipped") {
@@ -515,9 +563,23 @@ async function teardownBranchProjection(
         }
         notices.push(`Could not stamp the detached worktree (${err instanceof Error ? err.message : String(err)}).`);
       }
-      await exec("git", ["switch", "--detach", authorization.refs.localOid], { cwd: registered.path });
+      await exec("git", ["switch", "--detach", directionalAuthorization.refs.localOid], { cwd: registered.path });
       husk = { worktreePath: registered.path, subject, branch, stamped, outcome: "created" };
+      if (!selfTeardown) pendingCreatedHuskRemoval = registered.path;
     } else if (registered !== undefined && registered.path !== primary) {
+      if (authorizationRequired) {
+        if (authority === null || authorizationRequest === null || directionalAuthorization === null) {
+          return { status: "rejected", reason: "retirement authority is unavailable" };
+        }
+        const revalidation = await authority.revalidate(authorizationRequest, directionalAuthorization);
+        if (revalidation.status === "refused") {
+          return {
+            status: "rejected",
+            reason: describeTeardownAuthorizationRefusal(revalidation.reason),
+            huskRefusal: "authorization-refused",
+          };
+        }
+      }
       try {
         await reconcileWorktree(
           { exec, chdir, fs },
@@ -532,6 +594,19 @@ async function teardownBranchProjection(
       // delete would be refused ("branch used by worktree"). Relocate the primary
       // onto `base` first (a linked worktree is torn down above; an unmapped branch
       // — already switched away — needs no relocation).
+      if (authorizationRequired) {
+        if (authority === null || authorizationRequest === null || directionalAuthorization === null) {
+          return { status: "rejected", reason: "retirement authority is unavailable" };
+        }
+        const revalidation = await authority.revalidate(authorizationRequest, directionalAuthorization);
+        if (revalidation.status === "refused") {
+          return {
+            status: "rejected",
+            reason: describeTeardownAuthorizationRefusal(revalidation.reason),
+            huskRefusal: "authorization-refused",
+          };
+        }
+      }
       try {
         await exec("git", ["switch", base], { cwd: primary });
       } catch (err) {
@@ -551,63 +626,84 @@ async function teardownBranchProjection(
     }
   }
 
-  // Branch delete — mode-keyed. `shipped`: the merged-safe, containment-gated
-  // local delete, then the landed-proof-gated remote-head delete; a refusal
-  // (branch ahead of / no upstream) leaves the branch
-  // intact, surfaced rather than dropping work. `abandoned`: a caller-authorized
-  // force delete (local + remote) — the retired origin's branch is unmerged by
-  // construction, so containment would always refuse; the caller's conservation
-  // gate is the safety. The local force-delete is authoritative, so a remote-ref
-  // cleanup failure degrades to a notice (best-effort, like the prune leg) rather
-  // than discarding the completed work.
+  // Branch delete — mode-keyed. `shipped` without a stamped authorization keeps
+  // the merged-safe containment path. Stamped/receipt-backed cleanup resolves the
+  // persisted remote disposition first, then compare-deletes the exact local OID;
+  // unresolved obligations retain the path-addressable husk for replay.
   let branchDeleted = false;
   let remoteBranchDeleted = false;
   let localBranchDeleteFailed = false;
-  if (branch !== null) {
+  const branchForCleanup = branch ?? husk?.branch ?? null;
+  if (branchForCleanup !== null) {
     if (directionalAuthorization !== null) {
-      const terminalPath = pendingHuskRemoval?.path ?? husk?.worktreePath;
-      if (
-        terminalPath !== undefined
-        && (
-          await hasCompetingWorktreeProjection(ctx, branch, terminalPath)
-          || await hasCompetingLifecycleProjection(ctx, branch, directionalAuthorization)
-        )
+      const terminalPath = pendingHuskRemoval?.path ?? husk?.worktreePath ?? retiringProjectionPath;
+      if (terminalPath === undefined) {
+        directionalObligationsResolved = false;
+        notices.push(`Retirement projection for \`${branchForCleanup}\` is not path-addressable; ref cleanup was vetoed.`);
+      } else if (
+        await hasCompetingWorktreeProjection(ctx, branchForCleanup, terminalPath)
+        || await hasCompetingLifecycleProjection(ctx, branchForCleanup, directionalAuthorization, terminalPath)
       ) {
-        notices.push(`Competing registered projection owns \`${branch}\`; ref cleanup was vetoed.`);
+        directionalObligationsResolved = false;
+        notices.push(`Competing registered projection owns \`${branchForCleanup}\`; ref cleanup was vetoed.`);
       } else {
-      const remoteProof = directionalAuthorization.refs.remote;
-      let remoteResolved = remoteProof === null;
-      if (remoteProof?.disposition === "delete") {
-        try {
-          const outcome = await deleteRemoteBranch(exec, remoteProof.remote, branch, remoteProof.oid);
-          remoteBranchDeleted = outcome === "deleted";
-          remoteResolved = outcome !== "stale";
-          if (outcome === "stale") notices.push(`Remote branch \`${remoteProof.remote}/${branch}\` moved; left intact.`);
-        } catch (err) {
-          notices.push(`Could not delete the remote branch \`${branch}\` (${err instanceof Error ? err.message : String(err)}).`);
+        const remoteProof = directionalAuthorization.refs.remote;
+        let remoteResolved = remoteProof === null;
+        if (remoteProof?.disposition === "delete") {
+          try {
+            const outcome = await deleteRemoteBranch(exec, remoteProof.remote, branchForCleanup, remoteProof.oid);
+            remoteBranchDeleted = outcome === "deleted";
+            remoteResolved = outcome !== "stale";
+            if (outcome === "stale") {
+              notices.push(`Remote branch \`${remoteProof.remote}/${branchForCleanup}\` moved; left intact.`);
+            }
+          } catch (err) {
+            notices.push(
+              `Could not delete the remote branch \`${branchForCleanup}\` `
+                + `(${err instanceof Error ? err.message : String(err)}).`,
+            );
+          }
+        } else if (remoteProof?.disposition === "retain") {
+          try {
+            const { stdout } = await exec("git", [
+              "ls-remote", "--heads", remoteProof.remote, `refs/heads/${branchForCleanup}`,
+            ]);
+            remoteResolved = stdout.trim().split(/\s+/u)[0] === remoteProof.oid;
+          } catch {
+            remoteResolved = false;
+          }
+          if (!remoteResolved) {
+            notices.push(
+              `Remote preservation ref \`${remoteProof.remote}/${branchForCleanup}\` changed; left intact.`,
+            );
+          }
         }
-      } else if (remoteProof?.disposition === "retain") {
-        try {
-          const { stdout } = await exec("git", ["ls-remote", "--heads", remoteProof.remote, `refs/heads/${branch}`]);
-          remoteResolved = stdout.trim().split(/\s+/u)[0] === remoteProof.oid;
-        } catch {
-          remoteResolved = false;
+        if (
+          remoteResolved
+          && !(await hasCompetingWorktreeProjection(ctx, branchForCleanup, terminalPath))
+          && !(await hasCompetingLifecycleProjection(
+            ctx,
+            branchForCleanup,
+            directionalAuthorization,
+            terminalPath,
+          ))
+        ) {
+          try {
+            await exec("git", [
+              "update-ref",
+              "-d",
+              `refs/heads/${branchForCleanup}`,
+              directionalAuthorization.refs.localOid,
+            ]);
+          } catch (err) {
+            notices.push(
+              `Could not compare-and-delete local branch \`${branchForCleanup}\` `
+                + `(${err instanceof Error ? err.message : String(err)}).`,
+            );
+          }
         }
-        if (!remoteResolved) notices.push(`Remote preservation ref \`${remoteProof.remote}/${branch}\` changed; left intact.`);
-      }
-      if (
-        remoteResolved
-        && terminalPath !== undefined
-        && !(await hasCompetingWorktreeProjection(ctx, branch, terminalPath))
-        && !(await hasCompetingLifecycleProjection(ctx, branch, directionalAuthorization))
-      ) {
-        try {
-          await exec("git", ["update-ref", "-d", `refs/heads/${branch}`, directionalAuthorization.refs.localOid]);
-        } catch (err) {
-          notices.push(`Could not compare-and-delete local branch \`${branch}\` (${err instanceof Error ? err.message : String(err)}).`);
-        }
-      }
-      branchDeleted = !(await branchExists(exec, branch));
+        branchDeleted = !(await branchExists(exec, branchForCleanup));
+        directionalObligationsResolved = remoteResolved && branchDeleted;
       }
     } else if (mode === "shipped") {
       // The landed-in-base proof gates the remote-head delete below. The reap
@@ -615,23 +711,23 @@ async function teardownBranchProjection(
       // containment holds (e.g. a multi-commit squash, whose patch identity
       // cannot match), the remote head IS the preservation — deleting it would
       // discard the work. Computed before the local delete consumes the ref.
-      const landedInBase = await isLandedInBase(exec, branch, baseRef);
+      const landedInBase = await isLandedInBase(exec, branchForCleanup, baseRef);
       try {
-        await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base: baseRef, remote });
+        await reconcileBranch({ exec }, { mutation: "delete-merged", branch: branchForCleanup, base: baseRef, remote });
       } catch (err) {
         if (husk === null) throw err;
         localBranchDeleteFailed = true;
         const retryLocus = worktreeRemoved === null ? "from the husk or primary" : "from the primary";
         notices.push(
-          `Could not delete local branch \`${branch}\` after detach ` +
+          `Could not delete local branch \`${branchForCleanup}\` after detach ` +
             `(${err instanceof Error ? err.message : String(err)}); retry teardown ${retryLocus}.`,
         );
       }
-      branchDeleted = !(await branchExists(exec, branch));
+      branchDeleted = !(await branchExists(exec, branchForCleanup));
       if (!branchDeleted) {
         if (!localBranchDeleteFailed) {
           notices.push(
-            `Branch \`${branch}\` is not contained on its upstream or landed in \`${baseRef}\` — left intact ` +
+            `Branch \`${branchForCleanup}\` is not contained on its upstream or landed in \`${baseRef}\` — left intact ` +
               `(unpushed, unmerged commits would be lost).`,
           );
         }
@@ -644,33 +740,23 @@ async function teardownBranchProjection(
         // completed local teardown.
         try {
           remoteBranchDeleted =
-            (await deleteRemoteBranch(exec, remote ?? "origin", branch)) === "deleted";
+            (await deleteRemoteBranch(exec, remote ?? "origin", branchForCleanup)) === "deleted";
         } catch (err) {
           const detail = err instanceof Error ? err.message : String(err);
-          notices.push(`Could not delete the remote branch \`${branch}\` (${detail}).`);
+          notices.push(`Could not delete the remote branch \`${branchForCleanup}\` (${detail}).`);
         }
       } else {
         notices.push(
-          `Remote branch \`${remote ?? "origin"}/${branch}\` left intact — it is the only proven ` +
+          `Remote branch \`${remote ?? "origin"}/${branchForCleanup}\` left intact — it is the only proven ` +
             `preservation (contained on the upstream, not patch-landed in \`${baseRef}\`).`,
         );
       }
     } else {
-      try {
-        await reconcileBranch({ exec }, { mutation: "delete", branch, remote });
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        // The local force-delete runs before the remote-ref cleanup, so a branch
-        // that still exists means the local `git branch -D` is what failed — a
-        // force-mode failure, not a best-effort remote miss. Reject rather than
-        // reporting a torn-down branch that is in fact still present. A remote-only
-        // failure (local delete landed) degrades to a notice, like the prune leg.
-        if (await branchExists(exec, branch)) {
-          return { status: "rejected", reason: `Could not force-delete local branch \`${branch}\` (${detail}).` };
-        }
-        notices.push(`Could not delete the remote branch \`${branch}\` (${detail}).`);
-      }
-      branchDeleted = !(await branchExists(exec, branch));
+      return {
+        status: "rejected",
+        reason: "Refusing non-shipped branch cleanup without retirement authority.",
+        huskRefusal: "authorization-refused",
+      };
     }
   }
 
@@ -685,16 +771,17 @@ async function teardownBranchProjection(
     notices.push(`Could not prune stale tracking refs (${err instanceof Error ? err.message : String(err)}).`);
   }
 
-  if (pendingHuskRemoval !== null && !isSelfTeardown(pendingHuskRemoval.path, cwd)) {
-    if (branch !== null && !branchDeleted) {
-      notices.push(`Detached husk \`${pendingHuskRemoval.path}\` left intact until branch obligations resolve.`);
+  const physicalRemovalPath = pendingHuskRemoval?.path ?? pendingCreatedHuskRemoval;
+  if (physicalRemovalPath !== null && !isSelfTeardown(physicalRemovalPath, cwd)) {
+    if (!directionalObligationsResolved || (branchForCleanup !== null && !branchDeleted)) {
+      notices.push(`Detached husk \`${physicalRemovalPath}\` left intact until branch obligations resolve.`);
     } else {
       if (primaryPath === undefined) {
         return { status: "rejected", reason: "cannot resolve the primary worktree before husk removal" };
       }
       for (const dryRun of [true, false]) {
         const reconciliation = await reconcileLinkedIdentityGlobalUserSurfaces({
-          worktreePath: pendingHuskRemoval.path,
+          worktreePath: physicalRemovalPath,
           primaryWorktreePath: primaryPath,
           fs,
           dryRun,
@@ -709,12 +796,12 @@ async function teardownBranchProjection(
           { exec, chdir, fs },
           {
             mutation: "teardown",
-            worktreePath: pendingHuskRemoval.path,
+            worktreePath: physicalRemovalPath,
             currentLocus: cwd,
             huskApproved: true,
           },
         );
-        worktreeRemoved = pendingHuskRemoval.path;
+        worktreeRemoved = physicalRemovalPath;
       } catch (err) {
         return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
       }
@@ -775,9 +862,10 @@ export async function runBranchTeardown(
 /**
  * Run `teardown`: gate on arc-state (mode-keyed — see {@link TeardownMode}),
  * resolve the WU branch, then compose the cleanup legs in their constraint-safe
- * order — worktree teardown (linked arm only; the in-place / absent arm is a
- * presence-guarded no-op), the branch delete (merged-safe + push-state-gated in
- * `shipped`; caller-authorized force in `abandoned`), and the prune. Rejects on a
+ * order — projection preparation, remote disposition, exact local ref mutation,
+ * deferred physical removal, and prune. Shipped cleanup keeps its merged-safe,
+ * push-state-gated compatibility path; abandoned cleanup requires receipt-backed
+ * retirement authority. Rejects on a
  * gate mismatch (a not-yet-shipped WU in `shipped`, a `completed/` WU in
  * `abandoned`), an ambiguous branch match, or a dirty linked worktree.
  *
@@ -796,7 +884,7 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   // 1. Arc-state authority gate — mode-keyed, resolved from location, never git.
   //    `shipped`: only a `completed/` WU (the merged-safe path's precondition).
   //    `abandoned`: the inverse — accept any *un-shipped* WU (a retired / parked
-  //    origin), but refuse a `completed/` one so the force path can't reap a
+  //    origin), but refuse a `completed/` one so the retirement path can't reap a
   //    merged WU that the safe path handles.
   const index = await buildLifecycleIndex({ cwd, fs: indexFs });
   const shipped = isShipped(index, name);
@@ -825,6 +913,7 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     base,
     remote,
     mode,
+    protection: params.protection,
     huskPath: params.huskPath,
     suggestion,
   });

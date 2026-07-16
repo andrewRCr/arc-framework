@@ -57,3 +57,24 @@ export function deriveCurrentHuskAdvisory(
     stamp: decodeWorktreeHuskStamp(stamp),
   };
 }
+
+/**
+ * Resolve current-locus orientation while treating known retirement evidence as untrusted input.
+ *
+ * @param options - Current worktree, marker, and HEAD facts
+ * @param revalidateEvidence - Authoritative committed-evidence resolver
+ * @returns A trusted advisory, a forward-compatible manual advisory, or `null`
+ */
+export async function resolveCurrentHuskAdvisory(
+  options: DeriveCurrentHuskAdvisoryOptions,
+  revalidateEvidence: (
+    stamp: NonNullable<Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"]["husk"]>,
+    decoded: Extract<DecodedWorktreeHuskStamp, { kind: "current" }>,
+  ) => Promise<boolean>,
+): Promise<CurrentHuskAdvisory | null> {
+  const advisory = deriveCurrentHuskAdvisory(options);
+  if (advisory?.stamp.kind !== "current") return advisory;
+  const stamp = options.marker.kind === "present" ? options.marker.marker.husk : undefined;
+  if (stamp === undefined) return null;
+  return await revalidateEvidence(stamp, advisory.stamp) ? advisory : null;
+}

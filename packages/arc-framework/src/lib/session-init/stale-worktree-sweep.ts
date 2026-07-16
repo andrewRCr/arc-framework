@@ -32,6 +32,7 @@ import {
   type WorktreeSubject,
 } from "../git/worktree-marker.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
+import type { ProtectionMode } from "../git/write-context.js";
 import {
   resolvePrimaryWorktreePath,
   scanRegisteredWorktrees,
@@ -45,6 +46,10 @@ import {
   type UserSurfaceMigrationFs,
 } from "../user-surface-migration.js";
 import { isShippedWorkUnit, readShippedWorkUnitsFromRef } from "../work-unit/completed-index.js";
+import {
+  revalidateDecodedHuskRetirementEvidence,
+  type TeardownBlobReader,
+} from "../work-unit/teardown-retirement-driver.js";
 
 export interface StaleWorktreeSweepInput {
   /** Identity-filtered in-flight worktree roster (reused from the session-init roster slot). */
@@ -131,6 +136,15 @@ export interface RunStaleWorktreeSweepOptions {
   scanWorktrees?: (exec: GitExec) => Promise<RegisteredWorktreeScanResult>;
   /** Exact current linked path, excluded so the current-husk surface owns it. */
   excludeWorktreePath?: string;
+  /** Configured result projection used to revalidate non-shipped receipt evidence. */
+  protection?: ProtectionMode;
+  /** Exact committed-blob reader for retirement-evidence validation. */
+  readBlob?: TeardownBlobReader;
+  /** Retirement-evidence validation seam for structurally current stamps. */
+  revalidateEvidence?: (
+    stamp: NonNullable<Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"]["husk"]>,
+    decoded: Extract<DecodedWorktreeHuskStamp, { kind: "current" }>,
+  ) => Promise<boolean>;
 }
 
 /**
@@ -150,6 +164,7 @@ export async function runStaleWorktreeSweep(
   const readMarker = options.readMarker ?? readWorktreeMarker;
   const userSurfaceFs = options.userSurfaceFs ?? nodeUserSurfaceMigrationFs;
   const integrationTarget = `origin/${baseBranch}`;
+  const evidenceBaseRef = options.protection === "full" ? integrationTarget : baseBranch;
 
   if (
     worktreeIdentity.kind === "linked"
@@ -215,18 +230,37 @@ export async function runStaleWorktreeSweep(
     }
     const stamp = marker.marker.husk;
     const clean = await isWorktreeClean({ exec, cwd: entry.path });
+    let decoded = decodeWorktreeHuskStamp(stamp);
+    let decision = decideHuskCleanup({ marker, clean, head: entry.head });
+    const evidenceValid = decoded.kind !== "current"
+      || await (options.revalidateEvidence === undefined
+        ? revalidateDecodedHuskRetirementEvidence(
+          exec,
+          stamp,
+          decoded,
+          evidenceBaseRef,
+          options.readBlob,
+        )
+        : options.revalidateEvidence(stamp, decoded));
+    if (
+      decoded.kind === "current"
+      && !evidenceValid
+    ) {
+      decoded = { kind: "manual-only", reason: "evidence-mismatch" };
+      decision = { action: "blocked", reason: "evidence-mismatch" };
+    }
     worktrees.push({
       kind: "husk",
       worktreePath: entry.path,
       branch: null,
       subject: stamp.subject,
       stampedBranch: stamp.branch,
-      stamp: decodeWorktreeHuskStamp(stamp),
+      stamp: decoded,
       completedWorkUnit:
         stamp.subject.kind === "work-unit" && shipped.has(stamp.subject.name)
           ? stamp.subject.name
           : null,
-      decision: decideHuskCleanup({ marker, clean, head: entry.head }),
+      decision,
     });
   }
 

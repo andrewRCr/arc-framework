@@ -69,7 +69,8 @@ import {
   RECOVERY_RECENCY_DAYS,
 } from "../lib/session-init/branch-gone-recovery.js";
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
-import { deriveCurrentHuskAdvisory } from "../lib/session-init/current-husk-advisory.js";
+import { resolveCurrentHuskAdvisory } from "../lib/session-init/current-husk-advisory.js";
+import { revalidateDecodedHuskRetirementEvidence } from "../lib/work-unit/teardown-retirement-driver.js";
 import { runOrphanBranchSweep } from "../lib/session-init/orphan-branch-sweep.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
@@ -98,7 +99,7 @@ import {
   type ResolvedSettingsResult,
 } from "../lib/config/resolved-settings.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { createUserIOContext, gitExec } from "../lib/io-context.js";
+import { createUserIOContext, gitExec, readGitBlobBytes } from "../lib/io-context.js";
 import {
   listErrandRecordsResult,
   type ErrandRecord,
@@ -494,15 +495,25 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       },
       worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
       currentHusk: async (worktreePath) => {
-        const [marker, headResult] = await Promise.all([
+        const [marker, headResult, resolved] = await Promise.all([
           readWorktreeMarker(worktreePath),
           gitExec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
+          resolvedSettingsP,
         ]);
-        return deriveCurrentHuskAdvisory({
+        return await resolveCurrentHuskAdvisory({
           worktreePath,
           branch: null,
           head: headResult.stdout,
           marker,
+        }, async (stamp, decoded) => {
+          const baseBranch = resolved.settings["branch.base"];
+          return await revalidateDecodedHuskRetirementEvidence(
+            gitExec,
+            stamp,
+            decoded,
+            resolved.settings["branch.protection"] === "full" ? `origin/${baseBranch}` : baseBranch,
+            (ref, path) => readGitBlobBytes(cwd, ref, path),
+          );
         });
       },
       baseDistance: async () => {
@@ -580,7 +591,9 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           exec: gitExec,
           identity,
           teamMode: resolved.settings["team.mode"] === "true",
+          protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
           excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
+          readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
         });
       },
       orphanBranchSweep: async (worktreeIdentity) => {

@@ -355,6 +355,41 @@ describe("runStaleWorktreeSweep", () => {
     ]);
   });
 
+  it("marks a structurally current husk manual-only when committed evidence does not revalidate", async () => {
+    const marker = stampedMarker({ kind: "work-unit", name: "retired" });
+    if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("expected stamped marker");
+    marker.marker.husk.authorization = "discard-confirmed";
+    marker.marker.husk.remoteRef = null;
+    marker.marker.husk.evidence = {
+      kind: "receipt",
+      receiptId: `sha256:${"1".repeat(64)}`,
+      transition: "abandon",
+      expectedLifecycle: "nonexistent",
+      resultDigest: `sha256:${"2".repeat(64)}`,
+    };
+    const revalidateEvidence = vi.fn().mockResolvedValue(false);
+
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: false }),
+      readMarker: async () => marker,
+      revalidateEvidence,
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+      }),
+    });
+
+    expect(revalidateEvidence).toHaveBeenCalledOnce();
+    expect(result.worktrees[0]).toMatchObject({
+      kind: "husk",
+      stamp: { kind: "manual-only", reason: "evidence-mismatch" },
+      decision: { action: "blocked", reason: "evidence-mismatch" },
+    });
+  });
+
   it("filters another identity's husk only in team mode", async () => {
     const options = {
       roster: { entries: [], warnings: [] },

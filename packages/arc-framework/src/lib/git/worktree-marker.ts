@@ -58,7 +58,10 @@ export type DecodedWorktreeHuskStamp =
       remoteRef: RemoteRefProof;
       evidence: RetirementEvidenceRef;
     }
-  | { kind: "manual-only"; reason: "mixed-presence" | "unknown-authorization" | "unknown-evidence" };
+  | {
+      kind: "manual-only";
+      reason: "mixed-presence" | "unknown-authorization" | "unknown-evidence" | "evidence-mismatch";
+    };
 
 interface WorktreeMarkerBase {
   /** ARC-created provenance; written `true` — the marker's presence is the signal. */

@@ -1299,7 +1299,13 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
       chdir: (dir) => { process.chdir(dir); locus = dir; },
       readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
     },
-    { name: wuName ?? "", base: baseBranch, mode: opts.force ? "abandoned" : "shipped", huskPath: opts.husk },
+    {
+      name: wuName ?? "",
+      base: baseBranch,
+      mode: opts.force ? "abandoned" : "shipped",
+      protection: settings["branch.protection"] === "full" ? "full" : "partial",
+      huskPath: opts.husk,
+    },
   );
   if (result.status === "rejected") {
     if (result.huskRefusal !== undefined) {

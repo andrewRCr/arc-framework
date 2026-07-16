@@ -16,7 +16,7 @@
 - **Next Task:** Task 5.1 — Port-authorized teardown replacing the `allowHusk` switch (line ~292)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 5 — Task 5.1 via the task loop
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

@@ -556,6 +556,33 @@ describe("session-init E2E — current detached husk advisory", () => {
       },
     });
     expect(ordinaryEnvelope.currentHusk).toEqual({ ok: true, value: null });
+
+    await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
+      spawnedByArc: true,
+      wuName: "shipped-widget",
+      createdFor: { kind: "work-unit", name: "shipped-widget" },
+      spawningIdentity: "test-user",
+      createdAt: "2026-07-14T00:00:00.000Z",
+      husk: {
+        sha: head,
+        at: "2026-07-14T01:00:00.000Z",
+        subject: { kind: "work-unit", name: "shipped-widget" },
+        branch: "feat/shipped-widget",
+        authorization: "discard-confirmed",
+        remoteRef: null,
+        evidence: {
+          kind: "receipt",
+          receiptId: `sha256:${"1".repeat(64)}`,
+          transition: "abandon",
+          expectedLifecycle: "nonexistent",
+          resultDigest: `sha256:${"2".repeat(64)}`,
+        },
+      },
+    }));
+
+    const untrustedResult = await runArc(["status", "--session-init", "--json"], canonical);
+    expect(untrustedResult.exitCode).toBe(0);
+    expect(parseJsonEnvelope(untrustedResult.stdout).currentHusk).toEqual({ ok: true, value: null });
   });
 });
 
