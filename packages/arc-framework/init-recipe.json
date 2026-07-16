@@ -98,6 +98,7 @@
     "system/workflows/arc/initial-setup/02_define-project.template.md",
     "system/workflows/arc/session-lifecycle/session-handoff.template.md",
     "system/workflows/arc/session-lifecycle/session-init.contributor.md",
+    "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md",
     "system/workflows/arc/session-lifecycle/session-init.template.md",
     "system/workflows/arc/session-lifecycle/session-loop.md",
     "system/workflows/arc/session-lifecycle/session-recover.md",

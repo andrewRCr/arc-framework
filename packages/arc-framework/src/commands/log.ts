@@ -2,8 +2,8 @@
  * Log command — browse off-WU standalone commit history.
  *
  * Searches git history for commits carrying a `Context: standalone (...)`
- * footer — off-work-unit maintenance, planning, documentation, or refactor
- * commits — and presents them in a formatted list.
+ * footer — off-work-unit maintenance, planning, documentation, refactor, or
+ * code-review commits — and presents them in a formatted list.
  *
  * @module
  */

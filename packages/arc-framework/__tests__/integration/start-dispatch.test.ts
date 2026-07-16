@@ -167,6 +167,7 @@ describe("arc start dispatch — against real worktrees", () => {
     await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
     await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
     await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+    const { stdout: cutBase } = await execFileAsync("git", ["rev-parse", "main"], { cwd: h.repo });
 
     const wt = resolveWorktreeLocation({
       template: h.locationTemplate,
@@ -200,6 +201,7 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(roadmap).toContain("shell-alpha");
     expect(roadmap).toContain("Generated from meta files");
     expect(roadmap).not.toContain("## Warnings");
+    expect(output).toContain(`Cut from: main @ ${cutBase.trim()} (synced with origin)`);
     expect(output).not.toContain("cleanup may be required");
     const notes = await readFile(join(wt, ".arc", "user", IDENTITY, "shell-alpha", "SESSION-NOTES.md"), "utf8");
     const { stdout: shortHead } = await execFileAsync("git", ["rev-parse", "--short", "HEAD"], { cwd: wt });
@@ -246,6 +248,7 @@ describe("arc start dispatch — against real worktrees", () => {
     await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: h.repo });
     await execFileAsync("git", ["push", "-u", "origin", "main"], { cwd: h.repo });
     await execFileAsync("git", ["config", "arc.identity", IDENTITY], { cwd: h.repo });
+    const { stdout: cutBase } = await execFileAsync("git", ["rev-parse", "main"], { cwd: h.repo });
 
     const wt = resolveWorktreeLocation({
       template: h.locationTemplate,
@@ -280,6 +283,7 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(body).toContain("Context: meta-shell-widget.md (activation)");
     const roadmap = await readFile(join(wt, ".arc", "backlog", "ROADMAP.md"), "utf8");
     expect(roadmap).not.toContain("## Warnings");
+    expect(output).toContain(`Cut from: main @ ${cutBase.trim()} (synced with origin)`);
     expect(output).not.toContain("cleanup may be required");
     const notes = await readFile(join(wt, ".arc", "user", IDENTITY, "shell-widget", "SESSION-NOTES.md"), "utf8");
     const { stdout: shortHead } = await execFileAsync("git", ["rev-parse", "--short", "HEAD"], { cwd: wt });

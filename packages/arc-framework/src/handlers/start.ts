@@ -34,6 +34,7 @@ import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { refreshBase } from "../lib/git/refresh-base.js";
+import { countAheadBehindRef } from "../lib/git/worktree-sync.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
@@ -180,7 +181,15 @@ export async function handleStart(
       return;
     case "create-new":
       if (opts.here) await coldStart(name, armOptions, { io, cwd, identity });
-      else await createNew(wuName, armOptions, { io, cwd, identity }, baseRef);
+      else {
+        const provenance = await resolveStartBaseProvenance(
+          io.exec,
+          settings["branch.base"],
+          refreshedBase,
+          baseRef,
+        );
+        await createNew(wuName, armOptions, { io, cwd, identity }, provenance);
+      }
       return;
     case "graduate":
       await graduate(wuName, armOptions, {
@@ -188,6 +197,8 @@ export async function handleStart(
         cwd,
         identity,
         baseRef,
+        baseBranch: settings["branch.base"],
+        refreshedBase,
         metaFs: baseSnapshot.fs,
         metaPath: composed.index.get(wuName)?.path,
       });
@@ -204,6 +215,41 @@ interface ArmContext {
   io: ReturnType<typeof createUserIOContext>;
   cwd: string;
   identity: string;
+}
+
+interface StartBaseProvenance {
+  branch: string;
+  sha: string;
+  qualifier: string;
+}
+
+async function resolveStartBaseProvenance(
+  exec: GitExec,
+  branch: string,
+  refreshedRef: string,
+  sha: string,
+): Promise<StartBaseProvenance> {
+  if (refreshedRef === branch) {
+    return { branch, sha, qualifier: "local base; origin unavailable" };
+  }
+
+  try {
+    const { ahead, behind } = await countAheadBehindRef(exec, branch, sha);
+    if (ahead === 0 && behind === 0) return { branch, sha, qualifier: "synced with origin" };
+    if (ahead === 0) return { branch, sha, qualifier: `${behind} behind origin` };
+    if (behind === 0) return { branch, sha, qualifier: `local base ${ahead} ahead of origin` };
+    return {
+      branch,
+      sha,
+      qualifier: `local base diverged from origin: ${ahead} ahead, ${behind} behind`,
+    };
+  } catch {
+    return { branch, sha, qualifier: "origin relation unavailable" };
+  }
+}
+
+function renderStartBaseProvenance(provenance: StartBaseProvenance): string {
+  return `Cut from: ${provenance.branch} @ ${provenance.sha} (${provenance.qualifier})`;
 }
 
 /** Resolve `branch.base`, `worktree.location_template`, and the `{repo}` basename from config + git. */
@@ -237,7 +283,12 @@ async function resolveSpawnConfig(
 }
 
 /** Create-new arm — spawn a fresh worktree on a new `plan/<name>` branch. */
-async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext, baseRef: string): Promise<void> {
+async function createNew(
+  wuName: string,
+  opts: StartOptions,
+  ctx: ArmContext,
+  provenance: StartBaseProvenance,
+): Promise<void> {
   if (!skipConfirm(opts)) {
     if (!(
       await confirmStep(
@@ -251,7 +302,7 @@ async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext, ba
 
   const outcome = await runCreateNew(
     { io: ctx.io, internalTemplateDir: getInternalTemplatePath() },
-    { worktreePath: ctx.cwd, identity: ctx.identity, name: wuName, baseRef },
+    { worktreePath: ctx.cwd, identity: ctx.identity, name: wuName, baseRef: provenance.sha },
   );
   if (!outcome.ok) {
     p.log.error(outcome.reason);
@@ -269,6 +320,7 @@ async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext, ba
     ].join("\n"),
     "Spawned",
   );
+  p.log.info(renderStartBaseProvenance(provenance));
   if (r.postCreateNotice) p.log.info(r.postCreateNotice);
   const roadmap = await refreshRoadmapForStartCeremony(ctx, r.worktreePath, r.branch);
   if (!roadmap.ok) {
@@ -307,7 +359,13 @@ async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext, ba
 async function graduate(
   wuName: string,
   opts: StartOptions,
-  ctx: ArmContext & { baseRef: string; metaFs: ProjectViewFs; metaPath: string | undefined },
+  ctx: ArmContext & {
+    baseRef: string;
+    baseBranch: string;
+    refreshedBase: string;
+    metaFs: ProjectViewFs;
+    metaPath: string | undefined;
+  },
 ): Promise<void> {
   if (ctx.metaPath === undefined) {
     p.log.error(`could not resolve the backlog meta for \`${wuName}\`.`);
@@ -407,6 +465,12 @@ async function graduate(
 
   const config = await resolveSpawnConfig(ctx);
   if (config === null) return;
+  const provenance = await resolveStartBaseProvenance(
+    ctx.io.exec,
+    ctx.baseBranch,
+    ctx.refreshedBase,
+    ctx.baseRef,
+  );
 
   if (!skipConfirm(opts)) {
     if (!(
@@ -455,6 +519,7 @@ async function graduate(
     ].join("\n"),
     "Graduated",
   );
+  p.log.info(renderStartBaseProvenance(provenance));
   if (result.postCreateNotice) p.log.info(result.postCreateNotice);
   const reportedRoadmapWarnings = reportAdvisories(result.outcome);
   if (result.notice) p.log.info(result.notice);

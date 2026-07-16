@@ -87,6 +87,7 @@ describes the kind of work.
 - `Context: standalone (planning)` — queue-shaping (ROADMAP / ATOMIC-INBOX edits)
 - `Context: standalone (documentation)` — emergent documentation
 - `Context: standalone (refactor)` — emergent refactor
+- `Context: standalone (code review)` — review-driven changes to off-WU work
 
 **Off-WU `(planning)` vs. file-pointer `(planning)`.** Off-WU `(planning)` is queue-shaping work
 that organizes future work without iterating a specific spec (ROADMAP, ATOMIC-INBOX edits).

@@ -19,6 +19,17 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Auto-resolve ROADMAP merge conflicts by regeneration**
+
+- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-15); captured during the FP wave-3 launch
+  session's base merge.
+- *Concern:* long-running branches routinely conflict only on `ROADMAP.md`'s render stamp, and regeneration is
+  always the correct resolution. The pre-commit hook already rejects hand-resolved output and prints the
+  regeneration command, so the current sequence spends a judgment cycle on a deterministic outcome.
+- *Approach:* settle whether a scoped merge driver with install wiring or a hook-side regenerate-and-restage path
+  should own the recovery. Keep the action constrained to ROADMAP-only conflicts and coordinate with the existing
+  regenerate-wins projection engine rather than building a second renderer.
+
 ### `[ ]` **Preserve projection diagnostics as out-of-band advisories**
 
 - *Routed from:* `readiness-advisory-ordering` errand, 2026-07-14.
