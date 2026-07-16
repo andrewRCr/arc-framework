@@ -600,7 +600,9 @@ describe("user save and load", () => {
 
     await cleanupTempDir(shallowDir);
     await cleanupTempDir(remoteDir);
-  });
+    // Clone + push/pull/load runs near the 5s integration default; give this one test headroom under
+    // fork-pool contention rather than widening the suite default.
+  }, 15_000);
 });
 
 describe("user load — backup and stale detection", () => {

@@ -117,15 +117,15 @@ construction where it preserves the retention assertion. See `notes-cli-test-har
   diagnostic. Synthetic notes-tree construction was ruled out (retention ranks by real committer date, so
   fabricated SHAs break the partition); fast-import batching rejected as bridge over-investment.
 
-### `[ ]` **2.2 Shallow-clone per-test budget (flake c)**
+### `[x]` **2.2 Shallow-clone per-test budget (flake c)**
 
 - _Goal:_ The shallow-clone test clears its timeout with headroom without widening the suite default.
 
-- _Note:_ The test `load restores recent note content in a shallow clone when the annotated commit is beyond
-  boundary` (`integration/user.test.ts` ~L563-602) runs under the 5s integration default — there is no
-  `testTimeout` anywhere in the config except the e2e project's 30s. Observed ~5478ms vs the 5000ms budget.
-  Prefer a per-test budget (15-20s) or trimming the 10-commit setup loop (~L575-577) over a suite-default change
-  (No-go: suite-default timeout widening).
+- _Outcome:_ Gave the shallow-clone test in `integration/user.test.ts` a 15s per-test budget (from the 5s
+  integration default) with a rationale comment. Chose the per-test budget over trimming the 10-commit setup
+  loop: that loop is load-bearing (it pushes the noted commit beyond the depth-1 shallow boundary, which is the
+  condition under test), and the cost is the clone/push/pull/load sequence, not the commits — so a budget bump
+  is the robust headroom fix. Isolated ~3.3s; the ~5478ms contended peak now clears with wide margin.
 
 ### `[ ]` **2.3 Re-reproduce and close the save/sync races (flake d)**
 
