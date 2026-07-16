@@ -15,25 +15,17 @@ _Design decisions:_ Lift and generalize the existing `canonicalizePlainJson` + `
 exactly 64 lowercase hex; blob digests read canonical Git tree/index bytes after clean filters, never checkout
 bytes.
 
-### `[ ]` **1.1 Canonical JSON serialization and `CanonicalDigest` primitives**
+### `[x]` **1.1 Canonical JSON serialization and `CanonicalDigest` primitives**
 
 - _Goal:_ Structured values serialize to one byte-exact canonical form and hash to a `sha256:`+64-hex digest
   that is stable across platforms, Node versions, and checkout settings.
 
-- _Context:_ Generalize the existing `canonicalizePlainJson` (`review-gate/core/identity.ts`) and `hashContent`
-  (`manifest/hash.ts`) into a neutral `lib/` home the work-unit layer can import; do not import upward from
-  `scripts/`. The existing key sort uses `localeCompare` (locale/ICU-sensitive) and applies no NFC — the lifted
-  version sorts by Unicode codepoint and NFC-normalizes; golden vectors must include keys that diverge under
-  `localeCompare` and non-NFC strings so the trap can't survive green tests.
-
-    - Build `test-first` (one behavior at a time):
-        - object keys serialize in recursively lexicographic order regardless of insertion order
-        - strings are NFC-normalized before hashing; differently-composed equal strings hash identically
-        - output carries no insignificant whitespace and no trailing newline
-        - non-finite numbers, symbol keys, cyclic references, and non-plain objects are rejected
-        - a `CanonicalDigest` is exactly `sha256:` + 64 lowercase hex; every other spelling is rejected
-        - set-valued arrays sort by canonical member bytes; explicitly-ordered arrays retain input order
-        - cross-platform golden vectors: fixed inputs produce identical digests on LF/CRLF and across OSes
+- _Outcome:_ New pure module `lib/canonical/canonical-json.ts` exposing `canonicalize`, `canonicalDigest`,
+  `isCanonicalDigest`/`assertCanonicalDigest`, and `sortByCanonicalBytes`. Keys sort by UTF-8 byte order (equal to
+  Unicode codepoint order, via `Buffer.compare`) and strings NFC-normalize — correcting the `localeCompare`,
+  no-NFC trap in the existing `review-gate/core/identity.ts`, whose serializer was left in place to preserve its
+  already-stored policy digests. The generalized version is therefore a fresh neutral module the work-unit layer
+  imports, not an in-place lift. A committed golden digest anchors cross-environment stability.
 
 ### `[ ]` **1.2 Managed-path validation and normalization**
 
