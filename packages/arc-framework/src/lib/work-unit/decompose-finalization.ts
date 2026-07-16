@@ -36,8 +36,12 @@ export interface DecomposeFinalizationContext {
   readProjection(record: DecomposePreparationRecord): Promise<DecomposeFinalizationProjection>;
   readTargetArtifact(destinationId: string, artifact: string): Promise<Uint8Array | null>;
   readDependsOn(slug: string): Promise<readonly string[] | null>;
-  replaceRecord(receiptId: CanonicalDigest, expectedContent: string, nextContent: string): Promise<void>;
-  stagePaths(paths: readonly string[]): Promise<void>;
+  replaceAndStageRecord(
+    receiptId: CanonicalDigest,
+    expectedContent: string,
+    nextContent: string,
+    stagedPaths: readonly string[],
+  ): Promise<void>;
 }
 
 export type DecomposeFinalizationResult =
@@ -180,8 +184,7 @@ export async function finalizeDecomposeRetirement(
         targets,
       },
     };
-    await ctx.replaceRecord(locator.receiptId, stored, canonicalize(receipt));
-    await ctx.stagePaths(projection.stagedPaths);
+    await ctx.replaceAndStageRecord(locator.receiptId, stored, canonicalize(receipt), projection.stagedPaths);
     return {
       status: "recorded",
       receipt,

@@ -102,11 +102,11 @@ function context(overrides: Partial<DecomposeFinalizationContext> = {}) {
       if (slug === "member-a") return ["foundation"];
       return [];
     },
-    replaceRecord: async (_id, expected, next) => {
+    replaceAndStageRecord: async (_id, expected, next, stagedPaths) => {
       expect(expected).toBe(canonicalize(record));
+      expect(stagedPaths).toEqual(projection.stagedPaths);
       replacements.push(next);
     },
-    stagePaths: async () => {},
     ...overrides,
   };
   return { ctx, replacements };
@@ -158,5 +158,15 @@ describe("finalizeDecomposeRetirement", () => {
       "prepared-version",
     );
     expect(result).toMatchObject({ status: "refused", reason: "conservation-unproven" });
+  });
+
+  it("fails closed when transactional receipt replacement cannot stage", async () => {
+    const result = await finalizeDecomposeRetirement(
+      context({ replaceAndStageRecord: async () => { throw new Error("stage failed"); } }).ctx,
+      locator,
+      "prepared-version",
+    );
+
+    expect(result).toMatchObject({ status: "refused", reason: "authority-unavailable" });
   });
 });
