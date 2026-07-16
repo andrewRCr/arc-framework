@@ -441,6 +441,11 @@ function mockIO(
       if (args[0] === "config") return { stdout: "" };
       return { stdout: "" };
     }),
+    // Init lock primitives — default virtual behavior is "lock always free":
+    // create resolves, release resolves. Contention tests override
+    // exclusiveCreate to reject with an EEXIST error.
+    exclusiveCreate: vi.fn(async () => undefined),
+    removeFile: vi.fn(async () => undefined),
     _written: written,
   } as IOContext & { _written: Record<string, string> };
 }
@@ -838,6 +843,129 @@ describe("runInit", () => {
       (c) => c[1]?.some((arg) => arg.startsWith("merge.")),
     );
     expect(mergeDriverCall).toBeUndefined();
+  });
+
+  // --- init lock ---
+
+  /** Build an EEXIST error, as `exclusiveCreateFile` rejects with when the lock path exists. */
+  function lockHeldError(): NodeJS.ErrnoException {
+    return Object.assign(new Error("EEXIST: file already exists"), { code: "EEXIST" });
+  }
+
+  it("lock held, not installed: rejects with INIT_IN_PROGRESS and writes no install output", async () => {
+    const io = mockIO({
+      "/templates/README.md": "# hi",
+      "/templates/system/arc-config.yml": "pm.mode: none",
+    });
+    (io.exclusiveCreate as ReturnType<typeof vi.fn>).mockRejectedValueOnce(lockHeldError());
+
+    const recipe: Recipe = {
+      include_files: ["README.md", "system/arc-config.yml"],
+      prompts: minimalRecipe.prompts,
+      conditions: {},
+    };
+
+    await expect(
+      runInit({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        internalTemplateDir: "/internal-templates",
+        recipe,
+        prompts: DEFAULT_PROMPTS,
+        identityResult: "andrew",
+      }),
+    ).rejects.toMatchObject({ code: "INIT_IN_PROGRESS" });
+
+    expect(io.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("lock held: rejects with INIT_IN_PROGRESS even when arc-config.yml already exists", async () => {
+    // A held lock means installed state is indeterminate (the holder may have
+    // written arc-config.yml mid-install), so contention never reports
+    // ALREADY_INSTALLED — a retry after the lock clears detects it instead.
+    const io = mockIO({
+      "/templates/README.md": "# hi",
+      "/templates/system/arc-config.yml": "pm.mode: none",
+      // Present at the arc-config path so isArcInstalled's access check resolves.
+      "/project/.arc/system/arc-config.yml": "pm.mode: none",
+    });
+    (io.exclusiveCreate as ReturnType<typeof vi.fn>).mockRejectedValueOnce(lockHeldError());
+
+    const recipe: Recipe = {
+      include_files: ["README.md", "system/arc-config.yml"],
+      prompts: minimalRecipe.prompts,
+      conditions: {},
+    };
+
+    await expect(
+      runInit({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        internalTemplateDir: "/internal-templates",
+        recipe,
+        prompts: DEFAULT_PROMPTS,
+        identityResult: "andrew",
+      }),
+    ).rejects.toMatchObject({ code: "INIT_IN_PROGRESS" });
+  });
+
+  it("successful init removes the lock file", async () => {
+    const io = mockIO({
+      "/templates/README.md": "# hi",
+      "/templates/system/arc-config.yml": "pm.mode: none",
+    });
+
+    const recipe: Recipe = {
+      include_files: ["README.md", "system/arc-config.yml"],
+      prompts: minimalRecipe.prompts,
+      conditions: {},
+    };
+
+    await runInit({
+      cwd: "/project",
+      io,
+      templateDir: "/templates",
+      internalTemplateDir: "/internal-templates",
+      recipe,
+      prompts: DEFAULT_PROMPTS,
+      identityResult: "andrew",
+    });
+
+    expect(io.exclusiveCreate).toHaveBeenCalledWith(
+      "/project/.arc-init.lock",
+      expect.any(String),
+    );
+    expect(io.removeFile).toHaveBeenCalledWith("/project/.arc-init.lock");
+  });
+
+  it("failed init still removes the lock file", async () => {
+    const io = mockIO({
+      "/templates/README.md": "# hi",
+      "/templates/system/arc-config.yml": "pm.mode: none",
+    });
+    (io.writeFile as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("disk full"));
+
+    const recipe: Recipe = {
+      include_files: ["README.md", "system/arc-config.yml"],
+      prompts: minimalRecipe.prompts,
+      conditions: {},
+    };
+
+    await expect(
+      runInit({
+        cwd: "/project",
+        io,
+        templateDir: "/templates",
+        internalTemplateDir: "/internal-templates",
+        recipe,
+        prompts: DEFAULT_PROMPTS,
+        identityResult: "andrew",
+      }),
+    ).rejects.toThrow("disk full");
+
+    expect(io.removeFile).toHaveBeenCalledWith("/project/.arc-init.lock");
   });
 });
 

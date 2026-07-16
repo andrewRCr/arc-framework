@@ -138,6 +138,8 @@ describe("ArcErrorCode", () => {
           return "set identity";
         case "ALREADY_INSTALLED":
           return "use join or update";
+        case "INIT_IN_PROGRESS":
+          return "wait and retry";
         case "NO_ARC_INSTALLATION":
           return "run init first";
         case "RECIPE_INVALID":

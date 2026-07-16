@@ -290,6 +290,20 @@
   where measurements still justify it. Route any surviving general transition-engine cache debt to
   `architecture-remediation`.
 
+### `[ ]` **Move ROADMAP regeneration to the merge boundary**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-16); captured
+  during FP wave-3 external-budget contention analysis; evidence in `notes-finalize-parallelism.md` § Day-2
+  evidence.
+- *Concern:* under wave-3 parallelism every shipping PR conflicts on `ROADMAP.md` — the derived-artifact conflict
+  class ADR-020's derived-vs-mutated split predicts: concurrent branches each carry a render derived from their
+  own base snapshot, and git line-merge cannot converge derived content. In-session friction fixes (already
+  shipped) don't touch this; it is structural while branches edit the render.
+- *Proposed:* branch PRs stop editing ROADMAP; a base-side post-merge regen keeps it current. Branch-side
+  staleness is already the documented model ("derived-at-merge, mid-WU stale"), so nothing is lost; every-PR
+  conflicts and some doc-only CI churn disappear together. Owns-regen-triggers puts this here. Complements (does
+  not replace) the day-1 auto-regen conflict-remedy errand capture — elimination vs. remedy.
+
 ---
 
 ## Problem / Motivation

@@ -8,7 +8,7 @@
  * @module
  */
 
-import { readFile, writeFile, mkdir, access, chmod, readdir, realpath, stat } from "node:fs/promises";
+import { readFile, writeFile, mkdir, access, chmod, readdir, realpath, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
@@ -16,7 +16,7 @@ import { promisify } from "node:util";
 import type { IOContext } from "../commands/init.js";
 import type { UserIOContext } from "../commands/user.js";
 import type { GitExec, GitExecInput, DirEntry } from "../lib/git/index.js";
-import { atomicWriteFile } from "./fs.js";
+import { atomicWriteFile, exclusiveCreateFile } from "./fs.js";
 
 export const execFileAsync = promisify(execFile);
 
@@ -103,6 +103,8 @@ export function createIOContext(): IOContext {
     access: (path) => access(path),
     chmod: (path, mode) => chmod(path, mode),
     exec: gitExec,
+    exclusiveCreate: exclusiveCreateFile,
+    removeFile: (path) => unlink(path),
   };
 }
 
