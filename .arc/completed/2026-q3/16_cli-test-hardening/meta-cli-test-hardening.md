@@ -1,8 +1,8 @@
 # Metadata: CLI Test Hardening
 
-| **State**     | **Owner** | **Branch**                 | **Class** | **Priority** |
-| ------------- | --------- | -------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `chore/cli-test-hardening` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Light`   | `P3`         |
 
 - **Cohort:** `architecture-remediation`
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/269>
+- **Completed:** 2026-07-16
 
 ---
 
