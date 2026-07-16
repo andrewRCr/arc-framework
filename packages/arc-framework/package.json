@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
-    "test:unit": "vitest run --project unit",
+    "test:unit": "vitest run --project unit --project unit-mocks",
     "test:integration": "vitest run --project integration",
     "test:e2e": "vitest run --project e2e",
     "test:portability": "vitest run user-sync-notes-lock ref-tree-cas state-ref-race.e2e",

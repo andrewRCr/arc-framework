@@ -172,22 +172,18 @@ config is a single `vitest.config.ts` with three projects; only the e2e project 
   (matching the file's existing idiom); each test is now a single ~1.7s spawn against the default 5s budget, so
   the flat-timeout-under-contention signature can't recur. Decoupled from the pool tuning per the 3.1 spike.
 
-### `[ ]` **3.3 Harden module-mock unit tests for `isolate:false` safety**
+### `[x]` **3.3 Harden module-mock unit tests for `isolate:false` safety**
 
 - _Goal:_ The unit suite stays green under `isolate:false` so the pool tuning (3.4) can land — this **blocks 3.4**.
   Contain the hoisted module-mock leakage that breaks real-module tests when files share a worker.
 
-- _Context:_ 3.2's `isolate:false` confirmation ran the full suite green **except** 14 tests in
-  `work-unit/verbs/archive.test.ts` + `promote-demote.test.ts`. Root cause (diagnosed, not bisected):
-  `handlers/lifecycle-verbs.test.ts` module-mocks `lifecycle-index.js` + `verbs/promote-demote.js`; under
-  `isolate:false` those hoisted mocks persist in the shared worker and leak into the real-module victims. Excluding
-  that one file → full suite green (360 files, 4824 tests). Four sibling files (`errand-check`, `start`,
-  `lifecycle`, `executor-context`) mock the same modules and are latent worker-assignment-dependent collisions. Not
-  git-notes-related.
-
-- _Approach:_ Contain each collision-prone file's module mocks so they don't cross file boundaries (e.g.
-  `vi.doUnmock` + `vi.resetModules` teardown), or move the ~15 module-mock files into an isolated project tier; add
-  a guard so a new leak can't silently regress. Verify: full unit suite green under `isolate:false`.
+- _Outcome:_ Quarantined the 15 unit files that module-mock internal modules into a dedicated isolated vitest
+  project (`unit-mocks`, `isolate: true`); the main `unit` project excludes them, so 3.4 can set `isolate: false`
+  there without their hoisted mocks leaking across the shared worker. The leak was broader than the two diagnosed
+  victims and nondeterministic across worker assignment (three runs, three different victim sets), so isolation
+  beats per-file mock teardown across a growing file set. A guard test fails if a new module-mocking file drifts
+  out of the shared list (`__tests__/helpers/isolated-unit-mock-files.ts`); `test:unit` now runs both tiers.
+  Verified: full unit suite green under the real `unit`=`isolate:false` / `unit-mocks`=`isolate:true` topology.
 
 ### `[ ]` **3.4 Apply unit-pool tuning (`isolate:false`) + re-measure**
 
