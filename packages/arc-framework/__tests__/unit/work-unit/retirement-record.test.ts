@@ -83,15 +83,22 @@ describe("recordRetirementReceipt", () => {
     expect(ctx.stagePaths).not.toHaveBeenCalled();
   });
 
-  it("refuses any pre-existing staged path before writing a record", async () => {
+  it("accepts already-staged paths only when they belong to the typed transition patch", async () => {
     const ctx = context();
-    ctx.staged.push("unrelated.txt");
+    ctx.staged.push(metaPath);
 
-    await expect(recordRetirementReceipt(ctx, receipt(), initialVersion)).resolves.toEqual({
+    await expect(recordRetirementReceipt(ctx, receipt(), initialVersion)).resolves.toMatchObject({
+      status: "recorded",
+    });
+
+    const conflicting = context();
+    conflicting.staged.push("unrelated.txt");
+
+    await expect(recordRetirementReceipt(conflicting, receipt(), initialVersion)).resolves.toEqual({
       status: "refused",
       reason: "evidence-mismatch",
     });
-    expect(ctx.createRecord).not.toHaveBeenCalled();
+    expect(conflicting.createRecord).not.toHaveBeenCalled();
   });
 
   it("refuses a transition patch that includes its own receipt path", async () => {

@@ -19,7 +19,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdir, writeFile, rm, stat } from "node:fs/promises";
+import { mkdir, writeFile, readdir, rm, stat } from "node:fs/promises";
 import { join, dirname, basename } from "node:path";
 import { promisify } from "node:util";
 
@@ -198,16 +198,36 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // arc abandon (CLI) — remove artifacts in-verb, defer teardown out-of-band
   // -------------------------------------------------------------------------
 
-  it("arc abandon removes the started WU's artifacts but defers branch + worktree teardown", async () => {
+  it("arc abandon refuses a started work unit outside its recorded source branch", async () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     expect(worktree).toBeDefined();
     if (worktree !== undefined) worktrees.push(worktree);
 
     const result = await runArc(["abandon", "mono", "--yes"], repo);
 
-    expect(result.exitCode).toBe(0);
-    // Artifacts removed from active/; the branch + worktree linger for the post-action reap.
-    expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(false);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toMatch(/must run from the source branch/);
+    expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(true);
+    expect(await pathExists(join(worktree!, ".arc/active/meta-mono.md"))).toBe(true);
+  });
+
+  it("arc abandon removes the started WU's artifacts but defers branch + worktree teardown", async () => {
+    const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
+    expect(worktree).toBeDefined();
+    if (worktree !== undefined) worktrees.push(worktree);
+
+    const result = await runArc(["abandon", "mono", "--yes"], worktree!);
+
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    // Artifacts and the exact receipt are staged together on the retiring branch;
+    // the branch + worktree linger for the post-action reap.
+    expect(await pathExists(join(worktree!, ".arc/active/meta-mono.md"))).toBe(false);
+    const receiptDir = join(worktree!, ".arc/.internal/retirement-receipts");
+    const receiptFiles = await readdir(receiptDir);
+    expect(receiptFiles).toHaveLength(1);
+    const staged = await git(worktree!, ["diff", "--cached", "--name-only"]);
+    expect(staged).toContain(".arc/active/meta-mono.md");
+    expect(staged).toContain(`.arc/.internal/retirement-receipts/${receiptFiles[0]}`);
     expect(await branchExists(repo, "plan/mono")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
     expect(result.stdout + result.stderr).toMatch(/arc teardown mono --force/);
@@ -217,16 +237,15 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
     if (worktree !== undefined) worktrees.push(worktree);
 
-    const abandon = await runArc(["abandon", "mono", "--yes"], repo);
-    expect(abandon.exitCode).toBe(0);
+    const abandon = await runArc(["abandon", "mono", "--yes"], worktree!);
+    expect(abandon.exitCode, abandon.stdout + abandon.stderr).toBe(0);
     // The removal is staged-but-uncommitted (a dirty tree); commit it so the
     // post-action teardown reaps from a clean worktree, per the ceremony.
-    await commitAll(repo, "abandon mono");
+    await commitAll(worktree!, "abandon mono");
 
-    const teardown = await runArc(["teardown", "mono", "--force"], repo);
+    const teardown = await runArc(["teardown", "mono", "--force"], worktree!);
 
     expect(teardown.exitCode).toBe(0);
-    expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(false);
     expect(await branchExists(repo, "plan/mono")).toBe(false);
     expect(await pathExists(worktree!)).toBe(false);
   });
@@ -235,7 +254,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     await scaffoldStartedWu(repo, "mono", "in-place");
 
     const abandon = await runArc(["abandon", "mono", "--yes"], repo);
-    expect(abandon.exitCode).toBe(0);
+    expect(abandon.exitCode, abandon.stdout + abandon.stderr).toBe(0);
     await commitAll(repo, "abandon mono");
 
     const teardown = await runArc(["teardown", "mono", "--force"], repo);

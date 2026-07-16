@@ -135,6 +135,16 @@ describe("authorizeRetirement", () => {
     });
   });
 
+  it("refuses abandoned mode when no committed receipt proves the discard", async () => {
+    const ctx = context();
+    ctx.candidate.value = null;
+
+    await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
+      status: "refused",
+      reason: "evidence-missing",
+    });
+  });
+
   it.each([
     [null, "retain", null],
     [head, "delete", { remote, oid: head, disposition: "delete" }],

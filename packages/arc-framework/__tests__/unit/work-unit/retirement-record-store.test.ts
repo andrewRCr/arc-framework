@@ -64,6 +64,7 @@ describe("retirement record namespace", () => {
     expect(fs.writeFile).toHaveBeenCalledExactlyOnceWith(
       `/repo/${RETIREMENT_RECORD_NAMESPACE}/sha256-${hex}.json`,
       "record-bytes",
+      { flag: "wx" },
     );
     expect(vi.mocked(fs.writeFile).mock.calls.flat()).not.toContainEqual(
       expect.stringContaining("packages/arc-framework/arc"),

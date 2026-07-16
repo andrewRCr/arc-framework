@@ -22,6 +22,30 @@ export const execFileAsync = promisify(execFile);
 
 const MAX_GIT_STDOUT_BYTES = 64 * 1024 * 1024;
 
+/** Read one exact Git tree/index blob as bytes; `null` means the object path is absent. */
+export async function readGitBlobBytes(
+  cwd: string,
+  ref: string | null,
+  path: string,
+): Promise<Uint8Array | null> {
+  const spec = ref === null ? `:${path}` : `${ref}:${path}`;
+  const options = {
+    cwd,
+    env: environmentForGitCwd(cwd),
+    encoding: "buffer" as const,
+    maxBuffer: MAX_GIT_STDOUT_BYTES,
+  };
+  try {
+    await execFileAsync("git", ["cat-file", "-e", spec], options);
+  } catch (err) {
+    const code = (err as { code?: unknown }).code;
+    if (code === 1 || code === 128) return null;
+    throw err;
+  }
+  const { stdout } = await execFileAsync("git", ["cat-file", "blob", spec], options);
+  return new Uint8Array(stdout);
+}
+
 const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
   "GIT_ALTERNATE_OBJECT_DIRECTORIES",
   "GIT_CONFIG",

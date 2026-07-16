@@ -15,16 +15,27 @@
 
 import { describe, it, expect } from "vitest";
 
+import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { patchDigest, type PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
+import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
 import type {
   ExecuteTransitionContext,
   SideEffectHandler,
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
+import {
+  validateReceiptMatrix,
+  type RetirementReceipt,
+} from "../../../../src/lib/work-unit/retirement-authority.js";
 import { planAbandon, runAbandon, type AbandonContext, type AbandonParams } from "../../../../src/lib/work-unit/verbs/abandon.js";
 
 const CWD = "/repo";
 const WORKTREE = "/repo/../wt-foo";
+const TRANSITION_OPERATIONS = [
+  { operation: "delete", path: validateManagedPath(".arc/active/meta-foo.md") },
+  { operation: "delete", path: validateManagedPath(".arc/active/spec-foo.md") },
+] as const satisfies readonly PatchOperation[];
 
 interface MetaSpec {
   slug: string;
@@ -95,12 +106,15 @@ interface Harness {
   calls: string[];
   removed: string[];
   rmdirs: string[];
+  recordedReceipts: RetirementReceipt[];
 }
 
 function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
   const calls: string[] = [];
   const removed: string[] = [];
   const rmdirs: string[] = [];
+  const recordedReceipts: RetirementReceipt[] = [];
+  const sourceArtifactDigest = canonicalDigest({ artifact: "foo-source" });
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -155,7 +169,43 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     },
   };
 
-  return { ctx: { executor, fs }, calls, removed, rmdirs };
+  const retirement: AbandonContext["retirement"] = {
+    captureSource: async ({ name }) => {
+      calls.push(`retirement:capture:${name}:${removed.length}`);
+      return {
+        scope: {
+          subject: { kind: "work-unit", name },
+          transition: "abandon",
+          source: { branch: "feat/foo", head: "a".repeat(40) },
+          resultProjection: { ref: "feat/foo", head: "a".repeat(40) },
+        },
+        artifactDigest: sourceArtifactDigest,
+        sourceArtifactPaths: TRANSITION_OPERATIONS.map((operation) => operation.path),
+      };
+    },
+    authority: {
+      readSnapshot: async () => ({
+        status: "resolved",
+        snapshot: {
+          authorityVersion: canonicalDigest({ authority: "before-abandon" }),
+          sourceRefOid: "a".repeat(40),
+          resultRefOid: "a".repeat(40),
+          recordState: "absent",
+        },
+      }),
+      record: async (receipt) => {
+        calls.push("retirement:record");
+        recordedReceipts.push(receipt);
+        return { status: "recorded", authorityVersion: canonicalDigest({ authority: "after-abandon" }) };
+      },
+    },
+    stageTransition: async () => {
+      calls.push("retirement:stage-transition");
+    },
+    readTransitionPatch: async () => TRANSITION_OPERATIONS,
+  };
+
+  return { ctx: { executor, fs, retirement }, calls, removed, rmdirs, recordedReceipts };
 }
 
 const BASE: AbandonParams = { name: "foo", confirmed: true };
@@ -180,6 +230,50 @@ describe("runAbandon — the confirmation gate", () => {
 });
 
 describe("runAbandon — started WU (active)", () => {
+  it("captures the source branch, HEAD, and artifact digest before removing the artifact set", async () => {
+    const { ctx, calls, recordedReceipts } = buildCtx([ACTIVE]);
+
+    const result = await runAbandon(ctx, BASE);
+
+    expect(result.status).toBe("abandoned");
+    expect(calls).toContain("retirement:capture:foo:0");
+    expect(recordedReceipts).toHaveLength(1);
+    expect(recordedReceipts[0]?.source).toEqual({
+      branch: "feat/foo",
+      head: "a".repeat(40),
+      artifactDigest: canonicalDigest({ artifact: "foo-source" }),
+    });
+    expect(recordedReceipts[0]?.transitionPatchDigest).toBe(patchDigest(TRANSITION_OPERATIONS));
+  });
+
+  it("stages the transition before recording the receipt for the same commit", async () => {
+    const { ctx, calls, recordedReceipts } = buildCtx([ACTIVE]);
+
+    const result = await runAbandon(ctx, BASE);
+
+    expect(result.status).toBe("abandoned");
+    expect(calls).toContain("retirement:record");
+    expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("retirement:record"));
+    expect(recordedReceipts).toHaveLength(1);
+  });
+
+  it("records the explicit absent result for a nonexistent lifecycle outcome", async () => {
+    const { ctx, recordedReceipts } = buildCtx([ACTIVE]);
+
+    const result = await runAbandon(ctx, BASE);
+
+    expect(result.status).toBe("abandoned");
+    expect(recordedReceipts[0]).toMatchObject({
+      transition: "abandon",
+      authorization: "discard-confirmed",
+      result: { kind: "discard", artifactDigest: "absent" },
+    });
+    const [recorded] = recordedReceipts;
+    if (recorded === undefined) throw new Error("expected an abandon receipt");
+    expect(validateReceiptMatrix(recorded, "nonexistent")).toBeNull();
+    expect(validateReceiptMatrix(recorded, "planned")).toBe("evidence-mismatch");
+  });
+
   it("removes the artifact set but defers branch + worktree teardown out-of-band", async () => {
     const { ctx, calls, removed } = buildCtx([ACTIVE]);
 

@@ -133,23 +133,16 @@ _Design decisions:_ Abandon records `discard-confirmed` with the absence sentine
 partial-protection `--land <commit>` landing arm distinct from the full-protection park PR flow; both stage the
 receipt in the same direct-transition commit; park-at-Active is out of scope and unchanged.
 
-### `[ ]` **3.1 Abandon records a `discard-confirmed` retirement receipt**
+### `[x]` **3.1 Abandon records a `discard-confirmed` retirement receipt**
 
 - _Goal:_ `arc abandon --yes` records a `discard-confirmed` receipt in the same direct-transition commit that
   removes the artifact group, so an authorized abandon needs no separate `--force` teardown to preserve the
   session.
 
-- _Context:_ Extend `runAbandon` (`abandon.ts`) after its existing destructive-confirmation gate; the result
-  digest is the explicit absence sentinel.
-
-- _Note:_ The out-of-band handoff abandon prints (`lifecycle.ts`) moves from `arc teardown <name> --force` to
-  the receipt-authorized teardown; `--force` stays a request selector, never authorization.
-
-    - Build `test-first` (one behavior at a time):
-        - abandon captures the source branch/`HEAD` and source artifact digest before removal
-        - the receipt is staged in the direct-transition commit alongside the artifact-group deletion
-        - the result is the explicit `absent` sentinel with `expectedLifecycle: nonexistent`
-        - a hand deletion, uncommitted removal, or bare `--force` does not satisfy the later authorization matrix
+- _Outcome:_ Abandon now binds a clean source-branch snapshot to the complete committed artifact group, stages the
+  typed removal plus readiness update, and records an exclusive `discard-confirmed` receipt with the `absent`
+  result. The in-repo boundary rejects foreign staged paths, source-branch drift, and missing committed evidence;
+  `--force` remains only the abandoned-mode selector.
 
 ### `[ ]` **3.2 Park-at-Planning stages a `planning-relocated` receipt on `plan/<name>`**
 

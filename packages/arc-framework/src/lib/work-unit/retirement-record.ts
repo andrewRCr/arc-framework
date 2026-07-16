@@ -51,9 +51,6 @@ export async function recordRetirementReceipt(
       return { status: "refused", reason: "authority-conflict" };
     }
 
-    const stagedPaths = await ctx.readStagedPaths();
-    if (stagedPaths.length > 0) return { status: "refused", reason: "evidence-mismatch" };
-
     const transitionPatch = await ctx.readTransitionPatch(receipt);
     const recordPath = resolveRetirementRecordRelativePath(receipt.receiptId);
     if (transitionPatch.some((operation) => operation.path === recordPath)) {
@@ -66,6 +63,11 @@ export async function recordRetirementReceipt(
     const transitionPaths = transitionPatch
       .map((operation) => operation.path)
       .sort((left, right) => Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")));
+    const transitionPathSet = new Set<string>(transitionPaths);
+    const stagedPaths = await ctx.readStagedPaths();
+    if (stagedPaths.some((path) => !transitionPathSet.has(path))) {
+      return { status: "refused", reason: "evidence-mismatch" };
+    }
     const pathsToStage = [...transitionPaths, recordPath];
     try {
       await ctx.createRecord(receipt.receiptId, canonicalize(receipt));

@@ -21,13 +21,13 @@ const RECORD_KEY_PATTERN = /^sha256-([0-9a-f]{64})$/u;
 /** Minimal filesystem boundary for creating the namespace and writing records. */
 export interface RetirementRecordFs {
   mkdir(path: string, options: { recursive: boolean }): Promise<unknown>;
-  writeFile(path: string, content: string): Promise<void>;
+  writeFile(path: string, content: string, options: { flag: "wx" }): Promise<void>;
 }
 
 /** Production retirement-record filesystem adapter. */
 export const nodeRetirementRecordFs: RetirementRecordFs = {
   mkdir,
-  writeFile: (path, content) => writeFile(path, content, "utf8"),
+  writeFile: (path, content, options) => writeFile(path, content, { encoding: "utf8", ...options }),
 };
 
 /**
@@ -89,5 +89,5 @@ export async function writeRetirementRecord(
   fs: RetirementRecordFs = nodeRetirementRecordFs,
 ): Promise<void> {
   await fs.mkdir(join(cwd, RETIREMENT_RECORD_NAMESPACE), { recursive: true });
-  await fs.writeFile(resolveRetirementRecordPath(cwd, receiptId), content);
+  await fs.writeFile(resolveRetirementRecordPath(cwd, receiptId), content, { flag: "wx" });
 }

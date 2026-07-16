@@ -32,7 +32,7 @@ import {
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, type GitExec } from "../lib/git/exec.js";
-import { createUserIOContext } from "../lib/io-context.js";
+import { createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import {
   resolvePrimaryWorktreePath,
@@ -66,6 +66,11 @@ import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { runDecompose } from "../lib/work-unit/verbs/decompose.js";
 import { parseCutMap } from "../lib/work-unit/decompose-cut-map.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
+import { createInRepoAbandonRetirementContext } from "../lib/work-unit/abandon-retirement-driver.js";
+import {
+  resolveRetirementRecordPath,
+  writeRetirementRecord,
+} from "../lib/work-unit/retirement-record-store.js";
 import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
@@ -955,8 +960,20 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
   }
 
   const { executor } = await buildExecutor(base);
+  const retirement = createInRepoAbandonRetirementContext({
+    cwd: base.cwd,
+    exec: base.io.exec,
+    readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+    readFile: base.io.readFile,
+    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
+    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
+  });
   const result = await runAbandon(
-    { executor, fs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) } },
+    {
+      executor,
+      fs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
+      retirement,
+    },
     { name: target, confirmed: true },
   );
   if (result.status === "rejected") {
