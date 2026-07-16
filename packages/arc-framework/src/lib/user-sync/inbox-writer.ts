@@ -52,6 +52,33 @@ function isEntryHeading(line: string): boolean {
  * @param title - The entry's bold title (the interim slug key).
  * @returns The (possibly unchanged) content and whether a removal occurred.
  */
+/**
+ * List bold titles of managed entries under `## Errand` and `## Work Unit`.
+ *
+ * @param content - The `USER-INBOX` file's full text.
+ * @returns Entry titles in document order (duplicates preserved if present).
+ */
+export function listInboxEntryTitles(content: string): string[] {
+  const titles: string[] = [];
+  const lines = content.split("\n");
+  let inEntrySection = false;
+  for (const line of lines) {
+    const heading = line.trimEnd().match(/^## (.+)$/);
+    if (heading) {
+      inEntrySection = ENTRY_SECTIONS.includes((heading[1] ?? "").trim());
+      continue;
+    }
+    if (line.trimEnd() === "---") {
+      inEntrySection = false;
+      continue;
+    }
+    if (!inEntrySection || !isEntryHeading(line)) continue;
+    const title = matchInboxEntryTitle(line);
+    if (title !== null) titles.push(title);
+  }
+  return titles;
+}
+
 export function removeInboxEntry(content: string, title: string): RemoveInboxEntryResult {
   const target = title.trim();
   const lines = content.split("\n");

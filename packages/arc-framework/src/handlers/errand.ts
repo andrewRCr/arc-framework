@@ -45,8 +45,10 @@ import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
   clearErrandPartialPushMarker,
+  listInboxEntryTitles,
   recordErrandPartialPushMarker,
 } from "../lib/user-sync/index.js";
+import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
@@ -179,7 +181,12 @@ export interface ErrandOpenOptions {
    * for a free-description launch.
    */
   fromInbox?: string;
-  /** UTF-8 file containing the originating capture title, or `-` for stdin. */
+  /**
+   * UTF-8 file containing the originating capture's **inner bold title** (one
+   * line), or `-` for stdin. Preferred name; see also `inboxEntryFile`.
+   */
+  inboxTitleFile?: string;
+  /** Compatibility alias of `inboxTitleFile`. */
   inboxEntryFile?: string;
 }
 
@@ -226,17 +233,6 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
     return;
   }
 
-  let originEntry: string | undefined;
-  if (opts.fromInbox !== undefined || opts.inboxEntryFile !== undefined) {
-    try {
-      originEntry = await resolveInboxEntryOperand({ literal: opts.fromInbox, file: opts.inboxEntryFile });
-    } catch (err) {
-      p.log.error(`Could not resolve the inbox entry title: ${err instanceof Error ? err.message : String(err)}`);
-      process.exitCode = 1;
-      return;
-    }
-  }
-
   const identity = await resolveIdentityWithPrompt(false);
   if (!identity) {
     p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
@@ -249,6 +245,27 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
     p.log.error("The stdin git seam is unavailable — cannot mint the errand record.");
     process.exitCode = 1;
     return;
+  }
+
+  let originEntry: string | undefined;
+  if (
+    opts.fromInbox !== undefined
+    || opts.inboxTitleFile !== undefined
+    || opts.inboxEntryFile !== undefined
+  ) {
+    try {
+      originEntry = await resolveLiveInboxOriginEntry({
+        cwd,
+        io,
+        identity,
+        literal: opts.fromInbox,
+        file: opts.inboxTitleFile ?? opts.inboxEntryFile,
+      });
+    } catch (err) {
+      p.log.error(`Could not resolve the inbox entry title: ${err instanceof Error ? err.message : String(err)}`);
+      process.exitCode = 1;
+      return;
+    }
   }
 
   let result;
@@ -294,7 +311,12 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
 export interface ErrandLinkOptions {
   /** USER-INBOX capture title to associate with this errand. */
   fromInbox?: string;
-  /** UTF-8 file containing the capture title, or `-` for stdin. */
+  /**
+   * UTF-8 file containing the capture's **inner bold title** (one line), or `-`
+   * for stdin. Preferred name; see also `inboxEntryFile`.
+   */
+  inboxTitleFile?: string;
+  /** Compatibility alias of `inboxTitleFile`. */
   inboxEntryFile?: string;
 }
 
@@ -321,15 +343,6 @@ export async function handleErrandLink(slug: string, opts: ErrandLinkOptions): P
     return;
   }
 
-  let originEntry: string;
-  try {
-    originEntry = await resolveInboxEntryOperand({ literal: opts.fromInbox, file: opts.inboxEntryFile });
-  } catch (err) {
-    p.log.error(`Could not resolve the inbox entry title: ${err instanceof Error ? err.message : String(err)}`);
-    process.exitCode = 1;
-    return;
-  }
-
   const identity = await resolveIdentityWithPrompt(false);
   if (!identity) {
     p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
@@ -340,6 +353,21 @@ export async function handleErrandLink(slug: string, opts: ErrandLinkOptions): P
   const io = createUserIOContext();
   if (!io.execInput) {
     p.log.error("The stdin git seam is unavailable — cannot update the errand record.");
+    process.exitCode = 1;
+    return;
+  }
+
+  let originEntry: string;
+  try {
+    originEntry = await resolveLiveInboxOriginEntry({
+      cwd,
+      io,
+      identity,
+      literal: opts.fromInbox,
+      file: opts.inboxTitleFile ?? opts.inboxEntryFile,
+    });
+  } catch (err) {
+    p.log.error(`Could not resolve the inbox entry title: ${err instanceof Error ? err.message : String(err)}`);
     process.exitCode = 1;
     return;
   }
@@ -735,6 +763,53 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
   p.outro("Done.");
 }
 
+/**
+ * Resolve a title operand and require it to match a live parsed USER-INBOX
+ * capture before minting an origin back-pointer.
+ */
+async function resolveLiveInboxOriginEntry(options: {
+  cwd: string;
+  io: ReturnType<typeof createUserIOContext>;
+  identity: string;
+  literal?: string;
+  file?: string;
+}): Promise<string> {
+  const title = await resolveInboxEntryOperand({
+    literal: options.literal,
+    file: options.file,
+  });
+  const inboxPath = (
+    await resolveUserSurfaceResolver({
+      cwd: options.cwd,
+      identity: options.identity,
+      exec: options.io.exec,
+    })
+  ).identityGlobalPath("USER-INBOX.md");
+
+  let content: string;
+  try {
+    content = await options.io.readFile(inboxPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(
+        `USER-INBOX is missing — cannot adopt capture '${title}'. Create the inbox or drop --from-inbox.`,
+        { cause: err },
+      );
+    }
+    throw err;
+  }
+
+  const liveTitles = listInboxEntryTitles(content);
+  const match = liveTitles.find((entry) => entry === title.trim() || entry === title);
+  if (match === undefined) {
+    throw new Error(
+      `No live USER-INBOX capture titled '${title.trim()}'. `
+      + "Pass the inner bold title (not the full H3 heading line).",
+    );
+  }
+  return match;
+}
+
 /** Drop the originating capture, if the record carries a back-pointer. */
 async function dropOriginatingInboxCapture(
   cwd: string,
@@ -744,7 +819,19 @@ async function dropOriginatingInboxCapture(
 ): Promise<void> {
   if (originEntry === undefined) return;
   const dropped = await runUserInboxRemove({ cwd, io, identity, slug: originEntry });
-  if (dropped.removed) p.log.info("Dropped the originating inbox capture.");
+  if (dropped.removed) {
+    p.log.info("Dropped the originating inbox capture.");
+    return;
+  }
+  if (dropped.inboxMissing) {
+    p.log.warn(
+      `Originating inbox capture '${originEntry}' not dropped — USER-INBOX is missing.`,
+    );
+    return;
+  }
+  p.log.warn(
+    `Originating inbox capture '${originEntry}' not found in USER-INBOX — left for manual cleanup.`,
+  );
 }
 
 /** The current worktree's root, in `git worktree list` path form (for self-exclusion). */

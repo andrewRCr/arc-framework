@@ -21,7 +21,11 @@ export { resolveCurrentWuName, type ExecForBranch } from "./current-wu.js";
 
 export { matchInboxEntryTitle, parseCrossWuEntries, shapeForFile } from "./parser.js";
 
-export { removeInboxEntry, type RemoveInboxEntryResult } from "./inbox-writer.js";
+export {
+  listInboxEntryTitles,
+  removeInboxEntry,
+  type RemoveInboxEntryResult,
+} from "./inbox-writer.js";
 
 export {
   listAnnotatedNoteCommits,
