@@ -176,17 +176,16 @@ receipt in the same direct-transition commit; park-at-Active is out of scope and
   result materialization. Typed patch-path validation and a final base compare-and-set prevent branch-relative
   deletion or stale/conflicting state from reaching the base index.
 
-### `[ ]` **3.4 Park authorization proof-target and derive-to-`planned` gate**
+### `[x]` **3.4 Park authorization proof-target and derive-to-`planned` gate**
 
 - _Goal:_ Park authorization accepts only a state where both the retiring branch and effective base derive to
   `planned` and carry the same receipt plus byte-identical planned artifact group, distinguishing a completed
   relocation from a stale pre-start stub.
 
-    - Build `test-first` (one behavior at a time):
-        - both the retiring branch and effective base derive to `planned`
-        - a stale backlog stub that makes the base derive `planned` without the receipt fails
-        - the effective proof target is refreshed `origin/<base>` under full protection and local `<base>` under
-          partial protection
+- _Outcome:_ Authorization now runs a distinct result-proof gate after the committed relation check. Park proof
+  requires both projections to derive `planned`, contain the same canonical receipt, and expose byte-identical
+  complete artifact groups matching its digest; proof-target selection refreshes the remote base only under full
+  protection and reads the local base under partial protection.
 
 ## **Phase 4:** Decompose retirement driver (version-2 allocation)
 

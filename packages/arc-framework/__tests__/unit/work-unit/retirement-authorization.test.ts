@@ -73,6 +73,7 @@ function context(candidate = receipt()): RetirementAuthorizationContext & {
       ? []
       : [{ receipt: candidateState.value, resultHead: "c".repeat(40) }]),
     validateReceiptRelation: vi.fn().mockResolvedValue(null),
+    validateReceiptResult: vi.fn().mockResolvedValue(null),
     local,
     remoteRef,
     candidate: candidateState,
@@ -138,6 +139,16 @@ describe("authorizeRetirement", () => {
   it("refuses abandoned mode when no committed receipt proves the discard", async () => {
     const ctx = context();
     ctx.candidate.value = null;
+
+    await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
+      status: "refused",
+      reason: "evidence-missing",
+    });
+  });
+
+  it("refuses a park receipt whose effective base lacks the conserved result", async () => {
+    const ctx = context(receipt("park-planning"));
+    vi.mocked(ctx.validateReceiptResult).mockResolvedValue("evidence-missing");
 
     await expect(authorizeRetirement(ctx, workUnitRequest)).resolves.toEqual({
       status: "refused",

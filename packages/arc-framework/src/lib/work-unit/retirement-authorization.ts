@@ -43,6 +43,10 @@ export interface RetirementAuthorizationContext {
     receipt: RetirementReceipt,
     projection: { retiringHead: string; resultHead: string },
   ): Promise<TeardownAuthorizationRefusal | null>;
+  validateReceiptResult(
+    receipt: RetirementReceipt,
+    projection: { retiringHead: string; resultHead: string },
+  ): Promise<TeardownAuthorizationRefusal | null>;
 }
 
 /**
@@ -163,6 +167,11 @@ async function authorizeFromReceipt(
     resultHead: candidate.resultHead,
   });
   if (relationRefusal !== null) return { status: "refused", reason: relationRefusal };
+  const resultRefusal = await ctx.validateReceiptResult(receipt, {
+    retiringHead: request.head,
+    resultHead: candidate.resultHead,
+  });
+  if (resultRefusal !== null) return { status: "refused", reason: resultRefusal };
 
   const evidence: Extract<RetirementEvidenceRef, { kind: "receipt" }> = {
     kind: "receipt",
