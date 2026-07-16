@@ -102,7 +102,6 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
               sourceArtifactDigest: binding.sourceArtifactDigest,
               inventories: binding.inventories,
               allowedPaths: binding.allowedPaths,
-              ownerlessSourceIds: [],
             }),
             readStagedPaths: async () => await readDecomposeStagedPaths(deps),
             readRecord: async (recordId) => await readDecomposeRecord(deps, recordId),

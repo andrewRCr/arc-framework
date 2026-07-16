@@ -32,7 +32,6 @@ export interface DecomposePreparationProjection {
   sourceArtifactDigest: CanonicalDigest;
   inventories: DecomposeInventories;
   allowedPaths: readonly ManagedPath[];
-  ownerlessSourceIds: readonly CanonicalDigest[];
 }
 
 export interface DecomposePreparationContext {
@@ -283,7 +282,7 @@ export async function prepareDecomposeRetirement(
     if (verifyDecomposeInventoryCoverage(allocation, projection.inventories).status !== "covered") {
       return { status: "refused", reason: "conservation-unproven" };
     }
-    if (retirementAllocationRefusal(allocation, { ownerlessSourceIds: projection.ownerlessSourceIds }) !== null) {
+    if (retirementAllocationRefusal(allocation) !== null) {
       return { status: "refused", reason: "conservation-unproven" };
     }
 

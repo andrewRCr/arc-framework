@@ -79,7 +79,8 @@ section and design-point — **and every dependency edge** — to exactly one de
    destination, not a drop), or dropped-with-reason.
 2. **Classify** by the design-vs-coordination boundary: design that drives a member's task list → that member's
    draft; ownerless shared material → cohort-level coordination; a member's exposes/consumes surface → per-member
-   coordination; an owned contract → its owner's draft, with a pointer + consumer list in the cohort doc.
+   coordination; an owned contract → its owner's draft, with a pointer + consumer list in the cohort doc. Record
+   ownerless material as `cohort-shared` and every other source as `destination-owned` in the cut map.
 3. **Conserve.** Assert every allocated item lands in exactly one destination or is dropped-with-reason, at the
    arm's **scope**: the symmetric / stub-source arms conserve the *whole* draft; the [extraction arm](#extraction-arm)
    conserves only the *extracted subset* — the surviving origin absorbs the remainder as a retained entry, not a
@@ -124,13 +125,27 @@ to a scratch path (an input artifact, never committed). The validated shape:
   "sourceAllocations": [
     {
       "sourceId": "sha256:<64-lower-hex>",
+      "ownership": "destination-owned",
       "disposition": {
         "kind": "target",
         "destinationId": "member:<m>",
         "targetLocator": { "artifact": "draft-<m>.md", "kind": "section", "headingSource": "<H2 text>", "occurrence": 0 }
       }
     },
-    { "sourceId": "sha256:<64-lower-hex>", "disposition": { "kind": "drop", "reason": "<why>" } }
+    {
+      "sourceId": "sha256:<64-lower-hex>",
+      "ownership": "cohort-shared",
+      "disposition": {
+        "kind": "target",
+        "destinationId": "cohort:<cohort>",
+        "targetLocator": { "artifact": "cohort-<cohort>.md", "kind": "preamble" }
+      }
+    },
+    {
+      "sourceId": "sha256:<64-lower-hex>",
+      "ownership": "destination-owned",
+      "disposition": { "kind": "drop", "reason": "<why>" }
+    }
   ],
   "incomingEdges": [
     { "dependent": "<dependent>", "disposition": { "kind": "replace", "replacementTargets": ["<m>"] } }

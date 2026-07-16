@@ -24,6 +24,7 @@ export type ParentPosition = "standalone" | "in-cohort" | "at-cap";
 export type OriginLocation = "provisional" | "planned" | "active";
 export type OriginDisposition = "keep-active" | "park";
 export type ExistingHomeKind = "fold" | "atomic-edit";
+export type DecomposeSourceOwnership = "destination-owned" | "cohort-shared";
 
 export interface OriginPosition {
   slug: string;
@@ -100,7 +101,11 @@ export interface DecomposeAllocationMap {
   cohort?: string;
   entries: DecomposeAllocationEntry[];
   internalEdges: InternalEdge[];
-  sourceAllocations: Array<{ sourceId: CanonicalDigest; disposition: DecomposeSourceDisposition }>;
+  sourceAllocations: Array<{
+    sourceId: CanonicalDigest;
+    ownership: DecomposeSourceOwnership;
+    disposition: DecomposeSourceDisposition;
+  }>;
   incomingEdges: Array<{ dependent: string; disposition: DecomposeIncomingEdgeDisposition }>;
   outgoingEdges: Array<{ prerequisite: string; disposition: DecomposeEdgeDisposition }>;
 }
@@ -323,14 +328,17 @@ function parseSourceAllocations(raw: unknown): Parsed<DecomposeAllocationMap["so
     const item: unknown = raw[index];
     const label = `source allocation ${index}`;
     if (!isObject(item)) return { reason: `${label} must be an object.` };
-    const keyError = exactKeys(item, ["sourceId", "disposition"], label);
+    const keyError = exactKeys(item, ["sourceId", "ownership", "disposition"], label);
     if (keyError !== null) return { reason: keyError };
     if (!isCanonicalDigest(item.sourceId)) return { reason: `${label}.sourceId must be a canonical digest.` };
+    if (item.ownership !== "destination-owned" && item.ownership !== "cohort-shared") {
+      return { reason: `${label}.ownership must be \`destination-owned\` or \`cohort-shared\`.` };
+    }
     if (!isObject(item.disposition)) return { reason: `${label}.disposition must be an object.` };
     if (item.disposition.kind === "drop") {
       const drop = parseDrop(item.disposition, `${label}.disposition`);
       if ("reason" in drop) return drop;
-      values.push({ sourceId: item.sourceId, disposition: drop.value });
+      values.push({ sourceId: item.sourceId, ownership: item.ownership, disposition: drop.value });
       continue;
     }
     if (item.disposition.kind !== "target") return { reason: `${label}.disposition.kind is invalid.` };
@@ -343,6 +351,7 @@ function parseSourceAllocations(raw: unknown): Parsed<DecomposeAllocationMap["so
     if ("reason" in locator) return locator;
     values.push({
       sourceId: item.sourceId,
+      ownership: item.ownership,
       disposition: { kind: "target", destinationId: item.disposition.destinationId, targetLocator: locator.value },
     });
   }
@@ -590,26 +599,21 @@ export function parseCutMap(input: unknown): CutMapParseResult {
   return { status: "parsed", params: map };
 }
 
-/**
- * Check retirement-only allocation constraints that require scanner-derived
- * ownership facts unavailable to the JSON reader.
- */
-export function retirementAllocationRefusal(
-  map: DecomposeAllocationMap,
-  facts: { ownerlessSourceIds: readonly CanonicalDigest[] },
-): string | null {
+/** Check retirement-only allocation and approved ownership constraints. */
+export function retirementAllocationRefusal(map: DecomposeAllocationMap): string | null {
   if (map.shape === "extraction" || map.entries.some((entry) => entry.kind === "surviving-origin")) {
     return "a surviving origin cannot authorize retirement.";
   }
   const destinations = new Map(map.entries.map((entry) => [entry.destinationId, entry]));
-  const allocations = new Map(map.sourceAllocations.map((allocation) => [allocation.sourceId, allocation.disposition]));
-  for (const sourceId of facts.ownerlessSourceIds) {
-    const disposition = allocations.get(sourceId);
-    if (disposition?.kind !== "target") {
-      return `ownerless shared material \`${sourceId}\` requires a cohort-coordination destination.`;
+  for (const allocation of map.sourceAllocations) {
+    const destination = allocation.disposition.kind === "target"
+      ? destinations.get(allocation.disposition.destinationId)
+      : undefined;
+    if (allocation.ownership === "cohort-shared" && destination?.kind !== "cohort-coordination") {
+      return `ownerless shared material \`${allocation.sourceId}\` requires a cohort-coordination destination.`;
     }
-    if (destinations.get(disposition.destinationId)?.kind !== "cohort-coordination") {
-      return `ownerless shared material \`${sourceId}\` requires a cohort-coordination destination.`;
+    if (allocation.ownership === "destination-owned" && destination?.kind === "cohort-coordination") {
+      return `cohort-coordination destination requires \`cohort-shared\` ownership for \`${allocation.sourceId}\`.`;
     }
   }
   return null;

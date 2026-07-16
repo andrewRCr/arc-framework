@@ -302,7 +302,7 @@ async function validateDecomposeResult(
   }
   const name = receipt.subject.kind === "work-unit" ? receipt.subject.name : "";
   const allocation = receipt.result.allocation;
-  if (retirementAllocationRefusal(allocation, { ownerlessSourceIds: [] }) !== null) {
+  if (retirementAllocationRefusal(allocation) !== null) {
     return "conservation-unproven";
   }
   const parents = await readCommitParents(exec, projection.resultHead);

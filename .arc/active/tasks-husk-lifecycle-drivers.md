@@ -195,8 +195,9 @@ finalization, so retirement traces to an accountable allocation.
 
 _Design decisions:_ Schema version 2 replaces per-entry `receives`/`dependsOn` arrays with canonical
 `sourceAllocations`/`incomingEdges`/`outgoingEdges` lists; source-unit canonicalization is a fixed CommonMark
-preamble/section/whole-file scan; preparation is durable across process interruption; retirement is legal only
-for a shape with no surviving origin.
+preamble/section/whole-file scan; each source allocation records the approved `destination-owned | cohort-shared`
+judgment; preparation is durable across process interruption; retirement is legal only for a shape with no surviving
+origin.
 
 ### `[x]` **4.1 Version-2 `DecomposeAllocationMap` schema and reader**
 

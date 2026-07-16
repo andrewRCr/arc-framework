@@ -105,6 +105,7 @@ describe("verifyDecomposeInventoryCoverage", () => {
       internalEdges: [],
       sourceAllocations: result.inventories.sourceInventory.map(({ sourceId }) => ({
         sourceId,
+        ownership: "destination-owned",
         disposition: { kind: "drop", reason: "not retained" },
       })),
       incomingEdges: result.inventories.incomingEdgeInventory.map(({ dependent }) => ({

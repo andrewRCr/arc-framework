@@ -229,6 +229,7 @@ interface DecomposeAllocationMap
   entries: ReadonlyArray<DecomposeAllocationEntry>;
   sourceAllocations: ReadonlyArray<{
     sourceId: CanonicalDigest;
+    ownership: "destination-owned" | "cohort-shared";
     disposition: DecomposeSourceDisposition;
   }>;
   incomingEdges: ReadonlyArray<{
@@ -522,8 +523,9 @@ complete machine contract rather than a scratch routing hint. Its existing membe
 remain, while per-entry `receives` and `dependsOn` arrays are replaced by canonical allocation lists. Schema version
 2 carries:
 
-- `sourceAllocations`: one entry for every stable source unit in the origin artifact group, assigning it exactly
-  once to a named target and stable destination locator or to `drop` with a non-empty reason; and
+- `sourceAllocations`: one entry for every stable source unit in the origin artifact group, recording the approved
+  `destination-owned | cohort-shared` judgment and assigning it exactly once to a named target and stable destination
+  locator or to `drop` with a non-empty reason; and
 - `incomingEdges`: one entry for every current dependent of the origin, either naming the exact
   `replacementTargets` for the origin's slot in that dependent's `Depends On` field or dropping that edge with a
   non-empty reason; every unrelated prerequisite is preserved; and
@@ -550,14 +552,16 @@ wrong-kind locators, negative/non-integer occurrences, and artifact/declared-tar
 The CLI derives the stable source-unit, incoming-edge, and outgoing-edge inventories from the live origin and base
 projections; authored IDs cannot add, omit, or duplicate inventory members. A source target's `destinationId` must
 resolve to one declared allocation entry; `cohort-coordination` is the minted cohort document destination for
-ownerless shared material. `existing-home.target` is a closed union that distinguishes a WU slug, a named draft
-block, and a standing document path; WU/draft-block targets require `home: "fold"`, while document targets require
-`home: "atomic-edit"`. Destination IDs are unique, and at most one cohort-coordination entry may name the map's
-declared cohort. Replacement-target and consumer arrays are non-empty and duplicate-free; an empty destination set
-must use a reasoned `drop` disposition. An incoming-edge replacement target or outgoing-edge consumer must be a WU
-slug represented by a new member or an existing-home target whose kind is `work-unit`; draft blocks, standing
-documents, and cohort coordination cannot receive WU dependencies. Retirement is legal only for a shape with no
-surviving origin. The mechanical transform derives each new member's external `Depends On` set from `outgoingEdges`.
+ownerless shared material. The approved allocation records that judgment as `cohort-shared`; it must target
+`cohort-coordination`, and that destination accepts no `destination-owned` source. `existing-home.target` is a closed
+union that distinguishes a WU slug, a named draft block, and a standing document path; WU/draft-block targets require
+`home: "fold"`, while document targets require `home: "atomic-edit"`. Destination IDs are unique, and at most one
+cohort-coordination entry may name the map's declared cohort. Replacement-target and consumer arrays are non-empty
+and duplicate-free; an empty destination set must use a reasoned `drop` disposition. An incoming-edge replacement
+target or outgoing-edge consumer must be a WU slug represented by a new member or an existing-home target whose kind
+is `work-unit`; draft blocks, standing documents, and cohort coordination cannot receive WU dependencies. Retirement
+is legal only for a shape with no surviving origin. The mechanical transform derives each new member's external
+`Depends On` set from `outgoingEdges`.
 For each incoming edge it replaces the origin at its existing position with `replacementTargets`, or removes only
 that origin slot for a reasoned drop; either arm preserves every other prerequisite and collapses duplicates in
 first-occurrence order. It no longer points every dependent at every new member for a later narrowing pass.

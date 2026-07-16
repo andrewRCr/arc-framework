@@ -52,6 +52,7 @@ const allocation = {
   internalEdges: [],
   sourceAllocations: [{
     sourceId,
+    ownership: "destination-owned" as const,
     disposition: {
       kind: "target" as const,
       destinationId: "a",

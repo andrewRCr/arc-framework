@@ -37,7 +37,11 @@ const allocation: DecomposeAllocationMap = {
     { kind: "new-member", destinationId: "b", slug: "member-b", workClass: "Light" },
   ],
   internalEdges: [],
-  sourceAllocations: [{ sourceId: SOURCE_ID, disposition: { kind: "drop", reason: "superseded" } }],
+  sourceAllocations: [{
+    sourceId: SOURCE_ID,
+    ownership: "destination-owned",
+    disposition: { kind: "drop", reason: "superseded" },
+  }],
   incomingEdges: [
     { dependent: "consumer", disposition: { kind: "replace", replacementTargets: ["member-a"] } },
   ],
@@ -64,7 +68,6 @@ const projection: DecomposePreparationProjection = {
     validateManagedPath(".arc/active/draft-origin.md"),
     validateManagedPath(".arc/backlog/planned/origin/member-a/meta-member-a.md"),
   ],
-  ownerlessSourceIds: [],
 };
 
 interface Harness {
@@ -220,6 +223,16 @@ describe("prepareDecomposeRetirement", () => {
       status: "refused",
       reason: "conservation-unproven",
     });
+    const misroutedShared: DecomposeAllocationMap = {
+      ...allocation,
+      sourceAllocations: allocation.sourceAllocations.map((source) => ({
+        ...source,
+        ownership: "cohort-shared",
+      })),
+    };
+    expect(
+      await prepareDecomposeRetirement(harness().ctx, scope, misroutedShared, "version-absent"),
+    ).toMatchObject({ status: "refused", reason: "conservation-unproven" });
     const dirty = harness();
     dirty.staged = ["unrelated.md"];
     expect(await prepareDecomposeRetirement(dirty.ctx, scope, allocation, "version-absent")).toMatchObject({

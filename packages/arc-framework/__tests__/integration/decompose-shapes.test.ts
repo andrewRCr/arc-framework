@@ -211,6 +211,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
       internalEdges: [],
       sourceAllocations: [{
         sourceId,
+        ownership: "destination-owned",
         disposition: {
           kind: "target",
           destinationId: "alpha",
@@ -293,6 +294,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
           sourcePath,
           sourceLocator: { artifact: "draft-mono.md", kind: "preamble" },
         }),
+        ownership: "destination-owned",
         disposition: {
           kind: "target",
           destinationId: "alpha",

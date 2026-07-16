@@ -31,13 +31,18 @@ function wellFormed(overrides: Record<string, unknown> = {}): Record<string, unk
     sourceAllocations: [
       {
         sourceId: SOURCE_B,
+        ownership: "destination-owned",
         disposition: {
           kind: "target",
           destinationId: "member-b",
           targetLocator: { artifact: "draft-member-b.md", kind: "preamble" },
         },
       },
-      { sourceId: SOURCE_A, disposition: { kind: "drop", reason: "superseded framing" } },
+      {
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: { kind: "drop", reason: "superseded framing" },
+      },
     ],
     incomingEdges: [
       { dependent: "consumer-z", disposition: { kind: "replace", replacementTargets: ["member-b", "member-a"] } },
@@ -75,6 +80,16 @@ describe("parseCutMap", () => {
       replacementTargets: ["member-a", "member-b"],
     });
     expect(map.outgoingEdges[0]?.disposition).toEqual({ kind: "targets", targets: ["member-a", "member-b"] });
+  });
+
+  it("requires an explicit closed ownership judgment for every source allocation", () => {
+    const missing = wellFormed();
+    delete (missing.sourceAllocations as Array<Record<string, unknown>>)[0]!.ownership;
+    expect(rejection(missing)).toMatch(/unknown field|ownership/i);
+
+    const invalid = wellFormed();
+    (invalid.sourceAllocations as Array<Record<string, unknown>>)[0]!.ownership = "shared";
+    expect(rejection(invalid)).toMatch(/ownership.*destination-owned.*cohort-shared/i);
   });
 
   it("rejects unknown fields at every validated level", () => {
@@ -182,6 +197,7 @@ describe("parseCutMap", () => {
     expect(rejection(wellFormed({
       sourceAllocations: [{
         sourceId: SOURCE_A,
+        ownership: "destination-owned",
         disposition: {
           kind: "target",
           destinationId: "member-a",
@@ -203,6 +219,7 @@ describe("parseCutMap", () => {
       ],
       sourceAllocations: [{
         sourceId: SOURCE_A,
+        ownership: "destination-owned",
         disposition: {
           kind: "target",
           destinationId: "doc",
@@ -218,6 +235,7 @@ describe("parseCutMap", () => {
       const input = wellFormed({
         sourceAllocations: [{
           sourceId: SOURCE_A,
+          ownership: "destination-owned",
           disposition: {
             kind: "target",
             destinationId: "member-a",
@@ -236,6 +254,7 @@ describe("parseCutMap", () => {
     expect(parsed(wellFormed({
       sourceAllocations: [{
         sourceId: SOURCE_A,
+        ownership: "destination-owned",
         disposition: {
           kind: "target",
           destinationId: "member-a",
@@ -264,6 +283,7 @@ describe("parseCutMap", () => {
       ],
       sourceAllocations: [{
         sourceId: SOURCE_A,
+        ownership: "destination-owned",
         disposition: {
           kind: "target",
           destinationId: "origin",
@@ -279,7 +299,7 @@ describe("parseCutMap", () => {
       ],
     });
     const map = parsed(input);
-    expect(retirementAllocationRefusal(map, { ownerlessSourceIds: [] })).toMatch(/surviving origin.*retire/i);
+    expect(retirementAllocationRefusal(map)).toMatch(/surviving origin.*retire/i);
   });
 
   it("requires extraction's sole surviving entry to name the origin", () => {
@@ -297,8 +317,12 @@ describe("parseCutMap", () => {
   });
 
   it("requires ownerless shared material to target minted cohort coordination", () => {
-    const map = parsed(wellFormed());
-    expect(retirementAllocationRefusal(map, { ownerlessSourceIds: [SOURCE_B] })).toMatch(/cohort-coordination/i);
+    const misrouted = wellFormed();
+    const sourceAllocations = misrouted.sourceAllocations as Array<Record<string, unknown>>;
+    const shared = sourceAllocations.find((allocation) => allocation.sourceId === SOURCE_B);
+    if (shared === undefined) throw new Error("missing shared allocation fixture");
+    shared.ownership = "cohort-shared";
+    expect(retirementAllocationRefusal(parsed(misrouted))).toMatch(/cohort-coordination/i);
 
     const withCoordination = wellFormed();
     withCoordination.entries = [
@@ -306,9 +330,14 @@ describe("parseCutMap", () => {
       { kind: "cohort-coordination", destinationId: "coord", cohort: "my-cohort" },
     ];
     withCoordination.sourceAllocations = [
-      { sourceId: SOURCE_A, disposition: { kind: "drop", reason: "superseded" } },
+      {
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: { kind: "drop", reason: "superseded" },
+      },
       {
         sourceId: SOURCE_B,
+        ownership: "cohort-shared",
         disposition: {
           kind: "target",
           destinationId: "coord",
@@ -316,7 +345,11 @@ describe("parseCutMap", () => {
         },
       },
     ];
-    expect(retirementAllocationRefusal(parsed(withCoordination), { ownerlessSourceIds: [SOURCE_B] })).toBeNull();
+    expect(retirementAllocationRefusal(parsed(withCoordination))).toBeNull();
+
+    const mislabeled = structuredClone(withCoordination);
+    (mislabeled.sourceAllocations as Array<Record<string, unknown>>)[1]!.ownership = "destination-owned";
+    expect(retirementAllocationRefusal(parsed(mislabeled))).toMatch(/requires.*cohort-shared/i);
   });
 
   it("requires non-empty unique target sets or a reasoned drop", () => {

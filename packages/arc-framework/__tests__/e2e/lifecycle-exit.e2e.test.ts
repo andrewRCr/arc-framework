@@ -195,6 +195,7 @@ async function writeCutMap(repo: string, origin: string, cohort: string, members
     internalEdges: [],
     sourceAllocations: [{
       sourceId,
+      ownership: "cohort-shared",
       disposition: {
         kind: "target",
         destinationId: "coordination",
