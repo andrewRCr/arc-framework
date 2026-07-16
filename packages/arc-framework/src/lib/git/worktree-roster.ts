@@ -104,16 +104,33 @@ export async function runWorktreeRoster(
 }
 
 /**
+ * Read and identity-filter a roster without crossing the team-mode identity boundary.
+ *
+ * When team mode has no resolved identity, the roster is not read at all: there is
+ * no safe ownership predicate with which to select another checkout's metadata.
+ */
+export async function runIdentityScopedWorktreeRoster(
+  options: RunWorktreeRosterOptions & { identity: string | null; teamMode: boolean },
+): Promise<WorktreeRosterResult> {
+  const { identity, teamMode, ...rosterOptions } = options;
+  if (teamMode && identity === null) return { entries: [], warnings: [] };
+  return filterRosterByIdentity(
+    await runWorktreeRoster(rosterOptions),
+    { identity, teamMode },
+  );
+}
+
+/**
  * Identity-filter a roster for session-init's branch-gone / no-WU recovery.
  *
  * Team mode only: drops entries owned by a *different* identity, keeping the
  * current identity's WU worktrees plus every unattributed worktree. Admin,
  * main, and meta-less checkouts carry no `**Owner:**`, so they have no
  * `identity` and always survive — they are the "stranded in main" recovery
- * signal the cascade reads, not someone else's WU. In solo mode, or when no
- * identity is configured, the roster passes through unchanged: a single
- * developer owns everything, so there is nothing to filter against. Warnings
- * always pass through untouched.
+ * signal the cascade reads, not someone else's WU. In solo mode the roster
+ * passes through unchanged. Callers that may lack an identity in team mode
+ * must use {@link runIdentityScopedWorktreeRoster} so the private roster is
+ * not read. Warnings always pass through untouched.
  */
 export function filterRosterByIdentity(
   roster: WorktreeRosterResult,

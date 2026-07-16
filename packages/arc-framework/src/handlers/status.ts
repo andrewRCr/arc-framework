@@ -52,6 +52,7 @@ import {
 import {
   filterRosterByIdentity,
   gitConfigGet,
+  runIdentityScopedWorktreeRoster,
   runWorktreeRoster,
 } from "../lib/git/index.js";
 import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
@@ -559,14 +560,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       cleanupRoster: async () => {
         const resolved = await resolvedSettingsP;
         const teamMode = resolved.settings["team.mode"] === "true";
-        const roster = await runWorktreeRoster({
+        return runIdentityScopedWorktreeRoster({
           exec: gitExec,
           fs: {
             readdir: (path) => readdir(path),
             readFile: (path) => readFile(path, "utf8"),
           },
+          identity,
+          teamMode,
         });
-        return filterRosterByIdentity(roster, { identity, teamMode });
       },
       recovery: async (roster, currentBranch) => {
         const resolved = await resolvedSettingsP;

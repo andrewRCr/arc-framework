@@ -47,6 +47,7 @@ export {
 
 export {
   runWorktreeRoster,
+  runIdentityScopedWorktreeRoster,
   scanRegisteredWorktrees,
   filterRosterByIdentity,
   resolvePrimaryWorktreePath,
