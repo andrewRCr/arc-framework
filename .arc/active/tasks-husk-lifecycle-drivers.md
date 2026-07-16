@@ -36,19 +36,16 @@ bytes.
   `isManagedPath` predicate. A non-NFC path is rejected, not repaired, so one file can never address a record
   under two spellings; validation is a total throw-gate that completes before any hashing can begin.
 
-### `[ ]` **1.3 Canonical blob and content digests over stored Git bytes**
+### `[x]` **1.3 Canonical blob and content digests over stored Git bytes**
 
 - _Goal:_ Content digests hash the exact canonical stored bytes so CRLF settings and smudge filters cannot
   change a receipt, and artifact-set and patch-operation entries carry a fixed closed shape.
 
-- _Approach:_ Read the Git tree or index blob after clean filters at the adapter boundary; keep the pure
-  hashing injectable so tests supply bytes directly.
-
-    - Build `test-first` (one behavior at a time):
-        - the same logical content hashes identically under LF and CRLF checkout settings
-        - an artifact-set entry is exactly `{ path, state: "present", contentDigest }` or `{ path, state: "absent" }`
-        - a patch operation is exactly `{ operation: "write", path, contentDigest }` or `{ operation: "delete", path }`
-        - an absent path yields the `absent` state, never a zero-byte digest
+- _Outcome:_ `lib/canonical/content-digest.ts` — `contentDigest`, `resolveArtifactEntry` over an injected
+  `StoredBlobReader`, `writeOperation`/`deleteOperation`, and the closed `ArtifactSetEntry` / `PatchOperation`
+  types. The `sha256:`+hex wire format is now factored into a shared `digestBytes` primitive in
+  `canonical-json.ts`. Hashing takes stored bytes directly; reading the Git tree/index blob is the injected
+  adapter boundary (lands with the drivers), where the LF/CRLF-checkout invariance verifies against real git.
 
 ### `[ ]` **1.4 Deterministic receipt/preparation IDs and inventory digests**
 

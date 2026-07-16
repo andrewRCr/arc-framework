@@ -111,14 +111,27 @@ export function canonicalize(value: unknown): string {
 }
 
 /**
+ * Compute the canonical content-address digest of raw bytes.
+ *
+ * The single construction site for the `sha256:`+64-hex digest wire format;
+ * every other digest in the trust core routes through here.
+ *
+ * @param bytes - The exact bytes to hash
+ * @returns `sha256:` followed by the 64-hex SHA-256 of the bytes
+ */
+export function digestBytes(bytes: Uint8Array): CanonicalDigest {
+  const hex = createHash("sha256").update(bytes).digest("hex");
+  return `sha256:${hex}`;
+}
+
+/**
  * Compute the canonical content-address digest of a structured value.
  *
  * @param value - Any plain-data value accepted by {@link canonicalize}
  * @returns `sha256:` followed by the 64-hex SHA-256 of the canonical bytes
  */
 export function canonicalDigest(value: unknown): CanonicalDigest {
-  const hex = createHash("sha256").update(canonicalize(value), "utf-8").digest("hex");
-  return `sha256:${hex}`;
+  return digestBytes(Buffer.from(canonicalize(value), "utf8"));
 }
 
 /** Narrow an unknown value to a well-formed {@link CanonicalDigest}. */
