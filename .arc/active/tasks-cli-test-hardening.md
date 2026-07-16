@@ -185,16 +185,17 @@ config is a single `vitest.config.ts` with three projects; only the e2e project 
   out of the shared list (`__tests__/helpers/isolated-unit-mock-files.ts`); `test:unit` now runs both tiers.
   Verified: full unit suite green under the real `unit`=`isolate:false` / `unit-mocks`=`isolate:true` topology.
 
-### `[ ]` **3.4 Apply unit-pool tuning (`isolate:false`) + re-measure**
+### `[x]` **3.4 Apply unit-pool tuning (`isolate:false`) + re-measure**
 
 - _Goal:_ Unit-tier CI wall approaches its ~45s aggregate test time; the per-file module re-import overhead of
   `isolate:true` is removed. Depends on 3.3.
 
-- _Note:_ Gated on 3.3 (suite must be green under `isolate:false` first). Set `isolate:false` on the `unit` project
-  in `vitest.config.ts`; re-measure via `vitest run --reporter=json` at quiet load. Measured prize (2026-07-15,
-  idle box): summed import 95.95s → 59.39s, transform 54.5s → 41.7s. If it still can't approach the number after
-  hardening, re-target Success Criterion 2 (e.g. sharded unit leg) per the Decision 7 stop-loss — never force
-  unsafe tuning.
+- _Outcome:_ Set `isolate: false` on the `unit` project (the `unit-mocks` tier stays isolated). Re-measured on an
+  idle box against the same-split `isolate:true` baseline: summed module import ~78s → ~52s and transform ~47s →
+  ~37s across the 347-file tier — removing the per-file re-import overhead that inflated CI wall above aggregate
+  test time. The win is hidden locally by many-core parallelism (wall ~6.5s → ~3.5s); it lands on low-core CI
+  runners where the re-import can't be parallelized away. No re-target needed — the Decision 7 stop-loss did not
+  fire.
 
 ---
 

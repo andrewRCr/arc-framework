@@ -18,6 +18,9 @@ export default defineConfig({
           root: ".",
           include: ["__tests__/unit/**/*.test.ts"],
           exclude: [...configDefaults.exclude, ...ISOLATED_UNIT_MOCK_FILES],
+          // Module-mocking files are quarantined to the `unit-mocks` tier, so the
+          // main unit tier can drop per-file isolation for its module-import win.
+          isolate: false,
           passWithNoTests: true,
         },
       },
