@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "base-sync-primary-aware",
+  "origin": "description",
+  "intent": "Degrade base auto-sync to a primary-aware surface when the base is checked out elsewhere",
+  "branch": "fix/base-sync-primary-aware",
+  "createdAt": "2026-07-16T17:17:33.506Z",
+  "returnBranch": "main"
+}
