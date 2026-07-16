@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "merge-retirement-gate",
-  "origin": "description",
-  "intent": "Prevent the recordless-retirement hook from rejecting merges of previously validated history",
-  "branch": "fix/merge-retirement-gate",
-  "createdAt": "2026-07-16T19:11:16.619Z",
-  "returnBranch": "main"
-}
