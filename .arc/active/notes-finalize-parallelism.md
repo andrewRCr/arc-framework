@@ -823,6 +823,29 @@ Routing: metering-policy design + end-to-end review-surface coherence route to t
 CLI-frontline wiring lands via a `pre-pr-open` errand; lane-vocabulary seam captured to the review-gate WUs; CI
 test-job split-vs-consolidated re-weigh captured (§ Errand).
 
+### Day-2 evidence — CTH ship: terminal-WU state has no owned exit ceremony (2026-07-16)
+
+First wave-3 WU shipped end-to-end (`cli-test-hardening`, teardown → stamped detached husk), supplying the first
+live observation of the post-ship terminal state — direct input to the 5.5 teardown-symmetry cell:
+
+- **Teardown mechanics held** (husk stamped, branches reaped, user workspace closed), but the session ended with
+  no owned closing ceremony: the agent improvised the terminal summary because no workflow emits a typed boundary
+  block there (session-init and handoff both have one; the exit loci don't).
+- **`session-handoff` cannot dispatch the state:** its between-WUs path is content-correct for post-ship
+  (WORKING-MEMORY review, sync, confirm, no SESSION-NOTES) but keys on "no active WU + non-`chore/` branch" — a
+  husk is detached HEAD, so the shipped-terminal state falls through undefined.
+- **Base sync is mechanically wrong-sited:** the post-ship sync must freshen the primary's checked-out base, and
+  a linked worktree/husk cannot (`git fetch origin main:main` refuses — reproduced at this session's init from
+  FP's own worktree, 44 behind after the wave's ships).
+- **The missed WORKING-MEMORY moment:** WU-ship is the dominant `_Remove when:_` trigger event, and the one
+  ceremony positioned to prompt the review doesn't know a ship just happened.
+
+Verification stays FP's (5.5 weighs this with the remaining teardown evidence); the actionable design routed
+out 2026-07-16 per the seam-routing rule (latent, not consumed by remaining waves, too large for Phase 7):
+terminal-WU handoff mode + sync-only handoff tier + boundary-marker family captured to `handoff-optimization`;
+the adjacent errand sweep-loop gap (run-errand close has no next-offer; `--errand` vs `--housekeep` doorway
+legibility) captured `WU_Target: TBD`, integration explicitly held for 5.3's batch-shape decision.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
