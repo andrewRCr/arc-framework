@@ -243,23 +243,15 @@ for a shape with no surviving origin.
   replaces or drops the origin at its existing slot. Unrelated prerequisites retain first-occurrence order, duplicate
   results collapse, undeclared blanket fan-out is gone, and a stale non-edge remains byte-identical.
 
-### `[ ]` **4.6 `finalizeDecompose` and the commit-hook record gate**
+### `[x]` **4.6 `finalizeDecompose` and the commit-hook record gate**
 
 - _Goal:_ `finalizeDecompose` verifies the completed distribution against the prepared snapshot and atomically
   replaces the preparation with the finalized receipt, and the commit hook rejects any non-finalized decompose
   write set.
 
-- _Context:_ The commit-hook gate lands as a new validator script in `src/scripts/` wired through
-  `hook-integration.ts`/`hook-manager.ts` (precedents: `check-foreign-writes.ts`, `validate-cohort-consistency.ts`).
-
-    - Build `test-first` (one behavior at a time):
-        - a changed origin ref, base `HEAD`, record identity, storage version, or any inventory/cut-map digest
-          refuses
-        - every source unit resolves its declared target locator or reasoned drop; every dependent's final
-          `Depends On` matches the declared transform
-        - staged paths outside the prepared set are rejected; target and patch digests are recomputed
-        - the preparation is atomically replaced by the finalized receipt in the same staged base write set
-        - the commit hook rejects a missing, prepared-but-unfinalized, amended, or mismatched record
+- _Outcome:_ Finalization revalidates the exact prepared record, live inventories, allocation targets, dependency
+  results, allowed staged paths, and target/patch digests before atomically replacing preparation with its receipt.
+  The canonical pre-commit hook now blocks missing, still-prepared, amended, and patch-mismatched decompose evidence.
 
 ## **Phase 5:** Directional teardown, husk stamp, and replay
 

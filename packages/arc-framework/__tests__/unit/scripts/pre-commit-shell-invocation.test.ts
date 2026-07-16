@@ -52,7 +52,7 @@ describe("foreign-write advisory backstop wiring", () => {
   it("treats the backstop as advisory — increments warnings, never errors", () => {
     // The foreign-write block runs between the ROADMAP assert and the Summary.
     const block = preCommitSource.slice(
-      preCommitSource.indexOf("CHECK 20"),
+      preCommitSource.indexOf("CHECK 21"),
       preCommitSource.indexOf("# Summary"),
     );
     expect(block).toContain("warnings=$((warnings + 1))");
@@ -62,6 +62,17 @@ describe("foreign-write advisory backstop wiring", () => {
   it("uses neutral wording for foreign-write and skip-note output", () => {
     expect(preCommitSource).toContain("Warning: In-flight artifact advisory:");
     expect(preCommitSource).not.toContain("Warning: Foreign-owned write among staged artifacts:");
+  });
+});
+
+describe("decompose retirement record gate wiring", () => {
+  it("invokes the finalized-record validator as an error gate", () => {
+    const block = preCommitSource.slice(
+      preCommitSource.indexOf("CHECK 20"),
+      preCommitSource.indexOf("CHECK 21"),
+    );
+    expect(block).toContain("npx tsx packages/arc-framework/src/scripts/validate-decompose-record.ts");
+    expect(block).toContain("errors=$((errors + 1))");
   });
 });
 

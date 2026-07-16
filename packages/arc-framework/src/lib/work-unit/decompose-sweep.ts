@@ -44,17 +44,29 @@ export function repointDependsOn(
   const current = parseIdentifierList(parseMetaRecord(content)["Depends On"]);
   if (!current.includes(originSlug)) return content;
 
+  const rewritten = replaceDependencySlot(current, originSlug, deliveringMembers);
+
+  const value = rewritten.length === 0 ? "[none]" : formatValue(rewritten.join(", "), "identifier-list");
+  return setMetaBulletFields(content, { "Depends On": value });
+}
+
+/** Replace one dependency value in first-occurrence order without rendering. */
+export function replaceDependencySlot(
+  current: readonly string[],
+  originSlug: string,
+  replacements: readonly string[],
+): string[] {
+  if (!current.includes(originSlug)) return [...current];
+
   const rewritten: string[] = [];
   for (const dep of current) {
     if (dep === originSlug) {
-      for (const member of deliveringMembers) {
+      for (const member of replacements) {
         if (!rewritten.includes(member)) rewritten.push(member);
       }
     } else if (!rewritten.includes(dep)) {
       rewritten.push(dep);
     }
   }
-
-  const value = rewritten.length === 0 ? "[none]" : formatValue(rewritten.join(", "), "identifier-list");
-  return setMetaBulletFields(content, { "Depends On": value });
+  return rewritten;
 }

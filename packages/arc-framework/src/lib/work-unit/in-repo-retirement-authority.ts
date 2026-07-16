@@ -21,6 +21,10 @@ import {
   prepareDecomposeRetirement,
   type DecomposePreparationContext,
 } from "./decompose-preparation.js";
+import {
+  finalizeDecomposeRetirement,
+  type DecomposeFinalizationContext,
+} from "./decompose-finalization.js";
 import type {
   DecomposeAllocationMap,
   DecomposePreparationLocator,
@@ -37,6 +41,7 @@ export interface InRepoRetirementAuthorityContext {
   record: RetirementRecordContext;
   authorization: RetirementAuthorizationContext;
   decompose: DecomposePreparationContext;
+  decomposeFinalization: DecomposeFinalizationContext;
 }
 
 /** Current Git/filesystem-backed retirement authority. */
@@ -67,9 +72,7 @@ export class InRepoRetirementAuthority implements RetirementAuthorityPort {
     locator: DecomposePreparationLocator,
     expectedAuthorityVersion: string,
   ) {
-    void locator;
-    void expectedAuthorityVersion;
-    return await Promise.resolve({ status: "refused" as const, reason: "unsupported-transition" as const });
+    return await finalizeDecomposeRetirement(this.#ctx.decomposeFinalization, locator, expectedAuthorityVersion);
   }
 
   async authorize(request: TeardownAuthorizationRequest): Promise<TeardownAuthorizationDecision> {

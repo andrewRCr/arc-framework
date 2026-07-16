@@ -523,7 +523,19 @@ if [ "$pm_mode" = "arc-in-git" ]; then
 fi
 
 # ============================================================================
-# CHECK 20: Foreign-write advisory backstop
+# CHECK 20: Finalized decompose record gate
+# ============================================================================
+# A decompose commit must introduce one finalized receipt whose exact non-record
+# patch matches the staged write set. Prepared, missing, amended, and mismatched
+# records fail closed.
+if ! decompose_record_output=$(npx tsx packages/arc-framework/src/scripts/validate-decompose-record.ts 2>&1); then
+    echo -e "${RED}Error: Decompose retirement record validation failed:${NC}"
+    echo "$decompose_record_output" | sed 's/^/   /'
+    errors=$((errors + 1))
+fi
+
+# ============================================================================
+# CHECK 21: Foreign-write advisory backstop
 # ============================================================================
 # Surfaces a staged per-WU artifact that another in-flight work unit also
 # touches — a foreign-owned write about to land on the wrong branch. Reuses the
