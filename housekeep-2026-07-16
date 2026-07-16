@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "housekeep-2026-07-16",
+  "origin": "description",
+  "intent": "housekeep-2026-07-16",
+  "branch": "chore/housekeep-2026-07-16",
+  "createdAt": "2026-07-16T20:24:07.410Z",
+  "returnBranch": "main"
+}
