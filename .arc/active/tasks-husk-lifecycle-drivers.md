@@ -216,17 +216,14 @@ for a shape with no surviving origin.
   with pinned ATX/Setext, fence, heading-normalization, and duplicate-heading behavior. Slash-free locators resolve
   against exactly one declared artifact unit and reject malformed occurrences, kinds, and artifact mismatches.
 
-### `[ ]` **4.3 Live inventory derivation and one-to-one coverage**
+### `[x]` **4.3 Live inventory derivation and one-to-one coverage**
 
 - _Goal:_ The CLI derives the stable source-unit and dependency-edge inventories from the live origin and base
   projections, so authored IDs cannot add, omit, or duplicate inventory members.
 
-    - Build `test-first` (one behavior at a time):
-        - source-unit, incoming-edge, and outgoing-edge inventories are derived from live projections, not
-          authored input
-        - complete one-to-one allocation coverage is required — every source unit assigned exactly once
-        - `incomingEdgeInventory.currentTargets` retains the parsed `Depends On` order
-        - a missing or extra inventory member fails preparation
+- _Outcome:_ `decompose-inventory.ts` derives content-addressed source units from stored companion bytes and both
+  dependency-edge inventories from the live lifecycle projection. Coverage is exact across all three inventories,
+  while each dependent's captured `currentTargets` retains its authored `Depends On` order for final comparison.
 
 ### `[ ]` **4.4 `prepareDecompose` durable preparation record**
 
