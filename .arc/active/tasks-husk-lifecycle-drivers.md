@@ -253,6 +253,25 @@ for a shape with no surviving origin.
   results, allowed staged paths, and target/patch digests before atomically replacing preparation with its receipt.
   The canonical pre-commit hook now blocks missing, still-prepared, amended, and patch-mismatched decompose evidence.
 
+### `[ ]` **4.7 Production two-stage decompose lifecycle**
+
+- _Goal:_ The production `arc decompose` path prepares before mutation, resumes safely across interruption, and
+  finalizes through an explicit receipt-addressed second invocation before the allocation can commit.
+
+    - `[ ]` **4.7.a CommonMark boundary hardening**
+        - Reject false top-level Setext boundaries after fenced or nested block content.
+    - `[ ]` **4.7.b Prepared-result recovery**
+        - Resume an exact preparation while only its admitted transition paths are staged.
+    - `[ ]` **4.7.c Transactional finalization and complete missing-record gate**
+        - Roll back the worktree record on index-staging failure and reject recordless retirement shapes even when
+          every destination is an existing home.
+    - `[ ]` **4.7.d Production CLI and adapter binding**
+        - Make the initial invocation prepare before `runDecompose`; make `--finalize <receipt-id>` reopen and
+          finalize the exact stored preparation without scanning or requiring the scratch map.
+    - `[ ]` **4.7.e Workflow and end-to-end proof**
+        - Publish the version-2/two-stage workflow contract and exercise prepare → mutation → manual distribution →
+          finalize, interruption recovery, and record-gate refusal through real CLI boundaries.
+
 ## **Phase 5:** Directional teardown, husk stamp, and replay
 
 _Purpose:_ Replace the shipped-only `allowHusk` switch with port-authorized directional teardown, persist a

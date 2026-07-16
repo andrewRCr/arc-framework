@@ -572,10 +572,13 @@ finalizer. Preparation is durable across process interruption: rerun derives the
 validates the embedded complete scope, stages the exact record if needed, and either resumes idempotently or refuses a
 changed origin, base, inventory, map, or pre-existing write set.
 
-`arc decompose` consumes that preparation, retires the origin artifacts in the base projection, scaffolds or updates
-every declared target, applies exact internal, incoming, and outgoing dependency edges, and regenerates the project
-readiness view. Manual content distribution may then edit only paths admitted by the preparation. Before the
-allocation commit, `finalizeDecompose(preparationLocator, preparedAuthorityVersion)`:
+The initial `arc decompose <origin> --cut-map <path>` invocation consumes that preparation, retires the origin
+artifacts in the base projection, scaffolds or updates every declared target, applies exact internal, incoming, and
+outgoing dependency edges, regenerates the project readiness view, and prints the deterministic receipt ID. Manual
+content distribution may then edit only paths admitted by the preparation. Before the allocation commit,
+`arc decompose <origin> --finalize <receipt-id>` opens that one record directly, validates its embedded locator and
+origin identity, and calls `finalizeDecompose(preparationLocator, preparedAuthorityVersion)`; finalization never scans
+the record namespace and does not require the scratch cut-map to survive. The finalizer:
 
 - rereads the prepared snapshot and refuses any changed origin ref, base `HEAD`, record identity, storage version,
   source inventory, dependency-edge inventory, or cut-map digest;
@@ -587,9 +590,10 @@ allocation commit, `finalizeDecompose(preparationLocator, preparedAuthorityVersi
 - hashes every final target artifact group and the complete non-receipt transition patch;
 - rejects staged paths outside the prepared source removal, target artifacts, cohort coordination, dependency edges,
   and readiness-view set; and
-- atomically replaces the preparation with the finalized receipt in the same staged base-side write set, embedding
-  the canonical allocation map and preparation/inventory digests so authorization can recompute them from the origin
-  and allocation-parent projections.
+- atomically replaces the preparation with the finalized receipt in the same staged base-side write set, rolling the
+  worktree record back to the still-staged preparation if index staging fails, and embeds the canonical allocation map
+  and preparation/inventory digests so authorization can recompute them from the origin and allocation-parent
+  projections.
 
 The commit hook rejects a decompose write set with a missing, prepared-but-unfinalized, amended, or mismatched record.
 Thus an interruption leaves recoverable preparation evidence, while only a finalized receipt can enter history or
