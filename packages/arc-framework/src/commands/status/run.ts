@@ -369,16 +369,16 @@ export async function runSessionInitStatus(
     : baseDistance;
 
   // Base-branch-sync enrichment — the config-gated fast-forward freshen offer.
-  // Unlike base-distance it reads the `session.init_pull.base` policy and the
-  // dirty-tree flag (a dirty tree refuses the freshen), so the recommendation
-  // is composed from the slot, that policy, and the dirty slot.
+  // Reads `session.init_pull.base` and the probe's base checkout locus. Current
+  // worktree dirt does not gate this channel (fetch-into-ref only moves a
+  // non-checked-out ref); a base checked out elsewhere degrades pull/prompt
+  // to a primary-aware surface.
   const baseBranchPolicy = normalizeBaseBranchSyncPolicy(
     config.ok ? config.value.settings["session.init_pull.base"] : "prompt",
   );
   const baseBranchSyncRec = inferBaseBranchSync(
     baseBranchSync.ok ? baseBranchSync.value : null,
     baseBranchPolicy,
-    dirty.ok ? dirty.value : { state: "clean", fileCount: 0 },
   );
   const enrichedBaseBranchSync: SessionInitProbeResult["baseBranchSync"] = baseBranchSync.ok
     ? {

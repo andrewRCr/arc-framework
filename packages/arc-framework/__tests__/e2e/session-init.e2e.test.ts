@@ -598,8 +598,8 @@ describe("session-init E2E — base-ref pull recommendation under session.init_p
     const content = await readFile(cfgPath, "utf8");
     const next = content.replace(/^session\.init_pull\.base:.*$/mu, `session.init_pull.base: ${value}`);
     await writeFile(cfgPath, next);
-    // Commit the config edit on the feature branch so the working tree is clean —
-    // otherwise a dirty tree refuses the fast-forward (surface), masking the policy.
+    // Commit the config edit so the working tree stays clean for other channels
+    // (notes-load / worktree) that still gate on dirtiness.
     await execFileAsync("git", ["commit", "--no-verify", "-am", `set base policy ${value}`], { cwd: repo });
   }
 

@@ -307,16 +307,22 @@ base-drift section; on `skip`, do nothing.
 
 **Base-branch-sync channel.** The `baseBranchSync` slot (local `<base>` vs `origin/<base>`) is a config-gated
 pull channel — distinct from the advisory-only base-distance channel above. Dispatch on `recommendedAction`
-(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`:
+(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`. The slot also
+carries `value.checkout` as an object `{ kind, path?, primary? }` where `kind` is `not-checked-out` /
+`current` / `elsewhere` / `unknown` — the probe's safety signal for whether fetch-into-ref is viable:
 
-- `pull` — fast-forward the local base ref immediately with `git fetch origin <base>:<base>`. This freshens a
-  non-checked-out ref (the base isn't checked out while on a feature branch), so it is a fetch-into-ref, not the
-  worktree channel's `git pull --ff-only`; it is fast-forward-only and git refuses a non-fast-forward, so a raced
-  divergence fails safe rather than merging.
-- `prompt` — ask using `recommendedPromptText`; on accept, run the same `git fetch origin <base>:<base>`.
-- `surface` — carry the state into Step 6's stale-base section (a behind base under `manual`, a dirty-tree
-  refusal, or a diverged base); no pull.
-- `skip` — the base is current or only ahead; no action.
+- `pull` — fast-forward the local base ref immediately with `git fetch origin <base>:<base>`. Only when the
+  base is **not** checked out in any worktree. Freshens a non-checked-out ref (fetch-into-ref, not the
+  worktree channel's `git pull --ff-only`); fast-forward-only — git refuses a non-fast-forward, so a raced
+  divergence fails safe rather than merging. Current-worktree dirt does **not** gate this action (it only
+  moves a branch tip elsewhere).
+- `prompt` — ask using `recommendedPromptText`; on accept, run the same `git fetch origin <base>:<base>`
+  (same not-checked-out precondition).
+- `surface` — carry the state into Step 6's stale-base section. Includes: a behind base under `manual`; a
+  base checked out **elsewhere** (primary-aware text naming the holding worktree and offering
+  `arc base sync`); checkout locus unknown; or a diverged base. No pull.
+- `skip` — the base is current or only ahead, **or** this worktree holds the base (`checkout.kind ===
+  "current"` — the worktree channel owns pull/dirty for HEAD).
 
 Independent of the worktree + notes combined prompt — like base-distance, it composes its own offer and never
 folds into `recommendedCombinedPrompt`.
@@ -723,9 +729,9 @@ tracked source documents the work.
   ```
 
 - `baseBranchSync.value.recommendedAction == "surface"`: the local base ref is stale — behind under `manual`
-  policy, blocked by a dirty tree, or diverged from `origin/<base>`. Render the precomposed
-  `baseBranchSync.value.recommendedPromptText` verbatim. Advisory, never gates — the `pull` / `prompt` actions
-  fire in Step 2's base-branch-sync channel, not here.
+  policy, checked out elsewhere (primary-aware), locus unknown, or diverged from `origin/<base>`. Render the
+  precomposed `baseBranchSync.value.recommendedPromptText` verbatim. Advisory, never gates — the `pull` /
+  `prompt` actions fire in Step 2's base-branch-sync channel, not here.
 
   ```text
   **Stale base:** {baseBranchSync.value.recommendedPromptText}
