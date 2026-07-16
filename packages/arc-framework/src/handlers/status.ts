@@ -261,8 +261,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // branches are not mis-emitted as `no-record-or-meta` residue.
     const { settings } = await readConfigSettings(cwd);
     const { identity } = await readIdentityPointers();
+    // No identity ⇒ no errand-record ref to read; empty+complete is authoritative
+    // (not degraded). Degraded `complete: false` is only for a failed read.
     const recordResult: ListErrandRecordsResult = identity === null
-      ? { records: [], complete: false, warnings: [] }
+      ? { records: [], complete: true, warnings: [] }
       : await listErrandRecordsResult({ exec: gitExec, identity });
     const errandSlugByBranch = new Map(
       recordResult.records.map((record) => [record.branch, record.slug]),
@@ -773,7 +775,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     const [parkedSlugs, recordResult] = await Promise.all([
       buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
       identity === null
-        ? Promise.resolve<ListErrandRecordsResult>({ records: [], complete: false, warnings: [] })
+        ? Promise.resolve<ListErrandRecordsResult>({ records: [], complete: true, warnings: [] })
         : listErrandRecordsResult({ exec: gitExec, identity }),
     ]);
     const errandSlugByBranch = new Map(
