@@ -102,26 +102,20 @@ its fixtures via real `git notes add`/`makeCommit` round-trips, so the (a) inter
 construction where it preserves the retention assertion. See `notes-cli-test-hardening.md` § Flake forensics and
 § Measurement detail.
 
-### `[ ]` **2.1 De-cost the notes-compaction fixture (flake a)**
+### `[x]` **2.1 De-cost the notes-compaction fixture (flake a)**
 
 - _Goal:_ `user-notes-compaction.test.ts` file wall-time drops (absolute, not merely tier share) and the (a)
   signature stops recurring, with the retention assertion preserved.
 
-- _Approach:_ The cost is concentrated in one test ("retains old shipped-WU notes until the archive age and
-  local-subdir gates clear"): a 302-iteration loop building 302 empty dated commits + 302 notes (~900 git
-  subprocess spawns, ~6.4s of the file's ~13s isolated). Synthetic notes-tree construction (`makeNotesTreeCommit`)
-  does **not** fit here — retention ranks notes by their annotated commit's real committer date (`runUserCompact`
-  → `buildRetentionEntry` → `readCommitTimestamp` in `src/commands/user/compact.ts`), so fabricated target SHAs
-  break the retained/pruned partition. Instead, shrink the filler loop from 302 to ~35, kept above **both**
-  boundaries the test exercises — the retention window `CROSS_WU_NOTE_WINDOW` (10) and the read-concurrency batch
-  `RETENTION_ENTRY_READ_CONCURRENCY` (16), so more than one batch still runs — and update the count assertions
-  (`retainedCount` stays 12 = 10-window + 2 gated specials; `prunedCount` becomes filler − 10, i.e. 25 at 35
-  filler). Add a diagnostic that dumps the retained/pruned partition on a count mismatch. This preserves the
-  retention _behavior_ (the substrate-independent part that carries to the backing-store substrate) at ~88% less
-  loop cost. fast-import batching was considered and rejected: intricate, notes-shaped test scaffolding with a
-  ~1-month shelf life is bridge over-investment under the git-notes retirement posture
-  (`strategy-storage-evolution`). Stay within the Decision 10 stop-loss (no new production notes machinery). The
-  file's other 17 tests are already fast (<0.7s each); no other case in this file needs rework.
+- _Outcome:_ Shrank the one costly test's ("retains old shipped-WU notes…") filler loop 302 → 35 (a
+  `fillerCount` const, kept above the window=10 and read-concurrency=16 boundaries) and derived the count
+  assertions from it (`retainedCount` 12 = window + 2 gated specials; `prunedCount` = `fillerCount` − window =
+  25). Added a partition-dump diagnostic (`formatRetentionMismatch` / `describeNotePartition`) that prints the
+  retained/pruned notes with committer dates + manifest paths on a count mismatch. At 302 the test was timing
+  out against its own 30s budget on the dev machine (~33s) — the (a) signature; at 35 it runs ~5.6s isolated,
+  with the retention behavior (2 gated specials + newest-10 window) preserved and empirically confirmed via the
+  diagnostic. Synthetic notes-tree construction was ruled out (retention ranks by real committer date, so
+  fabricated SHAs break the partition); fast-import batching rejected as bridge over-investment.
 
 ### `[ ]` **2.2 Shallow-clone per-test budget (flake c)**
 
