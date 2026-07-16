@@ -144,6 +144,23 @@ describe("validateDecomposeCommitGate", () => {
     })).toEqual([]);
   });
 
+  it("does not treat arbitrary meta-shaped paths as lifecycle retirement replacements", () => {
+    expect(validateDecomposeCommitGate({
+      changes: [
+        { status: "D", path: ".arc/active/meta-origin.md" },
+        { status: "A", path: "docs/meta-origin.md" },
+      ],
+      readIndexBytes: (path) => path === "docs/meta-origin.md" ? bytes("lookalike") : null,
+      readHeadBytes: () => null,
+    })).toContainEqual(expect.stringMatching(/missing.*origin/i));
+
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: "docs/meta-unrelated.md" }],
+      readIndexBytes: () => null,
+      readHeadBytes: () => null,
+    })).toEqual([]);
+  });
+
   it("ignores a batch containing only non-decompose retirement records", () => {
     const first = abandonReceipt("origin-a");
     const second = abandonReceipt("origin-b", "d".repeat(40));
@@ -182,6 +199,23 @@ describe("validateDecomposeCommitGate", () => {
       readIndexBytes: (path) => path === copiedPath ? bytes(canonicalize(abandon)) : null,
       readHeadBytes: () => null,
     })).toContainEqual(expect.stringMatching(/origin/));
+  });
+
+  it("does not accept a receipt from a lookalike retirement-record namespace", () => {
+    const abandon = abandonReceipt("origin");
+    const canonicalPath = resolveRetirementRecordRelativePath(abandon.receiptId);
+    const spoofedPath = canonicalPath.replace(
+      ".arc/.internal/retirement-receipts/",
+      "xarc/yinternal/retirement-receipts/",
+    );
+    expect(validateDecomposeCommitGate({
+      changes: [
+        { status: "A", path: spoofedPath },
+        { status: "D", path: ".arc/active/meta-origin.md" },
+      ],
+      readIndexBytes: (path) => path === spoofedPath ? bytes(canonicalize(abandon)) : null,
+      readHeadBytes: () => null,
+    })).toContainEqual(expect.stringMatching(/missing.*origin/i));
   });
 
   it("does not let a receipt for an older patch cover the current staged retirement", () => {

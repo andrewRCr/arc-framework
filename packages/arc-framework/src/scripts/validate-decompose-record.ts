@@ -28,16 +28,30 @@ export interface DecomposeCommitGateInput {
   readHeadBytes(path: string): Uint8Array | null;
 }
 
-const RECORD_PATTERN = new RegExp(`^${RETIREMENT_RECORD_NAMESPACE}/(sha256-[0-9a-f]{64})\\.json$`, "u");
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+const RECORD_PATTERN = new RegExp(
+  `^${escapeRegExp(RETIREMENT_RECORD_NAMESPACE)}/(sha256-[0-9a-f]{64})\\.json$`,
+  "u",
+);
+const ACTIVE_META_PATTERN = /^\.arc\/active\/meta-([^/]+)\.md$/u;
+const NESTED_LIFECYCLE_META_PATTERN =
+  /^\.arc\/(?:backlog\/(?:planned|provisional)|completed)(?:\/[^/]+)*\/meta-([^/]+)\.md$/u;
+
+function lifecycleMetaSlug(path: string): string | undefined {
+  return ACTIVE_META_PATTERN.exec(path)?.[1] ?? NESTED_LIFECYCLE_META_PATTERN.exec(path)?.[1];
+}
 
 function apparentlyRetiredSlugs(changes: readonly StagedPathChange[]): string[] {
   const deletedOrigins = changes
     .filter((change) => change.status === "D")
-    .map((change) => /(^|\/)meta-([^/]+)\.md$/u.exec(change.path)?.[2])
+    .map((change) => lifecycleMetaSlug(change.path))
     .filter((slug): slug is string => slug !== undefined);
   const addedTargets = changes
     .filter((change) => change.status === "A")
-    .map((change) => /(^|\/)meta-([^/]+)\.md$/u.exec(change.path)?.[2])
+    .map((change) => lifecycleMetaSlug(change.path))
     .filter((slug): slug is string => slug !== undefined);
   return deletedOrigins.filter((origin) => !addedTargets.includes(origin));
 }
