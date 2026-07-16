@@ -78,16 +78,14 @@ location. Decompose's `prepareDecompose`/`finalizeDecompose` are declared here b
   identity, exhaustive refusal rendering, and the fixed receipt cross-field validator. Decompose signatures expose
   the narrow forward contract while their allocation internals remain reserved for the decompose driver.
 
-### `[ ]` **2.2 Receipt-record namespace and digest-to-record-key codec**
+### `[x]` **2.2 Receipt-record namespace and digest-to-record-key codec**
 
 - _Goal:_ Retirement records live under one adapter-owned namespace addressed only through the record-key codec,
   so a `receiptId`, subject, or branch string never becomes an unchecked filesystem path.
 
-    - Build `test-first` (one behavior at a time):
-        - `sha256:<64hex>` renders to `sha256-<64hex>` and decodes back bijectively
-        - the decoder rejects any other spelling — uppercase, wrong length, or missing prefix
-        - the namespace is created lazily on first write and has no package-source mirror
-        - a record is addressed only by its derived key; subject/branch text never path-traverses
+- _Outcome:_ Added the strict bijective digest/key codec and a lazily created adapter-owned namespace. Record paths
+  derive exclusively from validated canonical receipt IDs beneath `.arc/.internal/retirement-receipts`; subject and
+  branch text never reach path construction.
 
 ### `[ ]` **2.3 `readSnapshot` and the versioned compare-and-set token**
 
