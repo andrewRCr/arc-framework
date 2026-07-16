@@ -308,8 +308,8 @@ base-drift section; on `skip`, do nothing.
 **Base-branch-sync channel.** The `baseBranchSync` slot (local `<base>` vs `origin/<base>`) is a config-gated
 pull channel — distinct from the advisory-only base-distance channel above. Dispatch on `recommendedAction`
 (resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`. The slot also
-carries `value.checkout` (`not-checked-out` / `current` / `elsewhere` / `unknown`) — the probe's safety
-signal for whether fetch-into-ref is viable:
+carries `value.checkout` as an object `{ kind, path?, primary? }` where `kind` is `not-checked-out` /
+`current` / `elsewhere` / `unknown` — the probe's safety signal for whether fetch-into-ref is viable:
 
 - `pull` — fast-forward the local base ref immediately with `git fetch origin <base>:<base>`. Only when the
   base is **not** checked out in any worktree. Freshens a non-checked-out ref (fetch-into-ref, not the
