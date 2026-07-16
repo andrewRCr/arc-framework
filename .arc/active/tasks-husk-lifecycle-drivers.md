@@ -324,7 +324,8 @@ batches same-subject candidates.
 
 - _Outcome:_ Extended `WorktreeHuskStamp` with authorization, remote-ref, and evidence fields plus a closed decoder.
   Legacy, current, mixed, unknown-future, and malformed shapes now preserve ownership while granting destructive
-  authority only to complete known stamps; terminal recognition still requires detached `HEAD === stamp.sha`.
+  authority only to complete known stamps; terminal recognition still requires a detached checkout whose live
+  `HEAD` equals `stamp.sha`.
 
 ### `[x]` **5.5 Marker evidence resolution and revalidation on replay**
 

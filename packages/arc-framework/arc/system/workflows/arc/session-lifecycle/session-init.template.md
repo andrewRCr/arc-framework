@@ -803,8 +803,10 @@ tracked source documents the work.
   ```
 
 - `currentHusk.ok == true` AND `currentHusk.value != null`: the current linked checkout is an exact stamped WU
-  husk. Suppress the generic detached-HEAD warning. For `stamp.kind == current`, render the authorization, validated
-  evidence, and remote proof; offer the path-qualified command below. For `manual-only`, render the reason and no
+  husk. Suppress the generic detached-HEAD warning and branch on `stamp.kind` before reading variant fields.
+  For `current`, render the authorization, validated evidence, and remote proof; offer the path-qualified command
+  below. For `legacy`, render `merged-preserved (legacy stamp; remote absence revalidated by teardown)` and offer
+  the same command, which grants no remote-delete authority. For `manual-only`, render only the reason and no
   destructive command. Teardown and manual removal must run from outside this worktree.
 
   ```text
@@ -876,15 +878,18 @@ tracked source documents the work.
   ```
 
 - Linked worktree with a non-empty `sweep.value.worktrees` or `orphanBranchSweep.value.orphans`: render one combined
-  section instead of the primary-only sections above. Husk offers must use the exact path-qualified
-  `arc teardown {subject.name} --husk "{worktreePath}"` form; `stamp.kind == manual-only`, moved/dirty husks, and
-  unmerged non-shipped orphans remain manual-only. Omit the section when both arrays are empty; write no marker or
-  nudge state.
+  section instead of the primary-only sections above. Branch on the typed husk subject before rendering an action:
+  a `work-unit` uses the exact path-qualified `arc teardown {subject.name} --husk "{worktreePath}"` form. `branch`
+  and `errand` husks have no exact path-qualified cleanup driver and stay manual-only.
+  `stamp.kind == manual-only`, moved/dirty husks, and unmerged non-shipped orphans also remain manual-only. Omit the
+  section when both arrays are empty; write no marker or nudge state.
 
   ```text
   **Cleanup residues:** {N} sibling husk(s) or orphan ref(s) linger:
-  - `{worktreePath}` — `{stampedBranch}` ({authorization}; remote {disposition}) → clean up?
+  - `{worktreePath}` — work unit `{subject.name}` ({authorization}; remote {disposition}) → clean up?
     `arc teardown {subject.name} --husk "{worktreePath}"`
+  - `{worktreePath}` — branch husk `{subject.ref}`; no exact husk cleanup driver, manual-only
+  - `{worktreePath}` — errand husk `{subject.slug}`; no shipped cleanup driver, manual-only
   - `{worktreePath}` — {manual-only reason | dirty | HEAD moved}; surfaced, not removed
   - `{branch}` — {shipped → `arc teardown {shippedWorkUnit}` | merged → `git branch -d {branch}` | not merged}
   ```
