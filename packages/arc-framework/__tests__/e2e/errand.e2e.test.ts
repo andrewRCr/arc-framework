@@ -100,6 +100,21 @@ describe("arc errand open", () => {
     expect(record).toContain('"origin": "description"');
   });
 
+  it("does not flag a just-opened errand branch as no-record-or-meta residue on status <slug>", async () => {
+    await setFullProtection(tmpDir);
+
+    const opened = await runArc(["errand", "open", "residue-probe", "--type", "fix"], tmpDir);
+    expect(opened.exitCode).toBe(0);
+
+    const status = await runArc(["status", "residue-probe", "--json"], tmpDir);
+    expect(status.exitCode).toBe(0);
+    const payload = JSON.parse(status.stdout.trim()) as { warnings?: string[] };
+    const residueWarnings = (payload.warnings ?? []).filter((line) =>
+      /no errand record or active work-unit meta/i.test(line),
+    );
+    expect(residueWarnings).toEqual([]);
+  });
+
   it("rejects an out-of-set branch type (feat is a work unit, not an errand)", async () => {
     await setFullProtection(tmpDir);
 
