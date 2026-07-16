@@ -401,6 +401,29 @@ function entryIdentity(entry: DecomposeAllocationEntry): string {
   }
 }
 
+function locatorsEqual(left: DecomposeContentLocator, right: DecomposeContentLocator): boolean {
+  if (left.artifact !== right.artifact || left.kind !== right.kind) return false;
+  return left.kind !== "section" || right.kind !== "section"
+    || (left.headingSource === right.headingSource && left.occurrence === right.occurrence);
+}
+
+function targetLocatorMatches(entry: DecomposeAllocationEntry, locator: DecomposeContentLocator): boolean {
+  if (entry.kind === "new-member") {
+    return new RegExp(`^[a-z]+-${entry.slug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\.md$`, "u")
+      .test(locator.artifact);
+  }
+  if (entry.kind === "existing-home") {
+    if (entry.target.kind === "document") return entry.target.path.split("/").at(-1) === locator.artifact;
+    if (entry.target.kind === "draft-block") return locatorsEqual(entry.target.locator, locator);
+    return new RegExp(`^[a-z]+-${entry.target.slug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\.md$`, "u")
+      .test(locator.artifact);
+  }
+  if (entry.kind === "cohort-coordination") {
+    return locator.artifact === `cohort-${entry.cohort.split("/").at(-1)}.md`;
+  }
+  return false;
+}
+
 /** Validate an untrusted decoded allocation map. */
 export function parseCutMap(input: unknown): CutMapParseResult {
   if (!isObject(input)) return { status: "rejected", reason: "cut-map must be an object." };
@@ -481,10 +504,18 @@ export function parseCutMap(input: unknown): CutMapParseResult {
 
   const sourceAllocations = parseSourceAllocations(input.sourceAllocations);
   if ("reason" in sourceAllocations) return { status: "rejected", reason: sourceAllocations.reason };
-  const destinationIds = new Set(entries.map((entry) => entry.destinationId));
+  const destinations = new Map(entries.map((entry) => [entry.destinationId, entry]));
   for (const allocation of sourceAllocations.value) {
-    if (allocation.disposition.kind === "target" && !destinationIds.has(allocation.disposition.destinationId)) {
+    if (allocation.disposition.kind !== "target") continue;
+    const destination = destinations.get(allocation.disposition.destinationId);
+    if (destination === undefined) {
       return { status: "rejected", reason: `source allocation references unknown destinationId \`${allocation.disposition.destinationId}\`.` };
+    }
+    if (!targetLocatorMatches(destination, allocation.disposition.targetLocator)) {
+      return {
+        status: "rejected",
+        reason: `source allocation target locator does not belong to destination \`${allocation.disposition.destinationId}\`.`,
+      };
     }
   }
   const incomingEdges = parseIncomingEdges(input.incomingEdges);

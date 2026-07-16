@@ -172,6 +172,41 @@ describe("parseCutMap", () => {
     expect(rejection(wrong)).toMatch(/declared cohort/i);
   });
 
+  it("requires each target locator to belong to its declared destination", () => {
+    expect(rejection(wellFormed({
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        disposition: {
+          kind: "target",
+          destinationId: "member-a",
+          targetLocator: { artifact: "draft-other.md", kind: "preamble" },
+        },
+      }],
+    }))).toMatch(/locator.*destination|artifact.*member-a/i);
+
+    const document = wellFormed({
+      entries: [
+        { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+        { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
+        {
+          kind: "existing-home",
+          destinationId: "doc",
+          target: { kind: "document", path: ".arc/reference/PROJECT-PRD.md" },
+          home: "atomic-edit",
+        },
+      ],
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        disposition: {
+          kind: "target",
+          destinationId: "doc",
+          targetLocator: { artifact: "README.md", kind: "preamble" },
+        },
+      }],
+    });
+    expect(rejection(document)).toMatch(/locator.*destination|artifact.*PROJECT-PRD/i);
+  });
+
   it("parses extraction but prevents it from authorizing retirement", () => {
     const input = wellFormed({
       shape: "extraction",
