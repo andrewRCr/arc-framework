@@ -12,11 +12,11 @@
 - **Task List:** `tasks-husk-lifecycle-drivers.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Canonical JSON serialization and CanonicalDigest primitives (line ~18)
+- **Last Completed:** Task 1.4 — Deterministic receipt/preparation IDs and inventory digests
+- **Next Task:** Task 2.1 — Port type vocabulary and closed refusal set (line ~72)
 - **Blockers:** [none]
 
-- **Next Action:** Begin implementation — Task 1.1 via the task loop
+- **Next Action:** Begin Phase 2 — Task 2.1 via the task loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
