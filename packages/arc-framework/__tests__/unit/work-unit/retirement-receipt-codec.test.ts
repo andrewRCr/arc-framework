@@ -51,7 +51,7 @@ function receiptFor(
     transition,
     source,
     transitionPatchDigest: digest("patch"),
-    retiringProjection: { kind: transition === "park-planning" ? "direct-transition" : "unchanged" },
+    retiringProjection: { kind: transition === "decompose" ? "unchanged" : "direct-transition" },
     authorization: transition === "park-planning" ? "planning-relocated" : "discard-confirmed",
     result,
   };
@@ -179,5 +179,38 @@ describe("parseRetirementReceipt", () => {
     const invalid = candidate(receiptFor());
     invalid.receiptId = digest("not-the-derived-id");
     expect(parseRetirementReceipt(canonicalize(invalid))).toBeNull();
+  });
+
+  it.each([
+    ["abandon relocation", "abandon", "planning-relocated", "relocate", "direct-transition"],
+    ["park discard", "park-planning", "discard-confirmed", "discard", "direct-transition"],
+    ["decompose direct projection", "decompose", "discard-confirmed", "decompose", "direct-transition"],
+  ] as const)("rejects the incoherent %s matrix", (_label, transition, authorization, resultKind, projection) => {
+    const base = candidate(receiptFor(
+      { kind: "work-unit", name: "sample" },
+      transition,
+      transition === "decompose"
+        ? {
+            kind: "decompose",
+            preparationId: digest("preparation"),
+            allocation,
+            cutMapDigest: digest("cut-map"),
+            sourceInventoryDigest: digest("source-inventory"),
+            incomingEdgeInventoryDigest: digest("incoming-inventory"),
+            outgoingEdgeInventoryDigest: digest("outgoing-inventory"),
+            targets: [],
+          }
+        : transition === "park-planning"
+          ? { kind: "relocate", plannedArtifactDigest: digest("planned") }
+          : { kind: "discard", artifactDigest: "absent" },
+    ));
+    base.authorization = authorization;
+    base.retiringProjection = { kind: projection };
+    if (resultKind === "relocate") {
+      base.result = { kind: "relocate", plannedArtifactDigest: digest("planned") };
+    } else if (resultKind === "discard") {
+      base.result = { kind: "discard", artifactDigest: "absent" };
+    }
+    expect(parseRetirementReceipt(canonicalize(base))).toBeNull();
   });
 });

@@ -9,7 +9,7 @@ import { isManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import { receiptId, type RetirementTransition } from "../canonical/receipt-id.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 import { parseCutMap, type DecomposeAllocationMap } from "./decompose-cut-map.js";
-import type { RetirementReceipt } from "./retirement-authority.js";
+import { validateReceiptMatrix, type RetirementReceipt } from "./retirement-authority.js";
 
 type JsonObject = Record<string, unknown>;
 type DecomposeResult = Extract<RetirementReceipt["result"], { kind: "decompose" }>;
@@ -186,7 +186,7 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
       sourceHead: source.head,
     });
     if (parsed.receiptId !== expectedReceiptId) return null;
-    return {
+    const receipt: RetirementReceipt = {
       schemaVersion: 1,
       receiptId: parsed.receiptId,
       subject,
@@ -197,6 +197,13 @@ export function parseRetirementReceipt(content: string): RetirementReceipt | nul
       authorization: parsed.authorization,
       result,
     };
+    const expectedLifecycle = transition === "park-planning" ? "planned" : "nonexistent";
+    const expectedProjection = transition === "decompose" ? "unchanged" : "direct-transition";
+    if (
+      validateReceiptMatrix(receipt, expectedLifecycle) !== null
+      || receipt.retiringProjection.kind !== expectedProjection
+    ) return null;
+    return receipt;
   } catch {
     return null;
   }
