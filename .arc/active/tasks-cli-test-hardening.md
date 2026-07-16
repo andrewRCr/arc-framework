@@ -281,8 +281,9 @@ and `src/handlers/status.ts` (`commands/status/run.ts` is a pure orchestrator wi
   `init.e2e.test.ts` / `update.e2e.test.ts` carry no concurrency tests (greenfield — extend the harness or drive
   two CLI spawns via `helpers/cli-spawn.ts`).
 
-    - `[ ]` **5.4.a Entry-point paths**
-        - `writeGitNote` stdin/EPIPE handling; `readGitNote` against a corrupt ref; `runWithSpinner` error path.
+    - `[x]` **5.4.a Entry-point paths**
+        - Covered `writeGitNote` stdin/EPIPE rejection through the real context surface, `readGitNote` against a
+          corrupt ref in a real repository, and `runWithSpinner` failure labeling plus error propagation.
 
     - `[ ]` **5.4.b `init`/`update` command-level concurrency**
         - Cover concurrent `init`/`update` invocations (the existing race harness targets git-ref writes only).
