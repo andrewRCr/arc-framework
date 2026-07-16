@@ -326,6 +326,41 @@ describe("runPark — park@Planning", () => {
     expect(validateReceiptMatrix(recorded, "nonexistent")).toBe("evidence-mismatch");
   });
 
+  it("preserves the advisory returned by deferred workspace cleanup", async () => {
+    const { ctx } = buildCtx([PLANNING]);
+    const advisory = "User workspace cleanup needs a later retry.";
+    ctx.executor.sideEffects!["user-workspace"] = async () => advisory;
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
+
+    expect(result).toMatchObject({
+      status: "parked",
+      outcome: { status: "ok", advisories: [advisory] },
+    });
+  });
+
+  it("retains existing advisories when deferred workspace cleanup fails", async () => {
+    const { ctx } = buildCtx([PLANNING]);
+    const existing = "ROADMAP regeneration reported a warning.";
+    ctx.executor.sideEffects!["reconcile-roadmap"] = async () => existing;
+    ctx.executor.sideEffects!["user-workspace"] = async () => {
+      throw new Error("workspace locked");
+    };
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
+
+    expect(result).toMatchObject({
+      status: "parked",
+      outcome: {
+        status: "ok",
+        advisories: [
+          existing,
+          "Park evidence was recorded, but the user workspace could not be closed: workspace locked.",
+        ],
+      },
+    });
+  });
+
   it("rolls back the relocation and leaves workspace cleanup deferred when recording refuses", async () => {
     const { ctx, calls } = buildCtx([PLANNING]);
     if (ctx.planningRetirement === undefined) throw new Error("missing planning retirement context");

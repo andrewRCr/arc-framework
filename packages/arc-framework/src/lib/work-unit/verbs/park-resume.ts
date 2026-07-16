@@ -412,20 +412,20 @@ async function parkPlanning(
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }
-  let completedOutcome = outcome;
+  const advisories = [...outcome.advisories];
   for (const runWorkspaceCleanup of deferredWorkspace) {
     try {
-      await runWorkspaceCleanup();
+      const advisory = await runWorkspaceCleanup();
+      if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
     } catch (err) {
-      completedOutcome = {
-        ...outcome,
-        advisories: [
-          ...outcome.advisories,
-          `Park evidence was recorded, but the user workspace could not be closed: ${err instanceof Error ? err.message : String(err)}.`,
-        ],
-      };
+      advisories.push(
+        `Park evidence was recorded, but the user workspace could not be closed: ${err instanceof Error ? err.message : String(err)}.`,
+      );
     }
   }
+  const completedOutcome = advisories.length === outcome.advisories.length
+    ? outcome
+    : { ...outcome, advisories };
   return {
     status: "parked",
     outcome: completedOutcome,
