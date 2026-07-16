@@ -569,7 +569,9 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     "Lint & Typecheck",
     "Unit Tests",
     "Integration Tests",
-    "E2E Tests",
+    "E2E Tests (1)",
+    "E2E Tests (2)",
+    "E2E Tests (3)",
     "Portability (concurrency guards) (ubuntu-latest)",
   ];
 
@@ -723,7 +725,7 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     });
   });
 
-  const TARGET = "E2E Tests";
+  const TARGET = "E2E Tests (2)";
 
   it("uses the latest duplicate check run when reruns share a display name", async () => {
     const { repo, checksDir, base, code, head } = await layeredRepo();

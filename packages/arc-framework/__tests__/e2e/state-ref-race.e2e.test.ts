@@ -19,13 +19,13 @@
  */
 
 import { execFile } from "node:child_process";
-import { readFile, rm, stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import { describe, it, expect } from "vitest";
 
-import { cleanupTempDir, createTempRepo } from "./helpers.js";
+import { cleanupTempDir, createTempRepo, removeGitBackedDir } from "./helpers.js";
 import { runRound, type WorkerResult } from "./true-race.js";
 
 const execFileAsync = promisify(execFile);
@@ -193,7 +193,7 @@ describe("true-race smokes — same-machine write-safety guards", () => {
     } finally {
       await execFileAsync("git", ["worktree", "remove", "--force", worktree], { cwd: dir }).catch(() => {});
       await cleanupTempDir(dir);
-      await rm(worktree, { recursive: true, force: true });
+      await removeGitBackedDir(worktree);
     }
   }, SMOKE_TIMEOUT_MS);
 
@@ -247,7 +247,7 @@ describe("true-race smokes — same-machine write-safety guards", () => {
     } finally {
       await execFileAsync("git", ["worktree", "remove", "--force", worktree], { cwd: dir }).catch(() => {});
       await cleanupTempDir(dir);
-      await rm(worktree, { recursive: true, force: true });
+      await removeGitBackedDir(worktree);
     }
   }, SMOKE_TIMEOUT_MS);
 });

@@ -45,13 +45,11 @@ async function runValidateConfig(content: string): Promise<ScriptResult> {
 }
 
 describe("validate-config.sh — user.notes_push", () => {
-  it("accepts manual, prompt, and on-sync values", async () => {
-    for (const value of ["manual", "prompt", "on-sync"]) {
-      const result = await runValidateConfig(`user.notes_push: ${value}\n`);
+  it.each(["manual", "prompt", "on-sync"])("accepts %s", async (value) => {
+    const result = await runValidateConfig(`user.notes_push: ${value}\n`);
 
-      expect(result.code).toBe(0);
-      expect(result.stdout).toContain(`PASS  user.notes_push: ${value}`);
-    }
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(`PASS  user.notes_push: ${value}`);
   });
 
   it("rejects the legacy user.sync_push key as unknown", async () => {
@@ -71,12 +69,10 @@ describe("validate-config.sh — user.notes_push", () => {
 });
 
 describe("validate-config.sh — session.init_load.notes", () => {
-  it("accepts manual, prompt, and always", async () => {
-    for (const value of ["manual", "prompt", "always"]) {
-      const result = await runValidateConfig(`session.init_load.notes: ${value}\n`);
-      expect(result.code).toBe(0);
-      expect(result.stdout).toContain(`PASS  session.init_load.notes: ${value}`);
-    }
+  it.each(["manual", "prompt", "always"])("accepts %s", async (value) => {
+    const result = await runValidateConfig(`session.init_load.notes: ${value}\n`);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(`PASS  session.init_load.notes: ${value}`);
   });
 
   it("rejects unknown values with the valid-set message", async () => {

@@ -14,14 +14,14 @@ async function markdownFiles(directory: string): Promise<string[]> {
 
 describe("PR-open lifecycle extensions", () => {
   it.each([
-    [packageArc, "system/extensions/pre-pr-open.md", "pre-pr-open", true],
-    [packageArc, "system/extensions/post-pr-open.md", "post-pr-open", true],
-    [projectArc, "system/extensions/pre-pr-open.md", "pre-pr-open", true],
-    [projectArc, "system/extensions/post-pr-open.md", "post-pr-open", false],
-  ])("registers an inactive managed shell at %s/%s", async (base, relative, name, placeholder) => {
+    [packageArc, "system/extensions/pre-pr-open.md", "pre-pr-open", false, true],
+    [packageArc, "system/extensions/post-pr-open.md", "post-pr-open", false, true],
+    [projectArc, "system/extensions/pre-pr-open.md", "pre-pr-open", true, false],
+    [projectArc, "system/extensions/post-pr-open.md", "post-pr-open", false, false],
+  ])("registers the managed extension at %s/%s", async (base, relative, name, active, placeholder) => {
     const content = await readFile(resolve(base, relative), "utf8");
     expect(content).toContain(`name: ${name}`);
-    expect(content).toContain("active: false");
+    expect(content).toContain(`active: ${active}`);
     expect(content.includes(`[No extension configured]`)).toBe(placeholder);
     expect(content.match(/^## .*\.actions$/gmu)).toHaveLength(1);
   });

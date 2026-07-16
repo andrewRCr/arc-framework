@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -153,6 +153,19 @@ describe("composeProjectReadinessView", () => {
     const depth2Section = view.slice(view.indexOf("### Depth 2"));
     expect(depth2Section).toContain("| blocked-delta | P3");
     expect(depth2Section).toContain("blocked-gamma");
+  });
+
+  it("skips a meta that vanishes between discovery and read", async () => {
+    root = await mkdtemp(join(tmpdir(), "arc-project-view-"));
+    const activeDir = join(root, ".arc", "active");
+    await writeMeta(join(activeDir, "meta-kept.md"), meta("kept", "Active"));
+    await symlink(join(activeDir, "already-gone.md"), join(activeDir, "meta-vanished.md"), "file");
+
+    const input = await resolveProjectReadinessViewInput({ cwd: root, title: "Roadmap" });
+    const view = composeProjectReadinessView({ ...input, renderedRef: "abc1234" });
+
+    expect(view).toContain("kept");
+    expect(view).not.toContain("vanished");
   });
 
   it("renders from injected records without reading the filesystem", () => {
