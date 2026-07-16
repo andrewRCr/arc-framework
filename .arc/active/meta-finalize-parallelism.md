@@ -12,14 +12,13 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 5.1 — wave-3 workload launched (CTH + HLD spawned and live, errand-drain session ran
-  PR #255); day-1 contention + drain-shape evidence recorded in `notes-finalize-parallelism.md` § Wave-3.
-- **Next Task:** Task 5.2 — Verify the wave-3 matrix cells (line ~728)
+- **Last Completed:** Task 5.2 — wave-3 matrix cells verified (5.2.a/b/c real-verb inductions; predictions held,
+  seams routed to Tasks 7.4–7.6 + one split-out capture); evidence in `notes-finalize-parallelism.md` § Wave-3.
+- **Next Task:** Task 5.3 — Resolve the parallel-errand fork and batch-errand sub-decision (line ~769)
 - **Blockers:** [none]
 
-- **Next Action:** Run the 5.2 induction cells (5.2.a errands-ref collision first) in a fresh session beside
-  live wave sessions — any time; not gated on the wave WUs shipping. 5.3/5.4/5.5 close when both wave WUs ship
-  and tear down (teardown-symmetry evidence) with the accumulated drain/contention evidence weighed then.
+- **Next Action:** Wave-gated — 5.3/5.4/5.5 close when both wave-3 WUs ship and tear down (CTH shipped
+  2026-07-16; HLD still mid-impl). Weigh the accumulated drain/contention evidence at 5.3 then.
 
 - **PR URL:** [none]
 - **Completed:** [none]
