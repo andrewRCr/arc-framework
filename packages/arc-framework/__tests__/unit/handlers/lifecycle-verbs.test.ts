@@ -99,8 +99,20 @@ vi.mock("../../../src/lib/work-unit/decompose-cut-map.js", () => ({
   parseCutMap: (...a: unknown[]) => mockParseCutMap(...a),
 }));
 const mockRunDecompose = vi.fn();
+const mockRunPreparedDecompose = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/decompose.js", () => ({
   runDecompose: (...a: unknown[]) => mockRunDecompose(...a),
+  runPreparedDecompose: (...a: unknown[]) => mockRunPreparedDecompose(...a),
+}));
+const mockPrepareDecompose = vi.fn();
+const mockStagePreparedResult = vi.fn();
+const mockFinalizeDecompose = vi.fn();
+vi.mock("../../../src/lib/work-unit/decompose-retirement-driver.js", () => ({
+  createInRepoDecomposeRetirementDriver: () => ({
+    prepare: (...a: unknown[]) => mockPrepareDecompose(...a),
+    stagePreparedResult: (...a: unknown[]) => mockStagePreparedResult(...a),
+    finalize: (...a: unknown[]) => mockFinalizeDecompose(...a),
+  }),
 }));
 
 const mockRunPromote = vi.fn();
@@ -244,6 +256,24 @@ beforeEach(() => {
       teardown: { slug: "mono", branch: "plan/mono" },
     },
   });
+  mockRunPreparedDecompose.mockResolvedValue({
+    status: "decomposed",
+    result: {
+      members: [{ slug: "alpha" }, { slug: "beta" }],
+      repointed: [],
+      origin: "retired",
+      teardown: { slug: "mono", branch: "plan/mono" },
+    },
+  });
+  mockPrepareDecompose.mockResolvedValue({
+    status: "prepared",
+    preparation: { locator: { receiptId: `sha256:${"a".repeat(64)}` } },
+  });
+  mockFinalizeDecompose.mockResolvedValue({
+    status: "recorded",
+    receipt: { receiptId: `sha256:${"a".repeat(64)}` },
+    authorityVersion: "finalized-version",
+  });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({
     branches: ["feat/foo"],
@@ -291,13 +321,28 @@ describe("handleStub", () => {
 });
 
 describe("handleDecompose", () => {
-  it("reads + validates the cut-map and dispatches runDecompose with the parsed cut", async () => {
+  it("prepares before dispatching the prepared decompose mutation", async () => {
     await handleDecompose("mono", { cutMap: "cut.json" });
 
     expect(mockParseCutMap).toHaveBeenCalledTimes(1);
-    expect(mockRunDecompose).toHaveBeenCalledTimes(1);
-    const params = mockRunDecompose.mock.calls[0]?.[1];
+    expect(mockPrepareDecompose).toHaveBeenCalledTimes(1);
+    expect(mockRunPreparedDecompose).toHaveBeenCalledTimes(1);
+    expect(mockStagePreparedResult).toHaveBeenCalledTimes(1);
+    expect(mockPrepareDecompose.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRunPreparedDecompose.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
+    const params = mockRunPreparedDecompose.mock.calls[0]?.[1];
     expect(params).toMatchObject({ cut: { origin: { slug: "mono" } } });
+  });
+
+  it("finalizes one canonical receipt without rereading the scratch cut-map", async () => {
+    const receiptId = `sha256:${"a".repeat(64)}`;
+    await handleDecompose("mono", { finalize: receiptId });
+
+    expect(mockReadFile).not.toHaveBeenCalled();
+    expect(mockPrepareDecompose).not.toHaveBeenCalled();
+    expect(mockFinalizeDecompose).toHaveBeenCalledWith("mono", receiptId);
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
   });
 
   it("refuses a malformed cut-map before any mutation", async () => {
@@ -305,7 +350,7 @@ describe("handleDecompose", () => {
 
     await handleDecompose("mono", { cutMap: "cut.json" });
 
-    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
@@ -316,14 +361,14 @@ describe("handleDecompose", () => {
     await handleDecompose("mono", { cutMap: "missing.json" });
 
     expect(mockParseCutMap).not.toHaveBeenCalled();
-    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("refuses when the cut-map origin disagrees with the `<origin>` argument", async () => {
     await handleDecompose("other", { cutMap: "cut.json" });
 
-    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
@@ -332,14 +377,14 @@ describe("handleDecompose", () => {
     await handleDecompose("mono", {});
 
     expect(mockReadFile).not.toHaveBeenCalled();
-    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("refuses without an origin argument", async () => {
     await handleDecompose(undefined, { cutMap: "cut.json" });
 
-    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });

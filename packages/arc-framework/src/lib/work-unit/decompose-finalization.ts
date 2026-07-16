@@ -46,7 +46,7 @@ export interface DecomposeFinalizationContext {
 
 export type DecomposeFinalizationResult =
   | { status: "recorded"; receipt: RetirementReceipt; authorityVersion: string }
-  | { status: "refused"; reason: TeardownAuthorizationRefusal };
+  | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string };
 
 function equal(left: unknown, right: unknown): boolean {
   return canonicalize(left) === canonicalize(right);
@@ -190,7 +190,11 @@ export async function finalizeDecomposeRetirement(
       receipt,
       authorityVersion: canonicalDigest({ previousAuthorityVersion: expectedAuthorityVersion, receipt }),
     };
-  } catch {
-    return { status: "refused", reason: "authority-unavailable" };
+  } catch (error) {
+    return {
+      status: "refused",
+      reason: "authority-unavailable",
+      diagnostic: error instanceof Error ? error.message : String(error),
+    };
   }
 }

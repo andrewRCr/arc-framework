@@ -23,11 +23,22 @@ import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../src/lib/active/meta-reader.js";
-import { createUserIOContext } from "../../src/lib/io-context.js";
+import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
+import { validateManagedPath } from "../../src/lib/canonical/managed-path.js";
+import { createUserIOContext, readGitBlobBytes } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import type { DecomposeParams } from "../../src/lib/work-unit/decompose-cut-map.js";
-import { runDecompose, type RunDecomposeContext } from "../../src/lib/work-unit/verbs/decompose.js";
+import { createInRepoDecomposeRetirementDriver } from "../../src/lib/work-unit/decompose-retirement-driver.js";
+import {
+  resolveRetirementRecordPath,
+  writeRetirementRecord,
+} from "../../src/lib/work-unit/retirement-record-store.js";
+import {
+  runDecompose,
+  runPreparedDecompose,
+  type RunDecomposeContext,
+} from "../../src/lib/work-unit/verbs/decompose.js";
 import { createTempRepo, cleanupTempDir, type GitExec } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
@@ -81,6 +92,26 @@ function decomposeCtx(repo: string): RunDecomposeContext {
     fs: { mkdir: io.mkdir, writeFile: io.writeFile },
     removeFs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
   };
+}
+
+function decomposeDriver(repo: string, failStage = false) {
+  const baseExec = repoExec(repo);
+  const exec: GitExec = async (cmd, args, options) => {
+    if (failStage && cmd === "git" && args[0] === "add") throw new Error("injected final staging failure");
+    return await baseExec(cmd, args, options);
+  };
+  return createInRepoDecomposeRetirementDriver({
+    cwd: repo,
+    exec,
+    lifecycleFs: {
+      readdir: (path) => readdir(path, { withFileTypes: true }),
+      readFile: (path) => readFile(path, "utf8"),
+    },
+    readFile: (path) => readFile(path, "utf8"),
+    readBlob: (ref, path) => readGitBlobBytes(repo, ref, path),
+    createRecord: (receiptId, content) => writeRetirementRecord(repo, receiptId, content),
+    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(repo, receiptId)),
+  });
 }
 
 function newMember(slug: string, dependsOn: string[] = []): DecomposeParams["entries"][number] {
@@ -156,6 +187,71 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(depStaged["Depends On"]).toContain("alpha");
     expect(depStaged["Depends On"]).toContain("beta");
     expect(depStaged["Depends On"]).not.toContain("mono");
+  });
+
+  it("runs the prepared mutation and receipt-addressed finalization as one durable transition", async () => {
+    await writeWu(repo, ".arc/active", "mono", { State: "Planning", Branch: "plan/mono", Origin: "[internal]" });
+    await writeWu(repo, ".arc/active", "dep", { State: "Active", Branch: "feat/dep", "Depends On": "mono" });
+    await commitAll(repo, "origin + dependent");
+    await execFileAsync("git", ["branch", "plan/mono", "HEAD"], { cwd: repo });
+
+    const sourcePath = validateManagedPath(".arc/active/draft-mono.md");
+    const sourceId = canonicalDigest({
+      schemaVersion: 2,
+      sourcePath,
+      sourceLocator: { artifact: "draft-mono.md", kind: "preamble" },
+    });
+    const cut: DecomposeParams = {
+      schemaVersion: 2,
+      origin: { slug: "mono", phase: "Planning", location: "active" },
+      shape: "symmetric",
+      parentPosition: "standalone",
+      cohort: "mono",
+      entries: [newMember("alpha"), newMember("beta")],
+      internalEdges: [],
+      sourceAllocations: [{
+        sourceId,
+        disposition: {
+          kind: "target",
+          destinationId: "alpha",
+          targetLocator: { artifact: "draft-alpha.md", kind: "preamble" },
+        },
+      }],
+      incomingEdges: [
+        { dependent: "dep", disposition: { kind: "replace", replacementTargets: ["alpha"] } },
+      ],
+      outgoingEdges: [],
+    };
+    const driver = decomposeDriver(repo);
+    const prepared = await driver.prepare(cut);
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared") return;
+
+    const mutation = await runPreparedDecompose(decomposeCtx(repo), { cut, preparation: prepared.preparation });
+    expect(mutation.status).toBe("decomposed");
+    if (mutation.status !== "decomposed") return;
+    await driver.stagePreparedResult(prepared.preparation);
+
+    const targetDraft = join(repo, ".arc/backlog/planned/mono/alpha/draft-alpha.md");
+    await writeFile(targetDraft, `${await readFile(targetDraft, "utf8")}\nPreserved origin framing.\n`);
+    await execFileAsync("git", ["add", "--", targetDraft], { cwd: repo });
+
+    const failed = await decomposeDriver(repo, true).finalize("mono", prepared.preparation.locator.receiptId);
+    expect(failed).toMatchObject({ status: "refused", reason: "authority-unavailable" });
+    expect(JSON.parse(await readFile(
+      resolveRetirementRecordPath(repo, prepared.preparation.locator.receiptId),
+      "utf8",
+    ))).toMatchObject({ kind: "prepared-decompose" });
+
+    const finalized = await driver.finalize("mono", prepared.preparation.locator.receiptId);
+    if (finalized.status === "refused") throw new Error(JSON.stringify(finalized));
+    expect(finalized).toMatchObject({ status: "recorded" });
+    const stored = JSON.parse(await readFile(
+      resolveRetirementRecordPath(repo, prepared.preparation.locator.receiptId),
+      "utf8",
+    )) as { transition?: string; kind?: string };
+    expect(stored).toMatchObject({ transition: "decompose" });
+    expect(stored.kind).not.toBe("prepared-decompose");
   });
 
   it("extraction: keeps the origin in place, mints only the extracted member with its dependency edge", async () => {

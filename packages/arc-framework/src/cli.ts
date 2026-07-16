@@ -201,6 +201,7 @@ program
   .command("decompose <origin>")
   .description("Split a work unit into a cohort of members per a structured cut-map file")
   .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
+  .option("--finalize <receipt-id>", "Verify the staged allocation and replace its preparation with a finalized receipt")
   .action((origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts));
 
 program

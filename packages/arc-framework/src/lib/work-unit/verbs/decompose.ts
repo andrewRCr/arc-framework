@@ -22,6 +22,7 @@
 import { join } from "node:path";
 
 import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import { canonicalize } from "../../canonical/canonical-json.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import { repointDependsOn } from "../decompose-sweep.js";
 import type {
@@ -40,6 +41,7 @@ import {
 import { resolveSlugState } from "../lifecycle-resolver.js";
 import type { Location, Phase } from "../lifecycle-state.js";
 import { artifactMatcher, pruneEmptyBacklogSource } from "../mutators/relocate-artifacts.js";
+import type { PreparedDecomposeRetirement } from "../retirement-authority.js";
 
 /** Filesystem seam for writing the scaffolded member metas + drafts. */
 export interface CohortMemberScaffoldFs {
@@ -251,6 +253,11 @@ export interface RunDecomposeParams {
   cut: DecomposeParams;
 }
 
+/** Prepared retirement evidence required by the production mutation path. */
+export interface RunPreparedDecomposeParams extends RunDecomposeParams {
+  preparation: PreparedDecomposeRetirement;
+}
+
 /** One incoming edge re-pointed off the retired origin. */
 export interface RepointedEdge {
   /** The dependent WU whose `Depends On` edge named the origin. */
@@ -293,6 +300,26 @@ export interface DecomposeResult {
 export type RunDecomposeResult =
   | { status: "rejected"; reason: string }
   | { status: "decomposed"; result: DecomposeResult };
+
+/** Consume one exact preparation before entering the mutation-only executor. */
+export async function runPreparedDecompose(
+  ctx: RunDecomposeContext,
+  params: RunPreparedDecomposeParams,
+): Promise<RunDecomposeResult> {
+  const { preparation, cut } = params;
+  const subject = preparation.locator.scope.subject;
+  if (
+    subject.kind !== "work-unit"
+    || subject.name !== cut.origin.slug
+    || preparation.locator.scope.transition !== "decompose"
+    || canonicalize(preparation.locator) !== canonicalize(preparation.record.locator)
+    || canonicalize(preparation.record.allocation) !== canonicalize(cut)
+    || preparation.authorityVersion.trim() === ""
+  ) {
+    return { status: "rejected", reason: "decompose preparation does not match the requested mutation." };
+  }
+  return await runDecompose(ctx, { cut });
+}
 
 /**
  * Run the decompose verb's deterministic legs over the cut-map — fan-out

@@ -32,6 +32,7 @@ import {
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, type GitExec } from "../lib/git/exec.js";
+import { isCanonicalDigest } from "../lib/canonical/canonical-json.js";
 import { createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import {
@@ -63,8 +64,9 @@ import {
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
-import { runDecompose } from "../lib/work-unit/verbs/decompose.js";
+import { runDecompose, runPreparedDecompose } from "../lib/work-unit/verbs/decompose.js";
 import { parseCutMap } from "../lib/work-unit/decompose-cut-map.js";
+import { createInRepoDecomposeRetirementDriver } from "../lib/work-unit/decompose-retirement-driver.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
@@ -77,6 +79,7 @@ import {
 } from "../lib/work-unit/park-planning-landing.js";
 import {
   resolveRetirementRecordPath,
+  resolveRetirementRecordRelativePath,
   writeRetirementRecord,
 } from "../lib/work-unit/retirement-record-store.js";
 import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
@@ -281,6 +284,8 @@ export async function handleStub(name: string | undefined, opts: StubOptions): P
 export interface DecomposeOptions {
   /** Path to the structured cut-map file (JSON) — required; the cut is authored, never inferred. */
   cutMap?: string;
+  /** Deterministic prepared receipt ID to finalize instead of starting a new transform. */
+  finalize?: string;
 }
 
 /**
@@ -301,6 +306,40 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
   const originArg = origin?.trim();
   if (!originArg) {
     refuse("`arc decompose <origin> --cut-map <file>` requires the origin work-unit name.");
+    return;
+  }
+  const driver = createInRepoDecomposeRetirementDriver({
+    cwd: base.cwd,
+    exec: base.io.exec,
+    lifecycleFs,
+    readFile: base.io.readFile,
+    readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
+    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
+  });
+  const finalizeId = opts.finalize?.trim();
+  if (finalizeId !== undefined && finalizeId !== "") {
+    if (opts.cutMap?.trim()) {
+      refuse("`arc decompose` accepts either `--cut-map` or `--finalize`, not both.");
+      return;
+    }
+    if (!isCanonicalDigest(finalizeId)) {
+      refuse("`arc decompose --finalize` requires a canonical `sha256:<64-lower-hex>` receipt ID.");
+      return;
+    }
+    const finalized = await driver.finalize(originArg, finalizeId);
+    if (finalized.status === "refused") {
+      refuse(finalized.reason);
+      return;
+    }
+    p.note(
+      [
+        `Origin:  ${originArg}`,
+        `Receipt: ${resolveRetirementRecordRelativePath(finalized.receipt.receiptId)}`,
+      ].join("\n"),
+      "Decompose finalized",
+    );
+    p.outro("Done.");
     return;
   }
   const cutMapPath = opts.cutMap?.trim();
@@ -330,18 +369,24 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
   }
 
   const { executor } = await buildExecutor(base);
-  const result = await runDecompose(
-    {
-      executor,
-      fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile },
-      removeFs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
-    },
-    { cut: parsed.params },
-  );
+  const decomposeContext = {
+    executor,
+    fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile },
+    removeFs: { readdir: (path: string) => readdir(path), rm: (path: string) => rm(path), rmdir: (path: string) => rmdir(path) },
+  };
+  const preparation = parsed.params.shape === "extraction" ? null : await driver.prepare(parsed.params);
+  if (preparation?.status === "refused") {
+    refuse(preparation.reason);
+    return;
+  }
+  const result = preparation === null
+    ? await runDecompose(decomposeContext, { cut: parsed.params })
+    : await runPreparedDecompose(decomposeContext, { cut: parsed.params, preparation: preparation.preparation });
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
   }
+  if (preparation !== null) await driver.stagePreparedResult(preparation.preparation);
 
   const { members, repointed, origin: disposition, teardown } = result.result;
   const lines = [
@@ -353,6 +398,11 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
     // The started origin's branch + worktree teardown is deferred to post-merge —
     // surface the exact command rather than reaping the live branch mid-transform.
     lines.push(`Teardown:   post-merge — \`arc teardown ${teardown.slug} --force\` (branch \`${teardown.branch}\`)`);
+  }
+  if (preparation !== null) {
+    lines.push(
+      `Finalize:   \`arc decompose ${originArg} --finalize ${preparation.preparation.locator.receiptId}\``,
+    );
   }
   p.note(lines.join("\n"), "Decomposed");
   p.outro("Done.");

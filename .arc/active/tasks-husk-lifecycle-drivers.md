@@ -264,12 +264,12 @@ for a shape with no surviving origin.
     - `[x]` **4.7.b Prepared-result recovery**
         - Exact retries now admit the staged preparation plus any subset of its closed allowed-path set and refuse
           any foreign staged path without recreating or restaging the record.
-    - `[ ]` **4.7.c Transactional finalization and complete missing-record gate**
-        - Roll back the worktree record on index-staging failure and reject recordless retirement shapes even when
-          every destination is an existing home.
-    - `[ ]` **4.7.d Production CLI and adapter binding**
-        - Make the initial invocation prepare before `runDecompose`; make `--finalize <receipt-id>` reopen and
-          finalize the exact stored preparation without scanning or requiring the scratch map.
+    - `[x]` **4.7.c Transactional finalization and complete missing-record gate**
+        - Finalization now atomically replaces and stages its record, restoring the prepared worktree content on
+          staging failure; the hook rejects recordless retirement even when every destination is an existing home.
+    - `[x]` **4.7.d Production CLI and adapter binding**
+        - The initial invocation prepares before entering the token-bound mutation path and stages only its closed
+          result set; `--finalize <receipt-id>` reopens that exact record without the scratch map or a namespace scan.
     - `[ ]` **4.7.e Workflow and end-to-end proof**
         - Publish the version-2/two-stage workflow contract and exercise prepare → mutation → manual distribution →
           finalize, interruption recovery, and record-gate refusal through real CLI boundaries.
