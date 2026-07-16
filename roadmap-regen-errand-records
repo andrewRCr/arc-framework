@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "roadmap-regen-errand-records",
+  "origin": "inbox",
+  "intent": "Feed errand records to the tracked ROADMAP render oracle",
+  "branch": "fix/roadmap-regen-errand-records",
+  "createdAt": "2026-07-16T21:17:13.731Z",
+  "originEntry": "Stop the stub/ROADMAP-regen advisory from flagging recorded errand branches",
+  "returnBranch": "main"
+}
