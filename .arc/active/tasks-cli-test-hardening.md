@@ -152,23 +152,29 @@ leaks under `isolate: false`, so relaxing isolation is unsafe until proven. Stop
 recorded and the wall-time criterion is consciously re-targeted (e.g. shard the unit leg), never forced. The
 config is a single `vitest.config.ts` with three projects; only the e2e project overrides pool/timeout today.
 
-### `[ ]` **3.1 Isolation-safety spike**
+### `[x]` **3.1 Isolation-safety spike**
 
 - _Goal:_ A recorded go/no-go on whether the unit tier can safely relax `isolate` / switch pool, grounded in how
   CLI unit tests actually use cwd and process-level state.
 
-- _Approach:_ Probe worker-thread `process.chdir()` behavior and module-level state leakage against the real unit
-  suite; use flake (e)'s live reproduction (`__tests__/unit/scripts/validate-config.test.ts`, passes 20/20 in
-  isolation) as the spike's concrete case. Output is a decision + evidence, not a config change.
+- _Outcome:_ **GO** — both hazards absent: no `process.chdir()` in any of the 361 unit test files (production
+  `chdir` is DI'd; its unit tests inject spies), and no module-level mutable state relied on fresh (factory/DI
+  throughout). The spike also found flake (e) **pool-orthogonal** — identical 5s timeouts under forks and threads,
+  because its two tests each run three serial ~1.7s bash spawns past the flat 5s default — so pool tuning owns the
+  wall-time criterion only; flake (e) is decoupled and fixed by an `it.each` restructure. Detail in
+  `notes-cli-test-hardening.md`.
 
 ### `[ ]` **3.2 Apply unit-pool tuning (spike-gated)**
 
-- _Goal:_ Unit-tier CI wall approaches its ~45s aggregate test time and flake (e) stops reproducing — or, on a
-  negative spike, the criterion is consciously re-targeted per the stop-loss.
+- _Goal:_ Unit-tier CI wall approaches its ~45s aggregate test time (via pool/`isolate` tuning) and flake (e) stops
+  reproducing (via the spawn-loop `it.each` restructure) — pool tuning being safe per the 3.1 GO.
 
-- _Note:_ Depends on 3.1. If safe, tune the `unit` project's pool/`isolate` in `vitest.config.ts`; re-measure via
-  `vitest run --reporter=json`. If unsafe, record the outcome and re-target Success Criterion 2 (e.g. sharded unit
-  leg) — never force unsafe tuning to hit the number.
+- _Note:_ Spike cleared (3.1 GO). Two decoupled changes here: (1) tune the `unit` project's pool/`isolate` in
+  `vitest.config.ts` and re-measure via `vitest run --reporter=json` (wall-time criterion); (2) restructure the two
+  spawn-loop tests in `validate-config.test.ts` to per-value `it.each` (flake (e) — pool tuning is orthogonal to it
+  per 3.1). Run the wall-time re-measure at quiet load, and fold the full-suite `isolate:false` safety confirmation
+  in here. If tuning can't approach the number, re-target Success Criterion 2 (e.g. sharded unit leg) per the
+  stop-loss — never force unsafe tuning.
 
 ---
 

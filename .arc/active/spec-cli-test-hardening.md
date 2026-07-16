@@ -68,10 +68,12 @@ for the unit tier), and the flake and cost hot spots overlap — acting on them 
    default config, no e2e global setup, 5s default timeout). Re-reproduce under the current sanctioned invocation
    before implementing; the isolation-by-construction lean stands either way as hygiene, but the repro anchors the
    exit test.
-6. **Flake (e) — unit-tier contention timeout** (`validate-config.test.ts`, 2026-07-15; passes 20/20 in isolation):
-   owned by the unit pool tuning (Decision 7), where it serves as evidence and as the falsifiable verification
-   target — the tuning should make the signature disappear. The test itself is not modified (contention, not test
-   logic).
+6. **Flake (e) — unit-tier contention timeout** (`validate-config.test.ts`, 2026-07-15): two tests each spawn three
+   bash subprocesses serially and exceed the flat 5s default under wave-session load (~1.7s/spawn × 3). Spike-verified
+   **pool-orthogonal** (Decision 7) — identical timeouts under forks and threads — so pool tuning does not clear it.
+   Fixed by restructuring the two spawn loops to per-value `it.each` (each a single sub-5s spawn), consistent with the
+   file's existing `it.each` idiom; decoupled from the pool tuning, which still owns the wall-time criterion. Passes at
+   normal load; under wave load the isolated single-file run itself fails.
 7. **Unit tier — pool / `isolate` tuning, spike-gated.** Tune the vitest pool / `isolate` settings for the unit
    tier, preceded by a verification spike against how CLI unit tests actually use cwd/process state (worker
    threads cannot `process.chdir()`; module-level state leaks with `isolate: false`); flake (e)'s live
@@ -164,8 +166,11 @@ for the unit tier), and the flake and cost hot spots overlap — acting on them 
 
 ## Open items
 
-- **Pool/`isolate` spike outcome** — which setting is safe for the unit tier resolves during the work; both
-  outcomes have a recorded path (Decision 7).
+- **Pool/`isolate` spike outcome** — **resolved GO (2026-07-15)**: neither hazard is present (no unit-test
+  `process.chdir()`; module state is instance-scoped via factories/DI), so `isolate` may be relaxed / the pool
+  switched for the wall-time criterion (Decision 7). Flake (e) is pool-orthogonal and is fixed separately by the
+  spawn-loop `it.each` restructure (Decision 6). Full-suite `isolate:false` confirmation folds into the tuning
+  re-measure at quiet load.
 - **Shard count and balance** — resolved through the bounded in-CI tuning iterations (Decision 8).
 - **Fixture-trim vs. timeout-budget for flake (c)** — either path clears the criterion; picked at implementation
   against the measured setup cost.

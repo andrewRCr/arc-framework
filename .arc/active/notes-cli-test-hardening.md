@@ -70,6 +70,37 @@ commits + 302 notes in a loop (~900 git subprocess spawns) as filler above the r
 - Synthetic notes-tree fixture helper for the flake (a) rework: `makeNotesTreeCommit` in
   `__tests__/helpers/integration.ts`.
 
+## Unit-tier pool/`isolate` spike (Decision 7) — outcome (2026-07-15)
+
+**Verdict: GO** — relaxing `isolate` / switching the unit pool is safe; both named hazards are absent. Probed
+against the live wave-3 contention window (load avg ~29).
+
+- **Worker-thread `process.chdir()` hazard — absent.** No `process.chdir()` in any of the 361 unit test files.
+  The six production `chdir` sites (`reconcile-worktree.ts`, `teardown.ts`, `executor-context.ts`, `lifecycle.ts`
+  ×2, `start.ts`) are dependency-injected; the two unit tests exercising them (`reconcile-worktree.test.ts`,
+  `teardown.test.ts`) inject fake `chdir` spies, so no unit test drives the real binding. A live `--pool=threads`
+  run of `validate-config.test.ts` raised no `ERR_WORKER_UNSUPPORTED_OPERATION`.
+- **`isolate: false` module-state leak — absent.** No module-level mutable state is relied on fresh per file. The
+  suite is factory + DI throughout: e.g. `commit-message-retry-store.test.ts` builds its own instance via
+  `createCommitMessageRetryStore(...)` rather than importing the module-level `realCommitMessageRetryStore`
+  singleton, so cross-file module reuse under `isolate: false` carries no shared mutable surface.
+- Full-unit-suite green-under-`isolate:false` confirmation deferred — under load ~29 it would surface contention
+  timeouts, not isolation failures; fold into the Decision-7 tuning re-measure at quiet load.
+
+**Flake (e) is pool-orthogonal — pool tuning does NOT clear it.** Live one-file reproduction under load ~29:
+forks/`isolate:true` → 2 tests time out (5012ms / 5002ms); `--pool=threads` → the same 2 tests, same budget
+(5006ms / 5000ms). The signature is **two** tests that each spawn three bash subprocesses serially (`user.notes_push`
+"accepts manual, prompt, and on-sync values" and `session.init_load.notes` "accepts manual, prompt, and always") —
+~1.7s/spawn under wave load × 3 exceeds the flat 5s default. Contention-bound, not overhead-bound: no pool/`isolate`
+setting changes the per-spawn cost. Corrects Decision 6 — it named one test, and its "passes 20/20 in isolation"
+holds only at normal load (under wave load the isolated single-file run itself fails). Independently corroborated
+by the wave-3 close-of-day USER-INBOX capture (per-spawn ~2s under load avg ~30).
+
+**Remedy (decoupled from pool tuning):** restructure the two spawn loops to per-value `it.each` — each test then
+runs a single ~1.7s spawn against the default 5s budget (~3× headroom, holding without a load-tuned magic timeout),
+consistent with the file's existing `it.each` idiom (the numeric-domain tests). Lands in the Decision-7 tuning task
+alongside the pool change.
+
 ## Coverage — candidates verified already-covered (dropped, 2026-07-15)
 
 - Deeply nested conditionals (3+ levels): covered in `render.test.ts`.
