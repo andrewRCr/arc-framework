@@ -172,7 +172,7 @@ describe("parseCutMap", () => {
     expect(rejection(wrong)).toMatch(/declared cohort/i);
   });
 
-  it("rejects a surviving origin for a retirement allocation", () => {
+  it("parses extraction but prevents it from authorizing retirement", () => {
     const input = wellFormed({
       shape: "extraction",
       entries: [
@@ -183,9 +183,11 @@ describe("parseCutMap", () => {
           disposition: "keep-active",
         },
         { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+        { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
       ],
     });
-    expect(rejection(input)).toMatch(/surviving origin.*retire/i);
+    const map = parsed(input);
+    expect(retirementAllocationRefusal(map, { ownerlessSourceIds: [] })).toMatch(/surviving origin.*retire/i);
   });
 
   it("requires ownerless shared material to target minted cohort coordination", () => {

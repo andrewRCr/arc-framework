@@ -452,12 +452,13 @@ export function parseCutMap(input: unknown): CutMapParseResult {
   if (coordinations[0] !== undefined && (cohort === undefined || coordinations[0].cohort !== cohort)) {
     return { status: "rejected", reason: "cohort-coordination must name the declared cohort." };
   }
-  if (entries.some((entry) => entry.kind === "surviving-origin") || input.shape === "extraction") {
-    return { status: "rejected", reason: "a surviving origin cannot authorize retirement." };
-  }
   const members = entries.filter((entry): entry is NewMemberEntry => entry.kind === "new-member");
   if ((input.shape === "symmetric" || input.shape === "backlog-stub-source") && members.length < 2) {
     return { status: "rejected", reason: `${input.shape} requires at least two new members.` };
+  }
+  if (input.shape === "extraction"
+    && (!entries.some((entry) => entry.kind === "surviving-origin") || members.length < 1)) {
+    return { status: "rejected", reason: "extraction requires a surviving origin and at least one new member." };
   }
   if (input.shape === "heterogeneous-home" && entries.length < 2) {
     return { status: "rejected", reason: "heterogeneous-home requires at least two destinations." };
@@ -531,6 +532,9 @@ export function retirementAllocationRefusal(
   map: DecomposeAllocationMap,
   facts: { ownerlessSourceIds: readonly CanonicalDigest[] },
 ): string | null {
+  if (map.shape === "extraction" || map.entries.some((entry) => entry.kind === "surviving-origin")) {
+    return "a surviving origin cannot authorize retirement.";
+  }
   const destinations = new Map(map.entries.map((entry) => [entry.destinationId, entry]));
   const allocations = new Map(map.sourceAllocations.map((allocation) => [allocation.sourceId, allocation.disposition]));
   for (const sourceId of facts.ownerlessSourceIds) {
