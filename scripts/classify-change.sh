@@ -92,13 +92,15 @@ readonly PORTABILITY_SURFACE_GLOBS=(
 # every one of these concluded `success` for a commit carrying HEAD's exact code
 # tree. These strings are the source of truth for the corresponding job `name:`
 # fields in .github/workflows/ci.yml — they must stay byte-identical (matrix legs
-# include the `(<os>)` suffix the runner appends to the job name). A drift fails
+# include the `(<matrix value>)` suffix the runner appends to the job name). A drift fails
 # safe to heavy but silently defeats the skip, so the two surfaces move together.
 readonly HEAVY_CHECK_NAMES=(
   "Lint & Typecheck"
   "Unit Tests"
   "Integration Tests"
-  "E2E Tests"
+  "E2E Tests (1)"
+  "E2E Tests (2)"
+  "E2E Tests (3)"
   "Portability (concurrency guards) (ubuntu-latest)"
 )
 

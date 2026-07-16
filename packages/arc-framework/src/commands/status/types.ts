@@ -99,9 +99,11 @@ export interface SessionInitBaseDistanceValue extends BaseDistanceStatusResult {
 
 /**
  * Base-branch-sync slot in the session-init envelope. Extends the raw probe
- * result (local `<base>` vs `origin/<base>`) with the config-gated action +
- * prompt pair: `pull` / `prompt` drive the fast-forward freshen offer, `surface`
- * the stale/diverged advisory, `skip` a current base.
+ * result (local `<base>` vs `origin/<base>`, plus `checkout` locus) with the
+ * config-gated action + prompt pair: `pull` / `prompt` drive the fast-forward
+ * freshen only when the base is not checked out; `surface` covers a stale base
+ * under `manual`, a base checked out elsewhere (primary-aware), or a diverged
+ * base; `skip` a current base or when this worktree holds the base.
  */
 export interface SessionInitBaseBranchSyncValue extends BaseBranchSyncStatusResult {
   recommendedAction: RecommendedAction;

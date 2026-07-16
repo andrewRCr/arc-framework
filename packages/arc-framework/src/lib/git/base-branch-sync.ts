@@ -12,6 +12,11 @@
  * `main` that is days behind `origin/main` and never notice; this probe makes
  * that visible at session-init.
  *
+ * Also reports where the local base is checked out (if anywhere) so the
+ * recommendation layer can refuse fetch-into-ref when the base is held in a
+ * worktree — Git rejects `fetch origin <base>:<base>` against a checked-out
+ * branch.
+ *
  * Reuses the ref-parameterized distance primitive from worktree-sync rather
  * than re-implementing the `rev-list` body — same primitive, new invocation
  * (`<base>` vs `origin/<base>` instead of `HEAD` vs `origin/<base>`). Advisory
@@ -20,6 +25,8 @@
  *
  * @module
  */
+
+import { resolve } from "node:path";
 
 import {
   boundedFetch,
@@ -31,6 +38,21 @@ import {
   DEFAULT_FETCH_TIMEOUT_MS,
   type WorktreeSyncState,
 } from "./worktree-sync.js";
+import { scanRegisteredWorktrees } from "./worktree-roster.js";
+
+/**
+ * Where the local base branch is checked out relative to this session.
+ *
+ * - `not-checked-out` — no worktree holds `<base>`; fetch-into-ref is viable.
+ * - `current` — this worktree holds `<base>`; the worktree channel owns pull.
+ * - `elsewhere` — another worktree holds `<base>`; auto fetch-into-ref is unsafe.
+ * - `unknown` — worktree topology could not be read; treat as not auto-safe.
+ */
+export type BaseCheckoutLocus =
+  | { kind: "not-checked-out" }
+  | { kind: "current"; path: string; primary: boolean }
+  | { kind: "elsewhere"; path: string; primary: boolean }
+  | { kind: "unknown" };
 
 export interface BaseBranchSyncStatusResult {
   /**
@@ -51,6 +73,11 @@ export interface BaseBranchSyncStatusResult {
   behind: number;
   /** The base branch compared against (the resolved `branch.base`). */
   base: string;
+  /**
+   * Checkout locus for the local base branch. Always populated so the
+   * recommendation layer can degrade auto-pull when fetch-into-ref would fail.
+   */
+  checkout: BaseCheckoutLocus;
   /** Distinguishes failure modes when `state` is `remote-unavailable`. Omitted otherwise. */
   failureReason?: "timeout" | "error";
 }
@@ -66,13 +93,54 @@ export interface RunBaseBranchSyncStatusOptions {
 }
 
 /**
+ * Resolve where the local base branch is checked out relative to this worktree.
+ *
+ * @param exec - Injectable git executor.
+ * @param baseBranch - Configured integration base branch name.
+ * @returns Checkout locus for recommendation-layer safety decisions.
+ */
+export async function resolveBaseCheckoutLocus(
+  exec: GitExec,
+  baseBranch: string,
+): Promise<BaseCheckoutLocus> {
+  const scan = await scanRegisteredWorktrees(exec);
+  if (!scan.ok) return { kind: "unknown" };
+
+  const baseWorktree = scan.worktrees.find((wt) => wt.branch === baseBranch);
+  if (baseWorktree === undefined) return { kind: "not-checked-out" };
+
+  let currentPath: string | null;
+  try {
+    const { stdout } = await exec("git", ["rev-parse", "--show-toplevel"]);
+    const trimmed = stdout.trim();
+    currentPath = trimmed === "" ? null : trimmed;
+  } catch {
+    currentPath = null;
+  }
+
+  // Topology known, current worktree not — treat as held elsewhere so auto
+  // fetch-into-ref degrades rather than racing an unknown checkout.
+  if (currentPath === null) {
+    return { kind: "elsewhere", path: baseWorktree.path, primary: baseWorktree.primary };
+  }
+
+  const same = resolve(baseWorktree.path) === resolve(currentPath);
+  return {
+    kind: same ? "current" : "elsewhere",
+    path: baseWorktree.path,
+    primary: baseWorktree.primary,
+  };
+}
+
+/**
  * Probe the distance from the local `<base>` ref to `origin/<base>`.
  *
  * Non-destructive: at most performs a narrow `git fetch origin <base>` so the
  * base tracking ref is current before the distance read. Degrades gracefully
  * when the comparison cannot be made (no remote, fetch failure, or a local base
  * ref that does not exist — a fresh clone that has never materialized the base
- * locally) rather than throwing.
+ * locally) rather than throwing. Always attaches the base checkout locus so
+ * session-init can refuse a doomed fetch-into-ref.
  */
 export async function runBaseBranchSyncStatus(
   options: RunBaseBranchSyncStatusOptions,
@@ -80,11 +148,19 @@ export async function runBaseBranchSyncStatus(
   const { exec, baseBranch, remoteSyncEnabled, fetchTimeoutMs = DEFAULT_FETCH_TIMEOUT_MS } = options;
 
   if (!remoteSyncEnabled) {
-    return { state: "skipped", ahead: 0, behind: 0, base: baseBranch };
+    return {
+      state: "skipped",
+      ahead: 0,
+      behind: 0,
+      base: baseBranch,
+      checkout: { kind: "not-checked-out" },
+    };
   }
 
+  const checkout = await resolveBaseCheckoutLocus(exec, baseBranch);
+
   if (!(await checkOriginExists(exec))) {
-    return { state: "no-remote", ahead: 0, behind: 0, base: baseBranch };
+    return { state: "no-remote", ahead: 0, behind: 0, base: baseBranch, checkout };
   }
 
   // A non-`ok` outcome is uniformly degraded here: like base-distance, this
@@ -97,6 +173,7 @@ export async function runBaseBranchSyncStatus(
       ahead: 0,
       behind: 0,
       base: baseBranch,
+      checkout,
       failureReason: fetch.outcome,
     };
   }
@@ -105,13 +182,14 @@ export async function runBaseBranchSyncStatus(
     // Local `<base>` (not HEAD) against the freshened remote base. A missing
     // local base ref makes `rev-list` throw, caught below as a degraded read.
     const { ahead, behind, state } = await countAheadBehindRef(exec, baseBranch, `origin/${baseBranch}`);
-    return { state, ahead, behind, base: baseBranch };
+    return { state, ahead, behind, base: baseBranch, checkout };
   } catch {
     return {
       state: "remote-unavailable",
       ahead: 0,
       behind: 0,
       base: baseBranch,
+      checkout,
       failureReason: "error",
     };
   }

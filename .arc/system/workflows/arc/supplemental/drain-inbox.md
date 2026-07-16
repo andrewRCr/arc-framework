@@ -109,13 +109,26 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
   execute-bound per § 6.
 - **Atomic disposition.** For each atomic, propose **execute-now**, **defer**, or **retain** (the escape-hatch) —
   acted on in § 5 / § 6.
+- **Destination-path overlap (advisory).** After destinations resolve and **before** the § 3 confirmation
+  interlock, collect the write paths the plan will touch (stub drafts / notes, shared inbox, errand targets when
+  execute-now). Run the existing overlap read over those paths:
+
+  ```bash
+  arc errand check --target <path>... --json
+  ```
+
+  Apply [`assess-parallel-fit`][assess-parallel-fit] (overlap read only — no design-load). Include any shared-
+  surface advisory in the routing plan presented at § 3 so sequencing and coordination are visible **before**
+  edits land. **Non-gating:** never block the drain on overlap; surface and let the operator reorder, retain, or
+  proceed. Do not build a second overlap oracle.
 
 ### 3. Confirmation interlock
 
 > [!IMPORTANT]
 > Stop. Present the **full routing plan** — every entry's proposed route, the groupings, new-stub commitment levels,
-> in-flight owner-adoption handoffs, atomic dispositions, and the chunk plan (§ 4) if the sweep is large — and await
-> explicit confirmation. **The drain makes no write before this gate.**
+> in-flight owner-adoption handoffs, atomic dispositions, any destination-path overlap advisories from § 2, and
+> the chunk plan (§ 4) if the sweep is large — and await explicit confirmation. **The drain makes no write before
+> this gate.**
 
 The user may adjust any proposal: regroup, change a commitment level, flip an atomic between execute-now / defer /
 retain, or **retain** an entry that would otherwise route. Routing (§ 5) proceeds only on the confirmed plan.
@@ -232,6 +245,7 @@ in-flight-errand staleness belong to session-init orientation, not the drain.
 ---
 
 [run-errand]: run-errand.md
+[assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [cheap-branch]: ../../../../reference/strategies/arc/strategy-work-organization.md#cheap-branch-path
 [branch-modes]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes

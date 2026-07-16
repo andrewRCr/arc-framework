@@ -70,6 +70,18 @@ describe("validateDecomposeCommitGate", () => {
     ])).toContainEqual(expect.stringMatching(/missing.*retirement record/i));
   });
 
+  it("does not reinterpret historical metadata changes in a merge as a new retirement", () => {
+    expect(validateDecomposeCommitGate({
+      changes: [
+        { status: "D", path: ".arc/backlog/planned/old/meta-old.md" },
+        { status: "A", path: ".arc/backlog/planned/new/meta-new.md" },
+      ],
+      mergeInProgress: true,
+      readIndexBytes: () => null,
+      readHeadBytes: () => null,
+    })).toEqual([]);
+  });
+
   it("allows same-slug relocations and other finalized retirement records", () => {
     expect(validate([
       { status: "D", path: ".arc/active/meta-origin.md" },

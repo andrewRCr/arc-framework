@@ -28,7 +28,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import { canonicalDigest } from "../../src/lib/canonical/canonical-json.js";
 import { writeWorktreeOwnershipMarker } from "../../src/lib/git/worktree-marker.js";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -222,11 +222,24 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   afterEach(async () => {
+    const errors: unknown[] = [];
     for (const wt of worktrees) {
       await git(repo, ["worktree", "remove", "--force", wt]).catch(() => undefined);
-      await rm(wt, { recursive: true, force: true }).catch(() => undefined);
+      try {
+        await removeGitBackedDir(wt);
+      } catch (error) {
+        errors.push(error);
+      }
     }
-    await cleanupTempDir(repo);
+    try {
+      await cleanupTempDir(repo);
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) {
+      throw new AggregateError(errors, "Lifecycle-exit fixture cleanup failed.");
+    }
   });
 
   // -------------------------------------------------------------------------

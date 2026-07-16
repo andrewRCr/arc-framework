@@ -62,7 +62,7 @@ import { extractReminderEntries } from "../../src/lib/session-init/inbox-reminde
 import { runErrandStalenessSweep } from "../../src/lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../src/lib/session-init/errand-state.js";
 import type { GitExec } from "../../src/lib/git/index.js";
-import { execFileAsync, makeGitExec } from "../helpers/integration.js";
+import { execFileAsync, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 
 interface Fixture {
   root: string;
@@ -202,7 +202,13 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     worktreeIdentity: async () => ({ kind: "primary" }),
     currentHusk: async () => null,
     baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
-    baseBranchSync: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main" }),
+    baseBranchSync: async () => ({
+      state: "skipped",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" as const },
+    }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
@@ -263,7 +269,13 @@ function makeResolvedReleaseModeSessionInitProbes(
     worktreeIdentity: async () => ({ kind: "primary" }),
     currentHusk: async () => null,
     baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
-    baseBranchSync: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main" }),
+    baseBranchSync: async () => ({
+      state: "skipped",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" as const },
+    }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
@@ -505,7 +517,13 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       worktreeIdentity: async () => ({ kind: "primary" }),
       currentHusk: async () => null,
       baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
-      baseBranchSync: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main" }),
+      baseBranchSync: async () => ({
+      state: "skipped",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" as const },
+    }),
       supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
       dirty: async () => ({ state: "clean", fileCount: 0 }),
       extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
@@ -642,6 +660,7 @@ describe("runStatus — identity missing", () => {
 
 async function gitInit(root: string): Promise<void> {
   await execFileAsync("git", ["init", root]);
+  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: root });
   await execFileAsync("git", ["config", "user.email", "test@test.com"], {
     cwd: root,
   });
@@ -658,6 +677,7 @@ async function gitInit(root: string): Promise<void> {
 async function pushToBareRemote(root: string): Promise<string> {
   const remoteDir = await mkdtemp(join(tmpdir(), "arc-status-remote-"));
   await execFileAsync("git", ["init", "--bare", remoteDir]);
+  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remoteDir });
   await execFileAsync("git", ["remote", "add", "origin", remoteDir], {
     cwd: root,
   });
@@ -684,7 +704,13 @@ function makeRealWorktreeProbes(
     worktreeIdentity: async () => ({ kind: "primary" }),
     currentHusk: async () => null,
     baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
-    baseBranchSync: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main" }),
+    baseBranchSync: async () => ({
+      state: "skipped",
+      ahead: 0,
+      behind: 0,
+      base: "main",
+      checkout: { kind: "not-checked-out" as const },
+    }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
@@ -730,8 +756,8 @@ describe("runSessionInitStatus — real worktree probe", () => {
   });
 
   afterEach(async () => {
-    await rm(fixture.root, { recursive: true, force: true });
-    if (remoteDir) await rm(remoteDir, { recursive: true, force: true });
+    await removeGitBackedDir(fixture.root);
+    if (remoteDir) await removeGitBackedDir(remoteDir);
   });
 
   it("reports worktree=clean when local matches a freshly pushed bare remote", async () => {

@@ -38,9 +38,36 @@ describe("renderTokens", () => {
     });
     expect(result).toBe("Hello {{UNKNOWN_TOKEN}}!");
   });
+
+  it("substitutes token values containing replacement metacharacters literally", () => {
+    const value = "$&\\1.*+?^${}()|[]";
+    const result = renderTokens("Value: {{PROJECT_NAME}}", { PROJECT_NAME: value });
+
+    expect(result).toBe(`Value: ${value}`);
+  });
 });
 
 describe("renderConditionals", () => {
+  it("rejects an unclosed conditional with source context", () => {
+    const input = [
+      "before",
+      "<!-- arc:if pm.mode == arc-in-git -->",
+      "never closed",
+    ].join("\n");
+
+    expect(() =>
+      renderConditionals(input, { "pm.mode": "arc-in-git" }, "templates/example.md"),
+    ).toThrow("Unclosed arc:if directive at templates/example.md:2");
+  });
+
+  it("rejects a stray closing directive with source context", () => {
+    const input = ["before", "<!-- arc:endif -->", "after"].join("\n");
+
+    expect(() => renderConditionals(input, {}, "templates/example.md")).toThrow(
+      "Stray arc:endif directive at templates/example.md:2",
+    );
+  });
+
   it("includes section when condition is true", () => {
     const input = [
       "before",

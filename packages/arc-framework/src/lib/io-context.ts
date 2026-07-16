@@ -8,7 +8,7 @@
  * @module
  */
 
-import { readFile, writeFile, mkdir, access, chmod, readdir, stat } from "node:fs/promises";
+import { readFile, writeFile, mkdir, access, chmod, readdir, realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
@@ -160,8 +160,18 @@ async function readGitNote(
  */
 async function readUserDir(dirPath: string): Promise<DirEntry[]> {
   const entries: DirEntry[] = [];
+  const visited = new Set<string>();
 
   async function walk(currentPath: string, prefix: string): Promise<void> {
+    let resolvedPath: string;
+    try {
+      resolvedPath = await realpath(currentPath);
+    } catch {
+      return;
+    }
+    if (visited.has(resolvedPath)) return;
+    visited.add(resolvedPath);
+
     let names: string[];
     try {
       names = await readdir(currentPath);
@@ -170,7 +180,11 @@ async function readUserDir(dirPath: string): Promise<DirEntry[]> {
     }
     for (const name of names) {
       const fullPath = join(currentPath, name);
-      const s = await stat(fullPath);
+      const s = await stat(fullPath).catch((error: unknown) => {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+      });
+      if (s === null) continue;
       if (s.isDirectory()) {
         if (name.startsWith(".")) continue;
         await walk(fullPath, prefix ? `${prefix}/${name}` : name);

@@ -10,7 +10,11 @@
 
 import { describe, it, expect } from "vitest";
 
-import { removeInboxEntry } from "../../src/lib/user-sync/index.js";
+import {
+  listInboxEntryTitles,
+  removeInboxEntry,
+  requireLiveInboxTitle,
+} from "../../src/lib/user-sync/index.js";
 
 /** A realistic inbox: two `## Errand` entries, one `## Work Unit` entry, a trailing tombstone. */
 const INBOX = `# User Inbox
@@ -178,5 +182,58 @@ describe("removeInboxEntry", () => {
 
     expect(result.removed).toBe(false);
     expect(result.content).toBe(content);
+  });
+});
+
+describe("listInboxEntryTitles", () => {
+  it("collects titles from both ## Errand and ## Work Unit in document order", () => {
+    expect(listInboxEntryTitles(INBOX)).toEqual([
+      "First atomic",
+      "Second atomic",
+      "A backlog item",
+    ]);
+  });
+
+  it("stops collection after a --- section boundary", () => {
+    const content = `## Errand
+
+### \`[ ]\` **Live**
+
+- _Observation:_ keep.
+
+---
+
+### \`[ ]\` **Past boundary**
+
+- _Observation:_ not managed.
+`;
+    expect(listInboxEntryTitles(content)).toEqual(["Live"]);
+  });
+
+  it("preserves duplicate titles in returned order", () => {
+    const content = `## Errand
+
+### \`[ ]\` **Same title**
+
+- _Observation:_ one.
+
+### \`[ ]\` **Same title**
+
+- _Observation:_ two.
+`;
+    expect(listInboxEntryTitles(content)).toEqual(["Same title", "Same title"]);
+  });
+});
+
+describe("requireLiveInboxTitle", () => {
+  it("returns the live title when present", () => {
+    expect(requireLiveInboxTitle(INBOX, "First atomic")).toBe("First atomic");
+    expect(requireLiveInboxTitle(INBOX, "  Second atomic  ")).toBe("Second atomic");
+  });
+
+  it("throws when no live capture matches", () => {
+    expect(() => requireLiveInboxTitle(INBOX, "Missing capture")).toThrow(
+      /No live USER-INBOX capture titled 'Missing capture'/,
+    );
   });
 });

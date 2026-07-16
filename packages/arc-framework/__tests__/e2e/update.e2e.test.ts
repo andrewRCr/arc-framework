@@ -34,6 +34,31 @@ describe("update", () => {
     expect(output).toContain("unchanged");
   });
 
+  it("concurrent clean updates preserve valid manifest state", async () => {
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+
+    const updates = await Promise.all([
+      runArc(["update"], tmpDir),
+      runArc(["update"], tmpDir),
+    ]);
+
+    expect(updates.map((result) => result.exitCode)).toEqual([0, 0]);
+    const internalDir = join(tmpDir, ".arc", "system", ".internal");
+    const manifest = JSON.parse(
+      await readFile(join(internalDir, "manifest.json"), "utf8"),
+    ) as {
+      install_config: { project_name: string };
+      files: Record<string, unknown>;
+    };
+    const pristine = JSON.parse(
+      await readFile(join(internalDir, "pristine.json"), "utf8"),
+    ) as Record<string, string>;
+    expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
+    expect(manifest.install_config.project_name).toBe("test-project");
+    expect(Object.keys(pristine).length).toBeGreaterThan(0);
+  });
+
   it("customization preserved: adopter changes survive update", async () => {
     const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(init.exitCode).toBe(0);

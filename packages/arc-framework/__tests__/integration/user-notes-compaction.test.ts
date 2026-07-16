@@ -17,7 +17,7 @@ import {
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import { reconcileNotesPush, runUserCompact, type UserIOContext } from "../../src/commands/user.js";
 import { planBranchBoundedNotesExport } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
-import { listNoteEntries, readNotesCompactionSyncMarker } from "../../src/lib/user-sync/index.js";
+import { CROSS_WU_NOTE_WINDOW, listNoteEntries, readNotesCompactionSyncMarker } from "../../src/lib/user-sync/index.js";
 import {
   adoptCompactedNotesRef,
   compactNotesRefSnapshot,
@@ -70,6 +70,50 @@ async function writeCompletedMeta(cwd: string, sequence: string, slug: string, c
 
 async function noteContent(cwd: string, commit: string): Promise<string> {
   return git(cwd, ["notes", `--ref=${NOTES_REF}`, "show", commit]);
+}
+
+/**
+ * Render a retention-count mismatch as the retained/pruned note partition — each note's annotated
+ * commit, committer date, and manifest paths — so a future regression in this fixture-cost-sensitive
+ * test is debuggable from the failure alone rather than requiring a local re-run.
+ */
+async function formatRetentionMismatch(input: {
+  repo: string;
+  preCompactionCommits: readonly string[];
+  actualRetained: number;
+  actualPruned: number;
+  expectedRetained: number;
+  expectedPruned: number;
+}): Promise<string> {
+  const { repo, preCompactionCommits, actualRetained, actualPruned, expectedRetained, expectedPruned } = input;
+  const survivingCommits = (await listNoteEntries(makeGitExec(repo), NOTES_REF)).map((entry) => entry.commit);
+  const survivingSet = new Set(survivingCommits);
+  const prunedCommits = preCompactionCommits.filter((commit) => !survivingSet.has(commit));
+  return [
+    `retention partition mismatch: retained ${actualRetained} (expected ${expectedRetained}), `
+    + `pruned ${actualPruned} (expected ${expectedPruned})`,
+    `retained notes (${survivingCommits.length}):`,
+    ...await describeNotePartition(repo, survivingCommits),
+    `pruned notes (${prunedCommits.length}):`,
+    ...await describeNotePartition(repo, prunedCommits),
+  ].join("\n");
+}
+
+async function describeNotePartition(repo: string, commits: readonly string[]): Promise<string[]> {
+  const lines: string[] = [];
+  for (const commit of commits) {
+    const committedAt = await git(repo, ["show", "-s", "--format=%cI", commit]);
+    let paths = "(note pruned)";
+    try {
+      const manifest = JSON.parse(await noteContent(repo, commit)) as { files?: Record<string, unknown> };
+      const keys = Object.keys(manifest.files ?? {});
+      paths = keys.length > 0 ? keys.join(", ") : "(empty manifest)";
+    } catch {
+      // Note absent (pruned) or unparseable — keep the default marker.
+    }
+    lines.push(`  ${commit.slice(0, 8)}  ${committedAt}  ${paths}`);
+  }
+  return lines;
 }
 
 describe("user notes compaction", () => {
@@ -839,11 +883,16 @@ describe("user notes compaction", () => {
       localSubdirCommit,
     ]);
 
-    for (let index = 0; index < 302; index += 1) {
+    // Filler count kept above both boundaries the retention path exercises: the newest-by-date window
+    // (CROSS_WU_NOTE_WINDOW = 10) and the read-concurrency batch size (16, so more than one batch runs).
+    // The full 302 filler that once seeded this fixture cost ~900 git subprocess spawns for no added
+    // coverage — retention behavior is exercised identically at this count.
+    const fillerCount = 35;
+    for (let index = 0; index < fillerCount; index += 1) {
       const commit = await makeDatedCommit(
         repo,
         `filler ${index}`,
-        `2026-07-01T00:${String(index % 60).padStart(2, "0")}:00.000Z`,
+        `2026-07-01T00:${String(index).padStart(2, "0")}:00.000Z`,
       );
       await git(repo, [
         "notes", `--ref=${NOTES_REF}`, "add", "-m",
@@ -860,6 +909,8 @@ describe("user notes compaction", () => {
     await writeFile(join(repo, ".arc", "user", IDENTITY, "local-subdir", "SESSION-NOTES.md"), "local\n", "utf-8");
     await git(repo, ["push", "origin", NOTES_REF]);
 
+    const preCompactionCommits = (await listNoteEntries(makeGitExec(repo), NOTES_REF)).map((entry) => entry.commit);
+
     const result = await runUserCompact({
       cwd: repo,
       io: makeUserIO(repo),
@@ -869,8 +920,22 @@ describe("user notes compaction", () => {
 
     expect(result.kind).toBe("compacted");
     if (result.kind !== "compacted") return;
-    expect(result.retainedCount).toBe(12);
-    expect(result.prunedCount).toBe(292);
+
+    // The newest `CROSS_WU_NOTE_WINDOW` filler notes fill the by-date window; the two older special
+    // notes survive only via the archive-age and local-subdir gates. Every other filler note is pruned.
+    const gatedSpecialCount = 2;
+    const expectedRetained = CROSS_WU_NOTE_WINDOW + gatedSpecialCount;
+    const expectedPruned = fillerCount - CROSS_WU_NOTE_WINDOW;
+    if (result.retainedCount !== expectedRetained || result.prunedCount !== expectedPruned) {
+      throw new Error(await formatRetentionMismatch({
+        repo,
+        preCompactionCommits,
+        actualRetained: result.retainedCount,
+        actualPruned: result.prunedCount,
+        expectedRetained,
+        expectedPruned,
+      }));
+    }
     expect(await noteContent(repo, recentCommit)).toContain("recent-archive/SESSION-NOTES.md");
     expect(await noteContent(repo, localSubdirCommit)).toContain("local-subdir/SESSION-NOTES.md");
   }, 30_000);

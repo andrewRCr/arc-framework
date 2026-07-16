@@ -28,6 +28,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
+import { removeGitBackedDir } from "../helpers/temp-repo.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
 import {
@@ -506,7 +507,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(await readFile(join(primaryUserDir, "FUTURE.md"), "utf8")).toBe("written after husking\n");
       expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(wtPath);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -528,7 +529,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect((await readWorktreeMarker(wtPath)).kind).toBe("absent");
       expect(await git(h.cloneA, ["worktree", "list"])).toContain(wtPath);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -567,7 +568,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
       expect(await git(wtPath, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -592,12 +593,12 @@ describe("arc teardown — worktree dispatch over real git", () => {
       if (moved.status === "rejected") expect(moved.reason).toMatch(/head-moved/iu);
       expect(await git(h.cloneA, ["worktree", "list"])).toContain(wtPath);
 
-      await rm(wtPath, { recursive: true, force: true });
+      await removeGitBackedDir(wtPath);
       await git(h.cloneA, ["worktree", "prune"]);
       expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(wtPath);
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -624,7 +625,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const worktrees = await git(h.cloneA, ["worktree", "list"]);
       expect(worktrees).not.toContain(result.worktreeRemoved!);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -647,7 +648,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       // Nothing reaped: the branch and worktree survive the refusal.
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -696,7 +697,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const worktrees = await git(h.cloneA, ["worktree", "list"]);
       expect(worktrees).not.toContain(result.worktreeRemoved!);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -729,7 +730,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(worktrees).toContain(wtPath);
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });

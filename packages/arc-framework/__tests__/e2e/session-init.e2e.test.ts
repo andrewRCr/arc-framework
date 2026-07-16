@@ -14,14 +14,14 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
 import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
-import { runArc, createTempRepo, cleanupTempDir, git } from "./helpers.js";
+import { runArc, createTempRepo, cleanupTempDir, removeGitBackedDir, git } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -429,6 +429,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     const bareDir = await mkdtemp(join(tmpdir(), "arc-session-init-residue-origin-"));
     try {
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", bareDir]);
+      await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: bareDir });
       await execFileAsync("git", ["remote", "add", "origin", bareDir], { cwd: tmpDir });
       await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
       await execFileAsync(
@@ -458,7 +459,7 @@ describe("session-init E2E — sessionType across type variants", () => {
         },
       });
     } finally {
-      await rm(bareDir, { recursive: true, force: true });
+      await removeGitBackedDir(bareDir);
     }
   });
 
@@ -574,6 +575,7 @@ describe("session-init E2E — base-ref pull recommendation under session.init_p
     await git(["commit", "--no-verify", "-m", "init"]);
     bareDir = await mkdtemp(join(tmpdir(), "arc-e2e-remote-"));
     await execFileAsync("git", ["init", "--bare", "-b", "main", bareDir]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: bareDir });
     await git(["remote", "add", "origin", bareDir]);
     await git(["push", "-u", "origin", "main"]);
     // Advance origin/main one commit beyond where local main will sit.
@@ -592,8 +594,8 @@ describe("session-init E2E — base-ref pull recommendation under session.init_p
     const content = await readFile(cfgPath, "utf8");
     const next = content.replace(/^session\.init_pull\.base:.*$/mu, `session.init_pull.base: ${value}`);
     await writeFile(cfgPath, next);
-    // Commit the config edit on the feature branch so the working tree is clean —
-    // otherwise a dirty tree refuses the fast-forward (surface), masking the policy.
+    // Commit the config edit so the working tree stays clean for other channels
+    // (notes-load / worktree) that still gate on dirtiness.
     await execFileAsync("git", ["commit", "--no-verify", "-am", `set base policy ${value}`], { cwd: repo });
   }
 
@@ -606,7 +608,7 @@ describe("session-init E2E — base-ref pull recommendation under session.init_p
 
   afterEach(async () => {
     await cleanupTempDir(tmpDir);
-    if (bareDir) await rm(bareDir, { recursive: true, force: true });
+    if (bareDir) await removeGitBackedDir(bareDir);
   });
 
   it("detects the behind local base as remote-ahead", async () => {

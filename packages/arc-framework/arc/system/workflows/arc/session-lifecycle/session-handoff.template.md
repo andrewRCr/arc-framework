@@ -41,8 +41,8 @@ arc status --session-handoff --json
 | `recommendedSummaryLine` | Pre-composed top-of-Confirm-Handoff line (`**Reconcile required:** ...` / `**Worktree:** N unpushed ...` / `null`)    |
 
 On the clean arm, `user.value.loadNeeded` may signal a safe local notes load, and
-`user.value.notesDriftSurface` (`{direction: mixed | missing}`) carries unresolved notes/disk drift for Confirm
-Handoff.
+`user.value.notesDriftSurface` (`{direction, register: expected | caution}`) carries unresolved notes/disk
+drift for Confirm Handoff — calm parallel-session steady state vs inspect-before-rely.
 
 **Slot freshness contract.** Probe-1 captures pre-path state. The active-WU meta-file commit, errand checkpoint
 commit, and between-WUs context routing may mutate `worktree`, `dirty`, and `head`; re-read those slots from
@@ -602,8 +602,13 @@ or `**Errand:**`):
   (`syncInterlock.value` is `"on-handoff"` or `"on-workflow"` and identity present); read from probe-2 otherwise
   (manual mode or identity absent). This surface composes from canonical state — no agent-side counting or dispatch.
 - `identity` present, `user.value.notesDriftSurface` present, and the sync result did not report the notes leg
-  saved or pushed successfully: render the advisory below. Suppress it when `arc sync --json` shows notes
-  save/push success; the sync already captured the drift.
+  saved or pushed successfully: branch on `notesDriftSurface.register` and render the matching advisory below.
+  Suppress when `arc sync --json` shows notes save/push success; the sync already captured the drift.
+
+  ```text
+  **Notes/disk drift:** expected with live sibling sessions or a fresh seed ({direction}); converges at
+  next save or handoff — lag, not loss.
+  ```
 
   ```text
   **Notes/disk drift:** on-disk user files diverge from the latest note ({direction}); inspect with

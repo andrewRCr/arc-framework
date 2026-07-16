@@ -20,6 +20,8 @@ export interface StagedPathChange {
 
 export interface DecomposeCommitGateInput {
   changes: readonly StagedPathChange[];
+  /** Merge commits combine already-recorded history and do not mint lifecycle evidence. */
+  mergeInProgress?: boolean;
   readIndexBytes(path: string): Uint8Array | null;
   readHeadBytes(path: string): Uint8Array | null;
 }
@@ -43,7 +45,7 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
   const errors: string[] = [];
   const recordChanges = input.changes.filter((change) => RECORD_PATTERN.test(change.path));
   if (recordChanges.length === 0) {
-    if (looksLikeRecordlessRetirement(input.changes)) {
+    if (input.mergeInProgress !== true && looksLikeRecordlessRetirement(input.changes)) {
       errors.push("lifecycle retirement is missing a finalized retirement record");
     }
     return errors;
@@ -128,6 +130,7 @@ async function gitBytes(args: string[]): Promise<Uint8Array | null> {
 
 /** Validate the current index and set a failing exit code on refusal. */
 export async function runDecomposeRecordValidation(): Promise<void> {
+  const mergeInProgress = await gitBytes(["rev-parse", "--verify", "-q", "MERGE_HEAD"]) !== null;
   const { stdout } = await execFileAsync("git", ["diff", "--cached", "--name-status", "--no-renames"], { encoding: "utf8" });
   const changes = stdout.trim().split("\n").filter(Boolean).flatMap((line): StagedPathChange[] => {
     const [rawStatus, path] = line.split("\t");
@@ -137,6 +140,7 @@ export async function runDecomposeRecordValidation(): Promise<void> {
   });
   const errors = validateDecomposeCommitGate({
     changes,
+    mergeInProgress,
     readIndexBytes: () => null,
     readHeadBytes: () => null,
   });
@@ -150,6 +154,7 @@ export async function runDecomposeRecordValidation(): Promise<void> {
   }
   errors.splice(0, errors.length, ...validateDecomposeCommitGate({
     changes,
+    mergeInProgress,
     readIndexBytes: (path) => cachedIndex.get(path) ?? null,
     readHeadBytes: (path) => cachedHead.get(path) ?? null,
   }));
