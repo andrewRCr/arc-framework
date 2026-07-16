@@ -1221,7 +1221,7 @@ describe("resolveCleanArmNotesVerdict", () => {
     });
 
     expect(verdict.loadNeeded).toBe(false);
-    expect(verdict.driftSurface).toEqual({ direction: "missing" });
+    expect(verdict.driftSurface).toEqual({ direction: "missing", register: "caution" });
   });
 
   it("surfaces a missing active-WU SESSION-NOTES when no active WU is resolved (cannot prove safe)", () => {
@@ -1232,26 +1232,79 @@ describe("resolveCleanArmNotesVerdict", () => {
     });
 
     expect(verdict.loadNeeded).toBe(false);
-    expect(verdict.driftSurface).toEqual({ direction: "missing" });
+    expect(verdict.driftSurface).toEqual({ direction: "missing", register: "caution" });
   });
 
-  it("surfaces (not auto-loads) mixed drift — may carry real local edits", () => {
+  it("surfaces caution mixed drift when missing files prove the shape is not disk-ahead-only", () => {
     const verdict = resolveCleanArmNotesVerdict({
       direction: "mixed",
       missingFiles: [activeSessionNotes],
+      extraFiles: ["other-wu/scratch.md"],
       activeWuName,
     });
 
     expect(verdict.loadNeeded).toBe(false);
-    expect(verdict.driftSurface).toEqual({ direction: "mixed" });
+    expect(verdict.driftSurface).toEqual({ direction: "mixed", register: "caution" });
+  });
+
+  it("surfaces expected mixed for fresh seed + sibling identity-global churn", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "mixed",
+      missingFiles: [],
+      extraFiles: [activeSessionNotes],
+      modifiedFiles: ["USER-INBOX.md"],
+      activeWuName,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toEqual({ direction: "mixed", register: "expected" });
+  });
+
+  it("surfaces expected edits when only the active WU's seeded SESSION-NOTES is disk-ahead", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "edits",
+      missingFiles: [],
+      extraFiles: [activeSessionNotes],
+      activeWuName,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toEqual({ direction: "edits", register: "expected" });
+  });
+
+  it("does not treat a modified active SESSION-NOTES as an expected seed", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "mixed",
+      missingFiles: [],
+      extraFiles: [],
+      modifiedFiles: [activeSessionNotes, "USER-INBOX.md"],
+      activeWuName,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toEqual({ direction: "mixed", register: "caution" });
+  });
+
+  it("surfaces expected modified when only identity-global surfaces are disk-ahead", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "modified",
+      missingFiles: [],
+      modifiedFiles: ["USER-INBOX.md", "WORKING-MEMORY.md"],
+      activeWuName,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toEqual({ direction: "modified", register: "expected" });
   });
 
   it.each(["edits", "modified"] as const)(
-    "neither loads nor surfaces local-only %s (unsaved work, not stale arrival)",
+    "neither loads nor surfaces non-expected local-only %s (unsaved work, not stale arrival)",
     (direction) => {
       const verdict = resolveCleanArmNotesVerdict({
         direction,
         missingFiles: [],
+        extraFiles: direction === "edits" ? ["other-wu/scratch.md"] : [],
+        modifiedFiles: direction === "modified" ? ["other-wu/scratch.md"] : [],
         activeWuName,
       });
 
@@ -1336,7 +1389,7 @@ describe("resolveCleanArmNotesVerdict — missing-direction handling", () => {
     });
 
     expect(verdict.loadNeeded).toBe(false);
-    expect(verdict.driftSurface).toEqual({ direction: "missing" });
+    expect(verdict.driftSurface).toEqual({ direction: "missing", register: "caution" });
   });
 
   it("auto-loads the safe sub-case — only the active WU's SESSION-NOTES missing", () => {
@@ -1350,15 +1403,16 @@ describe("resolveCleanArmNotesVerdict — missing-direction handling", () => {
     expect(verdict.driftSurface).toBeUndefined();
   });
 
-  it("surfaces mixed drift (local-only siblings)", () => {
+  it("surfaces caution mixed drift when a foreign per-WU path is involved", () => {
     const verdict = resolveCleanArmNotesVerdict({
       direction: "mixed",
       missingFiles: ["some-wu/SESSION-NOTES.md"],
+      extraFiles: ["USER-INBOX.md"],
       activeWuName: "live-wu",
     });
 
     expect(verdict.loadNeeded).toBe(false);
-    expect(verdict.driftSurface).toEqual({ direction: "mixed" });
+    expect(verdict.driftSurface).toEqual({ direction: "mixed", register: "caution" });
   });
 });
 
