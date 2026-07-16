@@ -82,9 +82,11 @@ export function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv
 
 /** Real git executor wrapping child_process.execFile. */
 export const gitExec: GitExec = async (cmd, args, options) => {
+  const { indexFile, ...execOptions } = options ?? {};
+  const environment = environmentForGitCwd(execOptions.cwd);
   const { stdout, stderr } = await execFileAsync(cmd, args, {
-    ...options,
-    env: environmentForGitCwd(options?.cwd),
+    ...execOptions,
+    env: indexFile === undefined ? environment : { ...environment, GIT_INDEX_FILE: indexFile },
     maxBuffer: MAX_GIT_STDOUT_BYTES,
   });
   return { stdout: stdout.trimEnd(), stderr };

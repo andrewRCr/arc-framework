@@ -24,6 +24,12 @@ export interface GitExecOptions {
    * resolved repo root regardless of `process.cwd()`.
    */
   cwd?: string;
+  /**
+   * Alternate Git index used by index-lock transactions. The production
+   * executor maps this to `GIT_INDEX_FILE` after clearing inherited
+   * repository-local Git variables.
+   */
+  indexFile?: string;
 }
 
 /** Executable function signature matching child_process.execFile patterns. */

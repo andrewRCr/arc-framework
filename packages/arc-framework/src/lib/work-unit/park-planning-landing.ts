@@ -7,7 +7,7 @@
  * staged result.
  */
 
-import { posix, dirname, join } from "node:path";
+import { posix, join, resolve } from "node:path";
 
 import { canonicalDigest, isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
 import {
@@ -85,8 +85,11 @@ export interface InRepoParkPlanningLandingDeps {
   exec: GitExec;
   readBlob(ref: string | null, path: ManagedPath): Promise<Uint8Array | null>;
   fs: {
-    mkdir(path: string, options: { recursive: true }): Promise<unknown>;
+    lstat(path: string): Promise<{ isDirectory(): boolean; isSymbolicLink(): boolean }>;
+    mkdir(path: string): Promise<unknown>;
+    readFile(path: string): Promise<Uint8Array>;
     writeFile(path: string, content: Uint8Array, options: { flag: "wx" }): Promise<void>;
+    rename(from: string, to: string): Promise<void>;
     rm(path: string, options: { force: true }): Promise<void>;
   };
 }
@@ -151,7 +154,12 @@ export function createInRepoParkPlanningLandingContext(
       }
       const refusal = baseSnapshotRefusal(current);
       if (refusal !== null) return { status: "rejected", reason: refusal };
-      return stageExactFiles(deps, transition.files);
+      return stageExactFiles(
+        deps,
+        transition.receipt.subject.kind === "work-unit" ? transition.receipt.subject.name : "",
+        transition.files,
+        expectedBase,
+      );
     },
   };
 }
@@ -295,19 +303,21 @@ async function readBaseSnapshot(
   deps: InRepoParkPlanningLandingDeps,
   name: string,
   files: readonly ParkLandingFile[],
+  indexFile?: string,
 ): Promise<ParkLandingBaseSnapshot> {
+  const execOptions = { cwd: deps.cwd, indexFile };
   const [head, indexTreeResult, statusResult, stagedResult, inventoryResult] = await Promise.all([
     resolveCommit(deps, "HEAD"),
-    deps.exec("git", ["write-tree"], { cwd: deps.cwd }),
+    deps.exec("git", ["write-tree"], execOptions),
     deps.exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ".arc"], {
-      cwd: deps.cwd,
+      ...execOptions,
     }),
-    deps.exec("git", ["diff", "--cached", "--name-only", "--no-renames", "-z"], { cwd: deps.cwd }),
+    deps.exec("git", ["diff", "--cached", "--name-only", "--no-renames", "-z"], execOptions),
     deps.exec(
       "git",
       ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ...LIFECYCLE_ROOTS,
         ".arc/.internal/retirement-receipts"],
-      { cwd: deps.cwd },
+      execOptions,
     ),
   ]);
   const indexTree = indexTreeResult.stdout.trim();
@@ -330,13 +340,39 @@ async function readBaseSnapshot(
 
 async function stageExactFiles(
   deps: InRepoParkPlanningLandingDeps,
+  name: string,
   files: readonly ParkLandingFile[],
+  expectedBase: ParkLandingBaseSnapshot,
 ): Promise<{ status: "staged" } | { status: "rejected"; reason: string }> {
   const ordered = [...files].sort((left, right) => compareUtf8(left.path, right.path));
   const created: string[] = [];
+  let installed = false;
+  let indexLock = "";
   try {
+    const { stdout } = await deps.exec(
+      "git",
+      ["rev-parse", "--path-format=absolute", "--git-path", "index"],
+      { cwd: deps.cwd },
+    );
+    const indexPath = resolve(deps.cwd, stdout.trim());
+    if (stdout.trim() === "") throw new Error("Git did not resolve the worktree index path.");
+    indexLock = `${indexPath}.lock`;
+    const beforeLock = await deps.fs.readFile(indexPath);
+    await deps.fs.writeFile(indexLock, beforeLock, { flag: "wx" });
+    const afterLock = await deps.fs.readFile(indexPath);
+    if (!Buffer.from(beforeLock).equals(Buffer.from(afterLock))) {
+      return { status: "rejected", reason: "The base changed during park landing; retry from the fresh base." };
+    }
+
+    const lockedBase = await readBaseSnapshot(deps, name, ordered, indexLock);
+    if (lockedBase.version !== expectedBase.version) {
+      return { status: "rejected", reason: "The base changed during park landing; retry from the fresh base." };
+    }
+    const refusal = baseSnapshotRefusal(lockedBase);
+    if (refusal !== null) return { status: "rejected", reason: refusal };
+
     for (const file of ordered) {
-      await deps.fs.mkdir(dirname(join(deps.cwd, file.path)), { recursive: true });
+      await ensureSafeLandingParent(deps, file.path);
       await deps.fs.writeFile(join(deps.cwd, file.path), file.bytes, { flag: "wx" });
       created.push(join(deps.cwd, file.path));
     }
@@ -347,16 +383,50 @@ async function stageExactFiles(
         "--add",
         ...ordered.flatMap((file) => ["--cacheinfo", `${file.mode},${file.oid},${file.path}`]),
       ],
-      { cwd: deps.cwd },
+      { cwd: deps.cwd, indexFile: indexLock },
     );
+    await deps.fs.rename(indexLock, indexPath);
+    installed = true;
     return { status: "staged" };
   } catch (err) {
-    await Promise.all(created.map((path) => deps.fs.rm(path, { force: true }).catch(() => undefined)));
     return {
       status: "rejected",
       reason: `Park landing could not stage its exact result: ${err instanceof Error ? err.message : "write failed"}`,
     };
+  } finally {
+    if (!installed) {
+      await Promise.all(created.map((path) => deps.fs.rm(path, { force: true }).catch(() => undefined)));
+      if (indexLock !== "") await deps.fs.rm(indexLock, { force: true }).catch(() => undefined);
+    }
+    if (indexLock !== "") await deps.fs.rm(`${indexLock}.lock`, { force: true }).catch(() => undefined);
   }
+}
+
+async function ensureSafeLandingParent(
+  deps: InRepoParkPlanningLandingDeps,
+  path: ManagedPath,
+): Promise<void> {
+  const parentSegments = posix.dirname(path).split("/");
+  let current = deps.cwd;
+  for (const segment of parentSegments) {
+    current = join(current, segment);
+    let stat: Awaited<ReturnType<InRepoParkPlanningLandingDeps["fs"]["lstat"]>>;
+    try {
+      stat = await deps.fs.lstat(current);
+    } catch (err) {
+      if (!isMissingPathError(err)) throw err;
+      await deps.fs.mkdir(current);
+      stat = await deps.fs.lstat(current);
+    }
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw new Error(`Park landing parent is not a real directory: ${current}`);
+    }
+  }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error
+    && (error as { code?: unknown }).code === "ENOENT";
 }
 
 async function resolveCommit(deps: InRepoParkPlanningLandingDeps, ref: string): Promise<string> {

@@ -20,7 +20,7 @@
  */
 
 import { basename, join, resolve } from "node:path";
-import { mkdir, readFile, readdir, rm, rmdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
 
@@ -637,8 +637,11 @@ export async function handlePark(slug: string | undefined, opts: ParkOptions): P
         exec: base.io.exec,
         readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
         fs: {
-          mkdir,
+          lstat,
+          mkdir: (path) => mkdir(path),
+          readFile: (path) => readFile(path),
           writeFile: (path, content, options) => writeFile(path, content, options),
+          rename,
           rm: (path, options) => rm(path, options),
         },
       }),

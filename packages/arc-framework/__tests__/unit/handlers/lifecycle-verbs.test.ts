@@ -85,11 +85,13 @@ vi.mock("node:fs/promises", () => ({
   // The cut-map content is fixed per-test via `mockReadFile`; the path argument is
   // not asserted, so the factory doesn't forward it.
   readFile: () => mockReadFile(),
+  lstat: vi.fn(),
   writeFile: vi.fn(),
   mkdir: vi.fn(),
   cp: vi.fn(),
   stat: vi.fn(async () => ({ isDirectory: () => false })),
   readdir: vi.fn(),
+  rename: vi.fn(),
   rm: vi.fn(),
   rmdir: vi.fn(),
 }));
