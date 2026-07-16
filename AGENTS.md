@@ -11,7 +11,12 @@ it as bare `arc ...`.
 
 ## Review guidelines
 
-Apply rubric `independent-analysis/v1` to the complete requested commit. Review the change independently across:
+> _These guidelines govern **requested hosted code reviews** via the review gate (for example, a hosted Codex
+> PR review requested with `@codex review`). They are **not** standing instructions for development sessions —
+> do not apply this during ordinary work; apply only when performing an explicitly requested, hosted PR review._
+
+When a hosted review is requested, apply rubric `independent-analysis/v1` to the complete requested commit.
+Review the change independently across:
 
 - intent and scope;
 - correctness and failure behavior;
