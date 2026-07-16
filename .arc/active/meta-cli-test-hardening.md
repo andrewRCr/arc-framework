@@ -12,15 +12,17 @@
 - **Task List:** `tasks-cli-test-hardening.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 2 complete (Tasks 2.1–2.3) — notes-compaction fixture de-costed (302→35 filler +
-  partition-dump diagnostic), shallow-clone test given a 15s per-test budget, and the save/sync race (flake d)
-  confirmed non-reproducing across four combined runs post-Phase-1.
-- **Next Task:** Task 3.1 — Isolation-safety spike (line ~155)
-- **Blockers:** [none]
+- **Last Completed:** Task 3.2 — flake (e) fixed by restructuring `validate-config.test.ts`'s spawn loops to
+  per-value `it.each` (and Task 3.1 spike: GO on the two named hazards — no unit-test `process.chdir()`, module
+  state instance-scoped via factories/DI).
+- **Next Task:** Task 3.3 — Harden module-mock unit tests for `isolate:false` safety (line ~175)
+- **Blockers:** Task 3.4 (pool tuning) blocked on Task 3.3 — the unit suite must be green under `isolate:false`
+  first (a module-mock leak breaks two real-module tests today).
 
-- **Next Action:** Start Task 3.1 — probe worker-thread `process.chdir()` + module-state leakage against the real
-  unit suite (concrete case: `validate-config.test.ts`, the flake-(e) timeout); output is a go/no-go decision +
-  evidence, not a config change. Spike-gated: Task 3.2 applies pool tuning only if the spike clears.
+- **Next Action:** Start Task 3.3 — contain the leaking hoisted module mocks so the unit suite is green under
+  `isolate:false`. Polluter is `handlers/lifecycle-verbs.test.ts` (mocks `lifecycle-index` + `promote-demote`),
+  with 4 latent siblings; full diagnosis + the measured tuning prize are in `notes-cli-test-hardening.md`. Then
+  Task 3.4 lands `isolate:false` + the wall-time re-measure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
