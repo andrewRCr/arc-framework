@@ -388,11 +388,12 @@ describe("inferSessionInitRecommendations — combined prompt", () => {
 });
 
 describe("inferBaseDistance — behind-base advisory", () => {
-  it("remote-ahead (base moved under the branch) → surface with the reconcile advisory", () => {
+  it("remote-ahead (base moved under the branch) → surface with the merge-base advisory", () => {
     const result = inferBaseDistance(baseDistance({ state: "remote-ahead", behind: 4 }));
     expect(result.recommendedAction).toBe("surface");
     expect(result.recommendedPromptText).toContain("Base `main` has advanced 4 commit(s)");
-    expect(result.recommendedPromptText).toContain("Reconcile?");
+    expect(result.recommendedPromptText).toContain("Merge the base in?");
+    expect(result.recommendedPromptText).not.toMatch(/rebase/i);
   });
 
   it("diverged → surface", () => {
@@ -421,13 +422,14 @@ describe("inferBaseDistance — behind-base advisory", () => {
     expect(inferBaseDistance(null).recommendedAction).toBe("skip");
   });
 
-  it("names overlapping paths and warns of rebase conflict when sets intersect", () => {
+  it("names overlapping paths and warns of merge conflict when sets intersect", () => {
     const result = inferBaseDistance(
       baseDistance({ state: "diverged", behind: 3, overlappingPaths: ["src/a.ts", "src/b.ts"] }),
     );
     expect(result.recommendedPromptText).toContain("Overlapping paths:");
     expect(result.recommendedPromptText).toContain("`src/a.ts`");
-    expect(result.recommendedPromptText).toContain("rebase may conflict");
+    expect(result.recommendedPromptText).toContain("merge may conflict");
+    expect(result.recommendedPromptText).not.toMatch(/rebase/i);
   });
 
   it("collapses the overlap list to a sample plus a remainder count when long", () => {
