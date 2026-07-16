@@ -63,7 +63,7 @@ function context(
   };
 }
 
-function productionHarness(options: { symlinkParent?: string } = {}): {
+function productionHarness(options: { rejectConcurrentIndexReads?: boolean; symlinkParent?: string } = {}): {
   context: ParkPlanningLandingContext;
   calls: Array<{ args: string[]; indexFile?: string }>;
   files: Map<string, Uint8Array>;
@@ -76,7 +76,15 @@ function productionHarness(options: { symlinkParent?: string } = {}): {
   const calls: Array<{ args: string[]; indexFile?: string }> = [];
   const baseTree = "d".repeat(40);
   let lockedTree = baseTree;
+  let indexReadActive = false;
   const exec: GitExec = async (_cmd, args, execOptions) => {
+    const indexRead = ["write-tree", "status", "diff", "ls-files"].includes(args[0] ?? "");
+    if (options.rejectConcurrentIndexReads === true && indexRead) {
+      if (indexReadActive) throw new Error("concurrent Git index read");
+      indexReadActive = true;
+      await Promise.resolve();
+      indexReadActive = false;
+    }
     calls.push({ args, ...(execOptions?.indexFile === undefined ? {} : { indexFile: execOptions.indexFile }) });
     if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${"a".repeat(40)}\n` };
     if (args[0] === "rev-parse" && args[1] === "--path-format=absolute") {
@@ -136,6 +144,14 @@ function productionHarness(options: { symlinkParent?: string } = {}): {
 }
 
 describe("landParkPlanningTransition", () => {
+  it("serializes base snapshot reads that share a Git index", async () => {
+    const harness = productionHarness({ rejectConcurrentIndexReads: true });
+
+    await expect(harness.context.readBase("solo", transition.files)).resolves.toMatchObject({
+      indexTree: "d".repeat(40),
+    });
+  });
+
   it("uses a fresh non-conflicting base version when the base changed", async () => {
     const stagedVersions: string[] = [];
     const initial = base("initial");

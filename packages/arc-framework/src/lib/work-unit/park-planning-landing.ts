@@ -306,20 +306,24 @@ async function readBaseSnapshot(
   indexFile?: string,
 ): Promise<ParkLandingBaseSnapshot> {
   const execOptions = { cwd: deps.cwd, indexFile };
-  const [head, indexTreeResult, statusResult, stagedResult, inventoryResult] = await Promise.all([
-    resolveCommit(deps, "HEAD"),
-    deps.exec("git", ["write-tree"], execOptions),
-    deps.exec("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ".arc"], {
-      ...execOptions,
-    }),
-    deps.exec("git", ["diff", "--cached", "--name-only", "--no-renames", "-z"], execOptions),
-    deps.exec(
-      "git",
-      ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ...LIFECYCLE_ROOTS,
-        ".arc/.internal/retirement-receipts"],
-      execOptions,
-    ),
-  ]);
+  const head = await resolveCommit(deps, "HEAD");
+  const indexTreeResult = await deps.exec("git", ["write-tree"], execOptions);
+  const statusResult = await deps.exec(
+    "git",
+    ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ".arc"],
+    execOptions,
+  );
+  const stagedResult = await deps.exec(
+    "git",
+    ["diff", "--cached", "--name-only", "--no-renames", "-z"],
+    execOptions,
+  );
+  const inventoryResult = await deps.exec(
+    "git",
+    ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", ...LIFECYCLE_ROOTS,
+      ".arc/.internal/retirement-receipts"],
+    execOptions,
+  );
   const indexTree = indexTreeResult.stdout.trim();
   const stagedPaths = splitNull(stagedResult.stdout);
   const inventory = splitNull(inventoryResult.stdout);
