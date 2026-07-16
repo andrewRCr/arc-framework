@@ -1272,6 +1272,19 @@ describe("resolveCleanArmNotesVerdict", () => {
     expect(verdict.driftSurface).toEqual({ direction: "edits", register: "expected" });
   });
 
+  it("does not treat a modified active SESSION-NOTES as an expected seed", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "mixed",
+      missingFiles: [],
+      extraFiles: [],
+      modifiedFiles: [activeSessionNotes, "USER-INBOX.md"],
+      activeWuName,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toEqual({ direction: "mixed", register: "caution" });
+  });
+
   it("surfaces expected modified when only identity-global surfaces are disk-ahead", () => {
     const verdict = resolveCleanArmNotesVerdict({
       direction: "modified",

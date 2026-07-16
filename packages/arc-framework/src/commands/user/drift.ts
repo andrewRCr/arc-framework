@@ -173,10 +173,11 @@ export function listMissingFiles(
 }
 
 /**
- * Whether every disk-ahead path is a parallel-session expected surface: the
- * active WU's own `SESSION-NOTES.md` and/or identity-global
- * `USER-INBOX.md` / `WORKING-MEMORY.md`. Requires no missing files (ahead, not
- * behind) and at least one disk-ahead path.
+ * Whether every disk-ahead path is a parallel-session expected surface: a
+ * fresh-seeded active WU `SESSION-NOTES.md` (disk-only extra) and/or
+ * identity-global `USER-INBOX.md` / `WORKING-MEMORY.md` (extra or modified).
+ * Requires no missing files (ahead, not behind) and at least one disk-ahead
+ * path. A content-modified active SESSION-NOTES is real local work, not a seed.
  *
  * @param input - Active WU name and the three path sets from the manifest diff.
  * @returns `true` when the divergence is expected healthy parallelism.
@@ -192,9 +193,12 @@ export function isExpectedParallelSessionDrift(input: {
   if (aheadPaths.length === 0) return false;
   const activeSessionNotes =
     input.activeWuName !== null ? `${input.activeWuName}/${SESSION_NOTES_BASENAME}` : null;
-  return aheadPaths.every(
-    (path) => IDENTITY_GLOBAL_SURFACES.has(path) || path === activeSessionNotes,
-  );
+  // Active SESSION-NOTES is expected only as a fresh seed (disk-only extra), never as a
+  // content-modified file that already exists in the note basis.
+  return aheadPaths.every((path) => {
+    if (IDENTITY_GLOBAL_SURFACES.has(path)) return true;
+    return path === activeSessionNotes && input.extraFiles.includes(path);
+  });
 }
 
 /**
@@ -267,9 +271,9 @@ export interface CleanArmNotesVerdict {
  *   of a shipped WU) never reaches here — it is resolved upstream against the
  *   shipped-set oracle, where such a divergence collapses to no divergence.
  * - Disk-ahead paths (`edits` / `modified` / `mixed` with no missing files)
- *   confined to the active WU's `SESSION-NOTES.md` and/or identity-global
- *   `USER-INBOX.md` / `WORKING-MEMORY.md` → calm `expected` surface (parallel-
- *   session steady state; converges at next save or handoff).
+ *   confined to a fresh-seeded active WU `SESSION-NOTES.md` (extra only) and/or
+ *   identity-global `USER-INBOX.md` / `WORKING-MEMORY.md` → calm `expected`
+ *   surface (parallel-session steady state; converges at next save or handoff).
  * - Other `mixed` → caution surface (may carry real local edits a load would
  *   clobber).
  * - Other `edits` / `modified` / `null` → no action: ordinary unsaved work (not a
