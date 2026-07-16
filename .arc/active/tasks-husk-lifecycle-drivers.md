@@ -87,19 +87,14 @@ location. Decompose's `prepareDecompose`/`finalizeDecompose` are declared here b
   derive exclusively from validated canonical receipt IDs beneath `.arc/.internal/retirement-receipts`; subject and
   branch text never reach path construction.
 
-### `[ ]` **2.3 `readSnapshot` and the versioned compare-and-set token**
+### `[x]` **2.3 `readSnapshot` and the versioned compare-and-set token**
 
 - _Goal:_ Every producer obtains its compare-and-set token from `readSnapshot`, and drift in the source ref,
   base ref, record state, or storage version returns `authority-conflict` rather than a stale token.
 
-- _Context:_ The current adapter's snapshot is a canonical digest over source ref/`HEAD`, result ref/`HEAD`, the
-  transition-specific inventory, deterministic record-path state, and the clean-index baseline.
-
-    - Build `test-first` (one behavior at a time):
-        - the absent-record snapshot returns a `recordState: "absent"` token consumed by abandon and park
-        - a changed source ref, base `HEAD`, or record state since the read returns `authority-conflict`
-        - the token is opaque and compared byte-for-byte, never reinterpreted as a Git OID
-        - no code path derives a token from the composed lifecycle index
+- _Outcome:_ Added snapshot projection over exact source/result refs, injected transition inventory, deterministic
+  record state, storage schema, and the Git index tree. The returned canonical token stays opaque and byte-compared;
+  any ref, record, storage, inventory, or index drift resolves to `authority-conflict`.
 
 ### `[ ]` **2.4 Receipt relation validation — `direct-transition` and `unchanged`**
 
