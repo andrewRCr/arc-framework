@@ -1,9 +1,10 @@
 /**
- * Git/filesystem binding for the abandon retirement driver.
+ * Git/filesystem binding for direct-transition retirement drivers.
  *
- * The binding captures the committed source artifact group before removal,
- * limits staging to that group plus the generated readiness view, and composes
- * the in-repository snapshot/record operations behind the authority port.
+ * The binding captures the committed source artifact group before removal or
+ * relocation, limits staging to typed source/result paths plus the generated
+ * readiness view, and composes in-repository snapshot/record operations behind
+ * the authority port.
  */
 
 import { posix } from "node:path";
@@ -27,10 +28,8 @@ import {
 import { readRetirementAuthoritySnapshot } from "./retirement-authority-snapshot.js";
 import { recordRetirementReceipt } from "./retirement-record.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import type {
-  AbandonRetirementContext,
-  AbandonSourceEvidence,
-} from "./verbs/abandon.js";
+import type { AbandonRetirementContext } from "./verbs/abandon.js";
+import type { ParkPlanningRetirementContext } from "./verbs/park-resume.js";
 
 const ROADMAP_PATH = validateManagedPath(".arc/backlog/ROADMAP.md");
 
@@ -40,8 +39,8 @@ export type RetirementBlobReader = (
   path: ManagedPath,
 ) => Promise<Uint8Array | null>;
 
-/** Production boundaries needed by the in-repository abandon binding. */
-export interface InRepoAbandonRetirementDeps {
+/** Production boundaries needed by an in-repository direct-transition binding. */
+export interface InRepoDirectRetirementDeps {
   cwd: string;
   exec: GitExec;
   readBlob: RetirementBlobReader;
@@ -50,33 +49,63 @@ export interface InRepoAbandonRetirementDeps {
   removeRecord(receiptId: RetirementReceipt["receiptId"]): Promise<void>;
 }
 
-interface CapturedAbandonSource extends AbandonSourceEvidence {
+interface DirectTransitionSourceEvidence {
+  scope: RetirementAuthorityScope;
+  artifactDigest: RetirementReceipt["source"]["artifactDigest"];
+  sourceArtifactPaths: readonly ManagedPath[];
+  resultArtifactPaths: readonly ManagedPath[];
+}
+
+interface CapturedDirectSource extends DirectTransitionSourceEvidence {
   inventory: readonly ArtifactSetEntry[];
 }
 
 interface SnapshotBinding {
   scope: RetirementAuthorityScope;
-  source: CapturedAbandonSource;
+  source: CapturedDirectSource;
   authorityVersion: string;
 }
 
-/**
- * Build the direct-transition evidence and authority seams used by `runAbandon`.
- *
- * @param deps - Repository Git, blob, and record-storage boundaries
- * @returns An abandon retirement context bound to one repository checkout
- */
-export function createInRepoAbandonRetirementContext(
-  deps: InRepoAbandonRetirementDeps,
-): AbandonRetirementContext {
-  let captured: CapturedAbandonSource | null = null;
+interface DirectTransitionConfig {
+  transition: "abandon" | "park-planning";
+  expectedLifecycle: "nonexistent" | "planned";
+  label: "abandon" | "park";
+}
+
+interface DirectTransitionRetirementContext {
+  authority: AbandonRetirementContext["authority"];
+  captureSource(params: {
+    name: string;
+    sourceDir: string;
+    resultDir: string | null;
+    expectedBranch: string | null;
+  }): Promise<DirectTransitionSourceEvidence>;
+  stageTransition(source: DirectTransitionSourceEvidence): Promise<void>;
+  readTransitionPatch(source: DirectTransitionSourceEvidence): Promise<readonly PatchOperation[]>;
+  readResultArtifactDigest(
+    source: DirectTransitionSourceEvidence,
+  ): Promise<RetirementReceipt["source"]["artifactDigest"]>;
+}
+
+function createInRepoDirectRetirementContext(
+  deps: InRepoDirectRetirementDeps,
+  config: DirectTransitionConfig,
+): DirectTransitionRetirementContext {
+  let captured: CapturedDirectSource | null = null;
   const snapshots = new Map<string, SnapshotBinding>();
 
-  const captureSource: AbandonRetirementContext["captureSource"] = async ({ name, sourceDir, expectedBranch }) => {
+  const captureSource: DirectTransitionRetirementContext["captureSource"] = async ({
+    name,
+    sourceDir,
+    resultDir,
+    expectedBranch,
+  }) => {
     const branch = await getCurrentBranch(deps.exec);
-    if (branch === null) throw new Error("abandon retirement evidence requires an attached source branch");
+    if (branch === null) {
+      throw new Error(`${config.label} retirement evidence requires an attached source branch`);
+    }
     if (expectedBranch !== null && expectedBranch !== "[none]" && branch !== expectedBranch) {
-      throw new Error(`abandon must run from the source branch \`${expectedBranch}\`, not \`${branch}\``);
+      throw new Error(`${config.label} must run from the source branch \`${expectedBranch}\`, not \`${branch}\``);
     }
     const head = await resolveRef(deps.exec, deps.cwd, branch);
     const paths = await listArtifactPaths(deps.exec, deps.cwd, head, sourceDir, name);
@@ -85,29 +114,39 @@ export function createInRepoAbandonRetirementContext(
       if (bytes === null) throw new Error(`source artifact disappeared from ${head}: ${path}`);
       return { path, state: "present", contentDigest: contentDigest(bytes) };
     }));
-    const evidence: CapturedAbandonSource = {
+    const evidence: CapturedDirectSource = {
       scope: {
         subject: { kind: "work-unit", name },
-        transition: "abandon",
+        transition: config.transition,
         source: { branch, head },
         resultProjection: { ref: branch, head },
       },
       artifactDigest: artifactGroupDigest(inventory),
       sourceArtifactPaths: paths,
+      resultArtifactPaths: resultDir === null
+        ? []
+        : paths.map((path) => validateManagedPath(posix.join(resultDir, posix.basename(path)))),
       inventory,
     };
     captured = evidence;
     return evidence;
   };
 
-  const readTransitionPatch = async (source: AbandonSourceEvidence): Promise<readonly PatchOperation[]> => {
+  const readTransitionPatch = async (
+    source: DirectTransitionSourceEvidence,
+  ): Promise<readonly PatchOperation[]> => {
     const bound = requireCaptured(captured, source);
     const operations: PatchOperation[] = [];
     for (const path of bound.sourceArtifactPaths) {
       if (await deps.readBlob(null, path) !== null) {
-        throw new Error(`abandon transition left source artifact in the index: ${path}`);
+        throw new Error(`${config.label} transition left source artifact in the index: ${path}`);
       }
       operations.push(deleteOperation(path));
+    }
+    for (const path of bound.resultArtifactPaths) {
+      const bytes = await deps.readBlob(null, path);
+      if (bytes === null) throw new Error(`${config.label} transition omitted result artifact: ${path}`);
+      operations.push(writeOperation(path, bytes));
     }
 
     const [beforeRoadmap, afterRoadmap] = await Promise.all([
@@ -121,7 +160,19 @@ export function createInRepoAbandonRetirementContext(
     return operations;
   };
 
-  const authority: AbandonRetirementContext["authority"] = {
+  const readResultArtifactDigest = async (
+    source: DirectTransitionSourceEvidence,
+  ): Promise<RetirementReceipt["source"]["artifactDigest"]> => {
+    const bound = requireCaptured(captured, source);
+    const inventory = await Promise.all(bound.resultArtifactPaths.map(async (path): Promise<ArtifactSetEntry> => {
+      const bytes = await deps.readBlob(null, path);
+      if (bytes === null) throw new Error(`${config.label} transition omitted result artifact: ${path}`);
+      return { path, state: "present", contentDigest: contentDigest(bytes) };
+    }));
+    return artifactGroupDigest(inventory);
+  };
+
+  const authority: DirectTransitionRetirementContext["authority"] = {
     readSnapshot: async (scope) => {
       const source = requireCaptured(captured, { scope });
       const staged = await readStagedPaths(deps.exec, deps.cwd);
@@ -146,7 +197,7 @@ export function createInRepoAbandonRetirementContext(
     },
     record: async (receipt, expectedAuthorityVersion) => {
       const binding = snapshots.get(expectedAuthorityVersion);
-      if (binding === undefined || !receiptMatchesBinding(receipt, binding)) {
+      if (binding === undefined || !(await receiptMatchesBinding(receipt, binding, config, readResultArtifactDigest))) {
         return { status: "refused", reason: "authority-conflict" };
       }
       return await recordRetirementReceipt(
@@ -168,14 +219,7 @@ export function createInRepoAbandonRetirementContext(
           readTransitionPatch: () => readTransitionPatch(binding.source),
           createRecord: (receiptId, content) => deps.createRecord(receiptId, content),
           removeRecord: (receiptId) => deps.removeRecord(receiptId),
-          stagePaths: async (paths) => {
-            const alreadyStaged = new Set(await readStagedPaths(deps.exec, deps.cwd));
-            await stagePaths(
-              deps.exec,
-              deps.cwd,
-              paths.filter((path) => !alreadyStaged.has(path)),
-            );
-          },
+          stagePaths: (paths) => stageUnstagedPaths(deps.exec, deps.cwd, paths),
         },
         receipt,
         expectedAuthorityVersion,
@@ -188,18 +232,58 @@ export function createInRepoAbandonRetirementContext(
     captureSource,
     stageTransition: async (source) => {
       const bound = requireCaptured(captured, source);
-      await stagePaths(deps.exec, deps.cwd, [...bound.sourceArtifactPaths, ROADMAP_PATH]);
+      await stageUnstagedPaths(
+        deps.exec,
+        deps.cwd,
+        [...bound.sourceArtifactPaths, ...bound.resultArtifactPaths, ROADMAP_PATH],
+      );
     },
     readTransitionPatch,
+    readResultArtifactDigest,
+  };
+}
+
+/** Build the direct-transition binding used by `runAbandon`. */
+export function createInRepoAbandonRetirementContext(
+  deps: InRepoDirectRetirementDeps,
+): AbandonRetirementContext {
+  const direct = createInRepoDirectRetirementContext(deps, {
+    transition: "abandon",
+    expectedLifecycle: "nonexistent",
+    label: "abandon",
+  });
+  return {
+    authority: direct.authority,
+    captureSource: (params) => direct.captureSource({ ...params, resultDir: null }),
+    stageTransition: (source) => direct.stageTransition(source),
+    readTransitionPatch: (source) => direct.readTransitionPatch(source),
+  };
+}
+
+/** Build the direct-transition binding used by park-at-Planning. */
+export function createInRepoParkPlanningRetirementContext(
+  deps: InRepoDirectRetirementDeps,
+): ParkPlanningRetirementContext {
+  const direct = createInRepoDirectRetirementContext(deps, {
+    transition: "park-planning",
+    expectedLifecycle: "planned",
+    label: "park",
+  });
+  return {
+    authority: direct.authority,
+    captureSource: (params) => direct.captureSource(params),
+    stageTransition: (source) => direct.stageTransition(source),
+    readTransitionPatch: (source) => direct.readTransitionPatch(source),
+    readResultArtifactDigest: (source) => direct.readResultArtifactDigest(source),
   };
 }
 
 function requireCaptured(
-  captured: CapturedAbandonSource | null,
-  source: Pick<AbandonSourceEvidence, "scope">,
-): CapturedAbandonSource {
+  captured: CapturedDirectSource | null,
+  source: Pick<DirectTransitionSourceEvidence, "scope">,
+): CapturedDirectSource {
   if (captured === null || canonicalScope(captured.scope) !== canonicalScope(source.scope)) {
-    throw new Error("abandon retirement source does not match the captured projection");
+    throw new Error("retirement source does not match the captured projection");
   }
   return captured;
 }
@@ -208,8 +292,17 @@ function canonicalScope(scope: RetirementAuthorityScope): string {
   return canonicalize(scope);
 }
 
-function receiptMatchesBinding(receipt: RetirementReceipt, binding: SnapshotBinding): boolean {
-  return receipt.transition === "abandon"
+async function receiptMatchesBinding(
+  receipt: RetirementReceipt,
+  binding: SnapshotBinding,
+  config: DirectTransitionConfig,
+  readResultArtifactDigest: DirectTransitionRetirementContext["readResultArtifactDigest"],
+): Promise<boolean> {
+  const resultMatches = config.transition === "abandon"
+    ? receipt.result.kind === "discard"
+    : receipt.result.kind === "relocate"
+      && receipt.result.plannedArtifactDigest === await readResultArtifactDigest(binding.source);
+  return receipt.transition === config.transition
     && receipt.receiptId === receiptId({
       schemaVersion: receipt.schemaVersion,
       subject: receipt.subject,
@@ -221,7 +314,8 @@ function receiptMatchesBinding(receipt: RetirementReceipt, binding: SnapshotBind
     && receipt.source.head === binding.scope.source.head
     && receipt.source.artifactDigest === binding.source.artifactDigest
     && receipt.retiringProjection.kind === "direct-transition"
-    && validateReceiptMatrix(receipt, "nonexistent") === null
+    && validateReceiptMatrix(receipt, config.expectedLifecycle) === null
+    && resultMatches
     && receipt.subject.kind === "work-unit"
     && binding.scope.subject.kind === "work-unit"
     && receipt.subject.name === binding.scope.subject.name;
@@ -255,13 +349,22 @@ async function listArtifactPaths(
 }
 
 async function readStagedPaths(exec: GitExec, cwd: string): Promise<string[]> {
-  const { stdout } = await exec("git", ["diff", "--cached", "--name-only", "-z"], { cwd });
+  const { stdout } = await exec(
+    "git",
+    ["diff", "--cached", "--name-only", "--no-renames", "-z"],
+    { cwd },
+  );
   return stdout.split("\0").filter((path) => path !== "");
 }
 
 async function stagePaths(exec: GitExec, cwd: string, paths: readonly string[]): Promise<void> {
   if (paths.length === 0) return;
   await exec("git", ["add", "-A", "--", ...paths], { cwd });
+}
+
+async function stageUnstagedPaths(exec: GitExec, cwd: string, paths: readonly string[]): Promise<void> {
+  const alreadyStaged = new Set(await readStagedPaths(exec, cwd));
+  await stagePaths(exec, cwd, paths.filter((path) => !alreadyStaged.has(path)));
 }
 
 function bytesEqual(left: Uint8Array | null, right: Uint8Array | null): boolean {

@@ -181,6 +181,7 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
         },
         artifactDigest: sourceArtifactDigest,
         sourceArtifactPaths: TRANSITION_OPERATIONS.map((operation) => operation.path),
+        resultArtifactPaths: [],
       };
     },
     authority: {

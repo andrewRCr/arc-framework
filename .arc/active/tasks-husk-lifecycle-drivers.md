@@ -144,16 +144,16 @@ receipt in the same direct-transition commit; park-at-Active is out of scope and
   result. The in-repo boundary rejects foreign staged paths, source-branch drift, and missing committed evidence;
   `--force` remains only the abandoned-mode selector.
 
-### `[ ]` **3.2 Park-at-Planning stages a `planning-relocated` receipt on `plan/<name>`**
+### `[x]` **3.2 Park-at-Planning stages a `planning-relocated` receipt on `plan/<name>`**
 
 - _Goal:_ `arc park` stages the `active/ → backlog/planned/` relocation and a `planning-relocated` receipt as
   one direct-transition commit on `plan/<name>` in both protection modes — full protection merges that commit
   through the park PR, partial protection lands it on base via `3.3`.
 
-    - Build `test-first` (one behavior at a time):
-        - park stages the `active/ → backlog/planned/` relocation and the receipt in one commit
-        - the receipt carries `authorization: planning-relocated` and `expectedLifecycle: planned`
-        - park-at-Active is untouched — no receipt, existing pointer-record path unchanged
+- _Outcome:_ Park-at-Planning now uses the shared direct-transition binding to hash the committed source group,
+  stage the exact source deletion/result write set, and record a `planning-relocated` receipt whose result digest
+  covers the planned artifact group. The phase dispatch leaves park-at-Active's preserved-branch pointer path
+  outside retirement recording.
 
 ### `[ ]` **3.3 Partial-protection `arc park <name> --land <commit>` landing arm**
 

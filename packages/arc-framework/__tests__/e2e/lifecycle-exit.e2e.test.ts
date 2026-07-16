@@ -183,12 +183,22 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(worktree).toBeDefined();
     if (worktree !== undefined) worktrees.push(worktree);
 
-    const result = await runArc(["park", "solo", "--reason", "pivoting to a dependency first"], repo);
+    const result = await runArc(
+      ["park", "solo", "--reason", "pivoting to a dependency first"],
+      worktree!,
+    );
 
-    expect(result.exitCode).toBe(0);
-    // Relocated to the parked tier; the plan branch + worktree linger for the post-action reap.
-    expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(true);
-    expect(await pathExists(join(repo, ".arc/active/meta-solo.md"))).toBe(false);
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    // Relocation and its receipt are staged together on the planning branch; the
+    // branch + worktree linger for the post-action reap.
+    expect(await pathExists(join(worktree!, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(true);
+    expect(await pathExists(join(worktree!, ".arc/active/meta-solo.md"))).toBe(false);
+    const receiptDir = join(worktree!, ".arc/.internal/retirement-receipts");
+    const receiptFiles = await readdir(receiptDir);
+    expect(receiptFiles).toHaveLength(1);
+    const staged = await git(worktree!, ["diff", "--cached", "--name-only"]);
+    expect(staged).toContain(".arc/backlog/planned/solo/meta-solo.md");
+    expect(staged).toContain(`.arc/.internal/retirement-receipts/${receiptFiles[0]}`);
     expect(await branchExists(repo, "plan/solo")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
     expect(result.stdout + result.stderr).toMatch(/arc teardown solo --force/);

@@ -66,7 +66,11 @@ import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { runDecompose } from "../lib/work-unit/verbs/decompose.js";
 import { parseCutMap } from "../lib/work-unit/decompose-cut-map.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
-import { createInRepoAbandonRetirementContext } from "../lib/work-unit/abandon-retirement-driver.js";
+import {
+  createInRepoAbandonRetirementContext,
+  createInRepoParkPlanningRetirementContext,
+  type InRepoDirectRetirementDeps,
+} from "../lib/work-unit/direct-retirement-driver.js";
 import {
   resolveRetirementRecordPath,
   writeRetirementRecord,
@@ -188,6 +192,18 @@ async function buildExecutor(
     internalTemplateDir: getInternalTemplatePath(),
   });
   return { executor, settings };
+}
+
+/** Bind the shared in-repository direct-transition retirement boundaries. */
+function directRetirementDeps(base: VerbBase): InRepoDirectRetirementDeps {
+  return {
+    cwd: base.cwd,
+    exec: base.io.exec,
+    readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+    readFile: base.io.readFile,
+    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
+    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
+  };
 }
 
 /** Surface a transition's success note plus any side-effect advisories. */
@@ -564,7 +580,11 @@ export async function handlePark(slug: string | undefined, opts: ParkOptions): P
   }
 
   const result = await runPark(
-    { executor, fs: parkResumeFsSeam(base) },
+    {
+      executor,
+      fs: parkResumeFsSeam(base),
+      planningRetirement: createInRepoParkPlanningRetirementContext(directRetirementDeps(base)),
+    },
     {
       name: target,
       reason: opts.reason,
@@ -960,14 +980,7 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
   }
 
   const { executor } = await buildExecutor(base);
-  const retirement = createInRepoAbandonRetirementContext({
-    cwd: base.cwd,
-    exec: base.io.exec,
-    readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
-    readFile: base.io.readFile,
-    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
-    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
-  });
+  const retirement = createInRepoAbandonRetirementContext(directRetirementDeps(base));
   const result = await runAbandon(
     {
       executor,

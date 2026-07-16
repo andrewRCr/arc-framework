@@ -81,6 +81,7 @@ export interface AbandonSourceEvidence {
   scope: RetirementAuthorityScope;
   artifactDigest: RetirementReceipt["source"]["artifactDigest"];
   sourceArtifactPaths: readonly ManagedPath[];
+  resultArtifactPaths: readonly ManagedPath[];
 }
 
 /** Retirement seams used to bind an abandon to one exact direct transition. */
