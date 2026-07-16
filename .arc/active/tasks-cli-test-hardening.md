@@ -210,26 +210,22 @@ structural workflow rework (No-go). Matrix legs rename the e2e check-runs (a `(<
 updates in the same change (Consequences: classifier coupling). Stop-loss: structural leg rework or more than a
 bounded couple of in-CI tuning iterations stops and captures the remainder.
 
-### `[ ]` **4.1 Shard the e2e job and sync the classifier**
+### `[x]` **4.1 Shard the e2e job and sync the classifier**
 
 - _Goal:_ The e2e tier runs sharded across a CI matrix, with `HEAVY_CHECK_NAMES` matching the post-matrix check-run
   names byte-identically in the same change.
 
-- _Context:_ The e2e job is `E2E Tests` (`ci.yml` ~L226, `npm run test:e2e`). `HEAVY_CHECK_NAMES`
-  (`scripts/classify-change.sh` ~L97-103) currently lists five names verified byte-identical to their `ci.yml`
-  counterparts. No `--shard` or test-splitting matrix exists yet (greenfield).
+    - `[x]` **4.1.a Add the shard matrix + `--shard` invocation**
+        - The e2e job now uses a three-leg, fail-fast-disabled `shard` matrix and invokes the package workspace's
+          e2e script with `--shard=${{ matrix.shard }}/${{ strategy.job-total }}`, keeping the denominator tied to
+          matrix size.
 
-    - `[ ]` **4.1.a Add the shard matrix + `--shard` invocation**
-        - Bounded matrix on the e2e job with `vitest run --project e2e --shard=N/M`; pick the initial shard count
-          within the stop-loss.
+    - `[x]` **4.1.b Sync `HEAVY_CHECK_NAMES` to the sharded check-run names**
+        - Replaced the single e2e classifier entry with `E2E Tests (1)` through `(3)` and updated the verified-tree
+          fixtures so a missing, pending, or failed shard keeps the fail-safe heavy result.
 
-    - `[ ]` **4.1.b Sync `HEAVY_CHECK_NAMES` to the sharded check-run names**
-        - Replace `E2E Tests` in `HEAVY_CHECK_NAMES` with the per-shard check-run names byte-identically — the
-          suffix is the matrix value as GitHub renders it (e.g. `E2E Tests (1)` for `shard: [1, 2, 3]`), not an
-          assumed `(shard-N)`.
-        - Leave the `ci-ok` rollup `needs:` unchanged: a matrix on the `e2e` job keeps the job id `e2e`, so
-          `needs: [..., e2e, ...]` already waits on every shard leg — only the check-run display names change (the
-          classifier's concern, not the rollup's).
+- _Outcome:_ The verified-tree skip now requires all three independently named e2e shard checks, while the
+  `ci-ok` rollup continues to wait on the unchanged `e2e` job id.
 
 ---
 

@@ -229,6 +229,10 @@ jobs:
       contents: read
     needs: classify
     if: ${{ !cancelled() && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -240,7 +244,7 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - run: npm run build
-    - run: npm run test:e2e
+    - run: npm run test:e2e -w packages/arc-framework -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       env:
         ARC_E2E_SKIP_BUILD: '1'
 
