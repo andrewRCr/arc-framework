@@ -172,6 +172,12 @@ describe("parseCutMap", () => {
     expect(rejection(wrong)).toMatch(/declared cohort/i);
   });
 
+  it("requires cohort placement on minted positions and omission at the nesting cap", () => {
+    expect(rejection(wellFormed({ cohort: undefined }))).toMatch(/requires.*cohort/i);
+    expect(rejection(wellFormed({ parentPosition: "at-cap" }))).toMatch(/at-cap.*omit/i);
+    expect(parsed(wellFormed({ parentPosition: "at-cap", cohort: undefined })).cohort).toBeUndefined();
+  });
+
   it("requires each target locator to belong to its declared destination", () => {
     expect(rejection(wellFormed({
       sourceAllocations: [{
@@ -218,11 +224,39 @@ describe("parseCutMap", () => {
           disposition: "keep-active",
         },
         { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
-        { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
+      ],
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        disposition: {
+          kind: "target",
+          destinationId: "origin",
+          targetLocator: { artifact: "draft-origin-wu.md", kind: "preamble" },
+        },
+      }],
+      internalEdges: [],
+      incomingEdges: [
+        { dependent: "consumer-z", disposition: { kind: "replace", replacementTargets: ["member-a"] } },
+      ],
+      outgoingEdges: [
+        { prerequisite: "foundation-z", disposition: { kind: "targets", targets: ["member-a"] } },
       ],
     });
     const map = parsed(input);
     expect(retirementAllocationRefusal(map, { ownerlessSourceIds: [] })).toMatch(/surviving origin.*retire/i);
+  });
+
+  it("requires extraction's sole surviving entry to name the origin", () => {
+    const entries = [
+      {
+        kind: "surviving-origin",
+        destinationId: "origin",
+        slug: "different-origin",
+        disposition: "keep-active",
+      },
+      { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+    ];
+    expect(rejection(wellFormed({ shape: "extraction", entries }))).toMatch(/exactly one.*naming the origin/i);
+    expect(rejection(wellFormed({ entries }))).toMatch(/only for extraction/i);
   });
 
   it("requires ownerless shared material to target minted cohort coordination", () => {

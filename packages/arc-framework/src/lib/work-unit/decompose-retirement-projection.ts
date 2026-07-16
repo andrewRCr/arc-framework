@@ -200,6 +200,17 @@ function deriveAllowedPaths(
     const dependent = index.get(edge.dependent);
     if (dependent !== undefined) allowed.add(validateManagedPath(dependent.path));
   }
+  const existingRecipients = new Set(allocation.entries.flatMap((entry) => (
+    entry.kind === "existing-home" && entry.target.kind === "work-unit" ? [entry.target.slug] : []
+  )));
+  for (const edge of allocation.outgoingEdges) {
+    if (edge.disposition.kind !== "targets") continue;
+    for (const recipient of edge.disposition.targets) {
+      if (!existingRecipients.has(recipient)) continue;
+      const existing = index.get(recipient);
+      if (existing !== undefined) allowed.add(validateManagedPath(existing.path));
+    }
+  }
   return [...allowed].sort(compareBytes);
 }
 
@@ -210,6 +221,10 @@ export async function bindDecomposePreparation(
   const index = await buildLifecycleIndex({ cwd: deps.cwd, fs: deps.lifecycleFs });
   const origin = index.get(allocation.origin.slug);
   if (origin === undefined) throw new Error(`decompose origin \`${allocation.origin.slug}\` is absent`);
+  const occupiedMember = allocation.entries.find((entry) => entry.kind === "new-member" && index.has(entry.slug));
+  if (occupiedMember?.kind === "new-member") {
+    throw new Error(`decompose member \`${occupiedMember.slug}\` already exists`);
+  }
   const originRecord = parseMetaRecord(await deps.readFile(join(deps.cwd, origin.path)));
   const resultBranch = await getCurrentBranch(deps.exec);
   if (resultBranch === null) throw new Error("decompose requires an attached result branch");

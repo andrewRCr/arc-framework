@@ -254,6 +254,84 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(stored.kind).not.toBe("prepared-decompose");
   });
 
+  it("admits an existing-home meta when it receives an outgoing dependency", async () => {
+    await writeWu(repo, ".arc/active", "mono", {
+      State: "Planning",
+      Branch: "plan/mono",
+      Origin: "[internal]",
+      "Depends On": "foundation",
+    });
+    await writeWu(repo, ".arc/active", "foundation", { State: "Active", Branch: "feat/foundation" });
+    await writeWu(repo, ".arc/active", "home", { State: "Active", Branch: "feat/home" });
+    await commitAll(repo, "origin + existing dependency home");
+    await execFileAsync("git", ["branch", "plan/mono", "HEAD"], { cwd: repo });
+
+    const sourcePath = validateManagedPath(".arc/active/draft-mono.md");
+    const cut: DecomposeParams = {
+      schemaVersion: 2,
+      origin: { slug: "mono", phase: "Planning", location: "active" },
+      shape: "heterogeneous-home",
+      parentPosition: "standalone",
+      cohort: "mono",
+      entries: [
+        newMember("alpha"),
+        {
+          kind: "existing-home",
+          destinationId: "home",
+          target: { kind: "work-unit", slug: "home" },
+          home: "fold",
+        },
+      ],
+      internalEdges: [],
+      sourceAllocations: [{
+        sourceId: canonicalDigest({
+          schemaVersion: 2,
+          sourcePath,
+          sourceLocator: { artifact: "draft-mono.md", kind: "preamble" },
+        }),
+        disposition: {
+          kind: "target",
+          destinationId: "alpha",
+          targetLocator: { artifact: "draft-alpha.md", kind: "preamble" },
+        },
+      }],
+      incomingEdges: [],
+      outgoingEdges: [{
+        prerequisite: "foundation",
+        disposition: { kind: "targets", targets: ["home"] },
+      }],
+    };
+
+    const prepared = await decomposeDriver(repo).prepare(cut);
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared") return;
+    expect(prepared.preparation.record.allowedPaths).toContain(".arc/active/meta-home.md");
+  });
+
+  it("refuses a new-member slug already present in the lifecycle index", async () => {
+    await writeWu(repo, ".arc/active", "mono", { State: "Planning", Branch: "plan/mono" });
+    await writeWu(repo, ".arc/active", "alpha", { State: "Active", Branch: "feat/alpha" });
+    await commitAll(repo, "origin + occupied member");
+    await execFileAsync("git", ["branch", "plan/mono", "HEAD"], { cwd: repo });
+
+    const cut: DecomposeParams = {
+      schemaVersion: 2,
+      origin: { slug: "mono", phase: "Planning", location: "active" },
+      shape: "symmetric",
+      parentPosition: "standalone",
+      cohort: "mono",
+      entries: [newMember("alpha"), newMember("beta")],
+      internalEdges: [],
+      sourceAllocations: [],
+      incomingEdges: [],
+      outgoingEdges: [],
+    };
+    expect(await decomposeDriver(repo).prepare(cut)).toMatchObject({
+      status: "refused",
+      reason: expect.stringMatching(/alpha.*already exists/i),
+    });
+  });
+
   it("extraction: keeps the origin in place, mints only the extracted member with its dependency edge", async () => {
     await writeWu(repo, ".arc/active", "mono", { State: "Active", Branch: "feat/mono" });
     await commitAll(repo, "active origin");

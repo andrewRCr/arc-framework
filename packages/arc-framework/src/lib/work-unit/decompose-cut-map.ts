@@ -408,7 +408,7 @@ function locatorsEqual(left: DecomposeContentLocator, right: DecomposeContentLoc
 }
 
 function targetLocatorMatches(entry: DecomposeAllocationEntry, locator: DecomposeContentLocator): boolean {
-  if (entry.kind === "new-member") {
+  if (entry.kind === "new-member" || entry.kind === "surviving-origin") {
     return new RegExp(`^[a-z]+-${entry.slug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\.md$`, "u")
       .test(locator.artifact);
   }
@@ -418,10 +418,7 @@ function targetLocatorMatches(entry: DecomposeAllocationEntry, locator: Decompos
     return new RegExp(`^[a-z]+-${entry.target.slug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\.md$`, "u")
       .test(locator.artifact);
   }
-  if (entry.kind === "cohort-coordination") {
-    return locator.artifact === `cohort-${entry.cohort.split("/").at(-1)}.md`;
-  }
-  return false;
+  return locator.artifact === `cohort-${entry.cohort.split("/").at(-1)}.md`;
 }
 
 /** Validate an untrusted decoded allocation map. */
@@ -459,6 +456,12 @@ export function parseCutMap(input: unknown): CutMapParseResult {
     }
     cohort = input.cohort;
   }
+  if (input.parentPosition === "at-cap" && cohort !== undefined) {
+    return { status: "rejected", reason: "at-cap decomposition must omit `cohort`." };
+  }
+  if (input.parentPosition !== "at-cap" && cohort === undefined) {
+    return { status: "rejected", reason: `${input.parentPosition} decomposition requires a cohort placement.` };
+  }
   if (!Array.isArray(input.entries)) return { status: "rejected", reason: "cut-map requires an entries array." };
   const entries: DecomposeAllocationEntry[] = [];
   for (let index = 0; index < input.entries.length; index++) {
@@ -476,12 +479,20 @@ export function parseCutMap(input: unknown): CutMapParseResult {
     return { status: "rejected", reason: "cohort-coordination must name the declared cohort." };
   }
   const members = entries.filter((entry): entry is NewMemberEntry => entry.kind === "new-member");
+  const survivors = entries.filter((entry): entry is SurvivingOriginEntry => entry.kind === "surviving-origin");
+  if (input.shape !== "extraction" && survivors.length > 0) {
+    return { status: "rejected", reason: "surviving-origin entries are valid only for extraction." };
+  }
   if ((input.shape === "symmetric" || input.shape === "backlog-stub-source") && members.length < 2) {
     return { status: "rejected", reason: `${input.shape} requires at least two new members.` };
   }
-  if (input.shape === "extraction"
-    && (!entries.some((entry) => entry.kind === "surviving-origin") || members.length < 1)) {
-    return { status: "rejected", reason: "extraction requires a surviving origin and at least one new member." };
+  if (input.shape === "extraction") {
+    if (survivors.length !== 1 || survivors[0]?.slug !== input.origin.slug || members.length < 1) {
+      return {
+        status: "rejected",
+        reason: "extraction requires exactly one surviving-origin entry naming the origin and at least one new member.",
+      };
+    }
   }
   if (input.shape === "heterogeneous-home" && entries.length < 2) {
     return { status: "rejected", reason: "heterogeneous-home requires at least two destinations." };
