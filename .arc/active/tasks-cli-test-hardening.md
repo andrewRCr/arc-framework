@@ -270,23 +270,20 @@ and `src/handlers/status.ts` (`commands/status/run.ts` is a pure orchestrator wi
   on every exit, and preserves the non-fatal `null` result for stalled requests. Missing and non-string registry
   version fields are covered alongside the existing network and HTTP failure paths.
 
-### `[ ]` **5.4 Entry-point & command-concurrency coverage**
+### `[x]` **5.4 Entry-point & command-concurrency coverage**
 
 - _Goal:_ The untested entry-point paths and init/update command-level concurrency are covered.
-
-- _Context:_ `writeGitNote` (`src/lib/io-context.ts` ~L85-112) has an stdin/EPIPE guard; `readGitNote` (~L118-130)
-  returns null on any failure — it cannot distinguish a corrupt ref from an absent note (a testable nuance).
-  `runWithSpinner` (`src/handlers/shared.ts` ~L44-60) stops the spinner and re-throws on error (untested path).
-  The `true-race`/`race-worker` harness targets git-ref primitives, not the `init`/`update` commands;
-  `init.e2e.test.ts` / `update.e2e.test.ts` carry no concurrency tests (greenfield — extend the harness or drive
-  two CLI spawns via `helpers/cli-spawn.ts`).
 
     - `[x]` **5.4.a Entry-point paths**
         - Covered `writeGitNote` stdin/EPIPE rejection through the real context surface, `readGitNote` against a
           corrupt ref in a real repository, and `runWithSpinner` failure labeling plus error propagation.
 
-    - `[ ]` **5.4.b `init`/`update` command-level concurrency**
-        - Cover concurrent `init`/`update` invocations (the existing race harness targets git-ref writes only).
+    - `[x]` **5.4.b `init`/`update` command-level concurrency**
+        - Drove paired real CLI processes for clean `init` and `update` calls, then parsed the manifest and
+          pristine snapshots to prove that concurrent commands leave a valid installation.
+
+- _Outcome:_ Entry-point failures now preserve their public contracts, while concurrent `init` and `update`
+  processes converge on valid on-disk installation state.
 
 ---
 
