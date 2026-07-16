@@ -134,7 +134,7 @@ Design one idempotent supported surface, with exact command naming settled at sp
 
 ## ARC workflow integration
 
-Coordinate reusable review actions with `review-method-family`. Consume action-neutral `pre-pr-open`, `post-pr-open`,
+Coordinate reusable review actions with `review-architecture`. Consume action-neutral `pre-pr-open`, `post-pr-open`,
 review-response, and `pre-merge` lifecycle seams rather than creating CodeRabbit- or GitHub-named methodology hooks.
 The project adapter supplies ordered actions that admit a request, expose an authenticated user trigger when needed,
 await typed aggregate state, settle findings, guard active-review heads, and verify final state.
@@ -148,7 +148,7 @@ differently, but a configured required review remains exact-head, pending-first,
 - **`review-gate-enforcement-cutover`:** produces extraction-ready contracts and provider/runtime qualification.
 - **`review-gate-enforcement-promotion`:** produces the final installed-state, enforcement, rollback, and activation
   evidence this work uses as its reference installation.
-- **`review-method-family`:** owns reusable lifecycle action/method presentation; this work owns adapter distribution
+- **`review-architecture`:** owns reusable lifecycle action/method presentation; this work owns adapter distribution
   and GitHub-specific execution.
 - **Configuration cohort:** owns eventual project/user configuration substrate. Do not mint a receipt-store axis or
   conflate project enforcement policy with a developer's hosted-provider subscriptions.
