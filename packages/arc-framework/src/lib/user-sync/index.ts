@@ -24,6 +24,7 @@ export { matchInboxEntryTitle, parseCrossWuEntries, shapeForFile } from "./parse
 export {
   listInboxEntryTitles,
   removeInboxEntry,
+  requireLiveInboxTitle,
   type RemoveInboxEntryResult,
 } from "./inbox-writer.js";
 

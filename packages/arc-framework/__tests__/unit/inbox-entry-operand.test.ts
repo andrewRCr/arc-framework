@@ -93,6 +93,10 @@ describe("resolveInboxEntryOperand", () => {
       {},
       { readFile: vi.fn(), readStdin: vi.fn() },
     )).rejects.toThrow(/--inbox-title-file/);
+    await expect(resolveInboxEntryOperand(
+      {},
+      { readFile: vi.fn(), readStdin: vi.fn() },
+    )).rejects.toThrow(/--inbox-entry-file/);
   });
 
   it.each(["First\nSecond", "First\n\n", "First\0Second"])("rejects a non-title payload", async (payload) => {

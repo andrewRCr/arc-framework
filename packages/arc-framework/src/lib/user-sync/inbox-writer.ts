@@ -40,49 +40,14 @@ function isEntryHeading(line: string): boolean {
 }
 
 /**
- * Remove the title-matched H3 entry from a `USER-INBOX` file.
+ * Yield in-section managed-entry heading lines (and their indices).
  *
- * Scans the `## Errand` and `## Work Unit` sections for the first entry whose bold
- * title equals `title` (whitespace-trimmed on both sides), then excises that
- * block — its heading through the blank lines before the next entry or the
- * section boundary. Siblings and every other line stay byte-identical. When no
- * entry matches, the content is returned unchanged.
- *
- * @param content - The `USER-INBOX` file's full text.
- * @param title - The entry's bold title (the interim slug key).
- * @returns The (possibly unchanged) content and whether a removal occurred.
+ * Shared section-tracking for list and remove so `## ` / `---` / `###` rules stay
+ * in one place.
  */
-/**
- * List bold titles of managed entries under `## Errand` and `## Work Unit`.
- *
- * @param content - The `USER-INBOX` file's full text.
- * @returns Entry titles in document order (duplicates preserved if present).
- */
-export function listInboxEntryTitles(content: string): string[] {
-  const titles: string[] = [];
-  const lines = content.split("\n");
-  let inEntrySection = false;
-  for (const line of lines) {
-    const heading = line.trimEnd().match(/^## (.+)$/);
-    if (heading) {
-      inEntrySection = ENTRY_SECTIONS.includes((heading[1] ?? "").trim());
-      continue;
-    }
-    if (line.trimEnd() === "---") {
-      inEntrySection = false;
-      continue;
-    }
-    if (!inEntrySection || !isEntryHeading(line)) continue;
-    const title = matchInboxEntryTitle(line);
-    if (title !== null) titles.push(title);
-  }
-  return titles;
-}
-
-export function removeInboxEntry(content: string, title: string): RemoveInboxEntryResult {
-  const target = title.trim();
-  const lines = content.split("\n");
-
+function* entryHeadingLines(
+  lines: readonly string[],
+): Generator<{ index: number; line: string }> {
   let inEntrySection = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i] ?? "";
@@ -96,6 +61,63 @@ export function removeInboxEntry(content: string, title: string): RemoveInboxEnt
       continue;
     }
     if (!inEntrySection || !isEntryHeading(line)) continue;
+    yield { index: i, line };
+  }
+}
+
+/**
+ * List bold titles of managed entries under `## Errand` and `## Work Unit`.
+ *
+ * @param content - The `USER-INBOX` file's full text.
+ * @returns Entry titles in document order (duplicates preserved if present).
+ */
+export function listInboxEntryTitles(content: string): string[] {
+  const titles: string[] = [];
+  for (const { line } of entryHeadingLines(content.split("\n"))) {
+    const title = matchInboxEntryTitle(line);
+    if (title !== null) titles.push(title);
+  }
+  return titles;
+}
+
+/**
+ * Resolve `title` against live managed entries, preferring an exact match then
+ * a trim match. Throws when no live capture matches.
+ *
+ * @param content - The `USER-INBOX` file's full text.
+ * @param title - Operand title (may still carry outer whitespace).
+ * @returns The live title string to use as the origin back-pointer.
+ */
+export function requireLiveInboxTitle(content: string, title: string): string {
+  const liveTitles = listInboxEntryTitles(content);
+  const match = liveTitles.find((entry) => entry === title || entry === title.trim());
+  if (match === undefined) {
+    throw new Error(
+      `No live USER-INBOX capture titled '${title.trim()}'. `
+      + "Pass the inner bold title (not the full H3 heading line).",
+    );
+  }
+  return match;
+}
+
+/**
+ * Remove the title-matched H3 entry from a `USER-INBOX` file.
+ *
+ * Scans the `## Errand` and `## Work Unit` sections for the first entry whose bold
+ * title equals `title` (whitespace-trimmed on both sides), then excises that
+ * block — its heading through the blank lines before the next entry or the
+ * section boundary. Siblings and every other line stay byte-identical. When no
+ * entry matches, the content is returned unchanged.
+ *
+ * @param content - The `USER-INBOX` file's full text.
+ * @param title - The entry's bold title (the interim slug key).
+ * @returns The (possibly unchanged) content and whether a removal occurred.
+ */
+export function removeInboxEntry(content: string, title: string): RemoveInboxEntryResult {
+  const target = title.trim();
+  const lines = content.split("\n");
+
+  for (const { index: i, line } of entryHeadingLines(lines)) {
     if (matchInboxEntryTitle(line) !== target) continue;
 
     // Excise [heading .. next entry / section boundary), absorbing the block's

@@ -45,8 +45,8 @@ import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import { resolveOriginatingMetaPath } from "../lib/release/wu-resolution.js";
 import {
   clearErrandPartialPushMarker,
-  listInboxEntryTitles,
   recordErrandPartialPushMarker,
+  requireLiveInboxTitle,
 } from "../lib/user-sync/index.js";
 import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -799,15 +799,7 @@ async function resolveLiveInboxOriginEntry(options: {
     throw err;
   }
 
-  const liveTitles = listInboxEntryTitles(content);
-  const match = liveTitles.find((entry) => entry === title.trim() || entry === title);
-  if (match === undefined) {
-    throw new Error(
-      `No live USER-INBOX capture titled '${title.trim()}'. `
-      + "Pass the inner bold title (not the full H3 heading line).",
-    );
-  }
-  return match;
+  return requireLiveInboxTitle(content, title);
 }
 
 /** Drop the originating capture, if the record carries a back-pointer. */
