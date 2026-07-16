@@ -27,6 +27,46 @@
   downstream work. Ride the layout evaluation on this chain — at qualification, or later at planning discretion —
   where the surface is being reworked anyway and the evaluation lands without independent churn.
 
+### `[ ]` **Resolve review-gate digest determinism (locale sort + no NFC)**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during
+  `husk-lifecycle-drivers` Phase 1 (Task 1.1).
+- *Concern:* `canonicalizePlainJson` in `review-gate/core/identity.ts` sorts object keys with `localeCompare`
+  (ICU/locale-sensitive) and applies no NFC normalization, so its stored policy-version and change-set digests can
+  diverge across Node/ICU builds or platforms — a latent cross-environment determinism risk in a trust digest that
+  today only holds because every producer runs the same environment.
+- *Approach:* decide between migrating review-gate onto the generalized canonical serializer
+  (`lib/canonical/canonical-json.ts` — codepoint sort + NFC) behind an explicit digest-version bump with a re-hash
+  migration for already-stored digests, or documenting the single-environment constraint as intentional. The
+  generalized serializer already exists — `husk-lifecycle-drivers` built it fresh precisely to avoid mutating
+  review-gate's stored digests in place — so the design fork is the stored-digest migration, not the sort/NFC fix
+  itself.
+
+### `[ ]` **Consume the review-lane vocabulary rather than minting a parallel classification**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during FP
+  wave-3 external-budget contention analysis — CodeRabbit adaptive-limit hit; metering data in
+  `notes-finalize-parallelism.md` § Day-2 evidence.
+- *Concern:* the holistic review WU (rescoped `review-method-family` — grooming pending) will define a review-lane
+  vocabulary (roughly `none / local-only / local+pr / pr-only`) that decides which changes spend a metered PR
+  review. The review-gate must consume that enum as its trigger policy — "don't request a PR review when the lane
+  says it shouldn't" — rather than minting a parallel classification. Routed here as the next WU in the chain to
+  groom the trigger surface; re-route along the chain (`-promotion` / `-github-adapter`) if grooming order changes.
+  The reciprocal seam will be recorded in the review WU's draft § Cross-cutting.
+
+### `[ ]` **Reduce Review Gate Wakeup relay billing overhead**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during FP
+  wave-3 external-budget contention analysis; run-rate data in `notes-finalize-parallelism.md` § Day-2 evidence.
+- *Concern:* the wakeup relay (`review-gate-wakeup.yml`) is an echo-only job firing per review-comment event
+  (`pull_request_review`, `pull_request_review_comment`) and bills GitHub's one-minute-per-job minimum each run —
+  49 runs (~50 billable no-op minutes) in wave-3 day 1's 27-hour sample, comparable to a dozen heavy CI runs.
+  Concurrency already collapses bursts within a PR (one running, one pending); chatty reviews across parallel PRs
+  multiply it anyway.
+- *Approach:* review-gate-owned design input, not a freestanding errand — the relay is the unprivileged-event →
+  privileged-controller bridge, so any change (controller subscribing to review events directly, harder
+  debouncing, batching) needs gate-architecture judgment.
+
 ---
 
 ## Role in the three-work-unit sequence
