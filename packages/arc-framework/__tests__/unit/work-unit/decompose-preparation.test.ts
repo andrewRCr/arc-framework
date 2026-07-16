@@ -174,6 +174,48 @@ describe("prepareDecomposeRetirement", () => {
     }
   });
 
+  it("round-trips a source inventory locator for a bare H2", async () => {
+    const bareHeadingLocator = {
+      artifact: "draft-origin.md",
+      kind: "section" as const,
+      headingSource: "",
+      occurrence: 0,
+    };
+    const bareSourceId = canonicalDigest({
+      schemaVersion: 2,
+      sourcePath,
+      sourceLocator: bareHeadingLocator,
+    });
+    const bareAllocation: DecomposeAllocationMap = {
+      ...allocation,
+      sourceAllocations: [{
+        sourceId: bareSourceId,
+        ownership: "destination-owned",
+        disposition: { kind: "drop", reason: "superseded" },
+      }],
+    };
+    const h = harness();
+    h.ctx.readProjection = async () => ({
+      ...projection,
+      inventories: {
+        ...projection.inventories,
+        sourceInventory: [{
+          sourceId: bareSourceId,
+          sourcePath,
+          sourceLocator: bareHeadingLocator,
+          contentDigest: digest("##\nbody\n"),
+        }],
+      },
+    });
+
+    const prepared = await prepareDecomposeRetirement(h.ctx, scope, bareAllocation, "version-absent");
+
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared" || h.record === null) return;
+    expect(parseDecomposePreparationRecord(h.record)).toEqual(prepared.preparation.record);
+    expect(prepared.preparation.record.sourceInventory[0]?.sourceLocator).toEqual(bareHeadingLocator);
+  });
+
   it("resumes the exact stored locator idempotently without a second create", async () => {
     const first = harness();
     const prepared = await prepareDecomposeRetirement(first.ctx, scope, allocation, "version-absent");

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import {
   parseCutMap,
+  parseDecomposeContentLocator,
   retirementAllocationRefusal,
   type DecomposeAllocationMap,
 } from "../../../src/lib/work-unit/decompose-cut-map.js";
@@ -267,6 +268,54 @@ describe("parseCutMap", () => {
         },
       }],
     })).sourceAllocations[0]?.disposition).toMatchObject({ kind: "target" });
+  });
+
+  it("accepts the normalized empty heading source emitted for a bare H2", () => {
+    expect(parsed(wellFormed({
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: {
+          kind: "target",
+          destinationId: "member-a",
+          targetLocator: {
+            artifact: "draft-member-a.md",
+            kind: "section",
+            headingSource: "",
+            occurrence: 0,
+          },
+        },
+      }],
+    })).sourceAllocations[0]?.disposition).toMatchObject({
+      kind: "target",
+      targetLocator: { kind: "section", headingSource: "", occurrence: 0 },
+    });
+  });
+
+  it("rejects artifact basenames that the source scanner cannot inventory", () => {
+    for (const artifact of [".", "..", "draft\0member.md"]) {
+      expect(parseDecomposeContentLocator({ artifact, kind: "preamble" })).toBeNull();
+    }
+  });
+
+  it("rejects direct self-dependencies in every dependency edge form", () => {
+    expect(rejection(wellFormed({
+      internalEdges: [{ from: "member-a", to: "member-a" }],
+    }))).toMatch(/internal edge.*self-dependency/i);
+
+    expect(rejection(wellFormed({
+      incomingEdges: [{
+        dependent: "member-a",
+        disposition: { kind: "replace", replacementTargets: ["member-a"] },
+      }],
+    }))).toMatch(/incoming edge.*self-dependency/i);
+
+    expect(rejection(wellFormed({
+      outgoingEdges: [{
+        prerequisite: "member-a",
+        disposition: { kind: "targets", targets: ["member-a"] },
+      }],
+    }))).toMatch(/outgoing edge.*self-dependency/i);
   });
 
   it("parses extraction but prevents it from authorizing retirement", () => {

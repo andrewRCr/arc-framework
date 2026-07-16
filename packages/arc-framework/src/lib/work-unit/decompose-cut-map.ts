@@ -177,6 +177,7 @@ function compareCanonicalStrings(left: string, right: string): number {
 function parseLocator(raw: unknown, label: string): Parsed<DecomposeContentLocator> {
   if (!isObject(raw)) return { reason: `${label} must be an object.` };
   if (!isNonEmptyString(raw.artifact) || raw.artifact.includes("/") || raw.artifact.includes("\\")
+    || raw.artifact === "." || raw.artifact === ".." || raw.artifact.includes("\0")
     || raw.artifact.normalize("NFC") !== raw.artifact) {
     return { reason: `${label}.artifact must be a slash-free NFC basename.` };
   }
@@ -188,9 +189,9 @@ function parseLocator(raw: unknown, label: string): Parsed<DecomposeContentLocat
   if (raw.kind === "section") {
     const keyError = exactKeys(raw, ["artifact", "kind", "headingSource", "occurrence"], label);
     if (keyError !== null) return { reason: keyError };
-    if (!isNonEmptyString(raw.headingSource)
+    if (typeof raw.headingSource !== "string"
       || normalizeDecomposeHeadingSource(raw.headingSource) !== raw.headingSource) {
-      return { reason: `${label}.headingSource must be non-empty and normalized.` };
+      return { reason: `${label}.headingSource must be normalized.` };
     }
     if (!Number.isInteger(raw.occurrence) || (raw.occurrence as number) < 0) {
       return { reason: `${label}.occurrence must be a non-negative integer.` };
@@ -541,6 +542,7 @@ export function parseCutMap(input: unknown): CutMapParseResult {
     if (keyError !== null) return { status: "rejected", reason: keyError };
     if (!safeSlug(edge.from) || !memberSlugs.has(edge.from)) return { status: "rejected", reason: `internal edge ${index} references unknown from member.` };
     if (!safeSlug(edge.to) || !memberSlugs.has(edge.to)) return { status: "rejected", reason: `internal edge ${index} references unknown to member.` };
+    if (edge.from === edge.to) return { status: "rejected", reason: `internal edge ${index} cannot be a self-dependency.` };
     internalEdges.push({ from: edge.from, to: edge.to });
   }
   const repeatedInternal = duplicate(internalEdges.map((edge) => `${edge.from}\0${edge.to}`));
@@ -575,11 +577,17 @@ export function parseCutMap(input: unknown): CutMapParseResult {
     if (edge.disposition.kind !== "replace") continue;
     const unknown = edge.disposition.replacementTargets.find((target) => !dependencyRecipients.has(target));
     if (unknown !== undefined) return { status: "rejected", reason: `replacement target \`${unknown}\` cannot receive WU dependencies.` };
+    if (edge.disposition.replacementTargets.includes(edge.dependent)) {
+      return { status: "rejected", reason: `incoming edge for \`${edge.dependent}\` cannot create a self-dependency.` };
+    }
   }
   for (const edge of outgoingEdges.value) {
     if (edge.disposition.kind !== "targets") continue;
     const unknown = edge.disposition.targets.find((target) => !dependencyRecipients.has(target));
     if (unknown !== undefined) return { status: "rejected", reason: `outgoing consumer \`${unknown}\` cannot receive WU dependencies.` };
+    if (edge.disposition.targets.includes(edge.prerequisite)) {
+      return { status: "rejected", reason: `outgoing edge for \`${edge.prerequisite}\` cannot create a self-dependency.` };
+    }
   }
 
   const map: DecomposeAllocationMap = {

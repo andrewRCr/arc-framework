@@ -101,6 +101,22 @@ describe("scanDecomposeContent", () => {
     ]);
   });
 
+  it("inventories and resolves bare H2 sections with an empty normalized heading source", () => {
+    const result = scanDecomposeContent("draft-sample.md", bytes("##\nfirst\n##   \nsecond\n"));
+
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+    expect(result.units.slice(1).map((unit) => unit.locator)).toEqual([
+      { artifact: "draft-sample.md", kind: "section", headingSource: "", occurrence: 0 },
+      { artifact: "draft-sample.md", kind: "section", headingSource: "", occurrence: 1 },
+    ]);
+    expect(resolveDecomposeContentLocator(
+      result.units,
+      { artifact: "draft-sample.md", kind: "section", headingSource: "", occurrence: 1 },
+      "draft-sample.md",
+    )).toMatchObject({ status: "resolved", unit: { content: "##   \nsecond\n" } });
+  });
+
   it("rejects invalid UTF-8 Markdown and slash-bearing artifact locators", () => {
     expect(scanDecomposeContent("draft-sample.md", new Uint8Array([0xc3, 0x28]))).toMatchObject({
       status: "rejected",
@@ -110,6 +126,12 @@ describe("scanDecomposeContent", () => {
       status: "rejected",
       reason: expect.stringMatching(/basename/i),
     });
+    for (const artifact of [".", "..", "draft\0sample.md"]) {
+      expect(scanDecomposeContent(artifact, bytes("text"))).toMatchObject({
+        status: "rejected",
+        reason: expect.stringMatching(/basename/i),
+      });
+    }
   });
 });
 
