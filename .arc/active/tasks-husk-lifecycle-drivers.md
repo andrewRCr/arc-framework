@@ -27,16 +27,14 @@ bytes.
   already-stored policy digests. The generalized version is therefore a fresh neutral module the work-unit layer
   imports, not an in-place lift. A committed golden digest anchors cross-environment stability.
 
-### `[ ]` **1.2 Managed-path validation and normalization**
+### `[x]` **1.2 Managed-path validation and normalization**
 
 - _Goal:_ Every managed path is validated and normalized to a repository-relative POSIX form before it can
   enter a digest, so a hostile or ambiguous path never reaches hashing or the filesystem.
 
-    - Build `test-first` (one behavior at a time):
-        - absolute paths, `.`/`..` segments, backslashes, and NUL bytes are rejected
-        - non-NFC path strings are rejected, not silently normalized
-        - a valid repository-relative POSIX path passes through unchanged
-        - rejection is total before hashing — no partial digest is produced
+- _Outcome:_ `lib/canonical/managed-path.ts` — `validateManagedPath` (returning a branded `ManagedPath`) and the
+  `isManagedPath` predicate. A non-NFC path is rejected, not repaired, so one file can never address a record
+  under two spellings; validation is a total throw-gate that completes before any hashing can begin.
 
 ### `[ ]` **1.3 Canonical blob and content digests over stored Git bytes**
 
