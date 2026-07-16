@@ -1207,9 +1207,9 @@ function reportTeardownResult(
  * - default — post-merge cleanup of a `completed/` WU; gated on `completed/`
  *   arc-state + the merged-safe push-state durability check.
  * - `--force` — cleanup of a retired / parked origin (a decompose origin removed
- *   into its members, a `park@Planning` shelf) whose branch is unmerged;
- *   force-deletes it. The caller asserts the work is conserved (the flag is that
- *   authorization); refuses a `completed/` WU (use the default path).
+ *   into its members, a `park@Planning` shelf) whose branch is unmerged. The flag
+ *   selects non-shipped cleanup; transition-specific receipt evidence authorizes
+ *   each destructive operation. Refuses a `completed/` WU (use the default path).
  *
  * `arc teardown --branch chore/<slug>` is the recordless cheap-branch sibling:
  * it skips the WU arc-state gate but keeps the merged-safe containment check,
