@@ -47,11 +47,15 @@ describe("update", () => {
     const internalDir = join(tmpDir, ".arc", "system", ".internal");
     const manifest = JSON.parse(
       await readFile(join(internalDir, "manifest.json"), "utf8"),
-    ) as { files: Record<string, unknown> };
+    ) as {
+      install_config: { project_name: string };
+      files: Record<string, unknown>;
+    };
     const pristine = JSON.parse(
       await readFile(join(internalDir, "pristine.json"), "utf8"),
     ) as Record<string, string>;
     expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
+    expect(manifest.install_config.project_name).toBe("test-project");
     expect(Object.keys(pristine).length).toBeGreaterThan(0);
   });
 

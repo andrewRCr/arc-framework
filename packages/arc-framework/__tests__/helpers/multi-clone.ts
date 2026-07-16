@@ -169,8 +169,7 @@ async function createClone(
   options: Required<CloneSetupOptions>,
 ): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix));
-  await execFileAsync("git", ["clone", origin, dir]);
-  await disableAutoGc(dir);
+  await execFileAsync("git", ["clone", "--config", "gc.auto=0", origin, dir]);
   await execFileAsync("git", ["config", "user.name", options.authorName], { cwd: dir });
   await execFileAsync("git", ["config", "user.email", options.authorEmail], { cwd: dir });
   for (const [key, value] of Object.entries(options.config)) {

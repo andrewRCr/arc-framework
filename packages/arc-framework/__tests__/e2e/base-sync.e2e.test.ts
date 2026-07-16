@@ -44,8 +44,10 @@ describe("arc base sync", () => {
     await git(primary, ["remote", "add", "origin", remote]);
     await git(primary, ["push", "-u", "origin", "main"]);
 
-    await execFileAsync("git", ["clone", "--branch", "main", remote, publisher]);
-    await git(publisher, ["config", "gc.auto", "0"]);
+    await execFileAsync(
+      "git",
+      ["clone", "--config", "gc.auto=0", "--branch", "main", remote, publisher],
+    );
     await git(publisher, ["config", "user.email", "publisher@test.com"]);
     await git(publisher, ["config", "user.name", "Publisher"]);
     await writeFile(join(publisher, "remote-change.txt"), "remote\n", "utf-8");

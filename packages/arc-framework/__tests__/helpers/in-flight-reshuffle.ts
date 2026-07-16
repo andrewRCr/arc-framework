@@ -131,10 +131,10 @@ export async function setupInFlightReshuffleFixture(): Promise<InFlightReshuffle
     let ownedRemovalError: unknown;
     try {
       await removeGitBackedDirs(ownedPaths);
+      ownedPaths.length = 0;
     } catch (error) {
       ownedRemovalError = error;
     }
-    ownedPaths.length = 0;
     let baseRemovalError: unknown;
     try {
       await base.cleanup();

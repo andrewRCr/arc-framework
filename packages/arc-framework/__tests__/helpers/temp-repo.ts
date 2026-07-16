@@ -137,12 +137,25 @@ export interface CreateTempRepoOptions {
 export async function createTempRepoCore(options: CreateTempRepoOptions = {}): Promise<string> {
   const { prefix = "arc-test-", identity } = options;
   const dir = await mkdtemp(join(tmpdir(), prefix));
-  await execFileAsync("git", ["init", "-b", "main", dir]);
-  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });
-  await execFileAsync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
-  await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
-  if (identity !== undefined) {
-    await execFileAsync("git", ["config", "arc.identity", identity], { cwd: dir });
+  try {
+    await execFileAsync("git", ["init", "-b", "main", dir]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.email", "test@test.com"], { cwd: dir });
+    await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
+    if (identity !== undefined) {
+      await execFileAsync("git", ["config", "arc.identity", identity], { cwd: dir });
+    }
+    return dir;
+  } catch (error) {
+    try {
+      await removeGitBackedDir(dir);
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        `Failed to initialize and clean up temporary repository '${dir}'.`,
+        { cause: cleanupError },
+      );
+    }
+    throw error;
   }
-  return dir;
 }
