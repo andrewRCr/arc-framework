@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { contentDigest } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
+import { preparationId, receiptId } from "../../../src/lib/canonical/receipt-id.js";
 import {
   finalizeDecomposeRetirement,
   type DecomposeFinalizationContext,
@@ -17,25 +18,21 @@ import type {
 
 const bytes = (value: string) => new TextEncoder().encode(value);
 const digest = (value: string) => contentDigest(bytes(value));
-const sourceId = canonicalDigest("source");
 const targetPath = validateManagedPath(".arc/backlog/planned/origin/member-a/draft-member-a.md");
-
-const locator: DecomposePreparationLocator = {
-  receiptId: canonicalDigest("receipt"),
-  preparationId: canonicalDigest("preparation"),
-  scope: {
-    subject: { kind: "work-unit", name: "origin" },
-    transition: "decompose",
-    source: { branch: "plan/origin", head: "a".repeat(40) },
-    resultProjection: { ref: "main", head: "b".repeat(40) },
-  },
+const scope = {
+  subject: { kind: "work-unit" as const, name: "origin" },
+  transition: "decompose" as const,
+  source: { branch: "plan/origin", head: "a".repeat(40) },
+  resultProjection: { ref: "main", head: "b".repeat(40) },
 };
-
+const sourcePath = validateManagedPath(".arc/active/draft-origin.md");
+const sourceLocator = { artifact: "draft-origin.md", kind: "preamble" as const };
+const sourceId = canonicalDigest({ schemaVersion: 2, sourcePath, sourceLocator });
 const inventories = {
   sourceInventory: [{
     sourceId,
-    sourcePath: validateManagedPath(".arc/active/draft-origin.md"),
-    sourceLocator: { artifact: "draft-origin.md", kind: "preamble" } as const,
+    sourcePath,
+    sourceLocator,
     contentDigest: digest("source"),
   }],
   incomingEdgeInventory: [{ dependent: "consumer", currentTargets: ["other", "origin"] }],
@@ -70,6 +67,24 @@ const allocation = {
     disposition: { kind: "targets" as const, targets: ["member-a"] },
   }],
 };
+const receiptIdValue = receiptId({
+  schemaVersion: 1,
+  subject: scope.subject,
+  transition: "decompose",
+  sourceBranch: scope.source.branch,
+  sourceHead: scope.source.head,
+});
+const cutMapDigest = canonicalDigest(allocation);
+const locator: DecomposePreparationLocator = {
+  receiptId: receiptIdValue,
+  preparationId: preparationId({
+    receiptId: receiptIdValue,
+    baseHead: scope.resultProjection.head,
+    ...inventoryDigests,
+    cutMapDigest,
+  }),
+  scope,
+};
 const recordPath = resolveRetirementRecordRelativePath(locator.receiptId);
 const record: DecomposePreparationRecord = {
   kind: "prepared-decompose",
@@ -80,7 +95,7 @@ const record: DecomposePreparationRecord = {
   allowedPaths: [targetPath],
   sourceArtifactDigest: digest("source-artifacts"),
   ...inventoryDigests,
-  cutMapDigest: canonicalDigest(allocation),
+  cutMapDigest,
 };
 const projection: DecomposeFinalizationProjection = {
   sourceArtifactDigest: record.sourceArtifactDigest,
@@ -158,6 +173,26 @@ describe("finalizeDecomposeRetirement", () => {
       "prepared-version",
     );
     expect(result).toMatchObject({ status: "refused", reason: "conservation-unproven" });
+  });
+
+  it("refuses undeclared or duplicated dependencies on a new member", async () => {
+    for (const dependencies of [
+      ["foundation", "unexpected"],
+      ["foundation", "foundation"],
+    ]) {
+      const result = await finalizeDecomposeRetirement(
+        context({
+          readDependsOn: async (slug) => {
+            if (slug === "consumer") return ["other", "member-a"];
+            if (slug === "member-a") return dependencies;
+            return [];
+          },
+        }).ctx,
+        locator,
+        "prepared-version",
+      );
+      expect(result).toMatchObject({ status: "refused", reason: "conservation-unproven" });
+    }
   });
 
   it("fails closed when transactional receipt replacement cannot stage", async () => {

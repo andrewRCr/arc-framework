@@ -227,7 +227,11 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     expect(prepared.status).toBe("prepared");
     if (prepared.status !== "prepared") return;
 
-    const mutation = await runPreparedDecompose(decomposeCtx(repo), { cut, preparation: prepared.preparation });
+    const mutation = await runPreparedDecompose(decomposeCtx(repo), {
+      cut,
+      preparation: prepared.preparation,
+      revalidate: async () => await driver.revalidate(prepared.preparation),
+    });
     expect(mutation.status).toBe("decomposed");
     if (mutation.status !== "decomposed") return;
     await driver.stagePreparedResult(prepared.preparation);

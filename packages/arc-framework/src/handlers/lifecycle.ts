@@ -381,7 +381,11 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
   }
   const result = preparation === null
     ? await runDecompose(decomposeContext, { cut: parsed.params })
-    : await runPreparedDecompose(decomposeContext, { cut: parsed.params, preparation: preparation.preparation });
+    : await runPreparedDecompose(decomposeContext, {
+        cut: parsed.params,
+        preparation: preparation.preparation,
+        revalidate: async () => await driver.revalidate(preparation.preparation),
+      });
   if (result.status === "rejected") {
     refuse(result.reason);
     return;

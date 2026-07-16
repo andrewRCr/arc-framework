@@ -12,6 +12,7 @@ import {
   decodeRetirementRecordKey,
   RETIREMENT_RECORD_NAMESPACE,
 } from "../lib/work-unit/retirement-record-store.js";
+import { parseRetirementReceipt } from "../lib/work-unit/retirement-receipt-codec.js";
 
 export interface StagedPathChange {
   status: "A" | "M" | "D";
@@ -28,7 +29,7 @@ export interface DecomposeCommitGateInput {
 
 const RECORD_PATTERN = new RegExp(`^${RETIREMENT_RECORD_NAMESPACE}/(sha256-[0-9a-f]{64})\\.json$`, "u");
 
-function looksLikeRecordlessRetirement(changes: readonly StagedPathChange[]): boolean {
+function apparentlyRetiredSlugs(changes: readonly StagedPathChange[]): string[] {
   const deletedOrigins = changes
     .filter((change) => change.status === "D")
     .map((change) => /(^|\/)meta-([^/]+)\.md$/u.exec(change.path)?.[2])
@@ -37,17 +38,49 @@ function looksLikeRecordlessRetirement(changes: readonly StagedPathChange[]): bo
     .filter((change) => change.status === "A")
     .map((change) => /(^|\/)meta-([^/]+)\.md$/u.exec(change.path)?.[2])
     .filter((slug): slug is string => slug !== undefined);
-  return deletedOrigins.some((origin) => !addedTargets.includes(origin));
+  return deletedOrigins.filter((origin) => !addedTargets.includes(origin));
+}
+
+function receiptCoveredRetirements(
+  changes: readonly StagedPathChange[],
+  readIndexBytes: DecomposeCommitGateInput["readIndexBytes"],
+  readHeadBytes: DecomposeCommitGateInput["readHeadBytes"],
+): Set<string> {
+  const covered = new Set<string>();
+  for (const change of changes) {
+    if (change.status !== "A" || !RECORD_PATTERN.test(change.path) || readHeadBytes(change.path) !== null) continue;
+    const bytes = readIndexBytes(change.path);
+    if (bytes === null) continue;
+    try {
+      const receipt = parseRetirementReceipt(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+      if (receipt?.subject.kind === "work-unit"
+        && (receipt.transition === "abandon" || receipt.transition === "decompose")) {
+        covered.add(receipt.subject.name);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return covered;
 }
 
 /** Validate the staged decompose record and exact non-record patch. */
 export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): string[] {
   const errors: string[] = [];
   const recordChanges = input.changes.filter((change) => RECORD_PATTERN.test(change.path));
-  if (recordChanges.length === 0) {
-    if (input.mergeInProgress !== true && looksLikeRecordlessRetirement(input.changes)) {
-      errors.push("lifecycle retirement is missing a finalized retirement record");
+  if (input.mergeInProgress !== true) {
+    const covered = receiptCoveredRetirements(
+      input.changes,
+      (path) => input.readIndexBytes(path),
+      (path) => input.readHeadBytes(path),
+    );
+    const uncovered = apparentlyRetiredSlugs(input.changes).filter((slug) => !covered.has(slug));
+    if (uncovered.length > 0) {
+      errors.push(`lifecycle retirement is missing a finalized retirement record for: ${uncovered.join(", ")}`);
+      return errors;
     }
+  }
+  if (recordChanges.length === 0) {
     return errors;
   }
   if (recordChanges.length > 1) {

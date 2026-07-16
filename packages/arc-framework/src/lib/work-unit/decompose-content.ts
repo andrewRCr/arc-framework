@@ -1,6 +1,9 @@
 /** Deterministic source-unit scanning and locator resolution for decompose. */
 
 import type { DecomposeContentLocator } from "./decompose-cut-map.js";
+import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
+
+export { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 
 /** One exact allocatable unit from an authored companion. */
 export interface DecomposeContentUnit {
@@ -51,11 +54,6 @@ function sourceLines(content: string): SourceLine[] {
     lines.push({ start, end: start + text.length, body });
   }
   return lines;
-}
-
-/** Normalize the source text of an H2 while preserving inline Markdown. */
-export function normalizeDecomposeHeadingSource(source: string): string {
-  return source.replace(/[ \t]+/gu, " ").replace(/^[ \t]+|[ \t]+$/gu, "").normalize("NFC");
 }
 
 function atxH2Source(line: string): string | null {

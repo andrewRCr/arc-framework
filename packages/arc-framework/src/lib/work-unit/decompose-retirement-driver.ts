@@ -7,7 +7,10 @@ import { validateManagedPath, type ManagedPath } from "../canonical/managed-path
 import type { GitExec } from "../git/exec.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
-import { prepareDecomposeRetirement } from "./decompose-preparation.js";
+import {
+  parseDecomposePreparationRecord,
+  prepareDecomposeRetirement,
+} from "./decompose-preparation.js";
 import {
   finalizeDecomposeRetirement,
   type DecomposeFinalTarget,
@@ -29,7 +32,6 @@ import {
   resolveRetirementRecordRelativePath,
 } from "./retirement-record-store.js";
 import type {
-  DecomposePreparationRecord,
   PreparedDecomposeRetirement,
   RetirementReceipt,
 } from "./retirement-authority.js";
@@ -60,23 +62,11 @@ export type FinalizeDecomposeDriverResult =
 /** Production two-stage decompose authority surface consumed by the CLI handler. */
 export interface InRepoDecomposeRetirementDriver {
   prepare(allocation: DecomposeAllocationMap): Promise<PrepareDecomposeDriverResult>;
+  revalidate(preparation: PreparedDecomposeRetirement): Promise<
+    { status: "valid" } | { status: "refused"; reason: string }
+  >;
   stagePreparedResult(preparation: PreparedDecomposeRetirement): Promise<void>;
   finalize(origin: string, receiptId: CanonicalDigest): Promise<FinalizeDecomposeDriverResult>;
-}
-
-function decodePreparation(content: string, id: CanonicalDigest): DecomposePreparationRecord | null {
-  try {
-    const parsed = JSON.parse(content) as unknown;
-    if (typeof parsed !== "object" || parsed === null) return null;
-    const envelope = parsed as Record<string, unknown>;
-    if (envelope.kind !== "prepared-decompose" || envelope.schemaVersion !== 1) return null;
-    if (typeof envelope.locator !== "object" || envelope.locator === null) return null;
-    const locator = envelope.locator as Record<string, unknown>;
-    if (locator.receiptId !== id || canonicalize(parsed) !== content) return null;
-    return parsed as DecomposePreparationRecord;
-  } catch {
-    return null;
-  }
 }
 
 function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetirementDriver {
@@ -128,6 +118,50 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
         return { status: "refused", reason: error instanceof Error ? error.message : "authority-unavailable" };
       }
     },
+    revalidate: async (preparation) => {
+      try {
+        const id = preparation.locator.receiptId;
+        const stored = await readDecomposeRecord(deps, id);
+        if (stored === null) return { status: "refused", reason: "evidence-missing" };
+        const record = parseDecomposePreparationRecord(stored, id);
+        if (record === null
+          || canonicalize(record) !== canonicalize(preparation.record)
+          || canonicalize(record.locator) !== canonicalize(preparation.locator)) {
+          return { status: "refused", reason: "evidence-mismatch" };
+        }
+        const binding = await bindDecomposePreparation(deps, record.allocation);
+        if (canonicalize(binding.scope) !== canonicalize(record.locator.scope)
+          || binding.sourceArtifactDigest !== record.sourceArtifactDigest
+          || canonicalize(binding.inventories) !== canonicalize({
+            sourceInventory: record.sourceInventory,
+            incomingEdgeInventory: record.incomingEdgeInventory,
+            outgoingEdgeInventory: record.outgoingEdgeInventory,
+          })
+          || canonicalize(binding.allowedPaths) !== canonicalize(record.allowedPaths)) {
+          return { status: "refused", reason: "authority-conflict" };
+        }
+        const snapshot = await readDecomposeAuthorityVersion(
+          deps,
+          binding.scope,
+          stored,
+          binding.sourceArtifactDigest,
+          binding.inventories,
+        );
+        if (snapshot.recordState !== "prepared-decompose"
+          || snapshot.authorityVersion !== preparation.authorityVersion) {
+          return { status: "refused", reason: "authority-conflict" };
+        }
+        const recordPath = resolveRetirementRecordRelativePath(id);
+        const stagedPaths = await readDecomposeStagedPaths(deps);
+        const admitted = new Set([recordPath, ...record.allowedPaths]);
+        if (!stagedPaths.includes(recordPath) || stagedPaths.some((path) => !admitted.has(path))) {
+          return { status: "refused", reason: "authority-conflict" };
+        }
+        return { status: "valid" };
+      } catch (error) {
+        return { status: "refused", reason: error instanceof Error ? error.message : "authority-unavailable" };
+      }
+    },
     stagePreparedResult: async (preparation) => {
       await stageDecomposePaths(deps, [
         resolveRetirementRecordRelativePath(preparation.locator.receiptId),
@@ -139,7 +173,7 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
         if (!isCanonicalDigest(id)) return { status: "refused", reason: "invalid receipt ID" };
         const stored = await readDecomposeRecord(deps, id);
         if (stored === null) return { status: "refused", reason: "evidence-missing" };
-        const record = decodePreparation(stored, id);
+        const record = parseDecomposePreparationRecord(stored, id);
         if (record === null) return { status: "refused", reason: "evidence-mismatch" };
         if (record.locator.scope.subject.kind !== "work-unit" || record.locator.scope.subject.name !== origin) {
           return { status: "refused", reason: "evidence-mismatch" };
@@ -193,10 +227,11 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
               if (entry === undefined) return null;
               const bytes = await deps.readBlob(null, validateManagedPath(entry.path));
               if (bytes === null) return null;
-              return parseMetaRecord(new TextDecoder().decode(bytes))["Depends On"]
-                ?.split(",")
+              const field = parseMetaRecord(new TextDecoder().decode(bytes))["Depends On"];
+              if (field === null || field === "[none]") return [];
+              return field.split(",")
                 .map((value) => value.trim())
-                .filter(Boolean) ?? [];
+                .filter(Boolean);
             },
             replaceAndStageRecord: async (recordId, expected, next, paths) => {
               const path = resolveRetirementRecordPath(deps.cwd, recordId);

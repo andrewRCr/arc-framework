@@ -5,6 +5,7 @@ import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js"
 import { contentDigest } from "../../../src/lib/canonical/content-digest.js";
 import { receiptId } from "../../../src/lib/canonical/receipt-id.js";
 import {
+  parseDecomposePreparationRecord,
   prepareDecomposeRetirement,
   type DecomposePreparationContext,
   type DecomposePreparationProjection,
@@ -14,7 +15,9 @@ import type { DecomposeAllocationMap } from "../../../src/lib/work-unit/decompos
 import type { RetirementAuthorityScope } from "../../../src/lib/work-unit/retirement-authority.js";
 
 const digest = (value: string) => contentDigest(new TextEncoder().encode(value));
-const SOURCE_ID = canonicalDigest("source");
+const sourcePath = validateManagedPath(".arc/active/draft-origin.md");
+const sourceLocator = { artifact: "draft-origin.md", kind: "preamble" as const };
+const SOURCE_ID = canonicalDigest({ schemaVersion: 2, sourcePath, sourceLocator });
 
 const scope: RetirementAuthorityScope = {
   subject: { kind: "work-unit", name: "origin" },
@@ -49,8 +52,8 @@ const projection: DecomposePreparationProjection = {
     sourceInventory: [
       {
         sourceId: SOURCE_ID,
-        sourcePath: validateManagedPath(".arc/active/draft-origin.md"),
-        sourceLocator: { artifact: "draft-origin.md", kind: "preamble" },
+        sourcePath,
+        sourceLocator,
         contentDigest: digest("source-content"),
       },
     ],
@@ -135,6 +138,37 @@ describe("prepareDecomposeRetirement", () => {
     expect(result.preparation.locator.scope).toEqual(scope);
     expect(h.record).toBe(canonicalize(result.preparation.record));
     expect(h.staged).toEqual([resolveRetirementRecordRelativePath(result.preparation.locator.receiptId)]);
+  });
+
+  it("strictly decodes only the canonical preparation and its deterministic identities", async () => {
+    const h = harness();
+    const prepared = await prepareDecomposeRetirement(h.ctx, scope, allocation, "version-absent");
+    expect(prepared.status).toBe("prepared");
+    if (prepared.status !== "prepared" || h.record === null) return;
+
+    expect(parseDecomposePreparationRecord(h.record, prepared.preparation.locator.receiptId)).toEqual(
+      prepared.preparation.record,
+    );
+    const raw = JSON.parse(h.record) as Record<string, unknown>;
+    const locator = raw.locator as Record<string, unknown>;
+    const sourceInventory = raw.sourceInventory as Array<Record<string, unknown>>;
+    const allowedPaths = raw.allowedPaths as string[];
+    const cases = [
+      { ...raw, unexpected: true },
+      { ...raw, locator: { ...locator, receiptId: canonicalDigest("forged-receipt") } },
+      {
+        ...raw,
+        sourceInventory: [
+          { ...sourceInventory[0], sourceId: canonicalDigest("forged-source") },
+          ...sourceInventory.slice(1),
+        ],
+      },
+      { ...raw, allowedPaths: [...allowedPaths, allowedPaths[0]] },
+      { ...raw, allocation: { schemaVersion: 2 } },
+    ];
+    for (const candidate of cases) {
+      expect(parseDecomposePreparationRecord(canonicalize(candidate))).toBeNull();
+    }
   });
 
   it("resumes the exact stored locator idempotently without a second create", async () => {

@@ -213,6 +213,43 @@ describe("parseCutMap", () => {
     expect(rejection(document)).toMatch(/locator.*destination|artifact.*PROJECT-PRD/i);
   });
 
+  it("rejects section locators whose heading source is not normalized", () => {
+    for (const headingSource of ["  Design", "Design\t  Notes", "Cafe\u0301"]) {
+      const input = wellFormed({
+        sourceAllocations: [{
+          sourceId: SOURCE_A,
+          disposition: {
+            kind: "target",
+            destinationId: "member-a",
+            targetLocator: {
+              artifact: "draft-member-a.md",
+              kind: "section",
+              headingSource,
+              occurrence: 0,
+            },
+          },
+        }],
+      });
+      expect(rejection(input)).toMatch(/headingSource.*normalized/i);
+    }
+
+    expect(parsed(wellFormed({
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        disposition: {
+          kind: "target",
+          destinationId: "member-a",
+          targetLocator: {
+            artifact: "draft-member-a.md",
+            kind: "section",
+            headingSource: "Design *Notes*",
+            occurrence: 0,
+          },
+        },
+      }],
+    })).sourceAllocations[0]?.disposition).toMatchObject({ kind: "target" });
+  });
+
   it("parses extraction but prevents it from authorizing retirement", () => {
     const input = wellFormed({
       shape: "extraction",

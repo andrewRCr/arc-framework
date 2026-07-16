@@ -31,6 +31,7 @@ import type {
   NewMemberEntry,
   DecomposeAllocationMap,
 } from "../decompose-cut-map.js";
+import { newMemberDependencies } from "../decompose-cut-map.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
 import {
   executeTransition,
@@ -109,20 +110,6 @@ export interface ScaffoldedMember {
  * duplicates collapsed. Never blanket-inherits the origin's edges — a member
  * that does not touch `X` is not gated behind it.
  */
-function memberDependsOn(
-  slug: string,
-  internalEdges: InternalEdge[],
-  outgoingEdges: DecomposeAllocationMap["outgoingEdges"],
-): string[] {
-  const deps = outgoingEdges
-    .filter((edge) => edge.disposition.kind === "targets" && edge.disposition.targets.includes(slug))
-    .map((edge) => edge.prerequisite);
-  for (const edge of internalEdges) {
-    if (edge.from === slug && !deps.includes(edge.to)) deps.push(edge.to);
-  }
-  return deps;
-}
-
 /**
  * Render a fresh member `draft-<slug>.md` skeleton — the pre-PRD synthesis
  * structure the conservation gate fills, mirroring `template-draft.md` (the
@@ -206,7 +193,7 @@ export async function scaffoldCohortMembers(
       Origin: originContext.origin,
       Design: `draft-${member.slug}.md`,
     };
-    const deps = memberDependsOn(member.slug, internalEdges, outgoingEdges);
+    const deps = newMemberDependencies({ internalEdges, outgoingEdges }, member.slug);
     if (deps.length > 0) overrides["Depends On"] = deps.join(", ");
 
     await ensureDir(join(ctx.cwd, dir), ctx.fs.mkdir);
@@ -256,6 +243,7 @@ export interface RunDecomposeParams {
 /** Prepared retirement evidence required by the production mutation path. */
 export interface RunPreparedDecomposeParams extends RunDecomposeParams {
   preparation: PreparedDecomposeRetirement;
+  revalidate(): Promise<{ status: "valid" } | { status: "refused"; reason: string }>;
 }
 
 /** One incoming edge re-pointed off the retired origin. */
@@ -317,6 +305,10 @@ export async function runPreparedDecompose(
     || preparation.authorityVersion.trim() === ""
   ) {
     return { status: "rejected", reason: "decompose preparation does not match the requested mutation." };
+  }
+  const revalidated = await params.revalidate();
+  if (revalidated.status === "refused") {
+    return { status: "rejected", reason: revalidated.reason };
   }
   return await runDecompose(ctx, { cut });
 }

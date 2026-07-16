@@ -16,12 +16,14 @@ import { describe, it, expect } from "vitest";
 import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
 import {
   runDecompose,
+  runPreparedDecompose,
   scaffoldCohortMembers,
   type RunDecomposeContext,
   type ScaffoldCohortMembersContext,
   type ScaffoldCohortMembersParams,
 } from "../../../../src/lib/work-unit/verbs/decompose.js";
 import type { DecomposeParams, NewMemberEntry } from "../../../../src/lib/work-unit/decompose-cut-map.js";
+import type { PreparedDecomposeRetirement } from "../../../../src/lib/work-unit/retirement-authority.js";
 import type {
   ExecuteTransitionContext,
   SideEffectHandler,
@@ -404,6 +406,38 @@ function symmetricCut(over: Partial<DecomposeParams> = {}): DecomposeParams {
 }
 
 describe("runDecompose — origin teardown via the reserved edges (Task 3.2)", () => {
+  it("refuses a stale preparation before any mutation leg runs", async () => {
+    const h = buildRunHarness([{ slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" }], {
+      [`${CWD}/.arc/active`]: ["meta-mono.md", "draft-mono.md"],
+    });
+    const cut = symmetricCut();
+    const locator = {
+      receiptId: "sha256:" + "a".repeat(64),
+      preparationId: "sha256:" + "b".repeat(64),
+      scope: {
+        subject: { kind: "work-unit", name: "mono" },
+        transition: "decompose",
+        source: { branch: "plan/mono", head: "c".repeat(40) },
+        resultProjection: { ref: "main", head: "d".repeat(40) },
+      },
+    };
+    const preparation = {
+      locator,
+      record: { locator, allocation: cut },
+      authorityVersion: "prepared-version",
+    } as unknown as PreparedDecomposeRetirement;
+
+    await expect(runPreparedDecompose(h.ctx, {
+      cut,
+      preparation,
+      revalidate: async () => ({ status: "refused", reason: "authority-conflict" }),
+    })).resolves.toEqual({ status: "rejected", reason: "authority-conflict" });
+    expect(h.writes).toEqual([]);
+    expect(h.removed).toEqual([]);
+    expect(h.staged).toEqual([]);
+    expect(h.fired).toEqual([]);
+  });
+
   it("retires a started origin's artifacts but defers branch + worktree teardown out-of-band", async () => {
     const h = buildRunHarness([{ slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" }], {
       [`${CWD}/.arc/active`]: ["meta-mono.md", "draft-mono.md"],

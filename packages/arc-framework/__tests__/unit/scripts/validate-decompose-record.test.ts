@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { contentDigest, patchDigest } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
+import { receiptId as deriveReceiptId } from "../../../src/lib/canonical/receipt-id.js";
 import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/retirement-record-store.js";
 import {
   validateDecomposeCommitGate,
@@ -10,13 +11,13 @@ import {
 } from "../../../src/scripts/validate-decompose-record.js";
 
 const bytes = (value: string) => new TextEncoder().encode(value);
-const receiptId = canonicalDigest("receipt");
-const recordPath = resolveRetirementRecordRelativePath(receiptId);
+const decomposeReceiptId = canonicalDigest("receipt");
+const recordPath = resolveRetirementRecordRelativePath(decomposeReceiptId);
 const targetPath = validateManagedPath(".arc/backlog/planned/group/member/meta-member.md");
 const targetBytes = bytes("member");
 const receipt = {
   schemaVersion: 1,
-  receiptId,
+  receiptId: decomposeReceiptId,
   subject: { kind: "work-unit", name: "origin" },
   transition: "decompose",
   source: { branch: "plan/origin", head: "a".repeat(40), artifactDigest: canonicalDigest("source") },
@@ -36,6 +37,32 @@ const receipt = {
     targets: [],
   },
 };
+
+function abandonReceipt(name: string, sourceHead = "c".repeat(40)) {
+  const subject = { kind: "work-unit" as const, name };
+  const sourceBranch = `plan/${name}`;
+  return {
+    schemaVersion: 1 as const,
+    receiptId: deriveReceiptId({
+      schemaVersion: 1,
+      subject,
+      transition: "abandon",
+      sourceBranch,
+      sourceHead,
+    }),
+    subject,
+    transition: "abandon" as const,
+    source: {
+      branch: sourceBranch,
+      head: sourceHead,
+      artifactDigest: canonicalDigest({ source: name }),
+    },
+    transitionPatchDigest: canonicalDigest({ transition: name }),
+    retiringProjection: { kind: "direct-transition" as const },
+    authorization: "discard-confirmed" as const,
+    result: { kind: "discard" as const, artifactDigest: "absent" as const },
+  };
+}
 
 function validate(changes: StagedPathChange[], record = canonicalize(receipt), headRecord: Uint8Array | null = null) {
   return validateDecomposeCommitGate({
@@ -87,26 +114,43 @@ describe("validateDecomposeCommitGate", () => {
       { status: "D", path: ".arc/active/meta-origin.md" },
       { status: "A", path: ".arc/backlog/planned/origin/meta-origin.md" },
     ])).toEqual([]);
-    expect(validate(
-      [{ status: "A", path: recordPath }, { status: "D", path: ".arc/active/meta-origin.md" }],
-      canonicalize({ ...receipt, transition: "abandon", result: { kind: "discard", artifactDigest: "absent" } }),
-    )).toEqual([]);
+    const abandon = abandonReceipt("origin");
+    const abandonPath = resolveRetirementRecordRelativePath(abandon.receiptId);
+    expect(validateDecomposeCommitGate({
+      changes: [
+        { status: "A", path: abandonPath },
+        { status: "D", path: ".arc/active/meta-origin.md" },
+      ],
+      readIndexBytes: (path) => path === abandonPath ? bytes(canonicalize(abandon)) : null,
+      readHeadBytes: () => null,
+    })).toEqual([]);
   });
 
   it("ignores a batch containing only non-decompose retirement records", () => {
-    const otherId = canonicalDigest("other-receipt");
-    const otherPath = resolveRetirementRecordRelativePath(otherId);
-    const abandon = (id: string) => bytes(canonicalize({
-      ...receipt,
-      receiptId: id,
-      transition: "abandon",
-      result: { kind: "discard", artifactDigest: "absent" },
-    }));
+    const first = abandonReceipt("origin-a");
+    const second = abandonReceipt("origin-b", "d".repeat(40));
+    const firstPath = resolveRetirementRecordRelativePath(first.receiptId);
+    const secondPath = resolveRetirementRecordRelativePath(second.receiptId);
     expect(validateDecomposeCommitGate({
-      changes: [{ status: "A", path: recordPath }, { status: "A", path: otherPath }],
-      readIndexBytes: (path) => path === recordPath ? abandon(receiptId) : abandon(otherId),
+      changes: [{ status: "A", path: firstPath }, { status: "A", path: secondPath }],
+      readIndexBytes: (path) => path === firstPath
+        ? bytes(canonicalize(first))
+        : bytes(canonicalize(second)),
       readHeadBytes: () => null,
     })).toEqual([]);
+  });
+
+  it("does not let non-decompose receipts mask an unrelated metadata deletion", () => {
+    const abandon = abandonReceipt("origin-a");
+    const abandonPath = resolveRetirementRecordRelativePath(abandon.receiptId);
+    expect(validateDecomposeCommitGate({
+      changes: [
+        { status: "A", path: abandonPath },
+        { status: "D", path: ".arc/active/meta-origin-b.md" },
+      ],
+      readIndexBytes: (path) => path === abandonPath ? bytes(canonicalize(abandon)) : null,
+      readHeadBytes: () => null,
+    })).toContainEqual(expect.stringMatching(/origin-b/));
   });
 
   it("rejects amended and patch-mismatched records", () => {

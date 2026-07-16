@@ -14,6 +14,7 @@ import {
   type CanonicalDigest,
 } from "../canonical/canonical-json.js";
 import { isManagedPath } from "../canonical/managed-path.js";
+import { normalizeDecomposeHeadingSource } from "./decompose-heading.js";
 import { isSlugSafe } from "./slug.js";
 
 export const DECOMPOSE_SCHEMA_VERSION = 2;
@@ -182,7 +183,10 @@ function parseLocator(raw: unknown, label: string): Parsed<DecomposeContentLocat
   if (raw.kind === "section") {
     const keyError = exactKeys(raw, ["artifact", "kind", "headingSource", "occurrence"], label);
     if (keyError !== null) return { reason: keyError };
-    if (!isNonEmptyString(raw.headingSource)) return { reason: `${label}.headingSource must be non-empty.` };
+    if (!isNonEmptyString(raw.headingSource)
+      || normalizeDecomposeHeadingSource(raw.headingSource) !== raw.headingSource) {
+      return { reason: `${label}.headingSource must be non-empty and normalized.` };
+    }
     if (!Number.isInteger(raw.occurrence) || (raw.occurrence as number) < 0) {
       return { reason: `${label}.occurrence must be a non-negative integer.` };
     }
@@ -196,6 +200,26 @@ function parseLocator(raw: unknown, label: string): Parsed<DecomposeContentLocat
     };
   }
   return { reason: `${label}.kind must be \`preamble\`, \`section\`, or \`whole-file\`.` };
+}
+
+/** Decode one closed, normalized content locator at an untrusted boundary. */
+export function parseDecomposeContentLocator(input: unknown): DecomposeContentLocator | null {
+  const parsed = parseLocator(input, "content locator");
+  return "reason" in parsed ? null : parsed.value;
+}
+
+/** Derive the exact dependency list scaffolded for one new member. */
+export function newMemberDependencies(
+  map: Pick<DecomposeAllocationMap, "internalEdges" | "outgoingEdges">,
+  slug: string,
+): string[] {
+  const dependencies = map.outgoingEdges
+    .filter((edge) => edge.disposition.kind === "targets" && edge.disposition.targets.includes(slug))
+    .map((edge) => edge.prerequisite);
+  for (const edge of map.internalEdges) {
+    if (edge.from === slug && !dependencies.includes(edge.to)) dependencies.push(edge.to);
+  }
+  return dependencies;
 }
 
 function parseExistingTarget(raw: unknown, label: string): Parsed<DecomposeExistingTarget> {

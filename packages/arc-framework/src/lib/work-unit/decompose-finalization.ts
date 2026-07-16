@@ -4,6 +4,8 @@ import { canonicalDigest, canonicalize, type CanonicalDigest } from "../canonica
 import { artifactGroupDigest } from "../canonical/receipt-id.js";
 import { patchDigest, type ArtifactSetEntry, type PatchOperation } from "../canonical/content-digest.js";
 import { scanDecomposeContent, resolveDecomposeContentLocator } from "./decompose-content.js";
+import { newMemberDependencies } from "./decompose-cut-map.js";
+import { parseDecomposePreparationRecord } from "./decompose-preparation.js";
 import { decomposeInventoryDigests, type DecomposeInventories } from "./decompose-inventory.js";
 import { replaceDependencySlot } from "./decompose-sweep.js";
 import { resolveRetirementRecordRelativePath } from "./retirement-record-store.js";
@@ -60,21 +62,6 @@ function sameSet(left: readonly string[], right: readonly string[]): boolean {
   return equal(sorted(left), sorted(right));
 }
 
-function parsePreparation(content: string, locator: DecomposePreparationLocator): DecomposePreparationRecord | null {
-  try {
-    const parsed = JSON.parse(content) as unknown;
-    if (typeof parsed !== "object" || parsed === null) return null;
-    const envelope = parsed as Record<string, unknown>;
-    if (envelope.kind !== "prepared-decompose" || envelope.schemaVersion !== 1) return null;
-    const record = envelope as unknown as DecomposePreparationRecord;
-    if (!equal(record.locator, locator)) return null;
-    if (canonicalize(record) !== content) return null;
-    return record;
-  } catch {
-    return null;
-  }
-}
-
 async function sourceTargetsResolve(
   ctx: DecomposeFinalizationContext,
   record: DecomposePreparationRecord,
@@ -102,6 +89,13 @@ async function dependencyResultsMatch(
     const replacements = disposition.kind === "replace" ? disposition.replacementTargets : [];
     const expected = replaceDependencySlot(inventory.currentTargets, record.allocation.origin.slug, replacements);
     const actual = await ctx.readDependsOn(inventory.dependent);
+    if (actual === null || !equal(actual, expected)) return false;
+  }
+
+  for (const entry of record.allocation.entries) {
+    if (entry.kind !== "new-member") continue;
+    const expected = newMemberDependencies(record.allocation, entry.slug);
+    const actual = await ctx.readDependsOn(entry.slug);
     if (actual === null || !equal(actual, expected)) return false;
   }
 
@@ -134,8 +128,10 @@ export async function finalizeDecomposeRetirement(
     }
     const stored = await ctx.readRecord(locator.receiptId);
     if (stored === null) return { status: "refused", reason: "evidence-missing" };
-    const record = parsePreparation(stored, locator);
-    if (record === null) return { status: "refused", reason: "evidence-mismatch" };
+    const record = parseDecomposePreparationRecord(stored, locator.receiptId);
+    if (record === null || !equal(record.locator, locator)) {
+      return { status: "refused", reason: "evidence-mismatch" };
+    }
     const projection = await ctx.readProjection(record);
     const digests = decomposeInventoryDigests(projection.inventories);
     if (
