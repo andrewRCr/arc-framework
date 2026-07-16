@@ -135,10 +135,11 @@ export async function runInit(
 
   const lockPath = join(cwd, ".arc-init.lock");
 
-  // Acquire the init lock. A concurrent `arc init` racing for the same
-  // directory either lost the install (ALREADY_INSTALLED) or is still
-  // mid-install (INIT_IN_PROGRESS) — both are structured, user-facing outcomes
-  // instead of a raw filesystem error surfacing from a mid-install collision.
+  // Acquire the init lock. While another `arc init` holds the lock, installed
+  // state is indeterminate — the holder may have written arc-config.yml but
+  // still be mid-install — so a held lock always reports INIT_IN_PROGRESS, a
+  // structured outcome instead of a raw filesystem error from a mid-install
+  // collision. A retry after the lock clears detects a completed install.
   try {
     await io.exclusiveCreate(
       lockPath,
@@ -147,9 +148,6 @@ export async function runInit(
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
       throw err;
-    }
-    if (await isArcInstalled(cwd, io.access)) {
-      throw alreadyInstalledError();
     }
     throw new UserFacingError({
       code: "INIT_IN_PROGRESS",
@@ -162,7 +160,12 @@ export async function runInit(
   try {
     // Check for existing installation
     if (await isArcInstalled(cwd, io.access)) {
-      throw alreadyInstalledError();
+      throw new UserFacingError({
+        code: "ALREADY_INSTALLED",
+        whatHappened: "ARC is already installed in this project",
+        why: "The .arc/system/arc-config.yml file already exists.",
+        whatToDo: "To change settings: arc init --reconfigure\nTo join as a developer: arc join\nTo update framework files: arc update",
+      });
     }
 
     const arcDir = join(cwd, ".arc");
@@ -287,16 +290,6 @@ export async function runInit(
   } finally {
     await io.removeFile(lockPath).catch(() => {});
   }
-}
-
-/** Build the ALREADY_INSTALLED error, shared between the in-lock installed check and the lock's EEXIST path. */
-function alreadyInstalledError(): UserFacingError {
-  return new UserFacingError({
-    code: "ALREADY_INSTALLED",
-    whatHappened: "ARC is already installed in this project",
-    why: "The .arc/system/arc-config.yml file already exists.",
-    whatToDo: "To change settings: arc init --reconfigure\nTo join as a developer: arc join\nTo update framework files: arc update",
-  });
 }
 
 // --- Post-Init Messaging ---

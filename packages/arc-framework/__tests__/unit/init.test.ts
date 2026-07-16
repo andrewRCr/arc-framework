@@ -880,7 +880,10 @@ describe("runInit", () => {
     expect(io.writeFile).not.toHaveBeenCalled();
   });
 
-  it("lock held, already installed: rejects with ALREADY_INSTALLED", async () => {
+  it("lock held: rejects with INIT_IN_PROGRESS even when arc-config.yml already exists", async () => {
+    // A held lock means installed state is indeterminate (the holder may have
+    // written arc-config.yml mid-install), so contention never reports
+    // ALREADY_INSTALLED — a retry after the lock clears detects it instead.
     const io = mockIO({
       "/templates/README.md": "# hi",
       "/templates/system/arc-config.yml": "pm.mode: none",
@@ -905,7 +908,7 @@ describe("runInit", () => {
         prompts: DEFAULT_PROMPTS,
         identityResult: "andrew",
       }),
-    ).rejects.toMatchObject({ code: "ALREADY_INSTALLED" });
+    ).rejects.toMatchObject({ code: "INIT_IN_PROGRESS" });
   });
 
   it("successful init removes the lock file", async () => {
