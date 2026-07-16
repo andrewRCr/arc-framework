@@ -91,7 +91,7 @@ export async function renderTemplate(
   }
 
   if (needsRendering(templateFile)) {
-    return renderConditionals(renderTokens(raw, tokens), config);
+    return renderConditionals(renderTokens(raw, tokens), config, templateFile);
   }
 
   return raw;

@@ -174,7 +174,7 @@ export async function runInit(
     if (templateFile === ARC_CONFIG_PATH) {
       renderedContent = renderConfigOverrides(raw, configKeyOverrides);
     } else if (needsRendering(templateFile)) {
-      renderedContent = renderConditionals(renderTokens(raw, tokens), config);
+      renderedContent = renderConditionals(renderTokens(raw, tokens), config, templateFile);
     } else {
       renderedContent = raw;
     }

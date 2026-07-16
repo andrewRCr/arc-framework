@@ -53,7 +53,7 @@ export async function copyWithRendering(
 ): Promise<void> {
   let content = await readFile(src);
   content = renderTokens(content, tokens);
-  content = renderConditionals(content, conditions);
+  content = renderConditionals(content, conditions, src);
   await writeFile(dest, content);
 }
 

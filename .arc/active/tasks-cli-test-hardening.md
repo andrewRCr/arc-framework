@@ -242,27 +242,15 @@ installed content). The `renderTokens` metacharacter surface is token _values_, 
 timeout/abort and a wrong-shape body; and the status filesystem-edge loci are the probes under `src/lib/status/*`
 and `src/handlers/status.ts` (`commands/status/run.ts` is a pure orchestrator with no fs calls).
 
-### `[ ]` **5.1 Template conditional balance guard (product edge) & token-value edges**
+### `[x]` **5.1 Template conditional balance guard (product edge) & token-value edges**
 
 - _Goal:_ Unbalanced `arc:if`/`arc:endif` fails loudly at render time instead of silently mis-scoping installed
   content, and token-value metacharacters are covered.
 
-- _Context:_ `renderConditionals` (`src/lib/template/render.ts` ~L37-71) has no balance validation — a stray
-  `arc:endif` or unclosed `arc:if` silently mis-scopes rendered output, an adopter-facing correctness risk with no
-  current guard. `renderTokens` (~L16-23) matches token names with a single static `{{WORD}}` regex (names are
-  safe); the untested nuance is token _values_ carrying metacharacters/`$` (safe via the replacer callback).
-
-- _Note:_ `renderConditionals` runs against installed content (`init`, manifest apply). Docs that _document_ the
-  syntax can carry an example `<!-- arc:if -->` (e.g. `strategy-file-classification.md`), so the guard must not
-  false-positive on syntax-documenting content — skip fenced code blocks, or confirm such docs are outside the
-  rendered set. Resolve the fence-awareness scope at implementation.
-
-    Build `test-first` (one behavior at a time):
-
-    - an unclosed `arc:if` (missing `arc:endif`) throws with file/line context
-    - a stray `arc:endif` (empty include stack) throws with file/line context
-    - balanced and nested conditionals still render unchanged (no false positive)
-    - a token _value_ containing regex metacharacters/`$` substitutes literally
+- _Outcome:_ `renderConditionals` now rejects stray and unclosed directives with template-path/line diagnostics;
+  every production render path supplies that context. Only `.template.*` files enter the renderer, so plain docs
+  that demonstrate directive syntax remain untouched; balanced nesting and literal token-value substitution stay
+  covered.
 
 ### `[ ]` **5.2 Filesystem edges & symlink cycle guard (product edge)**
 
