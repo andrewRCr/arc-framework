@@ -24,6 +24,22 @@
   consume it without baking inbox paths or mutable labels into provider policy. Coordinate the eventual shared
   inbox rename so path churn cannot silently regress classification.
 
+### `[ ]` **Make inbox-to-stub routing interruption-safe**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during wave-3 housekeep routing
+  PR #255.
+- *Concern:* A ten-entry housekeep batch required ten hand-authored destination writes followed by ten sequential
+  `arc user inbox-remove` calls. The workflow describes each pair as a move, but no primitive binds the tracked
+  destination and the notes-backed source: interruption can leave duplicate entries, and removing the source
+  before the grooming PR merges can strand the only routed copy on an abandoned branch. Define the drain's
+  idempotent cross-store move protocol and recovery states — prefer an explicit pending-route/finalize-or-heal
+  shape over two-phase commit: retain enough source or receipt state until the destination commit is durably
+  landed, make retries no-op-safe, and reconcile copied-but-not-removed and removed-but-not-landed outcomes.
+  Consume `operational-state-docs`' paired managed add/remove primitives and `arc-backend`'s established
+  eventual-consistency-plus-heal posture rather than duplicating either substrate. Scope: design-bearing drain
+  semantics plus CLI/record support and failure-path coverage; this WU owns routing/re-home semantics, while OSD
+  owns deterministic entry I/O and arc-backend supplies the long-term cross-store consistency contract.
+
 ---
 
 ## Problem / Motivation
