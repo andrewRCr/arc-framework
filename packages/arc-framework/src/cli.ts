@@ -290,7 +290,7 @@ program
   .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
   .option(
     "--force",
-    "Force-tear down a retired/parked origin (unmerged branch): accept non-completed/ arc-state; caller asserts conservation",
+    "Tear down a retired/parked origin (unmerged branch) using its finalized retirement receipt",
   )
   .action((name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts));
 

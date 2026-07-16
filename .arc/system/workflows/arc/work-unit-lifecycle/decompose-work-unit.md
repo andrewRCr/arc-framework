@@ -263,10 +263,11 @@ arc teardown <origin> --force   # un-shipped / force mode: reaps the retired pla
 ```
 
 `--force` selects the un-shipped teardown mode: the origin is retired (not in `completed/`) and its `plan/<name>`
-branch is unmerged (the design was redistributed into members, not git-merged), so the conservation gate above is the
-upstream safety, not git-containment. The in-place arm switches the primary to base; a linked arm removes the
-worktree and locus-hops. The [backlog-stub-source arm](#backlog-stub-source-arm) (no branch) and the
-[extraction arm](#extraction-arm) (origin survives) owe no teardown.
+branch is unmerged (the design was redistributed into members, not git-merged). Teardown revalidates the finalized
+decompose receipt and its exact result instead of relying on git containment. The in-place arm switches the primary
+to base; a linked arm removes the worktree and locus-hops. The
+[backlog-stub-source arm](#backlog-stub-source-arm) (no branch) and the [extraction arm](#extraction-arm) (origin
+survives) owe no teardown.
 
 Then retire the origin's per-WU user workspace subdir (filesystem op only, contents gitignored):
 

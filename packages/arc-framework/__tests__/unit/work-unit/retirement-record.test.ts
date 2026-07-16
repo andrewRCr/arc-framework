@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { canonicalDigest, canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { patchDigest, type PatchOperation } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
+import { receiptId } from "../../../src/lib/canonical/receipt-id.js";
 import type { RetirementReceipt } from "../../../src/lib/work-unit/retirement-authority.js";
 import {
   recordRetirementReceipt,
@@ -15,16 +16,24 @@ const operations = [{ operation: "delete", path: metaPath }] as const satisfies 
 const initialVersion = canonicalDigest({ version: "initial" });
 
 function receipt(): RetirementReceipt {
+  const subject = { kind: "work-unit", name: "sample" } as const;
+  const source = {
+    branch: "plan/sample",
+    head: "a".repeat(40),
+    artifactDigest: canonicalDigest({ artifact: "source" }),
+  };
   return {
     schemaVersion: 1,
-    receiptId: canonicalDigest({ receipt: "sample" }),
-    subject: { kind: "work-unit", name: "sample" },
+    receiptId: receiptId({
+      schemaVersion: 1,
+      subject,
+      transition: "abandon",
+      sourceBranch: source.branch,
+      sourceHead: source.head,
+    }),
+    subject,
     transition: "abandon",
-    source: {
-      branch: "plan/sample",
-      head: "a".repeat(40),
-      artifactDigest: canonicalDigest({ artifact: "source" }),
-    },
+    source,
     transitionPatchDigest: patchDigest(operations),
     retiringProjection: { kind: "direct-transition" },
     authorization: "discard-confirmed",

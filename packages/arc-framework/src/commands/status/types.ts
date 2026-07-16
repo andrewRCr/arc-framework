@@ -240,8 +240,8 @@ export interface SessionInitProbeResult {
   recovery?: Probe<CascadeResolution>;
   /**
    * Pre-computed residue sweep. Primary sessions consume the public roster;
-   * identity-known linked sessions consume a private cleanup-only roster and
-   * exclude their exact current path. Absent when the applicable roster fails.
+   * linked sessions consume a private cleanup-only roster and exclude their
+   * exact current path. Absent when the applicable roster fails.
    */
   sweep?: Probe<StaleWorktreeSweepResult>;
   /**
