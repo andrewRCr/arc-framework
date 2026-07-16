@@ -333,15 +333,17 @@ errand
   .description("Open an errand: mint the record, cut a nature-typed branch, and occupy it in place")
   .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
-  .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its title): inbox-origin record, dropped at close")
-  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
+  .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its bold title): inbox-origin record, dropped at close")
+  .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
+  .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
 
 errand
   .command("link <slug>")
   .description("Link an in-flight errand to a USER-INBOX capture so close/promote can drop it")
-  .option("--from-inbox <entry-title>", "USER-INBOX capture title to associate with the errand")
-  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
+  .option("--from-inbox <entry-title>", "USER-INBOX capture bold title to associate with the errand")
+  .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
+  .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .action((slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts));
 
 errand
@@ -446,7 +448,8 @@ userCmd
 userCmd
   .command("inbox-remove [slug]")
   .description("Drop the title-matched USER-INBOX entry (idempotent — no-op when absent)")
-  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
+  .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
+  .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .action((slug: string | undefined, opts: UserInboxRemoveOptions) => handleUserInboxRemove(slug, opts));
 
 userCmd

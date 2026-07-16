@@ -230,7 +230,9 @@ export async function handleUserClose(wuName: string): Promise<void> {
  */
 /** Options for the `arc user inbox-remove` subcommand. */
 export interface UserInboxRemoveOptions {
-  /** UTF-8 file containing the capture title, or `-` for stdin. */
+  /** UTF-8 file containing the capture's inner bold title, or `-` for stdin. */
+  inboxTitleFile?: string;
+  /** Compatibility alias of `inboxTitleFile`. */
   inboxEntryFile?: string;
 }
 
@@ -242,7 +244,10 @@ export async function handleUserInboxRemove(
 
   let slug: string;
   try {
-    slug = await resolveInboxEntryOperand({ literal, file: opts.inboxEntryFile });
+    slug = await resolveInboxEntryOperand({
+      literal,
+      file: opts.inboxTitleFile ?? opts.inboxEntryFile,
+    });
   } catch (err) {
     p.log.error(`Could not resolve the inbox entry title: ${err instanceof Error ? err.message : String(err)}`);
     process.exitCode = 1;
