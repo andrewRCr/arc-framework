@@ -22,7 +22,7 @@ Three concern streams converged on this work unit:
    ~87s CI wall because the default `isolate: true` forks pool re-imports the full module graph per file. E2E is
    intrinsically spawn-bound (PTY wrapper + node CLI spawn per invocation).
 3. **Coverage** — edge-case gaps identified during a CLI work unit's integration review (2026-06-01), re-verified
-   against the current suite (2026-07-15). None blocking; all hardening.
+   against the current suite (2026-07-15). None are blocking; all are hardening.
 
 The evidence is fresh and reproducible (`vitest run --reporter=json` for timings; a live contention reproduction
 for the unit tier), and the flake and cost hot spots overlap — acting on them together is one design surface.
