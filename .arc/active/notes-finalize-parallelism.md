@@ -792,6 +792,37 @@ Wave 3's first day produced contention and drain-shape evidence ahead of the 5.2
   captured); second merge verified green post-regen (build + 4854/4856 unit — the 2 fails are the load flake
   above).
 
+### Day-2 evidence — external-budget contention (2026-07-16)
+
+Wave-3 volume saturated two external budgets inside its first days — the day-1 shared-machine resource axis now
+has an external-service sibling (an unpredicted contention class: metered third-party surfaces):
+
+- **CI budget (Actions):** the monthly minutes budget drained 2+ weeks early and overran its top-up. A 27-hour
+  sample (wave-3 day 1): 100 workflow runs — 51 CI + 49 Review Gate Wakeup. The cost shape is structural, not
+  suite speed: per-job minute rounding across 8–9 jobs/run bills a ~7-minute heavy PR run as ~12 minutes; the
+  wakeup relay (echo-only, fires per review-comment event) bills ~50 no-op minutes/day; each review-cycle push
+  re-runs the full heavy suite (verified-tree lookback can't apply — the tree changed). The classify
+  optimizations are confirmed working as designed (docs-only → light, duplicate-push skip, ceremony pushes
+  cheap) — volume × billing shape is the driver, not classification misses.
+- **Review budget (CodeRabbit):** hit the fair-usage "Adaptive PR review availability" throttle
+  (95th-percentile identity, 7-day rolling window; Pro degrades to 1 review/hour at 60+ reviews/week). Key
+  finding for policy: PR, IDE, and CLI reviews meter as separate hourly pools, and the adaptive throttle tracks
+  PR reviews specifically — a CLI-frontline lane both relieves PR quota and stays under the adaptive threshold.
+  Pro+ (~1.5× weekly headroom) judged insufficient alone; remediation is demand-side metering (review depth and
+  channel scaled to change weight), not supply-side upgrade.
+- **ROADMAP conflict class (systemic):** every shipping PR now conflicts on `ROADMAP.md` — the derived-artifact
+  conflict class the derived-vs-mutated split (ADR-020) predicts: concurrent branches each carry a render
+  derived from their own base snapshot, and git line-merge can't converge derived content. In-session friction
+  fixes don't touch it; the structural fix is regen at the merge boundary (branch PRs stop editing ROADMAP;
+  base-side regen keeps it current — branch-side staleness is already the documented model). Routed to
+  `roadmap-tooling` (owns regen triggers); complements the day-1 auto-regen errand capture (remedy vs.
+  elimination).
+
+Routing: metering-policy design + end-to-end review-surface coherence route to the holistic review WU
+(disposition vs. the existing `review-method-family` stub pending — likely rescope-in-place); interim
+CLI-frontline wiring lands via a `pre-pr-open` errand; lane-vocabulary seam captured to the review-gate WUs; CI
+test-job split-vs-consolidated re-weigh captured (§ Errand).
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
