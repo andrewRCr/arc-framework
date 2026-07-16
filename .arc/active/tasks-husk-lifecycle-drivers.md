@@ -207,25 +207,14 @@ for a shape with no surviving origin.
   contract with canonical set ordering and retirement eligibility checks. The executor and authority vocabulary use
   that single type; version-1 input receives an explicit upgrade diagnostic.
 
-### `[ ]` **4.2 Markdown source-unit scanner and content locators**
+### `[x]` **4.2 Markdown source-unit scanner and content locators**
 
 - _Goal:_ A fixed CommonMark scan splits every authored companion into deterministic preamble/section/whole-file
   units addressable by `DecomposeContentLocator`, so allocation coverage is provable.
 
-- _Note:_ Hand-roll a deterministic scanner over the spec's fixed canonicalization rules — no CommonMark/remark
-  dependency. The scanner sits in the digest trust path, so its canonicalization stays project-owned and pinned;
-  the meta-reader's preamble/heading logic is the closest precedent to generalize.
-
-    - Build `test-first` (one behavior at a time):
-        - content before the first top-level H2 is the `preamble` unit; each top-level H2 section with its
-          descendants is one `section` unit
-        - a Markdown doc with no H2 is one preamble unit; a non-Markdown companion is one `whole-file` unit
-        - fenced code blocks do not start sections; both ATX and Setext H2 count
-        - `headingSource` normalization removes markers, collapses space/tab runs, trims, and NFC-normalizes,
-          preserving case and punctuation
-        - `occurrence` is the zero-based index among equal `headingSource` values in an artifact
-        - a target locator resolves exactly once; wrong-kind, negative/non-integer occurrence, and
-          artifact/declared-target mismatch reject
+- _Outcome:_ `decompose-content.ts` now scans exact companion bytes into preamble, H2 section, or whole-file units,
+  with pinned ATX/Setext, fence, heading-normalization, and duplicate-heading behavior. Slash-free locators resolve
+  against exactly one declared artifact unit and reject malformed occurrences, kinds, and artifact mismatches.
 
 ### `[ ]` **4.3 Live inventory derivation and one-to-one coverage**
 

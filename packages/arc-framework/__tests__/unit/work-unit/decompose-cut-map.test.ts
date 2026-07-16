@@ -34,7 +34,7 @@ function wellFormed(overrides: Record<string, unknown> = {}): Record<string, unk
         disposition: {
           kind: "target",
           destinationId: "member-b",
-          targetLocator: { artifact: ".arc/backlog/planned/member-b/draft-member-b.md", kind: "preamble" },
+          targetLocator: { artifact: "draft-member-b.md", kind: "preamble" },
         },
       },
       { sourceId: SOURCE_A, disposition: { kind: "drop", reason: "superseded framing" } },
@@ -125,7 +125,7 @@ describe("parseCutMap", () => {
         target: {
           kind: "draft-block",
           slug: "design-home",
-          locator: { artifact: ".arc/backlog/planned/design-home/draft-design-home.md", kind: "preamble" },
+          locator: { artifact: "draft-design-home.md", kind: "preamble" },
         },
         home: "fold",
       },
@@ -204,7 +204,7 @@ describe("parseCutMap", () => {
         disposition: {
           kind: "target",
           destinationId: "coord",
-          targetLocator: { artifact: ".arc/backlog/planned/my-cohort/cohort-my-cohort.md", kind: "preamble" },
+          targetLocator: { artifact: "cohort-my-cohort.md", kind: "preamble" },
         },
       },
     ];

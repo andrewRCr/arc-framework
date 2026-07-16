@@ -170,8 +170,9 @@ function compareCanonicalStrings(left: string, right: string): number {
 
 function parseLocator(raw: unknown, label: string): Parsed<DecomposeContentLocator> {
   if (!isObject(raw)) return { reason: `${label} must be an object.` };
-  if (!isNonEmptyString(raw.artifact) || !isManagedPath(raw.artifact)) {
-    return { reason: `${label}.artifact must be a managed repository-relative path.` };
+  if (!isNonEmptyString(raw.artifact) || raw.artifact.includes("/") || raw.artifact.includes("\\")
+    || raw.artifact.normalize("NFC") !== raw.artifact) {
+    return { reason: `${label}.artifact must be a slash-free NFC basename.` };
   }
   if (raw.kind === "preamble" || raw.kind === "whole-file") {
     const keyError = exactKeys(raw, ["artifact", "kind"], label);
