@@ -26,11 +26,15 @@ export interface DecomposeCommitGateInput {
 const RECORD_PATTERN = new RegExp(`^${RETIREMENT_RECORD_NAMESPACE}/(sha256-[0-9a-f]{64})\\.json$`, "u");
 
 function looksLikeDecompose(changes: readonly StagedPathChange[]): boolean {
-  const deletedOrigin = changes.some((change) => change.status === "D" && /(^|\/)meta-[^/]+\.md$/u.test(change.path));
-  const addedTargets = changes.filter(
-    (change) => change.status === "A" && /(^|\/)meta-[^/]+\.md$/u.test(change.path) && change.path.includes("backlog/planned"),
-  );
-  return deletedOrigin && addedTargets.length >= 2;
+  const deletedOrigins = changes
+    .filter((change) => change.status === "D")
+    .map((change) => /(^|\/)meta-([^/]+)\.md$/u.exec(change.path)?.[2])
+    .filter((slug): slug is string => slug !== undefined);
+  const addedTargets = changes
+    .filter((change) => change.status === "A" && change.path.includes("backlog/planned"))
+    .map((change) => /(^|\/)meta-([^/]+)\.md$/u.exec(change.path)?.[2])
+    .filter((slug): slug is string => slug !== undefined);
+  return deletedOrigins.some((origin) => addedTargets.some((target) => target !== origin));
 }
 
 /** Validate the staged decompose record and exact non-record patch. */

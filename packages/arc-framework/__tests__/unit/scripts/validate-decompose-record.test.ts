@@ -54,7 +54,6 @@ describe("validateDecomposeCommitGate", () => {
     expect(validate([
       { status: "D", path: ".arc/active/meta-origin.md" },
       { status: "A", path: targetPath },
-      { status: "A", path: ".arc/backlog/planned/group/other/meta-other.md" },
     ])).toContainEqual(expect.stringMatching(/missing.*finalized/i));
     expect(
       validate(
