@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 import {
   findStaleWorktreeCandidates,
@@ -277,6 +277,8 @@ describe("runStaleWorktreeSweep", () => {
         worktreePath: "/wt/husk",
         branch: null,
         subject: { kind: "work-unit", name: "work-organization-reform" },
+        stampedBranch: "feat/work-organization-reform",
+        stamp: { kind: "legacy", authorization: "merged-preserved" },
         completedWorkUnit: "work-organization-reform",
         decision: { action: "removable" },
       },
@@ -285,6 +287,8 @@ describe("runStaleWorktreeSweep", () => {
         worktreePath: "/wt/moved",
         branch: null,
         subject: { kind: "work-unit", name: "work-organization-reform" },
+        stampedBranch: "feat/work-organization-reform",
+        stamp: { kind: "legacy", authorization: "merged-preserved" },
         completedWorkUnit: "work-organization-reform",
         decision: { action: "blocked", reason: "head-moved" },
       },
@@ -333,6 +337,8 @@ describe("runStaleWorktreeSweep", () => {
         worktreePath: "/wt/recordless",
         branch: null,
         subject: { kind: "branch", ref: "review/orphan" },
+        stampedBranch: "review/orphan",
+        stamp: { kind: "legacy", authorization: "merged-preserved" },
         completedWorkUnit: null,
         decision: { action: "removable" },
       },
@@ -341,6 +347,8 @@ describe("runStaleWorktreeSweep", () => {
         worktreePath: "/wt/errand",
         branch: null,
         subject: { kind: "errand", slug: "tidy-hooks" },
+        stampedBranch: "chore/tidy-hooks",
+        stamp: { kind: "legacy", authorization: "merged-preserved" },
         completedWorkUnit: null,
         decision: { action: "removable" },
       },
@@ -434,5 +442,42 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees).toHaveLength(1);
     expect(result.worktrees[0]?.kind).toBe("branched");
     expect(result.warnings).toEqual(["Could not scan detached worktrees: topology unavailable"]);
+  });
+
+  it("scans sibling husks from a linked worktree and excludes the exact current path", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      excludeWorktreePath: "/wt/current",
+      identity: "andrew",
+      teamMode: true,
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: false }),
+      readMarker: async () => stampedMarker({ kind: "work-unit", name: "retired" }),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [
+          { path: "/wt/current", head: "stamped", branch: null, detached: true, primary: false },
+          { path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false },
+        ],
+      }),
+    });
+
+    expect(result.worktrees.map((entry) => entry.worktreePath)).toEqual(["/wt/sibling"]);
+  });
+
+  it("does not scan linked worktree residues without a resolved identity", async () => {
+    const scanWorktrees = vi.fn(async () => ({ ok: true as const, worktrees: [] }));
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      identity: null,
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: false }),
+      scanWorktrees,
+    });
+
+    expect(result.worktrees).toEqual([]);
+    expect(scanWorktrees).not.toHaveBeenCalled();
   });
 });

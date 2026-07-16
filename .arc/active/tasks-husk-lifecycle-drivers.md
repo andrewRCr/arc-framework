@@ -375,7 +375,7 @@ stamp; a private cleanup-only roster lifts the network-free presence tier of bot
 without publishing the general `roster` slot; team-mode `spawningIdentity` filtering is preserved; cleanup stays
 offer-only with no nudge marker or persistent write.
 
-### `[ ]` **6.1 Non-shipped `currentHusk` current-locus surface**
+### `[x]` **6.1 Non-shipped `currentHusk` current-locus surface**
 
 - _Goal:_ `currentHusk` recognizes a linked branchless husk without requiring `completed/` membership and
   surfaces its decoded authorization, validated evidence, remote proof, stamped branch, and exact path.
@@ -391,7 +391,7 @@ offer-only with no nudge marker or persistent write.
         - an unknown authorization suppresses the generic detached-HEAD warning but stays manual-only
         - untrusted evidence falls back to ordinary detached-HEAD guidance
 
-### `[ ]` **6.2 Cleanup-only private roster for linked scans**
+### `[x]` **6.2 Cleanup-only private roster for linked scans**
 
 - _Goal:_ A private cleanup-only roster feeds the linked sweeps without publishing the general `roster` slot or
   feeding any recovery, `workUnitState`, materialization, or completion-tail consumer.
@@ -401,7 +401,7 @@ offer-only with no nudge marker or persistent write.
         - it is not exposed as the `roster` slot and does not feed recovery, `workUnitState`, or materialization
         - the current worktree's exact path is excluded so `currentHusk` remains its sole owner
 
-### `[ ]` **6.3 Sibling-husk and orphan-ref presence sweeps on linked arms**
+### `[x]` **6.3 Sibling-husk and orphan-ref presence sweeps on linked arms**
 
 - _Goal:_ The network-free presence tier of `sweep` and `orphanBranchSweep` runs on linked resume arms, with
   team-mode ownership filtering and identity-neutral orphans.
@@ -420,7 +420,7 @@ offer-only with no nudge marker or persistent write.
           non-shipped orphan without a stamped husk stays manual-only
         - the scan is network-free and does not activate materialization or completion-tail calls
 
-### `[ ]` **6.4 Linked `Cleanup residues` envelope batch and gating**
+### `[x]` **6.4 Linked `Cleanup residues` envelope batch and gating**
 
 - _Goal:_ A linked session renders one conditional `Cleanup residues` batch of sibling husks and orphan refs
   that appears while a real residue remains and performs no persistent write when the scan is empty.
@@ -434,7 +434,7 @@ offer-only with no nudge marker or persistent write.
         - an empty machine-local scan emits no section and performs no persistent write
         - primary rendering parity is unchanged and no broader roster consumer is enabled
 
-### `[ ]` **6.5 Session-init workflow and reference-surface updates**
+### `[x]` **6.5 Session-init workflow and reference-surface updates**
 
 - _Goal:_ The session-init workflow and reference surfaces document the linked cleanup section and the new
   command forms, with methodology edits landing in the package source and synced to `.arc/`.
@@ -442,10 +442,10 @@ offer-only with no nudge marker or persistent write.
 - _Note:_ Documentation and methodology change — test-after; validated by the package/project sync check and
   markdown lint.
 
-    - `[ ]` **6.5.a Add the linked `Cleanup residues` rendering to the session-init workflow**
+    - `[x]` **6.5.a Add the linked `Cleanup residues` rendering to the session-init workflow**
         - edit the package-source workflow first, then sync to `.arc/` per the two-copy discipline
 
-    - `[ ]` **6.5.b Update reference surfaces touched by the new command forms**
+    - `[x]` **6.5.b Update reference surfaces touched by the new command forms**
         - reflect `arc teardown --husk` and `arc park --land` where CLI command forms are documented
 
 ## **Phase 7:** Verification

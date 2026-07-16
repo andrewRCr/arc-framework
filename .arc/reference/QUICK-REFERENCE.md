@@ -271,7 +271,7 @@ arc activate [slug] --type <type> --task <first task> --action <next action>
 arc deactivate [slug]
 
 # Park a started WU off the active set (park-work-unit.md)
-arc park [slug] --reason <text>
+arc park [slug] --reason <text> [--land <oid>]
 # Resume a parked WU's preserved branch (resume-work-unit.md)
 arc resume [slug] [--here]
 
@@ -289,7 +289,7 @@ arc abandon <slug> --yes
 # Sweep a shipped WU to completed/ (archive-work-unit.md)
 arc archive [slug] [--pr-url <url>] [--completed <date>]
 # Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 13)
-arc teardown <name> [--force]
+arc teardown <name> [--husk <absolute-path>]
 
 # Safely fast-forward the configured local base from any worktree
 arc base sync [--json]

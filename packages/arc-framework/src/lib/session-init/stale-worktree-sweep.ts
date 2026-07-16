@@ -1,12 +1,10 @@
 /**
  * Stale-worktree sweep — candidate enumeration.
  *
- * Anchored at the main (primary) worktree, the sweep cross-references the
- * in-flight worktree roster against the base ref's `completed/` archive and surfaces every
- * lingering worktree whose WU has already shipped — closing the
- * spawn-on-A / integrate-on-B / never-reopen-A's-worktree gap. Outside the
- * primary worktree (the resume-a-WU path) it returns nothing, so the common
- * resume path never pays for a sibling scan.
+ * In the main worktree, the sweep cross-references the in-flight roster against
+ * the base ref's `completed/` archive. In identity-known linked worktrees, a
+ * private cleanup roster enables a local sibling-husk scan without widening
+ * general discovery or completion consumers.
  *
  * {@link findStaleWorktreeCandidates} selects *which* worktrees are shipped-WU
  * candidates; {@link runStaleWorktreeSweep} then gathers each candidate's
@@ -27,7 +25,9 @@ import {
   type WorktreeCleanupDecision,
 } from "../git/worktree-cleanup.js";
 import {
+  decodeWorktreeHuskStamp,
   readWorktreeMarker,
+  type DecodedWorktreeHuskStamp,
   type WorktreeMarkerReadResult,
   type WorktreeSubject,
 } from "../git/worktree-marker.js";
@@ -98,6 +98,8 @@ export type StaleWorktreeReport =
       worktreePath: string;
       branch: null;
       subject: WorktreeSubject;
+      stampedBranch: string;
+      stamp: DecodedWorktreeHuskStamp;
       completedWorkUnit: string | null;
       decision: HuskCleanupDecision;
     };
@@ -112,7 +114,7 @@ export interface StaleWorktreeSweepResult {
 export interface RunStaleWorktreeSweepOptions {
   /** Identity-filtered in-flight worktree roster (reused from the session-init roster slot). */
   roster: WorktreeRosterResult;
-  /** Physical-worktree identity — the sweep runs only when `primary`. */
+  /** Physical-worktree identity of the calling session. */
   worktreeIdentity: WorktreeIdentity;
   /** Integration base branch short-name (e.g. `main`); the merged check targets `origin/<base>`. */
   baseBranch: string;
@@ -127,14 +129,16 @@ export interface RunStaleWorktreeSweepOptions {
   teamMode?: boolean;
   /** Registered topology scan seam. */
   scanWorktrees?: (exec: GitExec) => Promise<RegisteredWorktreeScanResult>;
+  /** Exact current linked path, excluded so the current-husk surface owns it. */
+  excludeWorktreePath?: string;
 }
 
 /**
  * Run the stale-worktree sweep: read the shipped-WU set, select the lingering
  * shipped-WU worktrees, and resolve each one's marker-gated cleanup decision.
  *
- * Outside the primary worktree the candidate set is empty, so no per-worktree
- * signals are gathered and the result carries no worktrees.
+ * Branched shipped candidates remain primary-only; linked sessions inspect
+ * detached sibling husks and exclude the exact current path.
  *
  * @param options - Roster, identity, base branch, and I/O bindings
  * @returns The swept worktrees with cleanup dispositions, plus warnings
@@ -147,12 +151,14 @@ export async function runStaleWorktreeSweep(
   const userSurfaceFs = options.userSurfaceFs ?? nodeUserSurfaceMigrationFs;
   const integrationTarget = `origin/${baseBranch}`;
 
-  if (worktreeIdentity.kind !== "primary") {
+  if (worktreeIdentity.kind === "linked" && (options.identity === null || options.identity === undefined)) {
     return { worktrees: [], warnings: roster.warnings };
   }
 
   const shipped = await readShippedWorkUnitsFromRef(exec, integrationTarget);
-  const selected = findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity });
+  const selected = worktreeIdentity.kind === "primary"
+    ? findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity })
+    : { candidates: [], warnings: roster.warnings };
   const warnings = [...selected.warnings];
   const candidates = selected.candidates;
   const primaryWorktreePath = candidates.length === 0 ? null : await resolvePrimaryWorktreePath(exec);
@@ -185,7 +191,7 @@ export async function runStaleWorktreeSweep(
   }
 
   for (const entry of scan.worktrees) {
-    if (!entry.detached) continue;
+    if (!entry.detached || entry.path === options.excludeWorktreePath) continue;
     let marker: WorktreeMarkerReadResult;
     try {
       marker = await readMarker(entry.path);
@@ -210,6 +216,8 @@ export async function runStaleWorktreeSweep(
       worktreePath: entry.path,
       branch: null,
       subject: stamp.subject,
+      stampedBranch: stamp.branch,
+      stamp: decodeWorktreeHuskStamp(stamp),
       completedWorkUnit:
         stamp.subject.kind === "work-unit" && shipped.has(stamp.subject.name)
           ? stamp.subject.name

@@ -91,7 +91,6 @@ import { runBaseBranchSyncStatus } from "../lib/git/base-branch-sync.js";
 import { detectSupersession } from "../lib/git/supersession.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
-import { readShippedWorkUnits } from "../lib/work-unit/completed-index.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
 import { resolveSessionNotesPath } from "../lib/handoff/session-notes-path.js";
 import {
@@ -484,20 +483,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       },
       worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
       currentHusk: async (worktreePath) => {
-        const [marker, headResult, completed] = await Promise.all([
+        const [marker, headResult] = await Promise.all([
           readWorktreeMarker(worktreePath),
           gitExec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
-          readShippedWorkUnits({
-            cwd: worktreePath,
-            fs: { readdir: (path) => readdir(path) },
-          }),
         ]);
         return deriveCurrentHuskAdvisory({
           worktreePath,
           branch: null,
           head: headResult.stdout,
           marker,
-          completed,
         });
       },
       baseDistance: async () => {
@@ -540,6 +534,18 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
         return filterRosterByIdentity(roster, { identity, teamMode });
       },
+      cleanupRoster: async () => {
+        const resolved = await resolvedSettingsP;
+        const teamMode = resolved.settings["team.mode"] === "true";
+        const roster = await runWorktreeRoster({
+          exec: gitExec,
+          fs: {
+            readdir: (path) => readdir(path),
+            readFile: (path) => readFile(path, "utf8"),
+          },
+        });
+        return filterRosterByIdentity(roster, { identity, teamMode });
+      },
       recovery: async (roster, currentBranch) => {
         const resolved = await resolvedSettingsP;
         const recentBranches = await runRecentRemoteBranches({
@@ -563,6 +569,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           exec: gitExec,
           identity,
           teamMode: resolved.settings["team.mode"] === "true",
+          excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
         });
       },
       orphanBranchSweep: async (worktreeIdentity) => {

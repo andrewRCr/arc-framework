@@ -777,12 +777,14 @@ tracked source documents the work.
   ```
 
 - `currentHusk.ok == true` AND `currentHusk.value != null`: the current linked checkout is an exact stamped WU
-  husk whose completion is present locally. Render the terminal orientation and suppress the generic detached-HEAD
-  warning. Teardown must run from outside this worktree; manual removal also runs from outside.
+  husk. Suppress the generic detached-HEAD warning. For `stamp.kind == current`, render the authorization, validated
+  evidence, and remote proof; offer the path-qualified command below. For `manual-only`, render the reason and no
+  destructive command. Teardown and manual removal must run from outside this worktree.
 
   ```text
-  **Husk:** `{currentHusk.value.subject.name}` shipped — pending physical teardown. Re-run
-  `arc teardown {currentHusk.value.subject.name}` from outside this worktree, or remove/prune it manually.
+  **Husk:** `{currentHusk.value.subject.name}` (`{currentHusk.value.branch}`) — {authorization}; remote
+  `{remoteRef.disposition | absent}`; pending physical teardown. From outside this worktree run
+  `arc teardown {currentHusk.value.subject.name} --husk "{currentHusk.value.worktreePath}"`.
   ```
 
 - `worktree.value.branch == null` AND no non-null `currentHusk.value`:
@@ -845,6 +847,20 @@ tracked source documents the work.
   - `{branch}` — work unit shipped → clean up? `arc teardown {shippedWorkUnit}`
   - `{branch}` — merged to base → remove? `git branch -d {branch}`
   - `{branch}` — not merged; surfaced, not removed (never `-D`)
+  ```
+
+- Linked worktree with a non-empty `sweep.value.worktrees` or `orphanBranchSweep.value.orphans`: render one combined
+  section instead of the primary-only sections above. Husk offers must use the exact path-qualified
+  `arc teardown {subject.name} --husk "{worktreePath}"` form; `stamp.kind == manual-only`, moved/dirty husks, and
+  unmerged non-shipped orphans remain manual-only. Omit the section when both arrays are empty; write no marker or
+  nudge state.
+
+  ```text
+  **Cleanup residues:** {N} sibling husk(s) or orphan ref(s) linger:
+  - `{worktreePath}` — `{stampedBranch}` ({authorization}; remote {disposition}) → clean up?
+    `arc teardown {subject.name} --husk "{worktreePath}"`
+  - `{worktreePath}` — {manual-only reason | dirty | HEAD moved}; surfaced, not removed
+  - `{branch}` — {shipped → `arc teardown {shippedWorkUnit}` | merged → `git branch -d {branch}` | not merged}
   ```
 
 - `retiredSubdirs.value.recommendedAction === "surface"` (`session.init_load.notes: manual`): retired-WU

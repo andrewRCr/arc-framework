@@ -237,11 +237,9 @@ export interface SessionInitProbeResult {
    */
   recovery?: Probe<CascadeResolution>;
   /**
-   * Pre-computed stale-worktree sweep. Present ONLY in the primary (main)
-   * worktree and only when the roster resolved — it consumes that roster,
-   * cross-references it against `.arc/completed/`, and resolves each lingering
-   * shipped-WU worktree's marker-gated cleanup disposition. Absent in linked
-   * worktrees (the resume path never sweeps) and when the roster failed.
+   * Pre-computed residue sweep. Primary sessions consume the public roster;
+   * identity-known linked sessions consume a private cleanup-only roster and
+   * exclude their exact current path. Absent when the applicable roster fails.
    */
   sweep?: Probe<StaleWorktreeSweepResult>;
   /**
@@ -258,8 +256,8 @@ export interface SessionInitProbeResult {
    * verdicts. A `shippedWorkUnit` orphan earns the re-runnable
    * `arc teardown <name>` offer; otherwise a `merged` orphan earns the
    * interlock-gated `git branch -d` offer, and an unmerged one is surfaced as
-   * not-removable (never `-D`). Present ONLY in the primary (main) worktree —
-   * branch hygiene the resume path never pays for; absent in linked worktrees.
+   * not-removable (never `-D`). Present in primary and identity-known linked
+   * sessions; linked rendering combines it with sibling husks.
    */
   orphanBranchSweep?: Probe<OrphanBranchSweepResult>;
   /**
@@ -573,6 +571,8 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * mode is a pass-through).
    */
   roster: () => Promise<WorktreeRosterResult>;
+  /** Private linked cleanup roster; never published or fed to general roster consumers. */
+  cleanupRoster?: () => Promise<WorktreeRosterResult>;
   /**
    * Branch-gone recovery resolver. Receives the already-resolved roster and the
    * current (branch-gone) branch from the orchestrator; the handler gathers the

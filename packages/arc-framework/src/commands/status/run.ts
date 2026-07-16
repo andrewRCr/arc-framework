@@ -460,6 +460,10 @@ export async function runSessionInitStatus(
     (active.ok && active.value.resolution === "none") ||
     worktreeIdentity.kind === "primary";
   const roster = await gatedSlot(rosterGated, () => probes.roster());
+  const cleanupRoster = await gatedSlot(
+    worktreeIdentity.kind === "linked" && identity !== null,
+    () => (probes.cleanupRoster ?? probes.roster)(),
+  );
 
   // Roster consumers — recovery, sweep, errand-state — thread the resolved
   // roster value (and other narrowed slots) as input, so they stay as inline
@@ -475,20 +479,19 @@ export async function runSessionInitStatus(
       ? await safeProbe(() => probes.recovery(roster.value, worktree.value.branch))
       : undefined;
 
-  // Stale-worktree sweep — a second roster consumer, gated to the primary (main)
-  // worktree. Cross-references the roster against `.arc/completed/` and resolves
-  // each lingering shipped-WU worktree's cleanup disposition. Fires only when
-  // the session is in the primary worktree and the roster resolved.
+  // Residue sweep — consumes the public roster in the primary worktree and the
+  // private cleanup-only roster in a linked worktree. The private value never
+  // reaches recovery, completion state, or the returned envelope.
+  const sweepRoster = worktreeIdentity.kind === "primary" ? roster : cleanupRoster;
   const sweep =
-    worktreeIdentity.kind === "primary" && roster?.ok
-      ? await safeProbe(() => probes.sweep(roster.value, worktreeIdentity))
+    sweepRoster?.ok
+      ? await safeProbe(() => probes.sweep(sweepRoster.value, worktreeIdentity))
       : undefined;
 
-  // Orphan-branch sweep — a primary-worktree branch-hygiene check. Unlike the
-  // stale-worktree sweep it consumes no roster: it enumerates gone-upstream
-  // local branches itself, so it gates on worktree identity alone.
+  // Orphan-branch sweep — local branch hygiene from primary or identity-known
+  // linked sessions. It consumes no roster and performs no network operation.
   const orphanBranchSweep =
-    worktreeIdentity.kind === "primary"
+    (worktreeIdentity.kind === "primary" || identity !== null)
       ? await safeProbe(() => probes.orphanBranchSweep(worktreeIdentity))
       : undefined;
   const errandState: RawErrandState | undefined =
