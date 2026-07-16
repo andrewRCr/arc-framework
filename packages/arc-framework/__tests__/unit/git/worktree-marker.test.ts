@@ -193,6 +193,77 @@ describe("decodeWorktreeHuskStamp", () => {
     });
   });
 
+  it("enforces the authorization/evidence matrix", () => {
+    const digest = `sha256:${"3".repeat(64)}` as const;
+    const common = { ...base, remoteRef: null };
+
+    expect(decodeWorktreeHuskStamp({
+      ...common,
+      authorization: "merged-preserved",
+      evidence: {
+        kind: "shipped",
+        expectedLifecycle: "completed",
+        resultDigest: digest,
+        baseProofOid: base.sha,
+      },
+    }).kind).toBe("current");
+    expect(decodeWorktreeHuskStamp({
+      ...common,
+      authorization: "planning-relocated",
+      evidence: {
+        kind: "receipt",
+        receiptId: digest,
+        transition: "park-planning",
+        expectedLifecycle: "planned",
+        resultDigest: digest,
+      },
+    }).kind).toBe("current");
+    expect(decodeWorktreeHuskStamp({
+      ...common,
+      authorization: "discard-confirmed",
+      evidence: {
+        kind: "receipt",
+        receiptId: digest,
+        transition: "decompose",
+        expectedLifecycle: "nonexistent",
+        resultDigest: digest,
+      },
+    }).kind).toBe("current");
+
+    expect(decodeWorktreeHuskStamp({
+      ...common,
+      authorization: "discard-confirmed",
+      evidence: {
+        kind: "shipped",
+        expectedLifecycle: "completed",
+        resultDigest: digest,
+        baseProofOid: base.sha,
+      },
+    })).toEqual({ kind: "manual-only", reason: "evidence-mismatch" });
+    expect(decodeWorktreeHuskStamp({
+      ...common,
+      authorization: "planning-relocated",
+      evidence: {
+        kind: "receipt",
+        receiptId: digest,
+        transition: "abandon",
+        expectedLifecycle: "nonexistent",
+        resultDigest: digest,
+      },
+    })).toEqual({ kind: "manual-only", reason: "evidence-mismatch" });
+    expect(decodeWorktreeHuskStamp({
+      ...common,
+      authorization: "discard-confirmed",
+      evidence: {
+        kind: "receipt",
+        receiptId: digest,
+        transition: "decompose",
+        expectedLifecycle: "planned",
+        resultDigest: digest,
+      },
+    })).toEqual({ kind: "manual-only", reason: "evidence-mismatch" });
+  });
+
   it("makes mixed and unknown future shapes manual-only", () => {
     expect(decodeWorktreeHuskStamp({ ...base, authorization: "merged-preserved" })).toEqual({
       kind: "manual-only",

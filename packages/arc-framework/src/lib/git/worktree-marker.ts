@@ -213,7 +213,22 @@ export function decodeWorktreeHuskStamp(stamp: WorktreeHuskStamp): DecodedWorktr
   }
   const evidence = decodeKnownEvidence(stamp.evidence);
   if (evidence === null) return { kind: "manual-only", reason: "unknown-evidence" };
+  if (!huskEvidenceMatchesAuthorization(stamp.authorization, evidence)) {
+    return { kind: "manual-only", reason: "evidence-mismatch" };
+  }
   return { kind: "current", authorization: stamp.authorization, remoteRef: stamp.remoteRef ?? null, evidence };
+}
+
+function huskEvidenceMatchesAuthorization(
+  authorization: HuskAuthorization,
+  evidence: RetirementEvidenceRef,
+): boolean {
+  if (evidence.kind === "shipped") return authorization === "merged-preserved";
+  if (evidence.transition === "park-planning") {
+    return authorization === "planning-relocated" && evidence.expectedLifecycle === "planned";
+  }
+  return authorization === "discard-confirmed"
+    && evidence.expectedLifecycle === "nonexistent";
 }
 
 function isHuskAuthorization(value: unknown): value is HuskAuthorization {
