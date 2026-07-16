@@ -69,6 +69,12 @@ function isSetextH2Underline(line: string): boolean {
   return /^ {0,3}-+[ \t]*$/u.test(line);
 }
 
+function isTopLevelSetextText(line: string): boolean {
+  if (line.trim() === "" || /^ {4}/u.test(line)) return false;
+  if (/^ {0,3}(?:>|[-+*](?:[ \t]+|$)|\d+[.)](?:[ \t]+|$))/u.test(line)) return false;
+  return openingFence(line) === null && atxH2Source(line) === null && !isSetextH2Underline(line);
+}
+
 function openingFence(line: string): { marker: "`" | "~"; length: number } | null {
   const match = /^ {0,3}(`{3,}|~{3,})/u.exec(line);
   if (match?.[1] === undefined) return null;
@@ -85,6 +91,7 @@ function closesFence(line: string, fence: { marker: "`" | "~"; length: number })
 function markdownBoundaries(content: string): HeadingBoundary[] {
   const lines = sourceLines(content);
   const headings: HeadingBoundary[] = [];
+  const setextTextLines = new Set<number>();
   let fence: { marker: "`" | "~"; length: number } | null = null;
 
   for (let index = 0; index < lines.length; index++) {
@@ -104,11 +111,14 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
       headings.push({ start: line.start, headingSource: atx });
       continue;
     }
-    if (!isSetextH2Underline(line.body) || index === 0) continue;
-    const previous = lines[index - 1];
-    if (previous === undefined) continue;
-    if (previous.body.trim() === "" || atxH2Source(previous.body) !== null) continue;
-    headings.push({ start: previous.start, headingSource: normalizeDecomposeHeadingSource(previous.body) });
+    if (isSetextH2Underline(line.body)) {
+      if (index === 0 || !setextTextLines.has(index - 1)) continue;
+      const previous = lines[index - 1];
+      if (previous === undefined) continue;
+      headings.push({ start: previous.start, headingSource: normalizeDecomposeHeadingSource(previous.body) });
+      continue;
+    }
+    if (isTopLevelSetextText(line.body)) setextTextLines.add(index);
   }
   return headings;
 }

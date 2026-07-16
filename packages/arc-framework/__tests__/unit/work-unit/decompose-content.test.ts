@@ -65,6 +65,30 @@ describe("scanDecomposeContent", () => {
     ]);
   });
 
+  it("does not promote fence delimiters or nested block content to top-level Setext sections", () => {
+    const source = [
+      "```md",
+      "fenced",
+      "```",
+      "---",
+      "> quoted",
+      "---",
+      "- list item",
+      "---",
+      "## Real",
+      "body",
+      "",
+    ].join("\n");
+    const result = scanDecomposeContent("draft-sample.md", bytes(source));
+
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+    expect(result.units.map((unit) => unit.locator)).toEqual([
+      { artifact: "draft-sample.md", kind: "preamble" },
+      { artifact: "draft-sample.md", kind: "section", headingSource: "Real", occurrence: 0 },
+    ]);
+  });
+
   it("normalizes heading source and numbers equal normalized headings from zero", () => {
     const source = "##  A\t e\u0301 **bold**  ##\nfirst\n## A   é **bold**\nsecond\n";
     const result = scanDecomposeContent("draft-sample.md", bytes(source));

@@ -258,8 +258,9 @@ for a shape with no surviving origin.
 - _Goal:_ The production `arc decompose` path prepares before mutation, resumes safely across interruption, and
   finalizes through an explicit receipt-addressed second invocation before the allocation can commit.
 
-    - `[ ]` **4.7.a CommonMark boundary hardening**
-        - Reject false top-level Setext boundaries after fenced or nested block content.
+    - `[x]` **4.7.a CommonMark boundary hardening**
+        - The scanner now excludes fenced delimiters, indented content, block quotes, and list items from the
+          top-level Setext candidate set while retaining genuine adjacent Setext headings.
     - `[ ]` **4.7.b Prepared-result recovery**
         - Resume an exact preparation while only its admitted transition paths are staged.
     - `[ ]` **4.7.c Transactional finalization and complete missing-record gate**
