@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "pre-pr-open-cli-frontline",
-  "origin": "description",
-  "intent": "Wire pre-pr-open with a classify-gated CodeRabbit CLI review frontline (interim PR-review metering relief)",
-  "branch": "chore/pre-pr-open-cli-frontline",
-  "createdAt": "2026-07-16T14:05:30.636Z",
-  "returnBranch": "main"
-}
