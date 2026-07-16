@@ -139,6 +139,7 @@ export {
 
 export {
   readWorktreeMarker,
+  decodeWorktreeHuskStamp,
   stampWorktreeHusk,
   writeWorktreeMarker,
   writeWorktreeOwnershipMarker,
@@ -146,6 +147,7 @@ export {
   isWorktreeMarker,
   type WorktreeMarker,
   type WorktreeHuskStamp,
+  type DecodedWorktreeHuskStamp,
   type WorktreeHuskStampResult,
   type WorktreeMarkerReadResult,
   type WorktreeSubject,

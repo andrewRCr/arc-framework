@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 
 import {
   ensureWorktreeMarkerIgnored,
+  decodeWorktreeHuskStamp,
   nodeWorktreeMarkerIgnoreFs,
   readWorktreeMarker,
   stampWorktreeHusk,
@@ -157,6 +158,52 @@ describe("worktree-marker", () => {
       "utf8",
     );
     expect((await readWorktreeMarker(cwd)).kind).toBe("malformed");
+  });
+});
+
+describe("decodeWorktreeHuskStamp", () => {
+  const base: WorktreeHuskStamp = {
+    sha: "0123456789abcdef0123456789abcdef01234567",
+    at: "2026-07-14T20:00:00.000Z",
+    subject: { kind: "work-unit", name: "demo" },
+    branch: "feat/demo",
+  };
+
+  it("decodes the all-absent legacy shape without remote-delete authority", () => {
+    expect(decodeWorktreeHuskStamp(base)).toEqual({ kind: "legacy", authorization: "merged-preserved" });
+  });
+
+  it("decodes an all-present current stamp", () => {
+    const stamp: WorktreeHuskStamp = {
+      ...base,
+      authorization: "discard-confirmed",
+      remoteRef: { remote: "origin", oid: base.sha, disposition: "delete" },
+      evidence: {
+        kind: "receipt",
+        receiptId: `sha256:${"1".repeat(64)}`,
+        transition: "abandon",
+        expectedLifecycle: "nonexistent",
+        resultDigest: `sha256:${"2".repeat(64)}`,
+      },
+    };
+
+    expect(decodeWorktreeHuskStamp(stamp)).toMatchObject({
+      kind: "current",
+      authorization: "discard-confirmed",
+    });
+  });
+
+  it("makes mixed and unknown future shapes manual-only", () => {
+    expect(decodeWorktreeHuskStamp({ ...base, authorization: "merged-preserved" })).toEqual({
+      kind: "manual-only",
+      reason: "mixed-presence",
+    });
+    expect(decodeWorktreeHuskStamp({
+      ...base,
+      authorization: "future-proof",
+      remoteRef: null,
+      evidence: { kind: "future-evidence", version: 2 },
+    })).toEqual({ kind: "manual-only", reason: "unknown-authorization" });
   });
 });
 

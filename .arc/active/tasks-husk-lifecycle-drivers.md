@@ -289,116 +289,69 @@ the twelve-step order completes every evidence check before detach and makes pos
 projection-safe; the stamp gains a closed presence matrix; replay selects one registered husk path and never
 batches same-subject candidates.
 
-### `[ ]` **5.1 Port-authorized teardown replacing the `allowHusk` switch**
+### `[x]` **5.1 Port-authorized teardown replacing the `allowHusk` switch**
 
 - _Goal:_ Teardown obtains its detach authority from `authorize`/`revalidate` instead of `mode === "shipped"`,
   and the shipped driver supplies `merged-preserved` evidence from its existing reap-safety checks.
 
-- _Context:_ Replace the `allowHusk` derivation (`teardown.ts`) and the `assessReapSafety` husk gate with a port
-  call; `WorktreeSubject` stays the request identity. The branch-teardown path (`runBranchTeardown`) and the
-  primary in-place arm keep working — the port returns `merged-preserved` for those.
+- _Outcome:_ Added the Git-backed teardown retirement driver and routed linked self-teardown through typed
+  `authorize` / `revalidate` decisions. Shipped preservation, committed receipt evidence, and ordinary base advances
+  now resolve through the port; the `allowHusk` switch no longer grants detach authority.
 
-    - Build `test-first` (one behavior at a time):
-        - a shipped WU authorizes `merged-preserved`; an unmerged non-shipped WU without a receipt refuses
-        - teardown branches on the typed decision, never on `mode`/`allowHusk`
-        - shipped replay verifies the original base proof OID is still reachable or re-establishes the
-          patch-preservation proof; ordinary base advances stay valid
-
-### `[ ]` **5.2 Twelve-step directional teardown ordering**
+### `[x]` **5.2 Twelve-step directional teardown ordering**
 
 - _Goal:_ The linked self-teardown runs the fixed twelve-step order so every evidence and authority check
   completes before detach and a pre-detach refusal is mutation-free.
 
-- _Context:_ Reshape `teardownBranchProjection` around the ordered sequence; the user-surface dry run precedes
-  the real reconcile.
+- _Outcome:_ Reordered linked teardown so authorization, cleanliness, dry-run/reconcile, authority revalidation, and
+  prepared stamping all complete before exact-OID detach. Registered and lifecycle projections are checked again at
+  both destructive boundaries; non-shipped marker/stamp failures remain pre-detach refusals.
 
-    - Build `test-first` (one behavior at a time):
-        - the clean-tree gate and user-surface dry run run before any mutation; a dry-run refusal mutates nothing
-        - the stamp is prepared while still branched, then detach happens at the authorized `HEAD`
-        - a late pre-detach authority conflict leaves only idempotent reconciliation and a branched worktree
-        - a competing registered/lifecycle projection is re-checked before the remote operation and again before
-          local mutation, so a post-detach competitor can only veto the later destructive step
-        - a missing/malformed marker or a failed prepared-stamp write is a pre-detach refusal for ARC-managed
-          non-shipped worktrees
-
-### `[ ]` **5.3 Projection-safe ref operations**
+### `[x]` **5.3 Projection-safe ref operations**
 
 - _Goal:_ After detach, ref operations honor the persisted remote disposition and compare-and-delete the local
   ref against the authorized OID, leaving the husk intact on any transport, lease, or CAS failure.
 
-- _Context:_ Reuse `deleteRemoteBranch`'s `--force-with-lease` for the remote leg (`reconcile-branch.ts`), but
-  the local compare-and-delete is a new primitive — the existing `reconcileBranch` local delete is `git branch -D`
-  (force, no OID operand), so it cannot carry the authorized-OID CAS. Drive both off the persisted disposition,
-  not the current `mode` fork.
+- _Outcome:_ Directional cleanup now honors persisted `null` / `delete` / `retain` remote dispositions, leases remote
+  deletion to the authorized OID, and compare-deletes the local ref with `git update-ref -d ... <authorized-oid>`.
+  Transport, stale-lease, CAS, and late-competitor failures retain the stamped husk for replay.
 
-    - Build `test-first` (one behavior at a time):
-        - `remote: null` performs no remote delete; `delete` uses force-with-lease at the exact authorized OID
-        - `retain` re-confirms the remote still resolves to the authorized OID before local deletion; an absent
-          or changed preservation ref leaves the local ref and husk
-        - local deletion runs `git update-ref -d refs/heads/<branch> <authorized-oid>`; a failed CAS leaves the
-          moved ref and stamped husk
-        - a competing projection introduced between remote resolution and local CAS blocks the local deletion and
-          leaves the stamped husk with the completed remote outcome
-        - a transport/auth failure or a stale lease leaves the husk intact and manual-only
-
-### `[ ]` **5.4 Self-describing stamp extension and presence matrix**
+### `[x]` **5.4 Self-describing stamp extension and presence matrix**
 
 - _Goal:_ `WorktreeHuskStamp` persists `authorization`/`remoteRef`/`evidence` with a closed presence matrix, so
   a reader selects a destructive mode only from a fully-present current stamp.
 
-- _Context:_ Extend the interface and runtime guards in `worktree-marker.ts`; optionality is read-compatibility
-  only.
+- _Outcome:_ Extended `WorktreeHuskStamp` with authorization, remote-ref, and evidence fields plus a closed decoder.
+  Legacy, current, mixed, unknown-future, and malformed shapes now preserve ownership while granting destructive
+  authority only to complete known stamps; terminal recognition still requires detached `HEAD === stamp.sha`.
 
-    - Build `test-first` (one behavior at a time):
-        - an all-absent legacy stamp decodes authorization as `merged-preserved` and grants no remote-delete
-          authority
-        - a legacy stamp proceeds only after a fresh read confirms the named remote ref is absent; otherwise it
-          is manual-only
-        - an all-present current stamp decodes directly; every mixed-presence combination is manual-only
-        - an unknown future authorization/evidence string preserves ownership and exact-husk recognition but is
-          manual-only
-        - a non-string authorization or malformed remote/evidence is malformed
-        - a prepared stamp on a still-branched worktree is not terminal
-
-### `[ ]` **5.5 Marker evidence resolution and revalidation on replay**
+### `[x]` **5.5 Marker evidence resolution and revalidation on replay**
 
 - _Goal:_ Replay resolves a stamp's receipt evidence from the transition-specific authoritative locus and
   revalidates the relation, never trusting cached WU state.
 
-    - Build `test-first` (one behavior at a time):
-        - abandon/park evidence resolves by `receiptId` from the exact stamped commit tree and revalidates the
-          direct-transition relation
-        - decompose evidence resolves from the effective result projection and revalidates the finalized
-          allocation relation
-        - a missing or mismatched record is manual-only
+- _Outcome:_ Replay now resolves direct-transition receipts from the stamped commit and decompose receipts from the
+  effective result projection, checks subject/branch/source relations, and re-hashes park/decompose result artifacts.
+  Missing, mismatched, or stale evidence is manual-only.
 
-### `[ ]` **5.6 `arc teardown <name> --husk <path>` exact replay selection**
+### `[x]` **5.6 `arc teardown <name> --husk <path>` exact replay selection**
 
 - _Goal:_ `arc teardown <name> --husk <absolute-path>` selects exactly one registered husk by path, and the
   unqualified command works only when one candidate matches.
 
-    - Build `test-first` (one behavior at a time):
-        - the selector matches the exact detached path, a valid marker + terminal stamp, the requested subject,
-          the stamped branch, `HEAD === stamp.sha`, and a clean worktree
-        - it never selects a branched worktree or a same-slug candidate of another subject kind
-        - the unqualified command stays compatible for one candidate; multiple same-subject husks refuse with one
-          path-qualified command each
+- _Outcome:_ Added the absolute `--husk` CLI/library selector and exact registered-candidate filtering. Unqualified
+  replay remains compatible for one candidate; repeated same-subject husks refuse until one path is selected.
 
-### `[ ]` **5.7 Replay execution order and competing-projection veto**
+### `[x]` **5.7 Replay execution order and competing-projection veto**
 
 - _Goal:_ Replay runs remote disposition, then local CAS, then physical cleanup in creation order, exempting
   only the exact evidence-matched result and vetoing on a competing live projection.
 
-    - Build `test-first` (one behavior at a time):
-        - lifecycle comparison exempts only the evidence's expected planned/completed/nonexistent result; any
-          other same-branch candidate vetoes
-        - a registered branched worktree on the stamped branch vetoes before any ref mutation
-        - a competitor found after the remote outcome leaves the local branch and husk and reports the remote
-          result
-        - a same-OID live restart with no registered/lifecycle owner stays governed by the exact OID lease/CAS
-        - inside-husk replay does no physical removal; outside replay reconciles user surfaces first
+- _Outcome:_ Replay executes remote disposition, lifecycle/roster recheck, local CAS, then outside-only physical
+  cleanup. Expected planned/completed/nonexistent results are exempted narrowly; live same-branch projections veto
+  destructive cleanup, while an inside-husk replay never removes its own cwd.
 
-### `[ ]` **5.8 Integration and E2E round trips**
+### `[x]` **5.8 Integration and E2E round trips**
 
 - _Goal:_ The composed teardown/driver/session-init surface is exercised end-to-end across the named round trips,
   so a regression in the integrated flow fails a check rather than surfacing only in production.
@@ -407,13 +360,9 @@ batches same-subject candidates.
   in Phases 1–6 and from the verification phase (which runs the gate suite but authors no tests). Author one
   round trip per scenario:
 
-    - linked abandon leaves a readable stamped husk and reaps the discarded projection
-    - full-protection and partial-protection (`--land`) park-at-Planning each round-trip to a stamped husk
-    - symmetric decompose retires the origin and lands the finalized allocation
-    - shipped remote-only preservation retains the sole-proof remote ref
-    - interrupted decompose preparation/finalization resumes idempotently through the persisted locator
-    - interrupted remote cleanup leaves the husk intact and replay completes it
-    - a restarted same-slug work unit cannot let an old husk delete the restarted projection
+- _Outcome:_ Extended the real-Git unit/integration/E2E matrix across stamped linked abandon, exact husk replay,
+  shipped preservation, local-CAS interruption, decompose/park retirement choreography, and evidence-free restart
+  refusal. The composed CLI tests now assert the husk result rather than the retired immediate-removal behavior.
 
 ## **Phase 6:** Linked-session cleanup awareness
 

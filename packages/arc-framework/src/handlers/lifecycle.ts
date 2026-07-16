@@ -1155,6 +1155,8 @@ export interface TeardownOptions {
   branch?: string;
   /** Force the un-shipped / `abandoned` mode: cleanup of a retired / parked origin (unmerged branch). */
   force?: boolean;
+  /** Exact absolute detached-husk path to replay. */
+  husk?: string;
 }
 
 /** Render a torn-down result's branch disposition for the report note. */
@@ -1233,6 +1235,10 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
       refuse("`arc teardown --branch <branch>` is always merged-safe; `--force` is only for work-unit teardown.");
       return;
     }
+    if (opts.husk !== undefined) {
+      refuse("`arc teardown --branch <branch>` cannot also select `--husk`.");
+      return;
+    }
   } else if (!wuName) {
     refuse("`arc teardown <name>` requires the work-unit name to clean up.");
     return;
@@ -1256,7 +1262,13 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
   if (branchArg !== undefined && branchArg !== "") {
     const result = await runBranchTeardown(
-      { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); locus = dir; } },
+      {
+        cwd: base.cwd,
+        exec,
+        indexFs: lifecycleFs,
+        chdir: (dir) => { process.chdir(dir); locus = dir; },
+        readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+      },
       { branch: branchArg, base: baseBranch },
     );
     if (result.status === "rejected") {
@@ -1280,8 +1292,14 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
   }
 
   const result = await runTeardown(
-    { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); locus = dir; } },
-    { name: wuName ?? "", base: baseBranch, mode: opts.force ? "abandoned" : "shipped" },
+    {
+      cwd: base.cwd,
+      exec,
+      indexFs: lifecycleFs,
+      chdir: (dir) => { process.chdir(dir); locus = dir; },
+      readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+    },
+    { name: wuName ?? "", base: baseBranch, mode: opts.force ? "abandoned" : "shipped", huskPath: opts.husk },
   );
   if (result.status === "rejected") {
     if (result.huskRefusal !== undefined) {

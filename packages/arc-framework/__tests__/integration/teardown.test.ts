@@ -541,7 +541,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const realExec = execFor(wtPath);
       let refuseDelete = true;
       const failingExec: GitExec = async (cmd, args, opts) => {
-        if (refuseDelete && args[0] === "branch" && args[1] === "-D") {
+        if (refuseDelete && args[0] === "update-ref" && args[1] === "-d") {
           refuseDelete = false;
           throw new Error("simulated ref lock");
         }
@@ -555,7 +555,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(first.status).toBe("torn-down");
       if (first.status !== "torn-down") return;
       expect(first.branchDeleted).toBe(false);
-      expect(first.notices.some((notice) => /retry teardown from the husk or primary/iu.test(notice))).toBe(true);
+      expect(first.notices.some((notice) => /compare-and-delete/iu.test(notice))).toBe(true);
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
 
       const replay = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });

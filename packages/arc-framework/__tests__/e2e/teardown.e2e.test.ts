@@ -155,6 +155,22 @@ describe("arc teardown (CLI surface)", () => {
     expect(await git(tmpDir, ["worktree", "list"])).not.toContain(worktree);
   });
 
+  it("does not let an old husk delete a restarted same-slug projection", async () => {
+    tmpDir = await createTempRepo();
+    worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
+    const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
+    const created = await runArc(["teardown", "demo"], worktree);
+    expect(created.exitCode).toBe(0);
+    await git(tmpDir, ["checkout", "-b", "feat/demo"]);
+
+    const replay = await runArc(["teardown", "demo", "--husk", worktree], tmpDir);
+
+    expect(replay.exitCode).toBe(0);
+    expect(replay.stdout + replay.stderr).toMatch(/competing registered projection/iu);
+    expect(await git(tmpDir, ["branch", "--list", "feat/demo"])).toContain("feat/demo");
+    expect(await git(tmpDir, ["worktree", "list"])).toContain(worktree);
+  });
+
   it("reports a surviving local ref and retry guidance after detach", async () => {
     tmpDir = await createTempRepo();
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
@@ -167,8 +183,7 @@ describe("arc teardown (CLI surface)", () => {
     const output = result.stdout + result.stderr;
 
     expect(result.exitCode).toBe(0);
-    expect(output).toMatch(/Could not delete local branch `feat\/demo` after detach/iu);
-    expect(output).toMatch(/retry teardown from the husk or primary/iu);
+    expect(output).toMatch(/Could not compare-and-delete local branch `feat\/demo`/iu);
     expect(output).not.toMatch(/not contained on its upstream/iu);
     expect(await git(worktree, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
     expect(await git(tmpDir, ["branch", "--list", "feat/demo"])).toContain("feat/demo");
