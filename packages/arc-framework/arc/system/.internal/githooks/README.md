@@ -80,7 +80,9 @@ delegation intentionally.
 **Errors (blocks commit):**
 
 - Base branch commit protection in `full` mode (all changes require branches and PR review)
-- Merge conflict markers in staged files
+- Merge conflict markers in staged files (exception: under `pm.mode: arc-in-git`, when
+  `.arc/backlog/ROADMAP.md` is the **only** conflicted or marker-bearing path, pre-commit
+  auto-regenerates and restages it from the staged-index projection before this check runs)
 - Sensitive files (`.env`, `credentials.json`, etc.)
 - Invalid task numbering format in task lists (third level must use letters: 1.1.a not 1.1.1) —
   configurable via `hooks.task_numbering` (`error` | `warning` | `off`)
