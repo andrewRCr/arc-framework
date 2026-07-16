@@ -846,6 +846,23 @@ terminal-WU handoff mode + sync-only handoff tier + boundary-marker family captu
 the adjacent errand sweep-loop gap (run-errand close has no next-offer; `--errand` vs `--housekeep` doorway
 legibility) captured `WU_Target: TBD`, integration explicitly held for 5.3's batch-shape decision.
 
+### Day-2 evidence — base auto-sync structurally refused in linked worktrees (2026-07-16)
+
+Two independent sessions hit it same-day (FP's own init this morning; HLD's fresh session init): the
+base-branch-sync channel's configured auto-pull (`session.init_pull.base: always` → `git fetch origin
+main:main`) fails with git's "refusing to fetch into branch … checked out at <primary>" — and under the
+linked-worktree model this refusal is **guaranteed, every session**: the fetch-into-ref shape assumes the base
+is not checked out anywhere, but the launchpad model keeps `main` checked out at the primary permanently. The
+channel's `pull` arm is structurally dead in exactly the topology FP verifies; sessions degrade correctly to a
+stale-base orientation surface, so this is loud advisory noise (repeated every init), not a gate. The
+stale local base itself is real (44 behind at both observations) and only clears by freshening from the
+primary's own context (`git -C <primary> pull --ff-only` on a clean tree) — the reach-into-primary shape
+`session-locus-model` already flags, and further evidence for the base-sync verb named in its § Boundaries.
+Routed: determinate CLI fix captured (`USER-INBOX § Errand` — probe resolves the channel to `surface` with
+primary-aware prompt text when the base is checked out in another worktree); the alarming base-drift rendering
+riding along (71 raw commits / six overlapping paths at HLD) is `base-drift-guidance`'s already-captured
+concern, re-observed.
+
 ## Wave-3 induction evidence
 
 ### Cell 5.2.a — errands-ref same-slug collision (2026-07-16) — CONFIRMED HOLDING + surfacing seams
