@@ -148,6 +148,13 @@ export interface ProjectReadinessOracleOptions {
   expandLiveOnly?: boolean;
   baseBranch?: string;
   errandSlugByBranch?: ReadonlyMap<string, string>;
+  /**
+   * Whether the errand-record read that produced `errandSlugByBranch` was
+   * complete. When `false`, record-less branches degrade to
+   * `classification-unavailable` rather than `no-record-or-meta`. Defaults to
+   * true inside the derivation when omitted.
+   */
+  errandRecordsComplete?: boolean;
   parkedSlugs?: ReadonlySet<string>;
   timeoutMs?: number;
 }
@@ -499,6 +506,7 @@ async function resolveOracleCandidates(
     identity: null,
     teamMode: false,
     errandSlugByBranch: options.errandSlugByBranch,
+    errandRecordsComplete: options.errandRecordsComplete,
     parkedSlugs: options.parkedSlugs,
   });
   const entries = prospective === undefined

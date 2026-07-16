@@ -101,7 +101,6 @@ import {
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import {
-  listErrandRecords,
   listErrandRecordsResult,
   type ErrandRecord,
   type ListErrandRecordsResult,
@@ -256,10 +255,20 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
   const json = Boolean(opts.json);
 
   if (slug !== undefined) {
-    // Slug→state query: a subject-keyed read over the lifecycle-complete index,
-    // independent of session identity / settings. The index walk binds real I/O;
-    // the resolution stays a pure lib projection.
+    // Slug→state query: a subject-keyed read over the lifecycle-complete index.
+    // The index walk binds real I/O; the resolution stays a pure lib projection.
+    // Errand records still feed the oracle so recorded `chore/`/`fix/` errand
+    // branches are not mis-emitted as `no-record-or-meta` residue.
     const { settings } = await readConfigSettings(cwd);
+    const { identity } = await readIdentityPointers();
+    // No identity ⇒ no errand-record ref to read; empty+complete is authoritative
+    // (not degraded). Degraded `complete: false` is only for a failed read.
+    const recordResult: ListErrandRecordsResult = identity === null
+      ? { records: [], complete: true, warnings: [] }
+      : await listErrandRecordsResult({ exec: gitExec, identity });
+    const errandSlugByBranch = new Map(
+      recordResult.records.map((record) => [record.branch, record.slug]),
+    );
     const composed = await resolveComposedLifecycleIndex({
       cwd,
       fs: {
@@ -270,6 +279,8 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         exec: gitExec,
         localOnly: opts.fetch !== true,
         baseBranch: settings["branch.base"],
+        errandSlugByBranch,
+        errandRecordsComplete: recordResult.complete,
       },
     });
     const query = resolveSlugQuery(composed.index, slug);
@@ -761,11 +772,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       return;
     }
     const localOnly = Boolean(opts.local) || opts.fetch === false;
-    const [parkedSlugs, errandRecords] = await Promise.all([
+    const [parkedSlugs, recordResult] = await Promise.all([
       buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
-      identity === null ? Promise.resolve([]) : listErrandRecords({ exec: gitExec, identity }),
+      identity === null
+        ? Promise.resolve<ListErrandRecordsResult>({ records: [], complete: true, warnings: [] })
+        : listErrandRecordsResult({ exec: gitExec, identity }),
     ]);
-    const errandSlugByBranch = new Map(errandRecords.map((record) => [record.branch, record.slug]));
+    const errandSlugByBranch = new Map(
+      recordResult.records.map((record) => [record.branch, record.slug]),
+    );
     const input = await resolveProjectReadinessViewInput({
       cwd,
       fs: lifecycleFs,
@@ -775,6 +790,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         baseBranch: resolved.settings["branch.base"],
         parkedSlugs,
         errandSlugByBranch,
+        errandRecordsComplete: recordResult.complete,
       },
     });
     const result = composeProjectReadinessViewResult({
