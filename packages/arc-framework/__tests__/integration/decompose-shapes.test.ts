@@ -240,6 +240,9 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     const targetDraft = join(repo, ".arc/backlog/planned/mono/alpha/draft-alpha.md");
     await writeFile(targetDraft, `${await readFile(targetDraft, "utf8")}\nPreserved origin framing.\n`);
     await execFileAsync("git", ["add", "--", targetDraft], { cwd: repo });
+    const stagedTarget = (await execFileAsync("git", ["show", ":.arc/backlog/planned/mono/alpha/draft-alpha.md"], {
+      cwd: repo,
+    })).stdout;
 
     const failed = await decomposeDriver(repo, true).finalize("mono", prepared.preparation.locator.receiptId);
     expect(failed).toMatchObject({ status: "refused", reason: "authority-unavailable" });
@@ -247,6 +250,11 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
       resolveRetirementRecordPath(repo, prepared.preparation.locator.receiptId),
       "utf8",
     ))).toMatchObject({ kind: "prepared-decompose" });
+
+    // A post-snapshot working-tree edit must remain unstaged: the receipt binds
+    // the already-staged version, not whichever bytes happen to be on disk when
+    // the finalized record is staged.
+    await writeFile(targetDraft, `${stagedTarget}\nLater unstaged edit.\n`);
 
     const finalized = await driver.finalize("mono", prepared.preparation.locator.receiptId);
     if (finalized.status === "refused") throw new Error(JSON.stringify(finalized));
@@ -257,6 +265,12 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     )) as { transition?: string; kind?: string };
     expect(stored).toMatchObject({ transition: "decompose" });
     expect(stored.kind).not.toBe("prepared-decompose");
+    expect((await execFileAsync(
+      "git",
+      ["show", ":.arc/backlog/planned/mono/alpha/draft-alpha.md"],
+      { cwd: repo },
+    )).stdout).toBe(stagedTarget);
+    expect(await readFile(targetDraft, "utf8")).toContain("Later unstaged edit.");
   });
 
   it("admits an existing-home meta when it receives an outgoing dependency", async () => {

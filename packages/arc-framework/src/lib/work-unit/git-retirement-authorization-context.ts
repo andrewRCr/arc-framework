@@ -133,6 +133,10 @@ export async function validateGitRetirementReceiptEvidence(
   readBlob?: RetirementAuthorizationBlobReader,
 ): Promise<boolean> {
   try {
+    const decomposeResultHead = input.evidence.transition === "decompose"
+      ? await resolveReachableReceiptIntroduction(exec, baseRef, input.evidence.receiptId)
+      : null;
+    if (input.evidence.transition === "decompose" && decomposeResultHead === null) return false;
     const recordRef = input.evidence.transition === "decompose" ? baseRef : input.retiringHead;
     const content = await readTextAt(
       exec,
@@ -153,7 +157,9 @@ export async function validateGitRetirementReceiptEvidence(
     ) return false;
     const projection = {
       retiringHead: input.retiringHead,
-      resultHead: input.evidence.transition === "abandon" ? input.retiringHead : baseRef,
+      resultHead: input.evidence.transition === "abandon"
+        ? input.retiringHead
+        : decomposeResultHead ?? baseRef,
     };
     const relation = await validateRetirementReceiptRelation(
       createRelationContext(exec, readBlob),
@@ -220,12 +226,49 @@ async function readReceiptCandidates(
     if (content === null) continue;
     const receipt = parseRetirementReceipt(content);
     if (receipt === null || receipt.transition !== lookup.transition) continue;
+    const decomposeResultHead = lookup.transition === "decompose"
+      ? await resolveReachableReceiptIntroduction(exec, baseRef, id)
+      : null;
+    if (lookup.transition === "decompose" && decomposeResultHead === null) continue;
     candidates.push({
       receipt,
-      resultHead: lookup.transition === "abandon" ? request.head : baseRef,
+      resultHead: lookup.transition === "abandon" ? request.head : decomposeResultHead ?? baseRef,
     });
   }
   return candidates;
+}
+
+/** Resolve the sole commit reachable from `tip` that introduced this immutable record path. */
+async function resolveReachableReceiptIntroduction(
+  exec: GitExec,
+  tip: string,
+  id: CanonicalDigest,
+): Promise<string | null> {
+  const path = resolveRetirementRecordRelativePath(id);
+  let commits: string[];
+  try {
+    const { stdout } = await exec("git", [
+      "log",
+      "--format=%H",
+      "--diff-filter=A",
+      "--no-renames",
+      tip,
+      "--",
+      path,
+    ]);
+    commits = stdout.split("\n").map((value) => value.trim()).filter(Boolean);
+  } catch {
+    return null;
+  }
+  if (commits.length !== 1) return null;
+  const introducedAt = commits[0];
+  if (introducedAt === undefined) return null;
+  try {
+    await exec("git", ["merge-base", "--is-ancestor", introducedAt, tip]);
+  } catch {
+    return null;
+  }
+  return introducedAt;
 }
 
 async function validateReceiptResult(

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { isCanonicalDigest } from "../lib/canonical/canonical-json.js";
 import { contentDigest, patchDigest, type PatchOperation } from "../lib/canonical/content-digest.js";
 import { validateManagedPath } from "../lib/canonical/managed-path.js";
+import { receiptId } from "../lib/canonical/receipt-id.js";
 import {
   decodeRetirementRecordKey,
   RETIREMENT_RECORD_NAMESPACE,
@@ -47,14 +48,41 @@ function receiptCoveredRetirements(
   readHeadBytes: DecomposeCommitGateInput["readHeadBytes"],
 ): Set<string> {
   const covered = new Set<string>();
+  const recordPaths = new Set(changes.filter((change) => RECORD_PATTERN.test(change.path)).map((change) => change.path));
+  const operations: PatchOperation[] = [];
+  try {
+    for (const change of changes) {
+      if (recordPaths.has(change.path)) continue;
+      const path = validateManagedPath(change.path);
+      if (change.status === "D") operations.push({ operation: "delete", path });
+      else {
+        const staged = readIndexBytes(change.path);
+        if (staged === null) return covered;
+        operations.push({ operation: "write", path, contentDigest: contentDigest(staged) });
+      }
+    }
+  } catch {
+    return covered;
+  }
+  const stagedPatchDigest = patchDigest(operations);
   for (const change of changes) {
-    if (change.status !== "A" || !RECORD_PATTERN.test(change.path) || readHeadBytes(change.path) !== null) continue;
+    const pathMatch = RECORD_PATTERN.exec(change.path);
+    if (change.status !== "A" || pathMatch?.[1] === undefined || readHeadBytes(change.path) !== null) continue;
     const bytes = readIndexBytes(change.path);
     if (bytes === null) continue;
     try {
       const receipt = parseRetirementReceipt(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
       if (receipt?.subject.kind === "work-unit"
-        && (receipt.transition === "abandon" || receipt.transition === "decompose")) {
+        && (receipt.transition === "abandon" || receipt.transition === "decompose")
+        && decodeRetirementRecordKey(pathMatch[1]) === receipt.receiptId
+        && receipt.receiptId === receiptId({
+          schemaVersion: receipt.schemaVersion,
+          subject: receipt.subject,
+          transition: receipt.transition,
+          sourceBranch: receipt.source.branch,
+          sourceHead: receipt.source.head,
+        })
+        && receipt.transitionPatchDigest === stagedPatchDigest) {
         covered.add(receipt.subject.name);
       }
     } catch {

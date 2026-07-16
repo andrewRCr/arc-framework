@@ -300,6 +300,11 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const committed = await commitAttempt(repo, "finalized decompose");
     expect(committed.exitCode, committed.stdout + committed.stderr).toBe(0);
 
+    // Revalidation resolves the reachable commit that introduced the receipt;
+    // a later unrelated base commit must not invalidate the historical proof.
+    await writeFile(join(repo, "base-advanced.txt"), "later base work\n");
+    await commitAll(repo, "advance base after decompose");
+
     const teardown = await runArc(["teardown", "mono", "--force"], worktree!);
     expect(teardown.exitCode, teardown.stdout + teardown.stderr).toBe(0);
     expect(await branchExists(repo, "plan/mono")).toBe(false);

@@ -234,13 +234,23 @@ function createDriver(deps: InRepoDecomposeRetirementDeps): InRepoDecomposeRetir
             },
             replaceAndStageRecord: async (recordId, expected, next, paths) => {
               const path = resolveRetirementRecordPath(deps.cwd, recordId);
+              const relativePath = resolveRetirementRecordRelativePath(recordId);
+              if (!paths.includes(relativePath)) throw new Error("prepared record is not staged");
               if (await deps.readFile(path) !== expected) throw new Error("prepared record changed");
               const write = deps.atomicWriteFile ?? atomicWriteFile;
               await write(path, next);
               try {
-                await stageDecomposePaths(deps, paths);
+                // The transition paths were already hashed from the index. Stage only
+                // the replacement record so later working-tree edits cannot alter the
+                // patch authorized by the finalized receipt.
+                await stageDecomposePaths(deps, [relativePath]);
+                const staged = await deps.readBlob(null, validateManagedPath(relativePath));
+                if (staged === null || new TextDecoder("utf-8", { fatal: true }).decode(staged) !== next) {
+                  throw new Error("finalized record is absent from the staged index");
+                }
               } catch (error) {
                 await write(path, expected);
+                await stageDecomposePaths(deps, [relativePath]).catch(() => {});
                 throw error;
               }
             },

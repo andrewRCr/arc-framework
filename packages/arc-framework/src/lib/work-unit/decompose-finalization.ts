@@ -146,6 +146,9 @@ export async function finalizeDecomposeRetirement(
     }
 
     const recordPath = resolveRetirementRecordRelativePath(locator.receiptId);
+    if (!projection.stagedPaths.includes(recordPath)) {
+      return { status: "refused", reason: "evidence-mismatch" };
+    }
     const nonRecordStaged = projection.stagedPaths.filter((path) => path !== recordPath);
     if (nonRecordStaged.some((path) => !record.allowedPaths.includes(path))) {
       return { status: "refused", reason: "evidence-mismatch" };

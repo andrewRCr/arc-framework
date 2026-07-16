@@ -160,6 +160,13 @@ describe("finalizeDecomposeRetirement", () => {
     ).toMatchObject({ status: "refused", reason: "evidence-mismatch" });
     expect(
       await finalizeDecomposeRetirement(
+        context({ readProjection: async () => ({ ...projection, stagedPaths: [targetPath] }) }).ctx,
+        locator,
+        "prepared-version",
+      ),
+    ).toMatchObject({ status: "refused", reason: "evidence-mismatch" });
+    expect(
+      await finalizeDecomposeRetirement(
         context({ readDependsOn: async () => [] }).ctx,
         locator,
         "prepared-version",
