@@ -204,11 +204,24 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
   });
 
   afterEach(async () => {
+    const errors: unknown[] = [];
     for (const wt of h.spawned) {
       await execFileAsync("git", ["worktree", "remove", "--force", wt], { cwd: h.repo }).catch(() => {});
-      await removeGitBackedDir(wt).catch(() => {});
+      try {
+        await removeGitBackedDir(wt);
+      } catch (error) {
+        errors.push(error);
+      }
     }
-    await cleanupTempDir(h.repo);
+    try {
+      await cleanupTempDir(h.repo);
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) {
+      throw new AggregateError(errors, "Park-resume fixture cleanup failed.");
+    }
   });
 
   it("park@Active preserves the branch, tears down the worktree, and lands the pointer-record", async () => {

@@ -7,7 +7,7 @@
  * on a live git-gc race.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mkdtemp, mkdir, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -60,7 +60,7 @@ describe("removeGitBackedDir", () => {
   });
 
   it("gives up after the bounded attempt budget and throws naming the path and last errno", async () => {
-    const remove = failingRemove("EBUSY", Infinity);
+    const remove = vi.fn(failingRemove("EBUSY", Infinity));
 
     const error = await removeGitBackedDir("/tmp/arc-stuck-path", {
       remove,
@@ -71,6 +71,7 @@ describe("removeGitBackedDir", () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toContain("/tmp/arc-stuck-path");
     expect((error as Error).message).toContain("EBUSY");
+    expect(remove).toHaveBeenCalledTimes(3);
   });
 
   it("resolves cleanly when the path is missing (force semantics)", async () => {
@@ -80,7 +81,7 @@ describe("removeGitBackedDir", () => {
   });
 
   it("propagates a non-transient errno immediately without retrying", async () => {
-    const remove = failingRemove("EACCES", Infinity);
+    const remove = vi.fn(failingRemove("EACCES", Infinity));
 
     const error = await removeGitBackedDir("/tmp/arc-denied", {
       remove,
@@ -90,6 +91,7 @@ describe("removeGitBackedDir", () => {
 
     expect(error).toBeInstanceOf(Error);
     expect((error as NodeJS.ErrnoException).code).toBe("EACCES");
+    expect(remove).toHaveBeenCalledTimes(1);
   });
 });
 

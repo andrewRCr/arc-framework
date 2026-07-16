@@ -128,21 +128,22 @@ export async function setupInFlightReshuffleFixture(): Promise<InFlightReshuffle
   const siblingExec = makeGitExec(base.sibling);
 
   const cleanup = async (): Promise<void> => {
-    let ownedRemovalError: unknown;
+    const errors: unknown[] = [];
     try {
       await removeGitBackedDirs(ownedPaths);
       ownedPaths.length = 0;
     } catch (error) {
-      ownedRemovalError = error;
+      errors.push(error);
     }
-    let baseRemovalError: unknown;
     try {
       await base.cleanup();
     } catch (error) {
-      baseRemovalError = error;
+      errors.push(error);
     }
-    if (ownedRemovalError !== undefined) throw ownedRemovalError;
-    if (baseRemovalError !== undefined) throw baseRemovalError;
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) {
+      throw new AggregateError(errors, "In-flight reshuffle fixture cleanup failed.");
+    }
   };
 
   const writeMeta = async (cwd: string, input: {

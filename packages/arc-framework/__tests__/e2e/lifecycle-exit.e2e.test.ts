@@ -144,11 +144,24 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   });
 
   afterEach(async () => {
+    const errors: unknown[] = [];
     for (const wt of worktrees) {
       await git(repo, ["worktree", "remove", "--force", wt]).catch(() => undefined);
-      await removeGitBackedDir(wt).catch(() => undefined);
+      try {
+        await removeGitBackedDir(wt);
+      } catch (error) {
+        errors.push(error);
+      }
     }
-    await cleanupTempDir(repo);
+    try {
+      await cleanupTempDir(repo);
+    } catch (error) {
+      errors.push(error);
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) {
+      throw new AggregateError(errors, "Lifecycle-exit fixture cleanup failed.");
+    }
   });
 
   // -------------------------------------------------------------------------
