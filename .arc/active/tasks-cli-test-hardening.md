@@ -252,32 +252,14 @@ and `src/handlers/status.ts` (`commands/status/run.ts` is a pure orchestrator wi
   that demonstrate directive syntax remain untouched; balanced nesting and literal token-value substitution stay
   covered.
 
-### `[ ]` **5.2 Filesystem edges & symlink cycle guard (product edge)**
+### `[x]` **5.2 Filesystem edges & symlink cycle guard (product edge)**
 
 - _Goal:_ `readUserDir` is hardened against symlink cycles and the filesystem-vanish edges are covered.
 
-- _Context:_ `readUserDir` (`src/lib/io-context.ts` ~L137-162) walks with `stat` (follows symlinks), no realpath,
-  no visited set, no depth cap — a symlink cycle recurses unbounded; its per-entry `stat` after `readdir` is also
-  an unguarded vanish-between-calls path. `runDiff` (`src/commands/diff.ts` ~L75-169) re-reads `currentPath`
-  between L122 and the `gitDiff` at ~L153 (a mostly-guarded TOCTOU window).
-
-- _Note:_ The product `readUserDir` is module-private (`src/lib/io-context.ts` ~L137), surfaced only as
-  `createUserIOContext().readDir` (~L198); a separate **exported** copy lives in `__tests__/helpers/integration.ts`
-  (~L473) and is what `makeUserIO` wires (~L508). Land the guard in the product function and drive the test through
-  `createUserIOContext().readDir` — a test through `makeUserIO` would exercise the helper copy and pass while the
-  shipped guard is broken. Reconcile the duplicate or explicitly target the product path; resolve which at
-  implementation.
-
-    Build `test-first` (one behavior at a time):
-
-    - `readUserDir` (via `createUserIOContext().readDir`) terminates cleanly on a symlink cycle inside `.arc/`
-      (realpath/visited-set guard)
-    - `readUserDir` tolerates an entry vanishing between `readdir` and `stat`
-    - `runDiff` reports a per-file error (non-fatal) when a file vanishes before the diff read
-
-    - _Note:_ The status filesystem-edge coverage targets the real fs loci — the probe implementations under
-      `src/lib/status/*` and `src/handlers/status.ts` — not the `commands/status/run.ts` orchestrator (no fs
-      calls). Confirm the exact probe surface at implementation.
+- _Outcome:_ The product `createUserIOContext().readDir` path now de-duplicates traversed realpaths to stop symlink
+  cycles and skips entries that vanish before `stat`; tests deliberately bypass the duplicate integration helper.
+  Diff preserves its non-fatal per-file error contract when the current file disappears, and the real status
+  filesystem sources now cover both guarded project-view reads and ready-mine metas vanishing after discovery.
 
 ### `[ ]` **5.3 Network edge & version-check timeout (product edge)**
 

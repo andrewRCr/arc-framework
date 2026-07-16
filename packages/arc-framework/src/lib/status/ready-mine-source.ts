@@ -69,8 +69,13 @@ function wuNameOf(metaPath: string): string {
 }
 
 /** Parse one planned meta into its render-relevant fields. */
-async function parsePlanned(metaPath: string): Promise<PlannedWorkUnit> {
-  const content = await readFile(metaPath, "utf8");
+async function parsePlanned(metaPath: string): Promise<PlannedWorkUnit | null> {
+  let content: string;
+  try {
+    content = await readFile(metaPath, "utf8");
+  } catch {
+    return null;
+  }
   // The view is advisory — one malformed meta must not crash the scan.
   let record;
   try {
@@ -101,7 +106,9 @@ export async function loadReadyMineSlice(
   const { cwd, identity } = options;
 
   const plannedFiles = await collectMetaFiles(join(cwd, ...PLANNED_SEGMENTS));
-  const planned = await Promise.all(plannedFiles.map(parsePlanned));
+  const planned = (await Promise.all(plannedFiles.map(parsePlanned))).filter(
+    (workUnit): workUnit is PlannedWorkUnit => workUnit !== null,
+  );
   const lifecycleIndex = await buildLifecycleIndex({
     cwd,
     fs: {
