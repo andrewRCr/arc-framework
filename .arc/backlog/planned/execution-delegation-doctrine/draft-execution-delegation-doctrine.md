@@ -16,6 +16,61 @@ members consume.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Extend the delegation doctrine with model-tier routing under parallelism**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
+  (2026-07-16); captured in the post-compaction model-routing discussion during FP wave 3. Companion pieces: the
+  inert-profile field-experiment errand (same date) and the housekeep-orchestrator capture below.
+- *Concern:* live wave-3 parallelism sharpened the doctrine's economics from attention to **token spend**: running
+  primary-tier models through judgment-drained impl loops is what makes parallel WUs expensive, and the draft's v1
+  capability (per-task propose, primary executes by default) doesn't capture the target operating posture — a
+  high-capability primary as orchestrator/verifier/discussant while worker models run the task-loop impl.
+- *Approach — five extensions to fold into the draft:* (1) **Default inversion as per-WU metadata, not project
+  config** — an impl-mode field on the WU meta (`Class`-like, `[TBD]` until resolved, stamped at planning
+  close/activation when judgment density is knowable; FP itself is the counterexample: observational verification
+  work is never worker-safe regardless of spec quality). Session-init surfaces it for free. (2) **Explicit-
+  activation invariant** — spawns happen only at declared workflow fire-points under an explicitly stamped mode;
+  no ambient "subagents allowed" state anywhere (no standing WORKING-MEMORY-style relaxations); a spawn-count
+  legibility line in completion reports. Same philosophy as interlocks: configurable, never implicit.
+  (3) **Taxonomy refinement** — `worker` becomes a role with an **open set of user-named conforming profiles**
+  (per-WU impl mode names the default; primary may propose per-task deviation) rather than one bucket that
+  flattens real tier choices; `peer`'s model resolution is inherit-by-semantics (no mapping needed — profile
+  optional, earning its keep only via fresh context, tool scoping, and role instructions), with the recorded
+  caveat that peer means parity with the *judgment tier*, which equals the primary only while the primary is the
+  judgment tier. (4) **Loadset slicing lands in the profile contract** — the worker profile's system prompt *is*
+  the worker-facing context contract (task body, spec slices, quality-gate commands, testing standards in; session
+  lifecycle, commit discipline, strategies, WORKING-MEMORY stay with the primary), and the slice must be
+  **derived/inherited from canonical ARC sources through the same deterministic generation pipeline as the harness
+  layer — never a hand-copied fork that drifts as ARC evolves**. Likely needs a worker-facing task-loop variant.
+  (5) **Planning-stage tiering** — draft-design and spec creation at top tier; generate-tasks plausibly mid-tier,
+  with the caution that its failures are *latent* (a subtly wrong decomposition surfaces mid-impl, expensively)
+  and spotting unsettled design is judgment-detection work — a step-down there likely wants a top-tier or peer
+  review pass. Also record a **sequencing re-cut note**: the 2026-07-02 sequencing (after
+  `interlock-release-refinement`, before `unit-scoped-review` planning) was cut on attention grounds; the
+  token-economics forcing function argues for re-weighing at the FP GA-closeout posture re-cut.
+
+### `[ ]` **Housekeep as dispatch orchestrator: worker-delegated errand execution**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured in the
+  post-compaction model-routing discussion during FP wave 3. Routed here as a named consumer of the worker role;
+  the companion errand-sweep-loop capture routed to `session-locus-model`'s inbound buffer the same drain.
+- *Concern:* the delegation doctrine's economics apply cleanly to the errand drain: the judgment-dense part of a
+  housekeep session is triage and fit decisions in the primary; a dispatched errand is *by definition* determined
+  and well-scoped/bounded — a near-perfect four-flow rubric pass. The draft does not currently carry this angle
+  (its only errand-adjacent line is the separate research-delegation pointer): high-reasoning primary runs the
+  drain triage, worker subagents execute dispatched errands.
+- *Constraint:* must respect FP Task 5.3's batch-errand shape decision (the recorded sequential-first leaning
+  governs whether dispatch is serial or parallel). Field evidence for this posture accrues in the harness-local
+  delegation log (`.claude/agents/delegation-log.md`, gitignored) from the 2026-07-16 field-experiment errand
+  onward.
+
+---
+
 ## Problem / Motivation
 
 **The per-leaf stop was always a proxy.** What ARC actually protects — traceable through P2, P11, and the

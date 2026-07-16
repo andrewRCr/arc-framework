@@ -53,6 +53,28 @@ Optimization WU.
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: handoff-optimization`), housekeep drain (2026-06-27);
   captured 2026-06-26, between-WUs reflection.
 
+### `[ ]` **Terminal-WU handoff mode, an explicit sync-only handoff tier, and boundary-marker output**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: handoff-optimization`), housekeep drain (2026-07-16);
+  captured during FP wave-3 terminal-state UX review after `cli-test-hardening` shipped — the base-fetch refusal
+  reproduced at that session's init. Distinct from `base-drift-guidance` (prompt quality, not terminal flow).
+- *Concern:* session entry grew a dispatch architecture (arms, explicit-intent signals, a typed orientation
+  block); session exit didn't. `cli-test-hardening`'s ship surfaced the gap live: the session ends in a stamped
+  detached husk with no owned closing ceremony — `session-handoff`'s between-WUs path is close in content
+  (WORKING-MEMORY review, route captures, sync, confirm, no SESSION-NOTES) but fails the shipped-WU case
+  concretely: its dispatch key assumes a branch (a husk is detached HEAD, so the state falls through undefined),
+  its sync runs where the session sits (a linked worktree/husk cannot freshen the primary's checked-out base —
+  `git fetch origin main:main` refuses), and it neither knows a WU just shipped (the dominant `_Remove when:_`
+  trigger event) nor emits a terminal marker. The closing summary the agent produced was improvised prose.
+- *Approach:* three extensions to the existing lightweight entry-mode-paths scope item: (1) a **terminal-WU
+  handoff mode** dispatched off the probe's `currentHusk` slot — typed boundary block, WORKING-MEMORY trigger
+  review, base/notes sync routed to the primary (or the base-sync verb named in `draft-session-locus-model.md`
+  § Boundaries), no SESSION-NOTES write, and a generic exit pointer ("fresh session at the primary; the husk
+  surfaces for teardown at its next init"); (2) an explicit **deterministic-housekeeping tier** — sync-only
+  handoff invocable as intent (mirroring session-init's signal flags) rather than per-mode judgment, for sessions
+  with nothing to write; (3) a **boundary-marker family** — typed terminal blocks for each exit locus (WU shipped,
+  errand closed, drain complete), symmetric with the session-init orientation marker.
+
 ---
 
 ## Problem / Motivation
