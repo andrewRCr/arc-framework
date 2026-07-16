@@ -92,6 +92,14 @@ async function writeShippedMeta(cloneA: string, name: string): Promise<void> {
   );
 }
 
+async function commitShippedMeta(h: MultiClone, name: string): Promise<void> {
+  await writeShippedMeta(h.cloneA, name);
+  const relativePath = `.arc/completed/2026-q2/01_${name}/meta-${name}.md`;
+  await git(h.cloneA, ["add", "-f", "--", relativePath]);
+  await git(h.cloneA, ["commit", "-m", `chore: archive ${name}`]);
+  await git(h.cloneA, ["push", "origin", "main"]);
+}
+
 /**
  * Build the post-merge state for `feat/<name>` in clone A: a pushed feature branch
  * merged into `main` by `strategy`, with the remote branch deleted (so clone A's
@@ -209,12 +217,12 @@ async function prepareSelfTeardownWorktree(
   options: { marked: boolean },
 ): Promise<string> {
   await shipFeature(h, "demo", "merge-commit");
+  await commitShippedMeta(h, "demo");
   await writeFile(
     join(h.cloneA, ".git", "info", "exclude"),
     ".arc/completed/\n.arc/system/.internal/worktree-marker.json\n",
     { flag: "a" },
   );
-  await writeShippedMeta(h.cloneA, "demo");
   const wtPath = join(wtParent, "wt");
   await git(h.cloneA, ["worktree", "add", wtPath, "feat/demo"]);
   await writeShippedMeta(wtPath, "demo");

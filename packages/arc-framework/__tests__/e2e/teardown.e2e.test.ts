@@ -27,6 +27,12 @@ async function prepareSelfTeardown(
   await git(repo, ["commit", "-m", "feat: demo"]);
   await git(repo, ["checkout", "main"]);
   await git(repo, ["merge", "--no-ff", "feat/demo", "-m", "merge: demo"]);
+  const completedRelative = ".arc/completed/2026-q3/01_demo/meta-demo.md";
+  const completed = join(repo, ".arc", "completed", "2026-q3", "01_demo");
+  await mkdir(completed, { recursive: true });
+  await writeFile(join(completed, "meta-demo.md"), "# Metadata: demo\n\n- **State:** Shipped\n");
+  await git(repo, ["add", "-f", "--", completedRelative]);
+  await git(repo, ["commit", "-m", "chore: archive demo"]);
   await writeFile(
     join(repo, ".git", "info", "exclude"),
     ".arc/completed/\n.arc/system/.internal/worktree-marker.json\n",
@@ -35,11 +41,9 @@ async function prepareSelfTeardown(
 
   const worktree = join(worktreeParent, "wt");
   await git(repo, ["worktree", "add", worktree, "feat/demo"]);
-  for (const root of [repo, worktree]) {
-    const completed = join(root, ".arc", "completed", "2026-q3", "01_demo");
-    await mkdir(completed, { recursive: true });
-    await writeFile(join(completed, "meta-demo.md"), "# Metadata: demo\n\n- **State:** Shipped\n");
-  }
+  const worktreeCompleted = join(worktree, ".arc", "completed", "2026-q3", "01_demo");
+  await mkdir(worktreeCompleted, { recursive: true });
+  await writeFile(join(worktreeCompleted, "meta-demo.md"), "# Metadata: demo\n\n- **State:** Shipped\n");
   if (options.marked) {
     const markerDir = join(worktree, ".arc", "system", ".internal");
     await mkdir(markerDir, { recursive: true });
