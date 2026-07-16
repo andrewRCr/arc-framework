@@ -730,7 +730,14 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
 - _Goal:_ Each wave-3 cell's predicted failure is induced and observed (errands-ref same-slug collision,
   same/different-entry `USER-INBOX` removal reconciliation, the compaction-seed shared-checkout race).
 
-    - `[ ]` **5.2.a Errands-ref same-slug collision surfacing**
+    - `[x]` **5.2.a Errands-ref same-slug collision surfacing**
+        - Induced in an isolated two-clone rig (local bare origin, synthetic identity, real CLI verbs): distinct
+          slugs union cleanly; a same-slug divergence surfaces loud at the loser's push with the local ref intact
+          and remote unchanged — matrix prediction holds. Recovery verified: `arc errand close --force` on the
+          losing side, the next push re-unions the survivor and releases wedged records.
+        - Surfacing seams (false "reconciles on next sync" promise, colliding slugs never named, fresh-machine
+          no-trace, whole-ref wedge) routed to Task 7.4; full evidence in `notes-finalize-parallelism.md`
+          § Wave-3 induction evidence.
 
     - `[ ]` **5.2.b `USER-INBOX` removal reconciliation**
         - Induce same-entry and different-entry removal races from the live errand/drain shape; confirm whether
@@ -844,6 +851,18 @@ the waves run rather than authored up front.
   (2026-07-15).
 - _Surfaced by:_ wave-3 launch session, 2026-07-15 — see `notes-finalize-parallelism.md` § Wave-3 launch
   evidence.
+
+### `[ ]` **7.4 Make errand-ref collision surfacing honest and traceable**
+
+- _Goal:_ A same-slug errand-record collision names the colliding slug(s), states the real recovery (close the
+  losing record — `arc errand close --force <slug>` on the discarded side) instead of promising an `arc sync`
+  self-reconcile that cannot happen, and leaves a durable trace on machines without a sync-state record (mint
+  the record, or stop discarding the marker writer's `false` return). Matters because one collision wedges the
+  whole per-identity ref — every subsequent record publish blocks behind it with no pointer to the blocker.
+- _Files:_ `handlers/errand.ts` (five conflict arms), `handlers/sync.ts` (`errandPartialPushDetail`),
+  `lib/user-sync/sync-state.ts` (`recordErrandPartialPushMarker` no-record arm).
+- _Surfaced by:_ wave-3 cell 5.2.a induction, 2026-07-16 — see `notes-finalize-parallelism.md` § Wave-3
+  induction evidence.
 
 ## **Phase 8:** GA closeout
 

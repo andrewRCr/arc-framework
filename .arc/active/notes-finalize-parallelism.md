@@ -846,6 +846,41 @@ terminal-WU handoff mode + sync-only handoff tier + boundary-marker family captu
 the adjacent errand sweep-loop gap (run-errand close has no next-offer; `--errand` vs `--housekeep` doorway
 legibility) captured `WU_Target: TBD`, integration explicitly held for 5.3's batch-shape decision.
 
+## Wave-3 induction evidence
+
+### Cell 5.2.a — errands-ref same-slug collision (2026-07-16) — CONFIRMED HOLDING + surfacing seams
+
+Induced in an isolated two-clone rig (local bare origin, synthetic identity `bi-probe`, the real CLI verbs
+driving `refs/arc/user/{id}/errands` end-to-end), so no live identity refs were touched:
+
+- **Union leg:** distinct slugs opened on two machines union cleanly through the non-fast-forward reconcile
+  (fetch → per-slug tree merge → commit onto both tips → retry push); the reconcile is transparent at the verb.
+- **Collision leg (the cell):** the same slug opened on both machines (records always diverge — `createdAt` /
+  `intent` bytes) surfaces **loud** at the loser's push: `conflict` outcome, local ref intact, remote unchanged,
+  the open itself completing non-fatally with the record safe locally. Matrix prediction **holds**.
+- **Recovery (playbook):** `arc errand close --force <slug>` on the losing machine removes its record; the
+  close's own push then reconciles — the survivor unions back into the local ref and every wedged record
+  publishes. No ref surgery needed; verified live (`probe-y` released, survivor record converged on both sides).
+
+Surfacing seams routed to Phase 7 (Task 7.4):
+
+1. **False self-heal promise:** every errand verb renders the conflict as "Record push deferred (conflict); it
+   reconciles on the next `arc sync`" — untrue for a same-slug collision, which never self-reconciles and needs
+   the recovery above (`handlers/errand.ts`, five conflict arms).
+2. **Colliding slugs never named:** the `conflict` outcome carries `slugs[]` but both consumers drop it
+   (`handlers/errand.ts`; `handlers/sync.ts` collapses to the bare detail string `conflict`), so the operator is
+   never told which slug collides — costly because a single collision **wedges the whole per-identity ref**:
+   every subsequent record publish is blocked behind it (verified: an unrelated open stayed unpublished until
+   recovery).
+3. **Fresh-machine no-trace:** `recordErrandPartialPushMarker` returns `false` when no sync-state record exists
+   (the fresh-clone / materialize case) and the verb call sites discard the boolean; session-init then surfaces
+   nothing — collision visibility degrades to one transient warn line.
+
+Recorded, not routed: sibling-machine records whose branches aren't pushed yet render in session-init as
+"names missing branch `chore/<slug>`; cleanup may be required" — misleading for a live cross-machine errand in
+the window between record sync and first branch push. Wave 4's cross-machine cells re-observe this surface
+naturally; disposition it there.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
