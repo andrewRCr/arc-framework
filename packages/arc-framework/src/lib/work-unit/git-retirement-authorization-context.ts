@@ -91,13 +91,14 @@ export function createGitRetirementAuthorizationContext(
       const [baseProofOid, landed, resultDigest] = await Promise.all([
         resolveCommit(exec, baseRef),
         isLandedInBase(exec, request.branch, baseRef),
-        readCompletedProjectionDigest(exec, baseRef, request),
+        readCompletedProjectionDigest(exec, baseRef, request.subject, readBlob),
       ]);
+      if (resultDigest === null) return null;
       return {
         evidence: {
           kind: "shipped",
           expectedLifecycle: "completed",
-          resultDigest: resultDigest ?? canonicalDigest({ subject: request.subject, preservedIn: baseProofOid }),
+          resultDigest,
           baseProofOid,
         },
         remoteDisposition: landed ? "delete" : "retain",
@@ -537,16 +538,18 @@ async function readLifecycleIndex(exec: GitExec, ref: string): Promise<Lifecycle
   return buildLifecycleIndexFromMetas(metas);
 }
 
-async function readCompletedProjectionDigest(
+/** Read the exact committed completed-artifact-group digest for one subject. */
+export async function readCompletedProjectionDigest(
   exec: GitExec,
   baseRef: string,
-  request: TeardownAuthorizationRequest,
+  subject: WorktreeSubject,
+  readBlob?: RetirementAuthorizationBlobReader,
 ): Promise<CanonicalDigest | null> {
-  if (request.subject.kind !== "work-unit") return canonicalDigest({ subject: request.subject });
+  if (subject.kind !== "work-unit") return canonicalDigest({ subject });
   const index = await readLifecycleIndex(exec, baseRef);
-  const entry = index.get(request.subject.name);
+  const entry = index.get(subject.name);
   if (entry === undefined || entry.location !== "completed") return null;
-  const artifacts = await readArtifactGroup(exec, baseRef, posix.dirname(entry.path), request.subject.name);
+  const artifacts = await readArtifactGroup(exec, baseRef, posix.dirname(entry.path), subject.name, readBlob);
   return artifacts.length === 0 ? null : artifactGroupDigest(toArtifactEntries(artifacts));
 }
 

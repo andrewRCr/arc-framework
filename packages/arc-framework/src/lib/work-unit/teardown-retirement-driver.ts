@@ -5,12 +5,11 @@ import type { GitExec } from "../git/exec.js";
 import type {
   DecodedWorktreeHuskStamp,
   WorktreeHuskStamp,
-  WorktreeSubject,
 } from "../git/worktree-marker.js";
-import { canonicalDigest } from "../canonical/canonical-json.js";
 import type { ManagedPath } from "../canonical/managed-path.js";
 import {
   createGitRetirementAuthorizationContext,
+  readCompletedProjectionDigest,
   validateGitRetirementReceiptEvidence,
 } from "./git-retirement-authorization-context.js";
 import {
@@ -48,13 +47,20 @@ export async function revalidateHuskRetirementEvidence(
 ): Promise<boolean> {
   const { evidence } = proof;
   if (evidence.kind === "shipped") {
+    let preserved: boolean;
     try {
       await exec("git", ["merge-base", "--is-ancestor", evidence.baseProofOid, baseRef]);
-      const currentDigest = await readCompletedProjectionDigest(exec, baseRef, stamp.subject);
-      return currentDigest === null || currentDigest === evidence.resultDigest;
+      preserved = true;
     } catch {
       const safety = await assessReapSafety(exec, { branch: stamp.branch, base: baseRef });
-      return safety.safe;
+      preserved = safety.safe;
+    }
+    if (!preserved) return false;
+    try {
+      const currentDigest = await readCompletedProjectionDigest(exec, baseRef, stamp.subject, readBlob);
+      return currentDigest !== null && currentDigest === evidence.resultDigest;
+    } catch {
+      return false;
     }
   }
   return await validateGitRetirementReceiptEvidence(exec, baseRef, {
@@ -87,21 +93,4 @@ export async function revalidateDecodedHuskRetirementEvidence(
     baseRef,
     readBlob,
   );
-}
-
-async function readCompletedProjectionDigest(
-  exec: GitExec,
-  baseRef: string,
-  subject: WorktreeSubject,
-): Promise<ReturnType<typeof canonicalDigest> | null> {
-  if (subject.kind !== "work-unit") return canonicalDigest({ subject });
-  const { stdout } = await exec("git", [
-    "ls-tree", "--full-tree", "-r", "--name-only", baseRef, "--", ".arc/completed",
-  ]);
-  const suffix = `/meta-${subject.name}.md`;
-  const metaPath = stdout.split("\n").find((path) => path.endsWith(suffix));
-  if (metaPath === undefined) return null;
-  const directory = metaPath.slice(0, -suffix.length);
-  const { stdout: treeOid } = await exec("git", ["rev-parse", `${baseRef}:${directory}`]);
-  return canonicalDigest({ treeOid: treeOid.trim() });
 }

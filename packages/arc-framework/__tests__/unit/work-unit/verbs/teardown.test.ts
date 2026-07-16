@@ -14,6 +14,9 @@ import {
   runTeardown,
   type TeardownContext,
 } from "../../../../src/lib/work-unit/verbs/teardown.js";
+import { contentDigest } from "../../../../src/lib/canonical/content-digest.js";
+import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
+import { artifactGroupDigest } from "../../../../src/lib/canonical/receipt-id.js";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
@@ -30,6 +33,28 @@ interface MetaSpec {
   subdir?: string;
   /** Optional exact branch declaration (defaults to `[none]`). */
   branch?: string;
+}
+
+function metaFixturePath(meta: MetaSpec): string {
+  const root = meta.subdir === undefined
+    ? `.arc/${meta.tier}`
+    : `.arc/${meta.tier}/${meta.subdir}`;
+  return `${root}/meta-${meta.slug}.md`;
+}
+
+function metaFixtureContent(meta: MetaSpec): string {
+  return `# Metadata: ${meta.slug}\n\n`
+    + `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n`
+    + `|-----------|-----------|------------|-----------|--------------|\n`
+    + `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "[none]"}\` | \`Novel\` | \`P1\` |\n\n---\n`;
+}
+
+function metaFixtureDigest(meta: MetaSpec): `sha256:${string}` {
+  return artifactGroupDigest([{
+    path: validateManagedPath(metaFixturePath(meta)),
+    state: "present",
+    contentDigest: contentDigest(new TextEncoder().encode(metaFixtureContent(meta))),
+  }]);
 }
 
 /** Build an injectable index fs over a fixed set of metas (absolute-path keyed). */
@@ -65,13 +90,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
       }
     }
     ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
-    files.set(
-      `${dirAbs}/${filename}`,
-      `# Metadata: ${meta.slug}\n\n` +
-        `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
-        `|-----------|-----------|------------|-----------|--------------|\n` +
-        `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "[none]"}\` | \`Novel\` | \`P1\` |\n\n---\n`,
-    );
+    files.set(`${dirAbs}/${filename}`, metaFixtureContent(meta));
   }
 
   return {
@@ -92,6 +111,7 @@ const SHIPPED_META: MetaSpec = { slug: "demo", tier: "completed", state: "Shippe
 const ACTIVE_META: MetaSpec = { slug: "demo", tier: "active", state: "Active" };
 /** A parked origin — `Active` phase, `backlog/planned/` location (the `park@Planning` shelf). */
 const PARKED_META: MetaSpec = { slug: "demo", tier: "backlog", state: "Active", subdir: "planned/demo" };
+const SHIPPED_RESULT_DIGEST = metaFixtureDigest(SHIPPED_META);
 
 /** A configurable git exec spy. Routes by command; records calls. */
 interface ExecOptions {
@@ -111,10 +131,11 @@ interface ExecOptions {
   revListOutput?: string;
 }
 
-function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] } {
+function buildExec(opts: ExecOptions = {}, metas: readonly MetaSpec[] = []): { exec: GitExec; calls: string[][] } {
   const calls: string[][] = [];
   const branches = opts.branches ?? [];
   const deletedBranches = new Set<string>();
+  const committedFiles = new Map(metas.map((meta) => [metaFixturePath(meta), metaFixtureContent(meta)]));
   const exec: GitExec = async (cmd, args) => {
     calls.push([cmd, ...args]);
     const sub = args[0];
@@ -123,6 +144,15 @@ function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] }
     if (sub === "rev-parse") return { stdout: "deadbeef\n" };
     if (sub === "rev-list") return { stdout: opts.revListOutput ?? "" }; // empty → contained
     if (sub === "cherry") return { stdout: opts.cherryOutput ?? "" }; // default: landed in base
+    if (sub === "ls-tree") return { stdout: [...committedFiles.keys()].join("\0") + "\0" };
+    if (sub === "show") {
+      const path = args[1]?.split(":", 2)[1];
+      if (path !== undefined) {
+        const content = committedFiles.get(path);
+        if (content !== undefined) return { stdout: content };
+      }
+      throw new Error("not found");
+    }
     if (sub === "branch" && args[1] === "-D") {
       if (opts.branchDeleteThrows) throw new Error("git branch -D failed");
       const deleted = args[2];
@@ -152,7 +182,8 @@ function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] }
 }
 
 function buildCtx(metas: MetaSpec[], execOpts?: ExecOptions): { ctx: TeardownContext; calls: string[][] } {
-  const { exec, calls } = buildExec(execOpts);
+  const { exec, calls } = buildExec(execOpts, metas);
+  const committedFiles = new Map(metas.map((meta) => [metaFixturePath(meta), metaFixtureContent(meta)]));
   const authority: Pick<RetirementAuthorityPort, "authorize" | "revalidate"> = {
     authorize: async (request) => ({
       status: "authorized",
@@ -177,7 +208,17 @@ function buildCtx(metas: MetaSpec[], execOpts?: ExecOptions): { ctx: TeardownCon
     revalidate: async () => ({ status: "valid" }),
   };
   return {
-    ctx: { cwd: CWD, exec, indexFs: buildIndexFs(metas), chdir: () => {}, authority },
+    ctx: {
+      cwd: CWD,
+      exec,
+      indexFs: buildIndexFs(metas),
+      chdir: () => {},
+      authority,
+      readBlob: async (_ref, path) => {
+        const content = committedFiles.get(path);
+        return content === undefined ? null : new TextEncoder().encode(content);
+      },
+    },
     calls,
   };
 }
@@ -225,6 +266,7 @@ function markerWithHusk(pathBranch = "feat/demo"): WorktreeMarker {
 
 function markerWithCurrentHusk(
   remoteRef: Exclude<NonNullable<WorktreeMarker["husk"]>["remoteRef"], undefined>,
+  resultDigest: `sha256:${string}` = SHIPPED_RESULT_DIGEST,
 ): WorktreeMarker {
   return {
     ...markerWithHusk(),
@@ -235,7 +277,7 @@ function markerWithCurrentHusk(
       evidence: {
         kind: "shipped",
         expectedLifecycle: "completed",
-        resultDigest: `sha256:${"0".repeat(64)}`,
+        resultDigest,
         baseProofOid: "abc",
       },
     },
@@ -656,7 +698,10 @@ describe("runTeardown — detached husk replay", () => {
       branches: ["feat/demo"],
       worktreePorcelain: porcelain,
     });
-    ctx.readMarker = async () => ({ kind: "present", marker: markerWithCurrentHusk(null) });
+    ctx.readMarker = async () => ({
+      kind: "present",
+      marker: markerWithCurrentHusk(null, metaFixtureDigest(restartedMeta)),
+    });
 
     const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
