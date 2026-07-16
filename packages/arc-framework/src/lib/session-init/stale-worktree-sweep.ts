@@ -151,7 +151,11 @@ export async function runStaleWorktreeSweep(
   const userSurfaceFs = options.userSurfaceFs ?? nodeUserSurfaceMigrationFs;
   const integrationTarget = `origin/${baseBranch}`;
 
-  if (worktreeIdentity.kind === "linked" && (options.identity === null || options.identity === undefined)) {
+  if (
+    worktreeIdentity.kind === "linked"
+    && options.teamMode === true
+    && (options.identity === null || options.identity === undefined)
+  ) {
     return { worktrees: [], warnings: roster.warnings };
   }
 

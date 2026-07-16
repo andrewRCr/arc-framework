@@ -461,7 +461,7 @@ export async function runSessionInitStatus(
     worktreeIdentity.kind === "primary";
   const roster = await gatedSlot(rosterGated, () => probes.roster());
   const cleanupRoster = await gatedSlot(
-    worktreeIdentity.kind === "linked" && identity !== null,
+    worktreeIdentity.kind === "linked",
     () => (probes.cleanupRoster ?? probes.roster)(),
   );
 

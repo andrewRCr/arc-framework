@@ -472,6 +472,7 @@ describe("runStaleWorktreeSweep", () => {
       roster: { entries: [], warnings: [] },
       worktreeIdentity: { kind: "linked", path: "/wt/current" },
       identity: null,
+      teamMode: true,
       baseBranch: "main",
       exec: buildExec({ clean: true, merged: false }),
       scanWorktrees,
@@ -479,5 +480,30 @@ describe("runStaleWorktreeSweep", () => {
 
     expect(result.worktrees).toEqual([]);
     expect(scanWorktrees).not.toHaveBeenCalled();
+  });
+
+  it("scans eligible linked worktree residues without an identity in solo mode", async () => {
+    const scanWorktrees = vi.fn(async () => ({
+      ok: true as const,
+      worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+    }));
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      identity: null,
+      teamMode: false,
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: false }),
+      readMarker: async () => stampedMarker({ kind: "work-unit", name: "work-organization-reform" }),
+      scanWorktrees,
+    });
+
+    expect(scanWorktrees).toHaveBeenCalledTimes(1);
+    expect(result.worktrees).toHaveLength(1);
+    expect(result.worktrees[0]).toMatchObject({
+      kind: "husk",
+      worktreePath: "/wt/sibling",
+      subject: { kind: "work-unit", name: "work-organization-reform" },
+    });
   });
 });

@@ -2126,7 +2126,7 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
     expect(result.sweep?.ok).toBe(true);
   });
 
-  it("does not widen linked cleanup when developer identity is unresolved", async () => {
+  it("retains private linked cleanup when developer identity is unresolved", async () => {
     const probes = sessionInitProbes({
       worktree: vi.fn(async () => primaryClean.worktree()),
       active: vi.fn(async () => primaryClean.active()),
@@ -2134,11 +2134,11 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
         worktreeIdentity({ kind: "linked", path: "/wt/x" })),
     });
     const result = await runSessionInitStatus({ identity: null, role: "maintainer", probes });
-    expect(probes.cleanupRoster).not.toHaveBeenCalled();
-    expect(probes.sweep).not.toHaveBeenCalled();
+    expect(probes.cleanupRoster).toHaveBeenCalledTimes(1);
+    expect(probes.sweep).toHaveBeenCalledTimes(1);
     expect(probes.orphanBranchSweep).not.toHaveBeenCalled();
     expect("roster" in result).toBe(false);
-    expect("sweep" in result).toBe(false);
+    expect(result.sweep?.ok).toBe(true);
     expect("orphanBranchSweep" in result).toBe(false);
   });
 
