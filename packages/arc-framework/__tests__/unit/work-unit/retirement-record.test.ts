@@ -146,6 +146,64 @@ describe("recordRetirementReceipt", () => {
     expect(ctx.rollbackPaths).toHaveBeenCalled();
   });
 
+  it.each(["authority", "patch", "staged paths"] as const)(
+    "cleans up when the final %s read fails after staging",
+    async (probe) => {
+      const ctx = context();
+      if (probe === "authority") {
+        vi.mocked(ctx.readAuthorityVersion)
+          .mockResolvedValueOnce(initialVersion)
+          .mockRejectedValueOnce(new Error("final authority read failed"));
+      } else if (probe === "patch") {
+        vi.mocked(ctx.readTransitionPatch)
+          .mockResolvedValueOnce(operations)
+          .mockRejectedValueOnce(new Error("final patch read failed"));
+      } else {
+        vi.mocked(ctx.readStagedPaths)
+          .mockResolvedValueOnce([])
+          .mockRejectedValueOnce(new Error("final staged-path read failed"));
+      }
+      const candidate = receipt();
+
+      await expect(recordRetirementReceipt(ctx, candidate, initialVersion)).resolves.toEqual({
+        status: "refused",
+        reason: "authority-unavailable",
+      });
+      expect(ctx.rollbackPaths).toHaveBeenCalled();
+      expect(ctx.removeRecord).toHaveBeenCalledExactlyOnceWith(candidate.receiptId);
+      expect(ctx.staged).toEqual([]);
+    },
+  );
+
+  it("cleans up when deriving the recorded authority version fails", async () => {
+    const ctx = context();
+    vi.mocked(ctx.readRecordedAuthorityVersion).mockRejectedValue(new Error("recorded version read failed"));
+    const candidate = receipt();
+
+    await expect(recordRetirementReceipt(ctx, candidate, initialVersion)).resolves.toEqual({
+      status: "refused",
+      reason: "authority-unavailable",
+    });
+    expect(ctx.rollbackPaths).toHaveBeenCalled();
+    expect(ctx.removeRecord).toHaveBeenCalledExactlyOnceWith(candidate.receiptId);
+    expect(ctx.staged).toEqual([]);
+  });
+
+  it("surfaces incomplete cleanup after a post-create failure", async () => {
+    const ctx = context();
+    vi.mocked(ctx.readRecordedAuthorityVersion).mockRejectedValue(new Error("recorded version read failed"));
+    vi.mocked(ctx.rollbackPaths).mockRejectedValue(new Error("index rollback failed hard"));
+    vi.mocked(ctx.removeRecord).mockRejectedValue(new Error("record removal failed hard"));
+
+    await expect(recordRetirementReceipt(ctx, receipt(), initialVersion)).resolves.toEqual({
+      status: "refused",
+      reason: "authority-unavailable",
+      diagnostic:
+        "retirement record operation failed: recorded version read failed. Rollback was incomplete: "
+        + "index rollback failed: index rollback failed hard; record removal failed: record removal failed hard.",
+    });
+  });
+
   it("rolls back when authority drifts after staging but before the transaction commits", async () => {
     const ctx = context();
     vi.mocked(ctx.stagePaths).mockImplementation(async (paths) => {

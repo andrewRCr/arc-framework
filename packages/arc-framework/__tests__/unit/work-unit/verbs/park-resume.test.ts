@@ -364,11 +364,18 @@ describe("runPark — park@Planning", () => {
   it("rolls back the relocation and leaves workspace cleanup deferred when recording refuses", async () => {
     const { ctx, calls } = buildCtx([PLANNING]);
     if (ctx.planningRetirement === undefined) throw new Error("missing planning retirement context");
-    ctx.planningRetirement.authority.record = async () => ({ status: "refused", reason: "authority-conflict" });
+    ctx.planningRetirement.authority.record = async () => ({
+      status: "refused",
+      reason: "authority-conflict",
+      diagnostic: "Receipt cleanup was incomplete: index rollback failed.",
+    });
 
     const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
 
-    expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/rolled back/i) });
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(/rolled back.*Receipt cleanup was incomplete: index rollback failed\./iu),
+    });
     expect(calls).toContain("retirement:rollback-transition");
     expect(calls).not.toContain("side:user-workspace");
   });

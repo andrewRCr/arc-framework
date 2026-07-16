@@ -409,6 +409,7 @@ async function parkPlanning(
       reason:
         "The park transition was rolled back because its retirement receipt could not be recorded: "
         + `${describeTeardownAuthorizationRefusal(recorded.reason)}.`
+        + (recorded.diagnostic === undefined ? "" : ` ${recorded.diagnostic}`)
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }

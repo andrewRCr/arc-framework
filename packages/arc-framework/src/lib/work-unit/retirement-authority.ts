@@ -191,7 +191,7 @@ export interface RetirementAuthorityPort {
 
   record(receipt: RetirementReceipt, expectedAuthorityVersion: string): Promise<
     | { status: "recorded"; authorityVersion: string }
-    | { status: "refused"; reason: TeardownAuthorizationRefusal }
+    | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string }
   >;
 
   prepareDecompose(

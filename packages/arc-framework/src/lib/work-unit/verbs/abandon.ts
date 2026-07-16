@@ -285,6 +285,7 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
       reason:
         "The abandon transition was rolled back because its retirement receipt could not be recorded: "
         + `${describeTeardownAuthorizationRefusal(recorded.reason)}.`
+        + (recorded.diagnostic === undefined ? "" : ` ${recorded.diagnostic}`)
         + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
     };
   }

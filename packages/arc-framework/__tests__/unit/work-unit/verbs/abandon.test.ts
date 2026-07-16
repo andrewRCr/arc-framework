@@ -263,11 +263,18 @@ describe("runAbandon — started WU (active)", () => {
 
   it("rolls back the transition and leaves destructive cleanup deferred when recording refuses", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
-    ctx.retirement.authority.record = async () => ({ status: "refused", reason: "authority-conflict" });
+    ctx.retirement.authority.record = async () => ({
+      status: "refused",
+      reason: "authority-conflict",
+      diagnostic: "Receipt cleanup was incomplete: record removal failed.",
+    });
 
     const result = await runAbandon(ctx, BASE);
 
-    expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/rolled back/i) });
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(/rolled back.*Receipt cleanup was incomplete: record removal failed\./iu),
+    });
     expect(calls).toContain("retirement:rollback-transition");
     expect(calls).not.toContain("side:user-workspace");
     expect(calls.some((call) => call.startsWith("branch:"))).toBe(false);

@@ -33,7 +33,7 @@ export interface RetirementRecordContext {
 /** Outcome of a version-checked direct receipt write. */
 export type RetirementRecordResult =
   | { status: "recorded"; authorityVersion: string }
-  | { status: "refused"; reason: TeardownAuthorizationRefusal };
+  | { status: "refused"; reason: TeardownAuthorizationRefusal; diagnostic?: string };
 
 /**
  * Write and stage one direct-transition receipt against an exact version.
@@ -83,34 +83,63 @@ export async function recordRetirementReceipt(
       }
       try {
         await ctx.stagePaths(pathsToStage);
-      } catch {
-        await ctx.removeRecord(receipt.receiptId).catch(() => {});
-        await ctx.rollbackPaths(pathsToStage).catch(() => {});
-        return { status: "refused", reason: "authority-unavailable" };
-      }
+        const finalAuthorityVersion = await ctx.readAuthorityVersion(receipt);
+        const finalPatch = await ctx.readTransitionPatch(receipt);
+        const finalStagedPaths = await ctx.readStagedPaths();
+        if (
+          finalAuthorityVersion !== expectedAuthorityVersion
+          || patchDigest(finalPatch) !== receipt.transitionPatchDigest
+          || finalStagedPaths.length !== pathsToStage.length
+          || finalStagedPaths.some((path) => !pathsToStage.includes(path))
+        ) {
+          return await refuseAfterCleanup(ctx, receipt, pathsToStage, "authority-conflict");
+        }
 
-      const finalAuthorityVersion = await ctx.readAuthorityVersion(receipt);
-      const finalPatch = await ctx.readTransitionPatch(receipt);
-      const finalStagedPaths = await ctx.readStagedPaths();
-      if (
-        finalAuthorityVersion !== expectedAuthorityVersion
-        || patchDigest(finalPatch) !== receipt.transitionPatchDigest
-        || finalStagedPaths.length !== pathsToStage.length
-        || finalStagedPaths.some((path) => !pathsToStage.includes(path))
-      ) {
-        await ctx.rollbackPaths(pathsToStage).catch(() => {});
-        await ctx.removeRecord(receipt.receiptId).catch(() => {});
-        return { status: "refused", reason: "authority-conflict" };
+        return {
+          status: "recorded",
+          authorityVersion: await ctx.readRecordedAuthorityVersion(receipt),
+        };
+      } catch (error) {
+        return await refuseAfterCleanup(ctx, receipt, pathsToStage, "authority-unavailable", error);
       }
-
-      return {
-        status: "recorded",
-        authorityVersion: await ctx.readRecordedAuthorityVersion(receipt),
-      };
     });
   } catch {
     return { status: "refused", reason: "authority-unavailable" };
   }
+}
+
+async function refuseAfterCleanup(
+  ctx: RetirementRecordContext,
+  receipt: RetirementReceipt,
+  pathsToStage: readonly string[],
+  reason: TeardownAuthorizationRefusal,
+  operationError?: unknown,
+): Promise<Extract<RetirementRecordResult, { status: "refused" }>> {
+  const cleanupFailures: string[] = [];
+  try {
+    await ctx.rollbackPaths(pathsToStage);
+  } catch (error) {
+    cleanupFailures.push(`index rollback failed: ${errorMessage(error)}`);
+  }
+  try {
+    await ctx.removeRecord(receipt.receiptId);
+  } catch (error) {
+    cleanupFailures.push(`record removal failed: ${errorMessage(error)}`);
+  }
+  if (cleanupFailures.length === 0) return { status: "refused", reason };
+
+  const operationDetail = operationError === undefined
+    ? "retirement record verification was refused"
+    : `retirement record operation failed: ${errorMessage(operationError)}`;
+  return {
+    status: "refused",
+    reason: "authority-unavailable",
+    diagnostic: `${operationDetail}. Rollback was incomplete: ${cleanupFailures.join("; ")}.`,
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function isNodeError(err: unknown): err is NodeJS.ErrnoException {
