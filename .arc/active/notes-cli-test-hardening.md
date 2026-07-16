@@ -17,6 +17,13 @@ points, and recorded rejections backing `spec-cli-test-hardening.md`.
   and `e2e/{user,session-init,sync-purity}.e2e.test.ts`, with `Save failed` / `Worktree push skipped` /
   `Notes push skipped` stderr signatures. Evidence caveat and re-reproduction requirement are recorded in the
   spec (Decision 5); `npm test` has been one combined `vitest run` since `8b82d0d9d` (2026-06-17).
+    - **Re-reproduction verdict (2026-07-15, post-Phase-1): does not reproduce.** Four combined `vitest run`
+      invocations — one full suite plus three runs of the six span files together — produced zero occurrences
+      of the three stderr signatures and zero failures in any span file. The retry-safe removal + gc-disable
+      baseline from Phase 1 closed the teardown/background-gc mechanism; the affected temp dirs were already
+      unique per-test, so no within-test concurrency remained to isolate and the bounded-serialization fallback
+      was not needed. (The only combined-run reds are the flake-(e) `validate-config` fork-pool timeouts, owned
+      by Phase 3.)
 
 ## Compaction fixture de-cost (Decision 2) — pre-implementation finding (2026-07-15)
 

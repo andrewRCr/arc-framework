@@ -127,17 +127,17 @@ construction where it preserves the retention assertion. See `notes-cli-test-har
   condition under test), and the cost is the clone/push/pull/load sequence, not the commits — so a budget bump
   is the robust headroom fix. Isolated ~3.3s; the ~5478ms contended peak now clears with wide margin.
 
-### `[ ]` **2.3 Re-reproduce and close the save/sync races (flake d)**
+### `[x]` **2.3 Re-reproduce and close the save/sync races (flake d)**
 
 - _Goal:_ The recorded save/sync contention no longer reproduces under the current sanctioned invocation.
 
-- _Context:_ Re-run the 12-failure reproduction under the _current_ combined `vitest run` (one run since
-  `8b82d0d9d`; the historical contrast is stale). The affected temp dirs are already unique
-  per-test, so the race is teardown/background-gc — largely resolved by Phase 1. Confirm the residual, isolate any
-  remaining within-test concurrency by construction, and serialize only where isolation is disproportionate
-  (recorded as a bounded fallback). Files span `integration/{user,multi-clone,status}.test.ts` and
-  `e2e/{user,session-init,sync-purity}.e2e.test.ts`.
-- **Additional Context:** `notes-cli-test-hardening.md` § Flake forensics (d) — the repro span and evidence caveat.
+- _Outcome:_ Does not reproduce post-Phase-1. Ran the current combined `vitest run` four times — one full
+  suite plus three runs of the six span files together — with zero occurrences of the recorded stderr
+  signatures (`Save failed` / `Worktree push skipped` / `Notes push skipped`) and zero failures in any span
+  file. Phase 1's retry-safe removal + gc-disable baseline closed the teardown/background-gc mechanism; temp
+  dirs were already unique per-test, so no within-test concurrency remained to isolate and the
+  bounded-serialization fallback was unneeded. No code change. Re-reproduction detail recorded in
+  `notes-cli-test-hardening.md` § Flake forensics (d). (Combined-run reds are flake (e), owned by Phase 3.)
 
 ---
 
