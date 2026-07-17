@@ -120,6 +120,14 @@ function isReferenceDefinition(line: string): boolean {
   return /^ {0,3}\[[^\]\r\n]+\]:[ \t]*(?:<[^>\r\n]*>|\S+)/u.test(line);
 }
 
+function allowsReferenceTitleContinuation(line: string): boolean {
+  return /^ {0,3}\[[^\]\r\n]+\]:[ \t]*(?:<[^>\r\n]*>|\S+)[ \t]*$/u.test(line);
+}
+
+function isReferenceTitleContinuation(line: string): boolean {
+  return /^ {0,3}(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\((?:[^)\\]|\\.)*\))[ \t]*$/u.test(line);
+}
+
 interface HtmlBlock {
   closing: RegExp | null;
   interruptsParagraph: boolean;
@@ -150,6 +158,7 @@ function openingFence(line: string): { marker: "`" | "~"; length: number } | nul
   if (match?.[1] === undefined) return null;
   const marker = match[1][0];
   if (marker !== "`" && marker !== "~") return null;
+  if (marker === "`" && line.slice(match[0].length).includes("`")) return null;
   return { marker, length: match[1].length };
 }
 
@@ -165,6 +174,7 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
   let html: HtmlBlock | null = null;
   let paragraph: SourceLine[] = [];
   let container: ContainerState | null = null;
+  let referenceTitlePending = false;
 
   for (const line of lines) {
     if (fence !== null) {
@@ -178,6 +188,10 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
         html = null;
       }
       continue;
+    }
+    if (referenceTitlePending) {
+      referenceTitlePending = false;
+      if (isReferenceTitleContinuation(line.body)) continue;
     }
     const opened = openingFence(line.body);
     if (opened !== null) {
@@ -238,7 +252,11 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
       if (openedHtml.closing === null || !openedHtml.closing.test(line.body)) html = openedHtml;
       continue;
     }
-    if (paragraph.length === 0 && (/^(?: {4}|\t)/u.test(line.body) || isReferenceDefinition(line.body))) {
+    if (paragraph.length === 0 && isReferenceDefinition(line.body)) {
+      referenceTitlePending = allowsReferenceTitleContinuation(line.body);
+      continue;
+    }
+    if (paragraph.length === 0 && /^(?: {4}|\t)/u.test(line.body)) {
       continue;
     }
     paragraph.push(line);

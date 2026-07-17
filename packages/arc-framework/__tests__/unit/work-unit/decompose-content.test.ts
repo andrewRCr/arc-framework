@@ -65,6 +65,17 @@ describe("scanDecomposeContent", () => {
     ]);
   });
 
+  it("does not open a backtick fence whose info string contains a backtick", () => {
+    const source = "```md`invalid\n## Visible\n```\n";
+    const result = scanDecomposeContent("draft-sample.md", bytes(source));
+
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+    expect(result.units.slice(1).map((unit) => unit.locator)).toEqual([
+      { artifact: "draft-sample.md", kind: "section", headingSource: "Visible", occurrence: 0 },
+    ]);
+  });
+
   it("does not promote fence delimiters or nested block content to top-level Setext sections", () => {
     const source = [
       "```md",
@@ -172,6 +183,17 @@ describe("scanDecomposeContent", () => {
     if (result.status !== "scanned") return;
     expect(result.units.slice(1).map((unit) => unit.locator)).toEqual([
       { artifact: "draft-sample.md", kind: "section", headingSource: "Real paragraph", occurrence: 0 },
+    ]);
+  });
+
+  it("does not promote a multiline reference-definition title to a Setext section", () => {
+    const source = "[reference]: /target\n  \"optional title\"\n---\n## Real\nbody\n";
+    const result = scanDecomposeContent("draft-sample.md", bytes(source));
+
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+    expect(result.units.slice(1).map((unit) => unit.locator)).toEqual([
+      { artifact: "draft-sample.md", kind: "section", headingSource: "Real", occurrence: 0 },
     ]);
   });
 
