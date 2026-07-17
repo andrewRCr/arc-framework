@@ -157,7 +157,7 @@ export async function runUserStatus(
   });
 
   const note = search.note;
-  const savedAtRelative = note ? await readCommitRelativeAge(io, note.commit) : null;
+  const savedAtRelative = relativeSavedAt(localSyncState?.savedAt);
   const userSyncCause = await classifyUserSyncCause({
     io,
     offline,
@@ -266,18 +266,11 @@ async function inspectUserNotesRefExists(
   return (await readRefHash(io, localRef)) !== null;
 }
 
-async function readCommitRelativeAge(
-  io: UserIOContext,
-  commit: string,
-): Promise<string | null> {
-  try {
-    const { stdout } = await io.exec("git", ["show", "-s", "--format=%at", commit]);
-    const seconds = Number.parseInt(stdout.trim(), 10);
-    if (!Number.isFinite(seconds)) return null;
-    return formatRelativeTime(new Date(seconds * 1000));
-  } catch {
-    return null;
-  }
+function relativeSavedAt(savedAt: string | undefined): string | null {
+  if (savedAt === undefined) return null;
+  const timestamp = new Date(savedAt);
+  if (Number.isNaN(timestamp.getTime())) return null;
+  return formatRelativeTime(timestamp);
 }
 
 /**
@@ -1990,7 +1983,7 @@ function determineUserStatusAction(
         return "run the preflighted `arc user push` path; paired push defers";
       }
       if (spine.contentRelation === "conflicting") {
-        return "inspect the contested notes before choosing push or repair";
+        return "inspect and manually combine contested notes, save the chosen result, then coordinate `arc user push --force`";
       }
       return "run `arc user fetch` for non-destructive inspection";
     case "remote-unavailable":

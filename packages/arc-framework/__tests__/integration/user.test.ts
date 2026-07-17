@@ -1957,6 +1957,11 @@ describe("user push and pull", () => {
 
     // Surfaced as a conflict — the corrupt union is not silently pushed.
     expect(result.kind).toBe("conflict");
+    if (result.kind === "conflict") {
+      expect(result.message).toMatch(/same file.*same annotated commit/iu);
+      expect(result.message).toContain("arc user push --force");
+      expect(result.message).not.toMatch(/unparseable note/iu);
+    }
 
     // Remote untouched: nothing was pushed.
     const remoteTipAfter = (await execFileAsync(
@@ -2296,7 +2301,8 @@ describe("user status", () => {
     expect(summary).toContain("Pre-load backup present: .pre-load-backup-");
     expect(summary).toContain("Next step: run `arc user load`");
     expect(result.unsavedDirection).toBe("modified");
-    expect(result.savedAtRelative).toMatch(/^(just now|\d+ (minute|hour|day)s? ago)$/u);
+    expect(result.savedAtRelative).toBeNull();
+    expect(summary).not.toMatch(/Saved (?:just now|\d+ (?:minute|hour|day)s? ago)/u);
   });
 
   it("reports local-unsaved when disk changes after load and local sync provenance is present", async () => {

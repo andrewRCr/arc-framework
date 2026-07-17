@@ -926,17 +926,21 @@ the waves run rather than authored up front.
   the marker, both human and JSON surfaces say `marker-not-recorded` instead of silently promising durable
   recovery. Unit coverage pins collision naming, remedy honesty, and the no-record trace.
 
-### `[ ]` **7.5 Give diverged-notes surfaces honest guidance**
+### `[x]` **7.5 Give diverged-notes surfaces honest guidance**
 
 - _Goal:_ The diverged-notes conflict surfaces stop pointing at wrong or missing remedies: `arc user status`'s
   next-step names a `repair` verb that doesn't exist; the push-refusal message says "the union produced an
   unparseable note" when the manifests parse fine (it is a per-file content collision) and offers no procedure
   beyond `--force`; status renders the annotated commit's age as the note's save time. Message/guidance honesty
   only — the structural fix (entry-aware same-commit union) is the separate split-out capture from cell 5.2.b.
-- _Files:_ `commands/user/push-fetch.ts` (~431), `commands/user/sync-status.ts`,
-  `lib/user-sync/compaction.ts` (conflict message).
-- _Surfaced by:_ wave-3 cell 5.2.b induction, 2026-07-16 — see `notes-finalize-parallelism.md` § Wave-3
-  induction evidence.
+- _Outcome:_ Diverged same-commit notes now report the actual condition: two valid manifests contain different
+  content for the same user file at the same annotated commit. Push reconciliation and compaction adoption no
+  longer call that an unparseable note or imply a lossless automatic repair exists; both preserve the local ref
+  and describe the coordinated procedure — manually combine the contested file on one chosen machine, save it,
+  force-publish that chosen result, and preserve other machines' local-only content before adoption.
+  `arc user status` names that procedure instead of a nonexistent `repair` verb. Its `Saved …` age now comes
+  from the persisted sync-state `savedAt` timestamp, not the annotated source commit's author date. Unit and
+  real-Git collision tests pin the wording and timestamp authority.
 
 ### `[ ]` **7.6 Audit seed branch identity at recovery**
 
