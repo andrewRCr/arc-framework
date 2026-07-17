@@ -66,6 +66,13 @@ Each layer of it has a different failure mode, so each gets different correctnes
   empirically: **evals are this layer's type system** (`workflow-eval-harness`). No static instrument exists for a
   stochastic interpreter.
 
+**One schema kernel.** The typed surfaces above share a single type authority: one schema module in the CLI package
+(the `cli-substrate-adoption` Zod base) from which record classes, envelope slots, workflow contracts, the step
+vocabulary, and config axes all derive — documentation generated from it (Principle 4), introspection exposing it
+(`schema-introspection-layer`). The unifying doctrine across all three lanes: **structure is typed or it isn't
+structure; prose is reserved for judgment and communication.** (Named 2026-07-17, storage-substrate grooming; kernel
+mechanics route to `cli-substrate-adoption`.)
+
 **The named asymptote — engine-owned control flow.** The agenda model still leaves the agent executing control
 flow: the CLI emits a step list and the agent self-drives through it. The endpoint beyond it is a resident engine
 (realistically an MCP server) owning sequencing, session state, and interlock enforcement, delegating only
