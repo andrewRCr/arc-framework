@@ -21,21 +21,24 @@ Local landing first is structurally important — the backend is mostly "Local, 
 reconcile. This draft's decisions were first made before that was recognized and may carry single-user
 assumptions — the [Revalidation register](#revalidation-register) below tracks them. At PRD promotion, run
 `strategy-storage-evolution.md` § Self-Check and scope the **shared storage-abstraction contract** into the PRD
-(the backend PRD later validates and refines the same abstraction).
+(the backend PRD later validates and refines the same abstraction). **Permanence note (2026-07-17 grooming):**
+Local's machinery is not a stepping stone the Shared tier subsumes — under the scope model
+(`draft-arc-backend.md` § Scope Model), **user scope runs Local-style per-user private stores permanently at
+every tier**; only project scope promotes to the shared store. Local's store mechanics are a lasting component of
+the substrate, which raises the stakes on getting them right here.
 
 ---
 
-## Inbound Buffer — Pending Integration
+## Notes retirement — an explicit deliverable of this WU
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
-
-### `[ ]` **Retire git notes into the backing-store abstraction**
-
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); release-gates storage drill-down.
-- *Concern:* make user-notes state an ordinary materialized backing-store artifact class and explicitly retire
-  `refs/notes/arc/user/*`, sync-state refs, and partial-push markers, with one-time import and the `arc user` family
-  repointed at the store. Preserve the sync state machine, version-checked writes, and failure taxonomy; add no new
-  notes-specific machinery beyond keep-the-lights-on fixes before migration.
+*(Integrated from the inbound buffer at the 2026-07-17 storage-substrate grooming.)* User-notes state becomes an
+ordinary artifact class of the backing store, and the notes machinery retires explicitly: `refs/notes/arc/user/*`,
+sync-state refs, and partial-push markers are deleted; a one-time import moves existing content; the `arc user`
+family repoints at the store (same verbs, store transport — § Command family). The sync state machine,
+version-checked writes, and failure taxonomy carry over — they are substrate-independent investments. Stop-loss
+rule in force until migration: no new notes-specific machinery beyond keep-the-lights-on. Destination per the
+scope model (`draft-arc-backend.md` § Scope Model): the **per-user private store** — user state never enters a
+shared project store at any tier, which is strictly more private than notes riding the shared origin repo today.
 
 ---
 
@@ -357,12 +360,16 @@ The single-user assumptions and reframe collisions the co-design must resolve �
    rebuild, and the non-bare rationale in projection terms (Gotcha 6: never batch over a session-stale read).
 2. **Store contents** — does the store carry `system/**` machinery, or state + design only with machinery
    re-materialized from a pinned package version?
-3. **Storage-axis shape** — two-value enum fails three-tier composability; design for the hosted tier.
+3. **Storage-axis shape** — two-value enum fails composability with the four-point axis
+   (in-repo | local | shared | coordinated, per the 2026-07-17 tier split); shape the axis so the shared and
+   coordinated points are extensions, not migrations.
 4. **Team toggle** — forced-solo is a tier property, not a forbidden combination; settle the
    `team.mode → team.enabled` rename's landing.
 5. **Command family vs one storage-abstraction contract** — decide at the contract, not per-verb.
-6. **Class-C divergence stance** — manual-git is right for tier-2; tier-3 must automate; harmonize the failure
-   taxonomies.
+6. **Class-C divergence stance** — manual-git is right for tier-2. Under the tier split: the Shared tier
+   auto-resolves routine record divergence (version-checked push-retry over entry-granular records); manual-git
+   remains the prose/deep-divergence escape; automation beyond that is the Coordinated tier's job
+   (`arc-coordination-service`). Harmonize the failure taxonomies across all three.
 7. **Project-ID generalization** — pin-file bootstrap circularity under materialization; cross-user ID
    stability at tier-3.
 8. **Exclusion ordering at the shared tier** + Gotcha 5 ignore-guard + editor-watcher interlock.
