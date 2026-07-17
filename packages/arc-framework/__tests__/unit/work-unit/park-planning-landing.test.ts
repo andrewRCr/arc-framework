@@ -68,6 +68,8 @@ function productionHarness(options: { rejectConcurrentIndexReads?: boolean; syml
   calls: Array<{ args: string[]; indexFile?: string }>;
   files: Map<string, Uint8Array>;
   setLockedTree(tree: string): void;
+  setPlanTip(tip: string): void;
+  setOwnerPresent(present: boolean): void;
 } {
   const indexPath = "/repo/.git/index";
   const files = new Map<string, Uint8Array>([[indexPath, new TextEncoder().encode("index")]]);
@@ -76,6 +78,8 @@ function productionHarness(options: { rejectConcurrentIndexReads?: boolean; syml
   const calls: Array<{ args: string[]; indexFile?: string }> = [];
   const baseTree = "d".repeat(40);
   let lockedTree = baseTree;
+  let planTip = transition.commit;
+  let ownerPresent = true;
   let indexReadActive = false;
   const exec: GitExec = async (_cmd, args, execOptions) => {
     const indexRead = ["write-tree", "status", "diff", "ls-files"].includes(args[0] ?? "");
@@ -86,9 +90,22 @@ function productionHarness(options: { rejectConcurrentIndexReads?: boolean; syml
       indexReadActive = false;
     }
     calls.push({ args, ...(execOptions?.indexFile === undefined ? {} : { indexFile: execOptions.indexFile }) });
-    if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${"a".repeat(40)}\n` };
+    if (args[0] === "rev-parse" && args[1] === "--verify") {
+      return { stdout: `${args[2]?.startsWith("refs/heads/plan/solo") === true ? planTip : "a".repeat(40)}\n` };
+    }
     if (args[0] === "rev-parse" && args[1] === "--path-format=absolute") {
       return { stdout: `${indexPath}\n` };
+    }
+    if (args[0] === "worktree" && args[1] === "list") {
+      return {
+        stdout: [
+          `worktree /repo\nHEAD ${"a".repeat(40)}\nbranch refs/heads/main\n`,
+          ...(ownerPresent
+            ? [`worktree /repo-solo\nHEAD ${planTip}\nbranch refs/heads/plan/solo\n`]
+            : []),
+          "",
+        ].join("\n"),
+      };
     }
     if (args[0] === "write-tree") {
       return { stdout: `${execOptions?.indexFile === undefined ? baseTree : lockedTree}\n` };
@@ -140,6 +157,8 @@ function productionHarness(options: { rejectConcurrentIndexReads?: boolean; syml
     calls,
     files,
     setLockedTree: (tree) => { lockedTree = tree; },
+    setPlanTip: (tip) => { planTip = tip; },
+    setOwnerPresent: (present) => { ownerPresent = present; },
   };
 }
 
@@ -195,6 +214,32 @@ describe("landParkPlanningTransition", () => {
     });
     expect(harness.calls.some((call) => call.args[0] === "update-index")).toBe(false);
     expect(harness.files.has("/repo/.git/index.lock")).toBe(false);
+  });
+
+  it("rejects a planning-tip advance at stage time before writing", async () => {
+    const harness = productionHarness();
+    const expected = await harness.context.readBase("solo", transition.files);
+    harness.setPlanTip("e".repeat(40));
+
+    const result = await harness.context.stage(transition, expected);
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/no longer.*exact local tip/iu) });
+    expect(harness.files.has("/repo/.arc/backlog/planned/solo/meta-solo.md")).toBe(false);
+    expect(harness.files.has("/repo/.git/index.lock")).toBe(false);
+    expect(harness.calls.some((call) => call.args[0] === "update-index")).toBe(false);
+  });
+
+  it("rejects owner disappearance at stage time before writing", async () => {
+    const harness = productionHarness();
+    const expected = await harness.context.readBase("solo", transition.files);
+    harness.setOwnerPresent(false);
+
+    const result = await harness.context.stage(transition, expected);
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/no longer owned/iu) });
+    expect(harness.files.has("/repo/.arc/backlog/planned/solo/meta-solo.md")).toBe(false);
+    expect(harness.files.has("/repo/.git/index.lock")).toBe(false);
+    expect(harness.calls.some((call) => call.args[0] === "update-index")).toBe(false);
   });
 
   it("rejects a symlinked landing parent before writing or staging", async () => {

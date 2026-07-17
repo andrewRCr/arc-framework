@@ -159,6 +159,7 @@ export function createInRepoParkPlanningLandingContext(
       return stageExactFiles(
         deps,
         transition.receipt.subject.kind === "work-unit" ? transition.receipt.subject.name : "",
+        transition.commit,
         transition.files,
         expectedBase,
       );
@@ -370,6 +371,7 @@ async function readBaseSnapshot(
 async function stageExactFiles(
   deps: InRepoParkPlanningLandingDeps,
   name: string,
+  transitionCommit: string,
   files: readonly ParkLandingFile[],
   expectedBase: ParkLandingBaseSnapshot,
 ): Promise<{ status: "staged" } | { status: "rejected"; reason: string }> {
@@ -387,6 +389,8 @@ async function stageExactFiles(
     if (stdout.trim() === "") throw new Error("Git did not resolve the worktree index path.");
     indexLock = `${indexPath}.lock`;
     const beforeLock = await deps.fs.readFile(indexPath);
+    const sourceRefusal = await currentParkSourceRefusal(deps, name, transitionCommit);
+    if (sourceRefusal !== null) return { status: "rejected", reason: sourceRefusal };
     await deps.fs.writeFile(indexLock, beforeLock, { flag: "wx" });
     const afterLock = await deps.fs.readFile(indexPath);
     if (!Buffer.from(beforeLock).equals(Buffer.from(afterLock))) {
@@ -429,6 +433,34 @@ async function stageExactFiles(
     }
     if (indexLock !== "") await deps.fs.rm(`${indexLock}.lock`, { force: true }).catch(() => undefined);
   }
+}
+
+async function currentParkSourceRefusal(
+  deps: InRepoParkPlanningLandingDeps,
+  name: string,
+  expectedTip: string,
+): Promise<string | null> {
+  const branch = `plan/${name}`;
+  let tip: string;
+  let topology: Awaited<ReturnType<typeof scanRegisteredWorktrees>>;
+  try {
+    [tip, topology] = await Promise.all([
+      resolveCommit(deps, `refs/heads/${branch}`),
+      scanRegisteredWorktrees(deps.exec),
+    ]);
+  } catch (error) {
+    return `Cannot revalidate the planning transition: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  if (tip !== expectedTip) {
+    return `The supplied commit is no longer the exact local tip of \`${branch}\`.`;
+  }
+  if (!topology.ok) {
+    return `Cannot verify planning-worktree ownership: ${topology.message}`;
+  }
+  const owner = topology.worktrees.find((worktree) => worktree.branch === branch && worktree.head === expectedTip);
+  return owner === undefined
+    ? `The exact \`${branch}\` tip is no longer owned by a registered worktree.`
+    : null;
 }
 
 async function ensureSafeLandingParent(
