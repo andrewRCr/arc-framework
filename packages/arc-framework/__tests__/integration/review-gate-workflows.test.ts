@@ -108,8 +108,10 @@ describe("trusted review-gate workflows", () => {
   it("publishes independent CI truth and a thin compatibility alias", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("  ci_ok:\n    name: ci-ok");
+    // Shared setup is a required dependency so a failed install cannot roll up green
+    // via skipped consumer legs.
     expect(workflow).toContain(
-      "needs: [classify, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
+      "needs: [classify, setup, lint-typecheck, unit, integration, e2e, portability, portability-cross-platform]",
     );
     expect(workflow).toMatch(/ {2}merge-ok:\n {4}name: merge-ok\n {4}permissions: \{\}\n {4}needs: ci_ok/u);
     expect(workflow).toContain("scripts/classify-change.sh lane --stdin0");
@@ -122,7 +124,8 @@ describe("trusted review-gate workflows", () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("push:\n    branches: [main]");
     expect(workflow).toContain("workflow_dispatch:");
-    expect(workflow).toContain("schedule:\n    - cron: '17 8 * * 1'");
+    // Monthly (not weekly) cross-platform cron — macOS multiplier is the spend driver.
+    expect(workflow).toContain("schedule:\n    - cron: '17 8 1 * *'");
     expect(workflow).toContain("os: [ubuntu-latest]");
     expect(workflow).toContain("os: [windows-latest, macos-latest]");
     expect(workflow).toContain("needs.classify.outputs.portability_target == 'true'");
