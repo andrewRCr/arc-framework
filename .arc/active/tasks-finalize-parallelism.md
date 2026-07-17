@@ -787,14 +787,20 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
   external budgets join operator attention as concurrency-scaling constraints — CI billing-shape remediation
   split out (`USER-INBOX § Errand`) and hard-gated at GA closeout (new Task 8.5).
 
-### `[ ]` **5.4 Resolve the same-entry cross-WU merge disposition**
+### `[x]` **5.4 Resolve the same-entry cross-WU merge disposition**
 
 - _Goal:_ The `resolveCrossWuState` same-entry lost-update is dispositioned (absorb / spawn-dependency / accept)
   with wave evidence and recorded.
-- _Note:_ Recorded leaning — ship GA with a documented limitation + deterministic fast-follow; likely build home
-  `operational-state-docs`.
 
-    - `[ ]` **5.4.a Decide and record the disposition (+ any follow-up WU)**
+    - `[x]` **5.4.a Decide and record the disposition (+ any follow-up WU)**
+        - Decided on the 5.2.b induction evidence (recency lost-update extended to removals; serialized
+          pull-before-write held live as the structural preventive) against the recorded leaning.
+
+- _Outcome:_ Accept for GA with a documented limitation; deterministic fast-follow captured to
+  `operational-state-docs` (causal ordering where ancestry-orderable, SHA tie-break where concurrent, never
+  wall-clock — extended to removal/tombstone reconciliation). Documentation lands via Tasks 8.1.c / 8.2.c and
+  the playbook's pull-before-write discipline; the same-commit save wedge remains its own split-out. Full
+  record in `notes-finalize-parallelism.md` § Wave-3 seam-audit decisions.
 
 ### `[ ]` **5.5 Verify wave-3 detector-tests and record findings**
 

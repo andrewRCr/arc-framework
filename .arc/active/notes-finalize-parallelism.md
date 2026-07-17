@@ -1017,6 +1017,31 @@ extended errand (USER-INBOX § Errand: shared-setup reuse + heavy-lane defer), h
 (Task 8.5); the self-hosted-runner option is retained (held capture) pending the remediation's measured residual.
 The day-1 shared-machine load-flake datapoint is retired as evidence — a local runaway process, since resolved.
 
+### 5.4 — same-entry cross-WU merge disposition (2026-07-17) — RESOLVED
+
+Disposition: **accept for GA with a documented limitation, plus a deterministic fast-follow captured to
+`operational-state-docs`** — the recorded leaning, confirmed by the 5.2.b induction; "absorb into FP" and
+"spawn-dependency gating GA" both rejected.
+
+- **Evidence.** Cell 5.2.b extended the predicted recency lost-update to removals: a different-entry removal
+  pushed from a stale sibling copy silently resurrects the other side's removed entry, while same-entry removal
+  races converge (both sides tombstone). The serialized pull-before-write practice prevents resurrection
+  structurally and held live — recorded as the playbook discipline. The unpredicted same-commit concurrent-save
+  wedge is already its own split-out (entry-aware union at push reconcile, sequenced behind wave 4) and is not
+  part of this disposition.
+- **Why accept.** Exposure is narrow — genuinely-concurrent same-entry edits across worktrees, within
+  `CROSS_WU_NOTE_WINDOW` — on recoverable, gitignored state (pre-load backups). The 5.3 occupancy invariant
+  narrows it further: out-of-WU writers serialize on the primary, leaving WU-worktree pairs editing the same
+  identity-global entry as the remaining window. A deterministic merge is a real fix with a known direction,
+  but not one this exposure justifies gating GA on.
+- **Documentation lands in Phase 8:** 8.1.c sharpens the doctrine's shared-state line; 8.2.c verifies the
+  containment invariant ("same-entry merge loss documented with recovery"); the incident playbook carries
+  pull-before-write as the operator discipline.
+- **Fast-follow spawned:** USER-INBOX § Work Unit capture (`WU_Target: operational-state-docs`) carries the fix
+  direction — causal ordering where note commits are ancestry-orderable, deterministic tie-break
+  (lexicographically-smallest annotated-commit SHA) where genuinely concurrent, never wall-clock — over
+  `resolveCrossWuState` and the note-window read path, extended to removal/tombstone reconciliation per 5.2.b.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
