@@ -1081,6 +1081,55 @@ Disposition: **accept for GA with a documented limitation, plus a deterministic 
   (lexicographically-smallest annotated-commit SHA) where genuinely concurrent, never wall-clock — over
   `resolveCrossWuState` and the note-window read path, extended to removal/tombstone reconciliation per 5.2.b.
 
+## Wave-4 induction evidence
+
+### Cross-machine materialize + notes convergence (2026-07-17, Tasks 6.1–6.3) — CONFIRMED + one seam
+
+A real second machine (laptop, distinct machine-id) started `burn-in-probe-c` (`arc start --new`, planning
+fixture), authored a draft increment + handoff SESSION-NOTES, pushed the branch, and synced notes; the WSL
+primary materialized and resumed across the boundary under real latency.
+
+- **Materialize spawn arm (6.1):** `arc materialize burn-in-probe-c` from the WSL primary spawned the worktree
+  from origin's ref and resumed at the pushed tip. `arc status`'s `occupied: true` (in-flight-anywhere) did
+  **not** block materialize — the verb's own gate is checked-out-here, a correct separation, recorded as a
+  finding. A first pass carried only the spawn seed (the machine-2 content edits had been missed); the re-run
+  against real content confirmed both channels carried genuine machine-2 work — the draft's
+  "increment 1 from machine 2" (branch fetch) and the SESSION-NOTES handoff bullet + Commit-at-Handoff
+  `f12e622d` (notes ref).
+- **Projection contract / cross-machine notes (6.2, trace-through target 1):** `arc user pull` restored 5 files
+  keyed to the branch tip as a clean fast-forward each time (`c899889 → c84006ae → 2a029795 → cfb2dac0`), with
+  inbox captures preserved as an ancestor throughout — no divergence, no tombstone leakage. Per-WU SESSION-NOTES
+  isolation and cross-WU entry-union both held across the boundary.
+- **In-place arm (6.1):** not live-exercised — no second remote-only target was available, and re-materializing
+  probe-c refuses as already-local (the double-materialize guard, distinct from the occupancy guard). Recorded as
+  verified-by-construction (same materialize core, target-dir = current worktree) plus existing unit tests;
+  occupancy guard not live this wave (minor gap).
+- **Notes-lag detector (6.3):** a machine-2 notes-only edit + push (CI-free) put WSL remote-ahead; the
+  session-init user channel fired `state: remote-ahead`, `recommendedAction: prompt`, with dirty-aware prompt
+  text — then the re-pull converged (`local == origin == cfb2dac0`). Fires loud and converges clean under real
+  latency.
+- **partial-push marker + behind-base-at-integration (6.3):** partial-push-marker fires were verified in wave 1
+  (synthetic, § Detector-tests 3.3) and not re-induced here (needs a deliberately-failed sync push). The
+  behind-base surface is live on FP itself (184 behind base at this session's init) — real-latency behind-base
+  evidence without forcing a fixture integration.
+
+**New seam — materialize pollutes ROADMAP consistency under full protection.** `arc materialize` regenerated the
+primary's ROADMAP to add the newly-in-flight probe-c row and **staged it uncommitted** on `main`, where full
+protection forbids committing it. Worse, the render sources in-flight rows from **origin refs** (confirmed:
+removing the local branch/worktree left the row), so any materialized (or otherwise-remote) plan branch makes
+every worktree's ROADMAP "want" that row — tripping the regen hook on a sibling worktree's next commit (verified
+live: the pre-commit `--staged` render carries the ref-sourced probe-c row, so an FP-branch commit is blocked
+until the fixture's origin branch is deleted). The general form is broader than materialize: *any* new in-flight
+branch appearing after a worktree's last ROADMAP regen trips that worktree's next commit — materialize is one way
+to add the ref, and regular base merges are what kept FP current with its siblings during waves 2–3. A distinct
+trigger from the merge-boundary ROADMAP conflict class already routed. Routed to `roadmap-tooling` (USER-INBOX);
+the deeper question it raises — whether in-flight rows should derive from tree metas rather than ephemeral refs —
+is named there. **Phase 8 candidate:** document as a GA parallelism limitation in the incident playbook (recovery:
+`arc status --project --staged > ROADMAP.md`), same disposition as the same-entry merge (5.4).
+
+**Fixture retirement:** probe-c is retired at wave close (delete origin `plan/burn-in-probe-c`, remove both
+worktrees, clean its per-WU notes), which also resolves the ROADMAP drift above.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification
@@ -1337,8 +1386,12 @@ commit-msg-footer suite tripping the hook's `MERGE_HEAD` merge-exemption mid-mer
   batch-shape decisions (§ Wave-3 seam-audit decisions), interlock-friction by work character recorded through
   5.1/5.3 for `interlock-release-refinement`. Residue carried forward: surfacing seams (Tasks 7.4–7.6), locus
   family instances (Task 7.3), same-commit save wedge split-out (sequenced behind wave 4).*
-- [ ] **Wave 4:** cross-machine resume; verify Materialize spawn + in-place pickup, notes lag / partial-push marker
-  surfacing, and projection-contract evidence from Task 1.2.
+- [x] **Wave 4:** cross-machine resume; verify Materialize spawn + in-place pickup, notes lag / partial-push marker
+  surfacing, and projection-contract evidence from Task 1.2. *Complete 2026-07-17 — real second machine (laptop)
+  ran `burn-in-probe-c` as a planning fixture; WSL primary materialized + resumed across the boundary. Spawn arm +
+  projection contract + notes-lag confirmed live; in-place arm verified-by-construction; partial-push + behind-base
+  by cited coverage. One seam surfaced (materialize ROADMAP drift → `roadmap-tooling`). Fixture retirement at wave
+  close resolves the drift. Record in § Wave-4 induction evidence.*
 
 ### Playbook / closeout items
 

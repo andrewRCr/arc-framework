@@ -823,26 +823,46 @@ _Purpose:_ Materialize (spawn and in-place, per BI-2) against work another machi
 partial-push surfaces under real latency — and verify the projection-builder consumer contract in practice.
 Gated on BI-2.
 
-### `[ ]` **6.1 Prepare and launch the wave-4 cross-machine scenario**
+### `[x]` **6.1 Prepare and launch the wave-4 cross-machine scenario**
 
 - _Goal:_ A remote-only in-flight WU is materialized both spawn and in-place (BI-2), honoring the occupancy
   guard, against work another machine started.
 
-    - `[ ]` **6.1.a Materialize spawn and in-place against a second-machine WU**
+    - `[x]` **6.1.a Materialize spawn and in-place against a second-machine WU**
+        - Spawn arm verified against a real second machine (laptop, `burn-in-probe-c` via `arc start --new`):
+          materialize spawned + resumed at the pushed tip, `occupied:true` (in-flight-anywhere) did not block
+          the verb (checked-out-here gate — finding). In-place arm recorded verified-by-construction (no second
+          remote-only target; re-materialize refuses as already-local) — occupancy guard not live-exercised.
 
-### `[ ]` **6.2 Verify the wave-4 matrix cells and the projection-builder contract**
+- _Outcome:_ Cross-machine spawn materialize confirmed with genuine machine-2 content on both channels (branch
+  draft + notes handoff). Record in `notes-finalize-parallelism.md` § Wave-4 induction evidence.
+
+### `[x]` **6.2 Verify the wave-4 matrix cells and the projection-builder contract**
 
 - _Goal:_ Wave-4 cells and the projection-builder contract (trace-through target 1) are exercised under
   cross-machine resume, with producer/consumer agreement confirmed.
 
-    - `[ ]` **6.2.a Exercise the projection contract + wave-4 cells under real latency**
+    - `[x]` **6.2.a Exercise the projection contract + wave-4 cells under real latency**
+        - `arc user pull` restored 5 files as a clean fast-forward across four notes advances, inbox captures
+          preserved as ancestor throughout — no divergence, no tombstone leakage; per-WU isolation + cross-WU
+          union both held cross-machine.
 
-### `[ ]` **6.3 Verify wave-4 detector-tests and record findings**
+- _Outcome:_ Projection-builder consumer contract holds under real cross-machine latency. Surfaced a distinct
+  seam — materialize stages an uncommitted ROADMAP regen on the primary and the render keys on origin refs, so a
+  remote plan branch contaminates every worktree's ROADMAP under full protection (routed to `roadmap-tooling`).
+
+### `[x]` **6.3 Verify wave-4 detector-tests and record findings**
 
 - _Goal:_ Notes-lag, behind-base-at-integration, and partial-push detectors fire under real latency, and findings
   are recorded.
 
-    - `[ ]` **6.3.a Induce the latency detectors, confirm firing, record**
+    - `[x]` **6.3.a Induce the latency detectors, confirm firing, record**
+        - Notes-lag fired live (`remote-ahead` → prompt, dirty-aware) via a CI-free machine-2 notes push, then
+          converged on re-pull. Partial-push-marker cited from wave-1 synthetic coverage; behind-base cited from
+          FP's own live 184-behind base-drift surface.
+
+- _Outcome:_ Wave-4 detectors confirmed under real latency (one live, two by cited coverage with rationale).
+  Phase 6 closes; record in `notes-finalize-parallelism.md` § Wave-4 induction evidence.
 
 ## **Phase 7:** Resolve discovered seams
 
