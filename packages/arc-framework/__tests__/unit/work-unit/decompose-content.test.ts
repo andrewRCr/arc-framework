@@ -89,6 +89,39 @@ describe("scanDecomposeContent", () => {
     ]);
   });
 
+  it("excludes container-nested ATX H2s while recognizing immediate top-level exits", () => {
+    const source = [
+      "- list item",
+      "  ## Nested in list",
+      "  nested body",
+      " ## Top after list",
+      "top body",
+      "1. ordered item",
+      "   ## Nested in ordered list",
+      "  ## Top after ordered list",
+      "> quoted",
+      "> ## Nested in quote",
+      " ## Top after quote",
+      "- list with blank",
+      "",
+      "  ## Nested after blank",
+      "  nested body",
+      "## Final top level",
+      "end",
+      "",
+    ].join("\n");
+    const result = scanDecomposeContent("draft-sample.md", bytes(source));
+
+    expect(result.status).toBe("scanned");
+    if (result.status !== "scanned") return;
+    expect(result.units.slice(1).map((unit) => unit.locator)).toEqual([
+      { artifact: "draft-sample.md", kind: "section", headingSource: "Top after list", occurrence: 0 },
+      { artifact: "draft-sample.md", kind: "section", headingSource: "Top after ordered list", occurrence: 0 },
+      { artifact: "draft-sample.md", kind: "section", headingSource: "Top after quote", occurrence: 0 },
+      { artifact: "draft-sample.md", kind: "section", headingSource: "Final top level", occurrence: 0 },
+    ]);
+  });
+
   it("uses the complete top-level paragraph as a multiline Setext heading", () => {
     const source = "intro\n\nFirst *line*\nsecond `line`\n---\nbody\n";
     const result = scanDecomposeContent("draft-sample.md", bytes(source));

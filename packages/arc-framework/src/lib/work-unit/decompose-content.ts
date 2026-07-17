@@ -81,11 +81,39 @@ function isThematicBreak(line: string): boolean {
   return /^(?:\*{3,}|-{3,}|_{3,})$/u.test(compact);
 }
 
-function isContainerStart(line: string, interruptsParagraph: boolean): boolean {
-  if (/^ {0,3}>/u.test(line)) return true;
-  if (/^ {0,3}[-+*](?:[ \t]+|$)/u.test(line)) return true;
-  const ordered = /^ {0,3}(\d{1,9})[.)](?:[ \t]+|$)/u.exec(line);
-  return ordered !== null && (!interruptsParagraph || ordered[1] === "1");
+type ContainerState =
+  | { kind: "quote" }
+  | { kind: "list"; contentIndent: number; afterBlank: boolean };
+
+function listContentIndent(leading: string, marker: string, spacing: string): number {
+  const padding = spacing.length >= 1 && spacing.length <= 4 ? spacing.length : 1;
+  return leading.length + marker.length + padding;
+}
+
+function containerStart(line: string, interruptsParagraph: boolean): ContainerState | null {
+  if (/^ {0,3}>/u.test(line)) return { kind: "quote" };
+  const unordered = /^( {0,3})([-+*])([ \t]+|$)/u.exec(line);
+  if (unordered?.[1] !== undefined && unordered[2] !== undefined) {
+    return {
+      kind: "list",
+      contentIndent: listContentIndent(unordered[1], unordered[2], unordered[3] ?? ""),
+      afterBlank: false,
+    };
+  }
+  const ordered = /^( {0,3})(\d{1,9})([.)])([ \t]+|$)/u.exec(line);
+  if (ordered?.[1] === undefined || ordered[2] === undefined || ordered[3] === undefined
+    || (interruptsParagraph && ordered[2] !== "1")) {
+    return null;
+  }
+  return {
+    kind: "list",
+    contentIndent: listContentIndent(ordered[1], `${ordered[2]}${ordered[3]}`, ordered[4] ?? ""),
+    afterBlank: false,
+  };
+}
+
+function leadingSpaces(line: string): number {
+  return /^ */u.exec(line)?.[0].length ?? 0;
 }
 
 function isReferenceDefinition(line: string): boolean {
@@ -136,7 +164,7 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
   let fence: { marker: "`" | "~"; length: number } | null = null;
   let html: HtmlBlock | null = null;
   let paragraph: SourceLine[] = [];
-  let insideContainer = false;
+  let container: ContainerState | null = null;
 
   for (const line of lines) {
     if (fence !== null) {
@@ -159,6 +187,11 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
     }
     const atx = atxH2Source(line.body);
     if (atx !== null) {
+      if (container?.kind === "list" && leadingSpaces(line.body) >= container.contentIndent) {
+        paragraph = [];
+        continue;
+      }
+      container = null;
       paragraph = [];
       headings.push({ start: line.start, headingSource: atx });
       continue;
@@ -180,17 +213,23 @@ function markdownBoundaries(content: string): HeadingBoundary[] {
     }
     if (line.body.trim() === "") {
       paragraph = [];
-      insideContainer = false;
+      if (container?.kind === "list") container.afterBlank = true;
+      else container = null;
       continue;
     }
-    if (insideContainer) continue;
+    if (container?.kind === "quote") continue;
+    if (container?.kind === "list") {
+      if (leadingSpaces(line.body) >= container.contentIndent || !container.afterBlank) continue;
+      container = null;
+    }
     if (isAtxHeading(line.body) || isThematicBreak(line.body)) {
       paragraph = [];
       continue;
     }
-    if (isContainerStart(line.body, paragraph.length > 0)) {
+    const openedContainer = containerStart(line.body, paragraph.length > 0);
+    if (openedContainer !== null) {
       paragraph = [];
-      insideContainer = true;
+      container = openedContainer;
       continue;
     }
     const openedHtml = openingHtmlBlock(line.body, paragraph.length > 0);
