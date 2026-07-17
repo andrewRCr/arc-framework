@@ -231,6 +231,36 @@ describe("parseCutMap", () => {
     expect(rejection(document)).toMatch(/locator.*destination|artifact.*PROJECT-PRD/i);
   });
 
+  it("binds an existing draft-block locator to its declared work-unit slug", () => {
+    const input = wellFormed({
+      entries: [
+        { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+        { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
+        {
+          kind: "existing-home",
+          destinationId: "draft-home",
+          target: {
+            kind: "draft-block",
+            slug: "design-home",
+            locator: { artifact: "draft-other.md", kind: "preamble" },
+          },
+          home: "fold",
+        },
+      ],
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: {
+          kind: "target",
+          destinationId: "draft-home",
+          targetLocator: { artifact: "draft-other.md", kind: "preamble" },
+        },
+      }],
+    });
+
+    expect(rejection(input)).toMatch(/draft-design-home\.md/iu);
+  });
+
   it("rejects section locators whose heading source is not normalized", () => {
     for (const headingSource of ["  Design", "Design\t  Notes", "Cafe\u0301"]) {
       const input = wellFormed({

@@ -137,5 +137,14 @@ describe("verifyDecomposeInventoryCoverage", () => {
         result.inventories,
       ),
     ).toMatchObject({ status: "rejected", reason: expect.stringMatching(/extra outgoing/i) });
+    expect(
+      verifyDecomposeInventoryCoverage(map, {
+        ...result.inventories,
+        sourceInventory: [
+          ...result.inventories.sourceInventory,
+          result.inventories.sourceInventory[0]!,
+        ],
+      }),
+    ).toMatchObject({ status: "rejected", reason: expect.stringMatching(/duplicate.*live source/i) });
   });
 });

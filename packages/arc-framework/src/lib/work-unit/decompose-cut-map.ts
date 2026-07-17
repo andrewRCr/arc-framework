@@ -242,6 +242,9 @@ function parseExistingTarget(raw: unknown, label: string): Parsed<DecomposeExist
     if (!safeSlug(raw.slug)) return { reason: `${label}.slug must be slug-safe.` };
     const locator = parseLocator(raw.locator, `${label}.locator`);
     if ("reason" in locator) return locator;
+    if (locator.value.artifact !== `draft-${raw.slug}.md`) {
+      return { reason: `${label}.locator must belong to draft-${raw.slug}.md.` };
+    }
     return { value: { kind: "draft-block", slug: raw.slug, locator: locator.value } };
   }
   if (raw.kind === "document") {

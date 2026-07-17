@@ -113,6 +113,7 @@ function exactCoverage(
   const authoredSet = new Set(authored);
   if (authoredSet.size !== authored.length) return `duplicate ${label} inventory member in allocation map.`;
   const liveSet = new Set(live);
+  if (liveSet.size !== live.length) return `duplicate live ${label} inventory member.`;
   const missing = live.find((member) => !authoredSet.has(member));
   if (missing !== undefined) return `missing ${label} inventory member \`${missing}\` from allocation map.`;
   const extra = authored.find((member) => !liveSet.has(member));
