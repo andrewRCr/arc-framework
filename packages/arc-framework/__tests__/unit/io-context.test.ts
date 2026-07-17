@@ -5,7 +5,12 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createUserIOContext, gitExec, prepareGitRefVerification } from "../../src/lib/io-context.js";
+import {
+  createUserIOContext,
+  gitExec,
+  prepareGitRefVerification,
+  readGitBlobBytes,
+} from "../../src/lib/io-context.js";
 
 const tempDirs: string[] = [];
 
@@ -98,6 +103,22 @@ describe("gitExec", () => {
 
     await expect(gitExec("git", ["update-ref", ref, second, first], { cwd: root })).resolves.toBeDefined();
     await expect(gitExec("git", ["rev-parse", ref], { cwd: root })).resolves.toMatchObject({ stdout: second });
+  });
+});
+
+describe("readGitBlobBytes", () => {
+  it("returns null only for an absent path and propagates an invalid ref", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-read-git-blob-"));
+    tempDirs.push(root);
+    await gitExec("git", ["init"], { cwd: root });
+    await gitExec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await gitExec("git", ["config", "user.name", "Test"], { cwd: root });
+    await writeFile(join(root, "seed.txt"), "seed", "utf8");
+    await gitExec("git", ["add", "seed.txt"], { cwd: root });
+    await gitExec("git", ["commit", "-m", "seed"], { cwd: root });
+
+    await expect(readGitBlobBytes(root, "HEAD", "missing.txt")).resolves.toBeNull();
+    await expect(readGitBlobBytes(root, "missing-ref", "seed.txt")).rejects.toThrow();
   });
 });
 

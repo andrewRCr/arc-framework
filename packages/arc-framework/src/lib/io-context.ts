@@ -28,21 +28,42 @@ export async function readGitBlobBytes(
   ref: string | null,
   path: string,
 ): Promise<Uint8Array | null> {
-  const spec = ref === null ? `:${path}` : `${ref}:${path}`;
   const options = {
     cwd,
     env: environmentForGitCwd(cwd),
-    encoding: "buffer" as const,
     maxBuffer: MAX_GIT_STDOUT_BYTES,
   };
-  try {
-    await execFileAsync("git", ["cat-file", "-e", spec], options);
-  } catch (err) {
-    const code = (err as { code?: unknown }).code;
-    if (code === 1 || code === 128) return null;
-    throw err;
+  let oid: string;
+  if (ref === null) {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["ls-files", "--stage", "-z", "--", `:(literal)${path}`],
+      { ...options, encoding: "utf8" },
+    );
+    if (stdout === "") return null;
+    const entries = stdout.split("\0").filter(Boolean);
+    const match = entries.length === 1
+      ? /^\d+ ([0-9a-f]{40,64}) 0\t/u.exec(entries[0] ?? "")
+      : null;
+    if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact index blob for ${path}.`);
+    oid = match[1];
+  } else {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["ls-tree", "-z", "--format=%(objecttype) %(objectname)", ref, "--", `:(literal)${path}`],
+      { ...options, encoding: "utf8" },
+    );
+    if (stdout === "") return null;
+    const entries = stdout.split("\0").filter(Boolean);
+    const match = entries.length === 1 ? /^blob ([0-9a-f]{40,64})$/u.exec(entries[0] ?? "") : null;
+    if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact tree blob for ${ref}:${path}.`);
+    oid = match[1];
   }
-  const { stdout } = await execFileAsync("git", ["cat-file", "blob", spec], options);
+  const { stdout } = await execFileAsync(
+    "git",
+    ["cat-file", "blob", oid],
+    { ...options, encoding: "buffer" },
+  );
   return new Uint8Array(stdout);
 }
 

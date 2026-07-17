@@ -10,6 +10,7 @@ import { isCanonicalDigest } from "../lib/canonical/canonical-json.js";
 import { contentDigest, patchDigest, type PatchOperation } from "../lib/canonical/content-digest.js";
 import { validateManagedPath } from "../lib/canonical/managed-path.js";
 import { receiptId } from "../lib/canonical/receipt-id.js";
+import { readGitBlobBytes } from "../lib/io-context.js";
 import {
   decodeRetirementRecordKey,
   RETIREMENT_RECORD_NAMESPACE,
@@ -253,15 +254,6 @@ export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): st
 
 const execFileAsync = promisify(execFile);
 
-async function gitBytes(args: string[]): Promise<Uint8Array | null> {
-  try {
-    const { stdout } = await execFileAsync("git", args, { encoding: "buffer", maxBuffer: 10 * 1024 * 1024 });
-    return new Uint8Array(stdout);
-  } catch {
-    return null;
-  }
-}
-
 async function gitParentBytes(ref: string, path: string): Promise<Uint8Array | null> {
   const { stdout: entryOutput } = await execFileAsync(
     "git",
@@ -315,10 +307,10 @@ export async function runDecomposeRecordValidation(): Promise<void> {
   const cachedParents = new Map<string, Array<Uint8Array | null>>();
   for (const change of changes) {
     if (change.status !== "D") {
-      const value = await gitBytes(["show", `:${change.path}`]);
+      const value = await readGitBlobBytes(process.cwd(), null, change.path);
       if (value !== null) cachedIndex.set(change.path, value);
     }
-    const head = await gitBytes(["show", `HEAD:${change.path}`]);
+    const head = await readGitBlobBytes(process.cwd(), "HEAD", change.path);
     if (head !== null) cachedHead.set(change.path, head);
     if (mergeInProgress) {
       const parents = await Promise.all(
