@@ -19,7 +19,7 @@ import { describe, it, expect } from "vitest";
 
 import { parseMetaRecord, type MetaFieldName } from "../../../../src/lib/active/meta-reader.js";
 import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
-import { type PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
+import { patchDigest, type PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
 import type {
   ExecuteTransitionContext,
@@ -42,14 +42,16 @@ import {
 const CWD = "/repo";
 const WORKTREE = "/repo/../wt-foo";
 const LOCUS = "/repo/../wt-foo";
-const PARK_TRANSITION_OPERATIONS = [
-  { operation: "delete", path: validateManagedPath(".arc/active/meta-foo.md") },
-  {
-    operation: "write",
-    path: validateManagedPath(".arc/backlog/planned/foo/meta-foo.md"),
-    contentDigest: canonicalDigest({ content: "planned-meta" }),
-  },
-] as const satisfies readonly PatchOperation[];
+function parkTransitionOperations(resultDir: string): readonly PatchOperation[] {
+  return [
+    { operation: "delete", path: validateManagedPath(".arc/active/meta-foo.md") },
+    {
+      operation: "write",
+      path: validateManagedPath(`${resultDir}/meta-foo.md`),
+      contentDigest: canonicalDigest({ content: "planned-meta" }),
+    },
+  ];
+}
 
 interface MetaSpec {
   slug: string;
@@ -142,6 +144,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
   const removals: string[] = [];
   const worktreeOps: unknown[] = [];
   const recordedReceipts: RetirementReceipt[] = [];
+  let transitionOperations = parkTransitionOperations(".arc/backlog/planned/foo");
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -202,8 +205,9 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
   };
 
   const planningRetirement: ParkContext["planningRetirement"] = {
-    captureSource: async ({ name }) => {
+    captureSource: async ({ name, resultDir }) => {
       calls.push(`retirement:capture:${name}`);
+      transitionOperations = parkTransitionOperations(resultDir);
       return {
         scope: {
           subject: { kind: "work-unit", name },
@@ -213,7 +217,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
         },
         artifactDigest: canonicalDigest({ artifact: "source-foo" }),
         sourceArtifactPaths: [validateManagedPath(".arc/active/meta-foo.md")],
-        resultArtifactPaths: [validateManagedPath(".arc/backlog/planned/foo/meta-foo.md")],
+        resultArtifactPaths: [validateManagedPath(`${resultDir}/meta-foo.md`)],
       };
     },
     authority: {
@@ -238,7 +242,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     rollbackTransition: async () => {
       calls.push("retirement:rollback-transition");
     },
-    readTransitionPatch: async () => PARK_TRANSITION_OPERATIONS,
+    readTransitionPatch: async () => transitionOperations,
     readResultArtifactDigest: async () => canonicalDigest({ artifact: "planned-foo" }),
   };
 
@@ -406,7 +410,7 @@ describe("runPark — park@Planning", () => {
     "preserves the %s cohort placement when parking Planning work",
     async (cohort) => {
       const planning = { ...PLANNING, cohort };
-      const { ctx, calls } = buildCtx([planning]);
+      const { ctx, calls, recordedReceipts } = buildCtx([planning]);
 
       const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(planning) });
 
@@ -415,6 +419,10 @@ describe("runPark — park@Planning", () => {
         metaPath: `.arc/backlog/planned/${cohort}/foo/meta-foo.md`,
       });
       expect(calls).toContain(`relocate:.arc/active->.arc/backlog/planned/${cohort}/foo`);
+      expect(recordedReceipts).toHaveLength(1);
+      expect(recordedReceipts[0]?.transitionPatchDigest).toBe(
+        patchDigest(parkTransitionOperations(`.arc/backlog/planned/${cohort}/foo`)),
+      );
     },
   );
 });
