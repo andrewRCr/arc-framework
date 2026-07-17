@@ -117,28 +117,82 @@ describe("validateDecomposeCommitGate", () => {
   });
 
   it("does not reinterpret historical metadata changes in a merge as a new retirement", () => {
+    const oldPath = ".arc/backlog/planned/old/meta-old.md";
+    const newPath = ".arc/backlog/planned/new/meta-new.md";
+    const oldMeta = bytes("old meta");
+    const newMeta = bytes("new meta");
     expect(validateDecomposeCommitGate({
       changes: [
-        { status: "D", path: ".arc/backlog/planned/old/meta-old.md" },
-        { status: "A", path: ".arc/backlog/planned/new/meta-new.md" },
+        { status: "D", path: oldPath },
+        { status: "A", path: newPath },
       ],
       mergeInProgress: true,
-      readIndexBytes: () => null,
-      readHeadBytes: () => null,
+      readIndexBytes: (path) => path === newPath ? newMeta : null,
+      readHeadBytes: (path) => path === oldPath ? oldMeta : null,
+      readParentBytes: (path) => path === oldPath ? [oldMeta, null] : [null, newMeta],
     })).toEqual([]);
   });
 
   it("does not revalidate historical decompose evidence introduced by a merge", () => {
+    const originPath = ".arc/active/meta-origin.md";
+    const unrelatedPath = ".arc/reference/unrelated.md";
+    const recordBytes = bytes(canonicalize(receipt));
+    const originBytes = bytes("origin meta");
+    const unrelatedBytes = bytes("merge result");
     expect(validateDecomposeCommitGate({
       changes: [
         { status: "A", path: recordPath },
-        { status: "D", path: ".arc/active/meta-origin.md" },
-        { status: "A", path: ".arc/reference/unrelated.md" },
+        { status: "D", path: originPath },
+        { status: "A", path: unrelatedPath },
       ],
       mergeInProgress: true,
-      readIndexBytes: (path) => path === recordPath ? bytes(canonicalize(receipt)) : bytes("merge result"),
-      readHeadBytes: () => null,
+      readIndexBytes: (path) => path === recordPath ? recordBytes : unrelatedBytes,
+      readHeadBytes: (path) => path === originPath ? originBytes : null,
+      readParentBytes: (path) => {
+        if (path === recordPath) return [null, recordBytes];
+        if (path === originPath) return [originBytes, null];
+        return [null, unrelatedBytes];
+      },
     })).toEqual([]);
+  });
+
+  it("rejects a merge resolution that newly deletes lifecycle metadata", () => {
+    const originPath = ".arc/active/meta-origin.md";
+    const originBytes = bytes("origin meta");
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "D", path: originPath }],
+      mergeInProgress: true,
+      readIndexBytes: () => null,
+      readHeadBytes: () => originBytes,
+      readParentBytes: () => [originBytes, originBytes],
+    })).toContainEqual(expect.stringMatching(/missing.*origin/iu));
+  });
+
+  it("rejects a newly introduced retirement receipt in a merge", () => {
+    const originPath = ".arc/active/meta-origin.md";
+    const originBytes = bytes("origin meta");
+    expect(validateDecomposeCommitGate({
+      changes: [
+        { status: "A", path: recordPath },
+        { status: "D", path: originPath },
+      ],
+      mergeInProgress: true,
+      readIndexBytes: (path) => path === recordPath ? bytes(canonicalize(receipt)) : null,
+      readHeadBytes: (path) => path === originPath ? originBytes : null,
+      readParentBytes: (path) => path === originPath
+        ? [originBytes, originBytes]
+        : [null, null],
+    })).toContainEqual(expect.stringMatching(/merge commits cannot introduce retirement records/iu));
+  });
+
+  it("treats an unreadable merge resolution as novel and fails closed", () => {
+    expect(validateDecomposeCommitGate({
+      changes: [{ status: "A", path: recordPath }],
+      mergeInProgress: true,
+      readIndexBytes: () => null,
+      readHeadBytes: () => null,
+      readParentBytes: () => [null, null],
+    })).toContainEqual(expect.stringMatching(/merge commits cannot introduce retirement records/iu));
   });
 
   it("allows same-slug relocations and other finalized retirement records", () => {
