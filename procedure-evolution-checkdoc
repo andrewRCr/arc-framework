@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "procedure-evolution-checkdoc",
-  "origin": "description",
-  "intent": "Mint strategy-procedure-evolution check-doc (third forward-compat sibling) plus index entry, PROJECT-PRD three-axes pointer, and WORKING-MEMORY awareness entry",
-  "branch": "chore/procedure-evolution-checkdoc",
-  "createdAt": "2026-07-17T00:18:22.281Z",
-  "returnBranch": "main"
-}
