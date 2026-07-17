@@ -37,10 +37,27 @@ function compareByCanonicalBytes(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }
 
+/** Normalize one Unicode-scalar string, rejecting lone UTF-16 surrogates. */
+function normalizeString(value: string, path: string): string {
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit >= 0xD800 && codeUnit <= 0xDBFF) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xDC00 && next <= 0xDFFF)) {
+        throw new Error(`${path}: strings must contain only well-formed Unicode`);
+      }
+      index += 1;
+    } else if (codeUnit >= 0xDC00 && codeUnit <= 0xDFFF) {
+      throw new Error(`${path}: strings must contain only well-formed Unicode`);
+    }
+  }
+  return value.normalize("NFC");
+}
+
 /** Validate and NFC-normalize a value into the canonical plain-data domain. */
 function normalize(value: unknown, path: string, ancestors: WeakSet<object>): CanonicalJson {
   if (value === null || typeof value === "boolean") return value;
-  if (typeof value === "string") return value.normalize("NFC");
+  if (typeof value === "string") return normalizeString(value, path);
   if (typeof value === "number") {
     if (!Number.isFinite(value)) throw new Error(`${path}: non-finite numbers are not supported`);
     return value;
@@ -61,9 +78,9 @@ function normalize(value: unknown, path: string, ancestors: WeakSet<object>): Ca
       throw new Error(`${path}: symbol keys are not supported`);
     }
     const source = value as Record<string, unknown>;
-    const normalized: Record<string, CanonicalJson> = {};
+    const normalized = Object.create(null) as Record<string, CanonicalJson>;
     for (const key of Object.keys(source)) {
-      const normalizedKey = key.normalize("NFC");
+      const normalizedKey = normalizeString(key, `${path}: object key ${JSON.stringify(key)}`);
       if (Object.prototype.hasOwnProperty.call(normalized, normalizedKey)) {
         throw new Error(`${path}: keys collide under NFC normalization at "${normalizedKey}"`);
       }

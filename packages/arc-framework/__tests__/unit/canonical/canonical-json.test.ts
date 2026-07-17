@@ -68,6 +68,40 @@ describe("canonical JSON serialization", () => {
   it("rejects object keys that collide under NFC normalization", () => {
     expect(() => canonicalize({ ["é"]: 1, ["é"]: 2 })).toThrow(/collide under NFC/u);
   });
+
+  it.each([
+    ["lone high surrogate", "\uD800"],
+    ["lone low surrogate", "\uDC00"],
+  ])("rejects non-well-formed Unicode in string values and keys: %s", (_label, candidate) => {
+    expect(() => canonicalize(candidate)).toThrow(/well-formed Unicode/u);
+    expect(() => canonicalize({ [candidate]: true })).toThrow(/well-formed Unicode/u);
+  });
+
+  it("rejects distinct lone-surrogate keys independently of insertion order", () => {
+    const forward = Object.fromEntries([["\uD800", 1], ["\uD801", 2]]);
+    const reversed = Object.fromEntries([["\uD801", 2], ["\uD800", 1]]);
+
+    expect(() => canonicalize(forward)).toThrow(/well-formed Unicode/u);
+    expect(() => canonicalize(reversed)).toThrow(/well-formed Unicode/u);
+  });
+
+  it("preserves well-formed surrogate pairs as Unicode scalar values", () => {
+    const astral = "\uD83D\uDE00";
+
+    expect(canonicalize({ [astral]: astral })).toBe(`{"${astral}":"${astral}"}`);
+  });
+
+  it("preserves an own __proto__ key and keeps it digest-distinct from omission", () => {
+    const parsed = JSON.parse('{"__proto__":{"polluted":true},"a":2}') as unknown;
+    const nullPrototype = Object.create(null) as Record<string, unknown>;
+    nullPrototype.__proto__ = { polluted: true };
+    nullPrototype.a = 2;
+    const expected = '{"__proto__":{"polluted":true},"a":2}';
+
+    expect(canonicalize(parsed)).toBe(expected);
+    expect(canonicalize(nullPrototype)).toBe(expected);
+    expect(canonicalDigest(parsed)).not.toBe(canonicalDigest({ a: 2 }));
+  });
 });
 
 describe("CanonicalDigest validation", () => {
