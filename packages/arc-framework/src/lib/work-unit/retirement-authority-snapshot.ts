@@ -106,8 +106,8 @@ async function captureSnapshotProjection(
       sourceHead: scope.source.head,
     });
     const [sourceRefOid, resultRefOid, indexTreeOid, inventory, record] = await Promise.all([
-      resolveCommit(ctx.exec, scope.source.branch, ctx.cwd),
-      resolveCommit(ctx.exec, scope.resultProjection.ref, ctx.cwd),
+      resolveCommit(ctx.exec, `refs/heads/${scope.source.branch}`, ctx.cwd),
+      resolveCommit(ctx.exec, `refs/heads/${scope.resultProjection.ref}`, ctx.cwd),
       resolveIndexTree(ctx.exec, ctx.cwd),
       ctx.readInventory(scope),
       readRecordProjection(ctx.fs, resolveRetirementRecordPath(ctx.cwd, recordId)),

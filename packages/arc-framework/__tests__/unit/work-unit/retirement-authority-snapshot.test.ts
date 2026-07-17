@@ -28,8 +28,8 @@ function context(): RetirementSnapshotContext & {
   record: { content: string | null };
 } {
   const refs = new Map([
-    ["plan/sample", sourceHead],
-    ["main", resultHead],
+    ["refs/heads/plan/sample", sourceHead],
+    ["refs/heads/main", resultHead],
   ]);
   const record = { content: null as string | null };
   const exec: GitExec = vi.fn(async (_cmd, args) => {
@@ -79,7 +79,7 @@ describe("readRetirementAuthoritySnapshot", () => {
 
   it("refuses an initially mismatched source or result projection", async () => {
     const ctx = context();
-    ctx.refs.set("plan/sample", "d".repeat(40));
+    ctx.refs.set("refs/heads/plan/sample", "d".repeat(40));
 
     await expect(readRetirementAuthoritySnapshot(ctx, scope)).resolves.toEqual({
       status: "refused",
@@ -90,8 +90,8 @@ describe("readRetirementAuthoritySnapshot", () => {
 
 describe("revalidateRetirementAuthoritySnapshot", () => {
   it.each([
-    ["source ref", (ctx: ReturnType<typeof context>) => ctx.refs.set("plan/sample", "d".repeat(40))],
-    ["base ref", (ctx: ReturnType<typeof context>) => ctx.refs.set("main", "e".repeat(40))],
+    ["source ref", (ctx: ReturnType<typeof context>) => ctx.refs.set("refs/heads/plan/sample", "d".repeat(40))],
+    ["base ref", (ctx: ReturnType<typeof context>) => ctx.refs.set("refs/heads/main", "e".repeat(40))],
     [
       "record state",
       (ctx: ReturnType<typeof context>) => {

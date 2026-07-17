@@ -10,7 +10,11 @@ describe("direct retirement branch resolution", () => {
     const exec: GitExec = async (_cmd, args) => {
       calls.push(args);
       if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "feat/sample\n" };
-      if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${head}\n` };
+      if (
+        args[0] === "rev-parse"
+        && args[1] === "--verify"
+        && args[2] === "refs/heads/feat/sample^{commit}"
+      ) return { stdout: `${head}\n` };
       if (args[0] === "ls-tree") return { stdout: ".arc/active/meta-sample.md\0" };
       throw new Error(`unexpected Git command: ${args.join(" ")}`);
     };
