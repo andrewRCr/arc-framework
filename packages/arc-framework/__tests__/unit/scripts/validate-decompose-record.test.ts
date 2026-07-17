@@ -6,6 +6,7 @@ import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js"
 import { receiptId as deriveReceiptId } from "../../../src/lib/canonical/receipt-id.js";
 import { resolveRetirementRecordRelativePath } from "../../../src/lib/work-unit/retirement-record-store.js";
 import {
+  parseStagedPathChanges,
   validateDecomposeCommitGate,
   type StagedPathChange,
 } from "../../../src/scripts/validate-decompose-record.js";
@@ -127,6 +128,19 @@ describe("validateDecomposeCommitGate", () => {
     })).toEqual([]);
   });
 
+  it("does not revalidate historical decompose evidence introduced by a merge", () => {
+    expect(validateDecomposeCommitGate({
+      changes: [
+        { status: "A", path: recordPath },
+        { status: "D", path: ".arc/active/meta-origin.md" },
+        { status: "A", path: ".arc/reference/unrelated.md" },
+      ],
+      mergeInProgress: true,
+      readIndexBytes: (path) => path === recordPath ? bytes(canonicalize(receipt)) : bytes("merge result"),
+      readHeadBytes: () => null,
+    })).toEqual([]);
+  });
+
   it("allows same-slug relocations and other finalized retirement records", () => {
     expect(validate([
       { status: "D", path: ".arc/active/meta-origin.md" },
@@ -244,5 +258,23 @@ describe("validateDecomposeCommitGate", () => {
       ),
     ).toContainEqual(expect.stringMatching(/amended|already exists/i));
     expect(validate([{ status: "A", path: recordPath }])).toContainEqual(expect.stringMatching(/patch.*mismatch/i));
+  });
+});
+
+describe("parseStagedPathChanges", () => {
+  it("decodes NUL-framed paths containing tabs and newlines losslessly", () => {
+    expect(parseStagedPathChanges("A\0docs/tab\tname.md\0M\0docs/line\nname.md\0")).toEqual([
+      { status: "A", path: "docs/tab\tname.md" },
+      { status: "M", path: "docs/line\nname.md" },
+    ]);
+  });
+
+  it.each([
+    ["type change", "T\0.arc/.internal/retirement-receipts/record.json\0"],
+    ["unknown status", "X\0path.md\0"],
+    ["missing path", "A\0"],
+    ["missing terminator", "A\0path.md"],
+  ])("rejects %s records instead of omitting them", (_label, output) => {
+    expect(() => parseStagedPathChanges(output)).toThrow(/malformed|unsupported/iu);
   });
 });

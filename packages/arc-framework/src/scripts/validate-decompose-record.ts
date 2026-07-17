@@ -28,6 +28,25 @@ export interface DecomposeCommitGateInput {
   readHeadBytes(path: string): Uint8Array | null;
 }
 
+/** Decode NUL-framed `git diff --name-status` output without path loss. */
+export function parseStagedPathChanges(output: string): StagedPathChange[] {
+  if (output === "") return [];
+  const fields = output.split("\0");
+  if (fields.pop() !== "" || fields.length % 2 !== 0) {
+    throw new Error("malformed NUL-framed Git name-status output");
+  }
+  const changes: StagedPathChange[] = [];
+  for (let index = 0; index < fields.length; index += 2) {
+    const status = fields[index];
+    const path = fields[index + 1];
+    if ((status !== "A" && status !== "M" && status !== "D") || path === undefined || path === "") {
+      throw new Error(`unsupported staged change record: ${status ?? ""}`);
+    }
+    changes.push({ status, path });
+  }
+  return changes;
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
@@ -126,22 +145,21 @@ function hasPreparedDecomposeRecord(
 
 /** Validate the staged decompose record and exact non-record patch. */
 export function validateDecomposeCommitGate(input: DecomposeCommitGateInput): string[] {
+  if (input.mergeInProgress === true) return [];
   const errors: string[] = [];
   const recordChanges = input.changes.filter((change) => RECORD_PATTERN.test(change.path));
   if (hasPreparedDecomposeRecord(recordChanges, (path) => input.readIndexBytes(path))) {
     return ["decompose record is prepared but not finalized"];
   }
-  if (input.mergeInProgress !== true) {
-    const covered = receiptCoveredRetirements(
-      input.changes,
-      (path) => input.readIndexBytes(path),
-      (path) => input.readHeadBytes(path),
-    );
-    const uncovered = apparentlyRetiredSlugs(input.changes).filter((slug) => !covered.has(slug));
-    if (uncovered.length > 0) {
-      errors.push(`lifecycle retirement is missing a finalized retirement record for: ${uncovered.join(", ")}`);
-      return errors;
-    }
+  const covered = receiptCoveredRetirements(
+    input.changes,
+    (path) => input.readIndexBytes(path),
+    (path) => input.readHeadBytes(path),
+  );
+  const uncovered = apparentlyRetiredSlugs(input.changes).filter((slug) => !covered.has(slug));
+  if (uncovered.length > 0) {
+    errors.push(`lifecycle retirement is missing a finalized retirement record for: ${uncovered.join(", ")}`);
+    return errors;
   }
   if (recordChanges.length === 0) {
     return errors;
@@ -225,13 +243,13 @@ async function gitBytes(args: string[]): Promise<Uint8Array | null> {
 /** Validate the current index and set a failing exit code on refusal. */
 export async function runDecomposeRecordValidation(): Promise<void> {
   const mergeInProgress = await gitBytes(["rev-parse", "--verify", "-q", "MERGE_HEAD"]) !== null;
-  const { stdout } = await execFileAsync("git", ["diff", "--cached", "--name-status", "--no-renames"], { encoding: "utf8" });
-  const changes = stdout.trim().split("\n").filter(Boolean).flatMap((line): StagedPathChange[] => {
-    const [rawStatus, path] = line.split("\t");
-    const status = rawStatus?.[0];
-    if ((status !== "A" && status !== "M" && status !== "D") || path === undefined) return [];
-    return [{ status, path }];
-  });
+  if (mergeInProgress) return;
+  const { stdout } = await execFileAsync(
+    "git",
+    ["diff", "--cached", "--name-status", "--no-renames", "-z"],
+    { encoding: "utf8" },
+  );
+  const changes = parseStagedPathChanges(stdout);
   const errors = validateDecomposeCommitGate({
     changes,
     mergeInProgress,
