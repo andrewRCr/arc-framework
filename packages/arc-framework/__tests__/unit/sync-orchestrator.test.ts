@@ -569,6 +569,25 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(process.exitCode).toBeUndefined();
   });
 
+  it("names errand collisions and their real recovery when no marker can be recorded", async () => {
+    includeExecInput = true;
+    setConfig("manual");
+    setNotesPolicy("manual");
+    setWorktree("clean");
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+    mockReconcileErrandPush.mockResolvedValue({ kind: "conflict", slugs: ["clash", "other"] });
+    mockRecordErrandPartialPushMarker.mockResolvedValue(false);
+
+    const outcome = await captureSyncJson();
+
+    expect(outcome.errand).toEqual({
+      action: "reconcile",
+      result: "failed",
+      detail:
+        "conflict:slugs=clash,other:recovery=arc errand close --force <slug> on discarded side:marker-not-recorded",
+    });
+  });
+
   it("notes_push: prompt → save + interactive confirm before notes push", async () => {
     setConfig("manual");
     setNotesPolicy("prompt");

@@ -911,17 +911,20 @@ the waves run rather than authored up front.
   full-protection path from a stale feature checkout. Richer any-locus completion/HUD awareness remains the
   existing Heavy `session-locus-model` follow-up and is not an FP dependency.
 
-### `[ ]` **7.4 Make errand-ref collision surfacing honest and traceable**
+### `[x]` **7.4 Make errand-ref collision surfacing honest and traceable**
 
 - _Goal:_ A same-slug errand-record collision names the colliding slug(s), states the real recovery (close the
   losing record — `arc errand close --force <slug>` on the discarded side) instead of promising an `arc sync`
   self-reconcile that cannot happen, and leaves a durable trace on machines without a sync-state record (mint
   the record, or stop discarding the marker writer's `false` return). Matters because one collision wedges the
   whole per-identity ref — every subsequent record publish blocks behind it with no pointer to the blocker.
-- _Files:_ `handlers/errand.ts` (five conflict arms), `handlers/sync.ts` (`errandPartialPushDetail`),
-  `lib/user-sync/sync-state.ts` (`recordErrandPartialPushMarker` no-record arm).
-- _Surfaced by:_ wave-3 cell 5.2.a induction, 2026-07-16 — see `notes-finalize-parallelism.md` § Wave-3
-  induction evidence.
+- _Outcome:_ Consolidated all five errand mutation handlers onto one push-disposition path. Same-slug conflicts
+  now name every colliding slug and direct the operator to keep one record and run
+  `arc errand close --force <slug>` on the discarded side; they no longer claim a later `arc sync` will
+  self-reconcile. The JSON sync leg carries the same slug list and recovery procedure. Every failed errand push
+  now checks the marker writer's boolean result: when no local errand ref or usable sync-state record can retain
+  the marker, both human and JSON surfaces say `marker-not-recorded` instead of silently promising durable
+  recovery. Unit coverage pins collision naming, remedy honesty, and the no-record trace.
 
 ### `[ ]` **7.5 Give diverged-notes surfaces honest guidance**
 

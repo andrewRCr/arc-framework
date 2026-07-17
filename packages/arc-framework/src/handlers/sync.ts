@@ -63,7 +63,7 @@ import {
   type PairedPushResult,
   type UserIOContext,
 } from "../commands/user.js";
-import { reconcileErrandPush } from "../lib/errand/index.js";
+import { reconcileErrandPush, type ErrandPushOutcome } from "../lib/errand/index.js";
 import { publishSyncStateMarker } from "../lib/user-sync/index.js";
 import {
   resolveAllSettings,
@@ -564,7 +564,7 @@ async function reconcileErrandLeg(
         return {
           action: "reconcile",
           result: "failed",
-          detail: errandPartialPushDetail(outcome.kind, markerRecorded),
+          detail: errandPartialPushDetail(outcome, markerRecorded),
         };
       }
       default: {
@@ -577,7 +577,7 @@ async function reconcileErrandLeg(
     return {
       action: "reconcile",
       result: "failed",
-      detail: errandPartialPushDetail("error", markerRecorded),
+      detail: errandPartialPushDetail({ kind: "error" }, markerRecorded),
     };
   }
 }
@@ -618,7 +618,13 @@ function reconcileErrandSuccessRecord(
   };
 }
 
-function errandPartialPushDetail(detail: string, markerRecorded: boolean): string {
+function errandPartialPushDetail(
+  outcome: ErrandPushOutcome | { kind: "error" },
+  markerRecorded: boolean,
+): string {
+  const detail = outcome.kind === "conflict"
+    ? `conflict:slugs=${outcome.slugs.join(",")}:recovery=arc errand close --force <slug> on discarded side`
+    : outcome.kind;
   return markerRecorded ? detail : `${detail}:marker-not-recorded`;
 }
 
