@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UserFetchResult } from "../../src/commands/user.js";
+import type { SyncOutput } from "../../src/lib/sync-output.js";
 
 const mockLog = {
   error: vi.fn(),
@@ -16,7 +17,28 @@ const {
   isMissingRemoteError,
   isRemoteError,
   reportUserFetchOutcome,
+  runWithSpinner,
 } = await import("../../src/handlers/shared.js");
+
+describe("runWithSpinner", () => {
+  it("stops with the failure label and rethrows the operation error", async () => {
+    let started: string | undefined;
+    let stopped: string | undefined;
+    const spinner = {
+      start: (message?: string) => { started = message; },
+      stop: (message?: string) => { stopped = message; },
+    };
+    const output = { spinner: () => spinner } as unknown as SyncOutput;
+    const error = new Error("operation failed");
+
+    await expect(
+      runWithSpinner(output, "Working...", async () => Promise.reject(error), "Done."),
+    ).rejects.toBe(error);
+
+    expect(started).toBe("Working...");
+    expect(stopped).toBe("Failed.");
+  });
+});
 
 describe("handlers/shared remote fetch reporting", () => {
   beforeEach(() => {

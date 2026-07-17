@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveCurrentHuskAdvisory,
+  resolveCurrentHuskAdvisory,
 } from "../../../src/lib/session-init/current-husk-advisory.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 
@@ -25,14 +26,12 @@ function derive(overrides: {
   branch?: string | null;
   head?: string;
   marker?: WorktreeMarkerReadResult;
-  completed?: ReadonlySet<string>;
 } = {}) {
   return deriveCurrentHuskAdvisory({
     worktreePath: "/wt/shipped-widget",
     branch: overrides.branch ?? null,
     head: overrides.head ?? "abc123",
     marker: overrides.marker ?? stampedMarker,
-    completed: overrides.completed ?? new Set(["shipped-widget"]),
   });
 }
 
@@ -41,7 +40,103 @@ describe("deriveCurrentHuskAdvisory", () => {
     expect(derive()).toEqual({
       worktreePath: "/wt/shipped-widget",
       subject: { kind: "work-unit", name: "shipped-widget" },
+      branch: "feat/shipped-widget",
+      stamp: { kind: "legacy", authorization: "merged-preserved" },
     });
+  });
+
+  it("surfaces structurally decoded authorization, evidence, and remote proof without completion membership", () => {
+    const digest = `sha256:${"a".repeat(64)}` as const;
+    const result = derive({
+      marker: {
+        kind: "present",
+        marker: {
+          ...stampedMarker.marker,
+          husk: {
+            ...stampedMarker.marker.husk!,
+            authorization: "discard-confirmed",
+            remoteRef: { remote: "origin/feat/shipped-widget", oid: "abc123", disposition: "delete" },
+            evidence: {
+              kind: "receipt",
+              receiptId: digest,
+              transition: "abandon",
+              expectedLifecycle: "nonexistent",
+              resultDigest: digest,
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.stamp).toEqual({
+      kind: "current",
+      authorization: "discard-confirmed",
+      remoteRef: { remote: "origin/feat/shipped-widget", oid: "abc123", disposition: "delete" },
+      evidence: {
+        kind: "receipt",
+        receiptId: digest,
+        transition: "abandon",
+        expectedLifecycle: "nonexistent",
+        resultDigest: digest,
+      },
+    });
+  });
+
+  it("falls back to ordinary detached guidance when known evidence does not revalidate", async () => {
+    const digest = `sha256:${"a".repeat(64)}` as const;
+    const marker: WorktreeMarkerReadResult = {
+      kind: "present",
+      marker: {
+        ...stampedMarker.marker,
+        husk: {
+          ...stampedMarker.marker.husk!,
+          authorization: "discard-confirmed",
+          remoteRef: null,
+          evidence: {
+            kind: "receipt",
+            receiptId: digest,
+            transition: "abandon",
+            expectedLifecycle: "nonexistent",
+            resultDigest: digest,
+          },
+        },
+      },
+    };
+
+    const result = await resolveCurrentHuskAdvisory({
+      worktreePath: "/wt/shipped-widget",
+      branch: null,
+      head: "abc123",
+      marker,
+    }, async () => false);
+
+    expect(result).toBeNull();
+  });
+
+  it("recognizes an unknown authorization as manual-only", () => {
+    const digest = `sha256:${"b".repeat(64)}` as const;
+    const result = derive({
+      marker: {
+        kind: "present",
+        marker: {
+          ...stampedMarker.marker,
+          husk: {
+            ...stampedMarker.marker.husk!,
+            authorization: "future-policy",
+            remoteRef: null,
+            evidence: {
+              kind: "receipt",
+              receiptId: digest,
+              transition: "abandon",
+              expectedLifecycle: "nonexistent",
+              resultDigest: digest,
+            },
+          },
+        },
+      },
+    });
+
+    expect(result?.stamp).toEqual({ kind: "manual-only", reason: "unknown-authorization" });
   });
 
   it.each([
@@ -54,7 +149,6 @@ describe("deriveCurrentHuskAdvisory", () => {
       } satisfies WorktreeMarkerReadResult,
     }],
     ["moved HEAD", { head: "different" }],
-    ["non-completed WU", { completed: new Set<string>() }],
     ["branched worktree", { branch: "feat/shipped-widget" }],
   ])("returns no advisory for a %s", (_label, overrides) => {
     expect(derive(overrides)).toBeNull();

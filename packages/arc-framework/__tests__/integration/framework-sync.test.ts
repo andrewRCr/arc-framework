@@ -98,7 +98,7 @@ describe("framework sync (self-hosting drift check)", () => {
       }
 
       const expected = pkg.rendered
-        ? renderConditionals(renderTokens(pkg.content, tokens), conditionals)
+        ? renderConditionals(renderTokens(pkg.content, tokens), conditionals, relPath)
         : pkg.content;
 
       let actual: string;

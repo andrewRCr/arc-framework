@@ -99,9 +99,11 @@ export interface SessionInitBaseDistanceValue extends BaseDistanceStatusResult {
 
 /**
  * Base-branch-sync slot in the session-init envelope. Extends the raw probe
- * result (local `<base>` vs `origin/<base>`) with the config-gated action +
- * prompt pair: `pull` / `prompt` drive the fast-forward freshen offer, `surface`
- * the stale/diverged advisory, `skip` a current base.
+ * result (local `<base>` vs `origin/<base>`, plus `checkout` locus) with the
+ * config-gated action + prompt pair: `pull` / `prompt` drive the fast-forward
+ * freshen only when the base is not checked out; `surface` covers a stale base
+ * under `manual`, a base checked out elsewhere (primary-aware), or a diverged
+ * base; `skip` a current base or when this worktree holds the base.
  */
 export interface SessionInitBaseBranchSyncValue extends BaseBranchSyncStatusResult {
   recommendedAction: RecommendedAction;
@@ -237,11 +239,9 @@ export interface SessionInitProbeResult {
    */
   recovery?: Probe<CascadeResolution>;
   /**
-   * Pre-computed stale-worktree sweep. Present ONLY in the primary (main)
-   * worktree and only when the roster resolved — it consumes that roster,
-   * cross-references it against `.arc/completed/`, and resolves each lingering
-   * shipped-WU worktree's marker-gated cleanup disposition. Absent in linked
-   * worktrees (the resume path never sweeps) and when the roster failed.
+   * Pre-computed residue sweep. Primary sessions consume the public roster;
+   * linked sessions consume a private cleanup-only roster and exclude their
+   * exact current path. Absent when the applicable roster fails.
    */
   sweep?: Probe<StaleWorktreeSweepResult>;
   /**
@@ -258,8 +258,8 @@ export interface SessionInitProbeResult {
    * verdicts. A `shippedWorkUnit` orphan earns the re-runnable
    * `arc teardown <name>` offer; otherwise a `merged` orphan earns the
    * interlock-gated `git branch -d` offer, and an unmerged one is surfaced as
-   * not-removable (never `-D`). Present ONLY in the primary (main) worktree —
-   * branch hygiene the resume path never pays for; absent in linked worktrees.
+   * not-removable (never `-D`). Present in primary and identity-known linked
+   * sessions; linked rendering combines it with sibling husks.
    */
   orphanBranchSweep?: Probe<OrphanBranchSweepResult>;
   /**
@@ -573,6 +573,8 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * mode is a pass-through).
    */
   roster: () => Promise<WorktreeRosterResult>;
+  /** Private linked cleanup roster; never published or fed to general roster consumers. */
+  cleanupRoster?: () => Promise<WorktreeRosterResult>;
   /**
    * Branch-gone recovery resolver. Receives the already-resolved roster and the
    * current (branch-gone) branch from the orchestrator; the handler gathers the

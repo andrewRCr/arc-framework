@@ -246,6 +246,28 @@ describe("init", () => {
     expect(output).toContain("arc update");
   });
 
+  it("concurrent init invocations converge on one valid installation", async () => {
+    const args = ["init", "--yes", "--name", "test-project"];
+    const results = await Promise.all([runArc(args, tmpDir), runArc(args, tmpDir)]);
+
+    expect(results.filter((result) => result.exitCode === 0)).toHaveLength(1);
+    for (const result of results.filter((candidate) => candidate.exitCode !== 0)) {
+      const output = result.stdout + result.stderr;
+      expect(output.includes("already installed") || output.includes("in progress")).toBe(true);
+    }
+
+    const internalDir = join(tmpDir, ".arc", "system", ".internal");
+    const manifest = JSON.parse(
+      await readFile(join(internalDir, "manifest.json"), "utf8"),
+    ) as { install_config: { project_name: string }; files: Record<string, unknown> };
+    const pristine = JSON.parse(
+      await readFile(join(internalDir, "pristine.json"), "utf8"),
+    ) as Record<string, string>;
+    expect(manifest.install_config.project_name).toBe("test-project");
+    expect(Object.keys(manifest.files).length).toBeGreaterThan(0);
+    expect(Object.keys(pristine).length).toBeGreaterThan(0);
+  });
+
   it("arc update before init exits non-zero with user-facing message", async () => {
     const result = await runArc(["update"], tmpDir);
 

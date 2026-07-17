@@ -19,16 +19,18 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
-### `[ ]` **Auto-resolve ROADMAP merge conflicts by regeneration**
+### `[ ]` **Merge-driver ownership for ROADMAP conflict auto-resolve**
 
-- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-15); captured during the FP wave-3 launch
-  session's base merge.
-- *Concern:* long-running branches routinely conflict only on `ROADMAP.md`'s render stamp, and regeneration is
-  always the correct resolution. The pre-commit hook already rejects hand-resolved output and prints the
-  regeneration command, so the current sequence spends a judgment cycle on a deterministic outcome.
-- *Approach:* settle whether a scoped merge driver with install wiring or a hook-side regenerate-and-restage path
-  should own the recovery. Keep the action constrained to ROADMAP-only conflicts and coordinate with the existing
-  regenerate-wins projection engine rather than building a second renderer.
+- *Routed from:* residual of the 2026-07-15 pull-back errand `hook-roadmap-conflict-auto-remedy` (inbox capture
+  "Hook auto-remedy for ROADMAP-only merge conflicts (pull-back)"); original capture from housekeep drain /
+  FP wave-3 base merge.
+- *Landed interim:* pre-commit hook-side regenerate-and-restage when `ROADMAP.md` is the only conflicted (or
+  marker-bearing) path — uses the existing staged-index regenerate-wins projection (`remedy-roadmap-conflict.ts`).
+  Covers the post-stage commit path; pure unmerged ROADMAP-only still needs a stage or driver to fire before
+  `git commit` will invoke hooks.
+- *Residual concern:* settle whether a scoped **merge driver** with install wiring should own recovery at merge
+  time (before pre-commit), or whether the hook-side path is sufficient long-term. Keep any driver constrained to
+  ROADMAP-only conflicts and coordinated with the same projection engine (no second renderer).
 
 ### `[ ]` **Preserve projection diagnostics as out-of-band advisories**
 
@@ -291,6 +293,20 @@
   loads, reuse already-loaded render records, and memoize lifecycle-index construction per side-effect execution
   where measurements still justify it. Route any surviving general transition-engine cache debt to
   `architecture-remediation`.
+
+### `[ ]` **Move ROADMAP regeneration to the merge boundary**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-16); captured
+  during FP wave-3 external-budget contention analysis; evidence in `notes-finalize-parallelism.md` § Day-2
+  evidence.
+- *Concern:* under wave-3 parallelism every shipping PR conflicts on `ROADMAP.md` — the derived-artifact conflict
+  class ADR-020's derived-vs-mutated split predicts: concurrent branches each carry a render derived from their
+  own base snapshot, and git line-merge cannot converge derived content. In-session friction fixes (already
+  shipped) don't touch this; it is structural while branches edit the render.
+- *Proposed:* branch PRs stop editing ROADMAP; a base-side post-merge regen keeps it current. Branch-side
+  staleness is already the documented model ("derived-at-merge, mid-WU stale"), so nothing is lost; every-PR
+  conflicts and some doc-only CI churn disappear together. Owns-regen-triggers puts this here. Complements (does
+  not replace) the day-1 auto-regen conflict-remedy errand capture — elimination vs. remedy.
 
 ---
 

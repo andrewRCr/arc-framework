@@ -28,7 +28,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
+import { removeGitBackedDir } from "../helpers/temp-repo.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { readGitBlobBytes } from "../../src/lib/io-context.js";
 import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
 import {
   runBranchTeardown,
@@ -75,7 +77,13 @@ const indexFs: LifecycleIndexFs = {
 };
 
 function teardownCtx(cloneA: string): TeardownContext {
-  return { cwd: cloneA, exec: execFor(cloneA), indexFs, chdir: () => {} };
+  return {
+    cwd: cloneA,
+    exec: execFor(cloneA),
+    indexFs,
+    chdir: () => {},
+    readBlob: (ref, path) => readGitBlobBytes(cloneA, ref, path),
+  };
 }
 
 /** Write a shipped `completed/` meta so the arc-state gate authorizes the slug. */
@@ -89,6 +97,14 @@ async function writeShippedMeta(cloneA: string, name: string): Promise<void> {
       `|-----------|-----------|------------|-----------|--------------|\n` +
       `| \`Shipped\` | \`clone-a\` | \`[none]\` | \`Novel\` | \`P1\` |\n\n---\n`,
   );
+}
+
+async function commitShippedMeta(h: MultiClone, name: string): Promise<void> {
+  await writeShippedMeta(h.cloneA, name);
+  const relativePath = `.arc/completed/2026-q2/01_${name}/meta-${name}.md`;
+  await git(h.cloneA, ["add", "-f", "--", relativePath]);
+  await git(h.cloneA, ["commit", "-m", `chore: archive ${name}`]);
+  await git(h.cloneA, ["push", "origin", "main"]);
 }
 
 /**
@@ -208,12 +224,12 @@ async function prepareSelfTeardownWorktree(
   options: { marked: boolean },
 ): Promise<string> {
   await shipFeature(h, "demo", "merge-commit");
+  await commitShippedMeta(h, "demo");
   await writeFile(
     join(h.cloneA, ".git", "info", "exclude"),
     ".arc/completed/\n.arc/system/.internal/worktree-marker.json\n",
     { flag: "a" },
   );
-  await writeShippedMeta(h.cloneA, "demo");
   const wtPath = join(wtParent, "wt");
   await git(h.cloneA, ["worktree", "add", wtPath, "feat/demo"]);
   await writeShippedMeta(wtPath, "demo");
@@ -506,7 +522,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(await readFile(join(primaryUserDir, "FUTURE.md"), "utf8")).toBe("written after husking\n");
       expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(wtPath);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -528,7 +544,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect((await readWorktreeMarker(wtPath)).kind).toBe("absent");
       expect(await git(h.cloneA, ["worktree", "list"])).toContain(wtPath);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -541,7 +557,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const realExec = execFor(wtPath);
       let refuseDelete = true;
       const failingExec: GitExec = async (cmd, args, opts) => {
-        if (refuseDelete && args[0] === "branch" && args[1] === "-D") {
+        if (refuseDelete && args[0] === "update-ref" && args[1] === "-d") {
           refuseDelete = false;
           throw new Error("simulated ref lock");
         }
@@ -549,13 +565,19 @@ describe("arc teardown — worktree dispatch over real git", () => {
       };
 
       const first = await runTeardown(
-        { cwd: wtPath, exec: failingExec, indexFs, chdir: () => {} },
+        {
+          cwd: wtPath,
+          exec: failingExec,
+          indexFs,
+          chdir: () => {},
+          readBlob: (ref, path) => readGitBlobBytes(wtPath, ref, path),
+        },
         { name: "demo", base: "main" },
       );
       expect(first.status).toBe("torn-down");
       if (first.status !== "torn-down") return;
       expect(first.branchDeleted).toBe(false);
-      expect(first.notices.some((notice) => /retry teardown from the husk or primary/iu.test(notice))).toBe(true);
+      expect(first.notices.some((notice) => /compare-and-delete/iu.test(notice))).toBe(true);
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
 
       const replay = await runTeardown(teardownCtx(wtPath), { name: "demo", base: "main" });
@@ -567,7 +589,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
       expect(await git(wtPath, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("HEAD");
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -592,12 +614,12 @@ describe("arc teardown — worktree dispatch over real git", () => {
       if (moved.status === "rejected") expect(moved.reason).toMatch(/head-moved/iu);
       expect(await git(h.cloneA, ["worktree", "list"])).toContain(wtPath);
 
-      await rm(wtPath, { recursive: true, force: true });
+      await removeGitBackedDir(wtPath);
       await git(h.cloneA, ["worktree", "prune"]);
       expect(await git(h.cloneA, ["worktree", "list"])).not.toContain(wtPath);
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -624,7 +646,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const worktrees = await git(h.cloneA, ["worktree", "list"]);
       expect(worktrees).not.toContain(result.worktreeRemoved!);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -647,7 +669,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       // Nothing reaped: the branch and worktree survive the refusal.
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -696,7 +718,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const worktrees = await git(h.cloneA, ["worktree", "list"]);
       expect(worktrees).not.toContain(result.worktreeRemoved!);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });
@@ -729,7 +751,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       expect(worktrees).toContain(wtPath);
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
     } finally {
-      await rm(wtParent, { recursive: true, force: true });
+      await removeGitBackedDir(wtParent);
       await h.cleanup();
     }
   });

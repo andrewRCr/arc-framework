@@ -18,12 +18,19 @@
 import { describe, it, expect } from "vitest";
 
 import { parseMetaRecord, type MetaFieldName } from "../../../../src/lib/active/meta-reader.js";
+import { canonicalDigest } from "../../../../src/lib/canonical/canonical-json.js";
+import { patchDigest, type PatchOperation } from "../../../../src/lib/canonical/content-digest.js";
+import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
 import type {
   ExecuteTransitionContext,
   SideEffectHandler,
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
+import {
+  validateReceiptMatrix,
+  type RetirementReceipt,
+} from "../../../../src/lib/work-unit/retirement-authority.js";
 import {
   runPark,
   runResume,
@@ -35,6 +42,16 @@ import {
 const CWD = "/repo";
 const WORKTREE = "/repo/../wt-foo";
 const LOCUS = "/repo/../wt-foo";
+function parkTransitionOperations(resultDir: string): readonly PatchOperation[] {
+  return [
+    { operation: "delete", path: validateManagedPath(".arc/active/meta-foo.md") },
+    {
+      operation: "write",
+      path: validateManagedPath(`${resultDir}/meta-foo.md`),
+      contentDigest: canonicalDigest({ content: "planned-meta" }),
+    },
+  ];
+}
 
 interface MetaSpec {
   slug: string;
@@ -118,6 +135,7 @@ interface Harness {
   writes: { path: string; content: string }[];
   removals: string[];
   worktreeOps: unknown[];
+  recordedReceipts: RetirementReceipt[];
 }
 
 function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
@@ -125,6 +143,8 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
   const writes: Harness["writes"] = [];
   const removals: string[] = [];
   const worktreeOps: unknown[] = [];
+  const recordedReceipts: RetirementReceipt[] = [];
+  let transitionOperations = parkTransitionOperations(".arc/backlog/planned/foo");
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -184,7 +204,49 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     },
   };
 
-  return { ctx: { executor, fs }, calls, writes, removals, worktreeOps };
+  const planningRetirement: ParkContext["planningRetirement"] = {
+    captureSource: async ({ name, resultDir }) => {
+      calls.push(`retirement:capture:${name}`);
+      transitionOperations = parkTransitionOperations(resultDir);
+      return {
+        scope: {
+          subject: { kind: "work-unit", name },
+          transition: "park-planning",
+          source: { branch: "plan/foo", head: "a".repeat(40) },
+          resultProjection: { ref: "plan/foo", head: "a".repeat(40) },
+        },
+        artifactDigest: canonicalDigest({ artifact: "source-foo" }),
+        sourceArtifactPaths: [validateManagedPath(".arc/active/meta-foo.md")],
+        resultArtifactPaths: [validateManagedPath(`${resultDir}/meta-foo.md`)],
+      };
+    },
+    authority: {
+      readSnapshot: async () => ({
+        status: "resolved",
+        snapshot: {
+          authorityVersion: canonicalDigest({ authority: "before-park" }),
+          sourceRefOid: "a".repeat(40),
+          resultRefOid: "a".repeat(40),
+          recordState: "absent",
+        },
+      }),
+      record: async (receipt) => {
+        calls.push("retirement:record");
+        recordedReceipts.push(receipt);
+        return { status: "recorded", authorityVersion: canonicalDigest({ authority: "after-park" }) };
+      },
+    },
+    stageTransition: async () => {
+      calls.push("retirement:stage-transition");
+    },
+    rollbackTransition: async () => {
+      calls.push("retirement:rollback-transition");
+    },
+    readTransitionPatch: async () => transitionOperations,
+    readResultArtifactDigest: async () => canonicalDigest({ artifact: "planned-foo" }),
+  };
+
+  return { ctx: { executor, fs, planningRetirement }, calls, writes, removals, worktreeOps, recordedReceipts };
 }
 
 const ACTIVE: MetaSpec = {
@@ -212,6 +274,14 @@ const PARKED_NO_BRANCH: MetaSpec = {
   state: "Active",
   branch: "[none]",
 };
+const NESTED_PARKED: MetaSpec = {
+  slug: "foo",
+  tier: "backlog/planned",
+  subdir: "demo-cohort/subgroup/foo",
+  state: "Active",
+  branch: "feat/foo",
+  cohort: "demo-cohort/subgroup",
+};
 
 const BASE_PARK: ParkParams = {
   name: "foo",
@@ -229,6 +299,91 @@ const BASE_RESUME: ResumeParams = {
 };
 
 describe("runPark — park@Planning", () => {
+  it("captures the source and records the relocated result on the planning branch", async () => {
+    const { ctx, calls, recordedReceipts } = buildCtx([PLANNING]);
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
+
+    expect(result.status).toBe("parked");
+    expect(calls.indexOf("retirement:capture:foo")).toBeLessThan(
+      calls.indexOf("relocate:.arc/active->.arc/backlog/planned/foo"),
+    );
+    expect(recordedReceipts).toHaveLength(1);
+    expect(recordedReceipts[0]).toMatchObject({
+      transition: "park-planning",
+      authorization: "planning-relocated",
+      source: { branch: "plan/foo", head: "a".repeat(40) },
+      result: { kind: "relocate", plannedArtifactDigest: canonicalDigest({ artifact: "planned-foo" }) },
+    });
+  });
+
+  it("stages the relocation and planning-relocated receipt for one direct-transition commit", async () => {
+    const { ctx, calls, recordedReceipts } = buildCtx([PLANNING]);
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
+
+    expect(result.status).toBe("parked");
+    expect(calls.indexOf("retirement:stage-transition")).toBeLessThan(calls.indexOf("retirement:record"));
+    const [recorded] = recordedReceipts;
+    if (recorded === undefined) throw new Error("expected a park receipt");
+    expect(validateReceiptMatrix(recorded, "planned")).toBeNull();
+    expect(validateReceiptMatrix(recorded, "nonexistent")).toBe("evidence-mismatch");
+  });
+
+  it("preserves the advisory returned by deferred workspace cleanup", async () => {
+    const { ctx } = buildCtx([PLANNING]);
+    const advisory = "User workspace cleanup needs a later retry.";
+    ctx.executor.sideEffects!["user-workspace"] = async () => advisory;
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
+
+    expect(result).toMatchObject({
+      status: "parked",
+      outcome: { status: "ok", advisories: [advisory] },
+    });
+  });
+
+  it("retains existing advisories when deferred workspace cleanup fails", async () => {
+    const { ctx } = buildCtx([PLANNING]);
+    const existing = "ROADMAP regeneration reported a warning.";
+    ctx.executor.sideEffects!["reconcile-roadmap"] = async () => existing;
+    ctx.executor.sideEffects!["user-workspace"] = async () => {
+      throw new Error("workspace locked");
+    };
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
+
+    expect(result).toMatchObject({
+      status: "parked",
+      outcome: {
+        status: "ok",
+        advisories: [
+          existing,
+          "Park evidence was recorded, but the user workspace could not be closed: workspace locked.",
+        ],
+      },
+    });
+  });
+
+  it("rolls back the relocation and leaves workspace cleanup deferred when recording refuses", async () => {
+    const { ctx, calls } = buildCtx([PLANNING]);
+    if (ctx.planningRetirement === undefined) throw new Error("missing planning retirement context");
+    ctx.planningRetirement.authority.record = async () => ({
+      status: "refused",
+      reason: "authority-conflict",
+      diagnostic: "Receipt cleanup was incomplete: index rollback failed.",
+    });
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(/rolled back.*Receipt cleanup was incomplete: index rollback failed\./iu),
+    });
+    expect(calls).toContain("retirement:rollback-transition");
+    expect(calls).not.toContain("side:user-workspace");
+  });
+
   it("relocates to backlog/planned/ but defers branch + worktree teardown out-of-band (resolves planned)", async () => {
     const { ctx, calls } = buildCtx([PLANNING]);
 
@@ -250,9 +405,39 @@ describe("runPark — park@Planning", () => {
     // No pointer-record on the Planning arm — there is no preserved branch to point at.
     expect(result.pointerRecord).toBeUndefined();
   });
+
+  it.each(["demo-cohort", "demo-cohort/subgroup"])(
+    "preserves the %s cohort placement when parking Planning work",
+    async (cohort) => {
+      const planning = { ...PLANNING, cohort };
+      const { ctx, calls, recordedReceipts } = buildCtx([planning]);
+
+      const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(planning) });
+
+      expect(result).toMatchObject({
+        status: "parked",
+        metaPath: `.arc/backlog/planned/${cohort}/foo/meta-foo.md`,
+      });
+      expect(calls).toContain(`relocate:.arc/active->.arc/backlog/planned/${cohort}/foo`);
+      expect(recordedReceipts).toHaveLength(1);
+      expect(recordedReceipts[0]?.transitionPatchDigest).toBe(
+        patchDigest(parkTransitionOperations(`.arc/backlog/planned/${cohort}/foo`)),
+      );
+    },
+  );
 });
 
 describe("runPark — park@Active", () => {
+  it("leaves the pointer-record path outside retirement receipt recording", async () => {
+    const { ctx, calls, recordedReceipts } = buildCtx([ACTIVE]);
+
+    const result = await runPark(ctx, BASE_PARK);
+
+    expect(result.status).toBe("parked");
+    expect(recordedReceipts).toEqual([]);
+    expect(calls.some((call) => call.startsWith("retirement:"))).toBe(false);
+  });
+
   it("preserves the branch, tears down only the worktree, and renders a fresh pointer (no relocate)", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
 
@@ -282,7 +467,7 @@ describe("runPark — park@Active", () => {
     if (result.status !== "parked") return;
     // The pointer-record lands fresh at the parked meta path and is returned for surfacing.
     expect(writes).toHaveLength(1);
-    expect(writes[0]!.path).toBe("/repo/.arc/backlog/planned/foo/meta-foo.md");
+    expect(writes[0]!.path).toBe("/repo/.arc/backlog/planned/demo-cohort/foo/meta-foo.md");
     const pointer = writes[0]!.content;
     expect(result.pointerRecord).toBe(pointer);
     // Derived-state callout: parked notice, authoritative branch, the reason.
@@ -403,6 +588,18 @@ describe("runResume — the inverse", () => {
 
     expect(result.status).toBe("resumed");
     expect(worktreeOps[0]).toMatchObject({ mutation: "spawn", postCreateScript: "npm run setup:worktree" });
+  });
+
+  it("resolves and removes a nested cohort pointer from the lifecycle index", async () => {
+    const { ctx, removals } = buildCtx([NESTED_PARKED]);
+
+    const result = await runResume(ctx, BASE_RESUME);
+
+    expect(result.status).toBe("resumed");
+    expect(removals).toContain(
+      "/repo/.arc/backlog/planned/demo-cohort/subgroup/foo/meta-foo.md",
+    );
+    expect(removals).toContain("rmdir:/repo/.arc/backlog/planned/demo-cohort/subgroup/foo");
   });
 
   it("re-attaches in place (`--here`) — removes the pointer but defers the checkout", async () => {

@@ -18,7 +18,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
@@ -26,6 +26,7 @@ import { access } from "node:fs/promises";
 
 import { runReleasePush } from "../../src/handlers/release/push.js";
 import type { ReleasePushDeps } from "../../src/handlers/release/push.js";
+import { removeGitBackedDir } from "../helpers/temp-repo.js";
 import { runPushabilityStatus } from "../../src/lib/git/pushability.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import type {
@@ -41,6 +42,7 @@ const execFileAsync = promisify(execFile);
 async function createRepoOnFreshBranch(branch: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "arc-release-push-integ-"));
   await execFileAsync("git", ["init", "--initial-branch=main", root]);
+  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: root });
   await execFileAsync("git", ["config", "user.email", "test@test.com"], { cwd: root });
   await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: root });
   await writeFile(join(root, "README.md"), "seed\n");
@@ -115,7 +117,7 @@ describe("arc release push — no-upstream auto-resolution (integration)", () =>
   const BRANCH = "technical/sample";
 
   beforeEach(async () => { root = await createRepoOnFreshBranch(BRANCH); });
-  afterEach(async () => { await rm(root, { recursive: true, force: true }); });
+  afterEach(async () => { await removeGitBackedDir(root); });
 
   it("wrapper-routed push on no-upstream branch + pushInterlock=on-workflow injects -u", async () => {
     const exec = buildGitExec(root);
@@ -148,6 +150,7 @@ describe("arc release push — no-upstream auto-resolution (integration)", () =>
     await execFileAsync("git", ["branch", "-m", BRANCH, "plan/sample"], { cwd: root });
     const origin = join(root, ".git", "test-origin.git");
     await execFileAsync("git", ["init", "--bare", origin]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: origin });
     await execFileAsync("git", ["remote", "add", "origin", origin], { cwd: root });
     await execFileAsync("git", ["push", "-u", "origin", "plan/sample"], { cwd: root });
 

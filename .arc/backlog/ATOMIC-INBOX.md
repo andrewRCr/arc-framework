@@ -75,3 +75,18 @@
 - _Approach:_ Wrap each slow leg in a clack `p.spinner()` with a label ("Spawning worktree…", "Provisioning
   dependencies…", "Copying harness layer…", "Graduating…", "Committing & pushing…"). Generalize the pass to other
   long-running commands with the same silence (`materialize`, `sync`).
+
+### `[ ]` **Re-weigh the CI test-job split vs. consolidation under per-job billing**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-16) — homeless atomic, deferred; captured during
+  FP wave-3 external-budget contention analysis; evidence and run-rate data in `notes-finalize-parallelism.md`
+  § Day-2 evidence.
+- _Awaiting:_ FP GA closeout — the decision data (wave run rates) is still accumulating, and the counterweight
+  (wall-clock `ci-ok` latency that PR review and the review-gate watcher ride on) is live while waves run;
+  re-weigh when the parallel load settles.
+- _Observation:_ GitHub bills per-job with each job rounded up to a full minute, so the current 8–9-job CI shape
+  bills ~12 minutes for ~7 minutes of work on a heavy PR run (each test leg repeats checkout + setup-node +
+  `npm ci`, and integration/e2e/portability each run `npm run build`). Consolidating the test legs (build once,
+  run suites sequentially in one job) would cut ~40% per heavy run. Counterweights: the split was a deliberate
+  wall-clock speed optimization, and consolidation slows the `ci-ok` await. Re-weigh with both sides — not a
+  foregone conclusion.

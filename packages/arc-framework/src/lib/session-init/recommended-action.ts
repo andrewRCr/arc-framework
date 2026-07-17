@@ -12,7 +12,10 @@
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import type { WorktreeSyncStatusResult } from "../git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../git/base-distance.js";
-import type { BaseBranchSyncStatusResult } from "../git/base-branch-sync.js";
+import type {
+  BaseBranchSyncStatusResult,
+  BaseCheckoutLocus,
+} from "../git/base-branch-sync.js";
 import { decideInboundPull } from "../git/inbound-pull.js";
 import type { SupersessionResult } from "../git/supersession.js";
 import type { UserSessionInitStatusResult } from "../../commands/user/types.js";
@@ -190,14 +193,17 @@ export function inferBaseDistance(
  * Compose the base-branch-sync channel recommendation — the silently-stale
  * local base advisory and its config-gated fast-forward offer.
  *
- * Delegates the state × policy × dirty-tree decision to the shared
- * {@link decideInboundPull} matrix (the one inbound-pull primitive both this
- * channel and the `arc sync` leg route through), then maps its outcome to the
- * session-init channel vocabulary and composes the advisory text:
+ * Safety model for the auto action (`git fetch origin <base>:<base>`):
+ * - Base checked out **here** → `skip` (worktree channel owns pull / dirty).
+ * - Base checked out **elsewhere** or locus **unknown** → never `pull` /
+ *   `prompt`; degrade to a primary-aware `surface` when the base is behind.
+ * - Base **not** checked out → shared {@link decideInboundPull} matrix with
+ *   `tree: "clean"` always. Current-worktree dirt is irrelevant: fetch-into-ref
+ *   only moves a non-checked-out branch tip.
  *
- * - `ff-pull` → action=pull (auto-fast-forward; `always` on a clean behind base).
+ * Decision mapping when auto is viable (not checked out):
+ * - `ff-pull` → action=pull (auto-fast-forward; `always` on a behind base).
  * - `prompt` → action=prompt, with the fast-forward offer text.
- * - `refuse` (dirty tree) → action=surface, dirty-refusal advisory.
  * - `block` (diverged base) → action=surface, not-fast-forwardable advisory.
  * - `surface` → action=surface with the behind advisory when the base is merely
  *   behind under `manual`; action=skip for degraded states (no actionable text).
@@ -211,29 +217,54 @@ export function inferBaseDistance(
 export function inferBaseBranchSync(
   baseBranchSync: BaseBranchSyncStatusResult | null,
   policy: BaseBranchSyncPullPolicy,
-  dirty: DirtyStateResult,
 ): ChannelRecommendation {
   if (baseBranchSync === null) {
     return { recommendedAction: "skip", recommendedPromptText: "" };
   }
+
+  const checkout = baseBranchSync.checkout;
+
+  // This worktree holds the base — worktree channel owns pull, dirty, and
+  // divergence for HEAD. The base-ref channel would only double-report.
+  if (checkout.kind === "current") {
+    return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+
+  // fetch-into-ref never touches the current worktree's files; always pass a
+  // clean tree so the matrix's dirty-refuse arm does not gate this channel.
   const decision = decideInboundPull({
     compareState: baseBranchSync.state,
-    tree: dirty.state,
+    tree: "clean",
     policy,
     isTty: true,
   });
+
+  // Checked out elsewhere (or locus unknown): never auto-fire fetch-into-ref.
+  if (checkout.kind === "elsewhere" || checkout.kind === "unknown") {
+    return mapBaseBranchSyncWhenCheckedOut(baseBranchSync, checkout, decision);
+  }
+
+  return mapBaseBranchSyncWhenFree(baseBranchSync, decision);
+}
+
+/** Map the inbound-pull decision when fetch-into-ref is viable. */
+function mapBaseBranchSyncWhenFree(
+  baseBranchSync: BaseBranchSyncStatusResult,
+  decision: ReturnType<typeof decideInboundPull>,
+): ChannelRecommendation {
   switch (decision) {
     case "ff-pull":
       return { recommendedAction: "pull", recommendedPromptText: "" };
     case "prompt":
       return {
         recommendedAction: "prompt",
-        recommendedPromptText: `${composeBaseBranchSyncBehindText(baseBranchSync, false)}\nFast-forward base?`,
+        recommendedPromptText: `${composeBaseBranchSyncBehindText(baseBranchSync)}\nFast-forward base?`,
       };
     case "refuse":
+      // Unreachable with tree fixed clean; keep a defensive surface.
       return {
         recommendedAction: "surface",
-        recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync, true),
+        recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync),
       };
     case "block":
       return {
@@ -242,12 +273,12 @@ export function inferBaseBranchSync(
       };
     case "surface":
       // A behind base under `manual` surfaces the advisory; every degraded state
-      // also resolves to `surface` here but carries no actionable staleness, so
+      // also resolves to `surface` here but carries no actionable text, so
       // it skips.
       return baseBranchSync.state === "remote-ahead"
         ? {
           recommendedAction: "surface",
-          recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync, false),
+          recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync),
         }
         : { recommendedAction: "skip", recommendedPromptText: "" };
     case "no-op":
@@ -255,15 +286,61 @@ export function inferBaseBranchSync(
   }
 }
 
-function composeBaseBranchSyncBehindText(
+/**
+ * Map the inbound-pull decision when the base is held in a worktree (or the
+ * locus could not be read). Never returns `pull` / `prompt`.
+ */
+function mapBaseBranchSyncWhenCheckedOut(
   baseBranchSync: BaseBranchSyncStatusResult,
-  dirty: boolean,
-): string {
+  checkout: Extract<BaseCheckoutLocus, { kind: "elsewhere" | "unknown" }>,
+  decision: ReturnType<typeof decideInboundPull>,
+): ChannelRecommendation {
+  switch (decision) {
+    case "ff-pull":
+    case "prompt":
+    case "refuse":
+    case "surface":
+      return baseBranchSync.state === "remote-ahead"
+        ? {
+          recommendedAction: "surface",
+          recommendedPromptText: composeBaseBranchSyncCheckedOutText(baseBranchSync, checkout),
+        }
+        : { recommendedAction: "skip", recommendedPromptText: "" };
+    case "block":
+      return {
+        recommendedAction: "surface",
+        recommendedPromptText: composeBaseBranchSyncDivergedText(baseBranchSync),
+      };
+    case "no-op":
+      return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+}
+
+function composeBaseBranchSyncBehindText(baseBranchSync: BaseBranchSyncStatusResult): string {
   const base = baseBranchSync.base;
-  const head =
+  return (
     `Local base \`${base}\` is behind \`origin/${base}\` by ` +
-    `${baseBranchSync.behind} commit(s) — fast-forward available.`;
-  return dirty ? `${head}\nWorking tree dirty; fast-forward skipped.` : head;
+    `${baseBranchSync.behind} commit(s) — fast-forward available.`
+  );
+}
+
+function composeBaseBranchSyncCheckedOutText(
+  baseBranchSync: BaseBranchSyncStatusResult,
+  checkout: Extract<BaseCheckoutLocus, { kind: "elsewhere" | "unknown" }>,
+): string {
+  const behind = composeBaseBranchSyncBehindText(baseBranchSync);
+  if (checkout.kind === "unknown") {
+    return (
+      `${behind}\n` +
+      `Base checkout locus unknown — do not fetch-into-ref; run \`arc base sync\` when ready.`
+    );
+  }
+  const primaryNote = checkout.primary ? " (primary worktree)" : "";
+  return (
+    `${behind}\n` +
+    `Base is checked out at \`${checkout.path}\`${primaryNote}; hop there to pull, ` +
+    `or run \`arc base sync\` from any worktree.`
+  );
 }
 
 function composeBaseBranchSyncDivergedText(baseBranchSync: BaseBranchSyncStatusResult): string {
@@ -330,14 +407,23 @@ function composeRetiredSubdirPromptText(count: number, dirty: boolean): string {
   return dirty ? `${DIRTY_LOAD_WARNING}\n${head}` : head;
 }
 
+/**
+ * Compose the behind-base advisory text.
+ *
+ * Recommends merging the base in — never rebasing. Concurrent-work doctrine
+ * forbids rewriting a pushed branch (SHA-keyed notes, shared worktrees, review
+ * stability); merge is also correct in the private unpushed window, so one
+ * append-only recommendation covers both cases. Session-init renders this
+ * text verbatim.
+ */
 function composeBaseDistancePromptText(baseDistance: BaseDistanceStatusResult): string {
   const base = baseDistance.base ?? "base";
   const head = `Base \`${base}\` has advanced ${baseDistance.behind} commit(s) ahead of this branch.`;
   const overlap =
     baseDistance.overlappingPaths.length > 0
-      ? `Overlapping paths: ${formatOverlap(baseDistance.overlappingPaths)} — rebase may conflict.`
+      ? `Overlapping paths: ${formatOverlap(baseDistance.overlappingPaths)} — merge may conflict.`
       : "No overlapping paths.";
-  return `${head}\n${overlap}\nReconcile?`;
+  return `${head}\n${overlap}\nMerge the base in?`;
 }
 
 function formatOverlap(paths: string[]): string {

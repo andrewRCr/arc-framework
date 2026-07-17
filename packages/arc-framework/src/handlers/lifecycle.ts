@@ -20,7 +20,7 @@
  */
 
 import { basename, join, resolve } from "node:path";
-import { readFile, readdir, rm, rmdir } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
 
@@ -32,7 +32,8 @@ import {
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, type GitExec } from "../lib/git/exec.js";
-import { createUserIOContext } from "../lib/io-context.js";
+import { isCanonicalDigest } from "../lib/canonical/canonical-json.js";
+import { createUserIOContext, prepareGitRefVerification, readGitBlobBytes } from "../lib/io-context.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import {
   resolvePrimaryWorktreePath,
@@ -63,9 +64,24 @@ import {
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
-import { runDecompose } from "../lib/work-unit/verbs/decompose.js";
+import { runDecompose, runPreparedDecompose } from "../lib/work-unit/verbs/decompose.js";
 import { parseCutMap } from "../lib/work-unit/decompose-cut-map.js";
+import { createInRepoDecomposeRetirementDriver } from "../lib/work-unit/decompose-retirement-driver.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
+import {
+  createInRepoAbandonRetirementContext,
+  createInRepoParkPlanningRetirementContext,
+  type InRepoDirectRetirementDeps,
+} from "../lib/work-unit/direct-retirement-driver.js";
+import {
+  createInRepoParkPlanningLandingContext,
+  landParkPlanningTransition,
+} from "../lib/work-unit/park-planning-landing.js";
+import {
+  resolveRetirementRecordPath,
+  resolveRetirementRecordRelativePath,
+  writeRetirementRecord,
+} from "../lib/work-unit/retirement-record-store.js";
 import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
@@ -185,6 +201,18 @@ async function buildExecutor(
   return { executor, settings };
 }
 
+/** Bind the shared in-repository direct-transition retirement boundaries. */
+function directRetirementDeps(base: VerbBase): InRepoDirectRetirementDeps {
+  return {
+    cwd: base.cwd,
+    exec: base.io.exec,
+    readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+    readFile: base.io.readFile,
+    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
+    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
+  };
+}
+
 /** Surface a transition's success note plus any side-effect advisories. */
 function reportOutcome(label: string, lines: string[], outcome: TransitionOutcome): void {
   p.note(lines.join("\n"), label);
@@ -256,6 +284,8 @@ export async function handleStub(name: string | undefined, opts: StubOptions): P
 export interface DecomposeOptions {
   /** Path to the structured cut-map file (JSON) — required; the cut is authored, never inferred. */
   cutMap?: string;
+  /** Deterministic prepared receipt ID to finalize instead of starting a new transform. */
+  finalize?: string;
 }
 
 /**
@@ -276,6 +306,40 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
   const originArg = origin?.trim();
   if (!originArg) {
     refuse("`arc decompose <origin> --cut-map <file>` requires the origin work-unit name.");
+    return;
+  }
+  const driver = createInRepoDecomposeRetirementDriver({
+    cwd: base.cwd,
+    exec: base.io.exec,
+    lifecycleFs,
+    readFile: base.io.readFile,
+    readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+    createRecord: (receiptId, content) => writeRetirementRecord(base.cwd, receiptId, content),
+    removeRecord: (receiptId) => rm(resolveRetirementRecordPath(base.cwd, receiptId)),
+  });
+  const finalizeId = opts.finalize?.trim();
+  if (finalizeId !== undefined && finalizeId !== "") {
+    if (opts.cutMap?.trim()) {
+      refuse("`arc decompose` accepts either `--cut-map` or `--finalize`, not both.");
+      return;
+    }
+    if (!isCanonicalDigest(finalizeId)) {
+      refuse("`arc decompose --finalize` requires a canonical `sha256:<64-lower-hex>` receipt ID.");
+      return;
+    }
+    const finalized = await driver.finalize(originArg, finalizeId);
+    if (finalized.status === "refused") {
+      refuse(finalized.reason);
+      return;
+    }
+    p.note(
+      [
+        `Origin:  ${originArg}`,
+        `Receipt: ${resolveRetirementRecordRelativePath(finalized.receipt.receiptId)}`,
+      ].join("\n"),
+      "Decompose finalized",
+    );
+    p.outro("Done.");
     return;
   }
   const cutMapPath = opts.cutMap?.trim();
@@ -305,18 +369,28 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
   }
 
   const { executor } = await buildExecutor(base);
-  const result = await runDecompose(
-    {
-      executor,
-      fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile },
-      removeFs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
-    },
-    { cut: parsed.params },
-  );
+  const decomposeContext = {
+    executor,
+    fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile },
+    removeFs: { readdir: (path: string) => readdir(path), rm: (path: string) => rm(path), rmdir: (path: string) => rmdir(path) },
+  };
+  const preparation = parsed.params.shape === "extraction" ? null : await driver.prepare(parsed.params);
+  if (preparation?.status === "refused") {
+    refuse(preparation.reason);
+    return;
+  }
+  const result = preparation === null
+    ? await runDecompose(decomposeContext, { cut: parsed.params })
+    : await runPreparedDecompose(decomposeContext, {
+        cut: parsed.params,
+        preparation: preparation.preparation,
+        revalidate: async () => await driver.revalidate(preparation.preparation),
+      });
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
   }
+  if (preparation !== null) await driver.stagePreparedResult(preparation.preparation);
 
   const { members, repointed, origin: disposition, teardown } = result.result;
   const lines = [
@@ -328,6 +402,11 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
     // The started origin's branch + worktree teardown is deferred to post-merge —
     // surface the exact command rather than reaping the live branch mid-transform.
     lines.push(`Teardown:   post-merge — \`arc teardown ${teardown.slug} --force\` (branch \`${teardown.branch}\`)`);
+  }
+  if (preparation !== null) {
+    lines.push(
+      `Finalize:   \`arc decompose ${originArg} --finalize ${preparation.preparation.locator.receiptId}\``,
+    );
   }
   p.note(lines.join("\n"), "Decomposed");
   p.outro("Done.");
@@ -448,6 +527,8 @@ export async function handleDeactivate(slug: string | undefined): Promise<void> 
 /** Options for `arc park`. */
 export interface ParkOptions {
   reason?: string;
+  /** Exact planning transition to materialize on a partial-protection base. */
+  land?: string;
 }
 
 /**
@@ -539,6 +620,51 @@ export async function handlePark(slug: string | undefined, opts: ParkOptions): P
   const target = await resolveVerbTargetOrReport("park", slug, base.cwd);
   if (target === null) return;
 
+  if (opts.land !== undefined) {
+    const { settings } = await buildExecutor(base);
+    if (settings["branch.protection"] !== "partial") {
+      refuse("`park --land` is available only when `branch.protection` is `partial`.");
+      return;
+    }
+    const wc = await resolveWriteContext({ exec: base.io.exec, baseBranch: settings["branch.base"] });
+    if (wc.verdict !== "proceed") {
+      refuse("`park --land` must run from the configured base-branch checkout.");
+      return;
+    }
+    const result = await landParkPlanningTransition(
+      createInRepoParkPlanningLandingContext({
+        cwd: base.cwd,
+        exec: base.io.exec,
+        readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+        prepareRefVerification: (ref, expectedOid) => prepareGitRefVerification(base.cwd, ref, expectedOid),
+        fs: {
+          lstat,
+          mkdir: (path) => mkdir(path),
+          readFile: (path) => readFile(path),
+          writeFile: (path, content, options) => writeFile(path, content, options),
+          rename,
+          rm: (path, options) => rm(path, options),
+        },
+      }),
+      { name: target, commit: opts.land },
+    );
+    if (result.status === "rejected") {
+      refuse(result.reason);
+      return;
+    }
+    p.note(
+      [
+        `Work unit: ${target}`,
+        `Commit:    ${result.commit}`,
+        `Receipt:   ${result.receiptPath}`,
+        `Artifacts: ${result.plannedPaths.length} staged`,
+      ].join("\n"),
+      "Park result landed",
+    );
+    p.outro("Done.");
+    return;
+  }
+
   const source = await resolveParkSource(base, target);
   if (source === null) {
     refuse(`\`${target}\` is not a started WU — nothing to park.`);
@@ -559,7 +685,11 @@ export async function handlePark(slug: string | undefined, opts: ParkOptions): P
   }
 
   const result = await runPark(
-    { executor, fs: parkResumeFsSeam(base) },
+    {
+      executor,
+      fs: parkResumeFsSeam(base),
+      planningRetirement: createInRepoParkPlanningRetirementContext(directRetirementDeps(base)),
+    },
     {
       name: target,
       reason: opts.reason,
@@ -955,8 +1085,13 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
   }
 
   const { executor } = await buildExecutor(base);
+  const retirement = createInRepoAbandonRetirementContext(directRetirementDeps(base));
   const result = await runAbandon(
-    { executor, fs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) } },
+    {
+      executor,
+      fs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
+      retirement,
+    },
     { name: target, confirmed: true },
   );
   if (result.status === "rejected") {
@@ -1028,6 +1163,8 @@ export interface TeardownOptions {
   branch?: string;
   /** Force the un-shipped / `abandoned` mode: cleanup of a retired / parked origin (unmerged branch). */
   force?: boolean;
+  /** Exact absolute detached-husk path to replay. */
+  husk?: string;
 }
 
 /** Render a torn-down result's branch disposition for the report note. */
@@ -1078,9 +1215,9 @@ function reportTeardownResult(
  * - default — post-merge cleanup of a `completed/` WU; gated on `completed/`
  *   arc-state + the merged-safe push-state durability check.
  * - `--force` — cleanup of a retired / parked origin (a decompose origin removed
- *   into its members, a `park@Planning` shelf) whose branch is unmerged;
- *   force-deletes it. The caller asserts the work is conserved (the flag is that
- *   authorization); refuses a `completed/` WU (use the default path).
+ *   into its members, a `park@Planning` shelf) whose branch is unmerged. The flag
+ *   selects non-shipped cleanup; transition-specific receipt evidence authorizes
+ *   each destructive operation. Refuses a `completed/` WU (use the default path).
  *
  * `arc teardown --branch chore/<slug>` is the recordless cheap-branch sibling:
  * it skips the WU arc-state gate but keeps the merged-safe containment check,
@@ -1106,6 +1243,10 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
       refuse("`arc teardown --branch <branch>` is always merged-safe; `--force` is only for work-unit teardown.");
       return;
     }
+    if (opts.husk !== undefined) {
+      refuse("`arc teardown --branch <branch>` cannot also select `--husk`.");
+      return;
+    }
   } else if (!wuName) {
     refuse("`arc teardown <name>` requires the work-unit name to clean up.");
     return;
@@ -1129,7 +1270,13 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
   if (branchArg !== undefined && branchArg !== "") {
     const result = await runBranchTeardown(
-      { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); locus = dir; } },
+      {
+        cwd: base.cwd,
+        exec,
+        indexFs: lifecycleFs,
+        chdir: (dir) => { process.chdir(dir); locus = dir; },
+        readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+      },
       { branch: branchArg, base: baseBranch },
     );
     if (result.status === "rejected") {
@@ -1153,8 +1300,20 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
   }
 
   const result = await runTeardown(
-    { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); locus = dir; } },
-    { name: wuName ?? "", base: baseBranch, mode: opts.force ? "abandoned" : "shipped" },
+    {
+      cwd: base.cwd,
+      exec,
+      indexFs: lifecycleFs,
+      chdir: (dir) => { process.chdir(dir); locus = dir; },
+      readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+    },
+    {
+      name: wuName ?? "",
+      base: baseBranch,
+      mode: opts.force ? "abandoned" : "shipped",
+      protection: settings["branch.protection"] === "full" ? "full" : "partial",
+      huskPath: opts.husk,
+    },
   );
   if (result.status === "rejected") {
     if (result.huskRefusal !== undefined) {

@@ -8,6 +8,31 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Close the errand sweep loop: run-errand next-offer + `--errand` vs `--housekeep` doorway legibility**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during FP
+  wave-3 terminal-state UX review, alongside the terminal-WU handoff capture (routed to `handoff-optimization`).
+- *Concern:* triage-then-sweep connective tissue exists only on the drain side: `drain-inbox` § 6 hands each
+  execute-now atomic to `run-errand` and returns for the next, but `run-errand`'s Complete section just closes —
+  no "further flagged captures exist — continue?" offer and no terminal marker — so a sweep entered via
+  `arc-session --errand` (or continued past the first errand) has no loop. Doorway legibility compounds it:
+  `--errand` reads as the cold errand door, yet most cold entries from the primary want the sweep, which is
+  `--housekeep`'s drain. Semantics to preserve: housekeep stays the triage+sweep umbrella, run-errand stays
+  single-concern, and no queue artifact returns (`ERRANDS.md` retired deliberately — the inbox is the durable
+  queue; the session carries the agreed slate).
+- *Approach:* a next-offer hook at `run-errand` close (when flagged `§ Errand` captures remain), and a soft-offer
+  of the drain when bare `--errand` resolves against multiple flagged captures. **Integrate only after FP Task 5.3
+  records the parallel-errand fork + batch-errand shape decision** (`tasks-finalize-parallelism.md`) — the
+  recorded sequential-first leaning shapes the loop. Alternative owner if grooming finds the loop belongs with
+  inbox semantics instead of transient-loci shape: `shared-inbox-model`.
+
+---
+
 ## Problem / Motivation
 
 The wave-2 split-out cycle (the `start-class-flag` Errand and the teardown-stub Errand, both run warm from FP's

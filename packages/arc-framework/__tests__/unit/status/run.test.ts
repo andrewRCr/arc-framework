@@ -196,7 +196,14 @@ function baseDistance(
 function baseBranchSync(
   overrides: Partial<BaseBranchSyncStatusResult> = {},
 ): BaseBranchSyncStatusResult {
-  return { state: "clean", ahead: 0, behind: 0, base: "main", ...overrides };
+  return {
+    state: "clean",
+    ahead: 0,
+    behind: 0,
+    base: "main",
+    checkout: { kind: "not-checked-out" },
+    ...overrides,
+  };
 }
 
 function supersessionResult(
@@ -367,6 +374,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     roster: vi.fn(async () => rosterResult()),
+    cleanupRoster: vi.fn(async () => rosterResult()),
     recovery: vi.fn(async (): Promise<CascadeResolution> => ({ kind: "main-fallback" })),
     sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({ worktrees: [], warnings: [] })),
     orphanBranchSweep: vi.fn(async (): Promise<OrphanBranchSweepResult> => ({ orphans: [] })),
@@ -1121,7 +1129,12 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
-          notesDrift: { direction: "missing", missingFiles: ["my-wu/SESSION-NOTES.md"] },
+          notesDrift: {
+            direction: "missing",
+            missingFiles: ["my-wu/SESSION-NOTES.md"],
+            extraFiles: [],
+            modifiedFiles: [],
+          },
         }),
       ),
     });
@@ -1139,7 +1152,12 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
-          notesDrift: { direction: "mixed", missingFiles: [] },
+          notesDrift: {
+            direction: "mixed",
+            missingFiles: [],
+            extraFiles: ["other-wu/scratch.md"],
+            modifiedFiles: ["my-wu/SESSION-NOTES.md"],
+          },
         }),
       ),
     });
@@ -1147,7 +1165,36 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
       expect(result.user.value.loadNeeded).toBe(false);
-      expect(result.user.value.notesDriftSurface).toEqual({ direction: "mixed" });
+      expect(result.user.value.notesDriftSurface).toEqual({
+        direction: "mixed",
+        register: "caution",
+      });
+    }
+  });
+
+  it("surfaces expected mixed for seed + identity-global sibling churn", async () => {
+    const probes = sessionInitProbes({
+      active: activeWu.active,
+      user: vi.fn(async () =>
+        userSessionInit({
+          refState: "same",
+          notesDrift: {
+            direction: "mixed",
+            missingFiles: [],
+            extraFiles: ["my-wu/SESSION-NOTES.md"],
+            modifiedFiles: ["USER-INBOX.md"],
+          },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBe(false);
+      expect(result.user.value.notesDriftSurface).toEqual({
+        direction: "mixed",
+        register: "expected",
+      });
     }
   });
 
@@ -1160,6 +1207,8 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
           notesDrift: {
             direction: "missing",
             missingFiles: ["my-wu/SESSION-NOTES.md", "other-wu/SESSION-NOTES.md"],
+            extraFiles: [],
+            modifiedFiles: [],
           },
         }),
       ),
@@ -1168,7 +1217,10 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
     expect(result.user.ok).toBe(true);
     if (result.user.ok) {
       expect(result.user.value.loadNeeded).toBe(false);
-      expect(result.user.value.notesDriftSurface).toEqual({ direction: "missing" });
+      expect(result.user.value.notesDriftSurface).toEqual({
+        direction: "missing",
+        register: "caution",
+      });
     }
   });
 
@@ -1283,7 +1335,7 @@ describe("runSessionInitStatus — base-branch-sync slot", () => {
     }
   });
 
-  it("refuses the fast-forward on a dirty tree (surface, not pull)", async () => {
+  it("current-worktree dirt does not refuse a not-checked-out base under always", async () => {
     const probes = sessionInitProbes({
       baseBranchSync: vi.fn(async () => baseBranchSync({ state: "remote-ahead", behind: 2 })),
       config: vi.fn(async () => configWithBasePolicy("always")),
@@ -1291,8 +1343,44 @@ describe("runSessionInitStatus — base-branch-sync slot", () => {
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("pull");
+    }
+  });
+
+  it("degrades pull to primary-aware surface when base is checked out elsewhere", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({
+        state: "remote-ahead",
+        behind: 2,
+        checkout: { kind: "elsewhere", path: "/primary", primary: true },
+      })),
+      config: vi.fn(async () => configWithBasePolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
       expect(result.baseBranchSync.value.recommendedAction).toBe("surface");
-      expect(result.baseBranchSync.value.recommendedPromptText).toContain("Working tree dirty");
+      expect(result.baseBranchSync.value.recommendedPromptText).toContain("primary worktree");
+      expect(result.baseBranchSync.value.recommendedPromptText).toContain("arc base sync");
+      expect(result.baseBranchSync.value.checkout).toEqual({
+        kind: "elsewhere",
+        path: "/primary",
+        primary: true,
+      });
+    }
+  });
+
+  it("skips base-channel action when this worktree holds the base", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({
+        state: "remote-ahead",
+        behind: 2,
+        checkout: { kind: "current", path: "/primary", primary: true },
+      })),
+      config: vi.fn(async () => configWithBasePolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("skip");
     }
   });
 
@@ -1646,10 +1734,12 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "inboxState",
       "loadSet",
       "mode",
+      "orphanBranchSweep",
       "partialPushMarker",
       "recommendedCombinedPrompt",
       "releaseRouting",
       "retiredSubdirs",
+      "sweep",
       "user",
       "worktree",
     ]);
@@ -2022,7 +2112,7 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
     }
   });
 
-  it("omits the sweep in a linked worktree (the resume path never sweeps)", async () => {
+  it("runs the private cleanup sweep in a linked worktree without exposing its roster", async () => {
     const probes = sessionInitProbes({
       worktree: vi.fn(async () => primaryClean.worktree()),
       active: vi.fn(async () => primaryClean.active()),
@@ -2030,8 +2120,26 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
         worktreeIdentity({ kind: "linked", path: "/wt/x" })),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
-    expect(probes.sweep).not.toHaveBeenCalled();
-    expect("sweep" in result).toBe(false);
+    expect(probes.cleanupRoster).toHaveBeenCalledTimes(1);
+    expect(probes.sweep).toHaveBeenCalledTimes(1);
+    expect("roster" in result).toBe(false);
+    expect(result.sweep?.ok).toBe(true);
+  });
+
+  it("retains private linked cleanup when developer identity is unresolved", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => primaryClean.worktree()),
+      active: vi.fn(async () => primaryClean.active()),
+      worktreeIdentity: vi.fn(async () =>
+        worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+    });
+    const result = await runSessionInitStatus({ identity: null, role: "maintainer", probes });
+    expect(probes.cleanupRoster).toHaveBeenCalledTimes(1);
+    expect(probes.sweep).toHaveBeenCalledTimes(1);
+    expect(probes.orphanBranchSweep).not.toHaveBeenCalled();
+    expect("roster" in result).toBe(false);
+    expect(result.sweep?.ok).toBe(true);
+    expect("orphanBranchSweep" in result).toBe(false);
   });
 
   it("skips the sweep when the roster probe failed in the primary worktree", async () => {
@@ -2072,6 +2180,8 @@ describe("runSessionInitStatus — current-husk advisory gating", () => {
       const advisory = {
         worktreePath: "/wt/shipped",
         subject: { kind: "work-unit" as const, name: "shipped" },
+        branch: "feat/shipped",
+        stamp: { kind: "legacy" as const, authorization: "merged-preserved" as const },
       };
       const probes = sessionInitProbes({
         worktree: vi.fn(async () => worktreeSync({ state, branch: null })),
@@ -2621,7 +2731,12 @@ describe("runSessionHandoffStatus — orchestration", () => {
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
-          notesDrift: { direction: "behind", missingFiles: [] },
+          notesDrift: {
+            direction: "behind",
+            missingFiles: [],
+            extraFiles: [],
+            modifiedFiles: [],
+          },
         }),
       ),
     });
@@ -2646,7 +2761,12 @@ describe("runSessionHandoffStatus — orchestration", () => {
       user: vi.fn(async () =>
         userSessionInit({
           refState: "same",
-          notesDrift: { direction: "missing", missingFiles: ["my-wu/SESSION-NOTES.md"] },
+          notesDrift: {
+            direction: "missing",
+            missingFiles: ["my-wu/SESSION-NOTES.md"],
+            extraFiles: [],
+            modifiedFiles: [],
+          },
         }),
       ),
     });
@@ -2665,16 +2785,28 @@ describe("runSessionHandoffStatus — orchestration", () => {
   });
 
   it.each([
-    { direction: "mixed" as const, missingFiles: [] },
-    { direction: "missing" as const, missingFiles: ["old-wu/SESSION-NOTES.md"] },
+    {
+      direction: "mixed" as const,
+      missingFiles: [] as string[],
+      extraFiles: ["other-wu/scratch.md"],
+      modifiedFiles: ["my-wu/SESSION-NOTES.md"],
+      register: "caution" as const,
+    },
+    {
+      direction: "missing" as const,
+      missingFiles: ["old-wu/SESSION-NOTES.md"],
+      extraFiles: [] as string[],
+      modifiedFiles: [] as string[],
+      register: "caution" as const,
+    },
   ])(
     "finalizes notesDriftSurface on the handoff user slot for $direction disk drift",
-    async ({ direction, missingFiles }) => {
+    async ({ direction, missingFiles, extraFiles, modifiedFiles, register }) => {
       const probes = sessionHandoffProbes({
         user: vi.fn(async () =>
           userSessionInit({
             refState: "same",
-            notesDrift: { direction, missingFiles },
+            notesDrift: { direction, missingFiles, extraFiles, modifiedFiles },
           }),
         ),
       });
@@ -2686,7 +2818,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       expect(result.user.ok).toBe(true);
       if (result.user.ok) {
         expect(result.user.value.loadNeeded).toBe(false);
-        expect(result.user.value.notesDriftSurface).toEqual({ direction });
+        expect(result.user.value.notesDriftSurface).toEqual({ direction, register });
       }
     },
   );

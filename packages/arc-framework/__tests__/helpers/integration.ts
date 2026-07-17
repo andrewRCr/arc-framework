@@ -35,6 +35,7 @@ import {
   serializeNotesCompactionManifest,
   type NotesCompactionManifest,
 } from "../../src/lib/user-sync/compaction-manifest.js";
+import { createTempRepoCore, removeGitBackedDir } from "./temp-repo.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -176,6 +177,10 @@ export function makeIOContext(cwd: string): IOContext {
     access: (path) => access(path),
     chmod: (path, mode) => chmod(path, mode),
     exec: makeGitExec(cwd),
+    // Inert virtual defaults — type-conformance only, not exercised by these
+    // real-fs integration tests (none run concurrent runInit calls).
+    exclusiveCreate: async () => {},
+    removeFile: async () => {},
   };
 }
 
@@ -190,26 +195,13 @@ export async function ensureDir(dirPath: string): Promise<void> {
 }
 
 /** Initialize a temp directory with git repo and config. */
-export async function createTempRepo(
-  prefix = "arc-test-",
-): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), prefix));
-  await execFileAsync("git", ["init", "--initial-branch=main", dir]);
-  // Disable background auto-gc: its repacking races temp-repo teardown
-  // (ENOTEMPTY on .git/objects/pack) and concurrent notes-tree reads.
-  await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: dir });
-  await execFileAsync("git", ["config", "user.email", "test@test.com"], {
-    cwd: dir,
-  });
-  await execFileAsync("git", ["config", "user.name", "Test User"], {
-    cwd: dir,
-  });
-  return dir;
+export function createTempRepo(prefix = "arc-test-"): Promise<string> {
+  return createTempRepoCore({ prefix });
 }
 
-/** Clean up a temp directory. */
-export async function cleanupTempDir(dir: string): Promise<void> {
-  await rm(dir, { recursive: true, force: true });
+/** Clean up a temp directory via the shared retry-safe removal primitive. */
+export function cleanupTempDir(dir: string): Promise<void> {
+  return removeGitBackedDir(dir);
 }
 
 /** Load the real init recipe from the template directory. */
@@ -533,6 +525,9 @@ export async function addBareRemote(cwd: string): Promise<string> {
 
 // Re-export for convenience
 export { readFile, writeFile, mkdir, rm, readdir, stat, join, dirname };
+// Re-export the teardown primitive so integration tests route inline
+// git-backed removals through it without reaching past the tier helper.
+export { removeGitBackedDir };
 export { execFileAsync };
 export { getArcTemplatePath, getInternalTemplatePath };
 export type { IOContext, GitExec, GitExecInput, Recipe, InitPromptResult, Manifest, DirEntry, UserIOContext };

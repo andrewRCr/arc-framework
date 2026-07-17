@@ -1,14 +1,14 @@
-# Metadata: husk-lifecycle-drivers
+# Metadata: public-repo-flip
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P1`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** `worktree-teardown-decoupling`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-husk-lifecycle-drivers.md`
+- **Design:** `draft-public-repo-flip.md`
 - **Task List:** [none]
 
 - **Current Workflow:** [none]

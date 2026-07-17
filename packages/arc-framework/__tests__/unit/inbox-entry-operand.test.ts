@@ -1,6 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resolveInboxEntryOperand } from "../../src/lib/inbox-entry-operand.js";
+import {
+  normalizeInboxEntryTitle,
+  resolveInboxEntryOperand,
+} from "../../src/lib/inbox-entry-operand.js";
+
+describe("normalizeInboxEntryTitle", () => {
+  it("extracts the bold title from a full H3 managed-entry heading", () => {
+    expect(normalizeInboxEntryTitle("### `[ ]` **Clarify file-backed inbox title operands**")).toBe(
+      "Clarify file-backed inbox title operands",
+    );
+    expect(normalizeInboxEntryTitle("### [ ] **Plain checkbox title**")).toBe("Plain checkbox title");
+  });
+
+  it("leaves a plain title unchanged", () => {
+    expect(normalizeInboxEntryTitle("Ordinary capture title")).toBe("Ordinary capture title");
+  });
+});
 
 describe("resolveInboxEntryOperand", () => {
   beforeEach(() => {
@@ -17,6 +33,14 @@ describe("resolveInboxEntryOperand", () => {
     )).resolves.toBe("  Ordinary capture title  ");
     expect(readFile).not.toHaveBeenCalled();
     expect(readStdin).not.toHaveBeenCalled();
+  });
+
+  it("normalizes an H3-shaped file line to the inner bold title", async () => {
+    const readFile = vi.fn().mockResolvedValue("### [ ] **Clarify file-backed inbox title operands**\n");
+    await expect(resolveInboxEntryOperand(
+      { file: "/tmp/inbox-entry" },
+      { readFile, readStdin: vi.fn() },
+    )).resolves.toBe("Clarify file-backed inbox title operands");
   });
 
   it("rejects a literal title containing a trailing newline", async () => {
@@ -62,6 +86,17 @@ describe("resolveInboxEntryOperand", () => {
       operand,
       { readFile: vi.fn(), readStdin: vi.fn() },
     )).rejects.toThrow(message);
+  });
+
+  it("mentions both file flag names when the source selection is invalid", async () => {
+    await expect(resolveInboxEntryOperand(
+      {},
+      { readFile: vi.fn(), readStdin: vi.fn() },
+    )).rejects.toThrow(/--inbox-title-file/);
+    await expect(resolveInboxEntryOperand(
+      {},
+      { readFile: vi.fn(), readStdin: vi.fn() },
+    )).rejects.toThrow(/--inbox-entry-file/);
   });
 
   it.each(["First\nSecond", "First\n\n", "First\0Second"])("rejects a non-title payload", async (payload) => {

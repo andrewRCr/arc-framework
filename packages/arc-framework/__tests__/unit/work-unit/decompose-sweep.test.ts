@@ -25,6 +25,22 @@ describe("repointDependsOn", () => {
     expect(edgesOf(out)).toEqual(["member-a", "member-b", "sibling-dep"]);
   });
 
+  it("drops only the origin slot when the replacement set is empty", () => {
+    const content = renderMetaFile("dependent", { "Depends On": "before, origin, after" });
+
+    const out = repointDependsOn(content, "origin", []);
+
+    expect(edgesOf(out)).toEqual(["before", "after"]);
+  });
+
+  it("collapses duplicates in first-occurrence order after slot replacement", () => {
+    const content = renderMetaFile("dependent", { "Depends On": "member-b, origin, member-a, member-b" });
+
+    const out = repointDependsOn(content, "origin", ["member-a", "member-b"]);
+
+    expect(edgesOf(out)).toEqual(["member-b", "member-a"]);
+  });
+
   it("preserves sibling edges and leaves every other line byte-stable", () => {
     const content = renderMetaFile("dependent", { "Depends On": "origin, sibling-dep" });
 

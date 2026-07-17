@@ -281,9 +281,10 @@ co-occur there.
 
 **Notes/disk drift surface.** Independent of both dispatches above, when `user.value.notesDriftSurface`
 is present (clean arm; the on-disk user tree diverges from the latest note in a way that is neither a
-safe auto-load nor benign — `mixed` may carry local edits, `missing` files the note has are absent on
-disk), carry it into Step 6's advisory tier only. No pull, no load, never auto-resolves — the safe
-sub-case (a live WU's purely-missing `SESSION-NOTES.md`) already folded into `loadNeeded` upstream.
+safe auto-load nor silent local-only work — `register: expected` for parallel-session steady state,
+`register: caution` for genuine inspect-before-rely drift), carry it into Step 6's advisory tier only.
+No pull, no load, never auto-resolves — the safe sub-case (a live WU's purely-missing `SESSION-NOTES.md`)
+already folded into `loadNeeded` upstream.
 
 **Combined prompt.** When more than one acceptance prompt would fire simultaneously, issue a single
 combined prompt with per-channel choices instead of multiple per-channel prompts. The envelope
@@ -306,16 +307,22 @@ base-drift section; on `skip`, do nothing.
 
 **Base-branch-sync channel.** The `baseBranchSync` slot (local `<base>` vs `origin/<base>`) is a config-gated
 pull channel — distinct from the advisory-only base-distance channel above. Dispatch on `recommendedAction`
-(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`:
+(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`. The slot also
+carries `value.checkout` as an object `{ kind, path?, primary? }` where `kind` is `not-checked-out` /
+`current` / `elsewhere` / `unknown` — the probe's safety signal for whether fetch-into-ref is viable:
 
-- `pull` — fast-forward the local base ref immediately with `git fetch origin <base>:<base>`. This freshens a
-  non-checked-out ref (the base isn't checked out while on a feature branch), so it is a fetch-into-ref, not the
-  worktree channel's `git pull --ff-only`; it is fast-forward-only and git refuses a non-fast-forward, so a raced
-  divergence fails safe rather than merging.
-- `prompt` — ask using `recommendedPromptText`; on accept, run the same `git fetch origin <base>:<base>`.
-- `surface` — carry the state into Step 6's stale-base section (a behind base under `manual`, a dirty-tree
-  refusal, or a diverged base); no pull.
-- `skip` — the base is current or only ahead; no action.
+- `pull` — fast-forward the local base ref immediately with `git fetch origin <base>:<base>`. Only when the
+  base is **not** checked out in any worktree. Freshens a non-checked-out ref (fetch-into-ref, not the
+  worktree channel's `git pull --ff-only`); fast-forward-only — git refuses a non-fast-forward, so a raced
+  divergence fails safe rather than merging. Current-worktree dirt does **not** gate this action (it only
+  moves a branch tip elsewhere).
+- `prompt` — ask using `recommendedPromptText`; on accept, run the same `git fetch origin <base>:<base>`
+  (same not-checked-out precondition).
+- `surface` — carry the state into Step 6's stale-base section. Includes: a behind base under `manual`; a
+  base checked out **elsewhere** (primary-aware text naming the holding worktree and offering
+  `arc base sync`); checkout locus unknown; or a diverged base. No pull.
+- `skip` — the base is current or only ahead, **or** this worktree holds the base (`checkout.kind ===
+  "current"` — the worktree channel owns pull/dirty for HEAD).
 
 Independent of the worktree + notes combined prompt — like base-distance, it composes its own offer and never
 folds into `recommendedCombinedPrompt`.
@@ -713,9 +720,9 @@ tracked source documents the work.
   ```
 
 - `baseBranchSync.value.recommendedAction == "surface"`: the local base ref is stale — behind under `manual`
-  policy, blocked by a dirty tree, or diverged from `origin/<base>`. Render the precomposed
-  `baseBranchSync.value.recommendedPromptText` verbatim. Advisory, never gates — the `pull` / `prompt` actions
-  fire in Step 2's base-branch-sync channel, not here.
+  policy, checked out elsewhere (primary-aware), locus unknown, or diverged from `origin/<base>`. Render the
+  precomposed `baseBranchSync.value.recommendedPromptText` verbatim. Advisory, never gates — the `pull` /
+  `prompt` actions fire in Step 2's base-branch-sync channel, not here.
 
   ```text
   **Stale base:** {baseBranchSync.value.recommendedPromptText}
@@ -761,9 +768,19 @@ tracked source documents the work.
   ```
 
 - `user.value.notesDriftSurface` present (clean arm): the on-disk user tree diverges from the latest note
-  in a way that is neither a safe auto-load nor benign — `mixed` (may carry local edits) or `missing`
-  (files the note has are absent on disk). Advisory, never gates or auto-resolves; inspect with
-  `arc user status` before relying on session notes. `{direction}` is `notesDriftSurface.direction`.
+  in a way that is neither a safe auto-load nor silent local-only work. Branch on
+  `notesDriftSurface.register`:
+    - `expected` — parallel-session steady state (fresh seeded `SESSION-NOTES` and/or sibling edits to
+      identity-global `USER-INBOX` / `WORKING-MEMORY`). Calm Aware; converges at next save or handoff.
+    - `caution` — genuine inspect-before-rely drift (`mixed` may carry local edits; `missing` files the
+      note has are absent on disk). Inspect with `arc user status` before relying on session notes.
+  `{direction}` is `notesDriftSurface.direction` (whole-tree unsaved kind). Advisory, never gates or
+  auto-resolves.
+
+  ```text
+  **Notes/disk drift:** expected with live sibling sessions or a fresh seed ({direction}); converges at
+  next save or handoff — lag, not loss.
+  ```
 
   ```text
   **Notes/disk drift:** on-disk user files diverge from the latest note ({direction}); inspect with
@@ -777,12 +794,16 @@ tracked source documents the work.
   ```
 
 - `currentHusk.ok == true` AND `currentHusk.value != null`: the current linked checkout is an exact stamped WU
-  husk whose completion is present locally. Render the terminal orientation and suppress the generic detached-HEAD
-  warning. Teardown must run from outside this worktree; manual removal also runs from outside.
+  husk. Suppress the generic detached-HEAD warning and branch on `stamp.kind` before reading variant fields.
+  For `current`, render the authorization, validated evidence, and remote proof; offer the path-qualified command
+  below. For `legacy`, render `merged-preserved (legacy stamp; remote absence revalidated by teardown)` and offer
+  the same command, which grants no remote-delete authority. For `manual-only`, render only the reason and no
+  destructive command. Teardown and manual removal must run from outside this worktree.
 
   ```text
-  **Husk:** `{currentHusk.value.subject.name}` shipped — pending physical teardown. Re-run
-  `arc teardown {currentHusk.value.subject.name}` from outside this worktree, or remove/prune it manually.
+  **Husk:** `{currentHusk.value.subject.name}` (`{currentHusk.value.branch}`) — {authorization}; remote
+  `{remoteRef.disposition | absent}`; pending physical teardown. From outside this worktree run
+  `arc teardown {currentHusk.value.subject.name} --husk "{currentHusk.value.worktreePath}"`.
   ```
 
 - `worktree.value.branch == null` AND no non-null `currentHusk.value`:
@@ -845,6 +866,23 @@ tracked source documents the work.
   - `{branch}` — work unit shipped → clean up? `arc teardown {shippedWorkUnit}`
   - `{branch}` — merged to base → remove? `git branch -d {branch}`
   - `{branch}` — not merged; surfaced, not removed (never `-D`)
+  ```
+
+- Linked worktree with a non-empty `sweep.value.worktrees` or `orphanBranchSweep.value.orphans`: render one combined
+  section instead of the primary-only sections above. Branch on the typed husk subject before rendering an action:
+  a `work-unit` uses the exact path-qualified `arc teardown {subject.name} --husk "{worktreePath}"` form. `branch`
+  and `errand` husks have no exact path-qualified cleanup driver and stay manual-only.
+  `stamp.kind == manual-only`, moved/dirty husks, and unmerged non-shipped orphans also remain manual-only. Omit the
+  section when both arrays are empty; write no marker or nudge state.
+
+  ```text
+  **Cleanup residues:** {N} sibling husk(s) or orphan ref(s) linger:
+  - `{worktreePath}` — work unit `{subject.name}` ({authorization}; remote {disposition}) → clean up?
+    `arc teardown {subject.name} --husk "{worktreePath}"`
+  - `{worktreePath}` — branch husk `{subject.ref}`; no exact husk cleanup driver, manual-only
+  - `{worktreePath}` — errand husk `{subject.slug}`; no shipped cleanup driver, manual-only
+  - `{worktreePath}` — {manual-only reason | dirty | HEAD moved}; surfaced, not removed
+  - `{branch}` — {shipped → `arc teardown {shippedWorkUnit}` | merged → `git branch -d {branch}` | not merged}
   ```
 
 - `retiredSubdirs.value.recommendedAction === "surface"` (`session.init_load.notes: manual`): retired-WU

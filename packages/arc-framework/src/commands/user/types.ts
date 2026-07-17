@@ -756,14 +756,23 @@ export interface UserSessionNotesDrift {
   direction: UserUnsavedDirection;
   /** Manifest paths present in the note and absent on disk (the missing set). */
   missingFiles: string[];
+  /** Manifest paths present on disk and absent from the note (disk-ahead extras). */
+  extraFiles: string[];
+  /** Manifest paths present on both sides with differing content. */
+  modifiedFiles: string[];
 }
 
 /**
  * Advisory surfaced when a clean-arm notes/disk divergence is neither a safe
- * auto-load nor benign — rendered in session-init orientation's advisory tier.
+ * auto-load nor fully silent — rendered in session-init orientation's advisory tier.
+ *
+ * `register: "expected"` is the calm parallel-session steady state (fresh seed /
+ * sibling identity-global churn); `"caution"` is genuine inspect-before-rely drift.
+ * `direction` carries the whole-tree unsaved kind (not only `mixed` / `missing`).
  */
 export interface UserSessionNotesDriftSurface {
-  direction: "mixed" | "missing";
+  direction: Exclude<UserUnsavedDirection, "behind">;
+  register: "expected" | "caution";
 }
 
 export interface UserSessionInitStatusResult {

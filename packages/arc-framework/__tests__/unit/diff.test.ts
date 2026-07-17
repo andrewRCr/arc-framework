@@ -110,6 +110,39 @@ describe("runDiff", () => {
     expect(result.totalChanged).toBe(1);
   });
 
+  it("reports a non-fatal file error when the current file vanishes before diffing", async () => {
+    const manifest = buildManifest({
+      files: {
+        "system/arc-config.yml": {
+          classification: "Configurable",
+          layer: "core",
+          pristine_hash: FILE_HASH,
+        },
+      },
+    });
+    const vanished = Object.assign(new Error("ENOENT: current file vanished"), { code: "ENOENT" });
+    const io = buildIO({
+      manifest,
+      files: {
+        [`${CWD}/.arc/system/arc-config.yml`]: MODIFIED_CONTENT,
+        [`${CWD}/.arc/system/.internal/pristine.json`]: JSON.stringify({
+          "system/arc-config.yml": FILE_CONTENT,
+        }),
+      },
+      diffError: vanished,
+    });
+
+    const result = await runDiff({ cwd: CWD, io });
+
+    expect(result.diffs).toEqual([]);
+    expect(result.errors).toEqual([
+      {
+        path: "system/arc-config.yml",
+        message: "Diff failed: ENOENT: current file vanished",
+      },
+    ]);
+  });
+
   it("excludes Scaffolded files from output", async () => {
     const manifest = buildManifest({
       files: {

@@ -32,18 +32,21 @@ export function renderTokens(
  *
  * @param content - Template string with conditional directives
  * @param config - Map of dotted config keys to their values (e.g., `pm.mode` → `arc-in-git`)
+ * @param sourcePath - Template path used in validation errors
  * @returns Content with conditional blocks resolved and directive lines removed
  */
 export function renderConditionals(
   content: string,
   config: Record<string, string>,
+  sourcePath = "<template>",
 ): string {
   const lines = content.split("\n");
   const result: string[] = [];
   const includeStack: boolean[] = [];
+  const openingLines: number[] = [];
   let including = true;
 
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
     const ifMatch = line.match(
       /^\s*<!--\s*arc:if\s+([\w.]+)\s*(==|!=)\s*(\S+)\s*-->\s*$/,
     );
@@ -51,16 +54,27 @@ export function renderConditionals(
 
     if (ifMatch) {
       includeStack.push(including);
+      openingLines.push(index + 1);
       if (including) {
         const [, key = "", operator = "", value = ""] = ifMatch;
         including = operator === "==" ? config[key] === value : config[key] !== value;
       }
       // If already excluding, nested blocks stay excluded
     } else if (endifMatch) {
-      including = includeStack.pop() ?? true;
+      const parentIncluding = includeStack.pop();
+      if (parentIncluding === undefined) {
+        throw new Error(`Stray arc:endif directive at ${sourcePath}:${index + 1}`);
+      }
+      including = parentIncluding;
+      openingLines.pop();
     } else if (including) {
       result.push(line);
     }
+  }
+
+  const unclosedLine = openingLines.at(-1);
+  if (unclosedLine !== undefined) {
+    throw new Error(`Unclosed arc:if directive at ${sourcePath}:${unclosedLine}`);
   }
 
   // Collapse multiple consecutive blank lines left behind by stripped blocks,

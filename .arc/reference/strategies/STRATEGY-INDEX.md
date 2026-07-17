@@ -53,3 +53,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: authoring or iterating plans / PRDs that place or relocate agent-facing guidance content, grow
       always-loaded context, add trigger / index / description surfaces, name new doc families, or add loading /
       awareness mechanics
+- `project/strategy-procedure-evolution.md` - **In-development.** Procedural-substrate forward-compat principles
+  for workflow/skill authoring, agent-interpreted markup, and the CLI↔agent boundary
+    - Consult when: authoring or iterating plans / PRDs / workflows that add conditional or dispatch logic to
+      prose, mint agent-interpreted markup, reshape workflow or skill authoring conventions, move logic across the
+      CLI↔agent boundary, or add correctness machinery for procedural content

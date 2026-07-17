@@ -52,6 +52,7 @@ import {
 import {
   filterRosterByIdentity,
   gitConfigGet,
+  runIdentityScopedWorktreeRoster,
   runWorktreeRoster,
 } from "../lib/git/index.js";
 import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
@@ -69,7 +70,8 @@ import {
   RECOVERY_RECENCY_DAYS,
 } from "../lib/session-init/branch-gone-recovery.js";
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
-import { deriveCurrentHuskAdvisory } from "../lib/session-init/current-husk-advisory.js";
+import { resolveCurrentHuskAdvisory } from "../lib/session-init/current-husk-advisory.js";
+import { revalidateDecodedHuskRetirementEvidence } from "../lib/work-unit/teardown-retirement-driver.js";
 import { runOrphanBranchSweep } from "../lib/session-init/orphan-branch-sweep.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
@@ -91,7 +93,6 @@ import { runBaseBranchSyncStatus } from "../lib/git/base-branch-sync.js";
 import { detectSupersession } from "../lib/git/supersession.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
-import { readShippedWorkUnits } from "../lib/work-unit/completed-index.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
 import { resolveSessionNotesPath } from "../lib/handoff/session-notes-path.js";
 import {
@@ -99,9 +100,8 @@ import {
   type ResolvedSettingsResult,
 } from "../lib/config/resolved-settings.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { createUserIOContext, gitExec } from "../lib/io-context.js";
+import { createUserIOContext, gitExec, readGitBlobBytes } from "../lib/io-context.js";
 import {
-  listErrandRecords,
   listErrandRecordsResult,
   type ErrandRecord,
   type ListErrandRecordsResult,
@@ -256,10 +256,20 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
   const json = Boolean(opts.json);
 
   if (slug !== undefined) {
-    // Slug→state query: a subject-keyed read over the lifecycle-complete index,
-    // independent of session identity / settings. The index walk binds real I/O;
-    // the resolution stays a pure lib projection.
+    // Slug→state query: a subject-keyed read over the lifecycle-complete index.
+    // The index walk binds real I/O; the resolution stays a pure lib projection.
+    // Errand records still feed the oracle so recorded `chore/`/`fix/` errand
+    // branches are not mis-emitted as `no-record-or-meta` residue.
     const { settings } = await readConfigSettings(cwd);
+    const { identity } = await readIdentityPointers();
+    // No identity ⇒ no errand-record ref to read; empty+complete is authoritative
+    // (not degraded). Degraded `complete: false` is only for a failed read.
+    const recordResult: ListErrandRecordsResult = identity === null
+      ? { records: [], complete: true, warnings: [] }
+      : await listErrandRecordsResult({ exec: gitExec, identity });
+    const errandSlugByBranch = new Map(
+      recordResult.records.map((record) => [record.branch, record.slug]),
+    );
     const composed = await resolveComposedLifecycleIndex({
       cwd,
       fs: {
@@ -270,6 +280,8 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         exec: gitExec,
         localOnly: opts.fetch !== true,
         baseBranch: settings["branch.base"],
+        errandSlugByBranch,
+        errandRecordsComplete: recordResult.complete,
       },
     });
     const query = resolveSlugQuery(composed.index, slug);
@@ -484,20 +496,25 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       },
       worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
       currentHusk: async (worktreePath) => {
-        const [marker, headResult, completed] = await Promise.all([
+        const [marker, headResult, resolved] = await Promise.all([
           readWorktreeMarker(worktreePath),
           gitExec("git", ["rev-parse", "HEAD"], { cwd: worktreePath }),
-          readShippedWorkUnits({
-            cwd: worktreePath,
-            fs: { readdir: (path) => readdir(path) },
-          }),
+          resolvedSettingsP,
         ]);
-        return deriveCurrentHuskAdvisory({
+        return await resolveCurrentHuskAdvisory({
           worktreePath,
           branch: null,
           head: headResult.stdout,
           marker,
-          completed,
+        }, async (stamp, decoded) => {
+          const baseBranch = resolved.settings["branch.base"];
+          return await revalidateDecodedHuskRetirementEvidence(
+            gitExec,
+            stamp,
+            decoded,
+            resolved.settings["branch.protection"] === "full" ? `origin/${baseBranch}` : baseBranch,
+            (ref, path) => readGitBlobBytes(cwd, ref, path),
+          );
         });
       },
       baseDistance: async () => {
@@ -540,6 +557,19 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
         return filterRosterByIdentity(roster, { identity, teamMode });
       },
+      cleanupRoster: async () => {
+        const resolved = await resolvedSettingsP;
+        const teamMode = resolved.settings["team.mode"] === "true";
+        return runIdentityScopedWorktreeRoster({
+          exec: gitExec,
+          fs: {
+            readdir: (path) => readdir(path),
+            readFile: (path) => readFile(path, "utf8"),
+          },
+          identity,
+          teamMode,
+        });
+      },
       recovery: async (roster, currentBranch) => {
         const resolved = await resolvedSettingsP;
         const recentBranches = await runRecentRemoteBranches({
@@ -563,6 +593,9 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           exec: gitExec,
           identity,
           teamMode: resolved.settings["team.mode"] === "true",
+          protection: resolved.settings["branch.protection"] === "full" ? "full" : "partial",
+          excludeWorktreePath: worktreeIdentity.kind === "linked" ? worktreeIdentity.path : undefined,
+          readBlob: (ref, path) => readGitBlobBytes(cwd, ref, path),
         });
       },
       orphanBranchSweep: async (worktreeIdentity) => {
@@ -761,11 +794,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       return;
     }
     const localOnly = Boolean(opts.local) || opts.fetch === false;
-    const [parkedSlugs, errandRecords] = await Promise.all([
+    const [parkedSlugs, recordResult] = await Promise.all([
       buildLifecycleIndex({ cwd, fs: lifecycleFs }).then(listParkedSlugs),
-      identity === null ? Promise.resolve([]) : listErrandRecords({ exec: gitExec, identity }),
+      identity === null
+        ? Promise.resolve<ListErrandRecordsResult>({ records: [], complete: true, warnings: [] })
+        : listErrandRecordsResult({ exec: gitExec, identity }),
     ]);
-    const errandSlugByBranch = new Map(errandRecords.map((record) => [record.branch, record.slug]));
+    const errandSlugByBranch = new Map(
+      recordResult.records.map((record) => [record.branch, record.slug]),
+    );
     const input = await resolveProjectReadinessViewInput({
       cwd,
       fs: lifecycleFs,
@@ -775,6 +812,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         baseBranch: resolved.settings["branch.base"],
         parkedSlugs,
         errandSlugByBranch,
+        errandRecordsComplete: recordResult.complete,
       },
     });
     const result = composeProjectReadinessViewResult({

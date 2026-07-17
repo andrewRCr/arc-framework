@@ -16,7 +16,9 @@ and is evolving toward, and the principles that keep interim work composable wit
 near-term WUs don't accrete tracked-`.arc/` assumptions a later migration must undo.
 
 **Scope:** Storage tiering, the tracked-vs-materialized line, forward-compat principles, integration boundaries with
-external tools, self-check triggers for plan / PRD authoring.
+external tools, self-check triggers for plan / PRD authoring. First of three sibling check-docs: this doc owns *where
+state lives*, [`strategy-knowledge-evolution.md`](strategy-knowledge-evolution.md) owns where non-procedural guidance
+lives, and [`strategy-procedure-evolution.md`](strategy-procedure-evolution.md) owns how procedure executes.
 
 **Why project-internal:** Adopter-facing strategies in `strategies/arc/` describe what ARC IS. This describes
 direction for ARC's own evolution — for plan / PRD authors in this repo, not for adopters configuring ARC.
@@ -54,12 +56,18 @@ agents and humans see ordinary local files (the chezmoi/dotfile-manager shape).
 | --- | --- | --- | --- |
 | **In-repo** | the code repo (tracked `.arc/`) | solo / small team, no constraints | Current |
 | **Local** | a separate **private git repo** (`~/.arc-state/`) | single-user multi-machine; privacy | Planned |
-| **Backend** | that repo, **hosted + shared + coordinated** | multi-user / team | North star |
+| **Shared** | that repo, on a **shared private remote** (git-only) | small team, multi-writer | Planned (north star) |
+| **Coordinated** | a **service fronting the same store** | high-parallelism / org authz | Provisional — deferred |
 
-**Local *is* tier-2 of the materialized substrate; the Backend is its hosted form; team is the multi-writer config.**
-This unifies what were previously framed as separate Local-mode and backend designs — co-design them as one
-abstraction (see § Holistic Design). The backend is not "the team tier" alone: solo adopters benefit (privacy on
-public repos, multi-machine), multi-user adopters additionally get concurrency primitives.
+**Local *is* tier-2 of the materialized substrate; the Shared tier is that store on a shared remote with
+multi-writer discipline (version-checked writes, entry-granular records, optimistic push-retry); team is the
+multi-writer config, not a separate design.** This unifies what were previously framed as separate Local-mode and
+backend designs — co-design them as one abstraction (see § Holistic Design). The substrate is not "the team tier"
+alone: solo adopters benefit (privacy on public repos, multi-machine), multi-user adopters additionally get
+concurrency discipline. The **Coordinated** tier (a self-hosted coordination service — per-record authorization,
+event-log gatekeeping, richer heal contracts) is split out as its own provisional target
+(`arc-coordination-service`); it influences design here only through Principle 10 below, and is deferred until
+demand or contributor capacity exists. Tiers 1–3 require nothing hosted beyond git remotes.
 
 ### The line: tracked vs. materialized
 
@@ -155,6 +163,15 @@ Current axes (scaling × tracked/local × pm.mode × team.enabled) already strai
 against: "could this be a property of an existing axis, or subsumed by a future one?" The backend subsumes team-mode
 (7); resist axes the backend would eventually fold in.
 
+### 10. The store is complete without any service (service-optional)
+
+The canonical store is a git repo, always — including under the deferred Coordinated tier. A coordination service,
+if one ever exists, is a **gatekeeper and accelerator over the same ledger**: event-log records serialize into the
+store repo, and a clone of the store is always the full canonical state. Any Coordinated deployment must degrade to
+Shared-tier (plain git remote) semantics. **Anti-pattern:** a canonical record class that exists only in a service
+database — that is the seam that generated beads' 2026 storage churn (see
+`research-storage-landscape-2026-07.md`), and it forecloses the git-only tiers this substrate is built on.
+
 ---
 
 ## Holistic Design (Local ↔ Backend are one substrate)
@@ -194,8 +211,17 @@ This list is not exhaustive — other touchpoints surface during co-design.
 
 ## Relationship to Other Documents
 
-- **`draft-arc-backend.md`** — the north-star target: full model (the line, the one knob, materialization A/B,
-  concurrency-with-history, gotchas), audience fit, sequencing, blast-radius/migration audit, backlog compat audit.
+- **`draft-arc-backend.md`** — the north-star target (tiers 2–3, git-only): full model (the line, the one knob,
+  materialization A/B, concurrency-with-history, gotchas), audience fit, sequencing, blast-radius/migration audit,
+  backlog compat audit.
+- **`arc-coordination-service`** (provisional) — the split-out Coordinated tier: self-hosted service, auth model,
+  deployment shape. Constrains this doc only via Principle 10 (service-optional).
+- **`research-storage-landscape-2026-07.md`** — 2026-07 research grounding for the substrate decisions (industry
+  camps, beads churn lesson, grite/OpenSpec-Stores precedents, verified concurrency-failure evidence).
+- **[`strategy-knowledge-evolution.md`](strategy-knowledge-evolution.md)** /
+  **[`strategy-procedure-evolution.md`](strategy-procedure-evolution.md)** — sibling check-docs (knowledge placement;
+  procedural substrate). Their Principles 9 (projection-compatible) and 3 (verbs over mechanics) are the seams this
+  doc's Principles 1, 2, and 6 compose with.
 - **`draft-local-mode.md`** — Local mode, tier-2 of the materialized substrate; its backing-store
   mechanics generalize to the hosted (backend) case.
 - **`adr-020-adopt-principle-anchored-scalable-core.md`** — the derived-vs-mutated split; mutable shared state

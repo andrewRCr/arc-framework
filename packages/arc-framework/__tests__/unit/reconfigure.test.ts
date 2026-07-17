@@ -102,6 +102,8 @@ function mockIO(
     exec: vi.fn(async () => ({ stdout: "", stderr: "" })),
     access: vi.fn(async () => {}),
     chmod: vi.fn(async () => {}),
+    exclusiveCreate: vi.fn(async () => {}),
+    removeFile: vi.fn(async () => {}),
   };
 }
 
@@ -459,7 +461,7 @@ describe("runReconfigure", () => {
 
     it("changed team.mode re-renders conditional blocks", async () => {
       const templateContent =
-        "# Guide\n\n<!-- arc:if team.mode == true -->\nTeam coordination enabled.\n<!-- arc:end -->\n\nDone.\n";
+        "# Guide\n\n<!-- arc:if team.mode == true -->\nTeam coordination enabled.\n<!-- arc:endif -->\n\nDone.\n";
       const oldRendered = "# Guide\n\nDone.\n";
       const manifest = makeManifest({
         files: {

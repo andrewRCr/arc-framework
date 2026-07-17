@@ -92,6 +92,7 @@ import {
   handleReleaseSetupVerify,
   handleReleaseStatus,
 } from "./commands/release.js";
+import { runDecomposeRecordValidation } from "./scripts/validate-decompose-record.js";
 
 const program = new Command();
 
@@ -105,6 +106,10 @@ program
 const checkCmd = program
   .command("check")
   .description("Run standalone repository checks");
+
+program
+  .command("hook-validate-decompose-record", { hidden: true })
+  .action(runDecomposeRecordValidation);
 
 function isDashPrefixedCheckSourceEscaped(
   rawArgs: readonly string[],
@@ -201,6 +206,7 @@ program
   .command("decompose <origin>")
   .description("Split a work unit into a cohort of members per a structured cut-map file")
   .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
+  .option("--finalize <receipt-id>", "Verify the staged allocation and replace its preparation with a finalized receipt")
   .action((origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts));
 
 program
@@ -217,6 +223,7 @@ program
   .command("park [slug]")
   .description("Shelve a started work unit off the active set (defaults to the current WU)")
   .option("--reason <text>", "Why the work unit is being parked (required)")
+  .option("--land <commit>", "Stage an exact planning transition on a partial-protection base")
   .action((slug: string | undefined, opts: ParkOptions) => handlePark(slug, opts));
 
 program
@@ -280,9 +287,10 @@ program
   .command("teardown [name]")
   .description("Post-merge cleanup of a shipped work unit: reap the merged branch, remove the worktree, prune stale refs")
   .option("--branch <branch>", "Reap a merged recordless chore/<slug> branch by exact name")
+  .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
   .option(
     "--force",
-    "Force-tear down a retired/parked origin (unmerged branch): accept non-completed/ arc-state; caller asserts conservation",
+    "Tear down a retired/parked origin (unmerged branch) using its finalized retirement receipt",
   )
   .action((name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts));
 
@@ -333,15 +341,17 @@ errand
   .description("Open an errand: mint the record, cut a nature-typed branch, and occupy it in place")
   .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
-  .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its title): inbox-origin record, dropped at close")
-  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
+  .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its bold title): inbox-origin record, dropped at close")
+  .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
+  .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
 
 errand
   .command("link <slug>")
   .description("Link an in-flight errand to a USER-INBOX capture so close/promote can drop it")
-  .option("--from-inbox <entry-title>", "USER-INBOX capture title to associate with the errand")
-  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
+  .option("--from-inbox <entry-title>", "USER-INBOX capture bold title to associate with the errand")
+  .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
+  .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .action((slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts));
 
 errand
@@ -446,7 +456,8 @@ userCmd
 userCmd
   .command("inbox-remove [slug]")
   .description("Drop the title-matched USER-INBOX entry (idempotent — no-op when absent)")
-  .option("--inbox-entry-file <path>", "Read the capture title from a UTF-8 file, or - for stdin")
+  .option("--inbox-title-file <path>", "Read the capture's inner bold title from a UTF-8 file, or - for stdin")
+  .option("--inbox-entry-file <path>", "Compatibility alias of --inbox-title-file")
   .action((slug: string | undefined, opts: UserInboxRemoveOptions) => handleUserInboxRemove(slug, opts));
 
 userCmd

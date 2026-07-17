@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 import {
   findStaleWorktreeCandidates,
-  runStaleWorktreeSweep,
+  runStaleWorktreeSweep as runStaleWorktreeSweepCore,
+  type RunStaleWorktreeSweepOptions,
 } from "../../../src/lib/session-init/stale-worktree-sweep.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
@@ -10,6 +11,15 @@ import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-mar
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
 
 const shipped = new Set(["work-organization-reform"]);
+const emptyBlobReader: RunStaleWorktreeSweepOptions["readBlob"] = async () => null;
+
+function runStaleWorktreeSweep(
+  options: Omit<RunStaleWorktreeSweepOptions, "readBlob"> & {
+    readBlob?: RunStaleWorktreeSweepOptions["readBlob"];
+  },
+) {
+  return runStaleWorktreeSweepCore({ ...options, readBlob: options.readBlob ?? emptyBlobReader });
+}
 
 /** Roster with one shipped-WU worktree and one still-active worktree. */
 function roster(): WorktreeRosterResult {
@@ -277,6 +287,8 @@ describe("runStaleWorktreeSweep", () => {
         worktreePath: "/wt/husk",
         branch: null,
         subject: { kind: "work-unit", name: "work-organization-reform" },
+        stampedBranch: "feat/work-organization-reform",
+        stamp: { kind: "legacy", authorization: "merged-preserved" },
         completedWorkUnit: "work-organization-reform",
         decision: { action: "removable" },
       },
@@ -285,6 +297,8 @@ describe("runStaleWorktreeSweep", () => {
         worktreePath: "/wt/moved",
         branch: null,
         subject: { kind: "work-unit", name: "work-organization-reform" },
+        stampedBranch: "feat/work-organization-reform",
+        stamp: { kind: "legacy", authorization: "merged-preserved" },
         completedWorkUnit: "work-organization-reform",
         decision: { action: "blocked", reason: "head-moved" },
       },
@@ -333,6 +347,8 @@ describe("runStaleWorktreeSweep", () => {
         worktreePath: "/wt/recordless",
         branch: null,
         subject: { kind: "branch", ref: "review/orphan" },
+        stampedBranch: "review/orphan",
+        stamp: { kind: "legacy", authorization: "merged-preserved" },
         completedWorkUnit: null,
         decision: { action: "removable" },
       },
@@ -341,10 +357,47 @@ describe("runStaleWorktreeSweep", () => {
         worktreePath: "/wt/errand",
         branch: null,
         subject: { kind: "errand", slug: "tidy-hooks" },
+        stampedBranch: "chore/tidy-hooks",
+        stamp: { kind: "legacy", authorization: "merged-preserved" },
         completedWorkUnit: null,
         decision: { action: "removable" },
       },
     ]);
+  });
+
+  it("marks a structurally current husk manual-only when committed evidence does not revalidate", async () => {
+    const marker = stampedMarker({ kind: "work-unit", name: "retired" });
+    if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("expected stamped marker");
+    marker.marker.husk.authorization = "discard-confirmed";
+    marker.marker.husk.remoteRef = null;
+    marker.marker.husk.evidence = {
+      kind: "receipt",
+      receiptId: `sha256:${"1".repeat(64)}`,
+      transition: "abandon",
+      expectedLifecycle: "nonexistent",
+      resultDigest: `sha256:${"2".repeat(64)}`,
+    };
+    const revalidateEvidence = vi.fn().mockResolvedValue(false);
+
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: false }),
+      readMarker: async () => marker,
+      revalidateEvidence,
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+      }),
+    });
+
+    expect(revalidateEvidence).toHaveBeenCalledOnce();
+    expect(result.worktrees[0]).toMatchObject({
+      kind: "husk",
+      stamp: { kind: "manual-only", reason: "evidence-mismatch" },
+      decision: { action: "blocked", reason: "evidence-mismatch" },
+    });
   });
 
   it("filters another identity's husk only in team mode", async () => {
@@ -434,5 +487,68 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees).toHaveLength(1);
     expect(result.worktrees[0]?.kind).toBe("branched");
     expect(result.warnings).toEqual(["Could not scan detached worktrees: topology unavailable"]);
+  });
+
+  it("scans sibling husks from a linked worktree and excludes the exact current path", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      excludeWorktreePath: "/wt/current",
+      identity: "andrew",
+      teamMode: true,
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: false }),
+      readMarker: async () => stampedMarker({ kind: "work-unit", name: "retired" }),
+      scanWorktrees: async () => ({
+        ok: true,
+        worktrees: [
+          { path: "/wt/current", head: "stamped", branch: null, detached: true, primary: false },
+          { path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false },
+        ],
+      }),
+    });
+
+    expect(result.worktrees.map((entry) => entry.worktreePath)).toEqual(["/wt/sibling"]);
+  });
+
+  it("does not scan linked worktree residues without a resolved identity", async () => {
+    const scanWorktrees = vi.fn(async () => ({ ok: true as const, worktrees: [] }));
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      identity: null,
+      teamMode: true,
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: false }),
+      scanWorktrees,
+    });
+
+    expect(result.worktrees).toEqual([]);
+    expect(scanWorktrees).not.toHaveBeenCalled();
+  });
+
+  it("scans eligible linked worktree residues without an identity in solo mode", async () => {
+    const scanWorktrees = vi.fn(async () => ({
+      ok: true as const,
+      worktrees: [{ path: "/wt/sibling", head: "stamped", branch: null, detached: true, primary: false }],
+    }));
+    const result = await runStaleWorktreeSweep({
+      roster: { entries: [], warnings: [] },
+      worktreeIdentity: { kind: "linked", path: "/wt/current" },
+      identity: null,
+      teamMode: false,
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: false }),
+      readMarker: async () => stampedMarker({ kind: "work-unit", name: "work-organization-reform" }),
+      scanWorktrees,
+    });
+
+    expect(scanWorktrees).toHaveBeenCalledTimes(1);
+    expect(result.worktrees).toHaveLength(1);
+    expect(result.worktrees[0]).toMatchObject({
+      kind: "husk",
+      worktreePath: "/wt/sibling",
+      subject: { kind: "work-unit", name: "work-organization-reform" },
+    });
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -84,5 +84,20 @@ describe("loadReadyMineSlice", () => {
     const slice = await loadReadyMineSlice({ cwd: root, identity: "andrew" });
 
     expect(slice).toEqual([]);
+  });
+
+  it("skips a planned meta that vanishes between discovery and read", async () => {
+    await seed(["backlog", "planned"], "ready", meta({ class: "light" }));
+    const vanishedDir = join(root, ".arc", "backlog", "planned", "vanished");
+    await mkdir(vanishedDir, { recursive: true });
+    await symlink(
+      join(vanishedDir, "already-gone.md"),
+      join(vanishedDir, "meta-vanished.md"),
+      "file",
+    );
+
+    const slice = await loadReadyMineSlice({ cwd: root, identity: "andrew" });
+
+    expect(slice.map((row) => row.workUnit)).toEqual(["ready"]);
   });
 });

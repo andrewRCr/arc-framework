@@ -5,6 +5,7 @@ import {
   scanRegisteredWorktrees,
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranchResult,
+  runIdentityScopedWorktreeRoster,
   runWorktreeRoster,
 } from "../../../src/lib/git/worktree-roster.js";
 import type {
@@ -98,6 +99,36 @@ function hasAnyKeyUnder(tree: Record<string, string>, prefix: string): boolean {
 }
 
 const WORKTREE_LIST = "worktree list --porcelain";
+
+describe("runIdentityScopedWorktreeRoster", () => {
+  it("does not read private worktree metadata when team identity is unresolved", async () => {
+    let execCalled = false;
+    let fsCalled = false;
+    const exec: GitExec = async () => {
+      execCalled = true;
+      throw new Error("private roster must not be read");
+    };
+    const fs: WorktreeRosterFs = {
+      readdir: async () => {
+        fsCalled = true;
+        throw new Error("private metadata must not be read");
+      },
+      readFile: async () => {
+        fsCalled = true;
+        throw new Error("private metadata must not be read");
+      },
+    };
+
+    await expect(runIdentityScopedWorktreeRoster({
+      exec,
+      fs,
+      identity: null,
+      teamMode: true,
+    })).resolves.toEqual({ entries: [], warnings: [] });
+    expect(execCalled).toBe(false);
+    expect(fsCalled).toBe(false);
+  });
+});
 
 describe("runWorktreeRoster", () => {
   it("returns empty entries when only the main worktree exists with no meta file", async () => {

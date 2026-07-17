@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -18,6 +18,7 @@ import {
   createTempRepo,
   makeGitExec,
   makeGitExecInput,
+  removeGitBackedDir,
 } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
@@ -141,7 +142,7 @@ describe("arc status --project", () => {
   afterEach(async () => {
     vi.restoreAllMocks();
     if (repo !== undefined) await cleanupTempDir(repo);
-    if (remote !== undefined) await rm(remote, { recursive: true, force: true });
+    if (remote !== undefined) await removeGitBackedDir(remote);
     repo = undefined;
     remote = undefined;
   });
@@ -150,6 +151,7 @@ describe("arc status --project", () => {
     repo = await createTempRepo("arc-status-project-");
     remote = `${repo}-origin.git`;
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
     await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repo });
     await execFileAsync("git", ["config", "arc.identity", "andrew"], { cwd: repo });
     await mkdir(join(repo, ".arc", "system"), { recursive: true });
@@ -216,6 +218,7 @@ describe("arc status --project", () => {
       repo = await createTempRepo("arc-status-slug-");
       remote = `${repo}-origin.git`;
       await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
       await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repo });
       await mkdir(join(repo, ".arc", "system"), { recursive: true });
       await mkdir(join(repo, ".arc", "backlog", "planned"), { recursive: true });
@@ -253,6 +256,7 @@ describe("arc status --project", () => {
     const slug = "stale-local-ref";
     const branch = `feat/${slug}`;
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
     await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repo });
     await mkdir(join(repo, ".arc", "system"), { recursive: true });
     await mkdir(join(repo, ".arc", "backlog", "planned"), { recursive: true });
@@ -376,6 +380,7 @@ describe("arc status --project", () => {
     const siblingSlug = "active-sibling-row";
     const siblingBranch = `feat/${siblingSlug}`;
     await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await execFileAsync("git", ["config", "gc.auto", "0"], { cwd: remote });
     await execFileAsync("git", ["remote", "add", "origin", remote], { cwd: repo });
     await execFileAsync("git", ["config", "arc.identity", "andrew"], { cwd: repo });
     await mkdir(join(repo, ".arc", "system"), { recursive: true });

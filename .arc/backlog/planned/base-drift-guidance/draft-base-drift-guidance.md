@@ -12,22 +12,21 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
-### `[ ]` **Make the base-drift prompt safe for pushed branches**
+### `[x]` **Make the base-drift prompt safe for pushed branches**
 
 - _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-15); captured during FP wave-3 session
   orientation.
-- _Concern:_ `baseDistance.recommendedPromptText` currently says that a rebase may conflict even though ARC's
-  append-only doctrine forbids rebasing pushed branches because it orphans SHA-keyed notes. Session-init renders
-  the precomposed text verbatim, so the live guidance suggests a forbidden reconciliation path.
-- _Approach:_ make prompt composition branch-state-aware (`merge main in` when the branch is published) or use
-  operation-neutral overlap wording, and cover the composer behavior with focused tests.
+- _Landed:_ wording floor pulled back via `fix/base-drift-prompt-pull-back` (PR #264) — composer now recommends
+  merging the base in and never suggests rebase; residual for this WU is first-parent naming, derived-path
+  classification, and calm routine-sibling register (not the forbidden-path wording).
 
 ## Problem / Motivation
 
 Under routine parallelism, one merged sibling contributes its whole branch history to every other branch's raw
-behind count. The current prompt therefore turns normal progress into an alarming large number, gives an
-off-doctrine rebase suggestion, and weighs regenerate-wins paths such as `ROADMAP.md` like substantive code
-overlap. Repeated false urgency trains operators to ignore the surface that should flag genuine contention.
+behind count. The current prompt therefore turns normal progress into an alarming large number and weighs
+regenerate-wins paths such as `ROADMAP.md` like substantive code overlap. Repeated false urgency trains operators
+to ignore the surface that should flag genuine contention. (The off-doctrine rebase suggestion was removed by the
+wording-floor pull-back above.)
 
 ## Candidate Shape
 
