@@ -942,16 +942,19 @@ the waves run rather than authored up front.
   from the persisted sync-state `savedAt` timestamp, not the annotated source commit's author date. Unit and
   real-Git collision tests pin the wording and timestamp authority.
 
-### `[ ]` **7.6 Audit seed branch identity at recovery**
+### `[x]` **7.6 Audit seed branch identity at recovery**
 
 - _Goal:_ `arc recover audit` compares the seed's branch (and head lineage) to the live checkout and surfaces a
   mismatch as a stop reason or explained drift — today a clean-tree seed emitted on a sibling session's branch
   audits `ready: true` against a different live branch. Loadset, task cursor, and dirty paths are audited;
   branch is not — yet branch is exactly the dimension an errand-beside-base shared-checkout clobber always
   changes.
-- _Files:_ `lib/recover/audit.ts` (`auditRecoveryState`), recover-audit tests.
-- _Surfaced by:_ wave-3 cell 5.2.c induction, 2026-07-16 — see `notes-finalize-parallelism.md` § Wave-3
-  induction evidence.
+- _Outcome:_ `arc recover audit` now snapshots the live branch and resolved HEAD alongside the existing fresh
+  probes and compares both to the seed. An unresolved or different branch is a structured stop; a changed HEAD
+  is accepted only when Git proves the seed head is its ancestor, in which case the verdict records explicit
+  `head-advanced` explained drift. Diverged, unrelated, or unprovable HEAD movement stops as
+  `head-lineage-mismatch`. The JSON verdict includes the complete expected/actual locus comparison, and unit
+  coverage pins the previously silent clean-tree foreign-branch case plus accepted and rejected head movement.
 
 ## **Phase 8:** GA closeout
 

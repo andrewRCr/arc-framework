@@ -21,6 +21,22 @@ function fakeExec(handler: (key: string) => string): {
 }
 
 describe("resolveCommittedProgress", () => {
+  it("binds lineage proof to the caller's exact captured live HEAD", async () => {
+    const { exec, calls } = fakeExec((key) => {
+      if (key === `rev-parse --verify ${SEED_SHA}^{commit}`) return `${SEED_SHA}\n`;
+      if (key === `rev-parse --verify ${HEAD_SHA}^{commit}`) return `${HEAD_SHA}\n`;
+      if (key === `merge-base ${SEED_SHA} ${HEAD_SHA}`) return `${SEED_SHA}\n`;
+      if (key === `diff --name-only -z ${SEED_SHA}..${HEAD_SHA}`) return "";
+      throw new Error(`unexpected git args: ${key}`);
+    });
+
+    const result = await resolveCommittedProgress({ exec, seedHead: SEED_SHA, currentHead: HEAD_SHA });
+
+    expect(result?.advanced).toBe(true);
+    expect(calls).toContain(`rev-parse --verify ${HEAD_SHA}^{commit}`);
+    expect(calls).not.toContain("rev-parse --verify HEAD^{commit}");
+  });
+
   it("reports committed progress and changed files when HEAD advanced past the seed", async () => {
     const { exec } = fakeExec((key) => {
       if (key === `rev-parse --verify ${SEED_SHA}^{commit}`) return `${SEED_SHA}\n`;

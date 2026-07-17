@@ -23,12 +23,17 @@ export interface CommittedProgress {
 }
 
 /** Resolver signature the audit injects (defaulted in production, faked in tests). */
-export type CommittedProgressResolver = (seedHead: string) => Promise<CommittedProgress | null>;
+export type CommittedProgressResolver = (
+  seedHead: string,
+  currentHead?: string,
+) => Promise<CommittedProgress | null>;
 
 /** Inputs for {@link resolveCommittedProgress}. */
 export interface ResolveCommittedProgressOptions {
   exec: GitExec;
   seedHead: string;
+  /** Exact live HEAD captured by the caller; defaults to `HEAD`. */
+  currentHead?: string;
   cwd?: string;
 }
 
@@ -51,7 +56,7 @@ export async function resolveCommittedProgress(
 
   try {
     const seedSha = await revParseCommit(options.exec, seedHead, execOptions);
-    const headSha = await revParseCommit(options.exec, "HEAD", execOptions);
+    const headSha = await revParseCommit(options.exec, options.currentHead ?? "HEAD", execOptions);
     if (seedSha === null || headSha === null) return null;
     if (seedSha === headSha) return { advanced: false, files: new Set() };
 
@@ -84,5 +89,5 @@ async function revParseCommit(
 }
 
 /** Production resolver bound to the process-level git executor. */
-export const defaultCommittedProgressResolver: CommittedProgressResolver = (seedHead) =>
-  resolveCommittedProgress({ exec: gitExec, seedHead });
+export const defaultCommittedProgressResolver: CommittedProgressResolver = (seedHead, currentHead) =>
+  resolveCommittedProgress({ exec: gitExec, seedHead, currentHead });

@@ -133,8 +133,16 @@ function committedProgress(files: string[], advanced = true): CommittedProgressR
   return () => Promise.resolve({ advanced, files: new Set(files) });
 }
 
-function runAudit(options: AuditRecoveryStateOptions): Promise<Awaited<ReturnType<typeof auditRecoveryState>>> {
-  return auditRecoveryState({ resolveCommittedProgress: noCommittedProgress, ...options });
+type TestAuditOptions = Omit<AuditRecoveryStateOptions, "freshBranch" | "freshHead">
+  & Partial<Pick<AuditRecoveryStateOptions, "freshBranch" | "freshHead">>;
+
+function runAudit(options: TestAuditOptions): Promise<Awaited<ReturnType<typeof auditRecoveryState>>> {
+  return auditRecoveryState({
+    freshBranch: options.seed.branch,
+    freshHead: options.seed.head,
+    resolveCommittedProgress: noCommittedProgress,
+    ...options,
+  });
 }
 
 describe("auditRecoveryState", () => {
@@ -167,6 +175,73 @@ describe("auditRecoveryState", () => {
         expected: CURSOR,
         match: true,
       },
+    });
+  });
+
+  it("stops when the live checkout branch differs even if HEAD is unchanged", async () => {
+    const result = await runAudit({
+      seed: seed(),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshBranch: "main",
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual({
+      kind: "branch-mismatch",
+      message: "live checkout branch differs from the compaction seed baseline",
+      detail: { expected: "feat/compaction-recovery", actual: "main" },
+    });
+  });
+
+  it("explains a same-branch HEAD advance when the seed is its ancestor", async () => {
+    const liveHead = "8".repeat(40);
+    const result = await runAudit({
+      seed: seed(),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshHead: liveHead,
+      freshUncommittedFiles: [],
+      resolveCommittedProgress: committedProgress(["src/progress.ts"]),
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.explainedDrift).toContainEqual({
+      kind: "head-advanced",
+      message: "live HEAD advanced from the compaction seed on the same lineage",
+      detail: { expected: seed().head, actual: liveHead },
+    });
+  });
+
+  it("stops when live HEAD moved outside the seed lineage", async () => {
+    const liveHead = "9".repeat(40);
+    const result = await runAudit({
+      seed: seed(),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshHead: liveHead,
+      freshUncommittedFiles: [],
+      resolveCommittedProgress: committedProgress([], false),
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toContainEqual({
+      kind: "head-lineage-mismatch",
+      message: "live HEAD is not the seed head or a descendant of it",
+      detail: { expected: seed().head, actual: liveHead },
     });
   });
 
