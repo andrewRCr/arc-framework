@@ -12,13 +12,16 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 5.2 — wave-3 matrix cells verified (5.2.a/b/c real-verb inductions; predictions held,
-  seams routed to Tasks 7.4–7.6 + one split-out capture); evidence in `notes-finalize-parallelism.md` § Wave-3.
-- **Next Task:** Task 5.3 — Resolve the parallel-errand fork and batch-errand sub-decision (line ~769)
+- **Last Completed:** Task 6.3 — wave-4 cross-machine resume verified (spawn materialize + notes convergence +
+  live notes-lag detector); Phase 6 closes all four burn-in waves. Evidence in `notes-finalize-parallelism.md`
+  § Wave-4 induction evidence.
+- **Next Task:** Task 7.1 — [BLOCKING] Move identity-global user-surface migration out of the path resolver
+  (line ~878)
 - **Blockers:** [none]
 
-- **Next Action:** Wave-gated — 5.3/5.4/5.5 close when both wave-3 WUs ship and tear down (CTH shipped
-  2026-07-16; HLD still mid-impl). Weigh the accumulated drain/contention evidence at 5.3 then.
+- **Next Action:** Begin Task 7.1 [BLOCKING] — relocate the migration write out of `resolveUserSurfaceResolver`
+  so read-only command paths can't throw on a divergent flat file. Phase 7 seams are populated + audited (7.1–7.6
+  ready; 7.3 is a disposition call, not straight impl).
 
 - **PR URL:** [none]
 - **Completed:** [none]
