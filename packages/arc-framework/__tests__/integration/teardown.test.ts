@@ -274,6 +274,39 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
     });
   }
 
+  it("uses remote lifecycle authority from a stale feature checkout under full protection", async () => {
+    const h = await setupMultiClone();
+    try {
+      await shipFeature(h, "demo", "merge-commit");
+      await commitShippedMeta(h, "demo");
+      await git(h.cloneA, ["checkout", "feat/demo"]);
+
+      const staleCheckout = await runTeardown(teardownCtx(h.cloneA), {
+        name: "demo",
+        base: "main",
+        mode: "abandoned",
+        protection: "full",
+      });
+
+      expect(staleCheckout.status).toBe("rejected");
+      if (staleCheckout.status === "rejected") {
+        expect(staleCheckout.reason).toMatch(/shipped|merged-safe|completed/iu);
+      }
+      expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
+
+      const shipped = await runTeardown(teardownCtx(h.cloneA), {
+        name: "demo",
+        base: "main",
+        protection: "full",
+      });
+
+      expect(shipped.status).toBe("torn-down");
+      expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
   it("deletes the live remote head on a plain merge where origin still has the branch", async () => {
     const h = await setupMultiClone();
     try {

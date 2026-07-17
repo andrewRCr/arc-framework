@@ -897,32 +897,19 @@ the waves run rather than authored up front.
   as fulfilled when that tree carries its note, even if recovery minted a different export commit. Exact-intent
   ancestry and the 14-day abandoned-marker TTL remain as complementary self-invalidation paths.
 
-### `[ ]` **7.3 Disposition the locus-gated awareness seam (hygiene/completion surfaces vs. worktree-resident operators)**
+### `[x]` **7.3 Disposition the locus-gated awareness seam (hygiene/completion surfaces vs. worktree-resident operators)**
 
 - _Goal:_ The arm/locus gating of the probe's hygiene and completion-tail surfaces is dispositioned — absorbed,
   re-gated, or spawned as a follow-up WU — with wave evidence recorded.
-- _Context:_ Under real parallelism the operator resides in linked worktrees, but `sweep` and `orphanBranchSweep`
-  emit primary-only, `errandState.residue` / `inFlight` are Orient-arm-only, and `workUnitState` (completion
-  tail) skips linked resume arms — so shipped-WU husks, orphan branches, errand residue, and merged-sibling
-  events accumulate invisibly. Wave-3 instance: the CMS husk went unsurfaced post-ship until hand-discovered,
-  and the CMS merge gate (FP's own Next Action trigger) was probe-invisible on FP's resume arm, needing a manual
-  `gh` query. The presence tiers are network-free, so lifting them (nudge-gated) to linked resume arms looks
-  cheap; alternatives: a hygiene verb/view runnable anywhere, or `session-locus-model`'s locus-record read-verb
-  as the carrier. Coordination captures routed to `husk-lifecycle-drivers` and `session-locus-model`
-  (2026-07-15).
-- _Decision (settled 2026-07-17):_ Re-gate the family rather than broadening every linked resume. Shipped
-  `husk-lifecycle-drivers` now lifts the network-free current/sibling-husk and orphan-ref cleanup surfaces onto
-  linked arms; preserve its deliberate boundary that keeps general roster publication, completion-tail fan-out,
-  and oracle-backed errand discovery on their existing primary/no-WU loci. Absorb one atomic correctness repair
-  here: shipped/abandoned teardown resolves lifecycle membership from the protection-aware base authority, not the
-  invoking checkout's possibly-stale `completed/` tree. Richer any-locus completion/HUD awareness remains the
-  existing `session-locus-model` follow-up and does not become an FP dependency; the wave evidence says the
-  residual visibility gap does not block GA mechanics.
-- _Surfaced by:_ wave-3 launch session, 2026-07-15 — see `notes-finalize-parallelism.md` § Wave-3 launch
-  evidence. Two further instances from the HLD teardown (2026-07-17, § Detector-tests 5.5): the stamped husk
-  invisible to linked-worktree sessions ~10 h until hand-discovered, and the `teardown` verb's ship-check
-  resolving `completed/` presence checkout-locally (refused from a stale linked checkout while the husk marker
-  already carried base-anchored evidence) — the family extends from probe surfaces to verb preconditions.
+- _Outcome:_ Re-gated the family without broadening every linked resume: shipped `husk-lifecycle-drivers`
+  already supplies the network-free current/sibling-husk and orphan-ref cleanup surfaces on linked arms, while
+  general roster publication, completion-tail fan-out, and oracle-backed errand discovery remain on their
+  deliberate primary/no-WU loci. Repaired the one checkout-local correctness defect in scope: configured
+  teardown now resolves shipped/abandoned lifecycle membership from `origin/<base>` under full protection and
+  the local `<base>` ref under partial protection, so stale linked metadata cannot refuse shipped cleanup or
+  authorize the abandoned path. Unit coverage pins both gate directions and real-Git integration proves the
+  full-protection path from a stale feature checkout. Richer any-locus completion/HUD awareness remains the
+  existing Heavy `session-locus-model` follow-up and is not an FP dependency.
 
 ### `[ ]` **7.4 Make errand-ref collision surfacing honest and traceable**
 

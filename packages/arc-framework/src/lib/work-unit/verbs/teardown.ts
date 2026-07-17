@@ -18,9 +18,9 @@
  *
  * - **`shipped`** (default) — post-merge cleanup of a `completed/` WU. The
  *   two-part safety model (settled upstream): (1) **arc-state authority** — the
- *   WU resides in `completed/` (the `archive` transition ran), resolved from
- *   location via {@link isShipped}, never from `git branch` / `git log`
- *   inference; (2) **preservation durability** — every local commit is provably
+ *   WU resides in `completed/` (the `archive` transition ran), resolved from the
+ *   protection-aware base ref rather than the potentially stale invoking
+ *   checkout; (2) **preservation durability** — every local commit is provably
  *   preserved (contained in its upstream, or landed in `base` by
  *   patch-equivalence), enacted by the shared reap oracle ({@link
  *   assessReapSafety}) the merged-safe delete leg uses, holding even when the
@@ -63,7 +63,7 @@ import {
   type RegisteredWorktreeScanResult,
 } from "../../git/worktree-roster.js";
 import { reconcileLinkedIdentityGlobalUserSurfaces } from "../../user-surface-migration.js";
-import { branchToWorkUnitSlug } from "../completed-index.js";
+import { branchToWorkUnitSlug, readShippedWorkUnitsFromRef } from "../completed-index.js";
 import {
   describeTeardownAuthorizationRefusal,
   type RetirementAuthorityPort,
@@ -120,7 +120,7 @@ export interface TeardownContext {
  * worktree / locus-hop / ordering / prune mechanics are identical in both.
  *
  * - `shipped` (default) — a `completed/` WU whose branch is merged. Gate:
- *   `completed/` presence ({@link isShipped}). Branch delete: the merged-safe,
+ *   `completed/` presence on the protection-aware base ref. Branch delete: the merged-safe,
  *   containment-gated `delete-merged` — git-containment is the safety — plus a
  *   best-effort live-remote-head delete once the landed-in-base proof holds (a
  *   plain merge leaves the head to linger; delete-on-merge hosts already
@@ -954,13 +954,22 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     return { status: "rejected", reason: "`--husk` requires an absolute worktree path." };
   }
 
-  // 1. Arc-state authority gate — mode-keyed, resolved from location, never git.
+  // 1. Arc-state authority gate — mode-keyed and read from the configured base
+  //    authority so a stale linked checkout cannot overrule landed lifecycle
+  //    state. Full protection trusts the remote base; partial protection trusts
+  //    the locally integrating base. Direct library callers that omit the
+  //    protection model retain the historical checkout-local seam; the CLI
+  //    always supplies the configured model.
   //    `shipped`: only a `completed/` WU (the merged-safe path's precondition).
   //    `abandoned`: the inverse — accept any *un-shipped* WU (a retired / parked
   //    origin), but refuse a `completed/` one so the retirement path can't reap a
   //    merged WU that the safe path handles.
-  const index = await buildLifecycleIndex({ cwd, fs: indexFs });
-  const shipped = isShipped(index, name);
+  const shipped = params.protection === undefined
+    ? isShipped(await buildLifecycleIndex({ cwd, fs: indexFs }), name)
+    : (await readShippedWorkUnitsFromRef(
+        exec,
+        params.protection === "full" ? `${remote ?? "origin"}/${base}` : base,
+      )).has(name);
   if (mode === "shipped" && !shipped) {
     return {
       status: "rejected",

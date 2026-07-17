@@ -115,6 +115,8 @@ const SHIPPED_RESULT_DIGEST = metaFixtureDigest(SHIPPED_META);
 
 /** A configurable git exec spy. Routes by command; records calls. */
 interface ExecOptions {
+  /** Lifecycle metas exposed by the authoritative base ref (defaults to the checkout metas). */
+  baseMetas?: readonly MetaSpec[];
   /** Branches `for-each-ref` reports. */
   branches?: string[];
   /** `git worktree list --porcelain` body. */
@@ -135,7 +137,9 @@ function buildExec(opts: ExecOptions = {}, metas: readonly MetaSpec[] = []): { e
   const calls: string[][] = [];
   const branches = opts.branches ?? [];
   const deletedBranches = new Set<string>();
-  const committedFiles = new Map(metas.map((meta) => [metaFixturePath(meta), metaFixtureContent(meta)]));
+  const committedFiles = new Map(
+    (opts.baseMetas ?? metas).map((meta) => [metaFixturePath(meta), metaFixtureContent(meta)]),
+  );
   const exec: GitExec = async (cmd, args) => {
     calls.push([cmd, ...args]);
     const sub = args[0];
@@ -359,7 +363,7 @@ function branchMarkerWithHusk(branch: string): WorktreeMarker {
 }
 
 describe("runTeardown — arc-state authority gate", () => {
-  it("authorizes a `completed/` WU (location, not git)", async () => {
+  it("authorizes a `completed/` WU through the compatibility seam when protection is omitted", async () => {
     const { ctx } = buildCtx([SHIPPED_META], { branches: [] });
 
     const result = await runTeardown(ctx, { name: "demo", base: "main" });
@@ -367,7 +371,7 @@ describe("runTeardown — arc-state authority gate", () => {
     expect(result.status).toBe("torn-down");
   });
 
-  it("refuses an `active/` WU that has not shipped — no git touched", async () => {
+  it("refuses an `active/` WU through the compatibility seam when protection is omitted", async () => {
     const { ctx, calls } = buildCtx([ACTIVE_META]);
 
     const result = await runTeardown(ctx, { name: "demo", base: "main" });
@@ -375,8 +379,32 @@ describe("runTeardown — arc-state authority gate", () => {
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/not shipped|completed/i);
-    // The gate refused before any git invocation.
     expect(calls).toEqual([]);
+  });
+
+  it("uses the remote base under full protection so a stale linked checkout can teardown a shipped WU", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE_META], {
+      baseMetas: [SHIPPED_META],
+      branches: [],
+    });
+
+    const result = await runTeardown(ctx, {
+      name: "demo",
+      base: "main",
+      protection: "full",
+    });
+
+    expect(result.status).toBe("torn-down");
+    expect(calls).toContainEqual([
+      "git",
+      "ls-tree",
+      "--full-tree",
+      "-r",
+      "--name-only",
+      "origin/main",
+      "--",
+      ".arc/completed/",
+    ]);
   });
 
   it("refuses a nonexistent WU", async () => {
@@ -992,16 +1020,30 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     expect(result.status).toBe("torn-down");
   });
 
-  it("refuses a shipped (`completed/`) WU — the force path is not for the merged case", async () => {
+  it("refuses a remotely shipped WU under full protection even when the checkout is stale", async () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
 
-    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+    ctx.indexFs = buildIndexFs([ACTIVE_META]);
+    const result = await runTeardown(ctx, {
+      name: "demo",
+      base: "main",
+      mode: "abandoned",
+      protection: "full",
+    });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/shipped|merged-safe|completed/i);
-    // The gate refused before any git invocation.
-    expect(calls).toEqual([]);
+    expect(calls).toContainEqual([
+      "git",
+      "ls-tree",
+      "--full-tree",
+      "-r",
+      "--name-only",
+      "origin/main",
+      "--",
+      ".arc/completed/",
+    ]);
   });
 
   it("refuses an unregistered non-shipped branch without retirement authority", async () => {
