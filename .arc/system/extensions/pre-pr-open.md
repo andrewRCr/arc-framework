@@ -27,7 +27,14 @@ active: true
    `light` (docs-only) → skip the remaining actions and open the change request with no frontline review.
    `heavy` (code) → continue.
 
-2. **Run the local CodeRabbit CLI frontline review** over the aggregate branch diff:
+2. **Offer heavy-lane CI defer (project billing policy).** On heavy changes only: surface that mid-review
+   pushes can skip the expensive legs via the opt-in PR label `ci-defer-heavy` (integration / e2e /
+   portability skip; `ci-ok` **fails** while the label is present so branch protection never greens a
+   deferred head). Ask whether to apply it after the PR opens; never auto-apply without approval.
+   Drain before merge: remove the label (PR `unlabeled` re-runs the full suite). Create the label once
+   if missing (`gh label create ci-defer-heavy` or repo Settings → Labels).
+
+3. **Run the local CodeRabbit CLI frontline review** over the aggregate branch diff:
 
    ```bash
    coderabbit review --plain --base {baseRef}
@@ -35,10 +42,10 @@ active: true
 
    Plain output is non-interactive; use `--agent` when structured findings serve better. Pool caution: CLI
    reviews meter per developer (5/hour on Pro), so a same-hour errand sweep can brush the limit — on a
-   rate-limit refusal, surface it and continue to action 3 with whatever findings exist (or none); the
+   rate-limit refusal, surface it and continue to action 4 with whatever findings exist (or none); the
    frontline never blocks change-request creation.
 
-3. **Triage with the disposition guard.** Process findings per the `review-triage` method, with two
+4. **Triage with the disposition guard.** Process findings per the `review-triage` method, with two
    requirements carried here until the shipped contract subsumes them:
 
    - **Verify each finding against source with your own judgment** — findings are advisory input, never
@@ -51,7 +58,7 @@ active: true
    Approved fixes land as a follow-up push before creation proceeds (this fire point runs on an
    already-pushed head; frontline-scale diffs keep that cheap).
 
-4. **Carry the frontline result into the PR-review decision.** The external PR-review trigger stays manual:
+5. **Carry the frontline result into the PR-review decision.** The external PR-review trigger stays manual:
    report the frontline outcome — clean, nits-only, or the finding summary — so the operator can skip,
    defer, or request the CodeRabbit PR review informed. A clean or nits-only frontline is the standing
    signal to not spend a metered PR review.
