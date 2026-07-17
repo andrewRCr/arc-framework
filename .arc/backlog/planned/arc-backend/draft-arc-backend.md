@@ -92,7 +92,7 @@ this lands would lock in external-tool-as-canonical — do not cross that line.
 ### The line: tracked vs. materialized
 
 | Class                 | Members                                                                                    | Tier                       | Configurable?      |
-|-----------------------|--------------------------------------------------------------------------------------------|----------------------------|--------------------|
+| --------------------- | ------------------------------------------------------------------------------------------ | -------------------------- | ------------------ |
 | **Machinery**         | `system/**` (workflows, rules, methods, templates)                                         | **tracked**                | No — pins to code  |
 | **Operational state** | `meta-*`, `tasks-*`, inboxes, `STATUS`/`ROADMAP`, notes, `WORKING-MEMORY`, `SESSION-NOTES` | **materialized**           | No — pure churn    |
 | **Authored design**   | `draft-*`, `spec-*`                                                                        | **materialized (default)** | **Yes — one knob** |
@@ -111,7 +111,7 @@ references and reference-don't-embed.
 ### Storage tiers (one substrate at increasing multiplicity)
 
 | Tier            | Canonical store                                        | Scale                               | State                     |
-|-----------------|--------------------------------------------------------|-------------------------------------|---------------------------|
+| --------------- | ------------------------------------------------------ | ----------------------------------- | ------------------------- |
 | **In-repo**     | the code repo (tracked `.arc/`)                        | solo / small team, no constraints   | Current                   |
 | **Local**       | a separate **private git repo** (`~/.arc-state/{id}/`) | single-user multi-machine; privacy  | Planned                   |
 | **Shared**      | that repo, on a **shared private remote** (git-only)   | small team, multi-writer            | Planned (this north star) |
@@ -181,14 +181,14 @@ The ergonomics invariant: **agents interact with exactly one git repo (the code 
 (`arc`). The store repo is CLI-internal plumbing — no agent ever runs git in it.** Write-routing by artifact class
 is deterministic, therefore CLI-computed, never agent judgment (procedure-evolution P1).
 
-| Operation (today)                                      | Under the substrate                                                                                                                          |
-| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Task tick, staged + committed with the code increment  | Verb (`arc task done …`) → record write, store-side; projection refreshed. Review-visible linkage rides the commit **footer** (or inverts to the record — § Footprint) |
-| Meta update + standalone handoff commit                | Folds inside `arc handoff`'s persist step; the standalone commit ceases to exist in code history                                              |
-| Spec/draft prose edits                                 | Unchanged — edit the materialized file in place; sync layer persists at existing firing points                                                |
-| `arc user save` (notes)                                | Same verbs, store transport underneath (notes refs retire — local-mode buffer item)                                                           |
-| ROADMAP edits + conflict resolution                    | Removed — derived projection, regenerated (`roadmap-tooling`)                                                                                 |
-| Code commits                                           | Code only (plus tracked classes); no PM staging choreography                                                                                  |
+| Operation (today)                                     | Under the substrate                                                                                                                                                    |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Task tick, staged + committed with the code increment | Verb (`arc task done …`) → record write, store-side; projection refreshed. Review-visible linkage rides the commit **footer** (or inverts to the record — § Footprint) |
+| Meta update + standalone handoff commit               | Folds inside `arc handoff`'s persist step; the standalone commit ceases to exist in code history                                                                       |
+| Spec/draft prose edits                                | Unchanged — edit the materialized file in place; sync layer persists at existing firing points                                                                         |
+| `arc user save` (notes)                               | Same verbs, store transport underneath (notes refs retire — local-mode buffer item)                                                                                    |
+| ROADMAP edits + conflict resolution                   | Removed — derived projection, regenerated (`roadmap-tooling`)                                                                                                          |
+| Code commits                                          | Code only (plus tracked classes); no PM staging choreography                                                                                                           |
 
 The workflows' *shape* survives untouched — same firing points (increment close, handoff, session-init), same
 ceremonies; bodies change from mechanics-narration to verb invocation, which is the verbs-over-mechanics ratchet
@@ -270,20 +270,20 @@ ships multi-writer.
 For each current component: what it becomes, which mechanism covers each need it serves, and what degrades. Gaps
 found by this table are design work, not footnotes.
 
-| Current component                                | Becomes                                              | Needs met by                                                                                    | Gaps / degradations                                                                                 |
-| ------------------------------------------------ | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| Git notes user state (`refs/notes/arc/user/*`)   | Per-user private store artifacts (§ Scope Model)     | Same sync state machine & failure taxonomy, store transport; strictly more private than today    | One-time import; notes refs retire (local-mode buffer item); zero-config entry story re-answered (open) |
-| `meta-*` + standalone handoff commits            | Small structured records; handoff verb persist       | ADR-022 records; standalone commits vanish (d)                                                   | Human reference = projection + `status-hud` card                                                     |
-| `tasks-*` riding increment commits               | Records + tick verb; markdown projection             | Entry-granular ops; footer or record-side SHA carries linkage                                    | Increment-close ceremony shape (named open)                                                          |
-| `spec-*` / `draft-*`                             | Materialized prose (knob governs tracking)           | Edit-in-place unchanged (a); privacy via (c)                                                     | `specs` knob arm spans repos (Gotcha 2)                                                              |
-| `ROADMAP` / `STATUS`                             | Derived projection + ordering records                | Regeneration kills merge conflicts; LWW ordering                                                 | `roadmap-tooling` owns render surface                                                                |
-| Inboxes / drains                                 | Slug-keyed entry records, event log                  | Tombstones; per-entry version checks (Gotcha 6)                                                  | Shared-inbox model owns the line                                                                     |
-| Directory placement as state                     | Lifecycle record; layout = projection                | Placement changes can't break ARC                                                                | `wu-lifecycle-state-model` owns                                                                      |
-| `Context:` footer + trailers                     | Footprint policy; traceability inversion             | Zero-footprint arm viable; validator via resolver seam                                           | Policy shape open (§ Footprint)                                                                      |
-| Worktree-forked `.arc/` copies                   | One store materialized into every worktree (Gotcha 3)| Fork-elimination kills PR-time state merges                                                      | Cutover is the serialization point                                                                   |
-| Hooks / editor pickers / freshness               | Unchanged local; init-scaffolded settings            | Local-mode survey + backend freshness findings, one owned setup step                             | Helix degraded; scaffolding vs zero-footprint tension (§ Footprint)                                  |
-| `arc user` verb family                           | Storage-abstraction contract behind kept verbs       | Local-mode command-family design                                                                 | One-contract-vs-family decided at abstraction design                                                 |
-| CI / contributor visibility                      | Tier-gated degradation (Gotcha 4)                    | Graceful absence of state                                                                        | "CI sees zero ARC" is tier-1-shaped; gate by tier                                                    |
+| Current component                              | Becomes                                               | Needs met by                                                                                  | Gaps / degradations                                                                                     |
+| ---------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Git notes user state (`refs/notes/arc/user/*`) | Per-user private store artifacts (§ Scope Model)      | Same sync state machine & failure taxonomy, store transport; strictly more private than today | One-time import; notes refs retire (local-mode buffer item); zero-config entry story re-answered (open) |
+| `meta-*` + standalone handoff commits          | Small structured records; handoff verb persist        | ADR-022 records; standalone commits vanish (d)                                                | Human reference = projection + `status-hud` card                                                        |
+| `tasks-*` riding increment commits             | Records + tick verb; markdown projection              | Entry-granular ops; footer or record-side SHA carries linkage                                 | Increment-close ceremony shape (named open)                                                             |
+| `spec-*` / `draft-*`                           | Materialized prose (knob governs tracking)            | Edit-in-place unchanged (a); privacy via (c)                                                  | `specs` knob arm spans repos (Gotcha 2)                                                                 |
+| `ROADMAP` / `STATUS`                           | Derived projection + ordering records                 | Regeneration kills merge conflicts; LWW ordering                                              | `roadmap-tooling` owns render surface                                                                   |
+| Inboxes / drains                               | Slug-keyed entry records, event log                   | Tombstones; per-entry version checks (Gotcha 6)                                               | Shared-inbox model owns the line                                                                        |
+| Directory placement as state                   | Lifecycle record; layout = projection                 | Placement changes can't break ARC                                                             | `wu-lifecycle-state-model` owns                                                                         |
+| `Context:` footer + trailers                   | Footprint policy; traceability inversion              | Zero-footprint arm viable; validator via resolver seam                                        | Policy shape open (§ Footprint)                                                                         |
+| Worktree-forked `.arc/` copies                 | One store materialized into every worktree (Gotcha 3) | Fork-elimination kills PR-time state merges                                                   | Cutover is the serialization point                                                                      |
+| Hooks / editor pickers / freshness             | Unchanged local; init-scaffolded settings             | Local-mode survey + backend freshness findings, one owned setup step                          | Helix degraded; scaffolding vs zero-footprint tension (§ Footprint)                                     |
+| `arc user` verb family                         | Storage-abstraction contract behind kept verbs        | Local-mode command-family design                                                              | One-contract-vs-family decided at abstraction design                                                    |
+| CI / contributor visibility                    | Tier-gated degradation (Gotcha 4)                     | Graceful absence of state                                                                     | "CI sees zero ARC" is tier-1-shaped; gate by tier                                                       |
 
 ---
 

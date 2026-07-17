@@ -60,7 +60,7 @@ Key per-tool findings:
   view over it" — append-only content-addressed (BLAKE2b, optional Ed25519-signed) event log in
   `refs/grite/wal`, advisory TTL leases in `refs/grite/locks`, materialized KV view rebuilt from the log.
   Nearly a blueprint of ARC's tier-3 concurrency answer (event-log-in-git + version-checked coordination
-  + views). **Caveats:** single-author research prototype (~8★), all results synthetic (no real-LLM-agent
+    - views). **Caveats:** single-author research prototype (~8★), all results synthetic (no real-LLM-agent
   data), co-location assumed (no separate-repo mechanism, no privacy stance). Its experiments found
   advisory leases *alone* increase redundant work; leases + shared state eliminate it — exclusion and
   shared visibility are jointly necessary.

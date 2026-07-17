@@ -22,12 +22,12 @@
 
 - _Routed from:_ storage-substrate grooming session discussion (2026-07-17).
 - _Concern:_ the universal context load (dev-rules, agent-brief, strategy-index, …) was calibrated empirically
-  against earlier model cohorts, and the calibration is currently *fixed* rather than dated and re-derivable.
+  against earlier model cohorts, and the calibration is currently _fixed_ rather than dated and re-derivable.
   Capability advancement shifts the instruction-vs-awareness boundary: much of what needed explicit up-front
   instruction may now need only high-level awareness (or nothing — table stakes). Evidence, honestly bounded: the
   2026-07-17 grooming session ran with session-init bypassed entirely, and a frontier model navigated ARC by
   structure alone (naming conventions, indexes, filename-only references) — but the task was exploratory planning
-  with live user steering, its subject matter *was* the governing docs, and **constraint delivery is the class
+  with live user steering, its subject matter _was_ the governing docs, and **constraint delivery is the class
   discovery cannot cover** (a rule you don't know exists can't be discovered at the moment it applies). The
   asymmetry stands: over-loading costs are visible and bounded (tokens, attention); under-loading costs are silent
   and unbounded (missed constraints).
@@ -40,7 +40,7 @@
   engineering discipline compresses to one-line assertions or vanishes; project-arbitrary conventions stay
   explicit but terse; (5) `workflow-eval-harness` as the **re-calibration instrument** — boundary re-derivation by
   measurement per model generation, not anecdote. Corollary for the procedure lane: typed contracts and
-  CLI-computed logic are capability-*insensitive* — the layered execution model shrinks the per-capability
+  CLI-computed logic are capability-_insensitive_ — the layered execution model shrinks the per-capability
   calibration surface to judgment prose alone, which is another argument for it. Seams: `loadset-composition`
   (T1 boundary owner; its demotion rule stands — constraints never demote, demotion only to an explicit trigger),
   `instruction-optimization`, `workflow-eval-harness`, `execution-delegation-doctrine` (model-tier routing
