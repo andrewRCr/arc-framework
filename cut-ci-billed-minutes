@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "slug": "cut-ci-billed-minutes",
+  "origin": "inbox",
+  "intent": "Cut CI billed minutes: shared-setup reuse + heavy-lane defer",
+  "branch": "chore/cut-ci-billed-minutes",
+  "createdAt": "2026-07-17T17:46:04.165Z",
+  "originEntry": "Cut CI billed minutes — shared-setup reuse + heavy-lane defer (combined extended errand)",
+  "returnBranch": "main"
+}
