@@ -42,6 +42,8 @@ const transition: ParkLandingTransition = {
 function base(version: string, conflicts: readonly string[] = []): ParkLandingBaseSnapshot {
   return {
     version: canonicalDigest(version),
+    headRef: "refs/heads/main",
+    headOid: "a".repeat(40),
     indexTree: "d".repeat(40),
     stagedPaths: [],
     conflictingPaths: conflicts,
@@ -67,6 +69,7 @@ function productionHarness(options: {
   rejectConcurrentIndexReads?: boolean;
   symlinkParent?: string;
   tipAtRefPrepare?: string;
+  baseTipAtRefPrepare?: string;
   removeOwnerAfterRefPrepare?: boolean;
 } = {}): {
   context: ParkPlanningLandingContext;
@@ -83,8 +86,10 @@ function productionHarness(options: {
   const calls: Array<{ args: string[]; indexFile?: string }> = [];
   const baseTree = "d".repeat(40);
   let lockedTree = baseTree;
+  let baseTip = "a".repeat(40);
   let planTip = transition.commit;
   let ownerPresent = true;
+  let baseLeaseHeld = false;
   let sourceLeaseHeld = false;
   let indexReadActive = false;
   const exec: GitExec = async (_cmd, args, execOptions) => {
@@ -97,8 +102,9 @@ function productionHarness(options: {
     }
     calls.push({ args, ...(execOptions?.indexFile === undefined ? {} : { indexFile: execOptions.indexFile }) });
     if (args[0] === "rev-parse" && args[1] === "--verify") {
-      return { stdout: `${args[2]?.startsWith("refs/heads/plan/solo") === true ? planTip : "a".repeat(40)}\n` };
+      return { stdout: `${args[2]?.startsWith("refs/heads/plan/solo") === true ? planTip : baseTip}\n` };
     }
+    if (args[0] === "symbolic-ref") return { stdout: "refs/heads/main\n" };
     if (args[0] === "rev-parse" && args[1] === "--path-format=absolute") {
       return { stdout: `${indexPath}\n` };
     }
@@ -126,7 +132,13 @@ function productionHarness(options: {
       cwd: "/repo",
       exec,
       readBlob: async () => null,
-      prepareRefVerification: async (_ref, expectedOid) => {
+      prepareRefVerification: async (ref, expectedOid) => {
+        if (ref === "refs/heads/main") {
+          if (options.baseTipAtRefPrepare !== undefined) baseTip = options.baseTipAtRefPrepare;
+          if (baseTip !== expectedOid) throw new Error("base ref verification rejected a moved tip");
+          baseLeaseHeld = true;
+          return { release: async () => { baseLeaseHeld = false; } };
+        }
         if (options.tipAtRefPrepare !== undefined) planTip = options.tipAtRefPrepare;
         if (planTip !== expectedOid) throw new Error("source ref verification rejected a moved tip");
         sourceLeaseHeld = true;
@@ -157,7 +169,9 @@ function productionHarness(options: {
           files.set(path, content);
         },
         rename: async (from, to) => {
-          if (to === indexPath && !sourceLeaseHeld) throw new Error("source ref lease was not held through install");
+          if (to === indexPath && (!baseLeaseHeld || !sourceLeaseHeld)) {
+            throw new Error("base and source ref leases were not held through install");
+          }
           const content = files.get(from);
           if (content === undefined) throw missing(from);
           files.set(to, content);
@@ -263,6 +277,17 @@ describe("landParkPlanningTransition", () => {
     const result = await harness.context.stage(transition, expected);
 
     expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/moved tip/iu) });
+    expect(harness.files.has("/repo/.arc/backlog/planned/solo/meta-solo.md")).toBe(false);
+    expect(harness.files.has("/repo/.git/index.lock")).toBe(false);
+  });
+
+  it("rejects a base-tip advance before installing the prepared index", async () => {
+    const harness = productionHarness({ baseTipAtRefPrepare: "e".repeat(40) });
+    const expected = await harness.context.readBase("solo", transition.files);
+
+    const result = await harness.context.stage(transition, expected);
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/base ref.*moved tip/iu) });
     expect(harness.files.has("/repo/.arc/backlog/planned/solo/meta-solo.md")).toBe(false);
     expect(harness.files.has("/repo/.git/index.lock")).toBe(false);
   });

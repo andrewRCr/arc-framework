@@ -58,6 +58,8 @@ export interface ParkLandingTransition {
 /** Versioned base read used by the landing compare-and-set. */
 export interface ParkLandingBaseSnapshot {
   version: CanonicalDigest;
+  headRef: string;
+  headOid: string;
   indexTree: string;
   stagedPaths: readonly string[];
   conflictingPaths: readonly string[];
@@ -333,7 +335,10 @@ async function readBaseSnapshot(
   indexFile?: string,
 ): Promise<ParkLandingBaseSnapshot> {
   const execOptions = { cwd: deps.cwd, indexFile };
-  const head = await resolveCommit(deps, "HEAD");
+  const headOid = await resolveCommit(deps, "HEAD");
+  const { stdout: headRefOutput } = await deps.exec("git", ["symbolic-ref", "--quiet", "HEAD"], execOptions);
+  const headRef = headRefOutput.trim();
+  if (headRef === "") throw new Error("Git did not resolve the attached base ref.");
   const indexTreeResult = await deps.exec("git", ["write-tree"], execOptions);
   const statusResult = await deps.exec(
     "git",
@@ -362,7 +367,9 @@ async function readBaseSnapshot(
       && matcher.test(posix.basename(path));
   }).sort(compareUtf8);
   return {
-    version: canonicalDigest({ head, indexTree, status: statusResult.stdout }),
+    version: canonicalDigest({ headRef, headOid, indexTree, status: statusResult.stdout }),
+    headRef,
+    headOid,
     indexTree,
     stagedPaths,
     conflictingPaths,
@@ -380,6 +387,7 @@ async function stageExactFiles(
   const created: string[] = [];
   let installed = false;
   let indexLock = "";
+  let baseLease: { release(): Promise<void> } | null = null;
   let sourceLease: { release(): Promise<void> } | null = null;
   try {
     const { stdout } = await deps.exec(
@@ -420,6 +428,7 @@ async function stageExactFiles(
       ],
       { cwd: deps.cwd, indexFile: indexLock },
     );
+    baseLease = await deps.prepareRefVerification(lockedBase.headRef, lockedBase.headOid);
     sourceLease = await deps.prepareRefVerification(`refs/heads/plan/${name}`, transitionCommit);
     const finalSourceRefusal = await currentParkSourceRefusal(deps, name, transitionCommit);
     if (finalSourceRefusal !== null) return { status: "rejected", reason: finalSourceRefusal };
@@ -433,6 +442,7 @@ async function stageExactFiles(
     };
   } finally {
     await sourceLease?.release().catch(() => undefined);
+    await baseLease?.release().catch(() => undefined);
     if (!installed) {
       await Promise.all(created.map((path) => deps.fs.rm(path, { force: true }).catch(() => undefined)));
       if (indexLock !== "") await deps.fs.rm(indexLock, { force: true }).catch(() => undefined);
