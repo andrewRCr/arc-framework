@@ -951,6 +951,45 @@ Induced in a single-clone rig (synthetic identity, real `arc status --session-in
 - **Practice:** one-session-per-checkout has held across all waves; the primary under drain + errand overlap
   is the only realistic shared-checkout candidate — the same serialization 5.3's pin-primary leaning protects.
 
+### Detector-tests 5.5 — wave-3 detectors + teardown symmetry (2026-07-17) — CONFIRMED
+
+Wave 3's detector verification composes the rig-side firings (recorded per cell above) with live-state negatives
+taken after the wave's ships and teardowns; the teardown-symmetry trace-through (target 2) is verified against
+two real WU ships and a full errand wave.
+
+- **Errands-ref collision surfacing** — positive in the 5.2.a rig (loud at the loser's push, local ref intact,
+  `close --force` recovery); live negatives clean: `errandState` shows zero residue and correctly classifies the
+  one live errand (`chore/cut-ci-billed-minutes`, `merged-cleanup` — the split-out CI errand executing in the
+  primary under the freshly-recorded occupancy invariant) rather than misclaiming it.
+- **Notes-union / reconcile refusals** — positive in the 5.2.b rig (same-slug union refusal loud; wedge refusals
+  across union/pull/sync); live negative: the user-notes channel reads `clean`/`same` after the full drain wave.
+- **Compaction-seed recover audit** — positive in the 5.2.c rig (`dirty-path-drift` refusal fires; coincident
+  clobber audits benign); the branch-identity gap is already routed (Task 7.6). No live recovery was needed this
+  wave — no false positives observed.
+- **Sweep/husk detector** — live positive-then-negative today: HLD's stamped husk surfaced `removable` and, post
+  `arc teardown husk-lifecycle-drivers` (run from the primary), the sweep is empty, `orphanBranchSweep` is
+  empty, and both wave-3 slugs read `shipped: true` from base-anchored checkouts.
+
+**Teardown symmetry (trace-through target 2) — held in practice.**
+
+- **WU path, two live end-to-end ships:** CTH (2026-07-16) and HLD (2026-07-17) both stamped husks with
+  authorization + shipped evidence, reaped branches remote and local, and completed the two-phase physical
+  removal from outside the worktree exactly as designed (HLD's removal ran from the primary this session; the
+  compare-and-delete warning on the already-reaped branch is benign-loud idempotent completion).
+- **Errand path, full wave of closes:** drains PR #255/#274 plus errand cycles #256–#259 / #275–#277 removed
+  and pushed their records (zero residue / materializable candidates remain), dropped inbox-origin captures
+  idempotently, and left no partial-push markers.
+- **Verdict:** the intentionally-asymmetric paths are non-interfering and both preserve-before-delete — no
+  state-safety gap surfaced across the wave. The gaps that did surface are *surface/verb locus* gaps, extending
+  Task 7.3's family with two HLD-teardown instances: the stamped husk stayed invisible to every linked-worktree
+  session (~10 h, hand-discovered), and `teardown`'s ship-check resolves `completed/` presence checkout-locally
+  (refused from FP's then-stale checkout while the husk marker already carried base-anchored evidence; ran
+  clean from the primary). Both recorded to 7.3; neither blocks GA mechanics.
+
+**Interlock-friction by work character** (wave-evidence item): recorded through 5.1/5.3 — friction concentrated
+in routine reconcile ops and advisory noise, not decision-bearing gates — held for
+`interlock-release-refinement`'s post-waves consumption.
+
 ## Wave-3 seam-audit decisions
 
 ### 5.3 — parallel-errand fork + batch-errand sub-decision (2026-07-17) — RESOLVED
@@ -1289,9 +1328,15 @@ commit-msg-footer suite tripping the hook's `MERGE_HEAD` merge-exemption mid-mer
   PR #242 / PR #243, composer fix consumed live at the 2026-07-15 base merge. Residue carried forward:
   dispatch-fix live verification + `Depends On` discharge vehicle at the wave-3 slate cut (5.1.a); synthetic
   notes/marker retirement (4.5) still gates wave 3.*
-- [ ] **Wave 3:** two code WUs plus live errand/drain; verify errand ref merge/conflict behavior, same/different-entry
+- [x] **Wave 3:** two code WUs plus live errand/drain; verify errand ref merge/conflict behavior, same/different-entry
   `USER-INBOX` removal reconciliation, teardown symmetry, primary/errand concurrency fork evidence, and
-  interlock-friction observations.
+  interlock-friction observations. *Complete 2026-07-17 — real workload (`cli-test-hardening` PR #269;
+  `husk-lifecycle-drivers` shipped + torn down; drains PR #255/#274 + errand cycles #256–#259, #275–#277).
+  Per-condition evidence: errand-ref collision (Cell 5.2.a), removal reconciliation (Cell 5.2.b),
+  compaction-seed race (Cell 5.2.c), teardown symmetry + detector negatives (§ Detector-tests 5.5), fork +
+  batch-shape decisions (§ Wave-3 seam-audit decisions), interlock-friction by work character recorded through
+  5.1/5.3 for `interlock-release-refinement`. Residue carried forward: surfacing seams (Tasks 7.4–7.6), locus
+  family instances (Task 7.3), same-commit save wedge split-out (sequenced behind wave 4).*
 - [ ] **Wave 4:** cross-machine resume; verify Materialize spawn + in-place pickup, notes lag / partial-push marker
   surfacing, and projection-contract evidence from Task 1.2.
 

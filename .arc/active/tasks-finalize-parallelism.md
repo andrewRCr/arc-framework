@@ -802,12 +802,20 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
   the playbook's pull-before-write discipline; the same-commit save wedge remains its own split-out. Full
   record in `notes-finalize-parallelism.md` § Wave-3 seam-audit decisions.
 
-### `[ ]` **5.5 Verify wave-3 detector-tests and record findings**
+### `[x]` **5.5 Verify wave-3 detector-tests and record findings**
 
 - _Goal:_ Wave-3 detectors fire on induction, errand-vs-WU teardown symmetry (trace-through target 2) is verified
   in practice, and findings are recorded.
 
-    - `[ ]` **5.5.a Verify detectors + teardown symmetry, record**
+    - `[x]` **5.5.a Verify detectors + teardown symmetry, record**
+        - Rig-side firings per the 5.2 cells composed with post-teardown live negatives (empty
+          sweep/orphans/residue/markers; correct in-flight classification of the live CI errand); symmetry
+          verified against both wave-3 WU ships plus the full errand wave. Two new locus-family instances
+          routed to Task 7.3.
+
+- _Outcome:_ No silent no-ops in the wave-3 detector set and no state-safety gap in either teardown path — the
+  surfaced gaps are locus-gating instances (Task 7.3) and surfacing polish (Tasks 7.4–7.6). Wave 3 closes fully
+  verified; record in `notes-finalize-parallelism.md` § Wave-3 induction evidence (Detector-tests 5.5).
 
 ## **Phase 6:** Burn-in wave 4 — cross-machine resume mid-flight
 
@@ -889,7 +897,10 @@ the waves run rather than authored up front.
   as the carrier. Coordination captures routed to `husk-lifecycle-drivers` and `session-locus-model`
   (2026-07-15).
 - _Surfaced by:_ wave-3 launch session, 2026-07-15 — see `notes-finalize-parallelism.md` § Wave-3 launch
-  evidence.
+  evidence. Two further instances from the HLD teardown (2026-07-17, § Detector-tests 5.5): the stamped husk
+  invisible to linked-worktree sessions ~10 h until hand-discovered, and the `teardown` verb's ship-check
+  resolving `completed/` presence checkout-locally (refused from a stale linked checkout while the husk marker
+  already carried base-anchored evidence) — the family extends from probe surfaces to verb preconditions.
 
 ### `[ ]` **7.4 Make errand-ref collision surfacing honest and traceable**
 
