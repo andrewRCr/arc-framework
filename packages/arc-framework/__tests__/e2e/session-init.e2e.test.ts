@@ -512,7 +512,7 @@ describe("session-init E2E — current detached husk advisory", () => {
     await cleanupTempDir(worktreeParent);
   });
 
-  it("emits the advisory only for the exact stamped completed WU husk", async () => {
+  it("emits the advisory for an exact stamped WU husk without a completion record", async () => {
     const canonical = join(worktreeParent, "canonical");
     const ordinary = join(worktreeParent, "ordinary");
     await git(repo, ["branch", "feat/shipped-widget"]);
@@ -523,12 +523,6 @@ describe("session-init E2E — current detached husk advisory", () => {
     await git(ordinary, ["switch", "--detach"]);
 
     const head = await git(canonical, ["rev-parse", "HEAD"]);
-    const completedDir = join(canonical, ".arc", "completed", "2026-q3", "01_shipped-widget");
-    await mkdir(completedDir, { recursive: true });
-    await writeFile(
-      join(completedDir, "meta-shipped-widget.md"),
-      "# Metadata: shipped-widget\n\n- **State:** Shipped\n",
-    );
     const markerDir = join(canonical, ".arc", "system", ".internal");
     await mkdir(markerDir, { recursive: true });
     await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
@@ -557,9 +551,38 @@ describe("session-init E2E — current detached husk advisory", () => {
       value: {
         worktreePath: await realpath(canonical),
         subject: { kind: "work-unit", name: "shipped-widget" },
+        branch: "feat/shipped-widget",
+        stamp: { kind: "legacy", authorization: "merged-preserved" },
       },
     });
     expect(ordinaryEnvelope.currentHusk).toEqual({ ok: true, value: null });
+
+    await writeFile(join(markerDir, "worktree-marker.json"), JSON.stringify({
+      spawnedByArc: true,
+      wuName: "shipped-widget",
+      createdFor: { kind: "work-unit", name: "shipped-widget" },
+      spawningIdentity: "test-user",
+      createdAt: "2026-07-14T00:00:00.000Z",
+      husk: {
+        sha: head,
+        at: "2026-07-14T01:00:00.000Z",
+        subject: { kind: "work-unit", name: "shipped-widget" },
+        branch: "feat/shipped-widget",
+        authorization: "discard-confirmed",
+        remoteRef: null,
+        evidence: {
+          kind: "receipt",
+          receiptId: `sha256:${"1".repeat(64)}`,
+          transition: "abandon",
+          expectedLifecycle: "nonexistent",
+          resultDigest: `sha256:${"2".repeat(64)}`,
+        },
+      },
+    }));
+
+    const untrustedResult = await runArc(["status", "--session-init", "--json"], canonical);
+    expect(untrustedResult.exitCode).toBe(0);
+    expect(parseJsonEnvelope(untrustedResult.stdout).currentHusk).toEqual({ ok: true, value: null });
   });
 });
 

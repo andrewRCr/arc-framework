@@ -114,24 +114,6 @@ done
 # ============================================================================
 # CHECK 4: Check for common merge conflict markers
 # ============================================================================
-# Pre-flight (arc-in-git only): when a merge-like operation leaves
-# .arc/backlog/ROADMAP.md as the only conflicted (or marker-bearing) path,
-# regenerate from the staged-index projection and restage — regeneration is
-# always the correct resolution for this derived file. Wider conflicts fall
-# through to the hard error below. Merge-driver install wiring is out of scope
-# for this interim hook path.
-pm_mode=$(arc_config_get "pm.mode" "none")
-
-if [ "$pm_mode" = "arc-in-git" ]; then
-    if ! roadmap_remedy_output=$(npx tsx packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts 2>&1); then
-        echo -e "${RED}Error: ROADMAP conflict auto-remedy failed:${NC}"
-        echo "$roadmap_remedy_output" | sed 's/^/   /'
-        errors=$((errors + 1))
-    elif [ -n "$roadmap_remedy_output" ]; then
-        echo -e "${GREEN}${roadmap_remedy_output}${NC}"
-    fi
-fi
-
 conflict_markers=$(git diff --cached --name-only --diff-filter=ACMR | while IFS= read -r file; do
     if git show ":$file" 2>/dev/null | grep -qE '^(<<<<<<<|=======|>>>>>>>)'; then
         echo "$file"
@@ -541,7 +523,25 @@ if [ "$pm_mode" = "arc-in-git" ]; then
 fi
 
 # ============================================================================
-# CHECK 20: Foreign-write advisory backstop
+# CHECK 20: Finalized decompose record gate
+# ============================================================================
+# A decompose commit must introduce one finalized receipt whose exact non-record
+# patch matches the staged write set. Prepared, missing, amended, and mismatched
+# records fail closed.
+decompose_record_status=0
+if [ -f packages/arc-framework/src/scripts/validate-decompose-record.ts ]; then
+    decompose_record_output=$(npx tsx packages/arc-framework/src/scripts/validate-decompose-record.ts 2>&1) || decompose_record_status=$?
+else
+    decompose_record_output=$(arc hook-validate-decompose-record 2>&1) || decompose_record_status=$?
+fi
+if [ "$decompose_record_status" -ne 0 ]; then
+    echo -e "${RED}Error: Decompose retirement record validation failed:${NC}"
+    echo "$decompose_record_output" | sed 's/^/   /'
+    errors=$((errors + 1))
+fi
+
+# ============================================================================
+# CHECK 21: Foreign-write advisory backstop
 # ============================================================================
 # Surfaces a staged per-WU artifact that another in-flight work unit also
 # touches — a foreign-owned write about to land on the wrong branch. Reuses the

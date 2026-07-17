@@ -14,9 +14,13 @@ import {
   runTeardown,
   type TeardownContext,
 } from "../../../../src/lib/work-unit/verbs/teardown.js";
+import { contentDigest } from "../../../../src/lib/canonical/content-digest.js";
+import { validateManagedPath } from "../../../../src/lib/canonical/managed-path.js";
+import { artifactGroupDigest } from "../../../../src/lib/canonical/receipt-id.js";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
+import type { RetirementAuthorityPort } from "../../../../src/lib/work-unit/retirement-authority.js";
 
 const CWD = "/repo";
 
@@ -27,6 +31,30 @@ interface MetaSpec {
   state: string;
   /** Optional nested subdir under the tier. */
   subdir?: string;
+  /** Optional exact branch declaration (defaults to `[none]`). */
+  branch?: string;
+}
+
+function metaFixturePath(meta: MetaSpec): string {
+  const root = meta.subdir === undefined
+    ? `.arc/${meta.tier}`
+    : `.arc/${meta.tier}/${meta.subdir}`;
+  return `${root}/meta-${meta.slug}.md`;
+}
+
+function metaFixtureContent(meta: MetaSpec): string {
+  return `# Metadata: ${meta.slug}\n\n`
+    + `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n`
+    + `|-----------|-----------|------------|-----------|--------------|\n`
+    + `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "[none]"}\` | \`Novel\` | \`P1\` |\n\n---\n`;
+}
+
+function metaFixtureDigest(meta: MetaSpec): `sha256:${string}` {
+  return artifactGroupDigest([{
+    path: validateManagedPath(metaFixturePath(meta)),
+    state: "present",
+    contentDigest: contentDigest(new TextEncoder().encode(metaFixtureContent(meta))),
+  }]);
 }
 
 /** Build an injectable index fs over a fixed set of metas (absolute-path keyed). */
@@ -62,13 +90,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
       }
     }
     ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
-    files.set(
-      `${dirAbs}/${filename}`,
-      `# Metadata: ${meta.slug}\n\n` +
-        `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
-        `|-----------|-----------|------------|-----------|--------------|\n` +
-        `| \`${meta.state}\` | \`andrew\` | \`[none]\` | \`Novel\` | \`P1\` |\n\n---\n`,
-    );
+    files.set(`${dirAbs}/${filename}`, metaFixtureContent(meta));
   }
 
   return {
@@ -89,6 +111,7 @@ const SHIPPED_META: MetaSpec = { slug: "demo", tier: "completed", state: "Shippe
 const ACTIVE_META: MetaSpec = { slug: "demo", tier: "active", state: "Active" };
 /** A parked origin — `Active` phase, `backlog/planned/` location (the `park@Planning` shelf). */
 const PARKED_META: MetaSpec = { slug: "demo", tier: "backlog", state: "Active", subdir: "planned/demo" };
+const SHIPPED_RESULT_DIGEST = metaFixtureDigest(SHIPPED_META);
 
 /** A configurable git exec spy. Routes by command; records calls. */
 interface ExecOptions {
@@ -100,16 +123,19 @@ interface ExecOptions {
   branchSurvivesDelete?: boolean;
   /** Whether the local `git branch -D` throws (simulates a force-delete failure). */
   branchDeleteThrows?: boolean;
+  /** Whether the directional local compare-and-delete throws. */
+  updateRefThrows?: boolean;
   /** `git cherry` body — default empty (every commit landed in base). */
   cherryOutput?: string;
   /** `git rev-list` body — default empty (the branch is contained upstream). */
   revListOutput?: string;
 }
 
-function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] } {
+function buildExec(opts: ExecOptions = {}, metas: readonly MetaSpec[] = []): { exec: GitExec; calls: string[][] } {
   const calls: string[][] = [];
   const branches = opts.branches ?? [];
   const deletedBranches = new Set<string>();
+  const committedFiles = new Map(metas.map((meta) => [metaFixturePath(meta), metaFixtureContent(meta)]));
   const exec: GitExec = async (cmd, args) => {
     calls.push([cmd, ...args]);
     const sub = args[0];
@@ -118,10 +144,25 @@ function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] }
     if (sub === "rev-parse") return { stdout: "deadbeef\n" };
     if (sub === "rev-list") return { stdout: opts.revListOutput ?? "" }; // empty → contained
     if (sub === "cherry") return { stdout: opts.cherryOutput ?? "" }; // default: landed in base
+    if (sub === "ls-tree") return { stdout: [...committedFiles.keys()].join("\0") + "\0" };
+    if (sub === "show") {
+      const path = args[1]?.split(":", 2)[1];
+      if (path !== undefined) {
+        const content = committedFiles.get(path);
+        if (content !== undefined) return { stdout: content };
+      }
+      throw new Error("not found");
+    }
     if (sub === "branch" && args[1] === "-D") {
       if (opts.branchDeleteThrows) throw new Error("git branch -D failed");
       const deleted = args[2];
       if (deleted !== undefined) deletedBranches.add(deleted);
+      return { stdout: "" };
+    }
+    if (sub === "update-ref" && args[1] === "-d") {
+      if (opts.updateRefThrows) throw new Error("git update-ref failed");
+      const ref = args[2];
+      if (ref?.startsWith("refs/heads/")) deletedBranches.add(ref.slice("refs/heads/".length));
       return { stdout: "" };
     }
     if (sub === "show-ref") {
@@ -141,10 +182,102 @@ function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] }
 }
 
 function buildCtx(metas: MetaSpec[], execOpts?: ExecOptions): { ctx: TeardownContext; calls: string[][] } {
-  const { exec, calls } = buildExec(execOpts);
+  const { exec, calls } = buildExec(execOpts, metas);
+  const committedFiles = new Map(metas.map((meta) => [metaFixturePath(meta), metaFixtureContent(meta)]));
+  const authority: Pick<RetirementAuthorityPort, "authorize" | "revalidate"> = {
+    authorize: async (request) => ({
+      status: "authorized",
+      authorization: request.requestedMode === "shipped" ? "merged-preserved" : "discard-confirmed",
+      authorityVersion: "test-authority",
+      evidence: request.requestedMode === "shipped"
+        ? {
+            kind: "shipped",
+            expectedLifecycle: "completed",
+            resultDigest: `sha256:${"0".repeat(64)}`,
+            baseProofOid: request.head,
+          }
+        : {
+            kind: "receipt",
+            receiptId: `sha256:${"1".repeat(64)}`,
+            transition: "abandon",
+            expectedLifecycle: "nonexistent",
+            resultDigest: `sha256:${"2".repeat(64)}`,
+          },
+      refs: { localOid: request.head, remote: null },
+    }),
+    revalidate: async () => ({ status: "valid" }),
+  };
   return {
-    ctx: { cwd: CWD, exec, indexFs: buildIndexFs(metas), chdir: () => {} },
+    ctx: {
+      cwd: CWD,
+      exec,
+      indexFs: buildIndexFs(metas),
+      chdir: () => {},
+      authority,
+      readBlob: async (_ref, path) => {
+        const content = committedFiles.get(path);
+        return content === undefined ? null : new TextEncoder().encode(content);
+      },
+    },
     calls,
+  };
+}
+
+function installStatefulPrimaryProjection(
+  ctx: TeardownContext,
+  failures: { remote?: number; local?: number },
+): () => string | null {
+  const baseExec = ctx.exec;
+  let primaryBranch: string | null = "plan/demo";
+  let remoteFailures = failures.remote ?? 0;
+  let localFailures = failures.local ?? 0;
+  ctx.exec = async (cmd, args, opts) => {
+    if (args[0] === "push" && args.some((arg) => arg.startsWith("--force-with-lease=")) && remoteFailures > 0) {
+      remoteFailures -= 1;
+      throw new Error("simulated remote transport failure");
+    }
+    if (args[0] === "update-ref" && args[1] === "-d" && localFailures > 0) {
+      localFailures -= 1;
+      throw new Error("simulated local ref lock");
+    }
+    const result = await baseExec(cmd, args, opts);
+    if (args[0] === "switch" && args[1] !== undefined && args[1] !== "--detach") primaryBranch = args[1];
+    return result;
+  };
+  ctx.scanWorktrees = async () => ({
+    ok: true,
+    worktrees: [{
+      path: CWD,
+      head: primaryBranch === "plan/demo" ? "abc" : "deadbeef",
+      branch: primaryBranch,
+      detached: false,
+      primary: true,
+    }],
+  });
+  return () => primaryBranch;
+}
+
+function installRemoteDeleteAuthority(ctx: TeardownContext, onAuthorize: () => void): void {
+  const baseAuthority = ctx.authority;
+  if (baseAuthority === undefined) throw new Error("missing test retirement authority");
+  ctx.authority = {
+    authorize: async (request) => {
+      onAuthorize();
+      const authorization = await baseAuthority.authorize(request);
+      if (authorization.status === "refused") return authorization;
+      return {
+        ...authorization,
+        refs: {
+          localOid: request.head,
+          remote: {
+            remote: request.remote,
+            oid: request.head,
+            disposition: "delete" as const,
+          },
+        },
+      };
+    },
+    revalidate: baseAuthority.revalidate,
   };
 }
 
@@ -185,6 +318,26 @@ function markerWithHusk(pathBranch = "feat/demo"): WorktreeMarker {
       at: "2026-07-14T20:00:00.000Z",
       subject: { kind: "work-unit", name: "demo" },
       branch: pathBranch,
+    },
+  };
+}
+
+function markerWithCurrentHusk(
+  remoteRef: Exclude<NonNullable<WorktreeMarker["husk"]>["remoteRef"], undefined>,
+  resultDigest: `sha256:${string}` = SHIPPED_RESULT_DIGEST,
+): WorktreeMarker {
+  return {
+    ...markerWithHusk(),
+    husk: {
+      ...markerWithHusk().husk!,
+      authorization: "merged-preserved",
+      remoteRef,
+      evidence: {
+        kind: "shipped",
+        expectedLifecycle: "completed",
+        resultDigest,
+        baseProofOid: "abc",
+      },
     },
   };
 }
@@ -345,6 +498,23 @@ describe("runTeardown — linked self-husk", () => {
     "worktree /primary\nHEAD abc\nbranch refs/heads/main\n\n"
     + "worktree /repo\nHEAD def\nbranch refs/heads/feat/demo\n";
 
+  it("refuses when the retirement port cannot authorize the live projection", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE_META], {
+      branches: ["feat/demo"],
+      worktreePorcelain: SELF_PORCELAIN,
+    });
+    enableSelfHusk(ctx);
+    ctx.authority = {
+      authorize: async () => ({ status: "refused", reason: "evidence-missing" }),
+      revalidate: async () => ({ status: "refused", reason: "authority-conflict" }),
+    };
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result).toMatchObject({ status: "rejected", huskRefusal: "authorization-refused" });
+    expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
+  });
+
   it("detaches, stamps, and reaps refs while retaining the current worktree", async () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], {
       branches: ["feat/demo"],
@@ -364,10 +534,10 @@ describe("runTeardown — linked self-husk", () => {
       stamped: true,
       outcome: "created",
     });
-    expect(calls).toContainEqual(["git", "switch", "--detach"]);
+    expect(calls).toContainEqual(["git", "switch", "--detach", "def"]);
     expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
     expect(calls.findIndex((call) => call[1] === "switch")).toBeLessThan(
-      calls.findIndex((call) => call[1] === "branch" && call[2] === "-D"),
+      calls.findIndex((call) => call[1] === "update-ref" && call[2] === "-d"),
     );
   });
 
@@ -395,10 +565,14 @@ describe("runTeardown — linked self-husk", () => {
       cherryOutput: "+ unmerged\n",
     });
     enableSelfHusk(ctx);
+    ctx.authority = {
+      authorize: async () => ({ status: "refused", reason: "preservation-unproven" }),
+      revalidate: async () => ({ status: "refused", reason: "authority-conflict" }),
+    };
 
     const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
-    expect(result).toMatchObject({ status: "rejected", huskRefusal: "preservation-unproven" });
+    expect(result).toMatchObject({ status: "rejected", huskRefusal: "authorization-refused" });
     expect(calls.some((call) => call[1] === "switch" && call[2] === "--detach")).toBe(false);
   });
 
@@ -469,7 +643,7 @@ describe("runTeardown — linked self-husk", () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], {
       branches: ["feat/demo"],
       worktreePorcelain: SELF_PORCELAIN,
-      branchDeleteThrows: true,
+      updateRefThrows: true,
       branchSurvivesDelete: true,
     });
     enableSelfHusk(ctx);
@@ -480,13 +654,37 @@ describe("runTeardown — linked self-husk", () => {
     if (result.status !== "torn-down") return;
     expect(result.branchDeleted).toBe(false);
     expect(result.husk?.outcome).toBe("created");
-    expect(result.notices.some((notice) => /retry teardown/iu.test(notice))).toBe(true);
+    expect(result.notices.some((notice) => /compare-and-delete/iu.test(notice))).toBe(true);
     expect(calls.some((call) => call[1] === "push" && call.includes("--delete"))).toBe(false);
     expect(calls).toContainEqual(["git", "fetch", "--prune", "origin"]);
   });
 });
 
 describe("runTeardown — detached husk replay", () => {
+  it("selects one exact absolute husk path when repeated retirements exist", async () => {
+    const porcelain =
+      "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n"
+      + "worktree /repo.husk-one\nHEAD def\ndetached\n\n"
+      + "worktree /repo.husk-two\nHEAD def\ndetached\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"], worktreePorcelain: porcelain });
+    ctx.readMarker = async () => ({ kind: "present", marker: markerWithHusk() });
+
+    const ambiguous = await runTeardown(ctx, { name: "demo", base: "main" });
+    expect(ambiguous).toMatchObject({ status: "rejected" });
+
+    const selected = await runTeardown(ctx, { name: "demo", base: "main", huskPath: "/repo.husk-two" });
+    expect(selected).toMatchObject({ status: "torn-down", worktreeRemoved: "/repo.husk-two" });
+    expect(calls).toContainEqual(["git", "worktree", "remove", "/repo.husk-two"]);
+  });
+
+  it("refuses a relative husk selector", async () => {
+    const { ctx } = buildCtx([SHIPPED_META], { branches: ["main"] });
+    expect(await runTeardown(ctx, { name: "demo", base: "main", huskPath: "relative/husk" })).toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(/absolute/iu),
+    });
+  });
+
   it("removes an exact clean stamped candidate from outside", async () => {
     const porcelain =
       "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n"
@@ -501,6 +699,73 @@ describe("runTeardown — detached husk replay", () => {
     expect(result.worktreeRemoved).toBe("/repo.husk");
     expect(result.husk?.outcome).toBe("already-husked");
     expect(calls).toContainEqual(["git", "worktree", "remove", "/repo.husk"]);
+  });
+
+  it("retains a branchless replay husk when its persisted remote retain proof no longer resolves", async () => {
+    const porcelain =
+      "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n"
+      + "worktree /repo.husk\nHEAD def\ndetached\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"], worktreePorcelain: porcelain });
+    ctx.readMarker = async () => ({
+      kind: "present",
+      marker: markerWithCurrentHusk({
+        remote: "origin",
+        oid: "def",
+        disposition: "retain",
+      }),
+    });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.worktreeRemoved).toBeNull();
+    expect(result.notices).toContainEqual(expect.stringMatching(/preservation ref.*changed/iu));
+    expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
+  });
+
+  it("resolves a branchless replay's persisted leased delete before physical husk removal", async () => {
+    const porcelain =
+      "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n"
+      + "worktree /repo.husk\nHEAD def\ndetached\n";
+    const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"], worktreePorcelain: porcelain });
+    ctx.readMarker = async () => ({
+      kind: "present",
+      marker: markerWithCurrentHusk({
+        remote: "origin",
+        oid: "def",
+        disposition: "delete",
+      }),
+    });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result).toMatchObject({ status: "torn-down", worktreeRemoved: "/repo.husk", remoteBranchDeleted: true });
+    const remoteIdx = calls.findIndex((call) => call[1] === "push" && call.some((arg) => arg.includes("force-with-lease")));
+    const removeIdx = calls.findIndex((call) => call[1] === "worktree" && call[2] === "remove");
+    expect(remoteIdx).toBeGreaterThanOrEqual(0);
+    expect(remoteIdx).toBeLessThan(removeIdx);
+  });
+
+  it("vetoes replay when a completed-locus restart declares the stamped branch", async () => {
+    const porcelain =
+      "worktree /repo\nHEAD abc\nbranch refs/heads/main\n\n"
+      + "worktree /repo.husk\nHEAD def\ndetached\n";
+    const restartedMeta: MetaSpec = { ...SHIPPED_META, branch: "feat/demo" };
+    const { ctx, calls } = buildCtx([restartedMeta], {
+      branches: ["feat/demo"],
+      worktreePorcelain: porcelain,
+    });
+    ctx.readMarker = async () => ({
+      kind: "present",
+      marker: markerWithCurrentHusk(null, metaFixtureDigest(restartedMeta)),
+    });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result).toMatchObject({ status: "torn-down", branchDeleted: false, worktreeRemoved: null });
+    expect(calls.some((call) => call[1] === "update-ref" && call[2] === "-d")).toBe(false);
+    expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
   });
 
   it("never removes a replayed husk from inside its own cwd", async () => {
@@ -706,7 +971,10 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
   const PRIMARY_PORCELAIN = "worktree /repo\nHEAD abc\nbranch refs/heads/main\n";
 
   it("accepts a parked (`backlog/planned/`) origin — un-shipped arc-state", async () => {
-    const { ctx } = buildCtx([PARKED_META], { branches: ["plan/demo"] });
+    const { ctx } = buildCtx([PARKED_META], {
+      branches: ["plan/demo"],
+      worktreePorcelain: "worktree /repo\nHEAD def\nbranch refs/heads/plan/demo\n",
+    });
 
     const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
 
@@ -714,7 +982,10 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
   });
 
   it("accepts a retired (removed → nonexistent) origin — no meta on disk", async () => {
-    const { ctx } = buildCtx([], { branches: ["plan/demo"] });
+    const { ctx } = buildCtx([], {
+      branches: ["plan/demo"],
+      worktreePorcelain: "worktree /repo\nHEAD def\nbranch refs/heads/plan/demo\n",
+    });
 
     const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
 
@@ -733,55 +1004,18 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     expect(calls).toEqual([]);
   });
 
-  it("force-deletes the unmerged branch (local + remote), bypassing the containment check", async () => {
+  it("refuses an unregistered non-shipped branch without retirement authority", async () => {
     const { ctx, calls } = buildCtx([], { branches: ["plan/demo"] });
-
-    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
-
-    expect(result.status).toBe("torn-down");
-    if (result.status !== "torn-down") return;
-    expect(result.branch).toBe("plan/demo");
-    expect(result.branchDeleted).toBe(true);
-    expect(calls).toContainEqual(["git", "branch", "-D", "plan/demo"]);
-    // Full retirement: the remote ref is deleted too (the merged-safe path never does this).
-    expect(calls).toContainEqual(["git", "push", "origin", "--delete", "plan/demo"]);
-    // The containment oracle is the discriminator — the force path never consults it.
-    expect(calls.some((c) => c[1] === "rev-list")).toBe(false);
-    expect(calls.some((c) => c[1] === "cherry")).toBe(false);
-  });
-
-  it("rejects when the local force-delete fails and the branch survives — not a torn-down report", async () => {
-    // The local `git branch -D` throws and the branch is still present afterward:
-    // a force-mode failure, distinct from a best-effort remote-ref cleanup miss.
-    const { ctx } = buildCtx([], {
-      branches: ["plan/demo"],
-      branchDeleteThrows: true,
-      branchSurvivesDelete: true,
-    });
-
-    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
-
-    expect(result.status).toBe("rejected");
-    if (result.status !== "rejected") return;
-    expect(result.reason).toMatch(/force-delete local branch/i);
-  });
-
-  it("degrades a remote-only delete failure to a notice when the local delete landed", async () => {
-    // The local `git branch -D` succeeds (branch gone), but the remote `push
-    // --delete` fails with an actionable error → a notice, still torn-down.
-    const { ctx } = buildCtx([], { branches: ["plan/demo"] });
-    const baseExec = ctx.exec;
-    ctx.exec = async (cmd, args) => {
-      if (args[0] === "push" && args.includes("--delete")) throw new Error("remote rejected: connection refused");
-      return baseExec(cmd, args);
+    ctx.authority = {
+      authorize: async () => ({ status: "refused", reason: "projection-mismatch" }),
+      revalidate: async () => ({ status: "refused", reason: "authority-conflict" }),
     };
 
     const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
 
-    expect(result.status).toBe("torn-down");
-    if (result.status !== "torn-down") return;
-    expect(result.branchDeleted).toBe(true);
-    expect(result.notices.some((n) => /remote branch/i.test(n))).toBe(true);
+    expect(result).toMatchObject({ status: "rejected", huskRefusal: "authorization-refused" });
+    expect(calls.some((call) => call[1] === "branch" && call[2] === "-D")).toBe(false);
+    expect(calls.some((call) => call[1] === "push" && call.includes("--delete"))).toBe(false);
   });
 
   it("mode selection routes correctly: shipped uses the containment-gated delete, not force", async () => {
@@ -797,7 +1031,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     expect(calls.some((c) => c[1] === "push" && c.includes("--delete"))).toBe(true);
   });
 
-  it("in-place arm under abandoned mode: switches the primary to base, no worktree removal", async () => {
+  it("in-place arm under abandoned mode: authorizes, switches the primary, then compare-deletes", async () => {
     const porcelain = "worktree /repo\nHEAD abc\nbranch refs/heads/plan/demo\n";
     const { ctx, calls } = buildCtx([PARKED_META], {
       branches: ["plan/demo"],
@@ -811,13 +1045,73 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     expect(result.worktreeRemoved).toBeNull();
     expect(calls.some((c) => c[1] === "worktree" && c[2] === "remove")).toBe(false);
     expect(calls).toContainEqual(["git", "switch", "main"]);
-    // The relocation precedes the force-delete (a checked-out branch can't be deleted).
+    // The relocation precedes the exact compare-delete (a checked-out branch can't be deleted).
     const switchIdx = calls.findIndex((c) => c[1] === "switch");
-    const deleteIdx = calls.findIndex((c) => c[1] === "branch" && c[2] === "-D");
+    const deleteIdx = calls.findIndex((c) => c[1] === "update-ref" && c[2] === "-d");
     expect(switchIdx).toBeLessThan(deleteIdx);
   });
 
-  it("linked arm under abandoned mode: tears down the worktree before the force-delete", async () => {
+  it("keeps the abandoned primary branch checked out when remote cleanup fails, then retries", async () => {
+    const { ctx, calls } = buildCtx([], {
+      branches: ["plan/demo"],
+      worktreePorcelain: "worktree /repo\nHEAD abc\nbranch refs/heads/plan/demo\n",
+    });
+    const currentPrimaryBranch = installStatefulPrimaryProjection(ctx, { remote: 1 });
+    let authorizationCount = 0;
+    installRemoteDeleteAuthority(ctx, () => { authorizationCount += 1; });
+
+    const first = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(first).toMatchObject({ status: "torn-down", branchDeleted: false, remoteBranchDeleted: false });
+    if (first.status !== "torn-down") return;
+    expect(first.notices.some((notice) => /simulated remote transport failure/iu.test(notice))).toBe(true);
+    expect(currentPrimaryBranch()).toBe("plan/demo");
+    expect(calls.some((call) => call[1] === "switch")).toBe(false);
+
+    const retry = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(retry).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+    expect(authorizationCount).toBe(2);
+    expect(currentPrimaryBranch()).toBe("main");
+  });
+
+  it("restores the abandoned primary branch when local CAS fails, then retries", async () => {
+    const { ctx, calls } = buildCtx([], {
+      branches: ["plan/demo"],
+      worktreePorcelain: "worktree /repo\nHEAD abc\nbranch refs/heads/plan/demo\n",
+    });
+    const currentPrimaryBranch = installStatefulPrimaryProjection(ctx, { local: 1 });
+    let authorizationCount = 0;
+    const baseAuthority = ctx.authority;
+    if (baseAuthority === undefined) throw new Error("missing test retirement authority");
+    ctx.authority = {
+      authorize: async (request) => {
+        authorizationCount += 1;
+        return await baseAuthority.authorize(request);
+      },
+      revalidate: baseAuthority.revalidate,
+    };
+
+    const first = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(first).toMatchObject({ status: "torn-down", branchDeleted: false });
+    if (first.status !== "torn-down") return;
+    expect(first.notices.some((notice) => /simulated local ref lock/iu.test(notice))).toBe(true);
+    expect(first.notices.some((notice) => /Restored the primary worktree/iu.test(notice))).toBe(true);
+    expect(currentPrimaryBranch()).toBe("plan/demo");
+    expect(calls.filter((call) => call[1] === "switch")).toEqual([
+      ["git", "switch", "main"],
+      ["git", "switch", "plan/demo"],
+    ]);
+
+    const retry = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(retry).toMatchObject({ status: "torn-down", branchDeleted: true });
+    expect(authorizationCount).toBe(2);
+    expect(currentPrimaryBranch()).toBe("main");
+  });
+
+  it("linked arm under abandoned mode stamps and detaches before ref cleanup, then removes the resolved husk", async () => {
     const porcelain =
       PRIMARY_PORCELAIN +
       "\nworktree /repo-plan-demo\nHEAD def\nbranch refs/heads/plan/demo\n";
@@ -825,6 +1119,7 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
       branches: ["plan/demo"],
       worktreePorcelain: porcelain,
     });
+    enableSelfHusk(ctx);
 
     const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
 
@@ -832,9 +1127,43 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     if (result.status !== "torn-down") return;
     expect(result.worktreeRemoved).toBe("/repo-plan-demo");
     expect(calls).toContainEqual(["git", "worktree", "remove", "/repo-plan-demo"]);
+    expect(calls).toContainEqual(["git", "switch", "--detach", "def"]);
     const removeIdx = calls.findIndex((c) => c[1] === "worktree" && c[2] === "remove");
-    const deleteIdx = calls.findIndex((c) => c[1] === "branch" && c[2] === "-D");
-    expect(removeIdx).toBeLessThan(deleteIdx);
+    const deleteIdx = calls.findIndex((c) => c[1] === "update-ref" && c[2] === "-d");
+    expect(deleteIdx).toBeLessThan(removeIdx);
+  });
+
+  it.each([
+    {
+      label: "linked worktree",
+      porcelain:
+        PRIMARY_PORCELAIN
+        + "\nworktree /repo-plan-demo\nHEAD def\nbranch refs/heads/plan/demo\n",
+    },
+    {
+      label: "in-place primary worktree",
+      porcelain: "worktree /repo\nHEAD def\nbranch refs/heads/plan/demo\n",
+    },
+  ])("refuses a $label before projection mutation when retirement authority is missing", async ({ porcelain }) => {
+    const { ctx, calls } = buildCtx([PARKED_META], {
+      branches: ["plan/demo"],
+      worktreePorcelain: porcelain,
+    });
+    ctx.authority = {
+      authorize: async () => ({ status: "refused", reason: "evidence-missing" }),
+      revalidate: async () => ({ status: "refused", reason: "authority-conflict" }),
+    };
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      huskRefusal: "authorization-refused",
+    });
+    expect(calls.some((call) => call[1] === "worktree" && call[2] === "remove")).toBe(false);
+    expect(calls.some((call) => call[1] === "switch")).toBe(false);
+    expect(calls.some((call) => call[1] === "branch" && call[2] === "-D")).toBe(false);
+    expect(calls.some((call) => call[1] === "update-ref" && call[2] === "-d")).toBe(false);
   });
 });
 

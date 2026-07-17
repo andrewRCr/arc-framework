@@ -374,6 +374,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     domainRules: vi.fn(async () => domainRulesSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     roster: vi.fn(async () => rosterResult()),
+    cleanupRoster: vi.fn(async () => rosterResult()),
     recovery: vi.fn(async (): Promise<CascadeResolution> => ({ kind: "main-fallback" })),
     sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({ worktrees: [], warnings: [] })),
     orphanBranchSweep: vi.fn(async (): Promise<OrphanBranchSweepResult> => ({ orphans: [] })),
@@ -1733,10 +1734,12 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "inboxState",
       "loadSet",
       "mode",
+      "orphanBranchSweep",
       "partialPushMarker",
       "recommendedCombinedPrompt",
       "releaseRouting",
       "retiredSubdirs",
+      "sweep",
       "user",
       "worktree",
     ]);
@@ -2109,7 +2112,7 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
     }
   });
 
-  it("omits the sweep in a linked worktree (the resume path never sweeps)", async () => {
+  it("runs the private cleanup sweep in a linked worktree without exposing its roster", async () => {
     const probes = sessionInitProbes({
       worktree: vi.fn(async () => primaryClean.worktree()),
       active: vi.fn(async () => primaryClean.active()),
@@ -2117,8 +2120,26 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
         worktreeIdentity({ kind: "linked", path: "/wt/x" })),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
-    expect(probes.sweep).not.toHaveBeenCalled();
-    expect("sweep" in result).toBe(false);
+    expect(probes.cleanupRoster).toHaveBeenCalledTimes(1);
+    expect(probes.sweep).toHaveBeenCalledTimes(1);
+    expect("roster" in result).toBe(false);
+    expect(result.sweep?.ok).toBe(true);
+  });
+
+  it("retains private linked cleanup when developer identity is unresolved", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => primaryClean.worktree()),
+      active: vi.fn(async () => primaryClean.active()),
+      worktreeIdentity: vi.fn(async () =>
+        worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+    });
+    const result = await runSessionInitStatus({ identity: null, role: "maintainer", probes });
+    expect(probes.cleanupRoster).toHaveBeenCalledTimes(1);
+    expect(probes.sweep).toHaveBeenCalledTimes(1);
+    expect(probes.orphanBranchSweep).not.toHaveBeenCalled();
+    expect("roster" in result).toBe(false);
+    expect(result.sweep?.ok).toBe(true);
+    expect("orphanBranchSweep" in result).toBe(false);
   });
 
   it("skips the sweep when the roster probe failed in the primary worktree", async () => {
@@ -2159,6 +2180,8 @@ describe("runSessionInitStatus — current-husk advisory gating", () => {
       const advisory = {
         worktreePath: "/wt/shipped",
         subject: { kind: "work-unit" as const, name: "shipped" },
+        branch: "feat/shipped",
+        stamp: { kind: "legacy" as const, authorization: "merged-preserved" as const },
       };
       const probes = sessionInitProbes({
         worktree: vi.fn(async () => worktreeSync({ state, branch: null })),

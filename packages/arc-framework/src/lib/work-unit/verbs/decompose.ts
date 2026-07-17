@@ -22,11 +22,17 @@
 import { join } from "node:path";
 
 import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import { canonicalize } from "../../canonical/canonical-json.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import { repointDependsOn } from "../decompose-sweep.js";
-import type { DecomposeParams, InternalEdge, NewMemberEntry } from "../decompose-cut-map.js";
+import type {
+  DecomposeParams,
+  InternalEdge,
+  NewMemberEntry,
+  DecomposeAllocationMap,
+} from "../decompose-cut-map.js";
+import { newMemberDependencies } from "../decompose-cut-map.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
-import { resolveReverseDeps } from "../lifecycle-deps.js";
 import {
   executeTransition,
   type ArtifactRunner,
@@ -36,6 +42,7 @@ import {
 import { resolveSlugState } from "../lifecycle-resolver.js";
 import type { Location, Phase } from "../lifecycle-state.js";
 import { artifactMatcher, pruneEmptyBacklogSource } from "../mutators/relocate-artifacts.js";
+import type { PreparedDecomposeRetirement } from "../retirement-authority.js";
 
 /** Filesystem seam for writing the scaffolded member metas + drafts. */
 export interface CohortMemberScaffoldFs {
@@ -83,6 +90,8 @@ export interface ScaffoldCohortMembersParams {
   members: NewMemberEntry[];
   /** Internal dependency edges among the members (`from` depends on `to`). */
   internalEdges: InternalEdge[];
+  /** Allocation of the origin's external prerequisites to destination slugs. */
+  outgoingEdges?: DecomposeAllocationMap["outgoingEdges"];
 }
 
 /** One scaffolded member's repo-relative artifact paths — the substrate the verb's result reports. */
@@ -101,14 +110,6 @@ export interface ScaffoldedMember {
  * duplicates collapsed. Never blanket-inherits the origin's edges — a member
  * that does not touch `X` is not gated behind it.
  */
-function memberDependsOn(slug: string, member: NewMemberEntry, internalEdges: InternalEdge[]): string[] {
-  const deps = [...member.dependsOn];
-  for (const edge of internalEdges) {
-    if (edge.from === slug && !deps.includes(edge.to)) deps.push(edge.to);
-  }
-  return deps;
-}
-
 /**
  * Render a fresh member `draft-<slug>.md` skeleton — the pre-PRD synthesis
  * structure the conservation gate fills, mirroring `template-draft.md` (the
@@ -174,7 +175,7 @@ export async function scaffoldCohortMembers(
   ctx: ScaffoldCohortMembersContext,
   params: ScaffoldCohortMembersParams,
 ): Promise<ScaffoldedMember[]> {
-  const { cohort, originContext, members, internalEdges } = params;
+  const { cohort, originContext, members, internalEdges, outgoingEdges = [] } = params;
   const scaffolded: ScaffoldedMember[] = [];
 
   for (const member of members) {
@@ -192,7 +193,7 @@ export async function scaffoldCohortMembers(
       Origin: originContext.origin,
       Design: `draft-${member.slug}.md`,
     };
-    const deps = memberDependsOn(member.slug, member, internalEdges);
+    const deps = newMemberDependencies({ internalEdges, outgoingEdges }, member.slug);
     if (deps.length > 0) overrides["Depends On"] = deps.join(", ");
 
     await ensureDir(join(ctx.cwd, dir), ctx.fs.mkdir);
@@ -239,6 +240,12 @@ export interface RunDecomposeParams {
   cut: DecomposeParams;
 }
 
+/** Prepared retirement evidence required by the production mutation path. */
+export interface RunPreparedDecomposeParams extends RunDecomposeParams {
+  preparation: PreparedDecomposeRetirement;
+  revalidate(): Promise<{ status: "valid" } | { status: "refused"; reason: string }>;
+}
+
 /** One incoming edge re-pointed off the retired origin. */
 export interface RepointedEdge {
   /** The dependent WU whose `Depends On` edge named the origin. */
@@ -281,6 +288,30 @@ export interface DecomposeResult {
 export type RunDecomposeResult =
   | { status: "rejected"; reason: string }
   | { status: "decomposed"; result: DecomposeResult };
+
+/** Consume one exact preparation before entering the mutation-only executor. */
+export async function runPreparedDecompose(
+  ctx: RunDecomposeContext,
+  params: RunPreparedDecomposeParams,
+): Promise<RunDecomposeResult> {
+  const { preparation, cut } = params;
+  const subject = preparation.locator.scope.subject;
+  if (
+    subject.kind !== "work-unit"
+    || subject.name !== cut.origin.slug
+    || preparation.locator.scope.transition !== "decompose"
+    || canonicalize(preparation.locator) !== canonicalize(preparation.record.locator)
+    || canonicalize(preparation.record.allocation) !== canonicalize(cut)
+    || preparation.authorityVersion.trim() === ""
+  ) {
+    return { status: "rejected", reason: "decompose preparation does not match the requested mutation." };
+  }
+  const revalidated = await params.revalidate();
+  if (revalidated.status === "refused") {
+    return { status: "rejected", reason: revalidated.reason };
+  }
+  return await runDecompose(ctx, { cut });
+}
 
 /**
  * Run the decompose verb's deterministic legs over the cut-map — fan-out
@@ -350,6 +381,7 @@ export async function runDecompose(
       },
       members: newMembers,
       internalEdges: cut.internalEdges,
+      outgoingEdges: cut.outgoingEdges,
     },
   );
 
@@ -362,12 +394,9 @@ export async function runDecompose(
   let teardown: OriginTeardown | null = null;
 
   if (originRetired) {
-    // Leg 3 — incoming-edge re-point sweep (scans the index directly, so it catches
-    // dependents the cut-map didn't enumerate). The origin's deliverable is now the
-    // whole cohort, so each dependent re-points to the full new-member set; the
-    // workflow's allocation map narrows specific edges as judgment.
-    const deliveringMembers = newMembers.map((m) => m.slug);
-    repointed = await sweepIncomingEdges(ctx, index, originSlug, deliveringMembers);
+    // Leg 3 — apply each prepared incoming-edge disposition exactly. Coverage
+    // against the live reverse-edge inventory is proven before this mutation.
+    repointed = await sweepIncomingEdges(ctx, index, originSlug, cut.incomingEdges);
 
     // Leg 2 — origin artifact retirement via the reserved edge; its render side-effect fires Leg 4.
     const outcome = await tearDownOrigin(ctx, originSlug);
@@ -394,30 +423,29 @@ export async function runDecompose(
 }
 
 /**
- * Re-point every incoming `Depends On` edge that names `originSlug` to the
- * delivering members. Discovers dependents over the index ({@link
- * resolveReverseDeps}), rewrites each via {@link repointDependsOn}, and writes +
- * stages only the metas that actually changed (the rewrite is a no-op when the
- * origin is absent, so a non-edge prose mention never triggers a write).
+ * Apply each declared incoming-edge disposition at the origin's existing slot.
+ * Writes and stages only metas that actually change; a stale declaration whose
+ * dependent no longer names the origin remains byte-identical.
  */
 async function sweepIncomingEdges(
   ctx: RunDecomposeContext,
   index: LifecycleIndex,
   originSlug: string,
-  deliveringMembers: string[],
+  incomingEdges: DecomposeAllocationMap["incomingEdges"],
 ): Promise<RepointedEdge[]> {
   const { executor } = ctx;
   const repointed: RepointedEdge[] = [];
-  for (const slug of resolveReverseDeps(index, originSlug)) {
-    const entry = index.get(slug);
+  for (const edge of incomingEdges) {
+    const entry = index.get(edge.dependent);
     if (entry === undefined) continue;
     const abs = join(executor.cwd, entry.path);
     const before = await executor.indexFs.readFile(abs);
-    const after = repointDependsOn(before, originSlug, deliveringMembers);
+    const replacements = edge.disposition.kind === "replace" ? edge.disposition.replacementTargets : [];
+    const after = repointDependsOn(before, originSlug, replacements);
     if (after === before) continue;
     await ctx.fs.writeFile(abs, after);
     if (executor.stageMeta !== undefined) await executor.stageMeta(entry.path);
-    repointed.push({ dependent: slug, to: deliveringMembers });
+    repointed.push({ dependent: edge.dependent, to: replacements });
   }
   return repointed;
 }

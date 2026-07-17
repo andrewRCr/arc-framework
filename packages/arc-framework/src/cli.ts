@@ -92,6 +92,7 @@ import {
   handleReleaseSetupVerify,
   handleReleaseStatus,
 } from "./commands/release.js";
+import { runDecomposeRecordValidation } from "./scripts/validate-decompose-record.js";
 
 const program = new Command();
 
@@ -105,6 +106,10 @@ program
 const checkCmd = program
   .command("check")
   .description("Run standalone repository checks");
+
+program
+  .command("hook-validate-decompose-record", { hidden: true })
+  .action(runDecomposeRecordValidation);
 
 function isDashPrefixedCheckSourceEscaped(
   rawArgs: readonly string[],
@@ -201,6 +206,7 @@ program
   .command("decompose <origin>")
   .description("Split a work unit into a cohort of members per a structured cut-map file")
   .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
+  .option("--finalize <receipt-id>", "Verify the staged allocation and replace its preparation with a finalized receipt")
   .action((origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts));
 
 program
@@ -217,6 +223,7 @@ program
   .command("park [slug]")
   .description("Shelve a started work unit off the active set (defaults to the current WU)")
   .option("--reason <text>", "Why the work unit is being parked (required)")
+  .option("--land <commit>", "Stage an exact planning transition on a partial-protection base")
   .action((slug: string | undefined, opts: ParkOptions) => handlePark(slug, opts));
 
 program
@@ -280,9 +287,10 @@ program
   .command("teardown [name]")
   .description("Post-merge cleanup of a shipped work unit: reap the merged branch, remove the worktree, prune stale refs")
   .option("--branch <branch>", "Reap a merged recordless chore/<slug> branch by exact name")
+  .option("--husk <absolute-path>", "Replay cleanup for one exact registered detached husk")
   .option(
     "--force",
-    "Force-tear down a retired/parked origin (unmerged branch): accept non-completed/ arc-state; caller asserts conservation",
+    "Tear down a retired/parked origin (unmerged branch) using its finalized retirement receipt",
   )
   .action((name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts));
 

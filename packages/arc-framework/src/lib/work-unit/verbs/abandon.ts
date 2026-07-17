@@ -32,9 +32,12 @@
  * @module
  */
 
-import { basename, join } from "node:path";
+import { basename, join, posix } from "node:path";
 
 import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
+import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
+import type { ManagedPath } from "../../canonical/managed-path.js";
+import { DISCARD_RESULT, receiptId } from "../../canonical/receipt-id.js";
 import { buildLifecycleIndex } from "../lifecycle-index.js";
 import {
   executeTransition,
@@ -45,6 +48,12 @@ import {
 } from "../lifecycle-executor.js";
 import { resolveSlugState, type LifecycleState } from "../lifecycle-resolver.js";
 import { artifactMatcher } from "../mutators/relocate-artifacts.js";
+import {
+  describeTeardownAuthorizationRefusal,
+  type RetirementAuthorityPort,
+  type RetirementAuthorityScope,
+  type RetirementReceipt,
+} from "../retirement-authority.js";
 import { validFromStates } from "./dispatch.js";
 
 /** Filesystem seam for the `remove` artifact disposition — list, delete files, drop the emptied subdir. */
@@ -64,6 +73,28 @@ export interface AbandonFs {
 export interface AbandonContext {
   executor: Omit<ExecuteTransitionContext, "scaffoldOrRemove">;
   fs: AbandonFs;
+  retirement: AbandonRetirementContext;
+}
+
+/** Source evidence captured before an abandon removes its artifact group. */
+export interface AbandonSourceEvidence {
+  scope: RetirementAuthorityScope;
+  artifactDigest: RetirementReceipt["source"]["artifactDigest"];
+  sourceArtifactPaths: readonly ManagedPath[];
+  resultArtifactPaths: readonly ManagedPath[];
+}
+
+/** Retirement seams used to bind an abandon to one exact direct transition. */
+export interface AbandonRetirementContext {
+  authority: Pick<RetirementAuthorityPort, "readSnapshot" | "record">;
+  captureSource(params: {
+    name: string;
+    sourceDir: string;
+    expectedBranch: string | null;
+  }): Promise<AbandonSourceEvidence>;
+  stageTransition(source: AbandonSourceEvidence): Promise<void>;
+  rollbackTransition(source: AbandonSourceEvidence): Promise<void>;
+  readTransitionPatch(source: AbandonSourceEvidence): Promise<readonly PatchOperation[]>;
 }
 
 /** The judgment + operational inputs an `abandon` supplies. */
@@ -77,7 +108,12 @@ export interface AbandonParams {
 /** The outcome of an `abandon` attempt — a rejection, or the completed teardown. */
 export type AbandonResult =
   | { status: "rejected"; reason: string }
-  | { status: "abandoned"; outcome: TransitionOutcome };
+  | {
+      status: "abandoned";
+      outcome: TransitionOutcome;
+      receipt: RetirementReceipt;
+      authorityVersion: string;
+    };
 
 /** Started states whose branch + worktree teardown is deferred to a post-action `arc teardown --force`. */
 const STARTED: ReadonlySet<LifecycleState> = new Set(["planning", "active"]);
@@ -133,24 +169,164 @@ export function planAbandon(state: LifecycleState, branch: string | null, name: 
  */
 export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Promise<AbandonResult> {
   const { name, confirmed } = params;
-  const { executor, fs } = ctx;
+  const { executor, fs, retirement } = ctx;
 
   const index = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
   const state = resolveSlugState(index, name);
   const entry = index.get(name);
+  const meta = entry === undefined ? null : await readMeta(executor, entry.path);
 
   const inputs: TransitionInputs = { confirmed };
 
-  if (IN_VERB_BRANCH_DELETE.has(state) && entry !== undefined) {
-    const record = await readMeta(executor, entry.path);
-    inputs.branchOp = { mutation: "delete", branch: record.Branch ?? "[none]" };
+  if (IN_VERB_BRANCH_DELETE.has(state) && meta !== null) {
+    inputs.branchOp = { mutation: "delete", branch: meta.Branch ?? "[none]" };
   }
 
   const scaffoldOrRemove = buildRemoveRunner(executor.cwd, fs);
-  const outcome = await executeTransition({ ...executor, scaffoldOrRemove }, { verb: "abandon", slug: name, inputs });
+  if (confirmed !== true || entry === undefined || !validFromStates("abandon").includes(state)) {
+    const outcome = await executeTransition(
+      { ...executor, scaffoldOrRemove },
+      { verb: "abandon", slug: name, inputs },
+    );
+    if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
+    throw new Error("abandon preflight unexpectedly applied an ineligible transition");
+  }
+
+  let source: AbandonSourceEvidence;
+  try {
+    source = await retirement.captureSource({
+      name,
+      sourceDir: posix.dirname(entry.path),
+      expectedBranch: STARTED.has(state) ? meta?.Branch ?? null : null,
+    });
+  } catch (err) {
+    return {
+      status: "rejected",
+      reason: err instanceof Error ? err.message : "Cannot capture abandon retirement evidence.",
+    };
+  }
+  const snapshot = await retirement.authority.readSnapshot(source.scope);
+  if (snapshot.status === "refused") {
+    return {
+      status: "rejected",
+      reason: `Cannot record abandon evidence: ${describeTeardownAuthorizationRefusal(snapshot.reason)}.`,
+    };
+  }
+  if (snapshot.snapshot.recordState !== "absent") {
+    return { status: "rejected", reason: "Cannot record abandon evidence: retirement authority already exists." };
+  }
+
+  const deferredCleanup: Array<{ label: string; run: () => Promise<unknown> }> = [];
+  const workspaceHandler = executor.sideEffects?.["user-workspace"];
+  const transitionExecutor = {
+    ...executor,
+    scaffoldOrRemove,
+    reconcileBranch: (op: Parameters<typeof executor.reconcileBranch>[0]) => {
+      deferredCleanup.push({ label: "branch cleanup", run: () => executor.reconcileBranch(op) });
+      return Promise.resolve();
+    },
+    sideEffects: workspaceHandler === undefined
+      ? executor.sideEffects
+      : {
+          ...executor.sideEffects,
+          "user-workspace": (effectCtx: Parameters<typeof workspaceHandler>[0]) => {
+            deferredCleanup.push({
+              label: "user workspace cleanup",
+              run: async () => await workspaceHandler(effectCtx),
+            });
+            return Promise.resolve(undefined);
+          },
+        },
+  };
+  const outcome = await executeTransition(transitionExecutor, { verb: "abandon", slug: name, inputs });
 
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-  return { status: "abandoned", outcome };
+
+  let transitionPatch: readonly PatchOperation[];
+  try {
+    await retirement.stageTransition(source);
+    transitionPatch = await retirement.readTransitionPatch(source);
+  } catch (err) {
+    const rollbackFailure = await rollbackAbandon(executor, retirement, source, outcome, name);
+    return {
+      status: "rejected",
+      reason:
+        "The abandon transition was rolled back because its retirement receipt could not be prepared: "
+        + `${err instanceof Error ? err.message : "retirement authority is unavailable"}.`
+        + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
+    };
+  }
+  const receipt: RetirementReceipt = {
+    schemaVersion: 1,
+    receiptId: receiptId({
+      schemaVersion: 1,
+      subject: source.scope.subject,
+      transition: "abandon",
+      sourceBranch: source.scope.source.branch,
+      sourceHead: source.scope.source.head,
+    }),
+    subject: source.scope.subject,
+    transition: "abandon",
+    source: {
+      branch: source.scope.source.branch,
+      head: source.scope.source.head,
+      artifactDigest: source.artifactDigest,
+    },
+    transitionPatchDigest: patchDigest(transitionPatch),
+    retiringProjection: { kind: "direct-transition" },
+    authorization: "discard-confirmed",
+    result: DISCARD_RESULT,
+  };
+  const recorded = await retirement.authority.record(receipt, snapshot.snapshot.authorityVersion);
+  if (recorded.status === "refused") {
+    const rollbackFailure = await rollbackAbandon(executor, retirement, source, outcome, name);
+    return {
+      status: "rejected",
+      reason:
+        "The abandon transition was rolled back because its retirement receipt could not be recorded: "
+        + `${describeTeardownAuthorizationRefusal(recorded.reason)}.`
+        + (recorded.diagnostic === undefined ? "" : ` ${recorded.diagnostic}`)
+        + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
+    };
+  }
+  const advisories = [...outcome.advisories];
+  for (const { label, run } of deferredCleanup) {
+    try {
+      await run();
+    } catch (err) {
+      advisories.push(
+        `Abandon evidence was recorded, but ${label} did not complete: ${err instanceof Error ? err.message : String(err)}.`,
+      );
+    }
+  }
+  return {
+    status: "abandoned",
+    outcome: advisories.length === outcome.advisories.length ? outcome : { ...outcome, advisories },
+    receipt,
+    authorityVersion: recorded.authorityVersion,
+  };
+}
+
+async function rollbackAbandon(
+  executor: AbandonContext["executor"],
+  retirement: AbandonRetirementContext,
+  source: AbandonSourceEvidence,
+  outcome: Extract<TransitionOutcome, { status: "ok" }>,
+  name: string,
+): Promise<string | null> {
+  try {
+    await retirement.rollbackTransition(source);
+    await executor.sideEffects?.["reconcile-status-user"]?.({
+      cwd: executor.cwd,
+      slug: name,
+      from: outcome.to,
+      to: outcome.from,
+      inputs: {},
+    });
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
+  }
 }
 
 /** Read and parse a meta from its cwd-relative index path. */

@@ -1,178 +1,450 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
+import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
 import {
   parseCutMap,
-  type DecomposeParams,
-  type CutEntry,
-  type InternalEdge,
+  parseDecomposeContentLocator,
+  retirementAllocationRefusal,
+  type DecomposeAllocationMap,
 } from "../../../src/lib/work-unit/decompose-cut-map.js";
 
-/**
- * A well-formed symmetric cut-map as it arrives at the boundary (deserialized
- * but untyped). Overrides merge shallowly so each test perturbs one facet.
- */
+const SOURCE_A = canonicalDigest("source-a");
+const SOURCE_B = canonicalDigest("source-b");
+
 function wellFormed(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     origin: { slug: "origin-wu", phase: "Planning", location: "planned" },
     shape: "symmetric",
     parentPosition: "standalone",
     cohort: "my-cohort",
     entries: [
-      { kind: "new-member", slug: "member-a", workClass: "Heavy", dependsOn: [], receives: ["section-1"] },
-      { kind: "new-member", slug: "member-b", workClass: "Light", dependsOn: ["member-a"], receives: ["section-2"] },
+      { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
+      { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Heavy" },
+      {
+        kind: "existing-home",
+        destinationId: "existing-wu",
+        target: { kind: "work-unit", slug: "existing-target" },
+        home: "fold",
+      },
     ],
     internalEdges: [{ from: "member-b", to: "member-a" }],
+    sourceAllocations: [
+      {
+        sourceId: SOURCE_B,
+        ownership: "destination-owned",
+        disposition: {
+          kind: "target",
+          destinationId: "member-b",
+          targetLocator: { artifact: "draft-member-b.md", kind: "preamble" },
+        },
+      },
+      {
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: { kind: "drop", reason: "superseded framing" },
+      },
+    ],
+    incomingEdges: [
+      { dependent: "consumer-z", disposition: { kind: "replace", replacementTargets: ["member-b", "member-a"] } },
+    ],
+    outgoingEdges: [
+      { prerequisite: "foundation-z", disposition: { kind: "targets", targets: ["member-b", "member-a"] } },
+    ],
     ...overrides,
   };
 }
 
-/** The entries array the well-formed fixture carries, typed for override convenience. */
-function entries(...es: CutEntry[]): CutEntry[] {
-  return es;
+function parsed(input: Record<string, unknown>): DecomposeAllocationMap {
+  const result = parseCutMap(input);
+  expect(result.status).toBe("parsed");
+  if (result.status !== "parsed") throw new Error(result.reason);
+  return result.params;
+}
+
+function rejection(input: Record<string, unknown>): string {
+  const result = parseCutMap(input);
+  expect(result.status).toBe("rejected");
+  if (result.status !== "rejected") throw new Error("expected rejection");
+  return result.reason;
 }
 
 describe("parseCutMap", () => {
-  it("parses a well-formed cut-map into a DecomposeParams", () => {
-    const result = parseCutMap(wellFormed());
+  it("parses and canonically orders a schema-version-2 allocation map", () => {
+    const map = parsed(wellFormed());
 
-    const expected: DecomposeParams = {
-      schemaVersion: 1,
-      origin: { slug: "origin-wu", phase: "Planning", location: "planned" },
-      shape: "symmetric",
-      parentPosition: "standalone",
-      cohort: "my-cohort",
+    expect(map.schemaVersion).toBe(2);
+    expect(map.entries.map((entry) => entry.destinationId)).toEqual(["existing-wu", "member-a", "member-b"]);
+    expect(map.sourceAllocations.map((entry) => entry.sourceId)).toEqual([SOURCE_A, SOURCE_B].sort());
+    expect(map.incomingEdges[0]?.disposition).toEqual({
+      kind: "replace",
+      replacementTargets: ["member-a", "member-b"],
+    });
+    expect(map.outgoingEdges[0]?.disposition).toEqual({ kind: "targets", targets: ["member-a", "member-b"] });
+  });
+
+  it("requires an explicit closed ownership judgment for every source allocation", () => {
+    const missing = wellFormed();
+    delete (missing.sourceAllocations as Array<Record<string, unknown>>)[0]!.ownership;
+    expect(rejection(missing)).toMatch(/unknown field|ownership/i);
+
+    const invalid = wellFormed();
+    (invalid.sourceAllocations as Array<Record<string, unknown>>)[0]!.ownership = "shared";
+    expect(rejection(invalid)).toMatch(/ownership.*destination-owned.*cohort-shared/i);
+  });
+
+  it("rejects unknown fields at every validated level", () => {
+    expect(rejection(wellFormed({ typo: true }))).toMatch(/unknown.*typo/i);
+    const input = wellFormed();
+    input.origin = { slug: "origin-wu", phase: "Planning", location: "planned", typo: true };
+    expect(rejection(input)).toMatch(/unknown.*typo/i);
+  });
+
+  it("rejects duplicate destination IDs and duplicate destination identities", () => {
+    const duplicateId = wellFormed();
+    duplicateId.entries = [
+      { kind: "new-member", destinationId: "same", slug: "member-a", workClass: "Light" },
+      { kind: "new-member", destinationId: "same", slug: "member-b", workClass: "Light" },
+    ];
+    expect(rejection(duplicateId)).toMatch(/duplicate.*destinationId/i);
+
+    const duplicateIdentity = wellFormed();
+    duplicateIdentity.entries = [
+      { kind: "new-member", destinationId: "new", slug: "member-a", workClass: "Light" },
+      {
+        kind: "existing-home",
+        destinationId: "existing",
+        target: { kind: "work-unit", slug: "member-a" },
+        home: "fold",
+      },
+    ];
+    expect(rejection(duplicateIdentity)).toMatch(/duplicate.*identity/i);
+  });
+
+  it("accepts dependency recipients only when they are new members or existing work-unit homes", () => {
+    const unknownIncoming = wellFormed({
+      incomingEdges: [{ dependent: "consumer", disposition: { kind: "replace", replacementTargets: ["unknown"] } }],
+    });
+    expect(rejection(unknownIncoming)).toMatch(/replacement target.*unknown/i);
+
+    const unknownOutgoing = wellFormed({
+      outgoingEdges: [{ prerequisite: "foundation", disposition: { kind: "targets", targets: ["unknown"] } }],
+    });
+    expect(rejection(unknownOutgoing)).toMatch(/consumer.*unknown/i);
+  });
+
+  it("prevents draft blocks, documents, and cohort coordination from receiving dependencies", () => {
+    const entryVariants = [
+      {
+        kind: "existing-home",
+        destinationId: "ineligible",
+        target: {
+          kind: "draft-block",
+          slug: "design-home",
+          locator: { artifact: "draft-design-home.md", kind: "preamble" },
+        },
+        home: "fold",
+      },
+      {
+        kind: "existing-home",
+        destinationId: "ineligible",
+        target: { kind: "document", path: ".arc/reference/PROJECT-PRD.md" },
+        home: "atomic-edit",
+      },
+      { kind: "cohort-coordination", destinationId: "ineligible", cohort: "my-cohort" },
+    ];
+
+    for (const entry of entryVariants) {
+      const input = wellFormed({
+        entries: [
+          { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+          { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
+          entry,
+        ],
+        incomingEdges: [
+          { dependent: "consumer", disposition: { kind: "replace", replacementTargets: ["ineligible"] } },
+        ],
+      });
+      expect(rejection(input)).toMatch(/cannot receive|replacement target/i);
+    }
+  });
+
+  it("requires the sole cohort-coordination entry to name the declared cohort", () => {
+    const two = wellFormed();
+    two.entries = [
+      { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+      { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
+      { kind: "cohort-coordination", destinationId: "coord-a", cohort: "my-cohort" },
+      { kind: "cohort-coordination", destinationId: "coord-b", cohort: "my-cohort" },
+    ];
+    expect(rejection(two)).toMatch(/at most one.*cohort-coordination/i);
+
+    const wrong = wellFormed();
+    wrong.entries = [
+      { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+      { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
+      { kind: "cohort-coordination", destinationId: "coord", cohort: "other-cohort" },
+    ];
+    expect(rejection(wrong)).toMatch(/declared cohort/i);
+  });
+
+  it("requires cohort placement on minted positions and omission at the nesting cap", () => {
+    expect(rejection(wellFormed({ cohort: undefined }))).toMatch(/requires.*cohort/i);
+    expect(rejection(wellFormed({ cohort: "[none]" }))).toMatch(/safe cohort path/i);
+    expect(rejection(wellFormed({ parentPosition: "at-cap" }))).toMatch(/at-cap.*omit/i);
+    expect(parsed(wellFormed({ parentPosition: "at-cap", cohort: undefined })).cohort).toBeUndefined();
+  });
+
+  it("requires each target locator to belong to its declared destination", () => {
+    expect(rejection(wellFormed({
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: {
+          kind: "target",
+          destinationId: "member-a",
+          targetLocator: { artifact: "draft-other.md", kind: "preamble" },
+        },
+      }],
+    }))).toMatch(/locator.*destination|artifact.*member-a/i);
+
+    const document = wellFormed({
       entries: [
-        { kind: "new-member", slug: "member-a", workClass: "Heavy", dependsOn: [], receives: ["section-1"] },
-        { kind: "new-member", slug: "member-b", workClass: "Light", dependsOn: ["member-a"], receives: ["section-2"] },
+        { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+        { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
+        {
+          kind: "existing-home",
+          destinationId: "doc",
+          target: { kind: "document", path: ".arc/reference/PROJECT-PRD.md" },
+          home: "atomic-edit",
+        },
       ],
-      internalEdges: [{ from: "member-b", to: "member-a" }],
-    };
-    expect(result).toEqual({ status: "parsed", params: expected });
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: {
+          kind: "target",
+          destinationId: "doc",
+          targetLocator: { artifact: "README.md", kind: "preamble" },
+        },
+      }],
+    });
+    expect(rejection(document)).toMatch(/locator.*destination|artifact.*PROJECT-PRD/i);
   });
 
-  it("rejects a member with an empty slug, naming the field", () => {
-    const result = parseCutMap(
-      wellFormed({
-        entries: entries(
-          { kind: "new-member", slug: "", workClass: "Heavy", dependsOn: [], receives: ["s1"] },
-          { kind: "new-member", slug: "member-b", workClass: "Light", dependsOn: [], receives: ["s2"] },
-        ),
-      }),
-    );
+  it("binds an existing draft-block locator to its declared work-unit slug", () => {
+    const input = wellFormed({
+      entries: [
+        { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+        { kind: "new-member", destinationId: "member-b", slug: "member-b", workClass: "Light" },
+        {
+          kind: "existing-home",
+          destinationId: "draft-home",
+          target: {
+            kind: "draft-block",
+            slug: "design-home",
+            locator: { artifact: "draft-other.md", kind: "preamble" },
+          },
+          home: "fold",
+        },
+      ],
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: {
+          kind: "target",
+          destinationId: "draft-home",
+          targetLocator: { artifact: "draft-other.md", kind: "preamble" },
+        },
+      }],
+    });
 
-    expect(result.status).toBe("rejected");
-    if (result.status === "rejected") expect(result.reason).toMatch(/slug/i);
+    expect(rejection(input)).toMatch(/draft-design-home\.md/iu);
   });
 
-  it("rejects a member with a missing Class, naming the field", () => {
-    const result = parseCutMap(
-      wellFormed({
-        entries: [
-          { kind: "new-member", slug: "member-a", dependsOn: [], receives: ["s1"] },
-          { kind: "new-member", slug: "member-b", workClass: "Light", dependsOn: [], receives: ["s2"] },
-        ],
-      }),
-    );
+  it("rejects section locators whose heading source is not normalized", () => {
+    for (const headingSource of ["  Design", "Design\t  Notes", "Cafe\u0301"]) {
+      const input = wellFormed({
+        sourceAllocations: [{
+          sourceId: SOURCE_A,
+          ownership: "destination-owned",
+          disposition: {
+            kind: "target",
+            destinationId: "member-a",
+            targetLocator: {
+              artifact: "draft-member-a.md",
+              kind: "section",
+              headingSource,
+              occurrence: 0,
+            },
+          },
+        }],
+      });
+      expect(rejection(input)).toMatch(/headingSource.*normalized/i);
+    }
 
-    expect(result.status).toBe("rejected");
-    if (result.status === "rejected") expect(result.reason).toMatch(/class/i);
+    expect(parsed(wellFormed({
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: {
+          kind: "target",
+          destinationId: "member-a",
+          targetLocator: {
+            artifact: "draft-member-a.md",
+            kind: "section",
+            headingSource: "Design *Notes*",
+            occurrence: 0,
+          },
+        },
+      }],
+    })).sourceAllocations[0]?.disposition).toMatchObject({ kind: "target" });
   });
 
-  it("rejects a member with an empty distribution (receives), naming the field", () => {
-    const result = parseCutMap(
-      wellFormed({
-        entries: entries(
-          { kind: "new-member", slug: "member-a", workClass: "Heavy", dependsOn: [], receives: [] },
-          { kind: "new-member", slug: "member-b", workClass: "Light", dependsOn: [], receives: ["s2"] },
-        ),
-      }),
-    );
-
-    expect(result.status).toBe("rejected");
-    if (result.status === "rejected") expect(result.reason).toMatch(/receives|distribution/i);
+  it("accepts the normalized empty heading source emitted for a bare H2", () => {
+    expect(parsed(wellFormed({
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: {
+          kind: "target",
+          destinationId: "member-a",
+          targetLocator: {
+            artifact: "draft-member-a.md",
+            kind: "section",
+            headingSource: "",
+            occurrence: 0,
+          },
+        },
+      }],
+    })).sourceAllocations[0]?.disposition).toMatchObject({
+      kind: "target",
+      targetLocator: { kind: "section", headingSource: "", occurrence: 0 },
+    });
   });
 
-  it("rejects an unsafe cohort path", () => {
-    const result = parseCutMap(wellFormed({ cohort: "../escape" }));
-
-    expect(result.status).toBe("rejected");
-    if (result.status === "rejected") expect(result.reason).toMatch(/cohort/i);
+  it("rejects artifact basenames that the source scanner cannot inventory", () => {
+    for (const artifact of [".", "..", "draft\0member.md"]) {
+      expect(parseDecomposeContentLocator({ artifact, kind: "preamble" })).toBeNull();
+    }
   });
 
-  it("rejects an unknown entry-kind discriminant", () => {
-    const result = parseCutMap(
-      wellFormed({
-        entries: [
-          { kind: "frobnicate", slug: "member-a", workClass: "Heavy", dependsOn: [], receives: ["s1"] },
-          { kind: "new-member", slug: "member-b", workClass: "Light", dependsOn: [], receives: ["s2"] },
-        ],
-      }),
-    );
+  it("rejects direct self-dependencies in every dependency edge form", () => {
+    expect(rejection(wellFormed({
+      internalEdges: [{ from: "member-a", to: "member-a" }],
+    }))).toMatch(/internal edge.*self-dependency/i);
 
-    expect(result.status).toBe("rejected");
-    if (result.status === "rejected") expect(result.reason).toMatch(/kind/i);
+    expect(rejection(wellFormed({
+      incomingEdges: [{
+        dependent: "member-a",
+        disposition: { kind: "replace", replacementTargets: ["member-a"] },
+      }],
+    }))).toMatch(/incoming edge.*self-dependency/i);
+
+    expect(rejection(wellFormed({
+      outgoingEdges: [{
+        prerequisite: "member-a",
+        disposition: { kind: "targets", targets: ["member-a"] },
+      }],
+    }))).toMatch(/outgoing edge.*self-dependency/i);
   });
 
-  it("rejects an unrecognized schemaVersion", () => {
-    const result = parseCutMap(wellFormed({ schemaVersion: 99 }));
-
-    expect(result.status).toBe("rejected");
-    if (result.status === "rejected") expect(result.reason).toMatch(/version/i);
+  it("parses extraction but prevents it from authorizing retirement", () => {
+    const input = wellFormed({
+      shape: "extraction",
+      entries: [
+        {
+          kind: "surviving-origin",
+          destinationId: "origin",
+          slug: "origin-wu",
+          disposition: "keep-active",
+        },
+        { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+      ],
+      sourceAllocations: [{
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: {
+          kind: "target",
+          destinationId: "origin",
+          targetLocator: { artifact: "draft-origin-wu.md", kind: "preamble" },
+        },
+      }],
+      internalEdges: [],
+      incomingEdges: [
+        { dependent: "consumer-z", disposition: { kind: "replace", replacementTargets: ["member-a"] } },
+      ],
+      outgoingEdges: [
+        { prerequisite: "foundation-z", disposition: { kind: "targets", targets: ["member-a"] } },
+      ],
+    });
+    const map = parsed(input);
+    expect(retirementAllocationRefusal(map)).toMatch(/surviving origin.*retire/i);
   });
 
-  it("rejects an internal edge referencing an unknown member slug", () => {
-    const result = parseCutMap(wellFormed({ internalEdges: [{ from: "member-b", to: "membr-a" }] }));
-
-    expect(result.status).toBe("rejected");
-    if (result.status === "rejected") expect(result.reason).toMatch(/unknown `to` member "membr-a"/);
+  it("requires extraction's sole surviving entry to name the origin", () => {
+    const entries = [
+      {
+        kind: "surviving-origin",
+        destinationId: "origin",
+        slug: "different-origin",
+        disposition: "keep-active",
+      },
+      { kind: "new-member", destinationId: "member-a", slug: "member-a", workClass: "Light" },
+    ];
+    expect(rejection(wellFormed({ shape: "extraction", entries }))).toMatch(/exactly one.*naming the origin/i);
+    expect(rejection(wellFormed({ entries }))).toMatch(/only for extraction/i);
   });
 
-  it("rejects a symmetric batch below the two-member floor", () => {
-    const result = parseCutMap(
-      wellFormed({
-        entries: entries({
-          kind: "new-member",
-          slug: "member-a",
-          workClass: "Heavy",
-          dependsOn: [],
-          receives: ["s1"],
-        }),
-        internalEdges: [] as InternalEdge[],
-      }),
-    );
+  it("requires ownerless shared material to target minted cohort coordination", () => {
+    const misrouted = wellFormed();
+    const sourceAllocations = misrouted.sourceAllocations as Array<Record<string, unknown>>;
+    const shared = sourceAllocations.find((allocation) => allocation.sourceId === SOURCE_B);
+    if (shared === undefined) throw new Error("missing shared allocation fixture");
+    shared.ownership = "cohort-shared";
+    expect(retirementAllocationRefusal(parsed(misrouted))).toMatch(/cohort-coordination/i);
 
-    expect(result.status).toBe("rejected");
-    if (result.status === "rejected") expect(result.reason).toMatch(/member|floor/i);
+    const withCoordination = wellFormed();
+    withCoordination.entries = [
+      ...(withCoordination.entries as unknown[]),
+      { kind: "cohort-coordination", destinationId: "coord", cohort: "my-cohort" },
+    ];
+    withCoordination.sourceAllocations = [
+      {
+        sourceId: SOURCE_A,
+        ownership: "destination-owned",
+        disposition: { kind: "drop", reason: "superseded" },
+      },
+      {
+        sourceId: SOURCE_B,
+        ownership: "cohort-shared",
+        disposition: {
+          kind: "target",
+          destinationId: "coord",
+          targetLocator: { artifact: "cohort-my-cohort.md", kind: "preamble" },
+        },
+      },
+    ];
+    expect(retirementAllocationRefusal(parsed(withCoordination))).toBeNull();
+
+    const mislabeled = structuredClone(withCoordination);
+    (mislabeled.sourceAllocations as Array<Record<string, unknown>>)[1]!.ownership = "destination-owned";
+    expect(retirementAllocationRefusal(parsed(mislabeled))).toMatch(/requires.*cohort-shared/i);
   });
 
-  it("parses the extraction shape — surviving origin plus an extracted member", () => {
-    const result = parseCutMap(
-      wellFormed({
-        shape: "extraction",
-        entries: [
-          { kind: "surviving-origin", slug: "origin-wu", disposition: "keep-active" },
-          { kind: "new-member", slug: "extracted", workClass: "Light", dependsOn: ["origin-wu"], receives: ["s1"] },
-        ],
-        internalEdges: [] as InternalEdge[],
-      }),
-    );
-
-    expect(result.status).toBe("parsed");
+  it("requires non-empty unique target sets or a reasoned drop", () => {
+    expect(
+      rejection(wellFormed({ incomingEdges: [{ dependent: "consumer", disposition: { kind: "replace", replacementTargets: [] } }] })),
+    ).toMatch(/non-empty|drop/i);
+    expect(
+      rejection(wellFormed({ outgoingEdges: [{ prerequisite: "foundation", disposition: { kind: "drop", reason: "" } }] })),
+    ).toMatch(/reason/i);
+    expect(
+      rejection(wellFormed({ outgoingEdges: [{ prerequisite: "foundation", disposition: { kind: "targets", targets: ["member-a", "member-a"] } }] })),
+    ).toMatch(/duplicate/i);
   });
 
-  it("parses the heterogeneous shape — an existing/atomic home destination", () => {
-    const result = parseCutMap(
-      wellFormed({
-        shape: "heterogeneous-home",
-        entries: [
-          { kind: "new-member", slug: "member-a", workClass: "Heavy", dependsOn: [], receives: ["s1"] },
-          { kind: "existing-home", target: "strategy-work-organization.md", home: "atomic-edit", receives: ["s2"] },
-        ],
-        internalEdges: [] as InternalEdge[],
-      }),
-    );
-
-    expect(result.status).toBe("parsed");
+  it("returns a schema-version-1 upgrade diagnostic", () => {
+    expect(rejection(wellFormed({ schemaVersion: 1 }))).toMatch(/upgrade.*version 2.*sourceAllocations.*incomingEdges.*outgoingEdges/i);
   });
 });

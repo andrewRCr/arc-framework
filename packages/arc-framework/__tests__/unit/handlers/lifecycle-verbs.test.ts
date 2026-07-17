@@ -32,12 +32,16 @@ vi.mock("../../../src/lib/io-context.js", () => ({
     writeFile: vi.fn(),
     mkdir: vi.fn(),
   }),
+  prepareGitRefVerification: vi.fn(),
+  readGitBlobBytes: vi.fn(),
 }));
 
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
   readConfigSettings: async () => ({
     settings: {
       "team.mode": "false",
+      "branch.base": "main",
+      "branch.protection": "partial",
       "worktree.location_template": "../{repo}-{branch}",
       "worktree.post_create": "",
       "worktree.harness_dirs": ".claude,.codex,.gemini,.opencode",
@@ -52,6 +56,15 @@ vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
   resolvePrimaryWorktreePath: async () => "/repos/myrepo",
   resolveWorktreePathsByBranch: async () => new Map<string, string>(),
   runWorktreeRoster: async () => ({ entries: [], warnings: [] }),
+}));
+
+vi.mock("../../../src/lib/git/write-context.js", () => ({
+  resolveWriteContext: async () => ({
+    verdict: "proceed",
+    currentBranch: "main",
+    baseBranch: "main",
+    primaryWorktreePath: "/repo",
+  }),
 }));
 
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
@@ -73,11 +86,13 @@ vi.mock("node:fs/promises", () => ({
   // The cut-map content is fixed per-test via `mockReadFile`; the path argument is
   // not asserted, so the factory doesn't forward it.
   readFile: () => mockReadFile(),
+  lstat: vi.fn(),
   writeFile: vi.fn(),
   mkdir: vi.fn(),
   cp: vi.fn(),
   stat: vi.fn(async () => ({ isDirectory: () => false })),
   readdir: vi.fn(),
+  rename: vi.fn(),
   rm: vi.fn(),
   rmdir: vi.fn(),
 }));
@@ -87,8 +102,20 @@ vi.mock("../../../src/lib/work-unit/decompose-cut-map.js", () => ({
   parseCutMap: (...a: unknown[]) => mockParseCutMap(...a),
 }));
 const mockRunDecompose = vi.fn();
+const mockRunPreparedDecompose = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/decompose.js", () => ({
   runDecompose: (...a: unknown[]) => mockRunDecompose(...a),
+  runPreparedDecompose: (...a: unknown[]) => mockRunPreparedDecompose(...a),
+}));
+const mockPrepareDecompose = vi.fn();
+const mockStagePreparedResult = vi.fn();
+const mockFinalizeDecompose = vi.fn();
+vi.mock("../../../src/lib/work-unit/decompose-retirement-driver.js", () => ({
+  createInRepoDecomposeRetirementDriver: () => ({
+    prepare: (...a: unknown[]) => mockPrepareDecompose(...a),
+    stagePreparedResult: (...a: unknown[]) => mockStagePreparedResult(...a),
+    finalize: (...a: unknown[]) => mockFinalizeDecompose(...a),
+  }),
 }));
 
 const mockRunPromote = vi.fn();
@@ -103,6 +130,12 @@ const mockRunResume = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/park-resume.js", () => ({
   runPark: (...a: unknown[]) => mockRunPark(...a),
   runResume: (...a: unknown[]) => mockRunResume(...a),
+}));
+
+const mockLandParkPlanningTransition = vi.fn();
+vi.mock("../../../src/lib/work-unit/park-planning-landing.js", () => ({
+  createInRepoParkPlanningLandingContext: () => ({ kind: "landing-context" }),
+  landParkPlanningTransition: (...a: unknown[]) => mockLandParkPlanningTransition(...a),
 }));
 
 const mockRunMaterialize = vi.fn();
@@ -195,6 +228,12 @@ beforeEach(() => {
     outcome: { ...okOutcome, from: { phase: "Active", location: "active" } },
     metaPath: ".arc/backlog/planned/foo/meta-foo.md",
   });
+  mockLandParkPlanningTransition.mockResolvedValue({
+    status: "landed",
+    commit: "abc123",
+    receiptPath: ".arc/.internal/retirement-receipts/receipt.json",
+    plannedPaths: [".arc/backlog/planned/foo/meta-foo.md"],
+  });
   mockRunResume.mockResolvedValue({ status: "resumed", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunMaterialize.mockResolvedValue({ status: "materialized", outcome: okOutcome, branch: "feat/foo", inPlace: false });
   mockRunActivate.mockResolvedValue({ status: "activated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
@@ -219,6 +258,24 @@ beforeEach(() => {
       origin: "retired",
       teardown: { slug: "mono", branch: "plan/mono" },
     },
+  });
+  mockRunPreparedDecompose.mockResolvedValue({
+    status: "decomposed",
+    result: {
+      members: [{ slug: "alpha" }, { slug: "beta" }],
+      repointed: [],
+      origin: "retired",
+      teardown: { slug: "mono", branch: "plan/mono" },
+    },
+  });
+  mockPrepareDecompose.mockResolvedValue({
+    status: "prepared",
+    preparation: { locator: { receiptId: `sha256:${"a".repeat(64)}` } },
+  });
+  mockFinalizeDecompose.mockResolvedValue({
+    status: "recorded",
+    receipt: { receiptId: `sha256:${"a".repeat(64)}` },
+    authorityVersion: "finalized-version",
   });
   mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
   mockResolveInFlightBranchSet.mockResolvedValue({
@@ -267,13 +324,28 @@ describe("handleStub", () => {
 });
 
 describe("handleDecompose", () => {
-  it("reads + validates the cut-map and dispatches runDecompose with the parsed cut", async () => {
+  it("prepares before dispatching the prepared decompose mutation", async () => {
     await handleDecompose("mono", { cutMap: "cut.json" });
 
     expect(mockParseCutMap).toHaveBeenCalledTimes(1);
-    expect(mockRunDecompose).toHaveBeenCalledTimes(1);
-    const params = mockRunDecompose.mock.calls[0]?.[1];
+    expect(mockPrepareDecompose).toHaveBeenCalledTimes(1);
+    expect(mockRunPreparedDecompose).toHaveBeenCalledTimes(1);
+    expect(mockStagePreparedResult).toHaveBeenCalledTimes(1);
+    expect(mockPrepareDecompose.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRunPreparedDecompose.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
+    const params = mockRunPreparedDecompose.mock.calls[0]?.[1];
     expect(params).toMatchObject({ cut: { origin: { slug: "mono" } } });
+  });
+
+  it("finalizes one canonical receipt without rereading the scratch cut-map", async () => {
+    const receiptId = `sha256:${"a".repeat(64)}`;
+    await handleDecompose("mono", { finalize: receiptId });
+
+    expect(mockReadFile).not.toHaveBeenCalled();
+    expect(mockPrepareDecompose).not.toHaveBeenCalled();
+    expect(mockFinalizeDecompose).toHaveBeenCalledWith("mono", receiptId);
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
   });
 
   it("refuses a malformed cut-map before any mutation", async () => {
@@ -281,7 +353,7 @@ describe("handleDecompose", () => {
 
     await handleDecompose("mono", { cutMap: "cut.json" });
 
-    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
@@ -292,14 +364,14 @@ describe("handleDecompose", () => {
     await handleDecompose("mono", { cutMap: "missing.json" });
 
     expect(mockParseCutMap).not.toHaveBeenCalled();
-    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("refuses when the cut-map origin disagrees with the `<origin>` argument", async () => {
     await handleDecompose("other", { cutMap: "cut.json" });
 
-    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
@@ -308,14 +380,14 @@ describe("handleDecompose", () => {
     await handleDecompose("mono", {});
 
     expect(mockReadFile).not.toHaveBeenCalled();
-    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 
   it("refuses without an origin argument", async () => {
     await handleDecompose(undefined, { cutMap: "cut.json" });
 
-    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockRunPreparedDecompose).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });
@@ -351,6 +423,14 @@ describe("handlePark", () => {
       worktreePath: "/repo",
       currentLocus: "/repo",
     });
+  });
+
+  it("routes --land through the partial-protection landing arm without re-running park", async () => {
+    await handlePark("foo", { land: "abc123" });
+
+    expect(mockLandParkPlanningTransition).toHaveBeenCalledTimes(1);
+    expect(mockRunPark).not.toHaveBeenCalled();
+    expect(mockNote).toHaveBeenCalledWith(expect.stringContaining("abc123"), "Park result landed");
   });
 });
 

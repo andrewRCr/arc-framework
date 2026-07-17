@@ -16,6 +16,13 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import { atomicWriteJson } from "../fs.js";
+import { isCanonicalDigest } from "../canonical/canonical-json.js";
+import type {
+  HuskAuthorization,
+  PersistedRetirementEvidence,
+  RemoteRefProof,
+  RetirementEvidenceRef,
+} from "../work-unit/retirement-authority.js";
 import type { GitExec } from "./exec.js";
 
 /** Logical target a worktree was created for or terminally husked from. */
@@ -34,7 +41,27 @@ export interface WorktreeHuskStamp {
   subject: WorktreeSubject;
   /** Exact branch projection occupied immediately before detach. */
   branch: string;
+  /** Persisted authorization; optional only for legacy read compatibility. */
+  authorization?: string;
+  /** Exact remote disposition; explicit `null` is a present current value. */
+  remoteRef?: RemoteRefProof;
+  /** Keyed retirement evidence; optional only for legacy read compatibility. */
+  evidence?: PersistedRetirementEvidence;
 }
+
+/** Trust classification for a structurally valid husk stamp. */
+export type DecodedWorktreeHuskStamp =
+  | { kind: "legacy"; authorization: "merged-preserved" }
+  | {
+      kind: "current";
+      authorization: HuskAuthorization;
+      remoteRef: RemoteRefProof;
+      evidence: RetirementEvidenceRef;
+    }
+  | {
+      kind: "manual-only";
+      reason: "mixed-presence" | "unknown-authorization" | "unknown-evidence" | "evidence-mismatch";
+    };
 
 interface WorktreeMarkerBase {
   /** ARC-created provenance; written `true` — the marker's presence is the signal. */
@@ -166,7 +193,82 @@ function isWorktreeHuskStamp(value: unknown): value is WorktreeHuskStamp {
   ) {
     return false;
   }
+  if (husk.authorization !== undefined && typeof husk.authorization !== "string") return false;
+  if (Object.prototype.hasOwnProperty.call(husk, "remoteRef") && !isRemoteRefProof(husk.remoteRef)) return false;
+  if (husk.evidence !== undefined && !isPersistedRetirementEvidence(husk.evidence)) return false;
   return husk.subject.kind !== "branch" || husk.subject.ref === husk.branch;
+}
+
+/** Decode authorization-bearing fields without granting authority to partial or future shapes. */
+export function decodeWorktreeHuskStamp(stamp: WorktreeHuskStamp): DecodedWorktreeHuskStamp {
+  const presence = [
+    stamp.authorization !== undefined,
+    Object.prototype.hasOwnProperty.call(stamp, "remoteRef"),
+    stamp.evidence !== undefined,
+  ];
+  if (presence.every((present) => !present)) return { kind: "legacy", authorization: "merged-preserved" };
+  if (!presence.every(Boolean)) return { kind: "manual-only", reason: "mixed-presence" };
+  if (!isHuskAuthorization(stamp.authorization)) {
+    return { kind: "manual-only", reason: "unknown-authorization" };
+  }
+  const evidence = decodeKnownEvidence(stamp.evidence);
+  if (evidence === null) return { kind: "manual-only", reason: "unknown-evidence" };
+  if (!huskEvidenceMatchesAuthorization(stamp.authorization, evidence)) {
+    return { kind: "manual-only", reason: "evidence-mismatch" };
+  }
+  return { kind: "current", authorization: stamp.authorization, remoteRef: stamp.remoteRef ?? null, evidence };
+}
+
+function huskEvidenceMatchesAuthorization(
+  authorization: HuskAuthorization,
+  evidence: RetirementEvidenceRef,
+): boolean {
+  if (evidence.kind === "shipped") return authorization === "merged-preserved";
+  if (evidence.transition === "park-planning") {
+    return authorization === "planning-relocated" && evidence.expectedLifecycle === "planned";
+  }
+  return authorization === "discard-confirmed"
+    && evidence.expectedLifecycle === "nonexistent";
+}
+
+function isHuskAuthorization(value: unknown): value is HuskAuthorization {
+  return value === "merged-preserved" || value === "discard-confirmed" || value === "planning-relocated";
+}
+
+function isRemoteRefProof(value: unknown): value is RemoteRefProof {
+  if (value === null) return true;
+  if (typeof value !== "object") return false;
+  const proof = value as Record<string, unknown>;
+  return typeof proof.remote === "string" && proof.remote !== ""
+    && typeof proof.oid === "string" && proof.oid !== ""
+    && (proof.disposition === "delete" || proof.disposition === "retain");
+}
+
+function isPersistedRetirementEvidence(value: unknown): value is PersistedRetirementEvidence {
+  if (typeof value !== "object" || value === null) return false;
+  return typeof (value as Record<string, unknown>).kind === "string";
+}
+
+function decodeKnownEvidence(value: PersistedRetirementEvidence | undefined): RetirementEvidenceRef | null {
+  if (value?.kind === "shipped") {
+    const candidate = value as Record<string, unknown>;
+    return candidate.expectedLifecycle === "completed"
+      && isCanonicalDigest(candidate.resultDigest)
+      && typeof candidate.baseProofOid === "string"
+      && candidate.baseProofOid !== ""
+      ? value as RetirementEvidenceRef
+      : null;
+  }
+  if (value?.kind === "receipt") {
+    const candidate = value as Record<string, unknown>;
+    return isCanonicalDigest(candidate.receiptId)
+      && (candidate.transition === "abandon" || candidate.transition === "decompose" || candidate.transition === "park-planning")
+      && (candidate.expectedLifecycle === "planned" || candidate.expectedLifecycle === "nonexistent")
+      && isCanonicalDigest(candidate.resultDigest)
+      ? value as RetirementEvidenceRef
+      : null;
+  }
+  return null;
 }
 
 function isWorktreeSubject(value: unknown): value is WorktreeSubject {

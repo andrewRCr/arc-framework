@@ -5,7 +5,7 @@
  * machine's teardown reaps the local branch — every sibling machine keeps a
  * `<type>/<name>` local whose upstream is now gone. The same shape arises from
  * `activate-work-unit`'s local-only `plan/<name> → <type>/<name>` rename.
- * Anchored at the primary worktree, this sweep enumerates every gone-upstream
+ * From primary or identity-known linked sessions, this sweep enumerates every gone-upstream
  * type-prefixed local branch and resolves, for each, the safest cleanup offer
  * the orientation can render:
  *
@@ -22,9 +22,8 @@
  * resume / close-replay cleanup, and a bare `git branch -d` there would orphan
  * the record.
  *
- * Outside the primary worktree it returns nothing, so the resume path never
- * pays for the scan. Branch hygiene only: the sweep never infers work-unit
- * state from a branch's presence, and never offers `-D`.
+ * The scan is local and network-free. Branch hygiene only: the sweep never
+ * infers work-unit state from a branch's presence, and never offers `-D`.
  *
  * @module
  */
@@ -65,7 +64,7 @@ export interface OrphanBranchSweepResult {
 }
 
 export interface RunOrphanBranchSweepOptions {
-  /** Physical-worktree identity — the sweep runs only when `primary`. */
+  /** Physical-worktree identity of the calling session. */
   worktreeIdentity: WorktreeIdentity;
   /** Integration base branch short-name (e.g. `main`); the merged check targets `origin/<base>`. */
   baseBranch: string;
@@ -83,9 +82,7 @@ export interface RunOrphanBranchSweepOptions {
  * Run the orphan-branch sweep: enumerate gone-upstream type-prefixed local
  * branches and resolve each one's merged-to-base and shipped-WU verdicts.
  *
- * Outside the primary worktree no git runs and the result is empty — the
- * sweep is a main-worktree-only hygiene check. The shipped-WU index (one
- * `ls-tree` over the remote base) is read only when the scan surfaced
+ * The shipped-WU index (one `ls-tree` over the local remote-tracking base) is read only when the scan surfaced
  * candidates, so the clean path pays a single `for-each-ref`.
  *
  * @param options - Worktree identity, base branch, errand-branch exclusions, and the git executor
@@ -94,10 +91,7 @@ export interface RunOrphanBranchSweepOptions {
 export async function runOrphanBranchSweep(
   options: RunOrphanBranchSweepOptions,
 ): Promise<OrphanBranchSweepResult> {
-  const { worktreeIdentity, baseBranch, errandBranches, exec } = options;
-  if (worktreeIdentity.kind !== "primary") {
-    return { orphans: [] };
-  }
+  const { baseBranch, errandBranches, exec } = options;
   // Without the errand-record index an errand branch is indistinguishable from
   // a WU branch, and a `git branch -d` offer on one would orphan its record —
   // decline the whole advisory rather than risk it.

@@ -16,12 +16,14 @@ import { describe, it, expect } from "vitest";
 import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
 import {
   runDecompose,
+  runPreparedDecompose,
   scaffoldCohortMembers,
   type RunDecomposeContext,
   type ScaffoldCohortMembersContext,
   type ScaffoldCohortMembersParams,
 } from "../../../../src/lib/work-unit/verbs/decompose.js";
 import type { DecomposeParams, NewMemberEntry } from "../../../../src/lib/work-unit/decompose-cut-map.js";
+import type { PreparedDecomposeRetirement } from "../../../../src/lib/work-unit/retirement-authority.js";
 import type {
   ExecuteTransitionContext,
   SideEffectHandler,
@@ -60,10 +62,9 @@ function buildHarness(): Harness {
 function member(slug: string, over: Partial<NewMemberEntry> = {}): NewMemberEntry {
   return {
     kind: "new-member",
+    destinationId: slug,
     slug,
     workClass: "Light",
-    dependsOn: [],
-    receives: ["problem-statement"],
     ...over,
   };
 }
@@ -150,10 +151,9 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     await scaffoldCohortMembers(ctx, {
       cohort: "neo",
       originContext: ORIGIN_CONTEXT,
-      members: [
-        member("alpha", { dependsOn: ["external-x"] }),
-        member("beta"),
-        member("gamma"),
+      members: [member("alpha"), member("beta"), member("gamma")],
+      outgoingEdges: [
+        { prerequisite: "external-x", disposition: { kind: "targets", targets: ["alpha"] } },
       ],
       // beta depends on alpha (delivery order); gamma carries no edge.
       internalEdges: [{ from: "beta", to: "alpha" }],
@@ -174,7 +174,11 @@ describe("scaffoldCohortMembers — batch N-member scaffold", () => {
     await scaffoldCohortMembers(ctx, {
       cohort: "neo",
       originContext: ORIGIN_CONTEXT,
-      members: [member("alpha"), member("beta", { dependsOn: ["alpha", "external-x"] })],
+      members: [member("alpha"), member("beta")],
+      outgoingEdges: [
+        { prerequisite: "alpha", disposition: { kind: "targets", targets: ["beta"] } },
+        { prerequisite: "external-x", disposition: { kind: "targets", targets: ["beta"] } },
+      ],
       internalEdges: [{ from: "beta", to: "alpha" }],
     });
 
@@ -379,24 +383,61 @@ function buildRunHarness(metas: MetaSpec[], removeTree: Record<string, string[]>
 }
 
 function newMember(slug: string, over: Partial<NewMemberEntry> = {}): NewMemberEntry {
-  return { kind: "new-member", slug, workClass: "Light", dependsOn: [], receives: ["problem-statement"], ...over };
+  return { kind: "new-member", destinationId: slug, slug, workClass: "Light", ...over };
 }
 
 /** A symmetric, standalone two-member cut over origin `mono` → cohort `mono`. */
 function symmetricCut(over: Partial<DecomposeParams> = {}): DecomposeParams {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     origin: { slug: "mono", phase: "Planning", location: "active" },
     shape: "symmetric",
     parentPosition: "standalone",
     cohort: "mono",
     entries: [newMember("alpha"), newMember("beta")],
     internalEdges: [],
+    sourceAllocations: [],
+    incomingEdges: [
+      { dependent: "dependent", disposition: { kind: "replace", replacementTargets: ["alpha", "beta"] } },
+    ],
+    outgoingEdges: [],
     ...over,
   };
 }
 
 describe("runDecompose — origin teardown via the reserved edges (Task 3.2)", () => {
+  it("refuses a stale preparation before any mutation leg runs", async () => {
+    const h = buildRunHarness([{ slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" }], {
+      [`${CWD}/.arc/active`]: ["meta-mono.md", "draft-mono.md"],
+    });
+    const cut = symmetricCut();
+    const locator = {
+      receiptId: "sha256:" + "a".repeat(64),
+      preparationId: "sha256:" + "b".repeat(64),
+      scope: {
+        subject: { kind: "work-unit", name: "mono" },
+        transition: "decompose",
+        source: { branch: "plan/mono", head: "c".repeat(40) },
+        resultProjection: { ref: "main", head: "d".repeat(40) },
+      },
+    };
+    const preparation = {
+      locator,
+      record: { locator, allocation: cut },
+      authorityVersion: "prepared-version",
+    } as unknown as PreparedDecomposeRetirement;
+
+    await expect(runPreparedDecompose(h.ctx, {
+      cut,
+      preparation,
+      revalidate: async () => ({ status: "refused", reason: "authority-conflict" }),
+    })).resolves.toEqual({ status: "rejected", reason: "authority-conflict" });
+    expect(h.writes).toEqual([]);
+    expect(h.removed).toEqual([]);
+    expect(h.staged).toEqual([]);
+    expect(h.fired).toEqual([]);
+  });
+
   it("retires a started origin's artifacts but defers branch + worktree teardown out-of-band", async () => {
     const h = buildRunHarness([{ slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" }], {
       [`${CWD}/.arc/active`]: ["meta-mono.md", "draft-mono.md"],
@@ -463,7 +504,10 @@ describe("runDecompose — origin teardown via the reserved edges (Task 3.2)", (
     const cut = symmetricCut({
       shape: "extraction",
       origin: { slug: "mono", phase: "Active", location: "active" },
-      entries: [newMember("alpha"), { kind: "surviving-origin", slug: "mono", disposition: "keep-active" }],
+      entries: [
+        newMember("alpha"),
+        { kind: "surviving-origin", destinationId: "mono", slug: "mono", disposition: "keep-active" },
+      ],
     });
     const result = await runDecompose(h.ctx, { cut });
 
@@ -504,6 +548,32 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
     expect(h.staged).toContain(".arc/active/meta-dependent.md");
   });
 
+  it("applies each declared incoming disposition instead of pointing every dependent at every member", async () => {
+    const h = buildRunHarness([
+      { slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" },
+      { slug: "consumer-a", tier: "active", subdir: "", state: "Active", dependsOn: ["before", "mono"] },
+      { slug: "consumer-b", tier: "active", subdir: "", state: "Active", dependsOn: ["mono", "after"] },
+    ], { [`${CWD}/.arc/active`]: ["meta-mono.md"] });
+
+    const result = await runDecompose(h.ctx, {
+      cut: symmetricCut({
+        incomingEdges: [
+          { dependent: "consumer-a", disposition: { kind: "replace", replacementTargets: ["alpha"] } },
+          { dependent: "consumer-b", disposition: { kind: "drop", reason: "no longer required" } },
+        ],
+      }),
+    });
+
+    expect(result.status).toBe("decomposed");
+    if (result.status !== "decomposed") return;
+    expect(result.result.repointed).toEqual([
+      { dependent: "consumer-a", to: ["alpha"] },
+      { dependent: "consumer-b", to: [] },
+    ]);
+    expect(writeFor(h.writes, "/meta-consumer-a.md").content).toContain("`before`, `alpha`");
+    expect(writeFor(h.writes, "/meta-consumer-b.md").content).toContain("`after`");
+  });
+
   it("regenerates the ROADMAP on a retired shape — carried by the teardown edge", async () => {
     const h = buildRunHarness([{ slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" }], {
       [`${CWD}/.arc/active`]: ["meta-mono.md"],
@@ -521,7 +591,10 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
       cut: symmetricCut({
         shape: "extraction",
         origin: { slug: "mono", phase: "Active", location: "active" },
-        entries: [newMember("alpha"), { kind: "surviving-origin", slug: "mono", disposition: "keep-active" }],
+        entries: [
+          newMember("alpha"),
+          { kind: "surviving-origin", destinationId: "mono", slug: "mono", disposition: "keep-active" },
+        ],
       }),
     });
 
@@ -582,21 +655,26 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
     );
 
     const cut: DecomposeParams = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       origin: { slug: "monolith", phase: "Planning", location: "active" },
       shape: "symmetric",
       parentPosition: "standalone",
       cohort: "lifecycle-machine",
       entries: [
-        newMember("resolver", { workClass: "Heavy", dependsOn: [] }),
-        newMember("transition-core", { workClass: "Heavy", dependsOn: [] }),
-        newMember("closeout", { workClass: "Light", dependsOn: [] }),
+        newMember("resolver", { workClass: "Heavy" }),
+        newMember("transition-core", { workClass: "Heavy" }),
+        newMember("closeout", { workClass: "Light" }),
       ],
       // Authored from the cut's delivery order: core after resolver, closeout last.
       internalEdges: [
         { from: "transition-core", to: "resolver" },
         { from: "closeout", to: "transition-core" },
       ],
+      sourceAllocations: [],
+      incomingEdges: [
+        { dependent: "downstream", disposition: { kind: "replace", replacementTargets: ["resolver", "transition-core", "closeout"] } },
+      ],
+      outgoingEdges: [],
     };
 
     const result = await runDecompose(h.ctx, { cut });

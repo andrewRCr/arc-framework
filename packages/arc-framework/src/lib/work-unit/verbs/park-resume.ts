@@ -42,9 +42,14 @@
 
 import { join } from "node:path";
 
+import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
 import { parseMetaRecord, type MetaFieldName, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import { patchDigest, type PatchOperation } from "../../canonical/content-digest.js";
+import type { ManagedPath } from "../../canonical/managed-path.js";
+import { receiptId } from "../../canonical/receipt-id.js";
 import type { WriteFileFn } from "../../template/files.js";
 import type { LifecyclePosition } from "../lifecycle-state.js";
+import { buildLifecycleIndex } from "../lifecycle-index.js";
 import {
   executeTransition,
   type EncodingLeg,
@@ -54,14 +59,26 @@ import {
 } from "../lifecycle-executor.js";
 import type { SideEffectId } from "../lifecycle-transitions.js";
 import { composePointerRecord } from "../pointer-record.js";
+import {
+  describeTeardownAuthorizationRefusal,
+  type RetirementAuthorityPort,
+  type RetirementAuthorityScope,
+  type RetirementReceipt,
+} from "../retirement-authority.js";
 import { isSlugSafe } from "../slug.js";
 
 /** The flat `active/` tier — where a started WU's artifacts live. */
 const ACTIVE_DIR = ".arc/active";
 
-/** The per-WU parked directory (cwd-relative); `parked` / `planned` both live here. */
-function parkedDir(name: string): string {
-  return `.arc/backlog/planned/${name}`;
+/** The cohort-aware per-WU parked directory (cwd-relative). */
+function parkedDir(name: string, rawCohort: string | null): string {
+  const cohort = rawCohort?.trim() ?? "";
+  if (cohort === "" || cohort === "[none]") return `.arc/backlog/planned/${name}`;
+  const shapeError = validateCohortPath(cohort);
+  if (!isSafeCohortPath(cohort) || shapeError !== null) {
+    throw new Error(`Cannot park \`${name}\`: invalid Cohort path \`${rawCohort ?? ""}\`.`);
+  }
+  return `.arc/backlog/planned/${cohort}/${name}`;
 }
 
 /**
@@ -90,6 +107,32 @@ export interface ParkResumeFs {
 export interface ParkContext {
   executor: ExecuteTransitionContext;
   fs: ParkResumeFs;
+  planningRetirement?: ParkPlanningRetirementContext;
+}
+
+/** Source/result paths captured before a park-at-Planning relocation. */
+export interface ParkPlanningSourceEvidence {
+  scope: RetirementAuthorityScope;
+  artifactDigest: RetirementReceipt["source"]["artifactDigest"];
+  sourceArtifactPaths: readonly ManagedPath[];
+  resultArtifactPaths: readonly ManagedPath[];
+}
+
+/** Retirement seams used only by the park-at-Planning arm. */
+export interface ParkPlanningRetirementContext {
+  authority: Pick<RetirementAuthorityPort, "readSnapshot" | "record">;
+  captureSource(params: {
+    name: string;
+    sourceDir: string;
+    resultDir: string;
+    expectedBranch: string | null;
+  }): Promise<ParkPlanningSourceEvidence>;
+  stageTransition(source: ParkPlanningSourceEvidence): Promise<void>;
+  rollbackTransition(source: ParkPlanningSourceEvidence): Promise<void>;
+  readTransitionPatch(source: ParkPlanningSourceEvidence): Promise<readonly PatchOperation[]>;
+  readResultArtifactDigest(
+    source: ParkPlanningSourceEvidence,
+  ): Promise<RetirementReceipt["source"]["artifactDigest"]>;
 }
 
 /** The judgment + operational inputs a `park` supplies. */
@@ -149,7 +192,14 @@ export type ResumeParams = ResumeSpawnParams | ResumeInPlaceParams;
 /** The outcome of a `park` attempt — a rejection, or the parked meta path (+ pointer-record). */
 export type ParkResult =
   | { status: "rejected"; reason: string }
-  | { status: "parked"; outcome: TransitionOutcome; metaPath: string; pointerRecord?: string };
+  | {
+      status: "parked";
+      outcome: TransitionOutcome;
+      metaPath: string;
+      pointerRecord?: string;
+      receipt?: RetirementReceipt;
+      authorityVersion?: string;
+    };
 
 /** The outcome of a `resume` attempt — a rejection, or the re-attached meta path. */
 export type ResumeResult =
@@ -240,9 +290,16 @@ export async function runPark(ctx: ParkContext, params: ParkParams): Promise<Par
     return { status: "rejected", reason: "withdraw the PR via `reopen` before parking an Integrating WU." };
   }
 
+  let toDir: string;
+  try {
+    toDir = parkedDir(name, sourceRecord.Cohort);
+  } catch (err) {
+    return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
+  }
+
   return sourceRecord.State === "Active"
-    ? parkActive(ctx, name, reason, sourceRecord, worktreePath, currentLocus)
-    : parkPlanning(ctx, name);
+    ? parkActive(ctx, name, reason, sourceRecord, worktreePath, currentLocus, toDir)
+    : parkPlanning(ctx, name, sourceRecord, toDir);
 }
 
 /**
@@ -253,11 +310,152 @@ export async function runPark(ctx: ParkContext, params: ParkParams): Promise<Par
  * in-place, targeted the un-removable primary worktree. Routes through the
  * executor (run from the WU's own worktree, where its `active/` resolves).
  */
-async function parkPlanning(ctx: ParkContext, name: string): Promise<ParkResult> {
-  const toDir = parkedDir(name);
-  const outcome = await executeTransition(ctx.executor, { verb: "park", slug: name, inputs: { toDir } });
+async function parkPlanning(
+  ctx: ParkContext,
+  name: string,
+  sourceRecord: Record<MetaFieldName, string | null>,
+  toDir: string,
+): Promise<ParkResult> {
+  const retirement = ctx.planningRetirement;
+  if (retirement === undefined) {
+    return { status: "rejected", reason: "park-at-Planning retirement authority is not wired." };
+  }
+  let source: ParkPlanningSourceEvidence;
+  try {
+    source = await retirement.captureSource({
+      name,
+      sourceDir: ACTIVE_DIR,
+      resultDir: toDir,
+      expectedBranch: sourceRecord.Branch,
+    });
+  } catch (err) {
+    return {
+      status: "rejected",
+      reason: err instanceof Error ? err.message : "Cannot capture park retirement evidence.",
+    };
+  }
+  const snapshot = await retirement.authority.readSnapshot(source.scope);
+  if (snapshot.status === "refused") {
+    return {
+      status: "rejected",
+      reason: `Cannot record park evidence: ${describeTeardownAuthorizationRefusal(snapshot.reason)}.`,
+    };
+  }
+  if (snapshot.snapshot.recordState !== "absent") {
+    return { status: "rejected", reason: "Cannot record park evidence: retirement authority already exists." };
+  }
+
+  const workspaceHandler = ctx.executor.sideEffects?.["user-workspace"];
+  const deferredWorkspace: Array<() => Promise<string | undefined>> = [];
+  const transitionExecutor = workspaceHandler === undefined
+    ? ctx.executor
+    : {
+        ...ctx.executor,
+        sideEffects: {
+          ...ctx.executor.sideEffects,
+          "user-workspace": (effectCtx: Parameters<typeof workspaceHandler>[0]) => {
+            deferredWorkspace.push(async () => await workspaceHandler(effectCtx));
+            return Promise.resolve(undefined);
+          },
+        },
+      };
+  const outcome = await executeTransition(transitionExecutor, { verb: "park", slug: name, inputs: { toDir } });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-  return { status: "parked", outcome, metaPath: `${toDir}/meta-${name}.md` };
+
+  let transitionPatch: readonly PatchOperation[];
+  let plannedArtifactDigest: RetirementReceipt["source"]["artifactDigest"];
+  try {
+    await retirement.stageTransition(source);
+    [transitionPatch, plannedArtifactDigest] = await Promise.all([
+      retirement.readTransitionPatch(source),
+      retirement.readResultArtifactDigest(source),
+    ]);
+  } catch (err) {
+    const rollbackFailure = await rollbackParkPlanning(ctx, retirement, source, outcome, name);
+    return {
+      status: "rejected",
+      reason:
+        "The park transition was rolled back because its retirement receipt could not be prepared: "
+        + `${err instanceof Error ? err.message : "retirement authority is unavailable"}.`
+        + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
+    };
+  }
+  const receipt: RetirementReceipt = {
+    schemaVersion: 1,
+    receiptId: receiptId({
+      schemaVersion: 1,
+      subject: source.scope.subject,
+      transition: "park-planning",
+      sourceBranch: source.scope.source.branch,
+      sourceHead: source.scope.source.head,
+    }),
+    subject: source.scope.subject,
+    transition: "park-planning",
+    source: {
+      branch: source.scope.source.branch,
+      head: source.scope.source.head,
+      artifactDigest: source.artifactDigest,
+    },
+    transitionPatchDigest: patchDigest(transitionPatch),
+    retiringProjection: { kind: "direct-transition" },
+    authorization: "planning-relocated",
+    result: { kind: "relocate", plannedArtifactDigest },
+  };
+  const recorded = await retirement.authority.record(receipt, snapshot.snapshot.authorityVersion);
+  if (recorded.status === "refused") {
+    const rollbackFailure = await rollbackParkPlanning(ctx, retirement, source, outcome, name);
+    return {
+      status: "rejected",
+      reason:
+        "The park transition was rolled back because its retirement receipt could not be recorded: "
+        + `${describeTeardownAuthorizationRefusal(recorded.reason)}.`
+        + (recorded.diagnostic === undefined ? "" : ` ${recorded.diagnostic}`)
+        + (rollbackFailure === null ? "" : ` Rollback was incomplete: ${rollbackFailure}.`),
+    };
+  }
+  const advisories = [...outcome.advisories];
+  for (const runWorkspaceCleanup of deferredWorkspace) {
+    try {
+      const advisory = await runWorkspaceCleanup();
+      if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+    } catch (err) {
+      advisories.push(
+        `Park evidence was recorded, but the user workspace could not be closed: ${err instanceof Error ? err.message : String(err)}.`,
+      );
+    }
+  }
+  const completedOutcome = advisories.length === outcome.advisories.length
+    ? outcome
+    : { ...outcome, advisories };
+  return {
+    status: "parked",
+    outcome: completedOutcome,
+    metaPath: `${toDir}/meta-${name}.md`,
+    receipt,
+    authorityVersion: recorded.authorityVersion,
+  };
+}
+
+async function rollbackParkPlanning(
+  ctx: ParkContext,
+  retirement: ParkPlanningRetirementContext,
+  source: ParkPlanningSourceEvidence,
+  outcome: Extract<TransitionOutcome, { status: "ok" }>,
+  name: string,
+): Promise<string | null> {
+  try {
+    await retirement.rollbackTransition(source);
+    await ctx.executor.sideEffects?.["reconcile-status-user"]?.({
+      cwd: ctx.executor.cwd,
+      slug: name,
+      from: outcome.to,
+      to: outcome.from,
+      inputs: {},
+    });
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
+  }
 }
 
 /**
@@ -277,6 +475,7 @@ async function parkActive(
   sourceRecord: Record<MetaFieldName, string | null>,
   worktreePath: string,
   currentLocus: string,
+  toDir: string,
 ): Promise<ParkResult> {
   // An Active WU must carry its preserved branch: `resume` hard-rejects a
   // pointer with `Branch: [none]`, so parking one would be unresumable. Reject
@@ -297,7 +496,6 @@ async function parkActive(
     return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
   }
 
-  const toDir = parkedDir(name);
   const metaPath = `${toDir}/meta-${name}.md`;
   const pointerRecord = composePointerRecord({
     name,
@@ -387,8 +585,13 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     };
   }
 
-  const parkedSubdir = parkedDir(name);
-  const sourceMetaPath = `${parkedSubdir}/meta-${name}.md`;
+  const index = await buildLifecycleIndex({ cwd: ctx.executor.cwd, fs: ctx.executor.indexFs });
+  const entry = index.get(name);
+  if (entry === undefined || entry.location !== "planned") {
+    return { status: "rejected", reason: `\`${name}\` is not a parked WU — nothing to resume.` };
+  }
+  const sourceMetaPath = entry.path;
+  const parkedSubdir = sourceMetaPath.slice(0, sourceMetaPath.lastIndexOf("/"));
   let record: Record<MetaFieldName, string | null>;
   try {
     record = parseMetaRecord(await ctx.executor.indexFs.readFile(join(ctx.executor.cwd, sourceMetaPath)));

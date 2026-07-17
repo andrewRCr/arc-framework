@@ -22,6 +22,139 @@ export const execFileAsync = promisify(execFile);
 
 const MAX_GIT_STDOUT_BYTES = 64 * 1024 * 1024;
 
+/** Read one exact Git tree/index blob as bytes; `null` means the object path is absent. */
+export async function readGitBlobBytes(
+  cwd: string,
+  ref: string | null,
+  path: string,
+): Promise<Uint8Array | null> {
+  const options = {
+    cwd,
+    env: environmentForGitCwd(cwd),
+    maxBuffer: MAX_GIT_STDOUT_BYTES,
+  };
+  let oid: string;
+  if (ref === null) {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["ls-files", "--stage", "-z", "--", `:(literal)${path}`],
+      { ...options, encoding: "utf8" },
+    );
+    if (stdout === "") return null;
+    const entries = stdout.split("\0").filter(Boolean);
+    const match = entries.length === 1
+      ? /^\d+ ([0-9a-f]{40,64}) 0\t/u.exec(entries[0] ?? "")
+      : null;
+    if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact index blob for ${path}.`);
+    oid = match[1];
+  } else {
+    const { stdout } = await execFileAsync(
+      "git",
+      ["ls-tree", "-z", "--format=%(objecttype) %(objectname)", ref, "--", `:(literal)${path}`],
+      { ...options, encoding: "utf8" },
+    );
+    if (stdout === "") return null;
+    const entries = stdout.split("\0").filter(Boolean);
+    const match = entries.length === 1 ? /^blob ([0-9a-f]{40,64})$/u.exec(entries[0] ?? "") : null;
+    if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact tree blob for ${ref}:${path}.`);
+    oid = match[1];
+  }
+  const { stdout } = await execFileAsync(
+    "git",
+    ["cat-file", "blob", oid],
+    { ...options, encoding: "buffer" },
+  );
+  return new Uint8Array(stdout);
+}
+
+/** Prepared verification-only ref transaction held until the caller releases it. */
+export interface GitRefVerificationLease {
+  release(): Promise<void>;
+}
+
+/**
+ * Verify and lock one exact ref value without changing it.
+ *
+ * `git update-ref --stdin` holds the ref lock after `prepare` and releases it
+ * only when the verification-only transaction is aborted. Callers can keep
+ * the lease across a separate atomic installation without a ref-movement
+ * window.
+ *
+ * @param cwd - Repository worktree used to resolve and lock the ref
+ * @param ref - Full ref name to verify
+ * @param expectedOid - Exact object ID the ref must retain
+ * @returns A prepared verification lease whose release aborts the transaction
+ */
+export async function prepareGitRefVerification(
+  cwd: string,
+  ref: string,
+  expectedOid: string,
+): Promise<GitRefVerificationLease> {
+  if (/[\0\r\n]/u.test(ref) || !/^[0-9a-f]{40,64}$/u.test(expectedOid)) {
+    throw new Error("Cannot prepare an invalid Git ref verification.");
+  }
+  const proc = spawn("git", ["update-ref", "--stdin"], {
+    cwd,
+    env: environmentForGitCwd(cwd),
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  let prepared = false;
+  let released = false;
+  let prepareResolve: (() => void) | undefined;
+  let prepareReject: ((error: Error) => void) | undefined;
+  const preparedResult = new Promise<void>((resolve, reject) => {
+    prepareResolve = resolve;
+    prepareReject = reject;
+  });
+  const closed = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+    proc.on("close", (code, signal) => { resolve({ code, signal }); });
+  });
+  proc.stdout.setEncoding("utf8");
+  proc.stderr.setEncoding("utf8");
+  proc.stdout.on("data", (chunk: string) => {
+    stdout += chunk;
+    if (!prepared && stdout.includes("prepare: ok\n")) {
+      prepared = true;
+      prepareResolve?.();
+    }
+  });
+  proc.stderr.on("data", (chunk: string) => { stderr += chunk; });
+  proc.on("error", (error) => { prepareReject?.(error); });
+  proc.on("close", (code, signal) => {
+    if (!prepared) {
+      prepareReject?.(new Error(
+        `Git ref verification could not be prepared (${code ?? signal ?? "unknown"}): ${stderr.trim()}`,
+      ));
+    }
+  });
+  proc.stdin.on("error", (error) => { prepareReject?.(error); });
+  proc.stdin.write(`start\nverify ${ref} ${expectedOid}\nprepare\n`);
+
+  try {
+    await preparedResult;
+  } catch (error) {
+    if (proc.exitCode === null && proc.signalCode === null) proc.stdin.end("abort\n");
+    await closed;
+    throw error;
+  }
+
+  return {
+    release: async () => {
+      if (released) return;
+      released = true;
+      proc.stdin.end("abort\n");
+      const result = await closed;
+      if (result.code !== 0 || !stdout.includes("abort: ok\n")) {
+        throw new Error(
+          `Git ref verification lock could not be released (${result.code ?? result.signal ?? "unknown"}): ${stderr.trim()}`,
+        );
+      }
+    },
+  };
+}
+
 const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
   "GIT_ALTERNATE_OBJECT_DIRECTORIES",
   "GIT_CONFIG",
@@ -58,9 +191,13 @@ export function environmentForGitCwd(cwd: string | undefined): NodeJS.ProcessEnv
 
 /** Real git executor wrapping child_process.execFile. */
 export const gitExec: GitExec = async (cmd, args, options) => {
+  const { indexFile, ...execOptions } = options ?? {};
+  const environment = environmentForGitCwd(execOptions.cwd);
   const { stdout, stderr } = await execFileAsync(cmd, args, {
-    ...options,
-    env: environmentForGitCwd(options?.cwd),
+    ...execOptions,
+    env: indexFile === undefined
+      ? environment
+      : { ...(environment ?? process.env), GIT_INDEX_FILE: indexFile },
     maxBuffer: MAX_GIT_STDOUT_BYTES,
   });
   return { stdout: stdout.trimEnd(), stderr };

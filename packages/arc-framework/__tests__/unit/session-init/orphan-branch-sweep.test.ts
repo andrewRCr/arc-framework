@@ -142,10 +142,8 @@ describe("runOrphanBranchSweep", () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
-  it("does not run outside the primary worktree", async () => {
-    const exec: GitExec = vi.fn(async () => {
-      throw new Error("git should not be invoked outside the primary worktree");
-    });
+  it("runs the network-free orphan scan from a linked worktree", async () => {
+    const exec = vi.fn(buildExec({}));
 
     const result = await runOrphanBranchSweep({
       worktreeIdentity: { kind: "linked", path: "/wt/feature" },
@@ -155,7 +153,7 @@ describe("runOrphanBranchSweep", () => {
     });
 
     expect(result.orphans).toEqual([]);
-    expect(exec).not.toHaveBeenCalled();
+    expect(exec).toHaveBeenCalledTimes(1);
   });
 
   it("skips the shipped-index read when no orphan survives the scan", async () => {
