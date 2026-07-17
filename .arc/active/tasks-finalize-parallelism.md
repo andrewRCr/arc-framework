@@ -875,21 +875,16 @@ the waves run rather than authored up front.
 > design; the incompleteness is intentional. Remove on close — `_Purpose:_` keeps the emergent-population fact
 > legible. _Prototype marker (FP); codified by `task-list-conventions`._
 
-### `[ ]` **7.1 [BLOCKING] Move identity-global user-surface migration out of the path resolver**
+### `[x]` **7.1 [BLOCKING] Move identity-global user-surface migration out of the path resolver**
 
 - _Goal:_ `resolveUserSurfaceResolver` resolves paths only — it neither performs linked-worktree migration writes
   nor throws on a blocked migration, so routine read-only command paths (`arc user add`, `inbox-remove`, `status`,
   `recover`, plus executor-context and user-view assembly) can't fail on an unrelated divergent flat file.
   Migration relocates to an explicit opt-in flow (command layer or a dedicated reconcile step); if it must stay
   co-located, resolution degrades to advisory rather than throwing.
-- _Blocking:_ MUST resolve before FP integration / GA — do not let this ship unfixed. The same issue rides on
-  `main` after the Phase 2.I forward-port (the port is byte-faithful), so its fix reaches `main` at FP's own
-  integration. Latent, not a current-work blocker: throws only on a linked worktree with an unmergeable divergent
-  flat file.
-- _Files:_ `src/lib/user-surfaces.ts` (`resolveUserSurfaceResolver` ~90-113 — the
-  `reconcileLinkedIdentityGlobalUserSurfaces({ signpost: true })` call and the `blocked` → `throw`) and its call
-  sites.
-- _Surfaced by:_ CodeRabbit review of the Phase 2.I forward-port (PR #196), 2026-07-05.
+- _Outcome:_ `resolveUserSurfaceResolver` now performs topology-only path resolution. Legacy linked copies remain
+  untouched until the explicit worktree reconciliation/teardown flows, so routine resolver consumers cannot write
+  or reject on migration state; the unit regression proves canonical routing without signposting or merge-up.
 
 ### `[ ]` **7.2 Key marker self-invalidation on content fulfillment, not export-commit reachability**
 

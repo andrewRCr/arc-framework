@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ExecResult, GitExec } from "../../src/lib/git/exec.js";
-import { isSignpostStub } from "../../src/lib/user-surface-migration.js";
 import {
   createUserSurfaceResolver,
   resolveUserSurfaceResolver,
@@ -104,7 +103,7 @@ describe("resolveUserSurfaceResolver", () => {
   });
 });
 
-describe("resolveUserSurfaceResolver signposting", () => {
+describe("resolveUserSurfaceResolver purity", () => {
   let root: string;
 
   beforeEach(async () => {
@@ -115,7 +114,7 @@ describe("resolveUserSurfaceResolver signposting", () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it("retires a linked worktree's stale durable copy to a signpost on resolver entry", async () => {
+  it("resolves the canonical root without migrating a linked worktree's stale durable copy", async () => {
     const primary = join(root, "primary");
     const linked = join(root, "linked");
     const primaryUserDir = join(primary, ".arc", "user", "andrew");
@@ -130,11 +129,9 @@ describe("resolveUserSurfaceResolver signposting", () => {
       exec: execReturningWorktrees(primary, linked),
     });
 
-    // Resolver routes identity-global reads to the primary root...
     expect(resolver.identityGlobalRoot).toBe(primaryUserDir);
-    // ...the content was merged up...
-    await expect(readFile(join(primaryUserDir, "WORKING-MEMORY.md"), "utf8")).resolves.toBe("linked memory\n");
-    // ...and the linked copy is now a signpost, not stale content.
-    expect(isSignpostStub(await readFile(join(linkedUserDir, "WORKING-MEMORY.md"), "utf8"))).toBe(true);
+    await expect(readFile(join(linkedUserDir, "WORKING-MEMORY.md"), "utf8")).resolves.toBe("linked memory\n");
+    await expect(readFile(join(primaryUserDir, "WORKING-MEMORY.md"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
   });
 });
