@@ -615,7 +615,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await git(worktree!, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("plan/mono");
   });
 
-  it("arc abandon → commit → teardown --force switches the primary to base (in-place)", async () => {
+  it("arc abandon → commit → teardown --force preserves a retained primary projection", async () => {
     await scaffoldStartedWu(repo, "mono", "in-place");
 
     const abandon = await runArc(["abandon", "mono", "--yes"], repo);
@@ -625,10 +625,10 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     const teardown = await runArc(["teardown", "mono", "--force"], repo);
 
     expect(teardown.exitCode).toBe(0);
-    // The primary is switched to base (never removed). The base projection still
-    // declares the retiring branch, so exact authority leaves that ref intact.
+    // The base projection still declares the retiring branch, so exact authority
+    // leaves both that ref and its registered primary projection intact for retry.
     expect(await pathExists(repo)).toBe(true);
-    expect(await git(repo, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("main");
+    expect(await git(repo, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("plan/mono");
     expect(await branchExists(repo, "plan/mono")).toBe(true);
   });
 
