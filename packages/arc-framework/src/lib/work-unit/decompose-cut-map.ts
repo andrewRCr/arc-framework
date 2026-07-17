@@ -488,7 +488,12 @@ export function parseCutMap(input: unknown): CutMapParseResult {
 
   let cohort: string | undefined;
   if (input.cohort !== undefined) {
-    if (!isNonEmptyString(input.cohort) || !isSafeCohortPath(input.cohort) || validateCohortPath(input.cohort) !== null) {
+    if (
+      !isNonEmptyString(input.cohort)
+      || input.cohort.trim() === "[none]"
+      || !isSafeCohortPath(input.cohort)
+      || validateCohortPath(input.cohort) !== null
+    ) {
       return { status: "rejected", reason: "cohort must be a safe cohort path." };
     }
     cohort = input.cohort;

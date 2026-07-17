@@ -190,6 +190,7 @@ describe("parseCutMap", () => {
 
   it("requires cohort placement on minted positions and omission at the nesting cap", () => {
     expect(rejection(wellFormed({ cohort: undefined }))).toMatch(/requires.*cohort/i);
+    expect(rejection(wellFormed({ cohort: "[none]" }))).toMatch(/safe cohort path/i);
     expect(rejection(wellFormed({ parentPosition: "at-cap" }))).toMatch(/at-cap.*omit/i);
     expect(parsed(wellFormed({ parentPosition: "at-cap", cohort: undefined })).cohort).toBeUndefined();
   });
