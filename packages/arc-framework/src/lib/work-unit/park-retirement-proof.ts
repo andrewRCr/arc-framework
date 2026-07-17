@@ -8,6 +8,8 @@
 
 import { posix } from "node:path";
 
+import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
+import { parseMetaRecord } from "../active/meta-reader.js";
 import { canonicalize } from "../canonical/canonical-json.js";
 import { contentDigest, type ArtifactSetEntry } from "../canonical/content-digest.js";
 import type { ManagedPath } from "../canonical/managed-path.js";
@@ -122,8 +124,33 @@ function validateArtifactGroup(
   name: string,
   artifacts: readonly ParkRetirementArtifact[],
 ): ValidArtifactGroup | null {
-  const dir = `.arc/backlog/planned/${name}`;
   const matcher = artifactMatcher(name);
+  const metaName = `meta-${name}.md`;
+  const metas = artifacts.filter((artifact) => posix.basename(artifact.path) === metaName);
+  const meta = metas[0];
+  if (metas.length !== 1 || meta === undefined) return null;
+  const dir = posix.dirname(meta.path);
+  const plannedRoot = ".arc/backlog/planned";
+  const flatDir = `${plannedRoot}/${name}`;
+  let pathCohort: string | null = null;
+  if (dir !== flatDir) {
+    const suffix = `/${name}`;
+    if (!dir.startsWith(`${plannedRoot}/`) || !dir.endsWith(suffix)) return null;
+    pathCohort = dir.slice(plannedRoot.length + 1, -suffix.length);
+    if (!isSafeCohortPath(pathCohort) || validateCohortPath(pathCohort) !== null) return null;
+  }
+  let declaredCohort: string | null;
+  try {
+    declaredCohort = parseMetaRecord(new TextDecoder("utf-8", { fatal: true }).decode(meta.bytes)).Cohort;
+  } catch {
+    return null;
+  }
+  const normalizedCohort = declaredCohort?.trim() ?? "";
+  if (pathCohort === null) {
+    if (normalizedCohort !== "" && normalizedCohort !== "[none]") return null;
+  } else if (normalizedCohort !== pathCohort) {
+    return null;
+  }
   const byPath = new Map<ManagedPath, Uint8Array>();
   for (const artifact of artifacts) {
     if (
@@ -133,7 +160,7 @@ function validateArtifactGroup(
     ) return null;
     byPath.set(artifact.path, artifact.bytes);
   }
-  if (!byPath.has(`${dir}/meta-${name}.md` as ManagedPath)) return null;
+  if (!byPath.has(`${dir}/${metaName}` as ManagedPath)) return null;
   return {
     byPath,
     inventory: [...byPath].map(([path, bytes]) => ({

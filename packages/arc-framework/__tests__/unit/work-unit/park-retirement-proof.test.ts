@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 import { canonicalize } from "../../../src/lib/canonical/canonical-json.js";
 import { contentDigest } from "../../../src/lib/canonical/content-digest.js";
 import { validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
@@ -142,6 +143,67 @@ describe("validateParkRetirementProof", () => {
     );
 
     expect(result).toBe("conservation-unproven");
+  });
+
+  it.each(["core", "core/sub"])("accepts a conserved park result in cohort %s", async (cohort) => {
+    const cohortMetaPath = validateManagedPath(`.arc/backlog/planned/${cohort}/sample/meta-sample.md`);
+    const cohortDraftPath = validateManagedPath(`.arc/backlog/planned/${cohort}/sample/draft-sample.md`);
+    const cohortMetaBytes = new TextEncoder().encode(renderMetaFile("sample", { Cohort: cohort }));
+    const candidate = {
+      ...receipt,
+      result: {
+        kind: "relocate" as const,
+        plannedArtifactDigest: artifactGroupDigest([
+          { path: cohortMetaPath, state: "present", contentDigest: contentDigest(cohortMetaBytes) },
+          { path: cohortDraftPath, state: "present", contentDigest: contentDigest(draftBytes) },
+        ]),
+      },
+    };
+    const exactReceipt = new TextEncoder().encode(canonicalize(candidate));
+    const cohortProjection = projection({
+      receiptBytes: exactReceipt,
+      artifacts: [
+        { path: cohortMetaPath, bytes: cohortMetaBytes },
+        { path: cohortDraftPath, bytes: draftBytes },
+      ],
+    });
+
+    await expect(validateParkRetirementProof(
+      { readProjection: async () => cohortProjection },
+      candidate,
+      { retiringHead, resultHead },
+    )).resolves.toBeNull();
+  });
+
+  it("rejects a cohort directory that disagrees with the unique meta record", async () => {
+    const cohortMetaPath = validateManagedPath(".arc/backlog/planned/core/sample/meta-sample.md");
+    const cohortDraftPath = validateManagedPath(".arc/backlog/planned/core/sample/draft-sample.md");
+    const mismatchedMeta = new TextEncoder().encode(renderMetaFile("sample", { Cohort: "other" }));
+    const mismatchedReceipt = {
+      ...receipt,
+      result: {
+        kind: "relocate" as const,
+        plannedArtifactDigest: artifactGroupDigest([
+          { path: cohortMetaPath, state: "present", contentDigest: contentDigest(mismatchedMeta) },
+          { path: cohortDraftPath, state: "present", contentDigest: contentDigest(draftBytes) },
+        ]),
+      },
+    };
+    const exactReceipt = new TextEncoder().encode(canonicalize(mismatchedReceipt));
+
+    await expect(validateParkRetirementProof(
+      {
+        readProjection: async () => projection({
+          receiptBytes: exactReceipt,
+          artifacts: [
+            { path: cohortMetaPath, bytes: mismatchedMeta },
+            { path: cohortDraftPath, bytes: draftBytes },
+          ],
+        }),
+      },
+      mismatchedReceipt,
+      { retiringHead, resultHead },
+    )).resolves.toBe("conservation-unproven");
   });
 });
 
