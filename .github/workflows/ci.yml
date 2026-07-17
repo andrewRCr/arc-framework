@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    # labeled/unlabeled re-run classify so adding/removing `ci-defer-heavy`
+    # updates the merge signal without an artificial push.
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   workflow_dispatch:
   schedule:
     - cron: '17 8 * * 1'
@@ -22,13 +25,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Classify the change on two independent axes:
+  # Classify the change on three independent axes:
   #   lane   - merge policy (auto-merge vs reviewed). PR-only.
   #   weight - CI cost (light vs heavy), resolved by scripts/classify-change.sh:
   #            heavy when the change touches the canonical code surface and that
   #            exact code tree has not already passed the heavy suite; light for a
   #            docs-only change or an already-verified tree. A light run skips the
   #            code checks, the integration/e2e suite, and the portability matrix.
+  #   defer  - opt-in heavy-suite skip via PR label `ci-defer-heavy` (review-cycle
+  #            savings). ci-ok fails while deferred so branch protection never
+  #            greens a head that skipped integration/e2e/portability.
   # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet light.
   # ci-ok rolls up CI truth; merge-ok remains a thin compatibility alias.
   classify:
@@ -44,11 +50,36 @@ jobs:
       reason: ${{ steps.c.outputs.reason }}
       duplicate_push: ${{ steps.duplicate.outputs.duplicate_push }}
       portability_target: ${{ steps.c.outputs.portability_target }}
+      defer: ${{ steps.defer.outputs.defer }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           fetch-depth: 0
           persist-credentials: false
+      - id: defer
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          # Expression is false for non-PR events (no labels payload).
+          HAS_DEFER_LABEL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci-defer-heavy') }}
+        run: |
+          defer=false
+          if [ "$EVENT_NAME" = 'pull_request' ] && [ "$HAS_DEFER_LABEL" = 'true' ]; then
+            defer=true
+          fi
+          if [ "$defer" != 'true' ] && [ "$defer" != 'false' ]; then
+            echo "::error::invalid defer output: $defer"
+            exit 1
+          fi
+          echo "defer=$defer" >> "$GITHUB_OUTPUT"
+          if [ "$defer" = 'true' ]; then
+            {
+              echo '### CI heavy-lane defer'
+              echo
+              echo 'Label `ci-defer-heavy` is present: integration / e2e / portability'
+              echo 'legs will skip. **ci-ok will fail** until the label is removed and'
+              echo 'the full suite re-runs (labeled/unlabeled re-triggers this workflow).'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
       - id: duplicate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -273,7 +304,7 @@ jobs:
       contents: read
       actions: read # download-artifact of shared dist
     needs: [classify, setup]
-    if: ${{ !cancelled() && needs.setup.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
+    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -306,7 +337,7 @@ jobs:
       contents: read
       actions: read # download-artifact of shared dist
     needs: [classify, setup]
-    if: ${{ !cancelled() && needs.setup.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
+    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
     strategy:
       fail-fast: false
       matrix:
@@ -349,7 +380,7 @@ jobs:
       contents: read
       actions: read # download-artifact of shared dist
     needs: [classify, setup]
-    if: ${{ !cancelled() && needs.setup.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
+    if: ${{ !cancelled() && needs.setup.result == 'success' && needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
     strategy:
       fail-fast: false
       matrix:
@@ -387,7 +418,7 @@ jobs:
     permissions:
       contents: read
     needs: classify
-    if: ${{ !cancelled() && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.portability_target == 'true') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
+    if: ${{ !cancelled() && needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.portability_target == 'true') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     strategy:
       fail-fast: false
       matrix:
@@ -419,7 +450,15 @@ jobs:
           # Pass the whole needs graph as JSON (job id -> {result, outputs}) so the
           # rollup can name which job failed, not just that one did.
           NEEDS_JSON: ${{ toJSON(needs) }}
+          DEFER: ${{ needs.classify.outputs.defer }}
+          WEIGHT: ${{ needs.classify.outputs.weight }}
         run: |
+          # Opt-in heavy-lane defer must never satisfy branch protection: skip of
+          # integration/e2e/portability would otherwise look like a green rollup.
+          if [ "$DEFER" = 'true' ] && [ "$WEIGHT" != 'light' ]; then
+            echo "::error::CI deferred by label 'ci-defer-heavy' (weight=$WEIGHT) — remove the label so the full suite re-runs before merge"
+            exit 1
+          fi
           # Pass when every needed job succeeded OR was skipped; on failure, name
           # the offending job(s) so a red rollup is diagnosable from this check
           # alone, without opening each needed job's log.
@@ -430,7 +469,7 @@ jobs:
             echo "::error::required job(s) did not succeed: $(printf '%s' "$failed" | paste -sd, -)"
             exit 1
           fi
-          echo "ci-ok ✓ (lane=${{ needs.classify.outputs.lane }} weight=${{ needs.classify.outputs.weight }})"
+          echo "ci-ok ✓ (lane=${{ needs.classify.outputs.lane }} weight=${{ needs.classify.outputs.weight }} defer=${{ needs.classify.outputs.defer }})"
 
   merge-ok:
     name: merge-ok
