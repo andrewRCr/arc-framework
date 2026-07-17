@@ -63,7 +63,12 @@ function context(
   };
 }
 
-function productionHarness(options: { rejectConcurrentIndexReads?: boolean; symlinkParent?: string } = {}): {
+function productionHarness(options: {
+  rejectConcurrentIndexReads?: boolean;
+  symlinkParent?: string;
+  tipAtRefPrepare?: string;
+  removeOwnerAfterRefPrepare?: boolean;
+} = {}): {
   context: ParkPlanningLandingContext;
   calls: Array<{ args: string[]; indexFile?: string }>;
   files: Map<string, Uint8Array>;
@@ -80,6 +85,7 @@ function productionHarness(options: { rejectConcurrentIndexReads?: boolean; syml
   let lockedTree = baseTree;
   let planTip = transition.commit;
   let ownerPresent = true;
+  let sourceLeaseHeld = false;
   let indexReadActive = false;
   const exec: GitExec = async (_cmd, args, execOptions) => {
     const indexRead = ["write-tree", "status", "diff", "ls-files"].includes(args[0] ?? "");
@@ -120,6 +126,13 @@ function productionHarness(options: { rejectConcurrentIndexReads?: boolean; syml
       cwd: "/repo",
       exec,
       readBlob: async () => null,
+      prepareRefVerification: async (_ref, expectedOid) => {
+        if (options.tipAtRefPrepare !== undefined) planTip = options.tipAtRefPrepare;
+        if (planTip !== expectedOid) throw new Error("source ref verification rejected a moved tip");
+        sourceLeaseHeld = true;
+        if (options.removeOwnerAfterRefPrepare === true) ownerPresent = false;
+        return { release: async () => { sourceLeaseHeld = false; } };
+      },
       fs: {
         lstat: async (path) => {
           if (symlinks.has(path)) {
@@ -144,6 +157,7 @@ function productionHarness(options: { rejectConcurrentIndexReads?: boolean; syml
           files.set(path, content);
         },
         rename: async (from, to) => {
+          if (to === indexPath && !sourceLeaseHeld) throw new Error("source ref lease was not held through install");
           const content = files.get(from);
           if (content === undefined) throw missing(from);
           files.set(to, content);
@@ -240,6 +254,28 @@ describe("landParkPlanningTransition", () => {
     expect(harness.files.has("/repo/.arc/backlog/planned/solo/meta-solo.md")).toBe(false);
     expect(harness.files.has("/repo/.git/index.lock")).toBe(false);
     expect(harness.calls.some((call) => call.args[0] === "update-index")).toBe(false);
+  });
+
+  it("rejects a planning-tip advance after the initial recheck and rolls back staged files", async () => {
+    const harness = productionHarness({ tipAtRefPrepare: "e".repeat(40) });
+    const expected = await harness.context.readBase("solo", transition.files);
+
+    const result = await harness.context.stage(transition, expected);
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/moved tip/iu) });
+    expect(harness.files.has("/repo/.arc/backlog/planned/solo/meta-solo.md")).toBe(false);
+    expect(harness.files.has("/repo/.git/index.lock")).toBe(false);
+  });
+
+  it("rechecks owner presence under the prepared source-ref lease and rolls back on refusal", async () => {
+    const harness = productionHarness({ removeOwnerAfterRefPrepare: true });
+    const expected = await harness.context.readBase("solo", transition.files);
+
+    const result = await harness.context.stage(transition, expected);
+
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/no longer owned/iu) });
+    expect(harness.files.has("/repo/.arc/backlog/planned/solo/meta-solo.md")).toBe(false);
+    expect(harness.files.has("/repo/.git/index.lock")).toBe(false);
   });
 
   it("rejects a symlinked landing parent before writing or staging", async () => {

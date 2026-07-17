@@ -46,6 +46,94 @@ export async function readGitBlobBytes(
   return new Uint8Array(stdout);
 }
 
+/** Prepared verification-only ref transaction held until the caller releases it. */
+export interface GitRefVerificationLease {
+  release(): Promise<void>;
+}
+
+/**
+ * Verify and lock one exact ref value without changing it.
+ *
+ * `git update-ref --stdin` holds the ref lock after `prepare` and releases it
+ * only when the verification-only transaction is aborted. Callers can keep
+ * the lease across a separate atomic installation without a ref-movement
+ * window.
+ *
+ * @param cwd - Repository worktree used to resolve and lock the ref
+ * @param ref - Full ref name to verify
+ * @param expectedOid - Exact object ID the ref must retain
+ * @returns A prepared verification lease whose release aborts the transaction
+ */
+export async function prepareGitRefVerification(
+  cwd: string,
+  ref: string,
+  expectedOid: string,
+): Promise<GitRefVerificationLease> {
+  if (/[\0\r\n]/u.test(ref) || !/^[0-9a-f]{40,64}$/u.test(expectedOid)) {
+    throw new Error("Cannot prepare an invalid Git ref verification.");
+  }
+  const proc = spawn("git", ["update-ref", "--stdin"], {
+    cwd,
+    env: environmentForGitCwd(cwd),
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  let prepared = false;
+  let released = false;
+  let prepareResolve: (() => void) | undefined;
+  let prepareReject: ((error: Error) => void) | undefined;
+  const preparedResult = new Promise<void>((resolve, reject) => {
+    prepareResolve = resolve;
+    prepareReject = reject;
+  });
+  const closed = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
+    proc.on("close", (code, signal) => { resolve({ code, signal }); });
+  });
+  proc.stdout.setEncoding("utf8");
+  proc.stderr.setEncoding("utf8");
+  proc.stdout.on("data", (chunk: string) => {
+    stdout += chunk;
+    if (!prepared && stdout.includes("prepare: ok\n")) {
+      prepared = true;
+      prepareResolve?.();
+    }
+  });
+  proc.stderr.on("data", (chunk: string) => { stderr += chunk; });
+  proc.on("error", (error) => { prepareReject?.(error); });
+  proc.on("close", (code, signal) => {
+    if (!prepared) {
+      prepareReject?.(new Error(
+        `Git ref verification could not be prepared (${code ?? signal ?? "unknown"}): ${stderr.trim()}`,
+      ));
+    }
+  });
+  proc.stdin.on("error", (error) => { prepareReject?.(error); });
+  proc.stdin.write(`start\nverify ${ref} ${expectedOid}\nprepare\n`);
+
+  try {
+    await preparedResult;
+  } catch (error) {
+    if (proc.exitCode === null && proc.signalCode === null) proc.stdin.end("abort\n");
+    await closed;
+    throw error;
+  }
+
+  return {
+    release: async () => {
+      if (released) return;
+      released = true;
+      proc.stdin.end("abort\n");
+      const result = await closed;
+      if (result.code !== 0 || !stdout.includes("abort: ok\n")) {
+        throw new Error(
+          `Git ref verification lock could not be released (${result.code ?? result.signal ?? "unknown"}): ${stderr.trim()}`,
+        );
+      }
+    },
+  };
+}
+
 const GIT_REPOSITORY_LOCAL_ENVIRONMENT = new Set<string>([
   "GIT_ALTERNATE_OBJECT_DIRECTORIES",
   "GIT_CONFIG",

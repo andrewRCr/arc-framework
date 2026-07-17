@@ -86,6 +86,7 @@ export interface InRepoParkPlanningLandingDeps {
   cwd: string;
   exec: GitExec;
   readBlob(ref: string | null, path: ManagedPath): Promise<Uint8Array | null>;
+  prepareRefVerification(ref: string, expectedOid: string): Promise<{ release(): Promise<void> }>;
   fs: {
     lstat(path: string): Promise<{ isDirectory(): boolean; isSymbolicLink(): boolean }>;
     mkdir(path: string): Promise<unknown>;
@@ -379,6 +380,7 @@ async function stageExactFiles(
   const created: string[] = [];
   let installed = false;
   let indexLock = "";
+  let sourceLease: { release(): Promise<void> } | null = null;
   try {
     const { stdout } = await deps.exec(
       "git",
@@ -418,6 +420,9 @@ async function stageExactFiles(
       ],
       { cwd: deps.cwd, indexFile: indexLock },
     );
+    sourceLease = await deps.prepareRefVerification(`refs/heads/plan/${name}`, transitionCommit);
+    const finalSourceRefusal = await currentParkSourceRefusal(deps, name, transitionCommit);
+    if (finalSourceRefusal !== null) return { status: "rejected", reason: finalSourceRefusal };
     await deps.fs.rename(indexLock, indexPath);
     installed = true;
     return { status: "staged" };
@@ -427,6 +432,7 @@ async function stageExactFiles(
       reason: `Park landing could not stage its exact result: ${err instanceof Error ? err.message : "write failed"}`,
     };
   } finally {
+    await sourceLease?.release().catch(() => undefined);
     if (!installed) {
       await Promise.all(created.map((path) => deps.fs.rm(path, { force: true }).catch(() => undefined)));
       if (indexLock !== "") await deps.fs.rm(indexLock, { force: true }).catch(() => undefined);

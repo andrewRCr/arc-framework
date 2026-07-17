@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createUserIOContext, gitExec } from "../../src/lib/io-context.js";
+import { createUserIOContext, gitExec, prepareGitRefVerification } from "../../src/lib/io-context.js";
 
 const tempDirs: string[] = [];
 
@@ -70,6 +70,34 @@ describe("gitExec", () => {
     const result = await gitExec(execPath, ["-e", script], { indexFile });
 
     expect(JSON.parse(result.stdout)).toEqual({ sentinel: "preserved", indexFile });
+  });
+
+  it("holds a prepared ref verification lock until release", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-ref-verification-"));
+    tempDirs.push(root);
+    await gitExec("git", ["init"], { cwd: root });
+    await gitExec("git", ["config", "user.email", "test@example.com"], { cwd: root });
+    await gitExec("git", ["config", "user.name", "Test"], { cwd: root });
+    await writeFile(join(root, "seed.txt"), "seed", "utf8");
+    await gitExec("git", ["add", "seed.txt"], { cwd: root });
+    await gitExec("git", ["commit", "-m", "seed"], { cwd: root });
+    const { stdout: first } = await gitExec("git", ["rev-parse", "HEAD"], { cwd: root });
+    await writeFile(join(root, "seed.txt"), "next", "utf8");
+    await gitExec("git", ["commit", "-am", "next"], { cwd: root });
+    const { stdout: second } = await gitExec("git", ["rev-parse", "HEAD"], { cwd: root });
+    const { stdout: ref } = await gitExec("git", ["symbolic-ref", "HEAD"], { cwd: root });
+    await gitExec("git", ["reset", "--hard", first], { cwd: root });
+
+    const lease = await prepareGitRefVerification(root, ref, first);
+    try {
+      await expect(gitExec("git", ["update-ref", ref, second, first], { cwd: root })).rejects.toThrow();
+      await expect(gitExec("git", ["rev-parse", ref], { cwd: root })).resolves.toMatchObject({ stdout: first });
+    } finally {
+      await lease.release();
+    }
+
+    await expect(gitExec("git", ["update-ref", ref, second, first], { cwd: root })).resolves.toBeDefined();
+    await expect(gitExec("git", ["rev-parse", ref], { cwd: root })).resolves.toMatchObject({ stdout: second });
   });
 });
 

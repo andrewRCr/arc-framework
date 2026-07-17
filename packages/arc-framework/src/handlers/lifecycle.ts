@@ -33,7 +33,7 @@ import {
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, type GitExec } from "../lib/git/exec.js";
 import { isCanonicalDigest } from "../lib/canonical/canonical-json.js";
-import { createUserIOContext, readGitBlobBytes } from "../lib/io-context.js";
+import { createUserIOContext, prepareGitRefVerification, readGitBlobBytes } from "../lib/io-context.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import {
   resolvePrimaryWorktreePath,
@@ -636,6 +636,7 @@ export async function handlePark(slug: string | undefined, opts: ParkOptions): P
         cwd: base.cwd,
         exec: base.io.exec,
         readBlob: (ref, path) => readGitBlobBytes(base.cwd, ref, path),
+        prepareRefVerification: (ref, expectedOid) => prepareGitRefVerification(base.cwd, ref, expectedOid),
         fs: {
           lstat,
           mkdir: (path) => mkdir(path),

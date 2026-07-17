@@ -32,6 +32,7 @@ vi.mock("../../../src/lib/io-context.js", () => ({
     writeFile: vi.fn(),
     mkdir: vi.fn(),
   }),
+  prepareGitRefVerification: vi.fn(),
   readGitBlobBytes: vi.fn(),
 }));
 
