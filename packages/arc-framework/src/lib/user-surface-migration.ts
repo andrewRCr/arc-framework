@@ -11,8 +11,9 @@
  */
 
 import { readdir, readFile, rm, writeFile, mkdir } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 
+import { localPathsEqual } from "./local-path-identity.js";
 import { classifyUserSyncPath } from "./user-sync/classifier.js";
 import { mergeCrossWuFile } from "./user-sync/merge.js";
 import { shapeForFile } from "./user-sync/parser.js";
@@ -156,7 +157,7 @@ export async function reconcileLinkedIdentityGlobalUserSurfaces(
   options: ReconcileLinkedIdentityGlobalUserSurfacesOptions,
 ): Promise<LinkedIdentityGlobalUserSurfaceResult> {
   const { worktreePath, primaryWorktreePath, fs, dryRun = false, signpost = false } = options;
-  if (resolve(worktreePath) === resolve(primaryWorktreePath)) {
+  if (await localPathsEqual(worktreePath, primaryWorktreePath)) {
     return { status: "ok", reconciled: [], signposted: [] };
   }
 

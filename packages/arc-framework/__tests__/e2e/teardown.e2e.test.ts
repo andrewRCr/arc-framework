@@ -152,9 +152,10 @@ describe("arc teardown (CLI surface)", () => {
 
     const replay = await runArc(["teardown", "demo"], tmpDir);
     const output = replay.stdout + replay.stderr;
+    const unwrappedOutput = output.replace(/\s*│\n│\s*/gu, "");
 
     expect(replay.exitCode).toBe(0);
-    expect(output).toMatch(/Worktree:\s+.*\/wt/iu);
+    expect(unwrappedOutput).toContain(worktree);
     expect(output).not.toMatch(/physical removal deferred|stale-worktree sweep|Worktree husked/iu);
     expect(await git(tmpDir, ["worktree", "list"])).not.toContain(worktree);
   });

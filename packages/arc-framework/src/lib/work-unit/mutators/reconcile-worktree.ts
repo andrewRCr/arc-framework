@@ -36,7 +36,7 @@
  */
 
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
 import { parseRegisteredHarnessDirs } from "../../git/worktree-harness-dirs.js";
@@ -47,6 +47,7 @@ import {
 } from "../../git/worktree-marker.js";
 import { resolveWorktreeLocation } from "../../git/worktree-location.js";
 import { resolvePrimaryWorktreePath } from "../../git/worktree-roster.js";
+import { localPathContains } from "../../local-path-identity.js";
 import {
   reconcileLinkedIdentityGlobalUserSurfaces,
   type UserSurfaceMigrationDirent,
@@ -181,9 +182,8 @@ const POST_CREATE_UNCONFIGURED_NOTICE =
  * Whether `locus` sits inside (or at) `worktreePath` — the self-teardown test.
  * A non-`..`, non-absolute relative path means `locus` is contained.
  */
-export function isSelfTeardown(worktreePath: string, locus: string): boolean {
-  const rel = relative(resolve(worktreePath), resolve(locus));
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+export function isSelfTeardown(worktreePath: string, locus: string): Promise<boolean> {
+  return localPathContains(worktreePath, locus);
 }
 
 /** Shell invocation for a project-supplied post-create script. */
@@ -238,7 +238,7 @@ export async function reconcileWorktree(
   op: ReconcileWorktreeOp,
 ): Promise<ReconcileWorktreeResult> {
   if (op.mutation === "teardown" && op.huskApproved === true) {
-    if (isSelfTeardown(op.worktreePath, op.currentLocus)) {
+    if (await isSelfTeardown(op.worktreePath, op.currentLocus)) {
       throw new Error(`refusing to remove the current detached worktree: ${op.worktreePath}`);
     }
     await reconcileUserSurfacesForRemoval(ctx, op.worktreePath);
@@ -327,7 +327,7 @@ export async function reconcileWorktree(
   const primary = await reconcileUserSurfacesForRemoval(ctx, worktreePath);
 
   let locusHopped = false;
-  if (isSelfTeardown(worktreePath, currentLocus)) {
+  if (await isSelfTeardown(worktreePath, currentLocus)) {
     ctx.chdir(primary);
     locusHopped = true;
   }

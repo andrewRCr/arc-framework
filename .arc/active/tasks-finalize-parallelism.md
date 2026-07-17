@@ -956,6 +956,15 @@ the waves run rather than authored up front.
   `head-lineage-mismatch`. The JSON verdict includes the complete expected/actual locus comparison, and unit
   coverage pins the previously silent clean-tree foreign-branch case plus accepted and rejected head movement.
 
+### `[x]` **7.7 Harden local path identity across worktree topology**
+
+- _Goal:_ Coherent Phase 7 verification is platform-stable when Git and the runtime spell one checkout through
+  different filesystem aliases, without turning a physical path into WU, project, or storage identity.
+- _Outcome:_ Local same-locus and containment decisions now canonicalize existing paths through the filesystem
+  while preserving caller spellings for output and persistence. Base-checkout classification, foreign-WU
+  self-exclusion, identity-global cleanup, and teardown/husk ownership share the boundary. Vitest canonicalizes
+  its temp root while dedicated tests retain alias coverage; the complete 6,125-test suite is green on macOS.
+
 ## **Phase 8:** GA closeout
 
 _Purpose:_ Bless worktree-by-default for GA — reconcile the concurrency doctrine to the as-built shape, finalize

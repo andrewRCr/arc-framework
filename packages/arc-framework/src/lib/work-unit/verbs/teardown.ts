@@ -63,6 +63,7 @@ import {
   type RegisteredWorktreeScanResult,
 } from "../../git/worktree-roster.js";
 import { reconcileLinkedIdentityGlobalUserSurfaces } from "../../user-surface-migration.js";
+import { localPathsEqual } from "../../local-path-identity.js";
 import { branchToWorkUnitSlug, readShippedWorkUnitsFromRef } from "../completed-index.js";
 import {
   describeTeardownAuthorizationRefusal,
@@ -81,7 +82,7 @@ import {
   type ReconcileWorktreeFs,
 } from "../mutators/reconcile-worktree.js";
 import { isSlugSafe } from "../slug.js";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { parseMetaRecord } from "../../active/meta-reader.js";
 import {
   createTeardownRetirementAuthority,
@@ -269,7 +270,10 @@ async function hasCompetingWorktreeProjection(
 ): Promise<boolean> {
   const scan = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(ctx.exec);
   if (!scan.ok) return true;
-  return scan.worktrees.some((entry) => entry.path !== retiringPath && entry.branch === branch);
+  for (const entry of scan.worktrees) {
+    if (entry.branch === branch && !(await localPathsEqual(entry.path, retiringPath))) return true;
+  }
+  return false;
 }
 
 async function hasCompetingLifecycleProjection(
@@ -290,14 +294,14 @@ async function hasCompetingLifecycleProjection(
       (proof.evidence.expectedLifecycle === "completed" && entry.location === "completed")
       || (proof.evidence.expectedLifecycle === "planned" && entry.location === "planned")
     ) {
-      return declaredBranch === branch && !isSelfTeardown(retiringPath, ctx.cwd);
+      return declaredBranch === branch && !(await isSelfTeardown(retiringPath, ctx.cwd));
     }
     if (
       proof.evidence.kind === "receipt"
       && proof.evidence.transition === "decompose"
       && proof.evidence.expectedLifecycle === "nonexistent"
       && declaredBranch === branch
-      && isSelfTeardown(retiringPath, ctx.cwd)
+      && await isSelfTeardown(retiringPath, ctx.cwd)
     ) {
       return false;
     }
@@ -408,7 +412,7 @@ async function teardownBranchProjection(
       mismatchedBranches.push(marker.marker.husk.branch);
       continue;
     }
-    if (huskPath === undefined || resolve(worktree.path) === resolve(huskPath)) {
+    if (huskPath === undefined || await localPathsEqual(worktree.path, huskPath)) {
       matches.push({ path: worktree.path, head: worktree.head, marker: marker.marker });
     }
   }
@@ -490,7 +494,7 @@ async function teardownBranchProjection(
     const primary = scan.worktrees.find((worktree) => worktree.primary)?.path;
     const selfTeardown = registered !== undefined
       && registered.path !== primary
-      && isSelfTeardown(registered.path, cwd);
+      && await isSelfTeardown(registered.path, cwd);
     if (mode === "abandoned" && registered === undefined) {
       return {
         status: "rejected",
@@ -845,7 +849,7 @@ async function teardownBranchProjection(
   }
 
   const physicalRemovalPath = pendingHuskRemoval?.path ?? pendingCreatedHuskRemoval;
-  if (physicalRemovalPath !== null && !isSelfTeardown(physicalRemovalPath, cwd)) {
+  if (physicalRemovalPath !== null && !(await isSelfTeardown(physicalRemovalPath, cwd))) {
     if (!directionalObligationsResolved || (branchForCleanup !== null && !branchDeleted)) {
       notices.push(`Detached husk \`${physicalRemovalPath}\` left intact until branch obligations resolve.`);
     } else {

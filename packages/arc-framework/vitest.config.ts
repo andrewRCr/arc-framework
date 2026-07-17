@@ -1,6 +1,20 @@
 import { configDefaults, defineConfig } from "vitest/config";
+import { realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 import { ISOLATED_UNIT_MOCK_FILES } from "./__tests__/helpers/isolated-unit-mock-files.js";
+
+// Git reports physical worktree paths while `os.tmpdir()` can retain a host
+// alias (macOS `/var` vs `/private/var`). Give every temp fixture one canonical
+// root so ordinary tests do not accidentally assert on two spellings of the
+// same checkout; dedicated path-identity tests exercise the alias boundary.
+const canonicalTempRoot = realpathSync(tmpdir());
+if (process.platform === "win32") {
+  process.env.TEMP = canonicalTempRoot;
+  process.env.TMP = canonicalTempRoot;
+} else {
+  process.env.TMPDIR = canonicalTempRoot;
+}
 
 // Single multi-project config so one `vitest run` executes every tier and prints
 // one combined summary. Per-tier runs use `--project <name>` (see package.json).

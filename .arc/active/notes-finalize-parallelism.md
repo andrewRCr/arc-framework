@@ -1106,6 +1106,23 @@ both rejected.
   with the existing Heavy `session-locus-model` plan. The wave evidence classifies that as product/operational
   awareness rather than a GA-mechanics blocker, so it is not pulled into FP or added as a dependency.
 
+### Phase 7 verification hardening — local path identity (2026-07-17)
+
+The coherent Phase 7 suite exposed a macOS alias split: runtime temp paths arrived under `/var`, while Git reported
+the same worktrees under `/private/var`. Lexical `resolve()` comparisons therefore misclassified self-teardown,
+husk selection, base-checkout ownership, foreign-WU self-exclusion, and the user-load lock regression fixture.
+
+- **Decision:** physical-path canonicalization is an ephemeral local-topology boundary only. ARC preserves the
+  caller/Git spelling for display and persistence; canonical keys answer same-locus and containment questions and
+  are never synced, recorded, or used to infer WU/project identity.
+- **Storage forward-compat:** checked against `strategy-storage-evolution.md` and `draft-arc-backend.md`. The helper
+  is storage-agnostic and does not entrench the primary code worktree as future state authority. A materialized
+  backing store may still project a distinct `.arc/` view into every worktree; logical project/store identity and
+  version-checked writes remain separate from machine-local filesystem identity.
+- **Test boundary:** Vitest resolves its temp root once so ordinary fixtures do not accidentally assert against two
+  spellings of one checkout. Dedicated unit coverage simulates aliases, containment, and the lexical fallback for
+  a not-yet-created path. The full suite closes at 6,125 passed / one skipped.
+
 ## Wave-4 induction evidence
 
 ### Cross-machine materialize + notes convergence (2026-07-17, Tasks 6.1–6.3) — CONFIRMED + one seam
