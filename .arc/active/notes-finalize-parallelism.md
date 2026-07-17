@@ -924,9 +924,10 @@ Induced cross-machine in a two-clone rig (local bare origin, synthetic identity 
   wall. The only offered exit is `arc user push --force` — destructive and contagious (the overwrite makes the
   other machine diverge in turn). The entry-aware `mergeCrossWuFile` machinery (union + tombstones + recency)
   that resolves exactly this sits on the load path but is never consulted by the push reconcile
-  (`mergeManifestContent`, `lib/user-sync/compaction.ts`). Routed as a split-out capture (`USER-INBOX`,
-  target TBD — candidate `sync-primitive-discipline`; `notes-export-state-coherence` shipped), sequenced behind
-  wave 4's cross-machine cells, which observe this surface. Guidance seams routed to Task 7.5: `user status`
+  (`mergeManifestContent`, `lib/user-sync/compaction.ts`). Routed as a split-out capture
+  (`USER-INBOX` → `sync-primitive-discipline`: entry-aware union at push reconcile), sequenced behind wave 4's
+  cross-machine cells, which observed this surface (wave 4 confirmed no data loss, only the stuck state).
+  Guidance seams routed to Task 7.5: `user status`
   points at a non-existent `repair` verb, the refusal message misdescribes the failure and offers no
   procedure, and status renders the annotated commit's age as the note's save time.
 

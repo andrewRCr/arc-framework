@@ -900,6 +900,9 @@ the waves run rather than authored up front.
   14-day TTL.
 - _Verification bait:_ three deliberately-left stale-live markers from the 3.2.b induction (machineIds
   `2f8bb305` ×2 / `7647ac4c` ×1) must read fulfilled once the fix lands.
+- _Files:_ `lib/session-init/partial-push-marker-surface.ts` (the liveness/reachability predicate that renders the
+  "notes lag" Aware line — today keyed on exact export-commit reachability), `lib/user-sync/sync-state.ts` (marker
+  records).
 - _Surfaced by:_ wave-1 cell 3.2.b induction, 2026-07-09 — see `notes-finalize-parallelism.md` § Wave-1
   induction evidence.
 
