@@ -9,8 +9,10 @@ on:
     # updates the merge signal without an artificial push.
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   workflow_dispatch:
+  # Monthly cross-platform portability (was weekly). macOS bills 10×; the
+  # PR-path still runs this matrix when classify.portability_target is true.
   schedule:
-    - cron: '17 8 * * 1'
+    - cron: '17 8 1 * *'
 
 # Least-privilege default for the whole workflow: every job only reads the repo.
 # Any job that later needs more requests it explicitly.
