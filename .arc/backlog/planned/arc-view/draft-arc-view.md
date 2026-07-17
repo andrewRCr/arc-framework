@@ -6,6 +6,21 @@
 - **Purpose:** An `arc view <artifact>` CLI verb that auto-resolves the current worktree/branch to the active
   WU's core artifacts and renders them in the terminal — a pager view for reading, and a live, debounced
   watch mode that follows the work as it progresses.
+- **Amended:** 2026-07-17 (storage-substrate grooming) — three changes. **(1) Verb-semantics split settled:**
+  this WU delivers **artifact viewing** — render an existing record/document as it is (`arc view <artifact>`,
+  static pager, auto-resolve). The live watch panel and the WU **context card** ("where is this WU at — stage,
+  `Class`, deps, blockers, current task — at a glance") carry *status/HUD* semantics, not viewing semantics, and
+  split out to the `status-hud` stub (provisional): position 2's watch arm, position 3's watch-focus arm, and
+  position 4's live-tally arm transfer there; their static arms stay here unchanged. Final verb naming (whether
+  the HUD lands under `arc status` flags or its own verb) is that stub's grooming call, coordinated with
+  `naming-conventions`. **(2) Motivation sharpened by parallelism:** the pre-parallelism operator workspace
+  (editor pinned to inbox/roadmap/tasks) breaks under worktrees — state forks per checkout, files reopen on every
+  swap — promoting zero-input, cwd-resolved terminal surfaces from convenience to load-bearing. **(3) Projection
+  identity recorded:** a viewer is a projection over the same record/oracle layer that renders markdown — it
+  consumes record queries and oracle resolution, never parses artifacts beyond the codified formats, which is
+  what keeps it invariant across all storage tiers (compose-note routed to `operational-state-docs`). Delivery is
+  deliberately chunked: v1 here (viewer), context card then watch mode in `status-hud`, project-level surfaces
+  staying with `roadmap-tooling` — each chunk standalone, later chunks informed by use of earlier ones.
 
 ---
 
@@ -63,8 +78,12 @@ piping it through a renderer. The two things that earn a dedicated verb over `gl
 
 ## Coordination seams
 
+- `status-hud` (provisional, split out 2026-07-17) — sibling chunk: context card + live watch panel. Shares this
+  WU's oracle resolution, checkbox parse, and renderer infrastructure; the two WUs ship the view/HUD space in
+  sequence.
 - `session-locus-model` — optional upgrade: anchor watch focus to the agent's live position instead of the
-  file-derived cursor. Enhancement, never a core dependency.
+  file-derived cursor. Enhancement, never a core dependency. (Watch focus itself now lives in `status-hud`; the
+  seam transfers with it.)
 - `cli-substrate-adoption` — the non-TTY behavior above should land as an instance of (not an exception to) the
   uniform non-interactive contract.
 - `config-storage-architecture` — the renderer key migrates off git config when the user-scoped substrate ships.
