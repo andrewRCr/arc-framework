@@ -951,6 +951,72 @@ Induced in a single-clone rig (synthetic identity, real `arc status --session-in
 - **Practice:** one-session-per-checkout has held across all waves; the primary under drain + errand overlap
   is the only realistic shared-checkout candidate — the same serialization 5.3's pin-primary leaning protects.
 
+## Wave-3 seam-audit decisions
+
+### 5.3 — parallel-errand fork + batch-errand sub-decision (2026-07-17) — RESOLVED
+
+Both wave-gated calls closed once `husk-lifecycle-drivers` shipped and tore down (2026-07-17), weighed on the
+accumulated wave-3 evidence.
+
+**Fork — pin-primary for WU purposes, with serialized errand execution in the primary.** The spec's strict
+pin-primary arm (every errand spawns a worktree) is *not* what the evidence supports: every observed drain and
+errand ran in the primary sequentially and cleanly (drains PR #255/#274; errand cycles #256–#259 and #275–#277
+beside two live WU sessions). What the wave *did* confirm is the arm's premise about the primary itself — WU work
+never occupies it, its resting state is base, and it serves as the always-fresh orchestration + ceremony surface.
+The settled shape:
+
+- The primary never hosts WU checkouts; WUs always spawn worktrees (the shipped model, unchanged).
+- Errand / grooming execution relocates to the primary under a **serialization invariant bound to the primary
+  checkout** — out-of-WU execution occupies it only when it is free, one out-of-WU session at a time; `chore/`
+  excursions return the primary to base at close; the primary is never parked on a branch. (Cell 5.2.c's
+  compaction-seed analysis shows this occupancy rule is what keeps the shared-checkout clobber benign.)
+- **Warm entries are occupancy-keyed, not temperature-keyed.** A warm errand raised from a WU worktree
+  (`arc-errand`) relocates to the primary's base exactly like a cold entry (the shipped `out-of-wu-entry`
+  relocate) when the primary is free; when the primary is occupied — or the operator prefers isolation — it
+  **spawns its own worktree** instead of queueing or sharing the checkout. This closes 5.2.c's one realistic
+  shared-checkout collision candidate (a warm errand beside a live primary session) as a rule rather than a
+  practice.
+- Worktree spawn otherwise remains the escape hatch for a genuinely concurrent out-of-WU need — supported,
+  non-default (BI-1 made it one command; doc-only errands need no deps).
+
+Rationale: the compensation family the strict arm promised to dissolve is real (the guaranteed
+`fetch origin main:main` refusal at every linked-worktree init; CTH's wrong-sited post-ship sync) but is
+addressed by the primary's resting-state-is-base property plus the routed determinate fixes — not by moving
+errands out. The worktree-per-errand tax buys nothing the serialization invariant doesn't already provide at
+observed scale. Doctrine consequence (8.1.a): § "Your main worktree is not always on main" still rewrites — its
+premise inverts (the primary's resting state *is* base; WU work never lands there; errands are bounded
+excursions that return).
+
+**Batch shape — sequential lockstep drain codified; orchestrated dispatch preconditioned, not built.** The
+sequential-primary drain (operator scopes and approves the slate up front; one primary agent executes
+entry-by-entry in lockstep) is the codified default, documented at 8.1.d's Errand-class slice. Attention is the
+bottleneck at every observed scale: with several WUs in flight plus the primary, a nested "which errand" layer
+exceeds the operator's tracking budget, and even an errands-only session converges to sequential throughput
+because the human is the serial approval gate. The "sequential feels slow" regime is addressed by tightening
+per-errand overhead (the sweep-loop next-offer seam), not by parallelism. Exits dispositioned:
+
+- (i) **Codified sequential drain — adopted.**
+- (ii) **Orchestrated drain — demoted to a preconditioned escalation.** Feasibility is demonstrated (delegated
+  errand #275) but the fit is structurally poor today: an errand's deliverable ≈ the subagent's scope, so every
+  feedback loop crosses the primary as a relay hop — taxing exactly the gate conversation that is the actual
+  bottleneck; much errand work fails arc-worker's eligibility bar by design (errands sit below spec-worthiness,
+  not below judgment); and subagent observability is harness-variant, so the doctrine cannot assume it.
+  Preconditions captured to `execution-delegation-doctrine` (USER-INBOX): an errand-scoped runner profile,
+  non-interactive gate handling, observability parity.
+- (iii) **Session-per-errand / first-class concurrent-errand lifecycle — rejected.**
+
+**New decision input — metered external budgets.** Wave 3 evidenced a second concurrency-scaling axis beside
+operator attention: metered third-party surfaces (Actions minutes exhausted 2+ weeks early, then 75% again after
+a top-up; the CodeRabbit adaptive throttle). Doctrine reconciliation carries it — "scale concurrency to the
+attention you can give it" gains a metered-budget sibling — and it independently reinforces sequential-first.
+Live grounding gathered at the weigh-in: the Review Gate controller is `disabled_manually` (the 2026-07-11
+schedule-tick spam ended in a manual off-switch — no cron spend), Wakeup bills ~8 min/day at current volume, and
+the driver is plain CI volume × billing shape (57 runs/48h on a 9-job heavy shape billing ~12 min per ~7-min run,
+with 2×/10× windows/macos multipliers on the targeted portability leg). Remediation split out as a combined
+extended errand (USER-INBOX § Errand: shared-setup reuse + heavy-lane defer), hard-gated at GA closeout
+(Task 8.5); the self-hosted-runner option is retained (held capture) pending the remediation's measured residual.
+The day-1 shared-machine load-flake datapoint is retired as evidence — a local runaway process, since resolved.
+
 ## Shared-mutable-surface matrix
 
 This is the finalized Layer-1 starting state for the burn-in waves. It is a source-checked classification

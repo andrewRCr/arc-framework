@@ -766,14 +766,26 @@ character is recorded here for `interlock-release-refinement` to consume post-wa
   notes-union wedge, behind wave 4), and the serialized pull-before-write playbook discipline recorded for
   5.3/5.4's weigh-in.
 
-### `[ ]` **5.3 Resolve the parallel-errand fork and batch-errand sub-decision**
+### `[x]` **5.3 Resolve the parallel-errand fork and batch-errand sub-decision**
 
 - _Goal:_ The parallel-errand fork (pin-primary vs. errands-in-primary + serialization) and the coupled
   batch-errand sub-decision are resolved with wave evidence, and recorded with rationale + any spawned follow-up WU.
-- _Context:_ Recorded leanings enter the wave sharpened — pin-primary for the fork, sequential-first for the
-  batch shape; the wave confirms or refutes rather than opening a neutral question.
 
-    - `[ ]` **5.3.a Weigh the drain-shape + contention evidence and record the decision**
+    - `[x]` **5.3.a Weigh the drain-shape + contention evidence and record the decision**
+        - Weighed: two sequential-primary drains (PRs #255/#274), day-1 five-cycle errand-loop throughput, the
+          delegated errand #275, the compensation-noise family (guaranteed base auto-sync refusal; wrong-sited
+          post-ship sync), and metered-budget saturation (CI minutes, review quota). The day-1 load-flake
+          datapoint retired as evidence (local runaway process, since resolved).
+
+- _Outcome:_ Both resolved; full record + rationale in `notes-finalize-parallelism.md` § Wave-3 seam-audit
+  decisions. Fork: the primary pins to base for WU purposes with serialized in-primary errand execution — the
+  serialization invariant binds the primary checkout (occupied → a warm errand spawns its own worktree instead
+  of sharing it; primary returns to base at close). Batch shape: the sequential lockstep drain under one primary
+  agent is codified; orchestrated dispatch
+  is demoted to a preconditioned escalation (preconditions captured to `execution-delegation-doctrine`);
+  session-per-errand and a first-class concurrent-errand lifecycle are rejected. New evidenced axis: metered
+  external budgets join operator attention as concurrency-scaling constraints — CI billing-shape remediation
+  split out (`USER-INBOX § Errand`) and hard-gated at GA closeout (new Task 8.5).
 
 ### `[ ]` **5.4 Resolve the same-entry cross-WU merge disposition**
 
@@ -973,6 +985,15 @@ parent below states the reconciliation _procedure + recorded outcome_, not the u
   is the PR-review-checkout framing the likelier earning case?) and recorded — revive / materialize-stub / dismiss.
 
     - `[ ]` **8.4.a Decide and record the disposition (+ any stub or follow-up WU)**
+
+### `[ ]` **8.5 Confirm the CI metering remediation landed (GA hard gate)**
+
+- _Goal:_ The CI billing-shape remediation (shared-setup reuse + heavy-lane defer — split out via
+  `USER-INBOX § Errand` at the 5.3 weigh-in) has landed on `main` and a post-landing sample shows the corrected
+  per-run cost shape; GA does not bless while Actions spend remains on the pre-remediation trajectory. The
+  retained self-hosted-runner capture is decided against the measured residual — adopted or explicitly declined.
+
+    - `[ ]` **8.5.a Verify the remediation is live and sample the corrected cost shape**
 
 ## **Phase 9:** Verification
 
