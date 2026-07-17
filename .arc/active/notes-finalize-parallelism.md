@@ -1082,6 +1082,30 @@ Disposition: **accept for GA with a documented limitation, plus a deterministic 
   (lexicographically-smallest annotated-commit SHA) where genuinely concurrent, never wall-clock — over
   `resolveCrossWuState` and the note-window read path, extended to removal/tombstone reconciliation per 5.2.b.
 
+### 7.3 — locus-gated awareness disposition (2026-07-17) — RESOLVED
+
+Disposition: **re-gate the awareness family and absorb only the checkout-local teardown authority defect.** Broad
+linked-resume discovery and completion-tail fan-out, plus starting `session-locus-model` as an FP dependency, are
+both rejected.
+
+- **Cleanup visibility is already closed.** `husk-lifecycle-drivers` deliberately lifted the network-free
+  current/sibling-husk and orphan-ref presence surfaces onto linked sessions without publishing the general roster
+  or enabling completion consumers. The post-merge FP init surfaced six real local residues from this linked
+  worktree; all six were cleaned, and the re-probe returned empty `sweep` / `orphanBranchSweep` sets.
+- **Preserve the gate boundary.** `workUnitState` and oracle-backed errand discovery remain primary/no-WU
+  surfaces. Making every linked resume a general discovery pass would reverse HLD's explicit boundary, add
+  latency/network semantics to the common resume path, and still stop short of the durable per-machine
+  session/locus record the richer HUD needs. Targeted status/host inspection remains the interim recovery for a
+  sibling merge event.
+- **Absorb the correctness slice.** Default shipped teardown and the inverse abandoned gate currently classify
+  lifecycle membership from the invoking checkout. Phase 7 moves that precondition to the protection-aware base
+  authority (`origin/<base>` under full protection; the shared local base under partial), matching the
+  base-anchored evidence the teardown driver already trusts and preventing a stale linked checkout from refusing
+  an already-shipped husk or misclassifying the inverse gate.
+- **Follow-up boundary.** Richer any-locus completion awareness, occupancy, and a run-anywhere HUD/read verb stay
+  with the existing Heavy `session-locus-model` plan. The wave evidence classifies that as product/operational
+  awareness rather than a GA-mechanics blocker, so it is not pulled into FP or added as a dependency.
+
 ## Wave-4 induction evidence
 
 ### Cross-machine materialize + notes convergence (2026-07-17, Tasks 6.1–6.3) — CONFIRMED + one seam

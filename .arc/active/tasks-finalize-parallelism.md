@@ -919,6 +919,14 @@ the waves run rather than authored up front.
   cheap; alternatives: a hygiene verb/view runnable anywhere, or `session-locus-model`'s locus-record read-verb
   as the carrier. Coordination captures routed to `husk-lifecycle-drivers` and `session-locus-model`
   (2026-07-15).
+- _Decision (settled 2026-07-17):_ Re-gate the family rather than broadening every linked resume. Shipped
+  `husk-lifecycle-drivers` now lifts the network-free current/sibling-husk and orphan-ref cleanup surfaces onto
+  linked arms; preserve its deliberate boundary that keeps general roster publication, completion-tail fan-out,
+  and oracle-backed errand discovery on their existing primary/no-WU loci. Absorb one atomic correctness repair
+  here: shipped/abandoned teardown resolves lifecycle membership from the protection-aware base authority, not the
+  invoking checkout's possibly-stale `completed/` tree. Richer any-locus completion/HUD awareness remains the
+  existing `session-locus-model` follow-up and does not become an FP dependency; the wave evidence says the
+  residual visibility gap does not block GA mechanics.
 - _Surfaced by:_ wave-3 launch session, 2026-07-15 — see `notes-finalize-parallelism.md` § Wave-3 launch
   evidence. Two further instances from the HLD teardown (2026-07-17, § Detector-tests 5.5): the stamped husk
   invisible to linked-worktree sessions ~10 h until hand-discovered, and the `teardown` verb's ship-check
