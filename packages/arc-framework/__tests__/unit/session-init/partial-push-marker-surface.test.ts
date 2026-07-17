@@ -75,6 +75,19 @@ describe("selectAwareMarkers", () => {
     expect(result.markers).toEqual([]);
   });
 
+  it("stays silent when recovery landed a note for the attempted source commit", async () => {
+    const sourceCommit = "source-commit-with-landed-note";
+    const result = await selectAwareMarkers({
+      markers: [marker({ lastAttemptedCommit: sourceCommit, intent: "unreachable-export-commit" })],
+      notesRefTip: "recovered-export-commit",
+      now: NOW,
+      fulfilledSourceCommits: new Set([sourceCommit]),
+      isReachable: neverReachable,
+    });
+
+    expect(result.markers).toEqual([]);
+  });
+
   it("ages out a live marker older than the 14-day TTL backstop", async () => {
     const result = await selectAwareMarkers({
       markers: [marker({ attemptTimestamp: "2026-06-10T12:00:00.000Z" })],
@@ -114,6 +127,7 @@ function buildExec(opts: {
   entries?: Record<string, SyncStateMarker>;
   notesTip?: string | null;
   reachable?: boolean;
+  annotatedCommits?: string[];
 }): GitExec {
   const entries = opts.entries ?? {};
   const notesTip = opts.notesTip === undefined ? NOTES_TIP_BEHIND : opts.notesTip;
@@ -139,6 +153,12 @@ function buildExec(opts: {
     if (args[0] === "rev-list") {
       // isContainedIn(intent, tip): empty ⇒ contained (reached), non-empty ⇒ not.
       return { stdout: reachable ? "" : `${"f".repeat(40)}\n`, stderr: "" };
+    }
+    if (args[0] === "notes" && args.at(-1) === "list") {
+      const stdout = (opts.annotatedCommits ?? [])
+        .map((commit) => `${"e".repeat(40)} ${commit}`)
+        .join("\n");
+      return { stdout, stderr: "" };
     }
     throw new Error(`unexpected git invocation: ${args.join(" ")}`);
   }) as GitExec;
@@ -189,6 +209,22 @@ describe("runPartialPushMarkerSurface", () => {
         entries: { "machine-a": marker({ intent: "ancestor-sha" }) },
         notesTip: "descendant-sha",
         reachable: true,
+      }),
+      identity: "andrew",
+      now: NOW,
+    });
+
+    expect(result.markers).toEqual([]);
+  });
+
+  it("stays silent when the current notes tree contains the attempted source commit", async () => {
+    const sourceCommit = "c".repeat(40);
+    const intent = "d".repeat(40);
+    const result = await runPartialPushMarkerSurface({
+      exec: buildExec({
+        entries: { [intent]: marker({ intent, lastAttemptedCommit: sourceCommit }) },
+        notesTip: "a".repeat(40),
+        annotatedCommits: [sourceCommit],
       }),
       identity: "andrew",
       now: NOW,

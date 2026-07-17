@@ -886,20 +886,16 @@ the waves run rather than authored up front.
   untouched until the explicit worktree reconciliation/teardown flows, so routine resolver consumers cannot write
   or reject on migration state; the unit regression proves canonical routing without signposting or merge-up.
 
-### `[ ]` **7.2 Key marker self-invalidation on content fulfillment, not export-commit reachability**
+### `[x]` **7.2 Key marker self-invalidation on content fulfillment, not export-commit reachability**
 
 - _Goal:_ A failed-then-recovered notes push stops rendering a false "notes lag" Aware line: the liveness
   predicate treats an intent as fulfilled when its content has landed (e.g., a note for the marker's
   `sourceCommit` is reachable at the notes tip), not only when the exact recorded export commit is reachable —
   recovered pushes land a different export commit, so today's predicate leaves stale-live markers for the full
   14-day TTL.
-- _Verification bait:_ three deliberately-left stale-live markers from the 3.2.b induction (machineIds
-  `2f8bb305` ×2 / `7647ac4c` ×1) must read fulfilled once the fix lands.
-- _Files:_ `lib/session-init/partial-push-marker-surface.ts` (the liveness/reachability predicate that renders the
-  "notes lag" Aware line — today keyed on exact export-commit reachability), `lib/user-sync/sync-state.ts` (marker
-  records).
-- _Surfaced by:_ wave-1 cell 3.2.b induction, 2026-07-09 — see `notes-finalize-parallelism.md` § Wave-1
-  induction evidence.
+- _Outcome:_ The surface now enumerates the current notes tree once and treats a marker's attempted source commit
+  as fulfilled when that tree carries its note, even if recovery minted a different export commit. Exact-intent
+  ancestry and the 14-day abandoned-marker TTL remain as complementary self-invalidation paths.
 
 ### `[ ]` **7.3 Disposition the locus-gated awareness seam (hygiene/completion surfaces vs. worktree-resident operators)**
 
