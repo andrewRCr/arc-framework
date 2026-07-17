@@ -110,7 +110,7 @@ function createInRepoDirectRetirementContext(
     if (expectedBranch !== null && expectedBranch !== "[none]" && branch !== expectedBranch) {
       throw new Error(`${config.label} must run from the source branch \`${expectedBranch}\`, not \`${branch}\``);
     }
-    const head = await resolveRef(deps.exec, deps.cwd, branch);
+    const head = await resolveBranchHead(deps.exec, deps.cwd, branch);
     const paths = await listArtifactPaths(deps.exec, deps.cwd, head, sourceDir, name);
     const inventory = await Promise.all(paths.map(async (path): Promise<ArtifactSetEntry> => {
       const bytes = await deps.readBlob(head, path);
@@ -209,8 +209,8 @@ function createInRepoDirectRetirementContext(
           withTransaction: (operation) => withRetirementTransaction(deps, operation),
           readAuthorityVersion: async () => {
             const [sourceOid, resultOid, branch] = await Promise.all([
-              resolveRef(deps.exec, deps.cwd, binding.scope.source.branch),
-              resolveRef(deps.exec, deps.cwd, binding.scope.resultProjection.ref),
+              resolveBranchHead(deps.exec, deps.cwd, binding.scope.source.branch),
+              resolveBranchHead(deps.exec, deps.cwd, binding.scope.resultProjection.ref),
               getCurrentBranch(deps.exec),
             ]);
             return sourceOid === binding.scope.source.head
@@ -221,8 +221,8 @@ function createInRepoDirectRetirementContext(
           },
           readRecordedAuthorityVersion: async () => canonicalDigest({
             schemaVersion: 1,
-            sourceOid: await resolveRef(deps.exec, deps.cwd, binding.scope.source.branch),
-            resultOid: await resolveRef(deps.exec, deps.cwd, binding.scope.resultProjection.ref),
+            sourceOid: await resolveBranchHead(deps.exec, deps.cwd, binding.scope.source.branch),
+            resultOid: await resolveBranchHead(deps.exec, deps.cwd, binding.scope.resultProjection.ref),
             branch: await getCurrentBranch(deps.exec),
             stagedPaths: await readStagedPaths(deps.exec, deps.cwd),
             receipt: await deps.readFile(resolveRetirementRecordPath(deps.cwd, receipt.receiptId)),
@@ -340,7 +340,8 @@ async function receiptMatchesBinding(
     && receipt.subject.name === binding.scope.subject.name;
 }
 
-async function resolveRef(exec: GitExec, cwd: string, ref: string): Promise<string> {
+async function resolveBranchHead(exec: GitExec, cwd: string, branch: string): Promise<string> {
+  const ref = `refs/heads/${branch}`;
   const { stdout } = await exec("git", ["rev-parse", "--verify", `${ref}^{commit}`], { cwd });
   const oid = stdout.trim();
   if (oid === "") throw new Error(`could not resolve commit: ${ref}`);
