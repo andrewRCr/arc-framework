@@ -111,8 +111,8 @@ export interface TeardownContext {
   now?: () => number;
   /** Retirement evidence authority used before any directional self-teardown. */
   authority?: Pick<RetirementAuthorityPort, "authorize" | "revalidate">;
-  /** Exact committed-blob reader for replay artifact revalidation. */
-  readBlob?: TeardownBlobReader;
+  /** Exact committed-blob reader for authorization and replay artifact revalidation. */
+  readBlob: TeardownBlobReader;
 }
 
 /**
@@ -457,7 +457,14 @@ async function teardownBranchProjection(
         evidence: decoded.evidence,
         refs: { localOid: stamp.sha, remote: decoded.remoteRef },
       };
-      if (!(await revalidateHuskRetirementEvidence(exec, stamp, directionalAuthorization, evidenceBaseRef, ctx.readBlob))) {
+      const evidenceValid = await revalidateHuskRetirementEvidence(
+        exec,
+        stamp,
+        directionalAuthorization,
+        evidenceBaseRef,
+        ctx.readBlob,
+      );
+      if (!evidenceValid) {
         return { status: "rejected", reason: "refusing detached husk removal: retirement evidence mismatch" };
       }
     } else {
@@ -502,11 +509,7 @@ async function teardownBranchProjection(
         remote: remote ?? "origin",
         requestedMode: mode,
       };
-      authority = ctx.authority ?? createTeardownRetirementAuthority(
-        exec,
-        evidenceBaseRef,
-        ctx.readBlob,
-      );
+      authority = ctx.authority ?? createTeardownRetirementAuthority(exec, evidenceBaseRef, ctx.readBlob);
       const authorization = await authority.authorize(authorizationRequest);
       if (authorization.status === "refused") {
         return {

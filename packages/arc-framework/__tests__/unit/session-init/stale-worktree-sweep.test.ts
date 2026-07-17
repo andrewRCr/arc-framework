@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 
 import {
   findStaleWorktreeCandidates,
-  runStaleWorktreeSweep,
+  runStaleWorktreeSweep as runStaleWorktreeSweepCore,
+  type RunStaleWorktreeSweepOptions,
 } from "../../../src/lib/session-init/stale-worktree-sweep.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
@@ -10,6 +11,15 @@ import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-mar
 import type { UserSurfaceMigrationFs } from "../../../src/lib/user-surface-migration.js";
 
 const shipped = new Set(["work-organization-reform"]);
+const emptyBlobReader: RunStaleWorktreeSweepOptions["readBlob"] = async () => null;
+
+function runStaleWorktreeSweep(
+  options: Omit<RunStaleWorktreeSweepOptions, "readBlob"> & {
+    readBlob?: RunStaleWorktreeSweepOptions["readBlob"];
+  },
+) {
+  return runStaleWorktreeSweepCore({ ...options, readBlob: options.readBlob ?? emptyBlobReader });
+}
 
 /** Roster with one shipped-WU worktree and one still-active worktree. */
 function roster(): WorktreeRosterResult {

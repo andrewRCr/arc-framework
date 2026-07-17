@@ -30,6 +30,7 @@ import { join } from "node:path";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import { removeGitBackedDir } from "../helpers/temp-repo.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { readGitBlobBytes } from "../../src/lib/io-context.js";
 import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
 import {
   runBranchTeardown,
@@ -76,7 +77,13 @@ const indexFs: LifecycleIndexFs = {
 };
 
 function teardownCtx(cloneA: string): TeardownContext {
-  return { cwd: cloneA, exec: execFor(cloneA), indexFs, chdir: () => {} };
+  return {
+    cwd: cloneA,
+    exec: execFor(cloneA),
+    indexFs,
+    chdir: () => {},
+    readBlob: (ref, path) => readGitBlobBytes(cloneA, ref, path),
+  };
 }
 
 /** Write a shipped `completed/` meta so the arc-state gate authorizes the slug. */
@@ -558,7 +565,13 @@ describe("arc teardown — worktree dispatch over real git", () => {
       };
 
       const first = await runTeardown(
-        { cwd: wtPath, exec: failingExec, indexFs, chdir: () => {} },
+        {
+          cwd: wtPath,
+          exec: failingExec,
+          indexFs,
+          chdir: () => {},
+          readBlob: (ref, path) => readGitBlobBytes(wtPath, ref, path),
+        },
         { name: "demo", base: "main" },
       );
       expect(first.status).toBe("torn-down");

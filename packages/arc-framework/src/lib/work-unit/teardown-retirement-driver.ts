@@ -28,7 +28,7 @@ export type TeardownBlobReader = (ref: string, path: ManagedPath) => Promise<Uin
 export function createTeardownRetirementAuthority(
   exec: GitExec,
   baseRef: string,
-  readBlob?: TeardownBlobReader,
+  readBlob: TeardownBlobReader,
 ): Pick<RetirementAuthorityPort, "authorize" | "revalidate"> {
   const context = createGitRetirementAuthorizationContext(exec, baseRef, readBlob);
   return {
@@ -43,7 +43,7 @@ export async function revalidateHuskRetirementEvidence(
   stamp: WorktreeHuskStamp,
   proof: Extract<TeardownAuthorizationDecision, { status: "authorized" }>,
   baseRef: string,
-  readBlob?: TeardownBlobReader,
+  readBlob: TeardownBlobReader,
 ): Promise<boolean> {
   const { evidence } = proof;
   if (evidence.kind === "shipped") {
@@ -78,7 +78,7 @@ export async function revalidateDecodedHuskRetirementEvidence(
   stamp: WorktreeHuskStamp,
   decoded: Extract<DecodedWorktreeHuskStamp, { kind: "current" }>,
   baseRef: string,
-  readBlob?: TeardownBlobReader,
+  readBlob: TeardownBlobReader,
 ): Promise<boolean> {
   return await revalidateHuskRetirementEvidence(
     exec,

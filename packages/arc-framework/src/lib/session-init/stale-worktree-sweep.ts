@@ -139,7 +139,7 @@ export interface RunStaleWorktreeSweepOptions {
   /** Configured result projection used to revalidate non-shipped receipt evidence. */
   protection?: ProtectionMode;
   /** Exact committed-blob reader for retirement-evidence validation. */
-  readBlob?: TeardownBlobReader;
+  readBlob: TeardownBlobReader;
   /** Retirement-evidence validation seam for structurally current stamps. */
   revalidateEvidence?: (
     stamp: NonNullable<Extract<WorktreeMarkerReadResult, { kind: "present" }>["marker"]["husk"]>,

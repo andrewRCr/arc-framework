@@ -110,4 +110,26 @@ describe("shipped teardown retirement evidence", () => {
       unreadable,
     )).resolves.toBe(false);
   });
+
+  it("detects trailing-byte changes in the committed projection", async () => {
+    const exec = execWithCompletedProjection();
+    const digest = await readCompletedProjectionDigest(exec, "main", stamp.subject, readBlob);
+    expect(digest).not.toBeNull();
+    if (digest === null) return;
+    const original = blobs.get(specPath);
+    expect(original).toBeDefined();
+    if (original === undefined) return;
+    blobs.set(specPath, new Uint8Array([...original, 0x00]));
+    try {
+      await expect(revalidateHuskRetirementEvidence(
+        exec,
+        stamp,
+        proof(digest),
+        "main",
+        readBlob,
+      )).resolves.toBe(false);
+    } finally {
+      blobs.set(specPath, original);
+    }
+  });
 });

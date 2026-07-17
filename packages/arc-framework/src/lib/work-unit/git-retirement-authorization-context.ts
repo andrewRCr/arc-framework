@@ -63,7 +63,7 @@ export type RetirementAuthorizationBlobReader = (
 export function createGitRetirementAuthorizationContext(
   exec: GitExec,
   baseRef: string,
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): RetirementAuthorizationContext {
   const relationContext = createRelationContext(exec, readBlob);
 
@@ -130,7 +130,7 @@ export async function validateGitRetirementReceiptEvidence(
     authorization: HuskAuthorization;
     evidence: Extract<RetirementEvidenceRef, { kind: "receipt" }>;
   },
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<boolean> {
   try {
     const decomposeResultHead = input.evidence.transition === "decompose"
@@ -175,7 +175,7 @@ export async function validateGitRetirementReceiptEvidence(
 
 function createRelationContext(
   exec: GitExec,
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Parameters<typeof validateRetirementReceiptRelation>[0] {
   return {
     readCommitParents: (commit: string) => readCommitParents(exec, commit),
@@ -275,7 +275,7 @@ async function validateReceiptResult(
   exec: GitExec,
   receipt: RetirementReceipt,
   projection: { retiringHead: string; resultHead: string },
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<TeardownAuthorizationRefusal | null> {
   if (receipt.subject.kind !== "work-unit") return "unsupported-transition";
   switch (receipt.transition) {
@@ -291,7 +291,6 @@ async function validateReceiptResult(
               ? []
               : await readArtifactGroup(exec, head, posix.dirname(entry.path), entry.slug, readBlob);
             const record = await readBytesAt(
-              exec,
               head,
               validateManagedPath(resolveRetirementRecordRelativePath(candidate.receiptId)),
               readBlob,
@@ -317,7 +316,7 @@ async function validateAbandonResult(
   exec: GitExec,
   receipt: RetirementReceipt,
   retiringHead: string,
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<TeardownAuthorizationRefusal | null> {
   if (receipt.result.kind !== "discard" || receipt.retiringProjection.kind !== "direct-transition") {
     return "evidence-mismatch";
@@ -338,7 +337,7 @@ async function validateDecomposeResult(
   exec: GitExec,
   receipt: RetirementReceipt,
   projection: { retiringHead: string; resultHead: string },
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<TeardownAuthorizationRefusal | null> {
   if (receipt.result.kind !== "decompose" || receipt.retiringProjection.kind !== "unchanged") {
     return "evidence-mismatch";
@@ -391,7 +390,7 @@ async function validateDecomposeResult(
   if (targetFacts === null || canonicalize(targetFacts.targets) !== canonicalize(receipt.result.targets)) {
     return "conservation-unproven";
   }
-  if (!await sourceAllocationsResolve(exec, projection.resultHead, allocation, targetFacts.paths, readBlob)) {
+  if (!await sourceAllocationsResolve(projection.resultHead, allocation, targetFacts.paths, readBlob)) {
     return "conservation-unproven";
   }
   if (!dependencyAllocationMatches(allocation, inventoryResult.inventories, resultIndex)) {
@@ -410,7 +409,7 @@ async function readDecomposeTargetFacts(
   ref: string,
   allocation: DecomposeAllocationMap,
   index: LifecycleIndex,
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<TargetFacts | null> {
   const targets: TargetFacts["targets"] = [];
   const paths = new Map<string, Map<string, ManagedPath>>();
@@ -430,7 +429,7 @@ async function readAllocationTarget(
   ref: string,
   entry: DecomposeAllocationEntry,
   index: LifecycleIndex,
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<{ root: string; artifacts: StoredArtifact[] } | null> {
   if (entry.kind === "surviving-origin") return null;
   if (entry.kind === "new-member") {
@@ -442,7 +441,7 @@ async function readAllocationTarget(
   if (entry.kind === "existing-home") {
     if (entry.target.kind === "document") {
       const path = validateManagedPath(entry.target.path);
-      const bytes = await readBytesAt(exec, ref, path, readBlob);
+      const bytes = await readBytesAt(ref, path, readBlob);
       return bytes === null ? null : { root: path, artifacts: [{ path, bytes }] };
     }
     const indexed = index.get(entry.target.slug);
@@ -453,23 +452,22 @@ async function readAllocationTarget(
   const path = validateManagedPath(
     `.arc/backlog/planned/${entry.cohort}/cohort-${posix.basename(entry.cohort)}.md`,
   );
-  const bytes = await readBytesAt(exec, ref, path, readBlob);
+  const bytes = await readBytesAt(ref, path, readBlob);
   return bytes === null ? null : { root: posix.dirname(path), artifacts: [{ path, bytes }] };
 }
 
 async function sourceAllocationsResolve(
-  exec: GitExec,
   ref: string,
   allocation: DecomposeAllocationMap,
   paths: ReadonlyMap<string, ReadonlyMap<string, ManagedPath>>,
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<boolean> {
   for (const source of allocation.sourceAllocations) {
     if (source.disposition.kind === "drop") continue;
     const locator = source.disposition.targetLocator;
     const path = paths.get(source.disposition.destinationId)?.get(locator.artifact);
     if (path === undefined) return false;
-    const bytes = await readBytesAt(exec, ref, path, readBlob);
+    const bytes = await readBytesAt(ref, path, readBlob);
     if (bytes === null) return false;
     const scan = scanDecomposeContent(locator.artifact, bytes);
     if (scan.status === "rejected"
@@ -525,12 +523,12 @@ async function readAllSubjectArtifacts(
   exec: GitExec,
   ref: string,
   slug: string,
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<StoredArtifact[]> {
   const paths = await listPaths(exec, ref, [".arc/active", ".arc/backlog", ".arc/completed"]);
   const matcher = artifactMatcher(slug);
   const selected = paths.filter((path) => matcher.test(posix.basename(path)));
-  return await readArtifacts(exec, ref, selected, readBlob);
+  return await readArtifacts(ref, selected, readBlob);
 }
 
 async function readArtifactGroup(
@@ -538,22 +536,21 @@ async function readArtifactGroup(
   ref: string,
   directory: string,
   slug: string,
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<StoredArtifact[]> {
   const matcher = artifactMatcher(slug);
   const paths = (await listPaths(exec, ref, [directory]))
     .filter((path) => posix.dirname(path) === directory && matcher.test(posix.basename(path)));
-  return await readArtifacts(exec, ref, paths, readBlob);
+  return await readArtifacts(ref, paths, readBlob);
 }
 
 async function readArtifacts(
-  exec: GitExec,
   ref: string,
   paths: readonly ManagedPath[],
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<StoredArtifact[]> {
   return await Promise.all(paths.map(async (path) => {
-    const bytes = await readBytesAt(exec, ref, path, readBlob);
+    const bytes = await readBytesAt(ref, path, readBlob);
     if (bytes === null) throw new Error(`committed blob disappeared: ${ref}:${path}`);
     return { path, bytes };
   }));
@@ -586,7 +583,7 @@ export async function readCompletedProjectionDigest(
   exec: GitExec,
   baseRef: string,
   subject: WorktreeSubject,
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<CanonicalDigest | null> {
   if (subject.kind !== "work-unit") return canonicalDigest({ subject });
   const index = await readLifecycleIndex(exec, baseRef);
@@ -601,7 +598,7 @@ async function readPatchOperations(
   parent: string,
   commit: string,
   excludedReceiptId: CanonicalDigest,
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<PatchOperation[]> {
   const { stdout } = await exec("git", [
     "diff-tree", "--no-commit-id", "--name-status", "-r", "-z", "--no-renames", parent, commit,
@@ -618,7 +615,7 @@ async function readPatchOperations(
     const path = validateManagedPath(rawPath);
     if (status === "D") operations.push(deleteOperation(path));
     else if (status === "A" || status === "M") {
-      const bytes = await readBytesAt(exec, commit, path, readBlob);
+      const bytes = await readBytesAt(commit, path, readBlob);
       if (bytes === null) throw new Error(`missing committed patch blob: ${commit}:${path}`);
       operations.push(writeOperation(path, bytes));
     } else {
@@ -673,14 +670,11 @@ async function requireTextAt(exec: GitExec, ref: string, path: ManagedPath): Pro
 }
 
 async function readBytesAt(
-  exec: GitExec,
   ref: string,
   path: ManagedPath,
-  readBlob?: RetirementAuthorizationBlobReader,
+  readBlob: RetirementAuthorizationBlobReader,
 ): Promise<Uint8Array | null> {
-  if (readBlob !== undefined) return await readBlob(ref, path);
-  const content = await readTextAt(exec, ref, path);
-  return content === null ? null : Buffer.from(content, "utf8");
+  return await readBlob(ref, path);
 }
 
 function compareBytes(left: string, right: string): number {
