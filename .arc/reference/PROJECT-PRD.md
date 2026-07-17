@@ -172,6 +172,11 @@ software development.
 - [`the-framework.md`][the-framework] — session lifecycle, skills, task execution, committing,
   handoffs.
 - [`STRATEGY-INDEX.md`][strategy-index] — codified strategy guidance across domains.
+- Forward-compat check-docs — internal architectural direction along three evolution axes:
+  [`strategy-storage-evolution.md`][storage-evolution] (where state lives),
+  [`strategy-knowledge-evolution.md`][knowledge-evolution] (where guidance lives), and
+  [`strategy-procedure-evolution.md`][procedure-evolution] (how procedure executes). Each points at its
+  north-star draft; consult per its Self-Check when planning work in its axis.
 
 ---
 
@@ -179,3 +184,6 @@ software development.
 [rationale]: ../../docs/methodology/rationale.md
 [the-framework]: ../../docs/the-framework.md
 [strategy-index]: strategies/STRATEGY-INDEX.md
+[storage-evolution]: strategies/project/strategy-storage-evolution.md
+[knowledge-evolution]: strategies/project/strategy-knowledge-evolution.md
+[procedure-evolution]: strategies/project/strategy-procedure-evolution.md
