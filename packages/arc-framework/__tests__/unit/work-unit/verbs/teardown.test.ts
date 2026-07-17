@@ -223,6 +223,64 @@ function buildCtx(metas: MetaSpec[], execOpts?: ExecOptions): { ctx: TeardownCon
   };
 }
 
+function installStatefulPrimaryProjection(
+  ctx: TeardownContext,
+  failures: { remote?: number; local?: number },
+): () => string | null {
+  const baseExec = ctx.exec;
+  let primaryBranch: string | null = "plan/demo";
+  let remoteFailures = failures.remote ?? 0;
+  let localFailures = failures.local ?? 0;
+  ctx.exec = async (cmd, args, opts) => {
+    if (args[0] === "push" && args.some((arg) => arg.startsWith("--force-with-lease=")) && remoteFailures > 0) {
+      remoteFailures -= 1;
+      throw new Error("simulated remote transport failure");
+    }
+    if (args[0] === "update-ref" && args[1] === "-d" && localFailures > 0) {
+      localFailures -= 1;
+      throw new Error("simulated local ref lock");
+    }
+    const result = await baseExec(cmd, args, opts);
+    if (args[0] === "switch" && args[1] !== undefined && args[1] !== "--detach") primaryBranch = args[1];
+    return result;
+  };
+  ctx.scanWorktrees = async () => ({
+    ok: true,
+    worktrees: [{
+      path: CWD,
+      head: primaryBranch === "plan/demo" ? "abc" : "deadbeef",
+      branch: primaryBranch,
+      detached: false,
+      primary: true,
+    }],
+  });
+  return () => primaryBranch;
+}
+
+function installRemoteDeleteAuthority(ctx: TeardownContext, onAuthorize: () => void): void {
+  const baseAuthority = ctx.authority;
+  if (baseAuthority === undefined) throw new Error("missing test retirement authority");
+  ctx.authority = {
+    authorize: async (request) => {
+      onAuthorize();
+      const authorization = await baseAuthority.authorize(request);
+      if (authorization.status === "refused") return authorization;
+      return {
+        ...authorization,
+        refs: {
+          localOid: request.head,
+          remote: {
+            remote: request.remote,
+            oid: request.head,
+            disposition: "delete" as const,
+          },
+        },
+      };
+    },
+    revalidate: baseAuthority.revalidate,
+  };
+}
+
 function enableSelfHusk(ctx: TeardownContext): void {
   ctx.cwd = CWD;
   ctx.worktreeFs = {
@@ -991,6 +1049,66 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     const switchIdx = calls.findIndex((c) => c[1] === "switch");
     const deleteIdx = calls.findIndex((c) => c[1] === "update-ref" && c[2] === "-d");
     expect(switchIdx).toBeLessThan(deleteIdx);
+  });
+
+  it("keeps the abandoned primary branch checked out when remote cleanup fails, then retries", async () => {
+    const { ctx, calls } = buildCtx([], {
+      branches: ["plan/demo"],
+      worktreePorcelain: "worktree /repo\nHEAD abc\nbranch refs/heads/plan/demo\n",
+    });
+    const currentPrimaryBranch = installStatefulPrimaryProjection(ctx, { remote: 1 });
+    let authorizationCount = 0;
+    installRemoteDeleteAuthority(ctx, () => { authorizationCount += 1; });
+
+    const first = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(first).toMatchObject({ status: "torn-down", branchDeleted: false, remoteBranchDeleted: false });
+    if (first.status !== "torn-down") return;
+    expect(first.notices.some((notice) => /simulated remote transport failure/iu.test(notice))).toBe(true);
+    expect(currentPrimaryBranch()).toBe("plan/demo");
+    expect(calls.some((call) => call[1] === "switch")).toBe(false);
+
+    const retry = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(retry).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
+    expect(authorizationCount).toBe(2);
+    expect(currentPrimaryBranch()).toBe("main");
+  });
+
+  it("restores the abandoned primary branch when local CAS fails, then retries", async () => {
+    const { ctx, calls } = buildCtx([], {
+      branches: ["plan/demo"],
+      worktreePorcelain: "worktree /repo\nHEAD abc\nbranch refs/heads/plan/demo\n",
+    });
+    const currentPrimaryBranch = installStatefulPrimaryProjection(ctx, { local: 1 });
+    let authorizationCount = 0;
+    const baseAuthority = ctx.authority;
+    if (baseAuthority === undefined) throw new Error("missing test retirement authority");
+    ctx.authority = {
+      authorize: async (request) => {
+        authorizationCount += 1;
+        return await baseAuthority.authorize(request);
+      },
+      revalidate: baseAuthority.revalidate,
+    };
+
+    const first = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(first).toMatchObject({ status: "torn-down", branchDeleted: false });
+    if (first.status !== "torn-down") return;
+    expect(first.notices.some((notice) => /simulated local ref lock/iu.test(notice))).toBe(true);
+    expect(first.notices.some((notice) => /Restored the primary worktree/iu.test(notice))).toBe(true);
+    expect(currentPrimaryBranch()).toBe("plan/demo");
+    expect(calls.filter((call) => call[1] === "switch")).toEqual([
+      ["git", "switch", "main"],
+      ["git", "switch", "plan/demo"],
+    ]);
+
+    const retry = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(retry).toMatchObject({ status: "torn-down", branchDeleted: true });
+    expect(authorizationCount).toBe(2);
+    expect(currentPrimaryBranch()).toBe("main");
   });
 
   it("linked arm under abandoned mode stamps and detaches before ref cleanup, then removes the resolved husk", async () => {

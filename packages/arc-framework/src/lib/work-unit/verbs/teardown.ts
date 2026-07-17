@@ -318,6 +318,30 @@ interface TeardownBranchProjectionParams {
   huskPath?: string;
 }
 
+async function relocatePrimaryToBase(
+  exec: GitExec,
+  primaryPath: string,
+  base: string,
+  baseRef: string,
+): Promise<string | null> {
+  try {
+    await exec("git", ["switch", base], { cwd: primaryPath });
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err);
+  }
+  // Land the developer on a current base: fast-forward local `base` to the
+  // refreshed remote base (best-effort; a non-ff or unavailable base is left
+  // as-is). Skipped when the remote base did not resolve (`baseRef === base`).
+  if (baseRef !== base) {
+    try {
+      await exec("git", ["merge", "--ff-only", baseRef], { cwd: primaryPath });
+    } catch {
+      // Non-fast-forwardable (local base ahead) or unavailable — leave it as-is.
+    }
+  }
+  return null;
+}
+
 async function teardownBranchProjection(
   ctx: TeardownContext,
   params: TeardownBranchProjectionParams,
@@ -356,6 +380,7 @@ async function teardownBranchProjection(
   let directionalAuthorization: Extract<TeardownAuthorizationDecision, { status: "authorized" }> | null = null;
   let retiringProjectionPath: string | undefined;
   let pendingCreatedHuskRemoval: string | null = null;
+  let pendingAuthorizedPrimaryRelocation: string | null = null;
   let directionalObligationsResolved = true;
   const branchedRegistration = branch === null
     ? undefined
@@ -589,11 +614,12 @@ async function teardownBranchProjection(
         return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
       }
       worktreeRemoved = registered.path;
-    } else if (registered?.path === primary) {
+    } else if (registered !== undefined && primary !== undefined && registered.path === primary) {
       // In-place arm: the branch is checked out in the *primary* worktree, so the
-      // delete would be refused ("branch used by worktree"). Relocate the primary
-      // onto `base` first (a linked worktree is torn down above; an unmapped branch
-      // — already switched away — needs no relocation).
+      // delete would be refused ("branch used by worktree"). Receipt-authorized
+      // cleanup must resolve its remote obligation before relocation so a transport
+      // failure leaves the exact branched projection available for reauthorization.
+      // Shipped cleanup retains the legacy eager relocation path.
       if (authorizationRequired) {
         if (authority === null || authorizationRequest === null || directionalAuthorization === null) {
           return { status: "rejected", reason: "retirement authority is unavailable" };
@@ -607,22 +633,13 @@ async function teardownBranchProjection(
           };
         }
       }
-      try {
-        await exec("git", ["switch", base], { cwd: primary });
-      } catch (err) {
-        return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
+      if (directionalAuthorization !== null) {
+        pendingAuthorizedPrimaryRelocation = primary;
+      } else {
+        const relocationFailure = await relocatePrimaryToBase(exec, primary, base, baseRef);
+        if (relocationFailure !== null) return { status: "rejected", reason: relocationFailure };
+        notices.push(`Relocated the primary worktree to \`${base}\` before reaping \`${branch}\`.`);
       }
-      // Land the developer on a current base: fast-forward local `base` to the
-      // refreshed remote base (best-effort; a non-ff or unavailable base is left
-      // as-is). Skipped when the remote base did not resolve (`baseRef === base`).
-      if (baseRef !== base) {
-        try {
-          await exec("git", ["merge", "--ff-only", baseRef], { cwd: primary });
-        } catch {
-          // Non-fast-forwardable (local base ahead) or unavailable — leave it as-is.
-        }
-      }
-      notices.push(`Relocated the primary worktree to \`${base}\` before reaping \`${branch}\`.`);
     }
   }
 
@@ -649,6 +666,7 @@ async function teardownBranchProjection(
       } else {
         const remoteProof = directionalAuthorization.refs.remote;
         let remoteResolved = remoteProof === null;
+        let primaryRelocatedForLocalDelete = false;
         if (remoteProof?.disposition === "delete") {
           try {
             const outcome = await deleteRemoteBranch(exec, remoteProof.remote, branchForCleanup, remoteProof.oid);
@@ -688,21 +706,73 @@ async function teardownBranchProjection(
             terminalPath,
           ))
         ) {
-          try {
-            await exec("git", [
-              "update-ref",
-              "-d",
-              `refs/heads/${branchForCleanup}`,
-              directionalAuthorization.refs.localOid,
-            ]);
-          } catch (err) {
-            notices.push(
-              `Could not compare-and-delete local branch \`${branchForCleanup}\` `
-                + `(${err instanceof Error ? err.message : String(err)}).`,
+          let localMutationReady = true;
+          if (pendingAuthorizedPrimaryRelocation !== null) {
+            const relocationFailure = await relocatePrimaryToBase(
+              exec,
+              pendingAuthorizedPrimaryRelocation,
+              base,
+              baseRef,
             );
+            if (relocationFailure === null) {
+              primaryRelocatedForLocalDelete = true;
+              notices.push(`Relocated the primary worktree to \`${base}\` before reaping \`${branchForCleanup}\`.`);
+            } else {
+              localMutationReady = false;
+              notices.push(
+                `Could not relocate the primary worktree to \`${base}\` after resolving the remote obligation `
+                  + `(${relocationFailure}); local branch \`${branchForCleanup}\` remains checked out for retry.`,
+              );
+            }
+          }
+          if (
+            localMutationReady
+            && primaryRelocatedForLocalDelete
+            && (
+              await hasCompetingWorktreeProjection(ctx, branchForCleanup, terminalPath)
+              || await hasCompetingLifecycleProjection(
+                ctx,
+                branchForCleanup,
+                directionalAuthorization,
+                terminalPath,
+              )
+            )
+          ) {
+            localMutationReady = false;
+            notices.push(
+              `Competing registered projection owns \`${branchForCleanup}\`; local ref cleanup was vetoed.`,
+            );
+          }
+          if (localMutationReady) {
+            try {
+              await exec("git", [
+                "update-ref",
+                "-d",
+                `refs/heads/${branchForCleanup}`,
+                directionalAuthorization.refs.localOid,
+              ]);
+            } catch (err) {
+              notices.push(
+                `Could not compare-and-delete local branch \`${branchForCleanup}\` `
+                  + `(${err instanceof Error ? err.message : String(err)}).`,
+              );
+            }
           }
         }
         branchDeleted = !(await branchExists(exec, branchForCleanup));
+        if (primaryRelocatedForLocalDelete && !branchDeleted && pendingAuthorizedPrimaryRelocation !== null) {
+          try {
+            await exec("git", ["switch", branchForCleanup], { cwd: pendingAuthorizedPrimaryRelocation });
+            notices.push(
+              `Restored the primary worktree to \`${branchForCleanup}\` after local ref cleanup did not complete.`,
+            );
+          } catch (err) {
+            notices.push(
+              `Could not restore the primary worktree to \`${branchForCleanup}\` `
+                + `(${err instanceof Error ? err.message : String(err)}); restore it manually before retrying.`,
+            );
+          }
+        }
         directionalObligationsResolved = remoteResolved && branchDeleted;
       }
     } else if (mode === "shipped") {
