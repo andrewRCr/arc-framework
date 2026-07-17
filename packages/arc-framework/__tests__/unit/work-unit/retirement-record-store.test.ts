@@ -48,6 +48,12 @@ describe("retirement record key codec", () => {
 describe("retirement record namespace", () => {
   it("creates the namespace lazily on the first write and writes no package-source mirror", async () => {
     const fs: RetirementRecordFs = {
+      lstat: vi.fn().mockImplementation(async (path: string) => {
+        if (path === `/repo/${RETIREMENT_RECORD_NAMESPACE}`) {
+          throw Object.assign(new Error("missing"), { code: "ENOENT" });
+        }
+        return { isDirectory: () => true, isSymbolicLink: () => false };
+      }),
       mkdir: vi.fn().mockResolvedValue(undefined),
       writeFile: vi.fn().mockResolvedValue(undefined),
     };
@@ -59,7 +65,7 @@ describe("retirement record namespace", () => {
 
     expect(fs.mkdir).toHaveBeenCalledExactlyOnceWith(
       `/repo/${RETIREMENT_RECORD_NAMESPACE}`,
-      { recursive: true },
+      { recursive: false },
     );
     expect(fs.writeFile).toHaveBeenCalledExactlyOnceWith(
       `/repo/${RETIREMENT_RECORD_NAMESPACE}/sha256-${hex}.json`,
@@ -69,5 +75,19 @@ describe("retirement record namespace", () => {
     expect(vi.mocked(fs.writeFile).mock.calls.flat()).not.toContainEqual(
       expect.stringContaining("packages/arc-framework/arc"),
     );
+  });
+
+  it("rejects a symlinked namespace parent before writing", async () => {
+    const fs: RetirementRecordFs = {
+      lstat: vi.fn().mockImplementation(async (path: string) => ({
+        isDirectory: () => path !== "/repo/.arc/.internal",
+        isSymbolicLink: () => path === "/repo/.arc/.internal",
+      })),
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await expect(writeRetirementRecord("/repo", digest, "record-bytes", fs)).rejects.toThrow(/real directory/iu);
+    expect(fs.writeFile).not.toHaveBeenCalled();
   });
 });

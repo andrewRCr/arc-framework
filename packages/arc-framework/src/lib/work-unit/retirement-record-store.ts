@@ -5,7 +5,7 @@
  * branch text never participate in record-path construction.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { isCanonicalDigest, type CanonicalDigest } from "../canonical/canonical-json.js";
@@ -20,12 +20,14 @@ const RECORD_KEY_PATTERN = /^sha256-([0-9a-f]{64})$/u;
 
 /** Minimal filesystem boundary for creating the namespace and writing records. */
 export interface RetirementRecordFs {
+  lstat(path: string): Promise<{ isDirectory(): boolean; isSymbolicLink(): boolean }>;
   mkdir(path: string, options: { recursive: boolean }): Promise<unknown>;
   writeFile(path: string, content: string, options: { flag: "wx" }): Promise<void>;
 }
 
 /** Production retirement-record filesystem adapter. */
 export const nodeRetirementRecordFs: RetirementRecordFs = {
+  lstat,
   mkdir,
   writeFile: (path, content, options) => writeFile(path, content, { encoding: "utf8", ...options }),
 };
@@ -88,6 +90,32 @@ export async function writeRetirementRecord(
   content: string,
   fs: RetirementRecordFs = nodeRetirementRecordFs,
 ): Promise<void> {
-  await fs.mkdir(join(cwd, RETIREMENT_RECORD_NAMESPACE), { recursive: true });
+  for (const path of [
+    join(cwd, ".arc"),
+    join(cwd, ".arc", ".internal"),
+    join(cwd, RETIREMENT_RECORD_NAMESPACE),
+  ]) {
+    await ensureRealDirectory(path, fs);
+  }
   await fs.writeFile(resolveRetirementRecordPath(cwd, receiptId), content, { flag: "wx" });
+}
+
+async function ensureRealDirectory(path: string, fs: RetirementRecordFs): Promise<void> {
+  try {
+    const entry = await fs.lstat(path);
+    if (!entry.isDirectory() || entry.isSymbolicLink()) {
+      throw new Error(`Retirement record parent is not a real directory: ${path}`);
+    }
+  } catch (error) {
+    if ((error as { code?: unknown }).code !== "ENOENT") throw error;
+    try {
+      await fs.mkdir(path, { recursive: false });
+    } catch (mkdirError) {
+      if ((mkdirError as { code?: unknown }).code !== "EEXIST") throw mkdirError;
+      const entry = await fs.lstat(path);
+      if (!entry.isDirectory() || entry.isSymbolicLink()) {
+        throw new Error(`Retirement record parent is not a real directory: ${path}`, { cause: mkdirError });
+      }
+    }
+  }
 }
