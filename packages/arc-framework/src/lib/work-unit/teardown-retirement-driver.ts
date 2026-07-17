@@ -1,6 +1,6 @@
 /** Git-backed retirement authority and replay evidence validation for teardown. */
 
-import { assessReapSafety } from "../git/branch-containment.js";
+import { isContainedIn, isLandedInBase } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
 import type {
   DecodedWorktreeHuskStamp,
@@ -47,17 +47,31 @@ export async function revalidateHuskRetirementEvidence(
 ): Promise<boolean> {
   const { evidence } = proof;
   if (evidence.kind === "shipped") {
-    let preserved: boolean;
+    let pinnedBase: string;
     try {
-      await exec("git", ["merge-base", "--is-ancestor", evidence.baseProofOid, baseRef]);
-      preserved = true;
+      pinnedBase = await resolveCommit(exec, baseRef);
     } catch {
-      const safety = await assessReapSafety(exec, { branch: stamp.branch, base: baseRef });
-      preserved = safety.safe;
+      return false;
     }
-    if (!preserved) return false;
+    const sourcePreserved = await retiringProjectionPreserved(exec, stamp, proof, pinnedBase);
+    if (!sourcePreserved) return false;
     try {
-      const currentDigest = await readCompletedProjectionDigest(exec, baseRef, stamp.subject, readBlob);
+      await exec("git", ["merge-base", "--is-ancestor", evidence.baseProofOid, pinnedBase]);
+    } catch {
+      try {
+        const evidenceDigest = await readCompletedProjectionDigest(
+          exec,
+          evidence.baseProofOid,
+          stamp.subject,
+          readBlob,
+        );
+        if (evidenceDigest !== evidence.resultDigest) return false;
+      } catch {
+        return false;
+      }
+    }
+    try {
+      const currentDigest = await readCompletedProjectionDigest(exec, pinnedBase, stamp.subject, readBlob);
       return currentDigest !== null && currentDigest === evidence.resultDigest;
     } catch {
       return false;
@@ -70,6 +84,27 @@ export async function revalidateHuskRetirementEvidence(
     authorization: proof.authorization,
     evidence,
   }, readBlob);
+}
+
+async function retiringProjectionPreserved(
+  exec: GitExec,
+  stamp: WorktreeHuskStamp,
+  proof: Extract<TeardownAuthorizationDecision, { status: "authorized" }>,
+  base: string,
+): Promise<boolean> {
+  if (proof.refs.localOid !== stamp.sha) return false;
+  if (await isLandedInBase(exec, stamp.sha, base)) return true;
+  const remote = proof.refs.remote;
+  return remote !== null
+    && remote.oid === stamp.sha
+    && await isContainedIn(exec, stamp.sha, `${remote.remote}/${stamp.branch}`);
+}
+
+async function resolveCommit(exec: GitExec, ref: string): Promise<string> {
+  const { stdout } = await exec("git", ["rev-parse", "--verify", `${ref}^{commit}`]);
+  const oid = stdout.trim();
+  if (oid === "") throw new Error(`cannot resolve commit: ${ref}`);
+  return oid;
 }
 
 /** Validate one structurally decoded current stamp without treating the stamp as authority. */

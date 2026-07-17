@@ -35,7 +35,9 @@ function execWithCompletedProjection(options: { ancestry?: boolean; includeProje
     if (args[0] === "ls-tree") {
       return { stdout: includeProjection ? `${metaPath}\0${specPath}\0` : "" };
     }
-    if (args[0] === "show" && args[1] === `main:${metaPath}`) return { stdout: meta };
+    if (args[0] === "show" && (args[1] === `main:${metaPath}` || args[1] === `${baseOid}:${metaPath}`)) {
+      return { stdout: meta };
+    }
     if (args[0] === "rev-parse" && args.includes("origin/feat/sample")) throw new Error("no upstream");
     if (args[0] === "rev-parse") return { stdout: `${baseOid}\n` };
     if (args[0] === "cherry") return { stdout: "" };
@@ -68,6 +70,44 @@ function proof(resultDigest: `sha256:${string}`): Extract<TeardownAuthorizationD
 }
 
 describe("shipped teardown retirement evidence", () => {
+  it("pins the base commit before deriving shipped evidence", async () => {
+    const observedBaseRefs: string[] = [];
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "rev-parse" && args.includes("origin/feat/sample")) throw new Error("no upstream");
+      if (args[0] === "rev-parse") return { stdout: `${baseOid}\n` };
+      if (args[0] === "cherry") {
+        observedBaseRefs.push(args[1] ?? "");
+        return { stdout: "" };
+      }
+      if (args[0] === "ls-tree") {
+        observedBaseRefs.push(args[5] ?? "");
+        return { stdout: `${metaPath}\0${specPath}\0` };
+      }
+      if (args[0] === "show") {
+        observedBaseRefs.push((args[1] ?? "").split(":", 1)[0] ?? "");
+        return { stdout: meta };
+      }
+      throw new Error(`unexpected git command: ${args.join(" ")}`);
+    };
+    const context = createGitRetirementAuthorizationContext(
+      exec,
+      "main",
+      async (ref, path) => {
+        observedBaseRefs.push(ref);
+        return blobs.get(path) ?? null;
+      },
+    );
+
+    await expect(context.readShippedEvidence({
+      subject: stamp.subject,
+      branch,
+      head: stamp.sha,
+      remote: "origin",
+      requestedMode: "shipped",
+    })).resolves.not.toBeNull();
+    expect(new Set(observedBaseRefs)).toEqual(new Set([baseOid]));
+  });
+
   it("does not authorize when the completed projection is missing", async () => {
     const context = createGitRetirementAuthorizationContext(
       execWithCompletedProjection({ includeProjection: false }),
@@ -108,6 +148,25 @@ describe("shipped teardown retirement evidence", () => {
       proof(`sha256:${"c".repeat(64)}`),
       "main",
       unreadable,
+    )).resolves.toBe(false);
+  });
+
+  it("rejects shipped evidence copied onto an unpreserved retiring head", async () => {
+    const exec = execWithCompletedProjection();
+    const digest = await readCompletedProjectionDigest(exec, "main", stamp.subject, readBlob);
+    expect(digest).not.toBeNull();
+    if (digest === null) return;
+    const unpreserved: GitExec = async (cmd, args, options) => {
+      if (args[0] === "cherry" && args[2] === stamp.sha) return { stdout: `+ ${stamp.sha}\n` };
+      return await exec(cmd, args, options);
+    };
+
+    await expect(revalidateHuskRetirementEvidence(
+      unpreserved,
+      stamp,
+      proof(digest),
+      "main",
+      readBlob,
     )).resolves.toBe(false);
   });
 

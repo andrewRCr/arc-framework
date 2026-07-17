@@ -82,16 +82,16 @@ export function createGitRetirementAuthorizationContext(
     },
     readRemoteRef: async (remote, branch) => await readRemoteOid(exec, remote, branch),
     readShippedEvidence: async (request) => {
+      const baseProofOid = await resolveCommit(exec, baseRef);
       const safety = await assessReapSafety(exec, {
         branch: request.branch,
-        base: baseRef,
+        base: baseProofOid,
         remote: request.remote,
       });
       if (!safety.safe) return null;
-      const [baseProofOid, landed, resultDigest] = await Promise.all([
-        resolveCommit(exec, baseRef),
-        isLandedInBase(exec, request.branch, baseRef),
-        readCompletedProjectionDigest(exec, baseRef, request.subject, readBlob),
+      const [landed, resultDigest] = await Promise.all([
+        isLandedInBase(exec, request.branch, baseProofOid),
+        readCompletedProjectionDigest(exec, baseProofOid, request.subject, readBlob),
       ]);
       if (resultDigest === null) return null;
       return {
