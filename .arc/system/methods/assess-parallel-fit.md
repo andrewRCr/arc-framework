@@ -109,8 +109,11 @@ Two cheap inputs — the meta `**State:**` and whether a complete spec/tasks exi
   everything else → quiet.
 - **Design-settled gate.** A WU draws on the budget only while its design is still **open**. A candidate counts at
   full magnitude — its planning is almost always ahead of it, done in-flight before activation — while an
-  already-in-flight WU discounts to quiet once its design is **settled** (in execution or `Integrating`, or parked
-  at spec-readiness). Planning-stage or bare-stub work is open.
+  already-in-flight WU discounts to quiet once its design is **settled**: its spec is finalized, whether it is
+  parked there or advancing through task generation, execution, or `Integrating`. Pre-spec planning and bare-stub
+  work are open. The gate is binary but the load is not: design effort front-loads into the early planning stages
+  (drafting heaviest, spec formalization lighter), so weigh a WU late in an open planning arc below one just
+  opening its draft.
 
 **Salience — signal, not noise.** After adding the candidate, count the design-open `Novel` / `Heavy` WUs. Surface
 a note only when that reaches **2+** (two unsettled derivations at once — the saturation case), or as a soft
