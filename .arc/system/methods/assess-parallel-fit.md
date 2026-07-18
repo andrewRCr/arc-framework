@@ -113,7 +113,7 @@ Two cheap inputs — the meta `**State:**` and whether a complete spec/tasks exi
   parked there or advancing through task generation, execution, or `Integrating`. Pre-spec planning and bare-stub
   work are open. The gate is binary but the load is not: design effort front-loads into the early planning stages
   (drafting heaviest, spec formalization lighter), so weigh a WU late in an open planning arc below one just
-  opening its draft.
+  opening its draft (the decay informs that weighing only; the salience count below stays binary).
 
 **Salience — signal, not noise.** After adding the candidate, count the design-open `Novel` / `Heavy` WUs. Surface
 a note only when that reaches **2+** (two unsettled derivations at once — the saturation case), or as a soft
