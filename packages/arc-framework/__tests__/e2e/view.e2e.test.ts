@@ -106,6 +106,7 @@ describe("arc view", () => {
       const { binDir, logPath } = await installFakeGlow(cwd);
       const result = await runArc(["view", "tasks"], cwd, {
         env: {
+          CI: "false",
           PATH: `${binDir}:${process.env.PATH ?? ""}`,
           ARC_VIEW_RENDER_LOG: logPath,
           GIT_CONFIG_GLOBAL: "/dev/null",
@@ -127,6 +128,7 @@ describe("arc view", () => {
       await git(cwd, ["config", "arc.viewRenderer", "bat"]);
       const result = await runArc(["view", "tasks"], cwd, {
         env: {
+          CI: "false",
           PATH: `${binDir}:${process.env.PATH ?? ""}`,
           ARC_VIEW_RENDER_LOG: logPath,
         },
