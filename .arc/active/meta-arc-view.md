@@ -12,9 +12,8 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Draft groomed to formalization-ready at draft-design (2026-07-18) — consolidated
-  post-split (status/HUD arms live in `status-hud`), v1 kind set settled, adversarial pass folded; see
-  `draft-arc-view.md`.
+- **Last Completed:** Spec finalized at create-spec (2026-07-18) — `spec-arc-view.md` at outline form,
+  adversarial pass folded (converged at the `Light` cap), draft retired, `Class: Light` persisted.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
