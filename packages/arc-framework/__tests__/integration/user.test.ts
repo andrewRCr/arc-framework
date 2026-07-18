@@ -1375,7 +1375,7 @@ describe("user save/load — split-source worktree surfaces", () => {
     }
   });
 
-  it("migrates mergeable linked identity-global copies into the primary root before saving", async () => {
+  it("keeps save path resolution read-only when a linked identity-global copy is present", async () => {
     const linked = await addLinkedWorktree(tempDir, "feat/split-migration");
     try {
       const primaryUserDir = join(tempDir, ".arc", "user", "test-user");
@@ -1408,11 +1408,12 @@ describe("user save/load — split-source worktree surfaces", () => {
       });
 
       expect(save.fileCount).toBe(3);
-      expect(await readFile(join(primaryUserDir, "USER-INBOX.md"), "utf-8")).toContain("linked capture");
+      expect(await readFile(join(primaryUserDir, "USER-INBOX.md"), "utf-8")).not.toContain("linked capture");
+      expect(await readFile(join(linkedUserDir, "USER-INBOX.md"), "utf-8")).toContain("linked capture");
       const head = await readHead(linked);
       const note = await linkedIo.readNote("arc/user/test-user", head);
       const manifest = JSON.parse(note!) as { files: Record<string, string> };
-      expect(manifest.files["USER-INBOX.md"]).toContain("linked capture");
+      expect(manifest.files["USER-INBOX.md"]).not.toContain("linked capture");
     } finally {
       await execFileAsync("git", ["-C", tempDir, "worktree", "remove", "--force", linked]);
     }
@@ -1957,6 +1958,11 @@ describe("user push and pull", () => {
 
     // Surfaced as a conflict — the corrupt union is not silently pushed.
     expect(result.kind).toBe("conflict");
+    if (result.kind === "conflict") {
+      expect(result.message).toMatch(/same file.*same annotated commit/iu);
+      expect(result.message).toContain("arc user push --force");
+      expect(result.message).not.toMatch(/unparseable note/iu);
+    }
 
     // Remote untouched: nothing was pushed.
     const remoteTipAfter = (await execFileAsync(
@@ -2296,7 +2302,8 @@ describe("user status", () => {
     expect(summary).toContain("Pre-load backup present: .pre-load-backup-");
     expect(summary).toContain("Next step: run `arc user load`");
     expect(result.unsavedDirection).toBe("modified");
-    expect(result.savedAtRelative).toMatch(/^(just now|\d+ (minute|hour|day)s? ago)$/u);
+    expect(result.savedAtRelative).toBeNull();
+    expect(summary).not.toMatch(/Saved (?:just now|\d+ (?:minute|hour|day)s? ago)/u);
   });
 
   it("reports local-unsaved when disk changes after load and local sync provenance is present", async () => {

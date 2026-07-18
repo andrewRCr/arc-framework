@@ -227,8 +227,11 @@ export async function adoptCompactedNotesRef(
           return {
             kind: "conflict",
             message:
-              `Concurrent notes on commit ${entry.commit.slice(0, 8)} could not be auto-merged `
-              + "across the compaction snapshot. Local notes are preserved; resolve the note and retry.",
+              `Concurrent notes on commit ${entry.commit.slice(0, 8)} contain different content for the same `
+              + "file at the same annotated commit across the compaction snapshot. Local notes are preserved, "
+              + "and no lossless automatic repair exists yet. Manually combine the contested user file on one "
+              + "chosen machine, run `arc user save`, then coordinate `arc user push --force`; preserve other "
+              + "machines' local-only content before they adopt that result.",
           };
         }
         await exec("git", ["notes", `--ref=${adoptRef}`, "add", "-f", "-C", merged.blob, entry.commit]);

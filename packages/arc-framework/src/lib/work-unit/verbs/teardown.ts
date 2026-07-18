@@ -18,9 +18,9 @@
  *
  * - **`shipped`** (default) — post-merge cleanup of a `completed/` WU. The
  *   two-part safety model (settled upstream): (1) **arc-state authority** — the
- *   WU resides in `completed/` (the `archive` transition ran), resolved from
- *   location via {@link isShipped}, never from `git branch` / `git log`
- *   inference; (2) **preservation durability** — every local commit is provably
+ *   WU resides in `completed/` (the `archive` transition ran), resolved from the
+ *   protection-aware base ref rather than the potentially stale invoking
+ *   checkout; (2) **preservation durability** — every local commit is provably
  *   preserved (contained in its upstream, or landed in `base` by
  *   patch-equivalence), enacted by the shared reap oracle ({@link
  *   assessReapSafety}) the merged-safe delete leg uses, holding even when the
@@ -47,6 +47,7 @@
 
 import { isLandedInBase } from "../../git/branch-containment.js";
 import type { GitExec } from "../../git/exec.js";
+import { readRefTip } from "../../git/ref-tree.js";
 import { refreshBase } from "../../git/refresh-base.js";
 import type { ProtectionMode } from "../../git/write-context.js";
 import { decideHuskCleanup, isWorktreeClean } from "../../git/worktree-cleanup.js";
@@ -63,7 +64,8 @@ import {
   type RegisteredWorktreeScanResult,
 } from "../../git/worktree-roster.js";
 import { reconcileLinkedIdentityGlobalUserSurfaces } from "../../user-surface-migration.js";
-import { branchToWorkUnitSlug } from "../completed-index.js";
+import { localPathsEqual } from "../../local-path-identity.js";
+import { branchToWorkUnitSlug, readShippedWorkUnitsFromRef } from "../completed-index.js";
 import {
   describeTeardownAuthorizationRefusal,
   type RetirementAuthorityPort,
@@ -81,7 +83,7 @@ import {
   type ReconcileWorktreeFs,
 } from "../mutators/reconcile-worktree.js";
 import { isSlugSafe } from "../slug.js";
-import { isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { parseMetaRecord } from "../../active/meta-reader.js";
 import {
   createTeardownRetirementAuthority,
@@ -120,7 +122,7 @@ export interface TeardownContext {
  * worktree / locus-hop / ordering / prune mechanics are identical in both.
  *
  * - `shipped` (default) — a `completed/` WU whose branch is merged. Gate:
- *   `completed/` presence ({@link isShipped}). Branch delete: the merged-safe,
+ *   `completed/` presence on the protection-aware base ref. Branch delete: the merged-safe,
  *   containment-gated `delete-merged` — git-containment is the safety — plus a
  *   best-effort live-remote-head delete once the landed-in-base proof holds (a
  *   plain merge leaves the head to linger; delete-on-merge hosts already
@@ -269,7 +271,10 @@ async function hasCompetingWorktreeProjection(
 ): Promise<boolean> {
   const scan = await (ctx.scanWorktrees ?? scanRegisteredWorktrees)(ctx.exec);
   if (!scan.ok) return true;
-  return scan.worktrees.some((entry) => entry.path !== retiringPath && entry.branch === branch);
+  for (const entry of scan.worktrees) {
+    if (entry.branch === branch && !(await localPathsEqual(entry.path, retiringPath))) return true;
+  }
+  return false;
 }
 
 async function hasCompetingLifecycleProjection(
@@ -290,14 +295,14 @@ async function hasCompetingLifecycleProjection(
       (proof.evidence.expectedLifecycle === "completed" && entry.location === "completed")
       || (proof.evidence.expectedLifecycle === "planned" && entry.location === "planned")
     ) {
-      return declaredBranch === branch && !isSelfTeardown(retiringPath, ctx.cwd);
+      return declaredBranch === branch && !(await isSelfTeardown(retiringPath, ctx.cwd));
     }
     if (
       proof.evidence.kind === "receipt"
       && proof.evidence.transition === "decompose"
       && proof.evidence.expectedLifecycle === "nonexistent"
       && declaredBranch === branch
-      && isSelfTeardown(retiringPath, ctx.cwd)
+      && await isSelfTeardown(retiringPath, ctx.cwd)
     ) {
       return false;
     }
@@ -408,7 +413,7 @@ async function teardownBranchProjection(
       mismatchedBranches.push(marker.marker.husk.branch);
       continue;
     }
-    if (huskPath === undefined || resolve(worktree.path) === resolve(huskPath)) {
+    if (huskPath === undefined || await localPathsEqual(worktree.path, huskPath)) {
       matches.push({ path: worktree.path, head: worktree.head, marker: marker.marker });
     }
   }
@@ -490,7 +495,7 @@ async function teardownBranchProjection(
     const primary = scan.worktrees.find((worktree) => worktree.primary)?.path;
     const selfTeardown = registered !== undefined
       && registered.path !== primary
-      && isSelfTeardown(registered.path, cwd);
+      && await isSelfTeardown(registered.path, cwd);
     if (mode === "abandoned" && registered === undefined) {
       return {
         status: "rejected",
@@ -845,7 +850,7 @@ async function teardownBranchProjection(
   }
 
   const physicalRemovalPath = pendingHuskRemoval?.path ?? pendingCreatedHuskRemoval;
-  if (physicalRemovalPath !== null && !isSelfTeardown(physicalRemovalPath, cwd)) {
+  if (physicalRemovalPath !== null && !(await isSelfTeardown(physicalRemovalPath, cwd))) {
     if (!directionalObligationsResolved || (branchForCleanup !== null && !branchDeleted)) {
       notices.push(`Detached husk \`${physicalRemovalPath}\` left intact until branch obligations resolve.`);
     } else {
@@ -954,13 +959,39 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     return { status: "rejected", reason: "`--husk` requires an absolute worktree path." };
   }
 
-  // 1. Arc-state authority gate — mode-keyed, resolved from location, never git.
+  // 1. Arc-state authority gate — mode-keyed and read from the configured base
+  //    authority so a stale linked checkout cannot overrule landed lifecycle
+  //    state. Full protection refreshes and trusts the remote base; partial
+  //    protection trusts the locally integrating base. Direct library callers
+  //    that omit the protection model retain the historical checkout-local seam;
+  //    the CLI always supplies the configured model.
   //    `shipped`: only a `completed/` WU (the merged-safe path's precondition).
   //    `abandoned`: the inverse — accept any *un-shipped* WU (a retired / parked
   //    origin), but refuse a `completed/` one so the retirement path can't reap a
   //    merged WU that the safe path handles.
-  const index = await buildLifecycleIndex({ cwd, fs: indexFs });
-  const shipped = isShipped(index, name);
+  let shipped: boolean;
+  if (params.protection === undefined) {
+    shipped = isShipped(await buildLifecycleIndex({ cwd, fs: indexFs }), name);
+  } else {
+    const authorityRef = params.protection === "full" ? `${remote ?? "origin"}/${base}` : base;
+    if (params.protection === "full") {
+      try {
+        await exec("git", ["fetch", remote ?? "origin", base]);
+      } catch {
+        return {
+          status: "rejected",
+          reason: `Could not refresh lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
+        };
+      }
+    }
+    if (await readRefTip(exec, authorityRef) === null) {
+      return {
+        status: "rejected",
+        reason: `Could not resolve lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
+      };
+    }
+    shipped = (await readShippedWorkUnitsFromRef(exec, authorityRef)).has(name);
+  }
   if (mode === "shipped" && !shipped) {
     return {
       status: "rejected",

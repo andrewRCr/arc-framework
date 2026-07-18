@@ -341,6 +341,8 @@ describe("buildUserStatusResult", () => {
 
     expect(result.headline).toBe("notes conflict");
     expect(result.actionHint).toContain("contested notes");
+    expect(result.actionHint).toContain("arc user push --force");
+    expect(result.actionHint).not.toContain("repair");
     expect(result.detailLines.join(" ")).not.toContain("arc user pull");
   });
 
@@ -3259,6 +3261,7 @@ describe("runUserStatus saved-note projection", () => {
     noteCommit: string;
     reachableCommits: string[];
     ancestorDistance: number;
+    savedAt?: string;
   }
 
   function buildIO(scenario: ProjectionScenario): UserIOContext {
@@ -3272,6 +3275,7 @@ describe("runUserStatus saved-note projection", () => {
       materializedManifestHash: hashSyncManifest(projectManifest(noteManifest)),
       sourceCommit: scenario.noteCommit,
       sourceOperation: "save",
+      ...(scenario.savedAt ? { savedAt: scenario.savedAt } : {}),
     });
 
     return {
@@ -3357,6 +3361,24 @@ describe("runUserStatus saved-note projection", () => {
     expect(result.ancestorDistance).toBe(0);
     expect(result.savedReachableFromHead).toBe(true);
     expect(result.detailLines).toContain("Latest local user note is current with HEAD.");
+  });
+
+  it("renders save age from sync-state savedAt rather than the annotated commit date", async () => {
+    const head = "a".repeat(40);
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io: buildIO({
+        head,
+        noteCommit: head,
+        reachableCommits: [head],
+        ancestorDistance: 0,
+        savedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      }),
+      identity: "andrew",
+      offline: true,
+    });
+
+    expect(result.detailLines).toContain("Saved 2 hours ago.");
   });
 
   it("projects a reachable ancestor note with its distance from HEAD", async () => {

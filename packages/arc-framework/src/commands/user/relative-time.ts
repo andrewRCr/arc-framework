@@ -1,7 +1,7 @@
 /**
  * Format a past timestamp as a human-readable relative phrase
- * ("11 hours ago", "2 days ago"). Used for rendering the saved-note
- * commit's author date in status output.
+ * ("11 hours ago", "2 days ago"). Used for rendering the persisted save
+ * timestamp in status output.
  */
 export function formatRelativeTime(past: Date, now: Date = new Date()): string {
   const seconds = Math.max(0, Math.floor((now.getTime() - past.getTime()) / 1000));

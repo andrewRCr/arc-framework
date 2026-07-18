@@ -27,8 +27,12 @@ import {
 /** Stop reason categories emitted by the recovery audit. */
 export type RecoveryAuditStopKind =
   | "active-unresolved"
+  | "branch-mismatch"
+  | "branch-unresolved"
   | "dirty-unresolved"
   | "git-status-failed"
+  | "head-lineage-mismatch"
+  | "head-unresolved"
   | "identity-missing"
   | "load-set-unresolved"
   | "load-set-drift"
@@ -74,15 +78,34 @@ export interface RecoveryAuditDirtyFiles {
  * fully accounted for by committed work since the seed. The verdict stays binary
  * ready/stop; an explained reason simply does not push a stop.
  */
-export interface RecoveryAuditExplainedDrift {
-  kind: "dirty-path-drift";
-  message: string;
-  detail: {
-    /** Seed-expected dirty paths now absent because they were committed since the seed. */
-    resolvedPaths: string[];
-    /** The seed head those paths were committed after. */
-    committedSince: string;
+export type RecoveryAuditExplainedDrift =
+  | {
+    kind: "dirty-path-drift";
+    message: string;
+    detail: {
+      /** Seed-expected dirty paths now absent because they were committed since the seed. */
+      resolvedPaths: string[];
+      /** The seed head those paths were committed after. */
+      committedSince: string;
+    };
+  }
+  | {
+    kind: "head-advanced";
+    message: string;
+    detail: {
+      expected: string;
+      actual: string;
+    };
   };
+
+/** Branch and HEAD comparison carried by the audit result. */
+export interface RecoveryAuditLocus {
+  expectedBranch: string;
+  actualBranch: string | null;
+  branchMatch: boolean;
+  expectedHead: string;
+  actualHead: string | null;
+  headRelation: "same" | "advanced" | "mismatch" | "unresolved";
 }
 
 /** Task-cursor comparison carried by the audit result. */
@@ -100,6 +123,7 @@ export interface RecoveryAuditVerdict {
   /** Drift that was suppressed as expected progression; never gates the verdict. */
   explainedDrift: RecoveryAuditExplainedDrift[];
   loadSetAudit: LoadSetAuditVerdict | null;
+  locus: RecoveryAuditLocus | null;
   dirtyFiles: RecoveryAuditDirtyFiles;
   taskCursor: RecoveryAuditTaskCursor | null;
 }
@@ -120,6 +144,10 @@ export interface AuditRecoveryStateOptions {
   recover: RecoveryAuditProbeState;
   /** Fresh dirty-file path set from `git status --porcelain=v1 -z`. */
   freshUncommittedFiles: readonly string[];
+  /** Current checkout branch (`HEAD` when detached), read at audit time. */
+  freshBranch: string | null;
+  /** Current resolved HEAD commit, read at audit time. */
+  freshHead: string | null;
   /**
    * Resolves committed-progress evidence for explained-drift classification.
    * Injected in tests; defaults to a real git query against the current repo.
@@ -132,10 +160,13 @@ export async function auditRecoveryState(
   options: AuditRecoveryStateOptions,
 ): Promise<RecoveryAuditVerdict> {
   const resolveCommittedProgress = options.resolveCommittedProgress ?? defaultCommittedProgressResolver;
-  const committedProgress = await resolveCommittedProgress(options.seed.head);
+  const committedProgress = options.freshHead === null
+    ? null
+    : await resolveCommittedProgress(options.seed.head, options.freshHead);
 
   const stopReasons: RecoveryAuditStopReason[] = [];
   const explainedDrift: RecoveryAuditExplainedDrift[] = [];
+  const locus = auditLocus(options, stopReasons, explainedDrift, committedProgress);
   const loadSetAudit = auditLoadSet(options, stopReasons);
   const dirtyFiles = auditDirtyFiles(options, stopReasons, explainedDrift, committedProgress);
   const taskCursor = auditTaskCursor(options, stopReasons);
@@ -147,8 +178,66 @@ export async function auditRecoveryState(
     stopReasons,
     explainedDrift,
     loadSetAudit,
+    locus,
     dirtyFiles,
     taskCursor,
+  };
+}
+
+function auditLocus(
+  options: AuditRecoveryStateOptions,
+  stopReasons: RecoveryAuditStopReason[],
+  explainedDrift: RecoveryAuditExplainedDrift[],
+  committedProgress: CommittedProgress | null,
+): RecoveryAuditLocus {
+  const branchMatch = options.freshBranch === options.seed.branch;
+  if (options.freshBranch === null) {
+    stopReasons.push({
+      kind: "branch-unresolved",
+      message: "live checkout branch could not be resolved",
+      detail: { expected: options.seed.branch, actual: null },
+    });
+  } else if (!branchMatch) {
+    stopReasons.push({
+      kind: "branch-mismatch",
+      message: "live checkout branch differs from the compaction seed baseline",
+      detail: { expected: options.seed.branch, actual: options.freshBranch },
+    });
+  }
+
+  let headRelation: RecoveryAuditLocus["headRelation"];
+  if (options.freshHead === null) {
+    headRelation = "unresolved";
+    stopReasons.push({
+      kind: "head-unresolved",
+      message: "live HEAD commit could not be resolved",
+      detail: { expected: options.seed.head, actual: null },
+    });
+  } else if (options.freshHead === options.seed.head) {
+    headRelation = "same";
+  } else if (committedProgress?.advanced === true) {
+    headRelation = "advanced";
+    explainedDrift.push({
+      kind: "head-advanced",
+      message: "live HEAD advanced from the compaction seed on the same lineage",
+      detail: { expected: options.seed.head, actual: options.freshHead },
+    });
+  } else {
+    headRelation = "mismatch";
+    stopReasons.push({
+      kind: "head-lineage-mismatch",
+      message: "live HEAD is not the seed head or a descendant of it",
+      detail: { expected: options.seed.head, actual: options.freshHead },
+    });
+  }
+
+  return {
+    expectedBranch: options.seed.branch,
+    actualBranch: options.freshBranch,
+    branchMatch,
+    expectedHead: options.seed.head,
+    actualHead: options.freshHead,
+    headRelation,
   };
 }
 

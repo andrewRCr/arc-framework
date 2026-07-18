@@ -196,41 +196,20 @@ gated on `finalize-parallelism`. The **revival decision is routed to `finalize-p
 substrate it operates on becomes real and the as-built concurrent-work conventions exist to update against —
 superseding the open-ended fallback tree below for the revival call itself.
 
-### Surviving narrow use case (preserved from WF spec)
-
-Interactive cross-worktree *investigation* — operate in another worktree's runnable environment while
-reasoning with the current session's live, expensive-to-reconstruct context. Requires all three
-simultaneously: the target worktree's runtime environment, this session's accumulated reasoning, and return
-intent (short detour, not a permanent switch). Discovered side work goes to errand-launch; a discrete
-question about another worktree is answered by reading its files (worktrees are directories) or seeding an
-exploration session — neither needs a context-merging shift. A permanent switch is handoff + fresh session;
-a mis-launch is clear + re-init — neither has accumulated context worth preserving.
-
-### Alternative framing to evaluate
-
-**PR-review checkout** — pulling a teammate's (or one's own past) branch into a transient worktree with the
-current session's review-context loaded. Different shape than the in-flight-own-WU framing above (the target
-is a remote PR branch, not necessarily an in-flight WU of yours); plausibly higher frequency than
-investigation-into-own-WU. If shift earns its keep when revisited, the case may be this one rather than the
-spec's original.
-
-### Implementation shape (if revived)
-
-Workflow doc `shift-work-unit.md` carries the logic — including the uncommitted-work gate (the original R14,
-which gates everything else); the `/arc-shift` skill body is a thin dispatcher. Matches the codified
-skill/workflow split (arc-commit → prepare-commits; arc-session → session-init). The gate-belongs-in-workflow
-shape is what keeps the skill body honest as a thin dispatcher.
-
-### Fallback decision tree (at end of cohort)
-
-The deferral leaves three exits at cohort end:
-
-- **Pick up in a remaining cohort WU** if a real instance surfaces during the cohort run — Errand
-  Enablement, In-Flight Awareness, Agile WU Lifecycle, or Concurrent Work Conventions can absorb it.
-- **Materialize as a provisional backlog stub** (`.arc/backlog/provisional/arc-shift/`) if still ambiguous
-  at cohort end — keeps the design captured under a low-commitment surface.
-- **Dismiss entirely** if confidence grows during the cohort that no instance will surface; the verb dies,
-  this section archives with the cohort.
+**Final disposition (2026-07-17, via `finalize-parallelism` GA closeout) — DISMISSED.** Burn-in supplied the
+demand evidence the deferral waited for: investigation-shaped detours *did* surface (most often between the
+observer WU and its wave worktrees), and every instance was satisfied by read-only cross-worktree access from
+the current session — worktrees are directories, and per-command cwd targeting covers running commands in the
+target environment without relocating. No instance required the verb's defining conjunction (target runtime
+environment + carried live context + return intent). Two structural findings independently close the case:
+the relocate-desync finding (a mid-session cwd hop moves the agent while the developer's terminal and GUI stay
+behind — `arc-shift` is that hop, formalized with a merge-back) and the single-frame session-state finding (a
+formal detour-and-return needs the frame/locus machinery `session-locus-model` owns). The genuinely-interactive
+residual — sustained work inside another worktree's runnable environment — is served by a spawn-anchored fresh
+session there, booting rich off the seeded handoff. The PR-review-checkout alternative framing reduces the same
+way: worktree-add + read-from-here, or a fresh session. The verb dies and this section archives with the cohort.
+If post-GA demand materializes, the case re-derives on `session-locus-model`'s
+locus-record substrate rather than from this sketch.
 
 ## Cross-cutting design spine — the Errand work class
 
@@ -344,7 +323,7 @@ cross-machine discovery and the advisory concurrency check.
 - **Open questions (spec):** exact regeneration triggers; name; whether a persisted local cache earns its
   keep over pure on-demand render.
 
-## Pending cross-cohort follow-ons
+## Cross-cohort follow-on dispositions
 
 - **Shipped-doc drift-fix** — addressed by WF Phase 7.5. `strategy-work-organization.md`'s state table is
   reconciled to the 4-state machine under 7.5.a (Superseded becomes an `**Superseded By:**` annotation, not
@@ -354,6 +333,22 @@ cross-machine discovery and the advisory concurrency check.
   (`draft-local-mode.md`).
 - **AWL generic artifact-model prefix mentions** (`plan-*` / PRD in the tier-model body): left during the
   WOR-terminology sweep — entangled with AWL's tier ↔ spec-form coupling, deferred to arc-plan Conductor.
+
+---
+
+## Closeout
+
+- **Closed:** 2026-07-17
+- **Final member:** `finalize-parallelism`
+- **Member archives:** `11_worktree-foundation`, `12_errand-enablement`, `14_in-flight-awareness`,
+  `19_concurrent-work-doctrine`, `20_merge-safety-mechanism`, `21_notes-merge-coherence`,
+  `22_async-merge-lifecycle`, `23_worktree-default-start`, `33_single-owner-wu-model`, `34_out-of-wu-entry`,
+  `37_state-ref-write-safety`, `18_finalize-parallelism`
+- **Outcome:** ARC's parallelism layer shipped as one burn-in-verified operating model spanning isolated
+  worktrees, errands, in-flight awareness, merge and lifecycle safety, concurrent state, out-of-WU entry, and the
+  worktree-by-default GA posture.
+- **Follow-up:** [none] — downstream concerns have authoritative homes, and the deferred `arc-shift` verb was
+  dismissed from burn-in evidence.
 
 ---
 

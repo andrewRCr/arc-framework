@@ -557,7 +557,8 @@ export async function clearPartialPushMarker(
  * Record the errand-ref partial-push marker — the errand leg's mirror of
  * {@link recordPartialPushMarker}. Captures the local errand ref hash so a
  * later coherence probe can surface the unpushed errand records. Returns
- * `false` when no sync-state record or no local errand ref exists.
+ * `false` when no sync-state record or no local errand ref exists; callers must
+ * surface that result rather than claiming durable recovery was recorded.
  */
 export async function recordErrandPartialPushMarker(
   cwd: string,

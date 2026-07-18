@@ -299,9 +299,9 @@ export type NotesPushOutcome =
   | { kind: "blocked"; conditions: PushabilityCondition[] }
   /**
    * The non-ff merge could not be auto-resolved losslessly — either the
-   * `git notes merge` command failed, or `cat_sort_uniq` exited 0 but produced
-   * an unparseable note (a same-commit collision). The local ref is left intact
-   * and nothing is pushed; `message` is a user-facing surface.
+   * `git notes merge` command failed, or two valid manifests carry different
+   * content for the same file on the same annotated commit. The local ref is
+   * left intact and nothing is pushed; `message` is a user-facing surface.
    */
   | { kind: "conflict"; message: string }
   | { kind: "failed"; error: Error };
@@ -371,12 +371,13 @@ export async function reconcileNotesPush(
  * lineage, union-merge it into the local ref, then recapture and prove outside
  * the lock before publication.
  *
- * `cat_sort_uniq` exits 0 even when two worktrees annotated the same commit and
- * their single-line JSON manifests concatenate into an unparseable note, so the
- * non-trivial-conflict check is a post-merge manifest-validity scan rather than
- * git's exit signal. On corruption the local ref is rolled back to its
- * pre-merge tip (nothing corrupt persists or is pushed) and the conflict is
- * surfaced; a failed merge command is aborted and surfaced the same way.
+ * `cat_sort_uniq` exits 0 even when two worktrees annotate the same commit with
+ * valid manifests that disagree on a file; its concatenated merge artifact is
+ * then invalid. The non-trivial-conflict check is therefore a post-merge
+ * manifest-validity scan rather than git's exit signal. On conflict the local
+ * ref is rolled back to its pre-merge tip (nothing corrupt persists or is
+ * pushed) and the conflict is surfaced; a failed merge command is aborted and
+ * surfaced the same way.
  */
 async function reconcileAndRepush(
   options: ReconcileNotesPushOptions,
@@ -419,7 +420,7 @@ async function reconcileAndRepush(
         return {
           kind: "conflict",
           message:
-            `Concurrent notes on commit ${scan.commit.slice(0, 8)} produced an unparseable note, `
+            `Concurrent notes on commit ${scan.commit.slice(0, 8)} disagree on the same file at the same annotated commit, `
             + "and the rollback could not be applied safely. Nothing was pushed; inspect the local "
             + "notes ref and retry after resolving the conflict.",
         };
@@ -427,9 +428,11 @@ async function reconcileAndRepush(
       return {
         kind: "conflict",
         message:
-          `Concurrent notes on commit ${scan.commit.slice(0, 8)} could not be auto-merged `
-          + "(the union produced an unparseable note). Your local notes are preserved; resolve the "
-          + "conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
+          `Concurrent notes on commit ${scan.commit.slice(0, 8)} contain different content for the same file `
+          + "at the same annotated commit. Your local notes are preserved, and no lossless automatic repair "
+          + "exists yet. On one chosen machine, manually combine the contested user file and run "
+          + "`arc user save`; then coordinate `arc user push --force`. Preserve other machines' local-only "
+          + "content before they adopt the chosen result.",
       };
     }
     if (scan.kind === "failed") {

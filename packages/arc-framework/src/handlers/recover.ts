@@ -120,10 +120,17 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
     return;
   }
 
+  const [freshBranch, freshHead] = await Promise.all([
+    readGitValue(["rev-parse", "--abbrev-ref", "HEAD"]),
+    readGitValue(["rev-parse", "--verify", "HEAD^{commit}"]),
+  ]);
+
   const verdict = await auditRecoveryState({
     seed: parsedSeed.seed,
     recover,
     freshUncommittedFiles: parseUncommittedFiles(statusOutput),
+    freshBranch,
+    freshHead,
   });
   writeReport({
     mode: "recover-audit",
@@ -132,6 +139,15 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
     recover,
     verdict,
   }, Boolean(opts.json));
+}
+
+async function readGitValue(args: string[]): Promise<string | null> {
+  try {
+    const { stdout } = await gitExec("git", args);
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
 }
 
 function dirtyStateFromUncommittedFiles(files: readonly string[]): DirtyStateResult {
@@ -186,6 +202,7 @@ function stopVerdict(reason: RecoveryAuditStopReason): RecoveryAuditVerdict {
     stopReasons: [reason],
     explainedDrift: [],
     loadSetAudit: null,
+    locus: null,
     dirtyFiles: {
       expected: [],
       actual: [],

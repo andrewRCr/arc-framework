@@ -18,7 +18,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import * as p from "@clack/prompts";
 
 import { runActiveInFlight } from "../commands/active.js";
-import { runUserInboxRemove } from "../commands/user.js";
+import { runUserInboxRemove, type UserIOContext } from "../commands/user.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   DEFAULT_ERRAND_BRANCH_TYPE,
@@ -29,6 +29,7 @@ import {
   openErrand,
   promoteErrand,
   retireErrand,
+  type ErrandPushOutcome,
 } from "../lib/errand/index.js";
 import {
   detectForeignArtifactOverlap,
@@ -52,6 +53,48 @@ import { resolveUserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
+
+type ErrandPushLabel = "Record" | "Record-link" | "Record-removal";
+
+/** Honest recovery text shared by every errand-record mutation handler. */
+export function formatErrandPushDeferredWarning(
+  label: ErrandPushLabel,
+  outcome: Extract<ErrandPushOutcome, { kind: "no-remote" | "conflict" | "failed" }>,
+  markerRecorded: boolean,
+): string {
+  const markerDetail = markerRecorded
+    ? ""
+    : " The recovery marker was not recorded because no usable sync-state record exists; keep this warning for recovery.";
+  if (outcome.kind === "conflict") {
+    return `${label} push blocked by same-slug errand record conflict(s): ${outcome.slugs.join(", ")}. `
+      + "Choose the record to keep, then run `arc errand close --force <slug>` on the discarded side and retry."
+      + markerDetail;
+  }
+  return `${label} push deferred (${outcome.kind}); retry recovery with \`arc sync\`.` + markerDetail;
+}
+
+async function settleErrandPushOutcome(
+  cwd: string,
+  io: UserIOContext,
+  identity: string,
+  label: ErrandPushLabel,
+  outcome: ErrandPushOutcome,
+): Promise<void> {
+  switch (outcome.kind) {
+    case "pushed":
+    case "reconciled":
+    case "noop":
+      await clearErrandPartialPushMarker(cwd, io, identity);
+      return;
+    case "no-remote":
+    case "conflict":
+    case "failed": {
+      const markerRecorded = await recordErrandPartialPushMarker(cwd, io, identity);
+      p.log.warn(formatErrandPushDeferredWarning(label, outcome, markerRecorded));
+      return;
+    }
+  }
+}
 
 export interface ErrandCheckOptions {
   /** Target path(s) the errand will edit — matched by prefix against in-flight WUs. */
@@ -196,8 +239,8 @@ export interface ErrandOpenOptions {
  *
  * A full-protection verb — under partial protection an errand is a direct base
  * commit with no branch and no record, so `open` refuses there. The record push
- * is non-fatal: a failure records the errand partial-push marker (the same
- * machinery `arc sync` reconciles) rather than aborting the open.
+ * is non-fatal: a failure records the errand partial-push marker. Transport
+ * failures can ride `arc sync`; same-slug collisions name the manual recovery.
  *
  * `--from-inbox <entry-title>` adopts a `USER-INBOX` capture: the record is
  * minted `inbox`-origin with the capture as its back-pointer, so `arc errand
@@ -281,21 +324,9 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
   }
 
   // Mirror the sync leg's marker discipline: a clean push clears any stale errand
-  // partial-push marker; a failed push records it for later recovery and is
-  // non-fatal — the record is written locally and rides `arc sync`.
-  switch (result.push.kind) {
-    case "pushed":
-    case "reconciled":
-    case "noop":
-      await clearErrandPartialPushMarker(cwd, io, identity);
-      break;
-    case "no-remote":
-    case "conflict":
-    case "failed":
-      await recordErrandPartialPushMarker(cwd, io, identity);
-      p.log.warn(`Record push deferred (${result.push.kind}); it reconciles on the next \`arc sync\`.`);
-      break;
-  }
+  // partial-push marker. A failed push records it for later recovery and is
+  // non-fatal; collision outcomes carry their explicit discard-side remedy.
+  await settleErrandPushOutcome(cwd, io, identity, "Record", result.push);
 
   const cutVerb = result.branchCreated ? "cut" : "reused";
   const adopted = result.record.origin === "inbox"
@@ -402,20 +433,8 @@ export async function handleErrandLink(slug: string, opts: ErrandLinkOptions): P
 
   // Mirror the sync leg's marker discipline (see handleErrandOpen): a clean push
   // of the update clears any stale marker; a failed push records it and is
-  // non-fatal — the update rides the next `arc sync`.
-  switch (result.push.kind) {
-    case "pushed":
-    case "reconciled":
-    case "noop":
-      await clearErrandPartialPushMarker(cwd, io, identity);
-      break;
-    case "no-remote":
-    case "conflict":
-    case "failed":
-      await recordErrandPartialPushMarker(cwd, io, identity);
-      p.log.warn(`Record-link push deferred (${result.push.kind}); it reconciles on the next \`arc sync\`.`);
-      break;
-  }
+  // non-fatal, with collision outcomes naming their manual remedy.
+  await settleErrandPushOutcome(cwd, io, identity, "Record-link", result.push);
 
   const suffix = result.changed ? "" : " (already linked)";
   p.log.success(`Linked errand '${slug}' to inbox capture '${result.record.originEntry ?? ""}'${suffix}.`);
@@ -507,20 +526,8 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
 
   // Mirror the sync leg's marker discipline (see handleErrandOpen): a clean push
   // of the removal clears any stale marker; a failed push records it and is
-  // non-fatal — the removal rides the next `arc sync`.
-  switch (result.push.kind) {
-    case "pushed":
-    case "reconciled":
-    case "noop":
-      await clearErrandPartialPushMarker(cwd, io, identity);
-      break;
-    case "no-remote":
-    case "conflict":
-    case "failed":
-      await recordErrandPartialPushMarker(cwd, io, identity);
-      p.log.warn(`Record-removal push deferred (${result.push.kind}); it reconciles on the next \`arc sync\`.`);
-      break;
-  }
+  // non-fatal, with collision outcomes naming their manual remedy.
+  await settleErrandPushOutcome(cwd, io, identity, "Record-removal", result.push);
 
   // Drop the originating inbox capture (only inbox-promoted errands carry one);
   // idempotent — an absent entry or missing inbox file is a clean no-op.
@@ -606,20 +613,8 @@ export async function handleErrandRetire(slug: string): Promise<void> {
 
   // Mirror the sync leg's marker discipline (see handleErrandClose): a clean push
   // of the removal clears any stale marker; a failed push records it and is
-  // non-fatal — the removal rides the next `arc sync`.
-  switch (result.push.kind) {
-    case "pushed":
-    case "reconciled":
-    case "noop":
-      await clearErrandPartialPushMarker(cwd, io, identity);
-      break;
-    case "no-remote":
-    case "conflict":
-    case "failed":
-      await recordErrandPartialPushMarker(cwd, io, identity);
-      p.log.warn(`Record-removal push deferred (${result.push.kind}); it reconciles on the next \`arc sync\`.`);
-      break;
-  }
+  // non-fatal, with collision outcomes naming their manual remedy.
+  await settleErrandPushOutcome(cwd, io, identity, "Record-removal", result.push);
 
   await dropOriginatingInboxCapture(cwd, io, identity, result.record.originEntry);
 
@@ -733,20 +728,8 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
 
   // Mirror the sync leg's marker discipline (see handleErrandClose): a clean push
   // of the removal clears any stale marker; a failed push records it and is
-  // non-fatal — the removal rides the next `arc sync`.
-  switch (result.push.kind) {
-    case "pushed":
-    case "reconciled":
-    case "noop":
-      await clearErrandPartialPushMarker(cwd, io, identity);
-      break;
-    case "no-remote":
-    case "conflict":
-    case "failed":
-      await recordErrandPartialPushMarker(cwd, io, identity);
-      p.log.warn(`Record-removal push deferred (${result.push.kind}); it reconciles on the next \`arc sync\`.`);
-      break;
-  }
+  // non-fatal, with collision outcomes naming their manual remedy.
+  await settleErrandPushOutcome(cwd, io, identity, "Record-removal", result.push);
 
   await dropOriginatingInboxCapture(cwd, io, identity, result.record.originEntry);
 

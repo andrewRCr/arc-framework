@@ -26,13 +26,12 @@
  * @module
  */
 
-import { resolve } from "node:path";
-
 import {
   boundedFetch,
   checkOriginExists,
   type GitExec,
 } from "./exec.js";
+import { localPathsEqual } from "../local-path-identity.js";
 import {
   countAheadBehindRef,
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -124,7 +123,7 @@ export async function resolveBaseCheckoutLocus(
     return { kind: "elsewhere", path: baseWorktree.path, primary: baseWorktree.primary };
   }
 
-  const same = resolve(baseWorktree.path) === resolve(currentPath);
+  const same = await localPathsEqual(baseWorktree.path, currentPath);
   return {
     kind: same ? "current" : "elsewhere",
     path: baseWorktree.path,

@@ -423,6 +423,10 @@ describe("user notes compaction", () => {
     });
 
     expect(adopt.kind).toBe("conflict");
+    if (adopt.kind === "conflict") {
+      expect(adopt.message).toMatch(/same file.*same annotated commit/iu);
+      expect(adopt.message).not.toMatch(/unparseable note/iu);
+    }
     expect(await git(cloneB, ["rev-parse", NOTES_REF])).toBe(localTip);
     const local = JSON.parse(await noteContent(cloneB, collisionCommit)) as { files: Record<string, string> };
     expect(local.files["WORKING-MEMORY.md"]).toBe("local\n");

@@ -20,6 +20,7 @@
  */
 
 import type { GitExec } from "./exec.js";
+import { canonicalLocalPath } from "../local-path-identity.js";
 import type {
   InFlightEntry,
   InFlightEntryMark,
@@ -193,11 +194,18 @@ export async function detectForeignArtifactOverlap(
     originatingMetaPath,
     snapshot,
   } = options;
+  const originatingPathIdentity = await canonicalLocalPath(originatingWorktreePath);
+  const entries = await Promise.all(roster.entries.map(async (entry) => ({
+    entry,
+    isOriginatingWorktree: entry.worktreePath !== undefined
+      && await canonicalLocalPath(entry.worktreePath) === originatingPathIdentity,
+  })));
   const selfName =
-    originatingWorkUnitName ?? roster.entries.find(
-      (entry) => isUnshippedWorkUnit(entry) && entry.worktreePath === originatingWorktreePath
+    originatingWorkUnitName ?? entries.find(
+      ({ entry, isOriginatingWorktree }) => isUnshippedWorkUnit(entry)
+        && isOriginatingWorktree
         && entry.name !== undefined,
-    )?.name;
+    )?.entry.name;
   const notes =
     selfName === undefined && roster.entries.some((entry) => isUnshippedWorkUnit(entry))
       ? [SELF_EXCLUSION_FALLBACK_NOTE]
@@ -205,10 +213,10 @@ export async function detectForeignArtifactOverlap(
 
   const candidates: OverlapCandidateEntry[] = [];
   const skipped: ForeignArtifactSkippedEntry[] = [];
-  for (const entry of roster.entries) {
+  for (const { entry, isOriginatingWorktree } of entries) {
     if (!isUnshippedWorkUnit(entry)) continue;
     if (selfName !== undefined && entry.name === selfName) continue;
-    if (entry.worktreePath === originatingWorktreePath) continue;
+    if (isOriginatingWorktree) continue;
     if (originatingMetaPath !== undefined && entry.metaFilePath === originatingMetaPath) continue;
     if (entry.scheduling === "parked") continue;
 

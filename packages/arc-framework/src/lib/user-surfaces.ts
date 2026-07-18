@@ -9,15 +9,11 @@
  * @module
  */
 
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 
 import { toForwardSlash } from "./fs.js";
 import type { GitExec } from "./git/exec.js";
 import { resolvePrimaryWorktreePath } from "./git/worktree-roster.js";
-import {
-  nodeUserSurfaceMigrationFs,
-  reconcileLinkedIdentityGlobalUserSurfaces,
-} from "./user-surface-migration.js";
 
 export interface UserSurfaceResolverOptions {
   /** Current ARC project root / active worktree root. */
@@ -78,11 +74,12 @@ export function createUserSurfaceResolver(
 }
 
 /**
- * Resolve user surfaces from local git topology.
+ * Resolve user-surface paths from local git topology.
  *
  * The primary worktree is the zero-config identity-global backing store. If git
  * topology cannot be read, the active checkout is the safe single-worktree
- * fallback.
+ * fallback. Resolution is read-only: legacy linked copies are reconciled only
+ * by explicit worktree cleanup flows.
  *
  * @param options - Current root, identity, and git executor
  * @returns A semantic user-surface resolver
@@ -93,16 +90,6 @@ export async function resolveUserSurfaceResolver(options: {
   exec: GitExec;
 }): Promise<UserSurfaceResolver> {
   const primaryWorktree = await resolvePrimaryWorktreePath(options.exec);
-  if (primaryWorktree !== null && resolve(primaryWorktree) !== resolve(options.cwd)) {
-    const migration = await reconcileLinkedIdentityGlobalUserSurfaces({
-      worktreePath: options.cwd,
-      primaryWorktreePath: primaryWorktree,
-      fs: nodeUserSurfaceMigrationFs,
-      signpost: true,
-    });
-    if (migration.status === "blocked") throw new Error(migration.reason);
-  }
-
   return createUserSurfaceResolver({
     cwd: options.cwd,
     identity: options.identity,

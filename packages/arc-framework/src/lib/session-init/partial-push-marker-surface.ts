@@ -21,6 +21,7 @@
 import { isContainedIn } from "../git/branch-containment.js";
 import { readRefTip } from "../git/ref-tree.js";
 import type { GitExec } from "../git/exec.js";
+import { listAnnotatedNoteCommits } from "../user-sync/notes-ref.js";
 import {
   evaluateMarkerLiveness,
   isMarkerExpired,
@@ -63,6 +64,8 @@ export interface SelectAwareMarkersInput {
   notesRefTip: string | null;
   /** Reference time the TTL backstop measures `attemptTimestamp` against. */
   now: string;
+  /** Source commits already carrying a note at the current notes-ref tip. */
+  fulfilledSourceCommits?: ReadonlySet<string>;
   /** TTL window in days; defaults to the producer's {@link SYNC_STATE_MARKER_TTL_DAYS}. */
   ttlDays?: number;
   /**
@@ -74,9 +77,11 @@ export interface SelectAwareMarkersInput {
 }
 
 /**
- * Select the markers that render an Aware line: still `live` by the producer's
- * reachability predicate and within the TTL backstop. A `fulfilled` marker (its
- * intent reached at origin) and an aged-out one both drop to silence.
+ * Select the markers that render an Aware line: still `live` by both content
+ * fulfillment and the producer's reachability predicate, and within the TTL
+ * backstop. A marker drops to silence when the notes tree carries a note for
+ * its attempted source commit, its exact export intent reached origin, or it
+ * aged out.
  *
  * The TTL filter runs first so an aged-out marker never spends a git ancestry
  * call on the reachability check.
@@ -87,10 +92,18 @@ export interface SelectAwareMarkersInput {
 export async function selectAwareMarkers(
   input: SelectAwareMarkersInput,
 ): Promise<PartialPushMarkerSurfaceResult> {
-  const { markers, notesRefTip, now, ttlDays = SYNC_STATE_MARKER_TTL_DAYS, isReachable } = input;
+  const {
+    markers,
+    notesRefTip,
+    now,
+    fulfilledSourceCommits = new Set<string>(),
+    ttlDays = SYNC_STATE_MARKER_TTL_DAYS,
+    isReachable,
+  } = input;
   const selected: AwareMarkerEntry[] = [];
   for (const marker of markers) {
     if (isMarkerExpired(marker, now, ttlDays)) continue;
+    if (fulfilledSourceCommits.has(marker.lastAttemptedCommit)) continue;
     if ((await evaluateMarkerLiveness(marker, notesRefTip, isReachable)) !== "live") continue;
     selected.push({
       machineId: marker.machineId,
@@ -115,8 +128,9 @@ export interface RunPartialPushMarkerSurfaceOptions {
  *
  * Enumerates every entry, parses each into a marker (malformed or
  * key-mismatched entries drop out at the typed boundary), reads the local
- * notes-ref tip as origin's network-free proxy, and runs the pure selection. An
- * absent ref yields no entries and the surface is silent.
+ * notes-ref tip and annotated-commit set as origin's network-free proxy, and
+ * runs the pure selection. An absent ref yields no entries and the surface is
+ * silent.
  *
  * @param options - The git executor, identity, and reference time.
  * @returns The markers to surface; empty when the ref is absent or nothing is live.
@@ -134,11 +148,16 @@ export async function runPartialPushMarkerSurface(
     await Promise.all([...entries.keys()].map((entryKey) => readSyncStateMarker(refIo, entryKey)))
   ).filter((marker): marker is SyncStateMarker => marker !== null);
 
-  const notesRefTip = await readRefTip(exec, `${USER_NOTES_REF}/${identity}`);
+  const notesRef = `${USER_NOTES_REF}/${identity}`;
+  const [notesRefTip, annotatedCommits] = await Promise.all([
+    readRefTip(exec, notesRef),
+    listAnnotatedNoteCommits(exec, notesRef),
+  ]);
   return selectAwareMarkers({
     markers,
     notesRefTip,
     now,
+    fulfilledSourceCommits: new Set(annotatedCommits),
     isReachable: (ancestor, descendant) => isContainedIn(exec, ancestor, descendant),
   });
 }
