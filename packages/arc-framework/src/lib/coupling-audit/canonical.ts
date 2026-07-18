@@ -96,6 +96,7 @@ function compareCandidate(left: CandidateEvidence, right: CandidateEvidence): nu
     lexical(left.path, right.path) ||
     left.line - right.line ||
     left.column - right.column ||
+    left.endLine - right.endLine ||
     left.endColumn - right.endColumn ||
     lexical(left.token, right.token) ||
     lexical(left.id, right.id)

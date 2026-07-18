@@ -149,43 +149,29 @@ file lists, surface/locus tags, and residue.
 - _Outcome:_ One deterministic collection boundary now establishes the complete decoded input set and both
   orthogonal mechanical tags before matching begins.
 
-### `[ ]` **3.2 Implement manifest matching, fan-out aggregation, and residue emission**
+### `[x]` **3.2 Implement manifest matching, fan-out aggregation, and residue emission**
 
 - _Goal:_ Every captured candidate deterministically contributes to one or more declared classes or appears in
   residue with enough evidence to classify later.
 
-    - `[ ]` **3.2.a Match literal and regex patterns with stable evidence**
-        - Build `test-first` behavior for multi-line files, repeated matches, Unicode/prose input, line/column
-          evidence, overlapping patterns, and invalid runtime regex state.
-        - Store regex source and allowed flags separately, let the engine own global iteration, and reject patterns
-          that can match the empty string at both validation and execution boundaries.
-        - Count fan-out by distinct normalized file, matching the design's file-count examples; retain hit counts
-          and locations as supporting evidence without allowing repetition in one file to inflate fan-out.
+    - `[x]` **3.2.a Match literal and regex patterns with stable evidence**
+        - Added engine-owned regex iteration with repeated, overlapping, multi-line, Unicode-aware source evidence;
+          invalid or empty-string runtime patterns fail the scan.
 
-    - `[ ]` **3.2.b Attribute name and idiom tags without losing overlap**
-        - Permit one hit to evidence multiple legitimate assumption classes or idioms while deduplicating identical
-          class/file/location tuples.
-        - Produce per-class file lists, total hit counts, and surface-kind breakdowns from one normalized hit set.
+    - `[x]` **3.2.b Attribute name and idiom tags without losing overlap**
+        - Aggregated deduplicated class/location/idiom evidence into distinct-file fan-out, retained hit counts,
+          canonical file lists, and surface-kind breakdowns without suppressing legitimate overlap.
 
-    - `[ ]` **3.2.c Compute catch-all residue and apply recorded dispositions**
-        - Build `test-first` behavior proving every catch-all candidate is partitioned as classified, dismissed, or
-          unresolved, retaining vector, path, token/span, location, excerpt, surface kind, corpus locus, and its
-          canonical candidate digest.
-        - Classify a candidate only when a class match covers its exact token/span; attach every covering class and
-          prove that an unrelated match elsewhere in the same line or file never suppresses residue.
-        - Apply an exact disposition only to its candidate digest. Recompute each bulk predicate's member set and
-          digest, and fail when a recorded member disappears or changes or when a new member expands the group.
-        - Run the Phase 2 fixture matrix and prove an unseen token expressed through every idiom mechanism is
-          captured by its declared catch-all vector and reaches residue.
-        - Preserve dismissed candidates and disposition IDs in the canonical result; the engine applies validated
-          records mechanically and never judgment-filters broad-vector false positives on its own.
+    - `[x]` **3.2.c Compute catch-all residue and apply recorded dispositions**
+        - Partitioned catch-all evidence by exact span coverage, exact digest, or reproducible bulk member set;
+          retained dismissals and failed stale or expanded dispositions while leaving every unseen idiom unresolved.
 
-    - `[ ]` **3.2.d Canonicalize the complete scan result**
-        - Reuse `canonicalize()` from `src/lib/canonical/canonical-json.ts` and `toForwardSlash()` from `src/lib/fs.ts`
-          rather than adding competing canonical JSON or path-normalization helpers.
-        - Normalize set-valued arrays before canonicalization so unchanged input is byte-reproducible across runs
-          and path separators.
-        - Keep volatile execution metadata outside the canonical payload or in an explicitly excluded envelope.
+    - `[x]` **3.2.d Canonicalize the complete scan result**
+        - Reused shared canonical JSON, digest, and path helpers; normalized all set-valued result arrays and kept
+          execution metadata outside the validated payload.
+
+- _Outcome:_ The pure scan core now turns one manifest/corpus pair into a validated, byte-stable inventory whose
+  complete candidate set is mechanically accountable as classified, dismissed, or unresolved.
 
 ### `[ ]` **3.3 Add a repository command and reproducibility coverage**
 

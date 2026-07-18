@@ -144,6 +144,9 @@ function validatePattern(value: unknown, path: string): void {
     if (pattern.flags !== undefined) fail(`${path}.flags`, "literal patterns cannot declare regex flags");
     return;
   }
+  if (typeof pattern.flags === "string" && /[gyd]/.test(pattern.flags)) {
+    fail(`${path}.flags`, "global, sticky, and indices iteration are engine-owned");
+  }
   let regex: RegExp;
   try {
     regex = new RegExp(source, typeof pattern.flags === "string" ? pattern.flags : undefined);
@@ -296,9 +299,14 @@ function validateCandidate(value: unknown, path: string): Record<string, unknown
   nonEmptyString(candidate.path, `${path}.path`);
   positiveInteger(candidate.line, `${path}.line`);
   positiveInteger(candidate.column, `${path}.column`);
+  const endLine = positiveInteger(candidate.endLine, `${path}.endLine`);
+  if (endLine < (candidate.line as number)) fail(`${path}.endLine`, "must not precede line");
   const endColumn = positiveInteger(candidate.endColumn, `${path}.endColumn`);
-  if (endColumn <= (candidate.column as number)) fail(`${path}.endColumn`, "must be greater than column");
+  if (endLine === candidate.line && endColumn <= (candidate.column as number)) {
+    fail(`${path}.endColumn`, "must be greater than column on the same line");
+  }
   nonEmptyString(candidate.token, `${path}.token`);
+  nonEmptyString(candidate.excerpt, `${path}.excerpt`);
   enumValue(candidate.surfaceKind, SURFACE_KINDS, `${path}.surfaceKind`);
   enumValue(candidate.locus, CORPUS_LOCI, `${path}.locus`);
   enumValue(candidate.idiom, COUPLING_IDIOMS, `${path}.idiom`);
@@ -327,6 +335,7 @@ function validateResultClass(value: unknown, index: number): void {
   nonEmptyString(resultClass.classId, `${path}.classId`);
   const volatility = enumValue(resultClass.volatility, VOLATILITY, `${path}.volatility`);
   const fanOut = nonNegativeInteger(resultClass.fanOut, `${path}.fanOut`);
+  const hitCount = nonNegativeInteger(resultClass.hitCount, `${path}.hitCount`);
   const files = stringArray(resultClass.files, `${path}.files`, true);
   if (files.length !== fanOut) fail(`${path}.files`, "file count must equal fanOut");
   const surfaceTotal = validateSurfaceCounts(resultClass.surfaceCounts, `${path}.surfaceCounts`);
@@ -345,6 +354,7 @@ function validateResultClass(value: unknown, index: number): void {
   const hits = array(resultClass.hits, `${path}.hits`).map((entry, hitIndex) =>
     validateCandidate(entry, `${path}.hits[${hitIndex}]`),
   );
+  if (hits.length !== hitCount) fail(`${path}.hitCount`, "must equal the retained hit count");
   hits.forEach((hit, hitIndex) => {
     if (hit.classId !== resultClass.classId) fail(`${path}.hits[${hitIndex}].classId`, "must match parent classId");
     nonEmptyString(hit.patternId, `${path}.hits[${hitIndex}].patternId`);

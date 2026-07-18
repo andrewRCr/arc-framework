@@ -100,8 +100,10 @@ export interface CandidateEvidence {
   path: string;
   line: number;
   column: number;
+  endLine: number;
   endColumn: number;
   token: string;
+  excerpt: string;
   surfaceKind: SurfaceKind;
   locus: CorpusLocus;
   idiom: CouplingIdiom;
@@ -124,6 +126,7 @@ export interface CouplingScanResult {
     classId: string;
     volatility: Volatility;
     fanOut: number;
+    hitCount: number;
     files: string[];
     surfaceCounts: Record<SurfaceKind, number>;
     highFanOut: boolean;
