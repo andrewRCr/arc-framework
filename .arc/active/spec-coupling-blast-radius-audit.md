@@ -150,8 +150,8 @@ performs every corpus-wide read.
 
 - **Ranking thresholds** — what fan-out count reads "high" per surface kind; calibrated against the real
   distribution once counts exist.
-- **Code-sample cap value** — the per-class inspection bound; set from the first code-hit distribution before any
-  classified hit is opened.
+- **Code-sample cap value (resolved: 5)** — cover each distinct idiom first, then fill in canonical path/location
+  order. Five covers the largest four-idiom class plus one independent path check against the observed distribution.
 - **Residue cap value** — the bounded triage size; set when the catch-all's actual volume is known.
 - **Manifest/script home (resolved)** — code lives under `src/lib/coupling-audit/` with a repository-audit script;
   canonical JSON lives under package-local `audits/coupling-blast-radius/`, and the movable Markdown report requires

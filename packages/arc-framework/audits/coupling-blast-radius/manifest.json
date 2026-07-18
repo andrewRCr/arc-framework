@@ -99,41 +99,41 @@
     {
       "id": "meta-prefix",
       "key": { "kind": "name", "value": "meta- artifact prefix" },
-      "patterns": [{ "id": "meta-prefix-literal", "form": "literal", "value": "meta-", "caseSensitive": true }],
+      "patterns": [{ "id": "meta-artifact-prefix", "form": "regex", "value": "meta-(?=[*{$\\[\"'`]|[a-z0-9][a-z0-9-]*\\.md)", "flags": "u" }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
-      "idioms": ["filename-prefix", "directory-state", "path-literal"],
+      "idioms": ["filename-prefix", "directory-state", "path-literal", "doc-name"],
       "volatility": { "rating": "unresolved", "evidence": null }
     },
     {
       "id": "tasks-prefix",
       "key": { "kind": "name", "value": "tasks- artifact prefix" },
-      "patterns": [{ "id": "tasks-prefix-literal", "form": "literal", "value": "tasks-", "caseSensitive": true }],
+      "patterns": [{ "id": "tasks-artifact-prefix", "form": "regex", "value": "tasks-(?=[*{$\\[\"'`]|[a-z0-9][a-z0-9-]*\\.md)", "flags": "u" }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
-      "idioms": ["filename-prefix", "directory-state", "path-literal"],
+      "idioms": ["filename-prefix", "directory-state", "path-literal", "doc-name"],
       "volatility": { "rating": "unresolved", "evidence": null }
     },
     {
       "id": "draft-prefix",
       "key": { "kind": "name", "value": "draft- artifact prefix" },
-      "patterns": [{ "id": "draft-prefix-literal", "form": "literal", "value": "draft-", "caseSensitive": true }],
+      "patterns": [{ "id": "draft-artifact-prefix", "form": "regex", "value": "draft-(?=[*{$\\[\"'`]|[a-z0-9][a-z0-9-]*\\.md)", "flags": "u" }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
-      "idioms": ["filename-prefix", "path-literal"],
+      "idioms": ["filename-prefix", "path-literal", "doc-name"],
       "volatility": { "rating": "unresolved", "evidence": null }
     },
     {
       "id": "spec-prefix",
       "key": { "kind": "name", "value": "spec- artifact prefix" },
-      "patterns": [{ "id": "spec-prefix-literal", "form": "literal", "value": "spec-", "caseSensitive": true }],
+      "patterns": [{ "id": "spec-artifact-prefix", "form": "regex", "value": "spec-(?=[*{$\\[\"'`]|[a-z0-9][a-z0-9-]*\\.md)", "flags": "u" }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
-      "idioms": ["filename-prefix", "path-literal"],
+      "idioms": ["filename-prefix", "path-literal", "doc-name"],
       "volatility": { "rating": "unresolved", "evidence": null }
     },
     {
       "id": "notes-prefix",
       "key": { "kind": "name", "value": "notes- artifact prefix" },
-      "patterns": [{ "id": "notes-prefix-literal", "form": "literal", "value": "notes-", "caseSensitive": true }],
+      "patterns": [{ "id": "notes-artifact-prefix", "form": "regex", "value": "notes-(?=[*{$\\[\"'`]|[a-z0-9][a-z0-9-]*\\.md)", "flags": "u" }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
-      "idioms": ["filename-prefix", "path-literal"],
+      "idioms": ["filename-prefix", "path-literal", "doc-name"],
       "volatility": { "rating": "unresolved", "evidence": null }
     },
     {
@@ -214,6 +214,14 @@
       "patterns": [{ "id": "strategy-index-literal", "form": "literal", "value": "STRATEGY-INDEX.md", "caseSensitive": true }],
       "citations": [{ "path": "draft-knowledge-architecture.md", "anchor": "Architecture § Access paths are derived", "workUnit": "knowledge-architecture" }],
       "idioms": ["doc-name", "path-literal"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "agent-briefs-root",
+      "key": { "kind": "name", "value": "reference/briefs/ agent-brief directory" },
+      "patterns": [{ "id": "agent-briefs-root-literal", "form": "literal", "value": "reference/briefs", "caseSensitive": true }],
+      "citations": [{ "path": "draft-naming-conventions.md", "anchor": "Rename reference/briefs to reference/agent-briefs", "workUnit": "naming-conventions" }],
+      "idioms": ["path-literal", "directory-state", "git-tracked-path"],
       "volatility": { "rating": "unresolved", "evidence": null }
     },
     {
@@ -351,5 +359,5 @@
   ],
   "dispositions": { "exact": [], "bulk": [] },
   "thresholds": { "test": 1, "workflow": 1, "template": 1, "code": 1, "prose": 1, "config": 1 },
-  "sampleCaps": { "codePerClass": 1, "residueTotal": 1 }
+  "sampleCaps": { "codePerClass": 5, "residueTotal": 1 }
 }

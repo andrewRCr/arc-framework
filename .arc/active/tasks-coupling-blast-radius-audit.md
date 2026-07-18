@@ -194,25 +194,21 @@ file lists, surface/locus tags, and residue.
 _Purpose:_ Run the tool over the authoritative surface, calibrate bounded judgment from actual distributions, and
 eliminate every unclassified catch-all hit.
 
-### `[ ]` **4.1 Execute the authoritative scan and calibrate the manifest**
+### `[x]` **4.1 Execute the authoritative scan and calibrate the manifest**
 
 - _Goal:_ The first complete result reflects the real package corpus and exact self-hosting delta without expanding
   agent reading into an uncapped corpus sweep.
 
-    - `[ ]` **4.1.a Run the checked-in manifest over the full declared corpus**
-        - Capture the repository commit, manifest version and canonical digest, command, corpus counts, and canonical
-          output hash outside the reproducible payload for report provenance.
-        - Verify the delta remains small and exact; route any unexpectedly broad root back to Task 1.1 rather than
-          normalizing scope growth mid-scan.
+    - `[x]` **4.1.a Run the checked-in manifest over the full declared corpus**
+        - Recorded commit, command, manifest/files/output digests, and the exact 1,164 package + 15 installed + 28
+          repo-root corpus counts in `notes-coupling-blast-radius-audit.md`.
 
-    - `[ ]` **4.1.b Calibrate patterns through capped code-hit samples**
-        - Before opening any classified hit, derive and record a numeric per-class cap from the code-hit distribution
-          and a deterministic selection rule that covers distinct idiom tags before filling remaining slots in
-          canonical path order; update the spec's open item with the settled bound.
-        - Inspect only those selected code samples to distinguish real reads/parsing from incidental mentions; let
-          mechanical path tags handle every other already-classified surface.
-        - Tighten or split patterns only when evidence shows a class conflates assumptions; rerun after every
-          manifest change and record the rationale without remediating any coupling.
+    - `[x]` **4.1.b Calibrate patterns through capped code-hit samples**
+        - Settled a five-hit cap using idiom-first then canonical path/location selection, reviewed 146 selected code
+          hits, tightened artifact-prefix patterns and idiom attribution, and added the omitted agent-brief mover.
+
+- _Outcome:_ The first complete scan preserved the bounded 43-file self-hosting delta while converting observed
+  code-hit distributions into a fixed review rule and a more precise 32-class manifest.
 
 ### `[ ]` **4.2 Set the residue cap and record the bulk-disposition rule**
 

@@ -92,6 +92,25 @@ describe("coupling-audit scan", () => {
     expect(result.candidates.unresolved.map((candidate) => candidate.token)).toEqual(["mystery/path"]);
   });
 
+  it("attributes the idiom and full span of a candidate containing a known name", () => {
+    const input = manifest();
+    input.catchAllVectors[0]!.patterns[0]!.value = "known/path/child";
+    const result = scanCorpus(input, [
+      {
+        path: "pkg/src/a.ts",
+        content: "known/path/child",
+        surfaceKind: "code",
+        locus: "package",
+      },
+    ]);
+    expect(result.candidates.classified[0]).toMatchObject({
+      token: "known/path/child",
+      idiom: "path-literal",
+      classIds: ["known-path"],
+    });
+    expect(result.classes[0]!.hits[0]).toMatchObject({ token: "known/path/child", idiom: "path-literal" });
+  });
+
   it("routes an unseen token from every declared idiom vector to residue", () => {
     const result = scanCorpus(manifest(), [
       {

@@ -115,11 +115,11 @@ The audit is project-internal repository tooling, not a product CLI surface:
 - The human projection is `report-coupling-blast-radius-audit.md` beside the WU's other movable artifacts. Its
   slug-matched companion name makes lifecycle relocation a pure move into the completed WU directory.
 
-The executable accepts manifest, result, ledger, and report paths explicitly. The package-local files are command
-defaults for normal repository reruns; the report path has no active-directory default and must always be supplied,
-so archiving the WU cannot redirect a later run into a stale `.arc/active/**` location. Scan mode writes canonical
-JSON to the requested result path (or stdout when requested); report mode reads the canonical result and ledger and
-writes the explicitly requested Markdown projection.
+The executable accepts manifest and result paths explicitly; the later report mode likewise receives ledger and
+report paths explicitly. The package-local files are the conventional checked-in paths, not implicit command
+defaults. Requiring the report path means archiving the WU cannot redirect a later run into a stale `.arc/active/**`
+location. Scan mode writes canonical JSON to the requested result path (or stdout when requested); report mode reads
+the canonical result and ledger and writes the explicitly requested Markdown projection.
 
 ## Machine-contract decisions
 
@@ -165,3 +165,26 @@ Behavioral fixture tokens for Task 3.2.c are:
 
 Catch-all precision is deliberately deferred to recorded residue dispositions. Presence validation already requires
 all seven mechanisms, source/mover-complete name classes, non-empty patterns, and non-empty-string regexes.
+
+## Initial enumeration and code calibration
+
+The settled pre-disposition scan used commit `a9b0ec4b5`, manifest version 1, and this command:
+
+```text
+npm run audit:coupling -- --manifest packages/arc-framework/audits/coupling-blast-radius/manifest.json \
+  --output /tmp/coupling-audit-phase4-initial.json
+```
+
+Its manifest digest is `60c97f75400807ead7b5fc8ebccb733bd876234832ac3c80905fd1c5e3141f5d`; the canonical
+output SHA-256 is `f15bd09164cb8fa6f8db55b9e78f3460a18d62dfe43845bf7e9073e1c3ed6148`. The corpus contains
+1,207 files: 1,164 package files, 15 exact installed-delta files, and 28 exact repo-root delta files. The files digest
+is `0d849b38d42555fb66dd001fe461bf12363985ac6a15c533cef92fbe62aad8b0`. Before dispositions, the scan
+contained 7,699 classified and 90,285 unresolved candidates across 32 classes.
+
+Code fan-out spans 0–107 files per class, with median 7 and upper quartile 13. The per-class code sample cap is 5:
+for each class, select the first canonical hit for each distinct idiom, then fill remaining slots in canonical
+path/location order. Five covers the largest four-idiom class plus one independent path check. The rule selected 146
+hits. Review showed that the artifact-prefix literals conflated lifecycle/status tokens; their patterns now require
+artifact-shaped continuations, and catch-span attribution now assigns only idioms mechanically evidenced at the
+name occurrence. The same review added the omitted live `reference/briefs` → `reference/agent-briefs` mover as
+`agent-briefs-root`. No remediation was performed.

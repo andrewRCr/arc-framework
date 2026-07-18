@@ -44,6 +44,12 @@ interface LocatedClassMatch extends LocatedMatch {
   idiom: CouplingIdiom;
 }
 
+interface LocatedCandidate {
+  evidence: CandidateEvidence;
+  start: number;
+  end: number;
+}
+
 function surfaceCounts(): Record<SurfaceKind, number> {
   return { test: 0, workflow: 0, template: 0, code: 0, prose: 0, config: 0 };
 }
@@ -106,13 +112,58 @@ function deduplicateClassMatches(matches: LocatedClassMatch[]): LocatedClassMatc
   return [...deduplicated.values()];
 }
 
-function collectClassMatches(manifest: CouplingManifest, files: readonly CorpusFile[]): LocatedClassMatch[] {
+function collectClassMatches(
+  manifest: CouplingManifest,
+  files: readonly CorpusFile[],
+  candidates: readonly LocatedCandidate[],
+): LocatedClassMatch[] {
   const matches: LocatedClassMatch[] = [];
+  const candidatesByPath = new Map<string, LocatedCandidate[]>();
+  for (const candidate of candidates) {
+    const pathCandidates = candidatesByPath.get(candidate.evidence.path) ?? [];
+    pathCandidates.push(candidate);
+    candidatesByPath.set(candidate.evidence.path, pathCandidates);
+  }
   for (const file of files) {
     for (const assumption of manifest.classes) {
       for (const match of findPatternSetMatches(file.content, assumption.patterns)) {
-        for (const idiom of assumption.idioms) {
-          matches.push({ ...match, path: file.path, surfaceKind: file.surfaceKind, locus: file.locus, classId: assumption.id, idiom });
+        const coveringCandidates = (candidatesByPath.get(file.path) ?? []).filter(
+          (candidate) =>
+            candidate.evidence.path === file.path &&
+            assumption.idioms.includes(candidate.evidence.idiom) &&
+            candidate.start <= match.start &&
+            candidate.end >= match.end,
+        );
+        if (coveringCandidates.length === 0) {
+          const idiom = assumption.idioms[0];
+          if (idiom === undefined) throw new CouplingAuditScanError(`Class ${assumption.id} has no declared idiom`);
+          matches.push({
+            ...match,
+            path: file.path,
+            surfaceKind: file.surfaceKind,
+            locus: file.locus,
+            classId: assumption.id,
+            idiom,
+          });
+          continue;
+        }
+        for (const candidate of coveringCandidates) {
+          matches.push({
+            patternId: match.patternId,
+            start: candidate.start,
+            end: candidate.end,
+            line: candidate.evidence.line,
+            column: candidate.evidence.column,
+            endLine: candidate.evidence.endLine,
+            endColumn: candidate.evidence.endColumn,
+            token: candidate.evidence.token,
+            excerpt: candidate.evidence.excerpt,
+            path: file.path,
+            surfaceKind: file.surfaceKind,
+            locus: file.locus,
+            classId: assumption.id,
+            idiom: candidate.evidence.idiom,
+          });
         }
       }
     }
@@ -120,12 +171,8 @@ function collectClassMatches(manifest: CouplingManifest, files: readonly CorpusF
   return deduplicateClassMatches(matches);
 }
 
-function collectCandidates(manifest: CouplingManifest, files: readonly CorpusFile[]): Array<{
-  evidence: CandidateEvidence;
-  start: number;
-  end: number;
-}> {
-  const candidates = new Map<string, { evidence: CandidateEvidence; start: number; end: number }>();
+function collectCandidates(manifest: CouplingManifest, files: readonly CorpusFile[]): LocatedCandidate[] {
+  const candidates = new Map<string, LocatedCandidate>();
   for (const file of files) {
     for (const vector of manifest.catchAllVectors) {
       if (!vector.surfaceKinds.includes(file.surfaceKind)) continue;
@@ -155,8 +202,8 @@ function partitionCandidates(
             (match) =>
               match.path === candidate.evidence.path &&
               match.idiom === candidate.evidence.idiom &&
-              match.start <= candidate.start &&
-              match.end >= candidate.end,
+              match.start === candidate.start &&
+              match.end === candidate.end,
           )
           .map((match) => match.classId),
       ),
@@ -204,7 +251,8 @@ export function scanCorpus(manifest: CouplingManifest, files: readonly CorpusFil
   }
   const surfaceByPath = new Map(orderedFiles.map((file) => [file.path, file.surfaceKind]));
 
-  const classMatches = collectClassMatches(canonicalManifest, orderedFiles);
+  const candidates = collectCandidates(canonicalManifest, orderedFiles);
+  const classMatches = collectClassMatches(canonicalManifest, orderedFiles, candidates);
   const classes = canonicalManifest.classes.map((assumption) => {
     const hits = classMatches.filter((match) => match.classId === assumption.id).map(classHitFrom);
     const filesForClass = sortByCanonicalBytes([...new Set(hits.map((hit) => hit.path))]);
@@ -241,7 +289,7 @@ export function scanCorpus(manifest: CouplingManifest, files: readonly CorpusFil
       ),
     },
     classes,
-    candidates: partitionCandidates(canonicalManifest, collectCandidates(canonicalManifest, orderedFiles), classMatches),
+    candidates: partitionCandidates(canonicalManifest, candidates, classMatches),
     diagnostics: [],
   });
   return parseCouplingScanResult(result);
