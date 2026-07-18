@@ -104,4 +104,38 @@ describe("runView", () => {
       exitCode: 1,
     });
   });
+
+  it("routes TTY content through the selected renderer and carries warnings on stderr", async () => {
+    const renderWithPager = vi.fn().mockResolvedValue(undefined);
+    const result = await runView({
+      cwd: "/repo",
+      kind: "tasks",
+      project: false,
+      identity: "andrew",
+      nonInteractive: false,
+    }, {
+      resolveArtifact: vi.fn().mockResolvedValue({
+        status: "resolved",
+        kind: "tasks",
+        path: "/repo/.arc/active/tasks-feature.md",
+      }),
+      readFile: vi.fn().mockResolvedValue("# Tasks\n"),
+      resolveRenderer: vi.fn().mockResolvedValue({
+        renderer: "bat",
+        warnings: ["invalid renderer ignored"],
+      }),
+      renderWithPager,
+    });
+
+    expect(renderWithPager).toHaveBeenCalledWith({
+      renderer: "bat",
+      content: "# Tasks\n",
+      displayPath: "/repo/.arc/active/tasks-feature.md",
+    });
+    expect(result).toEqual({
+      stdout: "",
+      stderr: "warning: invalid renderer ignored\n",
+      exitCode: 0,
+    });
+  });
 });

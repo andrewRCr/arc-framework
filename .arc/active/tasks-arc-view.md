@@ -80,38 +80,30 @@ _Design decisions:_ Renderer choice is personal taste, so the override is a two-
 `arc-config.yml` axis; the migration seam to the user-scoped config substrate is recorded, not built. Pager and
 renderer invocation are net-new — no pager or ANSI utility exists in the codebase today.
 
-### `[ ]` **2.1 Detect the renderer by PATH probe with ordered fallback**
+### `[x]` **2.1 Detect the renderer by PATH probe with ordered fallback**
 
 - _Goal:_ the viewer selects the first available of `glow` → `bat` → plain by probing PATH, so it works on any
   machine with the plain fallback always viable.
 
-    - Build `test-first` (one behavior at a time):
-        - `glow` on PATH → `glow` selected
-        - only `bat` on PATH → `bat` selected
-        - neither present → plain selected
+- _Outcome:_ Added a side-effect-free selection seam that probes `glow`, then `bat`, and always lands on the
+  viable plain renderer when neither executable is present.
 
-### `[ ]` **2.2 Add the `arc.viewRenderer` user-scoped override**
+### `[x]` **2.2 Add the `arc.viewRenderer` user-scoped override**
 
 - _Goal:_ `arc.viewRenderer` (`glow` / `bat` / `plain`) selects the renderer explicitly, overriding detection
   order; an invalid value warns and falls back to detection.
 
-    - Follow the `arc.notesPush` template (`src/lib/config/resolved-settings.ts`) — a two-tier resolver
-      (git-config → default, no yaml key) over `resolveGitConfigOverride`, with a value-set type guard.
-    - Build `test-first` (one behavior at a time):
-        - a valid override selects that renderer regardless of detection order
-        - an invalid override value → warning, then detection-order fallback
+- _Outcome:_ Added the two-tier `arc.viewRenderer` resolver over `resolveGitConfigOverride`; valid personal choices
+  bypass PATH probing, while invalid values warn and continue through ordered detection.
 
-### `[ ]` **2.3 Compose the renderer with a pager under TTY**
+### `[x]` **2.3 Compose the renderer with a pager under TTY**
 
 - _Goal:_ under a TTY the selected renderer streams through a pager (git-idiom handling; `less -R` for the plain
   renderer), rendering once and exiting; non-TTY bypasses the pager entirely (the Phase 1 plain path).
 
-    - _Note:_ per-renderer invocation fine-tuning (width handling, color behavior under `less -R`, pager-flag
-      interplay) is resolved against the real binaries during implementation, within the render-once-and-exit cap
-      and the degrade posture — never a re-render, watch, or input loop.
-    - Verify through integration (process spawn):
-        - TTY invocation composes the renderer through the pager and renders once
-        - non-TTY invocation spawns no pager
+- _Outcome:_ TTY rendering now uses each tool's pager-composing mode (`glow --pager`, `bat --paging=always`, or
+  `less -RFX`); non-TTY returns before renderer detection, and subprocess coverage verifies one-shot spawn and
+  prompt-free pipe behavior.
 
 ## **Phase 3:** Task-structure context — counter band, region output, and cursor anchoring
 

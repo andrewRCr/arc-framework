@@ -2,13 +2,14 @@
  * End-to-end tests for the non-TTY `arc view` contract.
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   cleanupTempDir,
   createTempRepo,
+  runArc,
   runArcNoTty,
   runArcWithStdin,
 } from "./helpers.js";
@@ -66,4 +67,50 @@ describe("arc view", () => {
     expect(result.stderr).toContain("Unknown view kind \"bogus\"");
     expect(result.stderr).toContain("tasks, spec, draft, meta");
   });
+
+  it("composes a detected renderer through pager mode exactly once under a TTY", async () => {
+    const { binDir, logPath } = await installFakeGlow(cwd);
+    const result = await runArc(["view", "tasks"], cwd, {
+      env: {
+        PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        ARC_VIEW_RENDER_LOG: logPath,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("# Task List: feature");
+    expect(await readFile(logPath, "utf8")).toBe("--version\n--pager -\n");
+  });
+
+  it("does not probe or spawn a renderer under non-TTY", async () => {
+    const { binDir, logPath } = await installFakeGlow(cwd);
+    const result = await runArcNoTty(["view", "tasks"], cwd, {
+      env: {
+        PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        ARC_VIEW_RENDER_LOG: logPath,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    await expect(access(logPath)).rejects.toThrow();
+  });
 });
+
+async function installFakeGlow(cwd: string): Promise<{ binDir: string; logPath: string }> {
+  const binDir = join(cwd, "fake-bin");
+  const logPath = join(cwd, "renderer.log");
+  const executable = join(binDir, "glow");
+  await mkdir(binDir, { recursive: true });
+  await writeFile(executable, [
+    "#!/bin/sh",
+    "printf '%s\\n' \"$*\" >> \"$ARC_VIEW_RENDER_LOG\"",
+    "if [ \"$1\" = \"--version\" ]; then",
+    "  printf 'glow test version\\n'",
+    "  exit 0",
+    "fi",
+    "cat",
+    "",
+  ].join("\n"));
+  await chmod(executable, 0o755);
+  return { binDir, logPath };
+}
