@@ -13,6 +13,19 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Locus records: HUD consumer seam + authority-domain homing**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: session-locus-model`), housekeep drain (2026-07-18);
+  captured at the storage-substrate grooming (2026-07-17). Precedent record:
+  `research-storage-landscape-2026-07.md` § 6.
+- *Concern:* two compose-notes. (1) The `status-hud` stub's context card ("where is this WU at — stage, at a
+  glance") upgrades from oracle/meta/cursor proxies to locus records when they land — locus should expose stage
+  as a queryable record, not only as workflow-internal state. (2) Scope-model question: locus is arguably
+  machine/worktree-local authority (the Swamp run-tracker precedent — "a PID is meaningful only on the machine";
+  home state by authority domain, query across domains rather than replicate) — decide which locus fields are
+  shared-store records vs. local-domain records exposed via query.
+- *Fold-in:* integrate both at this WU's next grooming.
+
 ### `[ ]` **Close the errand sweep loop: run-errand next-offer + `--errand` vs `--housekeep` doorway legibility**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during FP

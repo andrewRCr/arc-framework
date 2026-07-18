@@ -16,6 +16,18 @@
 > _is the core async-first reform plus activation-mechanics facets drained here; a save-location wording gap_
 > _that was parked here was peeled out and fixed as a standalone errand (`planning-artifact-save-location`)._
 
+### `[ ]` **Own placement-as-record: directory layout is projection of lifecycle state**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-07-18);
+  captured at the storage-substrate grooming (2026-07-17).
+- _Concern:_ `backlog/{provisional,planned}` / `active/` / `completed/` placement is today a state _encoding_ —
+  the storage-substrate grooming names this a coupling smell: concurrent lifecycle transitions make placement a
+  shared-mutable surface, and changing the layout breaks anything that reads it.
+- _Fold-in:_ record the target consequence as a design position at grooming: lifecycle state is a record field;
+  directory placement is a projection of it; relocating a WU is a record-field change ARC cannot break on.
+  Coordinate with `coupling-blast-radius-audit` (now a hard dep of this WU — its enumeration surfaces the
+  placement readers) and `strategy-storage-evolution.md` Principles 1–2.
+
 ### `[ ]` **Formalize the shipped, pending-teardown worktree terminal condition**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during

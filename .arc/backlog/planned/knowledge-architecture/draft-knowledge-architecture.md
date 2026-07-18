@@ -18,6 +18,22 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Consider `checkdoc-*` as a named artifact family**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-architecture`), housekeep drain (2026-07-18);
+  captured at the storage-substrate grooming (2026-07-17).
+- _Concern:_ check-docs currently exist as a convention _inside_ `strategy-*` (three sibling forward-compat
+  check-docs in `strategies/project/`, each a blockquote header + self-check trigger list + principles) — it
+  works, but the shape is untyped and the "strategy" family name is already slated for redesign by this WU's
+  target model (both newer siblings carry the naming note). A named family (`checkdoc-*`, frontmatter `type`)
+  would make the shape typed and lintable (`knowledge-lint`: does a WU touching domain X evidence its
+  self-check?), give the self-check triggers proper directive-firing-condition authoring, and fit the four-kind
+  verdict (check-docs are operational-reference + constraint hybrids with structurally-knowable triggers).
+- _Fold-in:_ fold into the doc-family classification at grooming. Sequencing note: the pending
+  `strategy-storage-evolution.md` → `strategy-storage-forward-compat.md` rename should **wait for this call** —
+  renaming to an interim name and then again to the family name pays the ~20-file reference cascade twice;
+  rename once when the family shape settles.
+
 ### `[ ]` **Re-examine universal-loadset assumptions under capability advancement**
 
 - _Routed from:_ storage-substrate grooming session discussion (2026-07-17).

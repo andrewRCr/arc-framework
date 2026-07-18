@@ -12,6 +12,27 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Add a value/leverage counterpart to `Class`**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: goal-aware-direction`), housekeep drain (2026-07-18);
+  captured during the architecture-direction discussion (2026-07-16). Split at drain: the appetite/continuation
+  tripwire and grooming-mechanics pieces routed to `draft-planning-iteration-mechanics.md`.
+- *Concern:* `Class` prices cost (Light/Heavy/Novel) and scales ceremony to it, but nothing records what the effort
+  buys — the pipeline faithfully executes low-leverage Heavy work with full discipline. Case study:
+  `husk-lifecycle-drivers` — edge-case completion of an already-shipped DX convenience, several review cycles,
+  correctly priced Heavy, never value-questioned. Industry prioritization frames (Shape Up appetite, WSJF, RICE)
+  are all value-over-effort; ARC has only the denominator.
+- *Fold-in:* a coarse leverage enum (e.g. `Core / Multiplier / Comfort`) recorded beside `Class` at
+  classification — the signal is the pair (`Heavy × Comfort` must justify itself at pick time). The value axis is
+  this WU's domain; coordinate the enum's read surface with the recommender posture.
+
+---
+
 ## Problem / Motivation
 
 ARC's planning model is **flat and local**: `Priority` + `Depends On` edges, nothing more. Between WUs,

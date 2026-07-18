@@ -29,6 +29,25 @@ the substrate, which raises the stakes on getting them right here.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Make non-git substitutability an acceptance criterion of the storage abstraction**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: local-mode`), housekeep drain (2026-07-18); captured during
+  the architecture-direction discussion (2026-07-16).
+- *Concern:* the git-notes lesson generalized: git may be the storage/replication *engine*, never the *schema*. The
+  notes failure was a git mechanism (SHA-keyed attachment, ancestor-walk) becoming the semantic model.
+- *Fold-in:* when Local's PRD scopes the shared storage abstraction (`strategy-storage-evolution.md` § Holistic
+  Design), record non-git substitutability as an explicit acceptance criterion — could the contract be implemented
+  on a non-git backend (e.g. Postgres) without touching anything above it? A design oracle, not a planned feature.
+  The entry-granular slug-keyed record requirement (arc-backend 2026-07-02 amendment) already points this way; this
+  pins it. Also a candidate principle for `strategy-storage-evolution.md` itself.
+
+---
+
 ## Notes retirement — an explicit deliverable of this WU
 
 *(Integrated from the inbound buffer at the 2026-07-17 storage-substrate grooming.)* User-notes state becomes an

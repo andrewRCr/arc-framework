@@ -19,6 +19,20 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Appetite/continuation tripwire for Heavy/Novel WUs + the low-leverage-completion smell**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: goal-aware-direction`, split at drain), housekeep drain
+  (2026-07-18); captured during the architecture-direction discussion (2026-07-16). Sibling piece (the leverage
+  enum beside `Class`) routed to `draft-goal-aware-direction.md`.
+- _Concern:_ no lifecycle moment re-decides continuation once a WU exceeds its expected weight — escalation of
+  commitment by default (case study: `husk-lifecycle-drivers`, an edge-case completion of a shipped convenience
+  that ran several review cycles without ever being value-questioned).
+- _Fold-in:_ three grooming-mechanics pieces: (1) a grooming-time appetite on Heavy/Novel WUs (~N sessions /
+  review increments) whose breach fires a structured continue / cut-scope / park re-decision (Shape Up's circuit
+  breaker; interlock-shaped); (2) name the smell — "edge-case completion of a shipped convenience" — in the
+  classify/grooming method, defaulting such stubs to `provisional`; (3) treat review-cycle count as tripwire
+  evidence (heavy review iteration means the design wasn't settled).
+
 ### `[ ]` **Co-design the generate-tasks boundary with `adversarial-review`**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain
