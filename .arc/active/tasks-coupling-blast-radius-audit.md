@@ -173,23 +173,21 @@ file lists, surface/locus tags, and residue.
 - _Outcome:_ The pure scan core now turns one manifest/corpus pair into a validated, byte-stable inventory whose
   complete candidate set is mechanically accountable as classified, dismissed, or unresolved.
 
-### `[ ]` **3.3 Add a repository command and reproducibility coverage**
+### `[x]` **3.3 Add a repository command and reproducibility coverage**
 
 - _Goal:_ A maintainer can run the complete audit from the repository root with explicit inputs and receive a
   deterministic artifact or an actionable nonzero failure.
 
-    - `[ ]` **3.3.a Wire the thin script entry point and root package command**
-        - Accept the manifest and output destination through a stable non-interactive interface, resolve repository
-          paths through existing helpers, and keep collection/matching logic importable for unit tests.
-        - Emit concise diagnostics to stderr and machine output to stdout or an atomically written requested file;
-          do not add prompts or a general-purpose product CLI surface for this project-internal audit.
+    - `[x]` **3.3.a Wire the thin script entry point and root package command**
+        - Added `npm run audit:coupling -- --manifest <path> --output <path|->` with shared root resolution,
+          repository-pinned Git/filesystem boundaries, atomic file output, stderr diagnostics, and stable exit codes.
 
-    - `[ ]` **3.3.b Cover end-to-end determinism in a temporary Git repository**
-        - Keep matcher, classifier, serializer, and injected-boundary behavior in pure unit tests. Add an
-          `__tests__/integration/` fixture that initializes a bounded Git repository, commits code, prose, and hidden
-          files, loads a real manifest, writes the result twice, and asserts byte equality and expected residue.
-        - Keep CLI wiring test-after and narrow: prove argument/failure routing plus tracked-file discovery without
-          retesting Node, `tsx`, or pure behavior already covered by the core.
+    - `[x]` **3.3.b Cover end-to-end determinism in a temporary Git repository**
+        - Added a real temporary-Git integration fixture that commits code, prose, and a hidden extensionless file,
+          proves tracked discovery and byte-identical outputs, and covers validation-failure routing.
+
+- _Outcome:_ The pure engine is now available through one explicit repository command whose real Git boundary and
+  deterministic artifact writing are covered without expanding the product CLI.
 
 ## **Phase 4:** Corpus enumeration and residue closure
 
