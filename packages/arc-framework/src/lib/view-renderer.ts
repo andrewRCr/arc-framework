@@ -17,6 +17,7 @@ const LIST_ITEM_RE = /^\s*(?:[-+*]|\d+[.)])\s+/u;
 const LIST_ITEM_PREFIX_RE = /^(?<prefix>\s*(?:[-+*]|\d+[.)])\s+)/u;
 const BLOCKQUOTE_RE = /^(?<prefix>\s{0,3}(?:>\s*)+)(?<body>.*)$/u;
 const THEMATIC_BREAK_RE = /^\s{0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/u;
+const SETEXT_UNDERLINE_RE = /^\s{0,3}(?:=+|-+)\s*$/u;
 const LINK_DEFINITION_RE = /^\s{0,3}\[[^\]]+\]:/u;
 const GLOW_DISPLAY_GUTTER = 4;
 
@@ -178,6 +179,10 @@ function normalizeMarkdownSoftBreaks(content: string): string {
   const blockquoteState: {
     paragraph: { index: number; prefix: string } | null;
   } = { paragraph: null };
+  let blockquoteFence: {
+    prefix: string;
+    fence: { character: string; length: number };
+  } | null = null;
   let fence: { character: string; length: number } | null = null;
 
   for (const line of content.split(/\r?\n/u)) {
@@ -196,6 +201,29 @@ function normalizeMarkdownSoftBreaks(content: string): string {
       continue;
     }
 
+    const blockquote = parseBlockquote(line);
+    if (blockquoteFence !== null) {
+      if (blockquote?.prefix === blockquoteFence.prefix) {
+        output.push(line);
+        if (isFenceClose(blockquote.body, blockquoteFence.fence)) blockquoteFence = null;
+        continue;
+      }
+      blockquoteFence = null;
+    }
+    const blockquoteFenceStart: { character: string; length: number } | null = blockquote === null
+      ? null
+      : parseFenceStart(blockquote.body);
+    if (blockquote !== null && blockquoteFenceStart !== null) {
+      output.push(line);
+      blockquoteFence = {
+        prefix: blockquote.prefix,
+        fence: blockquoteFenceStart,
+      };
+      paragraphIndex = null;
+      blockquoteState.paragraph = null;
+      continue;
+    }
+
     if (line.trim() === "") {
       output.push(line);
       paragraphIndex = null;
@@ -203,7 +231,6 @@ function normalizeMarkdownSoftBreaks(content: string): string {
       continue;
     }
 
-    const blockquote = parseBlockquote(line);
     if (blockquote !== null) {
       if (blockquoteState.paragraph?.prefix === blockquote.prefix
         && isSoftContinuation(blockquote.body)) {
@@ -243,6 +270,10 @@ function wrapMarkdownProse(content: string, width: number): string {
   const lines = content.split(/\r?\n/u);
   const output: string[] = [];
   let fence: { character: string; length: number } | null = null;
+  let blockquoteFence: {
+    prefix: string;
+    fence: { character: string; length: number };
+  } | null = null;
 
   for (const [index, line] of lines.entries()) {
     if (fence !== null) {
@@ -260,6 +291,25 @@ function wrapMarkdownProse(content: string, width: number): string {
 
     const nextLine = lines[index + 1];
     const blockquote = parseBlockquote(line);
+    if (blockquoteFence !== null) {
+      if (blockquote?.prefix === blockquoteFence.prefix) {
+        output.push(line);
+        if (isFenceClose(blockquote.body, blockquoteFence.fence)) blockquoteFence = null;
+        continue;
+      }
+      blockquoteFence = null;
+    }
+    const blockquoteFenceStart: { character: string; length: number } | null = blockquote === null
+      ? null
+      : parseFenceStart(blockquote.body);
+    if (blockquote !== null && blockquoteFenceStart !== null) {
+      output.push(line);
+      blockquoteFence = {
+        prefix: blockquote.prefix,
+        fence: blockquoteFenceStart,
+      };
+      continue;
+    }
     if (blockquote !== null && isParagraphLine(blockquote.body)) {
       const innerWidth = width - stringWidth(blockquote.prefix);
       if (innerWidth < 1) {
@@ -270,7 +320,7 @@ function wrapMarkdownProse(content: string, width: number): string {
       }
       continue;
     }
-    if (!isParagraphLine(line) || (nextLine !== undefined && THEMATIC_BREAK_RE.test(nextLine))) {
+    if (!isParagraphLine(line) || (nextLine !== undefined && SETEXT_UNDERLINE_RE.test(nextLine))) {
       output.push(line);
       continue;
     }
@@ -285,6 +335,12 @@ function parseBlockquote(line: string): { prefix: string; body: string } | null 
   const match = BLOCKQUOTE_RE.exec(line)?.groups;
   if (match?.prefix === undefined || match.body === undefined) return null;
   return { prefix: match.prefix, body: match.body };
+}
+
+function parseFenceStart(line: string): { character: string; length: number } | null {
+  const marker = FENCE_START_RE.exec(line)?.groups?.marker;
+  if (marker === undefined) return null;
+  return { character: marker[0] ?? "`", length: marker.length };
 }
 
 function wrapMarkdownLine(line: string, width: number): string[] {
@@ -332,6 +388,7 @@ function isParagraphLine(line: string): boolean {
 function isMarkdownStructure(line: string, allowIndentedContinuation = false): boolean {
   const trimmed = line.trim();
   return HEADING_RE.test(line)
+    || SETEXT_UNDERLINE_RE.test(line)
     || /^\s{0,3}>/u.test(line)
     || THEMATIC_BREAK_RE.test(line)
     || LINK_DEFINITION_RE.test(line)

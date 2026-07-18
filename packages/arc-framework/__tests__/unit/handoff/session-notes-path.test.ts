@@ -5,7 +5,10 @@ import {
   resolveSessionNotesPath,
   resolveWorkUnitSessionNotesPath,
 } from "../../../src/lib/handoff/session-notes-path.js";
-import type { SessionNotesPathIO } from "../../../src/lib/handoff/session-notes-path.js";
+import type {
+  SessionNotesPathIO,
+  WorkUnitSessionNotesPathIO,
+} from "../../../src/lib/handoff/session-notes-path.js";
 import type { DirEntry } from "../../../src/lib/git/index.js";
 
 const CWD = "/repo";
@@ -20,6 +23,15 @@ function makeIO(entriesOrError: DirEntry[] | Error): SessionNotesPathIO {
         throw entriesOrError;
       }
       return entriesOrError;
+    },
+  };
+}
+
+function makeAccessIO(expectedPath: string, error?: NodeJS.ErrnoException): WorkUnitSessionNotesPathIO {
+  return {
+    access: async (path: string) => {
+      expect(path).toBe(expectedPath);
+      if (error !== undefined) throw error;
     },
   };
 }
@@ -82,41 +94,40 @@ describe("resolveSessionNotesPath", () => {
 });
 
 describe("resolveWorkUnitSessionNotesPath", () => {
-  it("selects the named work unit when sibling SESSION-NOTES files exist", async () => {
-    const result = await resolveWorkUnitSessionNotesPath(CWD, IDENTITY, "feature-y", makeIO([
-      { name: "feature-x/SESSION-NOTES.md", size: 100 },
-      { name: "feature-y/SESSION-NOTES.md", size: 80 },
-    ]));
+  const expectedPath = join(USER_DIR, "feature-y", "SESSION-NOTES.md");
+
+  it("resolves only the requested work-unit path", async () => {
+    const result = await resolveWorkUnitSessionNotesPath(
+      CWD,
+      IDENTITY,
+      "feature-y",
+      makeAccessIO(expectedPath),
+    );
 
     expect(result).toEqual({
       status: "resolved",
-      path: join(USER_DIR, "feature-y", "SESSION-NOTES.md"),
+      path: expectedPath,
     });
   });
 
-  it("distinguishes normal absence from an unreadable directory", async () => {
-    await expect(resolveWorkUnitSessionNotesPath(CWD, IDENTITY, "feature-x", makeIO([])))
-      .resolves.toEqual({ status: "absent" });
+  it("distinguishes normal absence from an unreadable target", async () => {
+    const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
     await expect(resolveWorkUnitSessionNotesPath(
       CWD,
       IDENTITY,
-      "feature-x",
-      makeIO(new Error("EACCES: permission denied")),
+      "feature-y",
+      makeAccessIO(expectedPath, missing),
+    )).resolves.toEqual({ status: "absent" });
+
+    const unreadable = Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+    await expect(resolveWorkUnitSessionNotesPath(
+      CWD,
+      IDENTITY,
+      "feature-y",
+      makeAccessIO(expectedPath, unreadable),
     )).resolves.toEqual({
       status: "error",
-      message: "Unable to read SESSION-NOTES directory: EACCES: permission denied",
-    });
-  });
-
-  it("reports duplicate named paths as ambiguous", async () => {
-    const result = await resolveWorkUnitSessionNotesPath(CWD, IDENTITY, "feature-x", makeIO([
-      { name: "feature-x/SESSION-NOTES.md", size: 100 },
-      { name: "feature-x/SESSION-NOTES.md", size: 100 },
-    ]));
-
-    expect(result).toEqual({
-      status: "error",
-      message: "SESSION-NOTES path is ambiguous for work unit \"feature-x\".",
+      message: "Unable to access SESSION-NOTES: EACCES: permission denied",
     });
   });
 });

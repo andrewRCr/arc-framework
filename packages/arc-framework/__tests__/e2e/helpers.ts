@@ -134,9 +134,10 @@ export async function runArcWithStdoutPipe(
   const timeout = options?.timeout ?? 30_000;
   const env = { ...process.env, NO_COLOR: "1", ...options?.env };
   try {
+    const pipeline = `${buildScriptCommand(args, false)} | cat`;
     const { stdout, stderr } = await execFileAsync(
       "script",
-      ["-qec", `${buildScriptCommand(args, false)} | cat`, "/dev/null"],
+      ["-qec", `bash -o pipefail -c ${shellEscape(pipeline)}`, "/dev/null"],
       { cwd, timeout, env },
     );
     return { stdout, stderr, exitCode: 0 };

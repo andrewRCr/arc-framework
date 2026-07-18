@@ -17,6 +17,11 @@ export interface SessionNotesPathIO {
   readDir: (dirPath: string) => Promise<DirEntry[]>;
 }
 
+/** Exact-path I/O seam for one named work unit's SESSION-NOTES. */
+export interface WorkUnitSessionNotesPathIO {
+  access: (path: string) => Promise<void>;
+}
+
 export type SessionNotesPathResult =
   | { status: "resolved"; path: string }
   | { status: "absent" }
@@ -35,25 +40,17 @@ export async function resolveWorkUnitSessionNotesPath(
   cwd: string,
   identity: string,
   workUnitName: string,
-  io: SessionNotesPathIO,
+  io: WorkUnitSessionNotesPathIO,
 ): Promise<SessionNotesPathResult> {
-  const userDir = join(cwd, ".arc", "user", identity);
-  let entries: DirEntry[];
+  const path = join(cwd, ".arc", "user", identity, workUnitName, "SESSION-NOTES.md");
   try {
-    entries = await io.readDir(userDir);
+    await io.access(path);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { status: "absent" };
     const message = error instanceof Error ? error.message : String(error);
-    return { status: "error", message: `Unable to read SESSION-NOTES directory: ${message}` };
+    return { status: "error", message: `Unable to access SESSION-NOTES: ${message}` };
   }
-
-  const expected = `${workUnitName}/SESSION-NOTES.md`;
-  const matches = entries.filter((entry) => entry.name === expected);
-  if (matches.length === 0) return { status: "absent" };
-  if (matches.length > 1) {
-    return { status: "error", message: `SESSION-NOTES path is ambiguous for work unit "${workUnitName}".` };
-  }
-  return { status: "resolved", path: join(userDir, expected) };
+  return { status: "resolved", path };
 }
 
 /**

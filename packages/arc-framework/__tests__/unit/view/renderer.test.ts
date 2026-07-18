@@ -184,6 +184,43 @@ describe("renderViewWithPager", () => {
     ].join("\n"));
   });
 
+  it("preserves fenced code nested inside a blockquote", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = [
+      "> ```ts",
+      "> const value = 1;",
+      "> ```",
+      "",
+    ].join("\n");
+
+    await renderViewWithPager({
+      renderer: "glow",
+      content,
+      displayPath: "notes.md",
+      terminalWidth: 42,
+    }, { run });
+
+    expect(run.mock.calls[0]?.[0].input).toBe(content);
+  });
+
+  it("preserves Setext headings during Glow reflow", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = [
+      "A Setext heading",
+      "================",
+      "",
+    ].join("\n");
+
+    await renderViewWithPager({
+      renderer: "glow",
+      content,
+      displayPath: "notes.md",
+      terminalWidth: 42,
+    }, { run });
+
+    expect(run.mock.calls[0]?.[0].input).toBe(content);
+  });
+
   it("passes renderer-appropriate anchors to pager modes", async () => {
     const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
 

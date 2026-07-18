@@ -58,16 +58,16 @@ wiring → `handlers/view.ts` I/O boundary → `commands/view/` orchestrator (`r
   kind, no resolvable WU context, unresolved identity) each error listing the valid kinds.
 
 - _Outcome:_ Normal absence emits a one-line stdout message with exit 0; unknown kinds, unresolved WU/identity
-  context, unreadable files, and ambiguous or unreadable SESSION-NOTES directories use stderr and exit 1 while
-  teaching the valid kind set.
+  context, unreadable files, and unreadable SESSION-NOTES targets use stderr and exit 1 while teaching the valid
+  kind set.
 
 ### `[x]` **1.4 Emit resolved content as plain stdout (non-TTY contract and plain fallback)**
 
 - _Goal:_ the resolved artifact's content writes to stdout as plain text with no pager spawn, no ANSI, and no hang
   under non-TTY — the baseline output path every render mode builds on.
 
-- _Outcome:_ The handler writes the exact artifact body to stdout without ANSI or pager activity; direct subprocess
-  coverage verifies both real non-TTY output and prompt-free completion with piped stdin.
+- _Outcome:_ The handler writes prepared Markdown—including the later band/header metadata—to stdout without ANSI
+  or pager activity; direct subprocess coverage verifies real non-TTY output and prompt-free piped execution.
 
 ## **Phase 2:** Renderer resolution and pager composition
 

@@ -100,38 +100,44 @@ describe("arc view", () => {
     expect(fullMalformed.stdout).not.toContain("rendered");
   });
 
-  it("composes a detected renderer through pager mode exactly once under a TTY", async () => {
-    const { binDir, logPath } = await installFakeGlow(cwd);
-    const result = await runArc(["view", "tasks"], cwd, {
-      env: {
-        PATH: `${binDir}:${process.env.PATH ?? ""}`,
-        ARC_VIEW_RENDER_LOG: logPath,
-        GIT_CONFIG_GLOBAL: "/dev/null",
-      },
-    });
+  it.runIf(process.platform === "linux")(
+    "composes a detected renderer through pager mode exactly once under a TTY",
+    async () => {
+      const { binDir, logPath } = await installFakeGlow(cwd);
+      const result = await runArc(["view", "tasks"], cwd, {
+        env: {
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+          ARC_VIEW_RENDER_LOG: logPath,
+          GIT_CONFIG_GLOBAL: "/dev/null",
+        },
+      });
 
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("# Task List: feature");
-    expect(result.stderr).toBe("");
-    expect(await readFile(logPath, "utf8"))
-      .toBe("--version\nLESS=FRX +/###.*1\\.1\n--pager --width 0 -\n");
-  });
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("# Task List: feature");
+      expect(result.stderr).toBe("");
+      expect(await readFile(logPath, "utf8"))
+        .toBe("--version\nLESS=FRX +/###.*1\\.1\n--pager --width 0 -\n");
+    },
+  );
 
-  it("opens an anchor-capable pager at the shifted current-task line", async () => {
-    const { binDir, logPath } = await installFakeBat(cwd);
-    await git(cwd, ["config", "arc.viewRenderer", "bat"]);
-    const result = await runArc(["view", "tasks"], cwd, {
-      env: {
-        PATH: `${binDir}:${process.env.PATH ?? ""}`,
-        ARC_VIEW_RENDER_LOG: logPath,
-      },
-    });
+  it.runIf(process.platform === "linux")(
+    "opens an anchor-capable pager at the shifted current-task line",
+    async () => {
+      const { binDir, logPath } = await installFakeBat(cwd);
+      await git(cwd, ["config", "arc.viewRenderer", "bat"]);
+      const result = await runArc(["view", "tasks"], cwd, {
+        env: {
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+          ARC_VIEW_RENDER_LOG: logPath,
+        },
+      });
 
-    expect(result.exitCode).toBe(0);
-    const log = await readFile(logPath, "utf8");
-    expect(log).toContain("BAT_PAGER=less -RFX +7");
-    expect(log).toContain("--paging=always --style=plain --language=md");
-  });
+      expect(result.exitCode).toBe(0);
+      const log = await readFile(logPath, "utf8");
+      expect(log).toContain("BAT_PAGER=less -RFX +7");
+      expect(log).toContain("--paging=always --style=plain --language=md");
+    },
+  );
 
   it("does not probe or spawn a renderer under non-TTY", async () => {
     const { binDir, logPath } = await installFakeGlow(cwd);
@@ -158,6 +164,13 @@ describe("arc view", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("# Task List: feature");
     await expect(access(logPath)).rejects.toThrow();
+  });
+
+  it.runIf(process.platform === "linux")("preserves CLI failure through the stdout pipeline", async () => {
+    const result = await runArcWithStdoutPipe(["view", "bogus"], cwd);
+
+    expect(result.exitCode).toBe(1);
+    expect(`${result.stdout}${result.stderr}`).toContain("Unknown view kind");
   });
 });
 

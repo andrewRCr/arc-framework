@@ -46,10 +46,10 @@ card) carries status/HUD semantics and lives in `status-hud`.
    artifact is absent (`notes` when none exists, `cohort` on a standalone WU) renders an explicit one-line
    "not present" message, never an error. New resolver-backed kinds slot into the same registry without contract
    change; no dotted kinds (`inbox.user`) until the `TYPE.QUALIFIER` rename cascade lands — then as aliases.
-   Kind discoverability rides teaching outputs, never the default: `--help` carries the kind table, and the two
-   error paths — unknown kind, no resolvable WU context — list the valid kinds in the message. The no-WU-context
-   error applies to the WU-scoped kinds only; the identity-global kinds (`working-memory`, `inbox` in both
-   scopes) resolve without an active WU.
+   Kind discoverability rides teaching outputs, never the default: `--help` carries the kind table, and the error
+   paths — unknown kind, no resolvable WU context, unresolved identity for an identity-scoped kind — list the valid
+   kinds in the message. The no-WU-context error applies to the WU-scoped kinds only; the identity-global kinds
+   (`working-memory`, `inbox` in both scopes) resolve without an active WU.
 
 3. **Render once and exit — static view with an external-liveness bridge.** TTY: the full artifact through a
    pager, git-idiom handling. Non-TTY: plain stdout, no pager spawn, no ANSI decoration — an instance of the

@@ -5,7 +5,7 @@
  * composes the active, cohort, session-notes, and user-surface resolvers.
  */
 
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
 
 import {
@@ -239,7 +239,7 @@ function createViewArtifactDependencies(exec: GitExec): ViewArtifactDependencies
       },
     }),
     resolveSessionNotes: ({ cwd, identity, workUnitName }) =>
-      resolveWorkUnitSessionNotesPath(cwd, identity, workUnitName, { readDir: readUserDirStrict }),
+      resolveWorkUnitSessionNotesPath(cwd, identity, workUnitName, { access }),
     resolveUserSurfaces: ({ cwd, identity }): Promise<UserSurfaceResolver> =>
       resolveUserSurfaceResolver({ cwd, identity, exec }),
     pathExists,
@@ -247,24 +247,11 @@ function createViewArtifactDependencies(exec: GitExec): ViewArtifactDependencies
 }
 
 async function pathExists(path: string): Promise<boolean> {
-  return access(path).then(() => true, () => false);
-}
-
-async function readUserDirStrict(dirPath: string): Promise<Array<{ name: string; size: number }>> {
-  const entries: Array<{ name: string; size: number }> = [];
-
-  async function walk(path: string, prefix: string): Promise<void> {
-    const children = await readdir(path, { withFileTypes: true });
-    for (const child of children) {
-      const name = prefix === "" ? child.name : `${prefix}/${child.name}`;
-      if (child.isDirectory()) {
-        if (!child.name.startsWith(".")) await walk(join(path, child.name), name);
-      } else if (child.isFile()) {
-        entries.push({ name, size: 0 });
-      }
-    }
+  try {
+    await access(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
   }
-
-  await walk(dirPath, "");
-  return entries;
 }
