@@ -280,17 +280,20 @@ The canonical result covers 1,213 tracked files, 7,736 classified candidates, 90
 unresolved residue. Its manifest digest is `ca0b6bba990a542fe8ac10db34cc3fcb9a25ef377333e8ad18ad9d6de4a7a52f`;
 the result SHA-256 is `f535f672d4109c6643b44a9662ee444ab8f09939089a91d8d3b2ac91d81d5ac2`.
 
-## Prepared finding packets
+## Finding packet routing
 
-All destination slugs were re-resolved on 2026-07-18. Nine owners are planned; `arcd-rebrand` is provisional. The
-prepared ledger binds 11 packets to the exact result above, covers all 32 ranked classes, and does not claim an inbox
-capture. `cli-substrate-adoption` receives two distinct concerns because it owns both its direct Git-operation mover
-and the mandatory cross-mover substrate extract.
+All destination slugs were re-resolved on 2026-07-18. Ten owners are planned. The ledger binds 11 packets to the
+exact result above and covers all 32 ranked classes. `cli-substrate-adoption` receives two distinct concerns because
+it owns both its direct Git-operation mover and the mandatory cross-mover substrate extract.
+
+Review moved the `pm-mode-key` finding from the provisional `arcd-rebrand` citation to `scalable-core`: the audit
+class measures the literal configuration key, while `scalable-core` explicitly owns replacing its enum with
+orthogonal Planning Module configuration. The packet therefore treats the 71-file surface as schema-reform and
+central-access input rather than a rebrand rename cascade; the manifest citation remains the catch provenance.
 
 | Owner | Concern | Classes | Design implication |
 | --- | --- | ---: | --- |
 | `arc-backend` | storage address assumptions | 7 | Materialization changes abstract address and artifact-family contracts. |
-| `arcd-rebrand` | `pm.mode` key rename | 1 | A 71-file configuration change needs a compatibility/access boundary. |
 | `cli-substrate-adoption` | tracked-planning Git operations | 1 | Four direct-operation files must move behind substrate verbs. |
 | `cli-substrate-adoption` | substrate abstraction input | 15 | Concrete-path classes need one resolver ownership decision. |
 | `composable-workflows` | procedure surface moves | 8 | Compiler scope crosses workflow, method, extension, and load-set surfaces. |
@@ -299,8 +302,11 @@ and the mandatory cross-mover substrate extract.
 | `naming-conventions` | state-document renames | 5 | Rename classes split between abstraction and change-with-mover treatment. |
 | `roadmap-tooling` | ROADMAP name | 1 | The 44-file tracked document/path name needs one owned contract. |
 | `rules-restructure` | domain-rules name | 1 | The 78-file rule-family name is an abstract access-path assumption. |
+| `scalable-core` | `pm.mode` schema reform | 1 | A 71-file enum replacement needs a compatibility/access boundary. |
 | `wu-lifecycle-state-model` | placement reader input | 4 | Directory-encoded state reaches 55 code reader/parser files. |
 
 Packet IDs derive from result digest + target slug + sorted class IDs; packet content digests bind owner provenance,
-ranked evidence, extract references, implications, and grooming recommendations. Task 6.2 remains intentionally
-unstarted pending review of this exact set.
+ranked evidence, extract references, implications, and grooming recommendations. All 11 packets were captured in the
+resolver-backed identity-global `USER-INBOX` with exact IDs and digests, then reconciled one-to-one with the ledger.
+Every packet is now `captured-awaiting-housekeep`; no foreign work-unit artifact was edited and the wider inbox drain
+was not invoked.

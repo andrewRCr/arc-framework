@@ -335,23 +335,23 @@ certified report without expanding this WU into the later inbox drain or editing
 - _Outcome:_ The prepared ledger accounts for every ranked class and both mandatory extracts without claiming any
   inbox capture; the exact packet set is ready for review before Task 6.2 changes external routing state.
 
-### `[ ]` **6.2 Stage branch-safe routing through `USER-INBOX` captures**
+### `[x]` **6.2 Stage branch-safe routing through `USER-INBOX` captures**
 
 - _Goal:_ Routing intent survives the session without landing foreign planning churn in the audit branch's tracked
   history.
 
-    - `[ ]` **6.2.a Capture every packet through the standard inbox path**
-        - Read the resolver-backed identity-global inbox first, then use the `arc-inbox` workflow to create only
-          absent gitignored entries with deterministic packet identity and `WU_Target` routing metadata.
-        - Treat an exact existing packet as an idempotent resume and surface any same-identity/different-content
-          collision; do not edit planned/provisional draft bodies or inbound buffers from this worktree.
+    - `[x]` **6.2.a Capture every packet through the standard inbox path**
+        - Captured all 11 reviewed packets under the identity-global inbox's Work Unit section with deterministic
+          packet IDs, content digests, evidence anchors, and `WU_Target` metadata; the reviewed `pm.mode` packet was
+          retargeted from provisional `arcd-rebrand` provenance to planned `scalable-core` ownership.
 
-    - `[ ]` **6.2.b Reconcile captures against the canonical routing ledger**
-        - Verify every routed inventory finding has exactly one capture/destination and every capture points back to
-          a live class/evidence set; validate and record `captured-awaiting-housekeep` in the canonical tracked
-          ledger.
-        - Confirm both hard-consumer extracts are complete in canonical result data, do not invoke the broader
-          housekeep drain, and verify the audit-branch diff contains no foreign WU artifact edits.
+    - `[x]` **6.2.b Reconcile captures against the canonical routing ledger**
+        - Reconciled every capture one-to-one with the 32-class inventory and both mandatory extracts, then advanced
+          all ledger packets to `captured-awaiting-housekeep` without invoking housekeep or editing foreign WU
+          artifacts.
+
+- _Outcome:_ The complete reviewed finding set now survives outside the audit branch as idempotent personal captures,
+  while the tracked ledger records the exact terminal routing state that Task 6.3 can certify.
 
 ### `[ ]` **6.3 Publish and certify the settled report**
 
