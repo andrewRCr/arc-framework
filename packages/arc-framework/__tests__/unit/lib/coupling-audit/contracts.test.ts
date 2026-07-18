@@ -190,6 +190,7 @@ function validScanResult(): Record<string, unknown> {
         files: ["packages/arc-framework/src/example.ts"],
         surfaceCounts: { test: 0, workflow: 0, template: 0, code: 1, prose: 0, config: 0 },
         highFanOut: false,
+        maxThresholdRatio: 0.2,
         verdict: "change-with-mover",
         rankKey: "1:1:active-placement",
         hits: [

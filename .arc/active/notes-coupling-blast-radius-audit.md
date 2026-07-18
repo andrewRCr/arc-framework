@@ -244,3 +244,15 @@ All 31 name classes are high-volatility because their cited live mover still own
 or target-shape change. The standalone `tracked-planning-git-operations` idiom is also high: the live
 `cli-substrate-adoption` target moves this mechanism behind CLI verbs. The manifest records each class's work unit,
 source anchor, roster state, and snapshot date; no unresolved rating remains.
+
+## Fan-out calibration
+
+The 32-class surface distributions produced these cutoffs: test 25 (upper quartile), code 13 (upper quartile),
+workflow 8 (upper quartile), template 2 (upper quartile), prose 20 (87.5th percentile), and config 3 (upper
+quartile). Prose uses the more conservative percentile so prose mentions do not carry the same weight as concrete
+code reads. Equality is high fan-out. For mixed surfaces, the maximum `count / threshold` ratio is the primary rank
+key; verdict, ratio, total distinct-file fan-out, then stable class ID define the complete deterministic order.
+The calibrated result contains 20 `abstract` and 12 `change-with-mover` classes; no stable-volatility class exists in
+the current mover snapshot, so the other two quadrants are empty. Its manifest digest is
+`aedcd2b100b8c42a1d6b1fdb8c0cfab72a1887d2a9d7a7a63f4363772d3fd02b`, and its result SHA-256 is
+`9ef1d102a640a5de08bf90fae9c8c55910b048e6c4a82ad950d216e3e8efc294` with zero unresolved residue.

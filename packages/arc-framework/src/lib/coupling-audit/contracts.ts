@@ -341,6 +341,13 @@ function validateResultClass(value: unknown, index: number): void {
   const surfaceTotal = validateSurfaceCounts(resultClass.surfaceCounts, `${path}.surfaceCounts`);
   if (surfaceTotal !== fanOut) fail(`${path}.surfaceCounts`, "surface counts must sum to fanOut");
   if (typeof resultClass.highFanOut !== "boolean") fail(`${path}.highFanOut`, "expected a boolean");
+  if (
+    typeof resultClass.maxThresholdRatio !== "number" ||
+    !Number.isFinite(resultClass.maxThresholdRatio) ||
+    resultClass.maxThresholdRatio < 0
+  ) {
+    fail(`${path}.maxThresholdRatio`, "expected a finite non-negative number");
+  }
   const expected = expectedVerdict(volatility, resultClass.highFanOut);
   if (expected === null) {
     if (resultClass.verdict !== null || resultClass.rankKey !== null) {

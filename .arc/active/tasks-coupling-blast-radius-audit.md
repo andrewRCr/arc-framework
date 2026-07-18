@@ -269,35 +269,26 @@ views that the routed final report projects without hand-maintained interpretati
 - _Outcome:_ Every class now carries one dated volatility judgment grounded in its live design owner, and report
   projection can no longer encounter an unresolved rating.
 
-### `[ ]` **5.2 Calibrate fan-out thresholds and assign quadrant verdicts**
+### `[x]` **5.2 Calibrate fan-out thresholds and assign quadrant verdicts**
 
 - _Goal:_ Every class receives a comparable 2×2 verdict whose threshold and meaning are explicit enough for later
   consumers to reproduce.
 
-    - `[ ]` **5.2.a Derive high-fan-out thresholds from the observed distribution**
-        - Calibrate and record one numeric high threshold for each of `test`, `code`, `workflow`, `template`, `prose`,
-          and `config`; document each cutoff from the observed distribution and set prose conservatively enough to
-          preserve its lower weight relative to code reads.
-        - Mark a class high fan-out when any surface count is greater than or equal to that surface's threshold.
-          For mixed surfaces, use the maximum `count / threshold` ratio as the primary deterministic rank key.
-        - Update the spec's "Ranking thresholds" open item with the settled rule rather than burying it only in the
-          report.
+    - `[x]` **5.2.a Derive high-fan-out thresholds from the observed distribution**
+        - Set test 25, code 13, workflow 8, template 2, and config 3 at their observed upper quartiles; set prose 20
+          at its 87.5th percentile so prose mentions remain lower-weight than concrete code reads. Equality is high,
+          and mixed surfaces use their maximum threshold ratio.
 
-    - `[ ]` **5.2.b Settle the four quadrant verdicts and rank order**
-        - Map high-fan-out/high-volatility to `abstract`, low-fan-out/high-volatility to `change-with-mover`,
-          high-fan-out/stable to `leave-alone`, and low-fan-out/stable to `retain-local` without turning verdicts into
-          a remediation plan.
-        - Rank verdicts `abstract` → `change-with-mover` → `leave-alone` → `retain-local`, then break ties by maximum
-          surface threshold ratio, total distinct-file fan-out, and stable class ID.
+    - `[x]` **5.2.b Settle the four quadrant verdicts and rank order**
+        - Implemented the fixed four-quadrant mapping and deterministic verdict, maximum-ratio, total-fan-out, then
+          class-ID ordering; the calibrated corpus yields 20 `abstract` and 12 `change-with-mover` classes.
 
-    - `[ ]` **5.2.c Derive bands, verdicts, and stable rank keys**
-        - Extend the existing audit module with small pure calculations over canonical counts and manifest values;
-          do not create a reusable policy engine or general ranking subsystem.
-        - Build `test-first` (one behavior at a time):
-            - all four quadrants map to their fixed verdicts;
-            - threshold equality is high and mixed surfaces use the maximum ratio;
-            - total fan-out and class ID settle ties deterministically;
-            - missing thresholds or unresolved volatility fail before report projection.
+    - `[x]` **5.2.c Derive bands, verdicts, and stable rank keys**
+        - Added small pure ranking calculations with coverage for every quadrant, equality and mixed-surface bounds,
+          deterministic ties, and pre-projection failures for missing thresholds or unresolved volatility.
+
+- _Outcome:_ The checked result now carries reproducible threshold ratios, quadrant verdicts, and stable rank keys;
+  the manifest, spec, and calibration notes share the same settled rule.
 
 ### `[ ]` **5.3 Prepare the ranked inventory and hard-consumer views**
 

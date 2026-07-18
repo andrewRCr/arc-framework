@@ -19,6 +19,7 @@ import {
 } from "./contracts.js";
 import type { CorpusFile } from "./corpus.js";
 import { findPatternSetMatches, type PatternMatch } from "./matcher.js";
+import { measureFanOut, rankResolvedClass } from "./ranking.js";
 import type {
   BulkPredicate,
   CandidateEvidence,
@@ -27,11 +28,8 @@ import type {
   CouplingIdiom,
   CouplingManifest,
   CouplingScanResult,
-  QuadrantVerdict,
   SurfaceKind,
 } from "./types.js";
-
-const SURFACE_KINDS: readonly SurfaceKind[] = ["test", "workflow", "template", "code", "prose", "config"];
 
 interface LocatedMatch extends PatternMatch {
   path: string;
@@ -52,11 +50,6 @@ interface LocatedCandidate {
 
 function surfaceCounts(): Record<SurfaceKind, number> {
   return { test: 0, workflow: 0, template: 0, code: 0, prose: 0, config: 0 };
-}
-
-function verdict(volatility: "high" | "stable", highFanOut: boolean): QuadrantVerdict {
-  if (volatility === "high") return highFanOut ? "abstract" : "change-with-mover";
-  return highFanOut ? "leave-alone" : "retain-local";
 }
 
 function evidenceFrom(match: LocatedMatch, idiom: CouplingIdiom, vectorId: string): CandidateEvidence {
@@ -262,10 +255,18 @@ export function scanCorpus(manifest: CouplingManifest, files: readonly CorpusFil
       if (kind === undefined) throw new CouplingAuditScanError(`Class hit references unknown corpus path: ${path}`);
       counts[kind] += 1;
     }
-    const highFanOut = SURFACE_KINDS.some((kind) => counts[kind] >= canonicalManifest.thresholds[kind]);
-    const resolvedVerdict = assumption.volatility.rating === "unresolved"
+    const measurement = measureFanOut(counts, canonicalManifest.thresholds);
+    const ranking = assumption.volatility.rating === "unresolved"
       ? null
-      : verdict(assumption.volatility.rating, highFanOut);
+      : rankResolvedClass(
+          {
+            classId: assumption.id,
+            volatility: assumption.volatility.rating,
+            fanOut: filesForClass.length,
+            surfaceCounts: counts,
+          },
+          canonicalManifest.thresholds,
+        );
     return {
       classId: assumption.id,
       volatility: assumption.volatility.rating,
@@ -273,9 +274,9 @@ export function scanCorpus(manifest: CouplingManifest, files: readonly CorpusFil
       hitCount: hits.length,
       files: filesForClass,
       surfaceCounts: counts,
-      highFanOut,
-      verdict: resolvedVerdict,
-      rankKey: resolvedVerdict === null ? null : `${resolvedVerdict}:${filesForClass.length}:${assumption.id}`,
+      ...measurement,
+      verdict: ranking?.verdict ?? null,
+      rankKey: ranking?.rankKey ?? null,
       hits,
     };
   });

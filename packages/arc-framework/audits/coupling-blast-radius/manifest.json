@@ -716,7 +716,7 @@
             "dotted-config-token"
           ]
         },
-        "memberSetDigest": "e5c6774528f4d910a79b33f27b7e16d96fc6e463e267c9a181dc2c93f808d1ad",
+        "memberSetDigest": "b2586cf62a6c6b64621f3de5b96130dd901a4b41b1da1ffd706a5321da11b8bf",
         "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
       },
       {
@@ -740,7 +740,7 @@
             "markdown-doc-token"
           ]
         },
-        "memberSetDigest": "9327a2e36c4f30f9d92338b63becc869aa9c814528fcb32368f3f7537ed89db2",
+        "memberSetDigest": "7641b07fd8e2a58bc688c470a235c7f32ad98062e31930ca437b7e394194c81f",
         "reason": "Document name outside the direction-derived name classes."
       },
       {
@@ -752,7 +752,7 @@
             "path-shaped-token"
           ]
         },
-        "memberSetDigest": "2cde1f71624316d3e5397120eabbd9ed88ab92a310b3d8ff8ed72033491c2054",
+        "memberSetDigest": "d0920e111a7381be4fffc009b6d2dd9c62baca753c5fc7b774907b2df87e156d",
         "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
       },
       {
@@ -764,11 +764,11 @@
             "prefix-operation"
           ]
         },
-        "memberSetDigest": "de87e490c9630552d9a351b23a5ffe966c1d487231485dbdea8330c9d192ec8c",
+        "memberSetDigest": "fcf9b09ab22b0bc93c274eb43234ff974f90dcb5b1f46698ffb4db820084280f",
         "reason": "Generic string operation with no mechanically linked governed filename prefix."
       }
     ]
   },
-  "thresholds": { "test": 1, "workflow": 1, "template": 1, "code": 1, "prose": 1, "config": 1 },
+  "thresholds": { "test": 25, "workflow": 8, "template": 2, "code": 13, "prose": 20, "config": 3 },
   "sampleCaps": { "codePerClass": 5, "residueTotal": 64 }
 }

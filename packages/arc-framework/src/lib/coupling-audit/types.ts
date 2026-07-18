@@ -130,6 +130,7 @@ export interface CouplingScanResult {
     files: string[];
     surfaceCounts: Record<SurfaceKind, number>;
     highFanOut: boolean;
+    maxThresholdRatio: number;
     verdict: QuadrantVerdict | null;
     rankKey: string | null;
     hits: ClassifiedHit[];
