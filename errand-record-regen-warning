@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "errand-record-regen-warning",
+  "origin": "description",
+  "intent": "Stop arc stub/project-status regeneration from warning that a recorded errand branch has no errand record.",
+  "branch": "fix/errand-record-regen-warning",
+  "createdAt": "2026-07-18T01:40:17.192Z",
+  "returnBranch": "main"
+}
