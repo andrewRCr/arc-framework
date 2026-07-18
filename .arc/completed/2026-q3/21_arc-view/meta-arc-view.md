@@ -1,8 +1,8 @@
 # Metadata: arc-view
 
-| **State**     | **Owner** | **Branch**      | **Class** | **Priority** |
-| ------------- | --------- | --------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/arc-view` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/290>
+- **Completed:** 2026-07-18
 
 ## Release Notes Entry
 
