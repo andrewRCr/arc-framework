@@ -12,13 +12,13 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 7.7 — local path identity hardening closed the coherent Phase 7 verification gate;
-  Phase 7 complete.
-- **Next Task:** Task 8.1 — Reconcile the concurrency doctrine to the as-built shape (line ~980)
+- **Last Completed:** Task 8.5 — CI-metering gate closed on remediation-live evidence; Phase 8 (GA closeout)
+  complete, gate record fully closed.
+- **Next Task:** Task 9.1 — Complete verification (line ~1089)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 8.1 — reconcile the concurrency doctrine and Errand-class guidance against the
-  settled wave evidence and Phase 7 outcomes.
+- **Next Action:** Begin Task 9.1 — load and follow `verify-work-unit.md`; merge the base in beforehand or per
+  the workflow's gate (branch is behind `main`).
 
 - **PR URL:** [none]
 - **Completed:** [none]
