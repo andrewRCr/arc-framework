@@ -239,6 +239,23 @@ post-trio architecture-remediation plans consume.
 - *Drain note (2026-06-27):* verified narrower than captured — the `save-load.ts` write-site is already gone; the
   field now lives only in `sync-state.ts` (+ a `save-load.test.ts` reference). The dead-schema cleanup stands.
 
+### `[ ]` **Design the schema kernel to need no TypeScript compiler API — target the 7.1 shape where unavoidable**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-18);
+  captured during post-handoff TS 7 evaluation discussion, 2026-07-18.
+- *Concern:* the kernel doctrine is "schemas are generated from the TypeScript types — one source, cannot drift."
+  TS 7.0 (GA 2026-07-08) ships **no stable programmatic API**; the stable API arrives in 7.1 (~Oct 2026) and its
+  settled direction is **out-of-process** — the Go compiler runs as a separate API-server process, a JS client
+  talks over STDIO IPC (sync bridging via `libsyncrpc`), with snapshot-based project loading and query/visitor
+  AST + symbol access. The 6.0 in-process idiom (live `Program` / `TypeChecker` / `Node` objects) is dead going
+  forward. This WU starts before 7.1 ships, so any API coupling chosen now against 6.0 is churn.
+- *Approach:* strongest insulation is **inverting the derivation** — author Zod as the source of truth and derive
+  the static types via `z.infer`, so the kernel needs no compiler API at all while still satisfying
+  one-source-cannot-drift (arguably better: the runtime validator and the type cannot diverge by construction).
+  If extraction from TS source ever proves genuinely necessary, isolate it behind a thin port designed to the 7.1
+  model (async-tolerant, query/batch-shaped, no retained AST object identity) and pin TS 6 only at that port.
+  The repo toolchain stays on 6.x meanwhile (condition-gated migration tracked in `ATOMIC-INBOX`).
+
 ---
 
 ## Problem / Motivation

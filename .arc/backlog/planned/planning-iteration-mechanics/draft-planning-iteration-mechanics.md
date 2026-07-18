@@ -154,6 +154,21 @@
   **same** question as "does an adversarial task-gen pass fire at that boundary" in `adversarial-review`. Settle
   it once, across both.
 
+### `[ ]` **Guard task plans against post-integration-only acceptance obligations**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain
+  (2026-07-18); captured during `coupling-blast-radius-audit` task generation, Phase 6 grounding audit,
+  2026-07-18.
+- _Concern:_ task planning can accidentally place an obligation in a WU's draft, spec, task list, or Success
+  Criteria even though the required write locus or authoritative target exists only after that WU integrates.
+  The coupling-blast-radius audit exposed the failure shape: embedding a later housekeep drain would have
+  expanded its implementation into unrelated inbox routing and made acceptance depend on foreign or gitignored
+  state.
+- _Approach:_ extend the existing planning-closeout / implementation-verifiable Success Criteria concern with a
+  guard that detects post-integration-only obligations and routes them through sanctioned captures or lifecycle
+  closeout instead. Design an explicit exception model for WUs whose purpose is itself a release, GA, migration,
+  or other gate where post-integration evidence may legitimately define completion.
+
 ---
 
 ## Problem / Motivation

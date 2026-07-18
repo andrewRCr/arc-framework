@@ -67,6 +67,29 @@
   privileged-controller bridge, so any change (controller subscribing to review events directly, harder
   debouncing, batching) needs gate-architecture judgment.
 
+### `[ ]` **Adopt the attestation-first fallback as the qualification go/no-go decision rule**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: review-gate-enforcement-qualification`), housekeep drain
+  (2026-07-18); captured during post-FP wave-planning discussion, 2026-07-18.
+- *Concern:* qualification requires at least one hosted adapter proven **satisfying**, and both hosted providers
+  ship `partial` pre-qualification (`coderabbit-pr` cannot close findings, `codex-pr` is parser-only —
+  `policy/self-hosting/schema.ts`). It is plausible neither proves satisfying under live probes, and no third
+  hosted service is likely to expose better primitives. That would falsify the product bet ("hosted AI reviewers
+  can be promoted to merge authority"), **not** the design: the core is provider-agnostic by construction
+  (injected ports, independently qualified adapters), and a provider failing its capability matrix is the
+  qualification system working as intended.
+- *Approach — the decision rule:* two softening axes with opposite answers. (1) **Never soften the evidence
+  discipline** — exact-head, authenticated, fail-closed; weakening it rebuilds the decorative-green hole the gate
+  exists to close. (2) **Reshaping the evidence class is legitimate:** pivot to an **attestation-first gate** —
+  promote the already-enabled attestation identities (`claude-code` / `codex-cli` / `coderabbit-cli`) from
+  repair-authorization scope to primary satisfying evidence ("an attested review ran at this exact head, findings
+  triaged, human dispositions settled"), and demote hosted PR providers to advisory finding-sources within their
+  proven partial capabilities (the coordinator already owns closure for providers that cannot). Bounded
+  adapter/policy design change inside this WU's remit, not a rebuild — and arguably the better product: the
+  disposition invariant makes human triage the real gate, it works with no hosted subscriptions, and local-lane
+  reviews become gate-admissible evidence. Residual value survives either way (generic bot approvals stay zero,
+  choreography automation and the receipt ledger are evidence-source-independent).
+
 ---
 
 ## Role in the three-work-unit sequence
