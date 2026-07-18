@@ -116,4 +116,22 @@ describe("executeInboundPull (integration)", () => {
     expect(result.fastForwarded).toBe(false);
     expect(await revParse(mc.cloneA)).toBe(before);
   });
+
+  it("surfaces malformed distance output before reading dirt or attempting a merge", async () => {
+    const calls: string[][] = [];
+    const result = await executeInboundPull({
+      exec: async (_cmd, args) => {
+        calls.push(args);
+        if (args[0] === "fetch") return { stdout: "" };
+        if (args[0] === "rev-list") return { stdout: "0 malformed\n" };
+        throw new Error(`unexpected call: ${args.join(" ")}`);
+      },
+      branch: "main",
+      policy: "always",
+      isTty: false,
+      fetchTimeoutMs: FETCH_TIMEOUT_MS,
+    });
+    expect(result).toEqual({ decision: "surface", fastForwarded: false, ahead: 0, behind: 0 });
+    expect(calls.some((args) => args[0] === "status" || args[0] === "merge")).toBe(false);
+  });
 });

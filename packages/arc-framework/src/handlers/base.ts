@@ -6,7 +6,10 @@
 
 import * as p from "@clack/prompts";
 
+import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { runBaseDrift, type BaseDriftResult } from "../lib/git/base-distance.js";
+import { composeUnavailableRegister } from "../lib/git/base-drift-register.js";
 import { syncLocalBase, type BaseSyncResult } from "../lib/git/base-sync.js";
 import { gitExec } from "../lib/io-context.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -15,6 +18,61 @@ import { requireArcProjectRoot } from "./shared.js";
 export interface BaseSyncOptions {
   /** Emit the typed synchronization outcome as JSON. */
   json?: boolean;
+}
+
+/** Options for `arc base drift`. */
+export interface BaseDriftOptions {
+  /** Emit the complete typed analysis as JSON. */
+  json?: boolean;
+}
+
+/** Run the authoritative shared base-drift analyzer. */
+export async function handleBaseDrift(opts: BaseDriftOptions): Promise<void> {
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+
+  const config = await readConfigSettings(cwd);
+  const configUnavailable = config.warnings.some(
+    (warning) => warning.startsWith("Unable to read arc-config.yml:"),
+  );
+  const result: BaseDriftResult = configUnavailable
+    ? {
+        mode: "authoritative",
+        verdict: "unavailable",
+        state: "remote-unavailable",
+        ahead: 0,
+        behind: 0,
+        base: null,
+        baseOid: null,
+        unavailableReason: "config-unavailable",
+        integrationEvidence: null,
+        overlap: null,
+        register: composeUnavailableRegister(null, "config-unavailable"),
+        failureReason: "error",
+      }
+    : await runBaseDrift({
+        exec: gitExec,
+        baseBranch: config.settings["branch.base"],
+        mode: "authoritative",
+        ...createCurrentBaseDriftAdapters(gitExec),
+      });
+
+  if (opts.json) {
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+  } else {
+    p.intro("arc base drift");
+    if (result.verdict === "clean") {
+      p.note(
+        `Base \`${result.base ?? "base"}\` is current at \`${result.baseOid ?? "unknown"}\`.`,
+        "Base current",
+      );
+    } else if (result.register !== null) {
+      const render = result.verdict === "unavailable" ? p.log.error : p.note;
+      render(result.register.text, result.verdict === "reconcile" ? "Base reconciliation" : undefined);
+    }
+    p.outro(result.verdict === "unavailable" ? "Unavailable." : "Done.");
+  }
+  if (result.verdict === "unavailable") process.exitCode = 1;
 }
 
 function refusalMessage(result: Extract<BaseSyncResult, { status: "refused" }>): string {

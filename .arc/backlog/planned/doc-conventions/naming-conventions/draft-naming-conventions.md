@@ -314,6 +314,19 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   `roadmap-tooling`'s (entry routed there 2026-07-02). Coupling: the target `Owner` field on `VECTOR.*` reuses
   the WU field name — the pending `Owner → DRI` evaluation above covers both record types if it lands.
 
+### `[ ]` **Review coupling-audit finding: state document renames**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-18);
+  captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- *Concern:* five planned document/root renames have materially different fan-out, including two abstract
+  state-document names.
+- *Approach:* use the ranked classes at grooming to decide which names need resolver-backed indirection and which
+  can change atomically with the mover.
+- *Packet:* `packet-9ba27bc90a49239e2b82b1ef`; content digest
+  `fbf43e1af8df3fd782b11e52e815f70894d6dab37a03c4c12daca52f6b9cc2cb`.
+- *Evidence:* `agent-briefs-root`, `atomic-inbox-name`, `session-notes-name`, `user-inbox-name`, and
+  `working-memory-name`; corresponding `scan-result.json#class-*` anchors.
+
 ---
 
 ## Problem / Motivation

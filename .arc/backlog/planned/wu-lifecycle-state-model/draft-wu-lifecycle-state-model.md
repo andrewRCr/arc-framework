@@ -249,3 +249,36 @@
   current workflow or planning stage, so no CLI verb today answers "is this WU past create-spec?" — stage-aware
   consumers would have to read the meta. Grow the slug-status record to report it (storage-evolution
   forward-compat: consumers resolve stage through the verb, never the artifact's location).
+
+### `[ ]` **Make the quick-scan lifecycle-stage signal first-class (vocabulary + derived tail states)**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-07-18);
+  captured during `session-locus-model` draft-design grooming (stage-signal discussion), 2026-07-18.
+- _Concern:_ under live parallelism (5 WUs in flight) a glanceable "which stage is each WU in" signal is
+  load-bearing, and nothing renders it — current practice is manually renaming harness sessions per stage
+  (draft-design → create-spec → generate-tasks → process-task-loop → verify → integrate), which works and confirms
+  the demand. `Current Workflow` (meta, ceremony-advanced) is the working interim key and tracks the authored
+  lifecycle nearly 1:1; past the ship boundary the stages are _derived_ states (awaiting-review / mergeable /
+  merged-needs-archival — probe `workUnitState`), not workflows.
+- _Ask:_ the state-model vocabulary should yield one stable per-WU stage value spanning the authored range and the
+  derived tail, for consumers to key off: session-title automation (`session-retitle`, planned stub minted at this
+  drain), the `session-locus-model` read verb's join, `status-hud`'s card and any roster view.
+- _Open:_ roster-view placement ("all in-flight WUs × stage, one line each") — `status-hud` vs. `STATUS.USER` /
+  `operational-state-docs` territory.
+- _Coordination:_ `session-locus-model` settled derive-not-store at its 2026-07-18 grooming — the locus record
+  never stores stage; the read verb joins locus identity with the subject's meta at query time. Stage therefore
+  homes in the meta (today) / this WU's substrate (later), never in machine-local locus state.
+
+### `[ ]` **Review coupling-audit finding: placement reader input**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-07-18);
+  captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- _Concern:_ four lifecycle placement assumptions currently encode state in directory layout and reach 55 code
+  reader/parser files.
+- _Approach:_ use the mandatory placement-reader extract at grooming to define the record-field boundary and
+  account for every linked reader before changing projection layout. Complements the placement-as-record entry
+  above — this is the audit's reader enumeration for the same reform.
+- _Packet:_ `packet-188c5fab90090e83fdbc4591`; content digest
+  `528515469ff26c720e1d7a0643eaebbebf81d4c99b7c9b640b75479d0da38ae5`.
+- _Evidence:_ `active-placement`, `completed-placement`, `planned-placement`, and `provisional-placement`; extract
+  `reportInputs.placementReaders`; corresponding `scan-result.json#class-*` anchors.

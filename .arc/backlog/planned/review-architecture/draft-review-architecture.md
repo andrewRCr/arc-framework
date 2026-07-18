@@ -27,6 +27,17 @@
   explicit inputs, so the lane vocabulary / metering design answers the cardinality questions with PRD in view
   and PRD's draft-design opens pre-answered rather than re-deriving.
 
+### `[ ]` **Adopt CodeRabbit's agent output mode for agent-run frontline reviews when qualified**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-architecture`), housekeep drain (2026-07-18);
+  captured during `coupling-blast-radius-audit` integration, local CodeRabbit pre-PR review (2026-07-18).
+- _Concern:_ CodeRabbit CLI detects Codex sessions and recommends `coderabbit review --agent` over the current
+  `--plain` invocation. The `pre-pr-open` frontline review is agent-executed, so structured agent-facing output is
+  the better semantic contract if it is stable and retains the evidence review triage needs.
+- _Approach:_ qualify `--agent` output for successful, findings, empty-findings, scoped-directory, and failure
+  cases; confirm the review-triage path can consume it without brittle prose parsing. If sound, use `--agent` for
+  agent-run frontline review while retaining `--plain` for human-readable output and compatibility fallback.
+
 (The seven pre-rescope entries were integrated or dispositioned at the 2026-07-16 grooming; ledger in
 § Provenance.)
 

@@ -90,6 +90,28 @@
   reviews become gate-admissible evidence. Residual value survives either way (generic bot approvals stay zero,
   choreography automation and the receipt ledger are evidence-source-independent).
 
+### `[ ]` **Require lifecycle completion before the review gate can report merge-ready**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: review-gate-enforcement-qualification`), housekeep drain
+  (2026-07-18); captured during `base-drift-guidance` post-merge lifecycle repair and the PR #288 merge gate,
+  2026-07-18.
+- *Concern:* the current `lifecycle-bookkeeping-tail/v1` predicate can carry exact-head review evidence across a
+  valid archival tail, but it does not make that tail mandatory. A reviewed, CI-green ARC work-unit head can
+  therefore satisfy the gate before Release Notes, Completion Notes, and the `with-integration` archive sweep
+  exist; a maintainer can press Merge early and bypass the remaining ARC integration ceremony. PR #287
+  demonstrated the gap and required lifecycle-only repair PR #288.
+- *Approach:* add a storage-neutral lifecycle-readiness obligation distinct from review-evidence carry-forward.
+  When the host adapter can unambiguously classify a PR as an ARC work unit, fail closed until the
+  cadence-required products are present at the exact head: composition always, and a valid `Shipped`/completed
+  artifact group under `with-integration`. Qualification must prove that the pre-composition reviewed head cannot
+  emit the required green check, that the composed/archived head can, and that ambiguous, manual-cadence, non-WU,
+  repair, and future-storage cases have explicit applicability behavior. If the shipped controller lacks the
+  capability, treat that as a qualification defect requiring a separate repair before activation, not as an
+  accepted limitation.
+- *Coordination:* `review-gate-enforcement-promotion` must consume this qualification proof before making the App
+  check authoritative; `review-gate-github-adapter` should productize the neutral obligation and expose
+  setup/doctor coverage rather than defining a GitHub-only lifecycle rule.
+
 ---
 
 ## Role in the three-work-unit sequence

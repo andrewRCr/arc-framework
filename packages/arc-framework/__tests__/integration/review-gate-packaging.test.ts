@@ -50,7 +50,13 @@ describe("review-gate package boundary", () => {
     };
     const rootManifest = JSON.parse(rootManifestText) as { scripts: Record<string, string> };
     const cli = await readFile(resolve(root, "packages/arc-framework/src/cli.ts"), "utf8");
-    expect(Object.keys(manifest.dependencies).sort()).toEqual(["@clack/prompts", "commander", "js-yaml", "semver"]);
+    expect(Object.keys(manifest.dependencies).sort()).toEqual([
+      "@clack/prompts",
+      "commander",
+      "js-yaml",
+      "semver",
+      "string-width",
+    ]);
     expect(cli).not.toMatch(/review-gate|coderabbit|provider-registry/iu);
     expect(tsup).toContain('entry: ["src/cli.ts"]');
     expect(Object.values(manifest.scripts).some((script) => script.includes("src/scripts/review-gate"))).toBe(false);

@@ -1,0 +1,407 @@
+# Task List: coupling-blast-radius-audit
+
+- **Design:** `spec-coupling-blast-radius-audit.md`
+
+---
+
+## **Phase 1:** Audit foundation and artifact contracts
+
+_Purpose:_ Freeze the explicit corpus boundary and durable artifact contracts that every later audit phase shares.
+
+### `[x]` **1.1 Verify the authoritative corpus and bounded delta pass**
+
+- _Goal:_ Every later count operates on one explicit, reviewable corpus with no duplicate package/project reads and
+  no unexamined self-hosting surface outside package source.
+
+    - `[x]` **1.1.a Pin the authoritative tracked package tree**
+        - Fixed the primary corpus at 1,148 tracked, valid-UTF-8 package files and recorded its complete family and
+          extension distribution without filtering hidden or extensionless content.
+
+    - `[x]` **1.1.b Resolve the self-hosting delta to an exact include list**
+        - Mapped all 156 package ARC paths through the live output rule, retained the 15 byte-different installed
+          copies, and fixed a 28-file tracked repo-root tooling/harness delta with explicit exclusions.
+        - Reconciled recipe, classifier, and installed-manifest drift as diagnostics rather than corpus filters; the
+          durable counts, exact include sets, and rationale live in `notes-coupling-blast-radius-audit.md`.
+
+- _Outcome:_ The audit now has one closed 1,191-file UTF-8 corpus: 1,148 authoritative package files plus 15
+  byte-different installed copies and 28 repo-root self-hosting files, with no duplicate package/project reads.
+
+### `[x]` **1.2 Settle the checked-in artifact homes and machine-readable contracts**
+
+- _Goal:_ The scanner, manifest, raw result, routing ledger, and ranked report each have one stable role and
+  serialization contract that remains usable after the work unit archives.
+- _Context:_ Existing dev audits use `packages/arc-framework/src/scripts/repo-root.ts`, export pure functions for
+  unit tests, and expose root-package `tsx` scripts; the audit artifacts must not hardcode current `active/`
+  placement.
+
+    - `[x]` **1.2.a Choose durable locations and invocation boundaries**
+        - Located pure logic under `src/lib/coupling-audit/`, the executable beside existing repository-audit
+          scripts, and canonical JSON artifacts under package-local `audits/coupling-blast-radius/`.
+        - Made the movable Markdown report an explicit output-path input so archival relocation cannot leave a stale
+          default; recorded the dependency-free rerun contract in `notes-coupling-blast-radius-audit.md`.
+
+    - `[x]` **1.2.b Define and validate the manifest and scan-result contracts**
+        - Added strict versioned TypeScript contracts and `unknown`-input validators for manifests, scan results,
+          routing ledgers, evidence spans, dispositions, volatility/quadrants, and all closed enums without a schema
+          dependency or `any` boundary.
+        - Added canonical candidate/member-set digest helpers and a result-bound ledger whose class order and terminal
+          capture state validate at the boundary.
+        - Added an ordered code-owned classifier that exhaustively maps the full 1,191-file baseline into the six
+          surface kinds and fails unknown families.
+        - Covered valid round trips and malformed versions, IDs, citations, regexes, idiom coverage, digests,
+          quadrants, packet ordering, and result bindings with focused unit tests.
+
+    - `[x]` **1.2.c Specify deterministic output and failure behavior**
+        - Added canonical path and artifact-order normalization, recursive key-stable JSON with no timestamps, and
+          explicit file/stdout emission seams suitable for byte-identical unchanged-tree comparisons.
+        - Defined stable exit classes for malformed input, stale dispositions, and scan/I/O failure while preserving
+          successful residue-bearing results; recorded the report/result/ledger consumption contract in the notes.
+
+- _Outcome:_ Phase 1 leaves a closed corpus and tested machine boundary: every baseline file classifies, every
+  artifact validates before use, and later scan/report phases can compare canonical bytes and digests directly.
+
+## **Phase 2:** Pattern manifest
+
+_Purpose:_ Derive the volatile-name and coupling-idiom inventory before scanning so coverage is inspectable and
+source-grounded.
+
+### `[x]` **2.1 Derive the name layer from target-shape records and the live roster**
+
+- _Goal:_ Every concrete name or layout the recorded target direction can move appears in one normalized assumption
+  class with evidence naming the source and responsible mover.
+- **Additional Context:** `strategy-storage-evolution.md` §§ The Storage Model and Forward-Compat Principles;
+  `strategy-knowledge-evolution.md` §§ The Target Model and Forward-Compat Principles;
+  `strategy-procedure-evolution.md` §§ The Target Model and Forward-Compat Principles;
+  `draft-arc-backend.md` §§ The Storage Model, Placement Is a Record, and Compatibility Ledger;
+  `draft-knowledge-architecture.md` §§ Architecture and Naming; `draft-composable-workflows.md` §§ D1-D3;
+  `ROADMAP.md` as a concrete-name source. Resolve the live roster with `npx arc status --project`.
+
+    - `[x]` **2.1.a Extract storage and lifecycle names**
+        - Encoded current storage roots, placements, artifact prefixes, state-document names, typed branches, and
+          config keys with precise target-shape anchors and live mover slugs.
+
+    - `[x]` **2.1.b Extract knowledge and procedure names**
+        - Encoded current strategy/index, workflow/method/extension, skill, declaration-key, load-set, emitted-text,
+          template, and domain-rule spellings; proposed target names remain citation-only evidence.
+
+    - `[x]` **2.1.c Mechanically seed pending renames and resolve their live movers**
+        - Recorded a six-vector tracked-text query, inspected its focused rename candidates, and verified all cited
+          movers by slug against the live roster, including provisional `arcd-rebrand`.
+
+    - `[x]` **2.1.d Normalize aliases into name-keyed assumption classes**
+        - Produced 30 stable name-keyed classes with deterministic literal/regex aliases, source/mover provenance,
+          and intentionally unresolved class-level volatility.
+
+### `[x]` **2.2 Encode the idiom layer and standalone coupling classes**
+
+- _Goal:_ Every known mechanism by which code or prose can depend on a concrete name is represented independently
+  of whether the name layer anticipated the token.
+
+    - `[x]` **2.2.a Encode code coupling mechanisms**
+        - Added closed idioms and broad code vectors for path, directory-state, tracked-git, prefix, branch, and
+          config-key mechanisms without pre-classifying vector candidates.
+
+    - `[x]` **2.2.b Encode shipped-prose coupling mechanisms**
+        - Extended path, branch, config, and document-name vectors across workflow/template/prose surfaces while
+          preserving mechanical file-path classification.
+
+    - `[x]` **2.2.c Define idiom-keyed classes for couplings with no owning name**
+        - Added a standalone tracked-planning-git class with the same provenance and volatility contract as name
+          classes.
+
+### `[x]` **2.3 Define catch-all capture vectors and manifest validation**
+
+- _Goal:_ An unknown volatile name expressed through any known idiom still reaches residue instead of disappearing
+  outside the authored name list.
+
+    - `[x]` **2.3.a Author one or more broad vectors per code idiom**
+        - Authored broad, non-empty-string vectors for all six code-side mechanisms, leaving precision to exact
+          coverage and recorded residue dispositions.
+
+    - `[x]` **2.3.b Author broad vectors for shipped prose**
+        - Covered path-shaped, branch-shaped, dotted-key, and document tokens across shipped prose families.
+
+    - `[x]` **2.3.c Validate the populated manifest against the Phase 1 contract**
+        - Validated the populated v1 manifest, strengthened citations to require mover slugs, and recorded one
+          unknown-name behavioral fixture per closed idiom for the scanner matrix.
+
+- _Outcome:_ The checked-in manifest now carries both derivation layers: 31 source-grounded classes and seven broad
+  catch-all vectors over the exact Phase 1 corpus, with every mover verified against the live roster.
+
+## **Phase 3:** Deterministic enumeration engine
+
+_Purpose:_ Build a re-runnable Node scanner that converts the manifest and bounded corpus into stable counts,
+file lists, surface/locus tags, and residue.
+
+### `[x]` **3.1 Implement deterministic corpus traversal and surface-kind classification**
+
+- _Goal:_ The same manifest and repository tree always produce the same ordered input set and mechanical surface
+  kinds plus corpus-locus tags.
+
+    - `[x]` **3.1.a Collect authoritative roots and explicit delta files**
+        - Added an injected, NUL-safe tracked-file collector with exact delta enforcement, canonical path ordering,
+          fatal UTF-8 decoding, explicit exclusions, and path-rich filesystem failures.
+
+    - `[x]` **3.1.b Classify surfaces from normalized paths**
+        - Applied the closed ordered surface classifier during collection while deriving package, installed-delta,
+          and repo-root-delta loci independently from the manifest declaration.
+
+- _Outcome:_ One deterministic collection boundary now establishes the complete decoded input set and both
+  orthogonal mechanical tags before matching begins.
+
+### `[x]` **3.2 Implement manifest matching, fan-out aggregation, and residue emission**
+
+- _Goal:_ Every captured candidate deterministically contributes to one or more declared classes or appears in
+  residue with enough evidence to classify later.
+
+    - `[x]` **3.2.a Match literal and regex patterns with stable evidence**
+        - Added engine-owned regex iteration with repeated, overlapping, multi-line, Unicode-aware source evidence;
+          invalid or empty-string runtime patterns fail the scan.
+
+    - `[x]` **3.2.b Attribute name and idiom tags without losing overlap**
+        - Aggregated deduplicated class/location/idiom evidence into distinct-file fan-out, retained hit counts,
+          canonical file lists, and surface-kind breakdowns without suppressing legitimate overlap.
+
+    - `[x]` **3.2.c Compute catch-all residue and apply recorded dispositions**
+        - Partitioned catch-all evidence by exact span coverage, exact digest, or reproducible bulk member set;
+          retained dismissals and failed stale or expanded dispositions while leaving every unseen idiom unresolved.
+
+    - `[x]` **3.2.d Canonicalize the complete scan result**
+        - Reused shared canonical JSON, digest, and path helpers; normalized all set-valued result arrays and kept
+          execution metadata outside the validated payload.
+
+- _Outcome:_ The pure scan core now turns one manifest/corpus pair into a validated, byte-stable inventory whose
+  complete candidate set is mechanically accountable as classified, dismissed, or unresolved.
+
+### `[x]` **3.3 Add a repository command and reproducibility coverage**
+
+- _Goal:_ A maintainer can run the complete audit from the repository root with explicit inputs and receive a
+  deterministic artifact or an actionable nonzero failure.
+
+    - `[x]` **3.3.a Wire the thin script entry point and root package command**
+        - Added `npm run audit:coupling -- --manifest <path> --output <path|->` with shared root resolution,
+          repository-pinned Git/filesystem boundaries, atomic file output, stderr diagnostics, and stable exit codes.
+
+    - `[x]` **3.3.b Cover end-to-end determinism in a temporary Git repository**
+        - Added a real temporary-Git integration fixture that commits code, prose, and a hidden extensionless file,
+          proves tracked discovery and byte-identical outputs, and covers validation-failure routing.
+
+- _Outcome:_ The pure engine is now available through one explicit repository command whose real Git boundary and
+  deterministic artifact writing are covered without expanding the product CLI.
+
+## **Phase 4:** Corpus enumeration and residue closure
+
+_Purpose:_ Run the tool over the authoritative surface, calibrate bounded judgment from actual distributions, and
+eliminate every unclassified catch-all hit.
+
+### `[x]` **4.1 Execute the authoritative scan and calibrate the manifest**
+
+- _Goal:_ The first complete result reflects the real package corpus and exact self-hosting delta without expanding
+  agent reading into an uncapped corpus sweep.
+
+    - `[x]` **4.1.a Run the checked-in manifest over the full declared corpus**
+        - Recorded commit, command, manifest/files/output digests, and the exact 1,164 package + 15 installed + 28
+          repo-root corpus counts in `notes-coupling-blast-radius-audit.md`.
+
+    - `[x]` **4.1.b Calibrate patterns through capped code-hit samples**
+        - Settled a five-hit cap using idiom-first then canonical path/location selection, reviewed 146 selected code
+          hits, tightened artifact-prefix patterns and idiom attribution, and added the omitted agent-brief mover.
+
+- _Outcome:_ The first complete scan preserved the bounded 43-file self-hosting delta while converting observed
+  code-hit distributions into a fixed review rule and a more precise 32-class manifest.
+
+### `[x]` **4.2 Set the residue cap and record the bulk-disposition rule**
+
+- _Goal:_ Residue judgment remains bounded by a number and grouping rule chosen from observed volume rather than an
+  arbitrary pre-scan estimate.
+- _Outcome:_ Settled a 64-item cap—two canonical candidates from each of 32 observed vector × surface strata—and a
+  closed vector-ID bulk predicate with per-vector reasons, exact member-set binding, and explicit escalation rules.
+
+### `[x]` **4.3 Triage the catch-all residue to zero**
+
+- _Goal:_ Every candidate coupling has a durable class or a reviewable dismissal, making comprehensiveness an
+  evidenced result rather than a claim.
+
+    - `[x]` **4.3.a Classify item-level residue up to the cap**
+        - Reviewed and digest-dispositioned all 64 round-robin candidates, including tracked scanner fixtures; no
+          additional direction-owned name remained after the calibrated agent-brief class.
+
+    - `[x]` **4.3.b Apply and record bulk dispositions past the cap**
+        - Bound the remaining 90,227 candidates to seven vector-ID groups with exact member-set digests and the
+          closed per-vector reasons.
+
+    - `[x]` **4.3.c Rerun until no unclassified residue remains**
+        - Checked in the canonical result with 7,699 classified candidates, 90,291 preserved dismissals, zero
+          unresolved residue, and explicit generated-output exclusions that prevent recursive enumeration.
+
+- _Outcome:_ Every catch-all candidate now has durable evidence and either exact class attribution or a stale-safe
+  recorded dismissal; newly changed or expanded groups fail instead of inheriting prior judgment.
+
+### `[x]` **4.4 Prove unchanged-tree reproducibility on the complete corpus**
+
+- _Goal:_ The authoritative command reproduces the exact same canonical output when neither tree nor manifest
+  changes.
+- _Outcome:_ At clean commit `e689e892a`, two complete runs were byte-identical at SHA-256 `ac88163b…303edc6`;
+  status stayed clean and every retained count/file list derives from the canonical result.
+
+## **Phase 5:** Volatility ranking and deterministic report inputs
+
+_Purpose:_ Convert the complete mechanical inventory into dated, source-cited ranking data and dependency-critical
+views that the routed final report projects without hand-maintained interpretation.
+
+### `[x]` **5.1 Rate every assumption class against its recorded mover**
+
+- _Goal:_ Volatility is a dated class-level judgment grounded in recorded direction, never inferred from hit count or
+  repeated independently per file.
+
+    - `[x]` **5.1.a Resolve mover evidence for every name-keyed class**
+        - Re-resolved all final cited slugs as planned owners; verification moved the `pm.mode` schema-reform
+          citation from provisional `arcd-rebrand` to its explicit owner, `scalable-core`.
+
+    - `[x]` **5.1.b Resolve volatility for standalone idiom classes**
+        - Rated tracked-planning Git operations high against the live CLI-substrate target that moves the mechanism
+          behind verbs.
+
+    - `[x]` **5.1.c Complete the manifest's volatility evidence**
+        - Replaced all 32 unresolved ratings with source-, roster-, and date-stamped high evidence; no mover was
+          missing, completed, or retired.
+
+- _Outcome:_ Every class now carries one dated volatility judgment grounded in its live design owner, and report
+  projection can no longer encounter an unresolved rating.
+
+### `[x]` **5.2 Calibrate fan-out thresholds and assign quadrant verdicts**
+
+- _Goal:_ Every class receives a comparable 2×2 verdict whose threshold and meaning are explicit enough for later
+  consumers to reproduce.
+
+    - `[x]` **5.2.a Derive high-fan-out thresholds from the observed distribution**
+        - Set test 25, code 12, workflow 8, template 2, and config 3 at their observed upper quartiles; set prose 20
+          at its 87.5th percentile so prose mentions remain lower-weight than concrete code reads. Equality is high,
+          and mixed surfaces use their maximum threshold ratio.
+
+    - `[x]` **5.2.b Settle the four quadrant verdicts and rank order**
+        - Implemented the fixed four-quadrant mapping and deterministic verdict, maximum-ratio, total-fan-out, then
+          class-ID ordering; the calibrated corpus yields 20 `abstract` and 12 `change-with-mover` classes.
+
+    - `[x]` **5.2.c Derive bands, verdicts, and stable rank keys**
+        - Added small pure ranking calculations with coverage for every quadrant, equality and mixed-surface bounds,
+          deterministic ties, and pre-projection failures for missing thresholds or unresolved volatility.
+
+- _Outcome:_ The checked result now carries reproducible threshold ratios, quadrant verdicts, and stable rank keys;
+  the manifest, spec, and calibration notes share the same settled rule.
+
+### `[x]` **5.3 Prepare the ranked inventory and hard-consumer views**
+
+- _Goal:_ Canonical audit data contains the complete ranking and both dependency-critical extracts before routing
+  packets bind owner-facing implications to the settled result.
+
+    - `[x]` **5.3.a Materialize the complete ranked inventory data**
+        - Added 32 ranked records with provenance, calibrated threshold method, residue summary, class counts,
+          volatility evidence, quadrant, verdict, and stable anchors; each record references its canonical class ID
+          for the sole authoritative file list.
+
+    - `[x]` **5.3.b Materialize the substrate-abstraction extract**
+        - Projected and reviewed 15 `abstract` concrete-path classes with inventory anchors, observed idioms, and
+          complete evidence-digest sets; membership remains a pure derivation rather than a consumer-tag policy.
+
+    - `[x]` **5.3.c Materialize the placement-reader extract**
+        - Recorded all four lifecycle-placement classes and mechanically grouped every qualifying code hit into 56
+          normalized reader/parser files with class IDs and evidence digests; corrected hook/script Markdown to prose
+          before accepting the membership.
+
+- _Outcome:_ Canonical scan output now contains the entire ordered inventory and both hard-consumer extracts, so
+  routing can bind owner implications directly to checked evidence without recreating selection logic.
+
+## **Phase 6:** Finding routing
+
+_Purpose:_ Stage owner-ready packets through sanctioned captures, reconcile their canonical ledger, and publish the
+certified report without expanding this WU into the later inbox drain or editing another WU's tracked artifacts.
+
+### `[x]` **6.1 Resolve affected owners and provenance-stamped finding packets**
+
+- _Goal:_ Every design-changing finding has one real destination and enough provenance for that owner to evaluate it
+  without repeating the audit.
+
+    - `[x]` **6.1.a Map findings to live work units by slug**
+        - Resolved all ten destination slugs through live status as planned work units; both hard consumers still
+          carry their audit dependency, and every other owner emerged from the manifest's ranked mover evidence.
+
+    - `[x]` **6.1.b Build one packet per owner/concern**
+        - Built 11 deterministic `prepared-for-review` packets for ten owners, with one additional hard-consumer
+          substrate packet for `cli-substrate-adoption`; all 32 classes are covered, and each packet carries live
+          owner provenance, ranked evidence, stable anchors, design implication, and a grooming recommendation.
+
+- _Outcome:_ The prepared ledger accounts for every ranked class and both mandatory extracts without claiming any
+  inbox capture; the exact packet set is ready for review before Task 6.2 changes external routing state.
+
+### `[x]` **6.2 Stage branch-safe routing through `USER-INBOX` captures**
+
+- _Goal:_ Routing intent survives the session without landing foreign planning churn in the audit branch's tracked
+  history.
+
+    - `[x]` **6.2.a Capture every packet through the standard inbox path**
+        - Captured all 11 reviewed packets under the identity-global inbox's Work Unit section with deterministic
+          packet IDs, content digests, evidence anchors, and `WU_Target` metadata; the reviewed `pm.mode` packet and
+          final canonical mover evidence both target planned `scalable-core` ownership.
+
+    - `[x]` **6.2.b Reconcile captures against the canonical routing ledger**
+        - Reconciled every capture one-to-one with the 32-class inventory and both mandatory extracts, then advanced
+          all ledger packets to `captured-awaiting-housekeep` without invoking housekeep or editing foreign WU
+          artifacts.
+
+- _Outcome:_ The complete reviewed finding set now survives outside the audit branch as idempotent personal captures,
+  while the tracked ledger records the exact terminal routing state that Task 6.3 can certify.
+
+### `[x]` **6.3 Publish and certify the settled report**
+
+- _Goal:_ The checked-in report is one reproducible projection of the settled scan result and reconciled routing
+  ledger, with no later WU task mutating its certified bytes.
+
+    - `[x]` **6.3.a Render the complete ranked report**
+        - Added an explicit report mode to the repository audit command and a thin pure Markdown projection with one
+          focused test-first fixture proving stable bytes and exact inventory/packet row cardinality; the checked
+          report carries provenance, ranking method, residue summary, both hard-consumer extracts, and routed
+          findings while leaving canonical class file lists in the scan result.
+
+    - `[x]` **6.3.b Certify final inputs and projected bytes**
+        - Re-reviewed the renderer's bounded self-audit delta, refreshed four generic bulk-member digests, regenerated
+          the result and all packet identities, and reconciled the replacement captures. Two external scans and two
+          report projections are byte-identical to their checked artifacts, with 32 resolved classes, zero candidate
+          residue, and unchanged repository inputs across certification.
+
+- _Outcome:_ The audit now publishes one certified human report backed by exact canonical inputs: result
+  `8ff94473a49cb4a55ba79626d27c9e420770cf6a329e63ac95b332f47cc9956c` and report
+  `53441f7b73942a577edee1a57e7f98caa1ce187777a4451f263ebf96363f5183`.
+
+## **Phase 7:** Verification
+
+_Purpose:_ Verify the completed work unit against its design, audit evidence, and project quality gates.
+
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ 6,225 tests passed with one skipped; TypeScript, shell, and Markdown lint, source and test
+  typechecks, build, deterministic scan/report certification, and diff hygiene all passed.
+- _Success criteria:_ All seven criteria met. Two fresh adversarial passes exposed and closed shell/prefix coverage,
+  path-join argument coverage, mover provenance, and routing-ledger integrity gaps; the Heavy pass cap is exhausted.
+
+## Success Criteria
+
+- `[x]` The checked-in manifest contains both derivation layers, source citations for every name class, and at
+  least one catch-all capture vector for every idiom mechanism.
+
+- `[x]` The repository command emits per-class fan-out counts and file lists, and repeated runs on an unchanged
+  tree are byte-stable.
+
+- `[x]` Catch-all candidate residue has no unresolved items, with every dismissal recorded individually up to the
+  cap or covered by an explicit bulk-disposition rule above it.
+
+- `[x]` The tracked report deterministically projects the canonical scan result and reconciled routing ledger, giving
+  every class a fan-out count, surface-kind breakdown, source-cited volatility rating, and 2×2 quadrant verdict.
+
+- `[x]` The tracked routing ledger accounts for every affected work unit with a deterministic packet captured and
+  awaiting housekeep, and the report explicitly exposes the substrate-abstraction list and placement-reader
+  enumeration.
+
+- `[x]` All quality gates pass (tests, linting, type checking, and build).
+
+- `[x]` Ready for integration.

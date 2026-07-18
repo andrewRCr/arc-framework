@@ -17,6 +17,42 @@ export interface SessionNotesPathIO {
   readDir: (dirPath: string) => Promise<DirEntry[]>;
 }
 
+/** Exact-path I/O seam for one named work unit's SESSION-NOTES. */
+export interface WorkUnitSessionNotesPathIO {
+  access: (path: string) => Promise<void>;
+}
+
+export type SessionNotesPathResult =
+  | { status: "resolved"; path: string }
+  | { status: "absent" }
+  | { status: "error"; message: string };
+
+/**
+ * Resolve one named WU's SESSION-NOTES while retaining absent-vs-error detail.
+ *
+ * @param cwd - Current ARC project root
+ * @param identity - Resolved ARC identity
+ * @param workUnitName - Active work-unit slug
+ * @param io - Directory-reading boundary
+ * @returns Resolved path, normal absence, or a genuine directory error
+ */
+export async function resolveWorkUnitSessionNotesPath(
+  cwd: string,
+  identity: string,
+  workUnitName: string,
+  io: WorkUnitSessionNotesPathIO,
+): Promise<SessionNotesPathResult> {
+  const path = join(cwd, ".arc", "user", identity, workUnitName, "SESSION-NOTES.md");
+  try {
+    await io.access(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { status: "absent" };
+    const message = error instanceof Error ? error.message : String(error);
+    return { status: "error", message: `Unable to access SESSION-NOTES: ${message}` };
+  }
+  return { status: "resolved", path };
+}
+
 /**
  * Resolve the SESSION-NOTES path for an identity under the given repo root.
  *
