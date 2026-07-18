@@ -102,4 +102,21 @@ tracked package and explicit self-hosting delta even when the recipe or installe
 
 ## Artifact homes and rerun contract
 
-To be settled by Task 1.2 after the corpus boundary is fixed.
+The audit is project-internal repository tooling, not a product CLI surface:
+
+- Pure contract, classification, scan, and projection logic lives under
+  `packages/arc-framework/src/lib/coupling-audit/`.
+- The executable repository-audit entry point is
+  `packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts`, exposed from the root package as
+  `npm run audit:coupling`.
+- Checked-in machine inputs and results live under
+  `packages/arc-framework/audits/coupling-blast-radius/`: `manifest.json`, `scan-result.json`, and
+  `routing-ledger.json`. This stable package-local directory survives WU archival and travels with the audit code.
+- The human projection is `report-coupling-blast-radius-audit.md` beside the WU's other movable artifacts. Its
+  slug-matched companion name makes lifecycle relocation a pure move into the completed WU directory.
+
+The executable accepts manifest, result, ledger, and report paths explicitly. The package-local files are command
+defaults for normal repository reruns; the report path has no active-directory default and must always be supplied,
+so archiving the WU cannot redirect a later run into a stale `.arc/active/**` location. Scan mode writes canonical
+JSON to the requested result path (or stdout when requested); report mode reads the canonical result and ledger and
+writes the explicitly requested Markdown projection.

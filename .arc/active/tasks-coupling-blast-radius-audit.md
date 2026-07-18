@@ -34,12 +34,11 @@ _Purpose:_ Freeze the explicit corpus boundary and durable artifact contracts th
   unit tests, and expose root-package `tsx` scripts; the audit artifacts must not hardcode current `active/`
   placement.
 
-    - `[ ]` **1.2.a Choose durable locations and invocation boundaries**
-        - Place executable code and its tests with the existing repository-audit tooling; decide where the movable
-          manifest/report companions, canonical routing ledger, and deterministic raw result live, and make those
-          paths explicit inputs where archival relocation would otherwise break a default.
-        - Record the location decision and rerun contract in `notes-coupling-blast-radius-audit.md`, then settle the
-          spec's "Manifest/script home" open item without adding a new dependency or storage/config axis.
+    - `[x]` **1.2.a Choose durable locations and invocation boundaries**
+        - Located pure logic under `src/lib/coupling-audit/`, the executable beside existing repository-audit
+          scripts, and canonical JSON artifacts under package-local `audits/coupling-blast-radius/`.
+        - Made the movable Markdown report an explicit output-path input so archival relocation cannot leave a stale
+          default; recorded the dependency-free rerun contract in `notes-coupling-blast-radius-audit.md`.
 
     - `[ ]` **1.2.b Define and validate the manifest and scan-result contracts**
         - Model versioned manifest metadata, corpus roots/delta files, name-keyed and idiom-keyed classes, pattern

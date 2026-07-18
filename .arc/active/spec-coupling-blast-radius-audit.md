@@ -153,6 +153,8 @@ performs every corpus-wide read.
 - **Code-sample cap value** — the per-class inspection bound; set from the first code-hit distribution before any
   classified hit is opened.
 - **Residue cap value** — the bounded triage size; set when the catch-all's actual volume is known.
-- **Manifest/script home** — exact checked-in location; resolved when the artifacts take shape.
+- **Manifest/script home (resolved)** — code lives under `src/lib/coupling-audit/` with a repository-audit script;
+  canonical JSON lives under package-local `audits/coupling-blast-radius/`, and the movable Markdown report requires
+  an explicit output path so WU archival cannot stale a default.
 - **Delta-pass size** — assumed small (byte-different live package/project counterparts plus a handful of repo-root
   tooling files); verified cheaply during the corpus-boundary pass.
