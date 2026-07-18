@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `d332c08f8`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `6e96f56a0`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -15,9 +15,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State      | Work unit                   | Priority | Owner  | Depends on | Cohort |
 | ---------- | --------------------------- | -------- | ------ | ---------- | ------ |
-| `Planning` | base-drift-guidance         | P1       | andrew | —          | —      |
-| `Planning` | coupling-blast-radius-audit | P1       | andrew | —          | —      |
-| `Planning` | arc-view                    | P3       | andrew | —          | —      |
+| `Active`   | base-drift-guidance         | P1       | andrew | —          | —      |
+| `Active`   | coupling-blast-radius-audit | P1       | andrew | —          | —      |
+| `Planning` | session-locus-model         | P1       | andrew | —          | —      |
+| `Planning` | commit-message-ergonomics   | P2       | andrew | —          | —      |
+| `Active`   | arc-view                    | P3       | andrew | —          | —      |
 
 ## Ready
 
@@ -30,14 +32,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | review-architecture                   | P1       | andrew | —          | —                          |
 | review-gate-enforcement-qualification | P1       | andrew | —          | —                          |
 | roadmap-tooling                       | P1       | andrew | —          | —                          |
-| session-locus-model                   | P1       | andrew | —          | —                          |
 | stub-mint-to-launch                   | P1       | andrew | —          | —                          |
 | composable-workflows                  | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition                   | P2       | andrew | —          | agent-context-optimization |
 | commit-increments                     | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization                | P2       | andrew | —          | architecture-remediation   |
 | naming-conventions                    | P2       | andrew | —          | doc-conventions            |
-| commit-message-ergonomics             | P2       | andrew | —          | —                          |
 | cross-wu-coordination                 | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine         | P2       | andrew | —          | —                          |
 | frictionless-capture                  | P2       | andrew | —          | —                          |
