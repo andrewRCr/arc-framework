@@ -210,17 +210,12 @@ eliminate every unclassified catch-all hit.
 - _Outcome:_ The first complete scan preserved the bounded 43-file self-hosting delta while converting observed
   code-hit distributions into a fixed review rule and a more precise 32-class manifest.
 
-### `[ ]` **4.2 Set the residue cap and record the bulk-disposition rule**
+### `[x]` **4.2 Set the residue cap and record the bulk-disposition rule**
 
 - _Goal:_ Residue judgment remains bounded by a number and grouping rule chosen from observed volume rather than an
   arbitrary pre-scan estimate.
-
-    - Derive one global item-level cap from the residue count and distribution; make it no smaller than the number of
-      nonempty capture-vector × surface-kind strata, allocate one item to each stratum, then assign the remainder in
-      deterministic round-robin order.
-    - Record the numeric cap, grouping predicates, allowed bulk reasons, and escalation condition in
-      `notes-coupling-blast-radius-audit.md`; update the spec's open item so the rule is part of the settled design.
-    - Require a group to be mechanically reproducible from residue fields before one reason may dismiss it in bulk.
+- _Outcome:_ Settled a 64-item cap—two canonical candidates from each of 32 observed vector × surface strata—and a
+  closed vector-ID bulk predicate with per-vector reasons, exact member-set binding, and explicit escalation rules.
 
 ### `[ ]` **4.3 Triage the catch-all residue to zero**
 

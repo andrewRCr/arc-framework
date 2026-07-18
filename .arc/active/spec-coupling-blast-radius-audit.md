@@ -152,7 +152,8 @@ performs every corpus-wide read.
   distribution once counts exist.
 - **Code-sample cap value (resolved: 5)** — cover each distinct idiom first, then fill in canonical path/location
   order. Five covers the largest four-idiom class plus one independent path check against the observed distribution.
-- **Residue cap value** — the bounded triage size; set when the catch-all's actual volume is known.
+- **Residue cap value (resolved: 64)** — review two candidates from each observed capture-vector × surface-kind
+  stratum in deterministic round-robin order; only closed vector-ID groups may receive a recorded bulk reason.
 - **Manifest/script home (resolved)** — code lives under `src/lib/coupling-audit/` with a repository-audit script;
   canonical JSON lives under package-local `audits/coupling-blast-radius/`, and the movable Markdown report requires
   an explicit output path so WU archival cannot stale a default.

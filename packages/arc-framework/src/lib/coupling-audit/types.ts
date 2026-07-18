@@ -65,7 +65,7 @@ export interface CatchAllVector {
 
 /** Closed declarative predicate for a recorded bulk residue disposition. */
 export interface BulkPredicate {
-  field: "path" | "token" | "surfaceKind" | "locus" | "idiom";
+  field: "path" | "token" | "surfaceKind" | "locus" | "idiom" | "vectorId";
   operator: "equals" | "in" | "prefix";
   values: string[];
 }

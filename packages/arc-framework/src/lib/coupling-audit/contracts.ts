@@ -248,7 +248,7 @@ function validateDispositions(value: unknown): void {
     const predicate = record(entry.predicate, `${path}.predicate`);
     enumValue(
       predicate.field,
-      ["path", "token", "surfaceKind", "locus", "idiom"] as const,
+      ["path", "token", "surfaceKind", "locus", "idiom", "vectorId"] as const,
       `${path}.predicate.field`,
     );
     const operator = enumValue(predicate.operator, ["equals", "in", "prefix"] as const, `${path}.predicate.operator`);

@@ -188,3 +188,24 @@ hits. Review showed that the artifact-prefix literals conflated lifecycle/status
 artifact-shaped continuations, and catch-span attribution now assigns only idioms mechanically evidenced at the
 name occurrence. The same review added the omitted live `reference/briefs` → `reference/agent-briefs` mover as
 `agent-briefs-root`. No remediation was performed.
+
+## Residue review bound
+
+The refined pre-disposition result has 90,285 unresolved candidates across 32 nonempty capture-vector ×
+surface-kind strata. The global item cap is 64: sort strata by vector ID then surface kind, allocate one canonical
+candidate to each stratum, and continue in the same round-robin order for a second candidate per stratum. This is
+the smallest even-depth review that tests both the first member and within-stratum recurrence everywhere.
+
+Candidates beyond the cap may be grouped only by the closed `vectorId equals <ID>` predicate. The allowed bulk
+reasons are correspondingly closed:
+
+- path/branch token: generic path-shaped syntax with no unmatched direction-owned name;
+- dotted token: generic property, filename, or doc syntax with no unmatched direction-owned configuration name;
+- Markdown doc token: a document name outside the direction-derived name classes;
+- directory-state call: a generic filesystem operation with no mechanically linked volatile name span;
+- Git-path call: a generic Git mention/invocation with no mechanically linked tracked-planning span;
+- prefix operation: a generic string operation with no mechanically linked governed filename prefix.
+
+Every group stores the digest of its exact post-item-review member set. Escalate instead of bulk-dismissing when a
+sample exposes a live mover omitted from the manifest, when one candidate does not share its vector's allowed
+reason, when a new nonempty stratum appears, or when any recorded member set changes or expands on rerun.

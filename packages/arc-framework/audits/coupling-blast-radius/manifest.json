@@ -359,5 +359,5 @@
   ],
   "dispositions": { "exact": [], "bulk": [] },
   "thresholds": { "test": 1, "workflow": 1, "template": 1, "code": 1, "prose": 1, "config": 1 },
-  "sampleCaps": { "codePerClass": 5, "residueTotal": 1 }
+  "sampleCaps": { "codePerClass": 5, "residueTotal": 64 }
 }

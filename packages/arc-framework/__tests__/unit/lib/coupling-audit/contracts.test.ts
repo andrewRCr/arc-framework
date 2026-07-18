@@ -87,7 +87,7 @@ function validManifest(): Record<string, unknown> {
       bulk: [
         {
           id: "test-fixtures",
-          predicate: { field: "path", operator: "prefix", values: ["packages/arc-framework/__tests__/fixtures/"] },
+          predicate: { field: "vectorId", operator: "equals", values: ["path-token"] },
           memberSetDigest: "b".repeat(64),
           reason: "Fixture paths model input rather than repository coupling.",
         },
