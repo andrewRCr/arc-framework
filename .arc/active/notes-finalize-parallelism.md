@@ -1501,8 +1501,11 @@ gates and close at their tasks.
   read-only investigation needs, all satisfied from the current session; the relocate-desync and single-frame
   session-state findings close the structural case; post-GA demand, if any, re-derives on `session-locus-model`'s
   substrate. Durable record: `cohort-agile-parallelism.md` § Deferred — `/arc-shift`.
-- [ ] **CI metering remediation confirmed live with corrected cost shape** — hard gate, closes at Task 8.5; the
-  retained self-hosted-runner capture is decided against the measured residual there.
+- [x] **CI metering remediation confirmed live** — closed at Task 8.5 (2026-07-17): PR #281 merged to `main`
+  (shared-setup reuse, heavy/light classification, `ci-defer-heavy` opt-in — verified in `origin/main`'s
+  `ci.yml`). The corrected-cost-shape sample is deliberately deferred to routine post-GA observation
+  (insufficient post-landing volume at the gate; a regression surfaces within days at normal PR volume); the
+  retained self-hosted-runner capture stays the documented escape hatch against the measured residual.
 
 The `--here`→spawn default flip (Task 8.3) is blessed when every line above is closed; the flip itself and the
 WORKING-MEMORY entry update execute at 8.3.a.

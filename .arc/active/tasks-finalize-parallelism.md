@@ -1066,14 +1066,23 @@ parent below states the reconciliation _procedure + recorded outcome_, not the u
           materializes, re-derives on `session-locus-model`'s substrate. Recorded in
           `cohort-agile-parallelism.md` § Deferred — `/arc-shift`.
 
-### `[ ]` **8.5 Confirm the CI metering remediation landed (GA hard gate)**
+### `[x]` **8.5 Confirm the CI metering remediation landed (GA hard gate)**
 
 - _Goal:_ The CI billing-shape remediation (shared-setup reuse + heavy-lane defer — split out via
   `USER-INBOX § Errand` at the 5.3 weigh-in) has landed on `main` and a post-landing sample shows the corrected
   per-run cost shape; GA does not bless while Actions spend remains on the pre-remediation trajectory. The
   retained self-hosted-runner capture is decided against the measured residual — adopted or explicitly declined.
 
-    - `[ ]` **8.5.a Verify the remediation is live and sample the corrected cost shape**
+    - `[x]` **8.5.a Verify the remediation is live and sample the corrected cost shape**
+        - Remediation confirmed live: PR #281 merged 2026-07-17T18:23Z (merge `00e68c177`); `origin/main`'s
+          `ci.yml` carries the shared-setup reuse, heavy/light classification with verified-tree lookback, and
+          the `ci-defer-heavy` opt-in. **Sample re-dispositioned:** exactly one post-landing run existed at the
+          gate (the merge's own CI), so the corrected-shape sample was deliberately deferred to routine post-GA
+          observation rather than holding GA — a regression will be evident within days at normal PR volume,
+          FP's tenure already landed the full incremental optimization slate (classification, duplicate-push
+          skip, wakeup-relay containment, this billing-shape fix), and the retained self-hosted-runner capture
+          (`USER-INBOX § Errand`, held) remains the documented escape hatch, adopted only if the measured
+          residual proves insufficient. Gate closed on remediation-live + escape-hatch-retained.
 
 ## **Phase 9:** Verification
 
