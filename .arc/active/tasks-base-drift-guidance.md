@@ -188,60 +188,40 @@ analyzer and precomposed guidance contract.
 _Purpose:_ Replace duplicated workflow Git mechanics with the authoritative analyzer and close both approval windows
 against a fresh immutable base identity.
 
-### `[ ]` **5.1 Drive behind-base reconciliation from authoritative drift verdicts**
+### `[x]` **5.1 Drive behind-base reconciliation from authoritative drift verdicts**
 
 - _Goal:_ The final integration gate fails closed on unavailable distance, binds each approval to a fresh `baseOid`,
   and permits merge invocation only immediately after a post-approval clean reading.
-- **Additional Context:** `strategy-procedure-evolution.md` § Forward-Compat Principles 1, 3, and 6;
-  `strategy-package-project-sync.md` § Edit Flow Rules.
+    - `[x]` **5.1.a Replace manual fetch and distance mechanics with verdict dispatch**
+        - Replaced raw fetch, distance, and remote-ref merge mechanics with strict authoritative verdict dispatch,
+          typed failure stops, register surfacing, and immutable `baseOid` reconciliation.
 
-    - `[ ]` **5.1.a Replace manual fetch and distance mechanics with verdict dispatch**
-        - Update the package-source and self-hosting `integrate-work-unit.md` copies together to invoke
-          `arc base drift --json`; accept only a well-formed authoritative result with a recognized verdict and its
-          required fields. Stop and surface the typed reason or parse failure for unavailable, skipped, unrecognized,
-          or malformed output.
-        - Surface the register on reconcile and carry the returned `baseOid` as the only freshness anchor.
-        - After reconcile direction, invoke the command again: route newly clean results to the clean path, re-surface
-          changed OIDs and re-fire the reconcile interlock, and permit `git merge --no-edit <baseOid>` only when the
-          refreshed OID matches the approved one with no intervening fetch or stop.
+    - `[x]` **5.1.b Close the integration-approval freshness window**
+        - Added immediate post-approval drift readings so changed bases return to reconciliation and only a fresh clean
+          result can flow directly into the merge invocation.
 
-    - `[ ]` **5.1.b Close the integration-approval freshness window**
-        - Preserve the existing reconcile checks, review coordinator, extension, push, and exact-head ordering, then
-          invoke `arc base drift --json` again immediately after integration approval.
-        - Surface and stop on malformed, unrecognized, skipped, or unavailable results; return reconcile to the
-          reconcile loop, and require a new integration interlock after either route settles.
-        - Allow only a well-formed fresh clean result to proceed directly to `gh pr merge` with no intervening review
-          action, lifecycle mutation, commit, push, Git fetch, or human stop.
+    - `[x]` **5.1.c Keep workflow language storage- and installation-neutral**
+        - Kept both workflow copies byte-identical and expressed the gate through shipped verbs and analyzer output
+          while preserving resume, review, push, close, and teardown behavior.
 
-    - `[ ]` **5.1.c Keep workflow language storage- and installation-neutral**
-        - Use shipped bare `arc` invocations, verbs, verdicts, and precomposed output rather than narrating analyzer Git
-          internals; preserve the already-merged resume arm and post-merge close/teardown behavior.
-        - Keep both Framework copies byte-identical and avoid internal WU names, storage tiers, or future projection
-          names in adopter-facing workflow prose.
+- _Outcome:_ Reconcile and integration approvals are bound to fresh analyzer readings, eliminating mutable remote-ref
+  decisions from the final merge gate.
 
-### `[ ]` **5.2 Prove the cross-consumer safety and compatibility matrix**
+### `[x]` **5.2 Prove the cross-consumer safety and compatibility matrix**
 
 - _Goal:_ The assembled CLI, session-init, and integration workflow demonstrate one analyzer contract across real Git
   behavior, typed degradation, and both framework copies.
 
-    - `[ ]` **5.2.a Lock the workflow contract and two-copy parity**
-        - Extend `integration/review-gate-workflows.test.ts` with focused assertions that both integration-workflow
-          copies match, use `arc base drift --json`, and contain no raw base fetch, `rev-list` distance, or
-          `origin/<base>` merge path.
-        - Lock both safety windows: malformed or unavailable results stop, changed reconcile OIDs re-fire approval, a
-          refreshed matching OID immediately precedes the base merge, and only a post-integration-approval clean result
-          immediately precedes `gh pr merge`.
-        - Run the existing `integration/framework-sync.test.ts` as the authoritative package/self-hosting and rendered-
-          template parity check; do not add duplicate session-init parity machinery.
+    - `[x]` **5.2.a Lock the workflow contract and two-copy parity**
+        - Added focused integration assertions for copy parity, authoritative command use, fail-closed handling, both
+          freshness windows, and removal of the duplicated raw Git mechanics.
 
-    - `[ ]` **5.2.b Run the assembled compatibility checkpoint**
-        - Exercise the focused analyzer, completed-evidence, recommendation, status-composite, CLI,
-          `review-gate-workflows.test.ts`, and `framework-sync.test.ts` suites.
-        - Search the TypeScript tree for any remaining independent base-drift overlap calculation or
-          `overlappingPaths` consumer; search both integration-workflow copies for raw base fetch/distance derivation
-          or a remote-ref base merge without flagging the separate base-sync implementation.
-        - Confirm storage-neutral resolver fakes can supply, omit, or return stale/out-of-range record evidence without
-          changing the raw verdict, JSON shape, or consumer safety action.
+    - `[x]` **5.2.b Run the assembled compatibility checkpoint**
+        - Exercised the assembled analyzer and consumer matrix, confirmed framework sync, and found no legacy overlap
+          consumer or prohibited integration-workflow base calculation.
+
+- _Outcome:_ The shared contract now has end-to-end coverage across CLI consumers and synchronized workflow copies,
+  including typed degradation and approval-window safety.
 
 ## **Phase 6:** Verification
 

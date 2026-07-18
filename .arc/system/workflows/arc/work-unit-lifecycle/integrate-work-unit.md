@@ -280,54 +280,65 @@ After push, the PR is ready for merge per `merge.strategy` in [`arc-config.yml`]
 
 ### 13) Behind-base reconcile gate and merge
 
-Immediately before surfacing the merge approval gate, fetch the integration base and compute the WU branch's
-distance from `origin/{base-branch}`:
+Run the authoritative drift verb and parse its JSON:
 
 ```bash
-git fetch origin {base-branch}
-git rev-list --left-right --count HEAD...origin/{base-branch}
+arc base drift --json
 ```
 
-Read the output as `{ahead} {behind}`. If the read fails, stop and surface the failure — do not merge against an
-unknown base.
+Accept only a JSON object with `mode: authoritative`, a recognized verdict, and the verdict's required typed
+fields. A healthy `clean` / `reconcile` result requires non-negative integer distance, a validated `baseOid`,
+and the typed evidence fields; `reconcile` additionally requires a register. An `unavailable`, `skipped`,
+unrecognized, malformed, or non-JSON result stops integration — surface its typed reason or parse failure.
 
-If `{behind}` is non-zero, the branch is stale against the base. Reconcile before merge:
+On `reconcile`, surface the analyzer-owned register and retain its `baseOid` as `{approved-baseOid}`:
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop before merge. Surface the behind count and any known overlapping paths; await
-> explicit "reconcile base" direction before merging `origin/{base-branch}` into the WU branch and pushing the
-> reconcile result.
+> `workflow-interlock`: Stop before base reconciliation. Surface the register and immutable base OID; await
+> explicit "reconcile base" direction before refreshing the reading and merging that approved OID.
 
-On approval, merge the base in append-only, resolve conflicts if any, re-run Tier 1 quality gates, then push the
-updated branch:
+After approval, immediately invoke `arc base drift --json` again and apply the same validation:
+
+- `unavailable`, `skipped`, malformed, or unrecognized — stop.
+- `clean` — reconciliation became unnecessary; continue to the clean path below.
+- `reconcile` with a different `baseOid` — surface the updated register and OID, then re-fire the reconcile
+  interlock.
+- `reconcile` with `baseOid == {approved-baseOid}` — immediately merge that OID append-only, with no fetch,
+  review action, or further stop between the refreshed read and merge:
 
 ```bash
-git merge --no-edit origin/{base-branch}
+arc base drift --json
+git merge --no-edit {approved-baseOid}
 ```
 
-Before pushing the reconcile commit, repeat the Step 12 pre-push extension check when active.
-
-Invoke the active project review coordinator's exact-head mutability action with the current
-`openedChangeRequest`, the outgoing local head, and any `begin-fix` authorization receipt. Stop on any typed refusal;
+Resolve conflicts if any and run Tier 1 quality gates. Before pushing, repeat the Step 12 pre-push extension check,
+then invoke the active project review coordinator's exact-head mutability action with the current
+`openedChangeRequest`, outgoing local head, and any `begin-fix` authorization receipt. Stop on a typed refusal;
 never reverse the current/outgoing head order.
 
 > [!CAUTION]
 > `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
 
-Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. Re-run the distance check after the
-push; repeat the reconcile loop until `{behind}` is `0`.
+Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. After the push, return to the
+authoritative drift read and repeat until it returns `clean`.
 
-At the zero-behind final head, compose the current `openedChangeRequest` and fire `pre-merge` when active.
-Its actions must report the controller settled for this exact head. Any review action that commits or pushes
-invalidates the checkpoint: repeat the distance check, reconcile if needed, and fire the final hook again. Continue
-only when the head is unchanged and settled. No lifecycle- or review-authored commit or push is allowed after this
-stable checkpoint and before the integration interlock.
+At the zero-behind final head, retain the `clean` result's `baseOid` as the current base-freshness evidence. Compose
+the current `openedChangeRequest` and fire `pre-merge` when active. Its actions must report the controller settled for this
+exact head. Any review action that commits or pushes invalidates the checkpoint: return to the authoritative drift
+read, reconcile if needed, and fire the final hook again. No lifecycle- or review-authored commit or push is allowed
+after this stable checkpoint and before the integration interlock.
 
 > [!IMPORTANT]
-> `integration-interlock`: Stop before merge. Surface PR status (open threads, required approvals, checks) and
-> merge method, including the behind-base clean result; await explicit integration approval before merging.
+> `integration-interlock`: Stop before merge. Surface PR status (open threads, required approvals, checks), merge
+> method, and the clean base-drift result; await explicit integration approval before merging.
+
+Immediately after approval, invoke `arc base drift --json` once more. Apply the same strict validation:
+`unavailable`, `skipped`, malformed, or unrecognized stops; `reconcile` returns to the reconcile loop and
+requires a new exact-head checkpoint plus integration approval. Only `clean` permits the merge command, with no
+extension, review action, lifecycle mutation, commit, push, fetch, or human stop between this final read and merge:
 
 ```bash
+arc base drift --json
 gh pr merge {pr-number} --merge   # or --squash / --rebase per config
 ```
 

@@ -265,6 +265,37 @@ describe("trusted review-gate workflows", () => {
     expect(coordination).not.toMatch(/provider command|without polling/iu);
   });
 
+  it("drives both integration safety windows through authoritative base drift", async () => {
+    const [packageIntegration, instanceIntegration] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    ]);
+    expect(packageIntegration).toBe(instanceIntegration);
+    expect(packageIntegration.match(/arc base drift --json/gu)?.length).toBeGreaterThanOrEqual(3);
+    expect(packageIntegration).not.toContain("git fetch origin {base-branch}");
+    expect(packageIntegration).not.toContain("rev-list --left-right --count");
+    expect(packageIntegration).not.toContain("git merge --no-edit origin/{base-branch}");
+
+    const gate = packageIntegration.slice(
+      packageIntegration.indexOf("### 13) Behind-base reconcile gate and merge"),
+      packageIntegration.indexOf("### 14) Post-merge worktree cleanup"),
+    );
+    expect(gate).toMatch(/`unavailable`, `skipped`, malformed, or unrecognized — stop/u);
+    expect(gate).toContain("`reconcile` with a different `baseOid`");
+    expect(gate).toContain("re-fire the reconcile");
+    expect(gate).toContain("requires a new exact-head checkpoint plus integration approval");
+    expect(gate).toContain(
+      "arc base drift --json\ngit merge --no-edit {approved-baseOid}",
+    );
+    expect(gate).toContain(
+      "arc base drift --json\ngh pr merge {pr-number} --merge",
+    );
+    expect(gate.indexOf("git merge --no-edit {approved-baseOid}")).toBeLessThan(
+      gate.indexOf("run Tier 1 quality gates"),
+    );
+    expect(gate.lastIndexOf("arc base drift --json")).toBeLessThan(gate.indexOf("gh pr merge"));
+  });
+
   it("proves the checked-in repair workflow is the sole closed status writer", async () => {
     const names = [
       "ci.yml", "docs.yml", "review-gate-attest.yml", "review-gate-qualify.yml", "review-gate-repair.yml",
