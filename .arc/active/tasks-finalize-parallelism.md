@@ -486,8 +486,8 @@ well as paths; gating + coordination detail in § Sequencing.
 
 ### `[x]` **3.1 Prepare and launch the wave-1 sacrificial workload**
 
-- _Goal:_ Two Light doc WUs run concurrently in spawned worktrees alongside FP, groomed in-worktree during the
-  wave — Class and lifecycle stage confirmed at pickup, spec-readiness deliberately not a precondition.
+- _Goal:_ Two synthetic doc-only fixtures run concurrently in spawned worktrees alongside FP, groomed
+  in-worktree during the wave, exercising the real lifecycle over deliberately sacrificial content.
 
     - `[x]` **3.1.a Confirm the wave-1 slate**
         - Evaluated real Light doc backlog picks and found the "real Light doc WU" premise unsatisfiable for wave
@@ -1068,14 +1068,14 @@ parent below states the reconciliation _procedure + recorded outcome_, not the u
 ### `[x]` **8.5 Confirm the CI metering remediation landed (GA hard gate)**
 
 - _Goal:_ The CI billing-shape remediation (shared-setup reuse + heavy-lane defer — split out via
-  `USER-INBOX § Errand` at the 5.3 weigh-in) has landed on `main` and a post-landing sample shows the corrected
-  per-run cost shape; GA does not bless while Actions spend remains on the pre-remediation trajectory. The
-  retained self-hosted-runner capture is decided against the measured residual — adopted or explicitly declined.
+  `USER-INBOX § Errand` at the 5.3 weigh-in) has landed on `main`. Review a post-landing cost sample when one is
+  available; if normal PR volume has not yet produced a representative sample, GA may proceed only through an
+  explicit deviation that retains post-GA observation and the self-hosted-runner escape hatch.
 
-    - `[x]` **8.5.a Verify the remediation is live and sample the corrected cost shape**
+    - `[x]` **8.5.a Verify the remediation and settle cost-shape observation**
         - Remediation confirmed live: PR #281 merged 2026-07-17T18:23Z (merge `00e68c177`); `origin/main`'s
           `ci.yml` carries the shared-setup reuse, heavy/light classification with verified-tree lookback, and
-          the `ci-defer-heavy` opt-in. **Sample re-dispositioned:** exactly one post-landing run existed at the
+          the `ci-defer-heavy` opt-in. **Approved deviation:** exactly one post-landing run existed at the
           gate (the merge's own CI), so the corrected-shape sample was deliberately deferred to routine post-GA
           observation rather than holding GA — a regression will be evident within days at normal PR volume,
           FP's tenure already landed the full incremental optimization slate (classification, duplicate-push

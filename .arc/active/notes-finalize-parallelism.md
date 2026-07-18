@@ -1456,11 +1456,11 @@ commit-msg-footer suite tripping the hook's `MERGE_HEAD` merge-exemption mid-mer
 ## GA-readiness checklist — final gate record (Task 8.2)
 
 The single what-must-be-true enumeration for blessing worktree-by-default + multi-in-flight. WU-internal;
-archives with the WU. Each item carries its evidence pointer; the two `[ ]` items are Phase 8's own remaining
-gates and close at their tasks.
+archives with the WU. Each item carries its evidence pointer.
 
-- [x] **All committed build items landed on base and field-verified.** BI-1 through BI-6 plus the deterministic
-  ROADMAP renderer slice — per-item evidence in § GA checklist starting state (build gates).
+- [x] **All committed build items landed on base and verified.** BI-1 through BI-6 plus the deterministic ROADMAP
+  renderer slice — per-item evidence and the approved field-to-test substitutions are recorded in § GA checklist
+  starting state (build gates) and the task-list success criteria.
 - [x] **All four burn-in waves complete on sacrificial workload.** Waves 1–4 with per-condition evidence in
   § Wave evidence to collect; every induced detector fired (base drift, notes lag, behind-base-at-integration,
   stale worktree, errands-ref collision, notes-union refusals, recover-audit drift, sweep/husk) — no detector

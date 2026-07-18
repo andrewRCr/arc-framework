@@ -84,7 +84,7 @@ correctness gaps the build items below fix.
 The design has three coupled parts: the **committed build items** (concrete gaps with settled direction FP
 builds), the **verification design** (how FP proves the seams and bounds the cost of the unknowns), and the
 **seam-audit decisions** (settled *as decisions to make* — resolved empirically with burn-in evidence). The
-enumerable substrate the task list is built from is: five build items × their files, plus the three verification
+enumerable substrate the task list is built from is: six build items × their files, plus the three verification
 layers, plus the matrix skeleton's cell-verification work.
 
 ### Shape and launch constraint
