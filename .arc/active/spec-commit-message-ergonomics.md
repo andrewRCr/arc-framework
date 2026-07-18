@@ -88,10 +88,11 @@ transport only). This turns the fragile "assembly happens to mirror Git" couplin
 **validated-bytes-are-the-committed-bytes** invariant.
 
 **D6 — `-F`/stdin stay byte-preserving; corrected-artifact retry.** We will not implicitly mutate file-backed or
-stdin input. When preflight rejects a byte-preserved source for an over-width body, we will extend
-`renderCommitMessageRemedy` to persist the wrap-corrected bytes to the wrapper-owned retry file (reusing the
-existing `persistMessageRetry` machinery) and guide an `arc release commit -F <file>` resubmission — a one-step
-corrected retry that never mutates the original source.
+stdin input. When preflight rejects a byte-preserved source for an over-width body, the refusal carries the
+wrap-corrected bytes, and the orchestrator persists them to the wrapper-owned retry file (reusing the existing
+`persistMessageRetry` machinery) and guides an `arc release commit -F <file>` resubmission naming that artifact —
+a one-step corrected retry that never mutates the original source. The persist and guidance are orchestrator-side;
+the pure remedy renderer stays IO-free.
 
 ## Scope boundary (No-gos)
 
@@ -106,8 +107,9 @@ corrected retry that never mutates the original source.
   and retains the same false-positive skip. Bounded and safe (`commit-msg` still catches) — out of scope here.
 - **Not changing ARC's own hook wiring.** ARC installs only `pre-commit`, `commit-msg`, `pre-push`; the probe
   only ever detects an *external* mutating hook.
-- **No agent-side reflow guidance.** The `arc-commit` guidance change is limited to *removing* the manual-wrapping
-  instruction.
+- **No agent-side reflow guidance.** The guidance change is confined to `commit-format.md` § Body — note that
+  `-m` bodies wrap deterministically in the wrapper (no hand-counting), while the width/limit guidance stays in
+  force for the byte-preserving `-F`/stdin/raw paths. No new reflow logic is added to agent guidance.
 
 ## Consequences & Risks
 
@@ -147,8 +149,8 @@ corrected retry that never mutates the original source.
 - **Exact pre-commit config parsing** for `<name>`-stage activation (`default_stages` /
   `default_install_hook_types` interaction). The decision is settled (presence-biased, per D1); the precise YAML
   read finalizes during implementation.
-- **Wrap-width threading point.** The *source* is fixed (`hooks.body_max_line_length`); the exact resolution
-  point — expose it on the preflight repository vs. resolve the commit-check config once and share it with the
-  assembly step — is an implementation detail.
+- **Wrap-width threading point.** The *source* is fixed (`hooks.body_max_line_length`); the resolution point is
+  the prepared commit-check context already computed in preflight before assembly — `preparedContext.policy.bodyMaxLineLength`
+  on the `ready` branch — passed into the assembly call.
 - **Hanging-indent column derivation** for ordered vs. unordered list markers (textbook greedy wrap + hang to the
   marker content column; confirm against real list items).

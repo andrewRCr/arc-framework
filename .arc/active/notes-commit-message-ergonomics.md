@@ -16,6 +16,8 @@ Implementation surface (paths under `packages/arc-framework/src/`):
   and the per-manager effective-hook rules.
 - `lib/release/commit-message-assembly.ts` — extend `assembleCommitMessageParagraphs` with the greedy wrap
   (paragraphs + flat list items, hanging-indent continuation, structured-rare preserved), width-parameterized.
+  Factor the wrap as a pure helper over already-cleaned bytes (post-`cleanupCommitMessageBytes`) so both the `-m`
+  assembly path and the `-F`/stdin reject path share one wrap implementation.
 - `handlers/release/commit-message-preflight.ts` — thread the wrap width from the prepared commit-check policy
   (`bodyMaxLineLength`, already in scope via `prepareCommitCheckContext` before assembly) into the assembly call,
   and mark the `messages` transport for snapshot routing when wrapping mutated the bytes.
@@ -23,12 +25,17 @@ Implementation surface (paths under `packages/arc-framework/src/`):
   to `file` only): snapshot via `createMessageSnapshot`, then a dedicated argv transform that strips every
   `-m`/`--message` operand and appends `-F <snapshot>`. Note `rewriteCommitFileSource` only substitutes an
   existing `-F` operand's value and is not reusable as-is for a `-m` argv.
-- `lib/release/commit-message-remedy.ts` — extend `renderCommitMessageRemedy` for the byte-preserved (`-F`/stdin)
-  reject path: persist wrap-corrected bytes to the wrapper-owned retry file (`persistMessageRetry`) and guide an
-  `arc release commit -F <file>` resubmission.
+- `handlers/release/commit-message-preflight.ts` / `handlers/release/commit.ts` — byte-preserved (`-F`/stdin)
+  reject path: preflight carries the wrap-corrected bytes on the refusal; `runReleaseCommit` persists them to the
+  wrapper-owned retry file (`persistMessageRetry`) and guides an `arc release commit -F <file>` resubmission
+  (reusing the `renderCommitMessageRetryCommand` shaping). `renderCommitMessageRemedy` is the generic IO-free
+  fallback renderer — the persist/guidance stay orchestrator-side.
 - Commit-message diagnostics + E2E/regression coverage — including a Husky-managed self-hosting regression
   proving invalid deterministic input refuses at preflight before the staged-content gate runs.
-- `arc-commit` guidance — remove the instruction to hand-wrap commit bodies (now deterministic in the CLI).
+- `system/methods/commit-format.md` § Body — scope the manual-wrap guidance: `-m` bodies wrap deterministically
+  in the wrapper (no hand-counting), width/limit guidance retained for the byte-preserving `-F`/stdin/raw paths.
+  Framework file — edit the package source and sync to `.arc/`. (Not the `arc-commit` skill, which carries no
+  wrap instruction.)
 
 ## Commit-history scan
 
