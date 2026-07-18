@@ -8,30 +8,23 @@
 
 _Purpose:_ Freeze the explicit corpus boundary and durable artifact contracts that every later audit phase shares.
 
-### `[ ]` **1.1 Verify the authoritative corpus and bounded delta pass**
+### `[x]` **1.1 Verify the authoritative corpus and bounded delta pass**
 
 - _Goal:_ Every later count operates on one explicit, reviewable corpus with no duplicate package/project reads and
   no unexamined self-hosting surface outside package source.
 
-    - `[ ]` **1.1.a Pin the authoritative tracked package tree**
-        - Enumerate every tracked file under `packages/arc-framework/**`; record counts, extensions, and file families
-          while preserving hidden tracked content such as `.internal/**` and excluding generated output,
-          dependencies, and the mirrored `.arc/` instance.
-        - Explicitly account for source, tests, shipped `arc/**`, `templates/**`, `init-recipe.json`, changelog data,
-          and package-local configuration. Let the closed surface taxonomy classify every tracked extension and
-          extensionless family instead of silently narrowing the corpus.
+    - `[x]` **1.1.a Pin the authoritative tracked package tree**
+        - Fixed the primary corpus at 1,148 tracked, valid-UTF-8 package files and recorded its complete family and
+          extension distribution without filtering hidden or extensionless content.
 
-    - `[ ]` **1.1.b Resolve the self-hosting delta to an exact include list**
-        - Map every tracked `packages/arc-framework/arc/**` file to its installed `.arc/**` output path with the live
-          template/output-path rules, byte-compare tracked counterparts, and include every different live copy
-          regardless of whether the installed manifest recognizes it.
-        - Reconcile the current `init-recipe.json`, `classifyFile()` result, installed manifest, and mapped tracked
-          state; treat omissions or stale classifications as diagnostics to resolve, never reasons to exclude a live
-          difference. Enumerate an exact tracked-file delta for `.husky/`, `scripts/`, root package/config files,
-          and harness configuration that no authoritative package root owns; exclude ignored `.husky/_/**`
-          scaffolding.
-        - Keep the delta bounded and explicit in the manifest; record excluded root surfaces and their rationale in
-          `notes-coupling-blast-radius-audit.md` so later reruns do not reopen the boundary by intuition.
+    - `[x]` **1.1.b Resolve the self-hosting delta to an exact include list**
+        - Mapped all 156 package ARC paths through the live output rule, retained the 15 byte-different installed
+          copies, and fixed a 28-file tracked repo-root tooling/harness delta with explicit exclusions.
+        - Reconciled recipe, classifier, and installed-manifest drift as diagnostics rather than corpus filters; the
+          durable counts, exact include sets, and rationale live in `notes-coupling-blast-radius-audit.md`.
+
+- _Outcome:_ The audit now has one closed 1,191-file UTF-8 corpus: 1,148 authoritative package files plus 15
+  byte-different installed copies and 28 repo-root self-hosting files, with no duplicate package/project reads.
 
 ### `[ ]` **1.2 Settle the checked-in artifact homes and machine-readable contracts**
 
