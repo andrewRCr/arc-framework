@@ -393,9 +393,9 @@ arc base drift --json
 Dispatch on the emitted verdict:
 
 - `unavailable` or non-JSON failure -> stop and surface the reason;
-- `reconcile` -> surface the register and await explicit reconcile direction, merge the result's validated
-  `baseOid` append-only with `git merge --no-edit <baseOid>`, run the existing checks and push sequence, then invoke
-  the command again; and
+- `reconcile` -> surface the register and await explicit reconcile direction, keep the branch history append-only by
+  merging the result's validated `baseOid` with `git merge --no-edit <baseOid>`, run the existing checks and push
+  sequence, then invoke the command again; and
 - `clean` -> continue to the existing exact-head review checkpoint and integration interlock, carrying the fetched
   `baseOid` as the base-freshness evidence that was approved.
 
