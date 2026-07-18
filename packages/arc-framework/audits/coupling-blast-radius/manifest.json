@@ -50,6 +50,8 @@
       "scripts/worktree-post-create.sh"
     ],
     "excluded": [
+      { "path": "packages/arc-framework/audits/coupling-blast-radius/routing-ledger.json", "reason": "Generated routing output; never an audit input." },
+      { "path": "packages/arc-framework/audits/coupling-blast-radius/scan-result.json", "reason": "Generated scan output; excluding it prevents recursive self-enumeration." },
       { "path": "CONTRIBUTING.md", "reason": "Public project prose, not self-hosting tooling." },
       { "path": "LICENSE", "reason": "Legal material outside the coupling-audit tooling boundary." },
       { "path": "README.md", "reason": "Public project prose; shipped package prose is authoritative." }
@@ -357,7 +359,416 @@
       "surfaceKinds": ["test", "workflow", "template", "code", "prose", "config"]
     }
   ],
-  "dispositions": { "exact": [], "bulk": [] },
+  "dispositions": {
+    "exact": [
+      {
+        "id": "item-001",
+        "candidateDigest": "594e1f1cb7f556d372cd370449a46447e8b4a9fb33253f33f8144604f64e839e",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-002",
+        "candidateDigest": "8aa05ea4155842b294c7cac30e91089e6b054de0e5dd03ae9409c9ff879fe7f2",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-003",
+        "candidateDigest": "77680cda8a18a7eeaaaa20c21202b82824a7700b658159cb9cde5d9ba34b4f26",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-004",
+        "candidateDigest": "c0eb3f45c0cd0fffba2deb11c8875d5288da016728bc10400bbf23e5aa34e101",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-005",
+        "candidateDigest": "2a2fb5b7310d5c8b4b3d60209523a86ea70674a8e1c56c24d7ba1dab7d654562",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-006",
+        "candidateDigest": "0fa75aae18d6f2023b75da766931d463b2d3c67808fe01d453101c1406f648a6",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-007",
+        "candidateDigest": "0e8ef3cbc81af025ff231617d35a7ce58531eef4124d78f0b34a8aa52cc940e3",
+        "reason": "Generic filesystem operation with no mechanically linked volatile name span."
+      },
+      {
+        "id": "item-008",
+        "candidateDigest": "9d11f3a0d5ebc313fa87e1ffb2d8c566c44513a44135018d5df3a2fa62e74e9b",
+        "reason": "Generic filesystem operation with no mechanically linked volatile name span."
+      },
+      {
+        "id": "item-009",
+        "candidateDigest": "beedc928acde30aeceb30b475da31ddd4d103c8f0f583e674be6caef92b29611",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-010",
+        "candidateDigest": "789ba74926f1c73134001728fcc887f16f8a02e887be2afd652ba3373b8fbb82",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-011",
+        "candidateDigest": "3b5488c3239d19cbdd388e924cc8305358f9aa43db3d26faffc3a5d5e82dae42",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-012",
+        "candidateDigest": "b04f56feea4e5c88a1459cdc618b369e4bdd3b653cecc0686bb6a55060240719",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-013",
+        "candidateDigest": "580c9e9fbfb69690c40916cf2991e5c76b98d48873a4a6dca19e0420017cefa4",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-014",
+        "candidateDigest": "b6b8735aa28542eb23112c72bf2a48312c7bced143291514d4bef06922f7840c",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-015",
+        "candidateDigest": "a89aa0e938d45f9ae12fa6e5eba358fe8649d62ed47de871033da3660f0ddb3f",
+        "reason": "Generic Git mention or invocation with no mechanically linked tracked-planning span."
+      },
+      {
+        "id": "item-016",
+        "candidateDigest": "7398e38ea05e6686ad57e02828447686f2a2f230b0c6214b9080bca4ff53443d",
+        "reason": "Generic Git mention or invocation with no mechanically linked tracked-planning span."
+      },
+      {
+        "id": "item-017",
+        "candidateDigest": "945b766a93a86e52eccca9ac9b2139f3173094ec3d90c1fa3f518ffb14ed89aa",
+        "reason": "Generic Git mention or invocation with no mechanically linked tracked-planning span."
+      },
+      {
+        "id": "item-018",
+        "candidateDigest": "3b9b2bb53df55185d8844743a214c6963faa6e4bc7aa705f6dcb4f93f2af060d",
+        "reason": "Generic Git mention or invocation with no mechanically linked tracked-planning span."
+      },
+      {
+        "id": "item-019",
+        "candidateDigest": "9778ae66beda8a65a24b3cdd3e994045ad35d15b5c1750ea6c8ff0ec7b7dbc31",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-020",
+        "candidateDigest": "0729b4f737964ce3fc38606766947d7e1cbd1c667e23da62f87735805308ed89",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-021",
+        "candidateDigest": "7b0381c34c0181dc571112ca620ea61fe552ea8a15df45b253b3752cc5dc6db1",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-022",
+        "candidateDigest": "efd6db75713023c01553c2fdb925d7a6d93c3d0d9e9169088f5830478389f925",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-023",
+        "candidateDigest": "4f31eeb5c99772dab5d07b050d1ec989fbb6af58c7a289f89e4e9e9dc5df1a4b",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-024",
+        "candidateDigest": "35d7d6f58a95ab2ef5bda7b75fd185e8a4e6beb3cc0dd6422f1f979f736fdb95",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-025",
+        "candidateDigest": "2f57cf505d2fa396c344705e4723b56795a5685fcd4928c4beb5867083f9ace2",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-026",
+        "candidateDigest": "41b8657d9aea4fad79facaecedf87a0370b2b9478dbc1a2678566973a948fd8d",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-027",
+        "candidateDigest": "096b7fa868f3e304f4ce1734ad0d1ec7caf4170068b21516dab4a580db5d5cd7",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-028",
+        "candidateDigest": "24be30967744ddf6e4560e6cd6d73ab8bd51d13703bae11d7d964d4dfc88f832",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-029",
+        "candidateDigest": "b3bc9636266ac5072ef232876f7dc7446e3a2c12cee632f8deca167ce0d094c8",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-030",
+        "candidateDigest": "7ccd8fb3e22db0704442facc26a9065eee6d825f6d75cea6c00b30b93161d5c6",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-031",
+        "candidateDigest": "20403fa655777334e47fa80b455e6cca9f8e4e167515ebba2e628aececd08573",
+        "reason": "Generic string operation with no mechanically linked governed filename prefix."
+      },
+      {
+        "id": "item-032",
+        "candidateDigest": "b615fd78136e705fcf5324ba83c0e6dd246885ab4668ded94c1a1863d8f12ea9",
+        "reason": "Generic string operation with no mechanically linked governed filename prefix."
+      },
+      {
+        "id": "item-033",
+        "candidateDigest": "9ef89b4fd71bbdec41374e4632220a6a93907e3e394f198ca08384504ce57743",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-034",
+        "candidateDigest": "2fd1c05fc806f008b800869c2df3f180b51b15b78376961b38cf20672561ddea",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-035",
+        "candidateDigest": "9fa852ce2446770db346a2c08e8c999981184d5809033feba9dbfa5b860b2ee8",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-036",
+        "candidateDigest": "ff6a2a3d21438869fca9ab9b26b42e19f372eb7b1ba87fdcc278b8f28297e77e",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-037",
+        "candidateDigest": "3e6270c8cfb288347a3196d0fbde0d3b595bfa36d9c5c8faa7afd3b1889273fc",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-038",
+        "candidateDigest": "b8d4702cf2b4a76f6843a750d9e2fc120e21d8675bf1f145fc007e048ae19cef",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "item-039",
+        "candidateDigest": "4408e138045e1435480fe23d9795788b03de385170e75b45f6a88fdd57517f0b",
+        "reason": "Generic filesystem operation with no mechanically linked volatile name span."
+      },
+      {
+        "id": "item-040",
+        "candidateDigest": "78ecf9bb971768b4675aa09dd2c47c15529305ee53c572b9f4adbcb608c78c88",
+        "reason": "Generic filesystem operation with no mechanically linked volatile name span."
+      },
+      {
+        "id": "item-041",
+        "candidateDigest": "37fcacca874b6274c4ad91f0bbf951a9f3f39be82c35afdc6df71428a762f54c",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-042",
+        "candidateDigest": "6dd95ab66c0b24d36cf8f4358c1c066d9450b753566b7692cfbddf6b7dcffef1",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-043",
+        "candidateDigest": "f5ad1e77f263e9a408bb40ddc57b6ee4015c1626a27c02133c7d907e5a1311ec",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-044",
+        "candidateDigest": "a863330da115866b56a55ecbc4f97109ff7eaffaedafe33b4454617262f23708",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-045",
+        "candidateDigest": "498d5a51197ddce9645d8d3922d7e9cf4ebdf3085443b2c63d18a453ffbbe2d2",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-046",
+        "candidateDigest": "6c4d64f2a5f3109544963feb105fcd42b3c1a79f24c9b640f9b0df421f4cf950",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "item-047",
+        "candidateDigest": "d4cbfdca34528acbc5ee6926cfaacc1fbd8fb15236a5a9a8698de8ccf26bf719",
+        "reason": "Generic Git mention or invocation with no mechanically linked tracked-planning span."
+      },
+      {
+        "id": "item-048",
+        "candidateDigest": "a289ef60e2ef761c1af83e97ed8fea157da718e0a105f6dc1ac1099d98551b36",
+        "reason": "Generic Git mention or invocation with no mechanically linked tracked-planning span."
+      },
+      {
+        "id": "item-049",
+        "candidateDigest": "3ac662f13d7766712230a38b8f625550cb7e105be98e2baa688673d6c128f76c",
+        "reason": "Generic Git mention or invocation with no mechanically linked tracked-planning span."
+      },
+      {
+        "id": "item-050",
+        "candidateDigest": "afc9d457f0a2f9c45bd096ddc5edc560d200e69dee2381a7782c7e3da92ef5ec",
+        "reason": "Generic Git mention or invocation with no mechanically linked tracked-planning span."
+      },
+      {
+        "id": "item-051",
+        "candidateDigest": "4089e893af89e3563e3d86725f0307e88a1a55efc621d9750c7b032317dd93f8",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-052",
+        "candidateDigest": "a8006258f0aea6bc79fae8dc13afeaa5ca47a25c99b6830ef3e9a9397fbd4633",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-053",
+        "candidateDigest": "f20eeb9f04f25fca5e3f20d5bbb0575fe856bc2d3a1705ed12dad95cc42eaae0",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-054",
+        "candidateDigest": "a8b4523e2c3085de41712d73a5a5e05691a2166d81c1899218e0bb13fd447277",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-055",
+        "candidateDigest": "3d4f805152b0a2887b6616519dc4632e75987993315be026ced3d38304055026",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-056",
+        "candidateDigest": "6899b1d78e25807c182657762e53660f1725f1caa51f8f4315c4209ac56bb46f",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "item-057",
+        "candidateDigest": "660d221e75239970eae9c19ec718f973ba97a24b76cbb62c26f91885c45a273c",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-058",
+        "candidateDigest": "ef17691522facfb067b2fc4479a57f308868337aa550808e5a7aab5f4b139cca",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-059",
+        "candidateDigest": "8889dc3b94af5701ddc2a9285bcde6213e52e08157439ea18ba5d994be6da9a2",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-060",
+        "candidateDigest": "1bce3668ac248d9def48957c9777eef81efa0946dfa27d5ab1ebe0c8c75f78ff",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-061",
+        "candidateDigest": "d98f06afab90e67ea027be26652daad6e1644ef3ed14802f9d0dd24ef01d6b36",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-062",
+        "candidateDigest": "552e499eefc568463e92c43a2e48af4bc26c59ba31ae4739a3add9c8a86bf075",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "item-063",
+        "candidateDigest": "9c3d527e43467b52a402ffcbbba716ba91ad1525e065d2c1b44eae78161ad4a8",
+        "reason": "Generic string operation with no mechanically linked governed filename prefix."
+      },
+      {
+        "id": "item-064",
+        "candidateDigest": "28161f5e7153a2fffd35874a16cab6a2050bcf3a8e4327dc644b2274ddba91bc",
+        "reason": "Generic string operation with no mechanically linked governed filename prefix."
+      }
+    ],
+    "bulk": [
+      {
+        "id": "bulk-branch-shape-token",
+        "predicate": {
+          "field": "vectorId",
+          "operator": "equals",
+          "values": [
+            "branch-shape-token"
+          ]
+        },
+        "memberSetDigest": "82816d2504629489c8bafb84e27ee1ea3a38e66ee8ac8aeca6d3b111b8e66a78",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
+      },
+      {
+        "id": "bulk-directory-state-call",
+        "predicate": {
+          "field": "vectorId",
+          "operator": "equals",
+          "values": [
+            "directory-state-call"
+          ]
+        },
+        "memberSetDigest": "72a932fe2fabbe5c6f7b7f9e4828f3d2aa71ccae7c5388d91972742bf6c56448",
+        "reason": "Generic filesystem operation with no mechanically linked volatile name span."
+      },
+      {
+        "id": "bulk-dotted-config-token",
+        "predicate": {
+          "field": "vectorId",
+          "operator": "equals",
+          "values": [
+            "dotted-config-token"
+          ]
+        },
+        "memberSetDigest": "957d56f3198cbb56a7a6ca2eda7d1545d92c80f5712041ff7eec2c0244e0d129",
+        "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
+      },
+      {
+        "id": "bulk-git-path-call",
+        "predicate": {
+          "field": "vectorId",
+          "operator": "equals",
+          "values": [
+            "git-path-call"
+          ]
+        },
+        "memberSetDigest": "5944db8d39ac157d1e3706a1d0edd07f1731639f67bcecae527d5d7ea549cd28",
+        "reason": "Generic Git mention or invocation with no mechanically linked tracked-planning span."
+      },
+      {
+        "id": "bulk-markdown-doc-token",
+        "predicate": {
+          "field": "vectorId",
+          "operator": "equals",
+          "values": [
+            "markdown-doc-token"
+          ]
+        },
+        "memberSetDigest": "9327a2e36c4f30f9d92338b63becc869aa9c814528fcb32368f3f7537ed89db2",
+        "reason": "Document name outside the direction-derived name classes."
+      },
+      {
+        "id": "bulk-path-shaped-token",
+        "predicate": {
+          "field": "vectorId",
+          "operator": "equals",
+          "values": [
+            "path-shaped-token"
+          ]
+        },
+        "memberSetDigest": "4445a86c47342ed88977fecf1b4b2510dcd62cac1ec2773f4be7763bc0385627",
+        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      },
+      {
+        "id": "bulk-prefix-operation",
+        "predicate": {
+          "field": "vectorId",
+          "operator": "equals",
+          "values": [
+            "prefix-operation"
+          ]
+        },
+        "memberSetDigest": "de87e490c9630552d9a351b23a5ffe966c1d487231485dbdea8330c9d192ec8c",
+        "reason": "Generic string operation with no mechanically linked governed filename prefix."
+      }
+    ]
+  },
   "thresholds": { "test": 1, "workflow": 1, "template": 1, "code": 1, "prose": 1, "config": 1 },
   "sampleCaps": { "codePerClass": 5, "residueTotal": 64 }
 }

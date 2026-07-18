@@ -217,26 +217,25 @@ eliminate every unclassified catch-all hit.
 - _Outcome:_ Settled a 64-item cap—two canonical candidates from each of 32 observed vector × surface strata—and a
   closed vector-ID bulk predicate with per-vector reasons, exact member-set binding, and explicit escalation rules.
 
-### `[ ]` **4.3 Triage the catch-all residue to zero**
+### `[x]` **4.3 Triage the catch-all residue to zero**
 
 - _Goal:_ Every candidate coupling has a durable class or a reviewable dismissal, making comprehensiveness an
   evidenced result rather than a claim.
 
-    - `[ ]` **4.3.a Classify item-level residue up to the cap**
-        - For each item, mint/extend the owning class or record a reasoned dismissal tied to its path, vector, and
-          canonical candidate digest; ambiguous real couplings become classes rather than disappearing into
-          "false positive."
-        - Keep the scanner's own tracked test fixtures inside the declared test corpus and disposition their
-          deliberately synthetic candidates through the same evidence contract rather than an implicit self-skip.
+    - `[x]` **4.3.a Classify item-level residue up to the cap**
+        - Reviewed and digest-dispositioned all 64 round-robin candidates, including tracked scanner fixtures; no
+          additional direction-owned name remained after the calibrated agent-brief class.
 
-    - `[ ]` **4.3.b Apply and record bulk dispositions past the cap**
-        - Group only with the closed predicates Task 4.2 settled, store the exact member-set digest with the reason,
-          and split any exception back to item-level review.
+    - `[x]` **4.3.b Apply and record bulk dispositions past the cap**
+        - Bound the remaining 90,227 candidates to seven vector-ID groups with exact member-set digests and the
+          closed per-vector reasons.
 
-    - `[ ]` **4.3.c Rerun until no unclassified residue remains**
-        - Preserve dispositions as manifest inputs and dismissed candidates as canonical-result evidence so reruns
-          reproduce zero without suppressing newly unmatched candidates; fail any exact or bulk record whose member
-          evidence disappears, changes, or expands.
+    - `[x]` **4.3.c Rerun until no unclassified residue remains**
+        - Checked in the canonical result with 7,699 classified candidates, 90,291 preserved dismissals, zero
+          unresolved residue, and explicit generated-output exclusions that prevent recursive enumeration.
+
+- _Outcome:_ Every catch-all candidate now has durable evidence and either exact class attribution or a stale-safe
+  recorded dismissal; newly changed or expanded groups fail instead of inheriting prior judgment.
 
 ### `[ ]` **4.4 Prove unchanged-tree reproducibility on the complete corpus**
 
