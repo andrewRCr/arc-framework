@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "housekeep-capture-dedup",
-  "origin": "description",
-  "intent": "Dismiss the stale project-status warning capture and the already-scoped MD049 capture.",
-  "branch": "chore/housekeep-capture-dedup",
-  "createdAt": "2026-07-18T02:07:06.186Z",
-  "returnBranch": "main"
-}
