@@ -230,9 +230,16 @@ describe("trusted review-gate workflows", () => {
 
     expect(packageIntegration).toBe(instanceIntegration);
     expect(packageErrand).toBe(instanceErrand);
-    expect(packageIntegration.match(new RegExp(genericGuard, "gu"))).toHaveLength(2);
+    expect(packageIntegration.match(new RegExp(genericGuard, "gu"))).toHaveLength(3);
     expect(packageIntegration).not.toContain("review-gate:assert-head-mutable");
-    expect(packageIntegration.indexOf(genericGuard)).toBeGreaterThan(packageIntegration.indexOf("### 12) Final push"));
+    expect(packageIntegration.slice(
+      packageIntegration.indexOf("### 6) Confirm review coordination"),
+      packageIntegration.indexOf("### 7) Spec-presence + alignment checks"),
+    ).match(new RegExp(genericGuard, "gu"))).toHaveLength(1);
+    expect(packageIntegration.slice(
+      packageIntegration.indexOf("### 12) Final push"),
+      packageIntegration.indexOf("### 14) Post-merge worktree cleanup"),
+    ).match(new RegExp(genericGuard, "gu"))).toHaveLength(2);
     expect(packageIntegration.slice(
       packageIntegration.indexOf("### 3) Open the PR"),
       packageIntegration.indexOf("### 4) Review iteration"),
@@ -306,6 +313,23 @@ describe("trusted review-gate workflows", () => {
       gate.indexOf("run Tier 1 quality gates"),
     );
     expect(finalDrift).toBeLessThan(gate.indexOf("gh pr merge"));
+  });
+
+  it("reconciles a conflicted PR before requiring hosted checks to be green", async () => {
+    const [packageIntegration, instanceIntegration] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    ]);
+    expect(packageIntegration).toBe(instanceIntegration);
+    const reviewSettlement = packageIntegration.slice(
+      packageIntegration.indexOf("### 6) Confirm review coordination"),
+      packageIntegration.indexOf("### 7) Spec-presence + alignment checks"),
+    );
+    expect(reviewSettlement).toContain("arc base drift --json");
+    expect(reviewSettlement).toContain("git merge --no-edit {approved-baseOid}");
+    expect(reviewSettlement).toContain("return to Step 4");
+    expect(packageIntegration.indexOf("arc base drift --json", packageIntegration.indexOf("### 6)")))
+      .toBeLessThan(packageIntegration.indexOf("checks green"));
   });
 
   it("proves the checked-in repair workflow is the sole closed status writer", async () => {

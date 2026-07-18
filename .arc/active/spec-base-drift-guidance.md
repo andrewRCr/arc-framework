@@ -384,7 +384,12 @@ compatible distance fields and recommendation pair.
 
 #### Integration workflow
 
-Replace the manual fetch and raw `rev-list` block in the final behind-base gate with:
+Use the authoritative analyzer in two integration windows. Before the review-settled gate, when the canonical PR
+state is conflicting, reconcile and push first so hosted `pull_request` checks can materialize for the resulting
+head; return through review iteration before composition. After completion content and sweep are pushed, repeat
+the analyzer as the final base-freshness gate.
+
+Both windows invoke:
 
 ```bash
 arc base drift --json

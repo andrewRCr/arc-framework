@@ -171,8 +171,55 @@ to Step 6.
 
 ### 6) Confirm review coordination
 
+Before requiring hosted checks to be green, read the open PR's canonical mergeability state. When the host reports
+the PR as conflicting, run the authoritative drift verb and parse its JSON:
+
+```bash
+arc base drift --json
+```
+
+Apply the same strict result validation as Step 13: require `mode: authoritative`, a recognized verdict, and all
+typed fields for that verdict. An `unavailable`, `skipped`, unrecognized, malformed, or non-JSON result stops
+integration.
+
+On `clean`, re-read canonical PR mergeability. If the host still reports a conflict, stop and surface the
+analyzer/host disagreement. Otherwise, continue to review-settlement confirmation below.
+
+On `reconcile`, surface the analyzer-owned register and retain its `baseOid` as `{approved-baseOid}`:
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before base reconciliation. Surface the register and immutable base OID; await
+> explicit "reconcile base" direction before refreshing the reading and merging that approved OID.
+
+After approval, immediately invoke `arc base drift --json` again and apply the same validation:
+
+- `clean` — reconciliation became unnecessary; re-read canonical PR mergeability before continuing.
+- `reconcile` with a different `baseOid` — surface the updated register and OID, then re-fire the reconcile
+  interlock.
+- `reconcile` with `baseOid == {approved-baseOid}` — immediately merge that OID, with no fetch, review action,
+  or further stop between the refreshed read and merge:
+
+```text
+result = arc base drift --json
+if <result is authoritative reconcile and baseOid == {approved-baseOid}>:
+    git merge --no-edit {approved-baseOid}
+else:
+    <dispatch result through the validated verdict loop above>
+```
+
+Resolve conflicts if any and run Tier 1 quality gates. Before pushing, execute the Step 12 pre-push extension check,
+then invoke the active project review coordinator's exact-head mutability action with the current
+`openedChangeRequest`, outgoing local head, and any `begin-fix` authorization receipt. Stop on any typed refusal;
+never reverse the current/outgoing head order.
+
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+After the push, return to Step 4. Do not declare review settled against the pre-reconciliation head. On re-entry,
+repeat this step.
+
 Confirm the open-PR review cycle is settled before alignment and composition. This is not the final-head checkpoint;
-composition, sweep, or base reconciliation can still change the branch.
+composition, sweep, or final base reconciliation can still change the branch.
 
 ### 7) Spec-presence + alignment checks
 
