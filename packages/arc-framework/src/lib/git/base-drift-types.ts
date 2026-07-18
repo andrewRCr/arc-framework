@@ -10,6 +10,7 @@ export type BaseDriftMode = "advisory" | "authoritative";
 export type BaseDriftVerdict = "clean" | "reconcile" | "unavailable" | "skipped";
 
 export type BaseDriftUnavailableReason =
+  | "config-unavailable"
   | "invalid-base"
   | "detached-head"
   | "no-remote"

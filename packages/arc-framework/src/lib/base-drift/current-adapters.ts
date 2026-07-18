@@ -51,6 +51,11 @@ export function createCompletedMetaResolver(
       const sameCommit = additions.status === "available"
         && additions.records.length === 1
         && onlyAddition !== undefined
+        && (
+          event.prNumber === undefined
+          || onlyAddition.prNumber === null
+          || onlyAddition.prNumber === event.prNumber
+        )
         ? identityOf(onlyAddition)
         : null;
       const byPr = event.prNumber === undefined

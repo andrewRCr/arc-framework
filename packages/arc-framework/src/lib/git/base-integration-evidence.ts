@@ -48,7 +48,7 @@ export async function analyzeIntegrationEvidence(
   }
 
   const truncated = inputs.length > limit;
-  if (truncated) inputs = inputs.slice(0, limit);
+  if (truncated) inputs = inputs.slice(Math.max(0, inputs.length - limit));
   const order = new Map(inputs.map((input, index) => [input.oid, index]));
   const topologyOids = new Set<string>();
   const events: IntegrationEvent[] = [];

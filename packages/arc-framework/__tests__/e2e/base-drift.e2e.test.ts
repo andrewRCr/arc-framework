@@ -1,7 +1,7 @@
 /** `arc base drift` authoritative behavior in real repositories. */
 
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -91,6 +91,20 @@ describe("arc base drift", () => {
     expect(run.exitCode).toBe(1);
     expect(JSON.parse(run.stdout)).toMatchObject({
       verdict: "unavailable", unavailableReason: "no-remote", baseOid: null,
+    });
+  });
+
+  it("fails closed instead of analyzing a fallback base when config cannot be read", async () => {
+    const { repo } = await fixture(false);
+    await rm(join(repo, ".arc/system/arc-config.yml"));
+    const run = await runArcNoTty(["base", "drift", "--json"], repo);
+    expect(run.exitCode).toBe(1);
+    expect(JSON.parse(run.stdout)).toMatchObject({
+      mode: "authoritative",
+      verdict: "unavailable",
+      unavailableReason: "config-unavailable",
+      base: null,
+      baseOid: null,
     });
   });
 

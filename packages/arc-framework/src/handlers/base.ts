@@ -8,7 +8,8 @@ import * as p from "@clack/prompts";
 
 import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { runBaseDrift } from "../lib/git/base-distance.js";
+import { runBaseDrift, type BaseDriftResult } from "../lib/git/base-distance.js";
+import { composeUnavailableRegister } from "../lib/git/base-drift-register.js";
 import { syncLocalBase, type BaseSyncResult } from "../lib/git/base-sync.js";
 import { gitExec } from "../lib/io-context.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -30,13 +31,31 @@ export async function handleBaseDrift(opts: BaseDriftOptions): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
-  const { settings } = await readConfigSettings(cwd);
-  const result = await runBaseDrift({
-    exec: gitExec,
-    baseBranch: settings["branch.base"],
-    mode: "authoritative",
-    ...createCurrentBaseDriftAdapters(gitExec),
-  });
+  const config = await readConfigSettings(cwd);
+  const configUnavailable = config.warnings.some(
+    (warning) => warning.startsWith("Unable to read arc-config.yml:"),
+  );
+  const result: BaseDriftResult = configUnavailable
+    ? {
+        mode: "authoritative",
+        verdict: "unavailable",
+        state: "remote-unavailable",
+        ahead: 0,
+        behind: 0,
+        base: null,
+        baseOid: null,
+        unavailableReason: "config-unavailable",
+        integrationEvidence: null,
+        overlap: null,
+        register: composeUnavailableRegister(null, "config-unavailable"),
+        failureReason: "error",
+      }
+    : await runBaseDrift({
+        exec: gitExec,
+        baseBranch: config.settings["branch.base"],
+        mode: "authoritative",
+        ...createCurrentBaseDriftAdapters(gitExec),
+      });
 
   if (opts.json) {
     process.stdout.write(`${JSON.stringify(result)}\n`);

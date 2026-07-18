@@ -58,6 +58,21 @@ describe("completed-meta integration resolver", () => {
     });
   });
 
+  it("does not replace topology PR identity with a conflicting same-commit meta", async () => {
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "ls-tree") return { stdout: "" };
+      if (args[0] === "diff-tree") return { stdout: `A\0${META_PATH}\0` };
+      if (args[0] === "show") return { stdout: meta(9) };
+      throw new Error(`unexpected: ${args.join(" ")}`);
+    };
+    const resolver = createCompletedMetaResolver(exec, BASE);
+    const event: IntegrationEvent = { commits: [COMMIT], proof: "topology", prNumber: 7 };
+    await expect(resolver.enrichTopologyEvent(event, input("merge", 7))).resolves.toEqual({
+      status: "available",
+      value: null,
+    });
+  });
+
   it("surfaces malformed status framing as resolver degradation", async () => {
     const exec: GitExec = async (_cmd, args) => {
       if (args[0] === "ls-tree") return { stdout: "" };

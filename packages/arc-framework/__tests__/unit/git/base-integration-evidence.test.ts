@@ -122,19 +122,27 @@ describe("integration-event evidence", () => {
   });
 
   it("marks cap-plus-one input as truncated without classifying the extra record", async () => {
+    const resolver: IntegrationEvidenceResolver = {
+      enrichTopologyEvent: async () => ({ status: "available", value: null }),
+      proveSingleParentEvents: async (inputs) => ({
+        status: "available",
+        value: inputs.map((entry) => ({ commits: [entry.oid] })),
+      }),
+    };
     const result = await analyzeIntegrationEvidence({
       exec: execWith(
         record(oid("a"), [oid("b")], "one") + record(oid("c"), [oid("a")], "two"),
       ),
       baseOid: oid("d"),
-      resolver: emptyResolver,
+      resolver,
       scanLimit: 1,
     });
     expect(result).toMatchObject({
       coverage: "partial",
       scannedCommitCount: 1,
+      events: [{ commits: [oid("c")], proof: "resolver" }],
       truncated: true,
-      limitations: ["unclassified-commits", "scan-truncated"],
+      limitations: ["scan-truncated"],
     });
   });
 
