@@ -149,7 +149,7 @@ performs every corpus-wide read.
 ## Open items
 
 - **Ranking thresholds (resolved)** — a class is high fan-out when any surface count meets its cutoff: test 25,
-  code 13, workflow 8, template 2, prose 20, or config 3. Cutoffs use the observed upper quartile except prose,
+  code 12, workflow 8, template 2, prose 20, or config 3. Cutoffs use the observed upper quartile except prose,
   whose 87.5th-percentile cutoff preserves its lower weight relative to code reads. Mixed surfaces rank by maximum
   `count / threshold`, then total distinct-file fan-out and stable class ID.
 - **Code-sample cap value (resolved: 5)** — cover each distinct idiom first, then fill in canonical path/location

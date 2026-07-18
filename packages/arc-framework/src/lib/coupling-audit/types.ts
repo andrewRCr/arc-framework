@@ -117,8 +117,54 @@ export interface ClassifiedHit extends CandidateEvidence {
   patternId: string;
 }
 
-/** Canonical mechanical scan result retained as report input and evidence. */
-export interface CouplingScanResult {
+/** One mechanically ranked report row, keyed back to the authoritative class record. */
+export interface RankedInventoryRecord {
+  rank: number;
+  classId: string;
+  classFilesRef: string;
+  reportAnchor: string;
+  provenance: { manifestDigest: string; corpusFilesDigest: string; resultVersion: 1 };
+  thresholdMethod: {
+    highWhen: "any-surface-count-gte-threshold";
+    mixedSurfaceRank: "maximum-count-over-threshold";
+    thresholds: Record<SurfaceKind, number>;
+  };
+  residueSummary: {
+    classified: number;
+    dismissed: number;
+    unresolved: number;
+    exactDispositions: number;
+    bulkDispositions: number;
+  };
+  fanOut: number;
+  hitCount: number;
+  surfaceCounts: Record<SurfaceKind, number>;
+  volatility: Exclude<Volatility, "unresolved">;
+  volatilityEvidence: { workUnit: string; source: string };
+  quadrant: { fanOut: "high" | "low"; volatility: "high" | "stable" };
+  maxThresholdRatio: number;
+  verdict: QuadrantVerdict;
+  rankKey: string;
+}
+
+/** Dependency-critical projections consumed by later report and routing work. */
+export interface CouplingReportInputs {
+  rankedInventory: RankedInventoryRecord[];
+  substrateAbstractions: Array<{
+    classId: string;
+    inventoryAnchor: string;
+    idioms: CouplingIdiom[];
+    evidenceDigests: string[];
+  }>;
+  placementReaders: {
+    classIds: string[];
+    idioms: CouplingIdiom[];
+    readers: Array<{ path: string; classIds: string[]; evidenceDigests: string[] }>;
+  };
+}
+
+/** Canonical mechanical scan core retained as report input and evidence. */
+export interface CouplingScanCore {
   version: 1;
   manifestDigest: string;
   corpus: { fileCount: number; filesDigest: string };
@@ -141,6 +187,11 @@ export interface CouplingScanResult {
     unresolved: CandidateEvidence[];
   };
   diagnostics: Array<{ code: string; path: string; message: string }>;
+}
+
+/** Complete canonical scan result with mechanically derived report inputs. */
+export interface CouplingScanResult extends CouplingScanCore {
+  reportInputs: CouplingReportInputs;
 }
 
 /** Canonical cross-WU finding ledger bound to one exact scan result. */

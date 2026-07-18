@@ -39,7 +39,7 @@ function manifest(): CouplingManifest {
         patterns: [{ id: "known-pattern", form: "literal", value: "known/path", caseSensitive: true }],
         citations: [{ path: "direction.md", anchor: "Known", workUnit: "path-owner" }],
         idioms: ["path-literal"],
-        volatility: { rating: "unresolved", evidence: null },
+        volatility: { rating: "high", evidence: { workUnit: "path-owner", source: "planned @ 2026-07-18" } },
       },
     ],
     catchAllVectors: vectors(),

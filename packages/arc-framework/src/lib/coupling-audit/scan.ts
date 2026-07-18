@@ -19,6 +19,7 @@ import {
 } from "./contracts.js";
 import type { CorpusFile } from "./corpus.js";
 import { findPatternSetMatches, type PatternMatch } from "./matcher.js";
+import { buildReportInputs } from "./projection.js";
 import { measureFanOut, rankResolvedClass } from "./ranking.js";
 import type {
   BulkPredicate,
@@ -27,6 +28,7 @@ import type {
   CorpusLocus,
   CouplingIdiom,
   CouplingManifest,
+  CouplingScanCore,
   CouplingScanResult,
   SurfaceKind,
 } from "./types.js";
@@ -40,6 +42,7 @@ interface LocatedMatch extends PatternMatch {
 interface LocatedClassMatch extends LocatedMatch {
   classId: string;
   idiom: CouplingIdiom;
+  vectorId: string;
 }
 
 interface LocatedCandidate {
@@ -71,7 +74,7 @@ function evidenceFrom(match: LocatedMatch, idiom: CouplingIdiom, vectorId: strin
 }
 
 function classHitFrom(match: LocatedClassMatch): ClassifiedHit {
-  const candidate = evidenceFrom(match, match.idiom, `class-${match.classId}`);
+  const candidate = evidenceFrom(match, match.idiom, match.vectorId);
   return {
     ...candidate,
     id: `hit-${candidate.evidenceDigest}`,
@@ -137,6 +140,7 @@ function collectClassMatches(
             locus: file.locus,
             classId: assumption.id,
             idiom,
+            vectorId: `class-${assumption.id}`,
           });
           continue;
         }
@@ -156,6 +160,7 @@ function collectClassMatches(
             locus: file.locus,
             classId: assumption.id,
             idiom: candidate.evidence.idiom,
+            vectorId: candidate.evidence.vectorId,
           });
         }
       }
@@ -280,7 +285,7 @@ export function scanCorpus(manifest: CouplingManifest, files: readonly CorpusFil
       hits,
     };
   });
-  const result = canonicalizeScanResult({
+  const core: CouplingScanCore = {
     version: 1,
     manifestDigest: digestCanonicalJson(canonicalManifest),
     corpus: {
@@ -292,6 +297,10 @@ export function scanCorpus(manifest: CouplingManifest, files: readonly CorpusFil
     classes,
     candidates: partitionCandidates(canonicalManifest, candidates, classMatches),
     diagnostics: [],
+  };
+  const result: CouplingScanResult = canonicalizeScanResult({
+    ...core,
+    reportInputs: buildReportInputs(canonicalManifest, core),
   });
   return parseCouplingScanResult(result);
 }

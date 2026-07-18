@@ -247,7 +247,7 @@ source anchor, roster state, and snapshot date; no unresolved rating remains.
 
 ## Fan-out calibration
 
-The 32-class surface distributions produced these cutoffs: test 25 (upper quartile), code 13 (upper quartile),
+The 32-class surface distributions produced these cutoffs: test 25 (upper quartile), code 12 (upper quartile),
 workflow 8 (upper quartile), template 2 (upper quartile), prose 20 (87.5th percentile), and config 3 (upper
 quartile). Prose uses the more conservative percentile so prose mentions do not carry the same weight as concrete
 code reads. Equality is high fan-out. For mixed surfaces, the maximum `count / threshold` ratio is the primary rank
@@ -256,3 +256,25 @@ The calibrated result contains 20 `abstract` and 12 `change-with-mover` classes;
 the current mover snapshot, so the other two quadrants are empty. Its manifest digest is
 `aedcd2b100b8c42a1d6b1fdb8c0cfab72a1887d2a9d7a7a63f4363772d3fd02b`, and its result SHA-256 is
 `9ef1d102a640a5de08bf90fae9c8c55910b048e6c4a82ad950d216e3e8efc294` with zero unresolved residue.
+
+Placement-reader review exposed Markdown files nested below hook/script roots as prose documents rather than
+executable code. Correcting that classifier edge moved code's upper quartile from 13 to 12 without changing any
+class's quadrant; the settled cutoff above reflects the corrected corpus. The prior digest records remain the
+historical pre-correction Task 5.2 output.
+
+## Canonical report inputs
+
+The result contains exactly 32 ranked inventory records, one per class, each referencing the class ID that owns its
+canonical file list. The substrate projection contains 15 ranked `abstract` classes with concrete-path evidence:
+`arc-root`, `active-placement`, `meta-prefix`, `spec-prefix`, `completed-placement`, `workflow-root`,
+`planned-placement`, `tasks-prefix`, `draft-prefix`, `session-notes-name`, `method-root`, `notes-prefix`,
+`roadmap-name`, `working-memory-name`, and `template-suffix`.
+
+The placement projection records `active-placement`, `completed-placement`, `planned-placement`, and
+`provisional-placement`, then groups their qualifying code evidence into 55 normalized reader/parser files. Every
+extract member links to complete evidence-digest sets; capped samples play no role in membership. Class-hit evidence
+now preserves its originating catch vector where one exists, keeping the result's idiom provenance inspectable.
+
+The canonical result covers 1,211 tracked files, 7,735 classified candidates, 90,674 dismissed candidates, and zero
+unresolved residue. Its manifest digest is `e5ca1003ad8281edc7eb86fd5ea4d23cc329c7a576348f3756110c6e9975adeb`;
+the result SHA-256 is `ff5bc0f47541461de2871994aa6d70a88aca408f75da75f5d11d9382912215e8`.

@@ -8,7 +8,7 @@ import type { SurfaceKind } from "../../../../src/lib/coupling-audit/types.js";
 
 const thresholds: Record<SurfaceKind, number> = {
   test: 25,
-  code: 13,
+  code: 12,
   workflow: 8,
   template: 2,
   prose: 20,
@@ -27,7 +27,7 @@ describe("coupling-audit ranking", () => {
     ["stable", false, "retain-local"],
   ] as const)("maps %s volatility and high=%s to %s", (volatility, high, verdict) => {
     const result = rankResolvedClass(
-      { classId: "sample", volatility, fanOut: high ? 13 : 1, surfaceCounts: counts({ code: high ? 13 : 1 }) },
+      { classId: "sample", volatility, fanOut: high ? 12 : 1, surfaceCounts: counts({ code: high ? 12 : 1 }) },
       thresholds,
     );
     expect(result.verdict).toBe(verdict);
@@ -35,7 +35,7 @@ describe("coupling-audit ranking", () => {
 
   it("treats threshold equality as high and uses the maximum mixed-surface ratio", () => {
     const result = rankResolvedClass(
-      { classId: "mixed", volatility: "high", fanOut: 33, surfaceCounts: counts({ code: 13, prose: 30 }) },
+      { classId: "mixed", volatility: "high", fanOut: 42, surfaceCounts: counts({ code: 12, prose: 30 }) },
       thresholds,
     );
     expect(result).toMatchObject({ highFanOut: true, maxThresholdRatio: 1.5, verdict: "abstract" });
@@ -48,11 +48,11 @@ describe("coupling-audit ranking", () => {
         thresholds,
       ),
       rankResolvedClass(
-        { classId: "z-high", volatility: "high", fanOut: 20, surfaceCounts: counts({ code: 13 }) },
+        { classId: "z-high", volatility: "high", fanOut: 20, surfaceCounts: counts({ code: 12 }) },
         thresholds,
       ),
       rankResolvedClass(
-        { classId: "a-high", volatility: "high", fanOut: 20, surfaceCounts: counts({ code: 13 }) },
+        { classId: "a-high", volatility: "high", fanOut: 20, surfaceCounts: counts({ code: 12 }) },
         thresholds,
       ),
       rankResolvedClass(

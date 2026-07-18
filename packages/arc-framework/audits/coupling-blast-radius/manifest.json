@@ -692,7 +692,7 @@
             "branch-shape-token"
           ]
         },
-        "memberSetDigest": "43306979114b13f3b86cd019c8f4ecf3b4f8c83bacec3e9040267165e899f264",
+        "memberSetDigest": "61f4dd791fc8831f606551557afe1e25e7bf92c323c48105eea1674233691a14",
         "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
       },
       {
@@ -716,7 +716,7 @@
             "dotted-config-token"
           ]
         },
-        "memberSetDigest": "b2586cf62a6c6b64621f3de5b96130dd901a4b41b1da1ffd706a5321da11b8bf",
+        "memberSetDigest": "597f017edbf5dd3ac08fe4d93cdb8895a69adf5f3b2c9bb3d4094158fc5e070c",
         "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
       },
       {
@@ -740,7 +740,7 @@
             "markdown-doc-token"
           ]
         },
-        "memberSetDigest": "7641b07fd8e2a58bc688c470a235c7f32ad98062e31930ca437b7e394194c81f",
+        "memberSetDigest": "a3575a6eaeab35c12c53947f446e1d4c71190f2eeafb908056f37a1ce4e78a0e",
         "reason": "Document name outside the direction-derived name classes."
       },
       {
@@ -752,7 +752,7 @@
             "path-shaped-token"
           ]
         },
-        "memberSetDigest": "d0920e111a7381be4fffc009b6d2dd9c62baca753c5fc7b774907b2df87e156d",
+        "memberSetDigest": "30768c460834a5789741e4db5eb1112ff40b9c69a6a501b0f763aa0fbd698b83",
         "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
       },
       {
@@ -764,11 +764,11 @@
             "prefix-operation"
           ]
         },
-        "memberSetDigest": "fcf9b09ab22b0bc93c274eb43234ff974f90dcb5b1f46698ffb4db820084280f",
+        "memberSetDigest": "829eeb59c849ce618df25e3e316784c2357be917bda096de490c06ac1afbebd3",
         "reason": "Generic string operation with no mechanically linked governed filename prefix."
       }
     ]
   },
-  "thresholds": { "test": 25, "workflow": 8, "template": 2, "code": 13, "prose": 20, "config": 3 },
+  "thresholds": { "test": 25, "workflow": 8, "template": 2, "code": 12, "prose": 20, "config": 3 },
   "sampleCaps": { "codePerClass": 5, "residueTotal": 64 }
 }

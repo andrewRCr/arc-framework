@@ -290,31 +290,27 @@ views that the routed final report projects without hand-maintained interpretati
 - _Outcome:_ The checked result now carries reproducible threshold ratios, quadrant verdicts, and stable rank keys;
   the manifest, spec, and calibration notes share the same settled rule.
 
-### `[ ]` **5.3 Prepare the ranked inventory and hard-consumer views**
+### `[x]` **5.3 Prepare the ranked inventory and hard-consumer views**
 
 - _Goal:_ Canonical audit data contains the complete ranking and both dependency-critical extracts before routing
   packets bind owner-facing implications to the settled result.
 
-    - `[ ]` **5.3.a Materialize the complete ranked inventory data**
-        - Produce exactly one canonical row record per class with corpus/manifest/result provenance, threshold
-          method, residue disposition summary, distinct-file fan-out, hit count, surface-kind breakdown, volatility
-          citation/rationale, quadrant, ranked verdict, and stable report anchor.
-        - Keep canonical per-class file lists as the sole authority and reference them from inventory records rather
-          than hand-copying them into a separately maintained table.
+    - `[x]` **5.3.a Materialize the complete ranked inventory data**
+        - Added 32 ranked records with provenance, calibrated threshold method, residue summary, class counts,
+          volatility evidence, quadrant, verdict, and stable anchors; each record references its canonical class ID
+          for the sole authoritative file list.
 
-    - `[ ]` **5.3.b Materialize the substrate-abstraction extract**
-        - Project every `abstract` class carrying concrete-path idiom evidence into an explicit list of assumptions
-          the storage/path resolver must own, keyed back to ranked class records and evidence rather than a prose-only
-          recommendation.
-        - Review the projected membership against its evidence; resolve an incorrect member by correcting manifest
-          class/idiom/verdict data and regenerating, never by hand-editing the extract or growing a generic
-          consumer-tag/routing-policy schema.
+    - `[x]` **5.3.b Materialize the substrate-abstraction extract**
+        - Projected and reviewed 15 `abstract` concrete-path classes with inventory anchors, observed idioms, and
+          complete evidence-digest sets; membership remains a pure derivation rather than a consumer-tag policy.
 
-    - `[ ]` **5.3.c Materialize the placement-reader extract**
-        - Record the reviewed lifecycle-placement class IDs, then query the canonical result for every `code` hit in
-          those classes carrying directory-enumeration, existence, or placement/prefix-reading idioms.
-        - Produce the complete mechanically selected reader/parser list for `wu-lifecycle-state-model`, keyed to
-          normalized files and class IDs; capped calibration samples must never define extract membership.
+    - `[x]` **5.3.c Materialize the placement-reader extract**
+        - Recorded all four lifecycle-placement classes and mechanically grouped every qualifying code hit into 55
+          normalized reader/parser files with class IDs and evidence digests; corrected hook/script Markdown to prose
+          before accepting the membership.
+
+- _Outcome:_ Canonical scan output now contains the entire ordered inventory and both hard-consumer extracts, so
+  routing can bind owner implications directly to checked evidence without recreating selection logic.
 
 ## **Phase 6:** Finding routing
 

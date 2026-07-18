@@ -259,9 +259,9 @@ function validateDispositions(value: unknown): void {
   });
 }
 
-function validateThresholds(value: unknown): void {
-  const thresholds = record(value, "manifest.thresholds");
-  SURFACE_KINDS.forEach((kind) => positiveInteger(thresholds[kind], `manifest.thresholds.${kind}`));
+function validateThresholds(value: unknown, path = "manifest.thresholds"): void {
+  const thresholds = record(value, path);
+  SURFACE_KINDS.forEach((kind) => positiveInteger(thresholds[kind], `${path}.${kind}`));
 }
 
 /**
@@ -384,6 +384,106 @@ function validateCandidatePartitions(value: unknown): void {
   uniqueIds(all, "result.candidates");
 }
 
+function validateReportInputs(result: Record<string, unknown>, classes: Record<string, unknown>[]): void {
+  const reportInputs = record(result.reportInputs, "result.reportInputs");
+  const inventory = array(reportInputs.rankedInventory, "result.reportInputs.rankedInventory").map((entry, index) =>
+    record(entry, `result.reportInputs.rankedInventory[${index}]`),
+  );
+  if (inventory.length !== classes.length) {
+    fail("result.reportInputs.rankedInventory", "expected exactly one record per result class");
+  }
+  const classById = new Map(classes.map((entry) => [nonEmptyString(entry.classId, "result.classes.classId"), entry]));
+  const seenClasses = new Set<string>();
+  const candidates = record(result.candidates, "result.candidates");
+  const actualResidue = {
+    classified: array(candidates.classified, "result.candidates.classified").length,
+    dismissed: array(candidates.dismissed, "result.candidates.dismissed").length,
+    unresolved: array(candidates.unresolved, "result.candidates.unresolved").length,
+  };
+  inventory.forEach((row, index) => {
+    const path = `result.reportInputs.rankedInventory[${index}]`;
+    const rank = positiveInteger(row.rank, `${path}.rank`);
+    if (rank !== index + 1) fail(`${path}.rank`, "expected consecutive canonical rank order");
+    const classId = nonEmptyString(row.classId, `${path}.classId`);
+    if (seenClasses.has(classId)) fail(`${path}.classId`, `duplicate class: ${classId}`);
+    seenClasses.add(classId);
+    const resultClass = classById.get(classId);
+    if (resultClass === undefined) fail(`${path}.classId`, "does not reference a result class");
+    if (row.classFilesRef !== classId) fail(`${path}.classFilesRef`, "expected the authoritative class ID");
+    if (row.reportAnchor !== `class-${classId}`) fail(`${path}.reportAnchor`, "expected stable class anchor");
+    const provenance = record(row.provenance, `${path}.provenance`);
+    if (provenance.manifestDigest !== result.manifestDigest) fail(`${path}.provenance.manifestDigest`, "mismatch");
+    validateDigest(provenance.corpusFilesDigest, `${path}.provenance.corpusFilesDigest`);
+    const corpus = record(result.corpus, "result.corpus");
+    if (provenance.corpusFilesDigest !== corpus.filesDigest) fail(`${path}.provenance.corpusFilesDigest`, "mismatch");
+    if (provenance.resultVersion !== result.version) fail(`${path}.provenance.resultVersion`, "mismatch");
+    const method = record(row.thresholdMethod, `${path}.thresholdMethod`);
+    if (method.highWhen !== "any-surface-count-gte-threshold") fail(`${path}.thresholdMethod.highWhen`, "unexpected method");
+    if (method.mixedSurfaceRank !== "maximum-count-over-threshold") {
+      fail(`${path}.thresholdMethod.mixedSurfaceRank`, "unexpected method");
+    }
+    validateThresholds(method.thresholds, `${path}.thresholdMethod.thresholds`);
+    const residue = record(row.residueSummary, `${path}.residueSummary`);
+    for (const [partition, count] of Object.entries(actualResidue)) {
+      if (residue[partition] !== count) fail(`${path}.residueSummary.${partition}`, "does not match candidate partition");
+    }
+    nonNegativeInteger(residue.exactDispositions, `${path}.residueSummary.exactDispositions`);
+    nonNegativeInteger(residue.bulkDispositions, `${path}.residueSummary.bulkDispositions`);
+    if (row.fanOut !== resultClass.fanOut || row.hitCount !== resultClass.hitCount) fail(path, "class totals mismatch");
+    validateSurfaceCounts(row.surfaceCounts, `${path}.surfaceCounts`);
+    const volatility = enumValue(row.volatility, ["high", "stable"] as const, `${path}.volatility`);
+    if (volatility !== resultClass.volatility) fail(`${path}.volatility`, "class volatility mismatch");
+    const evidence = record(row.volatilityEvidence, `${path}.volatilityEvidence`);
+    nonEmptyString(evidence.workUnit, `${path}.volatilityEvidence.workUnit`);
+    nonEmptyString(evidence.source, `${path}.volatilityEvidence.source`);
+    const quadrant = record(row.quadrant, `${path}.quadrant`);
+    if (quadrant.fanOut !== (resultClass.highFanOut ? "high" : "low")) fail(`${path}.quadrant.fanOut`, "mismatch");
+    if (quadrant.volatility !== volatility) fail(`${path}.quadrant.volatility`, "mismatch");
+    if (row.maxThresholdRatio !== resultClass.maxThresholdRatio) fail(`${path}.maxThresholdRatio`, "class ratio mismatch");
+    if (row.verdict !== resultClass.verdict || row.rankKey !== resultClass.rankKey) fail(path, "class ranking mismatch");
+  });
+
+  const substrate = array(reportInputs.substrateAbstractions, "result.reportInputs.substrateAbstractions");
+  substrate.forEach((entry, index) => {
+    const path = `result.reportInputs.substrateAbstractions[${index}]`;
+    const abstraction = record(entry, path);
+    const classId = nonEmptyString(abstraction.classId, `${path}.classId`);
+    const resultClass = classById.get(classId);
+    if (resultClass?.verdict !== "abstract") fail(`${path}.classId`, "expected an abstract result class");
+    if (abstraction.inventoryAnchor !== `class-${classId}`) fail(`${path}.inventoryAnchor`, "anchor mismatch");
+    stringArray(abstraction.idioms, `${path}.idioms`).forEach((idiom, idiomIndex) =>
+      enumValue(idiom, COUPLING_IDIOMS, `${path}.idioms[${idiomIndex}]`),
+    );
+    stringArray(abstraction.evidenceDigests, `${path}.evidenceDigests`).forEach((digest, digestIndex) => {
+      validateDigest(digest, `${path}.evidenceDigests[${digestIndex}]`);
+    });
+  });
+
+  const placement = record(reportInputs.placementReaders, "result.reportInputs.placementReaders");
+  const placementClassIds = stringArray(placement.classIds, "result.reportInputs.placementReaders.classIds", true);
+  placementClassIds.forEach((classId, index) => {
+    if (!classById.has(classId)) fail(`result.reportInputs.placementReaders.classIds[${index}]`, "unknown class");
+  });
+  const placementIdioms = stringArray(placement.idioms, "result.reportInputs.placementReaders.idioms");
+  if (placementIdioms.join(",") !== "directory-state,filename-prefix") {
+    fail("result.reportInputs.placementReaders.idioms", "expected the closed reader idioms");
+  }
+  const readerPaths = new Set<string>();
+  array(placement.readers, "result.reportInputs.placementReaders.readers").forEach((entry, index) => {
+    const path = `result.reportInputs.placementReaders.readers[${index}]`;
+    const reader = record(entry, path);
+    const readerPath = nonEmptyString(reader.path, `${path}.path`);
+    if (readerPaths.has(readerPath)) fail(`${path}.path`, "duplicate reader path");
+    readerPaths.add(readerPath);
+    stringArray(reader.classIds, `${path}.classIds`).forEach((classId, classIndex) => {
+      if (!placementClassIds.includes(classId)) fail(`${path}.classIds[${classIndex}]`, "outside placement class set");
+    });
+    stringArray(reader.evidenceDigests, `${path}.evidenceDigests`).forEach((digest, digestIndex) => {
+      validateDigest(digest, `${path}.evidenceDigests[${digestIndex}]`);
+    });
+  });
+}
+
 /**
  * Parse and validate a canonical coupling-audit scan result.
  *
@@ -408,6 +508,7 @@ export function parseCouplingScanResult(value: unknown): CouplingScanResult {
     validateResultClass(entry, index);
   });
   validateCandidatePartitions(result.candidates);
+  validateReportInputs(result, classes);
   array(result.diagnostics, "result.diagnostics").forEach((entry, index) => {
     const diagnostic = record(entry, `result.diagnostics[${index}]`);
     nonEmptyString(diagnostic.code, `result.diagnostics[${index}].code`);

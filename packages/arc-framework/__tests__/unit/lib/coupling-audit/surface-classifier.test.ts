@@ -11,6 +11,7 @@ describe("classifySurface", () => {
     ["packages/arc-framework/arc/reference/templates/arc/template-adr.md", "template"],
     ["packages/arc-framework/src/lib/classification.ts", "code"],
     ["packages/arc-framework/arc/system/.internal/githooks/pre-commit", "code"],
+    ["packages/arc-framework/arc/system/.internal/githooks/README.md", "prose"],
     ["scripts/check-package-sync.sh", "code"],
     ["packages/arc-framework/arc/reference/README.md", "prose"],
     ["AGENTS.md", "prose"],

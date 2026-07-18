@@ -73,15 +73,16 @@ const SURFACE_RULES: readonly SurfaceRule[] = [
     id: "executable-code",
     kind: "code",
     matches: (path) =>
-      path.startsWith("packages/arc-framework/src/") ||
-      path.startsWith("packages/arc-framework/arc/system/.internal/githooks/") ||
-      path.startsWith("packages/arc-framework/arc/system/.internal/harness-hooks/") ||
-      path.startsWith("packages/arc-framework/arc/system/.internal/scripts/") ||
-      path.startsWith(".arc/system/.internal/githooks/") ||
-      path.startsWith(".arc/system/.internal/harness-hooks/") ||
-      path.startsWith(".arc/system/.internal/scripts/") ||
-      path.startsWith(".husky/") ||
-      path.startsWith("scripts/"),
+      !path.endsWith(".md") &&
+      (path.startsWith("packages/arc-framework/src/") ||
+        path.startsWith("packages/arc-framework/arc/system/.internal/githooks/") ||
+        path.startsWith("packages/arc-framework/arc/system/.internal/harness-hooks/") ||
+        path.startsWith("packages/arc-framework/arc/system/.internal/scripts/") ||
+        path.startsWith(".arc/system/.internal/githooks/") ||
+        path.startsWith(".arc/system/.internal/harness-hooks/") ||
+        path.startsWith(".arc/system/.internal/scripts/") ||
+        path.startsWith(".husky/") ||
+        path.startsWith("scripts/")),
   },
   {
     id: "prose",

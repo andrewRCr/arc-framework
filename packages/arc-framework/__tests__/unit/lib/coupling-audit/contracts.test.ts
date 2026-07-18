@@ -207,6 +207,38 @@ function validScanResult(): Record<string, unknown> {
       dismissed: [{ ...candidateEvidence("candidate-dismissed"), dispositionId: "generated-token" }],
       unresolved: [candidateEvidence("candidate-unresolved")],
     },
+    reportInputs: {
+      rankedInventory: [
+        {
+          rank: 1,
+          classId: "active-placement",
+          classFilesRef: "active-placement",
+          reportAnchor: "class-active-placement",
+          provenance: { manifestDigest: DIGEST, corpusFilesDigest: "b".repeat(64), resultVersion: 1 },
+          thresholdMethod: {
+            highWhen: "any-surface-count-gte-threshold",
+            mixedSurfaceRank: "maximum-count-over-threshold",
+            thresholds: { test: 5, workflow: 5, template: 5, code: 5, prose: 5, config: 5 },
+          },
+          residueSummary: { classified: 1, dismissed: 1, unresolved: 1, exactDispositions: 1, bulkDispositions: 1 },
+          fanOut: 1,
+          hitCount: 1,
+          surfaceCounts: { test: 0, workflow: 0, template: 0, code: 1, prose: 0, config: 0 },
+          volatility: "high",
+          volatilityEvidence: { workUnit: "state-model", source: "planned @ 2026-07-18" },
+          quadrant: { fanOut: "low", volatility: "high" },
+          maxThresholdRatio: 0.2,
+          verdict: "change-with-mover",
+          rankKey: "1:1:active-placement",
+        },
+      ],
+      substrateAbstractions: [],
+      placementReaders: {
+        classIds: ["active-placement"],
+        idioms: ["directory-state", "filename-prefix"],
+        readers: [],
+      },
+    },
     diagnostics: [{ code: "bulk-disposition-stale", path: "manifest.dispositions.bulk[0]", message: "Changed set." }],
   };
 }

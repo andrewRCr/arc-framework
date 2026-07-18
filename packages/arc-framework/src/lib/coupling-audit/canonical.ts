@@ -153,6 +153,25 @@ export function canonicalizeScanResult(result: CouplingScanResult): CouplingScan
   output.candidates.classified.forEach((entry) => entry.classIds.sort(lexical));
   output.candidates.dismissed = output.candidates.dismissed.map(canonicalCandidate).sort(compareCandidate);
   output.candidates.unresolved = output.candidates.unresolved.map(canonicalCandidate).sort(compareCandidate);
+  output.reportInputs.rankedInventory.sort((left, right) => left.rank - right.rank);
+  output.reportInputs.substrateAbstractions.forEach((entry) => {
+    entry.idioms.sort(lexical);
+    entry.evidenceDigests.sort(lexical);
+  });
+  const inventoryRank = new Map(output.reportInputs.rankedInventory.map((entry) => [entry.classId, entry.rank]));
+  output.reportInputs.substrateAbstractions.sort(
+    (left, right) => (inventoryRank.get(left.classId) ?? 0) - (inventoryRank.get(right.classId) ?? 0),
+  );
+  output.reportInputs.placementReaders.classIds.sort(lexical);
+  output.reportInputs.placementReaders.idioms.sort(lexical);
+  output.reportInputs.placementReaders.readers = output.reportInputs.placementReaders.readers
+    .map((entry) => ({
+      ...entry,
+      path: normalizeRepositoryPath(entry.path),
+      classIds: entry.classIds.sort(lexical),
+      evidenceDigests: entry.evidenceDigests.sort(lexical),
+    }))
+    .sort((left, right) => lexical(left.path, right.path));
   output.diagnostics.sort((left, right) =>
     lexical(`${left.code}:${left.path}:${left.message}`, `${right.code}:${right.path}:${right.message}`),
   );
