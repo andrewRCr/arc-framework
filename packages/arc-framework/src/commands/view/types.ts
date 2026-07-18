@@ -17,7 +17,7 @@ export const VIEW_KINDS = [
 export type ViewKind = typeof VIEW_KINDS[number];
 
 export type ViewArtifactResult =
-  | { status: "resolved"; kind: ViewKind; path: string }
+  | { status: "resolved"; kind: ViewKind; path: string; workUnit: string | null }
   | { status: "absent"; kind: ViewKind }
   | { status: "error"; kind: string; message: string };
 

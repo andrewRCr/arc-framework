@@ -36,6 +36,11 @@ export interface PagerProcessInput {
   env: NodeJS.ProcessEnv;
 }
 
+export interface ViewPagerAnchor {
+  line: number;
+  id: string;
+}
+
 export type PagerProcessRunner = (input: PagerProcessInput) => Promise<void>;
 
 /** Probe PATH in the stable glow → bat → plain order. */
@@ -77,6 +82,7 @@ export function renderViewWithPager(
     renderer: ViewRenderer;
     content: string;
     displayPath: string;
+    anchor?: ViewPagerAnchor;
   },
   dependencies: { run: PagerProcessRunner } = { run: runPagerProcess },
 ): Promise<void> {
@@ -88,6 +94,7 @@ function pagerProcessInput(input: {
   renderer: ViewRenderer;
   content: string;
   displayPath: string;
+  anchor?: ViewPagerAnchor;
 }): PagerProcessInput {
   const baseEnvironment = { ...process.env, LESS: "FRX" };
   switch (input.renderer) {
@@ -101,14 +108,31 @@ function pagerProcessInput(input: {
     case "bat":
       return {
         command: "bat",
-        args: ["--paging=always", "--language=md", "--file-name", input.displayPath, "-"],
+        args: [
+          "--paging=always",
+          "--style=plain",
+          "--language=md",
+          "--file-name",
+          input.displayPath,
+          "-",
+        ],
         input: input.content,
-        env: { ...baseEnvironment, BAT_PAGER: "less -RFX" },
+        env: {
+          ...baseEnvironment,
+          BAT_PAGER: input.anchor === undefined
+            ? "less -RFX"
+            : `less -RFX +${input.anchor.line}`,
+        },
       };
     case "plain":
       return {
         command: "less",
-        args: ["-R", "-F", "-X"],
+        args: [
+          "-R",
+          "-F",
+          "-X",
+          ...(input.anchor === undefined ? [] : [`+${input.anchor.line}`]),
+        ],
         input: input.content,
         env: baseEnvironment,
       };

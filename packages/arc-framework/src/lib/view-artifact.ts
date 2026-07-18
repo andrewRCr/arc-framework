@@ -82,7 +82,12 @@ async function resolveViewArtifactUnchecked(
   const kind = options.kind;
 
   if (kind === "inbox" && options.project) {
-    return presentOrAbsent(kind, join(options.cwd, ".arc", "backlog", "ATOMIC-INBOX.md"), dependencies);
+    return presentOrAbsent(
+      kind,
+      join(options.cwd, ".arc", "backlog", "ATOMIC-INBOX.md"),
+      null,
+      dependencies,
+    );
   }
 
   if (kind === "working-memory" || kind === "inbox") {
@@ -94,7 +99,7 @@ async function resolveViewArtifactUnchecked(
       identity: options.identity,
     });
     const filename = kind === "working-memory" ? "WORKING-MEMORY.md" : "USER-INBOX.md";
-    return presentOrAbsent(kind, surfaces.identityGlobalPath(filename), dependencies);
+    return presentOrAbsent(kind, surfaces.identityGlobalPath(filename), null, dependencies);
   }
 
   const workUnit = await resolveWorkUnit(options, dependencies);
@@ -104,17 +109,18 @@ async function resolveViewArtifactUnchecked(
 
   switch (kind) {
     case "meta":
-      return presentOrAbsent(kind, absolute(options.cwd, workUnit.metaPath), dependencies);
+      return presentOrAbsent(kind, absolute(options.cwd, workUnit.metaPath), workUnit.name, dependencies);
     case "tasks":
       return workUnit.taskListPath === null
         ? { status: "absent", kind }
-        : presentOrAbsent(kind, absolute(options.cwd, workUnit.taskListPath), dependencies);
+        : presentOrAbsent(kind, absolute(options.cwd, workUnit.taskListPath), workUnit.name, dependencies);
     case "spec":
     case "draft":
     case "notes":
       return presentOrAbsent(
         kind,
         join(options.cwd, dirname(workUnit.metaPath), `${kind}-${workUnit.name}.md`),
+        workUnit.name,
         dependencies,
       );
     case "cohort": {
@@ -124,7 +130,7 @@ async function resolveViewArtifactUnchecked(
       });
       return path === null
         ? { status: "absent", kind }
-        : presentOrAbsent(kind, absolute(options.cwd, path), dependencies);
+        : presentOrAbsent(kind, absolute(options.cwd, path), workUnit.name, dependencies);
     }
     case "session-notes": {
       if (options.identity === null) {
@@ -137,7 +143,7 @@ async function resolveViewArtifactUnchecked(
       });
       if (result.status === "error") return { status: "error", kind, message: result.message };
       if (result.status === "absent") return { status: "absent", kind };
-      return presentOrAbsent(kind, result.path, dependencies);
+      return presentOrAbsent(kind, result.path, workUnit.name, dependencies);
     }
     default: {
       const _exhaustive: never = kind;
@@ -187,10 +193,11 @@ function isViewKind(kind: string): kind is ViewKind {
 async function presentOrAbsent(
   kind: ViewKind,
   path: string,
+  workUnit: string | null,
   dependencies: ViewArtifactDependencies,
 ): Promise<ViewArtifactResult> {
   return await dependencies.pathExists(path)
-    ? { status: "resolved", kind, path }
+    ? { status: "resolved", kind, path, workUnit }
     : { status: "absent", kind };
 }
 

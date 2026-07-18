@@ -7,6 +7,7 @@ import type {
   ViewArtifactResolver,
   ViewOutput,
 } from "./types.js";
+import { prepareViewDocument, type ViewDocumentAnchor } from "./format.js";
 import type { ResolvedViewRenderer, ViewRenderer } from "../../lib/view-renderer.js";
 
 export interface ViewDependencies {
@@ -17,7 +18,9 @@ export interface ViewDependencies {
     renderer: ViewRenderer;
     content: string;
     displayPath: string;
+    anchor?: ViewDocumentAnchor;
   }) => Promise<void>;
+  now?: () => Date;
 }
 
 /** Resolve one semantic kind and emit its plain, read-only representation. */
@@ -43,6 +46,13 @@ export async function runView(
       exitCode: 0,
     };
   }
+  if (options.current === true && artifact.kind !== "tasks") {
+    return {
+      stdout: "",
+      stderr: "--current is only valid with the tasks kind.\n",
+      exitCode: 1,
+    };
+  }
 
   let content: string;
   try {
@@ -55,8 +65,19 @@ export async function runView(
       exitCode: 1,
     };
   }
-  if (options.nonInteractive !== false) {
-    return { stdout: content, stderr: "", exitCode: 0 };
+  const prepared = prepareViewDocument({
+    kind: artifact.kind,
+    workUnit: artifact.workUnit,
+    content,
+    current: options.current === true,
+    now: dependencies.now?.() ?? new Date(),
+  });
+  if (options.nonInteractive !== false || prepared.bypassPager) {
+    return {
+      stdout: prepared.content,
+      stderr: formatWarnings(prepared.warnings),
+      exitCode: 0,
+    };
   }
 
   try {
@@ -64,14 +85,21 @@ export async function runView(
       throw new Error("TTY renderer dependencies are unavailable.");
     }
     const resolved = await dependencies.resolveRenderer();
+    const warnings = [...prepared.warnings, ...resolved.warnings];
+    if (resolved.renderer === "glow" && prepared.anchor !== undefined) {
+      warnings.push("glow does not preserve source lines; opened without a current-task anchor.");
+    }
     await dependencies.renderWithPager({
       renderer: resolved.renderer,
-      content,
+      content: prepared.content,
       displayPath: artifact.path,
+      ...(resolved.renderer !== "glow" && prepared.anchor !== undefined
+        ? { anchor: prepared.anchor }
+        : {}),
     });
     return {
       stdout: "",
-      stderr: resolved.warnings.map((warning) => `warning: ${warning}\n`).join(""),
+      stderr: formatWarnings(warnings),
       exitCode: 0,
     };
   } catch (error) {
@@ -82,4 +110,8 @@ export async function runView(
       exitCode: 1,
     };
   }
+}
+
+function formatWarnings(warnings: readonly string[]): string {
+  return warnings.map((warning) => `warning: ${warning}\n`).join("");
 }

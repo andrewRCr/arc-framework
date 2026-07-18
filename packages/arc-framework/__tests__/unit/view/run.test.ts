@@ -51,6 +51,7 @@ describe("runView", () => {
       status: "resolved",
       kind: "tasks",
       path: "/repo/.arc/active/tasks-feature.md",
+      workUnit: "feature",
     });
 
     const result = await runView({
@@ -118,6 +119,7 @@ describe("runView", () => {
         status: "resolved",
         kind: "tasks",
         path: "/repo/.arc/active/tasks-feature.md",
+        workUnit: "feature",
       }),
       readFile: vi.fn().mockResolvedValue("# Tasks\n"),
       resolveRenderer: vi.fn().mockResolvedValue({

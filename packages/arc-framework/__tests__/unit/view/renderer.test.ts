@@ -63,7 +63,7 @@ describe("resolveViewRenderer", () => {
 describe("renderViewWithPager", () => {
   it.each([
     ["glow", "glow", ["--pager", "-"]],
-    ["bat", "bat", ["--paging=always", "--language=md", "--file-name", "tasks.md", "-"]],
+    ["bat", "bat", ["--paging=always", "--style=plain", "--language=md", "--file-name", "tasks.md", "-"]],
     ["plain", "less", ["-R", "-F", "-X"]],
   ] as const)("composes %s through its pager mode", async (renderer, command, args) => {
     const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
@@ -79,5 +79,25 @@ describe("renderViewWithPager", () => {
       args,
       input: "# Tasks\n",
     }));
+  });
+
+  it("passes source-line anchors to bat and plain pager modes", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+
+    await renderViewWithPager({
+      renderer: "bat",
+      content: "# Tasks\n",
+      displayPath: "tasks.md",
+      anchor: { line: 42, id: "3.1" },
+    }, { run });
+    expect(run.mock.calls[0]?.[0].env.BAT_PAGER).toBe("less -RFX +42");
+
+    await renderViewWithPager({
+      renderer: "plain",
+      content: "# Tasks\n",
+      displayPath: "tasks.md",
+      anchor: { line: 42, id: "3.1" },
+    }, { run });
+    expect(run.mock.calls[1]?.[0].args).toContain("+42");
   });
 });

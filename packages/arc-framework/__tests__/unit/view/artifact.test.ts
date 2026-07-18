@@ -64,11 +64,13 @@ describe("resolveViewArtifact", () => {
       status: "resolved",
       kind: "meta",
       path: "/repo/.arc/active/meta-feature.md",
+      workUnit: "feature",
     });
     await expect(resolve("tasks")).resolves.toEqual({
       status: "resolved",
       kind: "tasks",
       path: "/repo/.arc/active/tasks-feature.md",
+      workUnit: "feature",
     });
   });
 
@@ -114,7 +116,7 @@ describe("resolveViewArtifact", () => {
     ["draft", "/repo/.arc/active/draft-feature.md"],
     ["notes", "/repo/.arc/active/notes-feature.md"],
   ])("resolves the %s sibling beside the active meta", async (kind, path) => {
-    await expect(resolve(kind)).resolves.toEqual({ status: "resolved", kind, path });
+    await expect(resolve(kind)).resolves.toEqual({ status: "resolved", kind, path, workUnit: "feature" });
   });
 
   it("maps a missing artifact and a [none] task list to absent", async () => {
@@ -163,6 +165,7 @@ describe("resolveViewArtifact", () => {
       status: "resolved",
       kind: "inbox",
       path: "/repo/.arc/backlog/ATOMIC-INBOX.md",
+      workUnit: null,
     });
   });
 

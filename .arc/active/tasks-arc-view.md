@@ -118,66 +118,40 @@ done/total or phase counts. `--current` and open-at-cursor both key off that cur
 bandless and unanchored (warning on stderr, exit 0) so the viewer can still inspect the file that needs fixing.
 Agent-position anchoring (`session-locus-model`) is a recorded upgrade seam, not a dependency here.
 
-### `[ ]` **3.1 Parse task-list checkbox tallies**
+### `[x]` **3.1 Parse task-list checkbox tallies**
 
 - _Goal:_ a parser derives phase X/N, the current task id, subtask i/n, and overall done/total from a task list's
   checkboxes — the counts the band renders — sharing the cursor's checkbox-marker grammar rather than a second
   heuristic.
 
-    - _Note:_ the cursor reuses only cover the marker grammar: `resolveTaskListCursor` tracks no phase identity
-      (a level-2 heading only resets the current task) and exposes neither per-parent subtask index/count nor
-      done/total — its `ParsedTask` / `ParsedSubtask` and full task array are private. Phase X/N and the tallies are
-      additive parsing: either export the cursor's internal parse made phase-aware, or build a phase-aware sibling
-      over the same grammar.
-    - Build `test-first` (one behavior at a time):
-        - overall done/total counted across all phases
-        - current phase index and phase count
-        - the current task's subtask i/n
-        - a malformed task list → the parser signals malformed (no throw)
+- _Outcome:_ `analyzeTaskList()` now derives the durable cursor and all display tallies in one phase-aware parse;
+  malformed structures retain the cursor parser's explicit non-throwing result.
 
-### `[ ]` **3.2 Render the counter band, one-line header, and rendered-at timestamp**
+### `[x]` **3.2 Render the counter band, one-line header, and rendered-at timestamp**
 
 - _Goal:_ the `tasks` render is prepended with a band —
   `Phase X/N · Task X.Y (subtask i/n) · done/total overall · rendered HH:MM` — while every other kind carries a
   one-line `kind · WU · rendered-at` header, both appearing in pager and plain modes.
 
-    - _Note:_ the rendered-at timestamp is the staleness signal — the render is static by design, refreshed by
-      re-invocation, so the timestamp makes staleness visible rather than silent.
-    - Build `test-first` (one behavior at a time):
-        - the `tasks` band formats phase/task/subtask/overall counts plus the timestamp
-        - a non-`tasks` kind formats the one-line `kind · WU · rendered-at` header
-        - the band / header appears in both pager and plain modes
+- _Outcome:_ a shared document-preparation boundary adds timestamped task bands or artifact headers before output
+  branches into plain stdout or pager rendering.
 
-### `[ ]` **3.3 Emit the `--current` region output**
+### `[x]` **3.3 Emit the `--current` region output**
 
 - _Goal:_ `arc view tasks --current` writes the current-task section as bare plain stdout (no band, no pager) that
   composes under pipes and `watch`; no open task prints an explicit "no open task" line; a malformed list prints
   an explicit one-line stdout message (warning on stderr, exit 0), never the full document.
 
-    - _Shape:_ "the current-task section" is the current **parent-task** block — from the cursor's section
-      `lineHint` (the `###` parent heading) through the line before the next `###` parent heading or `##` phase
-      heading, whichever comes first. The cursor exposes only a start `lineHint`, so the end boundary is a net-new
-      scan for the next heading; the block, not just the open leaf subtask, is the region.
-    - _Rationale:_ `watch` / pipe consumers expect a bare region — emitting the full document or an empty output on
-      a degrade breaks them, so both degrade cases stay single-line.
-    - Build `test-first` (one behavior at a time):
-        - the current parent-task block is extracted as bare plain stdout (no band), bounded by the next heading
-        - no open task → explicit "no open task" line
-        - a malformed list → one-line stdout message, stderr warning, exit 0 (not the full document)
+- _Outcome:_ current-region extraction is bounded by the next parent or phase heading and always bypasses the pager;
+  terminal and malformed states emit stable one-line output, with malformed detail retained as a warning.
 
-### `[ ]` **3.4 Open at the current task in pager mode, degrading on failure**
+### `[x]` **3.4 Open at the current task in pager mode, degrading on failure**
 
 - _Goal:_ pager mode opens at the current task where the renderer/pager combination supports anchoring; a malformed
   or unanchorable list renders bandless and unanchored with a one-line stderr warning (exit 0) rather than failing.
 
-    - _Note:_ the cursor supplies a source-file line hint — a `less +<line>` jump is direct under `bat` / plain,
-      but `glow` re-renders markdown and does not preserve source lines, so its anchor needs a different mechanism
-      (pattern anchor on the task id, or rendered-line mapping) or the unanchored degrade. Resolved against the
-      real binaries during implementation, within the degrade posture.
-    - Verify (test-first on the degrade selection; integration for the pager open):
-        - a resolvable cursor + an anchor-capable renderer → opens at the current task
-        - a malformed list → bandless, unanchored, one-line stderr warning, exit 0
-        - a markdown re-renderer with no source-line mapping → pattern-anchor or unanchored degrade, never an error
+- _Outcome:_ plain and `bat` pager modes receive the band-shifted source line through `less`; `glow` degrades with
+  an unanchored warning, while malformed lists remain bandless, unanchored, inspectable, and successful.
 
 ## **Phase 4:** Verification
 
