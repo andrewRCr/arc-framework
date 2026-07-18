@@ -1008,23 +1008,34 @@ parent below states the reconciliation _procedure + recorded outcome_, not the u
   bottleneck the wave evidence surfaced beside attention). Package source and `.arc/` copies edited in
   lockstep; byte-identical at close.
 
-### `[ ]` **8.2 Finalize and bless the GA-readiness checklist and incident playbook**
+### `[x]` **8.2 Finalize and bless the GA-readiness checklist and incident playbook**
 
 - _Goal:_ The single "what-must-be-true" GA-readiness checklist and a symptom → diagnosis → recovery parallelism
   incident playbook exist and are blessed, with each containment invariant verified rather than assumed.
 
-    - `[ ]` **8.2.a Assemble the GA-readiness checklist from the finalized matrix**
-        - Finalized in `notes-finalize-parallelism.md` (WU-internal — a one-time gate record that archives with
-          the WU on ship).
+    - `[x]` **8.2.a Assemble the GA-readiness checklist from the finalized matrix**
+        - Assembled as `notes-finalize-parallelism.md` § GA-readiness checklist — final gate record: every line
+          carries its evidence pointer; the two open lines are Phase 8's own remaining gates (8.4 `/arc-shift`,
+          8.5 CI metering) and close at their tasks. The starting-state section's playbook/closeout stubs are
+          checked off against their landed homes.
 
-    - `[ ]` **8.2.b Distill the incident playbook (symptom → diagnosis → recovery)**
-        - Distilled from the accumulated wave findings in `notes-finalize-parallelism.md`, then authored into
-          `strategy-concurrent-work.md` as a new adopter-facing section (co-located with the doctrine 8.1
-          reconciles).
+    - `[x]` **8.2.b Distill the incident playbook (symptom → diagnosis → recovery)**
+        - Authored as `strategy-concurrent-work.md` § Parallelism incident playbook (both copies): thirteen
+          symptom-first entries covering non-fast-forward refusals, behind-base, derived-view conflict and
+          ref-sourced row contamination, the same-commit notes wedge, same-entry lost update/resurrection,
+          errand same-slug collision, notes lag, worktree-removal refusal, self-teardown, duplicate completion
+          numbers, recovery-seed drift, and snapshot staleness — adopter-voiced, no internals.
 
-    - `[ ]` **8.2.c Verify each containment invariant (not assumed)**
-        - Committed+pushed work unlosable; no ARC verb destroys uncommitted work; notes pre-load backup present;
-          same-entry merge loss documented with recovery; every loud failure has a written recovery path.
+    - `[x]` **8.2.c Verify each containment invariant (not assumed)**
+        - Verified with evidence recorded in the gate record: unlosable committed+pushed work (append-only +
+          branch-before-notes export gate + preserve-before-delete teardown paths), no-verb-destroys-uncommitted
+          (dirty refusals, unsafe-reap refusal, validate-first ordering), pre-load backup confirmed in source
+          (`.pre-load-backup.json` + timestamped snapshots, `save-load.ts`), same-entry loss documented with
+          recovery, and a playbook cross-walk over every loud matrix cell.
+
+- _Outcome:_ The GA gate now has its record: a single checklist whose only open lines are Phase 8's own two
+  remaining tasks, backed by an adopter-facing playbook so the first real incident is a lookup. The bless
+  itself rides Task 8.3's flip once 8.4/8.5 close their lines.
 
 ### `[ ]` **8.3 Retire the interim `--here` default**
 

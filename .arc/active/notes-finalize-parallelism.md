@@ -1437,17 +1437,72 @@ commit-msg-footer suite tripping the hook's `MERGE_HEAD` merge-exemption mid-mer
 
 ### Playbook / closeout items
 
-- [ ] Same-entry cross-WU edit limitation: symptom, recovery from notes/backups, and guidance to avoid concurrent
-  same-entry edits.
-- [ ] `USER-INBOX` local removal RMW residue: serialized-primary guidance, resurrection symptom, and recovery from
-  notes/backups.
-- [ ] Base-drift and probe-staleness recovery: re-probe, merge base forward, and do not rewrite pushed branches.
-- [ ] Git-guarded loud failures: worktree/branch/config/ref refusal symptoms and retry/reconcile path.
-- [ ] Duplicate `completed/` sequence number: cosmetic renumber recovery.
-- [ ] Shared-checkout compaction-marker race and audit-log fragmentation: document as non-GA-blocking operational
-  state limitations.
-- [ ] Doctrine reconciliation: update the concurrent-work / errand-class guidance to match wave evidence, especially
-  the pin-primary vs. serialized-primary decision.
+- [x] Same-entry cross-WU edit limitation: symptom, recovery from notes/backups, and guidance to avoid concurrent
+  same-entry edits. *Doctrine 8.1.c + playbook entries (lost edit / resurrection; same-commit wedge).*
+- [x] `USER-INBOX` local removal RMW residue: serialized-primary guidance, resurrection symptom, and recovery from
+  notes/backups. *Playbook entry (resurrected-entry symptom); pull-before-write + single-drain-locus discipline
+  in doctrine 8.1.c.*
+- [x] Base-drift and probe-staleness recovery: re-probe, merge base forward, and do not rewrite pushed branches.
+  *Playbook entries (behind-base; snapshot staleness).*
+- [x] Git-guarded loud failures: worktree/branch/config/ref refusal symptoms and retry/reconcile path. *Playbook
+  entries (non-fast-forward; worktree removal refused).*
+- [x] Duplicate `completed/` sequence number: cosmetic renumber recovery. *Playbook entry.*
+- [x] Shared-checkout compaction-marker race and audit-log fragmentation: document as non-GA-blocking operational
+  state limitations. *Playbook entry (recovery-audit refusal); audit-log fragmentation noted in the final gate
+  record's accepted limitations.*
+- [x] Doctrine reconciliation: update the concurrent-work / errand-class guidance to match wave evidence, especially
+  the pin-primary vs. serialized-primary decision. *Task 8.1, commit `2c4f87eed`.*
+
+## GA-readiness checklist — final gate record (Task 8.2)
+
+The single what-must-be-true enumeration for blessing worktree-by-default + multi-in-flight. WU-internal;
+archives with the WU. Each item carries its evidence pointer; the two `[ ]` items are Phase 8's own remaining
+gates and close at their tasks.
+
+- [x] **All committed build items landed on base and field-verified.** BI-1 through BI-6 plus the deterministic
+  ROADMAP renderer slice — per-item evidence in § GA checklist starting state (build gates).
+- [x] **All four burn-in waves complete on sacrificial workload.** Waves 1–4 with per-condition evidence in
+  § Wave evidence to collect; every induced detector fired (base drift, notes lag, behind-base-at-integration,
+  stale worktree, errands-ref collision, notes-union refusals, recover-audit drift, sweep/husk) — no detector
+  silently no-oped (§ Detector-tests 3.3, § Detector-tests 5.5, § Wave-4 induction evidence).
+- [x] **Seam-audit decisions resolved with evidence:** parallel-errand fork + batch shape (5.3 — pin-primary for
+  WU purposes, serialized errand execution, occupancy-keyed warm entries; sequential lockstep drain); same-entry
+  merge disposition (5.4 — accept with documented limitation + routed fast-follow). `/arc-shift` revival is
+  Task 8.4's decision (below).
+- [x] **Containment invariants verified, not assumed (8.2.c):**
+    - *Committed + pushed work unlosable* — remote ref serialization + the append-only invariant; the
+      branch-before-notes export gate observed live (Cell 3.2.a); teardown/ship preserve-before-delete verified
+      across both terminal paths (§ Detector-tests 5.5); husks stamp base-anchored evidence before any physical
+      removal.
+    - *No ARC verb destroys uncommitted work* — `git worktree remove` dirty-refusal surfaced live (sweep
+      `blocked: uncommitted`); errand close refuses unsafe reaps before record removal (§ Seam trace-throughs);
+      teardown gates on clean-at-stamped-HEAD; validate-first transition ordering (BI-5) keeps failed
+      transitions mutation-free.
+    - *Notes pre-load backup present* — verified in source: `.pre-load-backup.json` + timestamped
+      `.pre-load-backup-*` snapshots written by the load path (`commands/user/save-load.ts`,
+      `commands/user/types.ts`).
+    - *Same-entry merge loss documented with recovery* — doctrine 8.1.c states the limitation and discipline;
+      playbook carries symptom → recovery (pre-load backup restore).
+    - *Every loud failure has a written recovery path* — playbook cross-walk over the matrix's loud cells:
+      git-guarded refusals, ROADMAP conflict/regen, notes same-commit wedge, errand same-slug collision,
+      worktree-removal refusal, recover-audit refusal each carry a recovery entry.
+- [x] **Doctrine matches the as-built shape.** Task 8.1 (`2c4f87eed`): primary-worktree posture rewritten to the
+  resolved fork; errand slice occupancy-keyed; sequential drain codified; no section contradicts verified
+  behavior.
+- [x] **Incident playbook exists and is adopter-facing.** `strategy-concurrent-work.md` § Parallelism incident
+  playbook (authored at 8.2.b, co-located with the reconciled doctrine).
+- [x] **Accepted limitations recorded with recovery/discipline:** same-entry cross-WU merge (5.4); same-commit
+  concurrent-save wedge (split-out routed, playbook carries the coordinated recovery); ref-sourced in-flight
+  ROADMAP rows contaminating sibling worktrees (routed to `roadmap-tooling`; playbook carries the staged-render
+  recovery); self-teardown session termination (physical asymmetry — playbook carries the run-from-primary
+  discipline); compaction-seed shared-checkout race (one-session-per-checkout); audit-log per-checkout
+  fragmentation (informational only).
+- [ ] **`/arc-shift` revival dispositioned** — closes at Task 8.4.
+- [ ] **CI metering remediation confirmed live with corrected cost shape** — hard gate, closes at Task 8.5; the
+  retained self-hosted-runner capture is decided against the measured residual there.
+
+The `--here`→spawn default flip (Task 8.3) is blessed when every line above is closed; the flip itself and the
+WORKING-MEMORY entry update execute at 8.3.a.
 
 ## Scope & sizing
 

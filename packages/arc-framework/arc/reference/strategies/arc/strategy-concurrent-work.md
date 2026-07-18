@@ -37,7 +37,8 @@ and the `Integrating` state. This strategy layers concurrency conventions on tha
 12. [The ROADMAP "Next" slice under concurrency](#the-roadmap-next-slice-under-concurrency)
 13. [Shared files under concurrency](#shared-files-under-concurrency)
 14. [Foreign-owned work and the all-owner gate](#foreign-owned-work-and-the-all-owner-gate)
-15. [Philosophy checkpoints](#philosophy-checkpoints)
+15. [Parallelism incident playbook](#parallelism-incident-playbook)
+16. [Philosophy checkpoints](#philosophy-checkpoints)
 
 ---
 
@@ -443,6 +444,70 @@ same all-owner gate.
 The rule is identical at both granularities: **reorder and re-home your own work freely; foreign-owned work you
 coordinate, not appropriate.** This strategy states the gate; the mechanism that _detects_ a foreign-owned write
 and surfaces it is a backstop owned elsewhere — the convention here is the discipline, not the detector.
+
+---
+
+## Parallelism incident playbook
+
+Symptom → diagnosis → recovery for the failure modes concurrent work actually produces. Every loud failure below
+is a guardrail doing its job — the recovery is deliberate reconciliation, never force. Entries assume the
+conventions above (append-only, primary-on-base, one session per checkout).
+
+- **A fast-forward pull fails, or a push is refused as non-fast-forward.** The branch's history moved under you —
+  a sibling machine holds different commits, or something rewrote pushed history. Stop; fetch and inspect. If the
+  remote was legitimately rebased elsewhere and your local commits are contained in it, reset to the remote;
+  otherwise reconcile by merge. Never force-push a shared branch to "win."
+
+- **Session start (or integration) reports the branch behind the base.** Siblings integrated while you worked —
+  the steady state under parallelism, and raw commit counts inflate with ceremony commits. Merge the base in at a
+  clean point (required before integrating); never rebase the pushed branch onto it.
+
+- **The merge conflicts on the derived readiness view (ROADMAP).** Two branches carried renders derived from
+  different base states — a non-event, not real contention. Finish the merge, regenerate the view, and commit;
+  the pre-commit regen check refuses a stale render, so a forgotten regen fails loud.
+
+- **A commit is blocked because the readiness view "wants" a row for a work unit you never touched.** In-flight
+  rows derive from remote refs, so a branch appearing (or vanishing) on the remote changes every worktree's
+  expected render. Re-render against the staged tree —
+  `arc status --project --staged > .arc/backlog/ROADMAP.md` — stage the result, and commit. (Known limitation.)
+
+- **A personal-notes push is refused: the same file diverged at the same commit.** Two machines saved divergent
+  notes onto the same base commit; there is no automatic union. Choose one machine, manually combine the
+  contested file there, save, and force-publish that chosen result; before adopting it on another machine,
+  preserve that machine's local-only content.
+
+- **A personal-notes entry lost your edit, or a removed entry reappeared.** Concurrent same-entry edits resolve
+  by recency: the newer write wins silently, and a removal pushed from a stale copy can resurrect the entry.
+  Restore what was lost from the pre-load backups kept beside the user files; going forward, pull before writing
+  and serialize entry edits through one drain locus (the primary).
+
+- **An errand-record push reports a same-slug conflict.** The same errand slug was opened on two machines; the
+  per-identity record ref wedges behind the collision (later record pushes queue behind it). Keep one record and
+  run `arc errand close --force <slug>` on the discarded side; the next push reconciles and releases the queue.
+
+- **Session start shows a "notes lag" line for a sibling machine.** A sibling's paired push didn't finish its
+  notes leg — lag, not loss: the work is safe on its own machine. Proceed with context; let the owning machine
+  re-push. Never force-push notes to clear the line.
+
+- **Worktree removal is refused (uncommitted changes, or unmerged work).** Git is protecting state that would be
+  lost. Inspect the worktree; commit, stash, or hand the work off, then remove with `git worktree remove`. Don't
+  `rm -rf` — it strands git's bookkeeping (recoverable afterward with `git worktree prune`, but avoidable).
+
+- **Teardown removed the directory your session was standing in.** Physical asymmetry, not a bug: a worktree
+  cannot be deleted from within without taking the session's working directory with it — harness errors after
+  that point are fallout, not damage. Run the physical teardown from the primary worktree instead; the
+  stale-worktree sweep at session start catches anything left behind.
+
+- **Two shipped work units carry the same completion sequence number.** Concurrent archives numbered against the
+  same snapshot. Cosmetic only — renumber one directory in a small errand when convenient.
+
+- **Post-compaction recovery refuses its seed (state drift).** Another session sharing the checkout overwrote
+  the per-checkout seed — the refusal is the guard working. Re-orient fresh instead of forcing the recovery, and
+  keep one session per checkout (spawned worktrees make that the natural state).
+
+- **Orientation says one thing; the world changed a moment later.** Any snapshot can go stale the moment a
+  concurrent session acts — bounded and self-correcting. Re-probe rather than acting on a stale premise;
+  destructive operations carry their own live guards regardless.
 
 ---
 
