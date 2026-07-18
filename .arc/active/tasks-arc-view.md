@@ -1,0 +1,263 @@
+# Task List: arc-view
+
+- **Design:** `spec-arc-view.md`
+
+---
+
+## **Phase 1:** `arc view` command and oracle-resolved kind resolution
+
+_Purpose:_ Stand up the read-only `arc view <kind>` verb end-to-end in plain output — every v1 kind resolves its
+artifact through the status-oracle chain with zero path construction, bare `arc view` defaults to `tasks`, absent
+artifacts and the two error paths render explicit messages, and content reaches the terminal as plain stdout (the
+non-TTY contract and plain fallback). Pretty rendering (Phase 2) and task-structure context (Phase 3) layer on top.
+
+_Design decisions:_ Kinds are a semantic registry mapping a kind name to a **shared artifact-group resolver** that
+owns all path knowledge — the viewer constructs zero paths, so artifact re-homes and renames (including the future
+storage-substrate migration) land with zero CLI contract change. The resolver lives in the oracle/resolver layer
+(not viewer-private): it composes the existing resolvers session-init consumes (`runActiveSessionInitStatus`,
+`resolveActiveCohortDocPath`, `resolveSessionNotesPath`, the `user-surfaces` resolver) and adds the spec/draft/notes
+derivation those don't cover. One `kind → path` home keeps the design DRY and storage-forward-compat (the viewer
+knows kinds, the resolver knows paths). Each kind resolves to a uniform result — a path plus whether the artifact
+is present — so the absent and error paths (§ 1.3) read one contract rather than each sub-resolver's own null
+convention; when more than one work unit is active (the parallel-worktree case), the resolver selects the current
+worktree's unit by branch match, never interactive disambiguation. Session-init's `resolveLoadSetManifest` is a
+separate read-set projection and is left unchanged here. Three-layer CLI shape mirrors `arc status`: `cli.ts`
+wiring → `handlers/view.ts` I/O boundary → `commands/view/` orchestrator (`runView`).
+
+### `[ ]` **1.1 Scaffold the `arc view [kind]` verb and default kind**
+
+- _Goal:_ `arc view [kind]` is registered and dispatches to a testable `runView` orchestrator through the
+  handler boundary; bare `arc view` resolves to `tasks` with zero further input.
+
+    - Register in `src/cli.ts` mirroring the `arc status` read-only pattern — positional `[kind]`, the `--project`
+      and `--current` flags, handler `handleView`. Handler layer in `src/handlers/view.ts` (`requireArcProjectRoot`,
+      `createUserIOContext`, identity read); orchestrator + barrel in `src/commands/view/`. No `--json` mode — the
+      verb renders a document; the non-TTY plain body and `--current` region are the machine-consumable paths.
+    - Build `test-first` (one behavior at a time):
+        - bare `arc view` (no positional) resolves the kind to `tasks`
+        - an explicit kind positional is passed through to the orchestrator unchanged
+
+### `[ ]` **1.2 Build the kind registry over a shared artifact-group resolver**
+
+- _Goal:_ each v1 kind resolves through one shared resolver in the oracle/resolver layer to a uniform result — the
+  artifact's path plus whether it is present — with zero path construction in the viewer: WU-scoped kinds (`tasks`,
+  `spec`, `draft`, `meta`, `notes`, `cohort`, `session-notes`) off the resolved active meta, identity-global kinds
+  (`working-memory`, `inbox`) rooted at the primary worktree, `inbox --project` at the fixed shared-inbox path.
+
+    - _Approach:_ a kind → resolver registry so a new resolver-backed kind slots in without a contract change; the
+      resolver composes the existing session-init resolvers and adds the derivations they don't cover, keeping one
+      storage-layer home for path knowledge (DRY + storage-forward-compat).
+    - _Shape:_ the resolver returns a uniform per-kind result — `resolved(path)` when the artifact exists on disk,
+      `absent` when it resolves but is missing (the resolver stat-checks derived-path kinds), and a distinct `error`
+      for a genuine resolution failure — so § 1.3 renders one contract, not each sub-resolver's own null convention.
+    - **Additional Context:** `strategy-storage-evolution.md` § Forward-Compat Principles (1–2) — the viewer works
+      at the storage-abstraction boundary; keep path knowledge in the resolver, not the caller.
+
+    - `[ ]` **1.2.a Resolve the active work unit, then its WU-scoped artifacts**
+        - _Context:_ `runActiveSessionInitStatus` returns `single` (a `path`), `none`, or `multiple` (a `null` path
+          plus a candidate list) — the oracle surfaces candidates but defers the pick. The resolver selects the
+          current worktree's unit deterministically by **branch match** against the candidates' `**Branch:**` field
+          (never interactive disambiguation); `none`, or `multiple` with no unique match, is the no-resolvable-WU
+          case (§ 1.3).
+        - Only `meta` (the resolved `path`), `tasks` (`taskListPath`), `cohort` (`resolveActiveCohortDocPath`), and
+          `session-notes` (`resolveSessionNotesPath`, worktree-local) have existing resolvers. `spec`/`draft`/`notes`
+          have none — derive each as the `spec-{name}.md` / `draft-{name}.md` / `notes-{name}.md` sibling of the
+          resolved meta by naming convention (uniform with `tasks`), then stat-check for presence. Deriving `spec`
+          by convention rather than the meta's `**Design:**` field sidesteps that the field is multi-valued and
+          points at `draft-*` pre-finalization; layered / multi spec beyond `spec-{name}.md` is out of v1 scope.
+          A `[none]` `**Task List:**` yields `taskListPath: null` → `tasks` resolves `absent`, not an error.
+        - Build `test-first` (one behavior at a time):
+            - a single active meta resolves; multiple active metas resolve to the branch-matching unit
+            - `meta` / `tasks` resolve from the active-meta `path` / `taskListPath`; a `[none]` task list → `absent`
+            - `spec` / `draft` / `notes` resolve to their conventional siblings beside the resolved meta
+            - `cohort` resolves the active WU's `cohort-*.md` when the meta names one; `session-notes` resolves the
+              per-WU path adjacent to the active checkout
+            - a kind whose artifact is missing resolves `absent` (present-flag false), never a thrown error
+
+    - `[ ]` **1.2.b Resolve the identity-global kinds and the `--project` scope**
+        - `working-memory` and `inbox` resolve through the `user-surfaces` resolver, rooted at the primary worktree
+          under a linked worktree; both require a resolved identity (the resolver roots at `.arc/user/{identity}`).
+          `inbox --project` is a distinct resolution — the shared inbox is the fixed tracked path
+          `.arc/backlog/ATOMIC-INBOX.md`, not a `user-surfaces` surface — routed through the same kind registry so
+          its eventual re-home stays invisible.
+        - Build `test-first` (one behavior at a time):
+            - under a linked worktree, `working-memory` / `inbox` resolve to the primary checkout
+            - `inbox --project` resolves the fixed shared-inbox path (independent of identity)
+            - an identity-global kind with no resolved identity → the identity error (§ 1.3), not a bad path
+            - the `--project` flag keeps the kind grammar regular (no dotted kind)
+
+### `[ ]` **1.3 Handle absent artifacts and the error paths**
+
+- _Goal:_ the resolver's uniform result renders three ways — `resolved` → the artifact; `absent` → an explicit
+  one-line "not present" message (exit 0); `error` → a stderr message — while the pre-resolution guards (unknown
+  kind, no resolvable WU context, unresolved identity) each error listing the valid kinds.
+
+    - _Rationale:_ kind discoverability rides teaching outputs (the error paths and `--help`), never the default
+      render; an absent optional artifact is a normal state, not an error; a genuine resolution failure (e.g. an
+      ambiguous or unreadable `session-notes` directory) stays distinct from "absent" so a real error is never
+      masked as "not present."
+    - Build `test-first` (one behavior at a time):
+        - a kind that resolves `absent` (`notes` / `cohort` with none) → one-line "not present" message, exit 0
+        - a `session-notes` resolution failure (ambiguous / unreadable dir) → the `error` path, not "not present"
+        - an unknown kind → error listing the valid kinds
+        - no resolvable WU context (no active meta, or multiple with no unique branch match) + a WU-scoped kind →
+          error listing the valid kinds
+        - no active WU + an identity-global kind (`working-memory`, `inbox`) → still resolves
+        - an identity-global kind with no resolved identity → error listing the valid kinds
+
+### `[ ]` **1.4 Emit resolved content as plain stdout (non-TTY contract and plain fallback)**
+
+- _Goal:_ the resolved artifact's content writes to stdout as plain text with no pager spawn, no ANSI, and no hang
+  under non-TTY — the baseline output path every render mode builds on.
+
+    - Reuse `isNonInteractiveEnvironment` (`src/handlers/shared.ts`) for TTY detection; generalize the
+      plain-vs-decorated routing idiom from `createSyncOutput` (`src/lib/sync-output.ts`) rather than reinventing it.
+    - Build `test-first` (one behavior at a time):
+        - non-TTY invocation writes the plain artifact body with no pager spawn
+        - piped stdin does not hang the invocation (an instance of the uniform non-interactive contract)
+
+## **Phase 2:** Renderer resolution and pager composition
+
+_Purpose:_ Enrich TTY output — detect an available renderer (`glow` → `bat` → plain), invoke it in its
+pager-composing mode (`less -R` for the plain renderer), and honor the user-scoped `arc.viewRenderer` override
+regardless of detection order. Non-TTY keeps the Phase 1 plain path unchanged.
+
+_Design decisions:_ Renderer choice is personal taste, so the override is a two-tier git-config key
+(`arc.viewRenderer`, matching the flat `arc.<camelCase>` idiom) resolved via `resolveGitConfigOverride` — no
+`arc-config.yml` axis; the migration seam to the user-scoped config substrate is recorded, not built. Pager and
+renderer invocation are net-new — no pager or ANSI utility exists in the codebase today.
+
+### `[ ]` **2.1 Detect the renderer by PATH probe with ordered fallback**
+
+- _Goal:_ the viewer selects the first available of `glow` → `bat` → plain by probing PATH, so it works on any
+  machine with the plain fallback always viable.
+
+    - Build `test-first` (one behavior at a time):
+        - `glow` on PATH → `glow` selected
+        - only `bat` on PATH → `bat` selected
+        - neither present → plain selected
+
+### `[ ]` **2.2 Add the `arc.viewRenderer` user-scoped override**
+
+- _Goal:_ `arc.viewRenderer` (`glow` / `bat` / `plain`) selects the renderer explicitly, overriding detection
+  order; an invalid value warns and falls back to detection.
+
+    - Follow the `arc.notesPush` template (`src/lib/config/resolved-settings.ts`) — a two-tier resolver
+      (git-config → default, no yaml key) over `resolveGitConfigOverride`, with a value-set type guard.
+    - Build `test-first` (one behavior at a time):
+        - a valid override selects that renderer regardless of detection order
+        - an invalid override value → warning, then detection-order fallback
+
+### `[ ]` **2.3 Compose the renderer with a pager under TTY**
+
+- _Goal:_ under a TTY the selected renderer streams through a pager (git-idiom handling; `less -R` for the plain
+  renderer), rendering once and exiting; non-TTY bypasses the pager entirely (the Phase 1 plain path).
+
+    - _Note:_ per-renderer invocation fine-tuning (width handling, color behavior under `less -R`, pager-flag
+      interplay) is resolved against the real binaries during implementation, within the render-once-and-exit cap
+      and the degrade posture — never a re-render, watch, or input loop.
+    - Verify through integration (process spawn):
+        - TTY invocation composes the renderer through the pager and renders once
+        - non-TTY invocation spawns no pager
+
+## **Phase 3:** Task-structure context — counter band, region output, and cursor anchoring
+
+_Purpose:_ Layer the `tasks`-specific surfaces onto the render foundation — a checkbox counter parser feeds the
+phase/task/overall band (with a rendered-at timestamp) prepended to the `tasks` render, other kinds carry a
+one-line header, `arc view tasks --current` emits the current-task section as bare plain stdout for `watch` / pipe
+liveness, and pager mode opens at the current task, every anchoring failure degrading rather than erroring.
+
+_Design decisions:_ Counts derive from the same checkbox parse as the existing task-cursor, but the tally parser
+is net-new — `resolveTaskListCursor` (`src/lib/task-list/cursor.ts`) exposes only the first-open position, not
+done/total or phase counts. `--current` and open-at-cursor both key off that cursor. A malformed list renders
+bandless and unanchored (warning on stderr, exit 0) so the viewer can still inspect the file that needs fixing.
+Agent-position anchoring (`session-locus-model`) is a recorded upgrade seam, not a dependency here.
+
+### `[ ]` **3.1 Parse task-list checkbox tallies**
+
+- _Goal:_ a parser derives phase X/N, the current task id, subtask i/n, and overall done/total from a task list's
+  checkboxes — the counts the band renders — sharing the cursor's checkbox-marker grammar rather than a second
+  heuristic.
+
+    - _Note:_ the cursor reuses only cover the marker grammar: `resolveTaskListCursor` tracks no phase identity
+      (a level-2 heading only resets the current task) and exposes neither per-parent subtask index/count nor
+      done/total — its `ParsedTask` / `ParsedSubtask` and full task array are private. Phase X/N and the tallies are
+      additive parsing: either export the cursor's internal parse made phase-aware, or build a phase-aware sibling
+      over the same grammar.
+    - Build `test-first` (one behavior at a time):
+        - overall done/total counted across all phases
+        - current phase index and phase count
+        - the current task's subtask i/n
+        - a malformed task list → the parser signals malformed (no throw)
+
+### `[ ]` **3.2 Render the counter band, one-line header, and rendered-at timestamp**
+
+- _Goal:_ the `tasks` render is prepended with a band —
+  `Phase X/N · Task X.Y (subtask i/n) · done/total overall · rendered HH:MM` — while every other kind carries a
+  one-line `kind · WU · rendered-at` header, both appearing in pager and plain modes.
+
+    - _Note:_ the rendered-at timestamp is the staleness signal — the render is static by design, refreshed by
+      re-invocation, so the timestamp makes staleness visible rather than silent.
+    - Build `test-first` (one behavior at a time):
+        - the `tasks` band formats phase/task/subtask/overall counts plus the timestamp
+        - a non-`tasks` kind formats the one-line `kind · WU · rendered-at` header
+        - the band / header appears in both pager and plain modes
+
+### `[ ]` **3.3 Emit the `--current` region output**
+
+- _Goal:_ `arc view tasks --current` writes the current-task section as bare plain stdout (no band, no pager) that
+  composes under pipes and `watch`; no open task prints an explicit "no open task" line; a malformed list prints
+  an explicit one-line stdout message (warning on stderr, exit 0), never the full document.
+
+    - _Shape:_ "the current-task section" is the current **parent-task** block — from the cursor's section
+      `lineHint` (the `###` parent heading) through the line before the next `###` parent heading or `##` phase
+      heading, whichever comes first. The cursor exposes only a start `lineHint`, so the end boundary is a net-new
+      scan for the next heading; the block, not just the open leaf subtask, is the region.
+    - _Rationale:_ `watch` / pipe consumers expect a bare region — emitting the full document or an empty output on
+      a degrade breaks them, so both degrade cases stay single-line.
+    - Build `test-first` (one behavior at a time):
+        - the current parent-task block is extracted as bare plain stdout (no band), bounded by the next heading
+        - no open task → explicit "no open task" line
+        - a malformed list → one-line stdout message, stderr warning, exit 0 (not the full document)
+
+### `[ ]` **3.4 Open at the current task in pager mode, degrading on failure**
+
+- _Goal:_ pager mode opens at the current task where the renderer/pager combination supports anchoring; a malformed
+  or unanchorable list renders bandless and unanchored with a one-line stderr warning (exit 0) rather than failing.
+
+    - _Note:_ the cursor supplies a source-file line hint — a `less +<line>` jump is direct under `bat` / plain,
+      but `glow` re-renders markdown and does not preserve source lines, so its anchor needs a different mechanism
+      (pattern anchor on the task id, or rendered-line mapping) or the unanchored degrade. Resolved against the
+      real binaries during implementation, within the degrade posture.
+    - Verify (test-first on the degrade selection; integration for the pager open):
+        - a resolvable cursor + an anchor-capable renderer → opens at the current task
+        - a malformed list → bandless, unanchored, one-line stderr warning, exit 0
+        - a markdown re-renderer with no source-line mapping → pattern-anchor or unanchored degrade, never an error
+
+## **Phase 4:** Verification
+
+### `[ ]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+
+---
+
+## Success Criteria
+
+- `[ ]` Bare `arc view` in a WU worktree renders the active task list through the resolved renderer, opened at the
+  current task where the renderer/pager combination supports anchoring (unanchored is a degrade, never an error),
+  and exits — no watch, re-render, or input handling anywhere in the verb
+- `[ ]` Every v1 kind (`tasks`, `spec`, `draft`, `meta`, `notes`, `cohort`, `session-notes`, `working-memory`,
+  `inbox` / `inbox --project`) resolves through the oracle chain with zero path construction in the viewer
+- `[ ]` Under a linked worktree the identity-global kinds (`working-memory`, `inbox`) resolve to the primary
+  checkout while `session-notes` stays worktree-local (per-WU)
+- `[ ]` The identity-global kinds resolve with no active WU; the WU-scoped kinds error, listing the valid kinds
+- `[ ]` `arc view tasks --current` emits the current-task section as bare plain stdout that composes under pipes
+  and `watch`; with no open task it prints an explicit "no open task" line
+- `[ ]` The `tasks` render carries the phase/task/overall counter band with a rendered-at timestamp in both pager
+  and plain modes; every other kind carries the one-line header
+- `[ ]` Non-TTY invocation produces plain stdout with no pager spawn and no hang
+- `[ ]` A malformed task list renders bandless and unanchored with a one-line stderr warning (exit 0); an absent
+  optional artifact (`notes`, `cohort`) yields its explicit one-line message
+- `[ ]` Unknown-kind errors list the valid kinds
+- `[ ]` The user-scoped renderer override (`arc.viewRenderer`) selects the renderer regardless of detection order
+- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[ ]` Ready for integration

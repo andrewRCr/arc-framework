@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-arc-view.md`
-- **Task List:** [none]
+- **Task List:** `tasks-arc-view.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** Spec finalized at create-spec (2026-07-18) — `spec-arc-view.md` at outline form,
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

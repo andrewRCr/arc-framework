@@ -26,7 +26,10 @@ card) carries status/HUD semantics and lives in `status-hud`.
 1. **Oracle-resolved, never raw paths.** Every path the viewer touches comes from the resolver layer — the same
    status-oracle chain session-init's load set consumes (active-meta resolution → artifact paths, including
    multiple-candidate handling, identity scoping, and primary-vs-linked worktree resolution) — with zero path
-   construction in the viewer. Read-side only: no writes, no notes-specific machinery. Kinds are semantic, not
+   construction in the viewer. When more than one work unit is active (parallel worktrees), the viewer picks the
+   current worktree's unit by branch match — deterministic, never interactive disambiguation — falling to the
+   no-resolvable-WU error (Decision 2) when no unique match exists. Read-side only: no writes, no notes-specific
+   machinery. Kinds are semantic, not
    filenames, so artifact re-homes and renames (including the storage-substrate migration) land with zero CLI
    contract change.
 
@@ -110,6 +113,12 @@ card) carries status/HUD semantics and lives in `status-hud`.
 - **Sequencing:** `status-hud` shares this WU's oracle resolution, checkbox parse, and renderer infrastructure;
   the `--current` region output doubles as its interim liveness bridge and generates the v1 usage evidence its
   sequencing waits on.
+- **Storage-substrate assumptions (forward-compat).** Read-only and oracle-resolved, so re-homes and renames stay
+  invisible (Decision 1). Two assumptions ride the materialized-substrate target and are the storage work's to
+  preserve: (1) artifacts materialize as renderable markdown at resolvable paths — the kind→path indirection covers
+  location, not a shift to a non-materialized structured record; (2) worktree→active-WU selection uses branch match
+  (session-init's existing convention), kept in the shared resolver so a substrate resolving that association
+  differently is a single-site swap.
 
 ### Coordination seams
 
