@@ -1,0 +1,355 @@
+{
+  "version": 1,
+  "corpus": {
+    "packageRoot": "packages/arc-framework",
+    "installedDelta": [
+      ".arc/backlog/ATOMIC-INBOX.md",
+      ".arc/backlog/ROADMAP.md",
+      ".arc/reference/PROJECT-PRD.md",
+      ".arc/reference/QUICK-REFERENCE.md",
+      ".arc/reference/TECHNICAL-OVERVIEW.md",
+      ".arc/reference/briefs/AGENT-BRIEF.PROJECT.md",
+      ".arc/reference/strategies/STRATEGY-INDEX.md",
+      ".arc/system/arc-config.yml",
+      ".arc/system/extensions/post-pr-open.md",
+      ".arc/system/extensions/pre-merge.md",
+      ".arc/system/extensions/pre-pr-open.md",
+      ".arc/system/methods/testing-standards.md",
+      ".arc/system/rules/DEV-RULES.PROJECT.md",
+      ".arc/system/workflows/arc/initial-setup/02_define-project.md",
+      ".arc/system/workflows/arc/session-lifecycle/session-init.md"
+    ],
+    "repoRootDelta": [
+      ".coderabbit.yaml",
+      ".editorconfig",
+      ".gitattributes",
+      ".github/CODEOWNERS",
+      ".github/review-gate-attestation.md",
+      ".github/review-gate-repair-rehearsal.json",
+      ".github/review-gate.md",
+      ".github/workflows/ci.yml",
+      ".github/workflows/docs.yml",
+      ".github/workflows/review-gate-attest.yml",
+      ".github/workflows/review-gate-qualify.yml",
+      ".github/workflows/review-gate-repair.yml",
+      ".github/workflows/review-gate-wakeup.yml",
+      ".github/workflows/review-gate.yml",
+      ".gitignore",
+      ".husky/commit-msg",
+      ".husky/pre-commit",
+      ".husky/pre-push",
+      ".markdownlint-cli2.jsonc",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "mkdocs.yml",
+      "package-lock.json",
+      "package.json",
+      "scripts/check-package-sync.sh",
+      "scripts/check-ts-quality.sh",
+      "scripts/classify-change.sh",
+      "scripts/worktree-post-create.sh"
+    ],
+    "excluded": [
+      { "path": "CONTRIBUTING.md", "reason": "Public project prose, not self-hosting tooling." },
+      { "path": "LICENSE", "reason": "Legal material outside the coupling-audit tooling boundary." },
+      { "path": "README.md", "reason": "Public project prose; shipped package prose is authoritative." }
+    ]
+  },
+  "classes": [
+    {
+      "id": "arc-root",
+      "key": { "kind": "name", "value": ".arc/ storage root" },
+      "patterns": [{ "id": "arc-root-literal", "form": "literal", "value": ".arc/", "caseSensitive": true }],
+      "citations": [{ "path": "strategy-storage-evolution.md", "anchor": "Forward-Compat Principles § 1", "workUnit": "arc-backend" }],
+      "idioms": ["path-literal", "git-tracked-path"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "active-placement",
+      "key": { "kind": "name", "value": "active/ placement" },
+      "patterns": [{ "id": "active-literal", "form": "literal", "value": "active/", "caseSensitive": true }],
+      "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
+      "idioms": ["path-literal", "directory-state", "git-tracked-path"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "planned-placement",
+      "key": { "kind": "name", "value": "backlog/planned/ placement" },
+      "patterns": [{ "id": "planned-literal", "form": "literal", "value": "backlog/planned/", "caseSensitive": true }],
+      "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
+      "idioms": ["path-literal", "directory-state", "git-tracked-path"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "provisional-placement",
+      "key": { "kind": "name", "value": "backlog/provisional/ placement" },
+      "patterns": [{ "id": "provisional-literal", "form": "literal", "value": "backlog/provisional/", "caseSensitive": true }],
+      "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
+      "idioms": ["path-literal", "directory-state", "git-tracked-path"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "completed-placement",
+      "key": { "kind": "name", "value": "completed/ placement" },
+      "patterns": [{ "id": "completed-literal", "form": "literal", "value": "completed/", "caseSensitive": true }],
+      "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
+      "idioms": ["path-literal", "directory-state", "git-tracked-path"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "meta-prefix",
+      "key": { "kind": "name", "value": "meta- artifact prefix" },
+      "patterns": [{ "id": "meta-prefix-literal", "form": "literal", "value": "meta-", "caseSensitive": true }],
+      "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
+      "idioms": ["filename-prefix", "directory-state", "path-literal"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "tasks-prefix",
+      "key": { "kind": "name", "value": "tasks- artifact prefix" },
+      "patterns": [{ "id": "tasks-prefix-literal", "form": "literal", "value": "tasks-", "caseSensitive": true }],
+      "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
+      "idioms": ["filename-prefix", "directory-state", "path-literal"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "draft-prefix",
+      "key": { "kind": "name", "value": "draft- artifact prefix" },
+      "patterns": [{ "id": "draft-prefix-literal", "form": "literal", "value": "draft-", "caseSensitive": true }],
+      "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
+      "idioms": ["filename-prefix", "path-literal"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "spec-prefix",
+      "key": { "kind": "name", "value": "spec- artifact prefix" },
+      "patterns": [{ "id": "spec-prefix-literal", "form": "literal", "value": "spec-", "caseSensitive": true }],
+      "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
+      "idioms": ["filename-prefix", "path-literal"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "notes-prefix",
+      "key": { "kind": "name", "value": "notes- artifact prefix" },
+      "patterns": [{ "id": "notes-prefix-literal", "form": "literal", "value": "notes-", "caseSensitive": true }],
+      "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
+      "idioms": ["filename-prefix", "path-literal"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "roadmap-name",
+      "key": { "kind": "name", "value": "ROADMAP.md project-readiness name" },
+      "patterns": [{ "id": "roadmap-literal", "form": "literal", "value": "ROADMAP.md", "caseSensitive": true }],
+      "citations": [{ "path": "draft-roadmap-tooling.md", "anchor": "ROADMAP to STATUS.PROJECT rename", "workUnit": "roadmap-tooling" }],
+      "idioms": ["doc-name", "path-literal", "git-tracked-path"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "atomic-inbox-name",
+      "key": { "kind": "name", "value": "ATOMIC-INBOX.md shared inbox name" },
+      "patterns": [{ "id": "atomic-inbox-literal", "form": "literal", "value": "ATOMIC-INBOX.md", "caseSensitive": true }],
+      "citations": [{ "path": "draft-naming-conventions.md", "anchor": "Renames", "workUnit": "naming-conventions" }],
+      "idioms": ["doc-name", "path-literal", "git-tracked-path"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "user-inbox-name",
+      "key": { "kind": "name", "value": "USER-INBOX.md personal capture name" },
+      "patterns": [{ "id": "user-inbox-literal", "form": "literal", "value": "USER-INBOX.md", "caseSensitive": true }],
+      "citations": [{ "path": "draft-naming-conventions.md", "anchor": "Renames", "workUnit": "naming-conventions" }],
+      "idioms": ["doc-name", "path-literal"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "session-notes-name",
+      "key": { "kind": "name", "value": "SESSION-NOTES.md personal session record" },
+      "patterns": [{ "id": "session-notes-literal", "form": "literal", "value": "SESSION-NOTES.md", "caseSensitive": true }],
+      "citations": [{ "path": "draft-naming-conventions.md", "anchor": "Renames", "workUnit": "naming-conventions" }],
+      "idioms": ["doc-name", "path-literal"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "working-memory-name",
+      "key": { "kind": "name", "value": "WORKING-MEMORY.md cross-WU memory record" },
+      "patterns": [{ "id": "working-memory-literal", "form": "literal", "value": "WORKING-MEMORY.md", "caseSensitive": true }],
+      "citations": [{ "path": "draft-naming-conventions.md", "anchor": "Renames", "workUnit": "naming-conventions" }],
+      "idioms": ["doc-name", "path-literal"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "typed-branch-prefixes",
+      "key": { "kind": "name", "value": "typed work/errand branch prefixes" },
+      "patterns": [{ "id": "typed-branch-regex", "form": "regex", "value": "(?:feat|fix|chore|plan)/", "flags": "u" }],
+      "citations": [{ "path": "strategy-storage-evolution.md", "anchor": "Forward-Compat Principles § 5", "workUnit": "arc-backend" }],
+      "idioms": ["branch-pattern"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "pm-mode-key",
+      "key": { "kind": "name", "value": "pm.mode configuration key" },
+      "patterns": [{ "id": "pm-mode-literal", "form": "literal", "value": "pm.mode", "caseSensitive": true }],
+      "citations": [{ "path": "draft-arcd-rebrand.md", "anchor": "Layer 1 — Structural renames", "workUnit": "arcd-rebrand" }],
+      "idioms": ["config-key"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "team-mode-key",
+      "key": { "kind": "name", "value": "team.mode configuration key" },
+      "patterns": [{ "id": "team-mode-literal", "form": "literal", "value": "team.mode", "caseSensitive": true }],
+      "citations": [{ "path": "draft-local-mode.md", "anchor": "Team mode and the substrate", "workUnit": "local-mode" }],
+      "idioms": ["config-key"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "strategy-family",
+      "key": { "kind": "name", "value": "strategy- document family" },
+      "patterns": [{ "id": "strategy-prefix-literal", "form": "literal", "value": "strategy-", "caseSensitive": true }],
+      "citations": [{ "path": "draft-knowledge-architecture.md", "anchor": "The four-kind verdict and Naming", "workUnit": "knowledge-architecture" }],
+      "idioms": ["filename-prefix", "doc-name"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "strategy-index-name",
+      "key": { "kind": "name", "value": "STRATEGY-INDEX.md trigger index" },
+      "patterns": [{ "id": "strategy-index-literal", "form": "literal", "value": "STRATEGY-INDEX.md", "caseSensitive": true }],
+      "citations": [{ "path": "draft-knowledge-architecture.md", "anchor": "Architecture § Access paths are derived", "workUnit": "knowledge-architecture" }],
+      "idioms": ["doc-name", "path-literal"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "workflow-root",
+      "key": { "kind": "name", "value": "system/workflows/ procedure root" },
+      "patterns": [{ "id": "workflow-root-literal", "form": "literal", "value": "system/workflows/", "caseSensitive": true }],
+      "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D2 — Decomposed-workflow layout", "workUnit": "composable-workflows" }],
+      "idioms": ["path-literal", "directory-state"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "method-root",
+      "key": { "kind": "name", "value": "system/methods/ method root" },
+      "patterns": [{ "id": "method-root-literal", "form": "literal", "value": "system/methods/", "caseSensitive": true }],
+      "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D2 — The fragment substrate", "workUnit": "composable-workflows" }],
+      "idioms": ["path-literal", "directory-state"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "extension-root",
+      "key": { "kind": "name", "value": "system/extensions/ extension root" },
+      "patterns": [{ "id": "extension-root-literal", "form": "literal", "value": "system/extensions/", "caseSensitive": true }],
+      "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D1 — The workflow contract shape", "workUnit": "composable-workflows" }],
+      "idioms": ["path-literal", "directory-state"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "internal-skill-root",
+      "key": { "kind": "name", "value": "system/.internal/skills/ generated skill root" },
+      "patterns": [{ "id": "internal-skill-root-literal", "form": "literal", "value": "system/.internal/skills/", "caseSensitive": true }],
+      "citations": [{ "path": "strategy-knowledge-evolution.md", "anchor": "Target Model and access paths", "workUnit": "knowledge-architecture" }],
+      "idioms": ["path-literal", "directory-state"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "arc-methods-key",
+      "key": { "kind": "name", "value": "arc.methods declaration key" },
+      "patterns": [{ "id": "arc-methods-literal", "form": "literal", "value": "arc.methods", "caseSensitive": true }],
+      "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D1 — Frontmatter is the contract", "workUnit": "composable-workflows" }],
+      "idioms": ["config-key"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "arc-extensions-key",
+      "key": { "kind": "name", "value": "arc.extensions declaration key" },
+      "patterns": [{ "id": "arc-extensions-literal", "form": "literal", "value": "arc.extensions", "caseSensitive": true }],
+      "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D1 — Frontmatter is the contract", "workUnit": "composable-workflows" }],
+      "idioms": ["config-key"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "load-set-name",
+      "key": { "kind": "name", "value": "loadSet envelope slot" },
+      "patterns": [{ "id": "load-set-regex", "form": "regex", "value": "(?:loadSet|load-set)", "flags": "u" }],
+      "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D3 — The session-agenda compiler", "workUnit": "composable-workflows" }],
+      "idioms": ["config-key", "doc-name"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "recommended-text-family",
+      "key": { "kind": "name", "value": "recommended*Text envelope fields" },
+      "patterns": [{ "id": "recommended-text-regex", "form": "regex", "value": "recommended[A-Z][A-Za-z]*(?:Text|Prompt)", "flags": "u" }],
+      "citations": [{ "path": "strategy-procedure-evolution.md", "anchor": "Forward-Compat Principles § 6", "workUnit": "composable-workflows" }],
+      "idioms": ["config-key"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "template-suffix",
+      "key": { "kind": "name", "value": ".template filename marker" },
+      "patterns": [{ "id": "template-suffix-literal", "form": "literal", "value": ".template", "caseSensitive": true }],
+      "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D3 — Binding-time rule", "workUnit": "composable-workflows" }],
+      "idioms": ["filename-prefix", "path-literal"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "domain-rules-name",
+      "key": { "kind": "name", "value": "DEV-RULES domain-rule family" },
+      "patterns": [{ "id": "dev-rules-regex", "form": "regex", "value": "DEV-RULES\\.[A-Z.-]+\\.md", "flags": "u" }],
+      "citations": [{ "path": "draft-rules-restructure.md", "anchor": "Scope", "workUnit": "rules-restructure" }],
+      "idioms": ["doc-name", "filename-prefix"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    },
+    {
+      "id": "tracked-planning-git-operations",
+      "key": { "kind": "idiom", "value": "git operations over tracked planning paths" },
+      "patterns": [{ "id": "git-planning-regex", "form": "regex", "value": "git (?:add|diff|log|mv|rm|show)[^\\n]*(?:\\.arc/|active/|backlog/|completed/)", "flags": "u" }],
+      "citations": [{ "path": "strategy-storage-evolution.md", "anchor": "Forward-Compat Principles § 1", "workUnit": "cli-substrate-adoption" }],
+      "idioms": ["git-tracked-path"],
+      "volatility": { "rating": "unresolved", "evidence": null }
+    }
+  ],
+  "catchAllVectors": [
+    {
+      "id": "path-shaped-token",
+      "idiom": "path-literal",
+      "patterns": [{ "id": "path-token-regex", "form": "regex", "value": "[A-Za-z0-9_.-]+(?:[/\\\\][A-Za-z0-9_.{}$-]+)+", "flags": "u" }],
+      "surfaceKinds": ["test", "workflow", "template", "code", "prose", "config"]
+    },
+    {
+      "id": "directory-state-call",
+      "idiom": "directory-state",
+      "patterns": [{ "id": "directory-call-regex", "form": "regex", "value": "(?:readdir|readdirSync|existsSync|access|stat)\\s*\\([^\\n)]{1,160}", "flags": "u" }],
+      "surfaceKinds": ["test", "code"]
+    },
+    {
+      "id": "git-path-call",
+      "idiom": "git-tracked-path",
+      "patterns": [{ "id": "git-call-regex", "form": "regex", "value": "(?:git|execFile|exec)[^\\n]{0,160}(?:add|diff|log|mv|rm|show)[^\\n]{0,160}", "flags": "u" }],
+      "surfaceKinds": ["test", "workflow", "code", "prose"]
+    },
+    {
+      "id": "prefix-operation",
+      "idiom": "filename-prefix",
+      "patterns": [{ "id": "prefix-call-regex", "form": "regex", "value": "(?:startsWith|endsWith|slice|replace|match)\\s*\\([^\\n)]{1,120}", "flags": "u" }],
+      "surfaceKinds": ["test", "code"]
+    },
+    {
+      "id": "branch-shape-token",
+      "idiom": "branch-pattern",
+      "patterns": [{ "id": "branch-token-regex", "form": "regex", "value": "[a-z][a-z0-9-]*/[A-Za-z0-9_.{}$-]+", "flags": "u" }],
+      "surfaceKinds": ["test", "workflow", "template", "code", "prose", "config"]
+    },
+    {
+      "id": "dotted-config-token",
+      "idiom": "config-key",
+      "patterns": [{ "id": "config-token-regex", "form": "regex", "value": "[a-z][a-z0-9_-]*(?:\\.[a-z][a-z0-9_-]*)+", "flags": "u" }],
+      "surfaceKinds": ["test", "workflow", "template", "code", "prose", "config"]
+    },
+    {
+      "id": "markdown-doc-token",
+      "idiom": "doc-name",
+      "patterns": [{ "id": "doc-token-regex", "form": "regex", "value": "[A-Za-z][A-Za-z0-9.-]+\\.md", "flags": "u" }],
+      "surfaceKinds": ["test", "workflow", "template", "code", "prose", "config"]
+    }
+  ],
+  "dispositions": { "exact": [], "bulk": [] },
+  "thresholds": { "test": 1, "workflow": 1, "template": 1, "code": 1, "prose": 1, "config": 1 },
+  "sampleCaps": { "codePerClass": 1, "residueTotal": 1 }
+}

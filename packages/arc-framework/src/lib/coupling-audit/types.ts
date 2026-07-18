@@ -39,6 +39,7 @@ export interface AuditPattern {
 export interface SourceCitation {
   path: string;
   anchor: string;
+  workUnit: string;
 }
 
 /** One volatile-name or standalone-idiom assumption class. */

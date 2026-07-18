@@ -136,3 +136,32 @@ writes the explicitly requested Markdown projection.
   artifact-specific collection ordering runs before serialization, and persisted output adds one trailing newline.
   Exit `2` means malformed input, `3` stale bulk membership, and `4` scan/I/O failure; successful residue-bearing
   output remains exit `0`.
+
+## Pattern derivation
+
+The name layer was derived from the storage, knowledge, and procedure target-shape records named by Task 2.1, then
+augmented by a recorded tracked-text query over planned/provisional drafts and project strategies for `→`, `rename`,
+`renamed`, `relocat`, `becomes`, and `supersed`. The broad query produced 808 candidate lines; focused inspection
+confirmed live rename movers for `ROADMAP.md`, the personal/project state-document names, `team.mode`, `pm.mode`, the
+`strategy-` family, and domain-rule naming. `npx arc status --project` plus slug probes verified every manifest
+citation's mover is planned/provisional and both hard consumers remain blocked on this audit.
+
+The populated v1 manifest contains 30 name-keyed classes, one standalone idiom class, and seven catch-all vectors.
+Current shipped spellings are the scan patterns; target spellings appear only through source/mover citations. Alias
+grouping is name-keyed (`feat|fix|chore|plan` is one typed-branch family; `loadSet|load-set` is one load-set family),
+while independently moving state-document names stay separate.
+
+Behavioral fixture tokens for Task 3.2.c are:
+
+| Idiom | Unknown-name fixture |
+| --- | --- |
+| `path-literal` | `mystery/state-ledger.json` |
+| `directory-state` | `readdir("mystery-state")` |
+| `git-tracked-path` | `git log mystery/state-ledger.json` |
+| `filename-prefix` | `name.startsWith("mystery-")` |
+| `branch-pattern` | `mystery/{slug}` |
+| `config-key` | `mystery.storage_root` |
+| `doc-name` | `MYSTERY-STATE.md` |
+
+Catch-all precision is deliberately deferred to recorded residue dispositions. Presence validation already requires
+all seven mechanisms, source/mover-complete name classes, non-empty patterns, and non-empty-string regexes.

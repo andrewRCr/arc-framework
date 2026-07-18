@@ -65,7 +65,7 @@ _Purpose:_ Freeze the explicit corpus boundary and durable artifact contracts th
 _Purpose:_ Derive the volatile-name and coupling-idiom inventory before scanning so coverage is inspectable and
 source-grounded.
 
-### `[ ]` **2.1 Derive the name layer from target-shape records and the live roster**
+### `[x]` **2.1 Derive the name layer from target-shape records and the live roster**
 
 - _Goal:_ Every concrete name or layout the recorded target direction can move appears in one normalized assumption
   class with evidence naming the source and responsible mover.
@@ -76,76 +76,57 @@ source-grounded.
   `draft-knowledge-architecture.md` §§ Architecture and Naming; `draft-composable-workflows.md` §§ D1-D3;
   `ROADMAP.md` as a concrete-name source. Resolve the live roster with `npx arc status --project`.
 
-    - `[ ]` **2.1.a Extract storage and lifecycle names**
-        - Derive current directory placements, artifact prefixes, tracked-path assumptions, branch shapes, roadmap
-          names, state encodings, and git-backed layout names that the storage and lifecycle targets would move.
-        - Cite the precise strategy/draft section and mover work unit on every resulting class; keep citations in
-          the manifest data rather than hardcoding planning-document paths into TypeScript or tests.
+    - `[x]` **2.1.a Extract storage and lifecycle names**
+        - Encoded current storage roots, placements, artifact prefixes, state-document names, typed branches, and
+          config keys with precise target-shape anchors and live mover slugs.
 
-    - `[ ]` **2.1.b Extract knowledge and procedure names**
-        - Derive document-family names, index/reference names, workflow/method/extension layout assumptions, load-set
-          and fragment vocabulary, and other concrete identifiers the knowledge/procedure target shapes displace.
-        - Separate current shipped names from proposed target names so the audit searches actual coupling sites and
-          uses the target only as volatility evidence.
+    - `[x]` **2.1.b Extract knowledge and procedure names**
+        - Encoded current strategy/index, workflow/method/extension, skill, declaration-key, load-set, emitted-text,
+          template, and domain-rule spellings; proposed target names remain citation-only evidence.
 
-    - `[ ]` **2.1.c Mechanically seed pending renames and resolve their live movers**
-        - Run broad, recorded text queries over tracked planned/provisional artifacts and project strategies for
-          rename arrows, rename/relocation language, `becomes`, and supersession signals; inspect only the candidate
-          hits rather than reading the planning corpus judgment-first.
-        - Resolve roster state with `npx arc status --project` and verify each candidate mover by slug with
-          `npx arc status <slug>`; use the shipped/current spelling as the searched assumption, including but not
-          limited to `ROADMAP` and `team.mode`.
-        - Record the discovery vectors so the name-layer derivation is reproducible, then deduplicate discoveries
-          already owned by a target-shape source while preserving every relevant mover citation.
+    - `[x]` **2.1.c Mechanically seed pending renames and resolve their live movers**
+        - Recorded a six-vector tracked-text query, inspected its focused rename candidates, and verified all cited
+          movers by slug against the live roster, including provisional `arcd-rebrand`.
 
-    - `[ ]` **2.1.d Normalize aliases into name-keyed assumption classes**
-        - Group spelling variants and path forms that represent one volatile assumption, while keeping independent
-          names separate when their fan-out or mover differs.
-        - Give each class stable IDs, literal/regex patterns, provenance, and an initially unresolved volatility
-          field for Phase 5 rather than rating individual hits.
+    - `[x]` **2.1.d Normalize aliases into name-keyed assumption classes**
+        - Produced 30 stable name-keyed classes with deterministic literal/regex aliases, source/mover provenance,
+          and intentionally unresolved class-level volatility.
 
-### `[ ]` **2.2 Encode the idiom layer and standalone coupling classes**
+### `[x]` **2.2 Encode the idiom layer and standalone coupling classes**
 
 - _Goal:_ Every known mechanism by which code or prose can depend on a concrete name is represented independently
   of whether the name layer anticipated the token.
 
-    - `[ ]` **2.2.a Encode code coupling mechanisms**
-        - Cover path literals and joins, directory enumeration/existence checks, git invocations over tracked paths,
-          filename-prefix parsing, branch-pattern matching, and configuration-key literals.
-        - Record the matched idiom as a per-hit tag; avoid treating a call-site form as evidence that every argument
-          is coupling until the manifest or residue disposition classifies it.
+    - `[x]` **2.2.a Encode code coupling mechanisms**
+        - Added closed idioms and broad code vectors for path, directory-state, tracked-git, prefix, branch, and
+          config-key mechanisms without pre-classifying vector candidates.
 
-    - `[ ]` **2.2.b Encode shipped-prose coupling mechanisms**
-        - Cover path-like tokens, backticked filenames/config keys, branch/name examples, and workflow/template prose
-          whose concrete spelling must change when the underlying contract moves.
-        - Preserve file-path-derived surface classification so prose membership stays mechanical even though later
-          ranking weights it below code reads.
+    - `[x]` **2.2.b Encode shipped-prose coupling mechanisms**
+        - Extended path, branch, config, and document-name vectors across workflow/template/prose surfaces while
+          preserving mechanical file-path classification.
 
-    - `[ ]` **2.2.c Define idiom-keyed classes for couplings with no owning name**
-        - Represent mechanisms such as git operations on tracked planning paths when no single volatile token owns
-          the dependency; keep their provenance, volatility, and quadrant fields identical to name-keyed classes.
+    - `[x]` **2.2.c Define idiom-keyed classes for couplings with no owning name**
+        - Added a standalone tracked-planning-git class with the same provenance and volatility contract as name
+          classes.
 
-### `[ ]` **2.3 Define catch-all capture vectors and manifest validation**
+### `[x]` **2.3 Define catch-all capture vectors and manifest validation**
 
 - _Goal:_ An unknown volatile name expressed through any known idiom still reaches residue instead of disappearing
   outside the authored name list.
 
-    - `[ ]` **2.3.a Author one or more broad vectors per code idiom**
-        - Capture relevant `readdir`/existence/path-join arguments, git command arguments, prefix-fragment families,
-          branch-pattern construction, and config-key access without narrowing to known names.
-        - Keep capture deliberately broad; precision comes from class matching and residue disposition, not from
-          hiding ambiguous candidates at collection time.
+    - `[x]` **2.3.a Author one or more broad vectors per code idiom**
+        - Authored broad, non-empty-string vectors for all six code-side mechanisms, leaving precision to exact
+          coverage and recorded residue dispositions.
 
-    - `[ ]` **2.3.b Author broad vectors for shipped prose**
-        - Capture path-shaped and backticked tokens across workflows, strategies, methods, rules, and templates so
-          prose-only unknown names enter the same residue process.
+    - `[x]` **2.3.b Author broad vectors for shipped prose**
+        - Covered path-shaped, branch-shaped, dotted-key, and document tokens across shipped prose families.
 
-    - `[ ]` **2.3.c Validate the populated manifest against the Phase 1 contract**
-        - Run the generic manifest validator and confirm every closed idiom mechanism has at least one catch-all
-          vector, every name class has a pattern/citation, standalone idiom classes explain their ownership, and
-          overlapping aliases remain deterministic.
-        - Record one unknown-name fixture case per idiom mechanism for Task 3.2.c, so declared vector coverage is
-          later proved behaviorally rather than accepted from manifest presence alone.
+    - `[x]` **2.3.c Validate the populated manifest against the Phase 1 contract**
+        - Validated the populated v1 manifest, strengthened citations to require mover slugs, and recorded one
+          unknown-name behavioral fixture per closed idiom for the scanner matrix.
+
+- _Outcome:_ The checked-in manifest now carries both derivation layers: 31 source-grounded classes and seven broad
+  catch-all vectors over the exact Phase 1 corpus, with every mover verified against the live roster.
 
 ## **Phase 3:** Deterministic enumeration engine
 

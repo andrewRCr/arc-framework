@@ -22,7 +22,7 @@ function validManifest(): Record<string, unknown> {
         id: "active-placement",
         key: { kind: "name", value: "active/ placement" },
         patterns: [{ id: "active-path", form: "literal", value: "active/", caseSensitive: true }],
-        citations: [{ path: "draft-arc-backend.md", anchor: "Placement" }],
+        citations: [{ path: "draft-arc-backend.md", anchor: "Placement", workUnit: "arc-backend" }],
         idioms: ["path-literal", "directory-state"],
         volatility: {
           rating: "high",
@@ -126,6 +126,14 @@ describe("parseCouplingManifest", () => {
       (manifest: Record<string, unknown>) => {
         const classes = manifest.classes as Record<string, unknown>[];
         classes[0]!.citations = [];
+      },
+    ],
+    [
+      "incomplete name citation",
+      (manifest: Record<string, unknown>) => {
+        const classes = manifest.classes as Record<string, unknown>[];
+        const citations = classes[0]!.citations as Record<string, unknown>[];
+        delete citations[0]!.workUnit;
       },
     ],
     [

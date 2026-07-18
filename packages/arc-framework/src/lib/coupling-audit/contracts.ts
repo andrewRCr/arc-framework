@@ -186,6 +186,7 @@ function validateClass(value: unknown, index: number): void {
     const citation = record(entry, `${path}.citations[${citationIndex}]`);
     nonEmptyString(citation.path, `${path}.citations[${citationIndex}].path`);
     nonEmptyString(citation.anchor, `${path}.citations[${citationIndex}].anchor`);
+    nonEmptyString(citation.workUnit, `${path}.citations[${citationIndex}].workUnit`);
   });
   if (kind === "name" && citations.length === 0) fail(`${path}.citations`, "name-keyed classes require a citation");
   const idioms = stringArray(assumption.idioms, `${path}.idioms`);
