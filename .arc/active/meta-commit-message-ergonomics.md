@@ -12,11 +12,11 @@
 - **Task List:** `tasks-commit-message-ergonomics.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Extend assembleCommitMessageParagraphs with width-parameterized wrapping
+- **Last Completed:** Task 2.2 — Route the wrapped `messages` transport through a message snapshot (Phase 2 complete)
+- **Next Task:** Task 3.1 — Add `hasEffectiveHook(name)` with per-manager effective-hook rules (line ~130)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 (Phase 1 — deterministic body-wrapping engine)
+- **Next Action:** Begin Task 3.1 (Phase 3 — effective-hook detection via the manager abstraction)
 
 - **PR URL:** [none]
 - **Completed:** [none]
