@@ -202,9 +202,15 @@ export async function countAheadBehindRef(
     "--count",
     `${localRef}...${remoteRef}`,
   ]);
-  const [aheadStr = "0", behindStr = "0"] = stdout.trim().split(/\s+/u);
-  const ahead = Number.parseInt(aheadStr, 10) || 0;
-  const behind = Number.parseInt(behindStr, 10) || 0;
+  const match = /^(0|[1-9]\d*)[\t ]+(0|[1-9]\d*)\r?\n?$/u.exec(stdout);
+  if (match === null) {
+    throw new Error("Malformed git rev-list --count output.");
+  }
+  const ahead = Number(match[1]);
+  const behind = Number(match[2]);
+  if (!Number.isSafeInteger(ahead) || !Number.isSafeInteger(behind)) {
+    throw new Error("Git rev-list --count output exceeds the safe integer range.");
+  }
   return { ahead, behind, state: classifyState({ ahead, behind }) };
 }
 

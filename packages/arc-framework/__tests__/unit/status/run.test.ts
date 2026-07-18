@@ -190,7 +190,17 @@ function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): Worktr
 function baseDistance(
   overrides: Partial<BaseDistanceStatusResult> = {},
 ): BaseDistanceStatusResult {
-  return { state: "clean", ahead: 0, behind: 0, base: "main", overlappingPaths: [], ...overrides };
+  return {
+    mode: "advisory", verdict: "clean", state: "clean", ahead: 0, behind: 0,
+    base: "main", baseOid: "a".repeat(40),
+    integrationEvidence: {
+      coverage: "complete", scannedCommitCount: 0, events: [],
+      unclassifiedCommitCount: 0, truncated: false, limitations: [],
+    },
+    overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+    register: null,
+    ...overrides,
+  };
 }
 
 function baseBranchSync(
@@ -1240,7 +1250,13 @@ describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
 describe("runSessionInitStatus — base-distance slot", () => {
   it("assembles the slot with the behind-base distance when the base has advanced", async () => {
     const probes = sessionInitProbes({
-      baseDistance: vi.fn(async () => baseDistance({ state: "remote-ahead", ahead: 0, behind: 5 })),
+      baseDistance: vi.fn(async () => baseDistance({
+        verdict: "reconcile",
+        state: "remote-ahead",
+        ahead: 0,
+        behind: 5,
+        register: { kind: "calm", text: "Analyzer register text." },
+      })),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.baseDistance).toHaveBeenCalledTimes(1);
@@ -1251,7 +1267,7 @@ describe("runSessionInitStatus — base-distance slot", () => {
       expect(result.baseDistance.value.base).toBe("main");
       // Behind-base drift surfaces an advisory reconcile offer (never gates).
       expect(result.baseDistance.value.recommendedAction).toBe("surface");
-      expect(result.baseDistance.value.recommendedPromptText).toContain("advanced 5 commit(s)");
+      expect(result.baseDistance.value.recommendedPromptText).toBe("Analyzer register text.");
     }
   });
 
@@ -1269,7 +1285,7 @@ describe("runSessionInitStatus — base-distance slot", () => {
 
   it("carries a degraded no-remote slot through to the envelope", async () => {
     const probes = sessionInitProbes({
-      baseDistance: vi.fn(async () => baseDistance({ state: "no-remote" })),
+      baseDistance: vi.fn(async () => baseDistance({ verdict: "unavailable", state: "no-remote" })),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.baseDistance.ok).toBe(true);
@@ -1280,7 +1296,9 @@ describe("runSessionInitStatus — base-distance slot", () => {
 
   it("carries a degraded detached-head slot (null base) through to the envelope", async () => {
     const probes = sessionInitProbes({
-      baseDistance: vi.fn(async () => baseDistance({ state: "detached-head", base: null })),
+      baseDistance: vi.fn(async () => baseDistance({
+        verdict: "unavailable", state: "detached-head", base: null,
+      })),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(result.baseDistance.ok).toBe(true);

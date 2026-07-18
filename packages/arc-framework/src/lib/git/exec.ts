@@ -150,6 +150,31 @@ export async function boundedFetch(
 }
 
 /**
+ * Run an arbitrary argument-array Git invocation under the standard fetch
+ * timeout. This is used when a caller must own the complete fetch refspec
+ * rather than update a conventional remote-tracking ref.
+ */
+export async function boundedGitInvocation(
+  exec: GitExec,
+  args: string[],
+  timeoutMs: number,
+): Promise<BoundedFetchResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+  try {
+    await exec("git", args, { signal: controller.signal });
+    return { outcome: "ok" };
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") return { outcome: "timeout" };
+    return { outcome: "error", error: err };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Whether an `origin` remote is configured (`git remote get-url origin`).
  *
  * @param exec - Injectable command executor

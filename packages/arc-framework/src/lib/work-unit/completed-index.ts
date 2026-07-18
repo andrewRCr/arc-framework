@@ -25,6 +25,7 @@
 
 import { join } from "node:path";
 
+import { parseMetaRecord } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 
 /** Filesystem adapter — injected for unit testability; production binds `node:fs/promises`. */
@@ -44,7 +45,20 @@ export interface ShippedWorkUnitRecord {
   slug: string;
   /** Completion date from `meta-<slug>.md`, or null when absent/unparseable. */
   completedAt: string | null;
+  /** Parsed pull-request URL, or null when absent or malformed. */
+  prUrl: string | null;
+  /** Positive pull-request number derived from {@link prUrl}. */
+  prNumber: number | null;
 }
+
+export type CompletedEvidenceRead =
+  | { status: "available"; records: Map<string, ShippedWorkUnitRecord> }
+  | {
+      status: "partial";
+      records: Map<string, ShippedWorkUnitRecord>;
+      unreadableMetaPaths: string[];
+    }
+  | { status: "unavailable"; reason: "archive-tree-read-failed" };
 
 /** `NN_<slug>` archive-directory shape; capture group 1 is the WU-name slug. */
 const ARCHIVE_DIR_RE = /^\d+_(.+)$/u;
@@ -147,6 +161,15 @@ export async function readShippedWorkUnitRecordsFromRef(
   exec: GitExec,
   ref: string,
 ): Promise<Map<string, ShippedWorkUnitRecord>> {
+  const evidence = await readCompletedEvidenceFromRef(exec, ref);
+  return evidence.status === "unavailable" ? new Map() : evidence.records;
+}
+
+/** Read completed-record evidence without collapsing Git failures to absence. */
+export async function readCompletedEvidenceFromRef(
+  exec: GitExec,
+  ref: string,
+): Promise<CompletedEvidenceRead> {
   let stdout: string;
   try {
     // --full-tree: without it the completed-path pathspec resolves relative to
@@ -156,7 +179,7 @@ export async function readShippedWorkUnitRecordsFromRef(
       ["ls-tree", "--full-tree", "-r", "--name-only", ref, "--", COMPLETED_PATH_PREFIX],
     ));
   } catch {
-    return new Map();
+    return { status: "unavailable", reason: "archive-tree-read-failed" };
   }
 
   const records = new Map<string, ShippedWorkUnitRecord>();
@@ -170,38 +193,66 @@ export async function readShippedWorkUnitRecordsFromRef(
     if (entry === undefined) continue;
     const slug = slugFromArchiveDir(entry);
     if (slug === null) continue;
-    records.set(slug, { slug, completedAt: null });
+    records.set(slug, { slug, completedAt: null, prUrl: null, prNumber: null });
     if (segments.slice(2).join("/") === `meta-${slug}.md`) {
       metaPaths.set(slug, path);
     }
   }
 
   const metaEntries = [...metaPaths.entries()];
+  const unreadableMetaPaths: string[] = [];
   for (let i = 0; i < metaEntries.length; i += COMPLETED_META_READ_CONCURRENCY) {
     const batch = metaEntries.slice(i, i + COMPLETED_META_READ_CONCURRENCY);
     await Promise.all(batch.map(async ([slug, path]) => {
-      const completedAt = await readCompletedDateFromMeta(exec, ref, path);
-      records.set(slug, { slug, completedAt });
+      const record = await readCompletedRecordFromMeta(exec, ref, path, slug);
+      if (record === null) {
+        unreadableMetaPaths.push(path);
+        return;
+      }
+      records.set(slug, record);
     }));
   }
 
-  return records;
+  return unreadableMetaPaths.length === 0
+    ? { status: "available", records }
+    : { status: "partial", records, unreadableMetaPaths: unreadableMetaPaths.sort() };
 }
 
-async function readCompletedDateFromMeta(
+async function readCompletedRecordFromMeta(
   exec: GitExec,
   ref: string,
   path: string,
-): Promise<string | null> {
+  slug: string,
+): Promise<ShippedWorkUnitRecord | null> {
   let stdout: string;
   try {
     ({ stdout } = await exec("git", ["show", `${ref}:${path}`]));
   } catch {
     return null;
   }
-  const value = /^- \*\*Completed:\*\* (.+)$/mu.exec(stdout)?.[1]?.trim();
-  if (value === undefined || value === "[none]") return null;
-  return Number.isNaN(Date.parse(value)) ? null : value;
+  let meta;
+  try {
+    meta = parseMetaRecord(stdout);
+  } catch {
+    return null;
+  }
+  const completedValue = meta.Completed?.trim();
+  const completedAt = completedValue === undefined
+    || completedValue === "[none]"
+    || Number.isNaN(Date.parse(completedValue))
+    ? null
+    : completedValue;
+  const prValue = meta["PR URL"]?.trim();
+  const prMatch = prValue === undefined
+    ? null
+    : /^(https?:\/\/[^\s]+\/pull\/([1-9]\d*))$/u.exec(prValue);
+  const prNumber = prMatch === null ? null : Number(prMatch[2]);
+  return {
+    slug,
+    completedAt,
+    prUrl: prMatch?.[1] ?? null,
+    prNumber: Number.isSafeInteger(prNumber) ? prNumber : null,
+  };
 }
 
 /**

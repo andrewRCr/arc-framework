@@ -151,11 +151,18 @@ export async function executeInboundPull(
     return { decision: "surface", fastForwarded: false, ahead: 0, behind: 0 };
   }
 
-  const { ahead, behind, state } = await countAheadBehindRef(
-    input.exec,
-    "HEAD",
-    `origin/${input.branch}`,
-  );
+  let ahead: number;
+  let behind: number;
+  let state: WorktreeSyncState;
+  try {
+    ({ ahead, behind, state } = await countAheadBehindRef(
+      input.exec,
+      "HEAD",
+      `origin/${input.branch}`,
+    ));
+  } catch {
+    return { decision: "surface", fastForwarded: false, ahead: 0, behind: 0 };
+  }
   const dirty = await runDirtyStateStatus({ exec: input.exec });
   const decision = decideInboundPull({
     compareState: state,

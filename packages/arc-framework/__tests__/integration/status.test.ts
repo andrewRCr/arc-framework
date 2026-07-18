@@ -201,7 +201,10 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     worktreeIdentity: async () => ({ kind: "primary" }),
     currentHusk: async () => null,
-    baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
+    baseDistance: async () => ({
+      mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
+      base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+    }),
     baseBranchSync: async () => ({
       state: "skipped",
       ahead: 0,
@@ -268,7 +271,10 @@ function makeResolvedReleaseModeSessionInitProbes(
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     worktreeIdentity: async () => ({ kind: "primary" }),
     currentHusk: async () => null,
-    baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
+    baseDistance: async () => ({
+      mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
+      base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+    }),
     baseBranchSync: async () => ({
       state: "skipped",
       ahead: 0,
@@ -516,7 +522,10 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
       worktreeIdentity: async () => ({ kind: "primary" }),
       currentHusk: async () => null,
-      baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
+      baseDistance: async () => ({
+        mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
+        base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+      }),
       baseBranchSync: async () => ({
       state: "skipped",
       ahead: 0,
@@ -703,7 +712,10 @@ function makeRealWorktreeProbes(
       }),
     worktreeIdentity: async () => ({ kind: "primary" }),
     currentHusk: async () => null,
-    baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
+    baseDistance: async () => ({
+      mode: "advisory", verdict: "skipped", state: "skipped", ahead: 0, behind: 0,
+      base: "main", baseOid: null, integrationEvidence: null, overlap: null, register: null,
+    }),
     baseBranchSync: async () => ({
       state: "skipped",
       ahead: 0,

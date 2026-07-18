@@ -148,9 +148,6 @@ function composeSupersessionPromptText(branch: string | null): string {
   );
 }
 
-/** Max overlapping paths named inline before the remainder collapses to a count. */
-const OVERLAP_SAMPLE_SIZE = 3;
-
 /**
  * Compose the base-distance channel recommendation — the behind-base reconcile
  * advisory.
@@ -170,23 +167,13 @@ export function inferBaseDistance(
   if (baseDistance === null) {
     return { recommendedAction: "skip", recommendedPromptText: "" };
   }
-  switch (baseDistance.state) {
-    case "remote-ahead":
-    case "diverged":
-      return {
-        recommendedAction: "surface",
-        recommendedPromptText: composeBaseDistancePromptText(baseDistance),
-      };
-    case "clean":
-    case "local-ahead":
-    case "skipped":
-    case "no-upstream":
-    case "detached-head":
-    case "no-remote":
-    case "branch-gone":
-    case "remote-unavailable":
-      return { recommendedAction: "skip", recommendedPromptText: "" };
+  if (baseDistance.verdict === "reconcile" && baseDistance.register !== null) {
+    return {
+      recommendedAction: "surface",
+      recommendedPromptText: baseDistance.register.text,
+    };
   }
+  return { recommendedAction: "skip", recommendedPromptText: "" };
 }
 
 /**
@@ -405,34 +392,6 @@ function composeRetiredSubdirPromptText(count: number, dirty: boolean): string {
     `${count} retired-WU user subdir(s) linger from shipped work units; ` +
     "reconcile via `arc user load` (with `.internal/` backup)?";
   return dirty ? `${DIRTY_LOAD_WARNING}\n${head}` : head;
-}
-
-/**
- * Compose the behind-base advisory text.
- *
- * Recommends merging the base in — never rebasing. Concurrent-work doctrine
- * forbids rewriting a pushed branch (SHA-keyed notes, shared worktrees, review
- * stability); merge is also correct in the private unpushed window, so one
- * append-only recommendation covers both cases. Session-init renders this
- * text verbatim.
- */
-function composeBaseDistancePromptText(baseDistance: BaseDistanceStatusResult): string {
-  const base = baseDistance.base ?? "base";
-  const head = `Base \`${base}\` has advanced ${baseDistance.behind} commit(s) ahead of this branch.`;
-  const overlap =
-    baseDistance.overlappingPaths.length > 0
-      ? `Overlapping paths: ${formatOverlap(baseDistance.overlappingPaths)} — merge may conflict.`
-      : "No overlapping paths.";
-  return `${head}\n${overlap}\nMerge the base in?`;
-}
-
-function formatOverlap(paths: string[]): string {
-  const sample = paths
-    .slice(0, OVERLAP_SAMPLE_SIZE)
-    .map((path) => `\`${path}\``)
-    .join(", ");
-  const remainder = paths.length - OVERLAP_SAMPLE_SIZE;
-  return remainder > 0 ? `${sample} (+${remainder} more)` : sample;
 }
 
 function composeWorktreePromptText(behind: number, dirty: DirtyStateResult): string {
