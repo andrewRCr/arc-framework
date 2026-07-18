@@ -16,37 +16,18 @@ and unbreakable tokens, tables, nested lists, and code verbatim; greedy word-wra
 paragraphs-plus-flat-lists scope is grounded in the repo history distribution — see `notes-commit-message-ergonomics.md`
 § Commit-history scan.
 
-### `[ ]` **1.1 Extend `assembleCommitMessageParagraphs` with width-parameterized wrapping**
+### `[x]` **1.1 Extend `assembleCommitMessageParagraphs` with width-parameterized wrapping**
 
 - _Goal:_ Assembled `-m` bytes are greedily wrapped to a caller-supplied width across the wrap-eligible block
   kinds, with structured-and-rare kinds passed through untouched and re-wrapping a no-op.
 
-- _Approach:_ Factor the wrap as a pure helper over already-cleaned message bytes (post-`cleanupCommitMessageBytes`):
-  classify the cleaned lines into blocks and wrap only the eligible ones, width-parameterized.
-  `assembleCommitMessageParagraphs` calls the helper after its join + cleanup (adding a width parameter); the
-  byte-preserving `-F`/stdin reject path (Task 4.1) reuses the **same helper** on its captured cleaned bytes, so
-  one wrap implementation serves both the `-m` assembly path and the reject path. Leave the internal
-  block-classification structure to implementation.
-
-    - **Additional Context:** `notes-commit-message-ergonomics.md` § Commit-history scan (block-kind
-      distribution grounding the wrap-vs-preserve boundary)
-
-    Build `test-first` (one behavior at a time):
-
-    - A plain paragraph longer than the width wraps greedily at word boundaries
-    - A paragraph carrying existing internal line breaks joins first, then re-wraps (input line-breaking
-      normalizes to canonical output)
-    - A flat unordered list item wraps with hanging-indent continuation aligned to the marker's content column
-    - A flat ordered list item wraps with hanging-indent continuation aligned to its marker's content column
-    - An unbreakable token (URL, long identifier) longer than the width stays on its own line, never force-split
-    - The subject (first line) is never wrapped, regardless of length
-    - Footer/trailer lines (`Context:` and other trailers) pass through verbatim
-    - A fenced code block passes through verbatim
-    - An indented code block passes through verbatim
-    - Table rows pass through verbatim
-    - Nested (indented) list items pass through verbatim
-    - Re-wrapping already-wrapped output is a no-op (idempotent)
-    - A non-default width (e.g. 80) wraps eligible blocks at that width
+- _Outcome:_ Added exported pure `wrapCommitMessageBody(cleaned, width)` in `commit-message-assembly.ts` —
+  classifies cleaned lines into subject / plain-paragraph / flat-list-item (hanging-indent continuation) /
+  preserved-verbatim (trailers, fenced + indented code, table rows, nested lists) and greedy-wraps only the
+  eligible kinds, never force-splitting an over-width token. Idempotence holds even for a ≥4-wide ordered marker
+  because continuation lines are re-attributed to their item before the indented-code test.
+  `assembleCommitMessageParagraphs` gains an optional `width` (omitted ⇒ prior bytes exactly). Kept pure and out
+  of the live path; the `-F`/stdin reject path (Task 4.1) reuses the same helper.
 
 ## **Phase 2:** Wire wrapping through the commit path (width, `--no-wrap`, validated-bytes transport)
 
