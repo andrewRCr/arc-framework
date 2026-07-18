@@ -710,6 +710,14 @@ directly — keeping `main` checked out there is what makes them safe to launch 
 clean base. The pattern composes with externally spawned worktrees: whatever checkout the tooling treats
 as the primary workspace *is* the main worktree, with no extra setup.
 
+Two disciplines keep the launchpad dependable. **`main` is the resting state, not a lock:** an Errand or
+grooming pass may occupy the main worktree with its short-lived branch as a bounded excursion, returning
+it to `main` at close — it is never parked on a branch between excursions. **One out-of-WU session at a
+time:** the main worktree is a single checkout (two sessions sharing it share HEAD, index, and
+per-checkout state), so out-of-WU work serializes through it; when it is occupied — or isolation is
+preferred — the Errand occupies an ephemeral worktree instead (see
+[§ Errand Work Class](#errand-work-class)).
+
 ### Operational constraint
 
 One worktree per IDE / language-server window. Coordination across worktrees at the editor and
@@ -1353,8 +1361,9 @@ by an `active/` entry.
 ### The cut→occupy invariant
 
 Cutting a `chore/<slug>` branch and *occupying* it are **separate mechanics with a strict ordering** — the branch is
-cut off the base, then occupied per protection mode (an ephemeral worktree under full protection, an in-place switch
-otherwise). The invariant: **a cut is never left un-occupied.** A branch cut without an immediate occupy strands the
+cut off the base, then occupied: an in-place switch of the main worktree when it is free (the default locus — see
+[§ Main-on-Main Pattern](#main-on-main-pattern)), or an ephemeral worktree when it is occupied or isolation is
+preferred. The invariant: **a cut is never left un-occupied.** A branch cut without an immediate occupy strands the
 caller on its launch branch, writing the Errand's commits to the wrong place.
 
 `arc errand open` is the sole errand entry verb, and it **composes** the two — the internal cut mechanic
@@ -1368,10 +1377,23 @@ then immediately occupy.
 An Errand runs through the `run-errand` workflow, dispatched by `arc-session` (via `--errand`, or surfaced at
 between-WU orientation). It launches from **any worktree**: the workflow's Launch phase resolves the base branch
 and relocates the execution locus itself onto the cheap-branch path (see
-[§ Cheap-branch path](#cheap-branch-path)), so the caller need not pre-switch worktrees. It does not invoke
+[§ Cheap-branch path](#cheap-branch-path)) — to the main worktree when it is free (the default locus), or into an
+ephemeral worktree when it is occupied or isolation is preferred — so the caller need not pre-switch worktrees. It
+does not invoke
 planning entry — spawn and cold-start scaffold meta files and lifecycles, which an Errand has neither of. The
 Errand mints no `active/` artifact and produces no orientation surface; it ships, is recorded by git history
 through its commit footer, and tears down.
+
+### Batch execution — the sequential drain
+
+A slate of Errands — a housekeep drain, an approved cleanup sweep — executes **sequentially, under one session
+in the main worktree**: the operator scopes and approves the slate up front, then a single agent works it entry
+by entry, each Errand still closing its own review increment, in lockstep to completion. Attention is the
+bottleneck a batch actually contends with — the human is the serial approval gate — so parallel errand execution
+buys little wall-clock while multiplying the tracking burden. Dispatching errand executions to concurrent
+sub-sessions is not the default, and a session per errand is an anti-pattern (the concurrency posture:
+[Concurrent Work Strategy][concurrent-work]). When a drain feels slow, tighten per-errand overhead rather than
+adding parallelism.
 
 ---
 

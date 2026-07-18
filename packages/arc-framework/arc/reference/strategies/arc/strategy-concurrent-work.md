@@ -30,7 +30,7 @@ and the `Integrating` state. This strategy layers concurrency conventions on tha
 5. [Merge ordering between concurrent work units](#merge-ordering-between-concurrent-work-units)
 6. [Worktree operations](#worktree-operations)
 7. [Async-merge: working through awaiting-review latency](#async-merge-working-through-awaiting-review-latency)
-8. [Your main worktree is not always on main](#your-main-worktree-is-not-always-on-main)
+8. [The primary worktree rests on the base](#the-primary-worktree-rests-on-the-base)
 9. [When to abandon parallelism](#when-to-abandon-parallelism)
 10. [Anti-patterns](#anti-patterns)
 11. [Relationship to team mode](#relationship-to-team-mode)
@@ -60,6 +60,12 @@ primarily for the sake of agent isolation rather than developer convenience.
   cheap: no stash dance, no rebuild from a fresh checkout, no losing your place. You move between directories
   rather than between branch states. For a person steering several work units this is convenience; for the
   isolation guarantee above it is structural.
+
+- **A fresh worktree comes up working.** Worktree creation includes provisioning, not just `git worktree add`: a
+  configured post-create step (`worktree.post_create`) installs project dependencies, and registered harness
+  integration directories (agent skills, hooks, allowlists — gitignored, so git alone won't carry them) are
+  provisioned from the primary. A spawned worktree runs its quality gates and boots an agent session without
+  hand setup — "cheap to create" includes coming up working, not just existing.
 
 ### Discovery and cleanup discipline
 
@@ -127,6 +133,13 @@ is real: every additional concurrent work unit thins the co-development bandwidt
 a modest count, the per-task review loop degrades toward rubber-stamping — the very failure mode the approach
 exists to prevent. Scale concurrency to the attention you can actually give it, not to the number of worktrees you
 can create.
+
+**Metered external budgets are a second scaling axis.** Attention is the first bottleneck, but concurrency also
+multiplies everything that bills per run or per review — CI minutes, hosted review quotas, API allowances. Each
+in-flight line re-runs its gates at every push and meters its own review cycles, so several concurrent lines can
+drain a monthly budget weeks early on per-unit costs that looked reasonable alone. When weighing another
+concurrent line, count the metered surfaces it will exercise alongside the attention it will take; a budget
+exhausted mid-flight serializes everything behind a top-up anyway.
 
 ---
 
@@ -266,24 +279,32 @@ makes this routine: you advance other work while one waits. Soft conventions for
 
 ---
 
-## Your main worktree is not always on main
+## The primary worktree rests on the base
 
-Under `branch.protection: full`, feature work never happens directly on `main` — every work unit gets its own
-branch and worktree. That frees the **primary worktree to specialize for coordination**, and it is normal for it
-to sit on a branch other than `main`:
+The **primary worktree** — the checkout the repository was cloned into — is not a work unit's workspace. Its
+resting state is the base branch, and it serves as the **launchpad** ([Work Organization Strategy][work-org]
+§ Main-on-Main Pattern): the stable reference every work-unit worktree spawns from, and the always-current
+surface for work that has no branch of its own — base ceremonies, backlog grooming, inbox drains, and errand
+launches.
 
-- **Admin and coordination work** — planning branches for not-yet-active work units, archive branches,
-  cross-work-unit backlog edits — runs from the primary worktree. These are the cross-cutting tasks that don't
-  belong to any one feature work unit.
-- **Feature work runs in work-unit worktrees.** Each active work unit's branch lives in its own worktree; that's
-  where its commits land.
-- **So "go to the main worktree" rarely means "you're on `main`."** The primary worktree is the coordination hub,
-  frequently checked out to a planning or archive branch. When you need a clean `main` — to cut a new branch, say
-  — check it out deliberately rather than assuming the primary worktree is already there.
+- **Work-unit work never occupies the primary.** An in-flight work unit always gets its own worktree. Checking a
+  work-unit branch out in the primary parks the launchpad on that branch for the unit's whole life and couples
+  every out-of-work-unit need to its state; spawn instead — worktree creation provisions itself (§ Worktrees by
+  default), so the cost is one command.
+- **Out-of-work-unit work runs in the primary as a bounded excursion.** An errand or grooming pass may switch
+  the primary onto its short-lived branch, do its work, and **return the primary to the base at close** — the
+  primary is never parked on a branch between excursions.
+- **One out-of-work-unit session at a time.** The primary is a single checkout: two sessions sharing it share
+  HEAD, index, and per-checkout state. Serialize out-of-work-unit work through it — one errand, drain, or
+  grooming session occupying it at a time. When it is occupied — or you want isolation — spawn a worktree for
+  the errand instead of queueing on or sharing the checkout.
+- **So "go to the primary" means "you're on the base."** Cutting a branch, freshening the base, or running a
+  base-context ceremony starts from a clean, current base without a preliminary checkout dance — that resting
+  state is what keeps every spawn cut from the right point.
 
-Under partial protection the distinction softens: more work can happen directly on the base, and the primary
-worktree spends more time actually on `main`. The specialization is sharpest under full protection, where the base
-is never a working surface.
+Under partial protection the same shape holds with less apparatus: the base is a legitimate working surface, so
+an excursion often collapses to a direct base commit. The launchpad specialization is sharpest under full
+protection, where the base is never edited in place.
 
 ---
 
@@ -393,10 +414,15 @@ different answers:
   post-merge on the integration branch, never hand-edited on feature branches. Two work units that both "change"
   it on their branches don't conflict, because neither hand-edits it; the merge to the base regenerates it once.
   [Work Organization Strategy][work-org] owns the regeneration model.
-- **Mutated shared state — not solvable in git.** A file _edited in place_ by people — inbox drains, human-curated
-  ordering — has no deterministic regeneration, so concurrent edits genuinely contend. Git alone doesn't solve
-  this; a real answer is backend territory, out of scope here. Keep such edits off feature branches and serialize
-  them through a coordination point, the way the regenerated views are.
+- **Mutated shared state — serialize it; the residual exposure is narrow and known.** A file _edited in place_
+  by people — inbox drains, human-curated ordering, cross-work-unit personal notes — has no deterministic
+  regeneration, so concurrent edits genuinely contend. The entry-merged personal surfaces converge cleanly when
+  concurrent sessions touch _different_ entries, removals included. The known limitation is the **same entry
+  edited — or removed — concurrently from two checkouts**: resolution takes the most recent write, so one edit
+  can silently lose, and a removal pushed from a stale copy can resurrect the entry it removed. The exposure is
+  narrow and the state recoverable (personal notes keep a pre-load backup); the operative discipline prevents it
+  structurally: **pull before writing, and serialize entry-level edits through one drain locus** — the primary
+  (§ The primary worktree rests on the base) — rather than editing the same entry from parallel worktrees.
 
 **Cohort files ride a partition.** A `cohort-{name}.md` shared by sibling work units stays conflict-free through
 **per-member partition** — each member writes its own section — backed by the behind-base check as the net.

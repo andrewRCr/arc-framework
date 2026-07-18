@@ -870,11 +870,6 @@ _Purpose:_ Land the fixes for seams **discovered during burn-in** that are atomi
 and record the spawn of a follow-up WU for those that are not — the Resolution model's landing zone, filled as
 the waves run rather than authored up front.
 
-> [!NOTE]
-> **Open phase — populated during the burn-in waves** (Phases 3–6), per the Resolution model. Near-empty by
-> design; the incompleteness is intentional. Remove on close — `_Purpose:_` keeps the emergent-population fact
-> legible. _Prototype marker (FP); codified by `task-list-conventions`._
-
 ### `[x]` **7.1 [BLOCKING] Move identity-global user-surface migration out of the path resolver**
 
 - _Goal:_ `resolveUserSurfaceResolver` resolves paths only — it neither performs linked-worktree migration writes
@@ -976,28 +971,42 @@ _Design decisions:_ Doctrine reconciliation is evidence-gated — its exact edit
 pin-primary inverts § "main worktree not always on main") firms up from the wave-3 parallel-errand outcome. The
 parent below states the reconciliation _procedure + recorded outcome_, not the unknown edits.
 
-### `[ ]` **8.1 Reconcile the concurrency doctrine to the as-built shape**
+### `[x]` **8.1 Reconcile the concurrency doctrine to the as-built shape**
 
 - _Goal:_ `strategy-concurrent-work.md` (and the Errand-class slice of `strategy-work-organization.md`) agrees
   with the settled seam-audit decisions and wave findings — no section contradicts verified behavior.
-- _Approach:_ Evidence-gated. The touched section-set is determined by the wave outcomes; each subtask's outcome
-  is the reconciliation performed and recorded, not a pre-stated edit.
 
-    - `[ ]` **8.1.a § "Your main worktree is not always on main"**
-        - Rewrite if wave 3 confirms pin-primary; confirm-as-written if the serialization-invariant arm wins.
+    - `[x]` **8.1.a § "Your main worktree is not always on main"**
+        - Rewritten as § "The primary worktree rests on the base" — the premise inverted per the resolved fork:
+          the primary is the launchpad resting on base, WU work never occupies it, out-of-WU work runs as bounded
+          excursions that return to base, one out-of-WU session at a time with worktree spawn when occupied. No
+          live inbound anchors referenced the old title (archived artifacts only).
 
-    - `[ ]` **8.1.b § Worktrees by default**
-        - Add the line acknowledging worktree creation now includes dependency + harness provisioning (BI-1).
+    - `[x]` **8.1.b § Worktrees by default**
+        - Added the "fresh worktree comes up working" bullet: `worktree.post_create` dependency provisioning plus
+          registered harness-dir provisioning from the primary.
 
-    - `[ ]` **8.1.c § Shared files under concurrency**
-        - Sharpen the "mutated shared state … out of scope" line with the same-entry merge disposition (5.4).
+    - `[x]` **8.1.c § Shared files under concurrency**
+        - Mutated-shared-state bullet sharpened with the accepted limitation: entry-union converges on different
+          entries; concurrent same-entry edit/removal resolves by recency (one edit can silently lose, a stale
+          removal can resurrect), recoverable via pre-load backup; pull-before-write plus a single drain locus
+          stated as the operative discipline.
 
-    - `[ ]` **8.1.d Errand-class slice of `strategy-work-organization.md`**
-        - Absorb the parallel-errand invariant the fork settles + any orchestrated-drain-shape convention wave 3
-          produces.
+    - `[x]` **8.1.d Errand-class slice of `strategy-work-organization.md`**
+        - Absorbed the occupancy-keyed execution locus — § Main-on-Main Pattern gains the resting-state and
+          one-session serialization disciplines; § The cut→occupy invariant's stale "ephemeral worktree under
+          full protection" parenthetical corrected to free-primary in-place switch / worktree-when-occupied;
+          § Entry path occupancy-keyed — and codified the sequential lockstep drain as the batch shape (new
+          § Batch execution, session-per-errand named an anti-pattern).
 
-    - `[ ]` **8.1.e § Merge ordering / § Async-merge / § Worktree operations**
-        - Confirm-as-built unless a wave surfaced a seam.
+    - `[x]` **8.1.e § Merge ordering / § Async-merge / § Worktree operations**
+        - Confirmed as-built — no wave surfaced a contradicting seam in these sections; no edits.
+
+- _Outcome:_ Both strategies now agree with the settled posture and with each other — the rewritten primary
+  section aligns with work-org's § Main-on-Main Pattern instead of contradicting it. One addition beyond the
+  pre-named sections: § When to parallelize gains the metered-external-budget scaling axis (the second
+  bottleneck the wave evidence surfaced beside attention). Package source and `.arc/` copies edited in
+  lockstep; byte-identical at close.
 
 ### `[ ]` **8.2 Finalize and bless the GA-readiness checklist and incident playbook**
 
