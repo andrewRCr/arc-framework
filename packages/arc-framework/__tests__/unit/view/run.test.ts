@@ -106,6 +106,23 @@ describe("runView", () => {
     });
   });
 
+  it("rejects --current for a non-task kind before normal absence handling", async () => {
+    await expect(runView({
+      cwd: "/repo",
+      kind: "notes",
+      project: false,
+      identity: "andrew",
+      current: true,
+    }, {
+      resolveArtifact: vi.fn().mockResolvedValue({ status: "absent", kind: "notes" }),
+      readFile: vi.fn(),
+    })).resolves.toEqual({
+      stdout: "",
+      stderr: "--current is only valid with the tasks kind.\n",
+      exitCode: 1,
+    });
+  });
+
   it("routes TTY content through the selected renderer and carries warnings on stderr", async () => {
     const renderWithPager = vi.fn().mockResolvedValue(undefined);
     const result = await runView({

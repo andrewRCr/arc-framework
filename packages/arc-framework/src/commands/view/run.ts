@@ -39,13 +39,6 @@ export async function runView(
   if (artifact.status === "error") {
     return { stdout: "", stderr: `${artifact.message}\n`, exitCode: 1 };
   }
-  if (artifact.status === "absent") {
-    return {
-      stdout: `${artifact.kind} is not present.\n`,
-      stderr: "",
-      exitCode: 0,
-    };
-  }
   if (options.current === true && artifact.kind !== "tasks") {
     return {
       stdout: "",
@@ -53,7 +46,13 @@ export async function runView(
       exitCode: 1,
     };
   }
-
+  if (artifact.status === "absent") {
+    return {
+      stdout: `${artifact.kind} is not present.\n`,
+      stderr: "",
+      exitCode: 0,
+    };
+  }
   let content: string;
   try {
     content = await dependencies.readFile(artifact.path);
