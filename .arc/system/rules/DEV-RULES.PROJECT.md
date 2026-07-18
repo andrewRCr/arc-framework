@@ -129,8 +129,8 @@ already carries. Full convention: [strategy-workflow-authoring][workflow-authori
 
 The shipped rule ([strategy-workflow-authoring][workflow-authoring] § Body Conventions, Verbs over
 mechanics) gets one extra degree of freedom here that adopters lack: the `arc` CLI is ours to grow. A
-mechanics-narrating line that exists because no verb covers the operation is a **verb-gap signal** — capture
-it rather than accepting the coupling as permanent.
+mechanics-narrating line that exists because no verb covers the operation is a **verb-gap signal** — surface
+it for potential `arc-inbox` capture rather than accepting the coupling as permanent.
 
 ## Package-Project Sync
 
