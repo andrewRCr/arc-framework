@@ -225,29 +225,34 @@ against a fresh immutable base identity.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ TypeScript and shell lint, source and test typechecks, 6,151 tests, build, and Markdown lint all
+  passed; one test remains intentionally skipped.
+- _Success criteria:_ All 14 criteria met after two adversarial verification passes and confirmed fixes for
+  enhancement-failure isolation, deterministic resolver ordering, and parent-aware PR evidence grammar.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Base movement is reported as raw distance, proven integrations, and explicit unclassified commits without
+- `[x]` Base movement is reported as raw distance, proven integrations, and explicit unclassified commits without
   inflating integration count.
-- `[ ]` Squash evidence requires matching same-commit archive and PR-subject facts, while unsupported squash and
+- `[x]` Squash evidence requires matching same-commit archive and PR-subject facts, while unsupported squash and
   rebase history remains unclassified.
-- `[ ]` Only raw `ahead` and `behind` determine `clean` versus `reconcile`.
-- `[ ]` Available empty overlap is distinguishable from unavailable overlap analysis.
-- `[ ]` Regenerable-only overlap can render calmly, while substantive overlap always leads with attention.
-- `[ ]` Rename-sensitive overlap cannot falsely report disjoint paths.
-- `[ ]` Partial or unavailable integration evidence never suppresses contention or authorizes integration.
-- `[ ]` Session-init and the integration workflow consume the same analyzer without re-deriving Git mechanics.
-- `[ ]` `arc base drift --json` always emits typed JSON, ignores advisory sync policy, and fails closed when raw
+- `[x]` Only raw `ahead` and `behind` determine `clean` versus `reconcile`.
+- `[x]` Available empty overlap is distinguishable from unavailable overlap analysis.
+- `[x]` Regenerable-only overlap can render calmly, while substantive overlap always leads with attention.
+- `[x]` Rename-sensitive overlap cannot falsely report disjoint paths.
+- `[x]` Partial or unavailable integration evidence never suppresses contention or authorizes integration.
+- `[x]` Session-init and the integration workflow consume the same analyzer without re-deriving Git mechanics.
+- `[x]` `arc base drift --json` always emits typed JSON, ignores advisory sync policy, and fails closed when raw
   distance is unavailable; only a fresh post-integration-approval `clean` permits immediate merge invocation.
-- `[ ]` Concurrent probes cannot change an invocation's base identity, and temporary-ref cleanup is proven or
+- `[x]` Concurrent probes cannot change an invocation's base identity, and temporary-ref cleanup is proven or
   surfaced as unavailable.
-- `[ ]` The implementation adds no host dependency, configuration axis, permanent projection-name contract, or
+- `[x]` The implementation adds no host dependency, configuration axis, permanent projection-name contract, or
   storage-tier branch.
-- `[ ]` A storage-owned or non-git resolver can replace the current completed-meta adapter without changing analyzer
+- `[x]` A storage-owned or non-git resolver can replace the current completed-meta adapter without changing analyzer
   JSON or consumers.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.

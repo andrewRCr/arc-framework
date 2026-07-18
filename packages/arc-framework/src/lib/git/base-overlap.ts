@@ -52,8 +52,12 @@ export async function analyzeBaseOverlap(
   const overlap = [...new Set(branchPaths.filter((path) => baseSet.has(path)))].sort();
   const substantivePaths: string[] = [];
   const regenerablePaths: string[] = [];
-  for (const path of overlap) {
-    (options.classify(path) === "regenerable" ? regenerablePaths : substantivePaths).push(path);
+  try {
+    for (const path of overlap) {
+      (options.classify(path) === "regenerable" ? regenerablePaths : substantivePaths).push(path);
+    }
+  } catch {
+    return { status: "unavailable", reason: "classification-failed" };
   }
   return { status: "available", substantivePaths, regenerablePaths };
 }

@@ -27,6 +27,8 @@ function gitMock(options: MockOptions = {}): { exec: GitExec; calls: string[][] 
     }
     if (args[0] === "rev-parse" && args[1] === "--verify") return { stdout: `${BASE_OID}\n` };
     if (args[0] === "rev-list") return { stdout: options.distance ?? "0\t0\n" };
+    if (args[0] === "merge-base") return { stdout: `${PARENT_A}\n` };
+    if (args[0] === "diff") return { stdout: "shared.ts\0" };
     if (args[0] === "log") {
       return { stdout: `${MERGE_OID}\0${PARENT_A} ${PARENT_B}\0Merge pull request #12 from x/y\0` };
     }
@@ -97,6 +99,41 @@ describe("base drift raw-distance boundary", () => {
     expect(result.behind).toBe(1);
     expect(result.integrationEvidence).toMatchObject({ coverage: "complete", scannedCommitCount: 1 });
     expect(result.register?.kind).toBe("calm");
+  });
+
+  it("keeps a healthy reconcile verdict when the resolver factory fails", async () => {
+    const { exec } = gitMock({ distance: "0\t1\n" });
+    const result = await runBaseDrift({
+      exec,
+      baseBranch: "main",
+      mode: "authoritative",
+      resolverFactory: () => {
+        throw new Error("resolver unavailable");
+      },
+      token: () => "test-token",
+    });
+    expect(result).toMatchObject({ verdict: "reconcile", ahead: 0, behind: 1, baseOid: BASE_OID });
+  });
+
+  it("degrades only overlap evidence when the classifier fails", async () => {
+    const { exec } = gitMock({ distance: "1\t1\n" });
+    const result = await runBaseDrift({
+      exec,
+      baseBranch: "main",
+      mode: "authoritative",
+      classifyReconciliation: () => {
+        throw new Error("classifier unavailable");
+      },
+      token: () => "test-token",
+    });
+    expect(result).toMatchObject({
+      verdict: "reconcile",
+      ahead: 1,
+      behind: 1,
+      baseOid: BASE_OID,
+      overlap: { status: "unavailable", reason: "classification-failed" },
+      register: { kind: "degraded" },
+    });
   });
 
   it("cleanup failure overrides an otherwise healthy reading", async () => {

@@ -55,7 +55,7 @@ export type OverlapEvidence =
     }
   | {
       status: "unavailable";
-      reason: "merge-base-failed" | "branch-diff-failed" | "base-diff-failed";
+      reason: "merge-base-failed" | "branch-diff-failed" | "base-diff-failed" | "classification-failed";
     };
 
 export type BaseDriftRegister = {

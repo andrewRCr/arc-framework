@@ -219,7 +219,7 @@ async function analyzeFetchedBase(options: AnalyzeFetchedBaseOptions): Promise<B
   }
 
   const [integrationEvidence, overlap] = await Promise.all([
-    analyzeIntegrationEvidence({ exec, baseOid, resolver: resolver ?? resolverFactory?.(baseOid) }),
+    analyzeIntegrationEvidence({ exec, baseOid, resolver: resolveResolver(resolver, resolverFactory, baseOid) }),
     analyzeBaseOverlap({
       exec,
       baseOid,
@@ -240,6 +240,19 @@ async function analyzeFetchedBase(options: AnalyzeFetchedBaseOptions): Promise<B
     overlap,
     register: composeBaseDriftRegister(baseBranch, behind, integrationEvidence, overlap),
   };
+}
+
+function resolveResolver(
+  resolver: IntegrationEvidenceResolver | undefined,
+  resolverFactory: IntegrationEvidenceResolverFactory | undefined,
+  baseOid: string,
+): IntegrationEvidenceResolver | undefined {
+  if (resolver !== undefined || resolverFactory === undefined) return resolver;
+  try {
+    return resolverFactory(baseOid);
+  } catch {
+    return undefined;
+  }
 }
 
 function unavailable(

@@ -49,6 +49,7 @@ export async function analyzeIntegrationEvidence(
 
   const truncated = inputs.length > limit;
   if (truncated) inputs = inputs.slice(0, limit);
+  const order = new Map(inputs.map((input, index) => [input.oid, index]));
   const topologyOids = new Set<string>();
   const events: IntegrationEvent[] = [];
   const limitations = new Set<IntegrationEvidenceLimitation>();
@@ -64,14 +65,11 @@ export async function analyzeIntegrationEvidence(
     if (options.resolver !== undefined) {
       try {
         const enriched = await options.resolver.enrichTopologyEvent(event, input);
-        if (enriched.status === "unavailable") {
-          limitations.add("resolver-unavailable");
-        } else {
-          if (enriched.status === "partial") limitations.add("resolver-unavailable");
+        if (enriched.status !== "unavailable") {
           if (enriched.value !== null) Object.assign(event, enriched.value);
         }
       } catch {
-        limitations.add("resolver-unavailable");
+        // Identity enrichment is optional and cannot weaken topology proof.
       }
     }
     events.push(event);
@@ -93,7 +91,10 @@ export async function analyzeIntegrationEvidence(
           if (proven.status === "partial") limitations.add("resolver-unavailable");
           for (const candidate of proven.value) {
             candidate.commits.forEach((oid) => acceptedResolverOids.add(oid));
-            events.push({ ...candidate, commits: [...candidate.commits], proof: "resolver" });
+            const commits = [...candidate.commits].sort(
+              (a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0),
+            );
+            events.push({ ...candidate, commits, proof: "resolver" });
           }
         }
       } catch {
@@ -108,7 +109,6 @@ export async function analyzeIntegrationEvidence(
   if (unclassifiedCommitCount > 0) limitations.add("unclassified-commits");
   if (truncated) limitations.add("scan-truncated");
 
-  const order = new Map(inputs.map((input, index) => [input.oid, index]));
   events.sort((a, b) => (order.get(a.commits[0] ?? "") ?? 0) - (order.get(b.commits[0] ?? "") ?? 0));
   return {
     coverage: limitations.size === 0 ? "complete" : "partial",
@@ -141,7 +141,9 @@ function parseScan(stdout: string): BaseDriftCommitInput[] {
     }
     const mergePr = MERGE_PR_RE.exec(subject);
     const squashPr = SQUASH_PR_RE.exec(subject);
-    const acceptedPrNumber = Number(mergePr?.[1] ?? squashPr?.[1]);
+    const acceptedPrNumber = Number(
+      parents.length > 1 ? mergePr?.[1] : parents.length === 1 ? squashPr?.[1] : undefined,
+    );
     inputs.push({
       oid,
       parents,

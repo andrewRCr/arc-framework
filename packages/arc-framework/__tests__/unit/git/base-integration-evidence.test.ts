@@ -44,12 +44,30 @@ describe("integration-event evidence", () => {
     expect(result).toMatchObject({ coverage: "partial", unclassifiedCommitCount: 1, events: [] });
   });
 
-  it("accepts disjoint resolver membership and preserves oldest-first order", async () => {
+  it("does not expose merge-only subject identity to a single-parent resolver", async () => {
     const resolver: IntegrationEvidenceResolver = {
       enrichTopologyEvent: async () => ({ status: "available", value: null }),
       proveSingleParentEvents: async (inputs) => ({
         status: "available",
-        value: [{ commits: [inputs[0]!.oid, inputs[1]!.oid], slug: "sibling" }],
+        value: inputs[0]?.acceptedPrNumber === 42
+          ? [{ commits: [inputs[0].oid], slug: "false-positive" }]
+          : [],
+      }),
+    };
+    const result = await analyzeIntegrationEvidence({
+      exec: execWith(record(oid("a"), [oid("b")], "Merge pull request #42 from team/topic")),
+      baseOid: oid("d"),
+      resolver,
+    });
+    expect(result).toMatchObject({ coverage: "partial", unclassifiedCommitCount: 1, events: [] });
+  });
+
+  it("normalizes disjoint resolver membership to oldest-first order", async () => {
+    const resolver: IntegrationEvidenceResolver = {
+      enrichTopologyEvent: async () => ({ status: "available", value: null }),
+      proveSingleParentEvents: async (inputs) => ({
+        status: "available",
+        value: [{ commits: [inputs[1]!.oid, inputs[0]!.oid], slug: "sibling" }],
       }),
     };
     const result = await analyzeIntegrationEvidence({
@@ -62,6 +80,23 @@ describe("integration-event evidence", () => {
     expect(result).toMatchObject({
       coverage: "complete",
       events: [{ commits: [oid("a"), oid("c")], proof: "resolver", slug: "sibling" }],
+    });
+  });
+
+  it("keeps topology coverage complete when optional identity enrichment is unavailable", async () => {
+    const resolver: IntegrationEvidenceResolver = {
+      enrichTopologyEvent: async () => ({ status: "unavailable" }),
+      proveSingleParentEvents: async () => ({ status: "available", value: [] }),
+    };
+    const result = await analyzeIntegrationEvidence({
+      exec: execWith(record(oid("a"), [oid("b"), oid("c")], "merge without accepted identity")),
+      baseOid: oid("d"),
+      resolver,
+    });
+    expect(result).toMatchObject({
+      coverage: "complete",
+      events: [{ commits: [oid("a")], proof: "topology" }],
+      limitations: [],
     });
   });
 
