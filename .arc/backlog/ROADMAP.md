@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `5ca545627`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `bf921896f`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,19 +13,19 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                   | Priority | Owner  | Depends on | Cohort |
-| ---------- | --------------------------- | -------- | ------ | ---------- | ------ |
-| `Planning` | base-drift-guidance         | P1       | andrew | —          | —      |
-| `Active`   | coupling-blast-radius-audit | P1       | andrew | —          | —      |
-| `Planning` | session-locus-model         | P1       | andrew | —          | —      |
-| `Planning` | commit-message-ergonomics   | P2       | andrew | —          | —      |
-| `Active`   | arc-view                    | P3       | andrew | —          | —      |
+| State         | Work unit                   | Priority | Owner  | Depends on | Cohort |
+| ------------- | --------------------------- | -------- | ------ | ---------- | ------ |
+| `Integrating` | coupling-blast-radius-audit | P1       | andrew | —          | —      |
+| `Planning`    | session-locus-model         | P1       | andrew | —          | —      |
+| `Active`      | commit-message-ergonomics   | P2       | andrew | —          | —      |
+| `Integrating` | arc-view                    | P3       | andrew | —          | —      |
 
 ## Ready
 
 | Work unit                             | Priority | Owner  | Depends on | Cohort                     |
 | ------------------------------------- | -------- | ------ | ---------- | -------------------------- |
 | interlock-release-refinement          | P1       | andrew | —          | approval-flow-refinement   |
+| base-drift-guidance                   | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | pr-decomposition                      | P1       | andrew | —          | —                          |
 | recovery-hardening                    | P1       | andrew | —          | —                          |
