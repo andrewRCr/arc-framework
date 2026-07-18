@@ -9,14 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-base-drift-guidance.md`
-- **Task List:** [none]
+- **Task List:** `tasks-base-drift-guidance.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** Finalized `spec-base-drift-guidance.md` and advanced to task generation (2026-07-18).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
