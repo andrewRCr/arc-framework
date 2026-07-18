@@ -232,3 +232,15 @@ runs wrote `/tmp/coupling-audit-repro-{a,b}.json`; `cmp` found them byte-identic
 `ac88163beb6c8ddcbd2a05718a07c8c48732a45965131ad6d2d6bca5b303edc6`. Each run reported 1,207 files,
 32 classes, and zero unresolved residue. `git status --porcelain` was empty before and after both runs. All counts,
 file lists, and disposition totals in these notes are projections from that canonical result.
+
+## Volatility snapshot
+
+The mover roster was re-resolved by slug on 2026-07-18. `arc-backend`, `cli-substrate-adoption`,
+`composable-workflows`, `knowledge-architecture`, `local-mode`, `naming-conventions`, `roadmap-tooling`,
+`rules-restructure`, and `wu-lifecycle-state-model` are live planned work units; `arcd-rebrand` is live provisional.
+Both hard consumers remain blocked on this audit. No cited mover is missing, completed, or retired.
+
+All 31 name classes are high-volatility because their cited live mover still owns the recorded rename, relocation,
+or target-shape change. The standalone `tracked-planning-git-operations` idiom is also high: the live
+`cli-substrate-adoption` target moves this mechanism behind CLI verbs. The manifest records each class's work unit,
+source anchor, roster state, and snapshot date; no unresolved rating remains.

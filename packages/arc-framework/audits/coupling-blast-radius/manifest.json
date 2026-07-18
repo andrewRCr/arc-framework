@@ -64,7 +64,7 @@
       "patterns": [{ "id": "arc-root-literal", "form": "literal", "value": ".arc/", "caseSensitive": true }],
       "citations": [{ "path": "strategy-storage-evolution.md", "anchor": "Forward-Compat Principles § 1", "workUnit": "arc-backend" }],
       "idioms": ["path-literal", "git-tracked-path"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"arc-backend","source":"strategy-storage-evolution.md#Forward-Compat Principles § 1; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "active-placement",
@@ -72,7 +72,7 @@
       "patterns": [{ "id": "active-literal", "form": "literal", "value": "active/", "caseSensitive": true }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
       "idioms": ["path-literal", "directory-state", "git-tracked-path"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"wu-lifecycle-state-model","source":"draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "planned-placement",
@@ -80,7 +80,7 @@
       "patterns": [{ "id": "planned-literal", "form": "literal", "value": "backlog/planned/", "caseSensitive": true }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
       "idioms": ["path-literal", "directory-state", "git-tracked-path"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"wu-lifecycle-state-model","source":"draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "provisional-placement",
@@ -88,7 +88,7 @@
       "patterns": [{ "id": "provisional-literal", "form": "literal", "value": "backlog/provisional/", "caseSensitive": true }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
       "idioms": ["path-literal", "directory-state", "git-tracked-path"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"wu-lifecycle-state-model","source":"draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "completed-placement",
@@ -96,7 +96,7 @@
       "patterns": [{ "id": "completed-literal", "form": "literal", "value": "completed/", "caseSensitive": true }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
       "idioms": ["path-literal", "directory-state", "git-tracked-path"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"wu-lifecycle-state-model","source":"draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "meta-prefix",
@@ -104,7 +104,7 @@
       "patterns": [{ "id": "meta-artifact-prefix", "form": "regex", "value": "meta-(?=[*{$\\[\"'`]|[a-z0-9][a-z0-9-]*\\.md)", "flags": "u" }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
       "idioms": ["filename-prefix", "directory-state", "path-literal", "doc-name"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"arc-backend","source":"draft-arc-backend.md#The Storage Model § The line: tracked vs. materialized; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "tasks-prefix",
@@ -112,7 +112,7 @@
       "patterns": [{ "id": "tasks-artifact-prefix", "form": "regex", "value": "tasks-(?=[*{$\\[\"'`]|[a-z0-9][a-z0-9-]*\\.md)", "flags": "u" }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
       "idioms": ["filename-prefix", "directory-state", "path-literal", "doc-name"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"arc-backend","source":"draft-arc-backend.md#The Storage Model § The line: tracked vs. materialized; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "draft-prefix",
@@ -120,7 +120,7 @@
       "patterns": [{ "id": "draft-artifact-prefix", "form": "regex", "value": "draft-(?=[*{$\\[\"'`]|[a-z0-9][a-z0-9-]*\\.md)", "flags": "u" }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
       "idioms": ["filename-prefix", "path-literal", "doc-name"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"arc-backend","source":"draft-arc-backend.md#The Storage Model § The line: tracked vs. materialized; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "spec-prefix",
@@ -128,7 +128,7 @@
       "patterns": [{ "id": "spec-artifact-prefix", "form": "regex", "value": "spec-(?=[*{$\\[\"'`]|[a-z0-9][a-z0-9-]*\\.md)", "flags": "u" }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
       "idioms": ["filename-prefix", "path-literal", "doc-name"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"arc-backend","source":"draft-arc-backend.md#The Storage Model § The line: tracked vs. materialized; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "notes-prefix",
@@ -136,7 +136,7 @@
       "patterns": [{ "id": "notes-artifact-prefix", "form": "regex", "value": "notes-(?=[*{$\\[\"'`]|[a-z0-9][a-z0-9-]*\\.md)", "flags": "u" }],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "The Storage Model § The line: tracked vs. materialized", "workUnit": "arc-backend" }],
       "idioms": ["filename-prefix", "path-literal", "doc-name"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"arc-backend","source":"draft-arc-backend.md#The Storage Model § The line: tracked vs. materialized; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "roadmap-name",
@@ -144,7 +144,7 @@
       "patterns": [{ "id": "roadmap-literal", "form": "literal", "value": "ROADMAP.md", "caseSensitive": true }],
       "citations": [{ "path": "draft-roadmap-tooling.md", "anchor": "ROADMAP to STATUS.PROJECT rename", "workUnit": "roadmap-tooling" }],
       "idioms": ["doc-name", "path-literal", "git-tracked-path"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"roadmap-tooling","source":"draft-roadmap-tooling.md#ROADMAP to STATUS.PROJECT rename; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "atomic-inbox-name",
@@ -152,7 +152,7 @@
       "patterns": [{ "id": "atomic-inbox-literal", "form": "literal", "value": "ATOMIC-INBOX.md", "caseSensitive": true }],
       "citations": [{ "path": "draft-naming-conventions.md", "anchor": "Renames", "workUnit": "naming-conventions" }],
       "idioms": ["doc-name", "path-literal", "git-tracked-path"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"naming-conventions","source":"draft-naming-conventions.md#Renames; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "user-inbox-name",
@@ -160,7 +160,7 @@
       "patterns": [{ "id": "user-inbox-literal", "form": "literal", "value": "USER-INBOX.md", "caseSensitive": true }],
       "citations": [{ "path": "draft-naming-conventions.md", "anchor": "Renames", "workUnit": "naming-conventions" }],
       "idioms": ["doc-name", "path-literal"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"naming-conventions","source":"draft-naming-conventions.md#Renames; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "session-notes-name",
@@ -168,7 +168,7 @@
       "patterns": [{ "id": "session-notes-literal", "form": "literal", "value": "SESSION-NOTES.md", "caseSensitive": true }],
       "citations": [{ "path": "draft-naming-conventions.md", "anchor": "Renames", "workUnit": "naming-conventions" }],
       "idioms": ["doc-name", "path-literal"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"naming-conventions","source":"draft-naming-conventions.md#Renames; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "working-memory-name",
@@ -176,7 +176,7 @@
       "patterns": [{ "id": "working-memory-literal", "form": "literal", "value": "WORKING-MEMORY.md", "caseSensitive": true }],
       "citations": [{ "path": "draft-naming-conventions.md", "anchor": "Renames", "workUnit": "naming-conventions" }],
       "idioms": ["doc-name", "path-literal"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"naming-conventions","source":"draft-naming-conventions.md#Renames; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "typed-branch-prefixes",
@@ -184,7 +184,7 @@
       "patterns": [{ "id": "typed-branch-regex", "form": "regex", "value": "(?:feat|fix|chore|plan)/", "flags": "u" }],
       "citations": [{ "path": "strategy-storage-evolution.md", "anchor": "Forward-Compat Principles § 5", "workUnit": "arc-backend" }],
       "idioms": ["branch-pattern"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"arc-backend","source":"strategy-storage-evolution.md#Forward-Compat Principles § 5; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "pm-mode-key",
@@ -192,7 +192,7 @@
       "patterns": [{ "id": "pm-mode-literal", "form": "literal", "value": "pm.mode", "caseSensitive": true }],
       "citations": [{ "path": "draft-arcd-rebrand.md", "anchor": "Layer 1 — Structural renames", "workUnit": "arcd-rebrand" }],
       "idioms": ["config-key"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"arcd-rebrand","source":"draft-arcd-rebrand.md#Layer 1 — Structural renames; roster=provisional; snapshot=2026-07-18"}}
     },
     {
       "id": "team-mode-key",
@@ -200,7 +200,7 @@
       "patterns": [{ "id": "team-mode-literal", "form": "literal", "value": "team.mode", "caseSensitive": true }],
       "citations": [{ "path": "draft-local-mode.md", "anchor": "Team mode and the substrate", "workUnit": "local-mode" }],
       "idioms": ["config-key"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"local-mode","source":"draft-local-mode.md#Team mode and the substrate; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "strategy-family",
@@ -208,7 +208,7 @@
       "patterns": [{ "id": "strategy-prefix-literal", "form": "literal", "value": "strategy-", "caseSensitive": true }],
       "citations": [{ "path": "draft-knowledge-architecture.md", "anchor": "The four-kind verdict and Naming", "workUnit": "knowledge-architecture" }],
       "idioms": ["filename-prefix", "doc-name"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"knowledge-architecture","source":"draft-knowledge-architecture.md#The four-kind verdict and Naming; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "strategy-index-name",
@@ -216,7 +216,7 @@
       "patterns": [{ "id": "strategy-index-literal", "form": "literal", "value": "STRATEGY-INDEX.md", "caseSensitive": true }],
       "citations": [{ "path": "draft-knowledge-architecture.md", "anchor": "Architecture § Access paths are derived", "workUnit": "knowledge-architecture" }],
       "idioms": ["doc-name", "path-literal"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"knowledge-architecture","source":"draft-knowledge-architecture.md#Architecture § Access paths are derived; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "agent-briefs-root",
@@ -224,7 +224,7 @@
       "patterns": [{ "id": "agent-briefs-root-literal", "form": "literal", "value": "reference/briefs", "caseSensitive": true }],
       "citations": [{ "path": "draft-naming-conventions.md", "anchor": "Rename reference/briefs to reference/agent-briefs", "workUnit": "naming-conventions" }],
       "idioms": ["path-literal", "directory-state", "git-tracked-path"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"naming-conventions","source":"draft-naming-conventions.md#Rename reference/briefs to reference/agent-briefs; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "workflow-root",
@@ -232,7 +232,7 @@
       "patterns": [{ "id": "workflow-root-literal", "form": "literal", "value": "system/workflows/", "caseSensitive": true }],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D2 — Decomposed-workflow layout", "workUnit": "composable-workflows" }],
       "idioms": ["path-literal", "directory-state"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D2 — Decomposed-workflow layout; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "method-root",
@@ -240,7 +240,7 @@
       "patterns": [{ "id": "method-root-literal", "form": "literal", "value": "system/methods/", "caseSensitive": true }],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D2 — The fragment substrate", "workUnit": "composable-workflows" }],
       "idioms": ["path-literal", "directory-state"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D2 — The fragment substrate; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "extension-root",
@@ -248,7 +248,7 @@
       "patterns": [{ "id": "extension-root-literal", "form": "literal", "value": "system/extensions/", "caseSensitive": true }],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D1 — The workflow contract shape", "workUnit": "composable-workflows" }],
       "idioms": ["path-literal", "directory-state"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D1 — The workflow contract shape; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "internal-skill-root",
@@ -256,7 +256,7 @@
       "patterns": [{ "id": "internal-skill-root-literal", "form": "literal", "value": "system/.internal/skills/", "caseSensitive": true }],
       "citations": [{ "path": "strategy-knowledge-evolution.md", "anchor": "Target Model and access paths", "workUnit": "knowledge-architecture" }],
       "idioms": ["path-literal", "directory-state"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"knowledge-architecture","source":"strategy-knowledge-evolution.md#Target Model and access paths; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "arc-methods-key",
@@ -264,7 +264,7 @@
       "patterns": [{ "id": "arc-methods-literal", "form": "literal", "value": "arc.methods", "caseSensitive": true }],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D1 — Frontmatter is the contract", "workUnit": "composable-workflows" }],
       "idioms": ["config-key"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D1 — Frontmatter is the contract; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "arc-extensions-key",
@@ -272,7 +272,7 @@
       "patterns": [{ "id": "arc-extensions-literal", "form": "literal", "value": "arc.extensions", "caseSensitive": true }],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D1 — Frontmatter is the contract", "workUnit": "composable-workflows" }],
       "idioms": ["config-key"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D1 — Frontmatter is the contract; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "load-set-name",
@@ -280,7 +280,7 @@
       "patterns": [{ "id": "load-set-regex", "form": "regex", "value": "(?:loadSet|load-set)", "flags": "u" }],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D3 — The session-agenda compiler", "workUnit": "composable-workflows" }],
       "idioms": ["config-key", "doc-name"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D3 — The session-agenda compiler; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "recommended-text-family",
@@ -288,7 +288,7 @@
       "patterns": [{ "id": "recommended-text-regex", "form": "regex", "value": "recommended[A-Z][A-Za-z]*(?:Text|Prompt)", "flags": "u" }],
       "citations": [{ "path": "strategy-procedure-evolution.md", "anchor": "Forward-Compat Principles § 6", "workUnit": "composable-workflows" }],
       "idioms": ["config-key"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"strategy-procedure-evolution.md#Forward-Compat Principles § 6; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "template-suffix",
@@ -296,7 +296,7 @@
       "patterns": [{ "id": "template-suffix-literal", "form": "literal", "value": ".template", "caseSensitive": true }],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D3 — Binding-time rule", "workUnit": "composable-workflows" }],
       "idioms": ["filename-prefix", "path-literal"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D3 — Binding-time rule; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "domain-rules-name",
@@ -304,7 +304,7 @@
       "patterns": [{ "id": "dev-rules-regex", "form": "regex", "value": "DEV-RULES\\.[A-Z.-]+\\.md", "flags": "u" }],
       "citations": [{ "path": "draft-rules-restructure.md", "anchor": "Scope", "workUnit": "rules-restructure" }],
       "idioms": ["doc-name", "filename-prefix"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"rules-restructure","source":"draft-rules-restructure.md#Scope; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "tracked-planning-git-operations",
@@ -312,7 +312,7 @@
       "patterns": [{ "id": "git-planning-regex", "form": "regex", "value": "git (?:add|diff|log|mv|rm|show)[^\\n]*(?:\\.arc/|active/|backlog/|completed/)", "flags": "u" }],
       "citations": [{ "path": "strategy-storage-evolution.md", "anchor": "Forward-Compat Principles § 1", "workUnit": "cli-substrate-adoption" }],
       "idioms": ["git-tracked-path"],
-      "volatility": { "rating": "unresolved", "evidence": null }
+      "volatility": {"rating":"high","evidence":{"workUnit":"cli-substrate-adoption","source":"strategy-storage-evolution.md#Forward-Compat Principles § 1; roster=planned; snapshot=2026-07-18"}}
     }
   ],
   "catchAllVectors": [
@@ -692,7 +692,7 @@
             "branch-shape-token"
           ]
         },
-        "memberSetDigest": "82816d2504629489c8bafb84e27ee1ea3a38e66ee8ac8aeca6d3b111b8e66a78",
+        "memberSetDigest": "43306979114b13f3b86cd019c8f4ecf3b4f8c83bacec3e9040267165e899f264",
         "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
       },
       {
@@ -716,7 +716,7 @@
             "dotted-config-token"
           ]
         },
-        "memberSetDigest": "957d56f3198cbb56a7a6ca2eda7d1545d92c80f5712041ff7eec2c0244e0d129",
+        "memberSetDigest": "e5c6774528f4d910a79b33f27b7e16d96fc6e463e267c9a181dc2c93f808d1ad",
         "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
       },
       {
@@ -752,7 +752,7 @@
             "path-shaped-token"
           ]
         },
-        "memberSetDigest": "4445a86c47342ed88977fecf1b4b2510dcd62cac1ec2773f4be7763bc0385627",
+        "memberSetDigest": "2cde1f71624316d3e5397120eabbd9ed88ab92a310b3d8ff8ed72033491c2054",
         "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
       },
       {

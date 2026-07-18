@@ -249,23 +249,25 @@ eliminate every unclassified catch-all hit.
 _Purpose:_ Convert the complete mechanical inventory into dated, source-cited ranking data and dependency-critical
 views that the routed final report projects without hand-maintained interpretation.
 
-### `[ ]` **5.1 Rate every assumption class against its recorded mover**
+### `[x]` **5.1 Rate every assumption class against its recorded mover**
 
 - _Goal:_ Volatility is a dated class-level judgment grounded in recorded direction, never inferred from hit count or
   repeated independently per file.
 
-    - `[ ]` **5.1.a Resolve mover evidence for every name-keyed class**
-        - Verify each citation still describes a pending rename/relocation and resolve the mover's live roster state
-          by slug; record the snapshot date and classify missing/retired movers explicitly rather than guessing.
+    - `[x]` **5.1.a Resolve mover evidence for every name-keyed class**
+        - Re-resolved all cited slugs: nine are planned and `arcd-rebrand` is provisional; every cited direction still
+          owns its pending rename, relocation, or target-shape change.
 
-    - `[ ]` **5.1.b Resolve volatility for standalone idiom classes**
-        - Cite the substrate or procedure direction that would change the coupling mechanism itself, and distinguish
-          stable current idioms from mechanisms already scheduled for abstraction.
+    - `[x]` **5.1.b Resolve volatility for standalone idiom classes**
+        - Rated tracked-planning Git operations high against the live CLI-substrate target that moves the mechanism
+          behind verbs.
 
-    - `[ ]` **5.1.c Complete the manifest's volatility evidence**
-        - Resolve every class from `unresolved` to `high | stable`: require a live mover or accepted target-direction
-          citation for `high`, and a recorded rationale for `stable` after missing/completed movers are rechecked.
-        - Keep `unresolved` as an authoring state and a hard report-generation error, never a third final rating.
+    - `[x]` **5.1.c Complete the manifest's volatility evidence**
+        - Replaced all 32 unresolved ratings with source-, roster-, and date-stamped high evidence; no mover was
+          missing, completed, or retired.
+
+- _Outcome:_ Every class now carries one dated volatility judgment grounded in its live design owner, and report
+  projection can no longer encounter an unresolved rating.
 
 ### `[ ]` **5.2 Calibrate fan-out thresholds and assign quadrant verdicts**
 
