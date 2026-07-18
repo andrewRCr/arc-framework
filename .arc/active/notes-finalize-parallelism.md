@@ -1497,7 +1497,10 @@ gates and close at their tasks.
   recovery); self-teardown session termination (physical asymmetry — playbook carries the run-from-primary
   discipline); compaction-seed shared-checkout race (one-session-per-checkout); audit-log per-checkout
   fragmentation (informational only).
-- [ ] **`/arc-shift` revival dispositioned** — closes at Task 8.4.
+- [x] **`/arc-shift` revival dispositioned** — dismissed (Task 8.4, 2026-07-17): burn-in surfaced only
+  read-only investigation needs, all satisfied from the current session; the relocate-desync and single-frame
+  session-state findings close the structural case; post-GA demand, if any, re-derives on `session-locus-model`'s
+  substrate. Durable record: `cohort-agile-parallelism.md` § Deferred — `/arc-shift`.
 - [ ] **CI metering remediation confirmed live with corrected cost shape** — hard gate, closes at Task 8.5; the
   retained self-hosted-runner capture is decided against the measured residual there.
 

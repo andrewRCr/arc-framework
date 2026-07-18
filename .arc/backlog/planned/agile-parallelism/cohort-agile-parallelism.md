@@ -196,6 +196,21 @@ gated on `finalize-parallelism`. The **revival decision is routed to `finalize-p
 substrate it operates on becomes real and the as-built concurrent-work conventions exist to update against —
 superseding the open-ended fallback tree below for the revival call itself.
 
+**Final disposition (2026-07-17, via `finalize-parallelism` GA closeout) — DISMISSED.** Burn-in supplied the
+demand evidence the deferral waited for: investigation-shaped detours *did* surface (most often between the
+observer WU and its wave worktrees), and every instance was satisfied by read-only cross-worktree access from
+the current session — worktrees are directories, and per-command cwd targeting covers running commands in the
+target environment without relocating. No instance required the verb's defining conjunction (target runtime
+environment + carried live context + return intent). Two structural findings independently close the case:
+the relocate-desync finding (a mid-session cwd hop moves the agent while the developer's terminal and GUI stay
+behind — `arc-shift` is that hop, formalized with a merge-back) and the single-frame session-state finding (a
+formal detour-and-return needs the frame/locus machinery `session-locus-model` owns). The genuinely-interactive
+residual — sustained work inside another worktree's runnable environment — is served by a spawn-anchored fresh
+session there, booting rich off the seeded handoff. The PR-review-checkout alternative framing reduces the same
+way: worktree-add + read-from-here, or a fresh session. Per the fallback tree below: the verb dies, this
+section archives with the cohort. If post-GA demand materializes, the case re-derives on `session-locus-model`'s
+locus-record substrate rather than from this sketch.
+
 ### Surviving narrow use case (preserved from WF spec)
 
 Interactive cross-worktree *investigation* — operate in another worktree's runnable environment while

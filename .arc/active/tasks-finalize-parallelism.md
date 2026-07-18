@@ -1037,19 +1037,34 @@ parent below states the reconciliation _procedure + recorded outcome_, not the u
   remaining tasks, backed by an adopter-facing playbook so the first real incident is a lookup. The bless
   itself rides Task 8.3's flip once 8.4/8.5 close their lines.
 
-### `[ ]` **8.3 Retire the interim `--here` default**
+### `[x]` **8.3 Retire the interim `--here` default**
 
 - _Goal:_ Worktree-by-default is the default — the interim `--here` caveat is fully retired (final flip + the
   WORKING-MEMORY entry update); the progressive per-wave retirement already lifted it wave by wave.
 
-    - `[ ]` **8.3.a Flip the default and update the WORKING-MEMORY entry**
+    - `[x]` **8.3.a Flip the default and update the WORKING-MEMORY entry**
+        - No tracked surface needed flipping — shipped workflows already document spawn-by-default with `--here`
+          as the in-place opt-out, and the interim caveat lived only as operator discipline in WORKING-MEMORY.
+          That entry (both trigger clauses met: build items on base, all four waves verified launches for their
+          WU classes) is removed with a tombstone and the removal saved to the notes ref. Worktree-by-default is
+          now unqualified.
 
-### `[ ]` **8.4 Settle the `/arc-shift` revival decision**
+### `[x]` **8.4 Settle the `/arc-shift` revival decision**
 
 - _Goal:_ The `/arc-shift` revival is decided with burn-in evidence (did an investigation-shaped detour surface?
   is the PR-review-checkout framing the likelier earning case?) and recorded — revive / materialize-stub / dismiss.
 
-    - `[ ]` **8.4.a Decide and record the disposition (+ any stub or follow-up WU)**
+    - `[x]` **8.4.a Decide and record the disposition (+ any stub or follow-up WU)**
+        - **Dismissed.** Investigation-shaped detours did surface (most often observer ↔ wave worktrees), and
+          every instance was satisfied by read-only cross-worktree reads from the current session — no instance
+          required the verb's defining conjunction (target runtime env + live carried context + return). Two
+          structural findings independently close it: relocate-desync (a mid-session cwd hop is the anti-pattern
+          the launch model already rejected — `arc-shift` is that hop formalized) and single-frame session state
+          (a formal detour-and-return needs `session-locus-model`'s frame/locus machinery). The sustained-
+          interactive case is served by a spawn-anchored fresh session; the PR-review-checkout framing reduces
+          to worktree-add + read-from-here or a fresh session. No stub, no follow-up WU — post-GA demand, if it
+          materializes, re-derives on `session-locus-model`'s substrate. Recorded in
+          `cohort-agile-parallelism.md` § Deferred — `/arc-shift`.
 
 ### `[ ]` **8.5 Confirm the CI metering remediation landed (GA hard gate)**
 
