@@ -306,9 +306,12 @@ After approval, immediately invoke `arc base drift --json` again and apply the s
 - `reconcile` with `baseOid == {approved-baseOid}` — immediately merge that OID append-only, with no fetch,
   review action, or further stop between the refreshed read and merge:
 
-```bash
-arc base drift --json
-git merge --no-edit {approved-baseOid}
+```text
+result = arc base drift --json
+if <result is authoritative reconcile and baseOid == {approved-baseOid}>:
+    git merge --no-edit {approved-baseOid}
+else:
+    <dispatch result through the validated verdict loop above>
 ```
 
 Resolve conflicts if any and run Tier 1 quality gates. Before pushing, repeat the Step 12 pre-push extension check,
@@ -332,14 +335,22 @@ after this stable checkpoint and before the integration interlock.
 > `integration-interlock`: Stop before merge. Surface PR status (open threads, required approvals, checks), merge
 > method, and the clean base-drift result; await explicit integration approval before merging.
 
-Immediately after approval, invoke `arc base drift --json` once more. Apply the same strict validation:
-`unavailable`, `skipped`, malformed, or unrecognized stops; `reconcile` returns to the reconcile loop and
-requires a new exact-head checkpoint plus integration approval. Only `clean` permits the merge command, with no
-extension, review action, lifecycle mutation, commit, push, fetch, or human stop between this final read and merge:
+Immediately after approval, recompose `openedChangeRequest` from the canonical current head and re-read PR status
+for that exact head. If threads, required approvals, or required checks are no longer settled, invalidate the
+approval and return to the review cycle.
 
-```bash
-arc base drift --json
-gh pr merge {pr-number} --merge   # or --squash / --rebase per config
+With PR state still settled, immediately invoke `arc base drift --json` once more and apply the same strict
+validation. `unavailable`, `skipped`, malformed, or unrecognized stops; `reconcile` returns to the reconcile loop
+and requires a new exact-head checkpoint plus integration approval. Only `clean` permits the merge command, with
+no extension, review action, lifecycle mutation, commit, push, fetch, or human stop between this final read and
+merge:
+
+```text
+result = arc base drift --json
+if <result is authoritative clean>:
+    gh pr merge {pr-number} --merge   # or --squash / --rebase per config
+else:
+    <stop or return to the reconcile loop per the validated verdict>
 ```
 
 **Skip the merge when the PR is already merged** — the resume path's PR-merged arm (Step 1) enters here with the

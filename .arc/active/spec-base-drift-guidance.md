@@ -66,6 +66,7 @@ and adds the following typed fields:
 type BaseDriftVerdict = "clean" | "reconcile" | "unavailable" | "skipped";
 
 type BaseDriftUnavailableReason =
+  | "config-unavailable"
   | "invalid-base"
   | "detached-head"
   | "no-remote"

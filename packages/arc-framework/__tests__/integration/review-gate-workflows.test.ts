@@ -285,15 +285,26 @@ describe("trusted review-gate workflows", () => {
     expect(gate).toContain("re-fire the reconcile");
     expect(gate).toContain("requires a new exact-head checkpoint plus integration approval");
     expect(gate).toContain(
-      "arc base drift --json\ngit merge --no-edit {approved-baseOid}",
+      "result = arc base drift --json\n"
+      + "if <result is authoritative reconcile and baseOid == {approved-baseOid}>:\n"
+      + "    git merge --no-edit {approved-baseOid}",
     );
     expect(gate).toContain(
-      "arc base drift --json\ngh pr merge {pr-number} --merge",
+      "result = arc base drift --json\n"
+      + "if <result is authoritative clean>:\n"
+      + "    gh pr merge {pr-number} --merge",
     );
+    expect(gate).not.toContain("arc base drift --json\ngit merge");
+    expect(gate).not.toContain("arc base drift --json\ngh pr merge");
+    const approval = gate.indexOf("await explicit integration approval");
+    const refreshedPr = gate.indexOf("re-read PR status", approval);
+    const finalDrift = gate.lastIndexOf("result = arc base drift --json");
+    expect(approval).toBeLessThan(refreshedPr);
+    expect(refreshedPr).toBeLessThan(finalDrift);
     expect(gate.indexOf("git merge --no-edit {approved-baseOid}")).toBeLessThan(
       gate.indexOf("run Tier 1 quality gates"),
     );
-    expect(gate.lastIndexOf("arc base drift --json")).toBeLessThan(gate.indexOf("gh pr merge"));
+    expect(finalDrift).toBeLessThan(gate.indexOf("gh pr merge"));
   });
 
   it("proves the checked-in repair workflow is the sole closed status writer", async () => {
