@@ -353,30 +353,26 @@ certified report without expanding this WU into the later inbox drain or editing
 - _Outcome:_ The complete reviewed finding set now survives outside the audit branch as idempotent personal captures,
   while the tracked ledger records the exact terminal routing state that Task 6.3 can certify.
 
-### `[ ]` **6.3 Publish and certify the settled report**
+### `[x]` **6.3 Publish and certify the settled report**
 
 - _Goal:_ The checked-in report is one reproducible projection of the settled scan result and reconciled routing
   ledger, with no later WU task mutating its certified bytes.
 
-    - `[ ]` **6.3.a Render the complete ranked report**
-        - Add a thin deterministic Markdown projection to the existing project-internal audit tool, with one focused
-          fixture proving stable output, exactly one inventory row per canonical class, and exactly one ledger entry
-          per routed packet; do not add a general renderer abstraction or product command surface.
-        - Project the canonical settled scan result plus canonical routing ledger. Include corpus/manifest/result
-          provenance, threshold method, residue disposition summary, class rankings and evidence, both hard-consumer
-          extracts, and `captured-awaiting-housekeep` routing entries.
-        - Point to canonical per-class file lists without copying them into another authority; describe the operation
-          and evidence directly, with no planning-process commentary in any shipped target.
+    - `[x]` **6.3.a Render the complete ranked report**
+        - Added an explicit report mode to the repository audit command and a thin pure Markdown projection with one
+          focused test-first fixture proving stable bytes and exact inventory/packet row cardinality; the checked
+          report carries provenance, ranking method, residue summary, both hard-consumer extracts, and routed
+          findings while leaving canonical class file lists in the scan result.
 
-    - `[ ]` **6.3.b Certify final inputs and projected bytes**
-        - Run the authoritative command twice to separate locations outside the repository using the settled
-          manifest and exact recorded hard-view inputs; require zero unresolved classes and zero unresolved
-          candidate residue in both results.
-        - Require both result digests to equal the digest bound by every routing packet. If not, return to Tasks 6.1
-          and 6.2 to regenerate and reconcile packets before certification.
-        - Compare canonical result bytes/digests and report bytes projected with the fixed routing ledger, confirm
-          repository inputs remain unchanged, and refresh report/notes provenance with the final evidence. Phase 4's
-          comparison remains calibration-manifest evidence only.
+    - `[x]` **6.3.b Certify final inputs and projected bytes**
+        - Re-reviewed the renderer's bounded self-audit delta, refreshed four generic bulk-member digests, regenerated
+          the result and all packet identities, and reconciled the replacement captures. Two external scans and two
+          report projections are byte-identical to their checked artifacts, with 32 resolved classes, zero candidate
+          residue, and unchanged repository inputs across certification.
+
+- _Outcome:_ The audit now publishes one certified human report backed by exact canonical inputs: result
+  `2cf97d2be9f14365ae30ee0653e739b9327a349312f6f262bdfa1b1dcaa10640` and report
+  `5d5a600b35bf8ed19b89e4153b4552cc523dccc6c2ee75a7b5fedfbfa7c47c5a`.
 
 ## **Phase 7:** Verification
 

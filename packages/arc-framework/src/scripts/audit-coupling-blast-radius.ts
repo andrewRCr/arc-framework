@@ -4,6 +4,7 @@
  * @module
  */
 
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,8 +14,11 @@ import {
   couplingAuditExitCode,
   CouplingAuditValidationError,
   parseCouplingManifest,
+  parseCouplingScanResult,
+  parseRoutingLedger,
 } from "../lib/coupling-audit/contracts.js";
 import { collectCorpus } from "../lib/coupling-audit/corpus.js";
+import { renderCouplingReport } from "../lib/coupling-audit/report.js";
 import { scanCorpus } from "../lib/coupling-audit/scan.js";
 import type { CouplingScanResult } from "../lib/coupling-audit/types.js";
 import { atomicWriteFile } from "../lib/fs.js";
@@ -38,6 +42,12 @@ interface AuditArguments {
   output: string;
 }
 
+interface ReportArguments {
+  result: string;
+  ledger: string;
+  report: string;
+}
+
 function parseArguments(argv: readonly string[]): AuditArguments {
   let manifest: string | undefined;
   let output: string | undefined;
@@ -46,19 +56,66 @@ function parseArguments(argv: readonly string[]): AuditArguments {
     const value = argv[index + 1];
     if (argument === "--manifest" || argument === "--output") {
       if (value === undefined || value.startsWith("--")) {
-        throw new CouplingAuditValidationError("arguments", `${argument} requires a value`);
+        throw new CouplingAuditValidationError(
+          "arguments",
+          `${argument} requires a value`,
+        );
       }
       if (argument === "--manifest") manifest = value;
       else output = value;
       index += 1;
       continue;
     }
-    throw new CouplingAuditValidationError("arguments", `unknown argument: ${argument ?? ""}`);
+    throw new CouplingAuditValidationError(
+      "arguments",
+      `unknown argument: ${argument ?? ""}`,
+    );
   }
   if (manifest === undefined || output === undefined) {
-    throw new CouplingAuditValidationError("arguments", "required: --manifest <path> --output <path|->");
+    throw new CouplingAuditValidationError(
+      "arguments",
+      "required: --manifest <path> --output <path|->",
+    );
   }
   return { manifest, output };
+}
+
+function parseReportArguments(argv: readonly string[]): ReportArguments {
+  let result: string | undefined;
+  let ledger: string | undefined;
+  let report: string | undefined;
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    const value = argv[index + 1];
+    if (
+      argument === "--result" ||
+      argument === "--ledger" ||
+      argument === "--report"
+    ) {
+      if (value === undefined || value.startsWith("--")) {
+        throw new CouplingAuditValidationError(
+          "arguments",
+          `${argument} requires a value`,
+        );
+      }
+      if (argument === "--result") result = value;
+      else if (argument === "--ledger") ledger = value;
+      else report = value;
+      index += 1;
+      continue;
+    }
+    throw new CouplingAuditValidationError(
+      "arguments",
+      `unknown argument: ${argument ?? ""}`,
+    );
+  }
+  if (result === undefined || ledger === undefined || report === undefined) {
+    throw new CouplingAuditValidationError(
+      "arguments",
+      "required: --result <path> --ledger <path> --report <path|->",
+    );
+  }
+  return { result, ledger, report };
 }
 
 function resolveInput(root: string, path: string): string {
@@ -71,10 +128,13 @@ function resolveInput(root: string, path: string): string {
  * @param root - Repository root containing the manifest corpus.
  * @returns Real Git, filesystem, and process-stream adapters.
  */
-export function createCouplingAuditScriptContext(root: string): CouplingAuditScriptContext {
+export function createCouplingAuditScriptContext(
+  root: string,
+): CouplingAuditScriptContext {
   return {
     root,
-    git: (command, args, options) => gitExec(command, args, { ...options, cwd: root }),
+    git: (command, args, options) =>
+      gitExec(command, args, { ...options, cwd: root }),
     readBytes: async (path) => new Uint8Array(await readFile(path)),
     readText: (path) => readFile(path, "utf8"),
     writeFile: atomicWriteFile,
@@ -113,11 +173,54 @@ export async function executeCouplingAudit(
   const result = scanCorpus(manifest, files);
   const content = canonicalJson(result);
   if (args.output === "-") context.writeStdout(content);
-  else await context.writeFile(resolveInput(context.root, args.output), content);
+  else
+    await context.writeFile(resolveInput(context.root, args.output), content);
   context.writeStderr(
     `coupling-audit: ${result.corpus.fileCount} files, ${result.classes.length} classes, ${result.candidates.unresolved.length} unresolved\n`,
   );
   return result;
+}
+
+/**
+ * Project one validated result and its bound routing ledger to Markdown.
+ *
+ * @param argv - Explicit result, ledger, and report path arguments.
+ * @param context - Repository-pinned executable boundaries.
+ * @returns The deterministic Markdown written by the command.
+ */
+export async function executeCouplingReport(
+  argv: readonly string[],
+  context: CouplingAuditScriptContext,
+): Promise<string> {
+  const args = parseReportArguments(argv);
+  const resultPath = resolveInput(context.root, args.result);
+  const ledgerPath = resolveInput(context.root, args.ledger);
+  let resultText: string;
+  let rawResult: unknown;
+  let rawLedger: unknown;
+  try {
+    resultText = await context.readText(resultPath);
+    rawResult = JSON.parse(resultText);
+    rawLedger = JSON.parse(await context.readText(ledgerPath));
+  } catch (error) {
+    throw new CouplingAuditValidationError(
+      "report",
+      `cannot read valid result and ledger JSON: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const resultDigest = createHash("sha256")
+    .update(resultText, "utf8")
+    .digest("hex");
+  const result = parseCouplingScanResult(rawResult);
+  const ledger = parseRoutingLedger(rawLedger, resultDigest);
+  const content = renderCouplingReport(result, ledger);
+  if (args.report === "-") context.writeStdout(content);
+  else
+    await context.writeFile(resolveInput(context.root, args.report), content);
+  context.writeStderr(
+    `coupling-audit: projected ${result.reportInputs.rankedInventory.length} classes and ${ledger.packets.length} packets\n`,
+  );
+  return content;
 }
 
 /**
@@ -132,7 +235,14 @@ export async function runCouplingAuditCommand(
   context: CouplingAuditScriptContext,
 ): Promise<0 | 2 | 3 | 4> {
   try {
-    await executeCouplingAudit(argv, context);
+    const reportMode = argv.some(
+      (argument) =>
+        argument === "--result" ||
+        argument === "--ledger" ||
+        argument === "--report",
+    );
+    if (reportMode) await executeCouplingReport(argv, context);
+    else await executeCouplingAudit(argv, context);
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -141,7 +251,10 @@ export async function runCouplingAuditCommand(
   }
 }
 
-if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+if (
+  process.argv[1] !== undefined &&
+  fileURLToPath(import.meta.url) === resolve(process.argv[1])
+) {
   process.exitCode = await runCouplingAuditCommand(
     process.argv.slice(2),
     createCouplingAuditScriptContext(resolveRepoRoot()),

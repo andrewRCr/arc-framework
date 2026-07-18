@@ -276,9 +276,12 @@ The placement projection records `active-placement`, `completed-placement`, `pla
 extract member links to complete evidence-digest sets; capped samples play no role in membership. Class-hit evidence
 now preserves its originating catch vector where one exists, keeping the result's idiom provenance inspectable.
 
-The canonical result covers 1,213 tracked files, 7,736 classified candidates, 90,769 dismissed candidates, and zero
-unresolved residue. Its manifest digest is `ca0b6bba990a542fe8ac10db34cc3fcb9a25ef377333e8ad18ad9d6de4a7a52f`;
-the result SHA-256 is `f535f672d4109c6643b44a9662ee444ab8f09939089a91d8d3b2ac91d81d5ac2`.
+The final canonical result covers 1,215 tracked files, 7,738 classified candidates, 90,919 dismissed candidates,
+and zero unresolved residue. Its manifest digest is
+`fe62bddc6fe61e32a9e8be98090cd0e4599ea6803acd9d8033c39e6dea0fe250`; the result SHA-256 is
+`2cf97d2be9f14365ae30ee0653e739b9327a349312f6f262bdfa1b1dcaa10640`. The final delta adds the report renderer
+and its focused fixture to the tracked corpus; review confirmed their new catch-all candidates remain generic
+members of the existing branch-token, dotted-token, path-token, and prefix-operation disposition groups.
 
 ## Finding packet routing
 
@@ -310,3 +313,19 @@ ranked evidence, extract references, implications, and grooming recommendations.
 resolver-backed identity-global `USER-INBOX` with exact IDs and digests, then reconciled one-to-one with the ledger.
 Every packet is now `captured-awaiting-housekeep`; no foreign work-unit artifact was edited and the wider inbox drain
 was not invoked.
+
+## Final report certification
+
+The project-internal audit command now has an explicit report mode: `--result`, `--ledger`, and `--report` read the
+canonical hard-view inputs and emit the Markdown projection without implicit paths. The checked report contains 32
+ranked inventory rows, 15 substrate-abstraction rows, 55 placement-reader rows, and 11
+`captured-awaiting-housekeep` routing rows. Its SHA-256 is
+`5d5a600b35bf8ed19b89e4153b4552cc523dccc6c2ee75a7b5fedfbfa7c47c5a`; the reconciled ledger SHA-256 is
+`2cb0f9139373789e3935712de0601335d99966db9055a6a05e803212a8b6b110`.
+
+Two authoritative scans to separate external paths produced byte-identical results at
+`2cf97d2be9f14365ae30ee0653e739b9327a349312f6f262bdfa1b1dcaa10640`; each reported 1,215 files, 32 resolved
+classes, and zero unresolved candidate residue. Projecting each result independently through the fixed ledger
+produced byte-identical reports at `5d5a600b35bf8ed19b89e4153b4552cc523dccc6c2ee75a7b5fedfbfa7c47c5a`, matching the
+checked report. Before/after hashes of the repository diff and explicit input files were unchanged across the four
+runs.

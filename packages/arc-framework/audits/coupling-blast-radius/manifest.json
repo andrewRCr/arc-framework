@@ -692,7 +692,7 @@
             "branch-shape-token"
           ]
         },
-        "memberSetDigest": "132e05f1d7355921931e7ddfaeec3bb0ee85ff3b376bc716b19377ca577dff9d",
+        "memberSetDigest": "ba8eac8965ad82f732e956ed3fea1654c9c674325f8b684ac8c5b733ecd4e55b",
         "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
       },
       {
@@ -716,7 +716,7 @@
             "dotted-config-token"
           ]
         },
-        "memberSetDigest": "e67b164691e16a17f16abf529ab7e87c84e58d8d95b5641df5107acb65ecbb22",
+        "memberSetDigest": "ed5ffcc186c73e661cf3593c54345009746a193b09f26fc88f49060296669756",
         "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
       },
       {
@@ -752,7 +752,7 @@
             "path-shaped-token"
           ]
         },
-        "memberSetDigest": "b4a8dcbaf178bbef2894fbe82819f751e80ea8707591132ba367f5de679c1140",
+        "memberSetDigest": "7b72c68fceaff6f97f0f9fa6fe5a9f08f5a1001c02391a0f2106ad1fed918d17",
         "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
       },
       {
@@ -764,7 +764,7 @@
             "prefix-operation"
           ]
         },
-        "memberSetDigest": "93b65c778f42d97095601f73980727ced1b0118f0cb76618b0cfc1916ebedbd3",
+        "memberSetDigest": "055878e493835d25711577c02e6445eefd77b4c69fe8bb0c290f217f8564f2c1",
         "reason": "Generic string operation with no mechanically linked governed filename prefix."
       }
     ]
