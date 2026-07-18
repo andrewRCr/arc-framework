@@ -5,54 +5,11 @@
   execution-locus doctrine is sequential-era; session state is single-frame.
 - **Purpose:** Make a checkout's role durable and record the bounded session/locus frame needed to leave, recover,
   and return without repurposing a WU worktree or relying on harness-summary state.
-
----
-
-## Inbound Buffer — Pending Integration
-
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
-
-### `[ ]` **Locus records: HUD consumer seam + authority-domain homing**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: session-locus-model`), housekeep drain (2026-07-18);
-  captured at the storage-substrate grooming (2026-07-17). Precedent record:
-  `research-storage-landscape-2026-07.md` § 6.
-- *Concern:* two compose-notes. (1) The `status-hud` stub's context card ("where is this WU at — stage, at a
-  glance") upgrades from oracle/meta/cursor proxies to locus records when they land — locus should expose stage
-  as a queryable record, not only as workflow-internal state. (2) Scope-model question: locus is arguably
-  machine/worktree-local authority (the Swamp run-tracker precedent — "a PID is meaningful only on the machine";
-  home state by authority domain, query across domains rather than replicate) — decide which locus fields are
-  shared-store records vs. local-domain records exposed via query.
-- *Fold-in:* integrate both at this WU's next grooming.
-
-### `[ ]` **Close the errand sweep loop: run-errand next-offer + `--errand` vs `--housekeep` doorway legibility**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-16); captured during FP
-  wave-3 terminal-state UX review, alongside the terminal-WU handoff capture (routed to `handoff-optimization`).
-- *Concern:* triage-then-sweep connective tissue exists only on the drain side: `drain-inbox` § 6 hands each
-  execute-now atomic to `run-errand` and returns for the next, but `run-errand`'s Complete section just closes —
-  no "further flagged captures exist — continue?" offer and no terminal marker — so a sweep entered via
-  `arc-session --errand` (or continued past the first errand) has no loop. Doorway legibility compounds it:
-  `--errand` reads as the cold errand door, yet most cold entries from the primary want the sweep, which is
-  `--housekeep`'s drain. Semantics to preserve: housekeep stays the triage+sweep umbrella, run-errand stays
-  single-concern, and no queue artifact returns (`ERRANDS.md` retired deliberately — the inbox is the durable
-  queue; the session carries the agreed slate).
-- *Approach:* a next-offer hook at `run-errand` close (when flagged `§ Errand` captures remain), and a soft-offer
-  of the drain when bare `--errand` resolves against multiple flagged captures. **Integrate only after FP Task 5.3
-  records the parallel-errand fork + batch-errand shape decision** (`tasks-finalize-parallelism.md`) — the
-  recorded sequential-first leaning shapes the loop. Alternative owner if grooming finds the loop belongs with
-  inbox semantics instead of transient-loci shape: `shared-inbox-model`.
-
-### `[ ]` **Locus/attention records as the eventual live substrate for the concurrency-attention posture**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: session-locus-model`), housekeep drain (2026-07-18);
-  captured during the sidecar-discovery session, 2026-07-18.
-- *Concern:* soft seam, awareness not obligation — the "scale concurrency to the attention you can give it"
-  posture (concurrent-workload advisory, design-slot bookkeeping, the stage-aware design-load model tracked in
-  `draft-stage-aware-design-load.md`) currently reads static meta fields. This WU's machine-local frame/locus
-  records are the eventual live substrate such reads could consume (what is actually open, where attention
-  actually is). No design requested here; keep the consumer in view when shaping the records.
+- **Success signal (proposed):** a warm Errand raised from a live WU session runs in the settled locus shape and,
+  with a harness compaction landing mid-errand, both frames recover deterministically — the errand resumes and the
+  suspended WU frame restores (governing workflow, loadset, task cursor) with no reliance on the harness summary.
+  Secondary signals: a `--plan` grooming branch is never misclassified as residue; husk cleanup never removes an
+  occupied directory.
 
 ---
 
@@ -81,29 +38,50 @@ Two coupled defects:
 
 ## Design
 
+### Consumed decision — FP 5.3 settles the transient-locus default
+
+Wave 3 ran on the pre-locus model as this WU's evidence collector and reported; seam-audit decision 5.3
+(2026-07-17, `notes-finalize-parallelism.md` § Wave-3 seam-audit decisions) settled the parallel-errand fork and
+batch shape on that evidence, and this draft consumes it:
+
+- Errand / grooming execution defaults to the **primary, serialized** — out-of-WU work occupies the primary only
+  when it is free, one out-of-WU session at a time; `chore/` excursions return it to base at close; the primary
+  is never parked on a branch.
+- **Warm entries are occupancy-keyed, not temperature-keyed.** A warm errand raised from a WU worktree relocates
+  to the free primary exactly like a cold entry; when the primary is occupied — or the operator prefers
+  isolation — it spawns its own worktree instead of queueing or sharing the checkout.
+- Worktree spawn otherwise remains the supported, non-default escape hatch for a genuinely concurrent out-of-WU
+  need (the parallelize-now spawn-and-handoff variant).
+- The **sequential lockstep drain** is codified; "sequential feels slow" is addressed by tightening per-errand
+  overhead (the sweep-loop close below), not by parallelism.
+
+This supersedes the draft's earlier ephemeral-worktree-by-default lean (recorded under Alternatives). The
+doctrine core and the frame record are unchanged by the flip — 5.3 *strengthens* the record's motivation by
+handing it the serialization invariant to carry (below).
+
 ### Durable execution loci (the doctrine)
 
 A checkout's role is durable:
 
-- **Primary checkout = launchpad.** It holds the base, spawns worktrees, and hosts only the transient work
-  that is launchpad-native by exception (the enumerated in-place arms of the ephemeral-default lean below,
-  housekeep chief among them). It is never a WU workspace.
+- **Primary checkout = launchpad and the serialized transient locus.** It holds the base (its resting state *is*
+  base), spawns worktrees, and hosts out-of-WU transient work — Errands warm and cold, grooming, housekeep —
+  under the serialization invariant above. It is never a WU workspace.
 - **A WU worktree belongs to its WU from spawn through teardown.** No other work executes there; teardown is
   the only exit.
-- **New work never repurposes an existing workspace.** Warm Errands run in **ephemeral Errand worktrees** —
-  displacement is removed, not warned about. (Final contention and drain shape pend wave-3 evidence; see
-  Unknowns.)
+- **New work never repurposes an existing workspace.** Displacement is removed, not warned about: transient
+  work runs on the free primary or in a freshly spawned ephemeral worktree — never by switching an existing
+  checkout onto foreign work.
 
 **Same-session continuity is a hard requirement on warm entry.** Execution locus and session continuity are
-separable: the originating session spawns the ephemeral worktree, operates there through directed commands and
-absolute paths, closes (teardown), and resumes the WU — the agent moves; the human's terminal and the WU
-worktree never do. Handoff (spawn, seed, fresh session) is the WU-launch pattern and explicitly **not** the
-warm-Errand shape: seeding a fresh session costs roughly what doing the work costs while losing the
-un-serialized discovery context that justified warm entry in the first place. No harness relocation primitive
-is required — cross-directory operation suffices (Claude Code additionally has a native worktree-relocation
-primitive; Codex CLI has none but operates cross-directory without moving). Where a harness genuinely cannot
-operate outside its boot directory, warm entry degrades to in-place record-and-restore (see Consumed shipped
-behavior).
+separable: the originating session operates in the transient locus — the free primary, or a spawned worktree —
+through directed commands and absolute paths, closes (return-to-base or teardown), and resumes the WU; the agent
+moves, the human's terminal and the WU worktree never do. Handoff (spawn, seed, fresh session) is the WU-launch
+pattern and explicitly **not** the warm shape: seeding a fresh session costs roughly what doing the work costs
+while losing the un-serialized discovery context that justified warm entry in the first place. No harness
+relocation primitive is required — cross-directory operation suffices (Claude Code additionally has a native
+worktree-relocation primitive; Codex CLI has none but operates cross-directory without moving). Where a harness
+genuinely cannot operate outside its boot directory, warm entry degrades to in-place record-and-restore (see
+Consumed shipped behavior).
 
 **Entry routing (why warm exists).** A concern that can wait routes to the inbox — capture, not execution. A
 concern that justifies interrupting the WU session is blocking or context-carrying, and the session that
@@ -111,45 +89,56 @@ already holds the discovery context executes it and returns: that is warm entry.
 only as the rare parallelize-now variant — non-blocking work the operator wants started immediately in a
 fresh session.
 
-**Grooming is a locus, not an exception.** A `--plan <stub>` grooming session is locus-wise an Errand — same
-doctrine, same frame record, same close-pops-frame lifecycle — differing only in payload: docs/planning
-artifacts only, shipped on the auto-merge lane. Today the sanctioned `chore/groom-*` branch is invisible to
-the model and misclassified as residue (evidence under the frame record's lifecycle below).
+**Grooming is a locus, not an exception — and session-bounded like every transient locus.** A `--plan <stub>`
+grooming session is locus-wise an Errand — same doctrine, same frame record, same close-pops-frame lifecycle —
+differing only in payload: docs/planning artifacts only, shipped on the auto-merge lane. Grooming is
+**groom-and-ship**: each pass opens a fresh `chore/groom-*` branch, grooms, and ships as a lean PR; the shipped
+draft artifact in the stub is the continuity across passes, never parked branch state (a draft at any maturity
+is legitimate stub content — the readiness states exist to mark work-in-progress, and doc-only PRs ride the
+light CI lane). **One grooming pass in flight per stub:** ship and merge are not the same instant, so the
+grooming open consults the errand-records ref — an open groom-kind record on the same stub (a
+shipped-but-unmerged prior pass) redirects to resuming that pass or waiting for its merge, never a silent fresh
+cut from a base missing the prior pass's draft. The record gates the open, so branch-name collisions are
+impossible by construction and the same `chore/groom-<slug>` name serves every pass. There is no sanctioned
+suspend: a design that outgrows single sittings graduates the stub to a
+planning WU — the sanctioned multi-session design locus. This gives the transient tier one invariant —
+**transient loci are session-bounded; only WU worktrees are durable loci** — and revises the shipped
+groom-and-stop exit in the `draft-design` workflow to groom-and-ship (carried under this WU's doctrine
+placement). Today the sanctioned `chore/groom-*` branch is invisible to the model and misclassified as residue
+(evidence under the frame record's lifecycle below).
 
-**Ephemeral is the default transient locus (lean, full protection).** Transient work — Errands warm and cold,
-grooming — defaults to an ephemeral worktree; the launchpad stays clean at base. In-place on the primary
-survives only as enumerated arms, named and justified rather than vibes (mirroring the `--here` → spawn
-default flip for WUs):
+**Spawn fallback (the enumerated exception).** The ephemeral transient worktree survives as the exception, not
+the default, on three named arms:
 
-- **Partial protection — structural, not a preference.** Under partial protection an Errand is a direct base
-  commit, and base is checked out in the primary; git refuses a second checkout, so an ephemeral worktree
-  *cannot* hold that work. In-place on the primary is the shape there, full stop.
-- **Below the provisioning floor — economic.** Where spawn + provisioning dwarfs the work itself (a one-file
-  fix behind a minute of dependency provisioning), in-place on a clean launchpad wins. The floor's threshold
-  is empirical — see Unknowns.
-- **Housekeep — launchpad-native, always the primary.** It drains identity-scoped gitignored state (a fresh
-  worktree contains no `USER-INBOX.md`; the resolver-backed-to-primary pattern WORKING-MEMORY uses would be a
-  new dependency for no gain) and it is the launchpad's own maintenance.
-- **Harness degrade path** — as recorded under Consumed shipped behavior.
+- **Primary occupied** — the occupancy-keyed redirect. At the fire site the check is mechanical (a locus-record
+  read, below); on occupied, surface the occupancy and offer the spawn — redirect-with-offer, never a refusal
+  and never silent queueing.
+- **Isolation preference** — the operator wants the work off the primary regardless of occupancy.
+- **Parallelize-now** — the spawn-and-handoff variant from Entry routing above.
 
-**Ephemerality is not a concurrency license.** All worktrees share the common git dir — refs, notes refs,
-ROADMAP regeneration, sync-state markers still contend. Ephemeral loci solve *checkout occupancy*;
-simultaneous transient work still runs under the shared-mutable-surface discipline.
+Spawned transient worktrees inherit BI-1 provisioning unchanged; the lighter doc-only provisioning variant is
+dropped as a question — spawn economics were load-bearing only under ephemeral-by-default. And ephemerality is
+not a concurrency license: all worktrees share the common git dir — refs, notes refs, ROADMAP regeneration,
+sync-state markers still contend. Ephemeral loci solve *checkout occupancy*; simultaneous transient work still
+runs under the shared-mutable-surface discipline.
 
-**The frame record is a human-orientation surface, not only agent-recovery state.** Under warm entry the
-session's terminal cwd (session home) is not where edits land (active locus) — the one truth gap ephemeral
-loci introduce, replacing displacement's worse one (a WU space relabeling to an errand branch mid-flight,
-its workspace entangled with foreign work). Checkout spaces keep stable, truthful identities; transient loci
-appear and vanish as their own short-lived entries. Closing the remaining gap is an acceptance bar for the
-ephemeral default, not a hope: an **open/close narration contract** (the agent states the spawned path at
-entry and the teardown at close), the **read verb** as the queryable "what is each session doing, where," and
-candidate renders for human tooling (statusline/prompt, worktree-listing UIs) all consume the record. No
-ephemeral-by-default ships without the orientation surface that keeps the operator's mental model true.
+**The frame record is a human-orientation surface, not only agent-recovery state.** Under any warm entry —
+relocate-to-primary or spawn — the session's terminal cwd (session home) is not where edits land (active
+locus): the one truth gap the doctrine tolerates, replacing displacement's worse one (a WU space relabeling to
+an errand branch mid-flight, its workspace entangled with foreign work). Checkout spaces keep stable, truthful
+identities; transient occupancy appears and vanishes as its own short-lived record entries. Closing the
+remaining gap is an acceptance bar for the warm-entry doctrine, not a hope: an **open/close narration
+contract** (the agent states the active locus at entry and the return/teardown at close), the **read verb** as
+the queryable "what is each session doing, where," and candidate renders for human tooling (statusline/prompt,
+worktree-listing UIs) all consume the record. No warm-entry default ships without the orientation surface that
+keeps the operator's mental model true.
 
 Enforcement is mechanical where possible: the doctrine binds at the operation fire sites (`errand open`,
-`arc start`, the `--plan` relocate, materialize), not only in prose. The prose home is the concurrent-work /
-worktree-ops guidance; placement follows the knowledge-layer check (constraints sit at the fire sites gating
-the operations they protect).
+`arc start`, the `--plan` relocate, materialize), not only in prose — and the serialization invariant's
+"is the primary free?" test is a locus-record read at those sites, never branch-shape inference (the inference
+is exactly what misclassifies grooming today). The prose home is the concurrent-work / worktree-ops guidance;
+placement follows the knowledge-layer check (constraints sit at the fire sites gating the operations they
+protect).
 
 ### Machine-local session/locus frame record
 
@@ -160,34 +149,135 @@ A deterministic record of what each checkout on this machine is doing and what s
   backing-store target and is deliberately outside the materialized substrate
   (`strategy-storage-evolution.md` self-check run at this grooming — composes; no new storage axis). It is a
   code-owned record exposed through a read verb, never a hand-edited document.
-- **Fields (direction):** locus kind (opaque value), subject pointer (WU name / errand slug / groom stub),
-  governing workflow, optional parent frame (depth two by construction). The frame distinguishes **session
-  home** (the checkout a session booted in and returns to) from **active locus** (the checkout it is operating
-  in) — two loci, one session; the parent frame is what links them under warm entry. State-like values are
-  **opaque strings** — `wu-lifecycle-state-model` owns the vocabulary and may re-vocabulary later without
-  schema churn.
-- **Loadset is derived, not stored.** The record stores the inputs (locus kind, governing workflow, subject);
-  the loadset is computed at read time the same way session-init's `loadSet` manifest is computed. A stored
+- **Fields (direction) — a durable role plus a session-scoped lease.** The **role** carries locus kind (opaque
+  value), subject pointer (WU name / errand slug / groom stub), and optional parent frame (depth two by
+  construction); it lives from locus establishment to close/teardown. The **lease** carries the liveness data —
+  process anchor, heartbeat timestamp — attached (re-anchored) at each session entry into the checkout
+  (session-init there, or a warm-entry attach) and released at session end; a dead lease means "no live
+  session," never "role ended." The frame distinguishes **session home** (the checkout a session booted in and
+  returns to) from **active locus** (the checkout it is operating in) — two loci, one session; the parent frame
+  is what links them under warm entry. State-like values are **opaque strings** — `wu-lifecycle-state-model`
+  owns the vocabulary and may re-vocabulary later without schema churn. **No governing-workflow field:** it
+  derives at read time — from the locus kind for transient loci (kind → workflow mapping), from the subject's
+  meta for WU loci (`Current Workflow`, the same join as stage below). A stored copy would go stale at every
+  stage advance and duplicate a shared-store field into the machine-local record.
+- **The record carries the serialization invariant.** The primary's own occupancy — free-at-base vs. which
+  out-of-WU excursion holds it — is a record entry minted and popped at the same fire sites, making "the
+  primary is free" a deterministic read for the occupancy-keyed routing above. Today that check is branch-shape
+  inference, which is precisely what misclassifies a live grooming locus as residue.
+- **Granularity and keying (settled): per-locus record files.** One record per checkout, in one machine-local
+  directory (resolver-backed to the primary), keyed by checkout — records persist the caller/Git path spelling
+  and same-locus questions resolve by canonicalizing at compare time, exactly the shipped path-identity decision
+  (canonical keys answer same-locus questions; never synced, never recorded). Mint and
+  pop are single-file create/delete with atomic-rename semantics — no shared-index lock discipline; the shape
+  structurally minimizes the shared-mutable machine-local surface (the `strategy-user-notes-concurrency.md`
+  mutator checklist still applies to what remains). Per-checkout keying matches the model: a checkout hosts at
+  most one locus, so the warm-entry pair falls out naturally — the WU worktree's record is untouched while the
+  primary's (or spawned worktree's) record is minted carrying the parent pointer. Crash-consistency of the pop
+  reduces to the lease: a crash between work and pop leaves a record whose anchor is dead, which the liveness
+  model detects. Read-time reconciliation against `git worktree list` handles the mismatch cases — the read
+  surfaces *report* them; the reap and backfill actions run at the next state-touching fire site (session-init's
+  reconcile, a mint), never from the read verb or probe. A record with no backing checkout is stale residue
+  (reported at read, reaped at the next state-touching site). A recordless checkout branches by design-state:
+  the free-at-rest primary is recordless *by design* (free = absent excursion record); an ARC-marker-bearing WU
+  worktree **adopts** (backfill mint from its meta); a marker-bearing transient worktree backfills from the
+  errand-records ref (branch → record join); a genuinely markerless checkout is unmanaged/legacy (prompt-tier).
+  Backfill at session-init is also the rollout path for checkouts predating the model.
+- **Loadset is derived, not stored.** The record stores the inputs (locus kind, subject); the loadset is
+  computed at read time the same way session-init's `loadSet` manifest is computed. A stored
   loadset snapshot would go stale between suspend and resume, and a per-record loading field is exactly what
   `strategy-knowledge-evolution.md` Principle 4 rules out (access paths derive from structure).
-- **Lifecycle:** minted when a locus is established (spawn, `errand open`, the `--plan` relocate,
-  materialize); popped at close/teardown; consumed by recovery, session-init, and the residue/cleanup
-  surfaces. Errand close pops the frame; recovery consumes the record instead of reconstructing intent from
-  branch presence and a harness summary.
-- **Grooming-open record (motivating evidence):** the sanctioned `chore/groom-*` branch currently carries no
-  record, so the in-flight-derivation residue advisory misclassifies a live, resumable grooming locus as
-  cleanup-needed (`in-flight-derivation.ts:1303`) and re-fires on effectively every CLI invocation (5× in one
-  session, 2026-07-15), with `arc start` mislabeling the emission a "ROADMAP advisory". The durable fix is
-  exactly this record: the `--plan` relocate mints a grooming-kind locus record and the detectors read it
-  instead of inferring from branch shape. A near-term detector patch is a mechanization Errand around the
-  model — see Boundaries.
+- **Stage is derived, not stored — same principle.** The record never carries the WU's lifecycle stage:
+  consumers needing it join the record's subject pointer with the subject's meta at read time
+  (`Current Workflow` today; the `wu-lifecycle-state-model` vocabulary once it lands). A stored stage would go
+  stale mid-locus, and it would force every `set-stage` ceremony to remember a second write. Live parallel
+  practice confirmed the stage signal is load-bearing (quick-scan across five in-flight WUs; stage-vocabulary
+  capture routed to `wu-lifecycle-state-model` 2026-07-18) — the locus record serves it by *join*, not by
+  storage.
+- **Lifecycle:** the role is minted when a locus is established (spawn, `errand open`, the grooming open,
+  materialize) and popped at close/teardown; the lease attaches at each session entry and releases at session
+  end. **Transient roles are session-bounded** — errand, grooming, and housekeep occupancy pops with the
+  session that established it (ship/close), so a transient role with a dead lease is always crash-or-walk-away
+  residue, and both converge to one recovery surface: resume-and-ship, or abandon. WU roles are durable (spawn
+  through teardown), and a live role with no lease is their normal idle state between sessions. Consumed by
+  recovery, session-init, the fire-site occupancy check, and the residue/cleanup surfaces; recovery consumes
+  the record instead of reconstructing intent from branch presence and a harness summary.
+- **Grooming-open records (motivating evidence):** the sanctioned `chore/groom-*` branch currently carries no
+  record, so the in-flight-derivation residue advisory misclassifies a live grooming locus as cleanup-needed
+  (`in-flight-derivation.ts:1303`) and re-fires on effectively every CLI invocation (5× in one session,
+  2026-07-15), with `arc start` mislabeling the emission a "ROADMAP advisory". The durable fix is records on
+  both authority domains: the grooming open mints the machine-local role + lease (occupancy) **and a
+  groom-kind record in the errand-records ref** (in-flight identity, open through merge — the detectors already
+  classify recorded errand branches correctly, so groom-kind records inherit that path; this resolves
+  session-init's standing "grooming-open primitive owns the branch record" forward-pointer). Detectors read
+  records, never branch shape. A near-term detector patch is a mechanization Errand around the model — see
+  Boundaries.
 
-### Identity records vs. locus records
+### Identity records vs. locus records (authority-domain homing)
 
 Errand identity already lives in the orphan state-ref `refs/arc/user/{identity}/errands` (identity-scoped,
-machine-agnostic, records-only); WU identity lives in metas. The locus record answers the orthogonal question —
+machine-agnostic, records-only) — grooming in-flight identity joins that ref as a groom-kind record (above);
+WU identity lives in metas. The locus record answers the orthogonal question —
 *where does work physically execute on this machine, and what frame governs it* — and carries only a subject
 pointer, never duplicated identity fields. Occupancy never syncs cross-machine; identity never encodes locus.
+
+The general rule (the scope-model note from the storage-substrate grooming, integrated): **state homes in its
+authority domain, and consumers query across domains rather than replicate.** Machine/worktree-local facts —
+occupancy, frames, leases (the run-tracker precedent: a PID is meaningful only on the machine) — live in the
+machine-local record; identity-scoped facts in the identity refs; WU lifecycle facts (stage, deps, state) in the
+tracked meta substrate. No locus field is a shared-store record; no shared-store field is duplicated into the
+locus record. The read verb is the join surface.
+
+### Read-verb consumers
+
+The read verb answers "what is each session/checkout on this machine doing, where" — joined at read time with
+the authority domains above for stage and identity.
+
+**Surface (settled): both exposures over one core reader.** A single library-level read — the per-locus records,
+a `git worktree list` reconcile, and the authority-domain joins — exposed as (a) a **session-init probe slot**
+(orientation, recovery, and the fire-site occupancy check consume the envelope) and (b) a **lean standalone
+verb**: read-only, network-free, fast enough for a statusline to poll, `--json` for tools, a human-readable
+roster by default. The verb's name is deferred to spec time, coordinated with `naming-conventions` and adjacent
+to `status-hud`'s verb-family call — the settled boundary (minimal roster here, rendering there) is the
+load-bearing part, not the name.
+
+Consumers in view (shaping input, not all in-scope deliverables):
+
+- **Recovery and session-init orientation** — the primary consumers; recovery reads the record instead of the
+  harness summary.
+- **The fire-site occupancy check** — the serialization invariant's mechanical substrate.
+- **`status-hud`** — its context card upgrades from oracle/meta/cursor proxies to record queries when this
+  lands (seam recorded on both sides). Verb-territory boundary: this WU ships the probe slot and a minimal
+  read verb; rich rendering — card, watch panel, any roster view — stays `status-hud`'s.
+- **Stage-keyed session titles** — the retitle extension (captured 2026-07-18, § Errand: fire-site-driven at
+  session-init + set-stage) serves live sessions event-driven; the read verb serves cold/external consumers
+  (worktree-listing UIs, statusline/prompt renders, session managers).
+- **Run-anywhere hygiene view (candidate):** husk/orphan cleanup currently surfaces only in the primary
+  worktree, invisible to operators living in linked worktrees — seam with `husk-lifecycle-drivers`, which owns
+  where that surfacing renders. FP's 7.3 disposition preserved the linked-session gate boundary expecting this
+  record to be what eventually lifts it (`notes-finalize-parallelism.md` § 7.3).
+- **(Awareness, not obligation)** the concurrency-attention posture — the "scale concurrency to the attention
+  you can give it" reads (concurrent-workload advisory, design-slot bookkeeping, the stage-aware design-load
+  model tracked in `draft-stage-aware-design-load.md`) currently consume static meta fields; this WU's records
+  are the eventual live substrate (what is actually open, where attention actually is). No design here; keep
+  the consumer in view when shaping the records.
+
+### Errand sweep-loop close (locus-pop connective tissue)
+
+Integrated from the routed capture (2026-07-16), unblocked by 5.3's batch-shape decision — the codified
+sequential drain names per-errand overhead, not parallelism, as the lever:
+
+- **`run-errand` close gains a next-offer.** When flagged `USER-INBOX § Errand` captures remain at close, offer
+  continuing the sweep with the next one; today the drain side has this connective tissue (`drain-inbox` § 6
+  hands each execute-now atomic to `run-errand` and returns) but a sweep entered via `arc-session --errand`, or
+  continued past the first errand, has no loop.
+- **Doorway legibility.** Bare `--errand` resolving against multiple flagged captures soft-offers the drain —
+  most cold entries from the primary want the sweep, which is `--housekeep`'s umbrella. Semantics preserved:
+  housekeep stays the triage+sweep umbrella, `run-errand` stays single-concern, and no queue artifact returns
+  (`ERRANDS.md` retired deliberately — the inbox is the durable queue; the session carries the agreed slate).
+- **Ownership settled here.** The loop is sweep mechanics over whatever inbox feeds it (`USER-INBOX` today, the
+  shared surface later) — locus-shape connective tissue (what a transient locus offers at pop), not inbox-model
+  semantics. `shared-inbox-model` is cross-referenced, not the owner.
 
 ### Consumed shipped behavior — the interim close fix
 
@@ -197,21 +287,24 @@ return branch exists. This design consumes its requirements without preserving i
 
 - **Preserved:** close restores what open displaced; close never assumes the base is switchable from a linked
   worktree.
-- **Not preserved:** displacement itself. Ephemeral Errand worktrees remove the displacement rather than
+- **Not preserved:** displacement itself. The settled locus shape removes displacement rather than
   record-and-restore it. During the transition, `returnBranch` remains the branch-level projection of the
   frame-restore concern; the frame record subsumes it once the warm path stops displacing.
 - **Retained as the degrade path:** where a harness cannot operate outside its boot directory, warm entry
   falls back to in-place displacement with record-and-restore — the shipped behavior survives as the durable
-  fallback for that case, not as a transitional shape awaiting deletion.
+  fallback for that case, not as a transitional shape awaiting deletion. On this arm no second machine-local
+  record is minted (single-locus keying holds): the checkout keeps its durable WU role, and recovery composes
+  that role with the errand record's `returnBranch` to derive the displaced frame. The arm is empty for both
+  named harnesses today.
 
 ### Creation-time provenance (ownership markers)
 
 Every ARC-created or ARC-materialized worktree writes ownership provenance at creation. Session-init's
 materialize arm currently uses raw `git worktree add`, so materialized Errand worktrees are invisible to
 cleanup surfaces and a self-teardown can leave a markerless husk. The spawn/materialize primitive owns the
-marker write; if the locus model does not subsume the raw materialize arm, an Errand-materialize verb (or an
-explicit marker write at that boundary) closes the gap. Marker and locus record stay distinct: the marker is
-durable provenance the sweep trusts; the record is the live frame.
+marker write, and the locus model **subsumes the raw arm**: errand materialize becomes an ARC verb-path that
+writes marker + role record at creation, and session-init's raw `git worktree add` arm retires. Marker and
+locus record stay distinct: the marker is durable provenance the sweep trusts; the record is the live frame.
 
 ### Occupancy-aware husk cleanup (live-locus lease)
 
@@ -228,80 +321,111 @@ directory. Extend the locus record with a definitive **live-locus lease**:
 - Classification and output stay deterministic; bounded parallel reads only where useful; no unbounded
   concurrency in physical removal.
 
+**Liveness model (settled):** four layered signals, each in a distinct role — never age alone:
+
+- **Explicit pop** at close/teardown is the primary release path.
+- **Process anchor** is the lease's dead/live oracle: at each lease attach, record the nearest *durable*
+  ancestor process as a `(pid, start-time)` pair — the walk skips the transient per-command shell harnesses
+  spawn, and the start-time pairing defeats PID reuse. Verification returns three honest answers: anchor
+  conclusively gone → the lease is **dead** (no live session — a durable WU role's normal idle state; a
+  transient role's crash-or-walk-away residue); anchor alive → **live** (suppress cleanup — conservative in the
+  right direction: alive-but-moved-on only delays cleanup, never destroys); walk failed, fields missing,
+  platform unverifiable, or legacy record → **unknown → prompt**, the floor.
+- **Heartbeat** — state-touching CLI invocations refresh the active locus's lease timestamp (a directed
+  cross-directory invocation refreshes the target checkout's record); the read verb and probe never write.
+  Framing only ("last activity 3d ago" reads differently than "20 minutes ago"), never an auto-remove signal.
+- **Harness session-end hooks** are opportunistic additional pop sites where a harness offers them — never
+  assumed (the same observability-parity discipline the drain decision applied to subagents).
+
+Crash-without-pop resolves cleanly under the composition: the crashed session's anchor is gone → dead lease —
+on a transient role, that is residue and the recovery surface offers resume-and-ship or abandon; physical
+auto-remove fires only when every existing husk predicate also passes. Per-platform ancestry-walk mechanics are
+implementation detail below the divergence test.
+
 ## Alternatives
 
 - **Frame state in the harness summary (status quo):** rejected — the least-trusted recovery channel; the
   wave-2 compaction loss is the direct evidence.
 - **Extend the ref-backed errand records with locus/frame fields:** rejected — that ref is identity-scoped and
   machine-agnostic; locus is a per-machine fact, and syncing occupancy cross-machine is noise at best and
-  misleading at worst.
+  misleading at worst. (The adopted groom-kind record is not this: it adds an *identity* record for in-flight
+  grooming to the ref — the same records-only class as errand records — never locus or occupancy fields.)
 - **A general session-frame stack:** rejected — depth is two by construction; one parent pointer suffices, and
   a stack invites the nesting the model forbids.
 - **Displacement warn-and-confirm as the durable model (the interim fix's shape):** rejected — removes the
   failure class by removing displacement, not by narrating it.
-- **Warm errand relocating to the launchpad instead of an ephemeral worktree:** visible in an existing UI
-  space, but re-introduces launchpad occupancy and keeps the session-home/active-locus gap anyway — dominated
-  once the orientation surface exists.
+- **Ephemeral Errand worktrees as the default warm shape (this draft's pre-wave-3 lean):** superseded by FP
+  5.3's evidence-backed resolution. Every observed drain and errand cycle ran primary-sequential cleanly beside
+  two live WU sessions; the worktree-per-errand tax buys nothing the serialization invariant doesn't already
+  provide at observed scale. The two grounds on which this draft had rejected relocate-to-primary both
+  dissolved: occupancy cost is governed by the invariant (cell 5.2.c — the occupancy rule is what keeps the
+  shared-checkout compaction-seed clobber benign), and the session-home/active-locus truth gap exists under
+  either shape and is closed by the same orientation surface this WU builds. Spawn survives as the
+  occupancy-keyed fallback, not the default.
 
-## Unknowns / Open — pending wave-3 evidence
+## Deferred to spec — implementation detail
 
-Wave 3 deliberately runs on the *current* model as this WU's evidence collector; these stay open until it
-reports:
+The formerly-open evidence questions (contention/drain shape, launchpad-occupancy collision rate, ephemeral
+provisioning economics) were consumed from wave 3, and the three mechanism designs (lease liveness, record
+granularity/keying, read-verb surface) are settled in Design above (2026-07-18). What remains is below the
+divergence test:
 
-- **Contention and drain shape** for Errands running beside live WUs — the live-errand wave plus the
-  errand-drain session supply the observed shape ephemeral Errand worktrees must serve.
-- **Ephemeral Errand-worktree economics:** WU-worktree provisioning cost is dismantled (BI-1), but does the
-  Errand-sized variant want lighter provisioning (no deps, doc-only gates)? Note even doc-only work needs
-  `node_modules` for `lint:md` here. This sets the **provisioning floor** the ephemeral-default lean carves
-  out — below it, in-place on a clean launchpad wins; the threshold is wave-3 empirics.
-- **Launchpad-occupancy collision rate:** the ephemeral-default lean rests on occupancy being a real cost,
-  not a theoretical one — in-place is not *broken* (switch-back to base always succeeds in the primary; what
-  occupancy costs is the *launchpad directory* as a stable base context, while `main`-the-ref stays free
-  either way). First datapoint (2026-07-15, this WU's own grooming): three WU worktrees live, the primary
-  mid-grooming with a dirty tree — a housekeep or cold-errand need at that moment has no locus at all until
-  the grooming state commits; the current model serializes all transient work through the launchpad with a
-  commit-or-stash toll at each interleave. Wave-3's errand-drain session is the evidence source for how often
-  this bites in practice.
-- **Lease liveness mechanics:** what conclusively proves a dead locus — explicit pop only, PID, heartbeat,
-  harness session-end hook? Crash-without-pop is the hard case; "unknown → prompt" is the floor.
-- **Record granularity and keying:** per-worktree records vs. a single index; crash-consistency of the pop;
-  cleanup when a worktree is removed outside ARC.
-- **Read-verb surface:** standalone verb vs. a session-init probe slot vs. both (probe consumption is likely
-  regardless — orientation and the lease both read it). A run-anywhere hygiene view is a candidate consumer:
-  husk/orphan cleanup currently surfaces only in the primary worktree, invisible to operators living in linked
-  worktrees — seam with `husk-lifecycle-drivers`, which owns where that surfacing renders.
+- The read verb's **name** — coordinated with `naming-conventions`, adjacent to `status-hud`'s verb-family call.
+- **Per-platform process-anchor mechanics** — the ancestry walk and `(pid, start-time)` verification per OS;
+  unverifiable platforms degrade to the prompt tier by construction.
+- **Record schema particulars** — field grammar and file format for the per-locus records.
 
 ## Scope estimate
 
-Large (week+, Heavy): CLI primitives (record schema, read verb, lease), `errand open`/`close` and
-spawn/materialize integration, session-init and recovery consumers, doctrine placement. Executes inside the FP
-GA gate, ahead of the `--here` → spawned-worktree default flip.
+Large (week+, Heavy): CLI primitives (role + lease record schema, read verb), `errand open`/`close`, the
+grooming open/ship path (groom-kind records + the groom-and-ship workflow revision), spawn/materialize
+integration, session-init and recovery consumers, the `run-errand` close next-offer, doctrine placement.
 
 ## Boundaries carried from FP
 
-- The pre-wave-3 topology-aware close fix shipped (PR #241) and is consumed above — it was never this WU's
-  execution.
+- FP shipped 2026-07-17; wave-3 evidence is consumed above (§ Consumed decision — FP 5.3). The pre-wave-3
+  topology-aware close fix shipped earlier (PR #241) and is consumed under Consumed shipped behavior — it was
+  never this WU's execution.
 - The base-sync verb and the stub mint-to-launch bundle are determinate mechanization Errands around the model
-  (`stub-mint-to-launch` now sits in `backlog/planned/`).
+  (`stub-mint-to-launch` now sits in `backlog/planned/`). Wave 3 added direct evidence for the base-sync verb:
+  the fetch-into-ref auto-pull is structurally refused at every linked-worktree init under the launchpad model
+  (`notes-finalize-parallelism.md`, day-2 evidence 2026-07-16).
 - A near-term residue-detector patch is likewise a mechanization Errand: teach the detector the
   `chore/groom-*` shape (label it in-flight grooming, resumable via `--plan`; drop the cleanup wording), dedup
   the emission (once per command, or the daily nudge-marker pattern), and fix the `arc start` provenance
-  label. The durable fix is the grooming-open locus record above.
-- FP retains verification: wave 3 re-observes the current Errand surface, and the GA bar is running an Errand
-  beside two live WUs without narrating git topology.
+  label. The durable fix is the grooming-open records above (occupancy + groom-kind identity).
 
 ## Coordination
 
 - `wu-lifecycle-state-model` — owns state vocabulary; this record stores de-facto states as opaque values so it
   can re-vocabulary later without schema churn. Reciprocally, it consumes this WU's reporting record rather
-  than rebuilding it (its own inbound buffer records that boundary).
+  than rebuilding it (its own inbound buffer records that boundary). Stage-vocabulary capture routed to it
+  2026-07-18 (quick-scan stage signal, derived tail states, roster-view placement); the derive-not-store stage
+  decision above is the reciprocal half.
+- `status-hud` (provisional) — record-consumer seam recorded on both sides; verb-territory boundary settled
+  (minimal read verb + probe slot here, card/panel/roster rendering there). Stays provisional — its own gate
+  (`arc-view` v1 evidence) is unchanged; promotion re-weighs at a later housekeep.
 - `worktree-teardown-decoupling` (shipped) — emits the shipped-husk transition and the driver socket the lease
   composes with.
 - `husk-lifecycle-drivers` — extends husk teardown to abandon and park-at-Planning; the lease predicate covers
   any stamped husk kind, not only shipped. It also owns where husk/orphan cleanup renders for worktree-resident
-  operators; the locus-record read verb is a candidate carrier (seam recorded in its capture).
+  operators; the locus-record read verb is a candidate carrier (seam recorded in its capture, re-affirmed by FP
+  7.3's follow-up boundary).
+- `shared-inbox-model` — cross-reference only: the sweep-loop close is owned here (locus-pop mechanics over any
+  inbox backend); interruption-safe cross-store moves remain its concern.
+- Session-retitle extension (§ Errand capture, 2026-07-18) — a fire-site consumer of the stage signal at
+  session-init + set-stage; independent of this WU's execution but shaped by the same derive-at-read principle.
 - Check-docs run at this grooming: `strategy-storage-evolution.md` (machine-local, non-backing-store record —
-  composes) and `strategy-knowledge-evolution.md` (loadset derived at read time, no stored loading fields —
-  composes).
+  composes) and `strategy-knowledge-evolution.md` (loadset and stage derived at read time, no stored loading
+  fields — composes).
+
+## Continuity
+
+- **Readiness:** formalization-ready — two adversarial passes run (2026-07-18, `Heavy` cap). Pass one: one
+  blocker (grooming suspend — dissolved by the session-bounded transient-loci invariant + groom-kind identity
+  records), two majors (role/lease split; governing-workflow derive-not-store), three minors. Pass two: one
+  major (ship→merge window — settled by the record-gated one-pass-per-stub rule), five coherence/taxonomy
+  minors. All findings verified, folded, and closed; the settled core withstood both passes.
+- **Next:** the draft-capture ceremony and the stage advance into create-spec.
 
 ---
