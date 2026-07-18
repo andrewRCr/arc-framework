@@ -98,6 +98,18 @@
   settings-applicability inventory (which keys exist/force/shift per toggle state). Both exceed this draft's
   two-doc prose sweep; adopt or consciously reject at integration.
 
+### `[ ]` **Review coupling-audit finding: PM mode schema reform**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: scalable-core`), housekeep drain (2026-07-18); captured
+  during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- *Concern:* replacing the `pm.mode` enum crosses 71 files and is an abstraction and compatibility-boundary
+  problem rather than a rename cascade.
+- *Approach:* at grooming, settle the boolean key name and central-access boundary, then use the ranked inventory
+  as the migration and verification matrix.
+- *Packet:* `packet-171d37a721a6cda7aef7dbd7`; content digest
+  `8f89da49e293c5d845f22a324a7d17613df6de823bcd9aa625c0de5f89024107`.
+- *Evidence:* `pm-mode-key`; `scan-result.json#class-pm-mode-key`.
+
 ---
 
 ## Problem / Motivation

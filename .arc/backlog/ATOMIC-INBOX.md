@@ -108,3 +108,19 @@
   escape hatch if typecheck time matters sooner: side-by-side `typescript@7` for `tsc` +
   `@typescript/typescript6` pinned for ESLint. Coordinate with the `cli-substrate-adoption` kernel buffer note
   (Zod-first inversion) so the kernel never needs the compiler API at all.
+
+### `[ ]` **Read staged (not HEAD) meta in the in-flight artifact advisory**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-18) — homeless atomic, deferred; relayed from
+  the `coupling-blast-radius-audit` activation session's friction report, 2026-07-18.
+- _Observation:_ the pre-commit "In-flight artifact advisory" (`check-foreign-writes.ts`, invoked at `pre-commit`
+  step ~556) inspects the pre-commit meta rather than the staged meta, so a ceremony commit that itself resolves
+  the state it warns about gets a false advisory — the `coupling-blast-radius-audit` activation commit was flagged
+  with a stale-branch advisory because the script saw the old `plan/` branch in HEAD while the staged meta already
+  carried `feat/`. Likely the same read path behind the recurring "Originating work unit name was unavailable;
+  self-exclusion fell back to worktree/meta path matching" degradation observed on the 2026-07-18 drain commits
+  (reproduced live at that drain's `arc errand check` invocation) — fold that into the same fix pass.
+- _Approach:_ judge ceremony commits against what is actually being committed — read the staged meta via
+  `git show :<path>` (index content) instead of the worktree/HEAD copy in `check-foreign-writes.ts`, and check
+  whether the self-exclusion name resolution can use the same staged read. Keep the advisory's semantics otherwise
+  unchanged (advisory-only, never gates).

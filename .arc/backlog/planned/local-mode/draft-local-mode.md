@@ -46,6 +46,16 @@ the substrate, which raises the stakes on getting them right here.
   The entry-granular slug-keyed record requirement (arc-backend 2026-07-02 amendment) already points this way; this
   pins it. Also a candidate principle for `strategy-storage-evolution.md` itself.
 
+### `[ ]` **Review coupling-audit finding: team mode key**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: local-mode`), housekeep drain (2026-07-18); captured
+  during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- *Concern:* the pending team-mode key change is an abstract configuration assumption spanning 37 files.
+- *Approach:* at grooming, settle the access and compatibility seam before scheduling the key rename.
+- *Packet:* `packet-dbd2103ffa3c4df953f89138`; content digest
+  `19fc5ffc96617197821f46c35951b913f47505460d875747925d9896bbc2d042`.
+- *Evidence:* `team-mode-key`; `scan-result.json#class-team-mode-key`.
+
 ---
 
 ## Notes retirement — an explicit deliverable of this WU

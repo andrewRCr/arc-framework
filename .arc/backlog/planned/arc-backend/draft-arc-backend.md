@@ -21,6 +21,26 @@ This plan establishes the shape, audience fit, and forward-compat discipline; de
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Review coupling-audit finding: storage address assumptions**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: arc-backend`), housekeep drain (2026-07-18); captured
+  during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- *Concern:* the materialized backing-store design changes seven high-volatility address and artifact-family
+  assumptions, all currently ranked abstract.
+- *Approach:* during grooming, decide which assumptions become backing-store or materialization contracts and
+  preserve the ranked evidence as migration input.
+- *Packet:* `packet-edfd7344100348f1f6b6659c`; content digest
+  `27b88f2bb84fff4f90e0618c018c76fb64f8ad9c4031e2f957b7cd38da609f7a`.
+- *Evidence:* `arc-root`, `draft-prefix`, `meta-prefix`, `notes-prefix`, `spec-prefix`, `tasks-prefix`, and
+  `typed-branch-prefixes`; corresponding `scan-result.json#class-*` anchors.
+
+---
+
 ## The Composed Picture
 
 The organizing rule the whole design serves — apply it as a test to any artifact:

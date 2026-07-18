@@ -339,6 +339,30 @@
   conflicts and some doc-only CI churn disappear together. Owns-regen-triggers puts this here. Complements (does
   not replace) the day-1 auto-regen conflict-remedy errand capture — elimination vs. remedy.
 
+### `[ ]` **Review coupling-audit finding: ROADMAP name**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
+  during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- *Concern:* the ROADMAP rename is an abstract 44-file document/path assumption with tracked-path evidence.
+- *Approach:* at grooming, make the project-readiness view name a single owned contract before planning the
+  rename cascade.
+- *Packet:* `packet-ff5dc5d126f20b5461b3c71c`; content digest
+  `defe2b278dd52e42d668a3f3791dc9a80a64b51db79332444e0c2564f0cde115`.
+- *Evidence:* `roadmap-name`; `scan-result.json#class-roadmap-name`.
+
+### `[ ]` **Make the integration ROADMAP preflight parallel-WU aware**
+
+- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-18) — re-homed here as ROADMAP-projection design
+  input; captured during `arc-view` integration entry, after parallel WU state changes appeared in ROADMAP
+  regeneration.
+- *Concern:* `integrate-work-unit.md` requires the fresh-entry ROADMAP diff to contain only the current WU's
+  state flip. That assumption is stale now that parallel WUs routinely advance lifecycle state between ROADMAP
+  renders; regeneration correctly folds their already-authoritative live-ref state into the derived projection.
+- *Approach:* replace the serial "state flip only" rule with a projection-integrity check that distinguishes
+  explainable concurrent live-ref deltas from malformed or unrelated output without forcing stale hand-edits.
+  Confirm whether executable support is needed beyond the prose change (packaged + self-hosted
+  `integrate-work-unit.md` copies; related workflow tests if present).
+
 ---
 
 ## Problem / Motivation
