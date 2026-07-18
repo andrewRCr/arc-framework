@@ -732,7 +732,7 @@
             "branch-shape-token"
           ]
         },
-      "memberSetDigest": "20c0cdfdca0347347adb027d92d37c6c79f91497597ede635caf3d9c0eaa2532",
+      "memberSetDigest": "d339220d9900330105ac27058777870330fd258cc3b956d4163aa618d554aaba",
         "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
       },
       {
@@ -744,7 +744,7 @@
             "directory-state-call"
           ]
         },
-      "memberSetDigest": "50a517b5ca2115feb9a12d30e34c20de25d0c8f11581f701aaa74abafe69aa7b",
+      "memberSetDigest": "2ad0cb723c417e5588c97c1243e9065eb080d3e98fbfcc575ba73868ec4d53bc",
         "reason": "Generic filesystem operation with no mechanically linked volatile name span."
       },
       {
@@ -756,7 +756,7 @@
             "dotted-config-token"
           ]
         },
-      "memberSetDigest": "7f83cee3fd718e4692c6c46ab708b181f1539cf489096107705001a86df7e32d",
+      "memberSetDigest": "9e32fd0931ea5d2b81836ee242e9dfa4cb5803b835e0a4fba7bccbc584a1834b",
         "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
       },
       {
@@ -768,7 +768,7 @@
             "git-path-call"
           ]
         },
-      "memberSetDigest": "51acc594c1a8c6bd77f1e01ce730eb73d36dc4c6d874e42d18281c61570c22b6",
+      "memberSetDigest": "16249607017d49b13b82760a8006a035ad5b98c5b4219690cb0ba9df3666c1b8",
         "reason": "Generic Git mention or invocation with no mechanically linked tracked-planning span."
       },
       {
@@ -780,7 +780,7 @@
             "markdown-doc-token"
           ]
         },
-      "memberSetDigest": "e33a412e7a73d548930d126c564318e33d6481ff996f9e7e09d80e9e852133f7",
+      "memberSetDigest": "9f2c3012800e641d829d5cf2f42b3aea15856dcdbe2ccae7e22ec9622e11df65",
         "reason": "Document name outside the direction-derived name classes."
       },
       {
@@ -792,7 +792,7 @@
             "path-shaped-token"
           ]
         },
-      "memberSetDigest": "d979e3665d65863bb4f3d47bc446f7872f42c3b7e0aabde4c6870733411fc5ed",
+      "memberSetDigest": "fc679a45cde9f15423a133f9529a93ea227e17651c990d38b368e0067a47dd27",
       "reason": "Generic path syntax or non-governed path-join component; no unmatched direction-owned path name."
       },
       {
@@ -804,7 +804,7 @@
             "prefix-operation"
           ]
         },
-      "memberSetDigest": "2ae69e3015c0a03625d641dee8e1f0cba5debe07d1f5bbde21689b8be268e7eb",
+      "memberSetDigest": "519e8fd2c4b19e82ab3108db22169423d2664ef2b4e67a39a32066e0f526c745",
         "reason": "Generic string operation with no mechanically linked governed filename prefix."
       }
     ]

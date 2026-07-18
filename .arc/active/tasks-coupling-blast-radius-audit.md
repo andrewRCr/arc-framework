@@ -305,7 +305,7 @@ views that the routed final report projects without hand-maintained interpretati
           complete evidence-digest sets; membership remains a pure derivation rather than a consumer-tag policy.
 
     - `[x]` **5.3.c Materialize the placement-reader extract**
-        - Recorded all four lifecycle-placement classes and mechanically grouped every qualifying code hit into 55
+        - Recorded all four lifecycle-placement classes and mechanically grouped every qualifying code hit into 56
           normalized reader/parser files with class IDs and evidence digests; corrected hook/script Markdown to prose
           before accepting the membership.
 
@@ -370,8 +370,8 @@ certified report without expanding this WU into the later inbox drain or editing
           residue, and unchanged repository inputs across certification.
 
 - _Outcome:_ The audit now publishes one certified human report backed by exact canonical inputs: result
-  `d30779aadc63e8a3ff7f8f1c37592794d34ee48ffa9bb3035303e27aecba89a7` and report
-  `a841e82b82e09f7296904c0291b54fb821a09405e61d9d32ebf2b5d228bd9c0d`.
+  `8ff94473a49cb4a55ba79626d27c9e420770cf6a329e63ac95b332f47cc9956c` and report
+  `53441f7b73942a577edee1a57e7f98caa1ce187777a4451f263ebf96363f5183`.
 
 ## **Phase 7:** Verification
 
@@ -379,7 +379,7 @@ _Purpose:_ Verify the completed work unit against its design, audit evidence, an
 
 ### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ 6,196 tests passed with one skipped; TypeScript, shell, and Markdown lint, source and test
+- _Quality gates:_ 6,225 tests passed with one skipped; TypeScript, shell, and Markdown lint, source and test
   typechecks, build, deterministic scan/report certification, and diff hygiene all passed.
 - _Success criteria:_ All seven criteria met. Two fresh adversarial passes exposed and closed shell/prefix coverage,
   path-join argument coverage, mover provenance, and routing-ledger integrity gaps; the Heavy pass cap is exhausted.

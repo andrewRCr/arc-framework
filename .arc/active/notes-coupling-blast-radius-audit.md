@@ -273,14 +273,14 @@ canonical file list. The substrate projection contains 15 ranked `abstract` clas
 `roadmap-name`, `working-memory-name`, and `template-suffix`.
 
 The placement projection records `active-placement`, `completed-placement`, `planned-placement`, and
-`provisional-placement`, then groups their qualifying code evidence into 55 normalized reader/parser files. Every
+`provisional-placement`, then groups their qualifying code evidence into 56 normalized reader/parser files. Every
 extract member links to complete evidence-digest sets; capped samples play no role in membership. Class-hit evidence
 now preserves its originating catch vector where one exists, keeping the result's idiom provenance inspectable.
 
-The final canonical result covers 1,215 tracked files, 9,033 classified candidates, 92,501 dismissed candidates,
+The final canonical result covers 1,225 tracked files, 9,051 classified candidates, 92,949 dismissed candidates,
 and zero unresolved residue. Its manifest digest is
-`ba2f9ae69ce34dd75d60553478c4e87d7ce244bec8e76949b32ef1047021fca0`; the result SHA-256 is
-`d30779aadc63e8a3ff7f8f1c37592794d34ee48ffa9bb3035303e27aecba89a7`. Verification expanded the directory-state
+`f6ed9b14829116cf9068db5263cc6e551f01764a431dd82d5ded7006f94d0395`; the result SHA-256 is
+`8ff94473a49cb4a55ba79626d27c9e420770cf6a329e63ac95b332f47cc9956c`. Verification expanded the directory-state
 and filename-prefix catch-all vectors to shell forms and made path-join arguments individually accountable while
 excluding array/string joins. Governed components are attributed; remaining generic components stay bound to the
 stale-safe disposition groups.
@@ -308,7 +308,7 @@ as schema-reform and central-access input rather than a rebrand rename cascade.
 | `roadmap-tooling` | ROADMAP name | 1 | The 44-file tracked document/path name needs one owned contract. |
 | `rules-restructure` | domain-rules name | 1 | The 78-file rule-family name is an abstract access-path assumption. |
 | `scalable-core` | `pm.mode` schema reform | 1 | A 71-file enum replacement needs a compatibility/access boundary. |
-| `wu-lifecycle-state-model` | placement reader input | 4 | Directory-encoded state reaches 55 code reader/parser files. |
+| `wu-lifecycle-state-model` | placement reader input | 4 | Directory-encoded state reaches 56 code reader/parser files. |
 
 Packet IDs derive from result digest + target slug + sorted class IDs; packet content digests bind owner provenance,
 ranked evidence, extract references, implications, and grooming recommendations. The ledger parser verifies both
@@ -321,14 +321,14 @@ inbox drain was not invoked.
 
 The project-internal audit command now has an explicit report mode: `--result`, `--ledger`, and `--report` read the
 canonical hard-view inputs and emit the Markdown projection without implicit paths. The checked report contains 32
-ranked inventory rows, 15 substrate-abstraction rows, 55 placement-reader rows, and 11
+ranked inventory rows, 15 substrate-abstraction rows, 56 placement-reader rows, and 11
 `captured-awaiting-housekeep` routing rows. Its SHA-256 is
-`a841e82b82e09f7296904c0291b54fb821a09405e61d9d32ebf2b5d228bd9c0d`; the reconciled ledger SHA-256 is
-`cf851c084caaaccea27b860772412bfad686079e6f1295b30cd280e5d1c0f7b6`.
+`53441f7b73942a577edee1a57e7f98caa1ce187777a4451f263ebf96363f5183`; the reconciled ledger SHA-256 is
+`37feb4131e8c5c44ed4c48839f655c410eec3d523832f6a6d12b2ccbc0408881`.
 
 Two authoritative scans to separate external paths produced byte-identical results at
-`d30779aadc63e8a3ff7f8f1c37592794d34ee48ffa9bb3035303e27aecba89a7`; each reported 1,215 files, 32 resolved
+`8ff94473a49cb4a55ba79626d27c9e420770cf6a329e63ac95b332f47cc9956c`; each reported 1,225 files, 32 resolved
 classes, and zero unresolved candidate residue. Projecting each result independently through the fixed ledger
-produced byte-identical reports at `a841e82b82e09f7296904c0291b54fb821a09405e61d9d32ebf2b5d228bd9c0d`, matching the
+produced byte-identical reports at `53441f7b73942a577edee1a57e7f98caa1ce187777a4451f263ebf96363f5183`, matching the
 checked report. Before/after hashes of the repository diff and explicit input files were unchanged across the four
 runs.

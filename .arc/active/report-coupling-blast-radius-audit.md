@@ -4,11 +4,11 @@ A deterministic projection of the settled coupling inventory and reconciled find
 
 ## Provenance and method
 
-- Manifest digest: `ba2f9ae69ce34dd75d60553478c4e87d7ce244bec8e76949b32ef1047021fca0`
-- Result digest: `d30779aadc63e8a3ff7f8f1c37592794d34ee48ffa9bb3035303e27aecba89a7`
-- Corpus: 1215 tracked files; files digest `12fb02d374f53e522fd8ba8042c1ea669751a5dc2be10e34ae3829edae7628ed`
-- Classified candidates: 9033
-- Dismissed candidates: 92501
+- Manifest digest: `f6ed9b14829116cf9068db5263cc6e551f01764a431dd82d5ded7006f94d0395`
+- Result digest: `8ff94473a49cb4a55ba79626d27c9e420770cf6a329e63ac95b332f47cc9956c`
+- Corpus: 1225 tracked files; files digest `7f3d8bb0b6885a06643b3e27603d1841a094ae9ef1bc1fb47be130f8851d8cf5`
+- Classified candidates: 9051
+- Dismissed candidates: 92949
 - Unresolved candidates: 0
 - Dispositions: 64 exact; 7 bulk
 
@@ -25,17 +25,17 @@ Canonical file membership remains in
 
 | Class | Rank | Verdict | Fan-out | Hits | Test | Code | Workflow | Template | Prose | Config | Volatility evidence |
 | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| <a id="class-arc-root"></a>`arc-root` | 1 | `abstract` | 386 | 2917 | 199 | 116 | 20 | 5 | 40 | 6 | arc-backend: strategy-storage-evolution.md#Forward-Compat Principles § 1; roster=planned; snapshot=2026-07-18 |
-| <a id="class-active-placement"></a>`active-placement` | 2 | `abstract` | 242 | 1349 | 125 | 70 | 20 | 3 | 20 | 4 | wu-lifecycle-state-model: draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18 |
-| <a id="class-typed-branch-prefixes"></a>`typed-branch-prefixes` | 3 | `abstract` | 201 | 2023 | 132 | 38 | 16 | 0 | 12 | 3 | arc-backend: strategy-storage-evolution.md#Forward-Compat Principles § 5; roster=planned; snapshot=2026-07-18 |
-| <a id="class-meta-prefix"></a>`meta-prefix` | 4 | `abstract` | 209 | 2067 | 120 | 45 | 21 | 3 | 19 | 1 | arc-backend: draft-arc-backend.md#The Storage Model § The line: tracked vs. materialized; roster=planned; snapshot=2026-07-18 |
+| <a id="class-arc-root"></a>`arc-root` | 1 | `abstract` | 388 | 2934 | 200 | 117 | 20 | 5 | 40 | 6 | arc-backend: strategy-storage-evolution.md#Forward-Compat Principles § 1; roster=planned; snapshot=2026-07-18 |
+| <a id="class-active-placement"></a>`active-placement` | 2 | `abstract` | 243 | 1350 | 124 | 72 | 20 | 3 | 20 | 4 | wu-lifecycle-state-model: draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18 |
+| <a id="class-typed-branch-prefixes"></a>`typed-branch-prefixes` | 3 | `abstract` | 202 | 2013 | 133 | 38 | 16 | 0 | 12 | 3 | arc-backend: strategy-storage-evolution.md#Forward-Compat Principles § 5; roster=planned; snapshot=2026-07-18 |
+| <a id="class-meta-prefix"></a>`meta-prefix` | 4 | `abstract` | 210 | 2079 | 121 | 45 | 21 | 3 | 19 | 1 | arc-backend: draft-arc-backend.md#The Storage Model § The line: tracked vs. materialized; roster=planned; snapshot=2026-07-18 |
 | <a id="class-strategy-family"></a>`strategy-family` | 5 | `abstract` | 82 | 317 | 10 | 5 | 24 | 9 | 30 | 4 | knowledge-architecture: draft-knowledge-architecture.md#The four-kind verdict and Naming; roster=planned; snapshot=2026-07-18 |
 | <a id="class-domain-rules-name"></a>`domain-rules-name` | 6 | `abstract` | 78 | 192 | 19 | 7 | 24 | 2 | 24 | 2 | rules-restructure: draft-rules-restructure.md#Scope; roster=planned; snapshot=2026-07-18 |
 | <a id="class-spec-prefix"></a>`spec-prefix` | 7 | `abstract` | 60 | 264 | 25 | 7 | 8 | 5 | 14 | 1 | arc-backend: draft-arc-backend.md#The Storage Model § The line: tracked vs. materialized; roster=planned; snapshot=2026-07-18 |
-| <a id="class-completed-placement"></a>`completed-placement` | 8 | `abstract` | 84 | 242 | 38 | 28 | 7 | 0 | 8 | 3 | wu-lifecycle-state-model: draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18 |
+| <a id="class-completed-placement"></a>`completed-placement` | 8 | `abstract` | 86 | 249 | 39 | 29 | 7 | 0 | 8 | 3 | wu-lifecycle-state-model: draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18 |
 | <a id="class-planned-placement"></a>`planned-placement` | 9 | `abstract` | 91 | 432 | 54 | 24 | 7 | 0 | 5 | 1 | wu-lifecycle-state-model: draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18 |
 | <a id="class-pm-mode-key"></a>`pm-mode-key` | 10 | `abstract` | 71 | 256 | 23 | 13 | 16 | 0 | 15 | 4 | scalable-core: draft-scalable-core.md#What this work unit owns vs. steers; roster=planned; snapshot=2026-07-18 |
-| <a id="class-workflow-root"></a>`workflow-root` | 11 | `abstract` | 60 | 170 | 16 | 10 | 4 | 4 | 24 | 2 | composable-workflows: draft-composable-workflows.md#D2 — Decomposed-workflow layout; roster=planned; snapshot=2026-07-18 |
+| <a id="class-workflow-root"></a>`workflow-root` | 11 | `abstract` | 60 | 176 | 16 | 10 | 4 | 4 | 24 | 2 | composable-workflows: draft-composable-workflows.md#D2 — Decomposed-workflow layout; roster=planned; snapshot=2026-07-18 |
 | <a id="class-tasks-prefix"></a>`tasks-prefix` | 12 | `abstract` | 76 | 453 | 41 | 9 | 8 | 2 | 15 | 1 | arc-backend: draft-arc-backend.md#The Storage Model § The line: tracked vs. materialized; roster=planned; snapshot=2026-07-18 |
 | <a id="class-draft-prefix"></a>`draft-prefix` | 13 | `abstract` | 82 | 406 | 33 | 11 | 13 | 2 | 20 | 3 | arc-backend: draft-arc-backend.md#The Storage Model § The line: tracked vs. materialized; roster=planned; snapshot=2026-07-18 |
 | <a id="class-session-notes-name"></a>`session-notes-name` | 14 | `abstract` | 58 | 478 | 25 | 16 | 7 | 0 | 9 | 1 | naming-conventions: draft-naming-conventions.md#Renames; roster=planned; snapshot=2026-07-18 |
@@ -52,7 +52,7 @@ Canonical file membership remains in
 | <a id="class-strategy-index-name"></a>`strategy-index-name` | 25 | `change-with-mover` | 21 | 51 | 3 | 3 | 5 | 0 | 8 | 2 | knowledge-architecture: draft-knowledge-architecture.md#Architecture § Access paths are derived; roster=planned; snapshot=2026-07-18 |
 | <a id="class-internal-skill-root"></a>`internal-skill-root` | 26 | `change-with-mover` | 15 | 32 | 5 | 5 | 1 | 0 | 2 | 2 | knowledge-architecture: strategy-knowledge-evolution.md#Target Model and access paths; roster=planned; snapshot=2026-07-18 |
 | <a id="class-provisional-placement"></a>`provisional-placement` | 27 | `change-with-mover` | 25 | 70 | 12 | 6 | 2 | 0 | 4 | 1 | wu-lifecycle-state-model: draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18 |
-| <a id="class-recommended-text-family"></a>`recommended-text-family` | 28 | `change-with-mover` | 11 | 201 | 5 | 3 | 3 | 0 | 0 | 0 | composable-workflows: strategy-procedure-evolution.md#Forward-Compat Principles § 6; roster=planned; snapshot=2026-07-18 |
+| <a id="class-recommended-text-family"></a>`recommended-text-family` | 28 | `change-with-mover` | 11 | 196 | 5 | 3 | 3 | 0 | 0 | 0 | composable-workflows: strategy-procedure-evolution.md#Forward-Compat Principles § 6; roster=planned; snapshot=2026-07-18 |
 | <a id="class-atomic-inbox-name"></a>`atomic-inbox-name` | 29 | `change-with-mover` | 16 | 54 | 7 | 0 | 2 | 0 | 6 | 1 | naming-conventions: draft-naming-conventions.md#Renames; roster=planned; snapshot=2026-07-18 |
 | <a id="class-arc-extensions-key"></a>`arc-extensions-key` | 30 | `change-with-mover` | 8 | 16 | 1 | 1 | 0 | 0 | 5 | 1 | composable-workflows: draft-composable-workflows.md#D1 — Frontmatter is the contract; roster=planned; snapshot=2026-07-18 |
 | <a id="class-arc-methods-key"></a>`arc-methods-key` | 31 | `change-with-mover` | 8 | 19 | 1 | 1 | 0 | 0 | 5 | 1 | composable-workflows: draft-composable-workflows.md#D1 — Frontmatter is the contract; roster=planned; snapshot=2026-07-18 |
@@ -62,13 +62,13 @@ Canonical file membership remains in
 
 | Class | Inventory | Idioms | Evidence records |
 | --- | --- | --- | ---: |
-| `arc-root` | [ranked row](#class-arc-root) | `filename-prefix`, `git-tracked-path`, `path-literal` | 2917 |
-| `active-placement` | [ranked row](#class-active-placement) | `directory-state`, `filename-prefix`, `git-tracked-path`, `path-literal` | 1349 |
-| `meta-prefix` | [ranked row](#class-meta-prefix) | `directory-state`, `filename-prefix`, `path-literal` | 1185 |
+| `arc-root` | [ranked row](#class-arc-root) | `filename-prefix`, `git-tracked-path`, `path-literal` | 2934 |
+| `active-placement` | [ranked row](#class-active-placement) | `directory-state`, `filename-prefix`, `git-tracked-path`, `path-literal` | 1350 |
+| `meta-prefix` | [ranked row](#class-meta-prefix) | `directory-state`, `filename-prefix`, `path-literal` | 1191 |
 | `spec-prefix` | [ranked row](#class-spec-prefix) | `filename-prefix`, `path-literal` | 40 |
-| `completed-placement` | [ranked row](#class-completed-placement) | `directory-state`, `filename-prefix`, `path-literal` | 242 |
+| `completed-placement` | [ranked row](#class-completed-placement) | `directory-state`, `filename-prefix`, `path-literal` | 249 |
 | `planned-placement` | [ranked row](#class-planned-placement) | `directory-state`, `filename-prefix`, `git-tracked-path`, `path-literal` | 432 |
-| `workflow-root` | [ranked row](#class-workflow-root) | `directory-state`, `path-literal` | 170 |
+| `workflow-root` | [ranked row](#class-workflow-root) | `directory-state`, `path-literal` | 176 |
 | `tasks-prefix` | [ranked row](#class-tasks-prefix) | `directory-state`, `path-literal` | 231 |
 | `draft-prefix` | [ranked row](#class-draft-prefix) | `filename-prefix`, `path-literal` | 69 |
 | `session-notes-name` | [ranked row](#class-session-notes-name) | `path-literal` | 183 |
@@ -100,6 +100,7 @@ Reader idioms: `directory-state`, `filename-prefix`.
 | `packages/arc-framework/src/handlers/plan.ts` | `active-placement` | 2 |
 | `packages/arc-framework/src/lib/active/cohort-consistency.ts` | `active-placement`, `completed-placement`, `planned-placement` | 12 |
 | `packages/arc-framework/src/lib/active/meta-reader.ts` | `active-placement` | 1 |
+| `packages/arc-framework/src/lib/base-drift/current-adapters.ts` | `completed-placement` | 1 |
 | `packages/arc-framework/src/lib/git/remote-ref-reader.ts` | `active-placement` | 2 |
 | `packages/arc-framework/src/lib/git/worktree-roster.ts` | `active-placement` | 3 |
 | `packages/arc-framework/src/lib/release/interlock-validation.ts` | `active-placement` | 1 |
@@ -146,16 +147,16 @@ Reader idioms: `directory-state`, `filename-prefix`.
 
 | Packet | Target | Concern | Classes | State | Design implication | Grooming recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
-| `packet-09db73cb585b97ef2039980b` | `naming-conventions` | `state-document-renames` | `agent-briefs-root`, `atomic-inbox-name`, `session-notes-name`, `user-inbox-name`, `working-memory-name` | `captured-awaiting-housekeep` | Five planned document/root renames have materially different fan-out, including two abstract state-document names. | Use the ranked classes at grooming to decide which names need resolver-backed indirection and which can change atomically with the mover. |
-| `packet-2d038beda0424d2cb106d445` | `composable-workflows` | `procedure-surface-moves` | `arc-extensions-key`, `arc-methods-key`, `extension-root`, `load-set-name`, `method-root`, `recommended-text-family`, `template-suffix`, `workflow-root` | `captured-awaiting-housekeep` | The compiled-procedure target moves eight workflow, method, extension, load-set, and binding-time surfaces spanning both abstraction quadrants. | At grooming, use the per-class ranks to separate substrate-owned abstractions from low-fan-out changes that should move with the workflow compiler. |
-| `packet-7dc0e8478bbb5c6d8a215e15` | `roadmap-tooling` | `roadmap-name` | `roadmap-name` | `captured-awaiting-housekeep` | The ROADMAP rename is an abstract 44-file document/path assumption with tracked-path evidence. | At grooming, make the project-readiness view name a single owned contract before planning the rename cascade. |
-| `packet-7fc34db921836a3a02b0f65a` | `cli-substrate-adoption` | `substrate-abstraction-input` | `active-placement`, `arc-root`, `completed-placement`, `draft-prefix`, `meta-prefix`, `method-root`, `notes-prefix`, `planned-placement`, `roadmap-name`, `session-notes-name`, `spec-prefix`, `tasks-prefix`, `template-suffix`, `workflow-root`, `working-memory-name` | `captured-awaiting-housekeep` | Fifteen abstract concrete-path classes require one resolver/substrate ownership decision rather than independent path-literal migrations. | Use the mandatory substrate extract at grooming to define resolver responsibilities and consciously accept or reject each linked class. |
-| `packet-8022c711e845b5245676da9c` | `scalable-core` | `pm-mode-schema-reform` | `pm-mode-key` | `captured-awaiting-housekeep` | Replacing the pm.mode enum crosses 71 files and is an abstraction and compatibility-boundary problem rather than a rename cascade. | At grooming, settle the boolean key name and central-access boundary, then use the ranked inventory as the migration and verification matrix. |
-| `packet-b517d50db0231e3973a280ed` | `knowledge-architecture` | `knowledge-access-path-moves` | `internal-skill-root`, `strategy-family`, `strategy-index-name` | `captured-awaiting-housekeep` | The target knowledge model changes the strategy family, strategy index, and internal skill root across high- and low-fan-out quadrants. | Groom these classes as access-path consequences of the knowledge model and retain their canonical file sets for cascade planning. |
-| `packet-c6cf201f7a3b65dc6207f659` | `cli-substrate-adoption` | `tracked-planning-git-operations` | `tracked-planning-git-operations` | `captured-awaiting-housekeep` | Direct tracked-planning Git operations remain a low-fan-out but high-volatility mechanism that the CLI verb substrate is intended to replace. | Groom the four-file evidence set as explicit verb-adoption scope and verify no direct operation survives the boundary. |
-| `packet-d3f174862bd80257c25297d5` | `rules-restructure` | `domain-rules-name` | `domain-rules-name` | `captured-awaiting-housekeep` | The domain-rules name is an abstract 78-file document-family assumption. | At grooming, establish the target rule-family access path and use the canonical class evidence to bound the cascade. |
-| `packet-d47799fb6599b725bf71bc7c` | `arc-backend` | `storage-address-assumptions` | `arc-root`, `draft-prefix`, `meta-prefix`, `notes-prefix`, `spec-prefix`, `tasks-prefix`, `typed-branch-prefixes` | `captured-awaiting-housekeep` | The materialized backing-store design changes seven high-volatility address and artifact-family assumptions, all currently ranked abstract. | During grooming, decide which assumptions become backing-store or materialization contracts and preserve the ranked evidence as migration input. |
-| `packet-d5efcfe49ee0b1cfaf8d4532` | `wu-lifecycle-state-model` | `placement-reader-input` | `active-placement`, `completed-placement`, `planned-placement`, `provisional-placement` | `captured-awaiting-housekeep` | Four lifecycle placement assumptions currently encode state in directory layout and reach 55 code reader/parser files. | Use the mandatory placement-reader extract at grooming to define the record-field boundary and account for every linked reader before changing projection layout. |
-| `packet-ec894daf4aaa3de23b76622d` | `local-mode` | `team-mode-key` | `team-mode-key` | `captured-awaiting-housekeep` | The pending team-mode key change is an abstract configuration assumption spanning 37 files. | At grooming, settle the access and compatibility seam before scheduling the key rename. |
+| `packet-171d37a721a6cda7aef7dbd7` | `scalable-core` | `pm-mode-schema-reform` | `pm-mode-key` | `captured-awaiting-housekeep` | Replacing the pm.mode enum crosses 71 files and is an abstraction and compatibility-boundary problem rather than a rename cascade. | At grooming, settle the boolean key name and central-access boundary, then use the ranked inventory as the migration and verification matrix. |
+| `packet-188c5fab90090e83fdbc4591` | `wu-lifecycle-state-model` | `placement-reader-input` | `active-placement`, `completed-placement`, `planned-placement`, `provisional-placement` | `captured-awaiting-housekeep` | Four lifecycle placement assumptions currently encode state in directory layout and reach 55 code reader/parser files. | Use the mandatory placement-reader extract at grooming to define the record-field boundary and account for every linked reader before changing projection layout. |
+| `packet-297d2244598b0bafebe59474` | `rules-restructure` | `domain-rules-name` | `domain-rules-name` | `captured-awaiting-housekeep` | The domain-rules name is an abstract 78-file document-family assumption. | At grooming, establish the target rule-family access path and use the canonical class evidence to bound the cascade. |
+| `packet-3806e82ced300db6ee9c2ba6` | `composable-workflows` | `procedure-surface-moves` | `arc-extensions-key`, `arc-methods-key`, `extension-root`, `load-set-name`, `method-root`, `recommended-text-family`, `template-suffix`, `workflow-root` | `captured-awaiting-housekeep` | The compiled-procedure target moves eight workflow, method, extension, load-set, and binding-time surfaces spanning both abstraction quadrants. | At grooming, use the per-class ranks to separate substrate-owned abstractions from low-fan-out changes that should move with the workflow compiler. |
+| `packet-77df5c8e478dd5711fd41ba3` | `cli-substrate-adoption` | `tracked-planning-git-operations` | `tracked-planning-git-operations` | `captured-awaiting-housekeep` | Direct tracked-planning Git operations remain a low-fan-out but high-volatility mechanism that the CLI verb substrate is intended to replace. | Groom the four-file evidence set as explicit verb-adoption scope and verify no direct operation survives the boundary. |
+| `packet-9ba27bc90a49239e2b82b1ef` | `naming-conventions` | `state-document-renames` | `agent-briefs-root`, `atomic-inbox-name`, `session-notes-name`, `user-inbox-name`, `working-memory-name` | `captured-awaiting-housekeep` | Five planned document/root renames have materially different fan-out, including two abstract state-document names. | Use the ranked classes at grooming to decide which names need resolver-backed indirection and which can change atomically with the mover. |
+| `packet-9fd430233e343d1a3fb3157e` | `cli-substrate-adoption` | `substrate-abstraction-input` | `active-placement`, `arc-root`, `completed-placement`, `draft-prefix`, `meta-prefix`, `method-root`, `notes-prefix`, `planned-placement`, `roadmap-name`, `session-notes-name`, `spec-prefix`, `tasks-prefix`, `template-suffix`, `workflow-root`, `working-memory-name` | `captured-awaiting-housekeep` | Fifteen abstract concrete-path classes require one resolver/substrate ownership decision rather than independent path-literal migrations. | Use the mandatory substrate extract at grooming to define resolver responsibilities and consciously accept or reject each linked class. |
+| `packet-d2d9f3e4799c94470c55111c` | `knowledge-architecture` | `knowledge-access-path-moves` | `internal-skill-root`, `strategy-family`, `strategy-index-name` | `captured-awaiting-housekeep` | The target knowledge model changes the strategy family, strategy index, and internal skill root across high- and low-fan-out quadrants. | Groom these classes as access-path consequences of the knowledge model and retain their canonical file sets for cascade planning. |
+| `packet-dbd2103ffa3c4df953f89138` | `local-mode` | `team-mode-key` | `team-mode-key` | `captured-awaiting-housekeep` | The pending team-mode key change is an abstract configuration assumption spanning 37 files. | At grooming, settle the access and compatibility seam before scheduling the key rename. |
+| `packet-edfd7344100348f1f6b6659c` | `arc-backend` | `storage-address-assumptions` | `arc-root`, `draft-prefix`, `meta-prefix`, `notes-prefix`, `spec-prefix`, `tasks-prefix`, `typed-branch-prefixes` | `captured-awaiting-housekeep` | The materialized backing-store design changes seven high-volatility address and artifact-family assumptions, all currently ranked abstract. | During grooming, decide which assumptions become backing-store or materialization contracts and preserve the ranked evidence as migration input. |
+| `packet-ff5dc5d126f20b5461b3c71c` | `roadmap-tooling` | `roadmap-name` | `roadmap-name` | `captured-awaiting-housekeep` | The ROADMAP rename is an abstract 44-file document/path assumption with tracked-path evidence. | At grooming, make the project-readiness view name a single owned contract before planning the rename cascade. |
 
 ---
