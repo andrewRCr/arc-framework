@@ -493,10 +493,10 @@ conventions above (append-only, primary-on-base, one session per checkout).
   lost. Inspect the worktree; commit, stash, or hand the work off, then remove with `git worktree remove`. Don't
   `rm -rf` — it strands git's bookkeeping (recoverable afterward with `git worktree prune`, but avoidable).
 
-- **Teardown removed the directory your session was standing in.** Physical asymmetry, not a bug: a worktree
-  cannot be deleted from within without taking the session's working directory with it — harness errors after
-  that point are fallout, not damage. Run the physical teardown from the primary worktree instead; the
-  stale-worktree sweep at session start catches anything left behind.
+- **Teardown leaves the session in a detached worktree husk.** A worktree cannot safely remove the directory the
+  current session is standing in. Self-teardown therefore verifies preservation and user-surface reconciliation,
+  detaches the worktree, and reaps the branch while leaving the directory as a disposable terminal husk. Finish
+  the session there, then re-run teardown from the primary to remove the husk; never reuse it for new work.
 
 - **Two shipped work units carry the same completion sequence number.** Concurrent archives numbered against the
   same snapshot. Cosmetic only — renumber one directory in a small errand when convenient.
