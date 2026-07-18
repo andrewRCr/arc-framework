@@ -332,6 +332,23 @@ describe("trusted review-gate workflows", () => {
       .toBeLessThan(packageIntegration.indexOf("checks green"));
   });
 
+  it("guards the post-merge tail on completion and archival products", async () => {
+    const [packageIntegration, instanceIntegration] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    ]);
+    expect(packageIntegration).toBe(instanceIntegration);
+    const resumeEntry = packageIntegration.slice(
+      packageIntegration.indexOf("#### Resume entry"),
+      packageIntegration.indexOf("### 2) Local diff preflight"),
+    );
+    expect(resumeEntry).toContain("A merged PR proves only that the merge ran");
+    expect(resumeEntry).toContain("Completion Notes");
+    expect(resumeEntry).toContain("under `with-integration`, the resolver reports `shipped` in `completed`");
+    expect(resumeEntry).toMatch(/do not\s+invoke `arc user close` or `arc teardown`/u);
+    expect(resumeEntry).toContain("lifecycle-only repair change request");
+  });
+
   it("proves the checked-in repair workflow is the sole closed status writer", async () => {
     const names = [
       "ci.yml", "docs.yml", "review-gate-attest.yml", "review-gate-qualify.yml", "review-gate-repair.yml",

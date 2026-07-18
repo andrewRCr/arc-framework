@@ -87,11 +87,11 @@ every pre-PR / PR-open step that already ran** — re-enter at the first incompl
 point from observable state — PR open vs. merged, plus worktree/branch presence — never by redoing a completed
 step:
 
-| Observed state               | Demonstrably already ran   | Resume at                                              |
-| ---------------------------- | -------------------------- | ------------------------------------------------------ |
-| No PR open for the WU branch | transition                 | Step 2 (local preflight → creation path)               |
-| PR open, not merged          | transition, PR open        | Step 4 (`post-pr-open` → review iteration → Phase 2)   |
-| PR already merged            | transition, PR open, merge | post-merge tail — Step 13 close, then Step 14 teardown |
+| Observed state               | Demonstrably already ran   | Resume at                                                          |
+|------------------------------|----------------------------|--------------------------------------------------------------------|
+| No PR open for the WU branch | transition                 | Step 2 (local preflight → creation path)                           |
+| PR open, not merged          | transition, PR open        | Step 4 (`post-pr-open` → review iteration → Phase 2)               |
+| PR already merged            | transition, PR open, merge | Verify Phase 2 products; when complete, resume at the Step 13 tail |
 
 Resolve PR state with `gh pr view {type}/{name} --json state,mergedAt` (fall back to `gh pr list --head
 {type}/{name}`); resolve worktree/branch presence with `git worktree list` and `git branch --list {type}/{name}`.
@@ -99,6 +99,12 @@ Within Phase 2, pick up at the first step whose product isn't already present �
 the meta's archive-phase sections, a sweep already committed — observe, don't redo. The tail steps (Steps 13–14
 below) are individually re-runnable and no-op when their target is already gone, so an over-eager resume costs
 nothing.
+
+Before selecting the merged-PR tail, verify the meta contains Completion Notes and any applicable Release Notes;
+under `with-integration`, the resolver reports `shipped` in `completed`. A merged PR proves only that the merge ran,
+not that composition or archival ran. If a required product is absent, preserve the branch and worktree, and do not
+invoke `arc user close` or `arc teardown`. Land the missing products through a lifecycle-only repair change request,
+then re-enter this guard after it merges.
 
 ### 2) Local diff preflight
 
