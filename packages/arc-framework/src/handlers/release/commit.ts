@@ -37,7 +37,10 @@ import {
   formatRefusal,
 } from "../../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../../lib/release/wu-resolution.js";
-import { rewriteCommitFileSource } from "../../lib/release/commit-message-source.js";
+import {
+  rewriteCommitFileSource,
+  rewriteCommitMessagesToFile,
+} from "../../lib/release/commit-message-source.js";
 import { renderCommitMessageRetryCommand } from "../../lib/release/commit-message-retry.js";
 import type {
   AuditEntry,
@@ -82,7 +85,7 @@ export type CommitMessagePreflightResult =
       /** Canonical assembled bytes approved by the validator. */
       messageBytes: Uint8Array;
       transport?:
-        | { kind: "messages" }
+        | { kind: "messages"; snapshotRouted?: boolean }
         | {
             kind: "file";
             rawBytes: Uint8Array;
@@ -234,6 +237,20 @@ export async function runReleaseCommit(
     try {
       snapshot = await deps.createMessageSnapshot({ cwd: deps.cwd, bytes: preflight.transport.rawBytes });
       spawnArgs = rewriteCommitFileSource(deps.argv, snapshot.path);
+    } catch (cause: unknown) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      return refusePreflight("input", `Could not create commit-message snapshot: ${detail}`, {
+        deps, wu: wuAudit, writeStderr, appendAudit,
+      });
+    }
+  } else if (
+    preflight.kind === "passed"
+    && preflight.transport?.kind === "messages"
+    && preflight.transport.snapshotRouted === true
+  ) {
+    try {
+      snapshot = await deps.createMessageSnapshot({ cwd: deps.cwd, bytes: preflight.messageBytes });
+      spawnArgs = rewriteCommitMessagesToFile(deps.argv, snapshot.path);
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       return refusePreflight("input", `Could not create commit-message snapshot: ${detail}`, {

@@ -41,6 +41,35 @@ export interface HandleReleaseCommitOptions {
 }
 
 /**
+ * Strip a leading `--no-wrap` token from `args`, honoring the `--` terminator.
+ *
+ * @param args - Raw commit argv as received from Commander.
+ * @returns The stripped argv and whether body-wrapping remains enabled.
+ */
+function stripNoWrap(args: readonly string[]): { argv: string[]; wrap: boolean } {
+  const argv: string[] = [];
+  let wrap = true;
+  let terminated = false;
+  for (const arg of args) {
+    if (terminated) {
+      argv.push(arg);
+      continue;
+    }
+    if (arg === "--") {
+      terminated = true;
+      argv.push(arg);
+      continue;
+    }
+    if (arg === "--no-wrap") {
+      wrap = false;
+      continue;
+    }
+    argv.push(arg);
+  }
+  return { argv, wrap };
+}
+
+/**
  * `arc release commit` Commander entry point. Resolves the I/O surface
  * needed by the orchestrator and delegates. Refusal paths print to
  * stderr and exit with the matched refusal code (10–13 or message-preflight 16); the authorize
@@ -75,11 +104,12 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
 
   const currentBranch = (await resolveCurrentBranchName(gitExec)) ?? "";
   const preflightRemedy = renderCommitMessageRemedy();
+  const { argv, wrap } = stripNoWrap(opts.args);
 
   const result = await runReleaseCommit({
     cwd,
     identity,
-    argv: opts.args,
+    argv,
     settings,
     currentBranch,
     spawnGit: realSpawnGit,
@@ -99,6 +129,7 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
         pathExists,
       }),
       hasPrepareCommitMsgHook,
+      wrap,
     }),
   });
 

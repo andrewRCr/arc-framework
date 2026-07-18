@@ -42,60 +42,41 @@ _Design decisions:_ D3 (wrap width from `hooks.body_max_line_length`, read off t
 `--no-wrap` escape hatch. Touch list: `commit-message-preflight.ts`, `commit.ts`, and the argv transform — see
 `notes-commit-message-ergonomics.md` § Files map.
 
-### `[ ]` **2.1 Thread wrap width and `--no-wrap` into the assembly path**
+### `[x]` **2.1 Thread wrap width and `--no-wrap` into the assembly path**
 
 - _Goal:_ `-m` bodies assemble wrapped to `hooks.body_max_line_length` (default 100) by default; `--no-wrap`
   disables wrapping for `-m`; the `messages` transport is marked for snapshot routing only when wrapping
   actually changed the bytes.
 
-- _Context:_ `--no-wrap` is a wrapper-level flag, not a `git commit` option — the closed message-input
-  classifier treats an unknown flag as unsupported grammar and passes the whole invocation through to raw Git.
-  So it is stripped at the `arc release commit` boundary, before classification and before the wrapped
-  `git commit`, and threaded through as a boolean.
+- _Outcome:_ `handleReleaseCommit` (`commit-cli.ts`) strips a bare `--no-wrap` token (honoring the `--`
+  terminator) and threads a `wrap` boolean into `createCommitMessagePreflight`; the stripped argv reaches both
+  `runReleaseCommit` and the wrapped `git commit`. The preflight reads the width from
+  `preparedContext.policy.bodyMaxLineLength` on the `ready` branch only, wraps the `messages` body when `wrap`
+  is on, and marks the transport `snapshotRouted` only when wrapping changed the bytes — an unwrapped no-op,
+  `--no-wrap`, or a non-`ready` (invalid-policy) context stays a plain raw-`-m` commit.
 
-    - Strip `--no-wrap` from the argv in `handleReleaseCommit` (`commit-cli.ts`) before it reaches
-      `runReleaseCommit`, and thread a `wrap` boolean (default on) into the preflight closure
-    - In `createCommitMessagePreflight`, read the width from `preparedContext` only on the `ready` branch
-      (`preparedContext.policy.bodyMaxLineLength`) and pass it into `assembleCommitMessageParagraphs` for the
-      `messages` source when `wrap` is on; assemble unwrapped when `wrap` is off or the context is not `ready`
-      (e.g. an invalid-policy outcome that falls through to the validator)
-    - Mark the passed `messages` transport as snapshot-routed when the wrapped bytes differ from the raw joined
-      bytes; leave it a plain raw-argv commit when wrapping was a no-op or disabled
-
-### `[ ]` **2.2 Route the wrapped `messages` transport through a message snapshot**
+### `[x]` **2.2 Route the wrapped `messages` transport through a message snapshot**
 
 - _Goal:_ For a `messages` commit whose bytes were wrapped, the committed body bytes equal the validated
   (wrapped) bytes — verified by inspecting the resulting commit, not just preflight.
 
-- _Context:_ `rewriteCommitFileSource` only substitutes an existing `-F` operand's value, so it cannot be reused
-  as-is for a `-m` argv — the `messages` path needs its own dedicated argv transform.
+    - `[x]` **2.2.a Add the strip-`-m`/append-`-F` argv transform**
+        - _Outcome:_ Added pure `rewriteCommitMessagesToFile(args, path)` in `commit-message-source.ts`,
+          reusing `walkCommitShortOption`: strips separated, attached, long (`--message`/`--message=`), and
+          clustered (`-am` → `-a`) message operands, and appends `-F <path>`.
 
-    - Extend the `messages` transport variant so the approved wrapped bytes reach `runReleaseCommit` (carry the
-      snapshot bytes on the transport, or a mutated marker consumed alongside the existing `preflight.messageBytes`)
+    - `[x]` **2.2.b Wire the transform + snapshot into `runReleaseCommit`**
+        - _Outcome:_ Extended the `messages` transport with `snapshotRouted?: boolean`; `runReleaseCommit`
+          snapshots `preflight.messageBytes` and rewrites the argv via the new transform (reusing the existing
+          snapshot `finally` cleanup) only for a marked transport — an unwrapped `messages` commit keeps its raw
+          `-m` argv. SC3 covered end-to-end (a real commit's `%B` equals the wrapped bytes; the same body under
+          `--no-wrap` refuses at preflight).
 
-    - Add the `messages` snapshot branch in `runReleaseCommit` beside the existing `file` branch:
-      `createMessageSnapshot` on the wrapped bytes, rewrite the argv via the new transform, and clean the
-      snapshot up in the existing `finally`
-
-    - `[ ]` **2.2.a Add the strip-`-m`/append-`-F` argv transform**
-
-        - _Approach:_ Reuse `walkCommitShortOption` to locate message operands across attached, separated, long,
-          and clustered forms, mirroring how `rewriteCommitFileSource` walks the `-F` operand.
-
-        Build `test-first` (one behavior at a time):
-
-        - Strips a single `-m <value>` operand pair and appends `-F <snapshot>`
-        - Strips multiple `-m` operands (all message values removed)
-        - Strips the `--message <value>` and `--message=<value>` long forms
-        - Strips a clustered `-m` member from a short-option cluster (`-am <msg>` → `-a`), preserving the sibling
-          flags
-        - Preserves the order and content of non-message arguments
-        - Leaves an argv with no `-m`/`--message` operands otherwise unchanged apart from the appended `-F`
-
-    - `[ ]` **2.2.b Wire the transform + snapshot into `runReleaseCommit`**
-        - Route only the snapshot-marked `messages` transport through the new branch; an unwrapped (no-op)
-          `messages` commit keeps its raw `-m` argv
-        - Cover end-to-end that a wrapped `messages` commit's committed bytes equal the validated bytes (SC3)
+- _Outcome:_ A wrapped `-m` body is what Git commits: the validated wrapped bytes reach Git via a snapshot
+  `-F`, closing the gap where preflight could approve a wrapped body Git then committed unwrapped. The one
+  branch left unit-untested — a non-`ready` invalid-policy context reaching the messages branch — is
+  unobservable at the preflight boundary (the validator re-derives the same invalid outcome, so the result is
+  always `refused`, never `passed`); the source branch is present and exercised indirectly.
 
 ## **Phase 3:** Effective-hook detection via the manager abstraction
 

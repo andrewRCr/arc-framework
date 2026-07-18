@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyCommitMessageInput,
   rewriteCommitFileSource,
+  rewriteCommitMessagesToFile,
 } from "../../../../src/lib/release/commit-message-source.js";
 
 function classify(
@@ -218,5 +219,67 @@ describe("file-source rewriting", () => {
     { args: ["--file=caller"], expected: ["--file=snapshot"] },
   ])("preserves the option shape for $args", ({ args, expected }) => {
     expect(rewriteCommitFileSource(args, "snapshot")).toEqual(expected);
+  });
+});
+
+describe("commit-message rewriting to file", () => {
+  it("strips a single -m <value> operand pair and appends -F <snapshot>", () => {
+    expect(rewriteCommitMessagesToFile(["commit", "-m", "hi"], "/snap")).toEqual([
+      "commit",
+      "-F",
+      "/snap",
+    ]);
+  });
+
+  it("strips multiple -m operands, appending -F once", () => {
+    expect(rewriteCommitMessagesToFile(["commit", "-m", "first", "-m", "second"], "/snap")).toEqual([
+      "commit",
+      "-F",
+      "/snap",
+    ]);
+  });
+
+  it("strips both --message <value> and --message=<value> long forms", () => {
+    expect(
+      rewriteCommitMessagesToFile(["commit", "--message", "first", "--message=second"], "/snap"),
+    ).toEqual(["commit", "-F", "/snap"]);
+  });
+
+  it("strips a clustered -m member while preserving the sibling flag", () => {
+    expect(rewriteCommitMessagesToFile(["commit", "-am", "msg"], "/snap")).toEqual([
+      "commit",
+      "-a",
+      "-F",
+      "/snap",
+    ]);
+  });
+
+  it("strips a clustered attached -amVALUE member while preserving the sibling flag", () => {
+    expect(rewriteCommitMessagesToFile(["commit", "-amVALUE"], "/snap")).toEqual([
+      "commit",
+      "-a",
+      "-F",
+      "/snap",
+    ]);
+  });
+
+  it("preserves the order and content of non-message arguments", () => {
+    expect(
+      rewriteCommitMessagesToFile(
+        ["commit", "--author", "name", "-m", "msg", "--", "file.txt"],
+        "/snap",
+      ),
+    ).toEqual(["commit", "--author", "name", "--", "file.txt", "-F", "/snap"]);
+  });
+
+  it("leaves an argv with no -m/--message operands unchanged apart from the appended -F", () => {
+    expect(rewriteCommitMessagesToFile(["commit", "--author", "name", "-a"], "/snap")).toEqual([
+      "commit",
+      "--author",
+      "name",
+      "-a",
+      "-F",
+      "/snap",
+    ]);
   });
 });

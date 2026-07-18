@@ -539,6 +539,61 @@ describe("runReleaseCommit — success path", () => {
     expect(cleanup).toHaveBeenCalledOnce();
   });
 
+  it("routes a snapshot-marked messages transport through -F, stripping -m operands", async () => {
+    await writeStatus(fixture.root, "sample");
+    const wrappedBytes = Buffer.from("feat(release): subject\n\nwrapped body line\n");
+    const { deps, spawnGit } = buildDeps(fixture.root, {
+      argv: ["-m", "feat(release): subject", "-m", "an overlong body that got wrapped"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes: wrappedBytes,
+        transport: { kind: "messages", snapshotRouted: true },
+      }),
+      createMessageSnapshot: async ({ bytes }) => {
+        expect(bytes).toEqual(wrappedBytes);
+        return { path: "/repo/.git/private-message", cleanup: vi.fn().mockResolvedValue(undefined) };
+      },
+      spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+      resolveHead: () => Promise.resolve(FULL_HASH),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(0);
+    expect(spawnGit).toHaveBeenCalledWith({
+      args: ["-F", "/repo/.git/private-message"],
+      cwd: fixture.root,
+    });
+  });
+
+  it("keeps the raw -m argv and skips the snapshot for an unmarked messages transport", async () => {
+    await writeStatus(fixture.root, "sample");
+    const messageBytes = Buffer.from("feat(release): subject\n");
+    const createMessageSnapshot = vi.fn(() => {
+      throw new Error("createMessageSnapshot must not be called without snapshot routing");
+    });
+    const { deps, spawnGit } = buildDeps(fixture.root, {
+      argv: ["-m", "feat(release): subject"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "passed",
+        verdict: "pass",
+        messageBytes,
+        transport: { kind: "messages" },
+      }),
+      createMessageSnapshot,
+      spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+      resolveHead: () => Promise.resolve(FULL_HASH),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(0);
+    expect(createMessageSnapshot).not.toHaveBeenCalled();
+    expect(spawnGit).toHaveBeenCalledWith({
+      args: ["-m", "feat(release): subject"],
+      cwd: fixture.root,
+    });
+  });
+
   it("pipes captured stdin bytes while ordinary preflight keeps inherited stdin", async () => {
     await writeStatus(fixture.root, "sample");
     const rawBytes = Buffer.from("stdin message");

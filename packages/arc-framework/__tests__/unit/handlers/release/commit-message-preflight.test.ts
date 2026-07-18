@@ -7,6 +7,7 @@ import {
   COMMIT_CHECK_DEFAULTS,
   createCommitCheckContext,
 } from "../../../../src/lib/commit-check/index.js";
+import { assembleCommitMessageParagraphs } from "../../../../src/lib/release/commit-message-assembly.js";
 import type { CommitMessageCheckRepository } from "../../../../src/lib/commit-check/repository.js";
 
 function repository(
@@ -38,6 +39,7 @@ function create(overrides: {
   setupRepository?: () => Promise<CommitMessageCheckRepository>;
   hasPrepareCommitMsgHook?: (cwd: string) => Promise<boolean>;
   stdinIsTTY?: boolean;
+  wrap?: boolean;
 } = {}) {
   const readFile = vi.fn(overrides.readFile ?? (() => Promise.resolve(new Uint8Array())));
   const readStdin = vi.fn(overrides.readStdin ?? (() => Promise.resolve(new Uint8Array())));
@@ -53,6 +55,7 @@ function create(overrides: {
       readStdin,
       setupRepository: overrides.setupRepository ?? (async () => overrides.repo ?? repository()),
       hasPrepareCommitMsgHook: overrides.hasPrepareCommitMsgHook ?? (async () => false),
+      wrap: overrides.wrap ?? true,
     }),
   };
 }
@@ -164,6 +167,48 @@ describe("createCommitMessagePreflight", () => {
       messageBytes: Uint8Array.from(Buffer.from("feat(release): a sufficiently long valid subject\n")),
       transport: { kind: "messages" },
     });
+  });
+
+  it("wraps an overlong -m body to the resolved policy width and marks snapshot routing", async () => {
+    const subject = "feat(release): add wrapped commit bodies";
+    const body = "This paragraph is intentionally long enough to require wrapping into several lines when rendered.";
+    const values = [subject, body];
+    const repo = repository({ "commit.context_footer": "disabled", "hooks.body_max_line_length": "20" });
+    const { preflight } = create({ repo, wrap: true });
+
+    const result = await preflight({ args: ["-m", subject, "-m", body], cwd: "/repo" });
+
+    if (result.kind !== "passed") throw new Error("expected passed");
+    expect(result.messageBytes).toEqual(assembleCommitMessageParagraphs(values, 20));
+    expect(result.transport).toEqual({ kind: "messages", snapshotRouted: true });
+  });
+
+  it("leaves the transport unmarked when wrapping does not change a short -m body", async () => {
+    const subject = "feat(release): add wrapped commit bodies";
+    const body = "Short paragraph.";
+    const values = [subject, body];
+    const repo = repository({ "commit.context_footer": "disabled" });
+    const { preflight } = create({ repo, wrap: true });
+
+    const result = await preflight({ args: ["-m", subject, "-m", body], cwd: "/repo" });
+
+    if (result.kind !== "passed") throw new Error("expected passed");
+    expect(result.messageBytes).toEqual(assembleCommitMessageParagraphs(values));
+    expect(result.transport).toEqual({ kind: "messages" });
+  });
+
+  it("does not wrap a -m body when wrap is disabled", async () => {
+    const subject = "feat(release): add wrapped commit bodies";
+    const body = "Alpha bravo\ncharlie delta echo";
+    const values = [subject, body];
+    const repo = repository({ "commit.context_footer": "disabled", "hooks.body_max_line_length": "20" });
+    const { preflight } = create({ repo, wrap: false });
+
+    const result = await preflight({ args: ["-m", subject, "-m", body], cwd: "/repo" });
+
+    if (result.kind !== "passed") throw new Error("expected passed");
+    expect(result.messageBytes).toEqual(assembleCommitMessageParagraphs(values));
+    expect(result.transport).toEqual({ kind: "messages" });
   });
 
   it.each([

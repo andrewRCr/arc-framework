@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runCli } from "../helpers/run-cli.js";
+import { assembleCommitMessageParagraphs } from "../../src/lib/release/commit-message-assembly.js";
 import { cleanupTempDir, createTempRepo } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -419,5 +420,64 @@ describe("release commit byte preservation", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("latest commit-message retry could not be persisted");
     expect(result.stderr).not.toContain("arc release commit -F '");
+  });
+});
+
+describe("release commit body wrapping", () => {
+  const WIDTH = 60;
+
+  async function writeWrapConfig(): Promise<void> {
+    await writeFile(join(repository, ".arc", "system", "arc-config.yml"), [
+      "branch.base: main",
+      "branch.protection: partial",
+      "hooks.commit_msg: enabled",
+      `hooks.body_max_line_length: ${String(WIDTH)}`,
+      "commit.format: conventional",
+      "commit.context_footer: disabled",
+      "commit.custom_pattern:",
+      "commit.context_pattern:",
+      "",
+    ].join("\n"));
+  }
+
+  const subject = "feat(release): wrap an overlong deterministic body";
+  const body =
+    "This body paragraph is deliberately far longer than sixty columns so the release "
+    + "wrapper must reflow it into multiple lines before Git ever validates or stores it.";
+
+  it("wraps an overlong -m body so the committed bytes equal the validated wrapped bytes", async () => {
+    await writeWrapConfig();
+
+    const result = await runCli(["release", "commit", "-m", subject, "-m", body], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+
+    expect(result.exitCode).toBe(0);
+
+    const committed = await gitOutput(["log", "-1", "--format=%B"]);
+    const expected = new TextDecoder()
+      .decode(assembleCommitMessageParagraphs([subject, body], WIDTH))
+      .trimEnd();
+    expect(committed).toBe(expected);
+    for (const line of committed.split("\n").slice(2)) {
+      expect(line.length).toBeLessThanOrEqual(WIDTH);
+    }
+    expect(await transientSnapshots()).toEqual([]);
+  });
+
+  it("leaves the same body unwrapped under --no-wrap, so preflight refuses it", async () => {
+    await writeWrapConfig();
+    const headBefore = await gitOutput(["rev-parse", "HEAD"]);
+
+    const result = await runCli(
+      ["release", "commit", "--no-wrap", "-m", subject, "-m", body],
+      { cwd: repository, env: { ARC_HOOK_LOG: hookLog } },
+    );
+
+    expect(result.exitCode).toBe(16);
+    expect(result.stderr).toContain("Commit validation FAILED");
+    expect(await gitOutput(["rev-parse", "HEAD"])).toBe(headBefore);
+    expect(await readHookLog()).toEqual([]);
   });
 });

@@ -23,10 +23,20 @@ export interface CommitMessagePreflightDeps {
   readStdin: () => Promise<Uint8Array>;
   setupRepository: (cwd: string) => Promise<CommitMessageCheckRepository>;
   hasPrepareCommitMsgHook: (cwd: string) => Promise<boolean>;
+  /** Whether `-m` bodies should be greedy-wrapped to the resolved policy width. */
+  wrap: boolean;
 }
 
 function inputFailure(message: string): CommitMessagePreflightResult {
   return { kind: "refused", reason: "input", message };
+}
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index += 1) {
+    if (a[index] !== b[index]) return false;
+  }
+  return true;
 }
 
 /** Create the production preflight function from injected system boundaries. */
@@ -65,8 +75,18 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
     let messageBytes: Uint8Array;
     let transport: NonNullable<Extract<CommitMessagePreflightResult, { kind: "passed" }>["transport"]>;
     if (classification.source.kind === "messages") {
-      messageBytes = assembleCommitMessageParagraphs(classification.source.values);
-      transport = { kind: "messages" };
+      const raw = assembleCommitMessageParagraphs(classification.source.values);
+      if (deps.wrap && preparedContext.kind === "ready") {
+        const wrapped = assembleCommitMessageParagraphs(
+          classification.source.values,
+          preparedContext.policy.bodyMaxLineLength,
+        );
+        messageBytes = wrapped;
+        transport = bytesEqual(wrapped, raw) ? { kind: "messages" } : { kind: "messages", snapshotRouted: true };
+      } else {
+        messageBytes = raw;
+        transport = { kind: "messages" };
+      }
     } else {
       const capture = await captureCommitMessageFileSource(classification.source.path, deps);
       if (capture.kind === "error") return inputFailure(capture.message);
