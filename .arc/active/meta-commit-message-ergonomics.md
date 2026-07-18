@@ -1,8 +1,8 @@
 # Metadata: commit-message-ergonomics
 
-| **State**  | **Owner** | **Branch**                       | **Class** | **Priority** |
-| ---------- | --------- | -------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/commit-message-ergonomics` | `Light`   | `P2`         |
+| **State** | **Owner** | **Branch**                       | **Class** | **Priority** |
+| --------- | --------- | -------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/commit-message-ergonomics` | `Light`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,12 +11,12 @@
 - **Design:** `spec-commit-message-ergonomics.md`
 - **Task List:** `tasks-commit-message-ergonomics.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Extend assembleCommitMessageParagraphs with width-parameterized wrapping
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 (Phase 1 — deterministic body-wrapping engine)
 
 - **PR URL:** [none]
 - **Completed:** [none]
