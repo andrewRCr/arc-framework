@@ -17,7 +17,7 @@
 - **Next Task:** Begin Task 1.1 — Verify the authoritative corpus and bounded delta pass
 - **Blockers:** [none]
 
-- **Next Action:** Execute Task 1.1 via process-task-loop.md
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

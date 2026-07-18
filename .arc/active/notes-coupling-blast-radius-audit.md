@@ -238,8 +238,9 @@ file lists, and disposition totals in these notes are projections from that cano
 
 The mover roster was re-resolved by slug on 2026-07-18. `arc-backend`, `cli-substrate-adoption`,
 `composable-workflows`, `knowledge-architecture`, `local-mode`, `naming-conventions`, `roadmap-tooling`,
-`rules-restructure`, and `wu-lifecycle-state-model` are live planned work units; `arcd-rebrand` is live provisional.
-Both hard consumers remain blocked on this audit. No cited mover is missing, completed, or retired.
+`rules-restructure`, `scalable-core`, and `wu-lifecycle-state-model` are live planned work units. The provisional
+`arcd-rebrand` source was reviewed but does not own the `pm.mode` schema reform. Both hard consumers remain blocked
+on this audit, and no final cited mover is missing, completed, or retired.
 
 All 31 name classes are high-volatility because their cited live mover still owns the recorded rename, relocation,
 or target-shape change. The standalone `tracked-planning-git-operations` idiom is also high: the live
@@ -276,12 +277,13 @@ The placement projection records `active-placement`, `completed-placement`, `pla
 extract member links to complete evidence-digest sets; capped samples play no role in membership. Class-hit evidence
 now preserves its originating catch vector where one exists, keeping the result's idiom provenance inspectable.
 
-The final canonical result covers 1,215 tracked files, 7,738 classified candidates, 90,919 dismissed candidates,
+The final canonical result covers 1,215 tracked files, 9,033 classified candidates, 92,501 dismissed candidates,
 and zero unresolved residue. Its manifest digest is
-`fe62bddc6fe61e32a9e8be98090cd0e4599ea6803acd9d8033c39e6dea0fe250`; the result SHA-256 is
-`2cf97d2be9f14365ae30ee0653e739b9327a349312f6f262bdfa1b1dcaa10640`. The final delta adds the report renderer
-and its focused fixture to the tracked corpus; review confirmed their new catch-all candidates remain generic
-members of the existing branch-token, dotted-token, path-token, and prefix-operation disposition groups.
+`ba2f9ae69ce34dd75d60553478c4e87d7ce244bec8e76949b32ef1047021fca0`; the result SHA-256 is
+`d30779aadc63e8a3ff7f8f1c37592794d34ee48ffa9bb3035303e27aecba89a7`. Verification expanded the directory-state
+and filename-prefix catch-all vectors to shell forms and made path-join arguments individually accountable while
+excluding array/string joins. Governed components are attributed; remaining generic components stay bound to the
+stale-safe disposition groups.
 
 ## Finding packet routing
 
@@ -289,10 +291,10 @@ All destination slugs were re-resolved on 2026-07-18. Ten owners are planned. Th
 exact result above and covers all 32 ranked classes. `cli-substrate-adoption` receives two distinct concerns because
 it owns both its direct Git-operation mover and the mandatory cross-mover substrate extract.
 
-Review moved the `pm-mode-key` finding from the provisional `arcd-rebrand` citation to `scalable-core`: the audit
-class measures the literal configuration key, while `scalable-core` explicitly owns replacing its enum with
-orthogonal Planning Module configuration. The packet therefore treats the 71-file surface as schema-reform and
-central-access input rather than a rebrand rename cascade; the manifest citation remains the catch provenance.
+Review moved the `pm-mode-key` finding and canonical mover citation from provisional `arcd-rebrand` to
+`scalable-core`: the audit class measures the literal configuration key, while `scalable-core` explicitly owns
+replacing its enum with orthogonal Planning Module configuration. The packet therefore treats the 71-file surface
+as schema-reform and central-access input rather than a rebrand rename cascade.
 
 | Owner | Concern | Classes | Design implication |
 | --- | --- | ---: | --- |
@@ -309,10 +311,11 @@ central-access input rather than a rebrand rename cascade; the manifest citation
 | `wu-lifecycle-state-model` | placement reader input | 4 | Directory-encoded state reaches 55 code reader/parser files. |
 
 Packet IDs derive from result digest + target slug + sorted class IDs; packet content digests bind owner provenance,
-ranked evidence, extract references, implications, and grooming recommendations. All 11 packets were captured in the
-resolver-backed identity-global `USER-INBOX` with exact IDs and digests, then reconciled one-to-one with the ledger.
-Every packet is now `captured-awaiting-housekeep`; no foreign work-unit artifact was edited and the wider inbox drain
-was not invoked.
+ranked evidence, extract references, implications, and grooming recommendations. The ledger parser verifies both
+bindings, and report projection requires captured packets to cover every ranked class. All 11 packets were captured
+in the resolver-backed identity-global `USER-INBOX` with exact IDs and digests, then reconciled one-to-one with the
+ledger. Every packet is now `captured-awaiting-housekeep`; no foreign work-unit artifact was edited and the wider
+inbox drain was not invoked.
 
 ## Final report certification
 
@@ -320,12 +323,12 @@ The project-internal audit command now has an explicit report mode: `--result`, 
 canonical hard-view inputs and emit the Markdown projection without implicit paths. The checked report contains 32
 ranked inventory rows, 15 substrate-abstraction rows, 55 placement-reader rows, and 11
 `captured-awaiting-housekeep` routing rows. Its SHA-256 is
-`5d5a600b35bf8ed19b89e4153b4552cc523dccc6c2ee75a7b5fedfbfa7c47c5a`; the reconciled ledger SHA-256 is
-`2cb0f9139373789e3935712de0601335d99966db9055a6a05e803212a8b6b110`.
+`a841e82b82e09f7296904c0291b54fb821a09405e61d9d32ebf2b5d228bd9c0d`; the reconciled ledger SHA-256 is
+`cf851c084caaaccea27b860772412bfad686079e6f1295b30cd280e5d1c0f7b6`.
 
 Two authoritative scans to separate external paths produced byte-identical results at
-`2cf97d2be9f14365ae30ee0653e739b9327a349312f6f262bdfa1b1dcaa10640`; each reported 1,215 files, 32 resolved
+`d30779aadc63e8a3ff7f8f1c37592794d34ee48ffa9bb3035303e27aecba89a7`; each reported 1,215 files, 32 resolved
 classes, and zero unresolved candidate residue. Projecting each result independently through the fixed ledger
-produced byte-identical reports at `5d5a600b35bf8ed19b89e4153b4552cc523dccc6c2ee75a7b5fedfbfa7c47c5a`, matching the
+produced byte-identical reports at `a841e82b82e09f7296904c0291b54fb821a09405e61d9d32ebf2b5d228bd9c0d`, matching the
 checked report. Before/after hashes of the repository diff and explicit input files were unchanged across the four
 runs.

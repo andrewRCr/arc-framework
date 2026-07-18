@@ -66,6 +66,18 @@ function requireSettled(
       "ranked inventory must contain one row per class",
     );
   }
+  const routedClassIds = new Set(
+    ledger.packets.flatMap((packet) => packet.classIds),
+  );
+  if (
+    routedClassIds.size !== result.classes.length ||
+    result.classes.some((entry) => !routedClassIds.has(entry.classId))
+  ) {
+    throw new CouplingAuditValidationError(
+      "report",
+      "routing ledger must cover every class",
+    );
+  }
 }
 
 /**

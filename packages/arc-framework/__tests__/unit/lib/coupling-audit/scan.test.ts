@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { digestMemberSet } from "../../../../src/lib/coupling-audit/canonical.js";
@@ -123,6 +125,66 @@ describe("coupling-audit scan", () => {
     expect(new Set(result.candidates.unresolved.map((candidate) => candidate.idiom))).toEqual(
       new Set(Object.keys(vectorTokens)),
     );
+  });
+
+  it("captures shell directory-state and filename-prefix operations from shipped workflows", () => {
+    const production = JSON.parse(
+      readFileSync(
+        new URL("../../../../audits/coupling-blast-radius/manifest.json", import.meta.url),
+        "utf8",
+      ),
+    ) as CouplingManifest;
+    const input = manifest();
+    input.classes = production.classes.filter((assumption) =>
+      ["active-placement", "arc-root", "completed-placement", "template-suffix"].includes(
+        assumption.id,
+      ),
+    );
+    input.catchAllVectors = production.catchAllVectors.filter(
+      (vector) =>
+        vector.id === "directory-state-call" ||
+        vector.id === "path-shaped-token" ||
+        vector.id === "prefix-operation",
+    );
+    const result = scanCorpus(input, [
+      {
+        path: "pkg/arc/system/workflows/check-state.md",
+        content: [
+          '[ -d mystery-state ]',
+          '[[ "$name" == mystery-prefix-* ]]',
+          '[ -e "mystery.template.md" ]',
+          'case "$path" in */completed/*)',
+          "${arc_file#.arc/}",
+          'join(root, ".arc", "active", "mystery-joined")',
+          'items.join("mystery-array")',
+        ].join("\n"),
+        surfaceKind: "workflow",
+        locus: "package",
+      },
+    ]);
+
+    expect(new Set(result.candidates.unresolved.map((candidate) => candidate.idiom))).toEqual(
+      new Set(["directory-state", "filename-prefix", "path-literal"]),
+    );
+    expect(new Set(result.candidates.classified.flatMap((candidate) => candidate.classIds))).toEqual(
+      new Set(["active-placement", "arc-root", "completed-placement", "template-suffix"]),
+    );
+    expect(
+      result.candidates.classified
+        .filter(
+          (candidate) =>
+            candidate.vectorId === "path-shaped-token" && candidate.token.startsWith('"'),
+        )
+        .map(({ token, classIds }) => ({ token, classIds })),
+    ).toEqual([
+      { token: '".arc"', classIds: ["arc-root"] },
+      { token: '"active"', classIds: ["active-placement"] },
+    ]);
+    expect(
+      result.candidates.unresolved
+        .filter((candidate) => candidate.idiom === "path-literal")
+        .map((candidate) => candidate.token),
+    ).toEqual(['"mystery-joined"']);
   });
 
   it("applies exact and member-bound bulk dispositions and rejects expansion", () => {

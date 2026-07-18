@@ -128,4 +128,13 @@ describe("coupling-audit Markdown report", () => {
     expect(first).toContain("## Placement readers");
     expect(first).toContain("captured-awaiting-housekeep");
   });
+
+  it("rejects a routing ledger that does not cover every ranked class", () => {
+    const { result, ledger } = fixture();
+    ledger.packets.pop();
+
+    expect(() => renderCouplingReport(result, ledger)).toThrow(
+      "routing ledger must cover every class",
+    );
+  });
 });

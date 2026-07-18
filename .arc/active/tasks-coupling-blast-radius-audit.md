@@ -255,8 +255,8 @@ views that the routed final report projects without hand-maintained interpretati
   repeated independently per file.
 
     - `[x]` **5.1.a Resolve mover evidence for every name-keyed class**
-        - Re-resolved all cited slugs: nine are planned and `arcd-rebrand` is provisional; every cited direction still
-          owns its pending rename, relocation, or target-shape change.
+        - Re-resolved all final cited slugs as planned owners; verification moved the `pm.mode` schema-reform
+          citation from provisional `arcd-rebrand` to its explicit owner, `scalable-core`.
 
     - `[x]` **5.1.b Resolve volatility for standalone idiom classes**
         - Rated tracked-planning Git operations high against the live CLI-substrate target that moves the mechanism
@@ -275,7 +275,7 @@ views that the routed final report projects without hand-maintained interpretati
   consumers to reproduce.
 
     - `[x]` **5.2.a Derive high-fan-out thresholds from the observed distribution**
-        - Set test 25, code 13, workflow 8, template 2, and config 3 at their observed upper quartiles; set prose 20
+        - Set test 25, code 12, workflow 8, template 2, and config 3 at their observed upper quartiles; set prose 20
           at its 87.5th percentile so prose mentions remain lower-weight than concrete code reads. Equality is high,
           and mixed surfaces use their maximum threshold ratio.
 
@@ -323,9 +323,8 @@ certified report without expanding this WU into the later inbox drain or editing
   without repeating the audit.
 
     - `[x]` **6.1.a Map findings to live work units by slug**
-        - Resolved all ten destination slugs through live status: nine remain planned and `arcd-rebrand` remains
-          provisional; both hard consumers still carry their audit dependency, and every other owner emerged from
-          the manifest's ranked mover evidence.
+        - Resolved all ten destination slugs through live status as planned work units; both hard consumers still
+          carry their audit dependency, and every other owner emerged from the manifest's ranked mover evidence.
 
     - `[x]` **6.1.b Build one packet per owner/concern**
         - Built 11 deterministic `prepared-for-review` packets for ten owners, with one additional hard-consumer
@@ -342,8 +341,8 @@ certified report without expanding this WU into the later inbox drain or editing
 
     - `[x]` **6.2.a Capture every packet through the standard inbox path**
         - Captured all 11 reviewed packets under the identity-global inbox's Work Unit section with deterministic
-          packet IDs, content digests, evidence anchors, and `WU_Target` metadata; the reviewed `pm.mode` packet was
-          retargeted from provisional `arcd-rebrand` provenance to planned `scalable-core` ownership.
+          packet IDs, content digests, evidence anchors, and `WU_Target` metadata; the reviewed `pm.mode` packet and
+          final canonical mover evidence both target planned `scalable-core` ownership.
 
     - `[x]` **6.2.b Reconcile captures against the canonical routing ledger**
         - Reconciled every capture one-to-one with the 32-class inventory and both mandatory extracts, then advanced
@@ -371,33 +370,38 @@ certified report without expanding this WU into the later inbox drain or editing
           residue, and unchanged repository inputs across certification.
 
 - _Outcome:_ The audit now publishes one certified human report backed by exact canonical inputs: result
-  `2cf97d2be9f14365ae30ee0653e739b9327a349312f6f262bdfa1b1dcaa10640` and report
-  `5d5a600b35bf8ed19b89e4153b4552cc523dccc6c2ee75a7b5fedfbfa7c47c5a`.
+  `d30779aadc63e8a3ff7f8f1c37592794d34ee48ffa9bb3035303e27aecba89a7` and report
+  `a841e82b82e09f7296904c0291b54fb821a09405e61d9d32ebf2b5d228bd9c0d`.
 
 ## **Phase 7:** Verification
 
 _Purpose:_ Verify the completed work unit against its design, audit evidence, and project quality gates.
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ 6,196 tests passed with one skipped; TypeScript, shell, and Markdown lint, source and test
+  typechecks, build, deterministic scan/report certification, and diff hygiene all passed.
+- _Success criteria:_ All seven criteria met. Two fresh adversarial passes exposed and closed shell/prefix coverage,
+  path-join argument coverage, mover provenance, and routing-ledger integrity gaps; the Heavy pass cap is exhausted.
 
 ## Success Criteria
 
-- `[ ]` The checked-in manifest contains both derivation layers, source citations for every name class, and at
+- `[x]` The checked-in manifest contains both derivation layers, source citations for every name class, and at
   least one catch-all capture vector for every idiom mechanism.
 
-- `[ ]` The repository command emits per-class fan-out counts and file lists, and repeated runs on an unchanged
+- `[x]` The repository command emits per-class fan-out counts and file lists, and repeated runs on an unchanged
   tree are byte-stable.
 
-- `[ ]` Catch-all candidate residue has no unresolved items, with every dismissal recorded individually up to the
+- `[x]` Catch-all candidate residue has no unresolved items, with every dismissal recorded individually up to the
   cap or covered by an explicit bulk-disposition rule above it.
 
-- `[ ]` The tracked report deterministically projects the canonical scan result and reconciled routing ledger, giving
+- `[x]` The tracked report deterministically projects the canonical scan result and reconciled routing ledger, giving
   every class a fan-out count, surface-kind breakdown, source-cited volatility rating, and 2×2 quadrant verdict.
 
-- `[ ]` The tracked routing ledger accounts for every affected work unit with a deterministic packet captured and
+- `[x]` The tracked routing ledger accounts for every affected work unit with a deterministic packet captured and
   awaiting housekeep, and the report explicitly exposes the substrate-abstraction list and placement-reader
   enumeration.
 
-- `[ ]` All quality gates pass (tests, linting, type checking, and build).
+- `[x]` All quality gates pass (tests, linting, type checking, and build).
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.

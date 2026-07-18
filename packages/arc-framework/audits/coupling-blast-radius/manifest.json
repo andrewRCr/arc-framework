@@ -61,41 +61,56 @@
     {
       "id": "arc-root",
       "key": { "kind": "name", "value": ".arc/ storage root" },
-      "patterns": [{ "id": "arc-root-literal", "form": "literal", "value": ".arc/", "caseSensitive": true }],
+      "patterns": [
+        { "id": "arc-root-literal", "form": "literal", "value": ".arc/", "caseSensitive": true },
+        { "id": "arc-root-join-component", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"\\.arc\"|'\\.arc'|`\\.arc`)", "flags": "u" }
+      ],
       "citations": [{ "path": "strategy-storage-evolution.md", "anchor": "Forward-Compat Principles § 1", "workUnit": "arc-backend" }],
-      "idioms": ["path-literal", "git-tracked-path"],
+      "idioms": ["path-literal", "git-tracked-path", "filename-prefix"],
       "volatility": {"rating":"high","evidence":{"workUnit":"arc-backend","source":"strategy-storage-evolution.md#Forward-Compat Principles § 1; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "active-placement",
       "key": { "kind": "name", "value": "active/ placement" },
-      "patterns": [{ "id": "active-literal", "form": "literal", "value": "active/", "caseSensitive": true }],
+      "patterns": [
+        { "id": "active-literal", "form": "literal", "value": "active/", "caseSensitive": true },
+        { "id": "active-join-component", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"active\"|'active'|`active`)", "flags": "u" }
+      ],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
-      "idioms": ["path-literal", "directory-state", "git-tracked-path"],
+      "idioms": ["path-literal", "directory-state", "git-tracked-path", "filename-prefix"],
       "volatility": {"rating":"high","evidence":{"workUnit":"wu-lifecycle-state-model","source":"draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "planned-placement",
       "key": { "kind": "name", "value": "backlog/planned/ placement" },
-      "patterns": [{ "id": "planned-literal", "form": "literal", "value": "backlog/planned/", "caseSensitive": true }],
+      "patterns": [
+        { "id": "planned-literal", "form": "literal", "value": "backlog/planned/", "caseSensitive": true },
+        { "id": "planned-join-component", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"planned\"|'planned'|`planned`)", "flags": "u" }
+      ],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
-      "idioms": ["path-literal", "directory-state", "git-tracked-path"],
+      "idioms": ["path-literal", "directory-state", "git-tracked-path", "filename-prefix"],
       "volatility": {"rating":"high","evidence":{"workUnit":"wu-lifecycle-state-model","source":"draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "provisional-placement",
       "key": { "kind": "name", "value": "backlog/provisional/ placement" },
-      "patterns": [{ "id": "provisional-literal", "form": "literal", "value": "backlog/provisional/", "caseSensitive": true }],
+      "patterns": [
+        { "id": "provisional-literal", "form": "literal", "value": "backlog/provisional/", "caseSensitive": true },
+        { "id": "provisional-join-component", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"provisional\"|'provisional'|`provisional`)", "flags": "u" }
+      ],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
-      "idioms": ["path-literal", "directory-state", "git-tracked-path"],
+      "idioms": ["path-literal", "directory-state", "git-tracked-path", "filename-prefix"],
       "volatility": {"rating":"high","evidence":{"workUnit":"wu-lifecycle-state-model","source":"draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "completed-placement",
       "key": { "kind": "name", "value": "completed/ placement" },
-      "patterns": [{ "id": "completed-literal", "form": "literal", "value": "completed/", "caseSensitive": true }],
+      "patterns": [
+        { "id": "completed-literal", "form": "literal", "value": "completed/", "caseSensitive": true },
+        { "id": "completed-join-component", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"completed\"|'completed'|`completed`)", "flags": "u" }
+      ],
       "citations": [{ "path": "draft-arc-backend.md", "anchor": "Placement Is a Record, Not an Address", "workUnit": "wu-lifecycle-state-model" }],
-      "idioms": ["path-literal", "directory-state", "git-tracked-path"],
+      "idioms": ["path-literal", "directory-state", "git-tracked-path", "filename-prefix"],
       "volatility": {"rating":"high","evidence":{"workUnit":"wu-lifecycle-state-model","source":"draft-arc-backend.md#Placement Is a Record, Not an Address; roster=planned; snapshot=2026-07-18"}}
     },
     {
@@ -190,9 +205,9 @@
       "id": "pm-mode-key",
       "key": { "kind": "name", "value": "pm.mode configuration key" },
       "patterns": [{ "id": "pm-mode-literal", "form": "literal", "value": "pm.mode", "caseSensitive": true }],
-      "citations": [{ "path": "draft-arcd-rebrand.md", "anchor": "Layer 1 — Structural renames", "workUnit": "arcd-rebrand" }],
+      "citations": [{ "path": "draft-scalable-core.md", "anchor": "What this work unit owns vs. steers", "workUnit": "scalable-core" }],
       "idioms": ["config-key"],
-      "volatility": {"rating":"high","evidence":{"workUnit":"arcd-rebrand","source":"draft-arcd-rebrand.md#Layer 1 — Structural renames; roster=provisional; snapshot=2026-07-18"}}
+      "volatility": {"rating":"high","evidence":{"workUnit":"scalable-core","source":"draft-scalable-core.md#What this work unit owns vs. steers; roster=planned; snapshot=2026-07-18"}}
     },
     {
       "id": "team-mode-key",
@@ -221,7 +236,10 @@
     {
       "id": "agent-briefs-root",
       "key": { "kind": "name", "value": "reference/briefs/ agent-brief directory" },
-      "patterns": [{ "id": "agent-briefs-root-literal", "form": "literal", "value": "reference/briefs", "caseSensitive": true }],
+      "patterns": [
+        { "id": "agent-briefs-root-literal", "form": "literal", "value": "reference/briefs", "caseSensitive": true },
+        { "id": "agent-briefs-join-component", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"briefs\"|'briefs'|`briefs`)", "flags": "u" }
+      ],
       "citations": [{ "path": "draft-naming-conventions.md", "anchor": "Rename reference/briefs to reference/agent-briefs", "workUnit": "naming-conventions" }],
       "idioms": ["path-literal", "directory-state", "git-tracked-path"],
       "volatility": {"rating":"high","evidence":{"workUnit":"naming-conventions","source":"draft-naming-conventions.md#Rename reference/briefs to reference/agent-briefs; roster=planned; snapshot=2026-07-18"}}
@@ -229,7 +247,10 @@
     {
       "id": "workflow-root",
       "key": { "kind": "name", "value": "system/workflows/ procedure root" },
-      "patterns": [{ "id": "workflow-root-literal", "form": "literal", "value": "system/workflows/", "caseSensitive": true }],
+      "patterns": [
+        { "id": "workflow-root-literal", "form": "literal", "value": "system/workflows/", "caseSensitive": true },
+        { "id": "workflow-root-join-component", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"workflows\"|'workflows'|`workflows`)", "flags": "u" }
+      ],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D2 — Decomposed-workflow layout", "workUnit": "composable-workflows" }],
       "idioms": ["path-literal", "directory-state"],
       "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D2 — Decomposed-workflow layout; roster=planned; snapshot=2026-07-18"}}
@@ -237,7 +258,10 @@
     {
       "id": "method-root",
       "key": { "kind": "name", "value": "system/methods/ method root" },
-      "patterns": [{ "id": "method-root-literal", "form": "literal", "value": "system/methods/", "caseSensitive": true }],
+      "patterns": [
+        { "id": "method-root-literal", "form": "literal", "value": "system/methods/", "caseSensitive": true },
+        { "id": "method-root-join-component", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"methods\"|'methods'|`methods`)", "flags": "u" }
+      ],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D2 — The fragment substrate", "workUnit": "composable-workflows" }],
       "idioms": ["path-literal", "directory-state"],
       "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D2 — The fragment substrate; roster=planned; snapshot=2026-07-18"}}
@@ -245,7 +269,10 @@
     {
       "id": "extension-root",
       "key": { "kind": "name", "value": "system/extensions/ extension root" },
-      "patterns": [{ "id": "extension-root-literal", "form": "literal", "value": "system/extensions/", "caseSensitive": true }],
+      "patterns": [
+        { "id": "extension-root-literal", "form": "literal", "value": "system/extensions/", "caseSensitive": true },
+        { "id": "extension-root-join-component", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"extensions\"|'extensions'|`extensions`)", "flags": "u" }
+      ],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D1 — The workflow contract shape", "workUnit": "composable-workflows" }],
       "idioms": ["path-literal", "directory-state"],
       "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D1 — The workflow contract shape; roster=planned; snapshot=2026-07-18"}}
@@ -253,7 +280,10 @@
     {
       "id": "internal-skill-root",
       "key": { "kind": "name", "value": "system/.internal/skills/ generated skill root" },
-      "patterns": [{ "id": "internal-skill-root-literal", "form": "literal", "value": "system/.internal/skills/", "caseSensitive": true }],
+      "patterns": [
+        { "id": "internal-skill-root-literal", "form": "literal", "value": "system/.internal/skills/", "caseSensitive": true },
+        { "id": "internal-skill-root-join-component", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"skills\"|'skills'|`skills`)", "flags": "u" }
+      ],
       "citations": [{ "path": "strategy-knowledge-evolution.md", "anchor": "Target Model and access paths", "workUnit": "knowledge-architecture" }],
       "idioms": ["path-literal", "directory-state"],
       "volatility": {"rating":"high","evidence":{"workUnit":"knowledge-architecture","source":"strategy-knowledge-evolution.md#Target Model and access paths; roster=planned; snapshot=2026-07-18"}}
@@ -295,7 +325,7 @@
       "key": { "kind": "name", "value": ".template filename marker" },
       "patterns": [{ "id": "template-suffix-literal", "form": "literal", "value": ".template", "caseSensitive": true }],
       "citations": [{ "path": "draft-composable-workflows.md", "anchor": "D3 — Binding-time rule", "workUnit": "composable-workflows" }],
-      "idioms": ["filename-prefix", "path-literal"],
+      "idioms": ["filename-prefix", "path-literal", "directory-state"],
       "volatility": {"rating":"high","evidence":{"workUnit":"composable-workflows","source":"draft-composable-workflows.md#D3 — Binding-time rule; roster=planned; snapshot=2026-07-18"}}
     },
     {
@@ -319,14 +349,20 @@
     {
       "id": "path-shaped-token",
       "idiom": "path-literal",
-      "patterns": [{ "id": "path-token-regex", "form": "regex", "value": "[A-Za-z0-9_.-]+(?:[/\\\\][A-Za-z0-9_.{}$-]+)+", "flags": "u" }],
+      "patterns": [
+        { "id": "path-token-regex", "form": "regex", "value": "[A-Za-z0-9_.-]+(?:[/\\\\][A-Za-z0-9_.{}$-]+)+", "flags": "u" },
+        { "id": "path-join-argument-regex", "form": "regex", "value": "(?<=(?<![.$A-Za-z0-9_])(?:(?:path|posix|win32)\\.)?(?:join|resolve)\\s*\\([^\\n)]{0,240})(?:\"[^\"\\n]{1,120}\"|'[^'\\n]{1,120}'|`[^`$\\n]{1,120}`)", "flags": "u" }
+      ],
       "surfaceKinds": ["test", "workflow", "template", "code", "prose", "config"]
     },
     {
       "id": "directory-state-call",
       "idiom": "directory-state",
-      "patterns": [{ "id": "directory-call-regex", "form": "regex", "value": "(?:readdir|readdirSync|existsSync|access|stat)\\s*\\([^\\n)]{1,160}", "flags": "u" }],
-      "surfaceKinds": ["test", "code"]
+      "patterns": [
+        { "id": "directory-call-regex", "form": "regex", "value": "(?:readdir|readdirSync|existsSync|access|stat)\\s*\\([^\\n)]{1,160}", "flags": "u" },
+        { "id": "shell-directory-test-regex", "form": "regex", "value": "(?:(?:\\[\\[?|test)\\s+-[bcdefGhLprSuwx]\\s+)(?:\"[^\"\\n]+\"|'[^'\\n]+'|[^\\s;\\]&|]+)", "flags": "u" }
+      ],
+      "surfaceKinds": ["test", "workflow", "template", "code", "prose"]
     },
     {
       "id": "git-path-call",
@@ -337,8 +373,12 @@
     {
       "id": "prefix-operation",
       "idiom": "filename-prefix",
-      "patterns": [{ "id": "prefix-call-regex", "form": "regex", "value": "(?:startsWith|endsWith|slice|replace|match)\\s*\\([^\\n)]{1,120}", "flags": "u" }],
-      "surfaceKinds": ["test", "code"]
+      "patterns": [
+        { "id": "prefix-call-regex", "form": "regex", "value": "(?:startsWith|endsWith|slice|replace|match)\\s*\\([^\\n)]{1,120}", "flags": "u" },
+        { "id": "shell-prefix-test-regex", "form": "regex", "value": "(?:\\[\\[?\\s+\"?\\$\\{?[A-Za-z_][A-Za-z0-9_]*\\}?\"?\\s*(?:==|=|!=)\\s*|case\\s+\"?\\$\\{?[A-Za-z_][A-Za-z0-9_]*\\}?\"?\\s+in\\s+)(?:\"[^\"]*\"|'[^']*'|[^\\s;\\]&|]+)[*?]", "flags": "u" },
+        { "id": "shell-prefix-strip-regex", "form": "regex", "value": "\\$\\{[A-Za-z_][A-Za-z0-9_]*[#%]{1,2}[^}\\n]{1,120}\\}", "flags": "u" }
+      ],
+      "surfaceKinds": ["test", "workflow", "template", "code", "prose"]
     },
     {
       "id": "branch-shape-token",
@@ -692,7 +732,7 @@
             "branch-shape-token"
           ]
         },
-        "memberSetDigest": "ba8eac8965ad82f732e956ed3fea1654c9c674325f8b684ac8c5b733ecd4e55b",
+      "memberSetDigest": "20c0cdfdca0347347adb027d92d37c6c79f91497597ede635caf3d9c0eaa2532",
         "reason": "Generic path-shaped syntax; no unmatched direction-owned branch name."
       },
       {
@@ -704,7 +744,7 @@
             "directory-state-call"
           ]
         },
-        "memberSetDigest": "72a932fe2fabbe5c6f7b7f9e4828f3d2aa71ccae7c5388d91972742bf6c56448",
+      "memberSetDigest": "50a517b5ca2115feb9a12d30e34c20de25d0c8f11581f701aaa74abafe69aa7b",
         "reason": "Generic filesystem operation with no mechanically linked volatile name span."
       },
       {
@@ -716,7 +756,7 @@
             "dotted-config-token"
           ]
         },
-        "memberSetDigest": "ed5ffcc186c73e661cf3593c54345009746a193b09f26fc88f49060296669756",
+      "memberSetDigest": "7f83cee3fd718e4692c6c46ab708b181f1539cf489096107705001a86df7e32d",
         "reason": "Generic property, filename, or document syntax; no unmatched direction-owned configuration name."
       },
       {
@@ -728,7 +768,7 @@
             "git-path-call"
           ]
         },
-        "memberSetDigest": "5944db8d39ac157d1e3706a1d0edd07f1731639f67bcecae527d5d7ea549cd28",
+      "memberSetDigest": "51acc594c1a8c6bd77f1e01ce730eb73d36dc4c6d874e42d18281c61570c22b6",
         "reason": "Generic Git mention or invocation with no mechanically linked tracked-planning span."
       },
       {
@@ -740,7 +780,7 @@
             "markdown-doc-token"
           ]
         },
-        "memberSetDigest": "bef99847a1801b786fd4b54392f639df9380e4cee92e9e89904a5f84d922123d",
+      "memberSetDigest": "e33a412e7a73d548930d126c564318e33d6481ff996f9e7e09d80e9e852133f7",
         "reason": "Document name outside the direction-derived name classes."
       },
       {
@@ -752,8 +792,8 @@
             "path-shaped-token"
           ]
         },
-        "memberSetDigest": "7b72c68fceaff6f97f0f9fa6fe5a9f08f5a1001c02391a0f2106ad1fed918d17",
-        "reason": "Generic path-shaped syntax; no unmatched direction-owned path name."
+      "memberSetDigest": "d979e3665d65863bb4f3d47bc446f7872f42c3b7e0aabde4c6870733411fc5ed",
+      "reason": "Generic path syntax or non-governed path-join component; no unmatched direction-owned path name."
       },
       {
         "id": "bulk-prefix-operation",
@@ -764,7 +804,7 @@
             "prefix-operation"
           ]
         },
-        "memberSetDigest": "055878e493835d25711577c02e6445eefd77b4c69fe8bb0c290f217f8564f2c1",
+      "memberSetDigest": "2ae69e3015c0a03625d641dee8e1f0cba5debe07d1f5bbde21689b8be268e7eb",
         "reason": "Generic string operation with no mechanically linked governed filename prefix."
       }
     ]

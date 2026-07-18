@@ -4,6 +4,7 @@
  * @module
  */
 
+import { canonicalize, digestBytes } from "../canonical/canonical-json.js";
 import type {
   CouplingIdiom,
   CouplingManifest,
@@ -29,6 +30,12 @@ const COUPLING_IDIOMS = [
 const VOLATILITY = ["unresolved", "high", "stable"] as const;
 const CORPUS_LOCI = ["package", "installed-delta", "repo-root-delta"] as const;
 const QUADRANT_VERDICTS = ["abstract", "change-with-mover", "leave-alone", "retain-local"] as const;
+
+function digestCanonicalValue(value: unknown): string {
+  return digestBytes(Buffer.from(canonicalize(value), "utf8")).slice(
+    "sha256:".length,
+  );
+}
 
 /** Validation error carrying an actionable artifact-field path. */
 export class CouplingAuditValidationError extends Error {
@@ -538,7 +545,7 @@ export function parseRoutingLedger(value: unknown, expectedResultDigest: string)
   uniqueIds(packets, "ledger.packets");
   packets.forEach((packet, index) => {
     const path = `ledger.packets[${index}]`;
-    nonEmptyString(packet.targetSlug, `${path}.targetSlug`);
+    const targetSlug = nonEmptyString(packet.targetSlug, `${path}.targetSlug`);
     const concernId = nonEmptyString(packet.concernId, `${path}.concernId`);
     if (!ID_PATTERN.test(concernId)) fail(`${path}.concernId`, "expected a lowercase kebab-case ID");
     const owner = record(packet.owner, `${path}.owner`);
@@ -549,9 +556,9 @@ export function parseRoutingLedger(value: unknown, expectedResultDigest: string)
     if (classIds.some((id, idIndex) => id !== sorted[idIndex])) {
       fail(`${path}.classIds`, "expected unique lexicographic ordering");
     }
-    stringArray(packet.extractRefs, `${path}.extractRefs`, true);
-    stringArray(packet.evidenceAnchors, `${path}.evidenceAnchors`);
-    stringArray(packet.reportAnchors, `${path}.reportAnchors`);
+    const extractRefs = stringArray(packet.extractRefs, `${path}.extractRefs`, true);
+    const evidenceAnchors = stringArray(packet.evidenceAnchors, `${path}.evidenceAnchors`);
+    const reportAnchors = stringArray(packet.reportAnchors, `${path}.reportAnchors`);
     const classEvidence = array(packet.classEvidence, `${path}.classEvidence`).map((entry, evidenceIndex) =>
       record(entry, `${path}.classEvidence[${evidenceIndex}]`),
     );
@@ -572,10 +579,31 @@ export function parseRoutingLedger(value: unknown, expectedResultDigest: string)
         fail(`${evidencePath}.maxThresholdRatio`, "expected a finite non-negative number");
       }
     });
-    nonEmptyString(packet.designImplication, `${path}.designImplication`);
-    nonEmptyString(packet.recommendation, `${path}.recommendation`);
+    const designImplication = nonEmptyString(packet.designImplication, `${path}.designImplication`);
+    const recommendation = nonEmptyString(packet.recommendation, `${path}.recommendation`);
     validateDigest(packet.contentDigest, `${path}.contentDigest`);
     enumValue(packet.state, ["prepared-for-review", "captured-awaiting-housekeep"] as const, `${path}.state`);
+    const expectedId = `packet-${digestCanonicalValue({
+      resultDigest: expectedResultDigest,
+      targetSlug,
+      classIds,
+    }).slice(0, 24)}`;
+    if (packet.id !== expectedId) fail(`${path}.id`, "does not match deterministic packet identity");
+    const content = {
+      targetSlug,
+      concernId,
+      owner: { state: owner.state, resolvedAt: owner.resolvedAt },
+      classIds,
+      extractRefs,
+      evidenceAnchors,
+      reportAnchors,
+      classEvidence,
+      designImplication,
+      recommendation,
+    };
+    if (packet.contentDigest !== digestCanonicalValue(content)) {
+      fail(`${path}.contentDigest`, "does not match packet content digest");
+    }
   });
   return value as RoutingLedger;
 }

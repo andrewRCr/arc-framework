@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { digestCanonicalJson } from "../../../../src/lib/coupling-audit/canonical.js";
 import {
   parseCouplingManifest,
   parseCouplingScanResult,
@@ -265,12 +266,12 @@ describe("parseCouplingScanResult", () => {
 });
 
 function validLedger(): Record<string, unknown> {
-  return {
+  const ledger = {
     version: 1,
     resultDigest: DIGEST,
     packets: [
       {
-        id: "cli-substrate-input",
+        id: "",
         targetSlug: "cli-substrate-adoption",
         concernId: "substrate-abstractions",
         owner: { state: "planned", resolvedAt: "2026-07-18" },
@@ -300,11 +301,24 @@ function validLedger(): Record<string, unknown> {
         ],
         designImplication: "The resolver boundary must own these assumptions.",
         recommendation: "Groom the evidence into the substrate design.",
-        contentDigest: "b".repeat(64),
+        contentDigest: "",
         state: "captured-awaiting-housekeep",
       },
     ],
   };
+  const packet = ledger.packets[0]!;
+  const content = Object.fromEntries(
+    Object.entries(packet).filter(
+      ([key]) => !["id", "contentDigest", "state"].includes(key),
+    ),
+  );
+  packet.id = `packet-${digestCanonicalJson({
+    resultDigest: DIGEST,
+    targetSlug: packet.targetSlug,
+    classIds: packet.classIds,
+  }).slice(0, 24)}`;
+  packet.contentDigest = digestCanonicalJson(content);
+  return ledger;
 }
 
 describe("parseRoutingLedger", () => {
@@ -322,5 +336,17 @@ describe("parseRoutingLedger", () => {
 
   it("rejects a result-digest mismatch", () => {
     expect(() => parseRoutingLedger(validLedger(), "c".repeat(64))).toThrow("resultDigest");
+  });
+
+  it("rejects deterministic packet identity and content mismatches", () => {
+    const wrongId = validLedger();
+    const idPackets = wrongId.packets as Record<string, unknown>[];
+    idPackets[0]!.id = `packet-${"f".repeat(24)}`;
+    expect(() => parseRoutingLedger(wrongId, DIGEST)).toThrow("deterministic packet identity");
+
+    const wrongContent = validLedger();
+    const contentPackets = wrongContent.packets as Record<string, unknown>[];
+    contentPackets[0]!.recommendation = "Changed without refreshing the digest.";
+    expect(() => parseRoutingLedger(wrongContent, DIGEST)).toThrow("content digest");
   });
 });
