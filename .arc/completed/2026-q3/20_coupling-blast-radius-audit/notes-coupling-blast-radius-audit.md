@@ -1,0 +1,334 @@
+# Coupling blast-radius audit notes
+
+## Corpus boundary
+
+The authoritative corpus is the tracked package tree selected by:
+
+```text
+git ls-files packages/arc-framework
+```
+
+At baseline commit `449d764d3`, that is 1,148 UTF-8 files. No tracked file requires a binary exclusion.
+
+### Package families
+
+| Family | Files |
+| --- | ---: |
+| `src/` | 481 |
+| `__tests__/` | 499 |
+| `arc/` | 156 |
+| `templates/` | 3 |
+| Package-local configuration and metadata | 9 |
+
+The package-local remainder is `package.json`, `init-recipe.json`, `changelog`, `.gitignore`, `eslint.config.js`,
+`tsup.config.ts`, `vitest.config.ts`, `tsconfig.json`, and `tsconfig.test.json`. The tracked extension distribution is
+980 TypeScript, 140 Markdown, 7 JSON, 6 MJS, 5 shell, 4 extensionless hooks/templates, 2 `.gitkeep`, and one each
+of YAML, TOML, JavaScript, and `.gitignore`.
+
+The code family is 263 `src/lib/**`, 129 `src/scripts/**`, 49 `src/commands/**`, 34 `src/handlers/**`, five
+`src/prompts/**`, and `src/cli.ts`. Tests are 388 unit, 70 integration, 29 end-to-end, 11 helpers, and one fixture.
+Shipped ARC content is 108 `arc/system/**`, 43 `arc/reference/**`, two `arc/backlog/**`, and one each under
+`arc/completed/**`, `arc/user/**`, and the ARC root.
+
+Generated output, dependencies, and the installed `.arc/` mirror are excluded from this primary root because
+tracked-file discovery does not select them. Hidden tracked package files, including `arc/system/.internal/**`, are
+included without an extension filter.
+
+### Self-hosting package/project delta
+
+Every tracked `packages/arc-framework/arc/**` path maps to `.arc/**` by stripping `.template` immediately before
+the final extension. Of 156 package ARC files, 140 mapped live files are byte-identical, 15 mapped live files differ,
+and the one absent output is the expected external-PM-only workflow. The exact additional live-copy scan set is:
+
+- `.arc/backlog/ATOMIC-INBOX.md`
+- `.arc/backlog/ROADMAP.md`
+- `.arc/reference/PROJECT-PRD.md`
+- `.arc/reference/QUICK-REFERENCE.md`
+- `.arc/reference/TECHNICAL-OVERVIEW.md`
+- `.arc/reference/briefs/AGENT-BRIEF.PROJECT.md`
+- `.arc/reference/strategies/STRATEGY-INDEX.md`
+- `.arc/system/arc-config.yml`
+- `.arc/system/extensions/post-pr-open.md`
+- `.arc/system/extensions/pre-merge.md`
+- `.arc/system/extensions/pre-pr-open.md`
+- `.arc/system/methods/testing-standards.md`
+- `.arc/system/rules/DEV-RULES.PROJECT.md`
+- `.arc/system/workflows/arc/initial-setup/02_define-project.md`
+- `.arc/system/workflows/arc/session-lifecycle/session-init.md`
+
+`packages/arc-framework/arc/system/workflows/arc/initial-setup/03_configure-external-integration.md` has no live
+counterpart because the current project uses `pm.mode: arc-in-git`; it remains covered by the authoritative package
+root and is not a delta omission.
+
+### Repo-root self-hosting delta
+
+The exact 28-file repo-root delta is all 11 tracked `.github/**` files, all three tracked `.husky/**` hooks, all four
+tracked `scripts/**` files, plus these root package, configuration, and harness files:
+
+- `.coderabbit.yaml`
+- `.editorconfig`
+- `.gitattributes`
+- `.gitignore`
+- `.markdownlint-cli2.jsonc`
+- `AGENTS.md`
+- `CLAUDE.md`
+- `mkdocs.yml`
+- `package-lock.json`
+- `package.json`
+
+All 28 files are valid UTF-8. Root `README.md`, `CONTRIBUTING.md`, and `LICENSE` are excluded: they are public
+project prose/legal material, not self-hosting tooling or harness configuration, and package-side shipped prose is
+already the authoritative documentation corpus. Untracked/ignored `.husky/_/**` scaffolding is excluded by the
+tracked-file boundary.
+
+### Recipe, classifier, and installed-manifest diagnostics
+
+These surfaces are reconciliation evidence only; none narrows the corpus:
+
+- The package ARC tree has 156 tracked files. The current recipe recognizes 122 paths across all conditions and
+  resolves 120 for this project's configuration. Thirty-four tracked package ARC files are absent from the recipe:
+  three strategies, seven templates, two internal scripts, four skills, eight methods, and ten workflows.
+- The installed manifest records 102 outputs. Twenty-three currently resolved recipe outputs are absent, spanning
+  the scaffolded atomic inbox, contributor/template content, hooks and harness recovery files, four extensions, one
+  skill, and four workflows.
+- Five installed-manifest outputs are outside the current resolved recipe: retired `active/WORK-STATUS.md` and
+  feature/technical backlog files, the team-only coordination strategy, and `deactivate-work-unit.md` (tracked but
+  omitted from the recipe).
+- Every manifest entry that still maps to a tracked package ARC file agrees with the live `classifyFile()` result;
+  there are no classification mismatches.
+
+These discrepancies are diagnostics for later installer/reconciliation owners. The coupling audit scans the live
+tracked package and explicit self-hosting delta even when the recipe or installed manifest omits a path.
+
+## Artifact homes and rerun contract
+
+The audit is project-internal repository tooling, not a product CLI surface:
+
+- Pure contract, classification, scan, and projection logic lives under
+  `packages/arc-framework/src/lib/coupling-audit/`.
+- The executable repository-audit entry point is
+  `packages/arc-framework/src/scripts/audit-coupling-blast-radius.ts`, exposed from the root package as
+  `npm run audit:coupling`.
+- Checked-in machine inputs and results live under
+  `packages/arc-framework/audits/coupling-blast-radius/`: `manifest.json`, `scan-result.json`, and
+  `routing-ledger.json`. This stable package-local directory survives WU archival and travels with the audit code.
+- The human projection is `report-coupling-blast-radius-audit.md` beside the WU's other movable artifacts. Its
+  slug-matched companion name makes lifecycle relocation a pure move into the completed WU directory.
+
+The executable accepts manifest and result paths explicitly; the later report mode likewise receives ledger and
+report paths explicitly. The package-local files are the conventional checked-in paths, not implicit command
+defaults. Requiring the report path means archiving the WU cannot redirect a later run into a stale `.arc/active/**`
+location. Scan mode writes canonical JSON to the requested result path (or stdout when requested); report mode reads
+the canonical result and ledger and writes the explicitly requested Markdown projection.
+
+## Machine-contract decisions
+
+- Manifest, scan-result, and routing-ledger formats start at integer version `1` and parse from `unknown` through
+  strict boundary validators. Closed enums cover surface kind, corpus locus, coupling idiom, volatility, predicates,
+  and quadrant verdicts; malformed paths report their exact artifact field.
+- Name-keyed classes require source citations. Every coupling idiom requires catch-all coverage, regexes may not
+  match the empty string, and exact/bulk dispositions bind to lowercase SHA-256 evidence/member-set digests.
+- A scan result retains classified, dismissed, and unresolved candidates separately. Residue is therefore valid
+  scan output rather than a scan failure; unresolved volatility is the distinct state that blocks report projection.
+- The routing ledger accepts only lexicographically ordered unique class IDs and binds every packet to the canonical
+  scan-result digest. `prepared-for-review` is the pre-capture checkpoint; only Task 6.2 may transition a reconciled
+  packet to the terminal audit state `captured-awaiting-housekeep`.
+- Canonical JSON reuses the repository trust-core serializer, repository paths reuse the shared forward-slash helper,
+  artifact-specific collection ordering runs before serialization, and persisted output adds one trailing newline.
+  Exit `2` means malformed input, `3` stale bulk membership, and `4` scan/I/O failure; successful residue-bearing
+  output remains exit `0`.
+
+## Pattern derivation
+
+The name layer was derived from the storage, knowledge, and procedure target-shape records named by Task 2.1, then
+augmented by a recorded tracked-text query over planned/provisional drafts and project strategies for `→`, `rename`,
+`renamed`, `relocat`, `becomes`, and `supersed`. The broad query produced 808 candidate lines; focused inspection
+confirmed live rename movers for `ROADMAP.md`, the personal/project state-document names, `team.mode`, `pm.mode`, the
+`strategy-` family, and domain-rule naming. `npx arc status --project` plus slug probes verified every manifest
+citation's mover is planned/provisional and both hard consumers remain blocked on this audit.
+
+The populated v1 manifest contains 30 name-keyed classes, one standalone idiom class, and seven catch-all vectors.
+Current shipped spellings are the scan patterns; target spellings appear only through source/mover citations. Alias
+grouping is name-keyed (`feat|fix|chore|plan` is one typed-branch family; `loadSet|load-set` is one load-set family),
+while independently moving state-document names stay separate.
+
+Behavioral fixture tokens for Task 3.2.c are:
+
+| Idiom | Unknown-name fixture |
+| --- | --- |
+| `path-literal` | `mystery/state-ledger.json` |
+| `directory-state` | `readdir("mystery-state")` |
+| `git-tracked-path` | `git log mystery/state-ledger.json` |
+| `filename-prefix` | `name.startsWith("mystery-")` |
+| `branch-pattern` | `mystery/{slug}` |
+| `config-key` | `mystery.storage_root` |
+| `doc-name` | `MYSTERY-STATE.md` |
+
+Catch-all precision is deliberately deferred to recorded residue dispositions. Presence validation already requires
+all seven mechanisms, source/mover-complete name classes, non-empty patterns, and non-empty-string regexes.
+
+## Initial enumeration and code calibration
+
+The settled pre-disposition scan used commit `a9b0ec4b5`, manifest version 1, and this command:
+
+```text
+npm run audit:coupling -- --manifest packages/arc-framework/audits/coupling-blast-radius/manifest.json \
+  --output /tmp/coupling-audit-phase4-initial.json
+```
+
+Its manifest digest is `60c97f75400807ead7b5fc8ebccb733bd876234832ac3c80905fd1c5e3141f5d`; the canonical
+output SHA-256 is `f15bd09164cb8fa6f8db55b9e78f3460a18d62dfe43845bf7e9073e1c3ed6148`. The corpus contains
+1,207 files: 1,164 package files, 15 exact installed-delta files, and 28 exact repo-root delta files. The files digest
+is `0d849b38d42555fb66dd001fe461bf12363985ac6a15c533cef92fbe62aad8b0`. Before dispositions, the scan
+contained 7,699 classified and 90,285 unresolved candidates across 32 classes.
+
+Code fan-out spans 0–107 files per class, with median 7 and upper quartile 13. The per-class code sample cap is 5:
+for each class, select the first canonical hit for each distinct idiom, then fill remaining slots in canonical
+path/location order. Five covers the largest four-idiom class plus one independent path check. The rule selected 146
+hits. Review showed that the artifact-prefix literals conflated lifecycle/status tokens; their patterns now require
+artifact-shaped continuations, and catch-span attribution now assigns only idioms mechanically evidenced at the
+name occurrence. The same review added the omitted live `reference/briefs` → `reference/agent-briefs` mover as
+`agent-briefs-root`. No remediation was performed.
+
+## Residue review bound
+
+The refined pre-disposition result has 90,285 unresolved candidates across 32 nonempty capture-vector ×
+surface-kind strata. The global item cap is 64: sort strata by vector ID then surface kind, allocate one canonical
+candidate to each stratum, and continue in the same round-robin order for a second candidate per stratum. This is
+the smallest even-depth review that tests both the first member and within-stratum recurrence everywhere.
+
+Candidates beyond the cap may be grouped only by the closed `vectorId equals <ID>` predicate. The allowed bulk
+reasons are correspondingly closed:
+
+- path/branch token: generic path-shaped syntax with no unmatched direction-owned name;
+- dotted token: generic property, filename, or doc syntax with no unmatched direction-owned configuration name;
+- Markdown doc token: a document name outside the direction-derived name classes;
+- directory-state call: a generic filesystem operation with no mechanically linked volatile name span;
+- Git-path call: a generic Git mention/invocation with no mechanically linked tracked-planning span;
+- prefix operation: a generic string operation with no mechanically linked governed filename prefix.
+
+Every group stores the digest of its exact post-item-review member set. Escalate instead of bulk-dismissing when a
+sample exposes a live mover omitted from the manifest, when one candidate does not share its vector's allowed
+reason, when a new nonempty stratum appears, or when any recorded member set changes or expands on rerun.
+
+## Residue closure
+
+All 64 item-level candidates were reviewed and recorded as exact digest dispositions. The review found no additional
+direction-owned name after `agent-briefs-root`; stable names and generic syntactic captures received the applicable
+closed reason above. The seven vector groups bind the remaining 90,227 candidates: 54,620 dotted tokens, 16,724
+branch-shaped tokens, 14,951 path-shaped tokens, 2,151 document names, 932 prefix operations, 618 Git calls, and 231
+directory-state calls.
+
+The settled manifest digest is `b54251a257f6bc805f7a7231ad223ff3b67ac1811238b81aae93d4694b65e4fb`.
+Its canonical result contains 7,699 classified candidates, 90,291 preserved dismissals, and zero unresolved residue;
+the result SHA-256 is `ac88163beb6c8ddcbd2a05718a07c8c48732a45965131ad6d2d6bca5b303edc6`.
+Generated result and ledger paths are explicit manifest exclusions, preventing checked-in outputs from recursively
+entering the authoritative package corpus.
+
+## Complete-corpus reproducibility
+
+At clean commit `e689e892a`, the settled manifest digest remained
+`b54251a257f6bc805f7a7231ad223ff3b67ac1811238b81aae93d4694b65e4fb`. Two consecutive authoritative
+runs wrote `/tmp/coupling-audit-repro-{a,b}.json`; `cmp` found them byte-identical and both SHA-256 values were
+`ac88163beb6c8ddcbd2a05718a07c8c48732a45965131ad6d2d6bca5b303edc6`. Each run reported 1,207 files,
+32 classes, and zero unresolved residue. `git status --porcelain` was empty before and after both runs. All counts,
+file lists, and disposition totals in these notes are projections from that canonical result.
+
+## Volatility snapshot
+
+The mover roster was re-resolved by slug on 2026-07-18. `arc-backend`, `cli-substrate-adoption`,
+`composable-workflows`, `knowledge-architecture`, `local-mode`, `naming-conventions`, `roadmap-tooling`,
+`rules-restructure`, `scalable-core`, and `wu-lifecycle-state-model` are live planned work units. The provisional
+`arcd-rebrand` source was reviewed but does not own the `pm.mode` schema reform. Both hard consumers remain blocked
+on this audit, and no final cited mover is missing, completed, or retired.
+
+All 31 name classes are high-volatility because their cited live mover still owns the recorded rename, relocation,
+or target-shape change. The standalone `tracked-planning-git-operations` idiom is also high: the live
+`cli-substrate-adoption` target moves this mechanism behind CLI verbs. The manifest records each class's work unit,
+source anchor, roster state, and snapshot date; no unresolved rating remains.
+
+## Fan-out calibration
+
+The 32-class surface distributions produced these cutoffs: test 25 (upper quartile), code 12 (upper quartile),
+workflow 8 (upper quartile), template 2 (upper quartile), prose 20 (87.5th percentile), and config 3 (upper
+quartile). Prose uses the more conservative percentile so prose mentions do not carry the same weight as concrete
+code reads. Equality is high fan-out. For mixed surfaces, the maximum `count / threshold` ratio is the primary rank
+key; verdict, ratio, total distinct-file fan-out, then stable class ID define the complete deterministic order.
+The calibrated result contains 20 `abstract` and 12 `change-with-mover` classes; no stable-volatility class exists in
+the current mover snapshot, so the other two quadrants are empty. Its manifest digest is
+`aedcd2b100b8c42a1d6b1fdb8c0cfab72a1887d2a9d7a7a63f4363772d3fd02b`, and its result SHA-256 is
+`9ef1d102a640a5de08bf90fae9c8c55910b048e6c4a82ad950d216e3e8efc294` with zero unresolved residue.
+
+Placement-reader review exposed Markdown files nested below hook/script roots as prose documents rather than
+executable code. Correcting that classifier edge moved code's upper quartile from 13 to 12 without changing any
+class's quadrant; the settled cutoff above reflects the corrected corpus. The prior digest records remain the
+historical pre-correction Task 5.2 output.
+
+## Canonical report inputs
+
+The result contains exactly 32 ranked inventory records, one per class, each referencing the class ID that owns its
+canonical file list. The substrate projection contains 15 ranked `abstract` classes with concrete-path evidence:
+`arc-root`, `active-placement`, `meta-prefix`, `spec-prefix`, `completed-placement`, `workflow-root`,
+`planned-placement`, `tasks-prefix`, `draft-prefix`, `session-notes-name`, `method-root`, `notes-prefix`,
+`roadmap-name`, `working-memory-name`, and `template-suffix`.
+
+The placement projection records `active-placement`, `completed-placement`, `planned-placement`, and
+`provisional-placement`, then groups their qualifying code evidence into 56 normalized reader/parser files. Every
+extract member links to complete evidence-digest sets; capped samples play no role in membership. Class-hit evidence
+now preserves its originating catch vector where one exists, keeping the result's idiom provenance inspectable.
+
+The final canonical result covers 1,225 tracked files, 9,051 classified candidates, 92,949 dismissed candidates,
+and zero unresolved residue. Its manifest digest is
+`f6ed9b14829116cf9068db5263cc6e551f01764a431dd82d5ded7006f94d0395`; the result SHA-256 is
+`8ff94473a49cb4a55ba79626d27c9e420770cf6a329e63ac95b332f47cc9956c`. Verification expanded the directory-state
+and filename-prefix catch-all vectors to shell forms and made path-join arguments individually accountable while
+excluding array/string joins. Governed components are attributed; remaining generic components stay bound to the
+stale-safe disposition groups.
+
+## Finding packet routing
+
+All destination slugs were re-resolved on 2026-07-18. Ten owners are planned. The ledger binds 11 packets to the
+exact result above and covers all 32 ranked classes. `cli-substrate-adoption` receives two distinct concerns because
+it owns both its direct Git-operation mover and the mandatory cross-mover substrate extract.
+
+Review moved the `pm-mode-key` finding and canonical mover citation from provisional `arcd-rebrand` to
+`scalable-core`: the audit class measures the literal configuration key, while `scalable-core` explicitly owns
+replacing its enum with orthogonal Planning Module configuration. The packet therefore treats the 71-file surface
+as schema-reform and central-access input rather than a rebrand rename cascade.
+
+| Owner | Concern | Classes | Design implication |
+| --- | --- | ---: | --- |
+| `arc-backend` | storage address assumptions | 7 | Materialization changes abstract address and artifact-family contracts. |
+| `cli-substrate-adoption` | tracked-planning Git operations | 1 | Four direct-operation files must move behind substrate verbs. |
+| `cli-substrate-adoption` | substrate abstraction input | 15 | Concrete-path classes need one resolver ownership decision. |
+| `composable-workflows` | procedure surface moves | 8 | Compiler scope crosses workflow, method, extension, and load-set surfaces. |
+| `knowledge-architecture` | knowledge access-path moves | 3 | Strategy and internal-skill access paths change with the target model. |
+| `local-mode` | `team.mode` key | 1 | A 37-file abstract config assumption needs an owned access seam. |
+| `naming-conventions` | state-document renames | 5 | Rename classes split between abstraction and change-with-mover treatment. |
+| `roadmap-tooling` | ROADMAP name | 1 | The 44-file tracked document/path name needs one owned contract. |
+| `rules-restructure` | domain-rules name | 1 | The 78-file rule-family name is an abstract access-path assumption. |
+| `scalable-core` | `pm.mode` schema reform | 1 | A 71-file enum replacement needs a compatibility/access boundary. |
+| `wu-lifecycle-state-model` | placement reader input | 4 | Directory-encoded state reaches 56 code reader/parser files. |
+
+Packet IDs derive from result digest + target slug + sorted class IDs; packet content digests bind owner provenance,
+ranked evidence, extract references, implications, and grooming recommendations. The ledger parser verifies both
+bindings, and report projection requires captured packets to cover every ranked class. All 11 packets were captured
+in the resolver-backed identity-global `USER-INBOX` with exact IDs and digests, then reconciled one-to-one with the
+ledger. Every packet is now `captured-awaiting-housekeep`; no foreign work-unit artifact was edited and the wider
+inbox drain was not invoked.
+
+## Final report certification
+
+The project-internal audit command now has an explicit report mode: `--result`, `--ledger`, and `--report` read the
+canonical hard-view inputs and emit the Markdown projection without implicit paths. The checked report contains 32
+ranked inventory rows, 15 substrate-abstraction rows, 56 placement-reader rows, and 11
+`captured-awaiting-housekeep` routing rows. Its SHA-256 is
+`53441f7b73942a577edee1a57e7f98caa1ce187777a4451f263ebf96363f5183`; the reconciled ledger SHA-256 is
+`37feb4131e8c5c44ed4c48839f655c410eec3d523832f6a6d12b2ccbc0408881`.
+
+Two authoritative scans to separate external paths produced byte-identical results at
+`8ff94473a49cb4a55ba79626d27c9e420770cf6a329e63ac95b332f47cc9956c`; each reported 1,225 files, 32 resolved
+classes, and zero unresolved candidate residue. Projecting each result independently through the fixed ledger
+produced byte-identical reports at `53441f7b73942a577edee1a57e7f98caa1ce187777a4451f263ebf96363f5183`, matching the
+checked report. Before/after hashes of the repository diff and explicit input files were unchanged across the four
+runs.
