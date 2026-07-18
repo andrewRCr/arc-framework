@@ -1,8 +1,8 @@
 # Metadata: coupling-blast-radius-audit
 
-| **State** | **Owner** | **Branch**                         | **Class** | **Priority** |
-| --------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/coupling-blast-radius-audit` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                         | **Class** | **Priority** |
+| ------------- | --------- | ---------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/coupling-blast-radius-audit` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,11 @@
 - **Task List:** `tasks-coupling-blast-radius-audit.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Spec finalized (outline) at `76a9fe4eb` — draft retired; adversarial pass converged
-  (one major + two minors folded).
-- **Next Task:** Begin Task 1.1 — Verify the authoritative corpus and bounded delta pass
+- **Last Completed:** Task 7.1 — verification complete
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** Open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
