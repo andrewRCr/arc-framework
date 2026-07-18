@@ -230,9 +230,16 @@ describe("trusted review-gate workflows", () => {
 
     expect(packageIntegration).toBe(instanceIntegration);
     expect(packageErrand).toBe(instanceErrand);
-    expect(packageIntegration.match(new RegExp(genericGuard, "gu"))).toHaveLength(2);
+    expect(packageIntegration.match(new RegExp(genericGuard, "gu"))).toHaveLength(3);
     expect(packageIntegration).not.toContain("review-gate:assert-head-mutable");
-    expect(packageIntegration.indexOf(genericGuard)).toBeGreaterThan(packageIntegration.indexOf("### 12) Final push"));
+    expect(packageIntegration.slice(
+      packageIntegration.indexOf("### 6) Confirm review coordination"),
+      packageIntegration.indexOf("### 7) Spec-presence + alignment checks"),
+    ).match(new RegExp(genericGuard, "gu"))).toHaveLength(1);
+    expect(packageIntegration.slice(
+      packageIntegration.indexOf("### 12) Final push"),
+      packageIntegration.indexOf("### 14) Post-merge worktree cleanup"),
+    ).match(new RegExp(genericGuard, "gu"))).toHaveLength(2);
     expect(packageIntegration.slice(
       packageIntegration.indexOf("### 3) Open the PR"),
       packageIntegration.indexOf("### 4) Review iteration"),
@@ -263,6 +270,66 @@ describe("trusted review-gate workflows", () => {
     }
     expect(coordination).toMatch(/`next-action` → `perform-action` → `await` → canonical re-entry/u);
     expect(coordination).not.toMatch(/provider command|without polling/iu);
+  });
+
+  it("drives both integration safety windows through authoritative base drift", async () => {
+    const [packageIntegration, instanceIntegration] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    ]);
+    expect(packageIntegration).toBe(instanceIntegration);
+    expect(packageIntegration.match(/arc base drift --json/gu)?.length).toBeGreaterThanOrEqual(3);
+    expect(packageIntegration).not.toContain("git fetch origin {base-branch}");
+    expect(packageIntegration).not.toContain("rev-list --left-right --count");
+    expect(packageIntegration).not.toContain("git merge --no-edit origin/{base-branch}");
+
+    const gate = packageIntegration.slice(
+      packageIntegration.indexOf("### 13) Behind-base reconcile gate and merge"),
+      packageIntegration.indexOf("### 14) Post-merge worktree cleanup"),
+    );
+    expect(gate).toMatch(/`unavailable`, `skipped`, malformed, or unrecognized — stop/u);
+    expect(gate).toContain("`reconcile` with a different `baseOid`");
+    expect(gate).toContain("re-fire the reconcile");
+    expect(gate).toContain("requires a new exact-head checkpoint plus integration approval");
+    expect(gate).toContain(
+      "result = arc base drift --json\n"
+      + "if <result is authoritative reconcile and baseOid == {approved-baseOid}>:\n"
+      + "    git merge --no-edit {approved-baseOid}",
+    );
+    expect(gate).toContain(
+      "result = arc base drift --json\n"
+      + "if <result is authoritative clean>:\n"
+      + "    gh pr merge {pr-number} --merge --match-head-commit {approved-head-sha}",
+    );
+    expect(gate).toContain("retain `openedChangeRequest.headSha` as `{approved-head-sha}`");
+    expect(gate).not.toContain("arc base drift --json\ngit merge");
+    expect(gate).not.toContain("arc base drift --json\ngh pr merge");
+    const approval = gate.indexOf("await explicit integration approval");
+    const refreshedPr = gate.indexOf("re-read PR status", approval);
+    const finalDrift = gate.lastIndexOf("result = arc base drift --json");
+    expect(approval).toBeLessThan(refreshedPr);
+    expect(refreshedPr).toBeLessThan(finalDrift);
+    expect(gate.indexOf("git merge --no-edit {approved-baseOid}")).toBeLessThan(
+      gate.indexOf("run Tier 1 quality gates"),
+    );
+    expect(finalDrift).toBeLessThan(gate.indexOf("gh pr merge"));
+  });
+
+  it("reconciles a conflicted PR before requiring hosted checks to be green", async () => {
+    const [packageIntegration, instanceIntegration] = await Promise.all([
+      readRepositoryFile("packages/arc-framework/arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+      readRepositoryFile(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"),
+    ]);
+    expect(packageIntegration).toBe(instanceIntegration);
+    const reviewSettlement = packageIntegration.slice(
+      packageIntegration.indexOf("### 6) Confirm review coordination"),
+      packageIntegration.indexOf("### 7) Spec-presence + alignment checks"),
+    );
+    expect(reviewSettlement).toContain("arc base drift --json");
+    expect(reviewSettlement).toContain("git merge --no-edit {approved-baseOid}");
+    expect(reviewSettlement).toContain("return to Step 4");
+    expect(packageIntegration.indexOf("arc base drift --json", packageIntegration.indexOf("### 6)")))
+      .toBeLessThan(packageIntegration.indexOf("checks green"));
   });
 
   it("proves the checked-in repair workflow is the sole closed status writer", async () => {
