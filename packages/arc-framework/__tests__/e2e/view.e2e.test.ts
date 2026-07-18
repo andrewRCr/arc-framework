@@ -105,13 +105,15 @@ describe("arc view", () => {
       env: {
         PATH: `${binDir}:${process.env.PATH ?? ""}`,
         ARC_VIEW_RENDER_LOG: logPath,
+        GIT_CONFIG_GLOBAL: "/dev/null",
       },
     });
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("# Task List: feature");
-    expect(result.stdout).toContain("opened without a current-task anchor");
-    expect(await readFile(logPath, "utf8")).toBe("--version\n--pager -\n");
+    expect(result.stderr).toBe("");
+    expect(await readFile(logPath, "utf8"))
+      .toBe("--version\nLESS=FRX +/###.*1\\.1\n--pager --width 0 -\n");
   });
 
   it("opens an anchor-capable pager at the shifted current-task line", async () => {
@@ -151,11 +153,13 @@ async function installFakeGlow(cwd: string): Promise<{ binDir: string; logPath: 
   await mkdir(binDir, { recursive: true });
   await writeFile(executable, [
     "#!/bin/sh",
-    "printf '%s\\n' \"$*\" >> \"$ARC_VIEW_RENDER_LOG\"",
     "if [ \"$1\" = \"--version\" ]; then",
+    "  printf '%s\\n' \"$*\" >> \"$ARC_VIEW_RENDER_LOG\"",
     "  printf 'glow test version\\n'",
     "  exit 0",
     "fi",
+    "printf 'LESS=%s\\n' \"$LESS\" >> \"$ARC_VIEW_RENDER_LOG\"",
+    "printf '%s\\n' \"$*\" >> \"$ARC_VIEW_RENDER_LOG\"",
     "cat",
     "",
   ].join("\n"));

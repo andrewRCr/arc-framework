@@ -105,6 +105,14 @@ renderer invocation are net-new — no pager or ANSI utility exists in the codeb
   `less -RFX`); non-TTY returns before renderer detection, and subprocess coverage verifies one-shot spawn and
   prompt-free pipe behavior.
 
+### `[x]` **2.R Reflow Glow rendering through the active terminal**
+
+- _Goal:_ Glow receives semantic paragraphs instead of authored source wraps, then delegates visual wrapping to the
+  active terminal rather than using its unstable styled-span word wrapper or a fixed configured width.
+
+- _Outcome:_ Glow now normalizes authored soft wraps and pre-wraps prose, list continuations, and blockquotes by
+  display-cell width before rendering with `--width 0`; structural Markdown and the other renderers remain intact.
+
 ## **Phase 3:** Task-structure context — counter band, region output, and cursor anchoring
 
 _Purpose:_ Layer the `tasks`-specific surfaces onto the render foundation — a checkbox counter parser feeds the
@@ -152,6 +160,14 @@ Agent-position anchoring (`session-locus-model`) is a recorded upgrade seam, not
 
 - _Outcome:_ plain and `bat` pager modes receive the band-shifted source line through `less`; `glow` degrades with
   an unanchored warning, while malformed lists remain bandless, unanchored, inspectable, and successful.
+
+### `[x]` **3.R Anchor Glow at the rendered current-task heading**
+
+- _Goal:_ Glow opens at the current task by searching its rendered heading through the configured pager, avoiding
+  source-line assumptions while retaining the existing unanchored behavior when no task cursor exists.
+
+- _Outcome:_ Glow passes an escaped rendered-heading search to `less`, while plain and `bat` retain their exact
+  source-line anchors; a valid task cursor no longer emits an unanchored warning.
 
 ## **Phase 4:** Verification
 

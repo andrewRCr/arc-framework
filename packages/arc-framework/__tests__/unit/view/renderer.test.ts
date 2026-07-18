@@ -62,7 +62,7 @@ describe("resolveViewRenderer", () => {
 
 describe("renderViewWithPager", () => {
   it.each([
-    ["glow", "glow", ["--pager", "-"]],
+    ["glow", "glow", ["--pager", "--width", "0", "-"]],
     ["bat", "bat", ["--paging=always", "--style=plain", "--language=md", "--file-name", "tasks.md", "-"]],
     ["plain", "less", ["-R", "-F", "-X"]],
   ] as const)("composes %s through its pager mode", async (renderer, command, args) => {
@@ -81,8 +81,119 @@ describe("renderViewWithPager", () => {
     }));
   });
 
-  it("passes source-line anchors to bat and plain pager modes", async () => {
+  it("reflows prose soft breaks for Glow without changing Markdown structure", async () => {
     const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = [
+      "# Heading",
+      "",
+      "A prose paragraph authored across",
+      "multiple source lines.",
+      "",
+      "- A list item authored across",
+      "  multiple source lines.",
+      "- A separate item.",
+      "",
+      "A deliberate hard break.  ",
+      "This stays on the next line.",
+      "",
+      "| Column A | Column B |",
+      "| -------- | -------- |",
+      "| Value    | Value    |",
+      "",
+      "```text",
+      "code stays",
+      "on source lines",
+      "```",
+      "",
+    ].join("\n");
+
+    await renderViewWithPager({
+      renderer: "glow",
+      content,
+      displayPath: "tasks.md",
+    }, { run });
+
+    expect(run.mock.calls[0]?.[0].input).toBe([
+      "# Heading",
+      "",
+      "A prose paragraph authored across multiple source lines.",
+      "",
+      "- A list item authored across multiple source lines.",
+      "- A separate item.",
+      "",
+      "A deliberate hard break.  ",
+      "This stays on the next line.",
+      "",
+      "| Column A | Column B |",
+      "| -------- | -------- |",
+      "| Value    | Value    |",
+      "",
+      "```text",
+      "code stays",
+      "on source lines",
+      "```",
+      "",
+    ].join("\n"));
+  });
+
+  it("pre-wraps Glow prose within the terminal gutter using display-cell width", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+
+    await renderViewWithPager({
+      renderer: "glow",
+      content: [
+        "A paragraph with `styled` words authored",
+        "across source lines for responsive display.",
+        "",
+        "- A list item with enough words to wrap onto an indented continuation.",
+        "",
+      ].join("\n"),
+      displayPath: "tasks.md",
+      terminalWidth: 42,
+    }, { run });
+
+    expect(run.mock.calls[0]?.[0].input).toBe([
+      "A paragraph with `styled` words",
+      "authored across source lines for",
+      "responsive display.",
+      "",
+      "- A list item with enough words to",
+      "  wrap onto an indented continuation.",
+      "",
+    ].join("\n"));
+  });
+
+  it("reflows blockquote prose while preserving its continuation gutter", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+
+    await renderViewWithPager({
+      renderer: "glow",
+      content: [
+        "> A quoted paragraph authored",
+        "> across source lines for responsive display.",
+        "",
+      ].join("\n"),
+      displayPath: "inbox.md",
+      terminalWidth: 42,
+    }, { run });
+
+    expect(run.mock.calls[0]?.[0].input).toBe([
+      "> A quoted paragraph authored across",
+      "> source lines for responsive display.",
+      "",
+    ].join("\n"));
+  });
+
+  it("passes renderer-appropriate anchors to pager modes", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+
+    await renderViewWithPager({
+      renderer: "glow",
+      content: "# Tasks\n",
+      displayPath: "tasks.md",
+      anchor: { line: 42, id: "3.R" },
+    }, { run });
+    expect(run.mock.calls[0]?.[0].env.LESS).toBe("FRX +/###.*3\\.R");
 
     await renderViewWithPager({
       renderer: "bat",
@@ -90,7 +201,7 @@ describe("renderViewWithPager", () => {
       displayPath: "tasks.md",
       anchor: { line: 42, id: "3.1" },
     }, { run });
-    expect(run.mock.calls[0]?.[0].env.BAT_PAGER).toBe("less -RFX +42");
+    expect(run.mock.calls[1]?.[0].env.BAT_PAGER).toBe("less -RFX +42");
 
     await renderViewWithPager({
       renderer: "plain",
@@ -98,6 +209,6 @@ describe("renderViewWithPager", () => {
       displayPath: "tasks.md",
       anchor: { line: 42, id: "3.1" },
     }, { run });
-    expect(run.mock.calls[1]?.[0].args).toContain("+42");
+    expect(run.mock.calls[2]?.[0].args).toContain("+42");
   });
 });

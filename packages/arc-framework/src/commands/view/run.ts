@@ -86,16 +86,11 @@ export async function runView(
     }
     const resolved = await dependencies.resolveRenderer();
     const warnings = [...prepared.warnings, ...resolved.warnings];
-    if (resolved.renderer === "glow" && prepared.anchor !== undefined) {
-      warnings.push("glow does not preserve source lines; opened without a current-task anchor.");
-    }
     await dependencies.renderWithPager({
       renderer: resolved.renderer,
       content: prepared.content,
       displayPath: artifact.path,
-      ...(resolved.renderer !== "glow" && prepared.anchor !== undefined
-        ? { anchor: prepared.anchor }
-        : {}),
+      ...(prepared.anchor === undefined ? {} : { anchor: prepared.anchor }),
     });
     return {
       stdout: "",

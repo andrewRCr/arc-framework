@@ -38,7 +38,10 @@ export async function handleView(
       exec: (command, args, execOptions) => gitExec(command, args, { ...execOptions, cwd }),
       readFile: io.readFile,
     }),
-    renderWithPager: (input) => renderViewWithPager(input),
+    renderWithPager: (input) => renderViewWithPager({
+      ...input,
+      terminalWidth: process.stdout.columns,
+    }),
   });
 
   if (result.stdout !== "") process.stdout.write(result.stdout);

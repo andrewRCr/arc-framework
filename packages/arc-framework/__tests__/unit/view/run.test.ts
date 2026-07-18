@@ -140,4 +140,39 @@ describe("runView", () => {
       exitCode: 0,
     });
   });
+
+  it("carries the current-task anchor to Glow without a degrade warning", async () => {
+    const renderWithPager = vi.fn().mockResolvedValue(undefined);
+    const result = await runView({
+      cwd: "/repo",
+      kind: "tasks",
+      project: false,
+      identity: "andrew",
+      nonInteractive: false,
+    }, {
+      resolveArtifact: vi.fn().mockResolvedValue({
+        status: "resolved",
+        kind: "tasks",
+        path: "/repo/.arc/active/tasks-feature.md",
+        workUnit: "feature",
+      }),
+      readFile: vi.fn().mockResolvedValue([
+        "# Tasks",
+        "",
+        "## **Phase 1:** Build",
+        "",
+        "### `[ ]` **1.1 First task**",
+        "",
+      ].join("\n")),
+      resolveRenderer: vi.fn().mockResolvedValue({ renderer: "glow", warnings: [] }),
+      renderWithPager,
+      now: () => new Date(2026, 0, 1, 9, 30),
+    });
+
+    expect(renderWithPager).toHaveBeenCalledWith(expect.objectContaining({
+      renderer: "glow",
+      anchor: { line: 7, id: "1.1" },
+    }));
+    expect(result.stderr).toBe("");
+  });
 });
