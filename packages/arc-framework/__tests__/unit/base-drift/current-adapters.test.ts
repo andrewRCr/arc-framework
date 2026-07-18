@@ -8,6 +8,7 @@ const BASE = "b".repeat(40);
 const COMMIT = "c".repeat(40);
 const PARENT = "a".repeat(40);
 const META_PATH = ".arc/completed/2026-q3/01_widget/meta-widget.md";
+const UNREADABLE_META_PATH = ".arc/completed/2026-q3/02_other/meta-other.md";
 const meta = (pr: number): string => `# Work Unit\n\n- **PR URL:** https://github.com/o/r/pull/${pr}\n`;
 
 function input(subject: string, acceptedPrNumber?: number): BaseDriftCommitInput {
@@ -69,6 +70,24 @@ describe("completed-meta integration resolver", () => {
     const event: IntegrationEvent = { commits: [COMMIT], proof: "topology", prNumber: 7 };
     await expect(resolver.enrichTopologyEvent(event, input("merge", 7))).resolves.toEqual({
       status: "available",
+      value: null,
+    });
+  });
+
+  it("does not claim a unique archive PR identity from a partial archive read", async () => {
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "ls-tree") return { stdout: `${META_PATH}\n${UNREADABLE_META_PATH}\n` };
+      if (args[0] === "show" && args[1] === `${BASE}:${META_PATH}`) return { stdout: meta(7) };
+      if (args[0] === "show" && args[1] === `${BASE}:${UNREADABLE_META_PATH}`) {
+        throw new Error("unreadable meta");
+      }
+      if (args[0] === "diff-tree") return { stdout: "" };
+      throw new Error(`unexpected: ${args.join(" ")}`);
+    };
+    const resolver = createCompletedMetaResolver(exec, BASE);
+    const event: IntegrationEvent = { commits: [COMMIT], proof: "topology", prNumber: 7 };
+    await expect(resolver.enrichTopologyEvent(event, input("merge", 7))).resolves.toEqual({
+      status: "partial",
       value: null,
     });
   });

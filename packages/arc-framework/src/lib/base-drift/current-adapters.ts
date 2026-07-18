@@ -191,7 +191,7 @@ function uniqueRecordByPr(
   archive: CompletedEvidenceRead,
   prNumber: number,
 ): ShippedWorkUnitRecord | null {
-  if (archive.status === "unavailable") return null;
+  if (archive.status !== "available") return null;
   const matches = [...archive.records.values()].filter((record) => record.prNumber === prNumber);
   const [match] = matches;
   return matches.length === 1 && match !== undefined ? match : null;
