@@ -28,7 +28,17 @@ import type { UserSessionInitStatusResult } from "../../../src/commands/user/typ
 function baseDistance(
   overrides: Partial<BaseDistanceStatusResult> = {},
 ): BaseDistanceStatusResult {
-  return { state: "clean", ahead: 0, behind: 0, base: "main", overlappingPaths: [], ...overrides };
+  return {
+    mode: "advisory", verdict: "clean", state: "clean", ahead: 0, behind: 0,
+    base: "main", baseOid: "a".repeat(40),
+    integrationEvidence: {
+      coverage: "complete", scannedCommitCount: 0, events: [],
+      unclassifiedCommitCount: 0, truncated: false, limitations: [],
+    },
+    overlap: { status: "available", substantivePaths: [], regenerablePaths: [] },
+    register: null,
+    ...overrides,
+  };
 }
 
 // --- Fixtures ---
@@ -387,18 +397,16 @@ describe("inferSessionInitRecommendations — combined prompt", () => {
   });
 });
 
-describe("inferBaseDistance — behind-base advisory", () => {
-  it("remote-ahead (base moved under the branch) → surface with the merge-base advisory", () => {
-    const result = inferBaseDistance(baseDistance({ state: "remote-ahead", behind: 4 }));
-    expect(result.recommendedAction).toBe("surface");
-    expect(result.recommendedPromptText).toContain("Base `main` has advanced 4 commit(s)");
-    expect(result.recommendedPromptText).toContain("Merge the base in?");
-    expect(result.recommendedPromptText).not.toMatch(/rebase/i);
-  });
-
-  it("diverged → surface", () => {
-    const result = inferBaseDistance(baseDistance({ state: "diverged", ahead: 2, behind: 3 }));
-    expect(result.recommendedAction).toBe("surface");
+describe("inferBaseDistance — analyzer-owned advisory", () => {
+  it("passes a reconcile register through verbatim", () => {
+    const text = "Precomposed analyzer guidance.";
+    const result = inferBaseDistance(baseDistance({
+      verdict: "reconcile",
+      state: "diverged",
+      behind: 4,
+      register: { kind: "attention", text },
+    }));
+    expect(result).toEqual({ recommendedAction: "surface", recommendedPromptText: text });
   });
 
   it("clean (at parity with the base) → skip, no prompt text", () => {
@@ -407,14 +415,9 @@ describe("inferBaseDistance — behind-base advisory", () => {
     expect(result.recommendedPromptText).toBe("");
   });
 
-  it("local-ahead (branch ahead of an unmoved base) → skip", () => {
-    const result = inferBaseDistance(baseDistance({ state: "local-ahead", ahead: 5 }));
-    expect(result.recommendedAction).toBe("skip");
-  });
-
-  it("degraded states (no-remote / detached-head / skipped / remote-unavailable) → skip", () => {
-    for (const state of ["no-remote", "detached-head", "skipped", "remote-unavailable"] as const) {
-      expect(inferBaseDistance(baseDistance({ state })).recommendedAction).toBe("skip");
+  it("clean, skipped, and unavailable verdicts skip", () => {
+    for (const verdict of ["clean", "skipped", "unavailable"] as const) {
+      expect(inferBaseDistance(baseDistance({ verdict })).recommendedAction).toBe("skip");
     }
   });
 
@@ -422,33 +425,6 @@ describe("inferBaseDistance — behind-base advisory", () => {
     expect(inferBaseDistance(null).recommendedAction).toBe("skip");
   });
 
-  it("names overlapping paths and warns of merge conflict when sets intersect", () => {
-    const result = inferBaseDistance(
-      baseDistance({ state: "diverged", behind: 3, overlappingPaths: ["src/a.ts", "src/b.ts"] }),
-    );
-    expect(result.recommendedPromptText).toContain("Overlapping paths:");
-    expect(result.recommendedPromptText).toContain("`src/a.ts`");
-    expect(result.recommendedPromptText).toContain("merge may conflict");
-    expect(result.recommendedPromptText).not.toMatch(/rebase/i);
-  });
-
-  it("collapses the overlap list to a sample plus a remainder count when long", () => {
-    const result = inferBaseDistance(
-      baseDistance({
-        state: "diverged",
-        behind: 1,
-        overlappingPaths: ["a", "b", "c", "d", "e"],
-      }),
-    );
-    expect(result.recommendedPromptText).toContain("(+2 more)");
-  });
-
-  it("states no overlap when the diverged changed-path sets are disjoint", () => {
-    const result = inferBaseDistance(
-      baseDistance({ state: "diverged", behind: 2, overlappingPaths: [] }),
-    );
-    expect(result.recommendedPromptText).toContain("No overlapping paths.");
-  });
 });
 
 describe("inferBaseBranchSync — config-gated base-ref freshen", () => {
