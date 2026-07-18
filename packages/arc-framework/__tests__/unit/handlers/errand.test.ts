@@ -88,5 +88,7 @@ describe("formatErrandPushDeferredWarning", () => {
     );
 
     expect(warning).toContain("recovery marker was not recorded");
+    expect(warning).toContain("retry recovery with `arc sync`");
+    expect(warning).not.toContain("it reconciles");
   });
 });

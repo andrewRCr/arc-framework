@@ -70,7 +70,7 @@ export function formatErrandPushDeferredWarning(
       + "Choose the record to keep, then run `arc errand close --force <slug>` on the discarded side and retry."
       + markerDetail;
   }
-  return `${label} push deferred (${outcome.kind}); it reconciles on the next \`arc sync\`.` + markerDetail;
+  return `${label} push deferred (${outcome.kind}); retry recovery with \`arc sync\`.` + markerDetail;
 }
 
 async function settleErrandPushOutcome(
