@@ -654,14 +654,13 @@ seam rule in `notes-finalize-parallelism.md`.
   BI-4's spawn-mode ceremony-locus fix verified live.
 
     - `[~]` **4.3.a Re-graduate and confirm ceremony locus + wrap**
-        - Superseded by events: the penciled vehicle (a WTD re-graduation after the dispatch fix) never ran — WTD's
-          split-brain reconcile folded into its grooming and activation ceremonies and the WU shipped. The locus half
-          is verified retrospectively: every WTD ceremony commit (init `6966113dc`, activation `130b9b600`, ROADMAP
-          refresh `770d6b2dc`) rode the plan/fix branch, none on main's first-parent line — together with 4.1's
-          init-locus evidence, BI-4's fix is field-verified. Residuals re-anchored at 5.1.a: the wave-3 launches
-          exercise the start-dispatch fix (PR #242) live, and the slate cut decides the `Depends On` discharge
-          vehicle; no wrap-shaped multi-dep graduation exists on the FP timeline, so wrap-specific rendering rests
-          on unit coverage.
+        - Superseded by events: the penciled WTD re-graduation never ran; WTD entered through the create-arm miss,
+          so its ceremonies do not prove the corrected graduate relocation. CMS supplies the live locus evidence:
+          graduate commit `cec8fd6a2` removes its planned artifacts, creates the active artifacts, and lands off
+          `main`'s first-parent line on its plan branch. Residuals re-anchored at 5.1.a: the wave-3 launches exercise
+          the start-dispatch fix (PR #242) live, and the slate cut decides the `Depends On` discharge vehicle; no
+          wrap-shaped multi-dep graduation exists on the FP timeline, so wrap-specific rendering rests on unit
+          coverage.
 
 ### `[x]` **4.4 Verify wave-2 detector-tests and record findings**
 
@@ -1086,17 +1085,22 @@ parent below states the reconciliation _procedure + recorded outcome_, not the u
 
 ## **Phase 9:** Verification
 
-### `[ ]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **9.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source and test typechecks; build; and the full Vitest
+  suite all passed (6,125 passed, 1 skipped).
+- _Success criteria:_ All 9 criteria met; 2 carry explicit deviation annotations for live-proof substitutions.
+  Two fresh adversarial passes converged after correcting the BI-4 graduate-path evidence attribution.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The shared-mutable-surface matrix is complete and every cell is classified loud-vs-silent, with every
+- `[x]` The shared-mutable-surface matrix is complete and every cell is classified loud-vs-silent, with every
   silent cell closed by a build item, verified in a wave, or carried as a documented limitation with a recovery
   path — and the projection-builder contract + errand-vs-WU teardown trace-through are each traced, classified,
   and dispositioned.
-- `[ ]` All six build items land and are verified: BI-1 provisions a spawned worktree to a working state (node
+- `[x]` All six build items land and are verified: BI-1 provisions a spawned worktree to a working state (node
   gates pass off-primary; harness layer present; marker tree clean) and notices when unconfigured; BI-2's
   in-place Materialize checks out a remote WU without spawning, honoring the occupancy guard; BI-3 serializes
   same-machine cross-worktree notes writers, prevents paired-push sibling-note early export, and keeps marker
@@ -1105,17 +1109,26 @@ parent below states the reconciliation _procedure + recorded outcome_, not the u
   the plan branch with a 120-wrapped `Depends On`; BI-5 fails loud on an old-shape meta before any mutation; BI-6
   makes identity-global user surfaces canonical across worktrees without moving per-WU SESSION-NOTES out of the
   active worktree.
-- `[ ]` All four burn-in waves complete on sacrificial workload with their induced detector-tests firing (base
+    - **Deviation:** BI-4's ceremony-locus behavior was field-proven by CMS's plan-branch graduate ceremony rather than
+      the planned re-graduation; the multi-value `Depends On` composition is pinned by renderer round-trip and
+      120-column tests. BI-5's old-shape preflight is pinned by spawn and in-place mutation-negative tests rather
+      than a destructive live induction. BI-2's spawn arm ran cross-machine; its in-place arm and occupancy refusal
+      are pinned by the handler, transition, and guard tests because no second remote-only live target remained.
+- `[x]` All four burn-in waves complete on sacrificial workload with their induced detector-tests firing (base
   drift, notes lag, behind-base-at-integration, stale worktree each surface as claimed) — no detector silently
   no-ops.
-- `[ ]` The three seam-audit decisions are resolved with evidence (parallel-errand fork + batch sub-decision;
+    - **Deviation:** Wave 4 induced notes lag on the real second-machine path; partial-push-marker behavior uses
+      wave 1's distinct-writer remote rig, and behind-base-at-integration uses the live FP/probe induction. Those
+      detectors depend on ref topology rather than machine locality, so repeating them during wave 4 added no new
+      composition coverage.
+- `[x]` The three seam-audit decisions are resolved with evidence (parallel-errand fork + batch sub-decision;
   same-entry merge disposition; `/arc-shift` revival), each recorded with rationale and any spawned follow-up WU.
-- `[ ]` The GA-readiness checklist and the parallelism incident playbook exist and are blessed — worktree-by-default
+- `[x]` The GA-readiness checklist and the parallelism incident playbook exist and are blessed — worktree-by-default
   is declared GA, and the interim `--here` default is retired per its wave-tied trigger.
-- `[ ]` The concurrency doctrine matches the as-built shape — `strategy-concurrent-work.md` (and the Errand-class
+- `[x]` The concurrency doctrine matches the as-built shape — `strategy-concurrent-work.md` (and the Errand-class
   slice of `strategy-work-organization.md`) is reconciled with the settled decisions and wave findings; no
   section contradicts verified behavior.
-- `[ ]` The containment invariants are each verified, not assumed — committed+pushed work unlosable; no ARC verb
+- `[x]` The containment invariants are each verified, not assumed — committed+pushed work unlosable; no ARC verb
   destroys uncommitted work; notes pre-load backup present; same-entry merge loss documented with recovery.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.

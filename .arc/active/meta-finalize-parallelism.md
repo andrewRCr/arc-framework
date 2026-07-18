@@ -17,8 +17,7 @@
 - **Next Task:** Task 9.1 — Complete verification (line ~1089)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 9.1 — load and follow `verify-work-unit.md`; merge the base in beforehand or per
-  the workflow's gate (branch is behind `main`).
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
