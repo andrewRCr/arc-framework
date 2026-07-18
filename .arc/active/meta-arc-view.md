@@ -11,10 +11,10 @@
 - **Design:** `draft-arc-view.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
-- **Last Completed:** Stub minted from direct discussion (2026-07-14) — a zero-input, auto-resolving terminal
-  viewer for the active WU's core artifacts (task list above all), with a live watch mode. Core design positions
-  settled at mint; see `draft-arc-view.md`.
+- **Current Workflow:** `create-spec`
+- **Last Completed:** Draft groomed to formalization-ready at draft-design (2026-07-18) — consolidated
+  post-split (status/HUD arms live in `status-hud`), v1 kind set settled, adversarial pass folded; see
+  `draft-arc-view.md`.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
