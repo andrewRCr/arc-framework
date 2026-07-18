@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Planned stub created from the FP base-drift housekeep capture (2026-07-14).
+- **Last Completed:** Finalized `spec-base-drift-guidance.md` and advanced to task generation (2026-07-18).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
