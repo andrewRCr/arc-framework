@@ -12,8 +12,8 @@
 - **Task List:** `tasks-arc-view.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Spec finalized at create-spec (2026-07-18) — `spec-arc-view.md` at outline form,
-  adversarial pass folded (converged at the `Light` cap), draft retired, `Class: Light` persisted.
+- **Last Completed:** Planning complete (2026-07-18) — `tasks-arc-view.md` generated at medium depth and
+  adversarially audited (6 findings folded, converged at the `Light` cap); WU activated to `feat/arc-view`.
 - **Next Task:** Task 1.1 — Scaffold the arc view verb and default kind
 - **Blockers:** [none]
 
