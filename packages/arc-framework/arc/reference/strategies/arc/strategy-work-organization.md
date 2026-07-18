@@ -1386,9 +1386,10 @@ through its commit footer, and tears down.
 
 ### Batch execution — the sequential drain
 
-A slate of Errands — a housekeep drain, an approved cleanup sweep — executes **sequentially, under one session
-in the main worktree**: the operator scopes and approves the slate up front, then a single agent works it entry
-by entry, each Errand still closing its own review increment, in lockstep to completion. Attention is the
+A slate of Errands — a housekeep drain, an approved cleanup sweep — executes **sequentially, under one session**:
+the operator scopes and approves the slate up front, then a single agent works it entry by entry, each Errand
+still closing its own review increment, in lockstep to completion. The session uses the main worktree when it is
+available and an ephemeral worktree when the main worktree is occupied or isolation is preferred. Attention is the
 bottleneck a batch actually contends with — the human is the serial approval gate — so parallel errand execution
 buys little wall-clock while multiplying the tracking burden. Dispatching errand executions to concurrent
 sub-sessions is not the default, and a session per errand is an anti-pattern (the concurrency posture:
