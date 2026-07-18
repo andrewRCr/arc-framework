@@ -133,32 +133,21 @@ source-grounded.
 _Purpose:_ Build a re-runnable Node scanner that converts the manifest and bounded corpus into stable counts,
 file lists, surface/locus tags, and residue.
 
-### `[ ]` **3.1 Implement deterministic corpus traversal and surface-kind classification**
+### `[x]` **3.1 Implement deterministic corpus traversal and surface-kind classification**
 
 - _Goal:_ The same manifest and repository tree always produce the same ordered input set and mechanical surface
   kinds plus corpus-locus tags.
-- _Context:_ Follow the pure-core/CLI-shell shape used by `audit-section-refs.ts` and
-  `audit-domain-rules.ts`; reuse `resolveRepoRoot()` rather than deriving the repository root again.
 
-    - `[ ]` **3.1.a Collect authoritative roots and explicit delta files**
-        - Build `test-first` (one behavior at a time):
-            - an injected Git executor parses NUL-delimited `git ls-files --cached -z -- <roots/delta>` output and
-              includes every tracked manifest-declared root and exact delta file, including hidden paths and every
-              extension;
-            - duplicate, missing, generated, and outside-root entries resolve according to the contract;
-            - output paths are repository-relative, POSIX-normalized, deduplicated, and sorted;
-            - filesystem failures carry the path and fail the run rather than silently shrinking coverage.
-        - Decode file bytes with a fatal UTF-8 `TextDecoder`; any tracked binary or non-UTF-8 file must have an
-          explicit manifest exclusion and reason rather than being silently skipped.
+    - `[x]` **3.1.a Collect authoritative roots and explicit delta files**
+        - Added an injected, NUL-safe tracked-file collector with exact delta enforcement, canonical path ordering,
+          fatal UTF-8 decoding, explicit exclusions, and path-rich filesystem failures.
 
-    - `[ ]` **3.1.b Classify surfaces from normalized paths**
-        - Build `test-first` coverage for the spec's ordered `test`, `workflow`, `template`, `code`, `prose`, and
-          `config` rules, including shipped workflow/template Markdown, source and config files, `.mjs` harness
-          hooks, `.sh` scripts, extensionless githooks, and JSON/TOML/YAML declarative files.
-        - Prove precedence for paths that could match more than one category and fail any authoritative path whose
-          file family has no declared rule rather than defaulting it to `config`.
-        - Derive the orthogonal corpus-locus tag from the authoritative root/delta entry, and keep both
-          classifications independent of file content so scan-time judgment never changes them.
+    - `[x]` **3.1.b Classify surfaces from normalized paths**
+        - Applied the closed ordered surface classifier during collection while deriving package, installed-delta,
+          and repo-root-delta loci independently from the manifest declaration.
+
+- _Outcome:_ One deterministic collection boundary now establishes the complete decoded input set and both
+  orthogonal mechanical tags before matching begins.
 
 ### `[ ]` **3.2 Implement manifest matching, fan-out aggregation, and residue emission**
 
