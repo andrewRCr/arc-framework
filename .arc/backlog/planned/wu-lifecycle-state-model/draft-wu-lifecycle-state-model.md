@@ -234,3 +234,18 @@
 - _Concern:_ retire the remote `plan/` shadow ref safely after the new head lands, and reconcile that cleanup with
   the post-reform activation model. SSOA must make any interim shadow ref harmless to lifecycle/status truth; this
   WU owns eliminating the residue.
+
+### `[ ]` **Expose the lifecycle-stage distinctions the stage-aware design-load read dispatches on**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: wu-lifecycle-state-model`), housekeep drain (2026-07-18);
+  captured during the sidecar-discovery session, 2026-07-18.
+- _Concern:_ a stage-aware design-load read (`draft-stage-aware-design-load.md`, provisional) needs a stable
+  stage vocabulary to dispatch on — specifically the spec-settled vs activation distinction (a WU with a
+  finalized spec but not yet activated carries materially less remaining design load than one in draft-design).
+  That is the `State` semantics this WU owns; make the distinction a first-class citizen of the model, not
+  inferred from artifact existence. It is also the natural home for making the probe's `inFlightComposition`
+  stage-aware, since the states are its contract.
+- _Concern — verb gap:_ `arc status <slug>` reports coarse lifecycle state (`planning` / position) but not the
+  current workflow or planning stage, so no CLI verb today answers "is this WU past create-spec?" — stage-aware
+  consumers would have to read the meta. Grow the slug-status record to report it (storage-evolution
+  forward-compat: consumers resolve stage through the verb, never the artifact's location).

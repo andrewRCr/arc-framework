@@ -51,6 +51,20 @@
   rest; if `knowledge-architecture` settles its schema first, family 4 adopts the structural orphan definition
   outright. Recorded in both drafts.
 
+### `[ ]` **Evaluate coupling-audit primitives as a Knowledge Lint prototype**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: knowledge-lint`), housekeep drain (2026-07-18); captured
+  during `coupling-blast-radius-audit` task generation, final suite review, 2026-07-18.
+- *Concern:* the coupling-blast-radius audit is designing project-internal primitives that overlap Knowledge
+  Lint's standing mechanical and semantic tiers: tracked-corpus enumeration, literal/regex pattern manifests,
+  catch-all residue, explicit exact/bulk dispositions, canonical evidence, deterministic projection, and
+  captured finding routing. The audit intentionally stops short of a reusable subsystem, so the shipped seam may
+  be useful as a prototype without warranting a dependency or shared abstraction now.
+- *Fold-in:* at spec time, inspect the audit's landed code and artifacts and reuse or extract only the
+  enumeration, matching, evidence, and disposition pieces that fit the recurring check-family contract. Do not
+  inherit audit-specific volatility, fan-out ranking, corpus boundaries, or hard-consumer views; treat this as
+  coordination evidence, not a pre-committed composition edge.
+
 ---
 
 ## Problem / Motivation

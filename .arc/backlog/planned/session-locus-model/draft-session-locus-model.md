@@ -44,6 +44,16 @@
   recorded sequential-first leaning shapes the loop. Alternative owner if grooming finds the loop belongs with
   inbox semantics instead of transient-loci shape: `shared-inbox-model`.
 
+### `[ ]` **Locus/attention records as the eventual live substrate for the concurrency-attention posture**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: session-locus-model`), housekeep drain (2026-07-18);
+  captured during the sidecar-discovery session, 2026-07-18.
+- *Concern:* soft seam, awareness not obligation — the "scale concurrency to the attention you can give it"
+  posture (concurrent-workload advisory, design-slot bookkeeping, the stage-aware design-load model tracked in
+  `draft-stage-aware-design-load.md`) currently reads static meta fields. This WU's machine-local frame/locus
+  records are the eventual live substrate such reads could consume (what is actually open, where attention
+  actually is). No design requested here; keep the consumer in view when shaping the records.
+
 ---
 
 ## Problem / Motivation

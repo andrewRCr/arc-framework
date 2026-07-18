@@ -22,6 +22,26 @@ artifacts.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Introspection reads the kernel's schema registry, never the TypeScript compiler**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: schema-introspection-layer`), housekeep drain
+  (2026-07-18); captured during post-handoff TS 7 evaluation discussion, 2026-07-18.
+- _Concern:_ transitively exposed to the same TS 7 API break as its upstream (see the kernel note in
+  `draft-cli-substrate-adoption.md`): TS 7.0 has no stable programmatic API, and the 7.1 replacement (~Oct 2026)
+  is out-of-process and query-shaped. This WU runs after the kernel lands, likely post-7.1 — but its contract is
+  fixed by the kernel's derivation choice, so the constraint binds now.
+- _Approach:_ define introspection as a projection over the kernel's schema registry (Zod values), never a
+  TS-source analysis pass. If the kernel adopts the Zod-first inversion, this WU is compiler-API-free by
+  construction — record that inheritance explicitly at grooming so nobody reaches for ts-morph-style tooling out
+  of habit.
+
+---
+
 ## Problem / Motivation
 
 The contracts ARC's CLI exposes across process boundaries are currently invisible:

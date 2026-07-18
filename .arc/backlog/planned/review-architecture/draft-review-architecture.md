@@ -15,8 +15,20 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
-[none pending — the seven pre-rescope entries were integrated or dispositioned at the 2026-07-16 grooming;
-ledger in § Provenance.]
+### `[ ]` **Settle the two multi-PR cardinality seams with `pr-decomposition` in view**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-architecture`), housekeep drain (2026-07-18);
+  captured during post-sidecar wave-planning discussion, 2026-07-18.
+- _Concern:_ `pr-decomposition`'s inbound buffer carries two seams that resolve against this WU's lane design —
+  multi-PR review cardinality ("more PRs must not automatically multiply expensive review passes") and
+  adversarial-verify cardinality / partition criteria — and they are the economic core of the decomposition
+  design, not periphery. PRD grooms right behind this WU in the design-slot pipeline.
+- _Approach:_ at grooming, take `pr-decomposition`'s inbound-buffer seams and `research-pr-decomposition.md` as
+  explicit inputs, so the lane vocabulary / metering design answers the cardinality questions with PRD in view
+  and PRD's draft-design opens pre-answered rather than re-deriving.
+
+(The seven pre-rescope entries were integrated or dispositioned at the 2026-07-16 grooming; ledger in
+§ Provenance.)
 
 ## Problem / Motivation
 
