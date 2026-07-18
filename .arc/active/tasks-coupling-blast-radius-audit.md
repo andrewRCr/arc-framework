@@ -26,7 +26,7 @@ _Purpose:_ Freeze the explicit corpus boundary and durable artifact contracts th
 - _Outcome:_ The audit now has one closed 1,191-file UTF-8 corpus: 1,148 authoritative package files plus 15
   byte-different installed copies and 28 repo-root self-hosting files, with no duplicate package/project reads.
 
-### `[ ]` **1.2 Settle the checked-in artifact homes and machine-readable contracts**
+### `[x]` **1.2 Settle the checked-in artifact homes and machine-readable contracts**
 
 - _Goal:_ The scanner, manifest, raw result, routing ledger, and ranked report each have one stable role and
   serialization contract that remains usable after the work unit archives.
@@ -40,39 +40,25 @@ _Purpose:_ Freeze the explicit corpus boundary and durable artifact contracts th
         - Made the movable Markdown report an explicit output-path input so archival relocation cannot leave a stale
           default; recorded the dependency-free rerun contract in `notes-coupling-blast-radius-audit.md`.
 
-    - `[ ]` **1.2.b Define and validate the manifest and scan-result contracts**
-        - Model versioned manifest metadata, corpus roots/delta files, name-keyed and idiom-keyed classes, pattern
-          forms, source citations, catch-all vectors, exact and bulk residue dispositions, the closed `test |
-          workflow | template | code | prose | config` surface kinds, corpus-locus tags, `unresolved | high | stable`
-          volatility evidence, six surface thresholds, quadrant verdicts/rank keys, normalized hits,
-          classified/dismissed/unresolved candidate partitions, per-class counts, and file lists with strict
-          TypeScript types.
-        - Give each candidate a canonical evidence digest. Limit bulk predicates to closed equality, set-membership,
-          and prefix operators over residue fields, and bind each bulk disposition to its exact member-set digest.
-        - Define a separate versioned canonical routing-ledger contract: bind every packet to the scan-result digest,
-          target slug, sorted class IDs, evidence/report anchors, content digest, and the closed
-          `captured-awaiting-housekeep` state required by the final projection.
-        - Define the total ordered path/file-family classifier in manifest data or validated code-owned constants;
-          require every authoritative file to match exactly one rule after precedence and reject unknown families.
-        - Parse file input from `unknown`, validate required fields and closed enums at the boundary, and emit
-          actionable diagnostics; do not introduce `any` or a new schema dependency.
-        - Build `test-first` (one behavior at a time):
-            - valid manifests, results, and routing ledgers round-trip without information loss;
-            - malformed versions, duplicate class IDs, invalid or empty-string-matching regexes, and incomplete
-              name-class citations fail;
-            - catch-all declarations missing an idiom coverage vector fail;
-            - malformed disposition IDs, predicates, candidate digests, and member-set digests fail;
-            - malformed ledger versions, duplicate packet IDs, noncanonical class ordering, and result-digest
-              mismatches fail;
-            - path and ordering normalization produces a canonical representation.
+    - `[x]` **1.2.b Define and validate the manifest and scan-result contracts**
+        - Added strict versioned TypeScript contracts and `unknown`-input validators for manifests, scan results,
+          routing ledgers, evidence spans, dispositions, volatility/quadrants, and all closed enums without a schema
+          dependency or `any` boundary.
+        - Added canonical candidate/member-set digest helpers and a result-bound ledger whose class order and terminal
+          capture state validate at the boundary.
+        - Added an ordered code-owned classifier that exhaustively maps the full 1,191-file baseline into the six
+          surface kinds and fails unknown families.
+        - Covered valid round trips and malformed versions, IDs, citations, regexes, idiom coverage, digests,
+          quadrants, packet ordering, and result bindings with focused unit tests.
 
-    - `[ ]` **1.2.c Specify deterministic output and failure behavior**
-        - Define stable ordering for classes, paths, hits, packets, and diagnostics; normalize separators to POSIX
-          form; and distinguish successful residue-bearing output from malformed input, stale dispositions, or scan
-          failure.
-        - Define whether raw JSON is written to a requested path or stdout, how the human report consumes it together
-          with the canonical routing ledger, and how two unchanged-tree runs are compared byte-for-byte without
-          timestamps contaminating the payload.
+    - `[x]` **1.2.c Specify deterministic output and failure behavior**
+        - Added canonical path and artifact-order normalization, recursive key-stable JSON with no timestamps, and
+          explicit file/stdout emission seams suitable for byte-identical unchanged-tree comparisons.
+        - Defined stable exit classes for malformed input, stale dispositions, and scan/I/O failure while preserving
+          successful residue-bearing results; recorded the report/result/ledger consumption contract in the notes.
+
+- _Outcome:_ Phase 1 leaves a closed corpus and tested machine boundary: every baseline file classifies, every
+  artifact validates before use, and later scan/report phases can compare canonical bytes and digests directly.
 
 ## **Phase 2:** Pattern manifest
 

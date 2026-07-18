@@ -120,3 +120,19 @@ defaults for normal repository reruns; the report path has no active-directory d
 so archiving the WU cannot redirect a later run into a stale `.arc/active/**` location. Scan mode writes canonical
 JSON to the requested result path (or stdout when requested); report mode reads the canonical result and ledger and
 writes the explicitly requested Markdown projection.
+
+## Machine-contract decisions
+
+- Manifest, scan-result, and routing-ledger formats start at integer version `1` and parse from `unknown` through
+  strict boundary validators. Closed enums cover surface kind, corpus locus, coupling idiom, volatility, predicates,
+  and quadrant verdicts; malformed paths report their exact artifact field.
+- Name-keyed classes require source citations. Every coupling idiom requires catch-all coverage, regexes may not
+  match the empty string, and exact/bulk dispositions bind to lowercase SHA-256 evidence/member-set digests.
+- A scan result retains classified, dismissed, and unresolved candidates separately. Residue is therefore valid
+  scan output rather than a scan failure; unresolved volatility is the distinct state that blocks report projection.
+- The routing ledger accepts only lexicographically ordered unique class IDs and binds every packet to the canonical
+  scan-result digest. Packet state is closed to `captured-awaiting-housekeep` for this audit.
+- Canonical JSON reuses the repository trust-core serializer, repository paths reuse the shared forward-slash helper,
+  artifact-specific collection ordering runs before serialization, and persisted output adds one trailing newline.
+  Exit `2` means malformed input, `3` stale bulk membership, and `4` scan/I/O failure; successful residue-bearing
+  output remains exit `0`.
