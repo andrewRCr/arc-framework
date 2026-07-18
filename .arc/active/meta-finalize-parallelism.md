@@ -12,16 +12,13 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 6.3 — wave-4 cross-machine resume verified (spawn materialize + notes convergence +
-  live notes-lag detector); Phase 6 closes all four burn-in waves. Evidence in `notes-finalize-parallelism.md`
-  § Wave-4 induction evidence.
-- **Next Task:** Task 7.1 — [BLOCKING] Move identity-global user-surface migration out of the path resolver
-  (line ~878)
+- **Last Completed:** Task 7.7 — local path identity hardening closed the coherent Phase 7 verification gate;
+  Phase 7 complete.
+- **Next Task:** Task 8.1 — Reconcile the concurrency doctrine to the as-built shape (line ~980)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 7.1 [BLOCKING] — relocate the migration write out of `resolveUserSurfaceResolver`
-  so read-only command paths can't throw on a divergent flat file. Phase 7 seams are populated + audited (7.1–7.6
-  ready; 7.3 is a disposition call, not straight impl).
+- **Next Action:** Begin Task 8.1 — reconcile the concurrency doctrine and Errand-class guidance against the
+  settled wave evidence and Phase 7 outcomes.
 
 - **PR URL:** [none]
 - **Completed:** [none]
