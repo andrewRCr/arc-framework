@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "groom-inbox-drain",
-  "origin": "description",
-  "intent": "Housekeep drain: route 8 captures to stub buffers, mint 2 stubs, flush 1 atomic",
-  "branch": "chore/groom-inbox-drain",
-  "createdAt": "2026-07-18T14:58:20.163Z",
-  "returnBranch": "main"
-}
