@@ -55,6 +55,20 @@
   in `strategy-workflow-authoring`'s marker inventory, and keep the extension fire-point `#name` marker reserved
   for extensions rather than generic callsites.
 
+### `[ ]` **Review coupling-audit finding: procedure surface moves**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-07-18);
+  captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- _Concern:_ the compiled-procedure target moves eight workflow, method, extension, load-set, and binding-time
+  surfaces spanning both abstraction quadrants.
+- _Approach:_ at grooming, use the per-class ranks to separate substrate-owned abstractions from low-fan-out
+  changes that should move with the workflow compiler.
+- _Packet:_ `packet-3806e82ced300db6ee9c2ba6`; content digest
+  `9c95faa81302723b83d2ad81fb0347ddeca5b04bc42f0c7a2e3352cee472f64e`.
+- _Evidence:_ `arc-extensions-key`, `arc-methods-key`, `extension-root`, `load-set-name`, `method-root`,
+  `recommended-text-family`, `template-suffix`, and `workflow-root`; corresponding `scan-result.json#class-*`
+  anchors.
+
 ## Problem / Motivation
 
 ARC's workflows scale across modes, tiers, and session states via **carry-and-skip**: inline conditionals
