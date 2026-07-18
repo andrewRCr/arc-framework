@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `0a0ddf1e0`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `d332c08f8`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,7 +13,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-_No work units in flight._
+| State      | Work unit                   | Priority | Owner  | Depends on | Cohort |
+| ---------- | --------------------------- | -------- | ------ | ---------- | ------ |
+| `Planning` | coupling-blast-radius-audit | P1       | andrew | —          | —      |
+| `Planning` | arc-view                    | P3       | andrew | —          | —      |
 
 ## Ready
 
@@ -21,7 +24,6 @@ _No work units in flight._
 | ------------------------------------- | -------- | ------ | ---------- | -------------------------- |
 | interlock-release-refinement          | P1       | andrew | —          | approval-flow-refinement   |
 | base-drift-guidance                   | P1       | andrew | —          | —                          |
-| coupling-blast-radius-audit           | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | pr-decomposition                      | P1       | andrew | —          | —                          |
 | recovery-hardening                    | P1       | andrew | —          | —                          |
@@ -60,7 +62,6 @@ _No work units in flight._
 | adr-accept-timing                     | P3       | andrew | —          | —                          |
 | arc-backend                           | P3       | andrew | —          | —                          |
 | arc-reinforce                         | P3       | andrew | —          | —                          |
-| arc-view                              | P3       | andrew | —          | —                          |
 | cohort-cut-coherence                  | P3       | andrew | —          | —                          |
 | cohortless-decomposition              | P3       | andrew | —          | —                          |
 | cold-start-init-polish                | P3       | andrew | —          | —                          |
