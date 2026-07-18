@@ -119,6 +119,8 @@ interface ExecOptions {
   baseMetas?: readonly MetaSpec[];
   /** Refs that fail authority resolution. */
   unresolvableRefs?: readonly string[];
+  /** Whether refreshing the configured remote base fails. */
+  fetchThrows?: boolean;
   /** Branches `for-each-ref` reports. */
   branches?: string[];
   /** `git worktree list --porcelain` body. */
@@ -184,7 +186,10 @@ function buildExec(opts: ExecOptions = {}, metas: readonly MetaSpec[] = []): { e
       }
       throw new Error("not found"); // ref gone → deleted
     }
-    if (sub === "fetch") return { stdout: "" };
+    if (sub === "fetch") {
+      if (opts.fetchThrows) throw new Error("fetch failed");
+      return { stdout: "" };
+    }
     if (sub === "status") return { stdout: "" }; // clean worktree
     return { stdout: "" };
   };
@@ -388,7 +393,7 @@ describe("runTeardown — arc-state authority gate", () => {
     expect(calls).toEqual([]);
   });
 
-  it("uses the remote base under full protection so a stale linked checkout can teardown a shipped WU", async () => {
+  it("refreshes the remote base before reading full-protection lifecycle authority", async () => {
     const { ctx, calls } = buildCtx([ACTIVE_META], {
       baseMetas: [SHIPPED_META],
       branches: [],
@@ -411,6 +416,10 @@ describe("runTeardown — arc-state authority gate", () => {
       "--",
       ".arc/completed/",
     ]);
+    const fetchIndex = calls.findIndex((call) => call.join(" ") === "git fetch origin main");
+    const authorityReadIndex = calls.findIndex((call) => call[1] === "ls-tree" && call[5] === "origin/main");
+    expect(fetchIndex).toBeGreaterThanOrEqual(0);
+    expect(authorityReadIndex).toBeGreaterThan(fetchIndex);
   });
 
   it("fails closed when the configured lifecycle authority ref cannot be resolved", async () => {
@@ -430,6 +439,25 @@ describe("runTeardown — arc-state authority gate", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/could not resolve lifecycle authority ref `origin\/main`/i);
     expect(calls).not.toContainEqual(expect.arrayContaining(["for-each-ref"]));
+  });
+
+  it("fails closed when the full-protection lifecycle authority cannot be refreshed", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE_META], {
+      baseMetas: [SHIPPED_META],
+      fetchThrows: true,
+    });
+
+    const result = await runTeardown(ctx, {
+      name: "demo",
+      base: "main",
+      protection: "full",
+    });
+
+    expect(result).toMatchObject({
+      status: "rejected",
+      reason: expect.stringMatching(/could not refresh lifecycle authority ref `origin\/main`/i),
+    });
+    expect(calls).not.toContainEqual(expect.arrayContaining(["ls-tree"]));
   });
 
   it("refuses a nonexistent WU", async () => {

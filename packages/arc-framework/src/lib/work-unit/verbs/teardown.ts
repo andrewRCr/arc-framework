@@ -961,10 +961,10 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
 
   // 1. Arc-state authority gate — mode-keyed and read from the configured base
   //    authority so a stale linked checkout cannot overrule landed lifecycle
-  //    state. Full protection trusts the remote base; partial protection trusts
-  //    the locally integrating base. Direct library callers that omit the
-  //    protection model retain the historical checkout-local seam; the CLI
-  //    always supplies the configured model.
+  //    state. Full protection refreshes and trusts the remote base; partial
+  //    protection trusts the locally integrating base. Direct library callers
+  //    that omit the protection model retain the historical checkout-local seam;
+  //    the CLI always supplies the configured model.
   //    `shipped`: only a `completed/` WU (the merged-safe path's precondition).
   //    `abandoned`: the inverse — accept any *un-shipped* WU (a retired / parked
   //    origin), but refuse a `completed/` one so the retirement path can't reap a
@@ -974,6 +974,16 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     shipped = isShipped(await buildLifecycleIndex({ cwd, fs: indexFs }), name);
   } else {
     const authorityRef = params.protection === "full" ? `${remote ?? "origin"}/${base}` : base;
+    if (params.protection === "full") {
+      try {
+        await exec("git", ["fetch", remote ?? "origin", base]);
+      } catch {
+        return {
+          status: "rejected",
+          reason: `Could not refresh lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
+        };
+      }
+    }
     if (await readRefTip(exec, authorityRef) === null) {
       return {
         status: "rejected",

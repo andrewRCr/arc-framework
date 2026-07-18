@@ -85,6 +85,8 @@ describe("arc teardown (CLI surface)", () => {
   it("refuses a work unit that has not shipped (no completed/ presence)", async () => {
     tmpDir = await createTempRepo();
     await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    await git(tmpDir, ["add", "."]);
+    await git(tmpDir, ["commit", "-m", "chore: initialize ARC"]);
 
     const result = await runArc(["teardown", "ghost"], tmpDir);
 
