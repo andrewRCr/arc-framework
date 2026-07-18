@@ -88,7 +88,8 @@ import { runDirtyStateStatus, type DirtyStateResult } from "../lib/git/dirty-sta
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
-import { runBaseDistanceStatus } from "../lib/git/base-distance.js";
+import { runBaseDrift } from "../lib/git/base-distance.js";
+import { createCurrentBaseDriftAdapters } from "../lib/base-drift/current-adapters.js";
 import { runBaseBranchSyncStatus } from "../lib/git/base-branch-sync.js";
 import { detectSupersession } from "../lib/git/supersession.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
@@ -520,10 +521,12 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       baseDistance: async () => {
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runBaseDistanceStatus({
+        return runBaseDrift({
           exec: gitExec,
           baseBranch: resolved.settings["branch.base"],
+          mode: "advisory",
           remoteSyncEnabled,
+          ...createCurrentBaseDriftAdapters(gitExec),
         });
       },
       baseBranchSync: async () => {

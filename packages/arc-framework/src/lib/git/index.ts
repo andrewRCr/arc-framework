@@ -29,10 +29,48 @@ export {
 } from "./worktree-sync.js";
 
 export {
+  runBaseDrift,
   runBaseDistanceStatus,
+  type BaseDriftMode,
+  type BaseDriftResult,
+  type BaseDriftUnavailableReason,
   type BaseDistanceStatusResult,
+  type IntegrationEvidenceResolver,
+  type IntegrationEvidenceResolverFactory,
+  type ReconciliationClassifier,
   type RunBaseDistanceStatusOptions,
+  type RunBaseDriftOptions,
 } from "./base-distance.js";
+
+export {
+  analyzeIntegrationEvidence,
+  DEFAULT_BASE_DRIFT_SCAN_LIMIT,
+  type AnalyzeIntegrationEvidenceOptions,
+} from "./base-integration-evidence.js";
+
+export {
+  analyzeBaseOverlap,
+  type AnalyzeBaseOverlapOptions,
+} from "./base-overlap.js";
+
+export {
+  composeBaseDriftRegister,
+  composeUnavailableRegister,
+} from "./base-drift-register.js";
+
+export type {
+  BaseDriftCommitInput,
+  BaseDriftRegister,
+  BaseDriftVerdict,
+  IntegrationEvidence,
+  IntegrationEvidenceLimitation,
+  IntegrationEvent,
+  IntegrationIdentity,
+  OverlapEvidence,
+  ReconciliationBehavior,
+  ResolverEvent,
+  ResolverRead,
+} from "./base-drift-types.js";
 
 export {
   filterCommitsReachableFromHead,
