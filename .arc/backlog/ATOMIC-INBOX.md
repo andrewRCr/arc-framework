@@ -90,3 +90,21 @@
   run suites sequentially in one job) would cut ~40% per heavy run. Counterweights: the split was a deliberate
   wall-clock speed optimization, and consolidation slows the `ci-ok` await. Re-weigh with both sides — not a
   foregone conclusion.
+
+### `[ ]` **Migrate the toolchain to TypeScript 7 when the 7.1-era ecosystem lands**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-18) — condition-gated atomic, deferred; captured
+  during post-handoff TS 7 evaluation discussion, 2026-07-18.
+- _Awaiting:_ all three — (1) TS 7.1 stable programmatic API (~Oct 2026 on cadence); (2) typescript-eslint TS 7
+  support (their tsgolint PoC → Oxlint's `oxlint-tsgolint` is an alternative lint stack if ever re-evaluated);
+  (3) tsup `.d.ts` emit against 7.
+- _Observation:_ TS 7.0 went GA 2026-07-08 — Go-native compiler, ~8–12x faster full builds, type-checking
+  semantics structurally identical to 6.0. Not adoptable here yet: 7.0 ships no stable programmatic API, and two
+  zero-tolerance gates embed that API — `lint:ts` (typescript-eslint `recommended-type-checked`, does not work
+  with tsgo) and tsup's `.d.ts` emit. Vitest and tsx transpile via esbuild and are unaffected. Payoff modest at
+  this scale (typecheck runs in seconds); not worth dual-compiler complexity today.
+- _Observation:_ infra smell — touches quality-gate configs across both copies' docs; likely the reviewed lane.
+- _Approach:_ when all three land, the bump should be near-mechanical (identical checker semantics). Interim
+  escape hatch if typecheck time matters sooner: side-by-side `typescript@7` for `tsc` +
+  `@typescript/typescript6` pinned for ESLint. Coordinate with the `cli-substrate-adoption` kernel buffer note
+  (Zod-first inversion) so the kernel never needs the compiler API at all.
