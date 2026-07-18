@@ -1,8 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
 
-import { resolveSessionNotesPath } from "../../../src/lib/handoff/session-notes-path.js";
-import type { SessionNotesPathIO } from "../../../src/lib/handoff/session-notes-path.js";
+import {
+  resolveSessionNotesPath,
+  resolveWorkUnitSessionNotesPath,
+} from "../../../src/lib/handoff/session-notes-path.js";
+import type {
+  SessionNotesPathIO,
+  WorkUnitSessionNotesPathIO,
+} from "../../../src/lib/handoff/session-notes-path.js";
 import type { DirEntry } from "../../../src/lib/git/index.js";
 
 const CWD = "/repo";
@@ -17,6 +23,15 @@ function makeIO(entriesOrError: DirEntry[] | Error): SessionNotesPathIO {
         throw entriesOrError;
       }
       return entriesOrError;
+    },
+  };
+}
+
+function makeAccessIO(expectedPath: string, error?: NodeJS.ErrnoException): WorkUnitSessionNotesPathIO {
+  return {
+    access: async (path: string) => {
+      expect(path).toBe(expectedPath);
+      if (error !== undefined) throw error;
     },
   };
 }
@@ -75,5 +90,44 @@ describe("resolveSessionNotesPath", () => {
     const result = await resolveSessionNotesPath(CWD, IDENTITY, io);
 
     expect(result).toBeNull();
+  });
+});
+
+describe("resolveWorkUnitSessionNotesPath", () => {
+  const expectedPath = join(USER_DIR, "feature-y", "SESSION-NOTES.md");
+
+  it("resolves only the requested work-unit path", async () => {
+    const result = await resolveWorkUnitSessionNotesPath(
+      CWD,
+      IDENTITY,
+      "feature-y",
+      makeAccessIO(expectedPath),
+    );
+
+    expect(result).toEqual({
+      status: "resolved",
+      path: expectedPath,
+    });
+  });
+
+  it("distinguishes normal absence from an unreadable target", async () => {
+    const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
+    await expect(resolveWorkUnitSessionNotesPath(
+      CWD,
+      IDENTITY,
+      "feature-y",
+      makeAccessIO(expectedPath, missing),
+    )).resolves.toEqual({ status: "absent" });
+
+    const unreadable = Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+    await expect(resolveWorkUnitSessionNotesPath(
+      CWD,
+      IDENTITY,
+      "feature-y",
+      makeAccessIO(expectedPath, unreadable),
+    )).resolves.toEqual({
+      status: "error",
+      message: "Unable to access SESSION-NOTES: EACCES: permission denied",
+    });
   });
 });
