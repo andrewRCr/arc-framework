@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** `work-organization-reform`
+- **Depends On:** `work-organization-reform`, `coupling-blast-radius-audit`
 
 - **Origin:** [internal]
 - **Design:** `draft-cli-substrate-adoption.md`

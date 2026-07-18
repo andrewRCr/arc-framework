@@ -15,7 +15,8 @@ For canonical structure, see [`template-workflow.md`][template-workflow].
 
 - [Frontmatter Schema](#frontmatter-schema) — fields, namespaces, enforcement
 - [Author-side Declaration Rule](#author-side-declaration-rule) — trigger contract
-- [Body Conventions](#body-conventions) — structure, links, interlock markers, routing class tags
+- [Body Conventions](#body-conventions) — structure, links, verbs over mechanics, interlock markers, routing
+  class tags
 
 ---
 
@@ -85,6 +86,18 @@ rationale for *why* a rule exists, and restatements of guidance an adjacent inli
 Rationale an author needs to trust the design belongs in the planning artifact (spec, draft, ADR), not in
 prose a session re-reads each run. Compress to the instruction; justification rarely earns its per-run token
 and judgement cost.
+
+### Verbs over mechanics — invoke operations, don't narrate file mechanics
+
+When a workflow step performs a lifecycle or state operation, write the operation's verb (`arc archive <slug>`,
+`arc errand open <slug>`, a project command or script) or its concept name — never the underlying file
+mechanics (a `git mv` into a concrete directory, a hand-edit of a state field, a path-by-path cleanup).
+Concrete paths and layouts belong to the invoked tooling, which is the single binding surface; every
+mechanics-narrating line is an additional coupling site a future structural change must find and pay for.
+
+Mechanics prose is legitimate only where no command exists for the operation and the mechanics *are* the
+instruction — then the workflow is the binding surface by necessity. Applies to new and edited prose
+immediately; existing mechanics-narrating lines migrate as their workflows are touched.
 
 ### Interlock markers
 

@@ -16,6 +16,21 @@
 
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration.*
 
+### `[ ]` **Multi-entry errand drain only tombstones the `--from-inbox`-adopted capture**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: shared-inbox-model`), housekeep drain (2026-07-18);
+  captured during FP wave-4 burn-in (2026-07-17).
+- *Concern:* the CI-billing errand (PR #281) executed **two** inbox captures — "Cut CI billed minutes" (adopted
+  via `--from-inbox`) and "Wire ci-defer-heavy awareness" (folded into the same errand's scope, commit
+  `726ba38b`). At close, only the adopted entry landed in `## Removed:` with a tombstone; the second vanished
+  from `USER-INBOX` with **no tombstone**. No outcome lost (both shipped), but the removal was untracked — a
+  tombstone-free disappearance is exactly the shape that reads as silent loss on inspection.
+- *Fold-in:* first confirm the mechanism vs. operator error — did the executing agent drop the second entry via
+  `arc user inbox-remove` (which should tombstone) or a raw file edit (which wouldn't)? If the former, the drop
+  path has a tombstone gap; if the latter, the lesson is "always route removals through the verb." Either way an
+  errand carries a single inbox back-pointer (`origin`), so a drain that executes N captures auto-drops only 1 —
+  the N>1 case needs either explicit multi-adopt or a documented remove-the-siblings-via-the-verb step.
+
 ### `[ ]` **Give disciplined drains machine-readable lane provenance**
 
 - *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-13); captured after PR #221 was classified as
