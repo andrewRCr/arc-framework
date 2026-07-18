@@ -47,6 +47,7 @@
 
 import { isLandedInBase } from "../../git/branch-containment.js";
 import type { GitExec } from "../../git/exec.js";
+import { readRefTip } from "../../git/ref-tree.js";
 import { refreshBase } from "../../git/refresh-base.js";
 import type { ProtectionMode } from "../../git/write-context.js";
 import { decideHuskCleanup, isWorktreeClean } from "../../git/worktree-cleanup.js";
@@ -968,12 +969,19 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   //    `abandoned`: the inverse — accept any *un-shipped* WU (a retired / parked
   //    origin), but refuse a `completed/` one so the retirement path can't reap a
   //    merged WU that the safe path handles.
-  const shipped = params.protection === undefined
-    ? isShipped(await buildLifecycleIndex({ cwd, fs: indexFs }), name)
-    : (await readShippedWorkUnitsFromRef(
-        exec,
-        params.protection === "full" ? `${remote ?? "origin"}/${base}` : base,
-      )).has(name);
+  let shipped: boolean;
+  if (params.protection === undefined) {
+    shipped = isShipped(await buildLifecycleIndex({ cwd, fs: indexFs }), name);
+  } else {
+    const authorityRef = params.protection === "full" ? `${remote ?? "origin"}/${base}` : base;
+    if (await readRefTip(exec, authorityRef) === null) {
+      return {
+        status: "rejected",
+        reason: `Could not resolve lifecycle authority ref \`${authorityRef}\`; refusing teardown.`,
+      };
+    }
+    shipped = (await readShippedWorkUnitsFromRef(exec, authorityRef)).has(name);
+  }
   if (mode === "shipped" && !shipped) {
     return {
       status: "rejected",

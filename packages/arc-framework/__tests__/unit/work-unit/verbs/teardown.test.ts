@@ -117,6 +117,8 @@ const SHIPPED_RESULT_DIGEST = metaFixtureDigest(SHIPPED_META);
 interface ExecOptions {
   /** Lifecycle metas exposed by the authoritative base ref (defaults to the checkout metas). */
   baseMetas?: readonly MetaSpec[];
+  /** Refs that fail authority resolution. */
+  unresolvableRefs?: readonly string[];
   /** Branches `for-each-ref` reports. */
   branches?: string[];
   /** `git worktree list --porcelain` body. */
@@ -145,7 +147,11 @@ function buildExec(opts: ExecOptions = {}, metas: readonly MetaSpec[] = []): { e
     const sub = args[0];
     if (sub === "for-each-ref") return { stdout: branches.join("\n") + "\n" };
     if (sub === "worktree" && args[1] === "list") return { stdout: opts.worktreePorcelain ?? "" };
-    if (sub === "rev-parse") return { stdout: "deadbeef\n" };
+    if (sub === "rev-parse") {
+      const ref = args[args.length - 1];
+      if (ref !== undefined && opts.unresolvableRefs?.includes(ref)) throw new Error("unknown revision");
+      return { stdout: "deadbeef\n" };
+    }
     if (sub === "rev-list") return { stdout: opts.revListOutput ?? "" }; // empty → contained
     if (sub === "cherry") return { stdout: opts.cherryOutput ?? "" }; // default: landed in base
     if (sub === "ls-tree") return { stdout: [...committedFiles.keys()].join("\0") + "\0" };
@@ -405,6 +411,25 @@ describe("runTeardown — arc-state authority gate", () => {
       "--",
       ".arc/completed/",
     ]);
+  });
+
+  it("fails closed when the configured lifecycle authority ref cannot be resolved", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE_META], {
+      branches: ["feat/demo"],
+      unresolvableRefs: ["origin/main"],
+    });
+
+    const result = await runTeardown(ctx, {
+      name: "demo",
+      base: "main",
+      mode: "abandoned",
+      protection: "full",
+    });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/could not resolve lifecycle authority ref `origin\/main`/i);
+    expect(calls).not.toContainEqual(expect.arrayContaining(["for-each-ref"]));
   });
 
   it("refuses a nonexistent WU", async () => {
