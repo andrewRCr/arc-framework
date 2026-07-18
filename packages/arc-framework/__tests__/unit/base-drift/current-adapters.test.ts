@@ -9,6 +9,7 @@ const COMMIT = "c".repeat(40);
 const PARENT = "a".repeat(40);
 const META_PATH = ".arc/completed/2026-q3/01_widget/meta-widget.md";
 const UNREADABLE_META_PATH = ".arc/completed/2026-q3/02_other/meta-other.md";
+const PR_LESS_META_PATH = ".arc/completed/2026-q3/03_prless/meta-prless.md";
 const meta = (pr: number): string => `# Work Unit\n\n- **PR URL:** https://github.com/o/r/pull/${pr}\n`;
 
 function input(subject: string, acceptedPrNumber?: number): BaseDriftCommitInput {
@@ -71,6 +72,24 @@ describe("completed-meta integration resolver", () => {
     await expect(resolver.enrichTopologyEvent(event, input("merge", 7))).resolves.toEqual({
       status: "available",
       value: null,
+    });
+  });
+
+  it("prefers an exact archive PR identity over a PR-less same-commit meta", async () => {
+    const exec: GitExec = async (_cmd, args) => {
+      if (args[0] === "ls-tree") return { stdout: `${META_PATH}\n` };
+      if (args[0] === "diff-tree") return { stdout: `A\0${PR_LESS_META_PATH}\0` };
+      if (args[0] === "show" && args[1] === `${BASE}:${META_PATH}`) return { stdout: meta(7) };
+      if (args[0] === "show" && args[1] === `${COMMIT}:${PR_LESS_META_PATH}`) {
+        return { stdout: "# Work Unit\n" };
+      }
+      throw new Error(`unexpected: ${args.join(" ")}`);
+    };
+    const resolver = createCompletedMetaResolver(exec, BASE);
+    const event: IntegrationEvent = { commits: [COMMIT], proof: "topology", prNumber: 7 };
+    await expect(resolver.enrichTopologyEvent(event, input("merge", 7))).resolves.toEqual({
+      status: "available",
+      value: { slug: "widget", prNumber: 7, prUrl: "https://github.com/o/r/pull/7" },
     });
   });
 

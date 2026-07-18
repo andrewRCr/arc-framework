@@ -61,7 +61,7 @@ export function createCompletedMetaResolver(
       const byPr = event.prNumber === undefined
         ? null
         : uniqueRecordByPr(archive, event.prNumber);
-      const identity = sameCommit ?? (byPr === null ? null : identityOf(byPr));
+      const identity = byPr === null ? sameCommit : identityOf(byPr);
       return resolverRead(identity, archive, additions.status === "unavailable");
     },
 
