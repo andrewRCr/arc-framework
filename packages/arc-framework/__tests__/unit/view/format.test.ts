@@ -51,6 +51,27 @@ describe("view formatting", () => {
     });
   });
 
+  it("retains the task band when the task list is complete", () => {
+    const content = [
+      "## **Phase 1:** Build",
+      "",
+      "### `[x]` **1.1 Completed task**",
+      "",
+    ].join("\n");
+
+    expect(prepareViewDocument({
+      kind: "tasks",
+      workUnit: "feature",
+      content,
+      current: false,
+      now: NOW,
+    })).toEqual({
+      content: "Phase 1/1 · Task 1.1 · 1/1 overall · rendered 09:05\n\n" + content,
+      warnings: [],
+      bypassPager: false,
+    });
+  });
+
   it("prepends the one-line header for non-task artifacts", () => {
     expect(prepareViewDocument({
       kind: "spec",

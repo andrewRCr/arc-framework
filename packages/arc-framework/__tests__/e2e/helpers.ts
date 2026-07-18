@@ -118,6 +118,36 @@ export async function runArcNoTty(
 }
 
 /**
+ * Invoke the built CLI with a TTY stdin and piped stdout.
+ *
+ * @param args - CLI arguments.
+ * @param cwd - Working directory for the CLI process.
+ * @param options - Optional timeout and environment overrides.
+ * @returns Captured stdout, stderr, and exit code.
+ */
+export async function runArcWithStdoutPipe(
+  args: string[],
+  cwd: string,
+  options?: { timeout?: number; env?: Record<string, string> },
+): Promise<RunResult> {
+  assertCliBuilt();
+  const timeout = options?.timeout ?? 30_000;
+  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      "script",
+      ["-qec", `${buildScriptCommand(args, false)} | cat`, "/dev/null"],
+      { cwd, timeout, env },
+    );
+    return { stdout, stderr, exitCode: 0 };
+  } catch (err: unknown) {
+    const e = err as { stdout?: string; stderr?: string; code?: number | string };
+    const exitCode = typeof e.code === "number" ? e.code : 1;
+    return { stdout: e.stdout ?? "", stderr: e.stderr ?? "", exitCode };
+  }
+}
+
+/**
  * Invoke the built CLI with caller-provided stdin and real pipes.
  *
  * @param args - CLI arguments.
@@ -167,9 +197,9 @@ export function runArcWithStdin(
   });
 }
 
-function buildScriptCommand(args: string[]): string {
+function buildScriptCommand(args: string[], useExec = true): string {
   const nodeCommand = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
-  return `stty cols 120 rows 40; exec ${nodeCommand}`;
+  return `stty cols 120 rows 40; ${useExec ? "exec " : ""}${nodeCommand}`;
 }
 
 function shellEscape(value: string): string {

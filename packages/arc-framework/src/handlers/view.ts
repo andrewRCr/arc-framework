@@ -7,7 +7,7 @@ import { resolveIdentity } from "../lib/git/index.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveViewArtifact } from "../lib/view-artifact.js";
 import { renderViewWithPager, resolveViewRenderer } from "../lib/view-renderer.js";
-import { isNonInteractiveEnvironment, requireArcProjectRoot } from "./shared.js";
+import { requireArcProjectRoot } from "./shared.js";
 
 export interface ViewCliOptions {
   project?: boolean;
@@ -29,7 +29,7 @@ export async function handleView(
     project: Boolean(options.project),
     identity,
     current: Boolean(options.current),
-    nonInteractive: isNonInteractiveEnvironment(),
+    nonInteractive: process.env.CI === "true" || !process.stdout.isTTY,
   }, {
     resolveArtifact: resolveViewArtifact,
     readFile: io.readFile,

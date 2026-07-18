@@ -17,7 +17,7 @@
 - **Next Task:** Task 1.1 — Scaffold the arc view verb and default kind
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — scaffold the arc view command and kind resolution foundation
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

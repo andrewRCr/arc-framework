@@ -64,7 +64,13 @@ export function prepareViewDocument(input: {
     };
   }
   if (analysis.status === "no-open-task") {
-    return { content: input.content, warnings: [], bypassPager: false };
+    return {
+      content: analysis.tallies === undefined
+        ? input.content
+        : `${formatTaskBand(analysis.tallies, input.now)}\n\n${input.content}`,
+      warnings: [],
+      bypassPager: false,
+    };
   }
 
   return {

@@ -65,7 +65,7 @@ export interface TaskListTallies {
 /** Cursor plus the phase-aware counts used by `arc view tasks`. */
 export type TaskListAnalysisResult =
   | { status: "found"; cursor: TaskListCursor; tallies: TaskListTallies }
-  | { status: "no-open-task" }
+  | { status: "no-open-task"; tallies?: TaskListTallies }
   | { status: "malformed"; error: TaskListCursorMalformed };
 
 /** Current parent-task block extraction result. */
@@ -94,7 +94,8 @@ const NUMERIC_THIRD_SEGMENT_RE = /^\d+\.\d+\.\d+(?:\.|$)/u;
  */
 export function resolveTaskListCursor(content: string): TaskListCursorResult {
   const analysis = analyzeTaskList(content);
-  if (analysis.status !== "found") return analysis;
+  if (analysis.status === "malformed") return analysis;
+  if (analysis.status === "no-open-task") return { status: "no-open-task" };
   return { status: "found", cursor: analysis.cursor };
 }
 
@@ -153,9 +154,6 @@ export function analyzeTaskList(content: string): TaskListAnalysisResult {
     }
   }
 
-  const open = firstOpenCursor(tasks);
-  if (open === null) return { status: "no-open-task" };
-
   const total = tasks.reduce((count, task) => count + 1 + task.subtasks.length, 0);
   const done = tasks.reduce(
     (count, task) => count
@@ -164,6 +162,27 @@ export function analyzeTaskList(content: string): TaskListAnalysisResult {
     0,
   );
   const implicitPhase = phaseCount === 0;
+  const open = firstOpenCursor(tasks);
+  if (open === null) {
+    const finalTask = tasks.at(-1);
+    if (finalTask === undefined) return { status: "no-open-task" };
+    const phaseIndex = implicitPhase ? 1 : finalTask.phaseIndex;
+    if (phaseIndex === null) {
+      return malformed(finalTask.item.lineHint, "task appeared outside a phase section");
+    }
+    return {
+      status: "no-open-task",
+      tallies: {
+        phase: { current: phaseIndex, total: implicitPhase ? 1 : phaseCount },
+        taskId: finalTask.item.id,
+        subtask: finalTask.subtasks.length === 0
+          ? null
+          : { current: finalTask.subtasks.length, total: finalTask.subtasks.length },
+        overall: { done, total },
+      },
+    };
+  }
+
   const phaseIndex = implicitPhase ? 1 : open.task.phaseIndex;
   if (phaseIndex === null) {
     return malformed(open.task.item.lineHint, "task appeared outside a phase section");
@@ -188,7 +207,8 @@ export function analyzeTaskList(content: string): TaskListAnalysisResult {
 /** Extract the current parent-task block using the analyzed section line hint. */
 export function extractCurrentTaskRegion(content: string): CurrentTaskRegionResult {
   const analysis = analyzeTaskList(content);
-  if (analysis.status !== "found") return analysis;
+  if (analysis.status === "malformed") return analysis;
+  if (analysis.status === "no-open-task") return { status: "no-open-task" };
   const lines = content.split(/\r?\n/u);
   const start = analysis.cursor.section.lineHint - 1;
   let end = lines.length;

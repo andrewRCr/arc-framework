@@ -171,28 +171,33 @@ Agent-position anchoring (`session-locus-model`) is a recorded upgrade seam, not
 
 ## **Phase 4:** Verification
 
-### `[ ]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source and test typechecks; 6,177 tests; and the production
+  build all passed (one intentional test skip).
+- _Success criteria:_ 11 met, none superseded; one Light-class adversarial pass surfaced two conformance gaps,
+  both fixed before closure.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Bare `arc view` in a WU worktree renders the active task list through the resolved renderer, opened at the
+- `[x]` Bare `arc view` in a WU worktree renders the active task list through the resolved renderer, opened at the
   current task where the renderer/pager combination supports anchoring (unanchored is a degrade, never an error),
   and exits — no watch, re-render, or input handling anywhere in the verb
-- `[ ]` Every v1 kind (`tasks`, `spec`, `draft`, `meta`, `notes`, `cohort`, `session-notes`, `working-memory`,
+- `[x]` Every v1 kind (`tasks`, `spec`, `draft`, `meta`, `notes`, `cohort`, `session-notes`, `working-memory`,
   `inbox` / `inbox --project`) resolves through the oracle chain with zero path construction in the viewer
-- `[ ]` Under a linked worktree the identity-global kinds (`working-memory`, `inbox`) resolve to the primary
+- `[x]` Under a linked worktree the identity-global kinds (`working-memory`, `inbox`) resolve to the primary
   checkout while `session-notes` stays worktree-local (per-WU)
-- `[ ]` The identity-global kinds resolve with no active WU; the WU-scoped kinds error, listing the valid kinds
-- `[ ]` `arc view tasks --current` emits the current-task section as bare plain stdout that composes under pipes
+- `[x]` The identity-global kinds resolve with no active WU; the WU-scoped kinds error, listing the valid kinds
+- `[x]` `arc view tasks --current` emits the current-task section as bare plain stdout that composes under pipes
   and `watch`; with no open task it prints an explicit "no open task" line
-- `[ ]` The `tasks` render carries the phase/task/overall counter band with a rendered-at timestamp in both pager
+- `[x]` The `tasks` render carries the phase/task/overall counter band with a rendered-at timestamp in both pager
   and plain modes; every other kind carries the one-line header
-- `[ ]` Non-TTY invocation produces plain stdout with no pager spawn and no hang
-- `[ ]` A malformed task list renders bandless and unanchored with a one-line stderr warning (exit 0); an absent
+- `[x]` Non-TTY invocation produces plain stdout with no pager spawn and no hang
+- `[x]` A malformed task list renders bandless and unanchored with a one-line stderr warning (exit 0); an absent
   optional artifact (`notes`, `cohort`) yields its explicit one-line message
-- `[ ]` Unknown-kind errors list the valid kinds
-- `[ ]` The user-scoped renderer override (`arc.viewRenderer`) selects the renderer regardless of detection order
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` Unknown-kind errors list the valid kinds
+- `[x]` The user-scoped renderer override (`arc.viewRenderer`) selects the renderer regardless of detection order
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration

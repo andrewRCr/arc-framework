@@ -12,6 +12,7 @@ import {
   git,
   runArc,
   runArcNoTty,
+  runArcWithStdoutPipe,
   runArcWithStdin,
 } from "./helpers.js";
 
@@ -142,6 +143,20 @@ describe("arc view", () => {
     });
 
     expect(result.exitCode).toBe(0);
+    await expect(access(logPath)).rejects.toThrow();
+  });
+
+  it.runIf(process.platform === "linux")("uses plain output when only stdout is piped", async () => {
+    const { binDir, logPath } = await installFakeGlow(cwd);
+    const result = await runArcWithStdoutPipe(["view", "tasks"], cwd, {
+      env: {
+        PATH: `${binDir}:${process.env.PATH ?? ""}`,
+        ARC_VIEW_RENDER_LOG: logPath,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("# Task List: feature");
     await expect(access(logPath)).rejects.toThrow();
   });
 });
