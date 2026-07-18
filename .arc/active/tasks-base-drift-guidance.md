@@ -139,70 +139,49 @@ then compose one deterministic register without weakening raw Git safety facts.
 _Purpose:_ Expose authoritative drift reads through `arc base` and migrate session initialization to the same
 analyzer and precomposed guidance contract.
 
-### `[ ]` **4.1 Add authoritative `arc base drift` command handling and rendering**
+### `[x]` **4.1 Add authoritative `arc base drift` command handling and rendering**
 
 - _Goal:_ `arc base drift` gives humans and workflows the same fresh authoritative result, JSON, and exit semantics
   without duplicating analysis in command glue.
 
-    - `[ ]` **4.1.a Wire the authoritative command through the existing base family**
-        - Add declarative `base drift` registration in `src/cli.ts`; extend `src/handlers/base.ts` to read
-          `branch.base` and invoke the shared analyzer in authoritative mode.
-        - Establish one reusable current-adapter composition helper in the above-`lib/git` adapter layer from Phase 3;
-          bind the production resolver and reconciliation classifier there so every consumer receives the same
-          analyzer dependencies without importing one handler from another.
-        - Emit JSON to stdout for clean, reconcile, and unavailable outcomes; exit `0` for valid readings and `1` only
-          after emitting unavailable JSON. Render the same facts and register through the existing Clack style when
-          `--json` is absent.
+    - `[x]` **4.1.a Wire the authoritative command through the existing base family**
+        - Added declarative `base drift`, authoritative handler composition through the shared current adapters,
+          machine-readable JSON on every outcome, typed exit semantics, and policy-equivalent Clack rendering.
 
-    - `[ ]` **4.1.b Prove command behavior in real repositories**
-        - Add focused CLI coverage beside `base-sync.e2e.test.ts` for clean, reconcile, missing-remote, invalid-base,
-          and fetch-failure outcomes; assert disabled `session.remote_sync` does not suppress authoritative work.
-        - Assert stdout stays machine-parseable on every JSON path, human rendering does not change policy, exit codes
-          match verdicts, and invocation refs are absent after success and failure.
+    - `[x]` **4.1.b Prove command behavior in real repositories**
+        - Real-repository E2E coverage proves clean, reconcile, missing-origin, invalid-base, disabled advisory sync,
+          JSON/human exit policy, and invocation-ref cleanup after healthy and degraded reads.
 
-### `[ ]` **4.2 Migrate session-init probing, recommendations, and envelope documentation**
+- _Outcome:_ Humans and workflows now reach the same fresh authoritative analyzer through `arc base drift` without
+  duplicating Git or policy logic in command glue.
+
+### `[x]` **4.2 Migrate session-init probing, recommendations, and envelope documentation**
 
 - _Goal:_ Session initialization consumes the shared analyzer advisorily and renders its precomposed register without
   re-reading Git or independently reconstructing policy.
-- **Additional Context:** `strategy-procedure-evolution.md` § Forward-Compat Principles 1 and 6;
-  `strategy-package-project-sync.md` § Template Counterparts.
 
-    - `[ ]` **4.2.a Bind the analyzer into the status composition root**
-        - Replace `runBaseDistanceStatus` in `src/handlers/status.ts` with the advisory analyzer using the resolved
-          sync setting and the reusable production composition helper established for `arc base drift`.
-        - Build `test-first` in `session-init.e2e.test.ts`: add a real behind-base branch fixture that proves the
-          handler emits `reconcile`, typed evidence, the analyzer register, and a `surface` recommendation whose text
-          equals `register.text`; prove disabled `session.remote_sync` yields advisory `skipped` with no recommendation.
-        - Keep this fixture distinct from the existing stale-local-base coverage, which exercises `baseBranchSync`
-          while its feature `HEAD` is already at the remote base.
+    - `[x]` **4.2.a Bind the analyzer into the status composition root**
+        - Session-init now invokes the shared analyzer in advisory mode with the same adapters; distinct real-repo
+          fixtures prove typed reconcile passthrough and pre-Git disabled-sync skip behavior.
 
-    - `[ ]` **4.2.b Derive recommendations directly from analyzer output**
-        - Update `inferBaseDistance` so only `reconcile` surfaces the analyzer's register text; clean, unavailable, and
-          skipped return `skip` with an empty prompt.
-        - Remove the legacy overlap-text composer and retain no second path or state inference.
-        - Build `test-first` (one behavior at a time): advisory skip, healthy clean/reconcile, typed unavailable,
-          precomposed text passthrough, and no locally composed overlap guidance.
+    - `[x]` **4.2.b Derive recommendations directly from analyzer output**
+        - Recommendation inference now surfaces only reconcile and passes `register.text` through byte-for-byte;
+          clean, skipped, unavailable, and failed slots skip without a second overlap or wording implementation.
 
-    - `[ ]` **4.2.c Migrate status slot types and enrichment**
-        - Preserve the eager `baseDistance` envelope slot and its compatible fields while extending
-          `commands/status/types.ts` with the analyzer's verdict, evidence, overlap, and register shape.
-        - Update `commands/status/run.ts` to enrich the analyzer result with the recommendation pair without rereading
-          Git or changing any analyzer-owned field.
-        - Build `test-first` in `unit/status/run.test.ts`: slot enrichment, clean/reconcile/unavailable/skipped mapping,
-          register-text identity, probe-failure isolation, and composite-envelope compatibility.
+    - `[x]` **4.2.c Migrate status slot types and enrichment**
+        - The eager slot retains compatible distance facts through the shared result type and enriches verdict,
+          evidence, overlap, and register with recommendation fields without rereading or mutating analyzer facts.
 
-    - `[ ]` **4.2.d Retire legacy envelope fixtures and overlap assumptions**
-        - Migrate the base-distance fixtures in `integration/status.test.ts` and `unit/status-format.test.ts` to the new
-          envelope contract without weakening their existing composite assertions.
-        - Search every TypeScript source and test after the migration; remove all remaining consumer dependencies on
-          the distance-only legacy shape and every `overlappingPaths` assumption, leaving only the analyzer's explicit
-          overlap evidence without forcing an otherwise-unnecessary type rename.
+    - `[x]` **4.2.d Retire legacy envelope fixtures and overlap assumptions**
+        - Status fixtures now use the typed envelope, and the TypeScript source/test tree has no remaining
+          `overlappingPaths` or independently composed distance-only guidance consumer.
 
-    - `[ ]` **4.2.e Update the shipped and self-hosting envelope guidance together**
-        - Update package `session-init.template.md` plus its rendered `.arc/` counterpart to describe and render the
-          analyzer-owned register verbatim without adding an agent-side conditional or prompt.
-        - Update both `session-init/probe-envelope.md` copies to replace `overlappingPaths` with the typed evidence and
-          register contract while preserving the slot name and recommendation pair.
+    - `[x]` **4.2.e Update the shipped and self-hosting envelope guidance together**
+        - Package and self-hosting session workflows now render the analyzer register verbatim; both envelope
+          references document the typed contract and remain byte-identical.
+
+- _Outcome:_ Session initialization is an advisory consumer of the same analyzer and emitted register as the
+  authoritative CLI, with no prose-side policy or stale legacy overlap shape.
 
 ## **Phase 5:** Integration gate convergence
 

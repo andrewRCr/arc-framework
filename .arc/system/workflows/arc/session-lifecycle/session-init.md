@@ -299,9 +299,10 @@ matters, re-probe to confirm.
 **Notes operation ordering.** When the notes pull or notes load fires, it must complete before Step 3
 — SESSION-NOTES reads below would be stale otherwise.
 
-**Base-distance channel.** The `baseDistance` slot (HEAD vs `origin/<base>`) is advisory-only: its
-`recommendedAction` resolves to `surface` (behind-base drift — the base moved under the branch) or `skip`
-(parity, branch-only-ahead, or any degraded state), never `pull` / `prompt`. Reconciling is the developer's
+**Base-distance channel.** The `baseDistance` slot is the shared analyzer's advisory reading against a freshly
+fetched base OID. Its `recommendedAction` resolves to `surface` only for `verdict: reconcile`, carrying the
+analyzer-owned register text, or `skip` for every other verdict; it never resolves to `pull` / `prompt`.
+Reconciling is the developer's
 call, not an init-time action, so there is no pull to fire here — on `surface`, carry it into Step 6's
 base-drift section; on `skip`, do nothing.
 
@@ -712,8 +713,8 @@ tracked source documents the work.
   ```
 
 - `baseDistance.value.recommendedAction == "surface"`: the base branch advanced under the current branch
-  while work proceeded. Render the precomposed `baseDistance.value.recommendedPromptText` verbatim — it names
-  the behind-base distance and any overlapping paths. Advisory, never gates.
+  while work proceeded. Render the analyzer-owned `baseDistance.value.recommendedPromptText` verbatim — it leads
+  with the strongest established register and retains any evidence limitation. Advisory, never gates.
 
   ```text
   **Base drift:** {baseDistance.value.recommendedPromptText}

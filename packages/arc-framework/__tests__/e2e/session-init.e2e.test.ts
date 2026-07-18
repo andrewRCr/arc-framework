@@ -28,7 +28,19 @@ const execFileAsync = promisify(execFile);
 interface SessionInitEnvelope {
   mode: string;
   user?: unknown;
-  baseDistance?: unknown;
+  baseDistance?: {
+    ok: boolean;
+    value?: {
+      mode: string;
+      verdict: string;
+      behind: number;
+      integrationEvidence: unknown;
+      overlap: unknown;
+      register: { kind: string; text: string } | null;
+      recommendedAction: string;
+      recommendedPromptText: string;
+    };
+  };
   domainRules?: unknown;
   recommendedCombinedPrompt?: unknown;
   active: {
@@ -670,5 +682,66 @@ describe("session-init E2E — base-ref pull recommendation under session.init_p
     expect(result.exitCode).toBe(0);
     const envelope = JSON.parse(result.stdout.trim()) as SessionInitEnvelope;
     expect(envelope.baseBranchSync?.value?.recommendedAction).toBe("surface");
+  });
+});
+
+describe("session-init E2E — shared advisory base drift", () => {
+  let repo: string;
+  let publisher: string;
+  let remote: string;
+
+  beforeEach(async () => {
+    repo = await createTempRepo("arc-session-drift-");
+    publisher = await mkdtemp(join(tmpdir(), "arc-session-drift-publisher-"));
+    remote = await mkdtemp(join(tmpdir(), "arc-session-drift-remote-"));
+    expect((await runArc(["init", "--yes", "--name", "test-project"], repo)).exitCode).toBe(0);
+    await git(repo, ["add", "-A"]);
+    await git(repo, ["commit", "--no-verify", "-m", "init"]);
+    await execFileAsync("git", ["init", "--bare", "-b", "main", remote]);
+    await git(repo, ["remote", "add", "origin", remote]);
+    await git(repo, ["push", "-u", "origin", "main"]);
+    await git(repo, ["switch", "-c", "feat/current"]);
+    await writeFile(join(repo, "feature.txt"), "feature\n");
+    await git(repo, ["add", "feature.txt"]);
+    await git(repo, ["commit", "--no-verify", "-m", "feature work"]);
+
+    await execFileAsync("git", ["clone", "--branch", "main", remote, publisher]);
+    await git(publisher, ["config", "user.email", "publisher@test.com"]);
+    await git(publisher, ["config", "user.name", "Publisher"]);
+    await writeFile(join(publisher, "base.txt"), "base\n");
+    await git(publisher, ["add", "base.txt"]);
+    await git(publisher, ["commit", "-m", "base work"]);
+    await git(publisher, ["push", "origin", "main"]);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(repo);
+    await removeGitBackedDir(publisher);
+    await removeGitBackedDir(remote);
+  });
+
+  it("emits typed reconcile evidence and passes register text through", async () => {
+    const run = await runArc(["status", "--session-init", "--json"], repo);
+    expect(run.exitCode).toBe(0);
+    const value = parseJsonEnvelope(run.stdout).baseDistance?.value;
+    expect(value?.verdict, JSON.stringify(value)).toBe("reconcile");
+    expect(value).toMatchObject({ mode: "advisory", recommendedAction: "surface" });
+    expect(value?.integrationEvidence).not.toBeNull();
+    expect(value?.overlap).not.toBeNull();
+    expect(value?.recommendedPromptText).toBe(value?.register?.text);
+  });
+
+  it("skips before Git analysis when advisory remote sync is disabled", async () => {
+    const configPath = join(repo, ".arc/system/arc-config.yml");
+    const config = await readFile(configPath, "utf8");
+    await writeFile(configPath, config.replace("session.remote_sync: enabled", "session.remote_sync: disabled"));
+    const run = await runArc(["status", "--session-init", "--json"], repo);
+    expect(run.exitCode).toBe(0);
+    expect(parseJsonEnvelope(run.stdout).baseDistance?.value).toMatchObject({
+      mode: "advisory",
+      verdict: "skipped",
+      recommendedAction: "skip",
+      recommendedPromptText: "",
+    });
   });
 });

@@ -200,9 +200,9 @@ export interface SessionInitProbeResult {
   user: Probe<SessionInitUserValue>;
   worktree: Probe<SessionInitWorktreeValue>;
   /**
-   * Base-distance slot — HEAD vs `origin/<base>`, the behind-base drift
-   * surface. Always present (eager, non-gated), mirroring the worktree slot's
-   * placement; the recommendation fields drive the resume-time reconcile offer.
+   * Shared advisory base-drift analysis against a freshly fetched immutable
+   * base OID. Always present (eager, non-gated); the recommendation pair passes
+   * the analyzer-owned register through for reconcile and skips otherwise.
    */
   baseDistance: Probe<SessionInitBaseDistanceValue>;
   /**
@@ -542,9 +542,9 @@ export interface SessionInitProbes extends SessionSharedProbes {
    */
   currentHusk: (worktreePath: string) => Promise<CurrentHuskAdvisory | null>;
   /**
-   * Base-distance probe — HEAD vs `origin/<base>`. Session-init-only (not a
-   * shared slot): a between-WU resume is where behind-base drift matters. The
-   * handler binds the resolved `branch.base` and remote-sync flag.
+   * Shared base-drift analyzer in advisory mode. Session-init-only (not a
+   * shared slot); the handler binds the semantic adapters, resolved base, and
+   * advisory remote-sync policy.
    */
   baseDistance: () => Promise<BaseDistanceStatusResult>;
   /**
