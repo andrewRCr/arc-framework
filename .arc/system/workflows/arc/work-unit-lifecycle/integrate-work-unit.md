@@ -326,16 +326,18 @@ Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. Aft
 authoritative drift read and repeat until it returns `clean`.
 
 At the zero-behind final head, retain the `clean` result's `baseOid` as the current base-freshness evidence. Compose
-the current `openedChangeRequest` and fire `pre-merge` when active. Its actions must report the controller settled for this
-exact head. Any review action that commits or pushes invalidates the checkpoint: return to the authoritative drift
-read, reconcile if needed, and fire the final hook again. No lifecycle- or review-authored commit or push is allowed
-after this stable checkpoint and before the integration interlock.
+the current `openedChangeRequest` and fire `pre-merge` when active. Its actions must report the controller settled
+for this exact head, then retain `openedChangeRequest.headSha` as `{approved-head-sha}`. Any review action that
+commits or pushes invalidates the checkpoint: return to the authoritative drift read, reconcile if needed, and fire
+the final hook again. No lifecycle- or review-authored commit or push is allowed after this stable checkpoint and
+before the integration interlock.
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop before merge. Surface PR status (open threads, required approvals, checks), merge
 > method, and the clean base-drift result; await explicit integration approval before merging.
 
-Immediately after approval, recompose `openedChangeRequest` from the canonical current head and re-read PR status
+Immediately after approval, recompose `openedChangeRequest` from the canonical current head. If its `headSha`
+differs from `{approved-head-sha}`, invalidate the approval and return to the review cycle. Otherwise, re-read PR status
 for that exact head. If threads, required approvals, or required checks are no longer settled, invalidate the
 approval and return to the review cycle.
 
@@ -348,7 +350,7 @@ merge:
 ```text
 result = arc base drift --json
 if <result is authoritative clean>:
-    gh pr merge {pr-number} --merge   # or --squash / --rebase per config
+    gh pr merge {pr-number} --merge --match-head-commit {approved-head-sha}   # strategy per config
 else:
     <stop or return to the reconcile loop per the validated verdict>
 ```

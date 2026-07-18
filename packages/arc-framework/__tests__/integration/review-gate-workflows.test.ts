@@ -292,8 +292,9 @@ describe("trusted review-gate workflows", () => {
     expect(gate).toContain(
       "result = arc base drift --json\n"
       + "if <result is authoritative clean>:\n"
-      + "    gh pr merge {pr-number} --merge",
+      + "    gh pr merge {pr-number} --merge --match-head-commit {approved-head-sha}",
     );
+    expect(gate).toContain("retain `openedChangeRequest.headSha` as `{approved-head-sha}`");
     expect(gate).not.toContain("arc base drift --json\ngit merge");
     expect(gate).not.toContain("arc base drift --json\ngh pr merge");
     const approval = gate.indexOf("await explicit integration approval");
