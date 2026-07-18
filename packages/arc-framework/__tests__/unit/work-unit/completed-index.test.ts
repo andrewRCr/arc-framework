@@ -4,6 +4,7 @@ import {
   branchToWorkUnitSlug,
   computeArchiveDestination,
   isShippedWorkUnit,
+  readCompletedEvidenceFromRef,
   readShippedWorkUnits,
   readShippedWorkUnitRecordsFromRef,
   readShippedWorkUnitsFromRef,
@@ -193,12 +194,49 @@ describe("readShippedWorkUnitsFromRef", () => {
     expect(records.get("decompose-matrix")).toEqual({
       slug: "decompose-matrix",
       completedAt: "2026-06-20",
+      prUrl: null,
+      prNumber: null,
     });
     expect(records.get("missing-meta")).toEqual({
       slug: "missing-meta",
       completedAt: null,
+      prUrl: null,
+      prNumber: null,
     });
     expect(records.has("cohort-demo")).toBe(false);
+  });
+
+  it("parses PR identity and preserves available negative evidence", async () => {
+    const withPr = ".arc/completed/2026-q2/03_widget/meta-widget.md";
+    const withoutPr = ".arc/completed/2026-q2/04_plain/meta-plain.md";
+    const result = await readCompletedEvidenceFromRef(buildTreeExec({
+      paths: [withPr, withoutPr],
+      blobs: {
+        [withPr]: "# Metadata\n\n- **PR URL:** https://github.com/o/r/pull/17\n",
+        [withoutPr]: "# Metadata\n\n- **PR URL:** [none]\n",
+      },
+    }), "origin/main");
+    expect(result.status).toBe("available");
+    if (result.status === "available") {
+      expect(result.records.get("widget")).toMatchObject({
+        prUrl: "https://github.com/o/r/pull/17", prNumber: 17,
+      });
+      expect(result.records.get("plain")).toMatchObject({ prUrl: null, prNumber: null });
+    }
+  });
+
+  it("distinguishes archive-tree failure from partial meta reads", async () => {
+    const unavailable = await readCompletedEvidenceFromRef(async () => {
+      throw new Error("tree unavailable");
+    }, "origin/main");
+    expect(unavailable).toEqual({ status: "unavailable", reason: "archive-tree-read-failed" });
+
+    const path = ".arc/completed/2026-q2/03_widget/meta-widget.md";
+    const partial = await readCompletedEvidenceFromRef(async (_cmd, args) => {
+      if (args[0] === "ls-tree") return { stdout: `${path}\n` };
+      throw new Error("blob unavailable");
+    }, "origin/main");
+    expect(partial).toMatchObject({ status: "partial", unreadableMetaPaths: [path] });
   });
 
   it("bounds concurrent meta-file reads from a ref", async () => {

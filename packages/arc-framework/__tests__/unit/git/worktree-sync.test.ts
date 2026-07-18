@@ -371,4 +371,14 @@ describe("countAheadBehindRef", () => {
     const result = await countAheadBehindRef(exec, "HEAD", "origin/main");
     expect(result.state).toBe("diverged");
   });
+
+  it.each(["", "1", "1 x", "-1 2", "1 2 3", "1.5 2", "9007199254740992 0"])(
+    "rejects malformed or unsafe count output %j",
+    async (stdout) => {
+      const { exec } = buildExec({ [REV_LIST_COUNT]: { stdout, stderr: "" } });
+      await expect(countAheadBehindRef(exec, "HEAD", "origin/main")).rejects.toThrow(
+        /rev-list --count|safe integer/u,
+      );
+    },
+  );
 });

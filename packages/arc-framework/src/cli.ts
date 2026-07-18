@@ -31,7 +31,12 @@ import {
   type ErrandPromoteOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
-import { handleBaseSync, type BaseSyncOptions } from "./handlers/base.js";
+import {
+  handleBaseDrift,
+  handleBaseSync,
+  type BaseDriftOptions,
+  type BaseSyncOptions,
+} from "./handlers/base.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
@@ -391,6 +396,12 @@ housekeep
 const baseCmd = program
   .command("base")
   .description("Local integration-base operations");
+
+baseCmd
+  .command("drift")
+  .description("Analyze current branch drift from a freshly fetched integration base")
+  .option("--json", "Emit the typed base-drift analysis as JSON")
+  .action((opts: BaseDriftOptions) => handleBaseDrift(opts));
 
 baseCmd
   .command("sync")
