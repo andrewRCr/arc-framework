@@ -19,7 +19,8 @@ export type RealpathFn = (path: string) => Promise<string>;
 /**
  * Resolve a path to its local filesystem identity.
  *
- * Paths that do not exist yet retain lexical absolute-path behavior. The
+ * Paths that do not exist yet retain lexical absolute-path behavior. Other
+ * filesystem failures propagate so destructive callers fail closed. The
  * result is an ephemeral comparison key: callers must not persist or sync it,
  * nor treat it as work-unit, project, or storage identity.
  *
@@ -34,8 +35,10 @@ export async function canonicalLocalPath(
   const absolutePath = resolve(path);
   try {
     return await resolveRealpath(absolutePath);
-  } catch {
-    return absolutePath;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return absolutePath;
+    throw error;
   }
 }
 

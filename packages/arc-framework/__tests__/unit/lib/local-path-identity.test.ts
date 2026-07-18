@@ -43,4 +43,14 @@ describe("local path identity", () => {
     const expected = await canonicalLocalPath("./target", unavailable);
     await expect(canonicalLocalPath("./future/../target", unavailable)).resolves.toBe(expected);
   });
+
+  it("propagates operational realpath failures", async () => {
+    const denied: RealpathFn = vi.fn(async () => {
+      const error = new Error("denied") as NodeJS.ErrnoException;
+      error.code = "EACCES";
+      throw error;
+    });
+
+    await expect(canonicalLocalPath("./target", denied)).rejects.toMatchObject({ code: "EACCES" });
+  });
 });
