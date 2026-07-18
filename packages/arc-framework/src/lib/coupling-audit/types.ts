@@ -201,10 +201,24 @@ export interface RoutingLedger {
   packets: Array<{
     id: string;
     targetSlug: string;
+    concernId: string;
+    owner: { state: "planned" | "provisional"; resolvedAt: string };
     classIds: string[];
+    extractRefs: string[];
     evidenceAnchors: string[];
     reportAnchors: string[];
+    classEvidence: Array<{
+      classId: string;
+      rank: number;
+      verdict: QuadrantVerdict;
+      fanOut: number;
+      hitCount: number;
+      surfaceCounts: Record<SurfaceKind, number>;
+      maxThresholdRatio: number;
+    }>;
+    designImplication: string;
+    recommendation: string;
     contentDigest: string;
-    state: "captured-awaiting-housekeep";
+    state: "prepared-for-review" | "captured-awaiting-housekeep";
   }>;
 }

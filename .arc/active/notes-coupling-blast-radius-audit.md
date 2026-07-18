@@ -131,7 +131,8 @@ the canonical result and ledger and writes the explicitly requested Markdown pro
 - A scan result retains classified, dismissed, and unresolved candidates separately. Residue is therefore valid
   scan output rather than a scan failure; unresolved volatility is the distinct state that blocks report projection.
 - The routing ledger accepts only lexicographically ordered unique class IDs and binds every packet to the canonical
-  scan-result digest. Packet state is closed to `captured-awaiting-housekeep` for this audit.
+  scan-result digest. `prepared-for-review` is the pre-capture checkpoint; only Task 6.2 may transition a reconciled
+  packet to the terminal audit state `captured-awaiting-housekeep`.
 - Canonical JSON reuses the repository trust-core serializer, repository paths reuse the shared forward-slash helper,
   artifact-specific collection ordering runs before serialization, and persisted output adds one trailing newline.
   Exit `2` means malformed input, `3` stale bulk membership, and `4` scan/I/O failure; successful residue-bearing
@@ -275,6 +276,31 @@ The placement projection records `active-placement`, `completed-placement`, `pla
 extract member links to complete evidence-digest sets; capped samples play no role in membership. Class-hit evidence
 now preserves its originating catch vector where one exists, keeping the result's idiom provenance inspectable.
 
-The canonical result covers 1,211 tracked files, 7,735 classified candidates, 90,674 dismissed candidates, and zero
-unresolved residue. Its manifest digest is `e5ca1003ad8281edc7eb86fd5ea4d23cc329c7a576348f3756110c6e9975adeb`;
-the result SHA-256 is `ff5bc0f47541461de2871994aa6d70a88aca408f75da75f5d11d9382912215e8`.
+The canonical result covers 1,213 tracked files, 7,736 classified candidates, 90,769 dismissed candidates, and zero
+unresolved residue. Its manifest digest is `ca0b6bba990a542fe8ac10db34cc3fcb9a25ef377333e8ad18ad9d6de4a7a52f`;
+the result SHA-256 is `f535f672d4109c6643b44a9662ee444ab8f09939089a91d8d3b2ac91d81d5ac2`.
+
+## Prepared finding packets
+
+All destination slugs were re-resolved on 2026-07-18. Nine owners are planned; `arcd-rebrand` is provisional. The
+prepared ledger binds 11 packets to the exact result above, covers all 32 ranked classes, and does not claim an inbox
+capture. `cli-substrate-adoption` receives two distinct concerns because it owns both its direct Git-operation mover
+and the mandatory cross-mover substrate extract.
+
+| Owner | Concern | Classes | Design implication |
+| --- | --- | ---: | --- |
+| `arc-backend` | storage address assumptions | 7 | Materialization changes abstract address and artifact-family contracts. |
+| `arcd-rebrand` | `pm.mode` key rename | 1 | A 71-file configuration change needs a compatibility/access boundary. |
+| `cli-substrate-adoption` | tracked-planning Git operations | 1 | Four direct-operation files must move behind substrate verbs. |
+| `cli-substrate-adoption` | substrate abstraction input | 15 | Concrete-path classes need one resolver ownership decision. |
+| `composable-workflows` | procedure surface moves | 8 | Compiler scope crosses workflow, method, extension, and load-set surfaces. |
+| `knowledge-architecture` | knowledge access-path moves | 3 | Strategy and internal-skill access paths change with the target model. |
+| `local-mode` | `team.mode` key | 1 | A 37-file abstract config assumption needs an owned access seam. |
+| `naming-conventions` | state-document renames | 5 | Rename classes split between abstraction and change-with-mover treatment. |
+| `roadmap-tooling` | ROADMAP name | 1 | The 44-file tracked document/path name needs one owned contract. |
+| `rules-restructure` | domain-rules name | 1 | The 78-file rule-family name is an abstract access-path assumption. |
+| `wu-lifecycle-state-model` | placement reader input | 4 | Directory-encoded state reaches 55 code reader/parser files. |
+
+Packet IDs derive from result digest + target slug + sorted class IDs; packet content digests bind owner provenance,
+ranked evidence, extract references, implications, and grooming recommendations. Task 6.2 remains intentionally
+unstarted pending review of this exact set.

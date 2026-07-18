@@ -189,8 +189,10 @@ export function canonicalizeRoutingLedger(ledger: RoutingLedger): RoutingLedger 
   output.packets.sort((left, right) => lexical(left.id, right.id));
   output.packets.forEach((packet) => {
     packet.classIds.sort(lexical);
+    packet.extractRefs.sort(lexical);
     packet.evidenceAnchors.sort(lexical);
     packet.reportAnchors.sort(lexical);
+    packet.classEvidence.sort((left, right) => lexical(left.classId, right.classId));
   });
   return output;
 }

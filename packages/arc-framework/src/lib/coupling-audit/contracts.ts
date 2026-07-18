@@ -539,17 +539,43 @@ export function parseRoutingLedger(value: unknown, expectedResultDigest: string)
   packets.forEach((packet, index) => {
     const path = `ledger.packets[${index}]`;
     nonEmptyString(packet.targetSlug, `${path}.targetSlug`);
+    const concernId = nonEmptyString(packet.concernId, `${path}.concernId`);
+    if (!ID_PATTERN.test(concernId)) fail(`${path}.concernId`, "expected a lowercase kebab-case ID");
+    const owner = record(packet.owner, `${path}.owner`);
+    enumValue(owner.state, ["planned", "provisional"] as const, `${path}.owner.state`);
+    nonEmptyString(owner.resolvedAt, `${path}.owner.resolvedAt`);
     const classIds = stringArray(packet.classIds, `${path}.classIds`);
     const sorted = [...classIds].sort((left, right) => left.localeCompare(right));
     if (classIds.some((id, idIndex) => id !== sorted[idIndex])) {
       fail(`${path}.classIds`, "expected unique lexicographic ordering");
     }
+    stringArray(packet.extractRefs, `${path}.extractRefs`, true);
     stringArray(packet.evidenceAnchors, `${path}.evidenceAnchors`);
     stringArray(packet.reportAnchors, `${path}.reportAnchors`);
+    const classEvidence = array(packet.classEvidence, `${path}.classEvidence`).map((entry, evidenceIndex) =>
+      record(entry, `${path}.classEvidence[${evidenceIndex}]`),
+    );
+    if (classEvidence.length !== classIds.length) fail(`${path}.classEvidence`, "expected one record per class ID");
+    classEvidence.forEach((entry, evidenceIndex) => {
+      const evidencePath = `${path}.classEvidence[${evidenceIndex}]`;
+      if (entry.classId !== classIds[evidenceIndex]) fail(`${evidencePath}.classId`, "must match canonical classIds");
+      positiveInteger(entry.rank, `${evidencePath}.rank`);
+      enumValue(entry.verdict, QUADRANT_VERDICTS, `${evidencePath}.verdict`);
+      nonNegativeInteger(entry.fanOut, `${evidencePath}.fanOut`);
+      nonNegativeInteger(entry.hitCount, `${evidencePath}.hitCount`);
+      validateSurfaceCounts(entry.surfaceCounts, `${evidencePath}.surfaceCounts`);
+      if (
+        typeof entry.maxThresholdRatio !== "number" ||
+        !Number.isFinite(entry.maxThresholdRatio) ||
+        entry.maxThresholdRatio < 0
+      ) {
+        fail(`${evidencePath}.maxThresholdRatio`, "expected a finite non-negative number");
+      }
+    });
+    nonEmptyString(packet.designImplication, `${path}.designImplication`);
+    nonEmptyString(packet.recommendation, `${path}.recommendation`);
     validateDigest(packet.contentDigest, `${path}.contentDigest`);
-    if (packet.state !== "captured-awaiting-housekeep") {
-      fail(`${path}.state`, "expected captured-awaiting-housekeep");
-    }
+    enumValue(packet.state, ["prepared-for-review", "captured-awaiting-housekeep"] as const, `${path}.state`);
   });
   return value as RoutingLedger;
 }

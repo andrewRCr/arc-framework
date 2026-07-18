@@ -97,7 +97,8 @@ performs every corpus-wide read.
    scan result plus a canonical tracked routing ledger — no general policy engine, renderer abstraction, or product
    CLI surface. The report lands as a tracked companion that survives archival (two hard-edge consumers read it
    later), alongside the manifest. Every finding that changes another WU's design receives a deterministic,
-   provenance-stamped packet in the ledger and a matching `USER-INBOX` capture. Final report projection and
+   provenance-stamped packet in the ledger: packets may be committed as `prepared-for-review`, then transition to
+   `captured-awaiting-housekeep` only after matching `USER-INBOX` captures reconcile. Final report projection and
    byte-certification occur only after those captures reconcile with the ledger. The capture is this WU's terminal
    responsibility; a later explicit housekeep pass owns delivery to authoritative homes and is not part of this
    WU's acceptance boundary.

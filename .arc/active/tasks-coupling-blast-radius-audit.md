@@ -317,22 +317,23 @@ views that the routed final report projects without hand-maintained interpretati
 _Purpose:_ Stage owner-ready packets through sanctioned captures, reconcile their canonical ledger, and publish the
 certified report without expanding this WU into the later inbox drain or editing another WU's tracked artifacts.
 
-### `[ ]` **6.1 Resolve affected owners and provenance-stamped finding packets**
+### `[x]` **6.1 Resolve affected owners and provenance-stamped finding packets**
 
 - _Goal:_ Every design-changing finding has one real destination and enough provenance for that owner to evaluate it
   without repeating the audit.
 
-    - `[ ]` **6.1.a Map findings to live work units by slug**
-        - Resolve each destination with `npx arc status <slug>` and the live roster; do not infer existence or state
-          from branch names, filenames, or the pre-audit soft-consumer list.
-        - Keep the two hard-edge extracts mandatory and let all other affected owners emerge from the ranking.
+    - `[x]` **6.1.a Map findings to live work units by slug**
+        - Resolved all ten destination slugs through live status: nine remain planned and `arcd-rebrand` remains
+          provisional; both hard consumers still carry their audit dependency, and every other owner emerged from
+          the manifest's ranked mover evidence.
 
-    - `[ ]` **6.1.b Build one packet per owner/concern**
-        - Derive a deterministic packet identity from the result hash, target slug, and sorted class IDs; include
-          concrete evidence, why the owner's design changes, stable report anchor, and a recommendation framed for
-          grooming rather than implementation instructions.
-        - Coalesce related classes only when the destination and design implication are identical; retain the full
-          class list so fan-out evidence is not lost.
+    - `[x]` **6.1.b Build one packet per owner/concern**
+        - Built 11 deterministic `prepared-for-review` packets for ten owners, with one additional hard-consumer
+          substrate packet for `cli-substrate-adoption`; all 32 classes are covered, and each packet carries live
+          owner provenance, ranked evidence, stable anchors, design implication, and a grooming recommendation.
+
+- _Outcome:_ The prepared ledger accounts for every ranked class and both mandatory extracts without claiming any
+  inbox capture; the exact packet set is ready for review before Task 6.2 changes external routing state.
 
 ### `[ ]` **6.2 Stage branch-safe routing through `USER-INBOX` captures**
 
