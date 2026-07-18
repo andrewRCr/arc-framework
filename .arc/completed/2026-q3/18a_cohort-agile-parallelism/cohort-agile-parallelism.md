@@ -323,7 +323,7 @@ cross-machine discovery and the advisory concurrency check.
 - **Open questions (spec):** exact regeneration triggers; name; whether a persisted local cache earns its
   keep over pure on-demand render.
 
-## Pending cross-cohort follow-ons
+## Cross-cohort follow-on dispositions
 
 - **Shipped-doc drift-fix** — addressed by WF Phase 7.5. `strategy-work-organization.md`'s state table is
   reconciled to the 4-state machine under 7.5.a (Superseded becomes an `**Superseded By:**` annotation, not
@@ -333,6 +333,22 @@ cross-machine discovery and the advisory concurrency check.
   (`draft-local-mode.md`).
 - **AWL generic artifact-model prefix mentions** (`plan-*` / PRD in the tier-model body): left during the
   WOR-terminology sweep — entangled with AWL's tier ↔ spec-form coupling, deferred to arc-plan Conductor.
+
+---
+
+## Closeout
+
+- **Closed:** 2026-07-17
+- **Final member:** `finalize-parallelism`
+- **Member archives:** `11_worktree-foundation`, `12_errand-enablement`, `14_in-flight-awareness`,
+  `19_concurrent-work-doctrine`, `20_merge-safety-mechanism`, `21_notes-merge-coherence`,
+  `22_async-merge-lifecycle`, `23_worktree-default-start`, `33_single-owner-wu-model`, `34_out-of-wu-entry`,
+  `37_state-ref-write-safety`, `18_finalize-parallelism`
+- **Outcome:** ARC's parallelism layer shipped as one burn-in-verified operating model spanning isolated
+  worktrees, errands, in-flight awareness, merge and lifecycle safety, concurrent state, out-of-WU entry, and the
+  worktree-by-default GA posture.
+- **Follow-up:** [none] — downstream concerns have authoritative homes, and the deferred `arc-shift` verb was
+  dismissed from burn-in evidence.
 
 ---
 

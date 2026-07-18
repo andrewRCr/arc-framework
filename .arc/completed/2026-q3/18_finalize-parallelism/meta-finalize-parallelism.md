@@ -1,8 +1,8 @@
 # Metadata: finalize-parallelism
 
-| **State**     | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ------------- | --------- | --------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/finalize-parallelism` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `agile-parallelism`
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/284>
+- **Completed:** 2026-07-17
 
 ---
 
