@@ -223,3 +223,12 @@ Its canonical result contains 7,699 classified candidates, 90,291 preserved dism
 the result SHA-256 is `ac88163beb6c8ddcbd2a05718a07c8c48732a45965131ad6d2d6bca5b303edc6`.
 Generated result and ledger paths are explicit manifest exclusions, preventing checked-in outputs from recursively
 entering the authoritative package corpus.
+
+## Complete-corpus reproducibility
+
+At clean commit `e689e892a`, the settled manifest digest remained
+`b54251a257f6bc805f7a7231ad223ff3b67ac1811238b81aae93d4694b65e4fb`. Two consecutive authoritative
+runs wrote `/tmp/coupling-audit-repro-{a,b}.json`; `cmp` found them byte-identical and both SHA-256 values were
+`ac88163beb6c8ddcbd2a05718a07c8c48732a45965131ad6d2d6bca5b303edc6`. Each run reported 1,207 files,
+32 classes, and zero unresolved residue. `git status --porcelain` was empty before and after both runs. All counts,
+file lists, and disposition totals in these notes are projections from that canonical result.

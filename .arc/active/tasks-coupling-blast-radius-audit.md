@@ -237,16 +237,12 @@ eliminate every unclassified catch-all hit.
 - _Outcome:_ Every catch-all candidate now has durable evidence and either exact class attribution or a stale-safe
   recorded dismissal; newly changed or expanded groups fail instead of inheriting prior judgment.
 
-### `[ ]` **4.4 Prove unchanged-tree reproducibility on the complete corpus**
+### `[x]` **4.4 Prove unchanged-tree reproducibility on the complete corpus**
 
 - _Goal:_ The authoritative command reproduces the exact same canonical output when neither tree nor manifest
   changes.
-
-    - Capture `HEAD`, clean-status evidence, and the canonical manifest digest, then run the complete command twice
-      to separate output locations outside the repository without changing inputs between runs.
-    - Compare bytes and canonical result hashes, confirm repository status is unchanged, then retain the evidence in
-      `notes-coupling-blast-radius-audit.md` and the report provenance.
-    - Confirm all file lists and counts derive from the canonical result rather than a separately maintained table.
+- _Outcome:_ At clean commit `e689e892a`, two complete runs were byte-identical at SHA-256 `ac88163b…303edc6`;
+  status stayed clean and every retained count/file list derives from the canonical result.
 
 ## **Phase 5:** Volatility ranking and deterministic report inputs
 
