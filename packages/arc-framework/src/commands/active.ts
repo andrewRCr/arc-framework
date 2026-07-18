@@ -7,6 +7,7 @@
 export {
   runActiveStatus,
   runActiveSessionInitStatus,
+  resolveTaskListPath,
 } from "./active/status.js";
 export {
   runActiveRoster,

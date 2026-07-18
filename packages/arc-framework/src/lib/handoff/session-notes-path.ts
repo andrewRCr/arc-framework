@@ -17,6 +17,45 @@ export interface SessionNotesPathIO {
   readDir: (dirPath: string) => Promise<DirEntry[]>;
 }
 
+export type SessionNotesPathResult =
+  | { status: "resolved"; path: string }
+  | { status: "absent" }
+  | { status: "error"; message: string };
+
+/**
+ * Resolve one named WU's SESSION-NOTES while retaining absent-vs-error detail.
+ *
+ * @param cwd - Current ARC project root
+ * @param identity - Resolved ARC identity
+ * @param workUnitName - Active work-unit slug
+ * @param io - Directory-reading boundary
+ * @returns Resolved path, normal absence, or a genuine directory error
+ */
+export async function resolveWorkUnitSessionNotesPath(
+  cwd: string,
+  identity: string,
+  workUnitName: string,
+  io: SessionNotesPathIO,
+): Promise<SessionNotesPathResult> {
+  const userDir = join(cwd, ".arc", "user", identity);
+  let entries: DirEntry[];
+  try {
+    entries = await io.readDir(userDir);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return { status: "absent" };
+    const message = error instanceof Error ? error.message : String(error);
+    return { status: "error", message: `Unable to read SESSION-NOTES directory: ${message}` };
+  }
+
+  const expected = `${workUnitName}/SESSION-NOTES.md`;
+  const matches = entries.filter((entry) => entry.name === expected);
+  if (matches.length === 0) return { status: "absent" };
+  if (matches.length > 1) {
+    return { status: "error", message: `SESSION-NOTES path is ambiguous for work unit "${workUnitName}".` };
+  }
+  return { status: "resolved", path: join(userDir, expected) };
+}
+
 /**
  * Resolve the SESSION-NOTES path for an identity under the given repo root.
  *

@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { join } from "node:path";
 
-import { resolveSessionNotesPath } from "../../../src/lib/handoff/session-notes-path.js";
+import {
+  resolveSessionNotesPath,
+  resolveWorkUnitSessionNotesPath,
+} from "../../../src/lib/handoff/session-notes-path.js";
 import type { SessionNotesPathIO } from "../../../src/lib/handoff/session-notes-path.js";
 import type { DirEntry } from "../../../src/lib/git/index.js";
 
@@ -75,5 +78,45 @@ describe("resolveSessionNotesPath", () => {
     const result = await resolveSessionNotesPath(CWD, IDENTITY, io);
 
     expect(result).toBeNull();
+  });
+});
+
+describe("resolveWorkUnitSessionNotesPath", () => {
+  it("selects the named work unit when sibling SESSION-NOTES files exist", async () => {
+    const result = await resolveWorkUnitSessionNotesPath(CWD, IDENTITY, "feature-y", makeIO([
+      { name: "feature-x/SESSION-NOTES.md", size: 100 },
+      { name: "feature-y/SESSION-NOTES.md", size: 80 },
+    ]));
+
+    expect(result).toEqual({
+      status: "resolved",
+      path: join(USER_DIR, "feature-y", "SESSION-NOTES.md"),
+    });
+  });
+
+  it("distinguishes normal absence from an unreadable directory", async () => {
+    await expect(resolveWorkUnitSessionNotesPath(CWD, IDENTITY, "feature-x", makeIO([])))
+      .resolves.toEqual({ status: "absent" });
+    await expect(resolveWorkUnitSessionNotesPath(
+      CWD,
+      IDENTITY,
+      "feature-x",
+      makeIO(new Error("EACCES: permission denied")),
+    )).resolves.toEqual({
+      status: "error",
+      message: "Unable to read SESSION-NOTES directory: EACCES: permission denied",
+    });
+  });
+
+  it("reports duplicate named paths as ambiguous", async () => {
+    const result = await resolveWorkUnitSessionNotesPath(CWD, IDENTITY, "feature-x", makeIO([
+      { name: "feature-x/SESSION-NOTES.md", size: 100 },
+      { name: "feature-x/SESSION-NOTES.md", size: 100 },
+    ]));
+
+    expect(result).toEqual({
+      status: "error",
+      message: "SESSION-NOTES path is ambiguous for work unit \"feature-x\".",
+    });
   });
 });

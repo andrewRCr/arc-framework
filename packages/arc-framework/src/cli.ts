@@ -73,6 +73,7 @@ import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
 import { handleActiveStatus, handleActiveRoster, handleActiveInFlight } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
+import { handleView, type ViewCliOptions } from "./handlers/view.js";
 import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
@@ -565,6 +566,19 @@ activeCmd
   .option("--no-fetch", "Skip the network read; derive from local refs")
   .option("--json", "Emit the typed result as JSON")
   .action(handleActiveInFlight);
+
+// --- View ---
+
+program
+  .command("view")
+  .description("Render an artifact from the current ARC work context")
+  .argument(
+    "[kind]",
+    "Artifact kind: tasks | spec | draft | meta | notes | cohort | session-notes | working-memory | inbox (default: tasks)",
+  )
+  .option("--project", "With inbox: render the shared project inbox")
+  .option("--current", "With tasks: render only the current task region")
+  .action((kind: string | undefined, opts: ViewCliOptions) => handleView(kind, opts));
 
 // --- Status (composite) ---
 

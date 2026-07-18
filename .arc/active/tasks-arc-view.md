@@ -24,97 +24,50 @@ worktree's unit by branch match, never interactive disambiguation. Session-init'
 separate read-set projection and is left unchanged here. Three-layer CLI shape mirrors `arc status`: `cli.ts`
 wiring → `handlers/view.ts` I/O boundary → `commands/view/` orchestrator (`runView`).
 
-### `[ ]` **1.1 Scaffold the `arc view [kind]` verb and default kind**
+### `[x]` **1.1 Scaffold the `arc view [kind]` verb and default kind**
 
 - _Goal:_ `arc view [kind]` is registered and dispatches to a testable `runView` orchestrator through the
   handler boundary; bare `arc view` resolves to `tasks` with zero further input.
 
-    - Register in `src/cli.ts` mirroring the `arc status` read-only pattern — positional `[kind]`, the `--project`
-      and `--current` flags, handler `handleView`. Handler layer in `src/handlers/view.ts` (`requireArcProjectRoot`,
-      `createUserIOContext`, identity read); orchestrator + barrel in `src/commands/view/`. No `--json` mode — the
-      verb renders a document; the non-TTY plain body and `--current` region are the machine-consumable paths.
-    - Build `test-first` (one behavior at a time):
-        - bare `arc view` (no positional) resolves the kind to `tasks`
-        - an explicit kind positional is passed through to the orchestrator unchanged
+- _Outcome:_ Registered the positional kind and scope flags through the CLI → handler → `runView` layers; the
+  orchestrator defaults an omitted kind to `tasks` and preserves explicit kinds without prompting.
 
-### `[ ]` **1.2 Build the kind registry over a shared artifact-group resolver**
+### `[x]` **1.2 Build the kind registry over a shared artifact-group resolver**
 
 - _Goal:_ each v1 kind resolves through one shared resolver in the oracle/resolver layer to a uniform result — the
   artifact's path plus whether it is present — with zero path construction in the viewer: WU-scoped kinds (`tasks`,
   `spec`, `draft`, `meta`, `notes`, `cohort`, `session-notes`) off the resolved active meta, identity-global kinds
   (`working-memory`, `inbox`) rooted at the primary worktree, `inbox --project` at the fixed shared-inbox path.
 
-    - _Approach:_ a kind → resolver registry so a new resolver-backed kind slots in without a contract change; the
-      resolver composes the existing session-init resolvers and adds the derivations they don't cover, keeping one
-      storage-layer home for path knowledge (DRY + storage-forward-compat).
-    - _Shape:_ the resolver returns a uniform per-kind result — `resolved(path)` when the artifact exists on disk,
-      `absent` when it resolves but is missing (the resolver stat-checks derived-path kinds), and a distinct `error`
-      for a genuine resolution failure — so § 1.3 renders one contract, not each sub-resolver's own null convention.
-    - **Additional Context:** `strategy-storage-evolution.md` § Forward-Compat Principles (1–2) — the viewer works
-      at the storage-abstraction boundary; keep path knowledge in the resolver, not the caller.
+    - `[x]` **1.2.a Resolve the active work unit, then its WU-scoped artifacts**
+        - Added branch-matched multi-WU selection and semantic resolution for the active meta, task list,
+          conventional design siblings, cohort document, and per-WU SESSION-NOTES; missing artifacts retain a
+          first-class `absent` result.
 
-    - `[ ]` **1.2.a Resolve the active work unit, then its WU-scoped artifacts**
-        - _Context:_ `runActiveSessionInitStatus` returns `single` (a `path`), `none`, or `multiple` (a `null` path
-          plus a candidate list) — the oracle surfaces candidates but defers the pick. The resolver selects the
-          current worktree's unit deterministically by **branch match** against the candidates' `**Branch:**` field
-          (never interactive disambiguation); `none`, or `multiple` with no unique match, is the no-resolvable-WU
-          case (§ 1.3).
-        - Only `meta` (the resolved `path`), `tasks` (`taskListPath`), `cohort` (`resolveActiveCohortDocPath`), and
-          `session-notes` (`resolveSessionNotesPath`, worktree-local) have existing resolvers. `spec`/`draft`/`notes`
-          have none — derive each as the `spec-{name}.md` / `draft-{name}.md` / `notes-{name}.md` sibling of the
-          resolved meta by naming convention (uniform with `tasks`), then stat-check for presence. Deriving `spec`
-          by convention rather than the meta's `**Design:**` field sidesteps that the field is multi-valued and
-          points at `draft-*` pre-finalization; layered / multi spec beyond `spec-{name}.md` is out of v1 scope.
-          A `[none]` `**Task List:**` yields `taskListPath: null` → `tasks` resolves `absent`, not an error.
-        - Build `test-first` (one behavior at a time):
-            - a single active meta resolves; multiple active metas resolve to the branch-matching unit
-            - `meta` / `tasks` resolve from the active-meta `path` / `taskListPath`; a `[none]` task list → `absent`
-            - `spec` / `draft` / `notes` resolve to their conventional siblings beside the resolved meta
-            - `cohort` resolves the active WU's `cohort-*.md` when the meta names one; `session-notes` resolves the
-              per-WU path adjacent to the active checkout
-            - a kind whose artifact is missing resolves `absent` (present-flag false), never a thrown error
+    - `[x]` **1.2.b Resolve the identity-global kinds and the `--project` scope**
+        - Routed working memory and the personal inbox through the primary-worktree user-surface resolver, while
+          `inbox --project` resolves the shared tracked inbox without requiring identity.
 
-    - `[ ]` **1.2.b Resolve the identity-global kinds and the `--project` scope**
-        - `working-memory` and `inbox` resolve through the `user-surfaces` resolver, rooted at the primary worktree
-          under a linked worktree; both require a resolved identity (the resolver roots at `.arc/user/{identity}`).
-          `inbox --project` is a distinct resolution — the shared inbox is the fixed tracked path
-          `.arc/backlog/ATOMIC-INBOX.md`, not a `user-surfaces` surface — routed through the same kind registry so
-          its eventual re-home stays invisible.
-        - Build `test-first` (one behavior at a time):
-            - under a linked worktree, `working-memory` / `inbox` resolve to the primary checkout
-            - `inbox --project` resolves the fixed shared-inbox path (independent of identity)
-            - an identity-global kind with no resolved identity → the identity error (§ 1.3), not a bad path
-            - the `--project` flag keeps the kind grammar regular (no dotted kind)
+- _Outcome:_ A shared artifact-group resolver now owns the full kind-to-path contract and returns uniform
+  `resolved` / `absent` / `error` results, leaving the viewer storage-agnostic.
 
-### `[ ]` **1.3 Handle absent artifacts and the error paths**
+### `[x]` **1.3 Handle absent artifacts and the error paths**
 
 - _Goal:_ the resolver's uniform result renders three ways — `resolved` → the artifact; `absent` → an explicit
   one-line "not present" message (exit 0); `error` → a stderr message — while the pre-resolution guards (unknown
   kind, no resolvable WU context, unresolved identity) each error listing the valid kinds.
 
-    - _Rationale:_ kind discoverability rides teaching outputs (the error paths and `--help`), never the default
-      render; an absent optional artifact is a normal state, not an error; a genuine resolution failure (e.g. an
-      ambiguous or unreadable `session-notes` directory) stays distinct from "absent" so a real error is never
-      masked as "not present."
-    - Build `test-first` (one behavior at a time):
-        - a kind that resolves `absent` (`notes` / `cohort` with none) → one-line "not present" message, exit 0
-        - a `session-notes` resolution failure (ambiguous / unreadable dir) → the `error` path, not "not present"
-        - an unknown kind → error listing the valid kinds
-        - no resolvable WU context (no active meta, or multiple with no unique branch match) + a WU-scoped kind →
-          error listing the valid kinds
-        - no active WU + an identity-global kind (`working-memory`, `inbox`) → still resolves
-        - an identity-global kind with no resolved identity → error listing the valid kinds
+- _Outcome:_ Normal absence emits a one-line stdout message with exit 0; unknown kinds, unresolved WU/identity
+  context, unreadable files, and ambiguous or unreadable SESSION-NOTES directories use stderr and exit 1 while
+  teaching the valid kind set.
 
-### `[ ]` **1.4 Emit resolved content as plain stdout (non-TTY contract and plain fallback)**
+### `[x]` **1.4 Emit resolved content as plain stdout (non-TTY contract and plain fallback)**
 
 - _Goal:_ the resolved artifact's content writes to stdout as plain text with no pager spawn, no ANSI, and no hang
   under non-TTY — the baseline output path every render mode builds on.
 
-    - Reuse `isNonInteractiveEnvironment` (`src/handlers/shared.ts`) for TTY detection; generalize the
-      plain-vs-decorated routing idiom from `createSyncOutput` (`src/lib/sync-output.ts`) rather than reinventing it.
-    - Build `test-first` (one behavior at a time):
-        - non-TTY invocation writes the plain artifact body with no pager spawn
-        - piped stdin does not hang the invocation (an instance of the uniform non-interactive contract)
+- _Outcome:_ The handler writes the exact artifact body to stdout without ANSI or pager activity; direct subprocess
+  coverage verifies both real non-TTY output and prompt-free completion with piped stdin.
 
 ## **Phase 2:** Renderer resolution and pager composition
 
