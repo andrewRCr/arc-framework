@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "design-load-settle-point",
+  "origin": "description",
+  "intent": "Move assess-parallel-fit's design-load settle point to spec finalization (parked or advancing) with a hedged planning-stage-decay note; two-copy edit, no decay curve / stage vocabulary / CLI changes",
+  "branch": "fix/design-load-settle-point",
+  "createdAt": "2026-07-18T14:24:33.718Z",
+  "returnBranch": "main"
+}
