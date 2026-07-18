@@ -18,6 +18,23 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration
 > (`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **State the cascade doctrine: always route, never re-open**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: inbound-routing-method`), housekeep drain (2026-07-18);
+  captured at the storage-substrate grooming (2026-07-17).
+- *Concern:* planning passes that sharpen direction cascade into other WUs' state, and both failure modes are
+  traps: silent deferral ("it'll figure it out when next touched") loses the insight to rediscovery;
+  whole-backlog auditing wastes time/tokens re-examining everything out of context. ARC already runs a two-tier
+  damper that is the correct middle path but is nowhere stated as doctrine: **direction-level cascade →
+  check-docs** (update one doc; every affected WU self-checks at *its own* grooming with its own context loaded)
+  and **item-level cascade → inbound buffers/inbox** (a provenance-stamped few-line capture per affected WU —
+  push the notification now, defer holistic integration to that WU's next planning iteration). The residual
+  judgment is the routing decision itself (knowing who is affected), mitigated by the seams/compose-notes
+  discipline making affected-sets explicit before cascades happen.
+- *Fold-in:* state as doctrine at grooming — working formulation: *always route, never re-open* (re-opening
+  other WUs' bodies mid-pass is the audit trap; deferring without a written capture is the rediscovery trap; the
+  buffer entry is the only move avoiding both). Coordinate with `cross-wu-coordination`.
+
 ### `[ ]` **Codify the direct-edit-inbound-buffer vs. `arc-inbox` threshold on an always-loaded surface**
 
 - *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-14); captured during

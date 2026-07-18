@@ -31,6 +31,22 @@ post-trio architecture-remediation plans consume.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Name the schema kernel: one type authority for all structured surfaces**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-18);
+  captured at the storage-substrate grooming (2026-07-17).
+- *Concern:* ARC's typed surfaces are planned as islands — records (ADR-022), probe envelope, workflow
+  contracts/step vocabulary (`composable-workflows`), config schema (`scalable-core`), footer grammar,
+  `schema-introspection-layer` — with no named kernel they derive from. Swamp-style unification (one type
+  authority → validated config → typed queries) is the missing architectural element, not more code. Doctrine
+  line recorded in `strategy-procedure-evolution.md` § Target Model (2026-07-17): structure is typed or it isn't
+  structure; prose is reserved for judgment and communication.
+- *Fold-in:* at grooming, name the kernel as a deliverable: a single Zod schema module as sole type authority;
+  record classes, envelope slots, contracts, step vocabulary, and config axes derive from it; generated docs and
+  `arc schema` introspection expose it. Coordinate with `schema-introspection-layer` and `composable-workflows`
+  D1. Note: the ranked coupling list from `coupling-blast-radius-audit` (now a hard dep of this WU) identifies
+  which concrete-path assumptions the substrate layer must abstract — read it at grooming.
+
 ### `[ ]` **Auto-rebuild or gate on stale self-hosting CLI bundles**
 
 - *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during the FP wave-3 launch

@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | [TBD]     | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** `coupling-blast-radius-audit`
 
 - **Origin:** [internal]
 - **Design:** `draft-wu-lifecycle-state-model.md`

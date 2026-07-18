@@ -19,6 +19,22 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Record the engine-owned control-flow asymptote — as orientation, not intent**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-07-18);
+  captured during the architecture-direction discussion (2026-07-16); framing sharpened at drain.
+- _Concern:_ D3's agenda compiler still leaves the _agent_ executing control flow — the CLI emits a step list, the
+  agent self-drives. The logical conclusion of the model, if ever taken that far, is engine-owned control flow: a
+  resident `arc` process (realistically an MCP server exposing `next_step()` / `report_result()`) owning
+  sequencing, state, and interlock enforcement, delegating only judgment leaves to the agent — fully typed inside,
+  interlocks mechanically unbypassable. Costs: harness MCP dependence, a resident process, partial loss of the
+  transparent-markdown customization property. The agenda compiler is ~80% of the way there.
+- _Framing (explicit, per the drain):_ this is an **academic** asymptote, not a plan — record it in § Open
+  questions as the model's logical endpoint for orientation, **not** as roadmap intent: unscheduled, unplanned,
+  and quite possibly never pursued. Its practical content is the guard it implies, worth stating outright: markup
+  the agent interprets never grows control flow — deterministic semantics belong in the engine (the step
+  vocabulary staying small and closed is this discipline holding).
+
 ### `[ ]` **Update the session-init growth evidence and consume the interim schema extraction**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during FP wave-3 session-init.

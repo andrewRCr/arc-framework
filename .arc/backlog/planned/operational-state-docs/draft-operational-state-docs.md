@@ -13,6 +13,37 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Deterministic same-entry cross-WU notes merge (FP 5.4 fast-follow)**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-07-18);
+  captured at FP Task 5.4 disposition (2026-07-17). Decision record: `notes-finalize-parallelism.md` § Wave-3
+  seam-audit decisions; induction evidence in its § Wave-3 induction evidence (cell 5.2.b).
+- _Concern:_ FP's GA disposition accepts a documented limitation: `resolveCrossWuState`
+  (`lib/user-sync/merge.ts`) resolves divergent edits to the **same** `WORKING-MEMORY` / `USER-INBOX` entry by
+  wall-clock note recency — silently dropping one edit, machine-dependent under clock skew. FP cell 5.2.b
+  extended the exposure to removals: a different-entry removal pushed from a stale sibling copy resurrects the
+  other side's removed entry; only serialized pull-before-write prevents it structurally. Exposure is narrow
+  (genuinely-concurrent same-entry edits across worktrees, within `CROSS_WU_NOTE_WINDOW`) on recoverable
+  gitignored state — hence fast-follow, not GA gate.
+- _Fold-in:_ replace recency resolution: causal ordering where note commits are ancestry-orderable; a
+  deterministic tie-break (lexicographically-smallest annotated-commit SHA) where genuinely concurrent — never
+  wall-clock. Files: `lib/user-sync/merge.ts` (`resolveCrossWuState`), `lib/user-sync/notes-ref.ts`
+  (`readRecentUserNotes` / `CROSS_WU_NOTE_WINDOW`); extend the same treatment to removal/tombstone
+  reconciliation (the 5.2.b resurrection path). Weigh timing against the `arc-backend` substrate transition at
+  grooming (git-notes is keep-the-lights-on). Sibling piece: the push-reconcile entry-union capture routed to
+  `draft-sync-primitive-discipline.md` the same drain.
+
+### `[ ]` **Records serve a second projection consumer: renderers, not just markdown**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-07-18);
+  captured at the storage-substrate grooming (2026-07-17).
+- _Concern:_ view/HUD surfaces (`arc-view`, `status-hud`) are projections over the same record layer that renders
+  markdown — the record→projection interface should expose _queries a renderer consumes_ (typed reads of stage,
+  meta fields, task progress, entries), not only a markdown-emit path. Designing the interface single-consumer
+  would force the dashboard work to scrape the rendered markdown it sits beside.
+- _Fold-in:_ carry as a requirement on the record layer's read side; the ADR-022 record-canonical decision
+  already implies it — this makes the second consumer explicit.
+
 ### `[ ]` **Upgrade the linked-worktree user-surface signpost to the OSD content view**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-07-07);

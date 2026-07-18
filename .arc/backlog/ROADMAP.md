@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `0a6fc51f6`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `00e68c177`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,9 +13,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State    | Work unit            | Priority | Owner  | Depends on | Cohort            |
-| -------- | -------------------- | -------- | ------ | ---------- | ----------------- |
-| `Active` | finalize-parallelism | P1       | andrew | —          | agile-parallelism |
+| State         | Work unit            | Priority | Owner  | Depends on | Cohort            |
+| ------------- | -------------------- | -------- | ------ | ---------- | ----------------- |
+| `Integrating` | finalize-parallelism | P1       | andrew | —          | agile-parallelism |
 
 ## Ready
 
@@ -23,6 +23,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ------------------------------------- | -------- | ------ | ---------- | -------------------------- |
 | interlock-release-refinement          | P1       | andrew | —          | approval-flow-refinement   |
 | base-drift-guidance                   | P1       | andrew | —          | —                          |
+| coupling-blast-radius-audit           | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | pr-decomposition                      | P1       | andrew | —          | —                          |
 | recovery-hardening                    | P1       | andrew | —          | —                          |
@@ -31,13 +32,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | roadmap-tooling                       | P1       | andrew | —          | —                          |
 | session-locus-model                   | P1       | andrew | —          | —                          |
 | stub-mint-to-launch                   | P1       | andrew | —          | —                          |
-| wu-lifecycle-state-model              | P1       | andrew | —          | —                          |
 | composable-workflows                  | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition                   | P2       | andrew | —          | agent-context-optimization |
 | commit-increments                     | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization                | P2       | andrew | —          | architecture-remediation   |
 | naming-conventions                    | P2       | andrew | —          | doc-conventions            |
-| cli-substrate-adoption                | P2       | andrew | —          | —                          |
 | commit-message-ergonomics             | P2       | andrew | —          | —                          |
 | cross-wu-coordination                 | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine         | P2       | andrew | —          | —                          |
@@ -89,22 +88,29 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                         | Priority | Owner  | Depends on                            | Cohort                     |
 | --------------------------------- | -------- | ------ | ------------------------------------- | -------------------------- |
 | review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification | —                          |
+| wu-lifecycle-state-model          | P1       | andrew | coupling-blast-radius-audit           | —                          |
 | unit-scoped-review                | P2       | andrew | commit-increments                     | approval-flow-refinement   |
-| operational-state-docs            | P2       | andrew | cli-substrate-adoption                | —                          |
+| cli-substrate-adoption            | P2       | andrew | coupling-blast-radius-audit           | —                          |
 | documentation-surface-routing     | P3       | andrew | handoff-optimization                  | agent-context-optimization |
 | instruction-optimization          | P3       | andrew | composable-workflows                  | agent-context-optimization |
-| schema-introspection-layer        | P3       | andrew | cli-substrate-adoption                | architecture-remediation   |
 | workflow-template-loads           | P3       | andrew | composable-workflows                  | principle-anchored-core    |
 | docs-content-sweep                | P3       | andrew | docs-site-refresh                     | release-readiness          |
 | comprehension-preservation        | P3       | andrew | execution-delegation-doctrine         | —                          |
 
 ### Depth 2
 
-| Work unit                  | Priority | Owner  | Depends on                                                  | Cohort            |
-| -------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------- |
-| review-gate-github-adapter | P1       | andrew | review-gate-enforcement-promotion                           | —                 |
-| wu5-public-release         | P3       | andrew | docs-content-sweep                                          | release-readiness |
-| local-mode                 | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
+| Work unit                  | Priority | Owner  | Depends on                        | Cohort                   |
+| -------------------------- | -------- | ------ | --------------------------------- | ------------------------ |
+| review-gate-github-adapter | P1       | andrew | review-gate-enforcement-promotion | —                        |
+| operational-state-docs     | P2       | andrew | cli-substrate-adoption            | —                        |
+| schema-introspection-layer | P3       | andrew | cli-substrate-adoption            | architecture-remediation |
+| wu5-public-release         | P3       | andrew | docs-content-sweep                | release-readiness        |
+
+### Depth 3
+
+| Work unit  | Priority | Owner  | Depends on                                                  | Cohort |
+| ---------- | -------- | ------ | ----------------------------------------------------------- | ------ |
+| local-mode | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —      |
 
 ---
 

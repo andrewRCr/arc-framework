@@ -19,6 +19,37 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Materialize pollutes ROADMAP consistency; in-flight rows key on ephemeral refs**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
+  during FP wave-4 cross-machine burn-in (2026-07-17).
+- *Concern:* `arc materialize <slug>` regenerates the primary's `ROADMAP.md` to add the newly-in-flight row and
+  **stages it uncommitted** on `main`, where full protection forbids committing it — leaving the primary dirty
+  with no clean reconcile. Root cause is deeper: the project render sources In-Flight rows from **origin/remote
+  refs** (verified — removing the local branch + worktree left the row; only deleting the origin branch cleared
+  it), so any remote plan branch makes *every* worktree's ROADMAP "want" that row and trips the regen pre-commit
+  hook on a sibling worktree's next commit. Hit live: an FP-branch commit was blocked by a probe-c row FP never
+  authored. Distinct trigger from the merge-boundary ROADMAP conflict class in the entry below (that one is
+  concurrent renders diverging; this one is ref-sourced rows contaminating unrelated worktrees).
+- *Fold-in:* two coupled fixes to weigh at grooming — (1) materialize should not stage an uncommitted ROADMAP
+  regen on the primary (skip the regen, route it through a committed ceremony, or render on demand);
+  (2) reconsider whether In-Flight rows should derive from **tree metas** (committed, per-worktree coherent)
+  rather than ephemeral local/remote refs — the ref-sourced design is what makes an unrelated worktree's commit
+  depend on another WU's branch existing. Coordinate with the merge-driver entry below (same owner).
+
+### `[ ]` **The pinned-workspace need: project-level view surfaces under parallelism**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
+  at the storage-substrate grooming (2026-07-17).
+- *Concern:* the pre-parallelism operator workspace (editor pinned to USER-INBOX + ROADMAP + active task list)
+  broke under worktrees — state forks per checkout and files reopen on every swap. Per-WU context resolves via
+  `arc-view`/`status-hud` (cwd-resolved); the *project-level* slice (roadmap/status, inbox) is this WU's render
+  surface.
+- *Fold-in:* note as a demand signal + forward-compat door — keep the door open for a project-status view/watch
+  surface (e.g. `arc status --project` piped or `--watch`), driven by usage evidence, not committed v1 scope.
+  Non-overlap holds (`arc view` never grows a project renderer); coordinate verb semantics with the `status-hud`
+  stub (status/HUD family vs. artifact-view family, settled 2026-07-17).
+
 ### `[ ]` **Merge-driver ownership for ROADMAP conflict auto-resolve**
 
 - *Routed from:* residual of the 2026-07-15 pull-back errand `hook-roadmap-conflict-auto-remedy` (inbox capture

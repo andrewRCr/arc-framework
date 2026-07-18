@@ -21,6 +21,52 @@ members consume.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Fold delegation-log field findings into the doctrine**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
+  (2026-07-18); captured at the delegation-log evidence review (2026-07-16). Raw evidence:
+  `.claude/agents/delegation-log.md` (gitignored pointer).
+- *Concern:* five logged runs (2026-07-16) validate the core split — stop-and-report worked end-to-end on the
+  `harden-concurrent-init` dispatch (pre-edit stop on a structural conflict the dispatch missed, one round trip,
+  clean second run, exemplary boundary behavior) — and sharpen the design six ways: (1) **bilateral
+  fit-checking** — the worker-side dispatch-completeness gate caught what the primary's rubric read missed;
+  promote it from profile prose into the doctrine (primary asserts the four-flow rubric at dispatch; worker
+  verifies completeness before editing). (2) **The per-dispatch contract is a first-class deliverable** beside the
+  profile slice: exact current loci (81k-token clean run with them, 527k package-wide search without), how the
+  affected test harness exercises the touched surface (virtual vs. real fs), non-goals, gates, stop conditions,
+  and an output-brevity expectation for read work. (3) **Role taxonomy keys on contract shape, not capability** —
+  two runs were read-only consult/derivation work executed through the worker's zero-design contract at high tier;
+  the shape set is edit-bearing zero-judgment worker / read-only consult / parity peer, and the open-set-of-
+  profiles extension should name it. (4) **The explicit-activation invariant needs a per-harness carrier** — both
+  consult reaches were *unprompted* on Codex (profiles carry no instructions; a subprocess call has no spawn
+  salience); prose discipline without a generated carrier does not bind, and profile-set completeness is a
+  steering surface — a missing right-shaped profile produces off-label reaching, not abstinence. Interim
+  WORKING-MEMORY carrier in place. (5) **Floors must not assume per-spawn harness sandboxing** — three Codex runs
+  resolved `disabled`/`danger-full-access` despite requesting `workspace-write`; the behavioral contract plus
+  primary diff-verification is the effective boundary, and adapters should verify and log resolved sandbox per
+  spawn. (6) **Economics remain open pending normalization** — raw token counts are not cost; the log now records
+  a cost basis. Qualitative shape: margin lives in bulk-mechanical work with precise dispatches; verification was
+  real-review in all five first-instance runs, consistent with delegate-the-Nth-never-the-1st.
+- *Fold-in:* integrate at the same grooming pass as the model-tier-routing entry below; the log carries the raw
+  evidence.
+
+### `[ ]` **Errand-runner delegation profile — preconditions from the FP batch-shape decision**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
+  (2026-07-18); captured at FP Task 5.3 weigh-in (2026-07-17). Decision record: `notes-finalize-parallelism.md`
+  § Wave-3 seam-audit decisions.
+- *Concern:* FP demoted the orchestrated errand drain (primary dispatches errand executions to subagents on
+  isolated branches) to a preconditioned escalation rather than building it: feasibility is demonstrated
+  (delegated errand PR #275) but the fit is structurally poor today. Three preconditions are this WU's to own:
+  (1) **eligibility** — much errand work fails arc-worker's fully-specified / zero-design bar by design (errands
+  sit below spec-worthiness, not below judgment), so a distinct errand-scoped runner profile with its own
+  governing contract is required, not the worker profile off-label; (2) **non-interactive gate handling** — a
+  dispatched errand increment must surface its approval gate without an interactive session; (3) **observability
+  parity** — an errand's deliverable ≈ the subagent's scope, so all feedback crosses the primary as a relay hop,
+  and subagent interaction affordances are harness-variant (cf. the Codex carrier gap in the sibling entry above).
+- *Fold-in:* same grooming pass as the delegation-log entry — the errand-runner profile joins the role-taxonomy
+  shape set (edit-bearing worker / read-only consult / parity peer) as the errand-scoped contract.
+
 ### `[ ]` **Extend the delegation doctrine with model-tier routing under parallelism**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
