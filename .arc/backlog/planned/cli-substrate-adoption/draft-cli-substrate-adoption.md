@@ -256,6 +256,33 @@ post-trio architecture-remediation plans consume.
   model (async-tolerant, query/batch-shaped, no retained AST object identity) and pin TS 6 only at that port.
   The repo toolchain stays on 6.x meanwhile (condition-gated migration tracked in `ATOMIC-INBOX`).
 
+### `[ ]` **Review coupling-audit finding: tracked-planning Git operations**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-18);
+  captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- *Concern:* direct tracked-planning Git operations remain a low-fan-out but high-volatility mechanism that the
+  CLI verb substrate is intended to replace.
+- *Approach:* groom the four-file evidence set as explicit verb-adoption scope and verify no direct operation
+  survives the boundary.
+- *Packet:* `packet-77df5c8e478dd5711fd41ba3`; content digest
+  `6c922e150f627059e77921c8082e8816a3e0e1a8bb2428b68a5f4bf68b98e6bf`.
+- *Evidence:* `tracked-planning-git-operations`; `scan-result.json#class-tracked-planning-git-operations`.
+
+### `[ ]` **Review coupling-audit finding: substrate abstraction input**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-18);
+  captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- *Concern:* fifteen abstract concrete-path classes require one resolver/substrate ownership decision rather than
+  independent path-literal migrations.
+- *Approach:* use the mandatory substrate extract at grooming to define resolver responsibilities and consciously
+  accept or reject each linked class.
+- *Packet:* `packet-9fd430233e343d1a3fb3157e`; content digest
+  `c70fd08914ff9992c42b659f6781ae2fd40dd36d51538f1dbc871b254d4a8426`.
+- *Evidence:* `active-placement`, `arc-root`, `completed-placement`, `draft-prefix`, `meta-prefix`, `method-root`,
+  `notes-prefix`, `planned-placement`, `roadmap-name`, `session-notes-name`, `spec-prefix`, `tasks-prefix`,
+  `template-suffix`, `workflow-root`, and `working-memory-name`; extract `reportInputs.substrateAbstractions`;
+  corresponding `scan-result.json#class-*` anchors.
+
 ---
 
 ## Problem / Motivation

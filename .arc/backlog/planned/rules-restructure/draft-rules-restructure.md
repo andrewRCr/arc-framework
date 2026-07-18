@@ -51,6 +51,17 @@
   doesn't reintroduce `DOMAIN-RULES.TESTING` in conflict. The domain-rule mechanism stays scoped to occasional
   domains; the near-universal/occasional split is the selection criterion worth recording.
 
+### `[ ]` **Review coupling-audit finding: domain-rules name**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: rules-restructure`), housekeep drain (2026-07-18);
+  captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- _Concern:_ the domain-rules name is an abstract 78-file document-family assumption.
+- _Approach:_ at grooming, establish the target rule-family access path and use the canonical class evidence to
+  bound the cascade.
+- _Packet:_ `packet-297d2244598b0bafebe59474`; content digest
+  `5165eeef557a46ea0b45e794eeb5f4807d89160764bd4acc425cf9e20e63bb0a`.
+- _Evidence:_ `domain-rules-name`; `scan-result.json#class-domain-rules-name`.
+
 ---
 
 ## Problem / Motivation
