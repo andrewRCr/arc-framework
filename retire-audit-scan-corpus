@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "retire-audit-scan-corpus",
-  "origin": "description",
-  "intent": "Retire the 63MB coupling-audit scan corpus from the tracked tip; leave digest-pinned retrieval pointer",
-  "branch": "chore/retire-audit-scan-corpus",
-  "createdAt": "2026-07-18T23:14:53.887Z",
-  "returnBranch": "main"
-}
