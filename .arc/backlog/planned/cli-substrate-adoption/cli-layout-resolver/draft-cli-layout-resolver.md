@@ -7,6 +7,26 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Align layout-token ownership with the cohort contract**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: cli-layout-resolver`), housekeep drain (2026-07-19); captured
+  during `cli-schema-kernel` task-generation grounding audit, Phase 2.
+- _Observation:_ the draft's two-layer contract says `cli-schema-kernel` owns placements, prefixes, and stable record
+  identities. The settled kernel boundary and cohort contract instead give the kernel only neutral shared vocabulary,
+  assign placement/prefix/suffix/path-token schemas to `cli-layout-resolver`, and keep subsystem record identities
+  with their semantic owners. Leaving the broader sentence in place would make the layout spec depend on kernel
+  exports that will not exist.
+- _Approach:_ during `cli-layout-resolver` spec formalization, make the resolver own its validated layout tokens and
+  compose only neutral kernel primitives such as the branded `Slug`; remove the expectation that the kernel exports
+  placements, prefixes, or subsystem record identities.
+- _Touches:_ `draft-cli-layout-resolver.md` § Two-layer contract, `cohort-cli-substrate-adoption.md` § Shared
+  contracts, and `spec-cli-schema-kernel.md` § Shared primitives.
+
 ## Problem / Motivation
 
 ARC layout knowledge is repeated across hundreds of code and test references. Callers concatenate directory
