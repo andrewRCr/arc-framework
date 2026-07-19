@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "prune-completed-atomic-inbox",
-  "origin": "description",
-  "intent": "Remove completed execute-now entries from the shared atomic inbox",
-  "branch": "chore/prune-completed-atomic-inbox",
-  "createdAt": "2026-07-19T02:06:37.373Z",
-  "returnBranch": "main"
-}
