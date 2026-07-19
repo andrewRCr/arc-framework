@@ -155,6 +155,7 @@ placement is proved from the Actions jobs API's runner names and labels, not bil
 | [29705287961](https://github.com/andrewRCr/arc-framework/actions/runs/29705287961) | `c2666d3b2` | 2        | yes                   | no               | 2026-07-19 21:57:57 | 2026-07-19 22:00:52    | 2m55s   | attempt 1 self-hosted; attempt 2 hosted Linux | no       | planned fallback: cancelled first attempt, hosted light rerun passed |
 | [29706274349](https://github.com/andrewRCr/arc-framework/actions/runs/29706274349) | `0889fa255` | 1        | yes                   | yes              | 2026-07-19 22:30:35 | 2026-07-19 22:33:48    | 3m13s   | 0 self-hosted Linux; 11 hosted Linux          | no       | success; planned hosted rebuild window                               |
 | [29706622340](https://github.com/andrewRCr/arc-framework/actions/runs/29706622340) | `e183ddd8e` | 1        | yes                   | yes              | 2026-07-19 22:42:11 | 2026-07-19 22:46:09    | 3m58s   | 11 self-hosted Linux; 0 hosted Linux          | yes      | success                                                              |
+| [29707373193](https://github.com/andrewRCr/arc-framework/actions/runs/29707373193) | `a10b3f670` | 2        | yes                   | no               | 2026-07-19 23:06:45 | 2026-07-19 23:18:16    | 11m31s  | attempt 1 unassigned; attempt 2 hosted Linux  | no       | external GitHub TLS expiry; hosted light rerun passed                |
 
 #### Per-attempt Linux job ledger
 
@@ -224,6 +225,39 @@ have no runner and no meaningful derived duration.
 | 29706622340 / 1 | E2E Tests (3)                            | 22:42:50 / 22:45:10 / 22:45:51      | 140/41  | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
 | 29706622340 / 1 | ci-ok                                    | 22:46:00 / 22:46:02 / 22:46:04      | 2/2     | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
 | 29706622340 / 1 | merge-ok                                 | 22:46:05 / 22:46:06 / 22:46:09      | 1/3     | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29707373193 / 1 | Classify lane & weight                   | 23:06:46 / 23:06:46 / 23:09:20      | —       | —                | `arc-ci-linux`  | cancelled |
+| 29707373193 / 1 | Shared setup                             | 23:09:21 / 23:09:21 / 23:09:20      | —       | —                | `arc-ci-linux`  | cancelled |
+| 29707373193 / 1 | Lint & Typecheck                         | 23:09:21 / 23:09:21 / 23:09:21      | —       | —                | `arc-ci-linux`  | cancelled |
+| 29707373193 / 1 | Portability (concurrency guards) (linux) | 23:09:21 / 23:09:21 / 23:09:21      | —       | —                | `arc-ci-linux`  | cancelled |
+| 29707373193 / 1 | Unit Tests                               | 23:09:21 / 23:09:21 / 23:09:21      | —       | —                | `arc-ci-linux`  | cancelled |
+| 29707373193 / 1 | Integration Tests                        | 23:09:21 / 23:09:21 / 23:09:21      | —       | —                | `arc-ci-linux`  | cancelled |
+| 29707373193 / 1 | E2E Tests                                | 23:09:21 / 23:09:21 / 23:09:21      | —       | —                | `arc-ci-linux`  | cancelled |
+| 29707373193 / 1 | ci-ok                                    | 23:09:21 / 23:09:21 / 23:09:21      | —       | —                | `arc-ci-linux`  | cancelled |
+| 29707373193 / 1 | merge-ok                                 | 23:09:21 / 23:09:21 / 23:12:23      | —       | —                | `arc-ci-linux`  | cancelled |
+| 29707373193 / 2 | Classify lane & weight                   | 23:16:23 / 23:16:25 / 23:16:37      | 2/12    | hosted           | `ubuntu-latest` | success   |
+| 29707373193 / 2 | Lint & Typecheck                         | 23:16:38 / 23:16:40 / 23:16:59      | 2/19    | hosted           | `ubuntu-latest` | success   |
+| 29707373193 / 2 | Shared setup                             | 23:16:38 / 23:16:38 / 23:16:37      | —       | —                | `ubuntu-latest` | skipped   |
+| 29707373193 / 2 | Portability (concurrency guards) (linux) | 23:16:38 / 23:16:38 / 23:16:38      | —       | —                | `ubuntu-latest` | skipped   |
+| 29707373193 / 2 | Unit Tests                               | 23:16:38 / 23:16:38 / 23:16:38      | —       | —                | `ubuntu-latest` | skipped   |
+| 29707373193 / 2 | Integration Tests                        | 23:16:38 / 23:16:38 / 23:16:38      | —       | —                | `ubuntu-latest` | skipped   |
+| 29707373193 / 2 | E2E Tests                                | 23:16:38 / 23:16:38 / 23:16:38      | —       | —                | `ubuntu-latest` | skipped   |
+| 29707373193 / 2 | ci-ok                                    | 23:18:03 / 23:18:06 / 23:18:09      | 3/3     | hosted           | `ubuntu-latest` | success   |
+| 29707373193 / 2 | merge-ok                                 | 23:18:10 / 23:18:13 / 23:18:16      | 3/3     | hosted           | `ubuntu-latest` | success   |
+
+#### External GitHub TLS incident
+
+- **Boundary and impact:** `tokenghub.actions.githubusercontent.com` presented a leaf certificate expiring at
+  2026-07-19 23:05:54Z. Runner 1 first logged `NotTimeValid` at 23:06:47Z and runner 2 at 23:07:48Z; both then
+  rejected token and job-acquisition requests, so run 29707373193's classifier remained unassigned until fallback.
+- **Host exclusion evidence:** the host clock remained NTP-synchronized with 0.000143-second offset, both services
+  stayed active without a systemd restart, both runner registrations remained online, and the endpoint failed an
+  independent `curl`/OpenSSL validity check with certificate-expired code 60/10. Other GitHub TLS endpoints
+  presented valid chains.
+- **Recovery and classification:** switched `ARC_CI_LINUX_RUNNER` to `ubuntu-latest`, cancelled the stalled attempt,
+  and reran the exact PR head. Attempt 2 completed its verified-tree lane and `merge-ok` on hosted runners. The
+  certificate remained expired at 23:19Z while GitHub Status reported all systems operational and no July 19
+  incident, so routing stays hosted pending certificate rotation and a bounded self-hosted requalification. This is
+  an explained external GitHub service outage, not a host, service, toolchain, or workspace-residue failure.
 
 #### Cost and retention baseline
 
@@ -241,8 +275,9 @@ have no runner and no meaningful derived duration.
 - **Canary window / qualifying sample count:** opened 2026-07-19 21:49:27Z; 2/20 qualifying heavy PR runs; elapsed
   floor 0/7 days; earliest possible close 2026-07-26 21:49:27Z if the run floor is also met
 - **`merge-ok` p95:** provisional 4m01s at N=2 (nearest-rank position 2); not an acceptance result before both floors
-- **Runner-caused flakes:** 0 provisional; the cancelled fallback attempt is planned recovery evidence, not a flake
-- **Unexplained offline stalls:** 0 provisional
+- **Runner-caused flakes:** 0 provisional; cancellations are planned fallback or explained external GitHub expiry
+- **Unexplained offline stalls:** 0 provisional; the unassigned 29707373193 attempt is explained by the expired
+  GitHub token-endpoint certificate and excluded from the latency sample
 - **Telemetry/log coverage through decision:** current with 60-day projected retention; recheck during collection
 - **Self-hosted and fallback Actions cost evidence:** aggregate baseline recorded above; final delta pending
 - **Provider cost evidence:** $10 monthly baseline recorded; final billed cross-check pending
