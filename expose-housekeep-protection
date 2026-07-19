@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "expose-housekeep-protection",
-  "origin": "description",
-  "intent": "Return resolved branch protection from housekeep write-context checks",
-  "branch": "fix/expose-housekeep-protection",
-  "createdAt": "2026-07-19T00:48:58.145Z",
-  "returnBranch": "main"
-}
