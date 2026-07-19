@@ -10,6 +10,19 @@
 import type { GitExec } from "../../lib/git/index.js";
 import type { PlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
 
+export {
+  PrioritySchema,
+  WORK_UNIT_STATE_ORDER,
+  WorkClassSchema,
+  WorkUnitStateSchema,
+  validateClass,
+  validatePriority,
+  validateState,
+  type Priority,
+  type WorkClass,
+  type WorkUnitState,
+} from "../../lib/kernel/index.js";
+
 /**
  * Directory layout discovered on disk.
  *
@@ -25,115 +38,6 @@ export type ActiveLayout = "full" | "lite";
 
 /** Resolution state of the session-init-scoped probe. */
 export type ActiveSessionInitResolution = "none" | "single" | "multiple";
-
-/**
- * Codified work-unit lifecycle states — one value per phase of the state
- * machine: Planning → Active → Integrating → Shipped. Branch creation and
- * commitment level (provisional vs planned) live elsewhere (branch
- * existence and `backlog/` subdirectory), not in State.
- */
-export type WorkUnitState = "Planning" | "Active" | "Integrating" | "Shipped";
-
-/** Lifecycle `State` progression used only after ancestry cannot order two candidates. */
-export const WORK_UNIT_STATE_ORDER: Readonly<Record<WorkUnitState, number>> = {
-  Planning: 0,
-  Active: 1,
-  Integrating: 2,
-  Shipped: 3,
-};
-
-/**
- * Narrow a raw `**State:**` field value to the codified `WorkUnitState`
- * enum. Anything unrecognized — including `null`, the empty string, and
- * whitespace-only — returns `"unknown"`.
- *
- * Parsers (`parseMetaFile`, meta-field readers) return the raw `State`
- * string verbatim; callers that need enum narrowing import and apply
- * `validateState` explicitly.
- *
- * @param s - Raw `**State:**` field value, or `null` when absent.
- * @returns The narrowed `WorkUnitState`, or `"unknown"` when the input
- *   does not match a codified value.
- */
-export function validateState(s: string | null): WorkUnitState | "unknown" {
-  if (s === null) return "unknown";
-  switch (s) {
-    case "Planning":
-    case "Active":
-    case "Integrating":
-    case "Shipped":
-      return s;
-    default:
-      return "unknown";
-  }
-}
-
-/**
- * Codified per-WU attention levels for triaging a multi-in-flight worklist:
- * `P1` (top focus) → `P2` (elevated) → `P3` (baseline). `P3` is the default —
- * there is no `P0` (its stop-the-world connotation misfits a standing scale).
- */
-export type Priority = "P1" | "P2" | "P3";
-
-/**
- * Narrow a raw `**Priority:**` field value to the codified `Priority` enum.
- * Unlike {@link validateState}, this never reports failure: anything
- * unrecognized — `null`, the empty string, `[none]`, an out-of-range level
- * (`P0`, `P5`), or any malformed input — resolves to the `P3` baseline, so
- * callers always get a usable level for sort and render.
- *
- * Parsers return the raw `Priority` string verbatim; callers that need enum
- * narrowing import and apply `validatePriority` explicitly.
- *
- * @param p - Raw `**Priority:**` field value, or `null` when absent.
- * @returns The narrowed `Priority`, defaulting to `"P3"`.
- */
-export function validatePriority(p: string | null): Priority {
-  switch (p) {
-    case "P1":
-    case "P2":
-    case "P3":
-      return p;
-    default:
-      return "P3";
-  }
-}
-
-/**
- * Codified work-unit weight — the recorded `Class`. `Light` / `Heavy` /
- * `Novel` are the resolved values; a WU carries the `[TBD]` sentinel until it
- * is classified. Indicates intrinsic demand across planning, execution, and
- * review — distinct from the quality-gate tier.
- */
-export type WorkClass = "Light" | "Heavy" | "Novel";
-
-/**
- * Narrow a raw `**Class:**` field value to the codified `WorkClass`, or the
- * `[TBD]` pre-classification sentinel. Matching is case-insensitive — the field
- * has historical lowercase values across metas — so `light` / `Light` resolve
- * to `Light`, `heavy` / `Heavy` to `Heavy`, and `novel` / `Novel` to `Novel`.
- * Everything else — `null`, the empty string, `[TBD]`, or any unrecognized token
- * — resolves to `[TBD]`, so an unclassified or absent value renders as the
- * sentinel rather than throwing.
- *
- * Parsers return the raw `Class` string verbatim; callers that need the display
- * form import and apply `validateClass` explicitly.
- *
- * @param c - Raw `**Class:**` field value, or `null` when absent.
- * @returns The narrowed `WorkClass`, or `"[TBD]"` when unclassified or absent.
- */
-export function validateClass(c: string | null): WorkClass | "[TBD]" {
-  switch (c?.trim().toLowerCase()) {
-    case "light":
-      return "Light";
-    case "heavy":
-      return "Heavy";
-    case "novel":
-      return "Novel";
-    default:
-      return "[TBD]";
-  }
-}
 
 /**
  * Resolved session type — drives session-init's per-type loadset (Step 3

@@ -10,14 +10,21 @@
  */
 
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export function setup(): void {
-  if (process.env.ARC_E2E_SKIP_BUILD === "1") return;
   const packageRoot = resolve(
     dirname(fileURLToPath(import.meta.url)),
     "../..",
   );
-  execSync("npm run build", { cwd: packageRoot, stdio: "inherit" });
+  if (process.env.ARC_E2E_SKIP_BUILD !== "1") {
+    execSync("npm run build", { cwd: packageRoot, stdio: "inherit" });
+  }
+  for (const artifact of ["dist/cli.js", "dist/schemas/kernel.json"]) {
+    if (!existsSync(resolve(packageRoot, artifact))) {
+      throw new Error(`${artifact} missing; build the CLI before running E2E tests`);
+    }
+  }
 }
