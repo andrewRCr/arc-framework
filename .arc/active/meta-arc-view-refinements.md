@@ -5,13 +5,13 @@
 | `Planning` | `andrew`  | `plan/arc-view-refinements` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** [none]
+- **Depends On:** cli-schema-kernel
 
 - **Origin:** [internal]
-- **Design:** draft-arc-view-refinements.md
+- **Design:** `spec-arc-view-refinements.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
