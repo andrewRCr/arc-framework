@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "groom-inbox-drain-2026-07-19",
-  "origin": "description",
-  "intent": "groom-inbox-drain-2026-07-19",
-  "branch": "chore/groom-inbox-drain-2026-07-19",
-  "createdAt": "2026-07-19T00:31:42.236Z",
-  "returnBranch": "main"
-}
