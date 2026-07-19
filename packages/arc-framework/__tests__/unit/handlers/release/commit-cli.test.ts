@@ -5,7 +5,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough, Writable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createSpawnGit } from "../../../../src/handlers/release/commit-cli.js";
+import { createSpawnGit, stripNoWrap } from "../../../../src/handlers/release/commit-cli.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -85,5 +85,22 @@ describe("createSpawnGit", () => {
       stdin: Buffer.from("message"),
     })).rejects.toThrow("stdin write failed");
     expect(proc.killed).toBe(true);
+  });
+});
+
+describe("stripNoWrap", () => {
+  it("strips only the wrapper's leading escape hatch", () => {
+    expect(stripNoWrap(["--no-wrap", "-m", "subject"])).toEqual({
+      argv: ["-m", "subject"],
+      wrap: false,
+    });
+  });
+
+  it.each([
+    ["-m", "--no-wrap"],
+    ["-F", "--no-wrap"],
+    ["--", "--no-wrap"],
+  ])("preserves --no-wrap when it is a Git operand in %j", (...args) => {
+    expect(stripNoWrap(args)).toEqual({ argv: args, wrap: true });
   });
 });

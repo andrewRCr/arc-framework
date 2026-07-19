@@ -14,8 +14,10 @@ import { tmpdir } from "node:os";
 
 import {
   detectStagedForeignWrites,
+  filterOriginatingOracleWarnings,
   formatForeignWriteAdvisories,
   formatForeignWriteWarnings,
+  resolveStagedOriginatingWorkUnit,
   selectForeignWriteCandidates,
 } from "../../../src/scripts/check-foreign-writes.js";
 import type { OverlapRoster } from "../../../src/lib/git/foreign-artifact-detection.js";
@@ -113,6 +115,21 @@ afterEach(async () => {
   await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
+describe("resolveStagedOriginatingWorkUnit", () => {
+  it.each([
+    ["missing metadata title", "- **State:** Active\n"],
+    ["mismatched metadata title", "# Metadata: other\n\n- **State:** Active\n"],
+    ["missing lifecycle state", "# Metadata: self\n"],
+  ])("rejects staged content with %s", async (_case, content) => {
+    const metaPath = ".arc/active/meta-self.md";
+    const exec = buildExec({
+      [`show :${metaPath}`]: { stdout: content, stderr: "" },
+    });
+
+    await expect(resolveStagedOriginatingWorkUnit(exec, [metaPath])).resolves.toBeUndefined();
+  });
+});
+
 describe("selectForeignWriteCandidates", () => {
   it("keeps work-unit movable artifacts and drops cohort docs and code", () => {
     const result = selectForeignWriteCandidates([
@@ -167,6 +184,32 @@ describe("formatForeignWriteAdvisories", () => {
       "feat/wu-a also touches .arc/active/meta-wu-a.md (/repo.wu-a)",
     ]);
   });
+
+  it("drops stale oracle warnings for the staged originating work unit only", () => {
+    const warnings = [
+      {
+        code: "stale-location-dropped" as const,
+        branch: "plan/self",
+        workUnit: "self",
+        rendered: "stale self",
+      },
+      {
+        code: "stale-location-dropped" as const,
+        branch: "plan/other",
+        workUnit: "other",
+        rendered: "stale other",
+      },
+      {
+        code: "input-snapshot-disagreement" as const,
+        rendered: "snapshot changed",
+      },
+    ];
+
+    expect(filterOriginatingOracleWarnings(warnings, "self")).toEqual([
+      warnings[1],
+      warnings[2],
+    ]);
+  });
 });
 
 describe("resolveOriginatingMetaPath", () => {
@@ -189,6 +232,24 @@ function rosterOf(...entries: OverlapRoster["entries"]): OverlapRoster {
 }
 
 describe("detectStagedForeignWrites", () => {
+  it("self-excludes the staged originating work-unit name before probing", async () => {
+    const result = await detectStagedForeignWrites({
+      exec: throwingExec,
+      roster: rosterOf({
+        branch: "origin/plan/self",
+        name: "self",
+        metaFilePath: ".arc/active/meta-self.md",
+        state: "Planning",
+      }),
+      paths: [".arc/active/meta-self.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+      originatingWorkUnitName: "self",
+    });
+
+    expect(result).toEqual({ overlaps: [] });
+  });
+
   it("skips an indeterminate entry with an advisory note", async () => {
     const result = await detectStagedForeignWrites({
       exec: throwingExec,

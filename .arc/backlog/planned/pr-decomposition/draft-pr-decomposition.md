@@ -24,7 +24,9 @@
   cardinality and usage policy remain unsettled. More PRs must not automatically multiply expensive review passes.
 - _Approach:_ settle which deliverables auto-admit versus wait for checkpoints, where independent/adversarial
   review runs, and how findings and approvals compose without one PR erasing another's evidence. Preserve each
-  deliverable's truthful `merge-ok` while keeping WU-terminal aggregation outside `ReviewCore`.
+  deliverable's truthful `merge-ok` while keeping WU-terminal aggregation outside `ReviewCore`. Sequence this
+  WU's design behind `review-architecture` so the settled, topology-neutral review-obligation contract is an
+  input rather than a duplicated decision; record that dependency at the next grooming pass.
 
 ### `[ ]` **Coordinate adversarial verify cardinality and partition criteria**
 
@@ -49,6 +51,26 @@
   unit`, the spec form, `generate-tasks`, and integration — but omits this method).
 
 ---
+
+### `[ ]` **Carry the assurance-group contract into PR decomposition (own the full seam algebra)**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: pr-decomposition`), housekeep drain (2026-07-19); captured
+  during `review-architecture` draft-design joint reconciliation (2026-07-18), then re-scoped and enriched at
+  `review-architecture`'s `create-spec` re-examination (2026-07-19).
+- _Concern (ownership corrected 2026-07-19):_ `review-architecture` separates PR cardinality from independent-review
+  cardinality and, at its `create-spec` re-examination, judged the full multi-PR assurance-group / seam /
+  series-membership algebra overengineered _for that WU_ and ahead of this WU's settled delivery shape — so it
+  **extracted the algebra and routed it here as inherited input**, inverting the 2026-07-18 ownership. This WU now
+  owns the full **assurance-group / seam / series-membership algebra** (group target/evidence derivation, generated
+  seam ownership/proof semantics, terminal aggregation) plus its own delivery mechanics (delivery refs,
+  cumulative-carrier shape, merge-consumption proof, assurance-plan placement, frontline placement, stack
+  orchestration). `review-architecture` retains only the single-deliverable obligation contract, the no-weakening
+  principle, and the per-requirement projection seam.
+- _Fold-in:_ at draft-design, author the ordered assurance plan at the same `generate-tasks` boundary as merge
+  seams. **Consume the inherited algebra — do not re-derive it** — validating each rule against this WU's settled
+  delivery mechanics rather than adopting it wholesale. The full verbatim algebra (joint assurance plan +
+  gate-projection group/member/seam contract) is preserved in `notes-pr-decomposition.md`. Add
+  `Depends On: review-architecture` before launch.
 
 ## Problem / Motivation
 

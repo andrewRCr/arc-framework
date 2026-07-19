@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CLI_PATH } from "../helpers/cli-spawn.js";
 import { runCli } from "../helpers/run-cli.js";
+import { assembleCommitMessageParagraphs } from "../../src/lib/release/commit-message-assembly.js";
 import { cleanupTempDir, createTempRepo } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -32,6 +33,13 @@ function shellQuote(value: string): string {
 
 async function installHook(name: string, lines: readonly string[]): Promise<void> {
   const path = join(repository, ".git", "hooks", name);
+  await writeFile(path, ["#!/bin/sh", ...lines, ""].join("\n"));
+  await chmod(path, 0o755);
+}
+
+async function installHuskyDispatcher(name: string, lines: readonly string[]): Promise<void> {
+  const path = join(repository, ".husky", "_", name);
+  await mkdir(join(repository, ".husky", "_"), { recursive: true });
   await writeFile(path, ["#!/bin/sh", ...lines, ""].join("\n"));
   await chmod(path, 0o755);
 }
@@ -190,6 +198,29 @@ describe("release commit hook ordering", () => {
     expect(await readHookLog()).toEqual([]);
   });
 
+  it("ignores a bare Husky dispatcher shim and refuses before pre-commit", async () => {
+    await git(["config", "core.hooksPath", ".husky/_"]);
+    await installHuskyDispatcher("pre-commit", [
+      'printf "%s\\n" pre-commit >> "$ARC_HOOK_LOG"',
+    ]);
+    await installHuskyDispatcher("prepare-commit-msg", [
+      'printf "%s\\n" prepare-commit-msg >> "$ARC_HOOK_LOG"',
+    ]);
+    await installHuskyDispatcher("commit-msg", [
+      'printf "%s\\n" commit-msg >> "$ARC_HOOK_LOG"',
+      `exec node ${shellQuote(CLI_PATH)} check commit-msg "$1"`,
+    ]);
+
+    const result = await runCli(["release", "commit", "-m", "short"], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+
+    expect(result.exitCode).toBe(16);
+    expect(result.stderr).toContain("Commit validation FAILED");
+    expect(await readHookLog()).toEqual([]);
+  });
+
   it("retains Git's ordinary pre-commit then commit-msg order for a valid message", async () => {
     const result = await runCli([
       "release",
@@ -294,6 +325,48 @@ it.runIf(process.platform !== "win32")("terminates a blocked shell helper", asyn
 });
 
 describe("release commit byte preservation", () => {
+  it("persists a wrap-corrected file retry that validates without mutating its source", async () => {
+    await writeFile(join(repository, ".arc", "system", "arc-config.yml"), [
+      "branch.base: main",
+      "branch.protection: partial",
+      "hooks.commit_msg: enabled",
+      "hooks.body_max_line_length: 60",
+      "commit.format: conventional",
+      "commit.context_footer: disabled",
+      "commit.custom_pattern:",
+      "commit.context_pattern:",
+      "",
+    ].join("\n"));
+    const sourcePath = join(repository, "message.txt");
+    const source = [
+      "feat(release): persist a corrected retry",
+      "",
+      "This ordinary paragraph is deliberately long enough to exceed the configured body width before wrapping.",
+      "",
+    ].join("\n");
+    await writeFile(sourcePath, source);
+
+    const first = await runCli(["release", "commit", "-F", sourcePath], { cwd: repository });
+
+    const gitDir = await gitOutput(["rev-parse", "--absolute-git-dir"]);
+    const retryPath = join(gitDir, ".arc-release-commit-message-retry");
+    const corrected = await readFile(retryPath, "utf8");
+    expect(first.exitCode).toBe(16);
+    expect(first.stderr).toContain(`arc release commit -F ${shellQuote(retryPath)}`);
+    expect(corrected).not.toBe(source);
+    expect(await readFile(sourcePath, "utf8")).toBe(source);
+
+    const second = await runCli(["release", "commit", "-F", retryPath], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+
+    expect(second.exitCode).toBe(0);
+    expect(await gitOutput(["log", "-1", "--format=%B"])).toBe(corrected.trimEnd());
+    await expect(access(retryPath)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(sourcePath, "utf8")).toBe(source);
+  });
+
   it.runIf(process.platform !== "win32")(
     "replays quoted-heredoc bytes from the emitted retry path and removes it on success",
     async () => {
@@ -419,5 +492,85 @@ describe("release commit byte preservation", () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("latest commit-message retry could not be persisted");
     expect(result.stderr).not.toContain("arc release commit -F '");
+  });
+});
+
+describe("release commit body wrapping", () => {
+  const WIDTH = 60;
+
+  async function writeWrapConfig(): Promise<void> {
+    await writeFile(join(repository, ".arc", "system", "arc-config.yml"), [
+      "branch.base: main",
+      "branch.protection: partial",
+      "hooks.commit_msg: enabled",
+      `hooks.body_max_line_length: ${String(WIDTH)}`,
+      "commit.format: conventional",
+      "commit.context_footer: disabled",
+      "commit.custom_pattern:",
+      "commit.context_pattern:",
+      "",
+    ].join("\n"));
+  }
+
+  const subject = "feat(release): wrap an overlong deterministic body";
+  const body =
+    "This body paragraph is deliberately far longer than sixty columns so the release "
+    + "wrapper must reflow it into multiple lines before Git ever validates or stores it.";
+
+  it("wraps an overlong -m body so the committed bytes equal the validated wrapped bytes", async () => {
+    await writeWrapConfig();
+
+    const result = await runCli(["release", "commit", "-m", subject, "-m", body], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+
+    expect(result.exitCode).toBe(0);
+
+    const committed = await gitOutput(["log", "-1", "--format=%B"]);
+    const expected = new TextDecoder()
+      .decode(assembleCommitMessageParagraphs([subject, body], WIDTH))
+      .trimEnd();
+    expect(committed).toBe(expected);
+    for (const line of committed.split("\n").slice(2)) {
+      expect(line.length).toBeLessThanOrEqual(WIDTH);
+    }
+    expect(await transientSnapshots()).toEqual([]);
+  });
+
+  it("routes the wrapped snapshot before a pathspec option terminator", async () => {
+    await writeWrapConfig();
+
+    const result = await runCli([
+      "release",
+      "commit",
+      "-m",
+      subject,
+      "-m",
+      body,
+      "--",
+      "tracked.txt",
+    ], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(await gitOutput(["show", "--format=", "--name-only", "HEAD"])).toBe("tracked.txt");
+  });
+
+  it("leaves the same body unwrapped under --no-wrap, so preflight refuses it", async () => {
+    await writeWrapConfig();
+    const headBefore = await gitOutput(["rev-parse", "HEAD"]);
+
+    const result = await runCli(
+      ["release", "commit", "--no-wrap", "-m", subject, "-m", body],
+      { cwd: repository, env: { ARC_HOOK_LOG: hookLog } },
+    );
+
+    expect(result.exitCode).toBe(16);
+    expect(result.stderr).toContain("Commit validation FAILED");
+    expect(await gitOutput(["rev-parse", "HEAD"])).toBe(headBefore);
+    expect(await readHookLog()).toEqual([]);
   });
 });
