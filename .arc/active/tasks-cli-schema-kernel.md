@@ -314,22 +314,22 @@ claims, and assess the dependency and build-output cost before full verification
 - _Context:_ Implements `spec-cli-schema-kernel.md` Cross-cutting Considerations §§ Package / build size and Testing.
 
     - `[x]` **6.2.a Compare the completed build with the recorded baseline**
-        - Under Node `v26.3.0`/npm `11.16.0`, `cli.js` changed 1,388,051 → 1,389,383 bytes (+1,332, +0.096%);
-          total `dist/` 5,396,824 → 5,401,633 (+4,809, +0.089%); packed size 1,663,152 → 1,663,836 (+684,
-          +0.041%); unpacked size 6,699,230 → 6,704,088 (+4,858, +0.073%); and files 166 → 167 (+1,
-          +0.602%). The isolated production install changed 513,008 → 7,253,099 bytes (+6,740,091, +1313.837%)
-          across 15 → 18 packages (+3, +20.000%). Repeated clean builds emitted byte-identical schema bundles, and
-          the pack list contained exactly one `dist/schemas/kernel.json`.
+        - Under Node `v26.3.0`/npm `11.16.0`, the final reviewed `cli.js` changed 1,388,051 → 1,389,898 bytes
+          (+1,847, +0.133%); total `dist/` 5,396,824 → 5,403,749 (+6,925, +0.128%); packed size 1,663,152 →
+          1,664,221 (+1,069, +0.064%); unpacked size 6,699,230 → 6,706,204 (+6,974, +0.104%); and files 166 →
+          167 (+1, +0.602%). The isolated production install remains 7,253,099 bytes across 18 packages versus the
+          513,008-byte/15-package baseline (+6,740,091, +1313.837%; +3 packages, +20.000%). Repeated clean builds
+          emitted byte-identical schema bundles, and the pack list contained exactly one
+          `dist/schemas/kernel.json`.
 
     - `[x]` **6.2.b Explain or resolve build and package growth**
-        - The metafile changed 351 → 359 inputs (+8, +2.279%) and 1,373,373 → 1,374,619 attributed bytes (+1,246,
-          +0.091%): the eight additions are exactly the kernel sources, with no removed inputs or bundled Zod/
-          neverthrow files. `dist/` growth resolves to `cli.js` (+1,332), its source map (-510), the metafile
-          (+3,063), and schema bundle (+924); the post-measurement base-drift merge and registry hardening account
-          for the revised code/map bytes without adding inputs or dependencies, and package metadata supplies the
-          remaining unpacked delta. Production install growth is attributable to `zod@4.4.3` (4,558,122 bytes),
-          `neverthrow@8.2.0` (112,467), its declared optional `@rollup/rollup-linux-x64-gnu@4.61.0` dependency
-          (2,068,183), and install metadata overhead.
+        - The saved baseline metafile confirms 352 → 361 inputs (+9, +2.557%) and 1,373,373 → 1,375,047
+          attributed bytes (+1,674, +0.122%): the nine additions are exactly the bundled kernel sources, including
+          the review-hardened shared Unicode validator, with no removed inputs or bundled Zod/neverthrow files.
+          `dist/` growth resolves to `cli.js` (+1,847), its source map (+754), the metafile (+3,400), and schema
+          bundle (+924); package metadata supplies the remaining unpacked delta. Production install growth is
+          attributable to `zod@4.4.3` (4,558,122 bytes), `neverthrow@8.2.0` (112,467), its declared optional
+          `@rollup/rollup-linux-x64-gnu@4.61.0` dependency (2,068,183), and install metadata overhead.
 
 - _Outcome:_ Build and package growth is deterministic and fully attributable: the shipped artifact adds one exact
   schema file, the bundle vendors no new dependency, and the larger consumer install is isolated to the two chosen
@@ -343,7 +343,7 @@ _Purpose:_ Verify the complete work unit against its design, success criteria, a
 
 - _Goal:_ The completed kernel satisfies `spec-cli-schema-kernel.md`, retains all compatibility promises, and clears
   every work-unit quality and integration gate.
-- _Quality gates:_ Markdown, TypeScript, and shell lint; `typecheck:all`; 507 test files / 6,401 tests; and the
+- _Quality gates:_ Markdown, TypeScript, and shell lint; `typecheck:all`; 507 test files / 6,406 tests; and the
   production build all passed (1 file / 1 test skipped). The repaired base-drift reconcile E2E also passed 20/20
   consecutive stress runs.
 - _Success criteria:_ All 12 met. Fresh adversarial verification exposed and closed getter-backed registry metadata
