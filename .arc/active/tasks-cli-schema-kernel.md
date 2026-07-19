@@ -25,15 +25,11 @@ moving shared primitives into it.
           packed and 6,699,230 unpacked bytes. An isolated production install occupied 513,008 bytes across 15
           packages.
 
-    - `[ ]` **1.1.b Reconfirm and add the runtime dependencies**
-        - Re-run the isolated `zod@4.4.3` registry/JSON Schema spike against the version selected for installation,
-          confirming custom metadata isolation, duplicate identity control, `$id`/`$ref`, and deterministic output.
-        - Check `neverthrow` maintenance and Node/TypeScript compatibility from authoritative sources; a negative
-          result stops for a library-choice decision while preserving the Result seam.
-        - From the repository root, install the confirmed versions into the CLI workspace with
-          `npm install --workspace @arc-framework/cli zod@^4.4.3 neverthrow` (using a narrower confirmed range when
-          the re-check requires it). Verify the command updates `packages/arc-framework/package.json` and the root
-          lockfile; do not add `type-fest` or `execa`.
+    - `[x]` **1.1.b Reconfirm and add the runtime dependencies**
+        - Reconfirmed Zod `4.4.3` metadata isolation, duplicate identity control, `$id`/external `$ref` projection,
+          and deterministic sorted output in an isolated spike. Neverthrow `8.2.0` remains maintained, supports
+          Node 18+, and typechecks under the CLI's Node16/TypeScript 6 configuration. Added only `zod@^4.4.3` and
+          `neverthrow@^8.2.0` to the CLI workspace and root lockfile.
 
     - `[ ]` **1.1.c Establish the kernel entry surface and architecture record**
         - Create the minimal `packages/arc-framework/src/lib/kernel/` entry surface and internal directories needed
