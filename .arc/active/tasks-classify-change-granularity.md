@@ -16,15 +16,17 @@ independent path-only policies.
 
     - `[x]` **1.1.a Parse canonical raw-diff records**
         - Added a private NUL-safe raw-diff parser for the six canonical statuses, exact modes, and rename/copy
-          endpoints; malformed status scores, object IDs, cardinality, or trailing bytes resolve unknown.
+          endpoints; status-inconsistent endpoint presence, mixed object-ID widths, malformed scores, cardinality,
+          or trailing bytes resolve unknown.
 
     - `[x]` **1.1.b Resolve event-specific change sets**
         - `decide` now resolves `--raw -z` facts with rename/copy detection, retaining PR merge-base and push endpoint
           semantics plus the existing public weight/reason output.
 
     - `[x]` **1.1.c Close the resolver failure matrix**
-        - Real temporary repositories cover membership, rename/copy, mode/type, endpoint, and unusual-filename cases;
-          a private raw-byte fixture seam covers unsupported and malformed records fail-closed.
+        - Real temporary repositories cover membership, boundary rename/copy, mixed-change reduction, mode/type,
+          endpoint, and unusual-filename cases; private raw-byte fixtures cover unsupported, incomplete, and malformed
+          records fail-closed.
 
 - _Outcome:_ `decide` consumes a validated policy-neutral change set; no ambiguous or partial record can reach the
   light projection.
@@ -150,7 +152,11 @@ heavy suite.
 
 _Purpose:_ Verify the complete implementation against the reviewed design and repository quality standards.
 
-### `[ ]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source/test type checks; focused ARC contracts; full suite
+  (500 files and 6,394 tests passed; one file/test skipped); and build all passed.
+- _Success criteria:_ 9 criteria: 9 met.
 
 ---
 
@@ -172,4 +178,4 @@ _Purpose:_ Verify the complete implementation against the reviewed design and re
 - `[x]` `spec-review-architecture.md` retains the canonical six statuses, both tree modes, and both rename/copy
   endpoints without redefining their semantics.
 - `[x]` All quality gates pass (tests, shell and TypeScript linting, type checking, Markdown linting, and build).
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.

@@ -679,6 +679,46 @@ describe("classify-change.sh decide (pure arms)", () => {
     });
   });
 
+  it("keeps rename-out and copy-source packaged endpoints heavy", async () => {
+    const renameRepo = await createTempRepo();
+    tempDirs.push(renameRepo);
+    const packaged = "packages/arc-framework/arc/system/rules/source.md";
+    const renameBase = await writeAndCommit(renameRepo, { [packaged]: "shared\n" }, "packaged source");
+    await mkdir(join(renameRepo, "docs"), { recursive: true });
+    await execFileAsync("git", ["mv", packaged, "docs/moved.md"], { cwd: renameRepo });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "move out of package"], {
+      cwd: renameRepo,
+    });
+    const { stdout: renameOutput } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: renameRepo });
+    expect(await decide(renameRepo, "pull_request", renameBase, renameOutput.trim())).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+
+    const copyRepo = await createTempRepo();
+    tempDirs.push(copyRepo);
+    const copyBase = await writeAndCommit(copyRepo, { [packaged]: "shared\n" }, "packaged source");
+    const copyHead = await writeAndCommit(copyRepo, { "docs/copied.md": "shared\n" }, "copy out of package");
+    expect(await decide(copyRepo, "pull_request", copyBase, copyHead)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("reduces mixed ordinary packaged prose and code facts to heavy", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const prose = "packages/arc-framework/arc/system/rules/example.md";
+    const code = "packages/arc-framework/src/example.ts";
+    const base = await writeAndCommit(repo, { [prose]: "before\n", [code]: "export const x = 1;\n" }, "base");
+    const head = await writeAndCommit(repo, { [prose]: "after\n", [code]: "export const x = 2;\n" }, "mixed");
+
+    expect(await decide(repo, "pull_request", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
   it("keeps real packaged adds and deletes heavy", async () => {
     const repo = await createTempRepo();
     tempDirs.push(repo);
@@ -829,6 +869,39 @@ describe("classify-change.sh decide (pure arms)", () => {
       reason: "unverified",
     });
   });
+
+  it.each([
+    ["modified without an old endpoint", "M", "000000", "100644", "zero", "one", false],
+    ["added with an old endpoint", "A", "100644", "100644", "one", "two", false],
+    ["deleted with a new endpoint", "D", "100644", "100644", "one", "two", false],
+    ["rename without an old endpoint", exactRename, "000000", "100644", "zero", "one", true],
+    ["mode and object presence disagree", "M", "100644", "100644", "zero", "one", false],
+    ["mixed object ID widths", "M", "100644", "100644", "one", "one64", false],
+  ])(
+    "fails closed for endpoint-incomplete raw input: %s",
+    async (_label, status, oldMode, newMode, oldOidKind, newOidKind, twoPaths) => {
+      const repo = await createTempRepo();
+      tempDirs.push(repo);
+      const base = await writeAndCommit(repo, { "README.md": "one\n" }, "base");
+      const head = await writeAndCommit(repo, { "README.md": "two\n" }, "head");
+      const fixture = join(repo, "raw-endpoint-incomplete.bin");
+      const objectIds = {
+        zero: "0".repeat(40),
+        one: "1".repeat(40),
+        one64: "1".repeat(64),
+        two: "2".repeat(40),
+      };
+      const oldOid = objectIds[oldOidKind as keyof typeof objectIds];
+      const newOid = objectIds[newOidKind as keyof typeof objectIds];
+      const paths = twoPaths ? "docs/old.md\0docs/new.md\0" : "docs/example.md\0";
+      await writeFile(fixture, Buffer.from(`:${oldMode} ${newMode} ${oldOid} ${newOid} ${status}\0${paths}`));
+
+      expect(await decide(repo, "pull_request", base, head, { CLASSIFY_RAW_DIFF_FILE: fixture })).toEqual({
+        weight: "heavy",
+        reason: "unverified",
+      });
+    },
+  );
 
   it("classifies newline-bearing paths through the NUL-safe diff transport", async () => {
     const repo = await createTempRepo();

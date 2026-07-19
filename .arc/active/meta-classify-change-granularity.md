@@ -16,7 +16,7 @@
 - **Next Task:** Task 1.1 — Resolve canonical Git change facts
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Resolve canonical Git change facts
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

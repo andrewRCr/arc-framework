@@ -284,8 +284,37 @@ _classify_change_fact() {
 
 # Parse and reduce Git's private `--raw -z` wire format. Malformed cardinality,
 # modes, object ids, statuses, or trailing bytes make the entire set unknown.
+_raw_fact_endpoints_are_valid() {
+  local status="$1" old_mode="$2" new_mode="$3" old_oid="$4" new_oid="$5"
+  local old_present=false new_present=false
+
+  if [[ "${#old_oid}" -ne "${#new_oid}" ]]; then
+    return 1
+  fi
+
+  if [[ "${old_mode}" != "000000" && ! "${old_oid}" =~ ^0+$ ]]; then
+    old_present=true
+  elif [[ "${old_mode}" != "000000" || ! "${old_oid}" =~ ^0+$ ]]; then
+    return 1
+  fi
+  if [[ "${new_mode}" != "000000" && ! "${new_oid}" =~ ^0+$ ]]; then
+    new_present=true
+  elif [[ "${new_mode}" != "000000" || ! "${new_oid}" =~ ^0+$ ]]; then
+    return 1
+  fi
+
+  case "${status}" in
+    added) [[ "${old_present}" == "false" && "${new_present}" == "true" ]] ;;
+    deleted) [[ "${old_present}" == "true" && "${new_present}" == "false" ]] ;;
+    modified | type-changed | renamed | copied)
+      [[ "${old_present}" == "true" && "${new_present}" == "true" ]]
+      ;;
+    *) return 1 ;;
+  esac
+}
+
 _classify_raw_diff_file() {
-  local raw_file="$1" header path previous_path status_token status old_mode new_mode
+  local raw_file="$1" header path previous_path status_token status old_mode new_mode old_oid new_oid
   local seen=false classification=light
 
   while true; do
@@ -304,6 +333,8 @@ _classify_raw_diff_file() {
     fi
     old_mode="${BASH_REMATCH[1]}"
     new_mode="${BASH_REMATCH[2]}"
+    old_oid="${BASH_REMATCH[3]}"
+    new_oid="${BASH_REMATCH[4]}"
     status_token="${BASH_REMATCH[5]}"
     case "${status_token}" in
       A) status=added ;;
@@ -323,6 +354,10 @@ _classify_raw_diff_file() {
         return 0
         ;;
     esac
+    if ! _raw_fact_endpoints_are_valid "${status}" "${old_mode}" "${new_mode}" "${old_oid}" "${new_oid}"; then
+      echo "unknown"
+      return 0
+    fi
 
     path=""
     if ! IFS= read -r -d '' path || [[ -z "${path}" ]]; then
