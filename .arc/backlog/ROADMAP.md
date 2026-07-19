@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `b283a74d0`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `9009aa2fb`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,12 +13,14 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit           | Priority | Owner  | Depends on                              | Cohort                 |
-| ---------- | ------------------- | -------- | ------ | --------------------------------------- | ---------------------- |
-| `Planning` | review-architecture | P1       | andrew | classify-change-granularity             | —                      |
-| `Planning` | session-locus-model | P1       | andrew | cli-schema-kernel, cli-session-envelope | —                      |
-| `Active`   | cli-schema-kernel   | P2       | andrew | —                                       | cli-substrate-adoption |
-| `Active`   | self-hosted-ci      | P3       | andrew | —                                       | —                      |
+| State      | Work unit                   | Priority | Owner  | Depends on                                     | Cohort                 |
+| ---------- | --------------------------- | -------- | ------ | ---------------------------------------------- | ---------------------- |
+| `Planning` | review-architecture         | P1       | andrew | classify-change-granularity, cli-schema-kernel | —                      |
+| `Planning` | session-locus-model         | P1       | andrew | cli-schema-kernel, cli-session-envelope        | —                      |
+| `Active`   | cli-schema-kernel           | P2       | andrew | —                                              | cli-substrate-adoption |
+| `Planning` | arc-view-refinements        | P2       | andrew | —                                              | —                      |
+| `Planning` | classify-change-granularity | P2       | andrew | —                                              | —                      |
+| `Active`   | self-hosted-ci              | P3       | andrew | —                                              | —                      |
 
 ## Ready
 
@@ -37,13 +39,13 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | commit-increments                     | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization                | P2       | andrew | —          | architecture-remediation   |
 | naming-conventions                    | P2       | andrew | —          | doc-conventions            |
-| classify-change-granularity           | P2       | andrew | —          | —                          |
 | cross-wu-coordination                 | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine         | P2       | andrew | —          | —                          |
 | frictionless-capture                  | P2       | andrew | —          | —                          |
 | goal-aware-direction                  | P2       | andrew | —          | —                          |
 | graduation-cleanup                    | P2       | andrew | —          | —                          |
 | knowledge-architecture                | P2       | andrew | —          | —                          |
+| retirement-record-relocation          | P2       | andrew | —          | —                          |
 | workflow-eval-harness                 | P2       | andrew | —          | —                          |
 | handoff-optimization                  | P3       | andrew | —          | agent-context-optimization |
 | ci-cross-platform-hardening           | P3       | andrew | —          | architecture-remediation   |
@@ -103,11 +105,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit                  | Priority | Owner  | Depends on                        | Cohort            |
-| -------------------------- | -------- | ------ | --------------------------------- | ----------------- |
-| review-gate-github-adapter | P1       | andrew | review-gate-enforcement-promotion | —                 |
-| operational-state-docs     | P2       | andrew | cli-validation-surfaces           | —                 |
-| wu5-public-release         | P3       | andrew | docs-content-sweep                | release-readiness |
+| Work unit                        | Priority | Owner  | Depends on                                                                                                                  | Cohort                 |
+| -------------------------------- | -------- | ------ | --------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| review-gate-github-adapter       | P1       | andrew | review-gate-enforcement-promotion                                                                                           | —                      |
+| cli-substrate-complete-migration | P2       | andrew | cli-schema-kernel, cli-session-envelope, cli-layout-resolver, cli-validation-surfaces, cli-git-executor, cli-command-inputs | cli-substrate-adoption |
+| operational-state-docs           | P2       | andrew | cli-validation-surfaces                                                                                                     | —                      |
+| wu5-public-release               | P3       | andrew | docs-content-sweep                                                                                                          | release-readiness      |
 
 ### Depth 3
 
