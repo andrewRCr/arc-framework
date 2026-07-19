@@ -8,10 +8,10 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-self-hosted-ci.md`
+- **Design:** `spec-self-hosted-ci.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Self-hosted CI draft captured after Heavy-class adversarial review
 - **Next Task:** [none]
 - **Blockers:** [none]
