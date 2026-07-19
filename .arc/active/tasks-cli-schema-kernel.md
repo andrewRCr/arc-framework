@@ -117,62 +117,39 @@ first-party importer migration and removal of these rollout seams.
 _Purpose:_ Provide the discoverable schema registry and deterministic JSON Schema artifact that downstream cohort
 members can compose without centralizing their domain-owned schemas.
 
-### `[ ]` **3.1 Implement the versioned kernel registry contract**
+### `[x]` **3.1 Implement the versioned kernel registry contract**
 
 - _Goal:_ Callers can register, discover, and inspect schemas through the pinned wrapper API, with stable identities
   and migration metadata enforced independently of Zod's non-iterable registry.
-- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §4.
 
-    - `[ ]` **3.1.a Define registry metadata and migration posture**
-        - Implement `MigrationPosture`, readonly `KernelSchemaMeta`, `KernelJSONSchema`, `KernelJSONSchemaBundle`,
-          and the public `KernelRegistry` contract in the kernel. One active schema may occupy an identity;
-          `version` describes that schema's evolution rather than selecting retained historical versions or
-          inventing data-level version fields.
-        - Build `test-first` (one behavior at a time):
-            - `strict-current` and `backward-compatible` are the only migration postures.
-            - Registered metadata is retrievable by schema identity and is not stored through schema `.meta()`.
-            - Identities must match the lowercase ASCII `SLUG_PATTERN`; empty, padded, internally spaced,
-              URI-delimited, non-ASCII, or ill-formed Unicode identities are rejected before registry mutation.
-            - Non-positive-safe-integer versions and invalid postures are rejected before registry mutation.
+    - `[x]` **3.1.a Define registry metadata and migration posture**
+        - Added the public version/migration and JSON Schema contracts, strict ASCII-slug identities, positive-safe
+          versions, closed migration postures, immutable copied metadata, and pre-mutation validation.
 
-    - `[ ]` **3.1.b Implement registration, lookup, and identity enumeration**
-        - Wrap `z.registry<KernelSchemaMeta>()` with the parallel identity index used by `register()`, `get()`,
-          `meta()`, and `ids()`; preflight wrapper invariants instead of relying on Zod's version-sensitive duplicate
-          handling.
-        - Build `test-first` (one behavior at a time):
-            - Registration returns the same schema instance and all lookup methods agree.
-            - Duplicate identities and a schema instance registered under another identity throw before either the
-              Zod registry or parallel index mutates.
-            - Metadata is copied and frozen, caller mutation cannot change it, and `ids()` returns a fresh,
-              code-point-sorted readonly view. The validated ASCII identity grammar makes that ordering portable;
-              tests cover differently prefixed and segmented valid identities.
+    - `[x]` **3.1.b Implement registration, lookup, and identity enumeration**
+        - Wrapped the native registry with parallel identity and schema-instance indexes, atomic duplicate checks,
+          consistent lookup, and fresh code-point-sorted identity views.
 
-### `[ ]` **3.2 Register kernel schemas and produce deterministic JSON Schema**
+- _Outcome:_ Downstream schemas can register and discover one current version per stable identity through a small,
+  deterministic wrapper without exposing Zod's non-iterable registry.
+
+### `[x]` **3.2 Register kernel schemas and produce deterministic JSON Schema**
 
 - _Goal:_ Kernel-owned schemas emit one version-aware, bundled JSON Schema projection with stable identities,
   references, and byte-for-byte repeatability.
-- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §§4-5.
 
-    - `[ ]` **3.2.a Register the kernel-owned vocabulary under stable identities**
-        - Expose empty `createRegistry()` and fresh preloaded `createKernelRegistry()` factories; do not expose a
-          mutable built-in singleton. Keep subsystem-owned schemas outside the built-in assembly while allowing a
-          caller to register them into its fresh composed registry.
-        - Register `WorkUnitStateSchema`, `WorkClassSchema`, `PrioritySchema`, and `SlugSchema` under
-          `work-unit-state`, `work-class`, `priority`, and `slug`, respectively, each at version `1` with
-          `strict-current` posture.
+    - `[x]` **3.2.a Register the kernel-owned vocabulary under stable identities**
+        - Added empty and fresh preloaded factories; each kernel registry contains only `work-unit-state`,
+          `work-class`, `priority`, and `slug` at version 1 with strict-current posture and remains independently
+          extensible.
 
-    - `[ ]` **3.2.b Implement bundled JSON Schema conversion**
-        - Sort identities by code point, copy the schemas into an ephemeral `z.registry<{ id: string }>()`, and pass
-          that projection to `z.toJSONSchema()` with Draft 2020-12 and the caller's URI mapping or the default
-          mapping that appends `.schema.json` directly to the validated ASCII `id`; do not add an encoding or
-          normalization layer.
-        - Build `test-first` (one behavior at a time):
-            - Output is a bundled `{ schemas }` record with stable `$id` values under default and custom URI maps.
-            - A test-only registered parent/child composition emits `$ref` rather than duplicate inline definitions;
-              the independent built-in vocabulary stays free of an artificial composite.
-            - `version` and `migrationPosture` never leak into generated schema content.
-            - Registries containing the same schemas and metadata produce byte-identical output when registered in
-              opposite orders.
+    - `[x]` **3.2.b Implement bundled JSON Schema conversion**
+        - Added sorted ephemeral Draft 2020-12 projection with default `.schema.json` and caller-supplied URI maps,
+          external references for registered composition, metadata isolation, and byte-stable output across
+          opposite registration orders.
+
+- _Outcome:_ Kernel and composed subsystem schemas now emit deterministic identity-keyed bundles with stable
+  external references and no registry metadata leakage.
 
 ### `[ ]` **3.3 Integrate the generated schema artifact with the build**
 

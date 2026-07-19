@@ -32,3 +32,12 @@ export {
   isSlugSafe,
   type Slug,
 } from "./schema/slug.js";
+export {
+  createKernelRegistry,
+  createRegistry,
+  type KernelJSONSchema,
+  type KernelJSONSchemaBundle,
+  type KernelRegistry,
+  type KernelSchemaMeta,
+  type MigrationPosture,
+} from "./schema/registry.js";
