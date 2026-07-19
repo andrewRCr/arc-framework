@@ -16,7 +16,7 @@
 - **Next Task:** Begin Task 1.1 — Establish the kernel package boundary and dependency baseline
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1.a — Capture the pre-kernel build and package baseline
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

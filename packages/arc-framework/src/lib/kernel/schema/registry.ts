@@ -99,9 +99,17 @@ export function createRegistry(): KernelRegistry {
 
   return {
     register<T extends z.ZodType>(schema: T, meta: KernelSchemaMeta): T {
-      validateMetadata(meta);
-      if (entries.has(meta.id)) {
-        throw new SchemaError(`Duplicate schema identity: ${meta.id}`, "schema.registry.duplicate-identity");
+      const storedMeta: KernelSchemaMeta = Object.freeze({
+        id: meta.id,
+        version: meta.version,
+        migrationPosture: meta.migrationPosture,
+      });
+      validateMetadata(storedMeta);
+      if (entries.has(storedMeta.id)) {
+        throw new SchemaError(
+          `Duplicate schema identity: ${storedMeta.id}`,
+          "schema.registry.duplicate-identity",
+        );
       }
       const existingIdentity = schemaIdentities.get(schema);
       if (existingIdentity !== undefined) {
@@ -111,7 +119,6 @@ export function createRegistry(): KernelRegistry {
         );
       }
 
-      const storedMeta = Object.freeze({ ...meta });
       nativeRegistry.add(schema, storedMeta);
       entries.set(storedMeta.id, { schema, meta: storedMeta });
       schemaIdentities.set(schema, storedMeta.id);

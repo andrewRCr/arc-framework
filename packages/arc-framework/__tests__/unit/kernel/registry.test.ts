@@ -65,6 +65,29 @@ describe("kernel schema registry", () => {
     expect(registry.get("renamed")).toBeUndefined();
   });
 
+  it("snapshots getter-backed metadata once before validation and mutation", () => {
+    const registry = createRegistry();
+    const original = z.string();
+    const replacement = z.number();
+    registry.register(original, strict("taken"));
+    let idReads = 0;
+    const shiftingMeta: KernelSchemaMeta = {
+      get id() {
+        idReads += 1;
+        return idReads < 3 ? "new" : "taken";
+      },
+      version: 1,
+      migrationPosture: "strict-current",
+    };
+
+    registry.register(replacement, shiftingMeta);
+
+    expect(idReads).toBe(1);
+    expect(registry.ids()).toEqual(["new", "taken"]);
+    expect(registry.get("new")).toBe(replacement);
+    expect(registry.get("taken")).toBe(original);
+  });
+
   it("returns fresh, code-point-sorted identity views", () => {
     const registry = createRegistry();
     registry.register(z.string(), strict("zeta"));

@@ -314,20 +314,22 @@ claims, and assess the dependency and build-output cost before full verification
 - _Context:_ Implements `spec-cli-schema-kernel.md` Cross-cutting Considerations §§ Package / build size and Testing.
 
     - `[x]` **6.2.a Compare the completed build with the recorded baseline**
-        - Under Node `v26.3.0`/npm `11.16.0`, `cli.js` changed 1,388,051 → 1,389,370 bytes (+1,319, +0.095%);
-          total `dist/` 5,396,824 → 5,401,267 (+4,443, +0.082%); packed size 1,663,152 → 1,663,712 (+560,
-          +0.034%); unpacked size 6,699,230 → 6,703,722 (+4,492, +0.067%); and files 166 → 167 (+1,
+        - Under Node `v26.3.0`/npm `11.16.0`, `cli.js` changed 1,388,051 → 1,389,383 bytes (+1,332, +0.096%);
+          total `dist/` 5,396,824 → 5,401,633 (+4,809, +0.089%); packed size 1,663,152 → 1,663,836 (+684,
+          +0.041%); unpacked size 6,699,230 → 6,704,088 (+4,858, +0.073%); and files 166 → 167 (+1,
           +0.602%). The isolated production install changed 513,008 → 7,253,099 bytes (+6,740,091, +1313.837%)
           across 15 → 18 packages (+3, +20.000%). Repeated clean builds emitted byte-identical schema bundles, and
           the pack list contained exactly one `dist/schemas/kernel.json`.
 
     - `[x]` **6.2.b Explain or resolve build and package growth**
-        - The metafile changed 351 → 359 inputs (+8, +2.279%) and 1,373,373 → 1,374,606 attributed bytes (+1,233,
-          +0.090%): the eight additions are exactly the kernel sources, with no removed inputs or bundled Zod/
-          neverthrow files. `dist/` growth resolves to `cli.js` (+1,319), its source map (-863), the metafile
-          (+3,063), and schema bundle (+924); package metadata supplies the remaining unpacked delta. Production
-          install growth is attributable to `zod@4.4.3` (4,558,122 bytes), `neverthrow@8.2.0` (112,467), its declared
-          optional `@rollup/rollup-linux-x64-gnu@4.61.0` dependency (2,068,183), and install metadata overhead.
+        - The metafile changed 351 → 359 inputs (+8, +2.279%) and 1,373,373 → 1,374,619 attributed bytes (+1,246,
+          +0.091%): the eight additions are exactly the kernel sources, with no removed inputs or bundled Zod/
+          neverthrow files. `dist/` growth resolves to `cli.js` (+1,332), its source map (-510), the metafile
+          (+3,063), and schema bundle (+924); the post-measurement base-drift merge and registry hardening account
+          for the revised code/map bytes without adding inputs or dependencies, and package metadata supplies the
+          remaining unpacked delta. Production install growth is attributable to `zod@4.4.3` (4,558,122 bytes),
+          `neverthrow@8.2.0` (112,467), its declared optional `@rollup/rollup-linux-x64-gnu@4.61.0` dependency
+          (2,068,183), and install metadata overhead.
 
 - _Outcome:_ Build and package growth is deterministic and fully attributable: the shipped artifact adds one exact
   schema file, the bundle vendors no new dependency, and the larger consumer install is isolated to the two chosen
@@ -337,36 +339,42 @@ claims, and assess the dependency and build-output cost before full verification
 
 _Purpose:_ Verify the complete work unit against its design, success criteria, and project quality standards.
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The completed kernel satisfies `spec-cli-schema-kernel.md`, retains all compatibility promises, and clears
   every work-unit quality and integration gate.
+- _Quality gates:_ Markdown, TypeScript, and shell lint; `typecheck:all`; 507 test files / 6,401 tests; and the
+  production build all passed (1 file / 1 test skipped). The repaired base-drift reconcile E2E also passed 20/20
+  consecutive stress runs.
+- _Success criteria:_ All 12 met. Fresh adversarial verification exposed and closed getter-backed registry metadata
+  mutation plus post-merge footprint drift; the remaining schema, compatibility, boundary, packaging, and
+  architecture claims withstood both passes.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `WorkUnitStateSchema`, `WorkClassSchema`, `PrioritySchema`, and branded `SlugSchema` are the runtime
+- `[x]` `WorkUnitStateSchema`, `WorkClassSchema`, `PrioritySchema`, and branded `SlugSchema` are the runtime
   authorities for the closed initial vocabulary; their types derive through `z.infer`, while existing narrowers and
   import paths preserve established behavior during the cohort rollout.
-- `[ ]` `createRegistry()` implements registration, lookup, metadata, stable identity enumeration, and bundled JSON
+- `[x]` `createRegistry()` implements registration, lookup, metadata, stable identity enumeration, and bundled JSON
   Schema conversion; duplicate or invalid registration fails without partial mutation.
-- `[ ]` Generated JSON Schema has stable `$id`/`$ref` links, excludes registry-only metadata, is byte-identical
+- `[x]` Generated JSON Schema has stable `$id`/`$ref` links, excludes registry-only metadata, is byte-identical
   across repeated builds, and ships inside the package's `dist/` output.
-- `[ ]` `ArcError` supports unchanged existing codes and domain-owned namespaced codes without a central union edit;
+- `[x]` `ArcError` supports unchanged existing codes and domain-owned namespaced codes without a central union edit;
   causes are preserved safely and terminal presentation remains byte-for-byte compatible.
-- `[ ]` The explicit kernel barrel exposes only the designed Result, vocabulary, registry, error, and canonical
+- `[x]` The explicit kernel barrel exposes only the designed Result, vocabulary, registry, error, and canonical
   contracts; internal Zod machinery, build writers, legacy type helpers, and domain-owned records do not leak.
-- `[ ]` `Result`, `ResultAsync`, `ok`, `err`, and boundary adapters are consumed through the kernel, and no source
+- `[x]` `Result`, `ResultAsync`, `ok`, `err`, and boundary adapters are consumed through the kernel, and no source
   outside `src/lib/kernel/result.ts` imports `neverthrow`.
-- `[ ]` Canonical JSON and managed-path primitives are kernel-owned with temporary old-path re-exports; all digest,
+- `[x]` Canonical JSON and managed-path primitives are kernel-owned with temporary old-path re-exports; all digest,
   ordering, receipt, and serialized-record compatibility vectors remain unchanged. First-party importer migration
   and removal of these rollout seams are explicitly owned by `cli-substrate-complete-migration`.
-- `[ ]` Automated tests prove the kernel imports only kernel-local modules, approved external libraries, and Node
+- `[x]` Automated tests prove the kernel imports only kernel-local modules, approved external libraries, and Node
   builtins, with no allow-listed escape into another `src/` module.
-- `[ ]` The package/build growth assessment reconciles the completed metafile and package file list with the
+- `[x]` The package/build growth assessment reconciles the completed metafile and package file list with the
   baseline plus the isolated production-install footprint; no unexplained input, unexpected packaged file,
   accidentally bundled dependency, or unattributed installed dependency remains.
-- `[ ]` `.arc/reference/TECHNICAL-OVERVIEW.md` accurately records the runtime-schema, Result, and kernel architecture.
-- `[ ]` All quality gates pass: Markdown lint, TypeScript lint, `typecheck:all`, full tests, and build.
-- `[ ]` Ready for integration.
+- `[x]` `.arc/reference/TECHNICAL-OVERVIEW.md` accurately records the runtime-schema, Result, and kernel architecture.
+- `[x]` All quality gates pass: Markdown lint, TypeScript lint, `typecheck:all`, full tests, and build.
+- `[x]` Ready for integration.
