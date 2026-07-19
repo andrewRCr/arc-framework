@@ -170,7 +170,9 @@ gh variable set ARC_CI_LINUX_RUNNER --body arc-ci-linux
 ```
 
 Trigger a qualification run and inspect each Linux job's runner name and labels. Stop and return to hosted routing
-for any missing tool, unexpected label, offline slot, queue stall, runner-caused failure, or evidence gap.
+for any missing tool, unexpected label, offline slot, queue stall, runner-caused failure, or evidence gap. A manual
+`workflow_dispatch` forces the full heavy suite but skips the PR-only `ci-ok` and `merge-ok` jobs; use it only when
+those roll-ups already pass for the exact head through the pull-request event, and record both run ids.
 
 ## Hosted fallback
 

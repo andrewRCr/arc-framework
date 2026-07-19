@@ -224,7 +224,7 @@ runner teardown or rebuild, and destructive external steps retain their own expl
 - _Outcome:_ The real heavy-check set kept its executor-neutral identities, and the immediately following
   unchanged-code-tree run proved authenticated verified-tree reuse rather than merely appearing green.
 
-### `[ ]` **3.3 Drill hosted fallback and a timed disposable-runner rebuild**
+### `[x]` **3.3 Drill hosted fallback and a timed disposable-runner rebuild**
 
 - _Goal:_ Hosted execution is restored in under five minutes and the complete two-service runner host is rebuilt
   from the runbook within two hours without a machine backup.
@@ -244,12 +244,16 @@ runner teardown or rebuild, and destructive external steps retain their own expl
           unattended updates, bounded journal and telemetry, required tools, and two checksum-verified unconfigured
           runner 2.335.1 application trees solely from the runbook; GitHub remained at zero registered runners.
 
-    - `[ ]` **3.3.c Re-run the trust gate, register, requalify, and restore trial routing**
-        - Re-run the full executable-principal checklist before requesting tokens or assigning `arc-ci-linux`; only
-          on a green result, register/install/start both services and stop the rebuild timer when both are healthy.
-        - Run prerequisite/service/telemetry health checks and a heavy self-hosted qualification; restore
-          `ARC_CI_LINUX_RUNNER=arc-ci-linux` only after they pass. Record total rebuild time, deviations, sanitized
-          runner status, telemetry/log coverage, and any runbook fixes.
+    - `[x]` **3.3.c Re-run the trust gate, register, requalify, and restore trial routing**
+        - Re-audited the private repository's sole trusted admin, zero invitations and forks, three explicitly
+          trusted installed apps, disabled private-fork Actions access, read-only workflow-token default, and
+          non-PR-producing automation before consuming two in-memory registration tokens.
+        - Registered both isolated services, proved automatic restart across a controlled reboot, stopped the rebuild
+          timer at 23m07s, and restored `arc-ci-linux` only for exact-head qualification; all nine executed Linux jobs
+          passed on the rebuilt slots, both hosted portability legs passed, and telemetry and runner logs stayed clean.
+
+- _Outcome:_ Hosted fallback recovered in 25 seconds and the no-backup rebuild returned two freshly trusted,
+  reboot-persistent runners to a green heavy suite in under half an hour, proving both recovery paths operational.
 
 ## **Phase 4:** Measured canary and operating-posture decision
 

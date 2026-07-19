@@ -48,7 +48,8 @@ provider credential.
 
 ### Access-control precondition
 
-- **Audit timestamp:** 2026-07-19
+- **Audit timestamp:** 2026-07-19; repeated immediately before post-rebuild registration with no principal or policy
+  change
 - **Collaborators:** 1; explicitly trusted; no exception
 - **Pending invitations:** 0
 - **Private forks:** 0
@@ -77,7 +78,8 @@ provider credential.
   for `arc-runner`
 - **Telemetry cadence / retention / cap / protected export:** `sysstat` active at five-minute cadence with 60-day
   history, compression after seven days, mode `0640` records, and retention-bounded storage; CPU, memory, load, and
-  disk samples verified; protected SSH export to the user-held workstation verified without retaining an export
+  disk samples verified; the bounded pre-rebuild journal and `sysstat` export is retained only in the protected
+  user-held workstation path with mode-`0600` files and contains no credentials or machine image
 - **Persistent service/restart log retention / cap:** persistent compressed journal active with 60-day retention
   and a 1-GB cap; current disk use 16 MB
 - **Runner application version / checksum result:** official Linux x64 runner 2.335.1 installed in both slots after
@@ -118,9 +120,18 @@ provider credential.
 - **Rebuild deviations and runbook fixes:** the provider rebuild flow offered no existing-key injection, so the
   provider-delivered temporary password bootstrapped the existing key before password SSH was disabled; service
   uninstall must precede `config.sh remove`; mode-`0750` service commands must enter the directory inside the
-  privileged shell; and the service-owned archive in sticky temporary storage requires privileged removal.
-- **Rebuild window / elapsed time / result:** [pending]
-- **Post-rebuild qualification run id / result:** [pending]
+  privileged shell; the service-owned archive in sticky temporary storage requires privileged removal; and manual
+  full-suite dispatch skips the PR-only roll-ups, so exact-head PR evidence must accompany it.
+- **Rebuild window / elapsed time / result:** 22:06:51Z–22:29:58Z; 23m07s from teardown start through both rebuilt
+  services returning online and idle after a controlled reboot; pass against the two-hour limit
+- **Exact-head hosted roll-up run id / result:**
+  [29706274349](https://github.com/andrewRCr/arc-framework/actions/runs/29706274349) — the published rebuild-evidence
+  head passed the heavy pull-request graph, including `ci-ok` and `merge-ok`, while fallback remained selected
+- **Post-rebuild qualification run id / result:**
+  [29706382714](https://github.com/andrewRCr/arc-framework/actions/runs/29706382714) — exact head `0889fa255`; manual
+  full-suite dispatch passed in 3m51s with nine executed Linux jobs on the two rebuilt runners, zero hosted Linux
+  jobs, and the Windows/macOS portability legs hosted; the event-contract-skipped PR roll-ups are covered by the
+  immediately preceding exact-head pull-request run
 
 - **First-cutover elapsed / queue result:** `merge-ok` completed 4m01s after run creation; the largest Linux queue
   delay was 2m31s for E2E shard 3 while the two slots were occupied; no offline stall or runner-caused failure
