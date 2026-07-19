@@ -175,37 +175,40 @@ job placement, verified-tree reuse, hosted recovery, and disposability rather th
 _Design decisions:_ Trial routing begins only after Phase 2 is green. Hosted fallback stays selected during any
 runner teardown or rebuild, and destructive external steps retain their own explicit approval gate.
 
-### `[ ]` **3.1 Cut over the Linux job graph and prove hosted cross-platform isolation**
+### `[x]` **3.1 Cut over the Linux job graph and prove hosted cross-platform isolation**
 
 - _Goal:_ A real heavy CI run places every Linux job on the two repository runners, keeps Windows/macOS and
   privileged workflows hosted, and preserves a green `merge-ok` graph without hosted Linux runner charges.
 - **Additional Context:** `.github/self-hosted-ci.md` § Cutover and health checks.
 
-    - `[ ]` **3.1.a Select the self-hosted route**
-        - Reconfirm Task 2.4 evidence, set repository Actions variable `ARC_CI_LINUX_RUNNER=arc-ci-linux`, and
-          trigger a comparable heavy pull-request run without changing the workflow file.
-        - The current `.github/workflows/ci.yml` / `scripts/classify-change.sh` diff selects
-          `portability-cross-platform`; if later branch shape no longer does, dispatch `ci.yml` on this branch as
-          a separate hosted Windows/macOS placement proof while retaining the PR run for `ci_ok` / `merge-ok`.
+    - `[x]` **3.1.a Select the self-hosted route**
+        - Reconfirmed both idle runners and the access gate, set `ARC_CI_LINUX_RUNNER=arc-ci-linux`, published the
+          branch, and opened draft pull request #305 without changing the workflow route.
+        - Merged current `main` append-only to clear the pre-existing roadmap conflict; the resulting user-authored
+          synchronization triggered heavy qualification run 29705044064 with the cross-platform target selected.
 
-    - `[ ]` **3.1.b Verify job placement and graph identity**
-        - Confirm `classify`, `setup`, `lint-typecheck`, `unit`, `integration`, all E2E shards, `portability`,
-          `ci_ok`, and `merge-ok` report the expected self-hosted runner names/label.
-        - Confirm `portability-cross-platform` remains on Windows/macOS hosted runners and no `review-gate*` or
-          `docs.yml` job has entered the self-hosted trust domain.
+    - `[x]` **3.1.b Verify job placement and graph identity**
+        - Confirmed all 11 Linux jobs, including both roll-ups, used the two expected labeled VPS runners and passed.
+        - Confirmed targeted Windows/macOS portability stayed GitHub-hosted and that no documentation or review-gate
+          workflow entered the qualification head's trust domain.
 
-    - `[ ]` **3.1.c Record the first-cutover result**
-        - Capture run links/ids, runner assignments, results, `merge-ok` elapsed time, queue behavior, and Actions
-          usage evidence; distinguish normal hosted cross-platform minutes from Linux fallback minutes.
+    - `[x]` **3.1.c Record the first-cutover result**
+        - Recorded the run link, head, assignments, green result, 4m01s `merge-ok` elapsed time, 2m31s maximum
+          two-slot queue delay, and placement evidence distinguishing two expected hosted cross-platform jobs from
+          zero hosted Linux jobs.
+
+- _Outcome:_ The unchanged CI graph completed its first live two-slot qualification with stable roll-up identity,
+  bounded queueing, no runner failure, and only the intended Windows/macOS jobs consuming hosted capacity.
 
 ### `[ ]` **3.2 Prove runner-neutral check identity and verified-tree reuse on self-hosted execution**
 
 - _Goal:_ The executor-neutral portability name participates in a real green heavy-check set, and a known-verified
   code tree subsequently resolves `weight=light reason=verified` from the self-hosted classifier.
 
-    - `[ ]` **3.2.a Verify the live heavy-check identity set**
-        - Confirm check runs expose unchanged lint/typecheck, unit, integration, and E2E shard names plus exactly
-          `Portability (concurrency guards) (linux)`; confirm `merge-ok` remains the required compatibility check.
+    - `[x]` **3.2.a Verify the live heavy-check identity set**
+        - Confirmed the live run retained the lint/typecheck, unit, integration, three E2E shard, `ci-ok`, and
+          required `merge-ok` identities, with exactly `Portability (concurrency guards) (linux)` for Linux
+          portability and separate targeted Windows/macOS names.
 
     - `[ ]` **3.2.b Exercise the verified-tree lookback**
         - After a self-hosted heavy run succeeds, use the next natural docs-only task-list/evidence commit that

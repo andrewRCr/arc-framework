@@ -96,14 +96,23 @@ provider credential.
 
 ### Qualification and drills
 
-- **Initial self-hosted qualification run id / timestamp:** pending — `ARC_CI_LINUX_RUNNER=arc-ci-linux` selected
-  and draft PR #305 opened on 2026-07-19; the first user-authored evidence synchronization will trigger the run
-- **Linux job placement result:** [pending]
-- **Hosted-only job isolation result:** [pending]
+- **Initial self-hosted qualification run id / timestamp:**
+  [29705044064](https://github.com/andrewRCr/arc-framework/actions/runs/29705044064) — 2026-07-19 21:49:27Z;
+  pull request #305 at head `8745d41e4`; success
+- **Linux job placement result:** all 11 Linux jobs ran on the two expected `arc-ci-linux` runners, including
+  classifier, setup, lint/typecheck, unit, integration, all three E2E shards, Linux portability, `ci-ok`, and
+  `merge-ok`; both roll-ups passed
+- **Hosted-only job isolation result:** the targeted Windows and macOS portability jobs ran on GitHub-hosted
+  runners; no documentation or review-gate workflow ran for the qualification head
 - **Verified-tree proof run ids / classifier result:** [pending]
 - **Hosted fallback run id / elapsed time / result:** [pending]
 - **Rebuild window / elapsed time / result:** [pending]
 - **Post-rebuild qualification run id / result:** [pending]
+
+- **First-cutover elapsed / queue result:** `merge-ok` completed 4m01s after run creation; the largest Linux queue
+  delay was 2m31s for E2E shard 3 while the two slots were occupied; no offline stall or runner-caused failure
+- **First-cutover Actions placement evidence:** 11 self-hosted Linux jobs and two expected hosted cross-platform
+  jobs; zero hosted Linux jobs in the qualification workflow
 
 ### Canary samples
 
