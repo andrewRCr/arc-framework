@@ -8,15 +8,15 @@
 - **Depends On:** `classify-change-granularity`
 
 - **Origin:** [internal]
-- **Design:** `draft-review-architecture.md`
+- **Design:** `spec-review-architecture.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** design draft settled — refined + two-pass adversarial review
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** begin create-spec — formalize the settled, adversarially-reviewed draft
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
