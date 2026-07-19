@@ -222,8 +222,15 @@ export function wrapCommitMessageBody(cleaned: Uint8Array, width: number): Uint8
 
     if (indentLength === 0 && TRAILER_RE.test(line)) {
       flushOpen();
-      segments.push({ kind: "verbatim", lines: [line] });
+      const trailerLines = [line];
       i += 1;
+      while (i < bodyLines.length) {
+        const continuation = bodyLines[i] ?? "";
+        if (!/^[ \t]+\S/.test(continuation)) break;
+        trailerLines.push(continuation);
+        i += 1;
+      }
+      segments.push({ kind: "verbatim", lines: trailerLines });
       continue;
     }
 

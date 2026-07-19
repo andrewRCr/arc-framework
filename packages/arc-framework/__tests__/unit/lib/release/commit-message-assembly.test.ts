@@ -165,7 +165,7 @@ describe("commit message body wrapping", () => {
 
   it("passes footer/trailer lines through verbatim", () => {
     const input = encoder.encode(
-      "subject\n\nContext: this is a very long trailer value that would exceed the width if wrapped\n\nSigned-off-by: Jane Doe <jane@example.com>\n",
+      "subject\n\nContext: this is a very long trailer value that would exceed the width if wrapped\n continuation with one leading space that must remain intact\n\tcontinuation with a leading tab that must remain intact\n\nSigned-off-by: Jane Doe <jane@example.com>\n",
     );
 
     expect(decoder.decode(wrapCommitMessageBody(input, 10))).toBe(decoder.decode(input));
