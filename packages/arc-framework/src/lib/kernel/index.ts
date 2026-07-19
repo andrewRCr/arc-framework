@@ -6,4 +6,11 @@
  * on any other CLI source module.
  */
 
-export {};
+export {
+  ResultAsync,
+  err,
+  fromAsyncThrowable,
+  fromThrowable,
+  ok,
+  type Result,
+} from "./result.js";

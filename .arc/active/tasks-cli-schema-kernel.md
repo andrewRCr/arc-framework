@@ -35,32 +35,22 @@ moving shared primitives into it.
 - _Outcome:_ The CLI now has a buildable kernel boundary, validated runtime dependencies, and a reproducible
   pre-change artifact/install baseline for the Phase 6 footprint comparison.
 
-### `[ ]` **1.2 Expose the bounded Result seam and boundary adapters**
+### `[x]` **1.2 Expose the bounded Result seam and boundary adapters**
 
 - _Goal:_ CLI modules can compose typed success and failure through one kernel-owned import path without importing
   `neverthrow` directly or committing the codebase to an imagined full abstraction.
-- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §2.
-- _Rationale:_ The proven-sharing vocabulary gate governs domain values entering the kernel; this explicitly
-  chartered infrastructure seam establishes a new cohort boundary for downstream adoption.
 
-    - `[ ]` **1.2.a Define the kernel Result export contract**
-        - Re-export only `Result`, `ResultAsync`, `ok`, `err`, `fromThrowable`, and `fromAsyncThrowable` from the
-          kernel's Result module and barrel; the two adapters are neverthrow's native safe-function constructors,
-          not custom eager wrappers.
-        - Build `test-first` (one behavior at a time):
-            - Direct kernel imports construct and narrow synchronous and asynchronous success/failure values.
-            - `expectTypeOf` assertions keep the exported generics aligned with the dependency types.
-            - The module does not wrap or hide the ordinary neverthrow method API.
+    - `[x]` **1.2.a Define the kernel Result export contract**
+        - Added the explicit `result.ts` and kernel-barrel exports for `Result`, `ResultAsync`, `ok`, `err`,
+          `fromThrowable`, and `fromAsyncThrowable`, with type and runtime coverage for synchronous/asynchronous
+          narrowing and ordinary Result transformations.
 
-    - `[ ]` **1.2.b Add exception-to-Result boundary adapters**
-        - Keep adapters generic: callers supply the error mapper, so the kernel does not absorb command or subsystem
-          orchestration.
-        - Build `test-first` (one behavior at a time):
-            - `fromThrowable` returns a function whose successful result becomes `Ok` with its value unchanged.
-            - A synchronous throw becomes `Err`, and the supplied mapper receives the exact thrown `unknown`.
-            - `fromAsyncThrowable` returns a function whose fulfilled promise becomes `Ok` with its value unchanged.
-            - Both a synchronous throw before promise return and a promise rejection become `Err`; the supplied
-              mapper receives the exact thrown or rejected `unknown` for later cause-preserving error adaptation.
+    - `[x]` **1.2.b Add exception-to-Result boundary adapters**
+        - Kept exception adaptation on neverthrow's native safe-function constructors and verified unchanged success
+          values plus exact mapper inputs for synchronous throws, pre-promise throws, and promise rejections.
+
+- _Outcome:_ All typed success/failure composition now enters through one kernel-owned path while retaining the
+  dependency's ordinary method API and caller-owned error mapping.
 
 ### `[ ]` **1.3 Enforce bottom-of-graph kernel imports**
 
