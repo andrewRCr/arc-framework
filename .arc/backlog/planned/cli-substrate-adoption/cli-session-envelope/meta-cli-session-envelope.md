@@ -1,20 +1,24 @@
-# Metadata: Schema-Driven CLI Introspection Layer
+# Metadata: cli-session-envelope
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+| `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
 
-- **Cohort:** `architecture-remediation`
+- **Cohort:** `cli-substrate-adoption`
 - **Depends On:** `cli-schema-kernel`
 
 - **Origin:** [internal]
-- **Design:** `draft-schema-introspection-layer.md`
+- **Design:** `draft-cli-session-envelope.md`
 - **Task List:** [none]
 
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** —
+
+- **PR URL:** [none]
+- **Completed:** [none]
 
 ---
