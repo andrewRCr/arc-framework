@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** [none]
+- **Last Completed:** draft-design — formalization-ready draft captured (two adversarial passes converged)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
