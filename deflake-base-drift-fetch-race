@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "deflake-base-drift-fetch-race",
-  "origin": "description",
-  "intent": "Confirm #304 resolves the base-drift advisory e2e fetch race; remove the resolved ATOMIC-INBOX capture",
-  "branch": "chore/deflake-base-drift-fetch-race",
-  "createdAt": "2026-07-19T23:21:31.599Z",
-  "returnBranch": "main"
-}
