@@ -30,7 +30,7 @@ provider credential.
 
 - **Provider / SKU / region:** OVHcloud US / VPS-2 2027 / US East — Vint Hill, Virginia
 - **Recurring price / billing basis:** $10 per month with a one-month commitment
-- **Supported OS / architecture:** Ubuntu 24.04 LTS / x86-64
+- **Supported OS / architecture:** Ubuntu 26.04 LTS / x86-64
 - **CPU / RAM / disk / transfer:** 4 vCore / 8 GB RAM / 75 GB NVMe / unlimited traffic at 1 Gbps
 - **Shared or dedicated CPU:** allocated virtual cores on shared physical infrastructure
 - **Backup posture:** no premium backup or manual snapshots; bundled rolling 24-hour system-disk backup is accepted
@@ -59,19 +59,36 @@ provider credential.
 
 ### Host and runner readiness
 
-- **Provisioning window:** [pending]
+- **Provisioning window:** 2026-07-19
 - **Sanitized allocation reference:** [optional]
-- **OS updates / unattended updates / reboot:** [pending]
-- **Inbound / outbound posture:** [pending]
-- **Runner service user and directory isolation:** [pending]
-- **Tool versions (`git`, `gh`, `jq`, `shellcheck`, shell/coreutils):** [pending]
-- **Telemetry cadence / retention / cap / protected export:** [pending]
-- **Persistent service/restart log retention / cap:** [pending]
-- **Runner application version / checksum result:** [pending]
-- **Runner 1 sanitized status / labels / service health:** [pending]
-- **Runner 2 sanitized status / labels / service health:** [pending]
-- **Disk headroom / projected retention:** [pending]
-- **Pre-cutover go/no-go:** [pending]
+- **OS updates / unattended updates / reboot:** Ubuntu 26.04 LTS fully upgraded; kernel 7.0.0-28 active after a
+  controlled reboot; no pending updates or reboot; unattended updates and both APT timers enabled; unattended
+  reboots disabled for controlled maintenance
+- **Inbound / outbound posture:** host firewall active with default-deny inbound and SSH as the only public listener;
+  key-only administrative login enforced, root login disabled, unrestricted outbound retained for GitHub and
+  package access, and no private-network access configured
+- **Runner service user and directory isolation:** unprivileged `arc-runner` has no supplementary groups; two
+  separately owned application directories use mode `0750`; no development checkout, unrelated service, Docker,
+  runner registration artifact, or runner service exists
+- **Tool versions (`git`, `gh`, `jq`, `shellcheck`, shell/coreutils):** Git 2.53.0; GitHub CLI 2.46.0; jq 1.8.1;
+  ShellCheck 0.11.0; `/bin/sh` resolves to dash; Ubuntu's uutils coreutils 0.8.0; all required executables resolve
+  for `arc-runner`
+- **Telemetry cadence / retention / cap / protected export:** `sysstat` active at five-minute cadence with 60-day
+  history, compression after seven days, mode `0640` records, and retention-bounded storage; CPU, memory, load, and
+  disk samples verified; protected SSH export to the user-held workstation verified without retaining an export
+- **Persistent service/restart log retention / cap:** persistent compressed journal active with 60-day retention
+  and a 1-GB cap; current disk use 16 MB
+- **Runner application version / checksum result:** official Linux x64 runner 2.335.1 installed in both slots after
+  its published SHA-256 matched; dependencies installed; two unique intended names remain transient operator inputs,
+  with label `arc-ci-linux` reserved for post-audit registration
+- **Runner 1 sanitized status / labels / service health:** application prepared; unconfigured, unlabeled, and no
+  service installed
+- **Runner 2 sanitized status / labels / service health:** application prepared; unconfigured, unlabeled, and no
+  service installed
+- **Disk headroom / projected retention:** 68 GB free of 72 GB (94% free); bounded journal and `sysstat` retention
+  fit comfortably through the canary and posture decision
+- **Pre-cutover go/no-go:** No-go by design — route variable absent and repository runner count zero pending the
+  access-control audit and registration task
 
 ### Qualification and drills
 

@@ -89,11 +89,12 @@ recorded.
         - Compared current official OVHcloud, netcup, Contabo, DigitalOcean, Hetzner, Hivelocity, Synteq, and GitHub
           runner sources. Netcup is the strongest literal no-backup value; OVHcloud US is the stronger US-billed
           choice when its unavoidable rolling 24-hour system-disk copy is accepted as residual exposure.
-        - GitHub supports Ubuntu 20.04+ on x64 with outbound HTTPS; Ubuntu 24.04 LTS is the selected baseline.
-          Provider statistics have no published retention guarantee, so local 60-day sampling remains required.
+        - GitHub supports Ubuntu 20.04+ on x64 with outbound HTTPS; the acquired Ubuntu 26.04 LTS host is within the
+          supported range. Provider statistics have no published retention guarantee, so local 60-day sampling
+          remains required.
 
     - `[x]` **2.2.b Select the provider, SKU, region, and access posture**
-        - Approved OVHcloud US VPS-2 2027 in Vint Hill at $10/month: Ubuntu 24.04 x86-64, no premium backups or
+        - Approved OVHcloud US VPS-2 2027 in Vint Hill at $10/month: current Ubuntu LTS x86-64, no premium backups or
           manual snapshots, user-held SSH administration, provider statistics as supplemental evidence, and 60-day
           local sampling as the authoritative record.
         - Accepted the bundled rolling 24-hour backup as bounded residual exposure under a no-backup-dependency
@@ -108,34 +109,34 @@ recorded.
 - _Outcome:_ A month-to-month US-billed host is available at the 4-vCPU/8-GB canary floor, with the bundled
   24-hour backup exception bounded by the no-backup-dependency and requalification rules.
 
-### `[ ]` **2.3 Provision and harden the two-slot VPS without registering or routing CI jobs**
+### `[x]` **2.3 Provision and harden the two-slot VPS without registering or routing CI jobs**
 
 - _Goal:_ One minimal, hardened host has the prerequisite toolchain and two prepared runner directories, but no
   repository runner registration or label exists before the access-control audit passes.
 - **Additional Context:** `.github/self-hosted-ci.md` § Host provisioning.
 
-    - `[ ]` **2.3.a Establish the disposable host baseline**
-        - Apply OS updates; restrict inbound traffic to administrative access; enable unattended security updates;
-          configure restart/reboot handling and persistent size-bounded service logs; create the unprivileged runner
-          user; and keep development checkouts, personal notes, PATs, deploy keys, unrelated services, Docker, and
-          private-network access off the host.
+    - `[x]` **2.3.a Establish the disposable host baseline**
+        - Fully upgraded Ubuntu 26.04 LTS and activated the current kernel by controlled reboot; enabled unattended
+          updates with manual reboot control; enforced default-deny inbound, key-only SSH, disabled root login, and
+          persistent 60-day/1-GB journals; created the isolated unprivileged runner identity with no unrelated host
+          workload, private-network access, or Docker.
 
-    - `[ ]` **2.3.b Install and verify the workflow prerequisite toolchain**
-        - Install `git`, `gh`, `jq`, `shellcheck`, a POSIX shell, coreutils, and the supported Node prerequisites;
-          capture versions and prove each executable is available to the runner service user.
-        - Install and enable a lightweight local sampler such as `sysstat` for CPU, memory, load, and disk history;
-          verify timestamps, sampling cadence, retention, storage cap, and protected export without introducing a
-          third-party monitoring service.
+    - `[x]` **2.3.b Install and verify the workflow prerequisite toolchain**
+        - Installed the required CLI tools and current runner dependencies and verified their paths and versions as
+          `arc-runner`; enabled protected five-minute `sysstat` CPU, memory, load, and disk sampling with 60-day
+          retention, seven-day compression, retention-bounded storage, and a verified SSH export path.
 
-    - `[ ]` **2.3.c Prepare two isolated runner application directories**
-        - Download and verify the supported runner application into separate directories owned by the unprivileged
-          service user; stage unique intended runner names and `arc-ci-linux` as transient operator inputs.
-        - Do not request a registration token, run repository configuration, install a runner service, or assign
-          the repository label during this task.
+    - `[x]` **2.3.c Prepare two isolated runner application directories**
+        - Verified the official Linux x64 runner 2.335.1 archive against GitHub's published SHA-256 and extracted it
+          into two mode-`0750` application directories owned by `arc-runner`; reserved two unique transient names and
+          `arc-ci-linux` without requesting a token, configuring a runner, installing a service, or assigning a label.
 
-    - `[ ]` **2.3.d Confirm provisioning left both trust gates closed**
-        - Leave `ARC_CI_LINUX_RUNNER` absent/empty, confirm the repository has no new runner registrations, and
-          record only the sanitized host/tool and telemetry/log-retention baseline in the evidence section.
+    - `[x]` **2.3.d Confirm provisioning left both trust gates closed**
+        - Confirmed `ARC_CI_LINUX_RUNNER` is absent, the repository has zero registered runners, and both prepared
+          slots lack registration artifacts and services; recorded only sanitized readiness evidence.
+
+- _Outcome:_ The fully patched host now has two verified but inert runner slots and bounded local operating evidence;
+  both the repository registration gate and routing gate remain closed for the access-control audit.
 
 ### `[ ]` **2.4 Pass the access-control gate, register both runners, and prove readiness**
 

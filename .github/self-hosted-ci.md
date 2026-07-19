@@ -5,8 +5,9 @@ user-owned x86-64 VPS running two persistent runner services. GitHub-hosted exec
 
 ## Operating contract
 
-- Use Ubuntu 24.04 LTS x86-64 while it remains supported by the current GitHub Actions runner. Re-check the runner
-  support page before acquiring or rebuilding a host; an OS change requires a fresh qualification.
+- Use the approved current Ubuntu LTS on x86-64 while it remains supported by the GitHub Actions runner; the
+  acquired baseline is Ubuntu 26.04 LTS. Re-check the runner support page before acquiring or rebuilding a host;
+  an OS change requires a fresh qualification.
 - Start with approximately 4 shared vCPU, 8 GB RAM, SSD storage, adequate outbound transfer, and a recurring price
   no higher than USD 15 per month. Buy no premium backup and create no manual snapshot. A bundled rolling backup
   retained for at most 24 hours is accepted residual exposure, never a recovery dependency: rebuild, do not restore.
@@ -31,10 +32,11 @@ category counts, checklist results, exceptions, sanitized runner state, workflow
 Perform these steps through the user's local SSH configuration. Substitute transient values locally; do not save
 the host endpoint, administrator identity, SSH mapping, or fingerprint in repository files.
 
-1. Create an Ubuntu 24.04 LTS x86-64 allocation in the approved region and SKU. Select no premium backup or manual
-   snapshot option; document any non-disableable rolling backup under the operating contract. Add the intended SSH
-   public key through the provider and restrict the provider firewall to administrative SSH inbound plus
-   established traffic. Permit outbound HTTPS and DNS.
+1. Create an allocation in the approved region and SKU using the approved current Ubuntu LTS on x86-64. Select no
+   premium backup or manual snapshot option; document any non-disableable rolling backup under the operating
+   contract. Add the intended SSH public key through the provider. When a provider firewall is available, restrict
+   it to administrative SSH inbound plus established traffic; the host firewall remains mandatory. Permit outbound
+   HTTPS and DNS.
 2. Connect as the provider's administrative account, verify the expected host key through a user-held channel, and
    update the operating system:
 
@@ -42,8 +44,11 @@ the host endpoint, administrator identity, SSH mapping, or fingerprint in reposi
    sudo apt-get update
    sudo DEBIAN_FRONTEND=noninteractive apt-get -y full-upgrade
    sudo apt-get -y install unattended-upgrades ufw ca-certificates curl git gh jq shellcheck coreutils sysstat
-   sudo dpkg-reconfigure -plow unattended-upgrades
+   sudo systemctl enable --now apt-daily.timer apt-daily-upgrade.timer unattended-upgrades.service
    ```
+
+   Set `Unattended-Upgrade::Automatic-Reboot "false";` in a dedicated file under `/etc/apt/apt.conf.d/` so reboots
+   remain controlled maintenance actions.
 
 3. Preserve the active SSH path before enabling the host firewall. Adjust the source restriction to the operator's
    stable administrative range when available; otherwise rely on key-only SSH plus the provider firewall:
@@ -56,13 +61,18 @@ the host endpoint, administrator identity, SSH mapping, or fingerprint in reposi
    sudo ufw status verbose
    ```
 
-   Disable password and root SSH login after confirming a second key-authenticated session succeeds. Schedule a
-   reboot when `/var/run/reboot-required` exists; do not reboot while a job is running.
+   Disable password and root SSH login after confirming a second key-authenticated session succeeds. On Ubuntu
+   cloud images, place the settings in an early drop-in such as `/etc/ssh/sshd_config.d/00-arc-ci.conf`: OpenSSH
+   uses the first value it encounters, so a later filename does not override `50-cloud-init.conf`. Validate with
+   `sshd -t` and `sshd -T`, reload SSH, and prove a new key-only connection before closing the original session.
+   Leave unattended-upgrade reboots disabled; schedule a controlled reboot when `/var/run/reboot-required` exists,
+   and never reboot while a job is running.
 4. Create the service identity and its two application directories:
 
    ```sh
    sudo adduser --disabled-password --gecos '' arc-runner
-   sudo install -d -o arc-runner -g arc-runner /opt/actions-runner-1 /opt/actions-runner-2
+   sudo gpasswd -d arc-runner users || true
+   sudo install -d -m 0750 -o arc-runner -g arc-runner /opt/actions-runner-1 /opt/actions-runner-2
    ```
 
 5. Keep service and restart logs persistent and size-bounded. Create `/etc/systemd/journald.conf.d/arc-runner.conf`
@@ -78,7 +88,7 @@ the host endpoint, administrator identity, SSH mapping, or fingerprint in reposi
 
 6. Enable `sysstat` collection, using a five-minute cadence and at least 60 days of retention so the record spans
    the canary sample floor and operating-posture decision. Confirm `/etc/default/sysstat` has `ENABLED="true"`,
-   set `HISTORY=60` and `COMPRESSAFTER=7` in `/etc/sysstat/sysstat`, then enable the timers:
+   set `HISTORY=60`, `COMPRESSAFTER=7`, and `UMASK=0027` in `/etc/sysstat/sysstat`, then enable the timers:
 
    ```sh
    sudo systemctl enable --now sysstat-collect.timer sysstat-summary.timer
@@ -91,15 +101,16 @@ the host endpoint, administrator identity, SSH mapping, or fingerprint in reposi
 
    If the distribution timer is not five minutes, override `sysstat-collect.timer` with `OnCalendar=*:00/5` and
    run `sudo systemctl daemon-reload && sudo systemctl restart sysstat-collect.timer`.
-7. From the repository's **Settings → Actions → Runners → New self-hosted runner** page, copy the current x64 Linux
-   download URL and SHA-256 value. As `arc-runner`, download the same verified release into each directory, verify
-   its checksum before extraction, and run `bin/installdependencies.sh` with administrative privileges. Stop here:
-   do not request a registration token, run `config.sh`, install a service, or assign `arc-ci-linux` yet.
+7. From the public official `actions/runner` release page, copy the current x64 Linux download URL and SHA-256
+   value. As `arc-runner`, download the package once, verify its checksum before extraction, and extract the same
+   verified release into each directory. Run `bin/installdependencies.sh` with administrative privileges, restore
+   each application directory to mode `0750`, and remove the archive. Stop here: do not open the repository's new-
+   runner token flow, run `config.sh`, install a service, or assign `arc-ci-linux` yet.
 8. Verify the service user's tool and host baseline:
 
    ```sh
-   sudo -iu arc-runner sh -lc 'for tool in git gh jq shellcheck sh curl tar; do command -v "$tool"; done'
-   sudo -iu arc-runner sh -lc 'git --version; gh --version; jq --version; shellcheck --version'
+   sudo -u arc-runner -H sh -c 'cd /opt/actions-runner-1 && for tool in git gh jq shellcheck sh curl tar; do command -v "$tool"; done'
+   sudo -u arc-runner -H sh -c 'cd /opt/actions-runner-1 && git --version; gh --version; jq --version; shellcheck --version'
    systemctl is-enabled unattended-upgrades.service
    systemctl is-active sysstat-collect.timer sysstat-summary.timer
    journalctl --disk-usage
