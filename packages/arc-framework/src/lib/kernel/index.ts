@@ -26,3 +26,9 @@ export {
   type WorkClass,
   type WorkUnitState,
 } from "./schema/vocabulary.js";
+export {
+  SLUG_PATTERN,
+  SlugSchema,
+  isSlugSafe,
+  type Slug,
+} from "./schema/slug.js";

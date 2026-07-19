@@ -96,28 +96,21 @@ first-party importer migration and removal of these rollout seams.
 - _Outcome:_ State, Class, and Priority now have one Zod runtime/type authority without changing any existing
   importer or field-normalization behavior.
 
-### `[ ]` **2.2 Migrate the validated slug primitive**
+### `[x]` **2.2 Migrate the validated slug primitive**
 
 - _Goal:_ Work-unit and cohort slugs share one schema-backed path-safety contract while all established callers keep
   their current import path and boolean guard behavior.
-- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §3's validated-slug primitive.
 
-    - `[ ]` **2.2.a Define and validate the kernel slug contract**
-        - Move `SLUG_PATTERN` into the kernel, define
-          `SlugSchema = z.string().regex(SLUG_PATTERN).brand<"Slug">()`, derive `Slug` with `z.infer`, and implement
-          `isSlugSafe(value: string): value is Slug` through `SlugSchema.safeParse()`.
-        - Build `test-first` (one behavior at a time):
-            - Lowercase alphanumeric segments joined by single hyphens parse successfully.
-            - Empty values, uppercase characters, separators, dot segments, and repeated/edge hyphens fail.
-            - `isSlugSafe()` agrees with schema success for the complete valid/invalid table.
-            - A raw `string` is not assignable to `Slug`; parsed and guard-narrowed values are.
+    - `[x]` **2.2.a Define and validate the kernel slug contract**
+        - Added the branded `SlugSchema`, inferred `Slug`, and schema-backed type guard over the established
+          lowercase alphanumeric segment grammar, with complete valid/invalid and compile-time narrowing coverage.
 
-    - `[ ]` **2.2.b Preserve the work-unit import path**
-        - Replace `packages/arc-framework/src/lib/work-unit/slug.ts` with a thin downward re-export and keep all
-          existing work-unit consumers compiling unchanged.
-        - Leave the duplicate slug regex in `src/scripts/review-gate/hosts/github/lifecycle-tail.ts` unchanged;
-          `cli-substrate-complete-migration` owns residual duplicate-validator adoption after the contract members
-          land.
+    - `[x]` **2.2.b Preserve the work-unit import path**
+        - Replaced `lib/work-unit/slug.ts` with a thin identity-preserving kernel re-export while leaving the
+          review-gate duplicate untouched for the designated follow-up migration.
+
+- _Outcome:_ Work-unit and cohort path identities now share one branded runtime/type contract without changing
+  existing caller imports or boolean guard behavior.
 
 ## **Phase 3:** Versioned registry and generated schemas
 
