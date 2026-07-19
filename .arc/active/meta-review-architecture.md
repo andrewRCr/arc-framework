@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/review-architecture` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** `classify-change-granularity`
+- **Depends On:** `classify-change-granularity`, `cli-schema-kernel`
 
 - **Origin:** [internal]
 - **Design:** `spec-review-architecture.md`
