@@ -21,6 +21,17 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Decide and cascade `override-mode: extend` → `augment`**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-19);
+  captured during `review-architecture` draft reconciliation.
+- *Concern:* additive method composition already ships as `override-mode: extend`, but `extend` collides with
+  ARC's separate Extensions mechanism.
+- *Approach:* decide the final term and run the behavior-preserving rename through the frontmatter parser and
+  types, tests, method guidance, `testing-standards`, and strategies. Keep replace-vs-additive semantics and
+  activation owned by `customization-arch-realign`; `composable-workflows` consumes the final enum without
+  reopening the vocabulary or semantics.
+
 ### `[ ]` **Conform the enforced conventional-commit policy to its named standard**
 
 - *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during
@@ -313,6 +324,19 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   Convention + field + collision guard are this WU's; render consumption (overflow collapse `SAP, DM, +4`) is
   `roadmap-tooling`'s (entry routed there 2026-07-02). Coupling: the target `Owner` field on `VECTOR.*` reuses
   the WU field name — the pending `Owner → DRI` evaluation above covers both record types if it lands.
+
+### `[ ]` **Review coupling-audit finding: state document renames**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-18);
+  captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- *Concern:* five planned document/root renames have materially different fan-out, including two abstract
+  state-document names.
+- *Approach:* use the ranked classes at grooming to decide which names need resolver-backed indirection and which
+  can change atomically with the mover.
+- *Packet:* `packet-9ba27bc90a49239e2b82b1ef`; content digest
+  `fbf43e1af8df3fd782b11e52e815f70894d6dab37a03c4c12daca52f6b9cc2cb`.
+- *Evidence:* `agent-briefs-root`, `atomic-inbox-name`, `session-notes-name`, `user-inbox-name`, and
+  `working-memory-name`; corresponding `scan-result.json#class-*` anchors.
 
 ---
 

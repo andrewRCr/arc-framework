@@ -206,8 +206,13 @@ export async function detectForeignArtifactOverlap(
         && isOriginatingWorktree
         && entry.name !== undefined,
     )?.entry.name;
+  const usesFallbackSelfExclusion = originatingMetaPath !== undefined || entries.some(
+    ({ entry, isOriginatingWorktree }) => isUnshippedWorkUnit(entry) && isOriginatingWorktree,
+  );
   const notes =
-    selfName === undefined && roster.entries.some((entry) => isUnshippedWorkUnit(entry))
+    selfName === undefined
+      && usesFallbackSelfExclusion
+      && roster.entries.some((entry) => isUnshippedWorkUnit(entry))
       ? [SELF_EXCLUSION_FALLBACK_NOTE]
       : [];
 

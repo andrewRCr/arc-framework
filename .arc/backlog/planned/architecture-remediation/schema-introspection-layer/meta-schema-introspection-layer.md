@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** `architecture-remediation`
-- **Depends On:** `cli-substrate-adoption`
+- **Depends On:** `cli-schema-kernel`
 
 - **Origin:** [internal]
 - **Design:** `draft-schema-introspection-layer.md`

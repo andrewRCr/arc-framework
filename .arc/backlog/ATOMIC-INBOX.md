@@ -9,22 +9,6 @@
 
 ## Inbox
 
-### `[ ]` **Return protection mode from housekeep write-context checks**
-
-- _Routed from:_ `USER-INBOX § Atomic`, housekeep drain (2026-06-14); captured during between-WUs handoff /
-  housekeep after PR #99 (`lifecycle-state-resolver`) merge cleanup.
-- _Observation:_ `npx arc housekeep check --json` returned `verdict: proceed` on `main` with `baseBranch: main`,
-  but omitted the resolved project `branch.protection`. The drain workflow's next write-mechanics branch depends
-  on `full` vs. `partial`, so the missing field pushed the agent into re-probing weaker surfaces (`git config`,
-  broad grep, code defaults) before reading `.arc/system/arc-config.yml`.
-- _Approach:_ Extend the write-context check envelope, at least for `arc housekeep check --json`, with the
-  caller-resolved protection mode from config, for example `branchProtection: "full" | "partial"`. Consider the
-  same field for shared write-context/check primitives whose consumers immediately branch on protection mode.
-  Update human copy/tests so `verdict: proceed` cannot be mistaken for "direct base write is allowed."
-- _Files:_ `packages/arc-framework/src/handlers/housekeep.ts`,
-  `packages/arc-framework/src/lib/git/write-context.ts`, housekeep/write-context tests, and `drain-inbox.md` if
-  the workflow should name the returned field.
-
 ### `[ ]` **Split `supplemental/` workflows into session-adjacent vs installation-level**
 
 - _Observation:_ `.arc/system/workflows/arc/supplemental/` mixes two implicit categories: framework-level
@@ -51,18 +35,6 @@
 
 - _Captured during:_ dependency/audit follow-up errand (`USER-INBOX § Atomic`, 2026-06-05); re-homed to the shared
   inbox as a homeless, trigger-gated project concern.
-
-### `[ ]` **Pin the two-copy parity of Framework hook recipes in tests**
-
-- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-07) — homeless atomic, deferred; captured during
-  PR #189 CodeRabbit review (compaction-recovery hook-resolution hardening errand).
-- _Observation:_ `codex-cli.test.ts` reads only the authoritative
-  `packages/arc-framework/arc/system/.internal/harness-hooks/codex-cli/hooks.json` copy (`hookRoot`), so the shipped
-  `.arc/system/...` mirror can silently drift out of parity — no automated test catches a divergence between the two
-  copies. The copies are currently byte-identical; the gap is the missing guard, not a live drift.
-- _Approach:_ add a byte-for-byte parity assertion between the two copies to the harness-hooks unit suite — or, more
-  broadly, a shared Framework-file two-copy parity check if other `.arc/**` mirrors share the same test-side
-  exposure. Scope to whichever check is cheap and general.
 
 ### `[ ]` **Add progress feedback (spinners) to `arc start`'s slow legs**
 
@@ -108,3 +80,14 @@
   escape hatch if typecheck time matters sooner: side-by-side `typescript@7` for `tsc` +
   `@typescript/typescript6` pinned for ESLint. Coordinate with the `cli-substrate-adoption` kernel buffer note
   (Zod-first inversion) so the kernel never needs the compiler API at all.
+
+### `[ ]` **De-flake the base-drift advisory e2e fetch race**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-19) — homeless atomic, deferred; captured after
+  PR #292's unchanged retry passed.
+- _Observation:_ `session-init.e2e.test.ts`'s shared advisory base-drift case once produced
+  `verdict: "unavailable"` / `unavailableReason: "fetch-failed"` instead of `reconcile` under CI shard load. The
+  suite and the data-only PR were otherwise unchanged, and the failed-job retry passed.
+- _Approach:_ reproduce under repetition or load, then make the fixture's local-file-remote fetch leg
+  deterministic or add diagnostics that distinguish a genuine fetch failure from fixture contention. Preserve
+  the product's `unavailable` semantics for real failures; change only the test environment.

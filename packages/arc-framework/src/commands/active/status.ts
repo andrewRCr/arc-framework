@@ -279,7 +279,7 @@ function resolvePlanningStage(
     : PLANNING_ENTRY_STAGE;
 }
 
-function resolveTaskListPath(
+export function resolveTaskListPath(
   statusFilePath: string,
   taskListValue: string | null,
 ): string | null {

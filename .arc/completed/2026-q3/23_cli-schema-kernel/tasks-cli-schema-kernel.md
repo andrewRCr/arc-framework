@@ -1,0 +1,380 @@
+# Task List: CLI Schema Kernel
+
+- **Design:** `spec-cli-schema-kernel.md`
+
+---
+
+## **Phase 1:** Kernel boundary and dependency seam
+
+_Purpose:_ Establish the bottom-of-graph module, its dependency baseline, and the bounded Result surface before
+moving shared primitives into it.
+
+### `[x]` **1.1 Establish the kernel package boundary and dependency baseline**
+
+- _Goal:_ The CLI has a buildable, documented kernel entry point backed by validated dependency choices and a
+  reproducible pre-change footprint baseline.
+
+    - `[x]` **1.1.a Capture the pre-kernel build and package baseline**
+        - At `acb2619aa6c4a42509bf87ea1b11350dc623dbcd` with Node `v26.3.0` and npm `11.16.0`, the clean build
+          produced a 1,388,051-byte `dist/cli.js` and 5,396,824 total `dist/` bytes. Its metafile attributed
+          1,373,373 output bytes across 351 inputs. The dry-run package contained 166 files totaling 1,663,152
+          packed and 6,699,230 unpacked bytes. An isolated production install occupied 513,008 bytes across 15
+          packages.
+
+    - `[x]` **1.1.b Reconfirm and add the runtime dependencies**
+        - Reconfirmed Zod `4.4.3` metadata isolation, duplicate identity control, `$id`/external `$ref` projection,
+          and deterministic sorted output in an isolated spike. Neverthrow `8.2.0` remains maintained, supports
+          Node 18+, and typechecks under the CLI's Node16/TypeScript 6 configuration. Added only `zod@^4.4.3` and
+          `neverthrow@^8.2.0` to the CLI workspace and root lockfile.
+
+    - `[x]` **1.1.c Establish the kernel entry surface and architecture record**
+        - Added the explicit `src/lib/kernel/index.ts` public boundary and documented the bottom-of-graph kernel,
+          Zod schema authority, and bounded neverthrow seam in `TECHNICAL-OVERVIEW.md`; internal subdirectories
+          remain demand-created as their owning modules land.
+
+- _Outcome:_ The CLI now has a buildable kernel boundary, validated runtime dependencies, and a reproducible
+  pre-change artifact/install baseline for the Phase 6 footprint comparison.
+
+### `[x]` **1.2 Expose the bounded Result seam and boundary adapters**
+
+- _Goal:_ CLI modules can compose typed success and failure through one kernel-owned import path without importing
+  `neverthrow` directly or committing the codebase to an imagined full abstraction.
+
+    - `[x]` **1.2.a Define the kernel Result export contract**
+        - Added the explicit `result.ts` and kernel-barrel exports for `Result`, `ResultAsync`, `ok`, `err`,
+          `fromThrowable`, and `fromAsyncThrowable`, with type and runtime coverage for synchronous/asynchronous
+          narrowing and ordinary Result transformations.
+
+    - `[x]` **1.2.b Add exception-to-Result boundary adapters**
+        - Kept exception adaptation on neverthrow's native safe-function constructors and verified unchanged success
+          values plus exact mapper inputs for synchronous throws, pre-promise throws, and promise rejections.
+
+- _Outcome:_ All typed success/failure composition now enters through one kernel-owned path while retaining the
+  dependency's ordinary method API and caller-owned error mapping.
+
+### `[x]` **1.3 Enforce bottom-of-graph kernel imports**
+
+- _Goal:_ Any kernel import that reaches another `src/` module fails automatically, while kernel-internal, Node
+  builtin, and approved external-library imports remain valid.
+
+    - `[x]` **1.3.a Build a resolved import-boundary audit**
+        - Added a test-only TypeScript AST and Node16-resolution audit covering nested kernel imports, every named
+          static/dynamic/type/re-export form, forbidden CommonJS and `createRequire` loader escape forms, approved
+          external packages, and repository-wide neverthrow seam enforcement.
+
+    - `[x]` **1.3.b Wire the live kernel graph into the ordinary test gate**
+        - The ordinary unit suite now audits every live kernel source and reports stable file/specifier/reason
+          findings without an internal-path allow-list.
+
+- _Outcome:_ The kernel's bottom-of-graph contract and single neverthrow import edge are executable invariants in
+  the default unit-test gate rather than architectural convention alone.
+
+## **Phase 2:** Schema-backed shared vocabulary
+
+_Purpose:_ Move only proven-shared primitives into the kernel as Zod-authoritative contracts while preserving every
+existing import path through temporary downward re-exports. `cli-substrate-complete-migration` owns the later
+first-party importer migration and removal of these rollout seams.
+
+### `[x]` **2.1 Migrate work-unit state, class, and priority vocabulary**
+
+- _Goal:_ Work-unit metadata vocabulary has one runtime-validating Zod authority whose inferred types and existing
+  narrowers preserve every current parse behavior.
+
+    - `[x]` **2.1.a Move lifecycle-state vocabulary into kernel schemas**
+        - Added `WorkUnitStateSchema`, its inferred type, schema-backed `validateState()`, and the exhaustive
+          `Planning` → `Active` → `Integrating` → `Shipped` ordering to the kernel vocabulary module.
+
+    - `[x]` **2.1.b Move Class and Priority vocabulary into kernel schemas**
+        - Added strict `WorkClassSchema` and `PrioritySchema` authorities with inferred types while preserving Class
+          trim/case normalization, the `[TBD]` fallback, and Priority's case-sensitive `P3` default.
+
+    - `[x]` **2.1.c Convert the command module to a temporary downward re-export**
+        - Replaced every migrated declaration in `commands/active/types.ts` with downward kernel re-exports; direct
+          and legacy paths now prove runtime identity and schema-derived type equivalence while command contracts
+          remain co-located.
+
+- _Outcome:_ State, Class, and Priority now have one Zod runtime/type authority without changing any existing
+  importer or field-normalization behavior.
+
+### `[x]` **2.2 Migrate the validated slug primitive**
+
+- _Goal:_ Work-unit and cohort slugs share one schema-backed path-safety contract while all established callers keep
+  their current import path and boolean guard behavior.
+
+    - `[x]` **2.2.a Define and validate the kernel slug contract**
+        - Added the branded `SlugSchema`, inferred `Slug`, and schema-backed type guard over the established
+          lowercase alphanumeric segment grammar, with complete valid/invalid and compile-time narrowing coverage.
+
+    - `[x]` **2.2.b Preserve the work-unit import path**
+        - Replaced `lib/work-unit/slug.ts` with a thin identity-preserving kernel re-export while leaving the
+          review-gate duplicate untouched for the designated follow-up migration.
+
+- _Outcome:_ Work-unit and cohort path identities now share one branded runtime/type contract without changing
+  existing caller imports or boolean guard behavior.
+
+## **Phase 3:** Versioned registry and generated schemas
+
+_Purpose:_ Provide the discoverable schema registry and deterministic JSON Schema artifact that downstream cohort
+members can compose without centralizing their domain-owned schemas.
+
+### `[x]` **3.1 Implement the versioned kernel registry contract**
+
+- _Goal:_ Callers can register, discover, and inspect schemas through the pinned wrapper API, with stable identities
+  and migration metadata enforced independently of Zod's non-iterable registry.
+
+    - `[x]` **3.1.a Define registry metadata and migration posture**
+        - Added the public version/migration and JSON Schema contracts, strict ASCII-slug identities, positive-safe
+          versions, closed migration postures, immutable copied metadata, and pre-mutation validation.
+
+    - `[x]` **3.1.b Implement registration, lookup, and identity enumeration**
+        - Wrapped the native registry with a parallel identity index, native schema-membership checks, atomic
+          duplicate guards, consistent lookup, and fresh code-point-sorted identity views.
+
+- _Outcome:_ Downstream schemas can register and discover one current version per stable identity through a small,
+  deterministic wrapper without exposing Zod's non-iterable registry.
+
+### `[x]` **3.2 Register kernel schemas and produce deterministic JSON Schema**
+
+- _Goal:_ Kernel-owned schemas emit one version-aware, bundled JSON Schema projection with stable identities,
+  references, and byte-for-byte repeatability.
+
+    - `[x]` **3.2.a Register the kernel-owned vocabulary under stable identities**
+        - Added empty and fresh preloaded factories; each kernel registry contains only `work-unit-state`,
+          `work-class`, `priority`, and `slug` at version 1 with strict-current posture and remains independently
+          extensible.
+
+    - `[x]` **3.2.b Implement bundled JSON Schema conversion**
+        - Added sorted ephemeral Draft 2020-12 projection with default `.schema.json` and caller-supplied URI maps,
+          external references for registered composition, metadata isolation, and byte-stable output across
+          opposite registration orders.
+
+- _Outcome:_ Kernel and composed subsystem schemas now emit deterministic identity-keyed bundles with stable
+  external references and no registry metadata leakage.
+
+### `[x]` **3.3 Integrate the generated schema artifact with the build**
+
+- _Goal:_ Every production build emits the deterministic kernel schema bundle inside the published `dist/` output,
+  and stale or nondeterministic generation fails visibly.
+
+    - `[x]` **3.3.a Build an injectable schema-generation entry**
+        - Added separate projection, stable two-space/terminal-newline serialization, and injectable filesystem
+          publication through a same-directory temporary file and atomic rename; failed writes clean partial temps.
+
+    - `[x]` **3.3.b Wire schema generation after the clean TypeScript build**
+        - Wired the writer through tsup's async `onSuccess` hook with unchanged build scripts; dry-run packaging now
+          includes the generated `dist/schemas/kernel.json` through the existing `dist` allowlist.
+
+    - `[x]` **3.3.c Prove build-artifact repeatability**
+        - Isolated tests prove exact bytes and IDs across opposite registration orders, while E2E global setup now
+          requires both CLI and schema artifacts even when CI skips the local build invocation.
+
+- _Outcome:_ Every clean production build now atomically emits and packages a deterministic 924-byte kernel schema
+  bundle, and both local and downloaded-artifact E2E paths fail fast when either required artifact is absent.
+
+## **Phase 4:** Extensible errors
+
+_Purpose:_ Evolve the existing error base into an open, namespaced taxonomy without moving terminal presentation
+into the kernel or changing current user-facing formatting.
+
+### `[x]` **4.1 Move and open the ArcError base contract**
+
+- _Goal:_ The CLI has one kernel-owned error base that accepts existing and namespaced domain codes without a shared
+  union edit, while existing `ArcError` construction remains source-compatible.
+
+    - `[x]` **4.1.a Relocate the base error and open its code contract**
+        - Moved `ArcError` into the kernel with the internal 15-code legacy union plus lowercase dotted extensions,
+          preserving two-argument construction and adding native `ErrorOptions` cause support.
+
+    - `[x]` **4.1.b Expose the base through the existing error module**
+        - The existing error module now re-exports the exact kernel constructor/type while retaining presentation;
+          compile-time tests accept legacy/namespaced codes, reject new bare codes, and prove `UserFacingError`
+          constructor compatibility.
+
+- _Outcome:_ The CLI retains one source-compatible error base while domains can add typo-safe namespaced variants
+  without editing a shared exhaustive union.
+
+### `[x]` **4.2 Prove namespaced domain extension and cause-preserving adapters**
+
+- _Goal:_ A domain can add exhaustive local error variants and convert unknown failures safely without widening or
+  centralizing the shared error vocabulary.
+    - `[x]` **4.2.a Add a representative schema-domain error contract**
+        - Added locally exhaustive `SchemaError` variants for invalid metadata, duplicate identities, and duplicate
+          schema instances; registry failures now expose those stable codes with narrowed type and optional cause.
+
+    - `[x]` **4.2.b Add a boundary-safe unknown-error adapter**
+        - Added `toArcError()`: existing ARC errors retain identity, ordinary Errors become private causes beneath a
+          stable caller-owned fallback, and non-Error throws are neither stringified nor retained.
+
+- _Outcome:_ The registry demonstrates independent domain extension, and boundary adapters now preserve useful
+  native causes without leaking arbitrary thrown values into public error identity.
+
+### `[x]` **4.3 Preserve terminal presentation in the existing error module**
+
+- _Goal:_ `UserFacingError`, `formatError()`, `formatUnexpectedError()`, and `manifestMissingError()` render exactly
+  as before while consuming the kernel-owned base.
+    - `[x]` **4.3.a Reground presentation on the moved base**
+        - Kept `UserFacingError` and all formatters in `lib/errors.ts`, changing only their dependency to the exact
+          kernel base while retaining old-path output assertions.
+
+    - `[x]` **4.3.b Validate command and handler compatibility**
+        - All existing command/handler consumers typecheck unchanged; unexpected-error formatting remains stack- and
+          cause-free with byte-identical terminal strings.
+
+- _Outcome:_ Error taxonomy is now kernel-owned and extensible while terminal presentation and every legacy caller
+  remain on their established module boundary.
+
+## **Phase 5:** Canonical-data relocation
+
+_Purpose:_ Place the pure canonical trust core inside the kernel with byte-stable behavior and temporary old-path
+re-exports, while leaving retirement and decomposition semantics with their current owners.
+
+### `[x]` **5.1 Characterize and relocate the canonical JSON core**
+
+- _Goal:_ Canonical serialization, digesting, validation, and set ordering are kernel-owned with every existing byte
+  vector and old import path preserved exactly.
+- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §7's canonical JSON move and byte-stability
+  requirement.
+
+    - `[x]` **5.1.a Freeze the canonical public contract before relocation**
+        - Extended the old-path contract with an exact raw-byte digest vector and compile-time guard/assertion
+          narrowing; the existing vectors already covered serialization, rejection, ordering, and canonical digest
+          behavior.
+
+    - `[x]` **5.1.b Move the implementation and leave a temporary old-path re-export**
+        - Relocated the behavior-identical implementation under `lib/kernel/canonical/`, exposed its complete
+          surface through the kernel barrel, and left an exact old-path re-export with runtime identity and type
+          equivalence coverage.
+
+- _Outcome:_ Canonical serialization and digest authority now sit at the bottom of the dependency graph while every
+  established byte vector and old import path remains unchanged.
+
+### `[x]` **5.2 Characterize and relocate managed-path validation**
+
+- _Goal:_ Managed paths retain their total repository-relative safety gate and branded type through both the kernel
+  authority and old canonical import path.
+- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §7's managed-path move.
+
+    - `[x]` **5.2.a Freeze managed-path validation and type behavior**
+        - Confirmed the complete valid/invalid path table and added compile-time proof that only validated or
+          guard-narrowed strings acquire the `ManagedPath` brand.
+
+    - `[x]` **5.2.b Move the implementation and leave a temporary old-path re-export**
+        - Relocated validation under `lib/kernel/canonical/`, exposed it through the kernel barrel, and retained an
+          exact old-path re-export with runtime identity and branded-type equivalence coverage.
+
+- _Outcome:_ Managed paths retain one total repository-relative validation gate and one brand across both the
+  kernel authority and rollout compatibility path.
+
+### `[x]` **5.3 Validate canonical compatibility across downstream consumers**
+
+- _Goal:_ Retirement, decomposition, coupling-audit, and script consumers retain identical behavior while their
+  domain-shaped canonical modules remain outside the kernel.
+- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §7's domain fencing and migration strategy.
+
+    - `[x]` **5.3.a Preserve domain ownership and shim-mediated imports**
+        - Kept content digests, receipt IDs, and every domain-shaped record outside the kernel; their unchanged
+          relative imports now flow through the compatibility shims without consumer migration.
+
+    - `[x]` **5.3.b Run the canonical downstream integration checkpoint**
+        - The complete named consumer checkpoint passed across canonical, receipt, retirement, decomposition,
+          worktree-marker, coupling-audit, validation-script, integration, and lifecycle-exit surfaces.
+
+- _Outcome:_ The pure trust core moved without digest, ordering, receipt-ID, serialized-record, or downstream type
+  drift, while domain ownership remains fenced outside the kernel.
+
+## **Phase 6:** Substrate integration and hardening
+
+_Purpose:_ Exercise the completed kernel as one coherent integration boundary, close exclusivity and compatibility
+claims, and assess the dependency and build-output cost before full verification.
+
+### `[x]` **6.1 Validate kernel exports, rollout seams, and TypeScript authority**
+
+- _Goal:_ The completed kernel is consumable through its intended entry surface, temporary existing-path
+  re-exports remain intact for the cohort rollout, and automated checks prove the dependency/type-authority claims
+  across the whole substrate.
+- _Context:_ Integrates `spec-cli-schema-kernel.md` Proposed Design §§1-8.
+
+    - `[x]` **6.1.a Close export and dependency exclusivity checks**
+        - Added an exact 28-value/14-type allow-list for the explicit kernel barrel, rejecting wildcard or direct
+          declarations and keeping legacy/internal machinery private. The source-wide AST audit now recognizes all
+          specified TypeScript references plus direct, module, and `createRequire()`-returned loaders while allowing
+          `neverthrow` only at the Result seam.
+
+    - `[x]` **6.1.b Run the substrate integration checkpoint**
+        - Unit and integration suites, TypeScript lint, source/test typechecks, and the production build all passed
+          through the completed public boundary and compatibility seams.
+
+- _Outcome:_ The kernel now has a mechanically exact public API and one source-wide dependency audit covering both
+  its bottom-of-graph invariant and the exclusive Result dependency seam.
+
+### `[x]` **6.2 Measure and reconcile dependency and build-output growth**
+
+- _Goal:_ The completed substrate has reproducible schema output and an understood package/build cost, with any
+  unexplained expansion corrected before full work-unit verification.
+- _Context:_ Implements `spec-cli-schema-kernel.md` Cross-cutting Considerations §§ Package / build size and Testing.
+
+    - `[x]` **6.2.a Compare the completed build with the recorded baseline**
+        - Under Node `v26.3.0`/npm `11.16.0`, the final reviewed `cli.js` changed 1,388,051 → 1,389,898 bytes
+          (+1,847, +0.133%); total `dist/` 5,396,824 → 5,403,749 (+6,925, +0.128%); packed size 1,663,152 →
+          1,664,221 (+1,069, +0.064%); unpacked size 6,699,230 → 6,706,204 (+6,974, +0.104%); and files 166 →
+          167 (+1, +0.602%). The isolated production install remains 7,253,099 bytes across 18 packages versus the
+          513,008-byte/15-package baseline (+6,740,091, +1313.837%; +3 packages, +20.000%). Repeated clean builds
+          emitted byte-identical schema bundles, and the pack list contained exactly one
+          `dist/schemas/kernel.json`.
+
+    - `[x]` **6.2.b Explain or resolve build and package growth**
+        - The saved baseline metafile confirms 352 → 361 inputs (+9, +2.557%) and 1,373,373 → 1,375,047
+          attributed bytes (+1,674, +0.122%): the nine additions are exactly the bundled kernel sources, including
+          the review-hardened shared Unicode validator, with no removed inputs or bundled Zod/neverthrow files.
+          `dist/` growth resolves to `cli.js` (+1,847), its source map (+754), the metafile (+3,400), and schema
+          bundle (+924); package metadata supplies the remaining unpacked delta. Production install growth is
+          attributable to `zod@4.4.3` (4,558,122 bytes), `neverthrow@8.2.0` (112,467), its declared optional
+          `@rollup/rollup-linux-x64-gnu@4.61.0` dependency (2,068,183), and install metadata overhead.
+
+- _Outcome:_ Build and package growth is deterministic and fully attributable: the shipped artifact adds one exact
+  schema file, the bundle vendors no new dependency, and the larger consumer install is isolated to the two chosen
+  dependencies plus neverthrow's declared platform-specific optional dependency.
+
+## **Phase 7:** Verification
+
+_Purpose:_ Verify the complete work unit against its design, success criteria, and project quality standards.
+
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Goal:_ The completed kernel satisfies `spec-cli-schema-kernel.md`, retains all compatibility promises, and clears
+  every work-unit quality and integration gate.
+- _Quality gates:_ Markdown, TypeScript, and shell lint; `typecheck:all`; 507 test files / 6,406 tests; and the
+  production build all passed (1 file / 1 test skipped). The repaired base-drift reconcile E2E also passed 20/20
+  consecutive stress runs.
+- _Success criteria:_ All 12 met. Fresh adversarial verification exposed and closed getter-backed registry metadata
+  mutation plus post-merge footprint drift; the remaining schema, compatibility, boundary, packaging, and
+  architecture claims withstood both passes.
+
+---
+
+## Success Criteria
+
+- `[x]` `WorkUnitStateSchema`, `WorkClassSchema`, `PrioritySchema`, and branded `SlugSchema` are the runtime
+  authorities for the closed initial vocabulary; their types derive through `z.infer`, while existing narrowers and
+  import paths preserve established behavior during the cohort rollout.
+- `[x]` `createRegistry()` implements registration, lookup, metadata, stable identity enumeration, and bundled JSON
+  Schema conversion; duplicate or invalid registration fails without partial mutation.
+- `[x]` Generated JSON Schema has stable `$id`/`$ref` links, excludes registry-only metadata, is byte-identical
+  across repeated builds, and ships inside the package's `dist/` output.
+- `[x]` `ArcError` supports unchanged existing codes and domain-owned namespaced codes without a central union edit;
+  causes are preserved safely and terminal presentation remains byte-for-byte compatible.
+- `[x]` The explicit kernel barrel exposes only the designed Result, vocabulary, registry, error, and canonical
+  contracts; internal Zod machinery, build writers, legacy type helpers, and domain-owned records do not leak.
+- `[x]` `Result`, `ResultAsync`, `ok`, `err`, and boundary adapters are consumed through the kernel, and no source
+  outside `src/lib/kernel/result.ts` imports `neverthrow`.
+- `[x]` Canonical JSON and managed-path primitives are kernel-owned with temporary old-path re-exports; all digest,
+  ordering, receipt, and serialized-record compatibility vectors remain unchanged. First-party importer migration
+  and removal of these rollout seams are explicitly owned by `cli-substrate-complete-migration`.
+- `[x]` Automated tests prove the kernel imports only kernel-local modules, approved external libraries, and Node
+  builtins, with no allow-listed escape into another `src/` module.
+- `[x]` The package/build growth assessment reconciles the completed metafile and package file list with the
+  baseline plus the isolated production-install footprint; no unexplained input, unexpected packaged file,
+  accidentally bundled dependency, or unattributed installed dependency remains.
+- `[x]` `.arc/reference/TECHNICAL-OVERVIEW.md` accurately records the runtime-schema, Result, and kernel architecture.
+- `[x]` All quality gates pass: Markdown lint, TypeScript lint, `typecheck:all`, full tests, and build.
+- `[x]` Ready for integration.

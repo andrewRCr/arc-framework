@@ -72,6 +72,19 @@
   documented in an authoritative home so future framework work does not re-derive where guidance surfaces belong,
   how they are named, and how agents become aware of them.
 
+### `[ ]` **Review coupling-audit finding: knowledge access-path moves**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: knowledge-architecture`), housekeep drain (2026-07-18);
+  captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- _Concern:_ the target knowledge model changes the strategy family, strategy index, and internal skill root
+  across high- and low-fan-out quadrants.
+- _Approach:_ groom these classes as access-path consequences of the knowledge model and retain their canonical
+  file sets for cascade planning.
+- _Packet:_ `packet-d2d9f3e4799c94470c55111c`; content digest
+  `6cbd7aa249241a3f51256f7caa81e9361f46bc4551e6ab1531828d7dd02dc107`.
+- _Evidence:_ `internal-skill-root`, `strategy-family`, and `strategy-index-name`; corresponding
+  `scan-result.json#class-*` anchors.
+
 ## Problem / Motivation
 
 ARC's _procedural_ content (workflows, methods, extensions) has a heavily developed — partly still

@@ -26,6 +26,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { runActiveInFlight } from "../commands/active.js";
+import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import {
   classifyPathSurface,
@@ -50,6 +51,51 @@ import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 
 import type { GitExec } from "../lib/git/exec.js";
+
+const ACTIVE_META_PATH = /^\.arc\/active\/meta-(.+)\.md$/u;
+
+/** Staged identity of the work unit whose ceremony is being committed. */
+export interface StagedOriginatingWorkUnit {
+  name: string;
+  metaPath: string;
+  branch?: string;
+}
+
+/**
+ * Resolve one staged active meta directly from the index.
+ *
+ * The pre-commit advisory must judge the snapshot being committed, not the
+ * branch tip or a later worktree edit. Ambiguous or unreadable staged metas
+ * fail open to the existing worktree-path fallback.
+ */
+export async function resolveStagedOriginatingWorkUnit(
+  exec: GitExec,
+  paths: readonly string[],
+): Promise<StagedOriginatingWorkUnit | undefined> {
+  const candidates = [...new Set(paths)]
+    .map((metaPath) => ({ metaPath, match: ACTIVE_META_PATH.exec(metaPath) }))
+    .filter((candidate): candidate is { metaPath: string; match: RegExpExecArray } => candidate.match !== null);
+  const resolved: StagedOriginatingWorkUnit[] = [];
+  for (const { metaPath, match } of candidates) {
+    try {
+      const { stdout } = await exec("git", ["show", `:${metaPath}`]);
+      const record = parseMetaRecord(stdout);
+      const name = match[1];
+      if (name === undefined || name === "") continue;
+      const title = /^# (.+)$/mu.exec(stdout)?.[1]?.trim();
+      if (title !== `Metadata: ${name}` || record.State === null || record.State === "") continue;
+      const branch = record.Branch;
+      resolved.push({
+        name,
+        metaPath,
+        ...(branch !== null && branch !== "[none]" && branch !== "" ? { branch } : {}),
+      });
+    } catch {
+      // Advisory-only: an absent/deleted/malformed staged meta falls back.
+    }
+  }
+  return resolved.length === 1 ? resolved[0] : undefined;
+}
 
 /**
  * Narrow a staged-path list to the foreign-write candidate set: the `work-unit`
@@ -76,6 +122,8 @@ export interface StagedForeignWriteOptions {
   originatingWorktreePath: string;
   /** The committing WU's meta path — self-excludes remote-only projections of the same WU. */
   originatingMetaPath?: string;
+  /** The committing WU's staged content-derived name — the primary self-exclusion key. */
+  originatingWorkUnitName?: string;
 }
 
 /**
@@ -89,7 +137,16 @@ export interface StagedForeignWriteOptions {
 export async function detectStagedForeignWrites(
   options: StagedForeignWriteOptions,
 ): Promise<ForeignArtifactDetectionResult> {
-  const { exec, roster, paths, baseBranch, snapshot, originatingWorktreePath, originatingMetaPath } = options;
+  const {
+    exec,
+    roster,
+    paths,
+    baseBranch,
+    snapshot,
+    originatingWorktreePath,
+    originatingMetaPath,
+    originatingWorkUnitName,
+  } = options;
   const candidates = selectForeignWriteCandidates(paths);
   if (candidates.length === 0) return { overlaps: [] };
   const baseRef = await preferRemoteBaseRef(exec, baseBranch);
@@ -101,6 +158,7 @@ export async function detectStagedForeignWrites(
     ...(snapshot !== undefined ? { snapshot } : {}),
     originatingWorktreePath,
     ...(originatingMetaPath !== undefined ? { originatingMetaPath } : {}),
+    ...(originatingWorkUnitName !== undefined ? { originatingWorkUnitName } : {}),
   });
 }
 
@@ -141,6 +199,16 @@ export function formatForeignWriteAdvisories(
   ];
 }
 
+/** Drop oracle warnings that describe the staged originating WU itself. */
+export function filterOriginatingOracleWarnings(
+  warnings: readonly InFlightWarning[],
+  originatingWorkUnitName: string | undefined,
+): InFlightWarning[] {
+  return originatingWorkUnitName === undefined
+    ? [...warnings]
+    : warnings.filter((warning) => warning.workUnit !== originatingWorkUnitName);
+}
+
 // --- CLI entry ---
 
 /** The committing worktree's root, in `git worktree list` path form (for self-exclusion). */
@@ -171,6 +239,7 @@ async function main(): Promise<void> {
 
   const identity = await resolveIdentity({ exec: gitExec });
   const teamMode = settings["team.mode"] === "true";
+  const stagedOrigin = await resolveStagedOriginatingWorkUnit(gitExec, paths);
   const parkedSlugs = listParkedSlugs(
     await buildLifecycleIndex({
       cwd,
@@ -198,10 +267,12 @@ async function main(): Promise<void> {
     baseBranch,
     originatingWorktreePath: await currentWorktreePath(gitExec, cwd),
     snapshot,
-    originatingMetaPath: await resolveOriginatingMetaPath(cwd),
+    originatingMetaPath: stagedOrigin?.metaPath ?? await resolveOriginatingMetaPath(cwd),
+    ...(stagedOrigin !== undefined ? { originatingWorkUnitName: stagedOrigin.name } : {}),
   });
 
-  for (const line of formatForeignWriteAdvisories(result, warnings)) {
+  const relevantWarnings = filterOriginatingOracleWarnings(warnings, stagedOrigin?.name);
+  for (const line of formatForeignWriteAdvisories(result, relevantWarnings)) {
     process.stdout.write(`${line}\n`);
   }
 }

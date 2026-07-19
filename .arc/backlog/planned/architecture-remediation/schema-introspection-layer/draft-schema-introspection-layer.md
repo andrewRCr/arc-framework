@@ -40,6 +40,17 @@ artifacts.
   construction — record that inheritance explicitly at grooming so nobody reaches for ts-morph-style tooling out
   of habit.
 
+### `[ ]` **Align introspection version selection with the kernel registry contract**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: schema-introspection-layer`), housekeep drain (2026-07-19);
+  captured during `cli-schema-kernel` task generation, Phase 3 grounding audit.
+- _Observation:_ the kernel registry deliberately holds one active schema per stable identity; its `version` is
+  evolution metadata, not a key for retaining multiple versions. The introspection draft provisionally promises
+  `arc schema get <name> --version <v>` and coexisting versions, which the kernel API will not supply directly.
+- _Approach:_ at grooming, either keep introspection on the active registry projection or give the introspection
+  layer its own historical catalog above the kernel; do not expand the kernel into a multi-version store by
+  assumption.
+
 ---
 
 ## Problem / Motivation

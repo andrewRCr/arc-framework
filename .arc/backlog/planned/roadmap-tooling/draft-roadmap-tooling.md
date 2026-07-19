@@ -339,7 +339,58 @@
   conflicts and some doc-only CI churn disappear together. Owns-regen-triggers puts this here. Complements (does
   not replace) the day-1 auto-regen conflict-remedy errand capture — elimination vs. remedy.
 
+### `[ ]` **Review coupling-audit finding: ROADMAP name**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
+  during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
+- *Concern:* the ROADMAP rename is an abstract 44-file document/path assumption with tracked-path evidence.
+- *Approach:* at grooming, make the project-readiness view name a single owned contract before planning the
+  rename cascade.
+- *Packet:* `packet-ff5dc5d126f20b5461b3c71c`; content digest
+  `defe2b278dd52e42d668a3f3791dc9a80a64b51db79332444e0c2564f0cde115`.
+- *Evidence:* `roadmap-name`; `scan-result.json#class-roadmap-name`.
+
+### `[ ]` **Make the integration ROADMAP preflight parallel-WU aware**
+
+- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-18) — re-homed here as ROADMAP-projection design
+  input; captured during `arc-view` integration entry, after parallel WU state changes appeared in ROADMAP
+  regeneration.
+- *Concern:* `integrate-work-unit.md` requires the fresh-entry ROADMAP diff to contain only the current WU's
+  state flip. That assumption is stale now that parallel WUs routinely advance lifecycle state between ROADMAP
+  renders; regeneration correctly folds their already-authoritative live-ref state into the derived projection.
+- *Approach:* replace the serial "state flip only" rule with a projection-integrity check that distinguishes
+  explainable concurrent live-ref deltas from malformed or unrelated output without forcing stale hand-edits.
+  Confirm whether executable support is needed beyond the prose change (packaged + self-hosted
+  `integrate-work-unit.md` copies; related workflow tests if present).
+
 ---
+
+### `[ ]` **Keep the post-decomposition ROADMAP current after teardown**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-19); captured
+  during `cli-substrate-adoption` post-merge teardown, 2026-07-18.
+- *Concern:* the decomposition PR's generated ROADMAP correctly retained the origin while its planning branch still
+  existed. After merge, `arc teardown cli-substrate-adoption --force` deleted that branch and worktree, and the live
+  `arc status --project` view dropped the origin, but the tracked ROADMAP remained unchanged with
+  `cli-substrate-adoption` still listed as Planning. The required post-merge lifecycle leaves the projection stale
+  until an unrelated ceremony regenerates it.
+- *Fold-in:* fold this concrete teardown case into the existing merge-boundary regeneration design. Settle whether
+  the merge completion path or receipt-aware teardown owns the base-side refresh, without adding another renderer or
+  leaving a dirty uncommitted base checkout. Coordinate with the "Move ROADMAP regeneration to the merge boundary"
+  and materialize-consistency items already in this buffer (same owner).
+
+### `[ ]` **Discoverable ROADMAP regen — close the `arc status --project --staged > file` verb-gap**
+
+- *Routed from:* self-observed during the 2026-07-19 housekeep-drain grooming PR (live incident); a ROADMAP-only
+  merge conflict against a concurrently-merged sibling had to be hand-reconciled.
+- *Concern (verb-gap):* the canonical regen is `arc status --project --staged > .arc/backlog/ROADMAP.md` — a
+  `status` subcommand redirected to overwrite a tracked file. It is undiscoverable (`arc view` has no roadmap kind;
+  `arc status --project` renders to stdout only), so awareness depends on tripping the pre-commit hook, which prints
+  the command in its error. That JIT surface works and keeps miss-cost low, but the idiom is mechanics-narration
+  where a verb should exist (DEV-RULES.PROJECT § Verbs over mechanics — verb-gap signal).
+- *Approach:* when this WU builds the render tooling, expose a discoverable regen verb (e.g. `arc roadmap render`)
+  that writes the file directly, retiring the redirect idiom. Pairs with the merge-driver auto-resolve item already
+  in this buffer — together they close both the awareness gap and the conflict-reconcile gap this incident hit.
 
 ## Problem / Motivation
 

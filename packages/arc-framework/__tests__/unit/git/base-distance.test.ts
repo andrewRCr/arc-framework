@@ -80,6 +80,7 @@ describe("base drift raw-distance boundary", () => {
     expect(calls).toContainEqual([
       "fetch",
       "--no-write-fetch-head",
+      "--refmap=",
       "origin",
       "refs/heads/main:refs/arc/base-drift/test-token",
     ]);

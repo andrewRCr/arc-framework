@@ -11,12 +11,13 @@
  */
 
 import { spawn } from "node:child_process";
-import { access, constants, open, readFile, rename, stat, unlink } from "node:fs/promises";
+import { access, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
+import { hasEffectiveHook } from "../../lib/hook-manager.js";
 import { environmentForGitCwd, execFileAsync, gitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
@@ -38,6 +39,17 @@ import { createCommitMessagePreflight } from "./commit-message-preflight.js";
 
 export interface HandleReleaseCommitOptions {
   args: readonly string[];
+}
+
+/**
+ * Strip a leading `--no-wrap` token from `args`, honoring the `--` terminator.
+ *
+ * @param args - Raw commit argv as received from Commander.
+ * @returns The stripped argv and whether body-wrapping remains enabled.
+ */
+export function stripNoWrap(args: readonly string[]): { argv: string[]; wrap: boolean } {
+  if (args[0] === "--no-wrap") return { argv: args.slice(1), wrap: false };
+  return { argv: [...args], wrap: true };
 }
 
 /**
@@ -75,11 +87,12 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
 
   const currentBranch = (await resolveCurrentBranchName(gitExec)) ?? "";
   const preflightRemedy = renderCommitMessageRemedy();
+  const { argv, wrap } = stripNoWrap(opts.args);
 
   const result = await runReleaseCommit({
     cwd,
     identity,
-    argv: opts.args,
+    argv,
     settings,
     currentBranch,
     spawnGit: realSpawnGit,
@@ -99,6 +112,7 @@ export async function handleReleaseCommit(opts: HandleReleaseCommitOptions): Pro
         pathExists,
       }),
       hasPrepareCommitMsgHook,
+      wrap,
     }),
   });
 
@@ -124,22 +138,18 @@ async function readStdin(): Promise<Uint8Array> {
 }
 
 async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
-  const { stdout } = await execFileAsync(
-    "git",
-    ["rev-parse", "--path-format=absolute", "--git-path", "hooks/prepare-commit-msg"],
-    { cwd, env: environmentForGitCwd(cwd) },
-  );
-  try {
-    await access(stdout.trim(), constants.X_OK);
-    return true;
-  } catch (cause: unknown) {
-    if (
-      cause instanceof Error
-      && "code" in cause
-      && (cause.code === "ENOENT" || cause.code === "EACCES")
-    ) return false;
-    throw cause;
-  }
+  return hasEffectiveHook(cwd, "prepare-commit-msg", {
+    access,
+    readFile: (path) => readFile(path, "utf8"),
+    resolveGitHookPath: async (root, name) => {
+      const { stdout } = await execFileAsync(
+        "git",
+        ["rev-parse", "--path-format=absolute", "--git-path", `hooks/${name}`],
+        { cwd: root, env: environmentForGitCwd(root) },
+      );
+      return stdout.trim();
+    },
+  });
 }
 
 /**

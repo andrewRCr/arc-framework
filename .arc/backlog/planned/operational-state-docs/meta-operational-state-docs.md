@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** `cli-substrate-adoption`
+- **Depends On:** `cli-validation-surfaces`
 
 - **Origin:** [internal]
 - **Design:** `draft-operational-state-docs.md`
