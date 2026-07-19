@@ -52,32 +52,22 @@ moving shared primitives into it.
 - _Outcome:_ All typed success/failure composition now enters through one kernel-owned path while retaining the
   dependency's ordinary method API and caller-owned error mapping.
 
-### `[ ]` **1.3 Enforce bottom-of-graph kernel imports**
+### `[x]` **1.3 Enforce bottom-of-graph kernel imports**
 
 - _Goal:_ Any kernel import that reaches another `src/` module fails automatically, while kernel-internal, Node
   builtin, and approved external-library imports remain valid.
-- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §1 and the dependency-direction cross-cutting
-  requirement.
 
-    - `[ ]` **1.3.a Build a resolved import-boundary audit**
-        - Build a test-only audit with the already-installed TypeScript parser and Node16 module resolver; add no
-          runtime dependency. Scan every TypeScript source beneath `packages/arc-framework/src/lib/kernel/`,
-          resolving relative imports from each file so nested kernel modules may compose without escaping the
-          kernel root.
-        - Build `test-first` (one behavior at a time):
-            - Kernel-local relative imports pass from both the root and nested directories.
-            - Imports resolving into sibling `lib/`, `commands/`, `prompts/`, `handlers/`, or `scripts/` fail.
-            - Static imports, re-exports, import types, and string-literal dynamic imports all enforce the same
-              boundary, including `.js` specifiers that resolve to TypeScript sources under the project config.
-            - Non-literal dynamic imports, TypeScript external import-equals declarations, CommonJS `require()` /
-              `module.require()`, and `createRequire()` loader acquisition fail inside the kernel rather than
-              becoming unchecked escape forms.
-            - `node:` builtins plus `zod` and `neverthrow` pass; unapproved bare packages fail.
+    - `[x]` **1.3.a Build a resolved import-boundary audit**
+        - Added a test-only TypeScript AST and Node16-resolution audit covering nested kernel imports, every named
+          static/dynamic/type/re-export form, forbidden CommonJS and `createRequire` loader escape forms, approved
+          external packages, and repository-wide neverthrow seam enforcement.
 
-    - `[ ]` **1.3.b Wire the live kernel graph into the ordinary test gate**
-        - Add a live-source assertion under `packages/arc-framework/__tests__/unit/kernel/` so the invariant runs in
-          `npm run test:unit` without a separate opt-in command.
-        - Report the offending kernel file and import specifier in failures; use no internal-path allow-list.
+    - `[x]` **1.3.b Wire the live kernel graph into the ordinary test gate**
+        - The ordinary unit suite now audits every live kernel source and reports stable file/specifier/reason
+          findings without an internal-path allow-list.
+
+- _Outcome:_ The kernel's bottom-of-graph contract and single neverthrow import edge are executable invariants in
+  the default unit-test gate rather than architectural convention alone.
 
 ## **Phase 2:** Schema-backed shared vocabulary
 
