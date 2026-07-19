@@ -12,7 +12,7 @@
 - **Task List:** `tasks-self-hosted-ci.md`
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Created and finalized spec-self-hosted-ci (detailed RFC)
+- **Last Completed:** Generated and finalized tasks-self-hosted-ci (Heavy)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
