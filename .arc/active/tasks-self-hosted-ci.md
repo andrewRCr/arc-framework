@@ -57,38 +57,26 @@ drill, and canary evidence stays in `notes-self-hosted-ci.md`, keeping history o
 coordinates and full principal rosters remain user-held or transient; credentials and short-lived tokens are never
 recorded.
 
-### `[ ]` **2.1 Check in the disposable self-hosted runner runbook and evidence contract**
+### `[x]` **2.1 Check in the disposable self-hosted runner runbook and evidence contract**
 
 - _Goal:_ A trusted operator can build, operate, recover, and destroy the runner host from checked-in guidance,
   while every acceptance claim has a defined non-secret evidence field.
 
-    - `[ ]` **2.1.a Define operator inputs, invariants, and secret boundaries**
-        - Create `.github/self-hosted-ci.md` with the supported OS contract, host-size and price envelope, required
-          tools, two-runner layout, repository label, user/credential boundaries, and no-backup posture.
-        - Limit tracked evidence to provider/SKU/region/price, timestamps, category counts, checklist outcomes,
-          exceptions, sanitized runner status, run ids, and measurements. Keep endpoints, admin identities, SSH
-          mappings, full principal rosters, credentials, and ephemeral tokens out of tracked artifacts.
+    - `[x]` **2.1.a Define operator inputs, invariants, and secret boundaries**
+        - Added the supported host, toolchain, two-service, label, no-backup, user-held input, and sanitized evidence
+          contracts to `.github/self-hosted-ci.md`.
 
-    - `[ ]` **2.1.b Document reproducible host and runner-service procedures**
-        - Create exact `## Host provisioning` and `## Runner registration` sections covering SSH/firewall posture,
-          unattended security updates, the unprivileged service user, packages, separate runner directories,
-          post-audit registration, service installation, automatic updates, restart behavior, health checks,
-          persistent size-bounded service/restart logs, lightweight CPU/memory/load/disk sampling, protected local
-          export before rotation or destructive rebuild, and workspace/diagnostic cleanup.
+    - `[x]` **2.1.b Document reproducible host and runner-service procedures**
+        - Documented host hardening, prerequisite verification, two isolated application directories, post-audit
+          service registration, bounded persistent logs, local sampling/export, health checks, and safe cleanup.
 
-    - `[ ]` **2.1.c Document cutover, fallback, incident, maintenance, rebuild, and decommission procedures**
-        - Create exact `## Cutover and health checks`, `## Hosted fallback`, `## Rebuild`, and `## Deregistration`
-          sections. Include the access-control precondition, repository-variable switch, queued-run cancellation
-          and re-run, monthly checks, reboot handling, credential-aware compromise response, rebuild-over-repair,
-          and the hosted-first sequence required before a public-repository transition.
+    - `[x]` **2.1.c Document cutover, fallback, incident, maintenance, rebuild, and decommission procedures**
+        - Added the exact operational sections with the fail-closed access audit, route changes, qualification and
+          fallback, maintenance/reboot handling, rebuild-first incidents, and hosted-first public transition.
 
-    - `[ ]` **2.1.d Add the work-unit evidence template**
-        - Add `notes-self-hosted-ci.md` § Cutover evidence with fields for selection rationale, trust-category
-          counts/results/exceptions, runner/tool health, job placement, fallback and rebuild timing, verified-tree
-          proof, telemetry/log coverage, canary samples, p95, failure classification, cost evidence, and final
-          posture.
-        - Record no endpoint, admin identity, SSH mapping/fingerprint, full principal roster, secret, registration
-          token, private key material, payment detail, or provider credential.
+    - `[x]` **2.1.d Add the work-unit evidence template**
+        - Added the sanitized selection, trust, readiness, qualification, drill, canary, cost, and final-posture
+          evidence fields to `notes-self-hosted-ci.md`, with the prohibited-data boundary stated explicitly.
 
 ### `[ ]` **2.2 Select and acquire a VPS provider and SKU within the operating envelope**
 
