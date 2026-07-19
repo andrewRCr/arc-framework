@@ -79,6 +79,10 @@ See `arc --help` for the full command list.
 
 _Architecture_ — standard three-layer CLI with downward data flow (`cli → commands → prompts + lib`):
 
+- **`src/lib/kernel/`** — Bottom-of-graph runtime contracts: Zod-backed shared schema vocabulary, a versioned
+  registry, extensible error primitives, the bounded Result seam, and byte-stable canonical-data utilities. Kernel
+  modules import only Node builtins and approved external libraries; every other CLI layer may depend downward on
+  the kernel.
 - **`src/lib/`** — Pure logic and injectable utilities (render, hash, manifest, git, files). No direct side
   effects — filesystem and process dependencies are passed in for testability.
 - **`src/commands/`** — Command handlers. Orchestrate lib modules with real dependencies.
@@ -160,6 +164,8 @@ _Runtime & environment:_
 _Language & build:_
 
 - **TypeScript**: Strict mode (`noUncheckedIndexedAccess`), ES2022 target, Node16 module resolution
+- **Runtime contracts**: Zod 4 is the runtime-schema and static-type authority; neverthrow provides typed
+  success/failure composition through the kernel's bounded export seam
 - **Build**: tsup — ESM output, shebang injection, declaration generation
 
 _Testing & quality tooling:_

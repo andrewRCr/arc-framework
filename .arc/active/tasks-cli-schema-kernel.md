@@ -9,14 +9,10 @@
 _Purpose:_ Establish the bottom-of-graph module, its dependency baseline, and the bounded Result surface before
 moving shared primitives into it.
 
-### `[ ]` **1.1 Establish the kernel package boundary and dependency baseline**
+### `[x]` **1.1 Establish the kernel package boundary and dependency baseline**
 
 - _Goal:_ The CLI has a buildable, documented kernel entry point backed by validated dependency choices and a
   reproducible pre-change footprint baseline.
-- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §§1, 2, and 8 plus the pre-implementation,
-  technical-overview, and package-size cross-cutting requirements.
-- _Note:_ Run dependency spikes in a temporary directory outside the repository; an npm prefix does not isolate the
-  workspace root's `package.json`.
 
     - `[x]` **1.1.a Capture the pre-kernel build and package baseline**
         - At `acb2619aa6c4a42509bf87ea1b11350dc623dbcd` with Node `v26.3.0` and npm `11.16.0`, the clean build
@@ -31,11 +27,13 @@ moving shared primitives into it.
           Node 18+, and typechecks under the CLI's Node16/TypeScript 6 configuration. Added only `zod@^4.4.3` and
           `neverthrow@^8.2.0` to the CLI workspace and root lockfile.
 
-    - `[ ]` **1.1.c Establish the kernel entry surface and architecture record**
-        - Create the minimal `packages/arc-framework/src/lib/kernel/` entry surface and internal directories needed
-          by the settled design; do not add subsystem-owned schemas or a `core/` parent tier.
-        - Update `.arc/reference/TECHNICAL-OVERVIEW.md` with `Zod`, `neverthrow`, and the bottom-of-graph kernel as
-          part of the dependency introduction.
+    - `[x]` **1.1.c Establish the kernel entry surface and architecture record**
+        - Added the explicit `src/lib/kernel/index.ts` public boundary and documented the bottom-of-graph kernel,
+          Zod schema authority, and bounded neverthrow seam in `TECHNICAL-OVERVIEW.md`; internal subdirectories
+          remain demand-created as their owning modules land.
+
+- _Outcome:_ The CLI now has a buildable kernel boundary, validated runtime dependencies, and a reproducible
+  pre-change artifact/install baseline for the Phase 6 footprint comparison.
 
 ### `[ ]` **1.2 Expose the bounded Result seam and boundary adapters**
 
