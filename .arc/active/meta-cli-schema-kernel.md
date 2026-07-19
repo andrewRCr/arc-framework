@@ -8,10 +8,10 @@
 - **Depends On:** `work-organization-reform`
 
 - **Origin:** [internal]
-- **Design:** `draft-cli-schema-kernel.md`
+- **Design:** `spec-cli-schema-kernel.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
