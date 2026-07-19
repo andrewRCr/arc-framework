@@ -83,14 +83,16 @@ provider credential.
 - **Runner application version / checksum result:** official Linux x64 runner 2.335.1 installed in both slots after
   its published SHA-256 matched; dependencies installed; two unique intended names remain transient operator inputs,
   with label `arc-ci-linux` reserved for post-audit registration
-- **Runner 1 sanitized status / labels / service health:** application prepared; unconfigured, unlabeled, and no
-  service installed
-- **Runner 2 sanitized status / labels / service health:** application prepared; unconfigured, unlabeled, and no
-  service installed
+- **Runner 1 sanitized status / labels / service health:** online and idle with `self-hosted`, `Linux`, `X64`, and
+  `arc-ci-linux`; enabled `arc-runner` service uses slot 1, automatic runner updates, and a five-second always-restart
+  policy; survived controlled service restart and host reboot
+- **Runner 2 sanitized status / labels / service health:** online and idle with `self-hosted`, `Linux`, `X64`, and
+  `arc-ci-linux`; enabled `arc-runner` service uses slot 2, automatic runner updates, and a five-second always-restart
+  policy; survived controlled service restart and host reboot
 - **Disk headroom / projected retention:** 68 GB free of 72 GB (94% free); bounded journal and `sysstat` retention
   fit comfortably through the canary and posture decision
-- **Pre-cutover go/no-go:** No-go by design — route variable absent and repository runner count zero pending the
-  access-control audit and registration task
+- **Pre-cutover go/no-go:** Go for the controlled qualification cutover; the access gate and both slot health checks
+  pass, while `ARC_CI_LINUX_RUNNER` remains absent until the explicit Phase 3 routing action
 
 ### Qualification and drills
 

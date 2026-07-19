@@ -134,16 +134,18 @@ After the audit passes:
    only when ready to consume it. Do not echo, save, or reuse the token.
 3. In each application directory, as `arc-runner`, run the current configuration command shown by GitHub, adding
    `--name <unique-name> --labels arc-ci-linux --unattended`. Do not pass `--no-default-labels`.
-4. From each directory, install and start the service:
+4. Install and start each service as root because the mode-`0750` application directories intentionally exclude
+   the administrative account:
 
    ```sh
-   sudo ./svc.sh install arc-runner
-   sudo ./svc.sh start
-   sudo ./svc.sh status
+   sudo sh -c 'cd /opt/actions-runner-1 && ./svc.sh install arc-runner && ./svc.sh start && ./svc.sh status'
+   sudo sh -c 'cd /opt/actions-runner-2 && ./svc.sh install arc-runner && ./svc.sh start && ./svc.sh status'
    ```
 
-5. Leave automatic runner updates enabled. Confirm both service units use restart-on-failure behavior and start at
-   boot. Reboot once before cutover, then confirm both runners return online and idle without operator action.
+5. Leave automatic runner updates enabled. The generated unit may have `Restart=no`; create a systemd drop-in for
+   each unit with `Restart=always` and `RestartSec=5s`, then reload systemd and restart both services. Confirm both
+   units are enabled and active. Reboot once before cutover, then confirm both runners return online and idle without
+   operator action.
 
 ## Cutover and health checks
 

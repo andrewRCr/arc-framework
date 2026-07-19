@@ -138,7 +138,7 @@ recorded.
 - _Outcome:_ The fully patched host now has two verified but inert runner slots and bounded local operating evidence;
   both the repository registration gate and routing gate remain closed for the access-control audit.
 
-### `[ ]` **2.4 Pass the access-control gate, register both runners, and prove readiness**
+### `[x]` **2.4 Pass the access-control gate, register both runners, and prove readiness**
 
 - _Goal:_ The repository label and two runner services exist only after every executable pull-request principal is
   explicitly trusted, then both slots prove the host, label, service, and prerequisite contract before cutover.
@@ -150,17 +150,22 @@ recorded.
         - Disabled private-fork workflows, write-token forwarding, and secret forwarding; recorded only category
           counts and the explicit green trust result before token issuance, registration, labeling, or cutover.
 
-    - `[ ]` **2.4.b Register two isolated runner services after the audit passes**
-        - Obtain short-lived GitHub registration tokens only at the point of use, configure the prepared directories
-          with unique runner names and `arc-ci-linux`, and do not persist or log the tokens.
-        - Install and start both services with automatic runner updates and service-manager restart behavior.
+    - `[x]` **2.4.b Register two isolated runner services after the audit passes**
+        - Generated separate short-lived tokens at point of use and passed them directly from the authenticated local
+          GitHub client to each remote configuration process without printing or persisting them; registered unique
+          names with `arc-ci-linux` only after the access gate passed.
+        - Installed and enabled both `arc-runner` services with default automatic runner updates and explicit
+          five-second always-restart behavior.
 
-    - `[ ]` **2.4.c Validate both slots and record the cutover go/no-go decision**
-        - Confirm both unique runner names are online/idle with `self-hosted`, Linux, x64, and `arc-ci-linux`
-          labels; verify service restart state, directories, disk headroom, update posture, tools, live telemetry,
-          persistent logs, and projected retention through both canary floors and the posture decision.
-        - Complete the sanitized precondition and health fields in `notes-self-hosted-ci.md`; surface any failed
-          item as a blocker rather than setting the route variable speculatively.
+    - `[x]` **2.4.c Validate both slots and record the cutover go/no-go decision**
+        - Verified two unique online/idle runners with `self-hosted`, `Linux`, `X64`, and `arc-ci-linux`; each enabled
+          service uses its own application and work directory, runs as `arc-runner`, and returned automatically after
+          controlled service restart and host reboot.
+        - Reverified tools, updates, disk headroom, live telemetry, bounded persistent logs, and projected retention;
+          recorded the sanitized green precondition while leaving the route variable absent for Phase 3.
+
+- _Outcome:_ The explicit principal audit now gates two independently restartable runner slots whose labels, host
+  posture, and reboot recovery satisfy the cutover contract without yet routing a CI job.
 
 ## **Phase 3:** Cutover qualification, fallback, and rebuild drills
 
