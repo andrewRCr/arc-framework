@@ -17,6 +17,7 @@ import {
   filterOriginatingOracleWarnings,
   formatForeignWriteAdvisories,
   formatForeignWriteWarnings,
+  resolveStagedOriginatingWorkUnit,
   selectForeignWriteCandidates,
 } from "../../../src/scripts/check-foreign-writes.js";
 import type { OverlapRoster } from "../../../src/lib/git/foreign-artifact-detection.js";
@@ -112,6 +113,21 @@ async function createActiveFixture(metaName?: string): Promise<string> {
 
 afterEach(async () => {
   await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
+
+describe("resolveStagedOriginatingWorkUnit", () => {
+  it.each([
+    ["missing metadata title", "- **State:** Active\n"],
+    ["mismatched metadata title", "# Metadata: other\n\n- **State:** Active\n"],
+    ["missing lifecycle state", "# Metadata: self\n"],
+  ])("rejects staged content with %s", async (_case, content) => {
+    const metaPath = ".arc/active/meta-self.md";
+    const exec = buildExec({
+      [`show :${metaPath}`]: { stdout: content, stderr: "" },
+    });
+
+    await expect(resolveStagedOriginatingWorkUnit(exec, [metaPath])).resolves.toBeUndefined();
+  });
 });
 
 describe("selectForeignWriteCandidates", () => {
