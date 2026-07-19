@@ -77,6 +77,34 @@ function relativeFile(sourceRoot: string, file: string): string {
 
 function literalReferences(sourceFile: ts.SourceFile): string[] {
   const references: string[] = [];
+  const createRequireBindings = new Set<string>();
+  const returnedRequireBindings = new Set<string>();
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || stringLiteralText(statement.moduleSpecifier) !== "node:module") {
+      continue;
+    }
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings !== undefined && ts.isNamedImports(bindings)) {
+      for (const element of bindings.elements) {
+        if ((element.propertyName ?? element.name).text === "createRequire") {
+          createRequireBindings.add(element.name.text);
+        }
+      }
+    }
+  }
+
+  const isCreateRequireCall = (node: ts.Node | undefined): node is ts.CallExpression =>
+    node !== undefined && ts.isCallExpression(node) && isCreateRequire(node.expression, createRequireBindings);
+
+  const collectReturnedRequireBindings = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && isCreateRequireCall(node.initializer)) {
+      returnedRequireBindings.add(node.name.text);
+    }
+    ts.forEachChild(node, collectReturnedRequireBindings);
+  };
+  collectReturnedRequireBindings(sourceFile);
+
   const visit = (node: ts.Node): void => {
     let specifier: string | undefined;
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
@@ -87,7 +115,9 @@ function literalReferences(sourceFile: ts.SourceFile): string[] {
       specifier = importTypeSpecifier(node);
     } else if (ts.isCallExpression(node)) {
       const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
-      if (isDynamicImport || isDirectRequire(node.expression) || isModuleRequire(node.expression)) {
+      const isReturnedRequire = (ts.isIdentifier(node.expression) && returnedRequireBindings.has(node.expression.text))
+        || isCreateRequireCall(node.expression);
+      if (isDynamicImport || isDirectRequire(node.expression) || isModuleRequire(node.expression) || isReturnedRequire) {
         specifier = stringLiteralText(node.arguments[0]);
       }
     }

@@ -287,69 +287,51 @@ re-exports, while leaving retirement and decomposition semantics with their curr
 _Purpose:_ Exercise the completed kernel as one coherent integration boundary, close exclusivity and compatibility
 claims, and assess the dependency and build-output cost before full verification.
 
-### `[ ]` **6.1 Validate kernel exports, rollout seams, and TypeScript authority**
+### `[x]` **6.1 Validate kernel exports, rollout seams, and TypeScript authority**
 
 - _Goal:_ The completed kernel is consumable through its intended entry surface, temporary existing-path
   re-exports remain intact for the cohort rollout, and automated checks prove the dependency/type-authority claims
   across the whole substrate.
 - _Context:_ Integrates `spec-cli-schema-kernel.md` Proposed Design §§1-8.
 
-    - `[ ]` **6.1.a Close export and dependency exclusivity checks**
-        - Keep `packages/arc-framework/src/lib/kernel/index.ts` an explicit named-export barrel and extend the
-          test-only source audit with an exact value/type export allow-list covering only:
-            - the six Result exports from Task 1.2;
-            - the schemas, inferred types, narrowers, ordering, and slug surface from Phase 2;
-            - the public registry metadata/contracts and `createRegistry()` / `createKernelRegistry()` factories
-              from Phase 3;
-            - `ArcError`, `ArcErrorCode`, `SchemaError`, `SchemaErrorCode`, and `toArcError()` from Phase 4; and
-            - the complete canonical JSON and managed-path surface from Phase 5.
-        - Reject wildcard barrel exports. Keep `LegacyArcErrorCode`, the native Zod registry/projection, the schema
-          artifact writer, and domain-owned records internal; documented Zod types inside the public registry
-          signatures are allowed and do not constitute an exported Zod registry surface.
-        - Extend the Task 1.3 TypeScript-based audit across every TypeScript source beneath
-          `packages/arc-framework/src/`, allowing `neverthrow` only in `src/lib/kernel/result.ts`. Cover literal
-          module references carried by ES imports/re-exports, import types, dynamic imports, TypeScript external
-          import-equals declarations, CommonJS `require()` / `module.require()`, and functions returned by
-          `createRequire()`. Retain the existing live kernel-root assertion—including its rejection of unsupported
-          loader forms—for the absolute no-upward-import invariant rather than adding a second dependency-check
-          mechanism or globally banning unrelated computed imports outside the kernel.
+    - `[x]` **6.1.a Close export and dependency exclusivity checks**
+        - Added an exact 28-value/14-type allow-list for the explicit kernel barrel, rejecting wildcard or direct
+          declarations and keeping legacy/internal machinery private. The source-wide AST audit now recognizes all
+          specified TypeScript references plus direct, module, and `createRequire()`-returned loaders while allowing
+          `neverthrow` only at the Result seam.
 
-    - `[ ]` **6.1.b Run the substrate integration checkpoint**
-        - Rely on the direct/old-path equivalence and type assertions from the owning migration tasks rather than
-          adding a redundant omnibus compatibility test.
-        - Run `npm run test:unit`, `npm run test:integration`, `npm run lint:ts`, `npm run typecheck:all`, and
-          `npm run build`; fix cross-module or declaration-output failures before Task 6.2. E2E remains part of the
-          full work-unit verification after Phase 3 has strengthened its global build precondition.
+    - `[x]` **6.1.b Run the substrate integration checkpoint**
+        - Unit and integration suites, TypeScript lint, source/test typechecks, and the production build all passed
+          through the completed public boundary and compatibility seams.
 
-### `[ ]` **6.2 Measure and reconcile dependency and build-output growth**
+- _Outcome:_ The kernel now has a mechanically exact public API and one source-wide dependency audit covering both
+  its bottom-of-graph invariant and the exclusive Result dependency seam.
+
+### `[x]` **6.2 Measure and reconcile dependency and build-output growth**
 
 - _Goal:_ The completed substrate has reproducible schema output and an understood package/build cost, with any
   unexplained expansion corrected before full work-unit verification.
 - _Context:_ Implements `spec-cli-schema-kernel.md` Cross-cutting Considerations §§ Package / build size and Testing.
 
-    - `[ ]` **6.2.a Compare the completed build with the recorded baseline**
-        - Re-run the Task 1.1 build and
-          `npm pack --workspace @arc-framework/cli --dry-run --json` under the recorded toolchain; report absolute
-          and percentage changes for `dist/cli.js`, total `dist/`, packed size, unpacked size, and package file count.
-        - Recreate Task 1.1's isolated minimal workspace from the completed manifests and lockfile, run
-          `npm ci --omit=dev --ignore-scripts`, and report the absolute and percentage changes in installed
-          dependency bytes and production package count.
-        - Preserve the first build's `dist/schemas/kernel.json` bytes outside `dist/`, run the ordinary build again
-          so tsup's existing `clean: true` supplies the second clean output, and compare the two artifacts byte for
-          byte. Do not add a separate destructive cleanup step.
-        - Inspect the workspace pack result's `files[].path` values and require the exact
-          `dist/schemas/kernel.json` path.
+    - `[x]` **6.2.a Compare the completed build with the recorded baseline**
+        - Under Node `v26.3.0`/npm `11.16.0`, `cli.js` changed 1,388,051 → 1,389,370 bytes (+1,319, +0.095%);
+          total `dist/` 5,396,824 → 5,401,267 (+4,443, +0.082%); packed size 1,663,152 → 1,663,712 (+560,
+          +0.034%); unpacked size 6,699,230 → 6,703,722 (+4,492, +0.067%); and files 166 → 167 (+1,
+          +0.602%). The isolated production install changed 513,008 → 7,253,099 bytes (+6,740,091, +1313.837%)
+          across 15 → 18 packages (+3, +20.000%). Repeated clean builds emitted byte-identical schema bundles, and
+          the pack list contained exactly one `dist/schemas/kernel.json`.
 
-    - `[ ]` **6.2.b Explain or resolve build and package growth**
-        - Compare the completed `dist/metafile-esm.json` input set and byte attribution with the Task 1.1 baseline.
-          Confirm `zod` and `neverthrow` remain external or tree-shaken runtime dependencies rather than vendored
-          `node_modules` inputs to `dist/cli.js`; bundled dependency code is accidental entry-graph growth.
-        - Attribute the remaining explained changes to kernel source, source maps/declarations, generated schemas,
-          package metadata, or the exact installed `zod` / `neverthrow` versions and their transitive production
-          dependencies rather than treating raw size alone as failure.
-        - Report every absolute and percentage change at the task review interlock. Apply no arbitrary numerical
-          threshold: explained growth is review evidence, while any unexplained input, unexpected package file, or
-          accidental dependency bundling must be corrected before proceeding.
+    - `[x]` **6.2.b Explain or resolve build and package growth**
+        - The metafile changed 351 → 359 inputs (+8, +2.279%) and 1,373,373 → 1,374,606 attributed bytes (+1,233,
+          +0.090%): the eight additions are exactly the kernel sources, with no removed inputs or bundled Zod/
+          neverthrow files. `dist/` growth resolves to `cli.js` (+1,319), its source map (-863), the metafile
+          (+3,063), and schema bundle (+924); package metadata supplies the remaining unpacked delta. Production
+          install growth is attributable to `zod@4.4.3` (4,558,122 bytes), `neverthrow@8.2.0` (112,467), its declared
+          optional `@rollup/rollup-linux-x64-gnu@4.61.0` dependency (2,068,183), and install metadata overhead.
+
+- _Outcome:_ Build and package growth is deterministic and fully attributable: the shipped artifact adds one exact
+  schema file, the bundle vendors no new dependency, and the larger consumer install is isolated to the two chosen
+  dependencies plus neverthrow's declared platform-specific optional dependency.
 
 ## **Phase 7:** Verification
 

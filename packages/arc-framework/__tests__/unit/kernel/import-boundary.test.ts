@@ -1,8 +1,9 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import ts from "typescript";
 
 import { auditKernelBoundary } from "./import-boundary.js";
 
@@ -24,6 +25,44 @@ afterEach(() => {
 });
 
 describe("kernel import boundary", () => {
+  it("exposes exactly the designed value and type surface from an explicit barrel", () => {
+    const packageRoot = resolve(import.meta.dirname, "../../..");
+    const indexPath = join(packageRoot, "src/lib/kernel/index.ts");
+    const sourceFile = ts.createSourceFile(
+      indexPath,
+      readFileSync(indexPath, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const values: string[] = [];
+    const types: string[] = [];
+
+    for (const statement of sourceFile.statements) {
+      expect(ts.isExportDeclaration(statement)).toBe(true);
+      if (!ts.isExportDeclaration(statement)) continue;
+      expect(statement.exportClause !== undefined && ts.isNamedExports(statement.exportClause)).toBe(true);
+      if (statement.exportClause === undefined || !ts.isNamedExports(statement.exportClause)) continue;
+      for (const element of statement.exportClause.elements) {
+        (statement.isTypeOnly || element.isTypeOnly ? types : values).push(element.name.text);
+      }
+    }
+
+    expect(values.sort()).toEqual([
+      "ArcError", "PrioritySchema", "ResultAsync", "SLUG_PATTERN", "SchemaError", "SlugSchema",
+      "WORK_UNIT_STATE_ORDER", "WorkClassSchema", "WorkUnitStateSchema", "assertCanonicalDigest",
+      "canonicalDigest", "canonicalize", "createKernelRegistry", "createRegistry", "digestBytes", "err",
+      "fromAsyncThrowable", "fromThrowable", "isCanonicalDigest", "isManagedPath", "isSlugSafe", "ok",
+      "sortByCanonicalBytes", "toArcError", "validateClass", "validateManagedPath", "validatePriority",
+      "validateState",
+    ].sort());
+    expect(types.sort()).toEqual([
+      "ArcErrorCode", "CanonicalDigest", "KernelJSONSchema", "KernelJSONSchemaBundle", "KernelRegistry",
+      "KernelSchemaMeta", "ManagedPath", "MigrationPosture", "Priority", "Result", "SchemaErrorCode", "Slug",
+      "WorkClass", "WorkUnitState",
+    ].sort());
+  });
+
   it("allows kernel-local modules, node builtins, and approved packages", () => {
     const roots = fixture({
       "lib/kernel/index.ts": [
@@ -102,6 +141,30 @@ describe("kernel import boundary", () => {
       "neverthrow import outside kernel Result seam",
       "neverthrow import outside kernel Result seam",
     ]);
+  });
+
+  it("finds neverthrow through every supported TypeScript and loader reference form", () => {
+    const roots = fixture({
+      "lib/kernel/result.ts": 'export { ok } from "neverthrow";\n',
+      "outside.ts": [
+        'import "neverthrow";',
+        'export { err } from "neverthrow";',
+        'type Result = import("neverthrow").Result<unknown, unknown>;',
+        'void import("neverthrow");',
+        'import legacy = require("neverthrow");',
+        'void require("neverthrow");',
+        'void module.require("neverthrow");',
+        'import { createRequire as makeRequire } from "node:module";',
+        'const load = makeRequire(import.meta.url);',
+        'void load("neverthrow");',
+        'void makeRequire(import.meta.url)("neverthrow");',
+        'void legacy;',
+      ].join("\n"),
+    });
+
+    const findings = auditKernelBoundary(roots);
+    expect(findings).toHaveLength(9);
+    expect(findings.every(({ reason }) => reason === "neverthrow import outside kernel Result seam")).toBe(true);
   });
 
   it("keeps the live source graph within the kernel boundary", () => {
