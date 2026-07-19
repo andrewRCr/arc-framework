@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "read-staged-advisory-meta",
+  "origin": "description",
+  "intent": "Use staged lifecycle metadata in the pre-commit in-flight advisory",
+  "branch": "fix/read-staged-advisory-meta",
+  "createdAt": "2026-07-19T01:42:29.086Z",
+  "returnBranch": "main"
+}
