@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/session-locus-model` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** `cli-substrate-adoption`
+- **Depends On:** `cli-schema-kernel`, `cli-session-envelope`
 
 - **Origin:** [internal]
 - **Design:** `draft-session-locus-model.md`
@@ -14,10 +14,11 @@
 - **Current Workflow:** `create-spec`
 - **Last Completed:** `create-spec` drafting/self-review — spec saved; Gate 1 deferred pending upstream refresh
 - **Next Task:** [none]
-- **Blockers:** `cli-substrate-adoption` — wait for its landed schema-kernel and session-init result contracts
+- **Blockers:** `cli-schema-kernel`, `cli-session-envelope` — wait for the landed schema kernel and session-init
+  result contracts
 
-- **Next Action:** After `cli-substrate-adoption` lands, reconcile main, refresh the spec against its contracts,
-  run adversarial pass 2, then return to Gate 1.
+- **Next Action:** After `cli-schema-kernel` and `cli-session-envelope` land, reconcile main, refresh the spec against
+  their contracts, run adversarial pass 2, then return to Gate 1.
 
 - **PR URL:** [none]
 - **Completed:** [none]
