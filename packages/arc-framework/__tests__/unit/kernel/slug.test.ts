@@ -35,7 +35,7 @@ describe("kernel slug contract", () => {
     }
     const candidate: string = "alpha-beta";
     if (isSlugSafe(candidate)) expectTypeOf(candidate).toEqualTypeOf<Slug>();
-    expectTypeOf<string>().not.toMatchTypeOf<Slug>();
+    expectTypeOf<string>().not.toExtend<Slug>();
   });
 
   it("preserves the work-unit import path by identity and type", () => {

@@ -49,7 +49,7 @@ describe("managed-path validation", () => {
     expect(validated).toBe(path);
     expect(isManagedPath(path)).toBe(true);
     expectTypeOf(validated).toEqualTypeOf<ManagedPath>();
-    expectTypeOf<string>().not.toMatchTypeOf<ManagedPath>();
+    expectTypeOf<string>().not.toExtend<ManagedPath>();
 
     const guarded: string = path;
     if (isManagedPath(guarded)) expectTypeOf(guarded).toEqualTypeOf<ManagedPath>();

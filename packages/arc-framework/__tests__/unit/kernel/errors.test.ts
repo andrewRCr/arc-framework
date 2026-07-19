@@ -51,8 +51,8 @@ describe("kernel error contracts", () => {
     for (const code of legacyCodes) expect(new ArcError("legacy", code).code).toBe(code);
     const namespaced: ArcErrorCode = "schema.registry.invalid-metadata";
     expect(new ArcError("namespaced", namespaced).code).toBe(namespaced);
-    expectTypeOf<"schema.registry.invalid-metadata">().toMatchTypeOf<ArcErrorCode>();
-    expectTypeOf<"NEW_BARE_CODE">().not.toMatchTypeOf<ArcErrorCode>();
+    expectTypeOf<"schema.registry.invalid-metadata">().toExtend<ArcErrorCode>();
+    expectTypeOf<"NEW_BARE_CODE">().not.toExtend<ArcErrorCode>();
   });
 
   it("preserves source-compatible construction and native causes", () => {
@@ -86,8 +86,8 @@ describe("kernel error contracts", () => {
     expect(error.cause).toBe(cause);
     expect(handleSchemaCode(error.code)).toBe("identity");
     expectTypeOf(error.code).toEqualTypeOf<SchemaErrorCode>();
-    expectTypeOf<"GIT_MISSING">().not.toMatchTypeOf<SchemaErrorCode>();
-    expectTypeOf<"git.executor.failed">().not.toMatchTypeOf<SchemaErrorCode>();
+    expectTypeOf<"GIT_MISSING">().not.toExtend<SchemaErrorCode>();
+    expectTypeOf<"git.executor.failed">().not.toExtend<SchemaErrorCode>();
   });
 
   it("routes registry failures through stable schema-domain codes", () => {

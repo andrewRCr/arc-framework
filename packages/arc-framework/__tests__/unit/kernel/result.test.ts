@@ -14,8 +14,8 @@ describe("kernel Result surface", () => {
     const success = ok<number, string>(42);
     const failure = err<number, string>("nope");
 
-    expectTypeOf(success).toMatchTypeOf<Result<number, string>>();
-    expectTypeOf(failure).toMatchTypeOf<Result<number, string>>();
+    expectTypeOf(success).toExtend<Result<number, string>>();
+    expectTypeOf(failure).toExtend<Result<number, string>>();
     expect(success.isOk()).toBe(true);
     expect(failure.isErr()).toBe(true);
     if (success.isOk()) expect(success.value).toBe(42);
@@ -27,8 +27,8 @@ describe("kernel Result surface", () => {
     const failure = ResultAsync.fromPromise<number, string>(Promise.reject(new Error("nope")), (cause) =>
       cause instanceof Error ? cause.message : "unknown");
 
-    expectTypeOf(success).toMatchTypeOf<ResultAsync<number, string>>();
-    expectTypeOf(failure).toMatchTypeOf<ResultAsync<number, string>>();
+    expectTypeOf(success).toExtend<ResultAsync<number, string>>();
+    expectTypeOf(failure).toExtend<ResultAsync<number, string>>();
     const successResult = await success;
     const failureResult = await failure;
     expect(successResult.isOk() && successResult.value).toBe(43);
