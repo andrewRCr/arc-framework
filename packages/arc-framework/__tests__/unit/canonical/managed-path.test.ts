@@ -43,6 +43,14 @@ describe("managed-path validation", () => {
     expect(isManagedPath(nonNfc)).toBe(false);
   });
 
+  it.each([
+    ["lone high surrogate", "dir/\uD800.md"],
+    ["lone low surrogate", "dir/\uDC00.md"],
+  ])("rejects non-well-formed Unicode: %s", (_label, path) => {
+    expect(() => validateManagedPath(path)).toThrow(/well-formed Unicode/u);
+    expect(isManagedPath(path)).toBe(false);
+  });
+
   it("returns a valid repository-relative POSIX path unchanged", () => {
     const path = ".arc/.internal/retirement-receipts/sha256-abc.json";
     const validated = validateManagedPath(path);

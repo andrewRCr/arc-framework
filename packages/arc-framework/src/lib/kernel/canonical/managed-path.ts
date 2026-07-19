@@ -8,6 +8,8 @@
  * silent repair would let two spellings of one path address the same record.
  */
 
+import { isWellFormedUnicode } from "./unicode.js";
+
 /** A validated repository-relative POSIX path. */
 export type ManagedPath = string & { readonly __brand: "ManagedPath" };
 
@@ -17,13 +19,16 @@ export type ManagedPath = string & { readonly __brand: "ManagedPath" };
  * @param path - A candidate repository-relative POSIX path
  * @returns The same string, branded as a {@link ManagedPath}
  * @throws If the path is empty, absolute, contains `.`/`..` or empty segments,
- *   backslashes, NUL bytes, or a non-NFC form
+ *   backslashes, NUL bytes, non-well-formed Unicode, or a non-NFC form
  */
 export function validateManagedPath(path: string): ManagedPath {
   if (path.length === 0) throw new Error("managed path: must be a non-empty string");
   if (path.includes("\0")) throw new Error("managed path: NUL byte is not allowed");
   if (path.includes("\\")) {
     throw new Error("managed path: backslashes are not allowed; use POSIX separators");
+  }
+  if (!isWellFormedUnicode(path)) {
+    throw new Error("managed path: must contain only well-formed Unicode");
   }
   if (path.normalize("NFC") !== path) {
     throw new Error("managed path: must be NFC-normalized (non-NFC forms are rejected, not repaired)");

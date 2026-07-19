@@ -63,6 +63,18 @@ describe("canonical JSON serialization", () => {
     expect(canonicalize({ list: [3, 1, 2] })).toBe('{"list":[3,1,2]}');
   });
 
+  it("rejects sparse arrays rather than emitting ambiguous or invalid JSON", () => {
+    const interiorHole: unknown[] = [];
+    interiorHole.length = 3;
+    interiorHole[0] = 1;
+    interiorHole[2] = 3;
+    const onlyHole: unknown[] = [];
+    onlyHole.length = 1;
+
+    expect(() => canonicalize(interiorHole)).toThrow(/\$\[1\].*sparse array/u);
+    expect(() => canonicalize(onlyHole)).toThrow(/\$\[0\].*sparse array/u);
+  });
+
   it.each([
     ["NaN", Number.NaN],
     ["Infinity", Number.POSITIVE_INFINITY],

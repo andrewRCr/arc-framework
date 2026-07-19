@@ -13,6 +13,8 @@
 
 import { createHash } from "node:crypto";
 
+import { isWellFormedUnicode } from "./unicode.js";
+
 /** A content-address digest: `sha256:` followed by exactly 64 lowercase hex characters. */
 export type CanonicalDigest = `sha256:${string}`;
 
@@ -39,17 +41,8 @@ function compareByCanonicalBytes(left: string, right: string): number {
 
 /** Normalize one Unicode-scalar string, rejecting lone UTF-16 surrogates. */
 function normalizeString(value: string, path: string): string {
-  for (let index = 0; index < value.length; index += 1) {
-    const codeUnit = value.charCodeAt(index);
-    if (codeUnit >= 0xD800 && codeUnit <= 0xDBFF) {
-      const next = value.charCodeAt(index + 1);
-      if (!(next >= 0xDC00 && next <= 0xDFFF)) {
-        throw new Error(`${path}: strings must contain only well-formed Unicode`);
-      }
-      index += 1;
-    } else if (codeUnit >= 0xDC00 && codeUnit <= 0xDFFF) {
-      throw new Error(`${path}: strings must contain only well-formed Unicode`);
-    }
+  if (!isWellFormedUnicode(value)) {
+    throw new Error(`${path}: strings must contain only well-formed Unicode`);
   }
   return value.normalize("NFC");
 }
@@ -68,7 +61,14 @@ function normalize(value: unknown, path: string, ancestors: WeakSet<object>): Ca
   ancestors.add(value);
   try {
     if (Array.isArray(value)) {
-      return value.map((item, index) => normalize(item, `${path}[${index}]`, ancestors));
+      const normalized: CanonicalJson[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        if (!Object.prototype.hasOwnProperty.call(value, index)) {
+          throw new Error(`${path}[${index}]: sparse arrays are not supported`);
+        }
+        normalized.push(normalize(value[index], `${path}[${index}]`, ancestors));
+      }
+      return normalized;
     }
     const prototype = Object.getPrototypeOf(value) as unknown;
     if (prototype !== Object.prototype && prototype !== null) {
