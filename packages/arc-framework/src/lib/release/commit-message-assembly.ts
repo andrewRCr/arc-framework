@@ -103,11 +103,25 @@ function splitWords(text: string): string[] {
   return text.trim().split(/\s+/).filter((word) => word.length > 0);
 }
 
-function fenceToken(line: string): "```" | "~~~" | undefined {
+interface FenceToken {
+  character: "`" | "~";
+  length: number;
+}
+
+function fenceToken(line: string): FenceToken | undefined {
   const trimmed = line.trim();
-  if (trimmed.startsWith("```")) return "```";
-  if (trimmed.startsWith("~~~")) return "~~~";
-  return undefined;
+  const match = /^(`{3,}|~{3,})/.exec(trimmed)?.[0];
+  if (match === undefined) return undefined;
+  return { character: match.startsWith("`") ? "`" : "~", length: match.length };
+}
+
+function closesFence(line: string, opening: FenceToken): boolean {
+  const trimmed = line.trim();
+  const candidate = fenceToken(trimmed);
+  return candidate !== undefined
+    && candidate.character === opening.character
+    && candidate.length >= opening.length
+    && candidate.length === trimmed.length;
 }
 
 /** Greedily pack words onto lines, never splitting a word and never exceeding `maxWidth` unless a single word already does. */
@@ -196,7 +210,7 @@ export function wrapCommitMessageBody(cleaned: Uint8Array, width: number): Uint8
         const fenceLine = bodyLines[i] ?? "";
         fenceLines.push(fenceLine);
         i += 1;
-        if (fenceToken(fenceLine) === fence) break;
+        if (closesFence(fenceLine, fence)) break;
       }
       segments.push({ kind: "verbatim", lines: fenceLines });
       continue;

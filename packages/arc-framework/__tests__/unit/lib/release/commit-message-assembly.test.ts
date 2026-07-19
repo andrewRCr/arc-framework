@@ -179,6 +179,22 @@ describe("commit message body wrapping", () => {
     expect(decoder.decode(wrapCommitMessageBody(input, 10))).toBe(decoder.decode(input));
   });
 
+  it("does not close a longer fence on a shorter nested delimiter", () => {
+    const source = [
+      "subject",
+      "",
+      "````markdown",
+      "```typescript",
+      "const example = 'this long code line must remain completely verbatim inside the outer fence';",
+      "```",
+      "````",
+      "",
+    ].join("\n");
+    const input = encoder.encode(source);
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 30))).toBe(source);
+  });
+
   it("passes an indented code block through verbatim", () => {
     const input = encoder.encode(
       "subject\n\n    code that is indented and quite long across the line\n",
