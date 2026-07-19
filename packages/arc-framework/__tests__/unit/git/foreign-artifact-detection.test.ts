@@ -234,6 +234,31 @@ describe("detectForeignArtifactOverlap", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("does not claim a self-exclusion fallback when the caller has no originating WU", async () => {
+    const roster = rosterOf({
+      worktreePath: "/repo.wu-a",
+      branch: "feat/wu-a",
+      metaFilePath: "/repo.wu-a/.arc/active/meta-wu-a.md",
+      state: "Active",
+      identity: "andrew",
+    });
+    const { exec } = buildExec({
+      "diff main...feat/wu-a --name-only -- docs/x.md": { stdout: "" },
+      "status --porcelain -- docs/x.md": { stdout: "" },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: ["docs/x.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.errand",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(result.notes).toBeUndefined();
+  });
+
   it("excludes a remote-only candidate matching the originating meta path", async () => {
     const roster: OverlapRoster = {
       entries: [{
