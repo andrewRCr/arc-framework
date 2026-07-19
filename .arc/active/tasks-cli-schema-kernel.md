@@ -151,37 +151,25 @@ members can compose without centralizing their domain-owned schemas.
 - _Outcome:_ Kernel and composed subsystem schemas now emit deterministic identity-keyed bundles with stable
   external references and no registry metadata leakage.
 
-### `[ ]` **3.3 Integrate the generated schema artifact with the build**
+### `[x]` **3.3 Integrate the generated schema artifact with the build**
 
 - _Goal:_ Every production build emits the deterministic kernel schema bundle inside the published `dist/` output,
   and stale or nondeterministic generation fails visibly.
-- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §5 and the package/build-size cross-cutting
-  requirement.
 
-    - `[ ]` **3.3.a Build an injectable schema-generation entry**
-        - Add an injectable writer that serializes the built-in registry with two-space indentation and one terminal
-          newline at `dist/schemas/kernel.json`; separate projection and byte serialization from filesystem writing.
-        - Build `test-first` (one behavior at a time):
-            - Projection returns the expected schema map without touching disk.
-            - File emission creates the parent directory and writes the exact projected bytes.
-            - The writer uses a same-directory temporary file plus atomic rename, and generation failure leaves no
-              partial final artifact reported as current.
+    - `[x]` **3.3.a Build an injectable schema-generation entry**
+        - Added separate projection, stable two-space/terminal-newline serialization, and injectable filesystem
+          publication through a same-directory temporary file and atomic rename; failed writes clean partial temps.
 
-    - `[ ]` **3.3.b Wire schema generation after the clean TypeScript build**
-        - Import the writer from `packages/arc-framework/tsup.config.ts` and invoke it through tsup's async
-          `onSuccess` callback after the clean JavaScript build; keep the package and root `build` scripts unchanged
-          and add no TypeScript runner dependency.
-        - Keep the generated file under `dist/` so the existing package `files` allowlist publishes it without
-          checking generated output into source control.
+    - `[x]` **3.3.b Wire schema generation after the clean TypeScript build**
+        - Wired the writer through tsup's async `onSuccess` hook with unchanged build scripts; dry-run packaging now
+          includes the generated `dist/schemas/kernel.json` through the existing `dist` allowlist.
 
-    - `[ ]` **3.3.c Prove build-artifact repeatability**
-        - Use isolated temporary directories to compare exact serialized bytes and `$id` values across opposite
-          registration orders; keep `$ref` target assertions with the test-only composition in Task 3.2.b.
-        - Extend the existing E2E global build precondition to require both `dist/cli.js` and
-          `dist/schemas/kernel.json` after either path: the one local package build or the
-          `ARC_E2E_SKIP_BUILD=1` path that consumes CI's downloaded build artifact. The skip flag bypasses only the
-          build invocation, never the artifact assertions.
-        - Do not spawn a nested build from an integration test that can race the shared `dist/` directory.
+    - `[x]` **3.3.c Prove build-artifact repeatability**
+        - Isolated tests prove exact bytes and IDs across opposite registration orders, while E2E global setup now
+          requires both CLI and schema artifacts even when CI skips the local build invocation.
+
+- _Outcome:_ Every clean production build now atomically emits and packages a deterministic 924-byte kernel schema
+  bundle, and both local and downloaded-artifact E2E paths fail fast when either required artifact is absent.
 
 ## **Phase 4:** Extensible errors
 
