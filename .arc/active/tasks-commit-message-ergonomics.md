@@ -129,21 +129,15 @@ carries the corrected bytes so the pure remedy renderer stays IO-free.
   retry store and emits its shell-safe `-F` command. Built-CLI coverage proves the original file remains unchanged
   while the persisted artifact validates, commits, and cleans up on retry.
 
-### `[ ]` **4.2 Scope the manual-wrap guidance in `commit-format.md` to byte-preserved paths**
+### `[x]` **4.2 Scope the manual-wrap guidance in `commit-format.md` to byte-preserved paths**
 
 - _Goal:_ Commit-format guidance no longer asks authors to hand-wrap `-m` bodies (now wrapped deterministically
   by the release wrapper), while the wrapping guidance still governs `-F`/stdin/raw commits, which stay
   byte-preserving.
 
-- _Context:_ The manual-wrap instruction lives in `commit-format.md` § Body ("Wrap at ~72 chars per line"), not
-  the `arc-commit` skill. `commit-format.md` is a Framework file that ships — phrase the change adopter-general
-  (the wrapper wraps `-m` bodies), not self-hosting-specific.
-
-    - In `commit-format.md` § Body, note that `-m` bodies are wrapped deterministically by the release wrapper
-      to the configured `hooks.body_max_line_length` (default 100 — not the ~72 aesthetic, which stays a
-      hand-authoring nicety for the byte-preserved and raw paths, where the width/limit guidance is retained)
-    - Apply via the package source (`packages/arc-framework/arc/system/methods/commit-format.md`) and sync to the
-      `.arc/` copy per the two-copy discipline
+- _Outcome:_ `commit-format.md` now makes deterministic wrapper reflow explicit for `-m`, while retaining the
+  ~72-character hand-authoring target and configured hard limits for byte-preserved `-F` / stdin and raw commits.
+  The package source and self-hosted instance remain synchronized.
 
 ## **Phase 5:** Verification
 
