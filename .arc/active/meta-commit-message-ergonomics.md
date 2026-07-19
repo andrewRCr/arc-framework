@@ -16,7 +16,7 @@
 - **Next Task:** Task 3.1 — Add `hasEffectiveHook(name)` with per-manager effective-hook rules (line ~130)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 (Phase 3 — effective-hook detection via the manager abstraction)
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
