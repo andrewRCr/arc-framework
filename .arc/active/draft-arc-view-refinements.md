@@ -35,7 +35,8 @@ The absence comes from *resolution keying off the meta pointer, not disk*:
   the `tasks-<name>.md` is written to disk first; the meta field is only repointed at the generation ceremony
   commit. Until then it reads `[none]`, `taskListPath` resolves null, and the viewer reports absent.
 - A draft/spec being formed on a not-yet-started stub has no active meta in that worktree, so the WU-scoped
-  resolver returns "No active work unit" — which reads like the file doesn't exist.
+  current-context resolver has no target. The artifact exists and the backlog resolver can find it by slug, but
+  bare `arc view` has no honest ambient slug under partial protection, where grooming occurs directly on base.
 
 **Decision.** Resolve `tasks` by the same `<kind>-<name>.md`-adjacent-to-meta convention the other WU kinds
 already use (`spec`/`draft`/`notes` at `view-artifact.ts`), and treat existence on that conventional path as
@@ -43,31 +44,53 @@ sufficient rather than requiring the meta's `**Task List:**` pointer. Prefer the
 *and* resolves to an existing file; fall back to the conventional path when the meta reads `[none]`. This closes
 the task-generation window without touching meta-write timing (which is deliberately ceremony-bound).
 
+Add `--for <slug>` as explicit semantic target injection for bare or explicit WU-scoped views. Its reading is
+“view this work unit's artifact group instead of the ambient WU context”: it changes the WU target, not the
+artifact-kind selection rule. Thus `arc view --for foo` renders `foo`'s furthest present artifact, while
+`arc view spec --for foo` renders exactly `foo`'s spec. An explicit target wins over ambient context.
+
+The eligible lifecycle domain is deliberately planning/live only: `backlog/provisional`, `backlog/planned`, and
+`active`. Resolve the slug through the shared lifecycle authority, then locate that eligible artifact group in
+the current checkout; never accept a path or inspect another worktree directly. An unknown slug returns an
+unknown-target error. A known eligible target whose artifact group is not materialized here returns a
+target-unavailable error. A completed slug returns a distinct unsupported-lifecycle error — completed viewing is
+not implied by this grooming/active-context fix, because archived cohort documents have different sidecar
+semantics. No explicit-target failure may fall back to the ambient WU. Reject `--for` with identity-global kinds
+(`working-memory`, `inbox`) and `inbox --project`, where a WU target has no meaning.
+
 ### 2. Bare `arc view` resolves the furthest present artifact
 
-**Decision.** The WU lifecycle is linear, so bare `arc view` should render the *furthest existing* artifact in
-`tasks → spec → draft` order rather than always assuming `tasks`. Implement as an iteration over the existing
-resolve-path-then-exist seam (same kind→path indirection + injected existence predicate), picking the furthest
-that exists. Explicit `arc view <kind>` is unchanged — it still targets exactly that kind, and an absent kind
-still renders its one-line "not present" message.
+**Decision.** The WU lifecycle is linear, so every resolved artifact group has one default chain:
+`meta → draft → spec → tasks`. Bare `arc view` selects the furthest existing member by checking
+`tasks → spec → draft → meta`; the meta is the guaranteed base, so a valid active-WU or `--for` target always
+renders something useful. Implement the selection as an iteration over the existing resolve-path-then-exist seam
+(same kind→path indirection + injected existence predicate). Explicit `arc view <kind>` is unchanged — it still
+targets exactly that kind, and an absent explicit kind still renders its one-line "not present" message.
 
 This subsumes point 1's fix: once resolution is existence-driven over the conventional paths, the
-task-generation window and the "form the furthest thing that's there" case both resolve. Note the one contract
-change: bare `arc view`'s meaning shifts from "tasks" to "furthest present" — record it in the spec.
+task-generation window and the "form the furthest thing that's there" case both resolve. `arc view --current`
+without a kind remains task-specific shorthand: it forces `tasks`, bypasses furthest-present selection, and keeps
+the existing task-absence behavior. The contract change is therefore bounded to bare view without `--current`.
 
 ### 3. Light metadata for draft/spec (and other prose kinds)
 
 Today `tasks` carries the phase/task/overall counter band; every other kind carries a one-line header
 (kind · WU · rendered-at). **Decision:** add **line count** to that one-line header for the non-`tasks` kinds —
 a pure content property, trivially computed, storage-agnostic. Keep it to the one-line header; do not grow a
-tasks-style band for prose. **Last-modified is deferred** (see Open items / Forward-compat): if it ever lands it
+tasks-style band for prose. **Last-modified is deferred** (see Unknowns / Forward-compatibility): if it ever lands it
 must use `fs` mtime, never `git log`.
+
+Count logical source lines: an empty file is `0 lines`; a terminal newline closes the final line and does not add
+a phantom one; CRLF is one separator. Render the singular as `1 line`, otherwise `{N} lines`, in the existing
+header before the rendered-at stamp.
 
 ### 4. 12-hour clock toggle
 
 **Decision.** Add a user-scoped `arc.viewClock = 24h | 12h` git-config key (default `24h`), mirroring
 `arc.viewRenderer` — same "personal taste, not project convention" rationale and the same interim git-config
-home with a known migration seam to `config-storage-architecture`. The rendered-at stamp formats per the key.
+home with a known migration seam to `config-storage-architecture`. The rendered-at stamp formats per the key:
+`24h` remains zero-padded `09:05`; `12h` is locale-independent, hour-unpadded `9:05 AM` / `9:05 PM`, with noon
+and midnight rendered as `12:xx PM` / `12:xx AM`.
 
 **Dropped:** a date component (overkill — the stamp exists to show *within-day* staleness against your live
 "now"; a render-once tool you refresh with the up-arrow does not span days) and any relative form
@@ -83,11 +106,11 @@ glow-anchoring limitation).
 
 ### 6. First task of a phase → anchor to the phase heading
 
-**Decision.** When the cursor's current leaf is the *first task entry of its phase*, anchor to the phase heading
-(also minus one line, same top margin) rather than the task — surfacing the phase preamble as context exactly
-when you're starting the phase. The checkbox parse already knows phase boundaries, so detection is cheap. Fires
-only for a literal first-entry-of-phase; every other task anchors normally. Same `bat`/`plain`-vs-`glow` caveat
-as point 5.
+**Decision.** When `cursor.section` — the current parent-task section — is the first parent task of its phase,
+anchor to the phase heading (also minus one line, same top margin) rather than the task. This keeps the phase
+preamble visible throughout work on that first parent, even when `cursor.leaf` has advanced to a later subtask.
+Every later parent task anchors normally. The checkbox parse already carries the section/leaf distinction and
+phase boundaries, so detection is cheap. Same `bat`/`plain`-vs-`glow` caveat as point 5.
 
 ### 7. Loose-list blank lines collapse in the glow render
 
@@ -97,18 +120,42 @@ ANSI. It is *not* our preprocessing: `normalizeMarkdownSoftBreaks` in `view-rend
 `bat`/`plain` are unaffected — they display source / near-source, so on-disk blank lines survive; only the
 markdown re-renderer collapses looseness.
 
-**Leaning.** Investigate a custom glamour style (via glow's style config) that adds list-item margin, weighed
-against the risk of over-spacing genuinely *tight* lists (glamour's tightness handling is the open question —
-whether spacing can be applied to loose lists only, or only uniformly). If no acceptable style exists, accept it
-as a `glow`-specific degrade — the same family as points 5/6, where glow's re-render diverges from source in
-ways bat/plain don't. Resolved against the real binary during implementation.
+**Research result.** Goldmark retains the CommonMark tight/loose distinction as `List.IsTight`, but Glamour does
+not read it: direct paragraphs inside list items are flattened, every sibling item receives the same hard-coded
+newline, and the style schema has no tight/loose selector. A custom style can alter markers, indentation, or the
+whole list's margin, but cannot restore loose-only inter-item spacing. Forking Glamour is disproportionate.
+
+**Decision.** Add a conservative, Glow-only transient adapter before handing Markdown to the renderer. At a
+provable boundary where a blank source line separates sibling list items, insert an invisible HTML comment at
+the list-container indentation; Glamour sanitizes the comment while its separate-list block spacing restores the
+blank display row. Tight lists receive no marker. For ordered lists, materialize the computed ordinal in the
+transient copy before splitting so lazy repeated markers (`1.`, `1.`) still render as `1.`, `2.`. The source and
+the `bat`/`plain` paths remain untouched.
+
+The adapter is deliberately conservative rather than a second Markdown parser: reuse the existing fence,
+blockquote, and list-prefix awareness in `view-renderer.ts`, and transform only a sibling boundary the state
+machine can prove. Ambiguous structures remain compact under Glow — a safe false negative — rather than risking
+a semantic rewrite. Guard the contract with top-level and nested unordered, ordered, task-list, blockquote,
+multi-block-item, fence, and tight-list cases against the transient input, plus a real-Glow behavior probe where
+the binary is available.
 
 ### Cross-cutting: the glow-divergence theme
 
 Points 5, 6, and 7 share a shape: `glow` re-renders markdown (pattern-anchoring, ANSI re-layout), so it diverges
-from source where `bat`/`plain` do not. Each lands fully on `bat`/`plain` and degrades gracefully on `glow`.
-Worth stating once in the spec as a consequence rather than three times — it extends the shipped spec's existing
+from source where `bat`/`plain` do not. Points 5/6 degrade gracefully on Glow; point 7 restores fidelity at
+provable boundaries and degrades only where the adapter cannot prove the source structure. State the renderer
+divergence once in the spec as a consequence rather than three times — it extends the shipped spec's existing
 glow-anchoring open item.
+
+### Cross-cutting: explicit target now, ambient groom target later
+
+Target precedence is `explicit --for → active worktree WU → recorded groom locus`. This WU ships the explicit
+target and current-active arms with no dependency on `session-locus-model`; until that WU lands, a pre-start
+grooming session names its stub with `--for`. `session-locus-model` already owns groom roles and identities. When
+its typed reader exposes the current checkout's groom subject, `arc view` may consume that shared resolver to make
+bare view zero-input during grooming. It must never read raw locus records or parse `arc locus` output. The
+grooming-locus record and reader remain owned by `session-locus-model`; this WU owns only the viewer-side consumer
+seam.
 
 ## Forward-compatibility (storage-evolution check)
 
@@ -138,18 +185,32 @@ recorded for `arc.viewRenderer`; no new storage assumption.
 - **Point 1 — fix the meta-pointer lag instead.** Repointing the meta's `**Task List:**` earlier during
   generation would also close the window, but meta-write timing is deliberately ceremony-bound; the viewer-side
   fix is the correct layer and doesn't perturb that contract.
+- **Point 1/2 — infer a groom target from branch or dirty files.** Rejected: `chore/groom-*` exists only under
+  full protection, while partial protection grooms on base; dirty-file or newest-artifact inference is ambiguous
+  and couples resolution to tracked storage. Explicit `--for` is deterministic now, and the recorded groom locus
+  is the honest future ambient source.
+- **Point 1/2 — make `--for` lifecycle-complete now.** Rejected for this WU: completed meta/spec/tasks groups are
+  locatable, but a completed cohort's coordinating document may have moved into a separate closeout sidecar.
+  Archive viewing deserves its own semantic contract rather than an accidental consequence of explicit targeting;
+  capture it as a provisional follow-up.
 - **Point 3 — last-modified via git log.** More accurate in-repo, but couples to tracked storage (rejected on
   forward-compat) and offers little over line count for the daily use case.
 - **Point 4 — a project-level clock setting.** Clock format is personal taste, so it belongs in the user-scoped
   surface next to `arc.viewRenderer`, not `arc-config.yml`.
+- **Point 7 — custom Glamour style.** Rejected: Glow accepts a full style file, but Glamour exposes no
+  tight/loose selector or per-item vertical-spacing property. A global marker prefix would over-space tight lists
+  and replace the user's chosen theme.
+- **Point 7 — Glamour fork or full Markdown parser.** Rejected as disproportionate. The renderer-level fix belongs
+  upstream; locally, a second parser adds dependency and reserialization cost for a boundary the existing
+  Glow-only state machine can recognize conservatively.
 
 ## Unknowns and Assumptions
 
-- **Glamour list-item spacing (point 7)** — whether a custom glow style can restore loose-list spacing without
-  over-spacing tight lists. Resolved against the real binary; may end as an accepted glow degrade.
-- **Furthest-present edge (points 1/2)** — behavior when the meta points at a *different* task list than the
-  conventional filename (rare). Assumption: prefer the meta pointer when it resolves to an existing file, else
-  the conventional path.
+- **Glow loose-list adapter (point 7)** — assumes Glow continues sanitizing HTML comments while retaining
+  inter-list block spacing. Unit tests pin the transient Markdown contract; an available-binary probe pins the
+  renderer behavior. If Glow changes, disable the adapter rather than broadening it into ANSI postprocessing.
+- **Task-pointer divergence (points 1/2)** — when the meta points at a *different* task list than the conventional
+  filename (rare), prefer the pointer when it resolves to an existing file; otherwise use the conventional path.
 - **Last-modified value (point 3)** — assumed deferred; if pulled in, mtime is the only forward-compat-safe
   source, with in-repo checkout-reset lossiness accepted.
 - **Anchoring on glow (points 5/6)** — assumed graceful no-op, not a regression; confirm the pattern-anchor path
@@ -157,10 +218,13 @@ recorded for `arc.viewRenderer`; no new storage assumption.
 
 ## Scope Estimate
 
-**Small (hours–days); Class `Light`.** Bounded surface: `commands/view.ts` (band/anchor/metadata/clock),
-`view-artifact.ts` (resolution for points 1/2), `view-renderer.ts` (glow style for point 7), one new user-scoped
-git-config key. No new concepts; determinate improvements to an existing, well-specced command. Reuses the
-existing oracle-resolution and checkbox-parse infrastructure.
+**Small execution size (hours–days); Class `Heavy`.** The implementation surface remains bounded:
+`commands/view.ts` (band/anchor/metadata/clock), `view-artifact.ts` (resolution plus explicit target injection for
+points 1/2), `view-renderer.ts` (Glow-only loose-list adapter for point 7), and one new user-scoped git-config key.
+But the realized design authored a public target-selection contract, lifecycle-domain boundary, future locus seam,
+and renderer-fidelity strategy with researched alternatives and explicit failure policy; that crosses the Heavy
+derivation floor regardless of code size. No new parser or durable-locus machinery; reuse the lifecycle/backlog
+and active artifact-group authorities, checkbox parse, and Markdown boundary infrastructure.
 
 **Dependencies:** none. Follow-on to the shipped `arc view` (`spec-arc-view.md`); shares no gate with in-flight
 work.
