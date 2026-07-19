@@ -325,6 +325,48 @@ it.runIf(process.platform !== "win32")("terminates a blocked shell helper", asyn
 });
 
 describe("release commit byte preservation", () => {
+  it("persists a wrap-corrected file retry that validates without mutating its source", async () => {
+    await writeFile(join(repository, ".arc", "system", "arc-config.yml"), [
+      "branch.base: main",
+      "branch.protection: partial",
+      "hooks.commit_msg: enabled",
+      "hooks.body_max_line_length: 60",
+      "commit.format: conventional",
+      "commit.context_footer: disabled",
+      "commit.custom_pattern:",
+      "commit.context_pattern:",
+      "",
+    ].join("\n"));
+    const sourcePath = join(repository, "message.txt");
+    const source = [
+      "feat(release): persist a corrected retry",
+      "",
+      "This ordinary paragraph is deliberately long enough to exceed the configured body width before wrapping.",
+      "",
+    ].join("\n");
+    await writeFile(sourcePath, source);
+
+    const first = await runCli(["release", "commit", "-F", sourcePath], { cwd: repository });
+
+    const gitDir = await gitOutput(["rev-parse", "--absolute-git-dir"]);
+    const retryPath = join(gitDir, ".arc-release-commit-message-retry");
+    const corrected = await readFile(retryPath, "utf8");
+    expect(first.exitCode).toBe(16);
+    expect(first.stderr).toContain(`arc release commit -F ${shellQuote(retryPath)}`);
+    expect(corrected).not.toBe(source);
+    expect(await readFile(sourcePath, "utf8")).toBe(source);
+
+    const second = await runCli(["release", "commit", "-F", retryPath], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+
+    expect(second.exitCode).toBe(0);
+    expect(await gitOutput(["log", "-1", "--format=%B"])).toBe(corrected.trimEnd());
+    await expect(access(retryPath)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(sourcePath, "utf8")).toBe(source);
+  });
+
   it.runIf(process.platform !== "win32")(
     "replays quoted-heredoc bytes from the emitted retry path and removes it on success",
     async () => {

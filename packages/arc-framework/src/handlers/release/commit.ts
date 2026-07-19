@@ -94,7 +94,13 @@ export type CommitMessagePreflightResult =
           }
         | { kind: "stdin"; rawBytes: Uint8Array };
     }
-  | { kind: "refused"; reason: "validation" | "input"; message: string };
+  | {
+      kind: "refused";
+      reason: "validation" | "input";
+      message: string;
+      /** Wrap-corrected bytes, present only when correction re-validates. */
+      correctedMessageBytes?: Uint8Array;
+    };
 
 /** In-process commit-message preflight boundary. */
 export type PreflightCommitMessage = (opts: {
@@ -226,7 +232,7 @@ export async function runReleaseCommit(
   if (preflight.kind === "refused") {
     return refusePreflight(preflight.reason, preflight.message, {
       deps, wu: wuAudit, writeStderr, appendAudit,
-    });
+    }, preflight.correctedMessageBytes);
   }
 
   // Authorize: run wrapped `git commit`, attribute the outcome, audit, exit.
@@ -332,6 +338,7 @@ async function refusePreflight(
   reason: "validation" | "input",
   message: string,
   ctx: RefuseContext,
+  correctedMessageBytes?: Uint8Array,
 ): Promise<ReleaseCommitResult> {
   const refusal: Extract<AuthorizationDecision, { code: 16 }> = {
     kind: "refuse",
@@ -339,7 +346,20 @@ async function refusePreflight(
     identifier: "commit-message-preflight-failed",
     reason,
   };
-  ctx.writeStderr(`${message}\n${formatRefusal(refusal)}\n${ctx.deps.preflightRemedy}\n`);
+  let remedy = ctx.deps.preflightRemedy;
+  if (correctedMessageBytes !== undefined) {
+    try {
+      const retry = await ctx.deps.persistMessageRetry({
+        cwd: ctx.deps.cwd,
+        bytes: correctedMessageBytes,
+      });
+      remedy = `Retry the corrected message with:\n${renderCommitMessageRetryCommand(retry.path)}`;
+    } catch (cause: unknown) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      ctx.writeStderr(`warn: corrected commit-message retry could not be persisted: ${detail}\n`);
+    }
+  }
+  ctx.writeStderr(`${message}\n${formatRefusal(refusal)}\n${remedy}\n`);
   const auditResult = await ctx.appendAudit({
     cwd: ctx.deps.cwd,
     identity: ctx.deps.identity,

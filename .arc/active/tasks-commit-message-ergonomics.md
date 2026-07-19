@@ -119,26 +119,15 @@ machinery and guide an `arc release commit -F <file>` resubmission — a one-ste
 touches the original source). The persist and the retry guidance are orchestrator-side; the refusal result
 carries the corrected bytes so the pure remedy renderer stays IO-free.
 
-### `[ ]` **4.1 Persist wrap-corrected bytes and guide a `-F` retry on byte-preserved rejects**
+### `[x]` **4.1 Persist wrap-corrected bytes and guide a `-F` retry on byte-preserved rejects**
 
 - _Goal:_ A rejected over-width `-F`/stdin body yields a corrected-artifact `-F` retry; the original source is
   never mutated.
 
-- _Context:_ This is the reject branch, distinct from the `messages` auto-wrap path — `-F`/stdin stay
-  byte-preserving; the correction is offered as a retry artifact, not applied in place. Preflight computes the
-  wrap-corrected bytes (it holds the width and classification context) and carries them on the refusal; the
-  orchestrator persists and guides. The pure remedy renderer does no IO.
-
-    - Gate the corrected-artifact offer to a failure that wrapping actually resolves: wrap the captured cleaned
-      bytes via the Phase 1 helper and offer the retry only when the wrapped bytes re-validate. A failure
-      wrapping won't fix — an unbreakable-token overflow (preserved verbatim under D4) or a mixed failure with a
-      non-width problem — falls back to the generic `renderCommitMessageRemedy`
-    - Carry the wrap-corrected bytes on the refusal result so the orchestrator can act on them
-    - In `runReleaseCommit`, persist those bytes via the existing `persistMessageRetry` machinery and guide the
-      `-F` retry naming the persisted artifact, reusing the `renderCommitMessageRetryCommand` shaping so this
-      retry surface matches the post-spawn-failure one rather than growing a divergent path
-    - Cover that a byte-preserved source is never mutated and that the persisted retry artifact re-validates (not
-      merely that it carries corrected bytes)
+- _Outcome:_ Preflight now carries wrap-corrected bytes only when the corrected message re-validates; mixed and
+  unbreakable failures keep the generic remedy. The orchestrator persists qualifying bytes through the existing
+  retry store and emits its shell-safe `-F` command. Built-CLI coverage proves the original file remains unchanged
+  while the persisted artifact validates, commits, and cleans up on retry.
 
 ### `[ ]` **4.2 Scope the manual-wrap guidance in `commit-format.md` to byte-preserved paths**
 

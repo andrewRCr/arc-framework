@@ -489,6 +489,54 @@ describe("runReleaseCommit — success path", () => {
     },
   );
 
+  it("persists and guides a wrap-corrected preflight refusal", async () => {
+    await writeStatus(fixture.root, "sample");
+    const correctedMessageBytes = Buffer.from("feat(release): corrected retry\n");
+    const persistMessageRetry = vi.fn().mockResolvedValue({
+      path: "/repo with spaces/.git/.arc-release-commit-message-retry",
+    });
+    const { deps, spawnGit, stderr } = buildDeps(fixture.root, {
+      argv: ["-F", "message.txt"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "refused",
+        reason: "validation",
+        message: "body line too long",
+        correctedMessageBytes,
+      }),
+      persistMessageRetry,
+    });
+
+    const result = await runReleaseCommit(deps);
+
+    expect(result.exitCode).toBe(16);
+    expect(spawnGit).not.toHaveBeenCalled();
+    expect(persistMessageRetry).toHaveBeenCalledWith({ cwd: fixture.root, bytes: correctedMessageBytes });
+    expect(stderr.join("")).toContain(
+      "Retry the corrected message with:\narc release commit -F '/repo with spaces/.git/.arc-release-commit-message-retry'",
+    );
+    expect(stderr.join("")).not.toContain("arc release commit -F <message-file>");
+  });
+
+  it("falls back to the generic remedy when corrected retry persistence fails", async () => {
+    await writeStatus(fixture.root, "sample");
+    const { deps, stderr } = buildDeps(fixture.root, {
+      argv: ["-F", "message.txt"],
+      settings: authorizingSettings(),
+      preflightCommitMessage: () => Promise.resolve({
+        kind: "refused",
+        reason: "validation",
+        message: "body line too long",
+        correctedMessageBytes: Buffer.from("feat(release): corrected retry\n"),
+      }),
+      persistMessageRetry: () => Promise.reject(new Error("disk full")),
+    });
+
+    expect((await runReleaseCommit(deps)).exitCode).toBe(16);
+    expect(stderr.join("")).toContain("corrected commit-message retry could not be persisted: disk full");
+    expect(stderr.join("")).toContain("arc release commit -F <message-file>");
+  });
+
   it.each(["pass", "pass-with-warnings"] as const)(
     "spawns Git once after preflight %s",
     async (verdict) => {

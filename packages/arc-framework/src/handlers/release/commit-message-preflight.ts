@@ -3,6 +3,7 @@
 import {
   assembleCommitMessageParagraphs,
   captureCommitMessageFileSource,
+  wrapCommitMessageBody,
 } from "../../lib/release/commit-message-assembly.js";
 import { classifyCommitMessageInput } from "../../lib/release/commit-message-source.js";
 import { prepareCommitCheckContext } from "../../lib/commit-check/context.js";
@@ -108,10 +109,19 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
     if (checked.result.kind === "skipped") return { kind: "pass-through" };
     if (checked.exitCode === 1) {
       const rendered = renderCheckCommitMessage(checked, false);
+      let correctedMessageBytes: Uint8Array | undefined;
+      if (classification.source.kind !== "messages" && preparedContext.kind === "ready") {
+        const wrapped = wrapCommitMessageBody(messageBytes, preparedContext.policy.bodyMaxLineLength);
+        if (!bytesEqual(wrapped, messageBytes)) {
+          const corrected = await validateCommitMessageBytes(wrapped, repository);
+          if (corrected.kind === "result" && corrected.exitCode === 0) correctedMessageBytes = wrapped;
+        }
+      }
       return {
         kind: "refused",
         reason: "validation",
         message: (rendered.stderr ?? rendered.stdout ?? "Commit-message validation failed.").trimEnd(),
+        ...(correctedMessageBytes === undefined ? {} : { correctedMessageBytes }),
       };
     }
     const verdict = checked.result.verdict;
