@@ -69,14 +69,25 @@ in place without a layer assignment.
 
 ## Success signal
 
-Given representative documentation-only, routine-code, sensitive-code, `Heavy` / `Novel`, Errand, and multi-PR
-cases, ARC derives explicit self-review and independent-analysis obligations plus an opt-in frontline action for
-the exact change set. Frontline review can be fulfilled by a project-selected fresh source without discharging a
-hosted-review obligation; it removes low-value noise before publication so the public reviewer receives a
-higher-signal diff and needs fewer token-expensive repeat passes. Hosted providers receive a neutral rubric rather
-than an ARC workflow; no PR-count rule mechanically multiplies expensive full reviews; and every finding is
-independently verified and disposition-approved before fixes land. Each review surface has one layer owner, and
-agent hooks remain ergonomic while the host-side gate remains enforcement.
+Given representative documentation-only, routine-code, sensitive-code, atomic-determinate, `Heavy` / `Novel`,
+Errand, and multi-PR cases, ARC derives explicit self-review and independent-analysis obligations plus an opt-in
+frontline action for the exact change set — scaling review to the work in both directions: an atomic determinate
+change resolves to `recommended` rather than `required`, while a critical WU can carry a declared additional-rubric
+overlay. Independent analysis is satisfiable by a local fresh-agent pass (`adversarial-review` under the
+`implementation-audit` rubric, attested) as first-class gate evidence, so a project reviewing only locally is a fully
+supported posture, not a degraded one — the review channel (`local` / `hosted` / `both`) never assumes a hosted PR
+review exists. Frontline review, when active, is the pre-publication local pass that shapes what a downstream reviewer
+receives — advisory by construction; it removes low-value noise so the public reviewer receives a higher-signal diff
+and needs fewer token-expensive repeat passes, and never discharges a required obligation. Hosted providers receive a
+neutral rubric rather than an ARC workflow; no PR-count rule mechanically multiplies expensive full reviews; and
+every finding is verified against source and disposition-approved before fixes land. During integration the human
+returns only at genuine decision points — each review round's disposition approval and the merge gate — with
+composition and base-reconcile running without a `proceed` turn between them, unless a quality gate fails or state is
+unexpected. The asynchronous review is spanned by resilient suspend-and-reenter; to the degree an automatable
+re-entry trigger exists (the promoted review-gate watcher, or a harness-native wakeup), re-entry needs no human
+next-step, and where none does the agent explicitly hands off — telling the human it is suspended awaiting their
+re-entry rather than stalling silently. Each review surface has one layer owner, and agent hooks remain
+ergonomic while the host-side gate remains enforcement.
 
 ## Layer model — the doctrine
 
@@ -122,9 +133,15 @@ effective default only after a project activates `frontline-review`; otherwise t
 |------------------------------------|--------------------|-----------|----------------------|-------------|
 | routine ARC-auto-eligible planning | recommended        | skip      | exempt               | none        |
 | routine reviewed documentation     | recommended        | skip      | recommended          | incremental |
+| routine atomic code-bearing        | required           | offer     | recommended          | incremental |
 | routine code-bearing               | required           | attempt   | required             | incremental |
 | sensitive, any content             | required           | attempt   | required             | full-final  |
 | unknown / malformed                | required           | attempt   | required             | full-final  |
+
+The **atomic** row is the determinacy carve-out: a routine code-bearing change of declared atomic character (see the
+closed record below) softens independent analysis to `recommended` and frontline to `offer`, never crossing the
+sensitive floor. It scales spend _down_ by a deliberate character declaration; the review overlay (§ Cross-cutting)
+scales the lens _up_ by a declared additional rubric — the symmetric pair, both floor-respecting.
 
 `self-review` is active by default, preserving today's `review.pre_merge: enabled` behavior. Its activation is an
 input to effective routing: explicit project deactivation resolves the author self-review obligation to `exempt`
@@ -147,7 +164,9 @@ The core router consumes one closed ARC record, not an arbitrary project-facts b
 
 - change-set state (`known / unknown`), content kind (`documentation / code-bearing`), and review risk
   (`routine / sensitive`);
-- work context (`unscoped / errand / work-unit`) and WU `Class` (`none / Light / Heavy / Novel`);
+- work context (`unscoped / errand / work-unit`), **change determinacy** (`atomic / ordinary` — declared atomic
+  character, derived from the Errand vehicle under full protection or an explicit atomic declaration under partial
+  protection, never inferred from diff size), and WU `Class` (`none / Light / Heavy / Novel`);
 - review eligibility and authority facts: ownership relation
   (`self / foreign / mixed / ownerless / not-applicable / unknown`) and surface authority
   (`planning-grooming / ordinary / design-authority / constitutional / unverifiable-derived / unknown`); and
@@ -161,110 +180,53 @@ record and may emit namespaced reasons; it cannot append untyped facts.
 The default reducer applies ordered effects. Code-bearing, sensitive, malformed, foreign/mixed/unknown ownership,
 and elevated-authority facts can promote an obligation but never weaken the risk floor. Routine planning-grooming
 artifacts with self or ownerless ownership are ARC-auto-eligible and may remain independent-analysis `exempt`;
-otherwise routine documentation is `recommended`. Work context never weakens the per-change baseline. `Class` does
-not reclassify risk or mechanically add provider requests: the default uses it only to select WU assurance output —
-`none` for unscoped changes, Errands, and `Light`; `terminal-aggregate` for `Heavy` / `Novel`. Auto-eligible formative
-planning remains exempt even inside a `Heavy` / `Novel` WU. A project that wants `Class` to strengthen per-change
-obligations must encode that promotion explicitly in its versioned typed policy, where it enters `policyVersion`.
+otherwise routine documentation is `recommended`. The **vehicle** (errand vs work-unit) never weakens the per-change
+baseline; **declared atomic character** does soften within the routine tier only — routine code-bearing with atomic
+character resolves independent analysis to `recommended` (and frontline to `offer`) — but never across the sensitive
+floor, which holds at every determinacy. `Class` does not reclassify risk or mechanically add provider requests: the
+default uses it only to select WU assurance output — `none` for unscoped changes, Errands, and `Light`;
+`terminal-aggregate` for `Heavy` / `Novel`. Auto-eligible formative planning remains exempt even inside a
+`Heavy` / `Novel` WU. A project that wants `Class` to strengthen per-change obligations must encode that promotion
+explicitly in its versioned typed policy, where it enters `policyVersion`. The ordered effects above are the settled
+shape, not the exhaustive function: `create-spec` must formalize the reducer as a deterministic **total mapping** over
+the closed record — every fact combination resolves to exactly one obligation set — so no per-change decision is left
+to "figure out later."
 
 V1 core reasons include `unknown-change-set`, `auto-eligible-planning`, `reviewed-routine-documentation`,
-`routine-code`, `sensitive-change-set`, `self-owned-artifact`, `ownerless-artifact`, `foreign-owned-artifact`,
-`mixed-ownership`, `unknown-ownership`, `design-authority`, `constitutional-surface`,
-`unverifiable-derived-surface`, `self-review-inactive`, `frontline-inactive`, `frontline-policy-skip`,
-`frontline-policy-offer`, `frontline-policy-attempt`, `invocation-force`, `invocation-skip`, `source-invocation`,
-`source-developer`, `source-project`, and `source-unbound`. Assurance projection adds
-`assurance-group-coalesced`, `assurance-group-singleton`, and `wu-terminal-assurance`; these describe composition,
-not risk reclassification. Project policy codes use the registered `project:<policy-id>:<code>` namespace and enter
-`policyVersion`. The CLI computes the effective per-deliverable obligations, frontline action, and
-`assuranceMode: none | terminal-aggregate`; the assurance planner consumes that output rather than re-reading
-`Class`. Provider and host-channel selection remain adapter/project decisions, so `local-only` or `local + PR` is a
-derived presentation rather than another technical enum.
+`routine-code`, `atomic-determinate`, `atomic-softened`, `sensitive-change-set`, `self-owned-artifact`,
+`ownerless-artifact`, `foreign-owned-artifact`, `mixed-ownership`, `unknown-ownership`, `design-authority`,
+`constitutional-surface`, `unverifiable-derived-surface`, `self-review-inactive`, `frontline-inactive`,
+`frontline-policy-skip`, `frontline-policy-offer`, `frontline-policy-attempt`, `invocation-force`, `invocation-skip`,
+`source-invocation`, `source-developer`, `source-project`, and `source-unbound`. Project policy codes use the
+registered `project:<policy-id>:<code>` namespace and enter `policyVersion`. The CLI computes the effective
+per-deliverable obligations, frontline action, and `assuranceMode: none | terminal-aggregate`. Provider and
+host-channel selection remain adapter/project decisions, so `local-only` or `local + PR` is a derived presentation
+rather than another technical enum.
 
-#### Joint assurance plan with `pr-decomposition` — settled
+#### Multi-PR assurance — forward-compat seam with `pr-decomposition`
 
-Do not choose between per-PR review and one grouped review prematurely. Review routing derives the truthful
-obligation for each deliverable; `pr-decomposition` authors an ordered **assurance plan** at the same
-`generate-tasks` boundary that plans merge seams. The plan groups one or more contiguous deliverables into an
-**assurance group** — one exact review target and one provider request — so PR count and review-request count are
-separate planned axes.
+Review routing derives the truthful obligation for each **deliverable** independently. When a work unit emits more
+than one PR (`pr-decomposition`), the framework contract holds one principle and one seam — not a built-in grouping
+algebra authored ahead of that WU's settled shape:
 
-A group may coalesce member obligations only when all of these hold:
+- **Principle (no mechanical multiplication):** PR count must never mechanically determine review count. One exact
+  review run may satisfy several deliverables' obligations only when coverage is provably preserved — no policy
+  weakening, an exact ordered manifest, one reviewer can still cover the surface without attention dilution, and the
+  carrier can present and prove the complete range. Absent that proof, the plan falls back to ordinary per-PR review.
+  This preserves every deliverable's blocking risk floor.
+- **Seam (per-requirement projection):** the gate projection binds one independent-analysis requirement per
+  normalized change set (§ Gate projection contract). A future **assurance plan** may bind several compatible member
+  requirements to one review target without weakening or duplicating any member's floor. The single-deliverable
+  contract is complete on its own; the multi-member binding is a strictly additive extension.
 
-- **No policy weakening:** the group takes the strongest member obligation and retrigger treatment, keeps the same
-  rubric pair, has a non-empty intersection of acceptable source policy, and resolves admission to the stricter
-  checkpoint when members differ.
-- **Exact ordered manifest:** every member has a stable deliverable id plus exact boundary commit and tree identities;
-  the group id hashes the ordered member manifest, carrier base, terminal head, rubric identity, and effective policy.
-  Changed membership, order, reviewed content, or policy makes prior group evidence stale. A host operation that
-  rewrites only commit identity never mutates the receipt; it needs the separate tree-exact membership proof below.
-- **Reviewability:** one reviewer can still cover the grouped surface and its seams without attention dilution. If
-  not, split the assurance group even when the merge stack could remain one mechanical batch.
-- **Carrier capability:** the selected adapter can present and prove the complete group range. A hosted provider that
-  can review only one PR-shaped range may coalesce only when the stack exposes a qualifying cumulative carrier;
-  otherwise the plan falls back to PR-aligned singleton groups rather than inferring coverage.
-
-One group review applies `independent-analysis` to every member plus every seam assigned to the group. Its receipt
-carries one `reviewRunId`, the exact group manifest, per-member coverage, seam coverage, and findings assigned to a
-member or named seam. A clean group result is legal only when every member and seam cleared. The gate
-deterministically projects that receipt into each member requirement; it does not pretend the provider ran once per
-PR.
-
-Grouping derives one **group requirement** from the compatible member and owned-seam policies: the strongest
-obligation and retrigger treatment, acceptable-source intersection, and stricter admission checkpoint, plus the ids
-of every non-exempt member and seam requirement. Member obligations remain unchanged for audit and presentation. A
-required group activates a separate **group merge barrier** for every manifest member as soon as the assurance plan
-is composed; a recommended group remains non-blocking unless its review is explicitly admitted, at which point
-admission freezes the target and activates the same barrier. While active, no member may become merge-ready until the
-group receipt is complete and every finding is settled. An exempt or recommended predecessor therefore cannot merge
-early and mutate a cumulative target merely because its own review obligation is non-blocking. If that shared cadence
-is undesirable, the planner must split the group rather than promote or weaken a member obligation. An all-exempt
-delivery group creates no review group or barrier unless an owned seam carries a non-exempt requirement.
-
-Each change-request gate accepts that projection only with a typed **series-membership proof**: the current PR maps
-to the named member range; its base/head boundaries either retain the reviewed commit ids or have exactly the same
-tree ids as the manifest boundaries; predecessors were consumed in the declared order; and no unreviewed delta
-entered during merge, rebase, or retargeting. Tree-pair equality is the equivalence floor — patch-id similarity,
-path overlap, or provider assertion is insufficient. Like the existing lifecycle-tail proof, this is adapter-produced
-applicability evidence, not review evidence and not a policy bypass. Any diagnostic fails closed to a fresh singleton
-or regrouped review.
-
-Grouping sets the review/merge cadence: complete and freeze one assurance group, review it, then merge its member PRs
-bottom-up before advancing. Later groups need not be implemented before the first group lands. A finding that changes
-the group target invalidates or incrementally extends that group's evidence under ordinary retrigger policy.
-
-The assurance plan also supplies a generated **seam universe**, never a hand-authored duplicate graph. Structural
-seams come from every consecutive deliverable boundary and delivery-graph dependency edge; semantic seams come from
-every spec/task element mapped to more than one deliverable. `pr-decomposition` proves that every design element and
-task maps to a deliverable and that every multi-deliverable mapping emits a seam; unknown, duplicate, or unmapped
-entries are diagnostics. Each stable seam record names its kind, incident deliverables, derived obligation and
-retrigger treatment, and exactly one owner. The assurance group containing the latest incident deliverable owns the
-seam, because every predecessor must land before that group's review; an intra-group seam is owned by that group.
-The seam default is the strongest independent obligation and retrigger treatment among its incident members, and
-project policy may promote it. A structural seam record alone does not create a provider run: it blocks only when
-its derived policy is non-exempt or its review produces a finding.
-
-One group review covers all members plus every seam it owns. `seamMapDigest` binds the generated enumeration,
-policies, and ownership map; the group requirement names its non-exempt seam requirements. Full diagnostic-free
-seam proof is mandatory only when an assurance group coalesces multiple PRs, evidence is projected across PRs, or a
-`Heavy` / `Novel` terminal checkpoint claims complete WU assurance. Ordinary `Light` singleton/per-PR review uses
-lightweight dependency ownership and cannot project evidence across PRs. A single deliverable has no seam record or
-seam ceremony. If the latest group's carrier cannot expose the required predecessor context, the planner must
-regroup onto a qualifying cumulative target or fall back to ordinary per-PR reviews; if neither can expose the
-context, the proposed split is invalid and fails closed. A seam finding blocks its owner and every incident member
-until settlement; a fix that changes reviewed content invalidates the affected target under ordinary retrigger
-policy.
-
-For `Heavy` / `Novel`, WU-terminal assurance is the AND of all required group receipts plus the full diagnostic-free
-seam proof. It is an aggregate checkpoint, not a review target, a terminal-seam provider request, or an automatic
-additional full-provider pass. A single-deliverable WU with a non-exempt requirement naturally has one ordinary
-review target; an all-exempt WU has no group unless an owned seam is non-exempt, and an Errand has no WU-terminal
-aggregation.
-
-This is the settled joint contract because it preserves every deliverable's blocking risk floor while allowing one
-exact review run to satisfy several requirements when the topology and adapter can prove it. It promises that PR
-count does not **mechanically** determine review count, not that every stack can collapse to one review.
-`pr-decomposition` owns the delivery refs, cumulative-carrier shape, merge-consumption proof, and assurance-plan
-placement; this WU owns the group target/evidence algebra and the no-weakening rule.
+The full assurance-group / seam-universe / series-membership algebra — group-requirement derivation, exact tree-pair
+equivalence, carrier-capability coalescing, latest-incident seam ownership, all-member merge barriers, and terminal
+aggregation — is **routed to `pr-decomposition`** to design against its own settled delivery mechanics (deliverable
+refs, cumulative-carrier shape, merge-consumption proof) rather than specified here ahead of them. It is preserved in
+full as inherited input, staged in the reciprocal `USER-INBOX` capture for the housekeep drain to route into
+`pr-decomposition`'s inbound buffer (durable once that sweep lands) — not discarded.
+This WU owns the single-deliverable obligation contract, the no-weakening principle, and the per-requirement
+projection seam; `pr-decomposition` owns the grouping algebra that consumes them.
 
 This scales the review mechanism, never the engineering bar. `quality-gate-commands` remains `Class`-invariant;
 review routing determines which review obligations and actions apply. The method records the metering economics
@@ -298,11 +260,13 @@ change-set identities. `policyVersion` hashes the normalized obligation plus pro
 identity, and retrigger treatment. A source qualifies against the rubric pair, not the version string alone; its
 carrier-specific `guidanceDigest` remains an additional proof of what it received.
 
-The assurance planner then binds one or more compatible member requirements to a review target:
+The gate then binds the projected requirement to a review target and request. V1's committed shape is the
+single-deliverable case; the multi-member `assurance-group` target and its cross-PR satisfaction projection are the
+additive extension routed to `pr-decomposition` (§ Multi-PR assurance):
 
 ```yaml
 reviewTarget:
-  kind: change-set | assurance-group
+  kind: change-set        # `assurance-group` is the additive pr-decomposition extension
   targetId: digest
   repositoryId: id
   baseRef: ref
@@ -310,18 +274,6 @@ reviewTarget:
   diffBaseTree: oid
   headSha: sha
   headTree: oid
-  members:
-    - {deliverableId: id, rangeId: digest, fromSha: sha, fromTree: oid, throughSha: sha, throughTree: oid}
-  seamMapDigest: digest | null
-
-groupRequirement:
-  requirementId: digest
-  targetId: digest
-  obligation: recommended | required
-  retrigger: incremental | full-final
-  memberRequirementIds: [id, ...]
-  seamRequirementIds: [id, ...]
-  initialAdmission: automatic | checkpoint
 
 reviewRequest:
   requestId: digest
@@ -334,46 +286,35 @@ reviewRequest:
   requestMechanism: id
 ```
 
-A singleton carries one member and its ordinary exact range; its seam digest is null when full seam proof is not
-required. An assurance group carries its ordered members and owned seams; `rangeId` and `targetId` bind every shown
-identity field and change with any field. Each member requirement retains its own obligation and member id while
-referencing the shared target, so one source run can produce one group receipt and deterministic per-member
-satisfaction projections without weakening or duplicating the requirements. The receipt remains bound to that
-original target. A later host rewrite can project it only through a proof that binds the current requirement to the
-original member and establishes exact boundary-tree equivalence.
-
-V1 permits one repository per target. One group request is admitted and recorded against one concrete carrier; a
-hosted carrier must expose the complete target range on its named change request. The request identity binds the
-repository, carrier adapter/change-request id, target, group requirement, source, generation, and mechanism. The
-carrier's existing exclusive-trigger and causal-attribution rules apply to that one request, and its terminal receipt
-binds `requestId + reviewRunId + targetId + provider event identity`. Other member change requests receive typed
-satisfaction projections referencing that receipt plus their series-membership proofs; they do not fabricate
-duplicate requests or receipts. Retargeting or mutating the carrier during an active flight invalidates the flight.
-After a terminal receipt, host-induced rewrites may carry only through the tree-exact proof above. Cross-repository
-groups and one provider event observed through several carriers are unsupported in V1 and fall back to ordinary
-per-PR reviews.
+V1 permits one repository per target. One request is admitted and recorded against one concrete carrier; a hosted
+carrier must expose the complete target range on its named change request. The request identity binds the repository,
+carrier adapter/change-request id, target, requirement, source, generation, and mechanism; its terminal receipt binds
+`requestId + reviewRunId + targetId + provider event identity`. Retargeting or mutating the carrier during an active
+flight invalidates the flight. Cross-repository targets and one provider event observed through several carriers are
+unsupported in V1.
 
 This WU owns a forward-only gate-contract version bump for those semantic fields; it does not mutate the current
-schema-v1 exact-key contract in place. The new requirement and request/evidence identities bind `rubricDigest`,
-`reviewTarget.targetId`, and member coverage; the requirement plus coverage reducer bind `retrigger`, and
-`policyVersion` includes them. Group receipts and series-membership proofs are new strict contract kinds, not fields
-smuggled into v1 evidence. Current v1 receipts and evidence are ineligible for the new requirement rather than
-silently upgraded, which is safe while the controller is not merge authority. `cli-substrate-adoption` owns the
-shared schema-version mechanism and registry API, but not this compatibility decision. Review-gate qualification /
-promotion retain live-provider proof and required-check cutover; the normalized contracts, reducer behavior, strict
-parser migration, and stale/group-membership tests are implementation scope here.
+schema-v1 exact-key contract in place. The new requirement/evidence identities bind `rubricDigest`,
+`reviewTarget.targetId`, and `retrigger`, and `policyVersion` includes them. Current v1 receipts and evidence are
+ineligible for the new requirement rather than silently upgraded, which is safe while the controller is not merge
+authority. `cli-substrate-adoption` owns the shared schema-version mechanism and registry API, but not this
+compatibility decision. Review-gate qualification / promotion retain live-provider proof and required-check cutover;
+the normalized contracts, reducer behavior, strict parser migration, and stale-membership tests are implementation
+scope here. (The group-receipt and series-membership contract kinds land with `pr-decomposition`.)
 
-Coverage starts with one full review from the target's diff base through its requested head. For a group, the result
-must also cover every manifest member and named seam. `incremental` permits a contiguous same-source chain after
-approved fixes; every link is exact and the chain must reach the current target head. `full-final` may use
-incremental passes for feedback, but satisfaction requires a final full review of the settled target. `none` is the
-exempt treatment and creates no review request. Lifecycle-bookkeeping-tail and series-membership carry-forward are
-separate typed applicability proofs; neither silently broadens target coverage.
+Coverage starts with one full review from the target's diff base through its requested head. `incremental` permits a
+contiguous same-source chain after approved fixes; every link is exact and the chain must reach the current target
+head. `full-final` may use incremental passes for feedback, but satisfaction requires a final full review of the
+settled target. `none` is the exempt treatment and creates no review request. A head change that does not touch the
+reviewed surface — the lifecycle-bookkeeping-tail, and a base-reconcile whose merged changes are **disjoint** from the
+reviewed paths — carries review evidence forward under `none`; an **interacting** base-merge or a conflict-resolving
+merge retriggers `incremental`, scoped to the interaction only, never a full re-review. These are typed applicability
+proofs; none silently broadens target coverage.
 
-ARC ownership relation, artifact authority, work context, `Class`, and review risk enter routing as normalized facts;
-raw host lane labels and project classifier names do not enter the requirement. `pr-decomposition` supplies the
-authored assurance plan and series-membership proofs; the gate validates those typed inputs but neither counts PRs
-nor infers topology from host containers.
+ARC ownership relation, artifact authority, work context, `Class`, review risk, and change determinacy enter routing
+as normalized facts; raw host lane labels and project classifier names do not enter the requirement. When
+`pr-decomposition` lands, it supplies the authored assurance plan and series-membership proofs; the gate validates
+those typed inputs but neither counts PRs nor infers topology from host containers.
 
 #### Shared change-fact classifier
 
@@ -386,8 +327,9 @@ independently:
 - review risk maps code and project-sensitive surfaces to `routine / sensitive`;
 - the ownership/authority resolver combines exact-ref ARC Owner data with those facts to emit normalized ownership
   relation and artifact-authority reasons; and
-- review routing combines those facts with work context, `Class`, risk, and activation to emit obligations,
-  frontline action, and WU assurance mode.
+- review routing combines those facts with work context, change determinacy, `Class`, risk, and activation to emit
+  obligations, frontline action, and WU assurance mode — and computes whether a base-merge's changed paths are
+  disjoint from or interacting with the reviewed surface, for the retrigger carry-forward above.
 
 The fact resolver consumes changed-path records, not destination strings:
 `{ status: added | modified | deleted | renamed, path, previousPath? }`. A deletion classifies its deleted path; a
@@ -406,46 +348,69 @@ project policy layered over the shared facts.
 
 ### 2. Review roles, methods, and rubric
 
-- `self-review` — rename of `diff-review`; the authoring agent reviews its own aggregate diff. The existing
-  non-evidence contract carries forward.
-- `frontline-review` — new, inactive-by-default method; a distinct fresh/local reviewer privately attacks the
-  aggregate change before request creation. Findings are advisory and triaged, and the run authors no satisfying
-  evidence by default.
-- `independent-analysis` — reviewer-facing, versioned baseline rubric: intent/scope, correctness/failure behavior,
-  trust/compatibility, verification, and coherence/maintainability over the complete requested change set. Hosted
-  adapters deliver this minimal rubric through provider-native instruction surfaces; reviewers never receive the
-  ARC coordination workflow or the author's conclusions.
-- `review-response` — new; the respond-to-received-findings cycle, replacing integration's inline content.
-- `review-triage` — unchanged position: source-agnostic classifier used by every finding-producing role.
+A review pass factors into three orthogonal things, and the roles name points in that space rather than overlapping
+bundles: a **carrier** (who reviews — author / fresh-agent / hosted / human), a **rubric** (the lens applied), and an
+**evidentiary role** (advisory vs. satisfying). The naming discipline that keeps them crisp: **`-audit` names a
+rubric/lens; `-review` names an activity/cycle.** An activity applies a lens.
+
+- `self-review` — rename of `diff-review`; the authoring agent reviews its own aggregate diff. Carrier = author;
+  advisory by construction (the existing non-evidence contract carries forward).
+- `frontline` (`frontline-review` method) — a **fire-point**, not an evidentiary tier: the pre-publication local pass
+  that shapes what a downstream external reviewer receives. Advisory by construction; it exists only when there is a
+  downstream reviewer. "Frontline as the only review" is a category slip — a satisfying local pass is
+  `independent-analysis` carried locally, not frontline.
+- `implementation-audit` — the default **rubric** for review of a change's realization: intent/scope,
+  correctness/failure behavior, trust/compatibility, verification, coherence/maintainability. It completes the
+  `design-audit` → `task-audit` → `implementation-audit` lens family (medium-agnostic — it covers doc-only review as
+  well as code), and is overridable per the method extend/replace model.
+- `independent-analysis` — the satisfying **obligation/standard**: a non-author evaluator covers the complete exact
+  change set from source, applies the bound rubric (`implementation-audit` by default), and emits an attested receipt
+  at the exact head. The name denotes the property an obligation asks for; the lens is the rubric. Attestation is the
+  receipt that makes a rubric-meeting pass _satisfying_ — not a separate method.
+- `review-response` — the respond-to-received-findings cycle, replacing integration's inline content.
+- `review-triage` — source-agnostic classifier used by every finding-producing role; classifies each finding on two
+  axes — **severity** (a shared primitive, § 4) and **disposition**.
+
+**One mechanism across the lifecycle.** `adversarial-review` is the fresh-agent _mechanism_ — context isolation,
+primary-held judgment, `Class`-scaled passes — for every stage: `design-audit` / `task-audit` in planning,
+`implementation-audit` at integration. Frontline and a local satisfying `independent-analysis` are fire-points/roles
+over that one mechanism, differing only by evidentiary role (advisory vs. attested receipt) and position. This reuses
+the shipped spawn doctrine rather than inventing a second, and makes local review first-class: a solo/small-team
+project can satisfy `independent-analysis` with a local `adversarial-review` + `implementation-audit` pass and no
+hosted provider at all.
 
 `peer-review` is not the hosted-review abstraction and does not need to ship for symmetry. A future optional entry
 may marshal context for a person or interactive agent intentionally reviewing another change, but the reusable
-contract is `independent-analysis`. A hosted source unable to receive or demonstrate the bound rubric remains
-useful advisory input but cannot claim satisfaction of that rubric version. Specialized project rubrics — the
-thermonuclear maintainability skill is one example — augment the baseline and satisfy it only when all baseline
-dimensions are also covered.
+contract is `independent-analysis`. A hosted source unable to receive or demonstrate the bound rubric remains useful
+advisory input but cannot claim satisfaction of that rubric version. Specialized project rubrics — the thermonuclear
+maintainability skill is one example — augment the baseline and satisfy it only when all baseline dimensions are also
+covered.
 
-Fresh-agent bindings reuse `adversarial-review`'s context-isolation and primary-held-judgment primitives rather
-than inventing a second spawn doctrine. Hosted and human bindings use their native carriers; all keep author
-beliefs, suspected weak spots, preferred fixes, and self-verification claims out of first-pass context.
+Hosted and human bindings use their native carriers; all carriers keep author beliefs, suspected weak spots,
+preferred fixes, and self-verification claims out of first-pass context.
 
-#### Independent-analysis authority and delivery contract
+**`spec-review` boundary.** `spec-review` is the author's coherence-and-grounding self-review of a spec — an
+_activity_, the planning analog of `self-review`; its coherence/grounding criteria are the lens the planning
+`adversarial-review` applies, so it is not a rubric misnamed `-review`. The framework-wide `-audit` / `-review` rename
+cascade (if any) is a `naming-conventions` concern; this WU keeps its own surfaces coherent.
 
-The canonical public procedure is the shipped `independent-analysis` method. Its invariant contract owns the
-rubric's identity; its default supplies neutral evaluation guidance. It is not a new knowledge/rubric document
-family, a peer-review workflow, or review-gate policy. The method owns one typed contract record whose semantic
-fields are:
+#### Independent-analysis standard and delivery contract
+
+The satisfying obligation is the shipped `independent-analysis` standard; the lens it applies is the
+`implementation-audit` rubric (default, overridable). The standard is not a new knowledge/rubric document family, a
+peer-review workflow, or review-gate policy. It owns one typed contract record whose semantic fields are:
 
 - **version:** `independent-analysis/v1`;
 - **coverage:** the complete exact requested change set, not a sample or only the latest fix;
 - **evaluator boundary:** a non-author evaluator works from source and governing project context, without author
   conclusions, suspected weak spots, preferred fixes, or self-verification claims;
-- **dimensions:** intent and scope; correctness and failure behavior; trust boundaries and compatibility;
-  verification quality and missing cases; coherence and maintainability;
+- **rubric:** the bound lens — `implementation-audit` by default (intent and scope; correctness and failure behavior;
+  trust boundaries and compatibility; verification quality and missing cases; coherence and maintainability),
+  overridable per the method model and augmentable by a declared overlay (§ Cross-cutting);
 - **finding floor:** every actionable finding states materiality, a stable code/document locus, source-grounded
   evidence, and why the change fails the rubric; and
-- **clean rule:** a clean result is legal only after all dimensions have been considered across the full requested
-  change set. Unavailable, partial, ambiguous, or failed review is never clean.
+- **clean rule:** a clean result is legal only after all rubric dimensions have been considered across the full
+  requested change set. Unavailable, partial, ambiguous, or failed review is never clean.
 
 The typed record is structure, not prose control flow. Its schema composes with the shared kernel; the method is the
 human-authored public home, and build/validation tooling projects the record into runtime constants and carrier
@@ -455,10 +420,11 @@ guidance may change without a version bump only when the contract and digest rem
 
 Delivery adapters expose the rubric through each reviewer's native carrier:
 
+- a local fresh agent runs it as `adversarial-review` under `implementation-audit` and emits an attested receipt at
+  the exact head — the first-class local-satisfying path;
 - hosted Codex receives a managed `AGENTS.md` review-guidelines projection plus the owned trigger;
 - another hosted provider receives its provider-instruction/configuration projection when that carrier can deliver
   and prove the complete contract;
-- a local agent or command receives a precomposed neutral prompt;
 - a human receives the equivalent checklist and exact-change-set coordinates.
 
 These are projections, not additional authorities. Each includes the rubric version and baseline payload; project
@@ -490,75 +456,82 @@ policy can distinguish baseline satisfaction from the additional assurance.
 review target, the source-normalized findings and loci, the effective `review-routing` result, and adapter capability
 handles — never provider command prose. It runs one bounded sequence:
 
-1. verify each finding against source, classify it with `review-triage`, and obtain approval for the complete
-   disposition set before mutation;
-2. apply approved `FIX NOW` / `MINOR FIX` changes as one review increment, run affected quality gates, and let the
-   caller's commit/push interlocks persist the result; `DEFER` / `REJECT` leave the head unchanged;
+1. verify each finding against source, classify it with `review-triage` (severity × disposition), and obtain approval
+   for the complete disposition set before mutation — this is the human checkpoint;
+2. apply approved `fix` dispositions as one review increment, run affected quality gates, and let the caller's
+   commit/push interlocks persist the result; `defer` / `reject` leave the head unchanged;
 3. return the approved dispositions, verification evidence, and old/new exact target to the adapter so it can record
    audience-visible replies and closure with its own authority; and
-4. when the head changed, return to `review-routing` and the channel adapter for the permitted retrigger rather than
-   choosing or invoking a provider inside the method.
+4. when the head changed, return to `review-routing` and the channel adapter for the permitted retrigger — a
+   non-interacting change carries evidence forward — rather than choosing or invoking a provider inside the method.
 
 Completion means every received finding has an approved disposition, every approved fix is verified and persisted,
-and any channel-owned blocking conversation has either authoritative settlement or an explicit still-blocking
-result. The method never equates thread resolution with authority. The four-way local taxonomy remains canonical;
-adapters with only `FIX / DEFER / REJECT` map both `FIX NOW` and `MINOR FIX` to `FIX` while retaining the finer
-classification in the disposition record. This is the reusable cycle graduated from integration Step 4 and the
-project coordinator; exact controller actions, await loops, receipts, replies, and thread mutation stay adapter-side.
+and any channel-owned blocking conversation has either authoritative settlement or an explicit still-blocking result.
+The method never equates thread resolution with authority.
+
+**Waiting spans the review by suspend-and-reenter, not a live in-session pin.** When a review is asynchronous (a
+hosted PR review of minutes — or, under a provider's adaptive throttle, the very condition this WU meters (§ Problem),
+an hour or more), the cycle does not pin one live session across the wait. It reuses the shipped resilient model:
+`Integrating` is a suspend point (`integrate-work-unit`), state persists to the meta, and a later session — or
+machine — re-enters. Re-entry is driven by an **automatable re-entry trigger** through a capability-gated seam, so the
+human is not the mechanical next-step — in priority order:
+
+- the promoted **review-gate watcher** — the canonical host-neutral auto-trigger (a soft co-design seam with the
+  review-gate promotion/adapter chain, not a prerequisite);
+- a **harness-native scheduled wakeup** where the harness exposes one — the interim auto-trigger: arm a re-entry
+  wakeup, and on wake re-check review readiness via the established detection path (raw host state today; never the
+  half-wired controller during integration), then re-suspend, proceed, or time out;
+- **human / next-session re-entry** — the always-available floor, and here the fallback is **explicit**: the agent
+  announces that it is suspended awaiting the review and that resuming it is the human's to trigger (with when and
+  how), so the degradation is legible and never a silent stall.
+
+The detection query is cheap either way (raw host state today; the review-gate's typed aggregate projection once
+promoted). A bounded timeout or provider failure surfaces as an exception (a human re-entry point), never a silent
+hang and never treated as clean. Suspend-and-reenter is authoritative because it survives session, compaction, and
+machine death; a bounded in-cycle wait is only a happy-path optimization for short reviews that times out into the
+same suspend-and-reenter. Neither path tends the half-wired controller pre-promotion.
+
+This is the reusable cycle graduated from integration and the project coordinator; exact controller actions, await
+loops, receipts, replies, and thread mutation stay adapter-side.
 
 ### 3. `frontline-review` as an opt-in ARC feature
 
-The role has a stable framework purpose: privately expose the aggregate change set to a distinct reviewer before
-opening the change request so obvious findings resolve without public review churn. This is attention and spend
-shaping, not cleanup for its own sake: the public reviewer receives less noise, can spend attention on residual
-high-signal concerns, and requires fewer hosted repeat passes and fewer review tokens. Promote that purpose into
-the integration and Errand creation paths; the generic `pre-pr-open` extension remains available for unrelated
-project actions but no longer owns the semantic feature.
+Frontline is a **fire-point**: privately expose the aggregate change set to a distinct reviewer _before_ opening the
+change request, so obvious findings resolve without public review churn. This is attention and spend shaping — the
+public reviewer receives less noise, spends attention on residual high-signal concerns, and needs fewer hosted repeat
+passes and fewer tokens. Advisory by construction: it never emits a satisfying receipt (a satisfying local pass is
+`independent-analysis` carried locally, a different role). Promote the fire-point into the integration and Errand
+creation paths; the generic `pre-pr-open` extension remains available for unrelated project actions but no longer
+owns the semantic feature.
 
 The method contract is provider-neutral:
 
 1. review the aggregate candidate diff from a context distinct from the author;
 2. apply the selected reviewer binding without prescribing a provider;
 3. verify, disposition, and approve findings through `review-triage` before fixes land;
-4. after at least one approved `FIX NOW` disposition changes the review target, allow one bounded follow-up according
-   to project policy; `MINOR FIX`-only changes do not spend a second frontline pass;
+4. after at least one approved `fix` disposition at `major`+ severity changes the review target, allow one bounded
+   follow-up according to project policy; `minor`-only changes (nits included) do not spend a second frontline pass;
 5. report unavailability or pass-cap exhaustion without calling it clean; and
-6. never discharge independent-analysis obligations unless a separately-reserved invocation runs the complete
-   rubric and emits a qualifying receipt.
+6. never discharge independent-analysis obligations — a satisfying pass is a separately-reserved
+   `independent-analysis` run with the complete rubric and a qualifying receipt.
 
-Configuration divides by authority: project policy activates the method and maps normalized classifications to
-actions; the developer binding chooses a locally available preferred source; an invocation override may force,
-skip, or replace that source for one run. The activation/binding contract composes with
-`customization-arch-realign`; deterministic selection lands in a typed CLI result so future workflow agendas can
-dispatch without prose logic. V1 does not build a generic provider registry — project overrides/adapters bind
-concrete commands, and repeated bindings may justify a registry later.
+**Action comes from the shared router, not a second policy.** The `skip / offer / attempt` action is the Frontline
+column of the § 1 obligation matrix — one router emits both obligations and frontline action. Frontline then adds
+only what is genuinely its own: a source and an execution stage. Three inputs feed one deterministic resolver:
 
-#### Frontline activation and source-binding contract
-
-Four inputs retain distinct authorities and feed one deterministic resolver:
-
-- **Method activation (project-static):** `frontline-review.active`, default `false`, is the ordinary project-wide
-  enable bit. It follows the method-activation model rather than recreating an activity toggle in config.
-- **Action policy (framework default or project-static override):** a typed policy maps normalized review facts to
-  `skip / offer / attempt`, chooses a project-default source when one exists, and selects one or two allowed passes.
-  The default matrix in § 1 is code-owned policy; customization supplies typed values or an adapter implementation,
-  never an English condition or a new expression language.
-- **Developer binding (user-scoped):** an optional preferred source names what is locally available to this
-  developer. It is a private preference, not tracked project policy; its current storage transport may be git config,
-  but the resolver consumes a storage-neutral user-scope value so a future private user store does not reshape the
-  contract.
+- **Method activation (project-static):** `frontline-review.active`, default `false` — the method-activation model,
+  not an activity toggle in config. An inactive method always resolves to `skip`.
+- **Source (a fallback chain):** invocation source → developer preference → project default → unbound. A source is a
+  minimal carrier reference `{ kind: agent | command, ref }`: `kind` selects a carrier adapter and `ref` is opaque to
+  the resolver — not a shell fragment and not a qualifying reviewer identity. The developer preference is a
+  user-scoped private preference carried through the storage abstraction (git config today), not tracked project
+  policy.
 - **Invocation override (one run):** `mode = inherit | force | skip` plus an optional source. `force` temporarily
-  activates the role and overrides a policy skip without mutating project policy; `skip` accepts no source;
-  `inherit` plus a source replaces only source selection and leaves the action decision intact.
-
-Action precedence is invocation `skip` / `force` over the project activation + action policy. Source precedence is
-invocation source, then developer preference, then project default, then unbound. A source is the minimal carrier
-reference `{ kind: agent | command, ref }`: `kind` selects a carrier adapter and `ref` is opaque to the resolver.
-It is neither a shell fragment nor a qualifying reviewer identity. The adapter owns safe resolution and invocation;
-an unresolved reference is unavailable, not a request for the agent to guess provider mechanics.
+  activates the role and overrides a policy `skip`; `skip` accepts no source; `inherit` plus a source replaces only
+  source selection. Action precedence is invocation `skip` / `force` over activation + the router's action.
 
 The resolver emits the semantic record below; exact Zod syntax, registry calls, and version annotations wait for the
-shared schema kernel rather than being invented locally:
+shared schema kernel:
 
 ```yaml
 frontlineReview:
@@ -569,21 +542,19 @@ frontlineReview:
   promptText: null | string
 ```
 
-`reasons` is a controlled machine vocabulary carrying activation, policy, override, classification, and binding
-provenance; it is not explanatory prose. `skip` always carries `source: null`, `maxPasses: 0`, and no prompt.
-`attempt` requires a **selected** source reference, not a probe-proven available provider. When policy or `force`
-calls for a run but source selection is unbound, the action is `offer` with a precomposed binding remedy rather than
-`skip` or a fabricated clean result. A policy-selected `offer` may carry a selected source and a confirmation prompt.
-Projects may reduce the pass allowance; V1 never exceeds the initial pass plus one follow-up after an approved
-`FIX NOW` disposition changed the target.
+`skip` always carries `source: null`, `maxPasses: 0`, and no prompt. `attempt` requires a **selected** source
+reference, not a probe-proven available provider. When the action calls for a run but source selection is unbound,
+the action is `offer` with a precomposed binding remedy rather than `skip` or a fabricated clean result. Projects may
+reduce the pass allowance; V1 never exceeds the initial pass plus one follow-up after an approved `fix` disposition
+changed the target.
 
-Resolution is explicitly two-stage. The pure CLI resolver above selects policy and an opaque candidate without
-executing or probing it. Only after an `attempt` or accepted `offer` does the carrier adapter resolve the ref and
-check availability/authorization. A missing candidate produces the resolver's `offer`; a present but invalid,
-unavailable, or rate-limited candidate produces the execution outcome `unavailable`. For `kind: agent`, routing
-intent is not spawn permission: the adapter preserves the active harness's delegation-authorization contract and
-turns `needs-authorization` into the precomposed offer before spawning. This keeps project activation from silently
-becoming standing process-creation consent.
+Resolution is explicitly **two-stage** — this is load-bearing, not ceremony. The pure CLI resolver above selects an
+opaque candidate without executing or probing it. Only after an `attempt` or accepted `offer` does the carrier
+adapter resolve the ref and check availability/authorization. For `kind: agent`, routing intent is _not_ spawn
+permission: the adapter preserves the active harness's delegation-authorization contract and turns
+`needs-authorization` into the precomposed offer before spawning, so project activation never becomes standing
+process-creation consent. A missing candidate produces the resolver's `offer`; a present-but-invalid, unavailable, or
+rate-limited candidate produces the execution outcome `unavailable`.
 
 Execution returns a separate provider-neutral outcome — `clean / findings / unavailable / failed /
 pass-cap-exhausted` — with the resolved source and pass count. Only `clean` means the selected source completed and
@@ -592,26 +563,45 @@ reported no findings; missing, ambiguous, rate-limited, or failed output cannot 
 
 For this repository, the existing CodeRabbit CLI action becomes the initial project-policy override: code-bearing
 changes attempt a frontline pass, documentation skips it even when review risk independently requires hosted review,
-an approved `FIX NOW` change may trigger one follow-up, and rate-limit or tool failure reports then continues. That
-run remains pre-publication cleanup even when hosted review is planned.
-Only a separate explicit CodeRabbit CLI invocation under the full attestation contract can act as satisfying review
-evidence. Its ordinary benefit is a cleaner public diff and fewer hosted finding/fix cycles, not replacement of the
-hosted reviewer. The current heavy-CI defer action remains an ordinary `pre-pr-open` extension action.
+an approved `fix` change may trigger one follow-up, and rate-limit or tool failure reports then continues. That run
+remains pre-publication cleanup even when hosted review is planned. Only a separate explicit CodeRabbit CLI
+invocation under the full attestation contract can act as satisfying review evidence. The current heavy-CI defer
+action remains an ordinary `pre-pr-open` extension action.
 
-### 4. `review-triage` contract upgrade — the disposition invariant
+### 4. `review-triage` contract upgrade — the disposition invariant and the two axes
 
-Upgrade the contract block (override-proof) to three legs:
+Upgrade the contract block (override-proof) to carry two orthogonal axes and three legs.
 
-1. every finding gets an explicit, documented disposition (already present);
-2. findings are **verified against source with the agent's own judgment** — never accepted on reviewer
-   authority (anchors to DEV-RULES.ARC § Sub-agent scope: delegated outputs are advisory until verified);
-3. the disposition set is **presented to the user for approval before fixes land** — classification,
+**Two axes.** Every finding carries a **severity** and a **disposition**, separated because the old
+`FIX NOW / MINOR FIX / DEFER / REJECT` set conflated them (two members split on severity, two on action):
+
+- **severity** — the shared primitive `blocker / major / minor`, the exact three-level enum `adversarial-review`
+  already fixes across every fire-point, reused verbatim (DRY — one taxonomy across planning audits and code review,
+  never extended here);
+- **disposition** — the decision `fix / defer / reject`. Orthogonal to both axes, a code-review **`nit` flag** marks
+  a pure-polish `minor` the reviewer will not block on (the "nitpick" idiom; Conventional-Comments' `(non-blocking)`
+  decoration). `nit` is a non-blocking marker on a `minor` finding — **not** a fourth `severity` level and **not** a
+  fourth `disposition` value (an author may still `fix` or `defer` a nit); create-spec represents it as an orthogonal
+  flag so the two-axis split is not quietly re-conflated. It is code-review-scoped and never reaches `design-audit` /
+  `task-audit`, whose findings map only into the three-level severity enum.
+
+Severity drives deterministic gating (blocker/major must settle before merge; `minor` is recorded and, by policy,
+may be non-blocking — the `nit` decoration marks the pure-polish minors a project treats as never-blocking — a
+scaling knob), which is what lets integration proceed without a "should I do another round?"
+prompt. Adapters with only `fix / defer / reject` retain severity in the disposition record.
+
+**Three legs (override-proof):**
+
+1. every finding gets an explicit, documented disposition (already present), now with its severity;
+2. findings are **verified against source with the agent's own judgment** — never accepted on reviewer authority
+   (anchors to DEV-RULES.ARC § Sub-agent scope: delegated outputs are advisory until verified);
+3. the disposition set is **presented to the user for approval before fixes land** — severity, classification,
    recommendation, and open questions surfaced as a report, so the user can redirect before any commit.
 
-The procedure (four-way taxonomy, report format, commit-message record) stays in `.default`, overridable. A concise
-DEV-RULES.ARC anchor also ships: verify delegated findings independently and obtain approval for the disposition
-set before applying fixes. The invariant is behavioral and high-miss-cost, so it cannot live only in an on-demand
-method; the method remains the procedural detail home.
+The procedure (severity rubric, report format, commit-message record) stays in `.default`, overridable. A concise
+DEV-RULES.ARC anchor also ships: verify delegated findings independently and obtain approval for the disposition set
+before applying fixes. The invariant is behavioral and high-miss-cost, so it cannot live only in an on-demand method;
+the method remains the procedural detail home.
 
 ### 5. Disposition etiquette — the channel split
 
@@ -628,6 +618,14 @@ method; the method remains the procedural detail home.
 ### 6. Method/config migration + settled hook vocabulary
 
 - `diff-review` → `self-review` — the method names the author-side activity it performs.
+- `implementation-audit` is minted as the integration-stage review **rubric** (completing `design-audit` /
+  `task-audit`); `independent-analysis` keeps its name as the satisfying **standard**. The `-audit` = lens /
+  `-review` = activity discipline is stated for this WU's surfaces; the framework-wide rename cascade (and any
+  `spec-review` re-slot) is a `naming-conventions` concern.
+- `review-triage` adopts `adversarial-review`'s shipped three-level `severity` enum (`blocker / major / minor`)
+  verbatim — one taxonomy across planning audits and code review — alongside its `fix / defer / reject` disposition,
+  plus a code-review-only non-blocking `nit` flag on pure-polish `minor` findings (nit is an orthogonal non-blocking
+  marker, not a fourth severity or disposition value; the shipped enum is unchanged).
 - `review.pre_merge` retires rather than renames. `self-review` gains the method-activation axis owned with
   `customization-arch-realign`; workflow callers invoke it when active. Review obligations and project gate policy
   do not recreate the activity toggle under a new config key.
@@ -659,11 +657,11 @@ the obligation interface without claiming that enforcement is already operationa
 loop; host/provider-neutral core behavior already lives behind its controller commands. Keep that workflow as the
 project binding. Graduate only the reusable procedure into `review-response` and the strengthened `review-triage`
 contract; provider triggers, host conversations, receipts, and exact command loops stay in adapters/project
-workflow. Graduate the neutral independent-analysis rubric separately; adapters deliver it through native reviewer
-instruction surfaces without exposing controller procedure. PR-body composition remains in the adapter layer and
-surfaces a non-internal `Origin` when it gives reviewers material context. A generic workflow-pointer method
-override is not required for this binding and routes to `customization-arch-realign` / `composable-workflows`
-rather than receiving review-specific semantics here.
+workflow. Graduate the neutral `implementation-audit` rubric (delivered under the `independent-analysis` standard)
+separately; adapters deliver it through native reviewer instruction surfaces without exposing controller procedure.
+PR-body composition remains in the adapter layer and surfaces a non-internal `Origin` when it gives reviewers
+material context. A generic workflow-pointer method override is not required for this binding and routes to
+`customization-arch-realign` / `composable-workflows` rather than receiving review-specific semantics here.
 
 ## Cross-cutting
 
@@ -671,16 +669,53 @@ rather than receiving review-specific semantics here.
   ARC-normalized router inputs. The self-hosting adapter owns exact-ref Owner lookup, host-author-to-ARC-owner
   mapping, concrete path predicates, provider binding, and the derived `auto / reviewed` presentation. The gate
   consumes normalized exact-change-set requirements (`exempt / recommended / required`) projected from that ARC
-  contract and binds them to the independent-analysis rubric; no raw host lane, channel enum, frontline result, or
-  WU-cardinality assumption crosses the satisfaction boundary.
+  contract and binds them to the `independent-analysis` standard (default rubric `implementation-audit`); no raw host
+  lane, channel enum, frontline result, or WU-cardinality assumption crosses the satisfaction boundary.
 - **`pr-decomposition` follow-on.** The two WUs coordinate through the obligation contract, not cohort membership.
-  Review architecture owns topology-neutral obligations, assurance-group target/evidence algebra, conditional seam
-  proof, latest-group seam ownership, terminal aggregation, and frontline action semantics; PR decomposition owns
-  the authored assurance plan, deliverable refs, cumulative review-carrier shape, merge-consumption proof, frontline
-  placement, and stack orchestration. Groom it against this contract, then add `Depends On: review-architecture`
-  before full launch. Its existing cardinality inbound entry is the reciprocal record; a targeted `USER-INBOX`
-  capture is filed so planning close can drain the settled contract there without editing the sibling draft from
-  this branch.
+  Review architecture owns the single-deliverable obligation contract, the no-weakening principle, the per-requirement
+  projection seam, and frontline action semantics; `pr-decomposition` owns the authored assurance plan, deliverable
+  refs, cumulative review-carrier shape, merge-consumption proof, frontline placement, stack orchestration, and the
+  full assurance-group / seam / series-membership algebra (extracted verbatim as inherited input via the reciprocal
+  `USER-INBOX` capture, staged to route into `pr-decomposition`'s inbound buffer for it to design against its settled
+  delivery mechanics). Groom it against this contract, then add `Depends On: review-architecture` before full launch.
+- **Review channel posture.** A project's review channel is `local` / `hosted` / `both`, first-class and never
+  assumed. `local` means the local `independent-analysis` (fresh-agent `adversarial-review` + `implementation-audit`,
+  attested) is the satisfying gate evidence; the host-side gate stays opt-in and never silently activates hosted
+  review. No review at all is reachable by overriding obligations to `exempt` — off the target-audience path, but not
+  blocked.
+- **Review overlay.** A WU may declare an additional review **rubric** (a heavier or specialized lens) as one field,
+  surfaced as a `Class`-scaled offer at `create-spec` (the pattern the adversarial-review offer already uses) and
+  executed automatically at integration — no mid-flow pause, no per-integration config, absent by default. The
+  overlay scales the review lens _up_ by declaration; the atomic determinacy carve-out scales the obligation _down_
+  by a declared character — the symmetric, floor-respecting pair.
+- **Integration flow autonomy + async bridge.** During integration the human returns only at each review round's
+  disposition approval and the merge gate (plus exceptions: quality-gate failure, conflict, unexpected state). The
+  `integrate-work-unit` reshape realizes this: remove the compose-begin interlock; fold the composed-content surface
+  into the merge interlock; auto-reconcile the base when clean/disjoint and consolidate to a single late reconcile
+  right before merge (the reconcile interlock fires only on conflict or exception); and span asynchronous review by
+  `review-response`'s suspend-and-reenter with an automatable re-entry trigger (§ 2) rather than pinning a live
+  session or abandoning it — the canonical host-neutral trigger is the promoted review-gate watcher (a soft co-design
+  seam with the review-gate promotion/adapter chain, not a `Depends On`), with an interim harness-wakeup arm and an
+  explicit human-fallback so autonomy degrades gracefully. Reconcile-once-late plus the disjoint
+  carry-forward minimizes mutating/triggering steps; CI necessarily re-runs on the merged head. The exclusive
+  final-integration window and wait-for-parallel-shipping timing stay `integration-lane`'s (backlog) seam.
+- **Determinacy / scalable-core seam.** The atomic-character routing fact is realized today via the Errand vehicle
+  under full protection; its partial-protection realization seams to scalable-core's atomic tier (ADR-020, Proposed).
+  Sanity-checked against `strategy-knowledge-evolution` / `strategy-procedure-evolution` per the planning-awareness
+  north stars.
+- **Review-gate qualification seam.** `review-gate-enforcement-qualification` must consume this WU's obligation
+  contract as its trigger policy — its inbound-buffer item still references the rejected channel-lane vocabulary and
+  needs repointing to `exempt / recommended / required` + the closed record — and enforce the forward-only v2
+  gate-projection; add `Depends On: review-architecture` to it. The local-satisfying `independent-analysis` path
+  converges with that WU's attestation-first pivot (attested local review as primary satisfying evidence) — the
+  advisory→satisfying receipt seam is co-designed there.
+- **`classify-change-granularity` coordination.** That WU (live, `planned`) reworks `scripts/classify-change.sh` to
+  be diff-status / rename-aware for CI `light` / `heavy`, plus a classify/tree-hash identity redesign — the same
+  script the shared change-fact classifier (§ 1) moves behind the CLI fact-resolver. Settled:
+  `classify-change-granularity` lands first and owns the shell's status/rename classification and tree-hash identity;
+  this WU's resolver **consumes** those facts rather than re-cutting them, and its "shell becomes a thin adapter"
+  builds on that status-awareness. This WU carries `Depends On: classify-change-granularity`; the reciprocal capture
+  is filed to that WU's inbound buffer so the surface is not cut twice.
 - **Knowledge/procedure forward-compat.** Declare reusable methods at their fire sites; keep high-miss-cost
   triage constraints in DEV-RULES.ARC; compute deterministic classifiers, `skip / offer / attempt`, and rendered
   decisions CLI-side; derive any eventual schema projection and reviewer instruction binding from one typed/rubric
@@ -746,6 +781,19 @@ New at the rescope:
 - **Build a generic provider registry in v1** — rejected: the role and binding seam are stable; project overrides
   can prove repeated provider shapes before ARC standardizes a registry.
 
+New at the 2026-07-19 re-examination:
+
+- **Specify the full multi-PR assurance-group algebra in this WU** — rejected: it fully specified `pr-decomposition`'s
+  endgame ahead of that rough-draft WU's settled shape. The algebra is preserved as inherited input for
+  `pr-decomposition` and this WU keeps only the single-deliverable contract, the no-weakening principle,
+  and the per-requirement projection seam.
+- **Mint a `code-audit` (or attestation) wrapper method over `independent-analysis`** — rejected as over-abstraction:
+  the real split is rubric (`implementation-audit`) vs. standard (`independent-analysis`); attestation is the
+  proof-carrier of a satisfying pass, not a third method.
+- **Keep the single `FIX NOW / MINOR FIX / DEFER / REJECT` disposition enum** — rejected: it conflated severity and
+  action; split into a shared `severity` primitive × a `fix / defer / reject` disposition, DRY'd with
+  `adversarial-review`.
+
 ## Implementation Validation
 
 - **CodeRabbit agent output:** CLI 0.6.5 advertises `--agent` as structured findings for agent workflows but does not
@@ -756,12 +804,18 @@ New at the rescope:
 
 ## Scope Estimate
 
-**Medium-Large; `Class: Heavy`** (derivation — the layer model and obligation policy are real design; confirmed at
-the 2026-07-16 grooming read and active-draft reconciliation). File ripple is wide (methods/rubric × both copies,
-integration + Errand creation workflows, extension docs, config/binding surfaces, strategy docs, and the project
-workflow) but individually small; live-provider qualification/promotion and required-check cutover, a generic
-provider registry, and multi-PR delivery mechanics stay with their existing or future WUs. The normalized gate
-contract/reducer migration needed by this obligation interface remains in scope here.
+**Medium-Large; `Class: Heavy`** (derivation — the layer model, obligation policy, and role/rubric factoring are real
+design; confirmed at the 2026-07-16 grooming read and re-settled at the 2026-07-19 re-examination). File ripple is
+wide (methods/rubric × both copies, integration + Errand creation workflows, extension docs, config/binding surfaces,
+strategy docs, and the project workflow) but individually small. In scope: the `review-routing` method and matrix
+(with the atomic determinacy carve-out), the `implementation-audit` rubric and the `independent-analysis` standard,
+the `severity` × `disposition` triage split, the review-overlay field + its `create-spec` offer, the
+`frontline-review` role and resolver, `review-response` (with the suspend-and-reenter async bridge, the
+re-entry-trigger seam, and the interim harness-wakeup re-entry arm), the `integrate-work-unit`
+interlock reshape (compose-begin interlock removed; single-late reconcile; flow-autonomy), and the normalized
+single-deliverable gate contract/reducer migration. Out of scope: the multi-PR assurance-group algebra (routed to
+`pr-decomposition`), live-provider qualification/promotion and required-check cutover (review-gate-* chain), a generic
+provider registry, and the exclusive final-integration window (`integration-lane`).
 
 **Cohort fit (reconfirmed 2026-07-18):** stays one WU — one coherent concern (the layer model) re-partitioning one
 surface family; the pieces are coupled by the shared doctrine, not orthogonal subsystems. `pr-decomposition` is a
@@ -771,27 +825,35 @@ this concern into a cohort.
 
 ## Readiness
 
-**State: formalization-ready** — the joint assurance-group design with `pr-decomposition` is settled, the authorized
-fresh full-rubric pass's findings are folded, and the post-settle coherence re-read clears the result. The inbound
-buffer is drained, the success signal is stateable, and every settle-able design decision is resolved. The remaining
-CodeRabbit check is bounded implementation validation, not architecture.
+**State: formalization-ready (re-settled 2026-07-19)** — a `create-spec` re-examination reopened the design,
+re-settled the role/rubric factoring and the integration orchestration, and extracted the multi-PR assurance-group
+algebra to `pr-decomposition`. Every settle-able design decision is resolved; the remaining CodeRabbit check is
+bounded implementation validation, not architecture.
 
-- **Resolved:** holistic charter + layer model; closed ARC-native routing record with ownership relation, artifact
-  authority, work context, and `Class`; single-deliverable obligation/action matrix; `sensitive` semantics; explicit
-  self-review activation precedence; opt-in provider-neutral frontline role, two-stage source resolution, and
-  deterministic follow-up trigger; canonical independent-analysis authority, identity, and one-effective-guidance-
-  set rule; forward-only typed gate projection/coverage migration with `count: 1`; disposition invariant +
-  DEV-RULES.ARC anchor; channel-neutral review-response cycle; rename/delete-safe shared change facts; generic legacy-
-  hook disposition; enforcement division; coordinator/project boundary; capability-qualified assurance groups;
-  derived member/seam group requirements and all-member merge barriers; generated seam universe with latest-group
-  ownership and conditional full proof; tree-exact series-membership carry-forward; repository- and carrier-bound
-  group requests with typed cross-PR satisfaction projections; aggregate `Heavy` / `Novel` terminal assurance with
-  no terminal provider run; rescope-in-place disposition.
-- **Open:** no settle-able design decision. `pr-decomposition` mechanics may fail a proposed grouping back to
-  ordinary per-PR reviews without reopening the settled semantics. § Implementation Validation separately carries
-  the non-blocking CodeRabbit matrix.
-- **Next:** return to the workflow interlock; on approval, capture the draft and advance to `create-spec`. Any fourth
-  adversarial pass would be an explicit extra beyond the `Heavy` default cap, not an automatic readiness step.
+- **Resolved:** holistic charter + layer model; closed ARC-native routing record (ownership relation, artifact
+  authority, work context, change determinacy, `Class`); single-deliverable obligation/action matrix with the atomic
+  determinacy carve-out; `sensitive` semantics; role/rubric factoring — `implementation-audit` rubric vs.
+  `independent-analysis` standard, `frontline` as a fire-point, `adversarial-review` as the lifecycle-wide mechanism;
+  severity × disposition triage (the shared three-level `blocker / major / minor` severity — `adversarial-review`'s
+  enum reused verbatim — with `nit` as an orthogonal code-review non-blocking flag, not a fourth level); opt-in
+  provider-neutral frontline role, three-input
+  resolver, two-stage source resolution; local-satisfying `independent-analysis` and the `local` / `hosted` / `both`
+  channel posture; review-overlay field + `create-spec` offer; disposition invariant + DEV-RULES.ARC anchor;
+  channel-neutral `review-response` cycle with the resilient suspend-and-reenter async bridge (re-entry-trigger seam +
+  interim harness-wakeup arm + explicit human-fallback); integration flow-autonomy +
+  `integrate-work-unit` interlock reshape + base-reconcile carry-forward; forward-only single-deliverable gate
+  projection/coverage migration with `count: 1`; rename/delete-safe shared change facts; enforcement division;
+  coordinator/project boundary; rescope-in-place disposition.
+- **Open:** no settle-able design decision. The multi-PR assurance-group algebra is routed to `pr-decomposition`
+  (staged as inherited input via the reciprocal `USER-INBOX` capture); the `review-gate-enforcement-qualification` and
+  `classify-change-granularity` seam reconciliations are coordination actions, not open design. § Implementation
+  Validation separately carries the non-blocking CodeRabbit matrix.
+- **Next:** re-run the `create-spec` finalization (the design reopened, so this is a fresh formalization pass).
+  Pending coordination actions: three reciprocal `USER-INBOX` captures are staged for the active housekeep sweep to
+  route — the extracted algebra → `pr-decomposition`; the trigger-seam repoint + `Depends On: review-architecture` →
+  `review-gate-enforcement-qualification`; and the shared-classifier coordination → `classify-change-granularity`.
+  This WU's meta now carries `Depends On: classify-change-granularity` (impl-time seams to `cli-substrate-adoption`'s
+  kernel head and `customization-arch-realign` activation stay Cross-cutting, not planning blockers).
 
 ## Provenance
 
@@ -800,6 +862,13 @@ graduated from `ATOMIC-INBOX.md` 2026-04-30. Scope reshaped during PR #23 review
 **Rescoped in place and renamed from `review-method-family` 2026-07-16**, after wave-3 parallelism burn-in
 (`finalize-parallelism`) saturated external review/CI budgets and a design session settled the holistic
 charter; grooming ran warm from that session.
+
+**Re-examined 2026-07-19** during a paused `create-spec` pass: re-settled the role/rubric factoring
+(`implementation-audit` rubric vs. `independent-analysis` standard; `frontline` as a fire-point; `adversarial-review`
+as the lifecycle-wide mechanism), the severity × disposition triage split, the review-overlay field, the atomic
+determinacy carve-out, integration flow-autonomy + the `integrate-work-unit` interlock reshape + async bridge, and
+the `local` / `hosted` / `both` channel posture; and extracted the multi-PR assurance-group algebra as inherited
+input for `pr-decomposition` (filed via the reciprocal `USER-INBOX` capture).
 
 Buffer disposition ledger (through 2026-07-18; entries integrated into the body above or already departed):
 
