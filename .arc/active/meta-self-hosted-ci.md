@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Self-hosted CI draft shaped; adversarial pass approved and deferred
+- **Last Completed:** Self-hosted CI draft captured after Heavy-class adversarial review
 - **Next Task:** [none]
 - **Blockers:** [none]
 
