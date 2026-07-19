@@ -271,19 +271,13 @@ repository/SKU billing data is aggregate corroboration rather than per-workflow 
 - _Goal:_ A reviewable sample proves or falsifies the two-slot host against cost, latency, flake, and availability
   targets without mixing fallback runs or non-comparable light lanes into the result.
 
-    - `[ ]` **4.1.a Establish the canary ledger and collection contract**
-        - Create one row per pull-request workflow run id in `notes-self-hosted-ci.md` § Cutover evidence, including
-          head SHA, attempts, full-Linux-graph eligibility, cross-platform-target status, initial creation time,
-          final `merge-ok` completion, conclusion, retries, and any failure or cancellation classification.
-        - For every Linux job and attempt, collect the Actions jobs API's `created_at`, `started_at`, `completed_at`,
-          runner name, and labels. Define queue delay as job-ready `created_at` to `started_at` and running duration
-          as `started_at` to `completed_at`; preserve per-job values rather than a single run-level queue estimate.
-        - Record repository/SKU billing data separately as an aggregate cross-check. Use runner names and labels as
-          the primary zero-hosted-Linux proof, and identify hosted-fallback runs and other hosted Linux workflows so
-          their repository-level minutes are not attributed to normal `ci.yml` execution.
-        - Before the first sample, prove host sampling and service/restart logs have current timestamps and projected
-          retention through both sample floors and the decision. Check coverage during the canary; extend retention
-          or export full logs to a protected user-held location before rotation, tracking only sanitized summaries.
+    - `[x]` **4.1.a Establish the canary ledger and collection contract**
+        - Established one run-level sample across attempts and preserved every PR run since cutover, including two
+          qualifying self-hosted heavy runs and the light, planned-fallback, and hosted-heavy exclusions.
+        - Captured every Linux job attempt's API timestamps, derived queue/runtime seconds, runner assignment, label,
+          and result; anchored the initial Actions SKU totals and recurring provider cost as separate aggregates.
+        - Re-proved five-minute/60-day host sampling plus persistent 60-day/1-GB service logs, removed one exact
+          pre-allocation image sample, and retained the protected pre-rebuild export to bridge the destructive drill.
 
     - `[ ]` **4.1.b Satisfy both sample floors**
         - Maintain the ledger for every otherwise-eligible run, including failed, retried, cancelled, and superseded

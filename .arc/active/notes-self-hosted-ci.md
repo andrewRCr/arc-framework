@@ -143,17 +143,109 @@ provider credential.
 
 ### Canary samples
 
-| Run id | Timestamp | Comparable heavy | `merge-ok` duration | Queue / CPU / memory / disk note | Failure classification |
-| ------ | --------- | ---------------- | ------------------- | -------------------------------- | ---------------------- |
-| [pending] | [pending] | [pending] | [pending] | [pending] | [pending] |
+One pull-request workflow run id is one ledger row across every attempt. A qualifying latency sample is reviewed,
+non-deferred, heavy, self-hosted, and completes the full Linux graph plus `merge-ok`; excluded runs remain in the
+reliability ledger. Elapsed time is initial run creation through the final attempt's `merge-ok` completion. Linux
+placement is proved from the Actions jobs API's runner names and labels, not billing attribution.
 
-- **Canary window / qualifying sample count:** [pending]
-- **`merge-ok` p95:** [pending]
-- **Runner-caused flakes:** [pending]
-- **Unexplained offline stalls:** [pending]
-- **Telemetry/log coverage through decision:** [pending]
-- **Self-hosted and fallback Actions cost evidence:** [pending]
-- **Provider cost evidence:** [pending]
+| Run id                                                                             | Head        | Attempts | Cross-platform target | Full Linux graph | Created (UTC)       | Final `merge-ok` (UTC) | Elapsed | Placement                                     | Eligible | Result / classification                                              |
+|------------------------------------------------------------------------------------|-------------|----------|-----------------------|------------------|---------------------|------------------------|---------|-----------------------------------------------|----------|----------------------------------------------------------------------|
+| [29705044064](https://github.com/andrewRCr/arc-framework/actions/runs/29705044064) | `8745d41e4` | 1        | yes                   | yes              | 2026-07-19 21:49:27 | 2026-07-19 21:53:28    | 4m01s   | 11 self-hosted Linux; 0 hosted Linux          | yes      | success                                                              |
+| [29705207328](https://github.com/andrewRCr/arc-framework/actions/runs/29705207328) | `0d3736066` | 1        | yes                   | no               | 2026-07-19 21:55:05 | 2026-07-19 21:56:44    | 1m39s   | 4 self-hosted Linux; 0 hosted Linux           | no       | success; verified-tree light lane                                    |
+| [29705287961](https://github.com/andrewRCr/arc-framework/actions/runs/29705287961) | `c2666d3b2` | 2        | yes                   | no               | 2026-07-19 21:57:57 | 2026-07-19 22:00:52    | 2m55s   | attempt 1 self-hosted; attempt 2 hosted Linux | no       | planned fallback: cancelled first attempt, hosted light rerun passed |
+| [29706274349](https://github.com/andrewRCr/arc-framework/actions/runs/29706274349) | `0889fa255` | 1        | yes                   | yes              | 2026-07-19 22:30:35 | 2026-07-19 22:33:48    | 3m13s   | 0 self-hosted Linux; 11 hosted Linux          | no       | success; planned hosted rebuild window                               |
+| [29706622340](https://github.com/andrewRCr/arc-framework/actions/runs/29706622340) | `e183ddd8e` | 1        | yes                   | yes              | 2026-07-19 22:42:11 | 2026-07-19 22:46:09    | 3m58s   | 11 self-hosted Linux; 0 hosted Linux          | yes      | success                                                              |
+
+#### Per-attempt Linux job ledger
+
+All timestamp triples below are the Actions jobs API `created_at` / `started_at` / `completed_at` values on
+2026-07-19 UTC. `Q/R` is queue delay / running duration in seconds. Skipped jobs retain their API time triple but
+have no runner and no meaningful derived duration.
+
+| Run / attempt   | Job                                      | Created / started / completed (UTC) | Q/R (s) | Runner           | Label           | Result    |
+|-----------------|------------------------------------------|-------------------------------------|---------|------------------|-----------------|-----------|
+| 29705044064 / 1 | Classify lane & weight                   | 21:49:27 / 21:49:29 / 21:49:43      | 2/14    | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29705044064 / 1 | Shared setup                             | 21:49:44 / 21:49:46 / 21:50:05      | 2/19    | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29705044064 / 1 | Lint & Typecheck                         | 21:50:05 / 21:50:07 / 21:51:40      | 2/93    | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29705044064 / 1 | Portability (concurrency guards) (linux) | 21:50:05 / 21:50:07 / 21:50:27      | 2/20    | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29705044064 / 1 | Unit Tests                               | 21:50:05 / 21:51:20 / 21:51:49      | 75/29   | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29705044064 / 1 | Integration Tests                        | 21:50:05 / 21:51:41 / 21:53:08      | 96/87   | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29705044064 / 1 | E2E Tests (1)                            | 21:50:05 / 21:50:28 / 21:51:19      | 23/51   | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29705044064 / 1 | E2E Tests (2)                            | 21:50:05 / 21:51:50 / 21:52:34      | 105/44  | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29705044064 / 1 | E2E Tests (3)                            | 21:50:05 / 21:52:36 / 21:53:20      | 151/44  | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29705044064 / 1 | ci-ok                                    | 21:53:20 / 21:53:22 / 21:53:24      | 2/2     | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29705044064 / 1 | merge-ok                                 | 21:53:24 / 21:53:26 / 21:53:28      | 2/2     | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29705207328 / 1 | Classify lane & weight                   | 21:55:05 / 21:55:07 / 21:55:13      | 2/6     | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29705207328 / 1 | Lint & Typecheck                         | 21:55:14 / 21:55:15 / 21:55:32      | 1/17    | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29705207328 / 1 | Shared setup                             | 21:55:14 / 21:55:14 / 21:55:13      | —       | —                | `arc-ci-linux`  | skipped   |
+| 29705207328 / 1 | Portability (concurrency guards) (linux) | 21:55:14 / 21:55:14 / 21:55:14      | —       | —                | `arc-ci-linux`  | skipped   |
+| 29705207328 / 1 | Unit Tests                               | 21:55:14 / 21:55:14 / 21:55:14      | —       | —                | `arc-ci-linux`  | skipped   |
+| 29705207328 / 1 | Integration Tests                        | 21:55:14 / 21:55:14 / 21:55:14      | —       | —                | `arc-ci-linux`  | skipped   |
+| 29705207328 / 1 | E2E Tests                                | 21:55:14 / 21:55:14 / 21:55:14      | —       | —                | `arc-ci-linux`  | skipped   |
+| 29705207328 / 1 | ci-ok                                    | 21:56:36 / 21:56:37 / 21:56:40      | 1/3     | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29705207328 / 1 | merge-ok                                 | 21:56:40 / 21:56:42 / 21:56:44      | 2/2     | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29705287961 / 1 | Classify lane & weight                   | 21:57:58 / 21:58:00 / 21:58:06      | 2/6     | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29705287961 / 1 | Lint & Typecheck                         | 21:58:07 / 21:58:09 / 21:58:17      | 2/8     | `arc-ci-linux-2` | `arc-ci-linux`  | cancelled |
+| 29705287961 / 1 | Shared setup                             | 21:58:07 / 21:58:07 / 21:58:07      | —       | —                | `arc-ci-linux`  | skipped   |
+| 29705287961 / 1 | Portability (concurrency guards) (linux) | 21:58:07 / 21:58:07 / 21:58:07      | —       | —                | `arc-ci-linux`  | skipped   |
+| 29705287961 / 1 | Unit Tests                               | 21:58:07 / 21:58:07 / 21:58:07      | —       | —                | `arc-ci-linux`  | skipped   |
+| 29705287961 / 1 | Integration Tests                        | 21:58:07 / 21:58:07 / 21:58:07      | —       | —                | `arc-ci-linux`  | skipped   |
+| 29705287961 / 1 | E2E Tests                                | 21:58:07 / 21:58:07 / 21:58:07      | —       | —                | `arc-ci-linux`  | skipped   |
+| 29705287961 / 1 | ci-ok                                    | 21:58:22 / 21:58:22 / 21:58:21      | —       | —                | `arc-ci-linux`  | cancelled |
+| 29705287961 / 1 | merge-ok                                 | 21:58:21 / 21:58:23 / 21:58:25      | 2/2     | `arc-ci-linux-1` | `arc-ci-linux`  | failure   |
+| 29705287961 / 2 | Classify lane & weight                   | 21:58:29 / 21:58:32 / 21:58:45      | 3/13    | hosted           | `ubuntu-latest` | success   |
+| 29705287961 / 2 | Lint & Typecheck                         | 21:58:46 / 21:58:49 / 21:59:13      | 3/24    | hosted           | `ubuntu-latest` | success   |
+| 29705287961 / 2 | Shared setup                             | 21:58:46 / 21:58:46 / 21:58:46      | —       | —                | `ubuntu-latest` | skipped   |
+| 29705287961 / 2 | Portability (concurrency guards) (linux) | 21:58:46 / 21:58:46 / 21:58:46      | —       | —                | `ubuntu-latest` | skipped   |
+| 29705287961 / 2 | Unit Tests                               | 21:58:46 / 21:58:46 / 21:58:46      | —       | —                | `ubuntu-latest` | skipped   |
+| 29705287961 / 2 | Integration Tests                        | 21:58:46 / 21:58:46 / 21:58:46      | —       | —                | `ubuntu-latest` | skipped   |
+| 29705287961 / 2 | E2E Tests                                | 21:58:46 / 21:58:46 / 21:58:46      | —       | —                | `ubuntu-latest` | skipped   |
+| 29705287961 / 2 | ci-ok                                    | 22:00:39 / 22:00:42 / 22:00:45      | 3/3     | hosted           | `ubuntu-latest` | success   |
+| 29705287961 / 2 | merge-ok                                 | 22:00:46 / 22:00:49 / 22:00:52      | 3/3     | hosted           | `ubuntu-latest` | success   |
+| 29706274349 / 1 | Classify lane & weight                   | 22:30:36 / 22:30:40 / 22:30:58      | 4/18    | hosted           | `ubuntu-latest` | success   |
+| 29706274349 / 1 | Shared setup                             | 22:30:58 / 22:31:02 / 22:31:22      | 4/20    | hosted           | `ubuntu-latest` | success   |
+| 29706274349 / 1 | Lint & Typecheck                         | 22:31:22 / 22:31:25 / 22:32:48      | 3/83    | hosted           | `ubuntu-latest` | success   |
+| 29706274349 / 1 | Portability (concurrency guards) (linux) | 22:31:22 / 22:31:25 / 22:31:50      | 3/25    | hosted           | `ubuntu-latest` | success   |
+| 29706274349 / 1 | Unit Tests                               | 22:31:22 / 22:31:25 / 22:32:03      | 3/38    | hosted           | `ubuntu-latest` | success   |
+| 29706274349 / 1 | Integration Tests                        | 22:31:22 / 22:31:26 / 22:33:36      | 4/130   | hosted           | `ubuntu-latest` | success   |
+| 29706274349 / 1 | E2E Tests (1)                            | 22:31:22 / 22:31:26 / 22:32:48      | 4/82    | hosted           | `ubuntu-latest` | success   |
+| 29706274349 / 1 | E2E Tests (2)                            | 22:31:22 / 22:31:25 / 22:32:22      | 3/57    | hosted           | `ubuntu-latest` | success   |
+| 29706274349 / 1 | E2E Tests (3)                            | 22:31:22 / 22:31:25 / 22:32:30      | 3/65    | hosted           | `ubuntu-latest` | success   |
+| 29706274349 / 1 | ci-ok                                    | 22:33:36 / 22:33:39 / 22:33:43      | 3/4     | hosted           | `ubuntu-latest` | success   |
+| 29706274349 / 1 | merge-ok                                 | 22:33:43 / 22:33:46 / 22:33:48      | 3/2     | hosted           | `ubuntu-latest` | success   |
+| 29706622340 / 1 | Classify lane & weight                   | 22:42:12 / 22:42:13 / 22:42:32      | 1/19    | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29706622340 / 1 | Shared setup                             | 22:42:32 / 22:42:34 / 22:42:50      | 2/16    | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29706622340 / 1 | Lint & Typecheck                         | 22:42:50 / 22:44:25 / 22:46:00      | 95/95   | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29706622340 / 1 | Portability (concurrency guards) (linux) | 22:42:50 / 22:42:52 / 22:43:10      | 2/18    | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29706622340 / 1 | Unit Tests                               | 22:42:50 / 22:43:44 / 22:44:23      | 54/39   | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29706622340 / 1 | Integration Tests                        | 22:42:50 / 22:43:12 / 22:44:30      | 22/78   | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29706622340 / 1 | E2E Tests (1)                            | 22:42:50 / 22:42:52 / 22:43:43      | 2/51    | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29706622340 / 1 | E2E Tests (2)                            | 22:42:50 / 22:44:32 / 22:45:08      | 102/36  | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29706622340 / 1 | E2E Tests (3)                            | 22:42:50 / 22:45:10 / 22:45:51      | 140/41  | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29706622340 / 1 | ci-ok                                    | 22:46:00 / 22:46:02 / 22:46:04      | 2/2     | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29706622340 / 1 | merge-ok                                 | 22:46:05 / 22:46:06 / 22:46:09      | 1/3     | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+
+#### Cost and retention baseline
+
+- **Actions usage baseline (2026-07-19 23:02Z):** the user billing API's July aggregate for this repository reports
+  3,327.667 Linux minutes ($19.966 gross / $9.208 net), 256 Windows minutes ($2.560 / $0.780), and 128 macOS
+  three-core minutes ($7.936 / $2.506). This is an aggregate checkpoint, not per-run attribution; the ledger above
+  separately identifies the planned hosted fallback and hosted-heavy rebuild run.
+- **Provider baseline:** OVHcloud US VPS-2 2027 remains $10 per month; no paid backup, snapshot, resize, or additional
+  runner allocation was added.
+- **Telemetry/log baseline:** fresh `sysstat` data was collected at 23:00Z on a five-minute cadence with 60-day
+  history, seven-day compression, and mode `0640`; one exact May pre-allocation image sample was removed so it cannot
+  contaminate the canary. Persistent runner journals remain bounded to 60 days / 1 GB (24 MB at baseline), and the
+  protected pre-rebuild journal/telemetry export bridges the intentionally destroyed first host instance.
+
+- **Canary window / qualifying sample count:** opened 2026-07-19 21:49:27Z; 2/20 qualifying heavy PR runs; elapsed
+  floor 0/7 days; earliest possible close 2026-07-26 21:49:27Z if the run floor is also met
+- **`merge-ok` p95:** provisional 4m01s at N=2 (nearest-rank position 2); not an acceptance result before both floors
+- **Runner-caused flakes:** 0 provisional; the cancelled fallback attempt is planned recovery evidence, not a flake
+- **Unexplained offline stalls:** 0 provisional
+- **Telemetry/log coverage through decision:** current with 60-day projected retention; recheck during collection
+- **Self-hosted and fallback Actions cost evidence:** aggregate baseline recorded above; final delta pending
+- **Provider cost evidence:** $10 monthly baseline recorded; final billed cross-check pending
 
 ### Final posture
 
