@@ -96,7 +96,8 @@ provider credential.
 
 ### Qualification and drills
 
-- **Initial self-hosted qualification run id / timestamp:** [pending]
+- **Initial self-hosted qualification run id / timestamp:** pending — `ARC_CI_LINUX_RUNNER=arc-ci-linux` selected
+  and draft PR #305 opened on 2026-07-19; the first user-authored evidence synchronization will trigger the run
 - **Linux job placement result:** [pending]
 - **Hosted-only job isolation result:** [pending]
 - **Verified-tree proof run ids / classifier result:** [pending]
