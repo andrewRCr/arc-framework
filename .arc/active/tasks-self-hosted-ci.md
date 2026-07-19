@@ -12,47 +12,39 @@ current job graph and trust-domain boundaries before any runner is allowed to re
 _Design decisions:_ All nine Linux jobs share one fail-safe variable expression. The Linux portability leg loses
 its single-value matrix so its static `(linux)` identity no longer implies a particular executor.
 
-### `[ ]` **1.1 Route every Linux CI job through the fail-safe repository variable**
+### `[x]` **1.1 Route every Linux CI job through the fail-safe repository variable**
 
 - _Goal:_ The complete Linux CI graph selects its runner from `ARC_CI_LINUX_RUNNER`, defaults safely to
   `ubuntu-latest`, and leaves every hosted-only trust domain and graph dependency intact.
 
-    - `[ ]` **1.1.a Parameterize the nine Linux jobs in `.github/workflows/ci.yml`**
-        - Set `runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}` on `classify`, `setup`,
-          `lint-typecheck`, `unit`, `integration`, `e2e`, `portability`, `ci_ok`, and `merge-ok`.
-        - Preserve every job id, `needs` edge, condition, permission, matrix other than the portability change in
-          Task 1.2, and the `merge-ok` required-check name.
+    - `[x]` **1.1.a Parameterize the nine Linux jobs in `.github/workflows/ci.yml`**
+        - Routed `classify`, `setup`, `lint-typecheck`, `unit`, `integration`, `e2e`, `portability`, `ci_ok`, and
+          `merge-ok` through `ARC_CI_LINUX_RUNNER` with an unset-or-empty `ubuntu-latest` fallback.
 
-    - `[ ]` **1.1.b Preserve the explicitly hosted workflow surfaces**
-        - Keep `portability-cross-platform` on its Windows/macOS matrix and leave `docs.yml` plus every
-          `review-gate*` workflow on GitHub-hosted runners.
-        - Confirm an absent or empty repository variable remains a usable hosted route rather than an unmatched
-          self-hosted queue.
+    - `[x]` **1.1.b Preserve the explicitly hosted workflow surfaces**
+        - Kept `portability-cross-platform`, `docs.yml`, and every `review-gate*` workflow on their explicit
+          GitHub-hosted routes while the Linux expression fails safely to `ubuntu-latest`.
 
-    - `[ ]` **1.1.c Lock the routing boundary into workflow contract coverage**
-        - Extend `packages/arc-framework/__tests__/integration/review-gate-workflows.test.ts` to assert the nine
-          Linux job ids use the fail-safe expression and the hosted-only jobs do not.
-        - Keep the existing parse-all-workflows and pinned-action checks green.
+    - `[x]` **1.1.c Lock the routing boundary into workflow contract coverage**
+        - Added parsed-workflow coverage for all nine variable-routed jobs and every hosted-only workflow job;
+          retained the parse-all-workflows and pinned-action contracts.
 
-### `[ ]` **1.2 Make the Linux portability check identity executor-neutral across every coupled contract**
+### `[x]` **1.2 Make the Linux portability check identity executor-neutral across every coupled contract**
 
 - _Goal:_ The portability check reports the stable name `Portability (concurrency guards) (linux)` and the
   verified-tree classifier requires that exact identity regardless of which Linux runner executes it.
 
-    - `[ ]` **1.2.a Replace the single-value portability matrix with a static Linux job**
-        - Remove `matrix.os: [ubuntu-latest]`, set the static job name to
-          `Portability (concurrency guards) (linux)`, and route `runs-on` through the repository variable.
-        - Leave the E2E shard matrix and the hosted Windows/macOS portability matrix unchanged.
+    - `[x]` **1.2.a Replace the single-value portability matrix with a static Linux job**
+        - Removed the single-value matrix, named the static job `Portability (concurrency guards) (linux)`, and
+          left the E2E shard and hosted Windows/macOS matrices unchanged.
 
-    - `[ ]` **1.2.b Synchronize the verified-tree check-name source and fixture**
-        - Replace the portability entry in `scripts/classify-change.sh` `HEAVY_CHECK_NAMES` and the mirrored
-          `HEAVY_CHECKS` fixture in `packages/arc-framework/__tests__/unit/classify-change.test.ts`.
-        - Preserve fail-safe behavior for an absent, pending, or failed required check.
+    - `[x]` **1.2.b Synchronize the verified-tree check-name source and fixture**
+        - Synchronized the executor-neutral identity across `HEAVY_CHECK_NAMES` and its `HEAVY_CHECKS` fixture;
+          existing absent, pending, and failed-check coverage remains intact.
 
-    - `[ ]` **1.2.c Update and run the coupled offline regression coverage**
-        - Replace the integration assertion that currently expects `os: [ubuntu-latest]` with the static Linux
-          identity and hosted-only matrix boundary.
-        - Run the classifier unit tests, the workflow integration test, YAML parsing coverage, and `shellcheck`.
+    - `[x]` **1.2.c Update and run the coupled offline regression coverage**
+        - Replaced the single-value-matrix assertion with static-identity and hosted-boundary coverage; the
+          classifier unit tests, workflow integration and YAML parsing coverage, and `shellcheck` pass.
 
 ## **Phase 2:** Disposable runner operations and fail-closed readiness
 

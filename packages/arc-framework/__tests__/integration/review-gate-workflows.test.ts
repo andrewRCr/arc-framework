@@ -120,13 +120,57 @@ describe("trusted review-gate workflows", () => {
     expect(workflow).not.toContain("changed_all=");
   });
 
+  it("routes only the Linux CI graph through the fail-safe repository variable", async () => {
+    const workflow = await read("ci.yml");
+    const linuxRunner = "${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}";
+    const linuxJobs = [
+      "classify",
+      "setup",
+      "lint-typecheck",
+      "unit",
+      "integration",
+      "e2e",
+      "portability",
+      "ci_ok",
+      "merge-ok",
+    ];
+    for (const job of linuxJobs) expect(jobValue(workflow, job)["runs-on"], job).toBe(linuxRunner);
+
+    expect(jobValue(workflow, "portability-cross-platform")["runs-on"]).toBe("${{ matrix.os }}");
+    for (const name of [
+      "docs.yml",
+      "review-gate.yml",
+      "review-gate-attest.yml",
+      "review-gate-qualify.yml",
+      "review-gate-repair.yml",
+      "review-gate-wakeup.yml",
+    ]) {
+      const hostedWorkflow = await read(name);
+      const parsed = load(hostedWorkflow) as { jobs?: Record<string, Record<string, unknown>> };
+      for (const [job, value] of Object.entries(parsed.jobs ?? {})) {
+        expect(value["runs-on"], `${name}:${job}`).toBe("ubuntu-latest");
+      }
+    }
+  });
+
+  it("keeps the Linux portability check executor-neutral and non-matrix", async () => {
+    const workflow = await read("ci.yml");
+    const portability = jobValue(workflow, "portability");
+    expect(portability.name).toBe("Portability (concurrency guards) (linux)");
+    expect(portability).not.toHaveProperty("strategy");
+
+    const crossPlatform = jobValue(workflow, "portability-cross-platform");
+    expect(crossPlatform.strategy).toMatchObject({
+      matrix: { os: ["windows-latest", "macos-latest"] },
+    });
+  });
+
   it("contains Actions spend while retaining explicit and bounded portability coverage", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("push:\n    branches: [main]");
     expect(workflow).toContain("workflow_dispatch:");
     // Monthly (not weekly) cross-platform cron — macOS multiplier is the spend driver.
     expect(workflow).toContain("schedule:\n    - cron: '17 8 1 * *'");
-    expect(workflow).toContain("os: [ubuntu-latest]");
     expect(workflow).toContain("os: [windows-latest, macos-latest]");
     expect(workflow).toContain("needs.classify.outputs.portability_target == 'true'");
     expect(workflow).toContain('echo "::error::portability classifier failed"');

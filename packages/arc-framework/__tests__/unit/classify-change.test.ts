@@ -603,7 +603,7 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
     "E2E Tests (1)",
     "E2E Tests (2)",
     "E2E Tests (3)",
-    "Portability (concurrency guards) (ubuntu-latest)",
+    "Portability (concurrency guards) (linux)",
   ];
 
   /** Render [name, conclusion] pairs as the normalized "<name>\t<conclusion>" lines the seam returns. */
