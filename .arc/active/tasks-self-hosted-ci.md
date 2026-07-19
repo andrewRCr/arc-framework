@@ -200,7 +200,7 @@ runner teardown or rebuild, and destructive external steps retain their own expl
 - _Outcome:_ The unchanged CI graph completed its first live two-slot qualification with stable roll-up identity,
   bounded queueing, no runner failure, and only the intended Windows/macOS jobs consuming hosted capacity.
 
-### `[ ]` **3.2 Prove runner-neutral check identity and verified-tree reuse on self-hosted execution**
+### `[x]` **3.2 Prove runner-neutral check identity and verified-tree reuse on self-hosted execution**
 
 - _Goal:_ The executor-neutral portability name participates in a real green heavy-check set, and a known-verified
   code tree subsequently resolves `weight=light reason=verified` from the self-hosted classifier.
@@ -210,15 +210,19 @@ runner teardown or rebuild, and destructive external steps retain their own expl
           required `merge-ok` identities, with exactly `Portability (concurrency guards) (linux)` for Linux
           portability and separate targeted Windows/macOS names.
 
-    - `[ ]` **3.2.b Exercise the verified-tree lookback**
-        - After a self-hosted heavy run succeeds, use the next natural docs-only task-list/evidence commit that
-          preserves the code tree and prove the classifier emits `weight=light` and `reason=verified` rather than
-          silently rerunning heavy; do not create meaningless file churn solely to trigger CI.
-        - Inspect the classifier log to prove the live `gh api` seam worked; a green run alone is insufficient.
+    - `[x]` **3.2.b Exercise the verified-tree lookback**
+        - Used the natural first-cutover task-list/evidence commit after the green heavy run, preserving the code
+          tree without artificial churn; proof run 29705207328 completed as the light lane.
+        - Inspected the live classifier job log and confirmed its authenticated API lookback emitted
+          `weight=light reason=verified`.
 
-    - `[ ]` **3.2.c Verify prerequisite failure modes remain diagnosable**
-        - Confirm `jq` supports the `ci_ok` roll-up and the runner service user can invoke `gh`; record the positive
-          evidence that rules out a missing-tool false signal during canary tuning.
+    - `[x]` **3.2.c Verify prerequisite failure modes remain diagnosable**
+        - Confirmed the service account invokes GitHub CLI 2.46.0 and jq 1.8.1, independently exercised the jq
+          roll-up predicate, and observed both the authenticated classifier API seam and live `ci-ok` succeed with
+          zero runner-service warnings through the proof runs.
+
+- _Outcome:_ The real heavy-check set kept its executor-neutral identities, and the immediately following
+  unchanged-code-tree run proved authenticated verified-tree reuse rather than merely appearing green.
 
 ### `[ ]` **3.3 Drill hosted fallback and a timed disposable-runner rebuild**
 

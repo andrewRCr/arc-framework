@@ -104,7 +104,10 @@ provider credential.
   `merge-ok`; both roll-ups passed
 - **Hosted-only job isolation result:** the targeted Windows and macOS portability jobs ran on GitHub-hosted
   runners; no documentation or review-gate workflow ran for the qualification head
-- **Verified-tree proof run ids / classifier result:** [pending]
+- **Verified-tree proof run ids / classifier result:**
+  [29705207328](https://github.com/andrewRCr/arc-framework/actions/runs/29705207328) — the first-cutover evidence
+  commit preserved the code tree; the live classifier API lookback emitted `weight=light reason=verified`, and the
+  light roll-up passed
 - **Hosted fallback run id / elapsed time / result:** [pending]
 - **Rebuild window / elapsed time / result:** [pending]
 - **Post-rebuild qualification run id / result:** [pending]
@@ -113,6 +116,9 @@ provider credential.
   delay was 2m31s for E2E shard 3 while the two slots were occupied; no offline stall or runner-caused failure
 - **First-cutover Actions placement evidence:** 11 self-hosted Linux jobs and two expected hosted cross-platform
   jobs; zero hosted Linux jobs in the qualification workflow
+- **Prerequisite diagnostic evidence:** the service account invokes GitHub CLI 2.46.0 and jq 1.8.1; an independent
+  jq roll-up expression passed, the live `ci-ok` job passed on the runner, the classifier completed its authenticated
+  API lookback, and both runner journals recorded zero warnings through the two proof runs
 
 ### Canary samples
 
