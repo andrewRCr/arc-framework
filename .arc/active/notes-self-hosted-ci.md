@@ -48,14 +48,16 @@ provider credential.
 
 ### Access-control precondition
 
-- **Audit timestamp:** [pending]
-- **Collaborators:** [pending — count / trusted result / exception only]
-- **Pending invitations:** [pending — count / trusted result / exception only]
-- **Private forks:** [pending — count / trusted result / exception only]
-- **Installed apps and bots:** [pending — count / trusted result / exception only]
-- **Pull-request-producing automation:** [pending — count / trusted result / exception only]
-- **Actions fork settings:** [pending — result / exception only]
-- **Gate result:** [pending]
+- **Audit timestamp:** 2026-07-19
+- **Collaborators:** 1; explicitly trusted; no exception
+- **Pending invitations:** 0
+- **Private forks:** 0
+- **Installed apps and bots:** 3 installed apps with repository access; all explicitly trusted
+- **Pull-request-producing automation:** no repository workflow originates pull requests; all three app-backed
+  automation principals were conservatively treated as capable of influencing executable code and explicitly trusted
+- **Actions fork settings:** private-fork workflows disabled; write-token and secret forwarding disabled
+- **Gate result:** Pass — every current principal able to submit or influence executable pull-request code is
+  explicitly trusted; repeat immediately after any access or automation change
 
 ### Host and runner readiness
 

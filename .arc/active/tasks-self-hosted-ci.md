@@ -144,12 +144,11 @@ recorded.
   explicitly trusted, then both slots prove the host, label, service, and prerequisite contract before cutover.
 - **Additional Context:** `.github/self-hosted-ci.md` § Runner registration and § Cutover and health checks.
 
-    - `[ ]` **2.4.a Audit every executable pull-request principal**
-        - Inspect repository collaborators, pending invitations, private forks, installed apps/bots, automation
-          that can originate pull requests, and Actions fork settings using current GitHub state.
-        - Inspect identities transiently; record category counts, the explicit trust result, and only exceptions
-          needed to explain a blocker. Any unknown or untrusted principal stops before token issuance, registration,
-          label assignment, or cutover.
+    - `[x]` **2.4.a Audit every executable pull-request principal**
+        - Audited current GitHub state: one trusted collaborator, no invitations or forks, three explicitly trusted
+          installed apps, no repository workflow that originates pull requests, and no other observed PR author.
+        - Disabled private-fork workflows, write-token forwarding, and secret forwarding; recorded only category
+          counts and the explicit green trust result before token issuance, registration, labeling, or cutover.
 
     - `[ ]` **2.4.b Register two isolated runner services after the audit passes**
         - Obtain short-lived GitHub registration tokens only at the point of use, configure the prepared directories
