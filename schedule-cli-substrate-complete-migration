@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "schedule-cli-substrate-complete-migration",
-  "origin": "description",
-  "intent": "Schedule the cohort tail work unit that completes typed-substrate migration and closes residual compatibility debt",
-  "branch": "chore/schedule-cli-substrate-complete-migration",
-  "createdAt": "2026-07-19T16:28:16.612Z",
-  "returnBranch": "plan/cli-schema-kernel"
-}
