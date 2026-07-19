@@ -520,3 +520,64 @@ export function rewriteCommitFileSource(args: readonly string[], path: string): 
   }
   return rewritten;
 }
+
+/**
+ * Rewrite `args` by stripping every recognized `-m` / `--message` message
+ * operand and routing the commit message through a snapshot file instead.
+ *
+ * @param args - Caller commit argv containing zero or more message operands.
+ * @param path - Snapshot file path to append via `-F`.
+ * @returns A new argv with message operands removed and `-F path` appended.
+ */
+export function rewriteCommitMessagesToFile(args: readonly string[], path: string): string[] {
+  const result: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === undefined) break;
+    if (arg === "--") {
+      result.push("-F", path);
+      for (let rest = index; rest < args.length; rest += 1) {
+        const token = args[rest];
+        if (token !== undefined) result.push(token);
+      }
+      return result;
+    }
+
+    if (arg === "--message") {
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--message=")) {
+      continue;
+    }
+
+    if (!arg.startsWith("-") || arg.startsWith("--") || arg === "-") {
+      result.push(arg);
+      continue;
+    }
+
+    const walk = walkCommitShortOption(arg, args[index + 1]);
+    if (walk.kind !== "recognized") {
+      result.push(arg);
+      continue;
+    }
+
+    const messageMember = walk.members.find((member) => member.role === "message");
+    if (messageMember === undefined) {
+      result.push(arg);
+      if (walk.consumedNext) {
+        index += 1;
+        const consumed = args[index];
+        if (consumed !== undefined) result.push(consumed);
+      }
+      continue;
+    }
+
+    const truncated = arg.slice(0, messageMember.offset);
+    if (truncated !== "-") result.push(truncated);
+    if (walk.consumedNext) index += 1;
+  }
+
+  result.push("-F", path);
+  return result;
+}

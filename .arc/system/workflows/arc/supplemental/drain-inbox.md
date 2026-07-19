@@ -42,8 +42,9 @@ This is a **machine-checked guard, not prose discipline**. Resolve the write con
 arc housekeep check --json
 ```
 
-The check resolves the current worktree path, the current branch, and the configured base branch
-(`branch.base`) — the same context `arc errand check` resolves — and classifies the invocation:
+The check resolves the current worktree path, the current branch, the configured base branch (`branch.base`),
+and `branchProtection` (`full` or `partial`) — the same context `arc errand check` resolves — and classifies the
+invocation:
 
 - **Base-branch write context** → proceed to the drain steps. Under full protection, § 5 relocates onto a
   short-lived grooming branch cut from here before any shared-path write — the base context is the fork

@@ -21,6 +21,17 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Decide and cascade `override-mode: extend` → `augment`**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-19);
+  captured during `review-architecture` draft reconciliation.
+- *Concern:* additive method composition already ships as `override-mode: extend`, but `extend` collides with
+  ARC's separate Extensions mechanism.
+- *Approach:* decide the final term and run the behavior-preserving rename through the frontmatter parser and
+  types, tests, method guidance, `testing-standards`, and strategies. Keep replace-vs-additive semantics and
+  activation owned by `customization-arch-realign`; `composable-workflows` consumes the final enum without
+  reopening the vocabulary or semantics.
+
 ### `[ ]` **Conform the enforced conventional-commit policy to its named standard**
 
 - *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during

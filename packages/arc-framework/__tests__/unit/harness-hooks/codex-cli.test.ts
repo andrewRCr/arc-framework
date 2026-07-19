@@ -12,6 +12,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(__dirname, "../../..");
 const hookRoot = resolve(packageRoot, "arc/system/.internal/harness-hooks");
 const hooksPath = resolve(hookRoot, "codex-cli/hooks.json");
+const selfHostedHooksPath = resolve(
+  packageRoot,
+  "../../.arc/system/.internal/harness-hooks/codex-cli/hooks.json",
+);
 const featuresPath = resolve(hookRoot, "codex-cli/features.config.toml");
 const markerScriptPath = resolve(hookRoot, "common/codex-recovery-marker.mjs");
 const clearScriptPath = resolve(hookRoot, "common/clear-codex-recovery-pending.mjs");
@@ -241,6 +245,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(existsSync(seedScriptPath)).toBe(true);
     expect(existsSync(postToolUseScriptPath)).toBe(true);
     expect(existsSync(userPromptScriptPath)).toBe(true);
+    expect(readFileSync(selfHostedHooksPath, "utf8")).toBe(readFileSync(hooksPath, "utf8"));
   });
 
   it("keeps the Codex feature flag fragment narrow and canonical", () => {

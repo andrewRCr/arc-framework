@@ -24,7 +24,9 @@
   cardinality and usage policy remain unsettled. More PRs must not automatically multiply expensive review passes.
 - _Approach:_ settle which deliverables auto-admit versus wait for checkpoints, where independent/adversarial
   review runs, and how findings and approvals compose without one PR erasing another's evidence. Preserve each
-  deliverable's truthful `merge-ok` while keeping WU-terminal aggregation outside `ReviewCore`.
+  deliverable's truthful `merge-ok` while keeping WU-terminal aggregation outside `ReviewCore`. Sequence this
+  WU's design behind `review-architecture` so the settled, topology-neutral review-obligation contract is an
+  input rather than a duplicated decision; record that dependency at the next grooming pass.
 
 ### `[ ]` **Coordinate adversarial verify cardinality and partition criteria**
 

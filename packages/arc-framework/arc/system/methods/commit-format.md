@@ -98,9 +98,11 @@ No → `docs`"
   `(archival)`, `(deactivation)`, `(maintenance)`, `(incidental during ...)`. Machine-parse SoT; see
   [commit-footer](commit-footer.md) for the full set and chain semantics.
 
-**Body:** Wrap at ~72 chars per line (renders cleanly in `git log`). Focus on WHY and IMPACT,
-not what changed. Hard limits: 100 lines, 100 chars per line — exceed either and the commit
-probably wants splitting or its prose moved to a doc.
+**Body:** Focus on WHY and IMPACT, not what changed. The release wrapper deterministically wraps `-m` bodies to
+the configured `hooks.body_max_line_length` (default 100), so those bodies need no manual reflow. For
+byte-preserved `-F` / stdin input and raw commits, wrap hand-authored prose at ~72 chars per line (renders cleanly
+in `git log`) and stay within the configured limits (defaults: 100 lines, 100 chars per line). A message that
+exceeds either limit probably wants splitting or its prose moved to a doc.
 
 **Phases vs. tasks:** Bare integers for phases (`Phase 1`, `Phase 2`); dotted form for tasks
 (`Task 1.2`, `Task 3.1.a`). Never write `Phase X.Y` — that's a task identifier; the hook
