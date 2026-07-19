@@ -113,7 +113,8 @@ export async function hasEffectiveHook(
       && repo.hooks.some((hook) => isRecord(hook)
         && (Array.isArray(hook.stages)
           ? hook.stages.includes(name)
-          : Array.isArray(config.default_stages) && config.default_stages.includes(name))));
+          : config.default_stages === undefined
+            || (Array.isArray(config.default_stages) && config.default_stages.includes(name)))));
   }
   const hookPath = await io.resolveGitHookPath(cwd, name);
   try {

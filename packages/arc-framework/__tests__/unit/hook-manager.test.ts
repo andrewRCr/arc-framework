@@ -229,6 +229,19 @@ describe("hasEffectiveHook", () => {
     await expect(hasEffectiveHook(cwd, "prepare-commit-msg", io)).resolves.toBe(true);
   });
 
+  it("uses pre-commit's implicit all-stages default", async () => {
+    const io = mockEffectiveHookIO({
+      "/fake/repo/.pre-commit-config.yaml": [
+        "repos:",
+        "  - repo: local",
+        "    hooks:",
+        "      - id: format-message",
+      ].join("\n"),
+    });
+
+    await expect(hasEffectiveHook(cwd, "prepare-commit-msg", io)).resolves.toBe(true);
+  });
+
   it("honors explicit hook stages over pre-commit default stages", async () => {
     const io = mockEffectiveHookIO({
       "/fake/repo/.pre-commit-config.yaml": [
