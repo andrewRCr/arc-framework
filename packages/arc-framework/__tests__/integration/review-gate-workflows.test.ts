@@ -173,10 +173,18 @@ describe("trusted review-gate workflows", () => {
       .filter((step) => step.run === "npm run test:arc-contracts");
     expect(focused).toEqual([{ if: "${{ needs.classify.outputs.weight == 'light' }}", run: "npm run test:arc-contracts" }]);
 
-    for (const jobName of ["unit", "integration", "e2e", "portability"]) {
-      expect(String(jobValue(workflow, jobName).if)).toContain("needs.classify.outputs.weight != 'light'");
+    const unitCondition = "${{ !cancelled() && github.event_name != 'schedule' && " +
+      "needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && " +
+      "needs.classify.outputs.weight != 'light' && needs.setup.result == 'success' }}";
+    expect(jobValue(workflow, "unit").if).toBe(unitCondition);
+
+    const broadSuiteCondition = "${{ !cancelled() && needs.setup.result == 'success' && " +
+      "needs.classify.outputs.defer != 'true' && ((github.event_name == 'pull_request' && " +
+      "needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || " +
+      "github.event_name == 'workflow_dispatch') }}";
+    for (const jobName of ["integration", "e2e", "portability"]) {
+      expect(jobValue(workflow, jobName).if).toBe(broadSuiteCondition);
     }
-    expect(String(jobValue(workflow, "integration").if)).toContain("github.event_name == 'workflow_dispatch'");
   });
 
   it("parses every workflow and pins every external action", async () => {
