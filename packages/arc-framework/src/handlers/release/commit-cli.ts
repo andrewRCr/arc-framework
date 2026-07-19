@@ -11,12 +11,13 @@
  */
 
 import { spawn } from "node:child_process";
-import { access, constants, open, readFile, rename, stat, unlink } from "node:fs/promises";
+import { access, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
+import { hasEffectiveHook } from "../../lib/hook-manager.js";
 import { environmentForGitCwd, execFileAsync, gitExec } from "../../lib/io-context.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
@@ -155,22 +156,18 @@ async function readStdin(): Promise<Uint8Array> {
 }
 
 async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
-  const { stdout } = await execFileAsync(
-    "git",
-    ["rev-parse", "--path-format=absolute", "--git-path", "hooks/prepare-commit-msg"],
-    { cwd, env: environmentForGitCwd(cwd) },
-  );
-  try {
-    await access(stdout.trim(), constants.X_OK);
-    return true;
-  } catch (cause: unknown) {
-    if (
-      cause instanceof Error
-      && "code" in cause
-      && (cause.code === "ENOENT" || cause.code === "EACCES")
-    ) return false;
-    throw cause;
-  }
+  return hasEffectiveHook(cwd, "prepare-commit-msg", {
+    access,
+    readFile: (path) => readFile(path, "utf8"),
+    resolveGitHookPath: async (root, name) => {
+      const { stdout } = await execFileAsync(
+        "git",
+        ["rev-parse", "--path-format=absolute", "--git-path", `hooks/${name}`],
+        { cwd: root, env: environmentForGitCwd(root) },
+      );
+      return stdout.trim();
+    },
+  });
 }
 
 /**

@@ -37,6 +37,13 @@ async function installHook(name: string, lines: readonly string[]): Promise<void
   await chmod(path, 0o755);
 }
 
+async function installHuskyDispatcher(name: string, lines: readonly string[]): Promise<void> {
+  const path = join(repository, ".husky", "_", name);
+  await mkdir(join(repository, ".husky", "_"), { recursive: true });
+  await writeFile(path, ["#!/bin/sh", ...lines, ""].join("\n"));
+  await chmod(path, 0o755);
+}
+
 async function readHookLog(): Promise<string[]> {
   try {
     return (await readFile(hookLog, "utf8")).trim().split("\n").filter(Boolean);
@@ -181,6 +188,29 @@ afterEach(async () => {
 
 describe("release commit hook ordering", () => {
   it("refuses an invalid deterministic message before pre-commit", async () => {
+    const result = await runCli(["release", "commit", "-m", "short"], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+
+    expect(result.exitCode).toBe(16);
+    expect(result.stderr).toContain("Commit validation FAILED");
+    expect(await readHookLog()).toEqual([]);
+  });
+
+  it("ignores a bare Husky dispatcher shim and refuses before pre-commit", async () => {
+    await git(["config", "core.hooksPath", ".husky/_"]);
+    await installHuskyDispatcher("pre-commit", [
+      'printf "%s\\n" pre-commit >> "$ARC_HOOK_LOG"',
+    ]);
+    await installHuskyDispatcher("prepare-commit-msg", [
+      'printf "%s\\n" prepare-commit-msg >> "$ARC_HOOK_LOG"',
+    ]);
+    await installHuskyDispatcher("commit-msg", [
+      'printf "%s\\n" commit-msg >> "$ARC_HOOK_LOG"',
+      `exec node ${shellQuote(CLI_PATH)} check commit-msg "$1"`,
+    ]);
+
     const result = await runCli(["release", "commit", "-m", "short"], {
       cwd: repository,
       env: { ARC_HOOK_LOG: hookLog },

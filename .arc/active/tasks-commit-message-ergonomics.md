@@ -98,15 +98,14 @@ today's executable-git-path check; the pre-commit rule resolves an ambiguous con
   Lefthook requires commands under the named section, pre-commit recognizes explicit hook stages and default
   install types while presence-biasing `default_stages`, and raw repositories retain the executable Git-hook rule.
 
-### `[ ]` **3.2 Route `hasPrepareCommitMsgHook` through `hasEffectiveHook`**
+### `[x]` **3.2 Route `hasPrepareCommitMsgHook` through `hasEffectiveHook`**
 
 - _Goal:_ The release preflight skip-guard reflects the effective repo hook, so invalid deterministic `-m` input
   refuses at preflight — before the staged-content gate runs — under a hook manager that shims universally.
 
-    - Replace the raw `rev-parse --path-format=absolute --git-path hooks/prepare-commit-msg` probe body in
-      `commit-cli.ts` with `hasEffectiveHook("prepare-commit-msg")`
-    - Add a Husky-managed self-hosting regression proving invalid deterministic input refuses at preflight
-      before the staged-content gate runs — the dispatcher-shim false-positive is gone (SC1)
+- _Outcome:_ `commit-cli.ts` now delegates the skip guard to the manager-aware probe. A built-CLI Husky regression
+  configures the universal dispatcher shims without a public `prepare-commit-msg` hook and proves invalid input
+  refuses at message preflight before any Git hook runs.
 
 ## **Phase 4:** Byte-preserved retry and commit-format guidance
 
