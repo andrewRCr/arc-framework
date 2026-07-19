@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Self-hosted CI draft captured after Heavy-class adversarial review
+- **Last Completed:** Created and finalized spec-self-hosted-ci (detailed RFC)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
