@@ -12,11 +12,12 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** design draft settled — refined + two-pass adversarial review
+- **Last Completed:** create-spec — `spec-review-architecture.md` finalized (adversarial-reviewed, converged)
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** generate-tasks gated on `classify-change-granularity` + `cli-schema-kernel` shipping
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Hold generate-tasks until both deps ship; then re-verify spec § 1.3 against what
+  `classify-change-granularity` delivered before beginning task gen
 
 - **PR URL:** [none]
 - **Completed:** [none]
