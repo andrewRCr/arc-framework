@@ -103,6 +103,10 @@ function splitWords(text: string): string[] {
   return text.trim().split(/\s+/).filter((word) => word.length > 0);
 }
 
+function codePointLength(text: string): number {
+  return Array.from(text).length;
+}
+
 interface FenceToken {
   character: "`" | "~";
   length: number;
@@ -131,7 +135,7 @@ function greedyWrapWords(words: readonly string[], maxWidth: number): string[] {
   for (const word of words) {
     if (current.length === 0) {
       current = word;
-    } else if (current.length + 1 + word.length <= maxWidth) {
+    } else if (codePointLength(current) + 1 + codePointLength(word) <= maxWidth) {
       current = `${current} ${word}`;
     } else {
       lines.push(current);

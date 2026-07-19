@@ -248,6 +248,12 @@ describe("commit message body wrapping", () => {
     );
   });
 
+  it("measures wrap width in Unicode code points", () => {
+    const input = encoder.encode("subject\n\n😀😀 aaa\n");
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 6))).toBe("subject\n\n😀😀 aaa\n");
+  });
+
   it("threads width through assembleCommitMessageParagraphs and preserves no-width output", () => {
     const values = ["subject", "aaa bbb ccc ddd eee"];
 
