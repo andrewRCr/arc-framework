@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                         | **Class** | **Priority** |
 | ---------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/classify-change-granularity` | `Light`   | `P2`         |
+| `Planning` | `andrew`  | `plan/classify-change-granularity` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,7 +11,7 @@
 - **Design:** `draft-classify-change-granularity.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
