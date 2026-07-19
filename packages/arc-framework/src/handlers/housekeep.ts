@@ -34,9 +34,10 @@ export async function handleHousekeepCheck(opts: HousekeepCheckOptions): Promise
 
   const { settings } = await readConfigSettings(cwd);
   const context = await resolveWriteContext({ exec: gitExec, baseBranch: settings["branch.base"] });
+  const branchProtection = settings["branch.protection"] === "full" ? "full" : "partial";
 
   if (opts.json) {
-    process.stdout.write(`${JSON.stringify(context)}\n`);
+    process.stdout.write(`${JSON.stringify({ ...context, branchProtection })}\n`);
     return;
   }
 
