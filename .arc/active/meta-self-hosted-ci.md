@@ -12,11 +12,12 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** Self-hosted CI draft shaped; adversarial pass approved and deferred
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Run the approved Heavy-class adversarial review on `draft-self-hosted-ci.md`, fold findings,
+  and re-surface for capture.
 
 - **PR URL:** [none]
 - **Completed:** [none]
