@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `c4889a1dd`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `0e2a34e84`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -104,11 +104,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit                  | Priority | Owner  | Depends on                        | Cohort            |
-| -------------------------- | -------- | ------ | --------------------------------- | ----------------- |
-| review-gate-github-adapter | P1       | andrew | review-gate-enforcement-promotion | —                 |
-| operational-state-docs     | P2       | andrew | cli-validation-surfaces           | —                 |
-| wu5-public-release         | P3       | andrew | docs-content-sweep                | release-readiness |
+| Work unit                        | Priority | Owner  | Depends on                                                                                                                  | Cohort                 |
+| -------------------------------- | -------- | ------ | --------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| review-gate-github-adapter       | P1       | andrew | review-gate-enforcement-promotion                                                                                           | —                      |
+| cli-substrate-complete-migration | P2       | andrew | cli-schema-kernel, cli-session-envelope, cli-layout-resolver, cli-validation-surfaces, cli-git-executor, cli-command-inputs | cli-substrate-adoption |
+| operational-state-docs           | P2       | andrew | cli-validation-surfaces                                                                                                     | —                      |
+| wu5-public-release               | P3       | andrew | docs-content-sweep                                                                                                          | release-readiness      |
 
 ### Depth 3
 
