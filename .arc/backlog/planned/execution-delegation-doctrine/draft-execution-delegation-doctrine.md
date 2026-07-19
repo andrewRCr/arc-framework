@@ -21,6 +21,19 @@ members consume.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Ground delegation choices in verification-cost economics**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain
+  (2026-07-19); captured from the `commit-message-ergonomics` delegation field test.
+- *Concern:* worker token savings are structural only when checking the result is cheaper than producing it.
+  Full re-derivation makes small, settled, verification-symmetric work a wash; delegation still earns its keep
+  there for context conservation or fresh-context independence, not cost.
+- *Approach:* distinguish verification-asymmetric, beyond-one-context, and parallel wall-clock regimes; make the
+  primary-owned-test / worker-implements-to-green split the main cost lever; graduate verification from gates +
+  primary-owned tests + skim up to full hand-trace only when no cheap checkable contract exists; and separate
+  cost-motivated delegation from context-conservation. Integrate beside the model-tier-routing and field-evidence
+  entries rather than treating it as a separate doctrine axis.
+
 ### `[ ]` **Fold delegation-log field findings into the doctrine**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: execution-delegation-doctrine`), housekeep drain

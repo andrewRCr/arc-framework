@@ -124,3 +124,14 @@
   `git show :<path>` (index content) instead of the worktree/HEAD copy in `check-foreign-writes.ts`, and check
   whether the self-exclusion name resolution can use the same staged read. Keep the advisory's semantics otherwise
   unchanged (advisory-only, never gates).
+
+### `[ ]` **De-flake the base-drift advisory e2e fetch race**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-07-19) — homeless atomic, deferred; captured after
+  PR #292's unchanged retry passed.
+- _Observation:_ `session-init.e2e.test.ts`'s shared advisory base-drift case once produced
+  `verdict: "unavailable"` / `unavailableReason: "fetch-failed"` instead of `reconcile` under CI shard load. The
+  suite and the data-only PR were otherwise unchanged, and the failed-job retry passed.
+- _Approach:_ reproduce under repetition or load, then make the fixture's local-file-remote fetch leg
+  deterministic or add diagnostics that distinguish a genuine fetch failure from fixture contention. Preserve
+  the product's `unavailable` semantics for real failures; change only the test environment.
