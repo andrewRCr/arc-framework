@@ -1,329 +1,71 @@
 # Draft: CLI Substrate Adoption
 
-**Purpose:** Introduce four foundational libraries (zod, execa, type-fest, neverthrow) to the ARC CLI;
-migrate priority validation surfaces to zod schemas (session-init envelope, audit log, post-WOR
-meta-file frontmatter, config); fully migrate git invocation through execa; add neverthrow as
-available substrate with `Probe<T>` → `Result<T, E>` conversion; adopt type-fest opportunistically.
-Lay the typed-validation and ergonomic-error substrate that the parallelism trio and the three
-post-trio architecture-remediation plans consume.
+**Purpose:** Lay the CLI's typed-validation and ergonomic-error substrate: a Zod schema kernel as the one type
+authority ARC's structured surfaces derive from, a `.arc/` layout resolver as the one path authority, four
+foundational libraries (zod, execa, neverthrow, type-fest), and migration of the priority validation surfaces.
+The kernel is the procedure lane's named schema kernel, the storage substrate chain's head, and the unblock for
+`session-locus-model`'s implementation tail.
 
-- **State:** Draft — pre-PRD exploration captured during exploratory Effect TS evaluation session
-  2026-05-17. Two-WU split (substrate / introspection) and post-WOR sequencing settled during
-  facilitation; remaining details (priority site enumeration, execa feasibility confirmation, schema
-  home convention) carry to PRD time.
+- **State:** Formalization-ready — 2026-07-18 holistic refresh of the 2026-05-17 draft; two adversarial passes
+  run to convergence (pass 1: delivery restructured as a cohort, canonical-JSON premise corrected, executor
+  error-contract settled; pass 2: six minors folded, design core withstood). Re-grounded against the current
+  codebase (~100k source LOC; the `GitExec` seam; the coupling-audit extracts), the three forward-compat
+  check-docs, and a re-verified library landscape. Remaining opens are create-spec/decompose detail.
 
-- **Created:** 2026-05-17
+- **Created:** 2026-05-17 · **Refreshed:** 2026-07-18
 
-- **Origin:** Surfaced during a library landscape review motivated by accumulated validation,
-  error-handling, and git-invocation surfaces in the CLI outgrowing the original minimal-deps
-  rationale. Specific gaps (hand-rolled validation scattered across audit-log, session-init probe
-  parsing, and the meta-file frontmatter reader; the custom `gitExec` wrapper having lost ground
-  to mature `child_process` alternatives; the session-init `Probe<T>` reinventing
-  `Result<T, E>` ergonomics; bespoke type-utility helpers in multiple modules) compound on every
-  new feature that touches these substrates — most concretely, the parallelism trio (Worktree
-  Foundation specifically). Effect TS was considered as a comprehensive alternative to the
-  lib-by-lib approach and deferred (see § Design Decisions); the selected libraries form this WU.
-
----
-
-## Inbound Buffer — Pending Integration
-
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
-
-### `[ ]` **Name the schema kernel: one type authority for all structured surfaces**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-18);
-  captured at the storage-substrate grooming (2026-07-17).
-- *Concern:* ARC's typed surfaces are planned as islands — records (ADR-022), probe envelope, workflow
-  contracts/step vocabulary (`composable-workflows`), config schema (`scalable-core`), footer grammar,
-  `schema-introspection-layer` — with no named kernel they derive from. Swamp-style unification (one type
-  authority → validated config → typed queries) is the missing architectural element, not more code. Doctrine
-  line recorded in `strategy-procedure-evolution.md` § Target Model (2026-07-17): structure is typed or it isn't
-  structure; prose is reserved for judgment and communication.
-- *Fold-in:* at grooming, name the kernel as a deliverable: a single Zod schema module as sole type authority;
-  record classes, envelope slots, contracts, step vocabulary, and config axes derive from it; generated docs and
-  `arc schema` introspection expose it. Coordinate with `schema-introspection-layer` and `composable-workflows`
-  D1. Note: the ranked coupling list from `coupling-blast-radius-audit` (now a hard dep of this WU) identifies
-  which concrete-path assumptions the substrate layer must abstract — read it at grooming.
-
-### `[ ]` **Auto-rebuild or gate on stale self-hosting CLI bundles**
-
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during the FP wave-3 launch
-  session.
-- *Concern:* after a base merge, ignored `dist/cli.js` bundles can remain stale per worktree. A required ROADMAP
-  regeneration then runs through a binary the CLI itself distrusts, and clearing the state currently requires a
-  manual build in each affected worktree.
-- *Approach:* add a self-hosting affordance that rebuilds on stale detection or refuses hook-critical operations
-  with a precise rebuild path. Coordinate with this WU's uniform non-interactive command contract.
-
-### `[ ]` **Finish the explicit Class-input contract at `promote`**
-
-- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-07-14); captured during FP wave-2 launch.
-- *Resolved context:* the split-out `start-class-flag` Errand shipped `start --class` and `stub --class`, so the
-  original launch deadlock is closed.
-- *Residual:* `promote` still requires a resolved Class without an equivalent verb-level input. Low urgency now
-  that `stub --class` closes the gap at birth, but retain the asymmetry for this WU's uniform validation and
-  explicit-input pass rather than rebuilding the shipped start/stub work.
-
-### `[ ]` **Guard self-hosting recovery against broken generated CLI bundles**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-07);
-  captured during `finalize-parallelism` Task 2.1.d recovery from a post-compaction seed-write failure, 2026-07-06.
-- *Concern:* In the self-hosting repo, `npx arc` resolves to the ignored generated bundle at
-  `packages/arc-framework/dist/cli.js`. During FP Task 2.1.d, compaction recovery seed emission failed before audit
-  because the bundle had been rebuilt from an interrupted source edit: the production adapter referenced `writeFile`
-  / `mkdir`, but the source import had not yet been completed, so the generated CLI threw a module-load
-  `ReferenceError`. The committed branch was not broken; the recovery path was blocked by a dirty generated binary.
-- *Approach:* Decide where to guard this class of failure: a harness/common-script preflight that can run before
-  invoking `npx arc`, a self-hosting rebuild / typecheck smoke check when seed emission fails at module load, or a
-  stronger local-CLI invocation contract that reports "dist is stale or broken; rebuild/typecheck first" instead of
-  leaving recovery stranded. Coordinate with `self-hosting-manifest-freshness` and `quality-gate-hooks`.
-
-### `[ ]` **Garbage-collect stale Codex compaction recovery handoffs**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-07);
-  captured during `finalize-parallelism` Task 2.3.c pre-work, 2026-07-06.
-- *Concern:* Codex recovery uses `.arc/user/.internal` as a global handoff / fallback rendezvous, while the
-  canonical `compaction-seed.json` remains identity-scoped under `.arc/user/{identity}/.internal`. A failed
-  self-hosting seed / recovery path left a stale `codex-compaction-recovery-seed-*` handoff in the global directory
-  after the identity-scoped seed had moved on, making the directory look like a standalone seed home.
-- *Approach:* Document the split in the recovery hook/admin surface and add stale handoff garbage collection.
-  session-init / recovery or pre-compact can reap expired `codex-compaction-recovery-seed-*` files from
-  `.arc/user/.internal` so one-off failures do not leave misleading residue. Keep fallback pending markers global;
-  do not move canonical seeds out of the identity-scoped directory.
-
-### `[ ]` **Compaction seed + recovery envelopes — hand-typed now, CSA migration target**
-
-- *Routed from:* `compaction-recovery` draft-design (2026-06-28).
-- *Seam:* the seed is another agent–CLI envelope crossing the same process boundary CSA hardens, and the `loadSet`
-  / `taskCursor` slices extend the session-init and recover envelopes. `arc recover audit --json` adds a second
-  report boundary with a typed ready/stop verdict. Pre-CSA they ship **hand-typed TypeScript** (like the current
-  envelope — typed in TS, validated by hand à la `audit-log.ts:validateEntry()`), since zod / neverthrow `Result`
-  / validate-on-emit+consume arrive with this WU. They are deliberate targets for the priority validation-surface
-  sweep — *exactly* CSA's "codify a settled shape after it ships" model; the debt is pre-budgeted.
-- *Invariant (shared with OSD):* one shared projection / one reader means CSA migrates **one** typed load-set shape,
-  one task-list cursor shape, and one recovery-audit verdict shape, not parallel agent-only variants. No new
-  *untyped* boundary is introduced, and the recovery audit is a pure function (typed-in / typed-out / `Result`) —
-  a clean CSA target.
-
-### `[ ]` **Uniform non-interactive handling for agent-invoked prompting commands**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cli-substrate-adoption`), agile-wu-lifecycle cohort
-  housekeep drain (2026-06-04). Captured during `agile-wu-lifecycle` graduation (2026-06-03) — `arc user open
-  agile-wu-lifecycle` hung on the stale-CWC-subdir confirm; worked around by seeding the user workspace manually.
-- *Concern:* `arc user open <name>` hangs the agent when its defensive "stale subdir from prior WU" confirm fires
-  — no `--yes` / `--no-input` flag, and the confirm does not auto-skip under non-TTY / agent invocation. Worktree
-  Foundation's cold-start path (`arc start --here`) explicitly designed its confirm to auto-skip the agent's
-  non-interactive call, but that behavior is not uniform — `arc user open` (and likely other prompting
-  subcommands) still block.
-- *Proposed:* audit prompting subcommands; establish a uniform non-interactive contract
-  (auto-skip-to-safe-default under non-TTY, or an explicit flag) so agent / automation invocation never hangs.
-  `arc init --yes` is the established precedent for the flag pattern.
-
-### `[ ]` **Evaluate a real CLI command for workflow-markdown files + clearer "load and follow" skill wording**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD` → routed here at drain), housekeep drain (2026-06-08);
-  captured at `scalable-authoring-pipeline` session init.
-- *Concern:* `arc-session`'s skill body says to "Run" `…/session-init.md`, which reads like a CLI invocation
-  target rather than "load and follow this agent workflow." This repo's `npx arc …` bootstrap rule sharpens the
-  ambiguity: `npx arc …/session-init.md` is a plausible but invalid interpretation.
-- *Proposed:* Evaluate two related questions, either landable alone: (a) rephrase the skill body to "load and
-  follow" the markdown workflow, and note that workflow-internal CLI calls use `npx arc …` here; (b) decide
-  whether a real ARC CLI command for workflow-markdown files is useful as a validator, inspector, context
-  loader, checklist emitter, or eventual workflow runner — the CLI-surface half this WU's substrate is
-  positioned to host.
-- *Scope:* touches self-hosting skill wording, adopter-facing skill generation, and possible CLI surface area;
-  the wording fix is small, the CLI-command question is the substantive / trackable half.
-
-### `[ ]` **Require commitment-level + priority as explicit inputs at stub creation (no silent `provisional`/`P3`)**
-
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-13); captured during the `arc-plan-conductor`
-  decomposition (2026-06-12) — the agent defaulted a new stub to `provisional`; corrected to planned/P2. (That
-  decomposition's originating stub is since retired; the concern stands on its own.)
-- *Concern:* stub creation silently defaults commitment-level to `provisional` and priority to `P3` when an agent
-  scaffolds a stub, but both are the maintainer's explicit call — not maturity, not who minted the stub.
-  `drain-inbox § 5` already says "the user decides; never hard-default silently" for commitment-level, but that
-  rule isn't mechanically enforced; priority has no equivalent guard at all.
-- *Proposed:* make commitment-level (`provisional` | `planned`) **and** priority **required inputs** across the
-  stub-creation paths — `arc start` / cold-start, `decompose-work-unit`, drain new-stub scaffolding,
-  `init-work-unit` — a mechanical prompt / required-arg rather than agent discretion. The non-TTY half composes
-  with the "Uniform non-interactive handling" buffer item above (no silent default under non-TTY either: fail, or
-  require an explicit flag). Both axes are one "don't assume the maintainer's commitment / attention level" concern.
-- *Home split:* the mechanics (agent-invoked prompting-command contract + required-arg wiring) land here; the
-  **mandatory-fields policy** ("commitment + priority are the maintainer's explicit call at every stub-creation
-  path") cross-refs `strategy-work-organization` as the contract's authoritative statement. Kept as one capture,
-  not split, per the drain.
-- *Narrowed (routed from `USER-INBOX § Backlog`, housekeep drain 2026-06-14):* the **required-at-primitive**
-  half is no longer this WU's — `lifecycle-transition-core` mints a unified `stub` primitive that every
-  create-path (`start` / cold-start, `decompose`, drain new-stub scaffolding, `init`-resume) routes through, and
-  puts the no-silent-`provisional`/`P3` contract on that one chokepoint (see its draft § "`stub` creation
-  contract"). What stays here is the **generic non-TTY prompting-command substrate** the `stub` primitive rides
-  on — the interactive-elicit + fail-or-require-flag-under-non-TTY behavior, shared with the "Uniform
-  non-interactive handling" item above. The mandatory-fields policy statement still cross-refs
-  `strategy-work-organization`.
-- *Scope:* multi-step — the non-TTY prompting substrate plus CLI / workflow surfaces (two-copy).
-
-### `[ ]` **Swap reconcile-branch's hand-rolled remote-delete classification onto structured git errors**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-06-17);
-  captured during `lifecycle-transition-core` integration — PR #103 CodeRabbit review (2026-06-16).
-- *Concern:* `reconcile-branch.ts`'s `delete` mutator distinguishes a benign remote-delete failure (a never-pushed
-  branch — git's "remote ref does not exist") from actionable ones (auth / connectivity / wrong remote) by
-  **substring-matching `err.stderr`**. That is the robust shape available against today's bare `execFile`-wrapping
-  git seam, but it is locale-fragile and has no structured home in the executor.
-- *Proposed:* when this WU lands its execa / neverthrow git layer, replace the stderr-substring match with
-  structured `Result` error variants (typed exit-code + error kind), and apply the same posture to any other
-  hand-rolled git-error string-matching the executor's mutators picked up in `lifecycle-transition-core`.
-- *Status:* the correctness fix (propagate actionable failures) already landed via exit-code / stderr
-  classification; this is the follow-up refactor to the structured layer only.
-
-### `[ ]` **Migrate decompose-matrix's hand-rolled cut-map validator onto a zod schema**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-06-22);
-  captured during `decompose-matrix` create-spec (2026-06-21), forward-compat pass against this WU and
-  `schema-introspection-layer`.
-- *Concern:* `decompose-matrix` ships `arc decompose <origin> --cut-map <file>` with a bespoke boundary
-  parser-validator for the cut-map (members, edges, distribution, dispositions), because zod isn't a CLI dep until
-  this WU. It is deliberately authored as a migration drop-in: a single parse/validate entry point, co-located
-  under `lib/work-unit/`, with a versionable `schemaVersion`-ready top-level shape.
-- *Proposed:* fold the validator onto a zod schema in this WU's validation-surface sweep, alongside the existing
-  enumerated targets (cold-start spec-input parser, branch-gone cascade union, reconcile-branch error
-  classification). Once schematized, `schema-introspection-layer` can publish the cut-map contract via `arc schema`.
-
-### `[ ]` **Wire discretionary resolvers into deterministic call sites — they go unused at agent discretion**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD` → routed here at drain), housekeep drain
-  (2026-06-25); surfaced during `out-of-wu-entry` generate-tasks grounding (2026-06-24). Provisional.
-- *Concern:* discretionary CLI resolvers appear under-adopted — agents prefer manual Grep/Read at the point of
-  need (observed with the `arc status <slug>` lifecycle-state resolver, surfaced in
-  `DEV-RULES.ARC § Verify-before-assuming` but rarely invoked). At agent discretion a resolver loses to the
-  blessed "verify from source: Grep/Glob/Read" default — zero-recall, self-evidently correct, no
-  trust-the-output cost.
-- *Hypothesis:* a resolver earns adoption only when (a) wired into a deterministic path (code → code, or a
-  workflow probe that runs unconditionally), or (b) it returns what manual inspection can't cheaply produce
-  (network- or cross-WU-aggregated answers).
-- *Proposed:* audit whether `arc status <slug>` (and similar single-fact resolvers) should back ceremonies
-  deterministically rather than live as a "remember to invoke" rule; possibly reframe the
-  `DEV-RULES § Verify-before-assuming` resolver guidance. Investigation with a likely small constitutional +
-  workflow edit.
-- *Home note:* routed here as substrate-adoption territory (wiring CLI resolvers into deterministic call sites);
-  a dedicated `resolver-adoption` stub is the alternative home the capture named.
-
-### `[ ]` **Add a `--class` flag to `arc start` for inline class resolution**
-
-- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-06-27); captured during `state-ref-write-safety`
-  init (2026-06-26).
-- *Concern:* initializing a `backlog/planned/` stub whose meta still carries `Class: [TBD]` is blocked by the
-  `class-resolved` guard, forcing a hand-edit of the backlog meta before `arc start` even when the draft already
-  documents the estimate. A `--class <light|heavy|novel>` flag would resolve it inline at init, staged into the
-  init commit just like the hand-edit. Parallels the existing `arc errand promote --class` flag.
-- *Approach:* add the Commander option to `arc start`, thread it into the start handler to write the meta's
-  `Class` before the `class-resolved` guard fires; validate against the three values. Consider whether it should
-  also seed the fresh-WU (cold-start) scaffold's `[TBD]`. Touches the `init-work-unit` workflow doc (the
-  resolve-class-first guard) and QUICK-REFERENCE's `arc start` synopsis — a mild infra touch.
-- *Drain note (2026-06-27):* verified the flag does not yet exist — only the `class-resolved` guard is present in
-  `start.ts`. Routed here over a standalone errand per the capture's own CLI-surface-fit suggestion.
-
-### `[ ]` **Remove the dead `priorFileList` field from the `.sync-state.json` schema**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-06-27);
-  captured during the `notes-drift-shipped-oracle` errand (PR #146), 2026-06-27.
-- *Concern:* since the shipped-set-oracle retirement fix (PR #146), `priorFileList` is no longer read by any
-  logic (retirement is judged via `readShippedWorkUnitsFromRef`). It remains round-tripped/validated in
-  `lib/user-sync/sync-state.ts` (the `priorFileList?` field, the `isPriorFileList` validator, the write-fn param,
-  and the spread sites) — write-only dead state.
-- *Approach:* drop the field with its validator, write-fn param, and spread sites. Backward-compatible (optional
-  field; the reader tolerates unknown/missing keys), so no sync-state version bump — old files keep it harmlessly
-  until rewritten. Best folded in when this WU formalizes the sync-state schema in zod, to avoid double-churn.
-- *Drain note (2026-06-27):* verified narrower than captured — the `save-load.ts` write-site is already gone; the
-  field now lives only in `sync-state.ts` (+ a `save-load.test.ts` reference). The dead-schema cleanup stands.
-
-### `[ ]` **Design the schema kernel to need no TypeScript compiler API — target the 7.1 shape where unavoidable**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-18);
-  captured during post-handoff TS 7 evaluation discussion, 2026-07-18.
-- *Concern:* the kernel doctrine is "schemas are generated from the TypeScript types — one source, cannot drift."
-  TS 7.0 (GA 2026-07-08) ships **no stable programmatic API**; the stable API arrives in 7.1 (~Oct 2026) and its
-  settled direction is **out-of-process** — the Go compiler runs as a separate API-server process, a JS client
-  talks over STDIO IPC (sync bridging via `libsyncrpc`), with snapshot-based project loading and query/visitor
-  AST + symbol access. The 6.0 in-process idiom (live `Program` / `TypeChecker` / `Node` objects) is dead going
-  forward. This WU starts before 7.1 ships, so any API coupling chosen now against 6.0 is churn.
-- *Approach:* strongest insulation is **inverting the derivation** — author Zod as the source of truth and derive
-  the static types via `z.infer`, so the kernel needs no compiler API at all while still satisfying
-  one-source-cannot-drift (arguably better: the runtime validator and the type cannot diverge by construction).
-  If extraction from TS source ever proves genuinely necessary, isolate it behind a thin port designed to the 7.1
-  model (async-tolerant, query/batch-shaped, no retained AST object identity) and pin TS 6 only at that port.
-  The repo toolchain stays on 6.x meanwhile (condition-gated migration tracked in `ATOMIC-INBOX`).
-
-### `[ ]` **Review coupling-audit finding: tracked-planning Git operations**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-18);
-  captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
-- *Concern:* direct tracked-planning Git operations remain a low-fan-out but high-volatility mechanism that the
-  CLI verb substrate is intended to replace.
-- *Approach:* groom the four-file evidence set as explicit verb-adoption scope and verify no direct operation
-  survives the boundary.
-- *Packet:* `packet-77df5c8e478dd5711fd41ba3`; content digest
-  `6c922e150f627059e77921c8082e8816a3e0e1a8bb2428b68a5f4bf68b98e6bf`.
-- *Evidence:* `tracked-planning-git-operations`; `scan-result.json#class-tracked-planning-git-operations`.
-
-### `[ ]` **Review coupling-audit finding: substrate abstraction input**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-07-18);
-  captured during `coupling-blast-radius-audit` Task 6.2, 2026-07-18.
-- *Concern:* fifteen abstract concrete-path classes require one resolver/substrate ownership decision rather than
-  independent path-literal migrations.
-- *Approach:* use the mandatory substrate extract at grooming to define resolver responsibilities and consciously
-  accept or reject each linked class.
-- *Packet:* `packet-9fd430233e343d1a3fb3157e`; content digest
-  `c70fd08914ff9992c42b659f6781ae2fd40dd36d51538f1dbc871b254d4a8426`.
-- *Evidence:* `active-placement`, `arc-root`, `completed-placement`, `draft-prefix`, `meta-prefix`, `method-root`,
-  `notes-prefix`, `planned-placement`, `roadmap-name`, `session-notes-name`, `spec-prefix`, `tasks-prefix`,
-  `template-suffix`, `workflow-root`, and `working-memory-name`; extract `reportInputs.substrateAbstractions`;
-  corresponding `scan-result.json#class-*` anchors.
+- **Origin:** Surfaced during a library landscape review motivated by accumulated validation, error-handling,
+  and git-invocation surfaces outgrowing the original minimal-deps rationale. Effect TS was considered as a
+  comprehensive alternative and deferred (see § Design Decisions). Role expanded at the 2026-07-17
+  storage-substrate grooming (one-schema-kernel doctrine) and the 2026-07-18 coupling-audit close (substrate
+  abstraction ownership).
 
 ---
 
 ## Problem / Motivation
 
-The CLI has grown to a point where the original "minimal deps" rationale costs more than it saves.
-Four substrate gaps compound on every new feature that touches validation, git invocation, error
-ergonomics, or type utilities:
+The CLI has grown to ~100k source LOC across ~505 files (with ~130k test LOC) — roughly 15–20× the scale the
+original minimal-deps posture was set against — and four substrate gaps now compound on every feature that
+touches validation, git invocation, error ergonomics, or path resolution:
 
-1. **Validation is hand-rolled and scattered.** `audit-log.ts:validateEntry()` is rigorous but
-   bespoke; `worktree-sync.ts` parses git output via string matching; the session-init JSON
-   envelope is typed in TS but never runtime-validated against its consumer (the agent across a
-   process boundary). Each new validation surface is a fresh hand-rolled parser-validator pair.
+1. **Validation is hand-rolled and scattered, with zero runtime dependencies to lean on.** Production deps are
+   only `@clack/prompts`, `commander`, `js-yaml`, `semver`, `string-width`. Hand-rolled parser-validator pairs
+   span the ~25-slot session-init envelope (typed in TS, never runtime-validated across the agent process
+   boundary), `audit-log.ts:validateEntry()`, the frontmatter readers, config parsing, sync-state, the
+   decompose cut-map validator, and the compaction-seed / recovery envelopes.
 
-2. **Git invocation goes through a thin custom wrapper.** `lib/io-context.ts:gitExec` wraps
-   `child_process.execFile` directly. Lost ground to mature alternatives: no `AbortSignal`
-   support, weaker error messages (stderr not embedded in the thrown error), no killSignal
-   control, manual exit-code-to-rejection handling per site.
+2. **Path literals are scattered with no layout authority.** The coupling-blast-radius audit's mandatory
+   substrate extract identifies **15 abstract concrete-path classes** — rank-1 `arc-root` alone fans out across
+   388 files; `active-placement` across 243 — requiring one resolver/substrate ownership decision rather than
+   independent path-literal migrations. Today only package-relative template resolution (`paths.ts`) and a few
+   `constants.ts` segments exist; the `.arc/` layout itself has no owner in code.
 
-3. **`Probe<T>` reinvents `Result<T, E>` ergonomics.** The session-init probe slot type is a
-   well-shaped hand-rolled `{ok: true, value} | {ok: false, error}`. Composition (`.map`,
-   `.mapErr`, `.andThen`) is per-site boilerplate.
+3. **Error and result ergonomics are per-site.** `Probe<T>` (the session-init slot type) is a well-shaped
+   hand-rolled `{ok, value} | {ok, error}` union whose composition is per-site boilerplate. Git-error
+   classification falls back to locale-fragile stderr substring-matching (`reconcile-branch.ts`'s delete
+   mutator). Canonical JSON has a centralized trust core (`lib/canonical/` — codepoint-ordered, NFC-normalized,
+   digest-pinned; 29 importers) but peripheral surfaces still hand-roll divergent canonicalization (the
+   review-gate identity snapshot sorts keys with locale-sensitive `localeCompare`).
 
-4. **Type-utility helpers are scattered or absent.** Bespoke `Promisable`-shaped helpers and
-   `SetRequired`-shaped patterns surface in multiple modules; no shared utility surface.
+4. **Git invocation ergonomics stop at the seam.** The codebase converged on an injectable `GitExec` function
+   type (126 consuming files) with the raw `child_process.execFile` binding confined to ~11 files — good
+   architecture, but the executor beneath it offers no typed errors, and `AbortSignal`/`cwd` handling is
+   hand-maintained.
 
-None of these are bugs today. The compounding cost shows up wherever new validation, error
-ergonomics, AND cancellable git invocations land at once — a new feature touches all four
-substrates simultaneously, multiplying per-site cost. This WU captures the four selected adoptions
-as a coherent substrate pass rather than handling each substrate in its own WU.
+None of these are bugs today. The compounding cost lands wherever new validation, error ergonomics, and typed
+contracts arrive at once — and three system positions now make the gap load-bearing:
 
-Under the 2026-05-20 resequence (WF ahead of CSA), WF's hand-rolled
-`git worktree list --porcelain` parsers (3 sites), branch-gone cascade evidence discriminated
-union, cold-start spec input parser (5 variants), cross-WU note payload validation, and
-worktree-aware additions to the session-init envelope become migration targets for this WU's
-sweep — sites already shipped that CSA modernizes alongside its other priority surfaces. That's
-the typical CSA migration shape (codify a settled shape after it ships), not a design coupling.
-Other downstream consumers — Coord Probe, the architecture-remediation cluster, Schema
-Introspection Layer — inherit substrate as usual.
-
-These gaps were tractable individually but compound when adjacent. The four selected adoptions
-ship coherently here rather than spreading across the consumers.
+- **The procedure lane's schema kernel.** `strategy-procedure-evolution.md` § Target Model names this WU's Zod
+  base as the **one schema kernel**: record classes, envelope slots, workflow contracts, the step vocabulary,
+  and config axes all derive from it; documentation is generated from it; `schema-introspection-layer` exposes
+  it. Doctrine: *structure is typed or it isn't structure; prose is reserved for judgment and communication.*
+- **The storage substrate chain's head.** The chain runs `coupling-blast-radius-audit` → this WU →
+  `operational-state-docs` (the ADR-022 records layer) → toward `local-mode`. The layout resolver built here is
+  the storage-abstraction seam (`strategy-storage-evolution.md` Principle 1) a future materialized `.arc/`
+  re-points without touching hundreds of files.
+- **The `session-locus-model` unblock.** SLM (P1) finishes create-spec, then holds its implementation tail
+  until this WU's kernel exists, so its record schemas aren't churned twice. The kernel is the urgent
+  deliverable; it ships first as the delivery stack's head member (see § Delivery structure).
 
 ---
 
@@ -331,456 +73,489 @@ ship coherently here rather than spreading across the consumers.
 
 ### In scope
 
-1. **zod adoption with priority migrations.** Add `zod` as production dep; migrate priority
-   surfaces to zod schemas:
-    - **Session-init JSON envelope** — agent–CLI process boundary contract; highest value. Schema
-      lives in `lib/session-init/schemas.ts` (or equivalent — PRD-time decision on schema-home
-      convention); CLI validates on emit; agent / tests validate on consume.
-    - **Audit-log entry** — replace hand-rolled `validateEntry()` with zod schema for v1; scaffold
-      `z.discriminatedUnion` over `schemaVersion` for future v2.
-    - **Post-WOR meta-file frontmatter** — codifies the R58 shape that WOR ships (H1 + grouped
-      field blocks). Schema validates round-trip from disk reads.
-    - **Configuration file** (`arc-config.yml`) — settings parsing currently hand-rolled around
-      `js-yaml`; zod schema validates the parsed object.
-    - **Per-site convention:** zod schemas live at I/O boundaries; internal code consumes
-      already-parsed strongly-typed values; types are inferred via `z.infer<typeof X>` (no parallel
-      hand-written types). Use `parse()` for internal CLI-emit paths (programmer-error-throws);
-      `safeParse()` for consume paths where graceful handling matters.
-    - **Out of WU-A:** probe-output parsing for individual git commands beyond `git worktree list`,
-      scattered string-matching parsers, every config-key validation site. Captured to the
-      follow-up "Complete CLI Substrate Migration" WU (placeholder; named at WU-A integration).
+1. **Schema kernel.** A kernel module (working name `lib/kernel/`; final name and home at spec) that is the
+   single type authority for shared vocabulary:
+    - **Vocabulary primitives:** lifecycle `State`, `Class`, slug/branch shapes, artifact-prefix and
+      placement tokens, record-class identities, config-axis primitives.
+    - **Authoring model:** Zod schemas are the source of truth; static types derive via `z.infer`. No parallel
+      hand-written types, and **no TypeScript compiler API dependency** (see § Design Decisions — TS 7
+      insulation).
+    - **Registry with versioning discipline:** every kernel-registered schema carries a `schemaVersion` and a
+      migration posture from day one (generalizing the cut-map validator's versioned-union pattern — reject v1
+      with upgrade guidance, accept v2). This is the mechanical form of the pre-release contract-stability
+      bar. `schemaVersion` is registry metadata: it appears on the wire only where a surface's shape already
+      carries it (the audit log's `schemaVersion`, sync-state's `version`); wire-frozen surfaces (the
+      envelope) stay unversioned on the wire until a deliberate, versioned contract change.
+    - **Error taxonomy:** fold the existing `ArcError` code union into kernel vocabulary and extend it with the
+      structured git-error kinds the executor upgrade introduces — one error model, not per-module conventions.
+    - **Result insulation:** the kernel re-exports `Result` / `ResultAsync` / `ok` / `err` from neverthrow, so
+      a later library swap is one import-site change plus a mechanical codemod.
+    - **Canonical JSON:** bless the existing trust core (`lib/canonical/` — canonical serialization + digest
+      primitives) as the kernel's canonicalization authority and migrate peripheral hand-rolled outliers onto
+      it (e.g. the review-gate identity snapshot's locale-sensitive key sort). **No serialization-semantics
+      change** — persisted receipts re-verify by byte-exact recomputation, so digest continuity is a hard
+      constraint (see § Design Decisions).
+    - Subsystem schemas stay co-located (`lib/<subsystem>/schemas.ts`) and **compose kernel primitives instead
+      of redeclaring them**, registering into the kernel registry. Single authority for vocabulary, distributed
+      authorship for composition.
 
-2. **execa migration — full sweep.** Add `execa` as production dep; replace `child_process.execFile`
-   usage throughout and migrate all callers:
-    - Production sites: ~81 (grep baseline; PRD-time enumeration confirms).
-    - Test sites: ~28 test files mocking `gitExec` / `execFile` / `stubGitExec`.
-    - Pattern: drop `gitExec` if redundant after migration, or retain as a thin pass-through if it
-      adds value (DI seam for tests, naming clarity for ARC's specific call shape). PRD-time
-      decision.
-    - Test mocks update to match execa's interface; `stubGitExec` retires or evolves into an
-      execa-shaped equivalent.
-    - Gain `AbortSignal` support uniformly — downstream value for any cancellable-operation use
-      cases.
-    - **Feasibility check at PRD:** spot-check 3–5 representative call sites to confirm 1:1
-      mechanical migration. Edge cases that could downgrade to hybrid (wrapper internals + partial
-      caller migration with named follow-up): binary stdout handling, large-stdout streaming,
-      signal propagation differences, sites depending on `execFile`-specific behavior.
+2. **`.arc/` layout resolver.** One path authority for the `.arc/` structure, executing the audit's mandatory
+   substrate extract:
+    - **Two-layer split:** layout *tokens* (roots, placement names, artifact prefixes, well-known doc names)
+      are kernel vocabulary; path *resolution* (repo root → absolute paths, placement transitions) is a
+      resolver service consuming them.
+    - **Migration scope:** the 15 abstract path classes (`arc-root`, `active-placement`, `meta-prefix`,
+      `planned-placement`, `completed-placement`, `draft-prefix`, `spec-prefix`, `tasks-prefix`,
+      `notes-prefix`, `method-root`, `workflow-root`, `roadmap-name`, `session-notes-name`,
+      `working-memory-name`, `template-suffix`) — code and test surfaces migrate in this WU; prose/workflow
+      surfaces ride their own later movers. A per-class accept/reject pass runs at spec time against the audit
+      inventory (evidence: routing ledger packet `substrate-abstraction-input`; corpus retrieval per the audits
+      README — the scan corpus is digest-pinned in history, not at the tip).
+    - **Tracked-planning git operations:** groom the four-file evidence set (packet
+      `tracked-planning-git-operations`) as explicit verb-adoption scope; verify no direct tracked-planning git
+      operation survives the boundary.
+    - Forward-compat: this resolver is the `strategy-storage-evolution.md` Principle 1 seam — workflows and
+      code ask for paths; the storage layer provides them.
 
-3. **neverthrow availability and `Probe<T>` conversion.** Add `neverthrow` as production dep:
-    - Convert `Probe<T>` (the session-init probe slot type, `{ok, value} | {ok, error}`) to
-      `Result<T, ProbeError>`. Strongest neverthrow showcase; agent-visible contract via the
-      session-init envelope; conversion in WU-A migrates WF's already-shipped probes onto the
-      `Result` shape, and downstream code (Coord Probe, the introspection layer in WU-B) builds
-      on it directly.
-    - Evaluate `AuthorizationDecision` in the release module for conversion. Today it's a bespoke
-      discriminated union with per-code refusal payloads (10–15). Fold into
-      `Result<void, AuthorizationRefusal>` with the refusal as the error type, or keep bespoke?
-      PRD-time decision — argument for conversion is ergonomic consistency; argument against is
-      that the bespoke union carries per-code structure (numeric codes, structured payloads)
-      that's harder to express through a generic Result.
-    - Other call sites: no forced wholesale migration. Opportunistic adoption thereafter; named
-      follow-up WU captures the comprehensive sweep.
+3. **zod adoption with priority migrations.** Add `zod` (4.x mainline) as a production dep; migrate priority
+   surfaces:
+    - **Session-init JSON envelope** — the agent–CLI process-boundary contract; highest value. CLI validates on
+      emit; tests validate on consume. **Wire format preserved** (see § Design Decisions).
+    - **Audit-log entry** — replace hand-rolled `validateEntry()` with a schema matching the shipped wire
+      (`schemaVersion: 2` only — no v1 exists on disk); future revisions use the versioned-union pattern the
+      cut-map validator established.
+    - **Meta-file frontmatter** — codify the shipped meta shape (H1 + grouped field blocks); validates
+      round-trip from disk reads. Per ADR-022, the meta record schema is the structural source of truth for the
+      managed operational-state document class — coverage beyond the current surfaces is
+      `operational-state-docs`' side of the boundary (see § Coordination).
+    - **Configuration file** (`arc-config.yml`) — schema-validate the parsed object. Mechanics only: config
+      *axis reform* (e.g. the `pm.mode` packet) belongs to `scalable-core`.
+    - **Shipped drop-in targets** (authored awaiting this substrate): the decompose cut-map validator
+      (deliberately migration-ready — single entry point, versionable shape), sync-state (dropping the dead
+      `priorFileList` field, its validator, write-fn param, and spread sites — backward-compatible, no version
+      bump), the compaction-seed + recovery envelopes (`loadSet` / `taskCursor` slices, `arc recover audit`'s
+      typed verdict — pre-budgeted debt, one shared shape each, no agent-only variants), the
+      `git worktree list --porcelain` parsers, the branch-gone cascade evidence union, the cold-start
+      spec-input parser (5 variants), and cross-WU note payload validation.
+    - **Per-site convention:** schemas at I/O boundaries; internal code consumes parsed, typed values;
+      `parse()` for internal emit paths, `safeParse()` where graceful handling matters.
+    - **Generated JSON Schemas as build artifact:** zod 4's native `z.toJSONSchema()` makes artifact generation
+      near-free, so this WU emits generated JSON Schemas at build time. The *publication commitment* (CLI
+      surface, versioning policy, deprecation discipline) stays with `schema-introspection-layer`.
 
-4. **type-fest addition.** Add `type-fest` as dev dep (zero runtime cost):
-    - No bulk migration; absorb naturally as bespoke type helpers are encountered (e.g.,
-      `Promisable`, `SetRequired`, `JsonValue`, `Merge`, `PartialDeep`).
-    - PRD enumerates the bespoke type-utility sites currently in `lib/types.ts` and equivalents;
-      WU-A replaces the obvious wins.
+4. **Executor upgrade (execa 10 behind the seam).** The May framing (~81-site caller sweep) is obsolete — the
+   `GitExec` seam already exists. Remaining work:
+    - Swap the production executor internals (`io-context.ts` and the ~11 files binding `execFile`) to
+      **execa 10.x**; the stdin-fed `GitExecInput` variant migrates alongside.
+    - **Upgrade the `GitExec` error contract** to structured, typed error variants (exit code + error kind) —
+      the deliberate, designed change that ripples; replace `reconcile-branch.ts`'s stderr substring-matching
+      and any sibling hand-rolled git-error string matching with typed variants.
+    - Feasibility spot-check covers the ~11 binding files, noting execa 10's breaking changes: the return is a
+      plain Promise (Node `ChildProcess` APIs live behind `subprocess.nodeChildProcess`), `execaCommand`
+      removed, Node ≥22 required (satisfied). One break lives inside the seam module itself: `exec.ts`'s
+      bounded invocations classify timeouts via `err.name === "AbortError"`, which execa signals differently
+      (`ExecaError` with `isCanceled`) — absorb it into a typed aborted/timeout error kind rather than letting
+      probe degradation silently reclassify as generic error.
+    - The contract stays **throw-based** — the upgrade is richer thrown error types, not a `Result`-shaped
+      seam (settled; see § Design Decisions).
+    - Test mocks are `GitExec`-shaped (functions), so mock churn is minimal by construction.
 
-5. **Coordination patches against the three architecture-remediation plans.**
-    - Update `plan-lib-layer-type-extraction.md`, `plan-sync-handler-decomposition.md`,
-      `plan-user-sync-module-split.md` with cross-references noting WU-A is upstream substrate;
-      their scopes inherit zod schemas + Result types.
-    - **No scope absorption** — those plans remain independent WUs in the post-trio cluster.
+5. **neverthrow adoption and `Probe<T>` conversion.** Add `neverthrow` as a production dep:
+    - Convert `Probe<T>` composition to `Result<T, ProbeError>` / `ResultAsync` pipelines internally — the
+      probe sites are async git-read chains, `ResultAsync`'s exact shape.
+    - **Emit boundary serializes to the existing `{ok, value} | {ok, error}` wire shape** — see § Design
+      Decisions (wire-format stability).
+    - Evaluate `AuthorizationDecision` (release module) for conversion at spec time — the bespoke union carries
+      per-code structured payloads that a generic `Result` may express worse; deferring it to opportunistic
+      post-WU adoption is defensible. No forced wholesale migration elsewhere; the follow-up WU owns the
+      comprehensive sweep.
 
-6. **Follow-up WU stub.** Create a thin `plan-cli-substrate-migration-completion.md` (working name)
-   in `backlog/technical/` capturing the sites WU-A defers. Comprehensive vision preserved without
-   inflating WU-A's scope. Placeholder; elaborated when WU-A nears integration.
+6. **type-fest addition** (v5.x line, dev dep, zero runtime cost). No bulk migration; replace bespoke type
+   helpers as encountered; spec enumerates the obvious wins in `lib/types.ts` and equivalents.
+
+7. **Uniform non-interactive contract + boundary input validation.** One "inputs at the boundary" story:
+    - Audit prompting subcommands; establish the uniform contract — auto-skip-to-safe-default under non-TTY, or
+      an explicit `--yes` / `--no-input` flag — so agent/automation invocation never hangs (`arc user open`'s
+      stale-subdir confirm is the motivating failure; `arc start --here` and `arc init --yes` are the shipped
+      precedents).
+    - **Required-inputs substrate:** the generic interactive-elicit + fail-or-require-flag-under-non-TTY
+      behavior that stub-creation paths ride (no silent `provisional`/`P3` defaults). The *policy* — commitment
+      and priority are the maintainer's explicit call at every stub-creation path — is stated authoritatively in
+      `strategy-work-organization`; the unified `stub` primitive chokepoint is `lifecycle-transition-core`'s
+      shipped territory — this WU supplies the substrate beneath it. The residual `promote` asymmetry (no
+      verb-level Class input) folds into the same explicit-input pass.
+    - Commander arguments and clack-elicited inputs validate against kernel schemas at the boundary.
+
+8. **Coordination patches.** Update the consumer/boundary WUs' planning artifacts with the substrate
+   relationship (see § Coordination); mint the follow-up complete-migration WU stub at integration.
 
 ### Out of scope
 
-- **Schema-driven CLI introspection layer** (`arc schema list/get`, generated JSON Schemas shipped
-  as artifacts, agent-facing contract publication) — see `plan-schema-introspection-layer.md`
-  (WU-B). Hard downstream of WU-A.
-
-- **State-machine codification for WU lifecycle.** Separate downstream WU; WU-A's zod schemas for
-  State enum + transition events form latent substrate but the machine itself, guard logic, and
-  transition dispatch are not in scope. Defer until WOR + trio + AWL ship to avoid codifying
-  during churn.
-
-- **Effect TS adoption.** Evaluated and deferred. Revisit triggers in § Pressure Points.
-
-- **Wholesale conversion of every validation site to zod.** Explicit follow-up WU
-  (`plan-cli-substrate-migration-completion.md`) completes the sweep post-trio.
-
-- **Wholesale conversion of every Result/Option site to neverthrow.** Opportunistic post-WU-A;
-  named in follow-up WU.
-
-- **Type relocation per `plan-lib-layer-type-extraction.md`.** Its own WU; WU-A doesn't fold it in.
-  WU-A's `lib/<subsystem>/schemas.ts` convention happens to align with the neutral-`lib/*/types.ts`
-  direction, but the type-relocation work itself stays separate.
-
-- **Sync handler / user-sync module restructuring** (`plan-sync-handler-decomposition.md`,
-  `plan-user-sync-module-split.md`). Own WUs; WU-A provides substrate they consume.
-
-- **Versioned config-key migration registry.** Captured in BACKLOG-TECHNICAL.md; orthogonal
-  concern.
+- **Schema introspection surface** (`arc schema list/get`, published contract artifacts) —
+  `schema-introspection-layer`, hard downstream. This WU emits build-time JSON Schema artifacts only.
+- **WU lifecycle state machine** — `wu-lifecycle-state-model`. The kernel ships the `State` vocabulary; machine
+  machinery (typed transition map vs. a library) is WLSM's grooming call.
+- **Config axis reform** — `scalable-core` (owns the `pm.mode` schema-reform packet). This WU provides kernel
+  mechanics for config primitives only.
+- **Markdown parse/render substrate** (remark/unified or otherwise) — the records-canonical direction (ADR-022)
+  retires most hand-rolled line parsers by making markdown a rendered projection; any parse/render library
+  decision belongs to `operational-state-docs`' projection layer (with `markdown-formatting` on the lint side).
+  This WU's contribution: kernel record schemas stay projection-aware (stable field ordering; no state that
+  exists only in rendered markdown).
+- **Frontmatter mechanism churn** — frontmatter is becoming typed-contract territory under
+  `composable-workflows` D1 (generated schemas); this WU migrates the frontmatter surfaces it already owns to
+  zod but doesn't swap the extraction mechanism.
+- **Workflow-markdown CLI command** — the "real command for workflow files" question (validator / inspector /
+  context loader) re-routes to `composable-workflows`, which owns typed workflow contracts; the companion
+  skill-wording fix ("load and follow", not "run") is an errand-sized edit, not WU scope.
+- **Self-hosting dist integrity** (stale/broken `dist/cli.js` guards, precise rebuild-path reporting) —
+  re-routed to `self-hosting-manifest-freshness`, the named owner of that surface (with `quality-gate-hooks`
+  adjacent); the recovery-handoff hygiene half (expired `codex-compaction-recovery-seed-*` reaping, the
+  global-vs-identity-scoped seed split) re-routes to `recovery-hardening`. Both were non-orthogonal riders
+  here; captures route at planning close.
+- **Resolver-adoption investigation** (should single-fact resolvers back ceremonies deterministically rather
+  than live as remember-to-invoke rules?) — minted as its own stub at planning close rather than riding this
+  WU; it is a constitutional/workflow investigation, not substrate code.
+- **Wholesale zod / neverthrow conversion of every site** — the follow-up complete-migration WU.
+- **Test-helper unification** (`runArc` + `runCli` → one helper with explicit `mode: "tty" | "pipe"`; ~86 call
+  sites + per-mode default reconciliation; effort M) — deferred to the follow-up WU. Path-independent; both
+  helpers work today; the shared spawn core was already extracted.
+- **Effect TS adoption** — deferred; see § Design Decisions for the rewritten rationale and trigger.
+- **Property-based round-trip testing** (fast-check over record ↔ projection round-trips) — a natural fit once
+  records land; seeds at `operational-state-docs` or via testing-standards, not here.
+- **Type relocation / sync-handler / user-sync restructuring** — the `architecture-remediation` cohort's own
+  WUs; they inherit this substrate (see § Coordination).
 
 ---
 
 ## Design Decisions
 
-### Library selection rationale
+### Library selections (re-verified 2026-07-18)
 
-- **zod over valibot / arktype / @effect/schema.** Wide TS-community familiarity, strongest
-  ecosystem signal, well-documented contributor onboarding path. Bundle size (~150KB minified)
-  acceptable for an npm-installed CLI; not bundle-constrained like browser code. @effect/schema
-  considered and rejected to avoid Effect coupling without Effect adoption. valibot's smaller
-  bundle and arktype's TS-native syntax are real but unnecessary advantages here; zod's
-  familiarity wins for contributor-onboarding.
+- **zod 4.x over valibot / arktype / typebox / @effect/schema.** Zod 4 is mainline and dominant (zod 3
+  effectively EOL), ~4–5× faster and roughly half the size of v3 — closing the gaps that used to favor
+  challengers — with the widest TS-community familiarity for contributor onboarding. Native `z.toJSONSchema()`
+  (draft-07 / 2020-12 / openapi-3.0) replaces the now-unmaintained `zod-to-json-schema` converter for the
+  introspection path. Bundle size is a non-issue for a Node CLI. @effect/schema rejected to avoid Effect
+  coupling without Effect adoption.
 
-- **execa over keeping `child_process`.** Promise-native API; better error messages (command +
-  stderr embedded in thrown error); `AbortSignal` support; killSignal control; automatic
-  exit-code-to-rejection. Mature, widely used, well-maintained.
+- **execa 10.x over keeping raw `child_process` — and over lighter challengers.** Typed error classes with
+  command + stderr embedded, uniform `AbortSignal`/`cwd`/kill handling, streaming conversions. nano-spawn's own
+  README recommends execa for apps/CLIs (reserving nano-spawn for size-constrained libraries); tinyexec lacks a
+  typed-error class — and structured errors are precisely what the `GitExec` contract upgrade needs. Behind an
+  owned seam the executor is an implementation detail, so the lighter libraries were genuinely considered; the
+  error-contract requirement decides it.
 
-- **neverthrow over fp-ts / oxide.ts / building bespoke.** Smallest viable Result/Option library
-  (~5KB); well-typed combinators; no commitment to broader functional ecosystem. fp-ts is heavier
-  predecessor without payoff for ARC's scale; Effect deferred per separate analysis.
+- **neverthrow over ts-results-es / oxide.ts / fp-ts / bespoke — with a flagged maintenance risk.**
+  `ResultAsync` (a thenable `Result` wrapping a Promise) is the exact shape of the async probe pipelines — the
+  dominant conversion target; challengers' async stories are helper-grade. Familiarity and install base follow
+  the same criterion that picked zod. **Known risk:** no release since v8.2.0 (2025-02) and an unanswered
+  maintenance-status issue open since 2026-01. Accepted because the library is feature-complete,
+  zero-dependency, and stable; our usage is narrow (internal composition; the wire format stays hand-shaped at
+  the boundary); and the kernel re-export confines a future swap to one import site plus a codemod.
+  **Reconsideration trigger:** release-silence through a breaking Node/TS change requiring a patch, or an
+  explicit unmaintained declaration → migrate to **ts-results-es** (actively maintained; the credible
+  fallback). Manually re-check the maintenance issue immediately before execution starts. Going *directly* to
+  ts-results-es was considered and rejected: weaker async ergonomics and far smaller adoption are certain
+  costs, paid to hedge a contingent risk whose realized cost (a mechanical codemod) is small.
 
-- **type-fest.** TS utility-type collection; zero runtime cost; table-stakes for typed TS
-  codebases at ARC's scale.
+- **type-fest v5.x** (requires TS ≥5.9; satisfied). Still the standard; zero runtime cost.
+
+### Kernel architecture — vocabulary authority, distributed composition
+
+"One schema kernel" does not mean one file of every schema. The kernel owns **shared vocabulary primitives**
+(State, Class, slugs, prefix/placement tokens, record identities, config primitives, the error taxonomy) and
+the **registry**; subsystem schemas stay co-located with their subsystems and compose kernel primitives. This
+reconciles locality of reasoning with the one-type-authority doctrine — single authority for vocabulary,
+distributed authorship for composition — and resolves the original schema-home open question.
+
+### TS 7 insulation — Zod as source of truth, no compiler API
+
+The kernel derives static types *from* Zod (`z.infer`), never schemas from TS types via the compiler API.
+TS 7.0 (GA 2026-07-08) ships no stable programmatic API; 7.1's (~Oct 2026) is a structurally different
+out-of-process model (API-server process, STDIO IPC, query/visitor access) — any 6.0-idiom API coupling is
+guaranteed churn. Schema-first has zero compiler-API surface to break, and satisfies one-source-cannot-drift by
+construction (validator and type cannot diverge). If extraction from TS source ever proves genuinely necessary,
+isolate it behind a thin port designed to the 7.1 shape (async-tolerant, query/batch-shaped, no retained AST
+object identity). This rationale stands on the TS 7 facts, not on a claimed community consensus.
+
+### Wire-format stability at the envelope boundary
+
+The session-init envelope's `{ok, value} | {ok, error}` JSON shape is an **agent-facing contract** — the
+workflow corpus dispatches on it. The neverthrow conversion changes internal composition only; the emit
+boundary serializes to the existing wire shape, which the zod envelope schema then validates. The wire format
+changes only by deliberate, versioned decision — never as a library-adoption side effect.
 
 ### Boundary enforcement model
 
-Schemas live at I/O boundaries; internal code consumes already-parsed strongly-typed values:
+Schemas live at I/O boundaries; internal code consumes already-parsed strongly-typed values. CLI validates on
+emit (catches bugs at the composition site, before they leave the process); agent-side consumers and tests
+validate on consume (catches contract drift across the process boundary). `parse()` for internal emit paths;
+`safeParse()` for consume paths wanting graceful handling. The envelope has two enforcement points; most other
+surfaces have one.
 
-- **CLI emits envelope:** validate-on-emit (catches CLI bugs immediately at composition site,
-  before they leave the process).
-- **Agent / test consumes envelope:** validate-on-consume (catches contract drift; useful for the
-  cross-process contract specifically).
-- **`parse()` for internal CLI-emit paths** (throw on programmer error; we control both sides).
-- **`safeParse()` for consume paths** where the consumer wants graceful handling.
+### Executor: the seam is the architecture; execa is an implementation detail
 
-This means the session-init envelope schema has two enforcement points (emit + consume) but most
-other surfaces have one (emit only, internal consumers trust the type).
+The `GitExec` injectable seam (126 consumers) is retained as the stable contract. The real migration is the
+**error-contract upgrade** — structured typed variants replacing per-site stderr string-matching — designed
+deliberately because the contract change is what ripples. The library swap itself is confined to the ~11
+binding files.
 
-### Phased migration with named follow-up WU
+**Error-contract shape — settled: typed thrown errors, not a `Result`-returning seam.** `GitExec` keeps its
+`Promise<ExecResult>` reject-on-failure contract; the upgrade introduces typed error classes (error kind, exit
+code, embedded stderr) so catch sites classify structurally instead of string-matching, with ripple confined
+to catch sites. Converting the seam itself to `ResultAsync` was considered and rejected — a 126-consumer
+ripple contradicting the priority-surface cutline. Where pipelines want `Result` composition, kernel-provided
+`fromThrowable`-style adapters wrap the executor at the pipeline edge.
 
-Priority sites in WU-A; explicit follow-up WU named on roadmap so the comprehensive vision isn't
-lost. Distinguishes urgent-substrate-for-trio from nice-to-have-completeness. The follow-up WU's
-existence is a discipline mechanism — pressure to absorb "well, this one too…" into WU-A is
-relieved by knowing there's a named destination for it.
+### Phased migration with a named follow-up WU
 
-**execa is the exception:** full migration in WU-A because it's mechanical and bounded
-(~109 sites is large but well-defined; partial migration creates dual-pattern tech debt where
-every contributor has to decide which wrapper to use, and every test maintainer has to know which
-mocking pattern applies). Hybrid downgrade reserved for the feasibility-failure case only.
+Priority sites here; a follow-up complete-migration WU minted at integration captures everything deferred. The
+named destination is the discipline lever against "well, this one too…" absorption — more important, not less,
+at ~100k LOC where a wholesale sweep is not a large task but an impossible one.
 
-### WU-A vs WU-B split
+### Effect TS deferral — problem shape, not codebase size
 
-- **WU-A** = internal substrate. Schemas exist; validation happens at boundaries; types are
-  stronger. Consumers (other WU code) inherit it transparently.
-- **WU-B** = consumer-facing capability. Agents and contributors can introspect the contracts via
-  `arc schema` CLI surface; generated JSON Schemas as shipping artifact.
+Effect's value tracks **problem shape**: it pays off in service-shaped programs — long-running,
+concurrency-heavy, resource-scoped, retry-scheduled, deep dependency graphs — and it punishes partial adoption
+(the Effect-world/Promise-world boundary means two error models, two DI idioms, every contributor fluent in
+both; a partial adoption is permanent dual-pattern debt). ARC's CLI is the opposite shape: short-lived one-shot
+processes that read git, parse, and report. The decisive evidence: the codebase grew 15–20× since the original
+deferral and generated **no Effect-shaped problems** — no retry schedules, no resource scopes beyond simple
+locks, concurrency `Promise.all` handles, and a function-DI idiom proven across 126 files. Size-based triggers
+are therefore the wrong instrument and the earlier LOC trigger is retired as a false positive.
 
-Different value props, different audiences, different stability commitments. The schemas exist as
-internal artifacts after WU-A; making them externally introspectable is a feature commitment
-(public contract surface, versioning policy, deprecation discipline) that earns its own
-elaboration.
+**Reconsideration trigger (problem-shaped):** if/when ARC builds a resident, service-shaped component — the
+engine-owned-control-flow asymptote recorded in `strategy-procedure-evolution.md` (realistically an MCP
+server), or the deferred coordination-service tier — evaluate Effect as *that component's* foundation: a
+greenfield choice for the new service-shaped program, not a retrofit of the CLI.
 
-### Effect TS deferral
+### Canonical JSON — bless the existing trust core; RFC 8785 rejected
 
-Effect TS was considered as a comprehensive alternative to the lib-by-lib approach. Not
-selected: its strongest case (structured concurrency via `Effect.forEach` + `Scope`-based
-resource management) does not apply to the agile-parallelism cohort — Worktree Foundation is
-methodology + advisory mechanism, not CLI-orchestrated parallel git operations. Existing CLI
-patterns (release module's `AuthorizationDecision`, session-init's `Probe<T>`) are already
-near-ideal hand-rolled implementations of what Effect would provide at higher cost (learning
-curve, bundle size, ecosystem boundary friction).
+`lib/canonical/canonical-json.ts` is already the centralized canonicalizer: deliberate Unicode-codepoint key
+ordering plus NFC normalization, `sha256:` content digests, 29 importers — and persisted retirement receipts
+re-verify by byte-exact recomputation. RFC 8785 (JCS) was considered and **rejected**: it mandates UTF-16
+code-unit key ordering and performs no NFC normalization, so adopting it would change serialized bytes and
+silently invalidate every persisted digest. The kernel adopts the existing module's semantics as canonical and
+consolidates the peripheral outliers onto it; any future semantics change requires an explicit
+digest-versioned migration, never a library swap.
 
-**Reconsideration triggers** for revisiting Effect adoption:
+**Recorded acceptance:** migrating an outlier is, for that surface, a semantics change — the review-gate
+identity snapshot's derived policy versions and request keys may re-key across the upgrade, and in-flight
+ledger reservations re-key with them. Accepted: those keys already churn on policy-content changes by design.
+The no-semantics-change constraint protects `lib/canonical`'s own serialization, not the divergent outliers
+being corrected onto it.
 
-- A WU lands that requires CLI-side parallel orchestration of cancellable operations across ≥2
-  sites where structured concurrency or `Scope`-based resource management would materially
-  reduce complexity.
-- A WU requires retry-with-backoff schedules across multiple operation types where Effect's
-  `Schedule` would replace bespoke per-site retry logic.
-- ARC's CLI grows beyond the current scale (~50 source files, ~5–8k LOC) to a point where
-  `Layer`-based DI provides meaningful leverage over the current function-DI pattern.
+### Considered and rejected
 
-None of these triggers are anticipated in the post-trio sequencing as currently scoped.
-
-### Schema home convention
-
-Provisional: `lib/<subsystem>/schemas.ts` co-located with subsystem code (each subsystem owns its
-contracts). Alternative: `lib/schemas/<subsystem>.ts` centralized (single place to introspect what
-contracts exist). PRD-time confirms; co-located is recommended for locality of reasoning.
+- **A git library** (simple-git / isomorphic-git): the `GitExec` seam plus zod-validated porcelain parsers is
+  strictly better for ARC's shape — exact plumbing control (worktrees, notes refs, fetch-into-ref) that
+  isomorphic-git doesn't cover, without an intermediate parsing opinion to fight.
+- **CLI framework / prompt churn**: commander and clack remain current best-fit; swap value ≈ zero.
+- **`yaml` (comment-preserving) over js-yaml**: the js-yaml surface is three files, mostly reads; revisit only
+  if config-write paths grow (`scalable-core` territory).
+- **Direct ts-results-es adoption**: see the neverthrow decision above.
 
 ---
 
 ## Dependencies and Sequencing
 
-### Upstream
+### Upstream — satisfied
 
-- **Work Organization Reform** (in progress; current WU): Hard dependency. WOR reshapes meta-file
-  shape (R58), lifecycle State enum (4-state model), and field model. WU-A writes zod schemas for
-  these things; starting before WOR ships means schemas codify a moving target. Wait for WOR
-  integration before WU-A activates.
-- **Worktree Foundation:** Sequencing antecedent (per 2026-05-20 resequence). WF ships first so
-  this WU's sweep targets already-shipped WF sites (parsers, probes, cascade evidence union,
-  spec-input parser) — the typical "codify a settled shape after it ships" migration shape, not
-  a design coupling. Operationally, WF lands first to unlock parallel-WU work across worktrees;
-  this WU then runs as a parallel sibling alongside arc-plan Conductor (post-WF parallel layer).
+Both dependency edges are satisfied: `work-organization-reform` shipped (meta shape, 4-state model settled);
+`coupling-blast-radius-audit` shipped 2026-07-18 (ranked inventory + the two routed packets this WU owns).
 
-### Sibling (parallelizable)
+### Position — wave 2, fast-tracked
 
-- **arc-plan Conductor.** Post-WF parallel candidate. Different file scopes (Conductor touches
-  `.arc/system/workflows/` + skills; WU-A touches `packages/arc-framework/src/`). Cognitive-load
-  match favors this pair — Conductor reads as design-heavy (canonical entry verb, depth model,
-  spec-flow contract); WU-A reads as mechanical (zod schema codification of WOR-settled shapes,
-  ~81-site execa sweep, well-defined neverthrow conversion). Design + mechanical pairs cleanly
-  for solo execution. Final parallel-vs-sequential call confirms at PRD time.
-- **Coord Probe.** Post-WF parallel candidate. Lighter design surface than Conductor (adapter
-  contract + mechanical wiring); could also pair with WU-A or with Conductor depending on
-  activation timing.
+Per the current execution posture: launched immediately, running beside `session-locus-model`'s spec tail,
+`commit-message-ergonomics`, and `markdown-formatting`'s timed launch. Mechanical-heavy rather than
+design-heavy — grooming scopes resolver ownership and the kernel; execution runs off the design slot.
 
-### Downstream
+### Delivery structure — stack cohort (cohort-fit verdict: decompose)
 
-- **Worktree Foundation migration targets:** WF ships first under the resequence; WU-A migrates
-  the hand-rolled sites alongside its broader sweep:
-    - `git worktree list --porcelain` parser (3 sites: branch-gone cascade, activation-time
-      concurrency check, cold-start primitive) → zod parser-don't-validate
-    - Branch-gone cascade evidence carriage → zod discriminated union over signal sources
-      (worktree list / status files / recently-active branches / coord-probe / fallback)
-    - Cold-start spec input parser (5 variants: file pointer / URL / issue link / ARC plan /
-      name-plus-description) → zod discriminated union
-    - Cross-WU file merge note payloads → zod validation on read
-    - Worktree-aware probe slots added to the session-init envelope schema → build-time
-      validation of slot additions
-    - Git invocations → execa
-    - Concurrent push reconcile error handling → execa's typed errors
-- **Coord Probe:** Consumes execa for `gh` CLI invocations (GitHub adapter); zod for `gh` output
-  parsing if introduced; neverthrow `Result` for the probe's signal-source results.
-- **Schema Introspection Layer (WU-B):** Hard dependency. Consumes WU-A's schemas directly;
-  WU-B's `arc schema` surface exposes them via CLI.
-- **Lib-Layer Type Extraction:** Inherits `lib/<subsystem>/schemas.ts` convention as the new
-  schema-home pattern; type re-homing scope shrinks since schemas already live in `lib/`.
-- **Sync Handler Decomposition:** Inherits zod schemas for sync-related envelopes; restructure
-  scope shrinks (don't reinvent validation when extracting pure-matrix logic).
-- **User-Sync Module Split:** Inherits zod schemas for user-sync state; restructure scope shrinks.
-- **Follow-up "Complete CLI Substrate Migration" WU** (placeholder
-  `plan-cli-substrate-migration-completion.md`): Comprehensive sweep of remaining zod / neverthrow
-  migrations. Scoped at WU-A integration; runs after trio + 3 remediation plans.
+The cohort-fit check fires affirmative: the pillars are orthogonal subsystems with ownable seams (the shared
+seam — kernel vocabulary — is the same one the design already treats as ownable across WU boundaries for its
+downstream consumers), and the one-branch/one-PR WU model cannot otherwise deliver the kernel early — a
+"phase-1 close" on a monolithic branch is not an integration boundary, so the SLM unblock would silently
+become WU-close. Deliver as a dependency-ordered cohort — a single head member plus a fan of
+mutually-independent siblings, each its own branch and PR; exact membership, names, and edges settle at the
+decompose ceremony via the cut-map. **Timing:** create-spec runs on this WU (the spec is the cohort's shared
+design) and its enumeration work finalizes the cut-map; the decompose ceremony fires at spec settle, before
+any task generation — task lists are per-member. Working cut (maximum articulation — see the merge note
+below):
 
-### Recommended sequencing
+1. **kernel** (head) — vocabulary, registry, the error-taxonomy base (executor-facing git-error kinds land
+   with member 5), Result insulation, and the canonical blessing + kernel export (outlier migrations ride fan
+   members). Kept deliberately minimal so the head stays small: **`session-locus-model` unblocks when this
+   member ships to the base** — a real integration boundary, not a mid-branch milestone.
+2. **envelope** — wire-pinning envelope schema (emit + consume) plus the internal `Probe<T>` → `ResultAsync`
+   conversion.
+3. **layout resolver** — tokens + resolution service; 15-class code/test migration; tracked-planning verb
+   boundary. The largest diff; plausibly the only Heavy member.
+4. **validation surfaces** — audit log, meta frontmatter, config, and the shipped drop-ins.
+5. **executor** — execa 10 swap, typed git-error contract, structured-error refactors.
+6. **boundary inputs** — non-TTY contract, required-inputs substrate, kernel-schema input validation.
 
-```text
-WOR (in progress) ──► Worktree Foundation
-                       │
-                       ├──► WU-A (CLI substrate)    ┐
-                       ├──► arc-plan Conductor      ├ post-WF parallel candidates
-                       └──► Coord Probe             ┘   (pick pairs by cognitive-load match)
-                       │
-                       └──► AWL ──► CWC
-                                     │
-                                     ├──► WU-B (introspection)              ┐
-                                     ├──► Lib-Layer Type Extraction         │ post-trio
-                                     ├──► Sync Handler Decomposition        │ parallel
-                                     ├──► User-Sync Module Split            │ cluster
-                                     └──► Complete-Migration follow-up      ┘
-```
+Members 2–6 depend on 1 only and are mutually independent — a fan, not a chain — with one soft edge: the
+envelope-family slot schemas (shared by the session-init, recover, and compaction-seed envelopes) belong to
+member 2, and member 4's envelope drop-ins consume them — reinforcing the envelope + validation-surfaces
+merge candidate below. Solo execution likely runs the resolver as the primary thread with the small members
+interleaved. Six is the maximum articulation: at
+the decompose ceremony each member must independently clear the WU-worthiness floor, and the likely merges
+are envelope + validation surfaces (both zod migrations of settled shapes) and possibly the executor into
+that member — a 4–5 member landing is plausible. The kernel and the resolver never merge: the kernel's early
+ship and the resolver's isolated mega-diff are each the point of the cut. Secondary benefits: reviewable PR
+sizes under the current one-PR-per-WU model (`pr-decomposition` is unshipped), and a short base-drift window
+per member instead of a multi-week accumulating branch.
+
+### Downstream consumers
+
+- **`session-locus-model`** — record schema, read verb, and lease build on the kernel; its machine-local locus
+  records stay storage-agnostic with opaque state strings (its draft's own discipline).
+- **`wu-lifecycle-state-model`** — consumes the kernel `State` vocabulary and the placement-reader extract
+  against this WU's landed resolver verbs.
+- **`operational-state-docs`** — the ADR-022 records keystone; consumes the meta record schema as structural
+  source of truth and owns managed-doc schema coverage beyond this WU's surfaces.
+- **`schema-introspection-layer`** — hard downstream; publishes the kernel registry via `arc schema` on top of
+  the build-time JSON Schema artifacts.
+- **`architecture-remediation` cohort** (`lib-layer-type-extraction`, `sync-handler-decomposition`,
+  `user-sync-module-split`, `check-id-stabilization`, `ci-cross-platform-hardening`) — inherit
+  `lib/<subsystem>/schemas.ts` convention, zod schemas, and `Result` types; restructure scopes shrink.
+- **Follow-up complete-migration WU** — comprehensive zod/neverthrow sweep, test-helper unification; scoped at
+  integration.
+
+### Coordination
+
+- **ADR-022:** the meta record zod schema is the structural source of truth for the managed
+  operational-state-document class. This WU ships the schema for its surfaces; enumerate-or-hand-off of full
+  managed-doc coverage resolves at the `operational-state-docs` boundary.
+- **`scalable-core`:** owns config axis reform (the `pm.mode` schema-reform packet); this WU provides kernel
+  mechanics for config primitives and does not reshape axes.
+- **`composable-workflows`:** owns workflow contracts, the step vocabulary (deriving from the kernel), the
+  frontmatter-as-contract mechanism, and the re-routed workflow-markdown command question.
+- **`lifecycle-transition-core` (shipped):** owns the unified `stub` primitive chokepoint; this WU supplies the
+  non-TTY elicit/require-flag substrate beneath it, with the mandatory-fields policy stated in
+  `strategy-work-organization`.
+- **`self-hosting-manifest-freshness` / `quality-gate-hooks`:** the dist-integrity guards coordinate with both.
+- Check-docs run at this refresh: `strategy-procedure-evolution.md` (kernel doctrine — this WU is its named
+  mechanism owner), `strategy-storage-evolution.md` (resolver as the Principle 1 seam; record schemas lift
+  without reshaping), `strategy-knowledge-evolution.md` (closing docs land in existing surfaces; no new
+  unclassified strategy doc — the typed-substrate guidance routes to `strategy-package-project-sync` /
+  DEV-RULES.PROJECT or an existing project strategy at spec time).
 
 ---
 
 ## Pressure Points and Risks
 
-### execa migration scope creep
+### Scope discipline at ~100k LOC
 
-Sized at ~81 production + ~28 test sites; one missed dependency in the codebase could push the
-total higher. Mitigation: PRD-time site enumeration with grep + AST query; explicit cutline for
-"in this WU" vs "follow-up." Hybrid downgrade (wrapper internals only + opportunistic caller
-migration) is an acceptable fallback if feasibility surfaces edge cases.
+The priority-surface cutline is the WU's survival mechanism; out-of-list sites route to the follow-up WU's
+scope inline, never absorbed. Spec-time enumeration replaces the stale May site counts (the ~81-site execa
+figure predates the `GitExec` seam; the real binding surface is ~11 files).
 
-### Test-mock pattern churn
+### Kernel over-centralization
 
-Migrating execa changes the shape of test stubs (`stubGitExec` → new helper, or retired entirely).
-Risk: 28 test files updated mechanically miss edge cases. Mitigation: Tier 1 + Tier 2 gate runs
-catch regressions; PRD-time pilot migration on one representative test file validates the pattern
-before scaling to the rest.
+The kernel owns vocabulary, not every schema. Guard: a subsystem schema belongs in the kernel only when a
+second subsystem consumes it or it names shared vocabulary; otherwise it stays co-located and registered.
 
-### Zod schema-vs-type drift during WU-A
+### Wire-format regression
 
-Internal pattern is "schema first, type inferred." Existing TS types exist for all migration
-targets. If WU-A introduces zod schemas without removing the pre-existing types, drift opportunity
-exists. Mitigation: replace-then-infer discipline at each migration site; optional lint check that
-consuming code uses inferred type, not duplicate hand-written one (PRD-time decision on whether to
-add the lint rule).
+The envelope schema must validate the *existing* emitted shape before any internal conversion lands; consume
+side tests pin the wire contract. A schema that drifts from the shipped shape fails the migration, not the
+workflows.
 
-### Bundle size growth
+### neverthrow maintenance
 
-npm-installed CLI; install size impacts new-user friction. Adding zod (~150KB) + execa (~50KB) +
-neverthrow (~5KB) + type-fest (~0KB runtime) = ~200KB added. Acceptable; install size already
-dominated by Node + tsup-built dist. Document the trade-off in PRD; not a blocker but worth
-explicit acknowledgment for adopter-facing release notes.
+Flagged above; trigger recorded. Re-check the maintenance status immediately before execution starts.
 
-### Migration depth boundary discipline
+### execa 10 breaking changes
 
-"Phased — priority sites" risks scope creep during execution ("well, this one too…"). Mitigation:
-PRD enumerates the exact priority site list; out-of-list sites get captured to the follow-up WU's
-plan-doc inline rather than absorbed into WU-A. The named follow-up WU is the discipline lever —
-without it, every adjacent site looks like part of WU-A.
+Promise-not-ChildProcess return, removed `execaCommand`, Node ≥22 — the feasibility spot-check enumerates the
+~11 binding files against these specifically. Hybrid fallback (wrapper internals only) survives as the escape
+hatch if a binding site proves incompatible.
 
-### Coordination drift across the 3 architecture-remediation plans
+### Resolver migration blast radius
 
-WU-A claims to provide substrate the 3 plans consume; those plans may have shifted scope or
-already shipped if WU-A integration slips. Mitigation: PRD-time patch to each of the 3 plans
-noting the WU-A relationship; revisit at WU-A integration if any of the 3 plans has shifted scope
-materially.
+`arc-root` fans out across 388 files (243 for `active-placement`). Mitigation: the audit inventory is the
+migration and verification matrix; code/test surfaces migrate mechanically behind the resolver API; prose and
+workflow surfaces are explicitly out of this WU's sweep (they ride later movers — verbs-over-mechanics already
+points that way).
 
-### Effect TS reconsideration triggers
+### Validate-on-emit overhead
 
-If WU-A execution reveals concurrency-heavy code emerging that Effect would handle better, the
-deferral may need revisiting. Mitigation: PRD documents reconsideration triggers (see § Design
-Decisions). WU-A execution surfaces evidence either way; absence of triggers confirms the
-deferral.
+zod 4's performance makes per-emit validation sub-millisecond at the envelope's scale; recommended default is
+always-on (catches CLI bugs early). Confirm at spec with a measurement rather than an assumption.
+
+### Schema-vs-type drift during migration
+
+The pattern is schema-first with inferred types, but existing hand-written TS types exist for every migration
+target; introducing a schema without removing the pre-existing type creates drift opportunity. Mitigation:
+replace-then-infer discipline at each migration site; an optional lint check that consumers use the inferred
+type (not a surviving hand-written duplicate) is a spec-time decision.
+
+### Install-size growth
+
+zod 4 (roughly half of v3's ~150KB), execa (~50KB), neverthrow (~5KB), and type-fest (zero runtime) add a
+modest, acceptable footprint for an npm-installed CLI whose install size is already dominated by Node and the
+built dist. Acknowledge explicitly in release notes rather than silently.
 
 ### `AuthorizationDecision` conversion is non-trivial
 
-The release-module bespoke discriminated union has per-code structured payloads (numeric codes,
-typed refusal details, formatting hooks). Converting to `Result<void, AuthorizationRefusal>` where
-`AuthorizationRefusal` is itself a discriminated union may be ergonomic in one place but lose the
-per-code structure that makes the current formatRefusal logic clean. PRD-time decision on whether
-this conversion belongs in WU-A at all; deferring it to opportunistic post-WU-A is defensible.
+The release-module union carries per-code structured payloads (numeric codes, refusal details, formatting
+hooks) that a generic `Result` may express worse. Spec-time decision; deferring to the follow-up WU is
+defensible.
+
+### SLM timing pressure
+
+SLM is P1 and paused on the kernel. Mitigation is structural: the kernel is the stack head and ships to the
+base first; its scope is deliberately minimal-vocabulary so the head member stays small.
+
+### Coordination drift
+
+The consumer WUs (§ Coordination) may shift scope while this WU executes. Mitigation: coordination patches
+land at spec time; re-verify at integration.
 
 ---
 
-## Open Questions
+## Open Questions (spec-time)
 
-### Schema home convention
-
-`lib/<subsystem>/schemas.ts` co-located with subsystem code, or `lib/schemas/<subsystem>.ts`
-centralized? Probably co-located (locality of reasoning; each subsystem owns its contracts);
-PRD-time confirms.
-
-### Generated JSON Schemas as build artifact in WU-A or WU-B
-
-WU-A could generate JSON Schemas from zod definitions during build and emit them as artifacts
-(useful for testing and as a stable intermediate format without exposing them via CLI). WU-B then
-adds the CLI surface on top of the artifacts. Question: is the build artifact in WU-A's scope or
-WU-B's? Soft boundary; decide at PRD time. Argument for WU-A: it's a natural by-product of having
-zod schemas. Argument for WU-B: shipping artifacts is a public-contract commitment, fits the
-consumer-facing framing.
-
-### `AuthorizationDecision` → `Result` conversion in or out
-
-See Pressure Points. PRD-time decision; defensible either way.
-
-### Naming for the follow-up migration WU
-
-`plan-cli-substrate-migration-completion.md` is a working name. Placeholder; resolved when the
-follow-up WU is drafted.
-
-### Strict-emit-validation default — on or off
-
-"Validate envelope at every emit site in dev/CI; allow opt-out in prod" vs always-on. Cost
-question (small per-call overhead) plus operational question. PRD-time decision; recommended
-default is always-on (cost is sub-millisecond; catches CLI bugs early).
-
-### `Probe<T>` → `Result<T, E>` conversion in WU-A
-
-Strong argument for inclusion (agent-visible contract via session-init envelope; downstream WUs
-inherit `Result` shape; neverthrow earns its keep). Weak counter-argument (it's a substrate move
-that ripples through all probe consumers; could split to follow-up). Recommended: include in WU-A.
-PRD confirms.
+- **Kernel module name and home** (`lib/kernel/` vs. alternatives) and registry API shape.
+- **Cohort member names and final cut-map** — membership, edges, and member sizing at the decompose ceremony.
+- **Resolver API shape** and the per-class accept/reject pass over the 15 path classes (prior: accept nearly
+  all — they form one coherent layout model).
+- **Exact priority-surface enumeration** with current site counts (grep + AST query at spec).
+- **`AuthorizationDecision`** — convert, defer, or keep bespoke.
+- **Strict emit-validation default** — recommended always-on; confirm with measurement.
+- **`schemaVersion` policy detail** — per-schema postures vs. a registry-wide convention.
+- **Non-TTY contract shape** — auto-skip-to-safe-default vs. explicit flag per command class; flag naming
+  (`--yes` precedent vs. `--no-input`).
 
 ---
 
 ## Scope Estimate
 
-**Medium-large.** Multi-week solo-dev WU.
-
-Provisional phases (PRD restructures and sizes):
-
-1. **Library introduction.** Add deps; set up build/typecheck infrastructure; baseline tests
-   pass; documentation of "we use these and here's why" added to relevant project strategy doc.
-2. **zod — session-init envelope.** Schema declaration; emit-side validation; consume-side
-   validation in tests; agent-side documented contract surface.
-3. **zod — audit log.** Replace `validateEntry()`; v1 schema as baseline; v2
-   discriminated-union scaffold ready for future use.
-4. **zod — meta-file frontmatter + config.** Post-WOR shape; replaces hand-rolled parsing.
-5. **execa migration — wrapper internals + caller sweep.** Full sweep across ~81 production +
-   ~28 test sites; test mocks updated.
-6. **neverthrow integration.** `Probe<T>` → `Result<T, E>` conversion; release
-   `AuthorizationDecision` evaluation (in or defer per PRD decision).
-7. **type-fest opportunistic adoption.** Replace bespoke helpers naturally encountered.
-8. **Cross-plan patches.** Update the 3 remediation plans + create follow-up "Complete Migration"
-   plan-doc stub in `backlog/technical/`.
-9. **Documentation / testing / examples.** Standard closing — strategy doc on the typed-substrate
-   pattern, examples in QUICK-REFERENCE, contributor-facing guidance on adding new zod schemas.
-
-Phases 2–4 (zod) potentially parallelize within the phase set. Execa (phase 5) is a single big
-sweep that may want its own quality-gate checkpoint. Neverthrow (phase 6) can run alongside
-phase 5 if both touch different files. PRD optimizes the phase ordering.
+**Heavy in aggregate — delivered as a dependency-ordered stack cohort** (§ Delivery structure), not one
+multi-week branch. Member-level sizing settles at the decompose ceremony; the layout-resolver member is the
+largest and plausibly the only Heavy one. The member map replaces a phase list one-for-one; closing work
+(type-fest opportunistic pass, JSON Schema build artifacts, docs in existing surfaces, coordination patches,
+the follow-up WU stub) rides the relevant members rather than a dedicated closing phase.
 
 ---
 
-## Related Plans
+## Related Work
 
-- **`plan-schema-introspection-layer.md`** (WU-B) — Consumer-facing CLI introspection surface
-  built on WU-A's schemas. Post-trio parallel cluster.
-- **`plan-lib-layer-type-extraction.md`** — Inherits `lib/<subsystem>/schemas.ts` convention from
-  WU-A; type re-homing scope shrinks.
-- **`plan-sync-handler-decomposition.md`** — Inherits zod schemas for sync envelopes from WU-A.
-- **`plan-user-sync-module-split.md`** — Inherits zod schemas for user-sync state from WU-A.
-- **`plan-worktree-foundation.md`** — Sequencing antecedent (per 2026-05-20 resequence); WF
-  ships first and its hand-rolled sites (worktree list parser, branch-gone cascade evidence,
-  cold-start spec input, cross-WU note payloads, envelope additions) become migration targets
-  for this WU's sweep.
-- **`plan-coord-probe.md`** — Consumes execa for `gh` invocations; potential zod consumer for
-  adapter output parsing.
-- **`analysis-cli-architecture-solid-dry-audit.md`** — Source audit for the 3 remediation plans;
-  cross-referenced at PRD time for any lib-related findings WU-A should absorb (audit was
-  structural; WU-A is substrate-level — likely orthogonal but confirm).
-
----
-
-## Backlog Inbox Absorption (2026-05-19, WOR Task 6.3.b)
-
-*Entry folded from retired `backlog/technical/BACKLOG-TECHNICAL.md` during WOR Task 6.3.b
-inbox-drain to the four-surface model. Domain overlap with this plan flagged; integration
-into plan body deferred to a focused iteration session.*
-
-### Unify subprocess CLI test helpers (`runArc` + `runCli`)
-
-- **Problem:** Two near-overlapping subprocess helpers exist —
-  `__tests__/e2e/helpers.ts:runArc` (PTY-emulated via `script` on Linux, injects
-  `NO_COLOR=1`, 30s default timeout, catches errors and maps to result) and
-  `__tests__/helpers/run-cli.ts:runCli` (`stdio: "pipe"`, no env injection, 10s default
-  timeout, rejects on spawn-error/timeout). Both spawn `node dist/cli.js`; the
-  genuinely-different concern is invocation mode (TTY for interactive Clack flows vs.
-  pipe for stdout purity contracts). Today, picking the wrong helper at a new test site
-  is easy and the failure mode (Clack short-circuits to non-interactive, or PTY output
-  contaminates a purity assertion) is confusing. Shared `CLI_PATH` constant + prebuild
-  guard already extracted to `__tests__/helpers/cli-spawn.ts` during 2.R.3.c.2 — that
-  captured the genuinely-shared duplication. The remaining consolidation is the
-  ergonomic / single-import-surface question.
-- **Approach:** Collapse to one helper with explicit `mode: "tty" | "pipe"` parameter.
-  Reconcile per-mode defaults (timeout, env injection, error handling) as part of the
-  API design — current asymmetries are tuned per use case and can't be silently merged.
-  Migrate ~80 `runArc` call sites across 10 e2e test files + 6 `runCli` call sites;
-  cwd-position mismatch (positional vs. options-object) means every site touches its
-  arg list.
-- **Notes:** Not blocking — both helpers work today. Benefit is ergonomic and makes the
-  TTY-vs-pipe choice explicit at the call site instead of implicit-in-import. Cost is
-  real (86 sites + behavioral matrix decisions). Path-independent: doing it later is no
-  worse than doing it now. Captured during 2.R.3.c.2 after option B (shared core
-  extraction) was selected over option C (full unification) for that task's scope.
-- **Effort estimate:** M (helper redesign + 86-site migration + new unit coverage for
-  the mode parameter and default-merge behavior)
-
-## Coordination — ADR-022
-
-ADR-022 designates the meta record (this WU's zod meta schema) as the structural source of truth for the
-managed operational-state document class. Enumerate full managed-doc schema coverage beyond the current four
-surfaces (or hand the remainder to `operational-state-docs`), and resolve the schema-home convention so every
-consumer derives from one schema. See `adr-022-managed-operational-state-documents.md` § Coordination.
+- **`session-locus-model`** — P1 consumer paused on the kernel member's ship; locus record schema, read verb,
+  lease.
+- **`schema-introspection-layer`** — downstream publisher of the kernel registry (`arc schema`).
+- **`operational-state-docs`** — ADR-022 records keystone; managed-doc schema coverage boundary; markdown
+  projection layer (and any parse/render library decision).
+- **`wu-lifecycle-state-model`** — `State` vocabulary consumer; placement-reader extract against landed
+  resolver verbs; state-machine machinery is its call.
+- **`scalable-core`** — config axis reform owner (`pm.mode` packet).
+- **`composable-workflows`** — workflow contracts / step vocabulary deriving from the kernel; frontmatter
+  mechanism; workflow-markdown command question (re-routed there at this refresh).
+- **`architecture-remediation` cohort** — inherits schemas convention, `Result` types; scopes shrink.
+- **`local-mode` / `arc-backend`** — the storage substrate the resolver seam and storage-agnostic record
+  schemas compose toward.
+- **`coupling-blast-radius-audit` (shipped)** — source of the two owned packets; the scan corpus is
+  digest-pinned in history (retrieval documented in the audits README).
