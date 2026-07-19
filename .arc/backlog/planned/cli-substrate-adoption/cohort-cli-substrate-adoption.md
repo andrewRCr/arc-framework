@@ -5,26 +5,25 @@
 
 **Purpose:** Deliver the CLI's typed substrate as independently reviewable work units while preserving one
 coherent architecture: a shared schema kernel, stable process-boundary contracts, one layout authority, systematic
-runtime validation, a typed git executor, and uniform command-input behavior. The kernel ships first so downstream
-work can consume a real integration boundary; the remaining members form a fan over that foundation rather than a
-single multi-week branch.
+runtime validation, a typed git executor, uniform command-input behavior, and a final adoption sweep. The kernel
+ships first so downstream work can consume a real integration boundary; five members form a fan over that
+foundation, then a tail member closes residual migration across the landed contracts.
 
 ---
 
 ## Coordination
 
 ```text
-cli-schema-kernel
-├── cli-session-envelope
-├── cli-layout-resolver
-├── cli-validation-surfaces
-├── cli-git-executor
-└── cli-command-inputs
+Stage 1: cli-schema-kernel
+Stage 2 (dependency-independent fan; overlap-check at activation):
+  cli-session-envelope · cli-layout-resolver · cli-validation-surfaces · cli-git-executor · cli-command-inputs
+Stage 3: cli-substrate-complete-migration (depends on Stages 1–2)
 ```
 
 Every fan member depends on `cli-schema-kernel`; no fan member otherwise gates another. All session-init, recovery,
 and compaction-seed envelope-family schemas belong to `cli-session-envelope`, keeping
-`cli-validation-surfaces` independent after the kernel lands.
+`cli-validation-surfaces` independent after the kernel lands. `cli-substrate-complete-migration` depends on all
+six preceding members and performs the final audit and mechanical adoption against their landed contracts.
 
 ### Shared contracts
 
@@ -48,15 +47,16 @@ and compaction-seed envelope-family schemas belong to `cli-session-envelope`, ke
   through the kernel.
 - Canonical serialization semantics remain byte-stable. Each sibling that owns a peripheral canonicalization
   outlier migrates that outlier without changing `lib/canonical/` receipts.
-- Priority-surface scope is closed. Any newly discovered wholesale migration target routes to the follow-up
-  complete-migration work unit rather than expanding a member.
+- Priority-surface scope is closed. Any newly discovered wholesale migration target routes to
+  `cli-substrate-complete-migration` rather than expanding a contract-owning member.
 
 ### Cross-cohort
 
 - **`session-locus-model`:** waits on `cli-schema-kernel` and `cli-session-envelope`, then refreshes its saved RFC
   against the landed record and result contracts.
 - **`operational-state-docs`:** waits on `cli-validation-surfaces`, whose meta-record schema is the structural
-  source of truth for the managed operational-state-document class.
+  source of truth for the managed operational-state-document class. Its managed-document conversion remains
+  outside `cli-substrate-complete-migration`; the tail owns only residual CLI code and test adoption.
 - **`schema-introspection-layer`:** waits on `cli-schema-kernel` and publishes its registry and generated schema
   artifacts.
 - **`composable-workflows`:** consumes the kernel for workflow contracts and the step vocabulary; it retains
@@ -66,9 +66,9 @@ and compaction-seed envelope-family schemas belong to `cli-session-envelope`, ke
 
 ### Closeout criteria
 
-The cohort is complete when all six members ship, their shared contracts agree, the priority-migration cutline has
-not expanded, the named downstream dependency edges point at their delivering members, and the follow-up
-complete-migration work unit has been minted for deferred conversion and test-helper unification.
+The cohort is complete when all seven members ship, their shared contracts agree, the named downstream dependency
+edges point at their delivering members, and `cli-substrate-complete-migration` proves that no cohort-scoped
+first-party importer, transitional shim, or parallel reusable test helper remains.
 
 ## Members
 
@@ -113,5 +113,13 @@ _Exposes:_ uniform non-interactive behavior, required-input elicitation/refusal,
 Commander arguments and clack-provided values.
 
 _Consumes:_ kernel schemas and the existing lifecycle/stub policy boundaries without taking ownership of them.
+
+### `cli-substrate-complete-migration`
+
+_Exposes:_ a reconciled post-cohort migration inventory, first-party consumers on their final owning modules,
+retired transitional shims, and converged reusable test support.
+
+_Consumes:_ all six landed member contracts. Managed operational-document conversion remains owned by
+`operational-state-docs`.
 
 ---
