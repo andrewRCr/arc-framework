@@ -89,26 +89,14 @@ sibling to the hook-detection module; per-manager rules per the spec table; the 
 today's executable-git-path check; the pre-commit rule resolves an ambiguous config-visible signal toward
 "present", since a false-positive only _skips_ preflight and `commit-msg` remains the backstop).
 
-### `[ ]` **3.1 Add `hasEffectiveHook(name)` with per-manager effective-hook rules**
+### `[x]` **3.1 Add `hasEffectiveHook(name)` with per-manager effective-hook rules**
 
 - _Goal:_ `hasEffectiveHook(name)` answers "does an effective `<name>` hook exist" correctly for each detected
   manager and for the raw fallback — distinguishing a real hook from a bare dispatcher shim.
 
-- _Note:_ The precise pre-commit YAML read (`<name>`-stage activation via a hook `stages` entry vs.
-  `default_install_hook_types`, and the `default_stages` interaction) finalizes during implementation; the
-  decision itself is settled (presence-biased). See `spec-commit-message-ergonomics.md` § Open items.
-
-    Build `test-first` (one behavior at a time):
-
-    - Husky: `.husky/<name>` present resolves true
-    - Husky: only the `_/<name>` dispatcher shim present (no `.husky/<name>`) resolves false
-    - Lefthook: a `<name>:` section with commands in `lefthook.yml` / `.yaml` resolves true
-    - Lefthook: no `<name>:` section resolves false
-    - pre-commit: `.pre-commit-config.yaml` declaring `<name>`-stage activation resolves true
-    - pre-commit: an ambiguous config-visible signal resolves true (presence-biased)
-    - pre-commit: no `<name>` signal resolves false
-    - raw/unknown (no manager detected): an executable `.git/hooks/<name>` resolves true, absent/non-executable
-      resolves false (today's behavior, unchanged)
+- _Outcome:_ Added the reusable manager-aware probe in `hook-manager.ts`: Husky checks only its public hook,
+  Lefthook requires commands under the named section, pre-commit recognizes explicit hook stages and default
+  install types while presence-biasing `default_stages`, and raw repositories retain the executable Git-hook rule.
 
 ### `[ ]` **3.2 Route `hasPrepareCommitMsgHook` through `hasEffectiveHook`**
 

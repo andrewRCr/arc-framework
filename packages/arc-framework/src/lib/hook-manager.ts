@@ -9,6 +9,8 @@
  */
 
 import { join } from "node:path";
+import { constants } from "node:fs";
+import yaml from "js-yaml";
 
 /** Supported hook manager names. */
 export type HookManager = "husky" | "lefthook" | "pre-commit";
@@ -21,6 +23,13 @@ export interface HookManagerResult {
 
 /** File-existence check function (injectable for testing). */
 export type AccessFn = (path: string) => Promise<void>;
+
+/** I/O dependencies for effective-hook detection. */
+export interface EffectiveHookIO {
+  access: (path: string, mode?: number) => Promise<void>;
+  readFile: (path: string) => Promise<string>;
+  resolveGitHookPath: (cwd: string, name: string) => Promise<string>;
+}
 
 /** Detection probes in priority order: husky > lefthook > pre-commit. */
 const PROBES: ReadonlyArray<{ manager: HookManager; paths: string[] }> = [
@@ -55,4 +64,69 @@ export async function detectHookManager(
     }
   }
   return null;
+}
+
+/**
+ * Determine whether a repository has an effective hook for a Git hook name.
+ *
+ * @param cwd - Repository root directory
+ * @param name - Git hook name
+ * @param io - Filesystem and Git-path dependencies
+ * @returns Whether the detected manager exposes an effective hook
+ */
+export async function hasEffectiveHook(
+  cwd: string,
+  name: string,
+  io: EffectiveHookIO,
+): Promise<boolean> {
+  const detection = await detectHookManager(cwd, io.access);
+  if (detection?.manager === "husky") {
+    try {
+      await io.access(join(detection.configPath, name));
+      return true;
+    } catch (cause: unknown) {
+      if (isUnavailable(cause)) return false;
+      throw cause;
+    }
+  }
+  if (detection?.manager === "lefthook") {
+    const config = yaml.load(await io.readFile(detection.configPath));
+    if (!isRecord(config)) return false;
+    const hook = config[name];
+    if (!isRecord(hook) || !isRecord(hook.commands)) return false;
+    return Object.keys(hook.commands).length > 0;
+  }
+  if (detection?.manager === "pre-commit") {
+    const config = yaml.load(await io.readFile(detection.configPath));
+    if (!isRecord(config)) return false;
+    if (
+      Array.isArray(config.default_install_hook_types)
+      && config.default_install_hook_types.includes(name)
+    ) return true;
+    if (Array.isArray(config.default_stages) && config.default_stages.includes(name)) return true;
+    if (!Array.isArray(config.repos)) return false;
+    return config.repos.some((repo) => isRecord(repo)
+      && Array.isArray(repo.hooks)
+      && repo.hooks.some((hook) => isRecord(hook)
+        && Array.isArray(hook.stages)
+        && hook.stages.includes(name)));
+  }
+  const hookPath = await io.resolveGitHookPath(cwd, name);
+  try {
+    await io.access(hookPath, constants.X_OK);
+    return true;
+  } catch (cause: unknown) {
+    if (isUnavailable(cause)) return false;
+    throw cause;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isUnavailable(cause: unknown): boolean {
+  return cause instanceof Error
+    && "code" in cause
+    && (cause.code === "ENOENT" || cause.code === "ENOTDIR" || cause.code === "EACCES");
 }
