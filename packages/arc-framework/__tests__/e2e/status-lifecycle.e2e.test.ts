@@ -35,7 +35,10 @@ describe("status <slug>", () => {
       [
         "# Metadata: live",
         "",
-        "- **State:** Active",
+        "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+        "|-----------|-----------|------------|-----------|--------------|",
+        "| `Integrating` | `test-user` | `feat/live` | `Light` | `P1` |",
+        "",
         "- **Depends On:** `shipped-dep`",
         "",
       ].join("\n"),
@@ -61,8 +64,8 @@ describe("status <slug>", () => {
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
       slug: "live",
-      position: { phase: "Active", location: "active" },
-      state: "active",
+      position: { phase: "Integrating", location: "active" },
+      state: "integrating",
       occupied: true,
       shipped: false,
       dependsOn: [{ slug: "shipped-dep", landed: true }],
