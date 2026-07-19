@@ -15,6 +15,11 @@ export {
   type Result,
 } from "./result.js";
 export {
+  ArcError,
+  toArcError,
+  type ArcErrorCode,
+} from "./errors.js";
+export {
   PrioritySchema,
   WORK_UNIT_STATE_ORDER,
   WorkClassSchema,
@@ -35,9 +40,11 @@ export {
 export {
   createKernelRegistry,
   createRegistry,
+  SchemaError,
   type KernelJSONSchema,
   type KernelJSONSchemaBundle,
   type KernelRegistry,
   type KernelSchemaMeta,
   type MigrationPosture,
+  type SchemaErrorCode,
 } from "./schema/registry.js";

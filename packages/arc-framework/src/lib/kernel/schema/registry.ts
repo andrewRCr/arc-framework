@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 
+import { ArcError } from "../errors.js";
 import { SlugSchema } from "./slug.js";
 import {
   PrioritySchema,
@@ -38,6 +39,23 @@ export interface KernelRegistry {
   toJSONSchema(options?: { readonly uri?: (id: string) => string }): KernelJSONSchemaBundle;
 }
 
+/** Stable schema-registry failure variants. */
+export type SchemaErrorCode =
+  | "schema.registry.duplicate-identity"
+  | "schema.registry.duplicate-schema"
+  | "schema.registry.invalid-metadata";
+
+/** Schema-domain error with a locally exhaustive code contract. */
+export class SchemaError extends ArcError {
+  override readonly code: SchemaErrorCode;
+
+  constructor(message: string, code: SchemaErrorCode, options?: ErrorOptions) {
+    super(message, code, options);
+    this.name = "SchemaError";
+    this.code = code;
+  }
+}
+
 interface RegistryEntry {
   readonly schema: z.ZodType;
   readonly meta: KernelSchemaMeta;
@@ -54,13 +72,22 @@ function compareIdentity(left: string, right: string): number {
 
 function validateMetadata(meta: KernelSchemaMeta): void {
   if (!SlugSchema.safeParse(meta.id).success) {
-    throw new Error(`Invalid schema identity: ${JSON.stringify(meta.id)}`);
+    throw new SchemaError(
+      `Invalid schema identity: ${JSON.stringify(meta.id)}`,
+      "schema.registry.invalid-metadata",
+    );
   }
   if (!Number.isSafeInteger(meta.version) || meta.version <= 0) {
-    throw new Error(`Invalid schema version for ${meta.id}: ${String(meta.version)}`);
+    throw new SchemaError(
+      `Invalid schema version for ${meta.id}: ${String(meta.version)}`,
+      "schema.registry.invalid-metadata",
+    );
   }
   if (!migrationPostures.has(meta.migrationPosture)) {
-    throw new Error(`Invalid migration posture for ${meta.id}: ${meta.migrationPosture}`);
+    throw new SchemaError(
+      `Invalid migration posture for ${meta.id}: ${meta.migrationPosture}`,
+      "schema.registry.invalid-metadata",
+    );
   }
 }
 
@@ -73,10 +100,15 @@ export function createRegistry(): KernelRegistry {
   return {
     register<T extends z.ZodType>(schema: T, meta: KernelSchemaMeta): T {
       validateMetadata(meta);
-      if (entries.has(meta.id)) throw new Error(`Duplicate schema identity: ${meta.id}`);
+      if (entries.has(meta.id)) {
+        throw new SchemaError(`Duplicate schema identity: ${meta.id}`, "schema.registry.duplicate-identity");
+      }
       const existingIdentity = schemaIdentities.get(schema);
       if (existingIdentity !== undefined) {
-        throw new Error(`Schema instance already registered as: ${existingIdentity}`);
+        throw new SchemaError(
+          `Schema instance already registered as: ${existingIdentity}`,
+          "schema.registry.duplicate-schema",
+        );
       }
 
       const storedMeta = Object.freeze({ ...meta });

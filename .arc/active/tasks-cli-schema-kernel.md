@@ -176,78 +176,52 @@ members can compose without centralizing their domain-owned schemas.
 _Purpose:_ Evolve the existing error base into an open, namespaced taxonomy without moving terminal presentation
 into the kernel or changing current user-facing formatting.
 
-### `[ ]` **4.1 Move and open the ArcError base contract**
+### `[x]` **4.1 Move and open the ArcError base contract**
 
 - _Goal:_ The CLI has one kernel-owned error base that accepts existing and namespaced domain codes without a shared
   union edit, while existing `ArcError` construction remains source-compatible.
-- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §6.
 
-    - `[ ]` **4.1.a Relocate the base error and open its code contract**
-        - Move `ArcError` and `ArcErrorCode` into the kernel. Define the frozen existing 15-literal vocabulary as
-          internal `LegacyArcErrorCode`, define the public `ArcErrorCode` as that type plus
-          `` `${Lowercase<string>}.${Lowercase<string>}` ``, and preserve the two-argument constructor while
-          accepting optional third-argument `ErrorOptions` for native cause support.
-        - Build `test-first` (one behavior at a time):
-            - All 15 existing `SCREAMING_SNAKE` codes remain accepted verbatim.
-            - Lowercase-dotted namespaced codes are accepted without editing a shared union, while a new bare code
-              is rejected at compile time.
-            - Two-argument construction retains `message`, `name`, and `code`; a third `ErrorOptions` argument
-              retains its original `Error` as `cause`.
+    - `[x]` **4.1.a Relocate the base error and open its code contract**
+        - Moved `ArcError` into the kernel with the internal 15-code legacy union plus lowercase dotted extensions,
+          preserving two-argument construction and adding native `ErrorOptions` cause support.
 
-    - `[ ]` **4.1.b Expose the base through the existing error module**
-        - Re-export the base and code type from `packages/arc-framework/src/lib/errors.ts` while keeping terminal
-          presentation definitions in that file.
-        - Replace the previous shared exhaustive-switch test with compile-time legacy/namespaced acceptance and
-          bare-code rejection assertions. Assert the old-path and direct-kernel exports are the same constructor and
-          that `UserFacingError` remains an instance of it.
+    - `[x]` **4.1.b Expose the base through the existing error module**
+        - The existing error module now re-exports the exact kernel constructor/type while retaining presentation;
+          compile-time tests accept legacy/namespaced codes, reject new bare codes, and prove `UserFacingError`
+          constructor compatibility.
 
-### `[ ]` **4.2 Prove namespaced domain extension and cause-preserving adapters**
+- _Outcome:_ The CLI retains one source-compatible error base while domains can add typo-safe namespaced variants
+  without editing a shared exhaustive union.
+
+### `[x]` **4.2 Prove namespaced domain extension and cause-preserving adapters**
 
 - _Goal:_ A domain can add exhaustive local error variants and convert unknown failures safely without widening or
   centralizing the shared error vocabulary.
-- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §§2 and 6.
+    - `[x]` **4.2.a Add a representative schema-domain error contract**
+        - Added locally exhaustive `SchemaError` variants for invalid metadata, duplicate identities, and duplicate
+          schema instances; registry failures now expose those stable codes with narrowed type and optional cause.
 
-    - `[ ]` **4.2.a Add a representative schema-domain error contract**
-        - Define and export `SchemaErrorCode` and `SchemaError` beside the registry with
-          `schema.registry.duplicate-identity`, `schema.registry.duplicate-schema`, and
-          `schema.registry.invalid-metadata`. Give `SchemaError` a readonly `code: SchemaErrorCode`, set
-          `name = "SchemaError"`, and mirror the base constructor as
-          `(message: string, code: SchemaErrorCode, options?: ErrorOptions)`; route the corresponding Phase 3
-          registration failures through it.
-        - Build `test-first` (one behavior at a time):
-            - An `assertNever`-style switch over a `SchemaError` instance's `code` proves the three local codes are
-              exhaustive within the schema domain.
-            - Construction rejects legacy and other-domain codes at compile time, preserves the selected schema
-              code and `SchemaError` name, and retains an optional native `Error` cause.
-            - Adding the subclass requires no edit to the base `ArcErrorCode` contract.
-            - Duplicate identity, duplicate schema instance, and invalid metadata failures expose their stable codes
-              without changing the registry's public success types.
+    - `[x]` **4.2.b Add a boundary-safe unknown-error adapter**
+        - Added `toArcError()`: existing ARC errors retain identity, ordinary Errors become private causes beneath a
+          stable caller-owned fallback, and non-Error throws are neither stringified nor retained.
 
-    - `[ ]` **4.2.b Add a boundary-safe unknown-error adapter**
-        - Export `toArcError(value, { code, message })` from the kernel. Return an existing `ArcError` unchanged;
-          otherwise create the caller's stable fallback and retain `value` as `cause` only when it is an `Error`.
-        - Build `test-first` (one behavior at a time):
-            - Existing `ArcError` values retain their exact object and machine-readable identity.
-            - Plain `Error` values remain available through `cause` under the supplied stable code/message.
-            - Strings, objects, and nullish throws produce the stable fallback without stringification,
-              property-copying, or cause retention.
+- _Outcome:_ The registry demonstrates independent domain extension, and boundary adapters now preserve useful
+  native causes without leaking arbitrary thrown values into public error identity.
 
-### `[ ]` **4.3 Preserve terminal presentation in the existing error module**
+### `[x]` **4.3 Preserve terminal presentation in the existing error module**
 
 - _Goal:_ `UserFacingError`, `formatError()`, `formatUnexpectedError()`, and `manifestMissingError()` render exactly
   as before while consuming the kernel-owned base.
-- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §6's presentation boundary.
+    - `[x]` **4.3.a Reground presentation on the moved base**
+        - Kept `UserFacingError` and all formatters in `lib/errors.ts`, changing only their dependency to the exact
+          kernel base while retaining old-path output assertions.
 
-    - `[ ]` **4.3.a Reground presentation on the moved base**
-        - Keep presentation classes/functions in `packages/arc-framework/src/lib/errors.ts` and update only their
-          downward dependency on the kernel.
-        - Keep the exact output assertions in `packages/arc-framework/__tests__/unit/errors.test.ts` running through
-          the old path; add direct-kernel assertions only for constructor identity, base fields, and cause behavior.
+    - `[x]` **4.3.b Validate command and handler compatibility**
+        - All existing command/handler consumers typecheck unchanged; unexpected-error formatting remains stack- and
+          cause-free with byte-identical terminal strings.
 
-    - `[ ]` **4.3.b Validate command and handler compatibility**
-        - Typecheck every existing `UserFacingError` and `ArcErrorCode` consumer without wholesale import migration.
-        - Confirm unexpected-error formatting emits no stack, cause message, or cause details and current terminal
-          strings remain unchanged.
+- _Outcome:_ Error taxonomy is now kernel-owned and extensible while terminal presentation and every legacy caller
+  remain on their established module boundary.
 
 ## **Phase 5:** Canonical-data relocation
 
