@@ -95,7 +95,6 @@ function validateMetadata(meta: KernelSchemaMeta): void {
 export function createRegistry(): KernelRegistry {
   const nativeRegistry = z.registry<KernelSchemaMeta>();
   const entries = new Map<string, RegistryEntry>();
-  const schemaIdentities = new WeakMap<z.ZodType, string>();
 
   return {
     register<T extends z.ZodType>(schema: T, meta: KernelSchemaMeta): T {
@@ -111,17 +110,18 @@ export function createRegistry(): KernelRegistry {
           "schema.registry.duplicate-identity",
         );
       }
-      const existingIdentity = schemaIdentities.get(schema);
-      if (existingIdentity !== undefined) {
+      if (nativeRegistry.has(schema)) {
+        const existingMeta = nativeRegistry.get(schema);
         throw new SchemaError(
-          `Schema instance already registered as: ${existingIdentity}`,
+          existingMeta === undefined
+            ? "Schema instance already registered"
+            : `Schema instance already registered as: ${existingMeta.id}`,
           "schema.registry.duplicate-schema",
         );
       }
 
       nativeRegistry.add(schema, storedMeta);
       entries.set(storedMeta.id, { schema, meta: storedMeta });
-      schemaIdentities.set(schema, storedMeta.id);
       return schema;
     },
     get(id: string): z.ZodType | undefined {

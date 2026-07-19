@@ -127,8 +127,8 @@ members can compose without centralizing their domain-owned schemas.
           versions, closed migration postures, immutable copied metadata, and pre-mutation validation.
 
     - `[x]` **3.1.b Implement registration, lookup, and identity enumeration**
-        - Wrapped the native registry with parallel identity and schema-instance indexes, atomic duplicate checks,
-          consistent lookup, and fresh code-point-sorted identity views.
+        - Wrapped the native registry with a parallel identity index, native schema-membership checks, atomic
+          duplicate guards, consistent lookup, and fresh code-point-sorted identity views.
 
 - _Outcome:_ Downstream schemas can register and discover one current version per stable identity through a small,
   deterministic wrapper without exposing Zod's non-iterable registry.

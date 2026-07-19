@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   PrioritySchema,
+  SchemaError,
   SlugSchema,
   WorkClassSchema,
   WorkUnitStateSchema,
@@ -49,7 +50,14 @@ describe("kernel schema registry", () => {
     { id: "valid", version: 1, migrationPosture: "future" },
   ])("rejects invalid metadata atomically: $id / $version / $migrationPosture", (meta) => {
     const registry = createRegistry();
-    expect(() => registry.register(z.string(), meta as KernelSchemaMeta)).toThrow();
+    let thrown: unknown;
+    try {
+      registry.register(z.string(), meta as KernelSchemaMeta);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(SchemaError);
+    expect(thrown).toMatchObject({ code: "schema.registry.invalid-metadata" });
     expect(registry.ids()).toEqual([]);
   });
 
@@ -63,6 +71,19 @@ describe("kernel schema registry", () => {
     expect(registry.ids()).toEqual(["original"]);
     expect(registry.get("original")).toBe(original);
     expect(registry.get("renamed")).toBeUndefined();
+  });
+
+  it("allows distinct derived schemas despite inherited native metadata", () => {
+    const registry = createRegistry();
+    const base = z.string();
+    const derived = base.describe("derived");
+
+    registry.register(base, strict("base"));
+    registry.register(derived, strict("derived"));
+
+    expect(registry.ids()).toEqual(["base", "derived"]);
+    expect(registry.get("base")).toBe(base);
+    expect(registry.get("derived")).toBe(derived);
   });
 
   it("snapshots getter-backed metadata once before validation and mutation", () => {
