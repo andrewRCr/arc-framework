@@ -54,8 +54,10 @@ describe("review-gate package boundary", () => {
       "@clack/prompts",
       "commander",
       "js-yaml",
+      "neverthrow",
       "semver",
       "string-width",
+      "zod",
     ]);
     expect(cli).not.toMatch(/review-gate|coderabbit|provider-registry/iu);
     expect(tsup).toContain('entry: ["src/cli.ts"]');
