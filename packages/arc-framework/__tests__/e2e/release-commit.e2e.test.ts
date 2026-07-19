@@ -538,6 +538,27 @@ describe("release commit body wrapping", () => {
     expect(await transientSnapshots()).toEqual([]);
   });
 
+  it("routes the wrapped snapshot before a pathspec option terminator", async () => {
+    await writeWrapConfig();
+
+    const result = await runCli([
+      "release",
+      "commit",
+      "-m",
+      subject,
+      "-m",
+      body,
+      "--",
+      "tracked.txt",
+    ], {
+      cwd: repository,
+      env: { ARC_HOOK_LOG: hookLog },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(await gitOutput(["show", "--format=", "--name-only", "HEAD"])).toBe("tracked.txt");
+  });
+
   it("leaves the same body unwrapped under --no-wrap, so preflight refuses it", async () => {
     await writeWrapConfig();
     const headBefore = await gitOutput(["rev-parse", "HEAD"]);

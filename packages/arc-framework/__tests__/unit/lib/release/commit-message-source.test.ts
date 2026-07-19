@@ -269,7 +269,7 @@ describe("commit-message rewriting to file", () => {
         ["commit", "--author", "name", "-m", "msg", "--", "file.txt"],
         "/snap",
       ),
-    ).toEqual(["commit", "--author", "name", "--", "file.txt", "-F", "/snap"]);
+    ).toEqual(["commit", "--author", "name", "-F", "/snap", "--", "file.txt"]);
   });
 
   it("leaves an argv with no -m/--message operands unchanged apart from the appended -F", () => {

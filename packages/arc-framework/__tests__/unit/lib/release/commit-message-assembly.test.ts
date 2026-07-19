@@ -201,6 +201,14 @@ describe("commit message body wrapping", () => {
     expect(decoder.decode(wrapCommitMessageBody(input, 10))).toBe(decoder.decode(input));
   });
 
+  it("does not flatten a nested item into its parent as hanging-indent prose", () => {
+    const input = encoder.encode(
+      "subject\n\n- parent item\n  - nested item text that is quite long and would wrap otherwise\n",
+    );
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 14))).toBe(decoder.decode(input));
+  });
+
   it("is idempotent when re-wrapping already-wrapped output, including a wide ordered marker", () => {
     const input = encoder.encode("subject\n\n10. aaa bbb ccc ddd eee fff ggg\n");
 

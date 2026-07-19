@@ -141,24 +141,29 @@ carries the corrected bytes so the pure remedy renderer stays IO-free.
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source and test typechecks; 6,326 passing tests with one
+  skip; and the production build all passed after the verification fixes.
+- _Success criteria:_ All 9 met. The fresh adversarial pass found nested-list flattening and post-terminator
+  snapshot routing gaps; both were fixed with regression coverage before the clean Tier 3 rerun.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A Husky-managed self-hosting regression proves invalid deterministic `-m` input refuses at preflight
+- `[x]` A Husky-managed self-hosting regression proves invalid deterministic `-m` input refuses at preflight
   (message-preflight refusal) before the staged-content gate runs — the dispatcher-shim false-positive is gone
-- `[ ]` An overlong single-`-m` body wraps to `hooks.body_max_line_length` at assembly and passes `commit-msg`
+- `[x]` An overlong single-`-m` body wraps to `hooks.body_max_line_length` at assembly and passes `commit-msg`
   without any hand-reflow
-- `[ ]` For a wrapped `messages` commit, the committed body bytes equal the validated (wrapped) bytes — verified
+- `[x]` For a wrapped `messages` commit, the committed body bytes equal the validated (wrapped) bytes — verified
   by inspecting the resulting commit
-- `[ ]` Flat list items wrap with hanging-indent continuation; nested lists, tables, fenced code, URLs, the
+- `[x]` Flat list items wrap with hanging-indent continuation; nested lists, tables, fenced code, URLs, the
   subject, and footer lines pass through unwrapped
-- `[ ]` Wrapping is idempotent — re-wrapping already-wrapped output is a no-op
-- `[ ]` `--no-wrap` disables wrapping for `-m`; `-F`/stdin are never mutated; a rejected byte-preserved
+- `[x]` Wrapping is idempotent — re-wrapping already-wrapped output is a no-op
+- `[x]` `--no-wrap` disables wrapping for `-m`; `-F`/stdin are never mutated; a rejected byte-preserved
   over-width source yields a corrected-artifact `-F` retry
-- `[ ]` The effective-hook check resolves correctly per manager: Husky real hook vs. bare dispatcher shim, a
+- `[x]` The effective-hook check resolves correctly per manager: Husky real hook vs. bare dispatcher shim, a
   Lefthook `prepare-commit-msg:` section, pre-commit stage activation, and the raw `.git/hooks` fallback
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration

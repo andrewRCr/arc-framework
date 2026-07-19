@@ -172,13 +172,16 @@ export function wrapCommitMessageBody(cleaned: Uint8Array, width: number): Uint8
 
     if (open?.kind === "list-item") {
       const contIndent = " ".repeat(open.prefixWidth);
+      const continuation = line.slice(open.prefixWidth);
       if (
         line.startsWith(contIndent) &&
         line.length > open.prefixWidth &&
         line[open.prefixWidth] !== " " &&
-        line[open.prefixWidth] !== "\t"
+        line[open.prefixWidth] !== "\t" &&
+        !UNORDERED_MARKER_RE.test(continuation) &&
+        !ORDERED_MARKER_RE.test(continuation)
       ) {
-        open.words.push(...splitWords(line.slice(open.prefixWidth)));
+        open.words.push(...splitWords(continuation));
         i += 1;
         continue;
       }

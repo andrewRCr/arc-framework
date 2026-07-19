@@ -535,11 +535,12 @@ export function rewriteCommitMessagesToFile(args: readonly string[], path: strin
     const arg = args[index];
     if (arg === undefined) break;
     if (arg === "--") {
+      result.push("-F", path);
       for (let rest = index; rest < args.length; rest += 1) {
         const token = args[rest];
         if (token !== undefined) result.push(token);
       }
-      break;
+      return result;
     }
 
     if (arg === "--message") {
