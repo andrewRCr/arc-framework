@@ -42,6 +42,10 @@ function sourceFiles(root: string): string[] {
   return files.sort();
 }
 
+function scriptKindFor(file: string): ts.ScriptKind {
+  return file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+}
+
 function within(root: string, candidate: string): boolean {
   const path = relative(root, candidate);
   return path === "" || (!path.startsWith("..") && !isAbsolute(path));
@@ -75,24 +79,26 @@ function relativeFile(sourceRoot: string, file: string): string {
   return relative(sourceRoot, file).split("\\").join("/");
 }
 
-function literalReferences(sourceFile: ts.SourceFile): string[] {
-  const references: string[] = [];
-  const createRequireBindings = new Set<string>();
-  const returnedRequireBindings = new Set<string>();
-
+function collectCreateRequireBindings(sourceFile: ts.SourceFile): ReadonlySet<string> {
+  const bindings = new Set<string>();
   for (const statement of sourceFile.statements) {
     if (!ts.isImportDeclaration(statement) || stringLiteralText(statement.moduleSpecifier) !== "node:module") {
       continue;
     }
-    const bindings = statement.importClause?.namedBindings;
-    if (bindings !== undefined && ts.isNamedImports(bindings)) {
-      for (const element of bindings.elements) {
-        if ((element.propertyName ?? element.name).text === "createRequire") {
-          createRequireBindings.add(element.name.text);
-        }
+    const namedBindings = statement.importClause?.namedBindings;
+    if (namedBindings !== undefined && ts.isNamedImports(namedBindings)) {
+      for (const element of namedBindings.elements) {
+        if ((element.propertyName ?? element.name).text === "createRequire") bindings.add(element.name.text);
       }
     }
   }
+  return bindings;
+}
+
+function literalReferences(sourceFile: ts.SourceFile): string[] {
+  const references: string[] = [];
+  const createRequireBindings = collectCreateRequireBindings(sourceFile);
+  const returnedRequireBindings = new Set<string>();
 
   const isCreateRequireCall = (node: ts.Node | undefined): node is ts.CallExpression =>
     node !== undefined && ts.isCallExpression(node) && isCreateRequire(node.expression, createRequireBindings);
@@ -146,22 +152,9 @@ export function auditKernelBoundary(options: AuditOptions): KernelBoundaryFindin
       readFileSync(file, "utf8"),
       ts.ScriptTarget.Latest,
       true,
-      ts.ScriptKind.TS,
+      scriptKindFor(file),
     );
-    const createRequireBindings = new Set<string>();
-    for (const statement of sourceFile.statements) {
-      if (!ts.isImportDeclaration(statement) || stringLiteralText(statement.moduleSpecifier) !== "node:module") {
-        continue;
-      }
-      const bindings = statement.importClause?.namedBindings;
-      if (bindings !== undefined && ts.isNamedImports(bindings)) {
-        for (const element of bindings.elements) {
-          if ((element.propertyName ?? element.name).text === "createRequire") {
-            createRequireBindings.add(element.name.text);
-          }
-        }
-      }
-    }
+    const createRequireBindings = collectCreateRequireBindings(sourceFile);
     const report = (specifier: string, reason: KernelBoundaryFinding["reason"]): void => {
       findings.push({ file: relativeFile(sourceRoot, file), specifier, reason });
     };
@@ -213,7 +206,7 @@ export function auditKernelBoundary(options: AuditOptions): KernelBoundaryFindin
       readFileSync(file, "utf8"),
       ts.ScriptTarget.Latest,
       true,
-      ts.ScriptKind.TS,
+      scriptKindFor(file),
     );
     for (const specifier of literalReferences(sourceFile)) {
       if (specifier === "neverthrow") {

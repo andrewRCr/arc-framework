@@ -107,6 +107,18 @@ describe("kernel import boundary", () => {
     ]);
   });
 
+  it("parses TSX sources before auditing embedded module references", () => {
+    const roots = fixture({
+      "lib/kernel/component.tsx": 'const node = <Widget>{import("commander")}</Widget>; void node;\n',
+    });
+
+    expect(auditKernelBoundary(roots)).toEqual([{
+      file: "lib/kernel/component.tsx",
+      specifier: "commander",
+      reason: "unapproved external package",
+    }]);
+  });
+
   it("rejects unchecked loader forms inside the kernel", () => {
     const roots = fixture({
       "lib/kernel/escape.ts": [
