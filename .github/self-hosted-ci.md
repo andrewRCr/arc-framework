@@ -8,7 +8,8 @@ user-owned x86-64 VPS running two persistent runner services. GitHub-hosted exec
 - Use Ubuntu 24.04 LTS x86-64 while it remains supported by the current GitHub Actions runner. Re-check the runner
   support page before acquiring or rebuilding a host; an OS change requires a fresh qualification.
 - Start with approximately 4 shared vCPU, 8 GB RAM, SSD storage, adequate outbound transfer, and a recurring price
-  no higher than USD 15 per month. Keep provider backups and snapshots disabled: the host is rebuilt, not restored.
+  no higher than USD 15 per month. Buy no premium backup and create no manual snapshot. A bundled rolling backup
+  retained for at most 24 hours is accepted residual exposure, never a recovery dependency: rebuild, do not restore.
 - Permit inbound administrative SSH only. The runner needs outbound HTTPS to GitHub and package registries; it
   receives no private-network route and hosts no unrelated service.
 - Install `git`, `gh`, `jq`, `shellcheck`, a POSIX shell, coreutils, and the dependencies reported by the current
@@ -30,9 +31,10 @@ category counts, checklist results, exceptions, sanitized runner state, workflow
 Perform these steps through the user's local SSH configuration. Substitute transient values locally; do not save
 the host endpoint, administrator identity, SSH mapping, or fingerprint in repository files.
 
-1. Create an Ubuntu 24.04 LTS x86-64 allocation in the approved region and SKU with backups disabled. Add the
-   intended SSH public key through the provider and restrict the provider firewall to administrative SSH inbound
-   plus established traffic. Permit outbound HTTPS and DNS.
+1. Create an Ubuntu 24.04 LTS x86-64 allocation in the approved region and SKU. Select no premium backup or manual
+   snapshot option; document any non-disableable rolling backup under the operating contract. Add the intended SSH
+   public key through the provider and restrict the provider firewall to administrative SSH inbound plus
+   established traffic. Permit outbound HTTPS and DNS.
 2. Connect as the provider's administrative account, verify the expected host key through a user-held channel, and
    update the operating system:
 
@@ -187,8 +189,8 @@ Never clean an active workspace or rotate away evidence needed for the current c
 
 1. Select and verify hosted fallback.
 2. Stop and deregister both runner services, then destroy the allocation after explicit approval.
-3. Provision a fresh no-backup host from **Host provisioning**. Reuse no machine image, runner application
-   directory, runner credential, workspace, or service state.
+3. Provision a fresh host from **Host provisioning** without restoring a provider backup. Reuse no machine image,
+   runner application directory, runner credential, workspace, or service state.
 4. Re-run the access-control audit. Register only after it passes.
 5. Repeat every health check and a heavy qualification run before restoring `arc-ci-linux`.
 

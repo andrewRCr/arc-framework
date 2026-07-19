@@ -38,7 +38,8 @@ plane cheap while preserving GitHub-hosted macOS/Windows coverage and an immedia
   unavailable or degraded.
 - Check identity — specifically the leg check-name the verified-tree classifier keys on — is independent of which
   runner executed a job (the required `merge-ok` check name is already runner-invariant).
-- The runner is reproducible from a checked-in runbook and disposable: no machine backup, rebuild over repair.
+- The runner is reproducible from a checked-in runbook and disposable: no machine-backup dependency, rebuild over
+  repair.
 - The trust boundary is explicit and fail-closed: self-hosted execution is enabled only when every principal able
   to submit executable pull-request code is trusted.
 
@@ -66,6 +67,12 @@ private infrastructure. Jobs run as an unprivileged service user. The machine ne
 administrative access only; it exposes no inbound application port. Unattended OS security updates are enabled, the
 runner application's default automatic updates are retained, and the service manager's restart behavior is used.
 The runner is persistent (not ephemeral) by deliberate choice — see Alternatives.
+
+The host has no backup dependency. Do not purchase premium backups, create manual snapshots, or use a provider
+restore as the recovery path. A provider-bundled rolling system-disk copy is acceptable only when it is
+non-disableable, retained for no more than 24 hours, and recorded as residual exposure rather than recovery state.
+Rebuild remains the normal response; any exceptional restore requires runner-credential rotation, a renewed access
+audit, and full health qualification before routing resumes.
 
 This minimal hardening is sufficient only because the current job topology needs neither Docker nor access to
 private network services; either need would reopen the hardening design rather than being added casually. The host

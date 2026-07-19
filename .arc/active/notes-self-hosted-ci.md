@@ -28,16 +28,23 @@ provider credential.
 
 ### Selection
 
-- **Provider / SKU / region:** [pending]
-- **Recurring price / billing basis:** [pending]
-- **Supported OS / architecture:** [pending]
-- **CPU / RAM / disk / transfer:** [pending]
-- **Shared or dedicated CPU:** [pending]
-- **Backup posture:** disabled
-- **Provider metrics and retention:** [pending]
-- **Local sampling posture:** [pending]
-- **Selection rationale and accepted tradeoffs:** [pending]
-- **Approved:** [pending — timestamp and decision only]
+- **Provider / SKU / region:** OVHcloud US / VPS-2 2027 / US East — Vint Hill, Virginia
+- **Recurring price / billing basis:** $10 per month with a one-month commitment
+- **Supported OS / architecture:** Ubuntu 24.04 LTS / x86-64
+- **CPU / RAM / disk / transfer:** 4 vCore / 8 GB RAM / 75 GB NVMe / unlimited traffic at 1 Gbps
+- **Shared or dedicated CPU:** allocated virtual cores on shared physical infrastructure
+- **Backup posture:** no premium backup or manual snapshots; bundled rolling 24-hour system-disk backup is accepted
+  residual exposure, never a recovery dependency
+- **Provider metrics and retention:** CPU, RAM, and network monitoring available; no published retention guarantee
+- **Local sampling posture:** five-minute `sysstat` cadence with at least 60 days' retention is authoritative
+- **Selection rationale and accepted tradeoffs:** Smallest qualifying US-billed option, with an in-place resize path
+  if canary evidence shows running-job starvation. Shared infrastructure, the 99.9% SLA, 75 GB disk, and the bundled
+  24-hour backup are accepted for the bounded canary; hosted fallback remains the pressure valve. Rebuild is the
+  recovery path; an exceptional restore forces runner-credential rotation, a renewed access audit, and full health
+  qualification.
+- **Approved:** 2026-07-19 — revised provider, backup exception, configuration, region, access, evidence posture,
+  and spend approved
+- **Acquired:** 2026-07-19 — allocation available; provider-account MFA and user-held SSH-key access confirmed
 
 ### Access-control precondition
 

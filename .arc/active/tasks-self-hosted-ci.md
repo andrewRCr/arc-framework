@@ -63,8 +63,8 @@ recorded.
   while every acceptance claim has a defined non-secret evidence field.
 
     - `[x]` **2.1.a Define operator inputs, invariants, and secret boundaries**
-        - Added the supported host, toolchain, two-service, label, no-backup, user-held input, and sanitized evidence
-          contracts to `.github/self-hosted-ci.md`.
+        - Added the supported host, toolchain, two-service, label, no-backup-dependency, user-held input, and
+          sanitized evidence contracts to `.github/self-hosted-ci.md`.
 
     - `[x]` **2.1.b Document reproducible host and runner-service procedures**
         - Documented host hardening, prerequisite verification, two isolated application directories, post-audit
@@ -78,33 +78,35 @@ recorded.
         - Added the sanitized selection, trust, readiness, qualification, drill, canary, cost, and final-posture
           evidence fields to `notes-self-hosted-ci.md`, with the prohibited-data boundary stated explicitly.
 
-### `[ ]` **2.2 Select and acquire a VPS provider and SKU within the operating envelope**
+### `[x]` **2.2 Select and acquire a VPS provider and SKU within the operating envelope**
 
 - _Goal:_ A paid, user-owned VPS allocation is ready for bootstrap with current provider terms verified against
   the design's resource, cost, support, and operational constraints.
 - _Note:_ Provider signup, identity checks, MFA, billing, and purchase are user-owned external actions. Research
   may recommend a choice, but no purchase or recurring spend is authorized until the user explicitly approves it.
 
-    - `[ ]` **2.2.a Research current provider and runner-support facts**
-        - Compare current authoritative provider offerings for x64 Linux, roughly 4 vCPU / 8 GB RAM, SSD, suitable
-          region, outbound HTTPS, administrative access, adequate transfer, and a monthly price no higher than
-          $15; confirm the selected OS against current GitHub Actions runner support.
-        - Surface material tradeoffs such as shared-vs-dedicated CPU, disk, egress, provisioning availability,
-          cancellation terms, available host metrics and retention, and operational burden; do not assume provider
-          charts expose guest memory or hard-code stale catalog facts into the runbook.
+    - `[x]` **2.2.a Research current provider and runner-support facts**
+        - Compared current official OVHcloud, netcup, Contabo, DigitalOcean, Hetzner, Hivelocity, Synteq, and GitHub
+          runner sources. Netcup is the strongest literal no-backup value; OVHcloud US is the stronger US-billed
+          choice when its unavoidable rolling 24-hour system-disk copy is accepted as residual exposure.
+        - GitHub supports Ubuntu 20.04+ on x64 with outbound HTTPS; Ubuntu 24.04 LTS is the selected baseline.
+          Provider statistics have no published retention guarantee, so local 60-day sampling remains required.
 
-    - `[ ]` **2.2.b Select the provider, SKU, region, and access posture**
-        - Recommend the smallest qualifying option with rationale and obtain explicit approval for the provider,
-          recurring cost, region, supported OS, backup-disabled posture, administrative-access shape, and the
-          provider-chart availability plus the required local-sampling evidence posture.
-        - Record the approved non-secret selection and rationale in `notes-self-hosted-ci.md` § Cutover evidence.
+    - `[x]` **2.2.b Select the provider, SKU, region, and access posture**
+        - Approved OVHcloud US VPS-2 2027 in Vint Hill at $10/month: Ubuntu 24.04 x86-64, no premium backups or
+          manual snapshots, user-held SSH administration, provider statistics as supplemental evidence, and 60-day
+          local sampling as the authoritative record.
+        - Accepted the bundled rolling 24-hour backup as bounded residual exposure under a no-backup-dependency
+          posture; rebuild remains normal recovery, and any exceptional restore forces credential rotation plus
+          renewed access and health qualification.
+        - Recorded the sanitized selection, tradeoffs, and approval in `notes-self-hosted-ci.md` § Cutover evidence.
 
-    - `[ ]` **2.2.c Acquire the allocation and make user-held access available**
-        - The user creates or uses the provider account, enables MFA, supplies payment, completes any provider
-          verification, purchases the approved allocation, and adds the intended SSH public key.
-        - Consume access through the user's local SSH configuration and agent/key path without copying those
-          coordinates into tracked files. Record only the approved provider, SKU, region, recurring price, and a
-          non-sensitive allocation reference when one is useful.
+    - `[x]` **2.2.c Acquire the allocation and make user-held access available**
+        - Acquired the approved allocation with OVHcloud account MFA enabled and confirmed Ubuntu administrative
+          access through a dedicated user-held SSH key and local alias; no access coordinate entered tracked state.
+
+- _Outcome:_ A month-to-month US-billed host is available at the 4-vCPU/8-GB canary floor, with the bundled
+  24-hour backup exception bounded by the no-backup-dependency and requalification rules.
 
 ### `[ ]` **2.3 Provision and harden the two-slot VPS without registering or routing CI jobs**
 
