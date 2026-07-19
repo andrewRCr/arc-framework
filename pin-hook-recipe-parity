@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "pin-hook-recipe-parity",
-  "origin": "description",
-  "intent": "Pin Codex hook recipe parity between package source and the self-hosted mirror",
-  "branch": "fix/pin-hook-recipe-parity",
-  "createdAt": "2026-07-19T00:39:47.271Z",
-  "returnBranch": "main"
-}
