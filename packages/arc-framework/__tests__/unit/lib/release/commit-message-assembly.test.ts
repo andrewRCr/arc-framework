@@ -5,9 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assembleCommitMessageParagraphs,
   captureCommitMessageFileSource,
+  wrapCommitMessageBody,
 } from "../../../../src/lib/release/commit-message-assembly.js";
 
 const decoder = new TextDecoder();
+const encoder = new TextEncoder();
 
 describe("commit message paragraph assembly", () => {
   it("joins repeated message values as paragraphs with a terminal newline", () => {
@@ -110,5 +112,156 @@ describe("commit message file capture", () => {
     expect(result.message).not.toContain("x".repeat(500));
     expect(result.message).toContain("\\u001b");
     expect(result.message).not.toContain("\u001b");
+  });
+});
+
+describe("commit message body wrapping", () => {
+  it("wraps a plain paragraph longer than width greedily at word boundaries", () => {
+    const input = encoder.encode("subject\n\naaa bbb ccc ddd eee\n");
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 11))).toBe(
+      "subject\n\naaa bbb ccc\nddd eee\n",
+    );
+  });
+
+  it("joins a paragraph's existing internal line breaks before re-wrapping", () => {
+    const input = encoder.encode("subject\n\naaa bbb\nccc ddd\neee\n");
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 11))).toBe(
+      "subject\n\naaa bbb ccc\nddd eee\n",
+    );
+  });
+
+  it("wraps a flat unordered list item with hanging indent at the marker's content column", () => {
+    const input = encoder.encode("subject\n\n- aaa bbb ccc ddd eee\n");
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 13))).toBe(
+      "subject\n\n- aaa bbb ccc\n  ddd eee\n",
+    );
+  });
+
+  it("wraps a flat ordered list item with hanging indent at its marker's content column", () => {
+    const input = encoder.encode("subject\n\n1. aaa bbb ccc ddd eee\n");
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 14))).toBe(
+      "subject\n\n1. aaa bbb ccc\n   ddd eee\n",
+    );
+  });
+
+  it("keeps an unbreakable token longer than width on its own line without force-splitting", () => {
+    const input = encoder.encode("subject\n\nstart averylongwordthatexceedswidth end\n");
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 10))).toBe(
+      "subject\n\nstart\naverylongwordthatexceedswidth\nend\n",
+    );
+  });
+
+  it("never wraps the subject regardless of its length", () => {
+    const subject = "subject line that is definitely much longer than the given width value";
+    const input = encoder.encode(`${subject}\n`);
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 10))).toBe(`${subject}\n`);
+  });
+
+  it("passes footer/trailer lines through verbatim", () => {
+    const input = encoder.encode(
+      "subject\n\nContext: this is a very long trailer value that would exceed the width if wrapped\n continuation with one leading space that must remain intact\n\tcontinuation with a leading tab that must remain intact\n\nSigned-off-by: Jane Doe <jane@example.com>\n",
+    );
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 10))).toBe(decoder.decode(input));
+  });
+
+  it("passes a fenced code block through verbatim", () => {
+    const input = encoder.encode(
+      "subject\n\n```\ncode line that is quite long and would normally wrap here\n  indented inside fence\n```\n",
+    );
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 10))).toBe(decoder.decode(input));
+  });
+
+  it("does not close a longer fence on a shorter nested delimiter", () => {
+    const source = [
+      "subject",
+      "",
+      "````markdown",
+      "```typescript",
+      "const example = 'this long code line must remain completely verbatim inside the outer fence';",
+      "```",
+      "````",
+      "",
+    ].join("\n");
+    const input = encoder.encode(source);
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 30))).toBe(source);
+  });
+
+  it("passes an indented code block through verbatim", () => {
+    const input = encoder.encode(
+      "subject\n\n    code that is indented and quite long across the line\n",
+    );
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 10))).toBe(decoder.decode(input));
+  });
+
+  it("passes table rows through verbatim", () => {
+    const input = encoder.encode("subject\n\n| a | b | c that is quite long here maybe |\n");
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 10))).toBe(decoder.decode(input));
+  });
+
+  it("passes nested (indented) list items through verbatim", () => {
+    const input = encoder.encode(
+      "subject\n\n  - nested item text that is quite long and would wrap otherwise\n",
+    );
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 10))).toBe(decoder.decode(input));
+  });
+
+  it("does not flatten a nested item into its parent as hanging-indent prose", () => {
+    const input = encoder.encode(
+      "subject\n\n- parent item\n  - nested item text that is quite long and would wrap otherwise\n",
+    );
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 14))).toBe(decoder.decode(input));
+  });
+
+  it("is idempotent when re-wrapping already-wrapped output, including a wide ordered marker", () => {
+    const input = encoder.encode("subject\n\n10. aaa bbb ccc ddd eee fff ggg\n");
+
+    const wrappedOnce = wrapCommitMessageBody(input, 13);
+    expect(decoder.decode(wrappedOnce)).toBe(
+      "subject\n\n10. aaa bbb\n    ccc ddd\n    eee fff\n    ggg\n",
+    );
+
+    const wrappedTwice = wrapCommitMessageBody(wrappedOnce, 13);
+    expect(wrappedTwice).toEqual(wrappedOnce);
+  });
+
+  it("wraps eligible blocks at a non-default width", () => {
+    const words = Array.from({ length: 20 }, () => "word");
+    const input = encoder.encode(`subject\n\n${words.join(" ")}\n`);
+
+    const expectedFirst = words.slice(0, 16).join(" ");
+    const expectedSecond = words.slice(16).join(" ");
+    expect(decoder.decode(wrapCommitMessageBody(input, 80))).toBe(
+      `subject\n\n${expectedFirst}\n${expectedSecond}\n`,
+    );
+  });
+
+  it("measures wrap width in Unicode code points", () => {
+    const input = encoder.encode("subject\n\n😀😀 aaa\n");
+
+    expect(decoder.decode(wrapCommitMessageBody(input, 6))).toBe("subject\n\n😀😀 aaa\n");
+  });
+
+  it("threads width through assembleCommitMessageParagraphs and preserves no-width output", () => {
+    const values = ["subject", "aaa bbb ccc ddd eee"];
+
+    expect(assembleCommitMessageParagraphs(values, undefined)).toEqual(
+      assembleCommitMessageParagraphs(values),
+    );
+    expect(decoder.decode(assembleCommitMessageParagraphs(values, 11))).toBe(
+      "subject\n\naaa bbb ccc\nddd eee\n",
+    );
   });
 });

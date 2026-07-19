@@ -7,6 +7,7 @@ import {
   COMMIT_CHECK_DEFAULTS,
   createCommitCheckContext,
 } from "../../../../src/lib/commit-check/index.js";
+import { assembleCommitMessageParagraphs } from "../../../../src/lib/release/commit-message-assembly.js";
 import type { CommitMessageCheckRepository } from "../../../../src/lib/commit-check/repository.js";
 
 function repository(
@@ -38,6 +39,7 @@ function create(overrides: {
   setupRepository?: () => Promise<CommitMessageCheckRepository>;
   hasPrepareCommitMsgHook?: (cwd: string) => Promise<boolean>;
   stdinIsTTY?: boolean;
+  wrap?: boolean;
 } = {}) {
   const readFile = vi.fn(overrides.readFile ?? (() => Promise.resolve(new Uint8Array())));
   const readStdin = vi.fn(overrides.readStdin ?? (() => Promise.resolve(new Uint8Array())));
@@ -53,6 +55,7 @@ function create(overrides: {
       readStdin,
       setupRepository: overrides.setupRepository ?? (async () => overrides.repo ?? repository()),
       hasPrepareCommitMsgHook: overrides.hasPrepareCommitMsgHook ?? (async () => false),
+      wrap: overrides.wrap ?? true,
     }),
   };
 }
@@ -166,6 +169,48 @@ describe("createCommitMessagePreflight", () => {
     });
   });
 
+  it("wraps an overlong -m body to the resolved policy width and marks snapshot routing", async () => {
+    const subject = "feat(release): add wrapped commit bodies";
+    const body = "This paragraph is intentionally long enough to require wrapping into several lines when rendered.";
+    const values = [subject, body];
+    const repo = repository({ "commit.context_footer": "disabled", "hooks.body_max_line_length": "20" });
+    const { preflight } = create({ repo, wrap: true });
+
+    const result = await preflight({ args: ["-m", subject, "-m", body], cwd: "/repo" });
+
+    if (result.kind !== "passed") throw new Error("expected passed");
+    expect(result.messageBytes).toEqual(assembleCommitMessageParagraphs(values, 20));
+    expect(result.transport).toEqual({ kind: "messages", snapshotRouted: true });
+  });
+
+  it("leaves the transport unmarked when wrapping does not change a short -m body", async () => {
+    const subject = "feat(release): add wrapped commit bodies";
+    const body = "Short paragraph.";
+    const values = [subject, body];
+    const repo = repository({ "commit.context_footer": "disabled" });
+    const { preflight } = create({ repo, wrap: true });
+
+    const result = await preflight({ args: ["-m", subject, "-m", body], cwd: "/repo" });
+
+    if (result.kind !== "passed") throw new Error("expected passed");
+    expect(result.messageBytes).toEqual(assembleCommitMessageParagraphs(values));
+    expect(result.transport).toEqual({ kind: "messages" });
+  });
+
+  it("does not wrap a -m body when wrap is disabled", async () => {
+    const subject = "feat(release): add wrapped commit bodies";
+    const body = "Alpha bravo\ncharlie delta echo";
+    const values = [subject, body];
+    const repo = repository({ "commit.context_footer": "disabled", "hooks.body_max_line_length": "20" });
+    const { preflight } = create({ repo, wrap: false });
+
+    const result = await preflight({ args: ["-m", subject, "-m", body], cwd: "/repo" });
+
+    if (result.kind !== "passed") throw new Error("expected passed");
+    expect(result.messageBytes).toEqual(assembleCommitMessageParagraphs(values));
+    expect(result.transport).toEqual({ kind: "messages" });
+  });
+
   it.each([
     { path: "missing.txt", expectedReader: "file" },
     { path: "-", expectedReader: "stdin" },
@@ -189,6 +234,97 @@ describe("createCommitMessagePreflight", () => {
       kind: "refused",
       reason: "input",
     });
+  });
+
+  it("offers corrected bytes only when wrapping makes byte-preserved input valid", async () => {
+    const rawBytes = Buffer.from([
+      "feat(release): guide corrected retries",
+      "",
+      "This paragraph contains enough ordinary words to exceed the configured body width before wrapping.",
+      "",
+    ].join("\n"));
+    const repo = repository({
+      "commit.context_footer": "disabled",
+      "hooks.body_max_line_length": "40",
+    });
+    const { preflight } = create({ readFile: async () => rawBytes, repo });
+
+    const result = await preflight({ args: ["-F", "message.txt"], cwd: "/repo" });
+
+    expect(result).toMatchObject({ kind: "refused", reason: "validation" });
+    if (result.kind !== "refused") throw new Error("expected validation refusal");
+    expect(result.correctedMessageBytes).toEqual(
+      assembleCommitMessageParagraphs([
+        "feat(release): guide corrected retries",
+        "This paragraph contains enough ordinary words to exceed the configured body width before wrapping.",
+      ], 40),
+    );
+    expect(rawBytes.toString()).toContain("configured body width before wrapping.");
+  });
+
+  it("offers the same correction for captured stdin without mutating the source bytes", async () => {
+    const rawBytes = Buffer.from([
+      "feat(release): guide corrected retries",
+      "",
+      "This paragraph contains enough ordinary words to exceed the configured body width before wrapping.",
+      "",
+    ].join("\n"));
+    const original = Buffer.from(rawBytes);
+    const repo = repository({
+      "commit.context_footer": "disabled",
+      "hooks.body_max_line_length": "40",
+    });
+    const { preflight } = create({ readStdin: async () => rawBytes, repo });
+
+    const result = await preflight({ args: ["-F", "-"], cwd: "/repo" });
+
+    expect(result).toMatchObject({
+      kind: "refused",
+      reason: "validation",
+      correctedMessageBytes: expect.any(Uint8Array),
+    });
+    expect(rawBytes).toEqual(original);
+  });
+
+  it("does not offer a UTF-8 corrected retry for a non-UTF-8 repository", async () => {
+    const rawBytes = Buffer.from([
+      "feat(release): preserve configured encodings",
+      "",
+      "This paragraph contains enough ordinary words to exceed the configured body width before wrapping.",
+      "",
+    ].join("\n"), "latin1");
+    const repo = repository({
+      "commit.context_footer": "disabled",
+      "hooks.body_max_line_length": "40",
+    }, { encoding: "iso-8859-1" });
+    const { preflight } = create({ readFile: async () => rawBytes, repo });
+
+    const result = await preflight({ args: ["-F", "message.txt"], cwd: "/repo" });
+
+    expect(result).toMatchObject({ kind: "refused", reason: "validation" });
+    expect(result).not.toHaveProperty("correctedMessageBytes");
+  });
+
+  it.each([
+    {
+      label: "an unbreakable overflow",
+      bytes: Buffer.from(`feat(release): preserve unbreakable input\n\n${"x".repeat(60)}\n`),
+    },
+    {
+      label: "a mixed width and subject failure",
+      bytes: Buffer.from("short\n\nThis ordinary paragraph is long enough to wrap but leaves the subject invalid.\n"),
+    },
+  ])("keeps the generic refusal for $label", async ({ bytes }) => {
+    const repo = repository({
+      "commit.context_footer": "disabled",
+      "hooks.body_max_line_length": "40",
+    });
+    const { preflight } = create({ readFile: async () => bytes, repo });
+
+    const result = await preflight({ args: ["-F", "message.txt"], cwd: "/repo" });
+
+    expect(result).toMatchObject({ kind: "refused", reason: "validation" });
+    expect(result).not.toHaveProperty("correctedMessageBytes");
   });
 
   it.each([
