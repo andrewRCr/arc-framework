@@ -68,6 +68,17 @@ readonly GENUINE_DOCS_GLOBS=(
   "mkdocs.yml"
 )
 
+# Packaged ARC paths whose contents can change installation, rendering, or
+# runtime contracts. Ordinary 100644 Markdown outside this registry is the one
+# packaged shape whose blob content is light-safe. This registry is shared by
+# status-aware CI classification and verified-tree identity.
+readonly PACKAGED_CONTENT_SENSITIVE_GLOBS=(
+  "packages/arc-framework/arc/system/extensions/*"
+  "packages/arc-framework/arc/system/.internal/*"
+  "packages/arc-framework/arc/reference/templates/*"
+  "packages/arc-framework/arc/*.template.md"
+)
+
 # Files whose behavior is explicitly exercised by the OS-sensitive portability
 # suite. Changes outside this set retain the required Linux leg without paying
 # the Windows/macOS runner multipliers on every heavy pull request.
@@ -146,6 +157,16 @@ is_code_surface_path() {
     *.md) return 1 ;;
   esac
   return 0
+}
+
+is_packaged_arc_path() {
+  [[ "$1" == packages/arc-framework/arc/* ]]
+}
+
+is_packaged_content_sensitive_path() {
+  local path="$1"
+  [[ "${path}" != *.md ]] \
+    || _matches_any "${path}" "${PACKAGED_CONTENT_SENSITIVE_GLOBS[@]}"
 }
 
 usage() {
@@ -240,58 +261,206 @@ cmd_portability() {
   if [[ "${seen}" == "true" ]]; then echo "false"; else echo "true"; fi
 }
 
-# Classify the exact path set between two refs without passing filenames
-# through a shell string. Git's NUL form preserves every valid pathname.
-_classify_diff_paths() {
-  local event="$1" base="$2" head="$3" paths_file result
-  paths_file="$(mktemp)"
-  if [[ "${event}" == "pull_request" ]]; then
-    if ! git diff --name-only -z "${base}...${head}" >"${paths_file}" 2>/dev/null; then
-      rm -f "${paths_file}"
+# Classify one normalized change fact. Rename/copy sources and destinations
+# both participate in path policy; packaged ARC facts need modification +
+# stable regular-file modes + an ordinary Markdown path to be light-safe.
+_classify_change_fact() {
+  local status="$1" old_mode="$2" new_mode="$3" path="$4" previous_path="${5:-}"
+  local endpoint
+  local endpoints=("${path}")
+  [[ -n "${previous_path}" ]] && endpoints+=("${previous_path}")
+  for endpoint in "${endpoints[@]}"; do
+    if is_packaged_arc_path "${endpoint}"; then
+      if [[ "${status}" != "modified" || "${old_mode}" != "100644" || "${new_mode}" != "100644" ]] \
+        || is_packaged_content_sensitive_path "${endpoint}"; then
+        return 1
+      fi
+    elif is_code_surface_path "${endpoint}"; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+# Parse and reduce Git's private `--raw -z` wire format. Malformed cardinality,
+# modes, object ids, statuses, or trailing bytes make the entire set unknown.
+_classify_raw_diff_file() {
+  local raw_file="$1" header path previous_path status_token status old_mode new_mode
+  local seen=false classification=light
+
+  while true; do
+    header=""
+    if ! IFS= read -r -d '' header; then
+      if [[ -n "${header}" ]]; then
+        echo "unknown"
+        return 0
+      fi
+      break
+    fi
+    seen=true
+    if [[ ! "${header}" =~ ^:([0-7]{6})\ ([0-7]{6})\ ([0-9a-f]{40}|[0-9a-f]{64})\ ([0-9a-f]{40}|[0-9a-f]{64})\ ([A-Z][0-9]{0,3})$ ]]; then
       echo "unknown"
       return 0
     fi
-  elif ! git diff --name-only -z "${base}" "${head}" >"${paths_file}" 2>/dev/null; then
-    rm -f "${paths_file}"
+    old_mode="${BASH_REMATCH[1]}"
+    new_mode="${BASH_REMATCH[2]}"
+    status_token="${BASH_REMATCH[5]}"
+    case "${status_token}" in
+      A) status=added ;;
+      M) status=modified ;;
+      D) status=deleted ;;
+      T) status="type-changed" ;;
+      R[0-9]*)
+        (( 10#${status_token#R} <= 100 )) || { echo "unknown"; return 0; }
+        status=renamed
+        ;;
+      C[0-9]*)
+        (( 10#${status_token#C} <= 100 )) || { echo "unknown"; return 0; }
+        status=copied
+        ;;
+      *)
+        echo "unknown"
+        return 0
+        ;;
+    esac
+
+    path=""
+    if ! IFS= read -r -d '' path || [[ -z "${path}" ]]; then
+      echo "unknown"
+      return 0
+    fi
+    previous_path=""
+    if [[ "${status}" == "renamed" || "${status}" == "copied" ]]; then
+      previous_path="${path}"
+      path=""
+      if ! IFS= read -r -d '' path || [[ -z "${path}" ]]; then
+        echo "unknown"
+        return 0
+      fi
+    fi
+
+    if ! _classify_change_fact "${status}" "${old_mode}" "${new_mode}" "${path}" "${previous_path}"; then
+      classification=heavy
+    fi
+  done <"${raw_file}"
+
+  if [[ "${seen}" == "false" ]]; then
+    echo "unknown"
+  else
+    echo "${classification}"
+  fi
+}
+
+# Resolve the event-specific exact change set. Tests may inject raw bytes
+# through CLASSIFY_RAW_DIFF_FILE; the seam is private to this script process.
+_classify_diff_changes() {
+  local event="$1" base="$2" head="$3" raw_file result
+  raw_file="$(mktemp)"
+  if [[ -n "${CLASSIFY_RAW_DIFF_FILE:-}" ]]; then
+    if ! cp -- "${CLASSIFY_RAW_DIFF_FILE}" "${raw_file}" 2>/dev/null; then
+      rm -f "${raw_file}"
+      echo "unknown"
+      return 0
+    fi
+  elif [[ "${event}" == "pull_request" ]]; then
+    if ! git diff --raw -z --no-abbrev -M -C --find-copies-harder "${base}...${head}" >"${raw_file}" 2>/dev/null; then
+      rm -f "${raw_file}"
+      echo "unknown"
+      return 0
+    fi
+  elif ! git diff --raw -z --no-abbrev -M -C --find-copies-harder "${base}" "${head}" >"${raw_file}" 2>/dev/null; then
+    rm -f "${raw_file}"
     echo "unknown"
     return 0
   fi
-  if [[ ! -s "${paths_file}" ]]; then
-    rm -f "${paths_file}"
-    echo "unknown"
-    return 0
-  fi
-  result="$(cmd_classify --stdin0 <"${paths_file}")"
-  rm -f "${paths_file}"
+  result="$(_classify_raw_diff_file "${raw_file}")"
+  rm -f "${raw_file}"
   printf '%s\n' "${result}"
 }
 
-# Print a deterministic identity for the code surface at <ref>: enumerate every
-# tracked path (`git ls-tree -r`), keep those the canonical set classifies as
-# code, and hash the sorted `path<TAB><mode type sha>` lines. Reusing
-# is_code_surface_path is the no-drift guarantee — the hashed set is exactly
-# what classify calls code. Returns non-zero with no stdout on any failure, so
-# callers read it as fail-safe heavy rather than trusting a stale identity.
-# Quiet: the CLI wrapper below emits the user-facing diagnostics.
+_cleanup_tree_hash_files() {
+  rm -f "$@"
+}
+
+# Print a deterministic, versioned identity with independent content-sensitive
+# and packaged-tree-shape layers. NUL boundaries preserve all valid filenames;
+# sensitive packaged entries intentionally appear in both layers.
 _code_tree_hash() {
-  local ref="$1" listing
-  if ! listing="$(git ls-tree -r "${ref}" 2>/dev/null)"; then
+  local ref="$1" listing_file sorted_file identity_file record meta path mode type oid
+  listing_file="$(mktemp)"
+  sorted_file="$(mktemp)"
+  identity_file="$(mktemp)"
+
+  if [[ -n "${CLASSIFY_TREE_LIST_DIR:-}" && -f "${CLASSIFY_TREE_LIST_DIR}/${ref}.raw" ]]; then
+    cp -- "${CLASSIFY_TREE_LIST_DIR}/${ref}.raw" "${listing_file}" || {
+      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
+      return 1
+    }
+  elif ! git ls-tree -rz --full-tree "${ref}" >"${listing_file}" 2>/dev/null; then
+    _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
     return 1
   fi
 
-  # ls-tree -r lines are "<mode> blob <sha>\t<path>"; keep the full tree entry
-  # metadata so mode/type-only changes still produce a new code-tree identity.
-  local serialized
-  serialized="$(
-    while IFS=$'\t' read -r meta path; do
-      [[ -z "${path}" ]] && continue
-      if is_code_surface_path "${path}"; then
-        printf '%s\t%s\n' "${path}" "${meta}"
-      fi
-    done <<<"${listing}" | LC_ALL=C sort
-  )"
+  if ! LC_ALL=C sort -z -t $'\t' -k2 "${listing_file}" >"${sorted_file}"; then
+    _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
+    return 1
+  fi
 
-  printf '%s' "${serialized}" | git hash-object --stdin
+  printf 'arc-code-tree\0v2\0layer\0content-sensitive\0' >"${identity_file}"
+  # shellcheck disable=SC2094 # Failure cleanup removes the input before returning; the open descriptor is unused.
+  while true; do
+    record=""
+    if ! IFS= read -r -d '' record; then
+      [[ -z "${record}" ]] || {
+        _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
+        return 1
+      }
+      break
+    fi
+    [[ "${record}" == *$'\t'* ]] || {
+      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
+      return 1
+    }
+    meta="${record%%$'\t'*}"
+    path="${record#*$'\t'}"
+    if [[ -z "${path}" || ! "${meta}" =~ ^([0-7]{6})\ (blob|commit|tree)\ ([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
+      return 1
+    fi
+    mode="${BASH_REMATCH[1]}"
+    type="${BASH_REMATCH[2]}"
+    oid="${BASH_REMATCH[3]}"
+    if is_code_surface_path "${path}" \
+      && { ! is_packaged_arc_path "${path}" || is_packaged_content_sensitive_path "${path}"; }; then
+      printf 'entry\0path\0%s\0mode\0%s\0type\0%s\0oid\0%s\0' \
+        "${path}" "${mode}" "${type}" "${oid}" >>"${identity_file}"
+    fi
+  done <"${sorted_file}"
+
+  printf 'layer\0packaged-shape\0' >>"${identity_file}"
+  # shellcheck disable=SC2094 # Failure cleanup removes the input before returning; the open descriptor is unused.
+  while IFS= read -r -d '' record; do
+    meta="${record%%$'\t'*}"
+    path="${record#*$'\t'}"
+    [[ "${meta}" =~ ^([0-7]{6})\ (blob|commit|tree)\ ([0-9a-f]{40}|[0-9a-f]{64})$ ]] || {
+      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
+      return 1
+    }
+    if is_packaged_arc_path "${path}"; then
+      printf 'entry\0path\0%s\0mode\0%s\0type\0%s\0' \
+        "${path}" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" >>"${identity_file}"
+    fi
+  done <"${sorted_file}"
+
+  _cleanup_tree_hash_files "${listing_file}" "${sorted_file}"
+  if [[ "${CLASSIFY_TREE_SERIALIZE_FAIL:-false}" == "true" ]]; then
+    _cleanup_tree_hash_files "${identity_file}"
+    return 1
+  fi
+  git hash-object --stdin <"${identity_file}"
+  local hash_status=$?
+  _cleanup_tree_hash_files "${identity_file}"
+  return "${hash_status}"
 }
 
 # tree-hash <ref> — CLI entry for the code-tree hash. Validates the argument and
@@ -439,7 +608,7 @@ cmd_decide() {
   if [[ -n "${base}" && -n "${head}" ]] \
      && git rev-parse -q --verify "${base}^{commit}" >/dev/null 2>&1 \
      && git rev-parse -q --verify "${head}^{commit}" >/dev/null 2>&1; then
-    classification="$(_classify_diff_paths "${event}" "${base}" "${head}")"
+    classification="$(_classify_diff_changes "${event}" "${base}" "${head}")"
   fi
 
   if [[ "${classification}" == "unknown" ]]; then

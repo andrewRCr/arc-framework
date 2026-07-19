@@ -152,6 +152,33 @@ describe("trusted review-gate workflows", () => {
     expect(manifest.scripts?.["review-gate:await"]).toBeUndefined();
   });
 
+  it("pins the focused ARC contract slice and light-only CI invocation", async () => {
+    const packageManifest = JSON.parse(await readRepositoryFile("packages/arc-framework/package.json")) as {
+      scripts: Record<string, string>;
+    };
+    const rootManifest = JSON.parse(await readRepositoryFile("package.json")) as {
+      scripts: Record<string, string>;
+    };
+    expect(packageManifest.scripts["test:arc-contracts"]).toBe(
+      "vitest run --project integration framework-sync pr-open-extensions review-gate-workflows",
+    );
+    expect(rootManifest.scripts["test:arc-contracts"]).toBe(
+      "npm run test:arc-contracts -w packages/arc-framework",
+    );
+
+    const workflow = await read("ci.yml");
+    const lintSteps = jobValue(workflow, "lint-typecheck").steps;
+    expect(Array.isArray(lintSteps)).toBe(true);
+    const focused = (lintSteps as Array<Record<string, unknown>>)
+      .filter((step) => step.run === "npm run test:arc-contracts");
+    expect(focused).toEqual([{ if: "${{ needs.classify.outputs.weight == 'light' }}", run: "npm run test:arc-contracts" }]);
+
+    for (const jobName of ["unit", "integration", "e2e", "portability"]) {
+      expect(String(jobValue(workflow, jobName).if)).toContain("needs.classify.outputs.weight != 'light'");
+    }
+    expect(String(jobValue(workflow, "integration").if)).toContain("github.event_name == 'workflow_dispatch'");
+  });
+
   it("parses every workflow and pins every external action", async () => {
     const names = (await readdir(resolve(root, ".github/workflows"))).filter((name) => /\.ya?ml$/u.test(name));
     for (const name of names) {
