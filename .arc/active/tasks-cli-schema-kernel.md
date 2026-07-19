@@ -18,15 +18,12 @@ moving shared primitives into it.
 - _Note:_ Run dependency spikes in a temporary directory outside the repository; an npm prefix does not isolate the
   workspace root's `package.json`.
 
-    - `[ ]` **1.1.a Capture the pre-kernel build and package baseline**
-        - From a clean tree, run the existing build and
-          `npm pack --workspace @arc-framework/cli --dry-run --json` from the repository root.
-        - Record `dist/cli.js` bytes, total `dist/` bytes, packed and unpacked size, package file count, and the
-          `dist/cli.js` metafile input attribution in the completion note for comparison in Task 6.2.
-        - In a temporary minimal workspace outside the repository containing the root manifest, lockfile, and CLI
-          package manifest at its workspace path, run `npm ci --omit=dev --ignore-scripts`. Record total installed
-          dependency bytes and the production package count as the consumer-install baseline for Task 6.2.
-        - Record the Node/npm versions and exact baseline commit so the later comparison is reproducible.
+    - `[x]` **1.1.a Capture the pre-kernel build and package baseline**
+        - At `acb2619aa6c4a42509bf87ea1b11350dc623dbcd` with Node `v26.3.0` and npm `11.16.0`, the clean build
+          produced a 1,388,051-byte `dist/cli.js` and 5,396,824 total `dist/` bytes. Its metafile attributed
+          1,373,373 output bytes across 351 inputs. The dry-run package contained 166 files totaling 1,663,152
+          packed and 6,699,230 unpacked bytes. An isolated production install occupied 513,008 bytes across 15
+          packages.
 
     - `[ ]` **1.1.b Reconfirm and add the runtime dependencies**
         - Re-run the isolated `zod@4.4.3` registry/JSON Schema spike against the version selected for installation,
