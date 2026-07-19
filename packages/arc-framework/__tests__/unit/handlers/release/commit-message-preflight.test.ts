@@ -286,6 +286,25 @@ describe("createCommitMessagePreflight", () => {
     expect(rawBytes).toEqual(original);
   });
 
+  it("does not offer a UTF-8 corrected retry for a non-UTF-8 repository", async () => {
+    const rawBytes = Buffer.from([
+      "feat(release): preserve configured encodings",
+      "",
+      "This paragraph contains enough ordinary words to exceed the configured body width before wrapping.",
+      "",
+    ].join("\n"), "latin1");
+    const repo = repository({
+      "commit.context_footer": "disabled",
+      "hooks.body_max_line_length": "40",
+    }, { encoding: "iso-8859-1" });
+    const { preflight } = create({ readFile: async () => rawBytes, repo });
+
+    const result = await preflight({ args: ["-F", "message.txt"], cwd: "/repo" });
+
+    expect(result).toMatchObject({ kind: "refused", reason: "validation" });
+    expect(result).not.toHaveProperty("correctedMessageBytes");
+  });
+
   it.each([
     {
       label: "an unbreakable overflow",

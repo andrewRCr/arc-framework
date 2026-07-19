@@ -110,7 +110,11 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
     if (checked.exitCode === 1) {
       const rendered = renderCheckCommitMessage(checked, false);
       let correctedMessageBytes: Uint8Array | undefined;
-      if (classification.source.kind !== "messages" && preparedContext.kind === "ready") {
+      if (
+        classification.source.kind !== "messages"
+        && preparedContext.kind === "ready"
+        && isUtf8Encoding(repository.encoding)
+      ) {
         const wrapped = wrapCommitMessageBody(messageBytes, preparedContext.policy.bodyMaxLineLength);
         if (!bytesEqual(wrapped, messageBytes)) {
           const corrected = await validateCommitMessageBytes(wrapped, repository);
@@ -132,4 +136,12 @@ export function createCommitMessagePreflight(deps: CommitMessagePreflightDeps): 
       transport,
     };
   };
+}
+
+function isUtf8Encoding(label: string): boolean {
+  try {
+    return new TextDecoder(label).encoding === "utf-8";
+  } catch {
+    return false;
+  }
 }

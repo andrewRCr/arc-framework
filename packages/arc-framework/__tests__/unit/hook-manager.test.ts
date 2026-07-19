@@ -5,7 +5,7 @@
  * uses husky, lefthook, or pre-commit for git hook management.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { detectHookManager, hasEffectiveHook } from "../../src/lib/hook-manager.js";
 import type { EffectiveHookIO, HookManagerResult } from "../../src/lib/hook-manager.js";
 
@@ -16,7 +16,7 @@ import type { EffectiveHookIO, HookManagerResult } from "../../src/lib/hook-mana
 function mockAccess(existingPaths: Set<string>): (path: string) => Promise<void> {
   return async (path: string) => {
     if (existingPaths.has(path)) return;
-    throw new Error(`ENOENT: no such file or directory, access '${path}'`);
+    throw Object.assign(new Error(`ENOENT: no such file or directory, access '${path}'`), { code: "ENOENT" });
   };
 }
 
@@ -136,6 +136,12 @@ describe("detectHookManager", () => {
       configPath: "/fake/repo/lefthook.yml",
     });
   });
+
+  it("rethrows unexpected detection failures", async () => {
+    const failure = Object.assign(new Error("device failure"), { code: "EIO" });
+
+    await expect(detectHookManager(cwd, async () => Promise.reject(failure))).rejects.toBe(failure);
+  });
 });
 
 describe("hasEffectiveHook", () => {
@@ -163,6 +169,15 @@ describe("hasEffectiveHook", () => {
     const io = mockEffectiveHookIO({
       "/fake/repo/lefthook.yml": "prepare-commit-msg:\n  commands:\n    format:\n      run: format-message\n",
     });
+
+    await expect(hasEffectiveHook(cwd, "prepare-commit-msg", io)).resolves.toBe(true);
+  });
+
+  it.each([
+    ["scripts", "prepare-commit-msg:\n  scripts:\n    format.sh:\n      runner: bash\n"],
+    ["jobs", "prepare-commit-msg:\n  jobs:\n    - run: format-message\n"],
+  ])("finds a Lefthook section with configured %s", async (_kind, content) => {
+    const io = mockEffectiveHookIO({ "/fake/repo/lefthook.yml": content });
 
     await expect(hasEffectiveHook(cwd, "prepare-commit-msg", io)).resolves.toBe(true);
   });
@@ -212,6 +227,36 @@ describe("hasEffectiveHook", () => {
     });
 
     await expect(hasEffectiveHook(cwd, "prepare-commit-msg", io)).resolves.toBe(true);
+  });
+
+  it("honors explicit hook stages over pre-commit default stages", async () => {
+    const io = mockEffectiveHookIO({
+      "/fake/repo/.pre-commit-config.yaml": [
+        "default_stages: [prepare-commit-msg]",
+        "repos:",
+        "  - repo: local",
+        "    hooks:",
+        "      - id: lint",
+        "        stages: [pre-commit]",
+      ].join("\n"),
+    });
+
+    await expect(hasEffectiveHook(cwd, "prepare-commit-msg", io)).resolves.toBe(false);
+  });
+
+  it("treats a raced-away manager config as unavailable", async () => {
+    const io = mockEffectiveHookIO({ "/fake/repo/lefthook.yml": "" });
+    io.readFile = vi.fn().mockRejectedValue(Object.assign(new Error("gone"), { code: "ENOENT" }));
+
+    await expect(hasEffectiveHook(cwd, "prepare-commit-msg", io)).resolves.toBe(false);
+  });
+
+  it("rethrows unexpected manager config read failures", async () => {
+    const io = mockEffectiveHookIO({ "/fake/repo/lefthook.yml": "" });
+    const failure = Object.assign(new Error("device failure"), { code: "EIO" });
+    io.readFile = vi.fn().mockRejectedValue(failure);
+
+    await expect(hasEffectiveHook(cwd, "prepare-commit-msg", io)).rejects.toBe(failure);
   });
 
   it("ignores a pre-commit config without a requested-stage signal", async () => {

@@ -58,8 +58,8 @@ export async function detectHookManager(
       try {
         await access(fullPath);
         return { manager: probe.manager, configPath: fullPath };
-      } catch {
-        // Path doesn't exist, try next
+      } catch (cause: unknown) {
+        if (!isUnavailable(cause)) throw cause;
       }
     }
   }
@@ -90,26 +90,30 @@ export async function hasEffectiveHook(
     }
   }
   if (detection?.manager === "lefthook") {
-    const config = yaml.load(await io.readFile(detection.configPath));
+    const content = await readAvailableConfig(detection.configPath, io.readFile);
+    if (content === null) return false;
+    const config = yaml.load(content);
     if (!isRecord(config)) return false;
     const hook = config[name];
-    if (!isRecord(hook) || !isRecord(hook.commands)) return false;
-    return Object.keys(hook.commands).length > 0;
+    if (!isRecord(hook)) return false;
+    return hasEntries(hook.commands) || hasEntries(hook.scripts) || hasEntries(hook.jobs);
   }
   if (detection?.manager === "pre-commit") {
-    const config = yaml.load(await io.readFile(detection.configPath));
+    const content = await readAvailableConfig(detection.configPath, io.readFile);
+    if (content === null) return false;
+    const config = yaml.load(content);
     if (!isRecord(config)) return false;
     if (
       Array.isArray(config.default_install_hook_types)
       && config.default_install_hook_types.includes(name)
     ) return true;
-    if (Array.isArray(config.default_stages) && config.default_stages.includes(name)) return true;
     if (!Array.isArray(config.repos)) return false;
     return config.repos.some((repo) => isRecord(repo)
       && Array.isArray(repo.hooks)
       && repo.hooks.some((hook) => isRecord(hook)
-        && Array.isArray(hook.stages)
-        && hook.stages.includes(name)));
+        && (Array.isArray(hook.stages)
+          ? hook.stages.includes(name)
+          : Array.isArray(config.default_stages) && config.default_stages.includes(name))));
   }
   const hookPath = await io.resolveGitHookPath(cwd, name);
   try {
@@ -123,6 +127,23 @@ export async function hasEffectiveHook(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasEntries(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0;
+  return isRecord(value) && Object.keys(value).length > 0;
+}
+
+async function readAvailableConfig(
+  path: string,
+  readFile: (path: string) => Promise<string>,
+): Promise<string | null> {
+  try {
+    return await readFile(path);
+  } catch (cause: unknown) {
+    if (isUnavailable(cause)) return null;
+    throw cause;
+  }
 }
 
 function isUnavailable(cause: unknown): boolean {

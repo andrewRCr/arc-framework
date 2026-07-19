@@ -47,27 +47,9 @@ export interface HandleReleaseCommitOptions {
  * @param args - Raw commit argv as received from Commander.
  * @returns The stripped argv and whether body-wrapping remains enabled.
  */
-function stripNoWrap(args: readonly string[]): { argv: string[]; wrap: boolean } {
-  const argv: string[] = [];
-  let wrap = true;
-  let terminated = false;
-  for (const arg of args) {
-    if (terminated) {
-      argv.push(arg);
-      continue;
-    }
-    if (arg === "--") {
-      terminated = true;
-      argv.push(arg);
-      continue;
-    }
-    if (arg === "--no-wrap") {
-      wrap = false;
-      continue;
-    }
-    argv.push(arg);
-  }
-  return { argv, wrap };
+export function stripNoWrap(args: readonly string[]): { argv: string[]; wrap: boolean } {
+  if (args[0] === "--no-wrap") return { argv: args.slice(1), wrap: false };
+  return { argv: [...args], wrap: true };
 }
 
 /**
