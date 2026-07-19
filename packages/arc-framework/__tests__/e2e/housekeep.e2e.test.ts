@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, runArc } from "./helpers.js";
 
 describe("arc housekeep check", () => {
-  let tmpDir: string;
+  let tmpDir: string | undefined;
 
   beforeEach(async () => {
     tmpDir = await createTempRepo();
@@ -22,10 +22,12 @@ describe("arc housekeep check", () => {
   });
 
   afterEach(async () => {
-    await cleanupTempDir(tmpDir);
+    if (tmpDir !== undefined) await cleanupTempDir(tmpDir);
   });
 
   it("returns the resolved branch-protection mode in JSON", async () => {
+    if (tmpDir === undefined) throw new Error("Test setup did not initialize a temporary repository");
+
     const configPath = join(tmpDir, ".arc", "system", "arc-config.yml");
     const config = await readFile(configPath, "utf8");
     await writeFile(
