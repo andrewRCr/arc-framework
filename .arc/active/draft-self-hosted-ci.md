@@ -35,8 +35,9 @@ Windows coverage and an immediate hosted fallback.
    portability jobs remain hosted.
 2. A comparable heavy PR run drops from about 14 billed Linux job-minutes to zero, excluding an explicitly invoked
    hosted-fallback run.
-3. The seven-day canary has no runner-caused flakes or unexplained offline stalls, and the full heavy-PR path reaches
-   `merge-ok` within 10 minutes at p95.
+3. The canary runs for at least seven days and 20 comparable heavy-PR runs, has no runner-caused flakes or unexplained
+   offline stalls, and reaches `merge-ok` within 10 minutes at p95. If seven days does not produce the sample floor,
+   the canary continues until it does.
 4. Switching one repository variable to `ubuntu-latest`, then re-running the workflow, restores the hosted path in
    under five minutes without a workflow edit.
 5. The runner can be rebuilt from the checked-in runbook in at most two hours, with no machine backup required.
@@ -53,22 +54,39 @@ Run two separately registered GitHub Actions runner services on the host. One re
 time, so two services preserve useful concurrency without recreating GitHub's full hosted fan-out or requiring an
 autoscaler. Both services carry one repository-specific custom label such as `arc-ci-linux`.
 
-The host is CI-only: no development checkout, personal notes, long-lived repository credentials, unrelated
-services, or access to private infrastructure. Jobs run as an unprivileged service user. The machine needs outbound
-HTTPS and administrative access only; it does not expose an application port. Enable unattended OS security updates,
-retain the runner application's default automatic updates, and use the service manager's restart behavior.
+The host is CI-only: no development checkout, personal notes, PATs, deploy keys, unrelated services, or access to
+private infrastructure. Jobs run as an unprivileged service user. The machine needs outbound HTTPS and
+administrative access only; it does not expose an application port. Enable unattended OS security updates, retain the
+runner application's default automatic updates, and use the service manager's restart behavior.
 
 This is intentionally a persistent runner. The accepted trust boundary is narrow: the repository is private, the
-current author set is trusted, `ci.yml` uses read-only repository permissions, and the machine holds nothing worth
-stealing beyond its replaceable CI environment. A public-repository flip or an expansion to untrusted contributors
-invalidates that acceptance and requires routing back to hosted runners before the transition.
+current author set is trusted, and `ci.yml` grants no repository write beyond its existing job-scoped artifact
+permissions. The host necessarily stores its runner identity and temporarily handles source, job tokens, and build
+outputs; those are sensitive but revocable, not durable development credentials. Suspected compromise triggers hosted
+fallback, runner removal in GitHub, review or revocation of affected credentials, and VPS destruction and rebuild. A
+public-repository flip or an expansion to untrusted contributors invalidates the acceptance and requires routing back
+to hosted runners and deregistering the VPS runners before the transition.
+
+Make that trust boundary a cutover precondition rather than an inference from current authorship. Before assigning the
+self-hosted label, audit repository collaborators and pending invitations, private forks, installed apps and bots,
+automation that can originate pull requests, and Actions fork settings. Enable the runners only when every principal
+able to submit executable `pull_request` code is explicitly trusted; otherwise stay hosted. Record the result in the
+cutover evidence and repeat the audit whenever repository access changes.
 
 ### Workflow routing and fallback
 
 Route every Linux job in `ci.yml` through a repository variable such as `ARC_CI_LINUX_RUNNER`. Its normal value is
-the custom self-hosted label; its fallback value is `ubuntu-latest`. The fallback procedure is: change the variable,
-cancel any queued run, and re-run it. Do not make successful self-hosted execution a branch-protection assumption;
-`merge-ok` remains the required check regardless of which runner label produced it.
+the custom self-hosted label; its fallback value is `ubuntu-latest`. The workflow expression defaults an unset or
+empty variable to `ubuntu-latest`, so initial setup and accidental deletion fail toward hosted execution rather than an
+unmatchable queue. The fallback procedure is: change the variable, cancel any queued run, and re-run it. Do not make
+successful self-hosted execution a branch-protection assumption; `merge-ok` remains the required check regardless of
+which runner label produced it.
+
+Keep check identity independent of runner identity. Replace the Linux portability job's single-value
+`ubuntu-latest` matrix with a non-matrix job named `Portability (concurrency guards) (linux)`, and route its `runs-on`
+through the same repository variable. Update the classifier's exact heavy-check name and its unit fixture in the same
+change. Hosted fallback then changes the executor without changing the check name or silently defeating verified-tree
+reuse.
 
 Keep the following work on GitHub-hosted infrastructure:
 
@@ -93,8 +111,9 @@ measured latency or reliability rather than billing arithmetic.
 ### Rebuild and maintenance contract
 
 Check in a concise runbook covering the supported OS, package prerequisites, separate runner directories, labels,
-service installation, repository-variable cutover, health checks, log locations, cleanup, fallback, rebuild, and
-decommissioning. Do not build Kubernetes, autoscaling, custom runner images, or a general infrastructure platform.
+service installation, the access-control precondition, repository-variable cutover, health checks, log locations,
+cleanup, fallback, credential-aware incident response, rebuild, and decommissioning. Do not build Kubernetes,
+autoscaling, custom runner images, or a general infrastructure platform.
 
 Operational checks stay modest:
 
@@ -128,7 +147,7 @@ The runner registration itself is roughly a 30-minute operation. A reliable cuto
 | VPS provisioning, hardening, packages, and two runner services | 1-2 hours |
 | Workflow label variable, fallback path, and focused verification | 3-5 hours |
 | Runbook, monitoring baseline, and decommission contract | 1-2 hours |
-| Canary review and one tuning pass | About 1 hour active over 3-7 elapsed days |
+| Canary review and one tuning pass | About 1 hour active over 7+ elapsed days and at least 20 heavy runs |
 
 Budget 6-10 hands-on hours, or one to two focused working days for the complete ARC work unit. Normal maintenance
 should average 15-30 minutes per month. Allow an occasional one-to-two-hour reboot, runner repair, or disposable VPS
@@ -138,8 +157,9 @@ rebuild; if that becomes common, the canary has failed and the design should fal
 
 - The VPS provider and exact SKU are not design commitments; choose a reputable x64 offering that meets the resource
   and price envelope, then resize from observed p95 latency and memory pressure.
-- The persistent-runner acceptance depends on the repository remaining private and workflow-trigger authority
-  remaining limited to trusted collaborators. The public-repo work unit must treat decommissioning as a prerequisite.
+- The persistent-runner acceptance depends on the repository remaining private and the cutover audit confirming that
+  workflow-trigger authority is limited to explicitly trusted humans and automation. Access changes re-fire that
+  audit; the public-repo work unit must treat runner decommissioning as a prerequisite.
 - Two concurrent jobs on 4 vCPU / 8 GB are expected to meet the target, but this is the canary's main falsifiable
   assumption. The first response is a VPS resize; job consolidation is considered only with measured evidence.
 - The current job topology does not require Docker or access to private network services. Either need would reopen the
@@ -154,12 +174,12 @@ document operation. Public visibility remains in `public-repo-flip`; ARC-wide me
 
 ## Planning State
 
-- **Readiness:** The design meets the formalization bar, but capture is intentionally paused at the accepted
-  adversarial-review fire-point.
+- **Readiness:** Formalization-ready. The in-context readiness check and Heavy-class adversarial pass converged; both
+  confirmed findings are folded and no blocker or major remains open.
 - **Resolved:** self-host rather than pull the public flip forward; one dedicated persistent VPS; two runner services;
-  repository-variable fallback; hosted cross-platform and privileged workflows; preserve the job graph through the
-  canary; no autoscaling or Kubernetes.
+  fail-safe repository-variable fallback; stable runner-neutral check identity; a fail-closed access-control cutover
+  audit; hosted cross-platform and privileged workflows; preserve the job graph through the canary; no autoscaling or
+  Kubernetes.
 - **Open:** No fundamental design decision. Provider selection and any evidence-driven resize are implementation
   details inside the recorded envelope.
-- **Next:** Run the approved Heavy-class adversarial pass, verify and fold its findings, re-read the settled draft
-  for coherence, then re-surface it for capture approval before continuing to spec formalization.
+- **Next:** Review and approve draft capture, then continue to spec formalization.

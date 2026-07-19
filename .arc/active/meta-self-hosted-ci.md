@@ -2,22 +2,21 @@
 
 | **State**  | **Owner** | **Branch**            | **Class** | **Priority** |
 | ---------- | --------- | --------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/self-hosted-ci` | [TBD]     | `P3`         |
+| `Planning` | `andrew`  | `plan/self-hosted-ci` | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-self-hosted-ci.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Self-hosted CI draft shaped; adversarial pass approved and deferred
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run the approved Heavy-class adversarial review on `draft-self-hosted-ci.md`, fold findings,
-  and re-surface for capture.
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
