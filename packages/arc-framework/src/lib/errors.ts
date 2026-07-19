@@ -8,38 +8,9 @@
  * @module
  */
 
-/** Machine-readable error codes for programmatic handling. */
-export type ArcErrorCode =
-  | "GIT_MISSING"
-  | "MANIFEST_MISSING"
-  | "MANIFEST_INVALID"
-  | "MERGE_FAILED"
-  | "FILE_NOT_FOUND"
-  | "REGISTRY_FETCH_FAILED"
-  | "IDENTITY_MISSING"
-  | "ALREADY_INSTALLED"
-  | "INIT_IN_PROGRESS"
-  | "NOT_INSTALLED"
-  | "NO_ARC_INSTALLATION"
-  | "NOT_IN_ARC_PROJECT"
-  | "RECIPE_INVALID"
-  | "MANIFEST_VERSION_UNSUPPORTED"
-  | "ROLE_FORBIDDEN";
+import { ArcError, type ArcErrorCode } from "./kernel/errors.js";
 
-/**
- * Base error class for all ARC CLI errors.
- *
- * Extends Error with a `code` property for programmatic handling.
- */
-export class ArcError extends Error {
-  readonly code: ArcErrorCode;
-
-  constructor(message: string, code: ArcErrorCode) {
-    super(message);
-    this.name = "ArcError";
-    this.code = code;
-  }
-}
+export { ArcError, type ArcErrorCode };
 
 /** Options for constructing a UserFacingError. */
 export interface UserFacingErrorOptions {

@@ -1,7 +1,24 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { canonicalDigest } from "../../../src/lib/canonical/canonical-json.js";
-import { isManagedPath, validateManagedPath } from "../../../src/lib/canonical/managed-path.js";
+import {
+  isManagedPath,
+  type ManagedPath,
+  validateManagedPath,
+} from "../../../src/lib/canonical/managed-path.js";
+import {
+  isManagedPath as kernelIsManagedPath,
+  type ManagedPath as KernelManagedPath,
+  validateManagedPath as kernelValidateManagedPath,
+} from "../../../src/lib/kernel/index.js";
+
+describe("managed-path compatibility exports", () => {
+  it("exposes the exact kernel runtime functions and branded type through the old path", () => {
+    expect(validateManagedPath).toBe(kernelValidateManagedPath);
+    expect(isManagedPath).toBe(kernelIsManagedPath);
+    expectTypeOf<ManagedPath>().toEqualTypeOf<KernelManagedPath>();
+  });
+});
 
 describe("managed-path validation", () => {
   it.each([
@@ -26,10 +43,24 @@ describe("managed-path validation", () => {
     expect(isManagedPath(nonNfc)).toBe(false);
   });
 
+  it.each([
+    ["lone high surrogate", "dir/\uD800.md"],
+    ["lone low surrogate", "dir/\uDC00.md"],
+  ])("rejects non-well-formed Unicode: %s", (_label, path) => {
+    expect(() => validateManagedPath(path)).toThrow(/well-formed Unicode/u);
+    expect(isManagedPath(path)).toBe(false);
+  });
+
   it("returns a valid repository-relative POSIX path unchanged", () => {
     const path = ".arc/.internal/retirement-receipts/sha256-abc.json";
-    expect(validateManagedPath(path)).toBe(path);
+    const validated = validateManagedPath(path);
+    expect(validated).toBe(path);
     expect(isManagedPath(path)).toBe(true);
+    expectTypeOf(validated).toEqualTypeOf<ManagedPath>();
+    expectTypeOf<string>().not.toExtend<ManagedPath>();
+
+    const guarded: string = path;
+    if (isManagedPath(guarded)) expectTypeOf(guarded).toEqualTypeOf<ManagedPath>();
   });
 
   it("rejects totally before hashing — a bad path never reaches a digest", () => {
