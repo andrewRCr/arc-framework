@@ -13,8 +13,8 @@ time before Git ever runs. Kept pure and unused-in-path here; Phase 2 wires it i
 _Design decisions:_ D2 (wrap in CLI assembly, never agent-side guidance) and D4 (block set — wrap plain
 paragraphs and flat list items with hanging-indent continuation; preserve subject, footer/trailer lines, URLs
 and unbreakable tokens, tables, nested lists, and code verbatim; greedy word-wrap; idempotent). The
-paragraphs-plus-flat-lists scope is grounded in the repo history distribution — see `notes-commit-message-ergonomics.md`
-§ Commit-history scan.
+paragraphs-plus-flat-lists scope is grounded in the history distribution recorded in
+`spec-commit-message-ergonomics.md` (D4).
 
 ### `[x]` **1.1 Extend `assembleCommitMessageParagraphs` with width-parameterized wrapping**
 
@@ -39,8 +39,8 @@ raw `-m` argv would let preflight approve a wrapped body that Git then commits u
 _Design decisions:_ D3 (wrap width from `hooks.body_max_line_length`, read off the prepared commit-check context's
 `bodyMaxLineLength` already resolved before assembly, so wrap-target and reject-target share one source), D5
 (snapshot the wrapped `messages` bytes and hand them to Git via `-F`, since Git never reflows `-m`), and the
-`--no-wrap` escape hatch. Touch list: `commit-message-preflight.ts`, `commit.ts`, and the argv transform — see
-`notes-commit-message-ergonomics.md` § Files map.
+`--no-wrap` escape hatch. Touch list: `commit-message-preflight.ts`, `commit.ts`, and
+`commit-message-source.ts`.
 
 ### `[x]` **2.1 Thread wrap width and `--no-wrap` into the assembly path**
 
