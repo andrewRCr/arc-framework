@@ -9,6 +9,32 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Coordinate the classify-change.sh rework with review-architecture's shared change-fact resolver**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: classify-change-granularity`), housekeep drain (2026-07-19);
+  captured during `review-architecture`'s `create-spec` re-examination + adversarial-review pass, 2026-07-19
+  (reciprocal to that WU's § Cross-cutting shared change-fact classifier seam).
+- _Observation:_ `review-architecture` (re-settled 2026-07-19) designs a shared change-fact classifier — one
+  CLI-owned changed-path fact resolver (known/unknown change set, code-surface membership, stable named-surface
+  memberships) that CI, review-risk, ownership/authority, and review-routing all consume. Its plan moves the path
+  predicate currently in `scripts/classify-change.sh` behind that resolver, makes the shell a compatibility/CI adapter
+  supplying status plus both rename endpoints, and retires the review-gate's TypeScript-only `derivesCodeSurface()`
+  approximation — the same script this WU makes diff-status-aware.
+- _Coordination (settled 2026-07-19 — this WU is the dependency; review-architecture consumes it):_
+  `classify-change-granularity` lands first and owns the shell's diff-status / rename-aware `light` / `heavy`
+  classification and the classify/tree-hash symmetry. review-architecture's shared resolver **consumes** those facts
+  rather than re-cutting them. Two asks so the surface is not cut twice: (a) design the status classification and
+  tree-hash identity to compose with being wrapped behind a CLI fact-resolver — the shell stays a thin adapter and the
+  fact logic can migrate into the resolver without re-derivation; (b) keep diff-status → `light` / `heavy` as the CI
+  consumer's mapping over shared facts, so the two WUs do not mint parallel classifications.
+- _Dependency:_ `review-architecture` will carry `Depends On: classify-change-granularity`. Coordinate sequencing at
+  grooming; if review-architecture would otherwise land first, revisit which WU owns the initial shell rework.
+
 ## Problem / Motivation
 
 `classify-change.sh` claims all of `packages/arc-framework/arc/*` as code surface, path-based by design

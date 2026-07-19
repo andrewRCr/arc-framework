@@ -1,0 +1,25 @@
+# Metadata: cli-substrate-complete-migration
+
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+
+- **Cohort:** `cli-substrate-adoption`
+- **Depends On:** `cli-schema-kernel`, `cli-session-envelope`, `cli-layout-resolver`, `cli-validation-surfaces`,
+  `cli-git-executor`, `cli-command-inputs`
+
+- **Origin:** [internal]
+- **Design:** `draft-cli-substrate-complete-migration.md`
+- **Task List:** [none]
+
+- **Current Workflow:** [none]
+- **Last Completed:** [none]
+- **Next Task:** [none]
+- **Blockers:** [none]
+
+- **Next Action:** —
+
+- **PR URL:** [none]
+- **Completed:** [none]
+
+---

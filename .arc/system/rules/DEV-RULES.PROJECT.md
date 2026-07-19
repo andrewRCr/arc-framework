@@ -155,6 +155,12 @@ self-hosting session, if a skill's behavior surprises you, suspect drift — han
 the canonical `SKILL.md` into the harness subdirectory. Adopters aren't affected; their harness
 copies regenerate on every `arc update`.
 
+**npm spikes rewrite the root `package.json` under workspaces:** a throwaway `npm init` / `install` run from the
+repo root rewrites the workspaces root `package.json` (injecting the flattened dep tree and a wrong
+`"type": "commonjs"` — this project is ESM), and `--prefix <dir>` does **not** isolate it. For an out-of-tree spike,
+`cd` fully outside the repo tree (or avoid npm); recover a stray edit with `git restore package.json` before it lands
+in a commit.
+
 ## Audience Boundaries
 
 The two-copy architecture (see § Package-Project Sync) creates two distinct audiences. Content
