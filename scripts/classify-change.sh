@@ -284,20 +284,38 @@ _classify_change_fact() {
 
 # Parse and reduce Git's private `--raw -z` wire format. Malformed cardinality,
 # modes, object ids, statuses, or trailing bytes make the entire set unknown.
+_git_mode_class() {
+  case "$1" in
+    100644 | 100755) echo "regular" ;;
+    120000) echo "symlink" ;;
+    160000) echo "gitlink" ;;
+    *) return 1 ;;
+  esac
+}
+
+_git_tree_entry_is_valid() {
+  case "$1:$2" in
+    100644:blob | 100755:blob | 120000:blob | 160000:commit) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 _raw_fact_endpoints_are_valid() {
   local status="$1" old_mode="$2" new_mode="$3" old_oid="$4" new_oid="$5"
-  local old_present=false new_present=false
+  local old_present=false new_present=false old_class="" new_class=""
 
   if [[ "${#old_oid}" -ne "${#new_oid}" ]]; then
     return 1
   fi
 
   if [[ "${old_mode}" != "000000" && ! "${old_oid}" =~ ^0+$ ]]; then
+    old_class="$(_git_mode_class "${old_mode}")" || return 1
     old_present=true
   elif [[ "${old_mode}" != "000000" || ! "${old_oid}" =~ ^0+$ ]]; then
     return 1
   fi
   if [[ "${new_mode}" != "000000" && ! "${new_oid}" =~ ^0+$ ]]; then
+    new_class="$(_git_mode_class "${new_mode}")" || return 1
     new_present=true
   elif [[ "${new_mode}" != "000000" || ! "${new_oid}" =~ ^0+$ ]]; then
     return 1
@@ -306,7 +324,16 @@ _raw_fact_endpoints_are_valid() {
   case "${status}" in
     added) [[ "${old_present}" == "false" && "${new_present}" == "true" ]] ;;
     deleted) [[ "${old_present}" == "true" && "${new_present}" == "false" ]] ;;
-    modified | type-changed | renamed | copied)
+    modified)
+      [[ "${old_present}" == "true" && "${new_present}" == "true" ]] \
+        && [[ "${old_class}" == "${new_class}" ]] \
+        && [[ "${old_mode}" != "${new_mode}" || "${old_oid}" != "${new_oid}" ]]
+      ;;
+    type-changed)
+      [[ "${old_present}" == "true" && "${new_present}" == "true" ]] \
+        && [[ "${old_class}" != "${new_class}" ]]
+      ;;
+    renamed | copied)
       [[ "${old_present}" == "true" && "${new_present}" == "true" ]]
       ;;
     *) return 1 ;;
@@ -341,11 +368,11 @@ _classify_raw_diff_file() {
       M) status=modified ;;
       D) status=deleted ;;
       T) status="type-changed" ;;
-      R[0-9]*)
+      R[0-9][0-9][0-9])
         (( 10#${status_token#R} <= 100 )) || { echo "unknown"; return 0; }
         status=renamed
         ;;
-      C[0-9]*)
+      C[0-9][0-9][0-9])
         (( 10#${status_token#C} <= 100 )) || { echo "unknown"; return 0; }
         status=copied
         ;;
@@ -369,6 +396,10 @@ _classify_raw_diff_file() {
       previous_path="${path}"
       path=""
       if ! IFS= read -r -d '' path || [[ -z "${path}" ]]; then
+        echo "unknown"
+        return 0
+      fi
+      if [[ "${previous_path}" == "${path}" ]]; then
         echo "unknown"
         return 0
       fi
@@ -421,7 +452,7 @@ _cleanup_tree_hash_files() {
 # and packaged-tree-shape layers. NUL boundaries preserve all valid filenames;
 # sensitive packaged entries intentionally appear in both layers.
 _code_tree_hash() {
-  local ref="$1" listing_file sorted_file identity_file record meta path mode type oid
+  local ref="$1" listing_file sorted_file identity_file record meta path mode type oid oid_width=0
   listing_file="$(mktemp)"
   sorted_file="$(mktemp)"
   identity_file="$(mktemp)"
@@ -465,6 +496,16 @@ _code_tree_hash() {
     mode="${BASH_REMATCH[1]}"
     type="${BASH_REMATCH[2]}"
     oid="${BASH_REMATCH[3]}"
+    if ! _git_tree_entry_is_valid "${mode}" "${type}"; then
+      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
+      return 1
+    fi
+    if (( oid_width == 0 )); then
+      oid_width="${#oid}"
+    elif (( oid_width != ${#oid} )); then
+      _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
+      return 1
+    fi
     if is_code_surface_path "${path}" \
       && { ! is_packaged_arc_path "${path}" || is_packaged_content_sensitive_path "${path}"; }; then
       printf 'entry\0path\0%s\0mode\0%s\0type\0%s\0oid\0%s\0' \

@@ -16,8 +16,8 @@ independent path-only policies.
 
     - `[x]` **1.1.a Parse canonical raw-diff records**
         - Added a private NUL-safe raw-diff parser for the six canonical statuses, exact modes, and rename/copy
-          endpoints; status-inconsistent endpoint presence, mixed object-ID widths, malformed scores, cardinality,
-          or trailing bytes resolve unknown.
+          endpoints; noncanonical modes, status-inconsistent facts, mixed object-ID widths, malformed scores,
+          cardinality, or trailing bytes resolve unknown.
 
     - `[x]` **1.1.b Resolve event-specific change sets**
         - `decide` now resolves `--raw -z` facts with rename/copy detection, retaining PR merge-base and push endpoint
@@ -84,7 +84,8 @@ can change a heavy-check outcome.
 
     - `[x]` **2.1.c Prove identity invariants and failures**
         - Extended `tree-hash` tests for ordinary prose stability; packaged shape, mode/type, sensitive-content, and
-          classifier changes; unusual filenames; and malformed head/candidate enumerations.
+          classifier changes; unusual filenames; invalid mode/type or mixed-width tree records; and malformed
+          head/candidate enumerations.
 
 - _Outcome:_ Verified-tree identity ignores only ordinary packaged-prose blob changes while retaining every final-tree
   input that can affect heavy verification.
@@ -155,7 +156,7 @@ _Purpose:_ Verify the complete implementation against the reviewed design and re
 ### `[x]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Quality gates:_ Markdown, TypeScript, and shell lint; source/test type checks; focused ARC contracts; full suite
-  (500 files and 6,394 tests passed; one file/test skipped); and build all passed.
+  (500 files and 6,405 tests passed; one file/test skipped); and build all passed.
 - _Success criteria:_ 9 criteria: 9 met.
 
 ---

@@ -449,6 +449,30 @@ describe("classify-change.sh tree-hash", () => {
     expect(failed.stdout).toBe("");
   });
 
+  it.each([
+    ["a noncanonical mode", `777777 blob ${"1".repeat(40)}\tdocs/example.md\0`],
+    ["an inconsistent mode/type pair", `100644 commit ${"1".repeat(40)}\tdocs/example.md\0`],
+    [
+      "mixed object ID widths",
+      `100644 blob ${"1".repeat(40)}\tpackages/arc-framework/src/one.ts\0` +
+        `100644 blob ${"2".repeat(64)}\tpackages/arc-framework/src/two.ts\0`,
+    ],
+  ])("fails closed when tree enumeration contains %s", async (_label, listing) => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const ref = await writeAndCommit(repo, { "README.md": "docs\n" }, "docs");
+    const fixtures = join(repo, ".trees");
+    await mkdir(fixtures, { recursive: true });
+    await writeFile(join(fixtures, `${ref}.raw`), Buffer.from(listing));
+
+    const result = await runScript(CLASSIFY_SCRIPT, ["tree-hash", ref], {
+      cwd: repo,
+      env: { CLASSIFY_TREE_LIST_DIR: fixtures },
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toBe("");
+  });
+
   it("changes when a code-surface file mode changes", async () => {
     const repo = await createTempRepo();
     tempDirs.push(repo);
@@ -828,20 +852,32 @@ describe("classify-change.sh decide (pure arms)", () => {
   const exactRename = `R${100}`;
   const exactCopy = `C${100}`;
 
-  it.each(["A", "D", exactRename, exactCopy, "T", "U"])(
+  it.each([
+    ["A", "000000", "100644", "zero", "one"],
+    ["D", "100644", "000000", "one", "zero"],
+    [exactRename, "100644", "100644", "one", "two"],
+    [exactCopy, "100644", "100644", "one", "two"],
+    ["T", "100644", "120000", "one", "two"],
+    ["U", "100644", "100644", "one", "two"],
+  ])(
     "fails closed for injected packaged raw status %s",
-    async (status) => {
+    async (status, oldMode, newMode, oldOidKind, newOidKind) => {
       const repo = await createTempRepo();
       tempDirs.push(repo);
       const base = await writeAndCommit(repo, { "README.md": "one\n" }, "base");
       const head = await writeAndCommit(repo, { "README.md": "two\n" }, "head");
       const fixture = join(repo, `raw-${status}.bin`);
-      const zeros = "0".repeat(40);
-      const ones = "1".repeat(40);
+      const objectIds = {
+        zero: "0".repeat(40),
+        one: "1".repeat(40),
+        two: "2".repeat(40),
+      };
+      const oldOid = objectIds[oldOidKind as keyof typeof objectIds];
+      const newOid = objectIds[newOidKind as keyof typeof objectIds];
       const paths = status.startsWith("R") || status.startsWith("C")
         ? "packages/arc-framework/arc/old.md\0packages/arc-framework/arc/new.md\0"
         : "packages/arc-framework/arc/example.md\0";
-      await writeFile(fixture, Buffer.from(`:100644 100644 ${zeros} ${ones} ${status}\0${paths}`));
+      await writeFile(fixture, Buffer.from(`:${oldMode} ${newMode} ${oldOid} ${newOid} ${status}\0${paths}`));
 
       expect(await decide(repo, "pull_request", base, head, { CLASSIFY_RAW_DIFF_FILE: fixture })).toEqual({
         weight: "heavy",
@@ -854,15 +890,19 @@ describe("classify-change.sh decide (pure arms)", () => {
     ["missing destination", exactRename, "packages/arc-framework/arc/old.md\0"],
     ["missing path", "M", ""],
     ["trailing bytes", "M", "packages/arc-framework/arc/example.md\0trailing"],
+    ["short rename score", `R${1}`, "docs/old.md\0docs/new.md\0"],
+    ["out-of-range rename score", `R${101}`, "docs/old.md\0docs/new.md\0"],
+    ["same-path rename", exactRename, "docs/same.md\0docs/same.md\0"],
+    ["same-path copy", exactCopy, "docs/same.md\0docs/same.md\0"],
   ])("fails closed for malformed raw input: %s", async (_label, status, paths) => {
     const repo = await createTempRepo();
     tempDirs.push(repo);
     const base = await writeAndCommit(repo, { "README.md": "one\n" }, "base");
     const head = await writeAndCommit(repo, { "README.md": "two\n" }, "head");
     const fixture = join(repo, "raw-malformed.bin");
-    const zeros = "0".repeat(40);
     const ones = "1".repeat(40);
-    await writeFile(fixture, Buffer.from(`:100644 100644 ${zeros} ${ones} ${status}\0${paths}`));
+    const twos = "2".repeat(40);
+    await writeFile(fixture, Buffer.from(`:100644 100644 ${ones} ${twos} ${status}\0${paths}`));
 
     expect(await decide(repo, "pull_request", base, head, { CLASSIFY_RAW_DIFF_FILE: fixture })).toEqual({
       weight: "heavy",
@@ -877,8 +917,12 @@ describe("classify-change.sh decide (pure arms)", () => {
     ["rename without an old endpoint", exactRename, "000000", "100644", "zero", "one", true],
     ["mode and object presence disagree", "M", "100644", "100644", "zero", "one", false],
     ["mixed object ID widths", "M", "100644", "100644", "one", "one64", false],
+    ["noncanonical Git modes", "M", "100640", "100640", "one", "two", false],
+    ["no-op modification", "M", "100644", "100644", "one", "one", false],
+    ["modified across object types", "M", "100644", "120000", "one", "two", false],
+    ["type change within one object type", "T", "100644", "100755", "one", "two", false],
   ])(
-    "fails closed for endpoint-incomplete raw input: %s",
+    "fails closed for status-inconsistent raw input: %s",
     async (_label, status, oldMode, newMode, oldOidKind, newOidKind, twoPaths) => {
       const repo = await createTempRepo();
       tempDirs.push(repo);
