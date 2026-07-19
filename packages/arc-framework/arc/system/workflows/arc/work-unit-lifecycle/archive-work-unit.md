@@ -22,17 +22,17 @@ under `archive.cadence: with-integration` (default), or standalone post-merge un
 
 ## Steps
 
-### 1) Pre-condition gate — `**State:** Integrating`
+### 1) Pre-condition gate — lifecycle state `integrating`
 
-Verify the meta file's state:
+Query the work unit's authoritative lifecycle state:
 
 ```bash
-grep -E '^\- \*\*State:\*\*' .arc/active/meta-{name}.md
+arc status {name} --json
 ```
 
-Halt with surface if `**State:** Integrating` is absent — upstream composition in `integrate-work-unit.md`
-is the prerequisite. The `arc archive` sweep below is the transition archive owns; physical branch/worktree
-teardown is the integration tail's post-merge cleanup, not archive's.
+Continue only when the result reports `state: "integrating"`. Halt and surface a failed query or any other state —
+upstream composition in `integrate-work-unit.md` is the prerequisite. The `arc archive` sweep below is the transition
+archive owns; physical branch/worktree teardown is the integration tail's post-merge cleanup, not archive's.
 
 ### 2) Run the archive sweep — `arc archive`
 

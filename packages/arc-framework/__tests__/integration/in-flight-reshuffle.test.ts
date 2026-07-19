@@ -13,7 +13,10 @@ import {
 } from "../../src/lib/git/foreign-artifact-detection.js";
 import { deriveInFlight } from "../../src/lib/git/in-flight-derivation.js";
 import { findMaterializableWorkUnits } from "../../src/lib/session-init/materializable-work-units.js";
-import { detectStagedForeignWrites } from "../../src/scripts/check-foreign-writes.js";
+import {
+  detectStagedForeignWrites,
+  resolveStagedOriginatingWorkUnit,
+} from "../../src/scripts/check-foreign-writes.js";
 import {
   gitArgsStartWith,
   setupInFlightReshuffleFixture,
@@ -69,6 +72,41 @@ async function createSiblingFromFreshBase(
 }
 
 describe("in-flight reshuffle fixture", () => {
+  it("resolves the originating work unit from staged meta instead of HEAD or the worktree", async () => {
+    const fixture = await setupInFlightReshuffleFixture();
+    try {
+      const metaPath = ".arc/active/meta-staged-origin.md";
+      const oldMeta = renderMetaFile("staged-origin", {
+        State: "Planning",
+        Owner: "andrew",
+        Branch: "plan/staged-origin",
+        Class: "Light",
+        Priority: "P3",
+      });
+      const stagedMeta = renderMetaFile("staged-origin", {
+        State: "Active",
+        Owner: "andrew",
+        Branch: "feat/staged-origin",
+        Class: "Light",
+        Priority: "P3",
+      });
+      await commitPaths(fixture.primary, { [metaPath]: oldMeta }, "seed pre-ceremony meta");
+      await writeFile(join(fixture.primary, metaPath), stagedMeta, "utf-8");
+      await execFileAsync("git", ["add", metaPath], { cwd: fixture.primary });
+      await writeFile(join(fixture.primary, metaPath), oldMeta, "utf-8");
+
+      await expect(
+        resolveStagedOriginatingWorkUnit(fixture.primaryExec, [metaPath]),
+      ).resolves.toEqual({
+        name: "staged-origin",
+        metaPath,
+        branch: "feat/staged-origin",
+      });
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
   it("runs scripted git reshuffle steps from a selected git call boundary", async () => {
     const fixture = await setupInFlightReshuffleFixture();
     try {
