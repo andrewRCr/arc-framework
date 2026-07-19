@@ -1,20 +1,24 @@
-# Metadata: CLI Substrate Adoption
+# Metadata: cli-schema-kernel
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
-- **Cohort:** [none]
-- **Depends On:** `work-organization-reform`, `coupling-blast-radius-audit`
+- **Cohort:** `cli-substrate-adoption`
+- **Depends On:** `work-organization-reform`
 
 - **Origin:** [internal]
-- **Design:** `draft-cli-substrate-adoption.md`
+- **Design:** `draft-cli-schema-kernel.md`
 - **Task List:** [none]
 
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** —
+
+- **PR URL:** [none]
+- **Completed:** [none]
 
 ---

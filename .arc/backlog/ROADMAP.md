@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `a7170a50a`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `807fa5491`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,11 +13,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit              | Priority | Owner  | Depends on             | Cohort |
-| ---------- | ---------------------- | -------- | ------ | ---------------------- | ------ |
-| `Planning` | review-architecture    | P1       | andrew | —                      | —      |
-| `Planning` | session-locus-model    | P1       | andrew | cli-substrate-adoption | —      |
-| `Planning` | cli-substrate-adoption | P2       | andrew | —                      | —      |
+| State      | Work unit              | Priority | Owner  | Depends on                              | Cohort |
+| ---------- | ---------------------- | -------- | ------ | --------------------------------------- | ------ |
+| `Planning` | review-architecture    | P1       | andrew | —                                       | —      |
+| `Planning` | session-locus-model    | P1       | andrew | cli-schema-kernel, cli-session-envelope | —      |
+| `Planning` | cli-substrate-adoption | P2       | andrew | —                                       | —      |
 
 ## Ready
 
@@ -35,6 +35,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | loadset-composition                   | P2       | andrew | —          | agent-context-optimization |
 | commit-increments                     | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization                | P2       | andrew | —          | architecture-remediation   |
+| cli-schema-kernel                     | P2       | andrew | —          | cli-substrate-adoption     |
 | naming-conventions                    | P2       | andrew | —          | doc-conventions            |
 | classify-change-granularity           | P2       | andrew | —          | —                          |
 | cross-wu-coordination                 | P2       | andrew | —          | —                          |
@@ -88,21 +89,31 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | --------------------------------- | -------- | ------ | ------------------------------------- | -------------------------- |
 | review-gate-enforcement-promotion | P1       | andrew | review-gate-enforcement-qualification | —                          |
 | unit-scoped-review                | P2       | andrew | commit-increments                     | approval-flow-refinement   |
-| operational-state-docs            | P2       | andrew | cli-substrate-adoption                | —                          |
+| cli-command-inputs                | P2       | andrew | cli-schema-kernel                     | cli-substrate-adoption     |
+| cli-git-executor                  | P2       | andrew | cli-schema-kernel                     | cli-substrate-adoption     |
+| cli-layout-resolver               | P2       | andrew | cli-schema-kernel                     | cli-substrate-adoption     |
+| cli-session-envelope              | P2       | andrew | cli-schema-kernel                     | cli-substrate-adoption     |
+| cli-validation-surfaces           | P2       | andrew | cli-schema-kernel                     | cli-substrate-adoption     |
 | documentation-surface-routing     | P3       | andrew | handoff-optimization                  | agent-context-optimization |
 | instruction-optimization          | P3       | andrew | composable-workflows                  | agent-context-optimization |
-| schema-introspection-layer        | P3       | andrew | cli-substrate-adoption                | architecture-remediation   |
+| schema-introspection-layer        | P3       | andrew | cli-schema-kernel                     | architecture-remediation   |
 | workflow-template-loads           | P3       | andrew | composable-workflows                  | principle-anchored-core    |
 | docs-content-sweep                | P3       | andrew | docs-site-refresh                     | release-readiness          |
 | comprehension-preservation        | P3       | andrew | execution-delegation-doctrine         | —                          |
 
 ### Depth 2
 
-| Work unit                  | Priority | Owner  | Depends on                                                  | Cohort            |
-| -------------------------- | -------- | ------ | ----------------------------------------------------------- | ----------------- |
-| review-gate-github-adapter | P1       | andrew | review-gate-enforcement-promotion                           | —                 |
-| wu5-public-release         | P3       | andrew | docs-content-sweep                                          | release-readiness |
-| local-mode                 | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
+| Work unit                  | Priority | Owner  | Depends on                        | Cohort            |
+| -------------------------- | -------- | ------ | --------------------------------- | ----------------- |
+| review-gate-github-adapter | P1       | andrew | review-gate-enforcement-promotion | —                 |
+| operational-state-docs     | P2       | andrew | cli-validation-surfaces           | —                 |
+| wu5-public-release         | P3       | andrew | docs-content-sweep                | release-readiness |
+
+### Depth 3
+
+| Work unit  | Priority | Owner  | Depends on                                                  | Cohort |
+| ---------- | -------- | ------ | ----------------------------------------------------------- | ------ |
+| local-mode | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —      |
 
 ---
 
