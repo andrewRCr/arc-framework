@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "slug": "isolate-base-drift-fetch",
+  "origin": "description",
+  "intent": "Prevent concurrent session-init fetches from racing on origin/main",
+  "branch": "fix/isolate-base-drift-fetch",
+  "createdAt": "2026-07-19T20:46:34.304Z",
+  "returnBranch": "feat/cli-schema-kernel"
+}
