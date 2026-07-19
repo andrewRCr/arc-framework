@@ -23,6 +23,17 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Settle whether method overrides need a workflow-pointer variant**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: customization-arch-realign`), housekeep drain
+  (2026-07-19); captured during `review-architecture` draft reconciliation.
+- _Concern:_ the former review-method-family design assumed a populated method override could point to a project
+  workflow and left inline-content versus pointer precedence open. Review no longer needs that mechanism because
+  lifecycle extensions invoke its project workflow directly; the remaining question is generic customization
+  architecture, not review-specific behavior.
+- _Approach:_ decide whether the method model needs a workflow-pointer override at all. If it does, specify the
+  schema and inline-content precedence with `composable-workflows`' deterministic resolver.
+
 ### `[ ]` **Evaluate bounded execution for configured commit regexes**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-15); captured during
