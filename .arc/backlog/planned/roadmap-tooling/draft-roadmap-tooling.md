@@ -379,6 +379,19 @@
   leaving a dirty uncommitted base checkout. Coordinate with the "Move ROADMAP regeneration to the merge boundary"
   and materialize-consistency items already in this buffer (same owner).
 
+### `[ ]` **Discoverable ROADMAP regen — close the `arc status --project --staged > file` verb-gap**
+
+- *Routed from:* self-observed during the 2026-07-19 housekeep-drain grooming PR (live incident); a ROADMAP-only
+  merge conflict against a concurrently-merged sibling had to be hand-reconciled.
+- *Concern (verb-gap):* the canonical regen is `arc status --project --staged > .arc/backlog/ROADMAP.md` — a
+  `status` subcommand redirected to overwrite a tracked file. It is undiscoverable (`arc view` has no roadmap kind;
+  `arc status --project` renders to stdout only), so awareness depends on tripping the pre-commit hook, which prints
+  the command in its error. That JIT surface works and keeps miss-cost low, but the idiom is mechanics-narration
+  where a verb should exist (DEV-RULES.PROJECT § Verbs over mechanics — verb-gap signal).
+- *Approach:* when this WU builds the render tooling, expose a discoverable regen verb (e.g. `arc roadmap render`)
+  that writes the file directly, retiring the redirect idiom. Pairs with the merge-driver auto-resolve item already
+  in this buffer — together they close both the awareness gap and the conflict-reconcile gap this incident hit.
+
 ## Problem / Motivation
 
 WOR established the meta files as the single source of truth and codified a deterministic render for
