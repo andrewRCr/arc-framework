@@ -105,9 +105,11 @@ export async function runBaseDrift(options: RunBaseDriftOptions): Promise<BaseDr
   }
 
   const invocationRef = `refs/arc/base-drift/${token()}`;
+  // An empty refmap prevents this explicit fetch from opportunistically updating
+  // origin/<base> while another session-init probe owns that tracking ref.
   const fetch = await boundedGitInvocation(
     exec,
-    ["fetch", "--no-write-fetch-head", "origin", `${sourceRef}:${invocationRef}`],
+    ["fetch", "--no-write-fetch-head", "--refmap=", "origin", `${sourceRef}:${invocationRef}`],
     fetchTimeoutMs,
   );
   if (fetch.outcome !== "ok") {
