@@ -75,40 +75,26 @@ _Purpose:_ Move only proven-shared primitives into the kernel as Zod-authoritati
 existing import path through temporary downward re-exports. `cli-substrate-complete-migration` owns the later
 first-party importer migration and removal of these rollout seams.
 
-### `[ ]` **2.1 Migrate work-unit state, class, and priority vocabulary**
+### `[x]` **2.1 Migrate work-unit state, class, and priority vocabulary**
 
 - _Goal:_ Work-unit metadata vocabulary has one runtime-validating Zod authority whose inferred types and existing
   narrowers preserve every current parse behavior.
-- _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §3's confirmed parse-boundary enums.
 
-    - `[ ]` **2.1.a Move lifecycle-state vocabulary into kernel schemas**
-        - Define `WorkUnitStateSchema`, derive `WorkUnitState` with `z.infer`, and move
-          `WORK_UNIT_STATE_ORDER` into the kernel; retain exact casing and the
-          `Planning` → `Active` → `Integrating` → `Shipped` ordering.
-        - Implement `validateState()` through `WorkUnitStateSchema.safeParse()` so the schema is the runtime
-          authority while the narrower preserves its `unknown` fallback.
-        - Build `test-first` (one behavior at a time):
-            - Every codified value parses and infers as `WorkUnitState`.
-            - `In Progress`, `Paused`, `Complete`, `Superseded`, lowercase, empty, whitespace, and missing values
-              still narrow to `unknown` through `validateState()`.
-            - The ordering record is exhaustive over the schema-inferred type.
+    - `[x]` **2.1.a Move lifecycle-state vocabulary into kernel schemas**
+        - Added `WorkUnitStateSchema`, its inferred type, schema-backed `validateState()`, and the exhaustive
+          `Planning` → `Active` → `Integrating` → `Shipped` ordering to the kernel vocabulary module.
 
-    - `[ ]` **2.1.b Move Class and Priority vocabulary into kernel schemas**
-        - Define `WorkClassSchema` and `PrioritySchema`, derive their types with `z.infer`, and keep the narrowers'
-          established normalization/defaulting semantics separate from strict schema parsing.
-        - Delegate final recognition to the schemas: derive `validateClass()`'s case-insensitive display-value match
-          from `WorkClassSchema.options`, and implement `validatePriority()` through `PrioritySchema.safeParse()`.
-        - Build `test-first` (one behavior at a time):
-            - Strict schemas accept only their codified display values.
-            - `validateClass()` remains trim- and case-insensitive and returns `[TBD]` for missing/unknown input.
-            - `validatePriority()` remains case-sensitive and defaults missing/malformed input to `P3`.
+    - `[x]` **2.1.b Move Class and Priority vocabulary into kernel schemas**
+        - Added strict `WorkClassSchema` and `PrioritySchema` authorities with inferred types while preserving Class
+          trim/case normalization, the `[TBD]` fallback, and Priority's case-sensitive `P3` default.
 
-    - `[ ]` **2.1.c Convert the command module to a temporary downward re-export**
-        - Re-export the migrated schemas, inferred types, narrowers, and ordering from
-          `packages/arc-framework/src/commands/active/types.ts`; retain command-specific interfaces there.
-        - Keep existing importers compiling unchanged and add direct-kernel plus old-path equivalence assertions.
-        - Use `expectTypeOf` to prove the old and kernel paths expose the same schema-derived types; the old module
-          must contain re-exports rather than local declarations for every migrated primitive.
+    - `[x]` **2.1.c Convert the command module to a temporary downward re-export**
+        - Replaced every migrated declaration in `commands/active/types.ts` with downward kernel re-exports; direct
+          and legacy paths now prove runtime identity and schema-derived type equivalence while command contracts
+          remain co-located.
+
+- _Outcome:_ State, Class, and Priority now have one Zod runtime/type authority without changing any existing
+  importer or field-normalization behavior.
 
 ### `[ ]` **2.2 Migrate the validated slug primitive**
 

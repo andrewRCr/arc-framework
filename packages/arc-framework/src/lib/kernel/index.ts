@@ -14,3 +14,15 @@ export {
   ok,
   type Result,
 } from "./result.js";
+export {
+  PrioritySchema,
+  WORK_UNIT_STATE_ORDER,
+  WorkClassSchema,
+  WorkUnitStateSchema,
+  validateClass,
+  validatePriority,
+  validateState,
+  type Priority,
+  type WorkClass,
+  type WorkUnitState,
+} from "./schema/vocabulary.js";
