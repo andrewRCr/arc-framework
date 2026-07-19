@@ -34,11 +34,13 @@ the host endpoint, administrator identity, SSH mapping, or fingerprint in reposi
 
 1. Create an allocation in the approved region and SKU using the approved current Ubuntu LTS on x86-64. Select no
    premium backup or manual snapshot option; document any non-disableable rolling backup under the operating
-   contract. Add the intended SSH public key through the provider. When a provider firewall is available, restrict
-   it to administrative SSH inbound plus established traffic; the host firewall remains mandatory. Permit outbound
-   HTTPS and DNS.
+   contract. Add the intended SSH public key through the provider when that option is available. When a provider
+   firewall is available, restrict it to administrative SSH inbound plus established traffic; the host firewall
+   remains mandatory. Permit outbound HTTPS and DNS.
 2. Connect as the provider's administrative account, verify the expected host key through a user-held channel, and
-   update the operating system:
+   update the operating system. If a rebuild cannot inject the existing public key, use the provider-delivered
+   temporary password once to install that key, prove a second key-authenticated session, and do not retain the
+   password:
 
    ```sh
    sudo apt-get update
@@ -104,8 +106,9 @@ the host endpoint, administrator identity, SSH mapping, or fingerprint in reposi
 7. From the public official `actions/runner` release page, copy the current x64 Linux download URL and SHA-256
    value. As `arc-runner`, download the package once, verify its checksum before extraction, and extract the same
    verified release into each directory. Run `bin/installdependencies.sh` with administrative privileges, restore
-   each application directory to mode `0750`, and remove the archive. Stop here: do not open the repository's new-
-   runner token flow, run `config.sh`, install a service, or assign `arc-ci-linux` yet.
+   each application directory to mode `0750`, and remove the `arc-runner`-owned archive with administrative
+   privileges when it resides in a sticky temporary directory. Stop here: do not open the repository's new-runner
+   token flow, run `config.sh`, install a service, or assign `arc-ci-linux` yet.
 8. Verify the service user's tool and host baseline:
 
    ```sh
@@ -213,8 +216,9 @@ rebuild exceeding two hours, or requiring undocumented state, fails the disposab
 ## Deregistration
 
 1. Select `ubuntu-latest` and verify a hosted run.
-2. Stop both services. Request short-lived removal tokens at the point of use, run the current `config.sh remove`
-   command in each directory, and uninstall both services with `sudo ./svc.sh uninstall`.
+2. Stop and uninstall both services with `sudo ./svc.sh uninstall`. Request short-lived removal tokens at the point
+   of use, then run the current `config.sh remove` command in each directory. The runner refuses registration
+   removal while its service remains installed; enter each mode-`0750` directory from inside the privileged shell.
 3. Confirm the repository runner list contains neither runner and no queued job targets `arc-ci-linux`.
 4. Export only the required protected logs/measurements, then destroy the VPS and any attached storage or snapshot.
 5. Confirm billing has stopped and record the sanitized completion result.

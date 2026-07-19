@@ -236,12 +236,13 @@ runner teardown or rebuild, and destructive external steps retain their own expl
         - Recorded the variable timestamp, cancelled attempt, replacement attempt, hosted runner assignments, and
           result while leaving hosted fallback selected for the rebuild gate.
 
-    - `[ ]` **3.3.b Approve and execute the destructive rebuild drill**
-        - Surface the exact deregistration, VPS destruction, replacement, and rollback plan; obtain explicit user
-          approval before removing runners or destroying the paid host.
-        - With hosted fallback active, start the timer, deregister both services, destroy/recreate or fully replace
-          the VPS, and rebuild the hardened host, toolchain, and two application directories only from
-          `.github/self-hosted-ci.md` using no machine backup. Stop before registration or label assignment.
+    - `[x]` **3.3.b Approve and execute the destructive rebuild drill**
+        - Approved the exact teardown, irreversible reinstall, recovery boundary, and no-new-spend rollback before
+          starting the timer; protected only the bounded diagnostic export, then removed both services and repository
+          registrations while hosted routing remained selected.
+        - Reinstalled the existing VPS without a machine backup and rebuilt Ubuntu 26.04, key-only SSH, firewall,
+          unattended updates, bounded journal and telemetry, required tools, and two checksum-verified unconfigured
+          runner 2.335.1 application trees solely from the runbook; GitHub remained at zero registered runners.
 
     - `[ ]` **3.3.c Re-run the trust gate, register, requalify, and restore trial routing**
         - Re-run the full executable-principal checklist before requesting tokens or assigning `arc-ci-linux`; only

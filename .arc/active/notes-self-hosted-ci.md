@@ -112,6 +112,13 @@ provider credential.
   [29705287961](https://github.com/andrewRCr/arc-framework/actions/runs/29705287961) — changed the route to
   `ubuntu-latest` at 21:58:13Z, cancelled self-hosted attempt 1, and reran as attempt 2; the first hosted Linux job
   started after 25 seconds, every executed Linux job used a GitHub-hosted Ubuntu runner, and the replacement passed
+- **Pre-registration rebuild result:** timer started at 22:06:51Z; both services and repository registrations were
+  removed before a full Ubuntu 26.04 reinstall of the existing allocation. The host was rebuilt without a machine
+  backup to a green hardened, credential-free two-directory baseline while hosted routing remained selected.
+- **Rebuild deviations and runbook fixes:** the provider rebuild flow offered no existing-key injection, so the
+  provider-delivered temporary password bootstrapped the existing key before password SSH was disabled; service
+  uninstall must precede `config.sh remove`; mode-`0750` service commands must enter the directory inside the
+  privileged shell; and the service-owned archive in sticky temporary storage requires privileged removal.
 - **Rebuild window / elapsed time / result:** [pending]
 - **Post-rebuild qualification run id / result:** [pending]
 
