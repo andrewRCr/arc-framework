@@ -228,72 +228,59 @@ into the kernel or changing current user-facing formatting.
 _Purpose:_ Place the pure canonical trust core inside the kernel with byte-stable behavior and temporary old-path
 re-exports, while leaving retirement and decomposition semantics with their current owners.
 
-### `[ ]` **5.1 Characterize and relocate the canonical JSON core**
+### `[x]` **5.1 Characterize and relocate the canonical JSON core**
 
 - _Goal:_ Canonical serialization, digesting, validation, and set ordering are kernel-owned with every existing byte
   vector and old import path preserved exactly.
 - _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §7's canonical JSON move and byte-stability
   requirement.
 
-    - `[ ]` **5.1.a Freeze the canonical public contract before relocation**
-        - Extend the current old-path golden vectors only where needed to cover every exported function and type;
-          do not create the kernel path yet or redesign canonical semantics.
-        - Build `test-first` (one behavior at a time):
-            - Unicode normalization/order, plain-data rejection, array preservation, and cyclic-input failures remain
-              byte-identical.
-            - `digestBytes()` has an exact raw-byte digest vector; `canonicalDigest()` and the digest guards preserve
-              the `sha256:` wire format.
-            - `isCanonicalDigest()` and `assertCanonicalDigest()` narrow accepted values to `CanonicalDigest` while
-              malformed values remain rejected at runtime.
-            - `sortByCanonicalBytes()` remains deterministic across input permutations.
+    - `[x]` **5.1.a Freeze the canonical public contract before relocation**
+        - Extended the old-path contract with an exact raw-byte digest vector and compile-time guard/assertion
+          narrowing; the existing vectors already covered serialization, rejection, ordering, and canonical digest
+          behavior.
 
-    - `[ ]` **5.1.b Move the implementation and leave a temporary old-path re-export**
-        - Relocate `canonical-json.ts` into `packages/arc-framework/src/lib/kernel/canonical/` without behavior edits;
-          the kernel copy may import only `node:crypto` and kernel-local modules.
-        - Re-export the complete surface through the public kernel barrel, and replace
-          `src/lib/canonical/canonical-json.ts` with a full thin re-export of the exact kernel file so all current
-          importers compile and execute unchanged.
-        - Assert the old path and kernel barrel expose the same runtime function objects and equivalent
-          `CanonicalDigest` types.
+    - `[x]` **5.1.b Move the implementation and leave a temporary old-path re-export**
+        - Relocated the behavior-identical implementation under `lib/kernel/canonical/`, exposed its complete
+          surface through the kernel barrel, and left an exact old-path re-export with runtime identity and type
+          equivalence coverage.
 
-### `[ ]` **5.2 Characterize and relocate managed-path validation**
+- _Outcome:_ Canonical serialization and digest authority now sit at the bottom of the dependency graph while every
+  established byte vector and old import path remains unchanged.
+
+### `[x]` **5.2 Characterize and relocate managed-path validation**
 
 - _Goal:_ Managed paths retain their total repository-relative safety gate and branded type through both the kernel
   authority and old canonical import path.
 - _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §7's managed-path move.
 
-    - `[ ]` **5.2.a Freeze managed-path validation and type behavior**
-        - Characterize the current old-path contract before creating the kernel path.
-        - Build `test-first` (one behavior at a time):
-            - Valid repository-relative POSIX paths return unchanged and infer as `ManagedPath`.
-            - Absolute, drive-prefixed, empty-segment, leading/interior dot-segment, backslash, NUL, and non-NFC
-              paths fail.
-            - A raw `string` is not assignable to `ManagedPath`; validated and guard-narrowed strings are.
-            - `isManagedPath()` agrees with `validateManagedPath()` without throwing for the valid/invalid table.
+    - `[x]` **5.2.a Freeze managed-path validation and type behavior**
+        - Confirmed the complete valid/invalid path table and added compile-time proof that only validated or
+          guard-narrowed strings acquire the `ManagedPath` brand.
 
-    - `[ ]` **5.2.b Move the implementation and leave a temporary old-path re-export**
-        - Relocate `managed-path.ts` into the kernel canonical module and replace the old file with a full thin
-          re-export of the exact kernel file; export the complete surface through the public kernel barrel.
-        - Prove the old path and kernel barrel expose the same runtime functions and equivalent branded
-          `ManagedPath` types without changing consumers.
+    - `[x]` **5.2.b Move the implementation and leave a temporary old-path re-export**
+        - Relocated validation under `lib/kernel/canonical/`, exposed it through the kernel barrel, and retained an
+          exact old-path re-export with runtime identity and branded-type equivalence coverage.
 
-### `[ ]` **5.3 Validate canonical compatibility across downstream consumers**
+- _Outcome:_ Managed paths retain one total repository-relative validation gate and one brand across both the
+  kernel authority and rollout compatibility path.
+
+### `[x]` **5.3 Validate canonical compatibility across downstream consumers**
 
 - _Goal:_ Retirement, decomposition, coupling-audit, and script consumers retain identical behavior while their
   domain-shaped canonical modules remain outside the kernel.
 - _Context:_ Implements `spec-cli-schema-kernel.md` Proposed Design §7's domain fencing and migration strategy.
 
-    - `[ ]` **5.3.a Preserve domain ownership and shim-mediated imports**
-        - Keep `content-digest.ts` and `receipt-id.ts` in `src/lib/canonical/` with their existing relative imports
-          flowing through the shims; do not pull `WorktreeSubject`, artifact sets, or patch shapes into the kernel.
-        - Confirm no consumer migration is required beyond any same-concern fix needed to maintain compilation.
+    - `[x]` **5.3.a Preserve domain ownership and shim-mediated imports**
+        - Kept content digests, receipt IDs, and every domain-shaped record outside the kernel; their unchanged
+          relative imports now flow through the compatibility shims without consumer migration.
 
-    - `[ ]` **5.3.b Run the canonical downstream integration checkpoint**
-        - Run targeted canonical, content-digest, receipt, retirement, decomposition, worktree-marker,
-          coupling-audit, `validate-decompose-record`, and lifecycle-exit tests plus `npm run typecheck:all` and the
-          build before leaving the phase.
-        - Treat any digest, ordering, receipt ID, or serialized-record delta as a blocker requiring diagnosis rather
-          than an expected relocation effect.
+    - `[x]` **5.3.b Run the canonical downstream integration checkpoint**
+        - The complete named consumer checkpoint passed across canonical, receipt, retirement, decomposition,
+          worktree-marker, coupling-audit, validation-script, integration, and lifecycle-exit surfaces.
+
+- _Outcome:_ The pure trust core moved without digest, ordering, receipt-ID, serialized-record, or downstream type
+  drift, while domain ownership remains fenced outside the kernel.
 
 ## **Phase 6:** Substrate integration and hardening
 

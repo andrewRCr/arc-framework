@@ -20,6 +20,20 @@ export {
   type ArcErrorCode,
 } from "./errors.js";
 export {
+  assertCanonicalDigest,
+  canonicalDigest,
+  canonicalize,
+  digestBytes,
+  isCanonicalDigest,
+  sortByCanonicalBytes,
+  type CanonicalDigest,
+} from "./canonical/canonical-json.js";
+export {
+  isManagedPath,
+  type ManagedPath,
+  validateManagedPath,
+} from "./canonical/managed-path.js";
+export {
   PrioritySchema,
   WORK_UNIT_STATE_ORDER,
   WorkClassSchema,
