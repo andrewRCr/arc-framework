@@ -75,6 +75,12 @@ classifier's `gh api` verified-tree lookback, the roll-up's `jq`, and the shell-
 These are load-bearing VPS prerequisites, not conveniences; § Cross-cutting/Testing records the failure modes when
 they are absent.
 
+The host also retains lightweight local CPU, memory, load, and disk samples plus runner-service and restart logs
+from before cutover through the permanent-posture decision. Provider charts may complement this record but are not
+assumed to expose guest-memory data or sufficient history. Collection stays local and size-bounded, with protected
+user-held export before rotation or destructive rebuild when needed; only sanitized summaries and incident evidence
+enter tracked notes. This is diagnostic coverage for the bounded canary, not a general monitoring platform.
+
 ### Workflow routing and fail-safe fallback
 
 Route every Linux job in `.github/workflows/ci.yml` through a repository Actions variable, `ARC_CI_LINUX_RUNNER`:
@@ -159,8 +165,9 @@ Security.)
 
 Check in a concise runbook covering: supported OS, package prerequisites, separate runner directories, the label,
 service installation, the access-control precondition, the repository-variable cutover, health checks, log
-locations, cleanup, fallback, credential-aware incident response, rebuild, and decommissioning. Explicitly out of
-scope for the runbook: Kubernetes, autoscaling, custom runner images, and any general infrastructure platform.
+locations and retention, lightweight resource sampling, cleanup, fallback, credential-aware incident response,
+rebuild, and decommissioning. Explicitly out of scope for the runbook: Kubernetes, autoscaling, custom runner
+images, and any general infrastructure platform.
 
 Operational cadence stays modest:
 
@@ -168,7 +175,7 @@ Operational cadence stays modest:
 - unattended OS security updates run automatically, with a planned reboot when required;
 - inspect disk use and prune obsolete runner diagnostics or workspaces during the monthly check;
 - treat compromise or unexplained residue as a rebuild, not a forensic repair;
-- before any public flip, select `ubuntu-latest`, verify a hosted run, deregister both runners, and destroy the VPS.
+- before any public flip, select `ubuntu-latest`, verify a hosted run, deregister every runner, and destroy the VPS.
 
 ## Alternatives & Rationale
 
@@ -228,9 +235,10 @@ trade. Two consequences follow, and this is the design's primary risk:
 - **Scaling levers, on evidence only.** Two distinct failure modes take two different responses: *queue depth*
   (jobs waiting for a free slot) is relieved only by **more runner services plus a proportionally larger host** —
   adding vCPU without adding services does not add slots; *per-job starvation* (a running leg short on CPU or
-  memory) is relieved by a **resize**. Neither is provisioned up front: starting at the two-slot floor and scaling
-  on the measured failure mode is the proportionate choice, and speculative headroom for rare cross-PR collisions
-  would be over-provisioning.
+  memory) is relieved by a **resize**. Per-job Actions timestamps and the retained host/service record distinguish
+  those causes. Neither correction is provisioned up front: starting at the two-slot floor and scaling on the
+  measured failure mode is the proportionate choice, and speculative headroom for rare cross-PR collisions would
+  be over-provisioning.
 
 ### Testing
 
@@ -254,9 +262,10 @@ trade. Two consequences follow, and this is the design's primary risk:
 - The canary runs the real job graph; unacceptable latency or reliability routes to burst-to-hosted, then a tuning
   pass (resize or add a service), then a permanent hosted fallback if the target cannot be met economically.
 - **TECHNICAL-OVERVIEW update is an in-scope deliverable.** § 3 Infrastructure (CI/CD) records the self-hosted
-  Linux execution target at cutover, riding TECHNICAL-OVERVIEW's infrastructure-shift update discipline (a
-  dedicated edit with rationale at the moment the infrastructure changes — not a speculative edit now).
-- Decommission is a documented sequence: select hosted, verify a hosted run, deregister both runners, destroy the
+  Linux execution target only at permanent cutover after canary acceptance, riding TECHNICAL-OVERVIEW's
+  infrastructure-shift update discipline as a dedicated edit with rationale. The bounded trial is qualification,
+  not a durable architecture claim; permanent hosted fallback leaves the existing overview unchanged.
+- Decommission is a documented sequence: select hosted, verify a hosted run, deregister every runner, destroy the
   VPS.
 
 ## Success Criteria
@@ -275,7 +284,7 @@ trade. Two consequences follow, and this is the design's primary risk:
    its `HEAVY_CHECK_NAMES` entry (alongside the unchanged lint/typecheck, unit, integration, and E2E-shard names),
    and a known-verified tree classifies `reason=verified` when built on the self-hosted runner — so verified-tree
    reuse survives the executor change in fact, not just in name.
-7. TECHNICAL-OVERVIEW § 3 records the self-hosted Linux execution target at cutover.
+7. TECHNICAL-OVERVIEW § 3 records the accepted self-hosted Linux execution target at permanent cutover.
 
 ## Open Questions
 
