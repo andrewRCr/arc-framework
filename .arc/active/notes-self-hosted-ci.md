@@ -108,7 +108,10 @@ provider credential.
   [29705207328](https://github.com/andrewRCr/arc-framework/actions/runs/29705207328) — the first-cutover evidence
   commit preserved the code tree; the live classifier API lookback emitted `weight=light reason=verified`, and the
   light roll-up passed
-- **Hosted fallback run id / elapsed time / result:** [pending]
+- **Hosted fallback run id / elapsed time / result:**
+  [29705287961](https://github.com/andrewRCr/arc-framework/actions/runs/29705287961) — changed the route to
+  `ubuntu-latest` at 21:58:13Z, cancelled self-hosted attempt 1, and reran as attempt 2; the first hosted Linux job
+  started after 25 seconds, every executed Linux job used a GitHub-hosted Ubuntu runner, and the replacement passed
 - **Rebuild window / elapsed time / result:** [pending]
 - **Post-rebuild qualification run id / result:** [pending]
 

@@ -230,10 +230,11 @@ runner teardown or rebuild, and destructive external steps retain their own expl
   from the runbook within two hours without a machine backup.
 - **Additional Context:** `.github/self-hosted-ci.md` § Hosted fallback, § Rebuild, and § Deregistration.
 
-    - `[ ]` **3.3.a Time the no-edit hosted fallback**
-        - Set `ARC_CI_LINUX_RUNNER` to `ubuntu-latest` or clear it, cancel any queued self-hosted run, re-run, and
-          confirm the Linux graph starts on hosted runners within five minutes.
-        - Record the start/end timestamps, variable action, cancelled run, replacement run, and placement result.
+    - `[x]` **3.3.a Time the no-edit hosted fallback**
+        - Set `ARC_CI_LINUX_RUNNER=ubuntu-latest`, cancelled the new self-hosted attempt, and reran it without a
+          workflow edit; the first hosted Linux job started after 25 seconds and the replacement roll-up passed.
+        - Recorded the variable timestamp, cancelled attempt, replacement attempt, hosted runner assignments, and
+          result while leaving hosted fallback selected for the rebuild gate.
 
     - `[ ]` **3.3.b Approve and execute the destructive rebuild drill**
         - Surface the exact deregistration, VPS destruction, replacement, and rollback plan; obtain explicit user
