@@ -165,7 +165,9 @@ suites without requiring a build artifact:
 
 The repository script delegates to the package workspace. In `.github/workflows/ci.yml`, the `lint-typecheck` job runs
 `npm run test:arc-contracts` whenever classification weight is `light`, after dependency installation and the existing
-documentation audits. Heavy runs retain coverage through the normal integration job, avoiding duplicate execution.
+documentation audits. Reviewed heavy pull requests and `workflow_dispatch` runs retain coverage through the normal
+integration job, so the focused light step does not duplicate execution on those paths. Existing heavy-push scheduling
+remains unchanged.
 
 Extend `review-gate-workflows.test.ts` (or another suite in the focused slice) with a wiring assertion that pins the
 three selected suite names, the root delegation, and the light-lane CI invocation. The focused command changes only
