@@ -12,6 +12,8 @@
  * `identity` is populated by direct `git config` reads in the handler,
  * logically parallel to the probe fan-out.
  */
+import { z } from "zod";
+
 import type {
   ActiveSessionInitResult,
   ActiveStatusResult,
@@ -163,15 +165,29 @@ export interface StatusIdentity {
  * - `runtime` — probe threw (e.g., missing extensions directory on a partial
  *   install). `message` is the `Error.message` or stringified value.
  */
-export interface ProbeError {
-  kind: "identity-missing" | "runtime";
-  message: string;
+export const ProbeErrorSchema = z.strictObject({
+  kind: z.enum(["identity-missing", "runtime"]),
+  message: z.string(),
+});
+
+/** Per-probe failure reason derived from the wire schema authority. */
+export type ProbeError = z.infer<typeof ProbeErrorSchema>;
+
+/**
+ * Build the flat success/error schema for one independently fallible slot.
+ *
+ * @param valueSchema - Runtime contract for the success value
+ * @returns Strict discriminated probe schema preserving the success value
+ */
+export function probe<ValueSchema extends z.ZodType>(valueSchema: ValueSchema) {
+  return z.discriminatedUnion("ok", [
+    z.strictObject({ ok: z.literal(true), value: valueSchema }),
+    z.strictObject({ ok: z.literal(false), error: ProbeErrorSchema }),
+  ]);
 }
 
 /** Discriminated union for a probe slot — success or typed error. */
-export type Probe<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: ProbeError };
+export type Probe<Value> = z.infer<ReturnType<typeof probe<z.ZodType<Value>>>>;
 
 /** JSON-safe summary of a `--write-compaction-seed` attempt. */
 export type CompactionSeedWriteStatus =

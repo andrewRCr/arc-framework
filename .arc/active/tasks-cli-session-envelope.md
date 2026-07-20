@@ -57,22 +57,17 @@ uses a stable identity, version 1, and `strict-current` posture while preserving
 where the spec retains it. Producer schemas reject owned-field leakage, while the compaction-seed reader derives
 unknown-stripping variants from the same field shapes to retain its established compatibility behavior.
 
-### `[ ]` **2.1 Define the schema-backed probe algebra**
+### `[x]` **2.1 Define the schema-backed probe algebra**
 
 - _Goal:_ Every fallible envelope slot has one reusable runtime/type authority while existing callers retain the
   `Probe<Value>` generic surface and exact `{ kind, message }` wire branches.
-- _Context:_ Implements the flat `probe()` decision and Success Criterion 2; internal Result error adaptation remains
-  wholly owned by Phase 6.
+    - `[x]` **2.1.a Define the error and generic probe schemas**
+        - Added strict `ProbeErrorSchema` and generic `probe(valueSchema)` authorities beside the status contracts;
+          `ProbeError` and `Probe<Value>` now derive from them while every existing generic consumer remains valid.
+          Focused tests cover pass-through success, both closed error kinds, and malformed or mixed rejection.
 
-    - `[ ]` **2.1.a Define the error and generic probe schemas**
-        - Co-locate the session envelope schema primitives with `commands/status/types.ts`; expose a closed
-          `ProbeErrorSchema` and a generic `probe(valueSchema)` combinator.
-        - Derive `ProbeError` and the public `Probe<Value>` contract from those schemas without changing the generic
-          call shape used by current status, formatting, recovery-audit, and handoff consumers.
-        - Build `test-first` (one behavior at a time):
-            - accept the existing success branch without transforming its value;
-            - accept only `identity-missing` and `runtime` wire error kinds;
-            - reject mixed, missing-discriminant, and malformed branches.
+- _Outcome:_ Every fallible envelope slot can now compose one flat runtime/type authority without changing the wire
+  algebra or pre-empting Phase 6's internal Result adaptation.
 
 ### `[ ]` **2.2 Make load-set and task-cursor records schema-authoritative**
 
