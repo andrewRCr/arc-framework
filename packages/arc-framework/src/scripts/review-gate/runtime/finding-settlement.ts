@@ -2,6 +2,8 @@
 
 import { canonicalDigest } from "../../../lib/kernel/index.js";
 import type { Evidence } from "../core/evidence.js";
+import type { DispositionApproval, DispositionSet } from "../core/disposition-records.js";
+import { validateDispositionApproval, validateDispositionSet } from "../core/dispositions.js";
 import {
   FindingConversationClosureV2Schema,
   FindingSettlementV2Schema,
@@ -10,34 +12,40 @@ import {
   type FindingSettlementV2,
   type NormalizedReviewFinding,
 } from "../core/finding-records.js";
-import type { FindingDisposition } from "../core/review-primitives.js";
 import type { ReviewReceipt, ReviewRequest } from "../core/execution.js";
 import { createReceipt } from "../core/request-key.js";
 import type { SettlementReply, SettlementThread } from "../hosts/github/settlement.js";
 
 /** Create one forward settlement from a normalized finding; host closure remains a separate record. */
 export function createFindingSettlementV2(input: {
-  targetId: string;
-  sourceIdentity: string;
+  dispositionSet: DispositionSet;
+  approval: DispositionApproval;
   finding: NormalizedReviewFinding;
-  disposition: FindingDisposition;
-  rationale: string;
   settledBy: string;
   settledAt: string;
   fixTargetId: string | null;
   verificationRefs: string[];
 }): FindingSettlementV2 {
+  const dispositionSet = validateDispositionSet(input.dispositionSet);
+  validateDispositionApproval(dispositionSet, input.approval);
   const finding = NormalizedReviewFindingSchema.parse(input.finding);
+  const disposition = dispositionSet.findings.find((candidate) => candidate.findingId === finding.findingId);
+  if (disposition === undefined
+    || disposition.locus !== finding.locus
+    || disposition.severity !== finding.severity
+    || disposition.nit !== finding.nit) {
+    throw new Error("finding does not match the approved disposition set");
+  }
   return FindingSettlementV2Schema.parse({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
-    targetId: input.targetId,
+    targetId: dispositionSet.targetId,
     findingId: finding.findingId,
-    sourceIdentity: input.sourceIdentity,
+    sourceIdentity: disposition.sourceIdentity,
     severity: finding.severity,
     ...(finding.nit === undefined ? {} : { nit: finding.nit }),
-    disposition: input.disposition,
-    rationale: input.rationale,
+    disposition: disposition.disposition,
+    rationale: disposition.rationale,
     settledBy: input.settledBy,
     settledAt: input.settledAt,
     fixTargetId: input.fixTargetId,

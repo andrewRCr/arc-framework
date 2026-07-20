@@ -374,11 +374,10 @@ with adopter-facing contracts mirrored through the package source.
           frontmatter, package-corpus/default validation, and per-method project resolution with diagnostic fallback.
           The adapter binds effective booleans through the existing routing port independently of override state.
 
-### `[ ]` **4.2 Upgrade review triage to severity × disposition**
+### `[x]` **4.2 Upgrade review triage to severity × disposition**
 
 - _Goal:_ Every finding carries one materiality level and one approved action, with pure-polish nits represented
   orthogonally and blocker/major settlement deterministic across local and hosted review.
-- _Context:_ Implements Design §4 and Success Criterion 6.
 
     - `[x]` **4.2.a Rewrite the override-proof triage contract**
         - Replaced the conflated four-way labels with orthogonal `blocker | major | minor` severity,
@@ -396,10 +395,14 @@ with adopter-facing contracts mirrored through the package source.
           disposition primitives. Provider labels normalize only at adapter boundaries, `nit` requires explicit
           pure-polish evidence and minor severity, and legacy labels remain confined to v1 diagnostic evidence.
 
-    - `[ ]` **4.2.d Update disposition reports and commit records**
-        - Define the channel-neutral report shape and audience-visible record for severity, disposition, rationale,
-          recommendation, and open questions.
-        - Remove any path that applies fixes before the approved set exists.
+    - `[x]` **4.2.d Update disposition reports and commit records**
+        - Added the channel-neutral report and commit-body formats plus registered canonical disposition-set and
+          approval schemas. Exact target, policy, rubric, findings, rationale, recommendation, questions, and actors
+          now bind approval; forward settlement rejects stale, partial, changed, or absent approval before mutation.
+
+- _Outcome:_ Review findings now move through one override-proof source-verification → complete proposal → exact
+  approval boundary, with shared severity/disposition records across local and hosted channels and deterministic
+  evidence that prevents individual fixes from bypassing the approved set.
 
 ### `[ ]` **4.3 Ship the channel-neutral review-response contract**
 

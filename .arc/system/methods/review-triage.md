@@ -61,9 +61,27 @@ severity, `nit` when present, proposed disposition, rationale, recommendation, a
 for the complete disposition set before applying any `fix`. A partial approval, changed finding set, or changed
 target requires a new proposal; no path may apply an individual fix early.
 
+Use one channel-neutral report with this field order for every finding:
+
+```text
+Finding: <identity> · <stable locus>
+Verified: <verified | not-supported> · <source evidence>
+Severity: <blocker | major | minor> [· nit]
+Disposition: <fix | defer | reject> · <blocking | record-only>
+Rationale: <why this fate follows from source and governing standards>
+Recommendation: <recommended action>
+Open questions: <questions or none>
+```
+
+The proposal record binds the exact target, policy and rubric identities, proposing actor, and the complete ordered
+finding set into one disposition-set identity. Approval names that identity, the approving actor, and approval time.
+Do not begin a fix from prose assent, a subset, or a report whose target or contents changed.
+
 After approval, apply all authorized `fix` dispositions as one review-fix increment and verify the affected change.
 `defer` and `reject` leave the target unchanged. Preserve every approved fate in the audience-visible disposition
-record supplied by the caller.
+record supplied by the caller. When a fix produces a commit, its body records `Review disposition set: <identity>`
+and summarizes each included finding as `<identity>: <severity> / <disposition> — <rationale>`; the approved set
+remains the authority when a channel has a richer durable record.
 
 ---
 

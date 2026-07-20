@@ -9,6 +9,10 @@ import {
 } from "../../../../../src/scripts/review-gate/core/finding-records.js";
 import { reduceNormalizedFindings } from "../../../../../src/scripts/review-gate/core/findings.js";
 import {
+  approveDispositionSet,
+  createDispositionSet,
+} from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import {
   createFindingConversationClosureV2,
   createFindingSettlementV2,
 } from "../../../../../src/scripts/review-gate/runtime/finding-settlement.js";
@@ -22,6 +26,40 @@ const finding = {
   locus: "src/index.ts:7",
   evidenceUrlOrId: "review:finding-1",
 };
+
+function approvedSet(disposition: "fix" | "defer" | "reject") {
+  const dispositionSet = createDispositionSet({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    targetId,
+    policyVersion: canonicalDigest({ policy: "review" }),
+    rubricVersion: "independent-analysis/v1",
+    rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
+    proposedBy: "author-1",
+    findings: [{
+      findingId: finding.findingId,
+      locus: finding.locus,
+      severity: finding.severity,
+      nit: finding.nit,
+      sourceIdentity: "codex-pr",
+      sourceVerification: "verified",
+      verificationRefs: ["source:src/index.ts:7"],
+      disposition,
+      gating: "record-only",
+      rationale: "The report is source-verified and the proposed fate is appropriate.",
+      recommendation: disposition === "fix" ? "Apply the bounded fix." : "Leave the target unchanged.",
+      openQuestions: [],
+    }],
+  });
+  return {
+    dispositionSet,
+    approval: approveDispositionSet({
+      dispositionSet,
+      approvedBy: "maintainer-1",
+      approvedAt: "2026-07-20T19:59:00Z",
+    }),
+  };
+}
 
 describe("normalized finding records", () => {
   it.each([
@@ -52,12 +90,10 @@ describe("normalized finding records", () => {
 
 describe("forward finding settlement", () => {
   it("records severity and disposition while keeping conversation closure separate", () => {
+    const approved = approvedSet("fix");
     const settlement = createFindingSettlementV2({
-      targetId,
-      sourceIdentity: "codex-pr",
+      ...approved,
       finding,
-      disposition: "fix",
-      rationale: "The report is source-verified and the fix is approved.",
       settledBy: "author-1",
       settledAt: "2026-07-20T20:00:00Z",
       fixTargetId,
@@ -85,17 +121,14 @@ describe("forward finding settlement", () => {
 
   it("rejects invalid fix and non-fix target bindings", () => {
     const base = {
-      targetId,
-      sourceIdentity: "codex-pr",
       finding,
-      rationale: "Approved rationale.",
       settledBy: "author-1",
       settledAt: "2026-07-20T20:00:00Z",
       verificationRefs: ["ci:run-1"],
     };
-    expect(() => createFindingSettlementV2({ ...base, disposition: "fix", fixTargetId: null }))
+    expect(() => createFindingSettlementV2({ ...base, ...approvedSet("fix"), fixTargetId: null }))
       .toThrow(/resulting target/iu);
-    expect(() => createFindingSettlementV2({ ...base, disposition: "defer", fixTargetId }))
+    expect(() => createFindingSettlementV2({ ...base, ...approvedSet("defer"), fixTargetId }))
       .toThrow(/resulting target/iu);
   });
 });

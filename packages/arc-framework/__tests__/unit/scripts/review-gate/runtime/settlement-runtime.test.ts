@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import {
+  approveDispositionSet,
+  createDispositionSet,
+} from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { createFindingSettlementV2 } from "../../../../../src/scripts/review-gate/runtime/finding-settlement.js";
 import {
   ensureDirectReply,
@@ -39,17 +43,42 @@ describe("settlement mutation adoption", () => {
   });
 
   it("records canonical host closure separately from the approved disposition", async () => {
+    const targetId = canonicalDigest({ target: "old" });
+    const dispositionSet = createDispositionSet({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      targetId,
+      policyVersion: canonicalDigest({ policy: "review" }),
+      rubricVersion: "independent-analysis/v1",
+      rubricDigest: canonicalDigest({ rubric: "implementation-audit" }),
+      proposedBy: "author-1",
+      findings: [{
+        findingId: "finding-1",
+        sourceIdentity: "codex-pr",
+        locus: "src/index.ts:7",
+        sourceVerification: "verified",
+        verificationRefs: ["source:src/index.ts:7"],
+        severity: "minor",
+        disposition: "reject",
+        gating: "record-only",
+        rationale: "The source does not support the reported behavior.",
+        recommendation: "Reject the finding and leave the target unchanged.",
+        openQuestions: [],
+      }],
+    });
     const settlement = createFindingSettlementV2({
-      targetId: canonicalDigest({ target: "old" }),
-      sourceIdentity: "codex-pr",
+      dispositionSet,
+      approval: approveDispositionSet({
+        dispositionSet,
+        approvedBy: "maintainer-1",
+        approvedAt: "2026-07-20T19:59:00Z",
+      }),
       finding: {
         findingId: "finding-1",
         severity: "minor",
         locus: "src/index.ts:7",
         evidenceUrlOrId: "review:finding-1",
       },
-      disposition: "reject",
-      rationale: "The source does not support the reported behavior.",
       settledBy: "44",
       settledAt: "2026-07-20T20:00:00Z",
       fixTargetId: null,
