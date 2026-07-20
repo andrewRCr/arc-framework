@@ -8,10 +8,10 @@
 - **Depends On:** `coupling-blast-radius-audit`, `work-organization-reform`, `cli-schema-kernel`
 
 - **Origin:** [internal]
-- **Design:** `draft-cli-layout-resolver.md`
+- **Design:** `spec-cli-layout-resolver.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
