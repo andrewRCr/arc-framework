@@ -69,12 +69,10 @@ unknown-stripping variants from the same field shapes to retain its established 
 - _Outcome:_ Every fallible envelope slot can now compose one flat runtime/type authority without changing the wire
   algebra or pre-empting Phase 6's internal Result adaptation.
 
-### `[ ]` **2.2 Make load-set and task-cursor records schema-authoritative**
+### `[x]` **2.2 Make load-set and task-cursor records schema-authoritative**
 
 - _Goal:_ Load-set manifests, read modes, task cursors, and file-backed cursor results have one full runtime/type
   authority shared by status, recovery, and compaction seed composition.
-- _Context:_ Implements complete family-record ownership and stable registration; Success Criterion 2.
-
     - `[x]` **2.2.a Migrate load-set records to Zod authority**
         - Added strict and recursively stripping schemas for manifests, entries, and all read-mode branches, deriving
           the public contracts through `z.infer`. Projection and compaction-seed validation now share one canonical
@@ -87,13 +85,13 @@ unknown-stripping variants from the same field shapes to retain its established 
           handwritten. The compaction reader now reuses recursively stripping cursor shapes; parser and repository
           containment behavior remain unchanged under the focused matrix.
 
-    - `[ ]` **2.2.c Establish the family registry and register shared records**
-        - Add `lib/session-envelope/registry.ts` with a fresh `createSessionEnvelopeRegistry()` that starts from
-          `createKernelRegistry()` and accumulates the family roots as this and later phases land.
-        - Register `load-set-manifest`, `task-list-cursor`, and `task-list-cursor-file-result` at version 1 with
-          `strict-current` posture; registration records identity and composition only.
-        - Prove metadata, fresh-instance isolation, and duplicate protection through focused registry-composition
-          tests without wiring the registry into `lib/kernel/schema/generate.ts` or the shipped bundle.
+    - `[x]` **2.2.c Establish the family registry and register shared records**
+        - Added a fresh composed session-envelope registry over the kernel vocabulary and registered the load-set,
+          cursor, and file-cursor roots at version 1 with `strict-current` posture. Focused tests prove identity,
+          immutable metadata, instance isolation, and inherited duplicate protection without build publication.
+
+- _Outcome:_ Load-set and cursor records now share strict producer, compatibility-reader, inferred TypeScript, and
+  stable discovery authorities while preserving projection, parsing, and file-containment behavior.
 
 ### `[ ]` **2.3 Replace the compaction-seed validator with its registered schema**
 
