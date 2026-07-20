@@ -52,7 +52,8 @@ describe("kernel import boundary", () => {
       "ArcError", "PrioritySchema", "ResultAsync", "SLUG_PATTERN", "SchemaError", "SlugSchema",
       "WORK_UNIT_STATE_ORDER", "WorkClassSchema", "WorkUnitStateSchema", "assertCanonicalDigest",
       "canonicalDigest", "canonicalize", "createKernelRegistry", "createRegistry", "digestBytes", "err",
-      "fromAsyncThrowable", "fromThrowable", "isCanonicalDigest", "isManagedPath", "isSlugSafe", "ok",
+      "errAsync", "fromAsyncThrowable", "fromThrowable", "isCanonicalDigest", "isManagedPath", "isSlugSafe", "ok",
+      "okAsync",
       "sortByCanonicalBytes", "toArcError", "validateClass", "validateManagedPath", "validatePriority",
       "validateState",
     ].sort());

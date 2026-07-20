@@ -3,9 +3,11 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   ResultAsync,
   err,
+  errAsync,
   fromAsyncThrowable,
   fromThrowable,
   ok,
+  okAsync,
   type Result,
 } from "../../../src/lib/kernel/index.js";
 
@@ -33,6 +35,16 @@ describe("kernel Result surface", () => {
     const failureResult = await failure;
     expect(successResult.isOk() && successResult.value).toBe(43);
     expect(failureResult.isErr() && failureResult.error).toBe("nope");
+  });
+
+  it("constructs immediate asynchronous successes and failures", async () => {
+    const success = okAsync<number, string>(42);
+    const failure = errAsync<number, string>("nope");
+
+    expectTypeOf(success).toExtend<ResultAsync<number, string>>();
+    expectTypeOf(failure).toExtend<ResultAsync<number, string>>();
+    expect((await success).isOk()).toBe(true);
+    expect((await failure).isErr()).toBe(true);
   });
 
   it("maps synchronous exceptions without changing successful values", () => {

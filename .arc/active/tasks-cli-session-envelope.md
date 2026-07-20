@@ -385,33 +385,25 @@ _Design decisions:_ Every present slot remains an independent Result; optional a
 eager siblings resolve through `Promise.all`, not `ResultAsync.combine`; one focused status module owns errors,
 helpers, and the sole wire adapter. Handoff and full status gain no schema or golden scope.
 
-### `[ ]` **6.1 Extend the kernel Result surface and introduce the status composition seam**
+### `[x]` **6.1 Extend the kernel Result surface and introduce the status composition seam**
 
 - _Goal:_ Immediate asynchronous branches and typed session failures have one bounded foundation before any
   orchestrator changes its internal algebra.
-- _Context:_ Implements Result migration and explicit legacy error mapping; Success Criterion 6.
-- _Notes:_ See `notes-cli-session-envelope.md` § Result-migration seam map.
 
-    - `[ ]` **6.1.a Expose immediate asynchronous Result constructors through the kernel**
-        - Re-export `okAsync` and `errAsync` from `lib/kernel/result.ts` and `lib/kernel/index.ts` beside the
-          existing Result surface.
-        - Extend `__tests__/unit/kernel/result.test.ts` and the exact export-surface assertion in
-          `__tests__/unit/kernel/import-boundary.test.ts`; retain the rule that only `lib/kernel/result.ts` imports
-          `neverthrow` directly.
+    - `[x]` **6.1.a Expose immediate asynchronous Result constructors through the kernel**
+        - Added and type-tested `okAsync` / `errAsync` through the exact kernel barrel while retaining the sole
+          direct `neverthrow` import in the kernel Result module.
 
-    - `[ ]` **6.1.b Define the focused session-status error taxonomy**
-        - Add `commands/status/result-composition.ts` with `SessionIdentityMissingError`
-          (`session.identity-missing`), `SessionProbeError` (`session.probe-failed`), and
-          `SessionCompositionError` (`session.composition-failed`) over kernel `ArcError`.
-        - Export `SessionStatusError` as the locally exhaustive union of those three variants.
-        - Preserve slot/probe or operation/slot context and original causes. Retain `Error.message`, or
-          `String(cause)` for non-`Error` failures; do not blanket-catch pure transforms or programming defects.
+    - `[x]` **6.1.b Define the focused session-status error taxonomy**
+        - Added the three exhaustive ArcError variants with stable codes, slot/operation context, original causes,
+          and compatible non-Error messages.
 
-    - `[ ]` **6.1.c Prove the single `toProbe()` wire adapter**
-        - Build `test-first` in `__tests__/unit/status/result-composition.test.ts` around every internal variant,
-          causes/messages, non-`Error` failures, and exact mapping to
-          `{ kind: "identity-missing" | "runtime", message }`.
-        - Make `toProbe()` the only internal-Result-to-wire conversion point used by all four status orchestrators.
+    - `[x]` **6.1.c Prove the single `toProbe()` wire adapter**
+        - Added the sole exact wire adapter with coverage for success identity, all internal variants, causes,
+          messages, and the legacy identity-missing/runtime error split.
+
+- _Outcome:_ The kernel and status domain now expose the bounded asynchronous Result foundation, typed failure
+  taxonomy, and one exact adapter required for orchestrator migration.
 
 ### `[ ]` **6.2 Convert shared probe helpers and slot declaration to `ResultAsync`**
 
