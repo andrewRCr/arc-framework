@@ -12,6 +12,16 @@ import { LoadSetManifestSchema } from "../../../src/lib/load-set/types.js";
 import { LoadSetAuditVerdictSchema } from "../../../src/lib/load-set/audit.js";
 import { CompactionSeedSchema } from "../../../src/lib/compaction-seed/schema.js";
 import { RecoveryAuditVerdictSchema } from "../../../src/lib/recover/audit.js";
+import { BaseBranchSyncStatusResultSchema } from "../../../src/lib/git/base-branch-sync.js";
+import { CascadeResolutionSchema } from "../../../src/lib/session-init/branch-gone-cascade.js";
+import { ErrandStalenessSweepResultSchema } from "../../../src/lib/session-init/errand-staleness-sweep.js";
+import { InboxStateResultSchema } from "../../../src/lib/session-init/inbox-state.js";
+import { MaterializableWorkUnitsResultSchema } from "../../../src/lib/session-init/materializable-work-units.js";
+import { NotesCompactionSessionAdvisoryResultSchema } from "../../../src/lib/session-init/notes-compaction-advisory.js";
+import { OrphanBranchSweepResultSchema } from "../../../src/lib/session-init/orphan-branch-sweep.js";
+import { PartialPushMarkerSurfaceResultSchema } from "../../../src/lib/session-init/partial-push-marker-surface.js";
+import { RetiredSubdirDetectionResultSchema } from "../../../src/lib/session-init/retired-subdir-detection.js";
+import { ClassCompositionSchema } from "../../../src/lib/status/class-composition.js";
 import { TaskListCursorSchema } from "../../../src/lib/task-list/cursor.js";
 import { TaskListCursorFileResultSchema } from "../../../src/lib/task-list/file-cursor.js";
 
@@ -21,11 +31,21 @@ describe("session-envelope schema registry", () => {
     const second = createSessionEnvelopeRegistry();
 
     expect(first.ids()).toEqual([
+      "base-branch-sync",
+      "cascade-resolution",
+      "class-composition",
       "compaction-seed",
+      "errand-staleness-sweep",
+      "inbox-state",
       "load-set-audit-verdict",
       "load-set-manifest",
+      "materializable-work-units",
+      "notes-compaction-session-advisory",
+      "orphan-branch-sweep",
+      "partial-push-marker-surface",
       "priority",
       "recovery-audit-verdict",
+      "retired-subdir-detection",
       "slug",
       "task-list-cursor",
       "task-list-cursor-file-result",
@@ -39,6 +59,21 @@ describe("session-envelope schema registry", () => {
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.compactionSeed)).toBe(CompactionSeedSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.loadSetAuditVerdict)).toBe(LoadSetAuditVerdictSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditVerdict)).toBe(RecoveryAuditVerdictSchema);
+    const advisorySchemas = [
+      [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep, ErrandStalenessSweepResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.notesCompactionSessionAdvisory, NotesCompactionSessionAdvisoryResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.materializableWorkUnits, MaterializableWorkUnitsResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.orphanBranchSweep, OrphanBranchSweepResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.retiredSubdirDetection, RetiredSubdirDetectionResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.partialPushMarkerSurface, PartialPushMarkerSurfaceResultSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.classComposition, ClassCompositionSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.cascadeResolution, CascadeResolutionSchema],
+      [SESSION_ENVELOPE_SCHEMA_IDS.baseBranchSync, BaseBranchSyncStatusResultSchema],
+    ] as const;
+    for (const [id, schema] of advisorySchemas) {
+      expect(first.get(id)).toBe(schema);
+    }
 
     first.register(z.boolean(), {
       id: "fixture-extension",

@@ -54,7 +54,10 @@ import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
-import type { BaseBranchSyncStatusResult } from "../../../src/lib/git/base-branch-sync.js";
+import {
+  BaseBranchSyncStatusResultSchema,
+  type BaseBranchSyncStatusResult,
+} from "../../../src/lib/git/base-branch-sync.js";
 import type { SupersessionResult } from "../../../src/lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
@@ -220,16 +223,16 @@ function baseDistance(
 }
 
 function baseBranchSync(
-  overrides: Partial<BaseBranchSyncStatusResult> = {},
+  overrides: Record<string, unknown> = {},
 ): BaseBranchSyncStatusResult {
-  return {
+  return BaseBranchSyncStatusResultSchema.parse({
     state: "clean",
     ahead: 0,
     behind: 0,
     base: "main",
     checkout: { kind: "not-checked-out" },
     ...overrides,
-  };
+  });
 }
 
 function supersessionResult(

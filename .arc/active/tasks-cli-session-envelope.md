@@ -186,48 +186,33 @@ land; this phase does not absorb any tail-routed shared or deep type web.
 - _Outcome:_ Materialization and cleanup advisories now expose schema-derived work-unit identities end to end;
   consumer fixtures construct those branded values through the owning schemas rather than raw string assertions.
 
-### `[ ]` **3.3 Migrate coordination, cascade, and base-sync advisories to home-module schemas**
+### `[x]` **3.3 Migrate coordination, cascade, and base-sync advisories to home-module schemas**
 
 - _Goal:_ Remaining contained advisory outputs use schema-derived types across coordination, plate balance,
   branch-gone recovery, and base synchronization without pulling their operational inputs into the envelope model.
-- _Context:_ Implements the contained-advisory depth decision; Success Criteria 3 and 8.
 
-    - `[ ]` **3.3.a Migrate `PartialPushMarkerSurfaceResult`**
-        - Define and export marker/result schemas in `lib/session-init/partial-push-marker-surface.ts`; derive the
-          output types while leaving ancestry resolvers and set-valued selection inputs TypeScript-owned.
-        - Build `test-first` around non-empty legacy-compatible machine identities, 40/64-character git object ids,
-          parseable ISO timestamps, malformed rows, and exact output from both pure selection and the git-backed
-          wrapper.
+    - `[x]` **3.3.a Migrate `PartialPushMarkerSurfaceResult`**
+        - Added strict marker/result schemas for non-empty machine identities, SHA-1/SHA-256 object ids, and ISO
+          timestamps while retaining the pure and git-backed marker selection behavior.
 
-    - `[ ]` **3.3.b Migrate `ClassComposition`**
-        - Define and export the non-negative integer tally schema in `lib/status/class-composition.ts`; derive
-          `ClassComposition` and preserve field ordering from `classComposition()`.
-        - Add `__tests__/unit/status/class-composition.test.ts` for resolved-class tallies, all-zero composition,
-          runtime field order, and malformed numeric values; retain the `[TBD]` exclusion assertion in
-          `ready-mine.test.ts` as consumer-behavior coverage.
+    - `[x]` **3.3.b Migrate `ClassComposition`**
+        - Added a strict non-negative integer tally schema and schema-derived type while preserving the producer's
+          `heavy`, `light`, `novel` field order and existing `[TBD]` exclusion behavior.
 
-    - `[ ]` **3.3.c Migrate `CascadeResolution`**
-        - Define and export full candidate/action/resolution schemas in `lib/session-init/branch-gone-cascade.ts`;
-          derive the public wire value types while retaining cleanup-decision inputs separately.
-        - Build `test-first` around all three resolution kinds, candidate optional-path presence, closed action
-          values, and cross-kind field rejection. Require at least two candidates for `surface`; an absent
-          `worktreePath` is valid only with `switch`, while `removable` and `external` require a worktree path.
+    - `[x]` **3.3.c Migrate `CascadeResolution`**
+        - Added strict action, candidate, and discriminated resolution schemas; surfaced choices require at least two
+          candidates, and removable/external candidates require a worktree path.
 
-    - `[ ]` **3.3.d Migrate `BaseBranchSyncStatusResult`**
-        - Define and export checkout-locus/result schemas in `lib/git/base-branch-sync.ts`; derive its public value
-          types without changing the git executor or recommendation layer.
-        - Pin the result to the seven states this producer can emit (`clean`, `remote-ahead`, `local-ahead`,
-          `diverged`, `skipped`, `no-remote`, and `remote-unavailable`) rather than inheriting the wider
-          `WorktreeSyncState` domain unchanged.
-        - Build `test-first` around every emitted state and checkout kind, state-consistent non-negative integer
-          distances, and a `timeout`/`error` failure reason present only for `remote-unavailable`; reject invalid
-          cross-kind fields in the existing base-branch-sync unit suite.
+    - `[x]` **3.3.d Migrate `BaseBranchSyncStatusResult`**
+        - Added strict checkout-locus and seven-arm result schemas with state-consistent distances and a closed
+          remote-failure reason; the git executor and recommendation behavior remain unchanged.
 
-    - `[ ]` **3.3.e Register the contained advisory schemas**
-        - Extend `createSessionEnvelopeRegistry()` with the ten stable version-1 `strict-current` identities fixed
-          in the spec, importing each schema from its home module without adding module-level registration effects.
-        - Extend the focused registry-composition test with the complete advisory metadata matrix while retaining
-          fresh-instance isolation, duplicate protection, and the no-publication boundary.
+    - `[x]` **3.3.e Register the contained advisory schemas**
+        - Registered all ten home-module roots under their stable version-1 `strict-current` identities and extended
+          registry composition coverage without adding publication wiring or module-level side effects.
+
+- _Outcome:_ Every contained advisory now has strict home-module runtime authority and schema-derived output types;
+  the family registry composes all ten roots while preserving its fresh-instance and no-publication boundaries.
 
 ## **Phase 4:** Thin routing views and composed envelopes
 

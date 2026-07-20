@@ -107,11 +107,11 @@ export interface SessionInitBaseDistanceValue extends BaseDistanceStatusResult {
  * under `manual`, a base checked out elsewhere (primary-aware), or a diverged
  * base; `skip` a current base or when this worktree holds the base.
  */
-export interface SessionInitBaseBranchSyncValue extends BaseBranchSyncStatusResult {
+export type SessionInitBaseBranchSyncValue = BaseBranchSyncStatusResult & {
   recommendedAction: RecommendedAction;
   /** Composed offer text when `recommendedAction ∈ {prompt, surface}`; empty string otherwise. */
   recommendedPromptText: string;
-}
+};
 
 /**
  * User slot shape shared by the session-scoped envelopes. Extends the

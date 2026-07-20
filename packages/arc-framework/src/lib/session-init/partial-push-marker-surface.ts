@@ -18,6 +18,8 @@
  * @module
  */
 
+import { z } from "zod";
+
 import { isContainedIn } from "../git/branch-containment.js";
 import { readRefTip } from "../git/ref-tree.js";
 import type { GitExec } from "../git/exec.js";
@@ -35,21 +37,23 @@ import { readEntries } from "../user-sync/sync-state-ref.js";
 /** Notes ref prefix; mirrors the producer's `refs/notes/arc/user`. */
 const USER_NOTES_REF = "refs/notes/arc/user";
 
-/** One marker selected for the Aware surface, carrying the fields its line is rendered from. */
-export interface AwareMarkerEntry {
-  /** The writing machine's id (→ the "whose" affordance). */
-  machineId: string;
-  /** The HEAD the failed notes push was advancing for (→ the short-sha affordance). */
-  lastAttemptedCommit: string;
-  /** ISO-8601 timestamp of the attempt (→ the "when" affordance). */
-  attemptTimestamp: string;
-}
+/** Runtime authority for one partial-push marker selected for presentation. */
+export const AwareMarkerEntrySchema = z.strictObject({
+  machineId: z.string().refine((value) => value.trim().length > 0, "machine identity must not be empty"),
+  lastAttemptedCommit: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu),
+  attemptTimestamp: z.iso.datetime({ offset: true }),
+});
 
-/** The partial-push-marker surface slot — the live markers to render, empty when silent. */
-export interface PartialPushMarkerSurfaceResult {
-  /** Live, non-expired markers to render as Aware advisory lines; empty when nothing surfaces. */
-  markers: AwareMarkerEntry[];
-}
+/** One marker selected for the Aware surface. */
+export type AwareMarkerEntry = z.infer<typeof AwareMarkerEntrySchema>;
+
+/** Runtime authority for the partial-push-marker advisory result. */
+export const PartialPushMarkerSurfaceResultSchema = z.strictObject({
+  markers: z.array(AwareMarkerEntrySchema),
+});
+
+/** Live, non-expired markers to render as Aware advisory lines. */
+export type PartialPushMarkerSurfaceResult = z.infer<typeof PartialPushMarkerSurfaceResultSchema>;
 
 /** Inputs to the pure marker-selection decision. */
 export interface SelectAwareMarkersInput {

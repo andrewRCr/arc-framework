@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 
-import { runBaseBranchSyncStatus } from "../../../src/lib/git/base-branch-sync.js";
+import {
+  BaseBranchSyncStatusResultSchema,
+  BaseCheckoutLocusSchema,
+  runBaseBranchSyncStatus,
+} from "../../../src/lib/git/base-branch-sync.js";
 import type {
   ExecResult,
   GitExec,
@@ -291,7 +295,7 @@ describe("runBaseBranchSyncStatus", () => {
     });
 
     expect(result.state).toBe("remote-unavailable");
-    expect(result.failureReason).toBe("timeout");
+    if (result.state === "remote-unavailable") expect(result.failureReason).toBe("timeout");
   });
 
   it("degrades to remote-unavailable (error) when the base fetch fails", async () => {
@@ -313,7 +317,7 @@ describe("runBaseBranchSyncStatus", () => {
     });
 
     expect(result.state).toBe("remote-unavailable");
-    expect(result.failureReason).toBe("error");
+    if (result.state === "remote-unavailable") expect(result.failureReason).toBe("error");
   });
 
   it("degrades to remote-unavailable (error) when the local base ref does not exist", async () => {
@@ -335,7 +339,7 @@ describe("runBaseBranchSyncStatus", () => {
     });
 
     expect(result.state).toBe("remote-unavailable");
-    expect(result.failureReason).toBe("error");
+    if (result.state === "remote-unavailable") expect(result.failureReason).toBe("error");
     expect(result.ahead).toBe(0);
     expect(result.behind).toBe(0);
     expect(result.base).toBe("main");
@@ -359,5 +363,52 @@ describe("runBaseBranchSyncStatus", () => {
 
     expect(result.checkout).toEqual({ kind: "unknown" });
     expect(result.state).toBe("remote-ahead");
+  });
+});
+
+describe("BaseBranchSyncStatusResultSchema", () => {
+  const base = { base: "main", checkout: { kind: "not-checked-out" } as const };
+
+  it.each([
+    { state: "clean", ahead: 0, behind: 0 },
+    { state: "remote-ahead", ahead: 0, behind: 2 },
+    { state: "local-ahead", ahead: 2, behind: 0 },
+    { state: "diverged", ahead: 2, behind: 3 },
+    { state: "skipped", ahead: 0, behind: 0 },
+    { state: "no-remote", ahead: 0, behind: 0 },
+    { state: "remote-unavailable", ahead: 0, behind: 0, failureReason: "timeout" },
+  ])("accepts producer state $state", (state) => {
+    expect(BaseBranchSyncStatusResultSchema.safeParse({ ...base, ...state }).success).toBe(true);
+  });
+
+  it.each([
+    { kind: "not-checked-out" },
+    { kind: "current", path: "/repo", primary: true },
+    { kind: "elsewhere", path: "/primary", primary: false },
+    { kind: "unknown" },
+  ])("accepts checkout locus $kind", (checkout) => {
+    expect(BaseCheckoutLocusSchema.safeParse(checkout).success).toBe(true);
+  });
+
+  it.each([
+    { state: "clean", ahead: 1, behind: 0 },
+    { state: "remote-ahead", ahead: 0, behind: 0 },
+    { state: "local-ahead", ahead: 0, behind: 0 },
+    { state: "diverged", ahead: 1, behind: 0 },
+    { state: "skipped", ahead: 0, behind: 1 },
+    { state: "remote-unavailable", ahead: 0, behind: 0 },
+    { state: "clean", ahead: 0, behind: 0, failureReason: "error" },
+    { state: "detached-head", ahead: 0, behind: 0 },
+  ])("rejects inconsistent state fields", (state) => {
+    expect(BaseBranchSyncStatusResultSchema.safeParse({ ...base, ...state }).success).toBe(false);
+  });
+
+  it.each([
+    { kind: "not-checked-out", path: "/repo" },
+    { kind: "current", path: "", primary: true },
+    { kind: "elsewhere", path: "/repo" },
+    { kind: "unknown", primary: false },
+  ])("rejects invalid checkout fields", (checkout) => {
+    expect(BaseCheckoutLocusSchema.safeParse(checkout).success).toBe(false);
   });
 });
