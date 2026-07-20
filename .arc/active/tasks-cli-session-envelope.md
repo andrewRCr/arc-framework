@@ -81,19 +81,11 @@ unknown-stripping variants from the same field shapes to retain its established 
           repository-relative/POSIX/Windows-drive/UNC path refinement, with ordering and reader stripping locked by
           focused tests.
 
-    - `[ ]` **2.2.b Migrate task-cursor records to Zod authority**
-        - Add full schemas beside `lib/task-list/cursor.ts` and `lib/task-list/file-cursor.ts` for `TaskCursorItem`,
-          `TaskListCursor`, malformed details, `TaskListCursorResult`, and the file-backed result including `missing`;
-          derive those public boundary types via `z.infer`.
-        - Leave `TaskListTallies`, `TaskListAnalysisResult`, and `CurrentTaskRegionResult` as internal handwritten
-          analysis contracts; they do not cross the envelope family boundary.
-        - Derive the compaction reader's recursively stripping cursor variant from the same field shapes as the
-          strict producer schemas.
-        - Build `test-first` (one behavior at a time):
-            - accept `found`, `no-open-task`, `malformed`, and file-backed `missing` results;
-            - reject malformed ids, non-positive line hints, and strict-schema cross-branch field leakage;
-            - preserve established unknown-key stripping in the reader variant;
-            - keep markdown parsing and repository-path checks behaviorally unchanged.
+    - `[x]` **2.2.b Migrate task-cursor records to Zod authority**
+        - Added strict schemas for cursor anchors, durable cursors, malformed details, all result branches, and the
+          file-backed `missing` result, deriving the boundary types while leaving analysis-only tallies and regions
+          handwritten. The compaction reader now reuses recursively stripping cursor shapes; parser and repository
+          containment behavior remain unchanged under the focused matrix.
 
     - `[ ]` **2.2.c Establish the family registry and register shared records**
         - Add `lib/session-envelope/registry.ts` with a fresh `createSessionEnvelopeRegistry()` that starts from

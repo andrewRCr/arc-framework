@@ -18,7 +18,10 @@ import {
   type LoadSetManifest,
   type ReadMode,
 } from "../load-set/types.js";
-import type { TaskListCursor } from "../task-list/cursor.js";
+import {
+  TaskListCursorReaderSchema,
+  type TaskListCursor,
+} from "../task-list/cursor.js";
 
 /** Current compaction seed envelope version. */
 export const COMPACTION_SEED_SCHEMA_VERSION = 1;
@@ -311,20 +314,7 @@ function isNullableSessionType(
 }
 
 function isNullableTaskCursor(value: unknown): value is TaskListCursor | null {
-  if (value === null) return true;
-  if (!isRecord(value)) return false;
-  return isTaskCursorItem(value.section) && isTaskCursorItem(value.leaf);
-}
-
-function isTaskCursorItem(value: unknown): value is TaskListCursor["section"] {
-  if (!isRecord(value)) return false;
-  return typeof value.id === "string"
-    && value.id.trim().length > 0
-    && typeof value.title === "string"
-    && value.title.trim().length > 0
-    && typeof value.lineHint === "number"
-    && Number.isSafeInteger(value.lineHint)
-    && value.lineHint > 0;
+  return value === null || TaskListCursorReaderSchema.safeParse(value).success;
 }
 
 function isLoadSetManifest(value: unknown): value is LoadSetManifest {
