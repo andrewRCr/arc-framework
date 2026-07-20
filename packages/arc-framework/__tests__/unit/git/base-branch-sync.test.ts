@@ -345,6 +345,21 @@ describe("runBaseBranchSyncStatus", () => {
     expect(result.base).toBe("main");
   });
 
+  it("propagates producer-schema defects instead of reporting a git-read failure", async () => {
+    const { exec } = buildExec({
+      ...NOT_CHECKED_OUT,
+      [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
+      [FETCH_BASE]: { stdout: "", stderr: "" },
+      [REV_LIST_COUNT]: { stdout: "0\t0", stderr: "" },
+    });
+
+    await expect(runBaseBranchSyncStatus({
+      exec,
+      baseBranch: "",
+      remoteSyncEnabled: true,
+    })).rejects.toThrow("base branch must not be empty");
+  });
+
   it("reports checkout unknown when worktree list fails", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: () => {

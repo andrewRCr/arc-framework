@@ -110,10 +110,11 @@ export async function runOrphanBranchSweep(
   const orphans = await Promise.all(
     goneBranches.map(async (branch) => {
       const slug = branchToWorkUnitSlug(branch);
+      const shippedSlug = slug !== null && shipped.has(slug) ? SlugSchema.safeParse(slug) : null;
       return {
         branch,
         merged: await isLandedInBase(exec, branch, integrationTarget),
-        shippedWorkUnit: slug !== null && shipped.has(slug) ? SlugSchema.parse(slug) : null,
+        shippedWorkUnit: shippedSlug?.success === true ? shippedSlug.data : null,
       };
     }),
   );

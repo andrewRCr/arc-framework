@@ -204,13 +204,11 @@ export async function runBaseBranchSyncStatus(
     };
   }
 
+  let distance: Awaited<ReturnType<typeof countAheadBehindRef>>;
   try {
     // Local `<base>` (not HEAD) against the freshened remote base. A missing
     // local base ref makes `rev-list` throw, caught below as a degraded read.
-    const { ahead, behind, state } = await countAheadBehindRef(exec, baseBranch, `origin/${baseBranch}`);
-    const result = { state, ahead, behind, base: baseBranch, checkout };
-    BaseBranchSyncStatusResultSchema.parse(result);
-    return result as BaseBranchSyncStatusResult;
+    distance = await countAheadBehindRef(exec, baseBranch, `origin/${baseBranch}`);
   } catch {
     return {
       state: "remote-unavailable",
@@ -221,4 +219,16 @@ export async function runBaseBranchSyncStatus(
       failureReason: "error",
     };
   }
+
+  const result = {
+    state: distance.state,
+    ahead: distance.ahead,
+    behind: distance.behind,
+    base: baseBranch,
+    checkout,
+  };
+  // Validate for effect so schema defects propagate without letting Zod's
+  // schema-key order change the established session-envelope wire bytes.
+  BaseBranchSyncStatusResultSchema.parse(result);
+  return result as BaseBranchSyncStatusResult;
 }

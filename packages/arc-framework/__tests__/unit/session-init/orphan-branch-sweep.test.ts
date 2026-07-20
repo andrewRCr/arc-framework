@@ -101,6 +101,17 @@ describe("runOrphanBranchSweep", () => {
     ]);
   });
 
+  it("ignores a malformed shipped slug without rejecting the orphan sweep", async () => {
+    const result = await runSweep(
+      { "feat/Not A Slug": { track: "gone", merged: true } },
+      { shipped: ["Not A Slug"] },
+    );
+
+    expect(result.orphans).toEqual([
+      { branch: "feat/Not A Slug", merged: true, shippedWorkUnit: null },
+    ]);
+  });
+
   it("does not sweep a branch whose upstream is still live", async () => {
     const result = await runSweep({ "feat/active": { track: "ahead 1", merged: true } });
 
