@@ -75,19 +75,11 @@ unknown-stripping variants from the same field shapes to retain its established 
   authority shared by status, recovery, and compaction seed composition.
 - _Context:_ Implements complete family-record ownership and stable registration; Success Criterion 2.
 
-    - `[ ]` **2.2.a Migrate load-set records to Zod authority**
-        - Add schemas beside `lib/load-set/types.ts` for the manifest-version literal, read-mode union, entry, and
-          ordered manifest; derive the public types via `z.infer` while preserving current import paths where useful.
-        - Extract one shared load-set path refinement covering repository-relative entries and resolver-produced
-          identity-global POSIX, Windows-drive, and UNC paths; reuse it in projection and schema parsing rather than
-          weakening or duplicating the private compaction-seed guard.
-        - Derive strict producer schemas and recursively stripping reader variants from the same field shapes.
-        - Build `test-first` (one behavior at a time):
-            - accept all three read modes and preserve entry order;
-            - reject unknown manifest versions and malformed mode-specific fields;
-            - reject branch-field leakage in the strict schema while the reader variant strips unrelated unknown
-              keys at every currently canonicalized load-set level;
-            - retain the existing load-set path semantics as a shared refinement.
+    - `[x]` **2.2.a Migrate load-set records to Zod authority**
+        - Added strict and recursively stripping schemas for manifests, entries, and all read-mode branches, deriving
+          the public contracts through `z.infer`. Projection and compaction-seed validation now share one canonical
+          repository-relative/POSIX/Windows-drive/UNC path refinement, with ordering and reader stripping locked by
+          focused tests.
 
     - `[ ]` **2.2.b Migrate task-cursor records to Zod authority**
         - Add full schemas beside `lib/task-list/cursor.ts` and `lib/task-list/file-cursor.ts` for `TaskCursorItem`,
