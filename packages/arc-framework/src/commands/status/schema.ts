@@ -8,8 +8,20 @@
 
 import { z } from "zod";
 
+import type { SessionInitProbeResult } from "./types.js";
+import { probe } from "./types.js";
 import { BaseBranchSyncStatusResultSchema } from "../../lib/git/base-branch-sync.js";
+import { LoadSetManifestSchema, LoadSetPathSchema } from "../../lib/load-set/types.js";
+import { CascadeResolutionSchema } from "../../lib/session-init/branch-gone-cascade.js";
+import { ErrandStalenessSweepResultSchema } from "../../lib/session-init/errand-staleness-sweep.js";
+import { InboxStateResultSchema } from "../../lib/session-init/inbox-state.js";
+import { MaterializableWorkUnitsResultSchema } from "../../lib/session-init/materializable-work-units.js";
+import { NotesCompactionSessionAdvisoryResultSchema } from "../../lib/session-init/notes-compaction-advisory.js";
+import { OrphanBranchSweepResultSchema } from "../../lib/session-init/orphan-branch-sweep.js";
+import { PartialPushMarkerSurfaceResultSchema } from "../../lib/session-init/partial-push-marker-surface.js";
 import { RetiredSubdirDetectionResultSchema } from "../../lib/session-init/retired-subdir-detection.js";
+import { ClassCompositionSchema } from "../../lib/status/class-composition.js";
+import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.js";
 
 const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "value must not be empty");
 
@@ -258,3 +270,183 @@ export const ReleaseRoutingValueViewSchema = z
     workflowPush: z.enum(["wrapper", "raw"]),
   })
   .loose();
+
+/** Complete identity record shared by session envelope roots. */
+export const StatusIdentitySchema = z.strictObject({
+  identity: NON_EMPTY_TEXT.nullable(),
+  role: NON_EMPTY_TEXT.nullable(),
+});
+
+/** Complete invocation-only compaction-seed write result. */
+export const CompactionSeedWriteStatusSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("written"), path: NON_EMPTY_TEXT }),
+  z.strictObject({
+    status: z.literal("skipped"),
+    reason: z.enum(["identity-missing", "load-set-unresolved"]),
+  }),
+  z.strictObject({
+    status: z.literal("failed"),
+    reason: z.enum(["git-failed", "identity-invalid", "seed-invalid", "write-failed"]),
+    message: z.string(),
+  }),
+]);
+
+const SessionInitEnvelopeObjectSchema = z.strictObject({
+  mode: z.literal("session-init"),
+  identity: StatusIdentitySchema,
+  user: probe(SessionInitUserValueViewSchema),
+  worktree: probe(SessionInitWorktreeValueViewSchema),
+  baseDistance: probe(SessionInitBaseDistanceValueViewSchema),
+  baseBranchSync: probe(SessionInitBaseBranchSyncValueViewSchema),
+  dirty: probe(DirtyStateValueViewSchema),
+  extensions: probe(ExtensionsSessionInitValueViewSchema),
+  config: probe(ConfigSessionInitValueViewSchema),
+  active: probe(ActiveSessionInitValueViewSchema),
+  domainRules: probe(DomainRulesSessionInitValueViewSchema),
+  releaseRouting: probe(ReleaseRoutingValueViewSchema),
+  roster: probe(WorktreeRosterValueViewSchema).optional(),
+  recovery: probe(CascadeResolutionSchema).optional(),
+  sweep: probe(StaleWorktreeSweepValueViewSchema).optional(),
+  currentHusk: probe(CurrentHuskAdvisoryViewSchema.nullable()).optional(),
+  orphanBranchSweep: probe(OrphanBranchSweepResultSchema).optional(),
+  retiredSubdirs: probe(SessionInitRetiredSubdirsValueViewSchema).optional(),
+  errandSweep: probe(ErrandStalenessSweepResultSchema).optional(),
+  errandState: probe(ErrandStateValueViewSchema).optional(),
+  materializableWorkUnits: probe(MaterializableWorkUnitsResultSchema).optional(),
+  workUnitState: probe(WorkUnitStateValueViewSchema).optional(),
+  inboxState: probe(InboxStateResultSchema).optional(),
+  partialPushMarker: probe(PartialPushMarkerSurfaceResultSchema).optional(),
+  compactionAdvisory: probe(NotesCompactionSessionAdvisoryResultSchema).optional(),
+  inFlightComposition: ClassCompositionSchema.optional(),
+  cohortDocPath: LoadSetPathSchema.optional(),
+  loadSet: probe(LoadSetManifestSchema),
+  taskCursor: probe(TaskListCursorFileResultSchema).optional(),
+  compactionSeedWrite: CompactionSeedWriteStatusSchema.optional(),
+  recommendedCombinedPrompt: z.string().nullable(),
+});
+
+type SessionInitEnvelopeValue = z.infer<typeof SessionInitEnvelopeObjectSchema>;
+
+function hasOwn(value: SessionInitEnvelopeValue, key: keyof SessionInitEnvelopeValue): boolean {
+  return Object.hasOwn(value, key);
+}
+
+function addPresenceIssue(
+  context: z.core.$RefinementCtx<SessionInitEnvelopeValue>,
+  key: keyof SessionInitEnvelopeValue,
+  message: string,
+): void {
+  context.addIssue({ code: "custom", path: [key], message });
+}
+
+function requireExactPresence(
+  value: SessionInitEnvelopeValue,
+  context: z.core.$RefinementCtx<SessionInitEnvelopeValue>,
+  key: keyof SessionInitEnvelopeValue,
+  expected: boolean,
+): void {
+  if (hasOwn(value, key) !== expected) {
+    addPresenceIssue(context, key, expected ? "required by visible envelope state" : "forbidden by visible envelope state");
+  }
+}
+
+function activeValue(value: SessionInitEnvelopeValue): Record<string, unknown> | null {
+  return value.active.ok ? value.active.value : null;
+}
+
+function worktreeValue(value: SessionInitEnvelopeValue): Record<string, unknown> | null {
+  return value.worktree.ok ? value.worktree.value : null;
+}
+
+/** Strict session-init wire contract with observable slot-presence invariants. */
+export const SessionInitProbeResultSchema = SessionInitEnvelopeObjectSchema.superRefine((value, context) => {
+  const active = activeValue(value);
+  const worktree = worktreeValue(value);
+  const rosterSuccessful = value.roster?.ok === true;
+  const identityKnown = value.identity.identity !== null;
+
+  if (worktree !== null) {
+    const worktreeIdentity = worktree.identity as { kind: "primary" | "linked" };
+    const rosterRequired = worktree.state === "branch-gone"
+      || active?.resolution === "none"
+      || worktreeIdentity.kind === "primary";
+    requireExactPresence(value, context, "roster", rosterRequired);
+
+    if (worktreeIdentity.kind === "primary") {
+      requireExactPresence(value, context, "sweep", rosterSuccessful);
+    }
+
+    if (hasOwn(value, "currentHusk")) {
+      const validLocus = worktreeIdentity.kind === "linked" && worktree.branch === null;
+      if (!validLocus || value.currentHusk?.ok !== true) {
+        addPresenceIssue(context, "currentHusk", "requires a successful linked branchless worktree advisory");
+      }
+    }
+
+    if (!identityKnown) {
+      requireExactPresence(value, context, "orphanBranchSweep", worktreeIdentity.kind === "primary");
+    }
+  }
+
+  const recoveryRequired = worktree?.state === "branch-gone" && rosterSuccessful;
+  requireExactPresence(value, context, "recovery", recoveryRequired);
+
+  if (identityKnown) {
+    requireExactPresence(value, context, "orphanBranchSweep", true);
+  }
+
+  for (const key of ["retiredSubdirs", "errandSweep", "inboxState", "partialPushMarker"] as const) {
+    requireExactPresence(value, context, key, identityKnown);
+  }
+
+  requireExactPresence(value, context, "errandState", value.worktree.ok && value.active.ok);
+  requireExactPresence(value, context, "workUnitState", rosterSuccessful);
+  requireExactPresence(
+    value,
+    context,
+    "materializableWorkUnits",
+    value.active.ok && value.active.value.resolution === "none",
+  );
+
+  if (hasOwn(value, "compactionAdvisory") && !identityKnown) {
+    addPresenceIssue(context, "compactionAdvisory", "requires a resolved identity");
+  }
+
+  if (
+    hasOwn(value, "inFlightComposition")
+    && !(value.active.ok && value.active.value.resolution === "none" && rosterSuccessful)
+  ) {
+    addPresenceIssue(context, "inFlightComposition", "requires no active work unit and a successful roster");
+  }
+
+  if (
+    hasOwn(value, "cohortDocPath")
+    && !(value.active.ok
+      && value.active.value.resolution === "single"
+      && typeof value.active.value.path === "string"
+      && value.active.value.path.trim().length > 0)
+  ) {
+    addPresenceIssue(context, "cohortDocPath", "requires one active work unit with a path");
+  }
+
+  const taskListPath = value.active.ok ? value.active.value.taskListPath : null;
+  const taskCursorRequired = typeof taskListPath === "string"
+    && LoadSetPathSchema.safeParse(taskListPath).success;
+  requireExactPresence(value, context, "taskCursor", taskCursorRequired);
+});
+
+type DeclaredInput<Value> = Value extends readonly (infer Item)[]
+  ? DeclaredInput<Item>[]
+  : Value extends object
+    ? { [Key in keyof Value as string extends Key ? never : Key]: DeclaredInput<Value[Key]> }
+    : Value;
+
+type SessionInitDeclaredInput = Omit<
+  DeclaredInput<z.input<typeof SessionInitProbeResultSchema>>,
+  "config"
+> & Pick<SessionInitProbeResult, "config">;
+
+/** Compile-only proof that the producer satisfies every declared schema input field. */
+export type SessionInitProbeResultSchemaInputCompatibility<
+  Producer extends SessionInitDeclaredInput = SessionInitProbeResult,
+> = Producer;

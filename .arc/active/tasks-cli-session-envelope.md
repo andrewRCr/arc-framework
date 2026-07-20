@@ -270,52 +270,29 @@ contracts register; registration does not expand the shipped schema bundle.
 - _Outcome:_ Command-owned session values now validate every workflow-routing field through thin schemas while
   leaving broader subsystem records and emitted recommendation text unchanged.
 
-### `[ ]` **4.3 Compose and register the session-init envelope schema**
+### `[x]` **4.3 Compose and register the session-init envelope schema**
 
 - _Goal:_ One registered schema validates the complete bare session-init object, all required and optional probe
   slots, and bare scalar slots without changing payload bytes or presence semantics.
-- _Context:_ Implements complete family ownership, flat probe composition, stable registration, and Success
-  Criteria 2, 4, and 8.
-- **Additional Context:** `notes-cli-session-envelope.md` §§ Thin validation field map; Top-level slot presence
-  contract.
 
-    - `[ ]` **4.3.a Compose the complete top-level object**
-        - Define a strict `SessionInitProbeResultSchema` in `commands/status/schema.ts`, composing full
-          family/contained schemas and thin shared/command views through `probe()`.
-        - Add full `StatusIdentitySchema` and `CompactionSeedWriteStatusSchema` authorities beside the envelope,
-          derive their public types via `z.infer`, and compose the optional seed-write union as a non-probe slot.
-        - Build `test-first` (one behavior at a time):
-            - require `mode`, `identity`, `user`, `worktree`, `baseDistance`, `baseBranchSync`, `dirty`, `extensions`,
-              `config`, `active`, `domainRules`, `releaseRouting`, `loadSet`, and `recommendedCombinedPrompt`;
-            - preserve valid optional-slot omission and explicit nullable scalar fields exactly;
-            - accept success/error probes and reject mixed or malformed top-level branches;
-            - reject an undeclared top-level key rather than relying on Zod's default stripping behavior, because
-              the producer emits the original object rather than the parsed copy.
-        - Add a one-way compile-time assertion that `SessionInitProbeResult` is assignable to the schema input; do
-          not infer the full producer type from deliberately partial thin views.
+    - `[x]` **4.3.a Compose the complete top-level object**
+        - Added the strict session-init root plus full identity and seed-write authorities, derived their public
+          types, and retained a one-way producer-input compatibility assertion around the thin views.
 
-    - `[ ]` **4.3.b Enforce the observable conditional-slot presence contract**
-        - Add top-level cross-field refinements for every policy row in
-          `notes-cli-session-envelope.md` § Top-level slot presence contract. Use two-way presence only when the
-          envelope exposes the complete deterministic gate; use one-way rejection when advisory degradation or a
-          hidden helper makes omission valid.
-        - Keep cleanup-roster success, worktree identity hidden behind a failed probe, and the
-          `--write-compaction-seed` invocation flag outside schema inference. Validate `compactionSeedWrite` fully
-          when present without requiring it.
-        - Build `test-first` from the Phase 1 arm fixtures: accept each valid arm, then insert or omit one conditional
-          slot per policy row and reject only combinations the current producer cannot emit from the visible state.
+    - `[x]` **4.3.b Enforce the observable conditional-slot presence contract**
+        - Enforced every visible two-way and one-way slot rule while preserving degraded hidden-helper omissions and
+          the invocation-only seed-write option, with mutation coverage for every policy row.
 
-    - `[ ]` **4.3.c Register the session-init contract**
-        - Register `session-init-envelope` at version 1 with `strict-current` posture through
-          `createSessionEnvelopeRegistry()`; reuse the already-registered full subsystem roots and leave thin helper
-          views unregistered.
-        - Prove deterministic identity discovery without passing the composed registry to build projection.
+    - `[x]` **4.3.c Register the session-init contract**
+        - Registered `session-init-envelope` at version 1 with strict-current posture while leaving thin helpers out
+          of discovery and the kernel build projection unchanged.
 
-    - `[ ]` **4.3.d Prove schema acceptance against the characterization matrix**
-        - Validate all Phase 1 session-init arm fixtures and representative optional/error variants against the
-          composed schema.
-        - Keep this phase acceptance-only; defer proof that serialization receives the original object to the
-          Phase 5 producer-boundary tests.
+    - `[x]` **4.3.d Prove schema acceptance against the characterization matrix**
+        - Accepted all five Phase 1 session-init fixtures plus optional seed-write and real probe-error variants
+          without introducing producer-boundary serialization behavior early.
+
+- _Outcome:_ The complete session-init envelope now has a strict registered runtime contract that composes full and
+  thin authorities, validates observable presence semantics, and accepts every characterized wire arm.
 
 ### `[ ]` **4.4 Compose and register the recovery envelope and audit-report schemas**
 

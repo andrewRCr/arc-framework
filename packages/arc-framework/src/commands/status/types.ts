@@ -15,6 +15,11 @@
 import { z } from "zod";
 
 import type {
+  CompactionSeedWriteStatusSchema,
+  StatusIdentitySchema,
+} from "./schema.js";
+
+import type {
   ActiveSessionInitResult,
   ActiveStatusResult,
 } from "../active/types.js";
@@ -150,12 +155,7 @@ export interface SessionInitRetiredSubdirsValue extends RetiredSubdirDetectionRe
 }
 
 /** Git-config pointers resolved in the composite handler (not a probe). */
-export interface StatusIdentity {
-  /** `git config arc.identity` value; empty and absent normalize to `null`. */
-  identity: string | null;
-  /** `git config arc.role` value; empty and absent normalize to `null`. */
-  role: string | null;
-}
+export type StatusIdentity = z.infer<typeof StatusIdentitySchema>;
 
 /**
  * Per-probe failure reason.
@@ -190,14 +190,7 @@ export function probe<ValueSchema extends z.ZodType>(valueSchema: ValueSchema) {
 export type Probe<Value> = z.infer<ReturnType<typeof probe<z.ZodType<Value>>>>;
 
 /** JSON-safe summary of a `--write-compaction-seed` attempt. */
-export type CompactionSeedWriteStatus =
-  | { status: "written"; path: string }
-  | { status: "skipped"; reason: "identity-missing" | "load-set-unresolved" }
-  | {
-    status: "failed";
-    reason: "git-failed" | "identity-invalid" | "seed-invalid" | "write-failed";
-    message: string;
-  };
+export type CompactionSeedWriteStatus = z.infer<typeof CompactionSeedWriteStatusSchema>;
 
 /** Full-mode composite result — default (no-flag) rendering. */
 export interface StatusResult {

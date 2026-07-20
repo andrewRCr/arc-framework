@@ -24,6 +24,7 @@ import { RetiredSubdirDetectionResultSchema } from "../../../src/lib/session-ini
 import { ClassCompositionSchema } from "../../../src/lib/status/class-composition.js";
 import { TaskListCursorSchema } from "../../../src/lib/task-list/cursor.js";
 import { TaskListCursorFileResultSchema } from "../../../src/lib/task-list/file-cursor.js";
+import { SessionInitProbeResultSchema } from "../../../src/commands/status/schema.js";
 
 describe("session-envelope schema registry", () => {
   it("composes fresh kernel registries with the shared family records", () => {
@@ -46,6 +47,7 @@ describe("session-envelope schema registry", () => {
       "priority",
       "recovery-audit-verdict",
       "retired-subdir-detection",
+      "session-init-envelope",
       "slug",
       "task-list-cursor",
       "task-list-cursor-file-result",
@@ -59,6 +61,7 @@ describe("session-envelope schema registry", () => {
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.compactionSeed)).toBe(CompactionSeedSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.loadSetAuditVerdict)).toBe(LoadSetAuditVerdictSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditVerdict)).toBe(RecoveryAuditVerdictSchema);
+    expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope)).toBe(SessionInitProbeResultSchema);
     const advisorySchemas = [
       [SESSION_ENVELOPE_SCHEMA_IDS.inboxState, InboxStateResultSchema],
       [SESSION_ENVELOPE_SCHEMA_IDS.errandStalenessSweep, ErrandStalenessSweepResultSchema],

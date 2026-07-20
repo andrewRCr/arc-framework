@@ -6,6 +6,7 @@
  */
 
 import { createKernelRegistry, type KernelRegistry } from "../kernel/index.js";
+import { SessionInitProbeResultSchema } from "../../commands/status/schema.js";
 import { CompactionSeedSchema } from "../compaction-seed/schema.js";
 import { LoadSetManifestSchema } from "../load-set/types.js";
 import { LoadSetAuditVerdictSchema } from "../load-set/audit.js";
@@ -39,6 +40,7 @@ export const SESSION_ENVELOPE_SCHEMA_IDS = {
   partialPushMarkerSurface: "partial-push-marker-surface",
   recoveryAuditVerdict: "recovery-audit-verdict",
   retiredSubdirDetection: "retired-subdir-detection",
+  sessionInitEnvelope: "session-init-envelope",
   taskListCursor: "task-list-cursor",
   taskListCursorFileResult: "task-list-cursor-file-result",
 } as const;
@@ -117,6 +119,10 @@ export function createSessionEnvelopeRegistry(): KernelRegistry {
   });
   registry.register(RetiredSubdirDetectionResultSchema, {
     id: SESSION_ENVELOPE_SCHEMA_IDS.retiredSubdirDetection,
+    ...STRICT_CURRENT_V1,
+  });
+  registry.register(SessionInitProbeResultSchema, {
+    id: SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope,
     ...STRICT_CURRENT_V1,
   });
   return registry;
