@@ -1,8 +1,8 @@
 # Metadata: arc-view-refinements
 
-| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
-| --------- | --------- | --------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/arc-view-refinements` | `Heavy`   | `P2`         |
+| **State**     | **Owner** | **Branch**                  | **Class** | **Priority** |
+| ------------- | --------- | --------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/arc-view-refinements` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-arc-view-refinements.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Relocate neutral viewer types and VIEW_KINDS into lib
+- **Last Completed:** Task 6.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** Open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
