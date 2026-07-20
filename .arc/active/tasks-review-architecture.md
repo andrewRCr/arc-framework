@@ -15,18 +15,9 @@ gate, or workflow consumes them.
   ambiguous Git shape represented as an unknown change set instead of a weaker parallel interpretation.
 - _Context:_ Implements Design §1.3 against the delivered `classify-change-granularity` shell contract.
 
-    - `[ ]` **1.1.a Extract the canonical raw-diff parser and record types**
-        - Add a dependency-free, directly executable TypeScript module beneath `packages/arc-framework/src/lib/`
-          for `known | unknown` change sets, six statuses, exact modes, and both rename/copy endpoints.
-        - Introduce a narrow injected Git port that returns raw bytes instead of widening the repository-wide
-          string-returning `GitExec` contract.
-        - Build `test-first` (one behavior at a time):
-            - Parse `A`, `M`, `D`, `R`, `C`, and `T` raw-diff records without path loss.
-            - Preserve old/new modes and source/destination endpoints exactly.
-            - Fail closed on unsupported statuses, missing endpoints, mixed object widths, malformed records, and
-              empty input.
-            - Preserve NUL framing and fail closed when a path is not strict UTF-8 rather than emitting replacement
-              characters.
+    - `[x]` **1.1.a Extract the canonical raw-diff parser and record types**
+        - Added a dependency-free byte parser and raw Git port in `change-facts.ts`; all six statuses retain exact
+          modes and rename/copy endpoints, while malformed framing, object IDs, and UTF-8 fail closed to `unknown`.
 
     - `[ ]` **1.1.b Expose a machine-readable classifier entrypoint**
         - Add a narrow CLI/script boundary that returns the canonical record for explicit base/head coordinates;
