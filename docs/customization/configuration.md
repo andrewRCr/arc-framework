@@ -62,7 +62,7 @@ Adoption flexibility has two independent axes:
 
 | Axis                 | What varies                   | Mechanism                     |
 |----------------------|-------------------------------|-------------------------------|
-| Method customization | ARC defaults vs. team methods | Overrides in `arc-methods.md` |
+| Method customization | ARC defaults vs. team methods | Per-file method overrides     |
 | Functionality scope  | What features are installed   | PM mode selection (`pm.mode`) |
 
 Enforcement depth — how strictly conventions are applied — is not a named axis. It is simply

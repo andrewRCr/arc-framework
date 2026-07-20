@@ -138,4 +138,22 @@ describe("framework sync (self-hosting drift check)", () => {
         : undefined,
     ).toEqual([]);
   });
+
+  it("keeps neutral review customization contracts aligned across both copies", async () => {
+    const paths = [
+      "system/methods/README.md",
+      "system/methods/self-review.md",
+      "system/methods/frontline-review.md",
+      "system/extensions/README.md",
+      "system/extensions/pre-pr-open.md",
+    ];
+
+    for (const path of paths) {
+      const [packaged, project] = await Promise.all([
+        readFile(join(PKG_ARC_DIR, path), "utf8"),
+        readFile(join(ARC_DIR, path), "utf8"),
+      ]);
+      expect(project, `${path} must retain the shipped neutral contract`).toBe(packaged);
+    }
+  });
 });

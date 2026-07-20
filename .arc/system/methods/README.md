@@ -13,7 +13,13 @@ first, then appends the override to it.
 
 Registered activatable methods may also declare `active`. Activation controls whether callers invoke the activity;
 it is independent of `override-active` (whether an override is populated) and `override-mode` (how it composes).
-Unregistered methods must omit `active`.
+Unregistered methods must omit `active`. Missing or malformed project activation emits a diagnostic and falls back
+to the registered package default.
+
+| Activatable method | Package default | Activity                                            |
+|--------------------|-----------------|-----------------------------------------------------|
+| self-review        | `true`          | Author-side aggregate diff preflight                |
+| frontline-review   | `false`         | Advisory distinct-context review before PR creation |
 
 **Loading model:** Method defaults and overrides always load on-demand at workflow trigger points. Session-init
 does not read methods; the `override-active` frontmatter field is consumed by the framework-repo CI audit, docs

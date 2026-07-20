@@ -82,6 +82,16 @@ describe("parseMethodFrontmatter", () => {
       .toContain("invalid `active` (expected boolean)");
   });
 
+  it("rejects unknown frontmatter fields", () => {
+    const content = validMethod.replace("override-active: false", [
+      "override-active: false",
+      "actions: enabled",
+    ].join("\n"));
+
+    expect(parseMethodFrontmatter(content, "commit-format").errors)
+      .toContain("unknown frontmatter field `actions`");
+  });
+
   it("reports a diagnostic naming the missing `name` field", () => {
     const content = [
       "---",

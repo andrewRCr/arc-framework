@@ -439,7 +439,7 @@ with adopter-facing contracts mirrored through the package source.
   and resumable local operation continuity while preserving exact approval boundaries and keeping operational state
   categorically outside review evidence authority.
 
-### `[ ]` **4.4 Retire the legacy toggle and reconcile hook vocabulary**
+### `[x]` **4.4 Retire the legacy toggle and reconcile hook vocabulary**
 
 - _Goal:_ The review feature family uses method activation and settled lifecycle hooks, while generic commit/push/PR
   extensions retain their names and capabilities without carrying semantic review roles.
@@ -462,10 +462,14 @@ with adopter-facing contracts mirrored through the package source.
           declaration plus prior firing for every class-tagged push, wrapper command, and pushing `arc sync` across
           integration, Errand, and lifecycle workflows; guidance assigns direct CLI/raw enforcement to hooks/hosts.
 
-    - `[ ]` **4.4.d Update configurability documentation and validation**
-        - Reconcile method activation, extension inventories, package-neutral defaults, and method/extension parsers
-          without forward-adopting unrelated customization-architecture proposals.
-        - Extend package-neutrality, frontmatter, corpus, and framework-sync tests.
+    - `[x]` **4.4.d Update configurability documentation and validation**
+        - Documented activation independently from override composition, aligned method/extension inventories and
+          project/package copies, and closed both frontmatter schemas against unknown or cross-kind fields. Extended
+          package-neutrality, parser, corpus, and framework-sync coverage around the settled review surfaces.
+
+- _Outcome:_ Review customization now has one owner per concern: registered method activation controls whether an
+  activity runs, method overrides control how it runs, and generic extensions retain operation-boundary semantics.
+  Closed-schema and corpus checks prevent the retired toggle or review-specific extension drift from returning.
 
 ### `[ ]` **4.5 State the enforcement and rubric-delivery boundaries**
 

@@ -219,10 +219,12 @@ describe("validateFiles", () => {
     ).toBe(true);
   });
 
-  it("accepts registered package activation defaults and rejects default drift", () => {
+  it("accepts registered review activation and action-neutral extension defaults", () => {
     const validFiles = {
       "packages/arc-framework/arc/system/methods/self-review.md": activatableMethod("self-review", true),
       "packages/arc-framework/arc/system/methods/frontline-review.md": activatableMethod("frontline-review", false),
+      "packages/arc-framework/arc/system/extensions/pre-pr-open.md": neutralExtension
+        .replaceAll("post-task-quality", "pre-pr-open"),
     };
     expect(validateFiles(Object.keys(validFiles), fakeReader(validFiles))).toEqual({
       pass: true,

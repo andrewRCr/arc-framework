@@ -98,23 +98,23 @@ a configurability path (how teams adapt it).
 
 #### Operational discipline conventions
 
-| Convention                              | Principle | Default                             | Configurability Path                                  |
-|-----------------------------------------|-----------|-------------------------------------|-------------------------------------------------------|
-| Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels          |
-| Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries          |
-| Pre-merge aggregate review              | P4        | Lightweight diff review before push | Method activation + override                          |
-| Planning checkpoint review              | P2 / P4   | No checkpoint stop                  | Extension — `pre-activation`                          |
-| Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer       |
-| Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria      |
-| Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                      |
-| Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`              |
-| Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization     |
-| Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme           |
-| Per-WU status + user/{identity}/ state  | P5        | Two-file session state in user dir  | Method override — substitute session mechanism        |
-| Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type  |
-| Commit interlock release                | P5        | Manual commit                       | Per-developer git config — `arc.commitInterlock`      |
-| Sync interlock release                  | P5        | Sync at handoff                     | Per-developer git config — `arc.syncInterlock`        |
-| Push interlock release                  | P5        | Manual push                         | Per-developer git config — `arc.pushInterlock`        |
+| Convention                              | Principle | Default                             | Configurability Path                                 |
+|-----------------------------------------|-----------|-------------------------------------|------------------------------------------------------|
+| Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels         |
+| Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries         |
+| Pre-merge aggregate review              | P4        | Lightweight diff review before push | Method activation + override                         |
+| Planning checkpoint review              | P2 / P4   | No checkpoint stop                  | Extension — `pre-activation`                         |
+| Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer      |
+| Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria     |
+| Conventional commit format              | P6        | `type(scope): description`          | Config setting — `commit.format`                     |
+| Context footer on commits               | P6        | `Context: tasks-*.md (Task X.Y)`    | Config setting — `commit.context_footer`             |
+| Atomic commits                          | P6        | One logical change per commit       | Behavioral guidance — adjust unit of organization    |
+| Branch naming conventions               | P6        | `feature/`, `technical/`, etc.      | Behavioral guidance — any consistent scheme          |
+| Per-WU status + user/{identity}/ state  | P5        | Two-file session state in user dir  | Method override — substitute session mechanism       |
+| Session init/handoff ceremonies         | P5        | Structured document loading         | Behavioral guidance — ceremony adapted to agent type |
+| Commit interlock release                | P5        | Manual commit                       | Per-developer git config — `arc.commitInterlock`     |
+| Sync interlock release                  | P5        | Sync at handoff                     | Per-developer git config — `arc.syncInterlock`       |
+| Push interlock release                  | P5        | Manual push                         | Per-developer git config — `arc.pushInterlock`       |
 
 #### Design commitment conventions
 
@@ -382,15 +382,15 @@ step or git operation:
 
 Seven extension fire-points span the work-unit and Errand lifecycles:
 
-| Extension                      | Fire-point                                                 | Wired into                                   | Default                         |
-|--------------------------------|------------------------------------------------------------|----------------------------------------------|---------------------------------|
-| `pre-spec-finalization-review` | `create-spec.md` finalization gate, post-`spec-review`     | `create-spec.md`                             | inactive; no default `.actions` |
-| `pre-activation`               | `activate-work-unit.md` pre-condition gate                 | `activate-work-unit.md`                      | inactive                        |
-| `pre-commit-review`            | After staging, before commit creation                      | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
-| `pre-pr-open`                  | Pushed head, immediately before change-request creation    | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
-| `post-pr-open`                 | Newly created or existing open change request              | `integrate-work-unit.md`, `run-errand.md`    | inactive                        |
-| `pre-push-review`              | Any push via the push wrapper                              | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
-| `pre-merge`                    | Settled final head, immediately before merge authorization | `integrate-work-unit.md`, `run-errand.md`    | inactive; no default `.actions` |
+| Extension                      | Fire-point                                                 | Wired into                                | Default                         |
+|--------------------------------|------------------------------------------------------------|-------------------------------------------|---------------------------------|
+| `pre-spec-finalization-review` | `create-spec.md` finalization gate, post-`spec-review`     | `create-spec.md`                          | inactive; no default `.actions` |
+| `pre-activation`               | `activate-work-unit.md` pre-condition gate                 | `activate-work-unit.md`                   | inactive                        |
+| `pre-commit-review`            | After staging, before commit creation                      | `arc-commit` skill + `prepare-commits.md` | inactive                        |
+| `pre-pr-open`                  | Pushed head, immediately before change-request creation    | `integrate-work-unit.md`, `run-errand.md` | inactive                        |
+| `post-pr-open`                 | Newly created or existing open change request              | `integrate-work-unit.md`, `run-errand.md` | inactive                        |
+| `pre-push-review`              | Every agent-managed workflow push                          | Push and pushing-`arc sync` workflows     | inactive; no default `.actions` |
+| `pre-merge`                    | Settled final head, immediately before merge authorization | `integrate-work-unit.md`, `run-errand.md` | inactive; no default `.actions` |
 
 All extensions ship as inactive by default — teams populate `.actions` and flip `active: true` in frontmatter
 to opt in. Entries marked "no default `.actions`" ship as no-op shells without a provided action body; teams
@@ -404,7 +404,7 @@ or for future defaults. Three entries from the family above carry this status to
 - `pre-spec-finalization-review` — fires at `create-spec.md`'s spec-finalization gate, after the `spec-review`
   self-review. The opt-in seam for a team's own spec-review cadence — an async-PR review of the spec, a fixed
   comment window, a committee sign-off. Those cadences are informative precedents only; ARC enforces none.
-- `pre-push-review` — fires for any push via the push wrapper.
+- `pre-push-review` — fires before every agent-managed workflow push.
 - `pre-merge` — fires post-review-response, pre-merge at `integrate-work-unit.md` and `run-errand.md`.
 
 New reserved names land here when codified, keeping the namespace coherent before defaults emerge.
@@ -454,6 +454,14 @@ frontmatter field. `replace` (the default; absent ⇒ this) follows the override
 replace-only model. `extend` applies the default first, then the override on top, for an additive override that
 augments the baseline rather than supplanting it. Method content loads on-demand when the agent reaches a
 workflow step that references the method — not at session initialization.
+
+### Activity activation
+
+Activation and overriding are orthogonal. Only methods in the closed activatable-method registry may declare
+`active`; the package defaults are `self-review: true` and `frontline-review: false`. A valid project value is the
+effective value. A missing file, missing or malformed `active`, or read failure emits a diagnostic and falls back to
+the registered package default. `override-active` still says whether an override body is populated, and
+`override-mode` still says how that body composes; neither enables or disables the activity.
 
 ### Method references in workflows
 

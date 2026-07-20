@@ -10,8 +10,17 @@
  * @module
  */
 
-import { isStringArray, validateFrontmatterShape } from "./generic.js";
+import { isStringArray, unknownFrontmatterFields, validateFrontmatterShape } from "./generic.js";
 import { isActivatableMethodName } from "../method-activation-registry.js";
+
+const METHOD_FRONTMATTER_FIELDS = new Set([
+  "name",
+  "description",
+  "override-active",
+  "active",
+  "related",
+  "override-mode",
+]);
 
 /** Validated method frontmatter. */
 export interface MethodFrontmatter {
@@ -43,7 +52,7 @@ export function parseMethodFrontmatter(
   const shape = validateFrontmatterShape(content);
   if (!shape.ok) return { errors: shape.errors };
   const data = shape.data;
-  const errors: string[] = [];
+  const errors = unknownFrontmatterFields(data, METHOD_FRONTMATTER_FIELDS);
 
   const name = data.name;
   const description = data.description;
