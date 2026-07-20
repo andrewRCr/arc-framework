@@ -129,11 +129,10 @@ pull-request count, provider choice, or host mechanics.
   composes framework and project promotions monotonically, applies assurance/activity last, and validates the
   resulting reasoned decision against the closed runtime schema.
 
-### `[ ]` **2.2 Establish activity and WU assurance inputs**
+### `[x]` **2.2 Establish activity and WU assurance inputs**
 
 - _Goal:_ The pure router receives explicit activity and WU facts, while a declared stronger rubric survives every
   lifecycle transition and fails visibly when it cannot be resolved.
-- _Context:_ Implements Design §§1.2, 3, and 6 plus Cross-cutting § Review overlay.
 
     - `[x]` **2.2.a Keep method activity as an injected routing fact**
         - Added a narrow read port that accepts only effective self-review/frontline booleans, preserves valid peers,
@@ -145,12 +144,14 @@ pull-request count, provider choice, or host mechanics.
           rubric/method identity as its only value; paths, instructions, lists, and other sentinels reject, managed
           lifecycle rewrites preserve it, and the routing-facts schema explicitly excludes the overlay.
 
-    - `[ ]` **2.2.c Resolve WU assurance facts without production method binding**
-        - Compose injected activity, WU `Class`, and typed `absent | resolved | unavailable` overlay resolution
-          through a narrow resolver used by CLI and review workflow entrypoints.
-        - Refuse malformed identities and unavailable declared rubrics before review; leave method-file discovery
-          and package/project activation defaults to the Phase 4 method migration.
-        - Keep source binding, provider availability, and host gate policy outside this record.
+    - `[x]` **2.2.c Resolve WU assurance facts without production method binding**
+        - Added a schema-backed WU assurance composer over injected activity and rubric availability; canonical meta
+          parsing preserves the branded identity, malformed values reject, and missing or failed lookup resolves to
+          an explicit unavailable state without binding discovery, providers, or host policy.
+
+- _Outcome:_ Routing inputs now compose from narrow activity and availability ports plus lifecycle-stable WU metadata;
+  the stronger-rubric overlay remains explicit from semantic absence through validated resolution or fail-closed
+  unavailability, while method discovery and activation ownership remain outside the record.
 
 ### `[ ]` **2.3 Project one independent-analysis requirement per deliverable**
 

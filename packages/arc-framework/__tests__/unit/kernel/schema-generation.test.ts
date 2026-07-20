@@ -56,9 +56,11 @@ describe("kernel schema artifact generation", () => {
       "review-method-activity",
       "review-routing-decision",
       "review-routing-facts",
+      "review-rubric-overlay-resolution",
       "review-severity",
       "slug",
       "work-class",
+      "work-unit-review-assurance",
       "work-unit-state",
     ]);
     expect(JSON.stringify(firstBundle.schemas["canonical-change-set"]))
@@ -67,6 +69,8 @@ describe("kernel schema artifact generation", () => {
       .toEqual({ $ref: "review-severity.schema.json" });
     expect(firstBundle.schemas["review-routing-facts"]?.properties?.activity)
       .toEqual({ $ref: "review-method-activity.schema.json" });
+    expect(firstBundle.schemas["work-unit-review-assurance"]?.properties?.reviewRubric)
+      .toEqual({ $ref: "review-rubric-overlay-resolution.schema.json" });
     expect(serializeKernelSchemaBundle(projectKernelSchemas(second)))
       .toBe(serializeKernelSchemaBundle(firstBundle));
   });

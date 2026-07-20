@@ -22,7 +22,7 @@ import { join, relative, sep } from "node:path";
 import { readdir, readFile, stat } from "node:fs/promises";
 
 import type { ActiveLayout, MetaFileCandidate } from "../../commands/active/types.js";
-import { SlugSchema } from "../kernel/schema/slug.js";
+import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
 
 const DEFAULT_ROOT_SEGMENTS = [".arc", "active"] as const;
 const LITE_FILENAME = "status.md";
@@ -309,7 +309,7 @@ export type MetaFieldOverrides = Partial<Record<MetaFieldName, string>>;
 export type MetaRecord = Record<MetaFieldName, string | null>;
 
 /** Resolve the optional WU review-rubric overlay to one safe method identity. */
-export function parseReviewRubric(value: string | null): string | null {
+export function parseReviewRubric(value: string | null): Slug | null {
   if (value === null || value === "[none]") return null;
   const parsed = SlugSchema.safeParse(value);
   if (!parsed.success) throw new Error("Review Rubric must be one safe rubric or method identity");

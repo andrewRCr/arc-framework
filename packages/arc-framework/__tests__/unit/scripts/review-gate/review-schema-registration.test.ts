@@ -23,9 +23,11 @@ const reviewIdentities = [
   "project-routing-promotion",
   "review-assurance-input",
   "review-method-activity",
+  "review-rubric-overlay-resolution",
   "review-routing-decision",
   "review-routing-facts",
   "review-severity",
+  "work-unit-review-assurance",
 ];
 
 describe("review schema registration", () => {

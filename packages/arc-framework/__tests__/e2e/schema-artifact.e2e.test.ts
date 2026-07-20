@@ -27,9 +27,11 @@ describe("production schema artifact", () => {
       "review-method-activity",
       "review-routing-decision",
       "review-routing-facts",
+      "review-rubric-overlay-resolution",
       "review-severity",
       "slug",
       "work-class",
+      "work-unit-review-assurance",
       "work-unit-state",
     ]);
     for (const [id, schema] of Object.entries(bundle.schemas)) {

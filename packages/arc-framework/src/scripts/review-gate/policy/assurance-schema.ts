@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import type { KernelRegistry } from "../../../lib/kernel/index.js";
+import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
 
 export const WorkContextSchema = z.enum(["unscoped", "errand", "work-unit"]);
 export type WorkContext = z.infer<typeof WorkContextSchema>;
@@ -22,6 +23,20 @@ export const ReviewAssuranceInputSchema = z.strictObject({
 });
 export type ReviewAssuranceInput = z.infer<typeof ReviewAssuranceInputSchema>;
 
+export const ReviewRubricOverlayResolutionSchema = z.discriminatedUnion("state", [
+  z.strictObject({ state: z.literal("absent") }),
+  z.strictObject({ state: z.literal("resolved"), identity: SlugSchema }),
+  z.strictObject({ state: z.literal("unavailable"), identity: SlugSchema }),
+]);
+export type ReviewRubricOverlayResolution = z.infer<typeof ReviewRubricOverlayResolutionSchema>;
+
+export const WorkUnitReviewAssuranceSchema = z.strictObject({
+  activity: ReviewMethodActivitySchema,
+  assurance: ReviewAssuranceInputSchema,
+  reviewRubric: ReviewRubricOverlayResolutionSchema,
+});
+export type WorkUnitReviewAssurance = z.infer<typeof WorkUnitReviewAssuranceSchema>;
+
 /** Register method-activity and assurance inputs with a caller-owned registry. */
 export function registerReviewAssuranceSchemas(registry: KernelRegistry): KernelRegistry {
   registry.register(ReviewMethodActivitySchema, {
@@ -31,6 +46,16 @@ export function registerReviewAssuranceSchemas(registry: KernelRegistry): Kernel
   });
   registry.register(ReviewAssuranceInputSchema, {
     id: "review-assurance-input",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ReviewRubricOverlayResolutionSchema, {
+    id: "review-rubric-overlay-resolution",
+    version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(WorkUnitReviewAssuranceSchema, {
+    id: "work-unit-review-assurance",
     version: 1,
     migrationPosture: "strict-current",
   });
