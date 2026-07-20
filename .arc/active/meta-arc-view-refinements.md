@@ -16,7 +16,7 @@
 - **Next Task:** Task 1.1 — Relocate neutral viewer types and VIEW_KINDS into lib
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 1 implementation — Task 1.1
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
