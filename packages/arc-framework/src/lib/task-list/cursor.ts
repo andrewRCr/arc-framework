@@ -15,6 +15,7 @@ interface ParsedTask {
   marker: TaskMarker;
   subtasks: ParsedSubtask[];
   phaseIndex: number | null;
+  phaseHeadingLine: number | null;
 }
 
 interface ParsedSubtask {
@@ -64,7 +65,7 @@ export interface TaskListTallies {
 
 /** Cursor plus the phase-aware counts used by `arc view tasks`. */
 export type TaskListAnalysisResult =
-  | { status: "found"; cursor: TaskListCursor; tallies: TaskListTallies }
+  | { status: "found"; cursor: TaskListCursor; tallies: TaskListTallies; phaseHeadingLine?: number }
   | { status: "no-open-task"; tallies?: TaskListTallies }
   | { status: "malformed"; error: TaskListCursorMalformed };
 
@@ -105,6 +106,7 @@ export function analyzeTaskList(content: string): TaskListAnalysisResult {
   let currentTask: ParsedTask | null = null;
   let phaseCount = 0;
   let currentPhaseIndex: number | null = null;
+  let currentPhaseHeadingLine: number | null = null;
 
   const lines = content.split(/\r?\n/u);
   for (const [index, line] of lines.entries()) {
@@ -113,12 +115,13 @@ export function analyzeTaskList(content: string): TaskListAnalysisResult {
     if (PHASE_HEADING_RE.test(line)) {
       phaseCount += 1;
       currentPhaseIndex = phaseCount;
+      currentPhaseHeadingLine = lineNumber;
       currentTask = null;
       continue;
     }
 
     if (TASK_HEADING_PREFIX_RE.test(line)) {
-      const parsed = parseParentTask(line, lineNumber, currentPhaseIndex);
+      const parsed = parseParentTask(line, lineNumber, currentPhaseIndex, currentPhaseHeadingLine);
       if (parsed.status === "malformed") return parsed;
       currentTask = parsed.task;
       tasks.push(currentTask);
@@ -190,9 +193,15 @@ export function analyzeTaskList(content: string): TaskListAnalysisResult {
   const openSubtaskIndex = open.task.subtasks.findIndex(
     (subtask) => subtask.item.id === open.cursor.leaf.id,
   );
+  const firstTaskInPhase = !implicitPhase && tasks.find(
+    (task) => task.phaseIndex === open.task.phaseIndex,
+  ) === open.task;
   return {
     status: "found",
     cursor: open.cursor,
+    ...(firstTaskInPhase && open.task.phaseHeadingLine !== null
+      ? { phaseHeadingLine: open.task.phaseHeadingLine }
+      : {}),
     tallies: {
       phase: { current: phaseIndex, total: implicitPhase ? 1 : phaseCount },
       taskId: open.task.item.id,
@@ -248,6 +257,7 @@ function parseParentTask(
   line: string,
   lineNumber: number,
   phaseIndex: number | null,
+  phaseHeadingLine: number | null,
 ): { status: "parsed"; task: ParsedTask } | { status: "malformed"; error: TaskListCursorMalformed } {
   const match = PARENT_TASK_RE.exec(line);
   if (match === null || match.groups === undefined) {
@@ -264,6 +274,7 @@ function parseParentTask(
       marker: markerFromMatch(match.groups.marker),
       subtasks: [],
       phaseIndex,
+      phaseHeadingLine,
     },
   };
 }

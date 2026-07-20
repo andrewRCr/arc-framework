@@ -2,6 +2,8 @@
  * Unit tests for renderer selection and pager composition.
  */
 
+import { spawnSync } from "node:child_process";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -10,6 +12,8 @@ import {
   resolveViewRenderer,
   type PagerProcessRunner,
 } from "../../../src/lib/view-renderer.js";
+
+const glowAvailable = spawnSync("glow", ["--version"], { stdio: "ignore" }).status === 0;
 
 describe("detectViewRenderer", () => {
   it("selects glow first when it is available", async () => {
@@ -219,6 +223,124 @@ describe("renderViewWithPager", () => {
     }, { run });
 
     expect(run.mock.calls[0]?.[0].input).toBe(content);
+  });
+
+  it("inserts transient separators only at provable loose unordered-list boundaries", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = [
+      "- tight one",
+      "- tight two",
+      "",
+      "  - nested one",
+      "",
+      "  - nested two",
+      "",
+      "> - quoted one",
+      ">",
+      "> - quoted two",
+      "",
+    ].join("\n");
+
+    await renderViewWithPager({ renderer: "glow", content, displayPath: "notes.md" }, { run });
+
+    expect(run.mock.calls[0]?.[0].input).toBe([
+      "- tight one",
+      "- tight two",
+      "",
+      "  - nested one",
+      "",
+      "  <!-- arc-view-loose-list -->",
+      "  - nested two",
+      "",
+      "> - quoted one",
+      ">",
+      "> <!-- arc-view-loose-list -->",
+      "> - quoted two",
+      "",
+    ].join("\n"));
+  });
+
+  it("restores each top-level loose-list gap without changing task markers", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = [
+      "- [ ] first task",
+      "",
+      "- [x] second task",
+      "",
+      "- [~] third task",
+      "",
+    ].join("\n");
+    await renderViewWithPager({ renderer: "glow", content, displayPath: "tasks.md" }, { run });
+    expect(run.mock.calls[0]?.[0].input).toBe([
+      "- [ ] first task",
+      "",
+      "<!-- arc-view-loose-list -->",
+      "- [x] second task",
+      "",
+      "<!-- arc-view-loose-list -->",
+      "- [~] third task",
+      "",
+    ].join("\n"));
+  });
+
+  it("leaves fenced and ambiguous multi-block boundaries untouched", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = [
+      "```md",
+      "- apparent item",
+      "",
+      "- still fenced",
+      "```",
+      "",
+      "- item with another block",
+      "",
+      "  continuation paragraph",
+      "",
+      "- later item",
+      "",
+    ].join("\n");
+    await renderViewWithPager({ renderer: "glow", content, displayPath: "notes.md" }, { run });
+    expect(run.mock.calls[0]?.[0].input).toBe(content);
+  });
+
+  it("materializes lazy ordered ordinals only in the transient Glow copy", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = ["1. first", "", "1. second", "", "1. third", ""].join("\n");
+    await renderViewWithPager({ renderer: "glow", content, displayPath: "notes.md" }, { run });
+    expect(run.mock.calls[0]?.[0].input).toBe([
+      "1. first",
+      "",
+      "<!-- arc-view-loose-list -->",
+      "2. second",
+      "",
+      "<!-- arc-view-loose-list -->",
+      "3. third",
+      "",
+    ].join("\n"));
+
+    const sequential = ["1. first", "", "2. second", ""].join("\n");
+    await renderViewWithPager({ renderer: "glow", content: sequential, displayPath: "notes.md" }, { run });
+    expect(run.mock.calls[1]?.[0].input).toContain("2. second");
+  });
+
+  it("confines loose-list adaptation to Glow input", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = "- first\n\n- second\n";
+    await renderViewWithPager({ renderer: "bat", content, displayPath: "notes.md" }, { run });
+    await renderViewWithPager({ renderer: "plain", content, displayPath: "notes.md" }, { run });
+    expect(run.mock.calls[0]?.[0].input).toBe(content);
+    expect(run.mock.calls[1]?.[0].input).toBe(content);
+  });
+
+  it.runIf(glowAvailable)("restores a blank display row through the real Glow binary", () => {
+    const source = "- first\n\n<!-- arc-view-loose-list -->\n- second\n";
+    const result = spawnSync("glow", ["--width", "0", "-"], { input: source, encoding: "utf8" });
+    expect(result.status).toBe(0);
+    const lines = result.stdout.split("\n");
+    const first = lines.findIndex((line) => line.includes("first"));
+    const second = lines.findIndex((line) => line.includes("second"));
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(second).toBeGreaterThan(first + 1);
   });
 
   it("passes renderer-appropriate anchors to pager modes", async () => {

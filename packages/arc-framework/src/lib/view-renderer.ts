@@ -2,14 +2,10 @@
  * Renderer selection and one-shot pager composition for `arc view`.
  */
 
-import { execFile, spawn } from "node:child_process";
-import { promisify } from "node:util";
 import stringWidth from "string-width";
 
 import type { GitExec } from "./git/index.js";
 import { resolveGitConfigOverride } from "./config/resolve-override.js";
-
-const execFileAsync = promisify(execFile);
 
 const FENCE_START_RE = /^\s{0,3}(?<marker>`{3,}|~{3,})/u;
 const HEADING_RE = /^\s{0,3}#{1,6}(?:\s|$)/u;
@@ -20,6 +16,7 @@ const THEMATIC_BREAK_RE = /^\s{0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/
 const SETEXT_UNDERLINE_RE = /^\s{0,3}(?:=+|-+)\s*$/u;
 const LINK_DEFINITION_RE = /^\s{0,3}\[[^\]]+\]:/u;
 const GLOW_DISPLAY_GUTTER = 4;
+const GLOW_LOOSE_LIST_SEPARATOR = "<!-- arc-view-loose-list -->";
 
 export const VIEW_RENDERERS = ["glow", "bat", "plain"] as const;
 export type ViewRenderer = typeof VIEW_RENDERERS[number];
@@ -32,7 +29,7 @@ export interface ResolveViewRendererOptions {
   cwd: string;
   exec: GitExec;
   readFile: (path: string) => Promise<string>;
-  probe?: PathCommandProbe;
+  probe: PathCommandProbe;
 }
 
 export interface ResolvedViewRenderer {
@@ -56,7 +53,7 @@ export type PagerProcessRunner = (input: PagerProcessInput) => Promise<void>;
 
 /** Probe PATH in the stable glow → bat → plain order. */
 export async function detectViewRenderer(
-  probe: PathCommandProbe = probePathCommand,
+  probe: PathCommandProbe,
 ): Promise<ViewRenderer> {
   if (await probe("glow")) return "glow";
   if (await probe("bat")) return "bat";
@@ -96,7 +93,7 @@ export function renderViewWithPager(
     anchor?: ViewPagerAnchor;
     terminalWidth?: number;
   },
-  dependencies: { run: PagerProcessRunner } = { run: runPagerProcess },
+  dependencies: { run: PagerProcessRunner },
 ): Promise<void> {
   const processInput = pagerProcessInput(input);
   return dependencies.run(processInput);
@@ -167,10 +164,119 @@ function escapeLessSearch(value: string): string {
 
 function prepareGlowContent(content: string, terminalWidth: number | undefined): string {
   const normalized = normalizeMarkdownSoftBreaks(content);
-  if (terminalWidth === undefined || !Number.isInteger(terminalWidth)) return normalized;
+  const adapted = adaptGlowLooseLists(normalized);
+  if (terminalWidth === undefined || !Number.isInteger(terminalWidth)) return adapted;
   const contentWidth = terminalWidth - GLOW_DISPLAY_GUTTER;
-  if (contentWidth < 1) return normalized;
-  return wrapMarkdownProse(normalized, contentWidth);
+  if (contentWidth < 1) return adapted;
+  return wrapMarkdownProse(adapted, contentWidth);
+}
+
+interface GlowListItem {
+  blockquotePrefix: string;
+  indent: string;
+  marker: string;
+  spacing: string;
+  body: string;
+  container: string;
+  ordinal: number | null;
+}
+
+/** Split only provably blank-separated sibling items in Glow's transient copy. */
+function adaptGlowLooseLists(content: string): string {
+  const lines = content.split(/\r?\n/u);
+  const output: string[] = [];
+  const previousByContainer = new Map<string, { sourceIndex: number; ordinal: number | null }>();
+  let fence: { prefix: string; marker: { character: string; length: number } } | null = null;
+
+  for (const [index, sourceLine] of lines.entries()) {
+    const blockquote = parseBlockquote(sourceLine);
+    const prefix = blockquote?.prefix ?? "";
+    const body = blockquote?.body ?? sourceLine;
+
+    if (fence !== null) {
+      output.push(sourceLine);
+      if (prefix === fence.prefix && isFenceClose(body, fence.marker)) fence = null;
+      continue;
+    }
+    const fenceStart = parseFenceStart(body);
+    if (fenceStart !== null) {
+      output.push(sourceLine);
+      fence = { prefix, marker: fenceStart };
+      continue;
+    }
+
+    const item = parseGlowListItem(sourceLine);
+    if (item === null) {
+      output.push(sourceLine);
+      continue;
+    }
+
+    const previous = previousByContainer.get(item.container);
+    let marker = item.marker;
+    if (
+      previous !== undefined
+      && gapIsBlankSiblingSpace(lines, previous.sourceIndex + 1, index, item.blockquotePrefix)
+    ) {
+      if (item.ordinal !== null && previous.ordinal !== null) {
+        const expected = previous.ordinal + 1;
+        if (item.ordinal !== expected) marker = `${expected}${item.marker.endsWith(")") ? ")" : "."}`;
+      }
+      output.push(`${item.blockquotePrefix}${item.indent}${GLOW_LOOSE_LIST_SEPARATOR}`);
+    }
+
+    output.push(`${item.blockquotePrefix}${item.indent}${marker}${item.spacing}${item.body}`);
+    previousByContainer.set(item.container, {
+      sourceIndex: index,
+      ordinal: item.ordinal === null ? null : Number.parseInt(marker, 10),
+    });
+  }
+  return output.join("\n");
+}
+
+function parseGlowListItem(line: string): GlowListItem | null {
+  const blockquote = parseBlockquote(line);
+  const blockquotePrefix = blockquote?.prefix ?? "";
+  const body = blockquote?.body ?? line;
+  const match = /^(?<indent>\s*)(?<marker>[-+*]|\d+[.)])(?<spacing>\s+)(?<body>.*)$/u.exec(body)?.groups;
+  if (
+    match?.indent === undefined
+    || match.marker === undefined
+    || match.spacing === undefined
+    || match.body === undefined
+  ) return null;
+  const ordered = /^\d/u.test(match.marker);
+  const delimiter = ordered ? match.marker.at(-1) : "unordered";
+  return {
+    blockquotePrefix,
+    indent: match.indent,
+    marker: match.marker,
+    spacing: match.spacing,
+    body: match.body,
+    container: `${blockquotePrefix}\u0000${match.indent}\u0000${delimiter}`,
+    ordinal: ordered ? Number.parseInt(match.marker, 10) : null,
+  };
+}
+
+function gapIsBlankSiblingSpace(
+  lines: readonly string[],
+  start: number,
+  end: number,
+  blockquotePrefix: string,
+): boolean {
+  if (start >= end) return false;
+  for (let index = start; index < end; index += 1) {
+    const line = lines[index] ?? "";
+    if (blockquotePrefix === "") {
+      if (line.trim() !== "") return false;
+      continue;
+    }
+    const blockquote = parseBlockquote(line);
+    if (
+      blockquote?.prefix.trimEnd() !== blockquotePrefix.trimEnd()
+      || blockquote.body.trim() !== ""
+    ) return false;
+  }
+  return true;
 }
 
 function normalizeMarkdownSoftBreaks(content: string): string {
@@ -404,31 +510,4 @@ function hasExplicitHardBreak(line: string): boolean {
 
 function isViewRenderer(value: string): value is ViewRenderer {
   return (VIEW_RENDERERS as readonly string[]).includes(value);
-}
-
-async function probePathCommand(command: "glow" | "bat"): Promise<boolean> {
-  try {
-    await execFileAsync(command, ["--version"]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function runPagerProcess(input: PagerProcessInput): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(input.command, [...input.args], {
-      env: input.env,
-      stdio: ["pipe", "inherit", "inherit"],
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`${input.command} exited with status ${code ?? "unknown"}.`));
-    });
-    child.stdin.on("error", (error: NodeJS.ErrnoException) => {
-      if (error.code !== "EPIPE") reject(error);
-    });
-    child.stdin.end(input.input);
-  });
 }

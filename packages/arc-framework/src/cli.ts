@@ -585,10 +585,11 @@ program
   .description("Render an artifact from the current ARC work context")
   .argument(
     "[kind]",
-    "Artifact kind: tasks | spec | draft | meta | notes | cohort | session-notes | working-memory | inbox (default: tasks)",
+    "Artifact kind: tasks | spec | draft | meta | notes | cohort | session-notes | working-memory | inbox",
   )
   .option("--project", "With inbox: render the shared project inbox")
   .option("--current", "With tasks: render only the current task region")
+  .option("--for <slug>", "Override ambient context with the named work-unit slug")
   .action((kind: string | undefined, opts: ViewCliOptions) => handleView(kind, opts));
 
 // --- Status (composite) ---

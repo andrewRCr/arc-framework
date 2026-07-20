@@ -23,8 +23,8 @@ describe("view formatting", () => {
   });
 
   it("formats non-task kinds with the work-unit label and timestamp", () => {
-    expect(formatArtifactHeader("spec", "feature", NOW))
-      .toBe("spec · feature · rendered 09:05");
+    expect(formatArtifactHeader("spec", "feature", 12, NOW))
+      .toBe("spec · feature · 12 lines · rendered 09:05");
   });
 
   it("prepends the task band and carries a shifted source-line anchor", () => {
@@ -46,7 +46,7 @@ describe("view formatting", () => {
     })).toEqual({
       content: "Phase 1/1 · Task 1.1 · 0/1 overall · rendered 09:05\n\n" + content,
       warnings: [],
-      anchor: { line: 5, id: "1.1" },
+      anchor: { line: 3, id: "1.1" },
       bypassPager: false,
     });
   });
@@ -80,10 +80,73 @@ describe("view formatting", () => {
       current: false,
       now: NOW,
     })).toEqual({
-      content: "spec · feature · rendered 09:05\n\n# Spec\n",
+      content: "spec · feature · 1 line · rendered 09:05\n\n# Spec\n",
       warnings: [],
       bypassPager: false,
     });
+  });
+
+  it.each([
+    ["", "0 lines"],
+    ["one", "1 line"],
+    ["one\n", "1 line"],
+    ["one\r\ntwo\r\n", "2 lines"],
+  ])("counts logical source lines for non-task headers", (content, count) => {
+    expect(prepareViewDocument({
+      kind: "spec",
+      workUnit: "feature",
+      content,
+      current: false,
+      now: NOW,
+    }).content).toContain(`spec · feature · ${count} · rendered 09:05`);
+  });
+
+  it("formats 12-hour task and artifact timestamps without locale dependence", () => {
+    expect(formatTaskBand({
+      phase: { current: 1, total: 1 },
+      taskId: "1.1",
+      subtask: null,
+      overall: { done: 0, total: 1 },
+    }, new Date(2026, 0, 2, 0, 5), "12h")).toContain("rendered 12:05 AM");
+    expect(formatArtifactHeader("spec", "feature", 1, new Date(2026, 0, 2, 12, 5), "12h"))
+      .toContain("rendered 12:05 PM");
+    expect(formatArtifactHeader("spec", "feature", 1, new Date(2026, 0, 2, 21, 5), "12h"))
+      .toContain("rendered 9:05 PM");
+  });
+
+  it("anchors first-in-phase tasks above the phase and later parents above their task", () => {
+    const first = [
+      "# Tasks",
+      "",
+      "## **Phase 1:** Build",
+      "",
+      "### `[ ]` **1.1 First task**",
+      "",
+      "    - `[ ]` **1.1.a First subtask**",
+      "",
+    ].join("\n");
+    expect(prepareViewDocument({
+      kind: "tasks", workUnit: "feature", content: first, current: false, now: NOW,
+    }).anchor).toEqual({ line: 4, id: "1.1" });
+
+    const later = [
+      "# Tasks",
+      "",
+      "## **Phase 1:** Build",
+      "",
+      "### `[x]` **1.1 First task**",
+      "",
+      "### `[ ]` **1.2 Later task**",
+      "",
+    ].join("\n");
+    expect(prepareViewDocument({
+      kind: "tasks", workUnit: "feature", content: later, current: false, now: NOW,
+    }).anchor).toEqual({ line: 8, id: "1.2" });
+
+    const implicit = "# Tasks\n\n### `[ ]` **1.1 First task**\n";
+    expect(prepareViewDocument({
+      kind: "tasks", workUnit: "feature", content: implicit, current: false, now: NOW,
+    }).anchor).toEqual({ line: 4, id: "1.1" });
   });
 
   it("emits a bare current region, explicit terminal state, and malformed degrade", () => {
