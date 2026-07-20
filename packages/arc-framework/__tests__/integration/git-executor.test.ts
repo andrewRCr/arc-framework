@@ -174,11 +174,18 @@ describe("process-backed IO adapters", () => {
     await expect(gitExec("git", ["rev-parse", ref], { cwd: root })).resolves.toMatchObject({ stdout: second });
   });
 
-  it("returns null only for an absent blob path and propagates an invalid ref", async () => {
+  it("preserves arbitrary index and tree blob bytes while distinguishing absence from invalid refs", async () => {
     const root = await createGitRepo("arc-read-git-blob-");
+    const bytes = new Uint8Array([0, 1, 2, 10, 13, 127, 128, 254, 255]);
+    await writeFile(join(root, "binary.dat"), bytes);
+    await gitExec("git", ["add", "binary.dat"], { cwd: root });
+
+    await expect(readGitBlobBytes(root, null, "binary.dat")).resolves.toEqual(bytes);
+    await gitExec("git", ["commit", "-m", "binary"], { cwd: root });
+    await expect(readGitBlobBytes(root, "HEAD", "binary.dat")).resolves.toEqual(bytes);
 
     await expect(readGitBlobBytes(root, "HEAD", "missing.txt")).resolves.toBeNull();
-    await expect(readGitBlobBytes(root, "missing-ref", "seed.txt")).rejects.toThrow();
+    await expect(readGitBlobBytes(root, "missing-ref", "seed.txt")).rejects.toSatisfy(isGitProcessError);
   });
 
   it("returns null when a notes ref is corrupt", async () => {
@@ -189,6 +196,19 @@ describe("process-backed IO adapters", () => {
     await writeFile(join(notesDir, "corrupt"), "not-an-object\n", "utf8");
 
     await expect(createUserIOContext().readNote("refs/notes/corrupt", head)).resolves.toBeNull();
+  });
+
+  it("writes and reads large note content through execa stdin without interpolation", async () => {
+    const ref = `refs/notes/arc-execa-test-${process.pid}`;
+    const content = `literal $() and spaces\n${"payload\n".repeat(32_768)}`;
+    const context = createUserIOContext();
+
+    try {
+      await context.writeNote(ref, content, "HEAD");
+      await expect(context.readNote(ref, "HEAD")).resolves.toBe(content.trimEnd());
+    } finally {
+      await gitExec("git", ["update-ref", "-d", ref]);
+    }
   });
 });
 

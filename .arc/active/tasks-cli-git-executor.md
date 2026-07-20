@@ -48,35 +48,24 @@ _Purpose:_ Establish the execa-backed failure contract and prove replacement ada
 _Purpose:_ Move specialized raw Git processes onto the shared execa substrate while the generic production
 `gitExec` binding remains on its old implementation for rejection-ABI compatibility.
 
-### `[ ]` **2.1 Migrate the specialized `io-context.ts` Git bindings**
+### `[x]` **2.1 Migrate the specialized `io-context.ts` Git bindings**
 
 - _Goal:_ Binary reads, stdin plumbing, note transport, and ref-verification leases retain their specialized
   contracts with no raw child-process implementation at those call sites.
-- **Additional Context:** `notes-cli-git-executor.md` § execa 10 integration specifics
+    - `[x]` **2.1.a Migrate byte-preserving blob reads**
+        - Routed exact index/tree lookup and binary blob retrieval through execa with literal paths, arbitrary bytes,
+          scrubbed repository context, absent-path results, and typed invalid-ref failures preserved.
 
-    - `[ ]` **2.1.a Migrate byte-preserving blob reads**
-        - Route `readGitBlobBytes()` index/tree lookup and blob retrieval through execa with the existing
-          literal-path, exact-object, binary-output, absent-path, environment, and 64 MiB semantics intact.
-        - Build `test-first` (one behavior at a time):
-            - Worktree-index and committed-tree blobs preserve arbitrary bytes; absent paths return `null`; invalid
-              refs and ambiguous entries still reject through normalized errors.
+    - `[x]` **2.1.b Migrate stdin execution and note transport**
+        - Switched production stdin plumbing and note writes to the prepared adapter, and note reads to captured
+          execa execution while retaining large literal payloads and the established catch-all read contract.
 
-    - `[ ]` **2.1.b Migrate stdin execution and note transport**
-        - Switch the production `gitExecInput` binding to the prepared adapter, use the same execa stdin support for
-          `writeGitNote()`, and use captured execution for `readGitNote()` without changing `UserIOContext` or its
-          `void` / `string | null` contracts.
-        - Build `test-first` (one behavior at a time):
-            - Large note and object payloads reach stdin without shell interpolation; successful reads preserve
-              content; absent, corrupt, or otherwise unreadable notes retain the established `null` result.
-            - Write and object-plumbing failures reject through typed executor errors while note-read failures
-              remain absorbed by the existing catch-all contract.
+    - `[x]` **2.1.c Migrate prepared ref-verification leases**
+        - Rebuilt the held `update-ref --stdin` transaction on execa's child-process handle with its validation,
+          prepare/abort handshake, idempotent release, and typed failure evidence intact.
 
-    - `[ ]` **2.1.c Migrate prepared ref-verification leases**
-        - Drive `git update-ref --stdin` through execa's child-process access path while retaining the prepare/abort
-          handshake, exact-ref validation, held lock, idempotent release, and release-failure reporting.
-        - Build `test-first` (one behavior at a time):
-            - The lock remains held until release, preparation failures abort and settle the child, release is
-              idempotent, and failed abort acknowledgements reject with typed diagnostics.
+- _Outcome:_ `io-context.ts` no longer owns raw child-process implementations for binary reads, stdin execution,
+  note transport, or prepared ref leases; their specialized contracts now share the execa error substrate.
 
 ### `[ ]` **2.2 Migrate inherited-stdio worktree pushes**
 

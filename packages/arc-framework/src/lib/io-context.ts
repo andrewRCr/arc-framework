@@ -10,18 +10,27 @@
 
 import { readFile, writeFile, mkdir, access, chmod, readdir, realpath, stat, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+
+import { execa } from "execa";
 
 import type { IOContext } from "../commands/init.js";
 import type { UserIOContext } from "../commands/user.js";
 import type { GitExec, GitExecInput, DirEntry } from "../lib/git/index.js";
-import { environmentForGitCwd, MAX_GIT_OUTPUT_BYTES } from "../lib/git/process-executor.js";
+import {
+  createExecaGitExec,
+  createExecaGitExecInput,
+  environmentForGitCwd,
+  MAX_GIT_OUTPUT_BYTES,
+} from "../lib/git/process-executor.js";
+import { GitProcessError, normalizeGitRejection } from "../lib/git/process-error.js";
 import { atomicWriteFile, exclusiveCreateFile } from "./fs.js";
 
 export { environmentForGitCwd } from "../lib/git/process-executor.js";
 
 export const execFileAsync = promisify(execFile);
+const candidateGitExec = createExecaGitExec();
 
 /** Read one exact Git tree/index blob as bytes; `null` means the object path is absent. */
 export async function readGitBlobBytes(
@@ -36,11 +45,7 @@ export async function readGitBlobBytes(
   };
   let oid: string;
   if (ref === null) {
-    const { stdout } = await execFileAsync(
-      "git",
-      ["ls-files", "--stage", "-z", "--", `:(literal)${path}`],
-      { ...options, encoding: "utf8" },
-    );
+    const { stdout } = await execaGit(["ls-files", "--stage", "-z", "--", `:(literal)${path}`], options);
     if (stdout === "") return null;
     const entries = stdout.split("\0").filter(Boolean);
     const match = entries.length === 1
@@ -49,10 +54,9 @@ export async function readGitBlobBytes(
     if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact index blob for ${path}.`);
     oid = match[1];
   } else {
-    const { stdout } = await execFileAsync(
-      "git",
+    const { stdout } = await execaGit(
       ["ls-tree", "-z", "--format=%(objecttype) %(objectname)", ref, "--", `:(literal)${path}`],
-      { ...options, encoding: "utf8" },
+      options,
     );
     if (stdout === "") return null;
     const entries = stdout.split("\0").filter(Boolean);
@@ -60,12 +64,33 @@ export async function readGitBlobBytes(
     if (match?.[1] === undefined) throw new Error(`Cannot resolve an exact tree blob for ${ref}:${path}.`);
     oid = match[1];
   }
-  const { stdout } = await execFileAsync(
-    "git",
-    ["cat-file", "blob", oid],
-    { ...options, encoding: "buffer" },
-  );
-  return new Uint8Array(stdout);
+  try {
+    const { stdout } = await execa("git", ["cat-file", "blob", oid], {
+      ...options,
+      encoding: "buffer",
+      stripFinalNewline: false,
+      extendEnv: false,
+    });
+    return stdout;
+  } catch (error) {
+    throw normalizeGitRejection(error, { command: "git", args: ["cat-file", "blob", oid] });
+  }
+}
+
+async function execaGit(
+  args: string[],
+  options: { cwd: string; env: NodeJS.ProcessEnv | undefined; maxBuffer: number },
+): Promise<{ stdout: string; stderr: string }> {
+  try {
+    const result = await execa("git", args, {
+      ...options,
+      stripFinalNewline: false,
+      extendEnv: false,
+    });
+    return { stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    throw normalizeGitRejection(error, { command: "git", args });
+  }
 }
 
 /** Prepared verification-only ref transaction held until the caller releases it. */
@@ -94,11 +119,21 @@ export async function prepareGitRefVerification(
   if (/[\0\r\n]/u.test(ref) || !/^[0-9a-f]{40,64}$/u.test(expectedOid)) {
     throw new Error("Cannot prepare an invalid Git ref verification.");
   }
-  const proc = spawn("git", ["update-ref", "--stdin"], {
+  const args = ["update-ref", "--stdin"];
+  const subprocess = execa("git", args, {
     cwd,
     env: environmentForGitCwd(cwd),
     stdio: ["pipe", "pipe", "pipe"],
+    stripFinalNewline: false,
+    maxBuffer: MAX_GIT_OUTPUT_BYTES,
+    extendEnv: false,
   });
+  const proc = subprocess.nodeChildProcess;
+  void subprocess.catch(() => undefined);
+  const { stdin, stdout: processStdout, stderr: processStderr } = proc;
+  if (stdin === null || processStdout === null || processStderr === null) {
+    throw new Error("Git ref verification requires piped stdio.");
+  }
   let stdout = "";
   let stderr = "";
   let prepared = false;
@@ -112,31 +147,39 @@ export async function prepareGitRefVerification(
   const closed = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
     proc.on("close", (code, signal) => { resolve({ code, signal }); });
   });
-  proc.stdout.setEncoding("utf8");
-  proc.stderr.setEncoding("utf8");
-  proc.stdout.on("data", (chunk: string) => {
+  processStdout.setEncoding("utf8");
+  processStderr.setEncoding("utf8");
+  processStdout.on("data", (chunk: string) => {
     stdout += chunk;
     if (!prepared && stdout.includes("prepare: ok\n")) {
       prepared = true;
       prepareResolve?.();
     }
   });
-  proc.stderr.on("data", (chunk: string) => { stderr += chunk; });
-  proc.on("error", (error) => { prepareReject?.(error); });
+  processStderr.on("data", (chunk: string) => { stderr += chunk; });
+  proc.on("error", (error) => {
+    prepareReject?.(normalizeGitRejection(error, { command: "git", args }));
+  });
   proc.on("close", (code, signal) => {
     if (!prepared) {
-      prepareReject?.(new Error(
-        `Git ref verification could not be prepared (${code ?? signal ?? "unknown"}): ${stderr.trim()}`,
-      ));
+      prepareReject?.(new GitProcessError({
+        kind: "nonzero-exit",
+        command: "git",
+        args,
+        exitCode: code ?? undefined,
+        signal: signal ?? undefined,
+        stdout,
+        stderr,
+      }));
     }
   });
-  proc.stdin.on("error", (error) => { prepareReject?.(error); });
-  proc.stdin.write(`start\nverify ${ref} ${expectedOid}\nprepare\n`);
+  stdin.on("error", (error) => { prepareReject?.(error); });
+  stdin.write(`start\nverify ${ref} ${expectedOid}\nprepare\n`);
 
   try {
     await preparedResult;
   } catch (error) {
-    if (proc.exitCode === null && proc.signalCode === null) proc.stdin.end("abort\n");
+    if (proc.exitCode === null && proc.signalCode === null) stdin.end("abort\n");
     await closed;
     throw error;
   }
@@ -145,12 +188,18 @@ export async function prepareGitRefVerification(
     release: async () => {
       if (released) return;
       released = true;
-      proc.stdin.end("abort\n");
+      stdin.end("abort\n");
       const result = await closed;
       if (result.code !== 0 || !stdout.includes("abort: ok\n")) {
-        throw new Error(
-          `Git ref verification lock could not be released (${result.code ?? result.signal ?? "unknown"}): ${stderr.trim()}`,
-        );
+        throw new GitProcessError({
+          kind: "nonzero-exit",
+          command: "git",
+          args,
+          exitCode: result.code ?? undefined,
+          signal: result.signal ?? undefined,
+          stdout,
+          stderr,
+        });
       }
     },
   };
@@ -193,28 +242,7 @@ async function writeGitNote(
   content: string,
   commit: string,
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("git", [
-      "notes", "--ref", ref, "add", "-f", "-F", "-", commit,
-    ]);
-    let stderr = "";
-    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-    proc.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`git notes add failed (code ${code}): ${stderr}`));
-    });
-    proc.on("error", reject);
-    proc.stdin.on("error", (err) => {
-      reject(new Error(`git notes stdin write failed: ${err.message}`));
-    });
-    // Handle backpressure for large manifests — wait for drain if buffer is full
-    const ok = proc.stdin.write(content);
-    if (!ok) {
-      proc.stdin.once("drain", () => proc.stdin.end());
-    } else {
-      proc.stdin.end();
-    }
-  });
+  await gitExecInput(["notes", "--ref", ref, "add", "-f", "-F", "-", commit], content);
 }
 
 /**
@@ -226,9 +254,7 @@ async function readGitNote(
   commit: string,
 ): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync("git", [
-      "notes", "--ref", ref, "show", commit,
-    ]);
+    const { stdout } = await candidateGitExec("git", ["notes", "--ref", ref, "show", commit]);
     return stdout.trimEnd();
   } catch {
     return null;
@@ -286,26 +312,7 @@ async function readUserDir(dirPath: string): Promise<DirEntry[]> {
  * and orphan-state-ref blob/tree plumbing. Mirrors {@link writeGitNote}'s
  * spawn-with-stdin shape.
  */
-export const gitExecInput: GitExecInput = (args, input) => {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("git", args);
-    let stdout = "";
-    let stderr = "";
-    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-    proc.on("close", (code) => {
-      if (code === 0) resolve(stdout);
-      else reject(new Error(`git ${args.join(" ")} failed (code ${code}): ${stderr}`));
-    });
-    proc.on("error", reject);
-    proc.stdin.on("error", (err) => {
-      reject(new Error(`git ${args.join(" ")} stdin write failed: ${err.message}`));
-    });
-    const ok = proc.stdin.write(input);
-    if (!ok) proc.stdin.once("drain", () => proc.stdin.end());
-    else proc.stdin.end();
-  });
-};
+export const gitExecInput: GitExecInput = createExecaGitExecInput();
 
 /** Real UserIOContext for user sync operations. */
 export function createUserIOContext(): UserIOContext {
