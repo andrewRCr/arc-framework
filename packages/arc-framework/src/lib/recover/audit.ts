@@ -7,17 +7,26 @@
  *
  * @module
  */
+import { z } from "zod";
 
 import type { ActiveSessionInitResult } from "../../commands/active/types.js";
 import type { Probe } from "../../commands/status/types.js";
 import type { CompactionSeed } from "../compaction-seed/schema.js";
 import type { DirtyStateResult } from "../git/dirty-state.js";
-import { auditLoadSetManifest, type LoadSetAuditVerdict } from "../load-set/audit.js";
+import {
+  LoadSetAuditVerdictSchema,
+  auditLoadSetManifest,
+  type LoadSetAuditVerdict,
+} from "../load-set/audit.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type {
   TaskListCursor,
 } from "../task-list/cursor.js";
-import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
+import { TaskListCursorSchema } from "../task-list/cursor.js";
+import {
+  TaskListCursorFileResultSchema,
+  type TaskListCursorFileResult,
+} from "../task-list/file-cursor.js";
 import {
   defaultCommittedProgressResolver,
   type CommittedProgress,
@@ -25,51 +34,51 @@ import {
 } from "./committed-progress.js";
 
 /** Stop reason categories emitted by the recovery audit. */
-export type RecoveryAuditStopKind =
-  | "active-unresolved"
-  | "branch-mismatch"
-  | "branch-unresolved"
-  | "dirty-unresolved"
-  | "git-status-failed"
-  | "head-lineage-mismatch"
-  | "head-unresolved"
-  | "identity-missing"
-  | "load-set-unresolved"
-  | "load-set-drift"
-  | "seed-invalid"
-  | "seed-missing"
-  | "seed-unreadable"
-  | "dirty-path-drift"
-  | "task-cursor-missing"
-  | "task-cursor-unresolved"
-  | "task-cursor-malformed"
-  | "task-cursor-mismatch"
-  | "planning-workflow-uncertain";
+export const RecoveryAuditStopKindSchema = z.enum([
+  "active-unresolved",
+  "branch-mismatch",
+  "branch-unresolved",
+  "dirty-unresolved",
+  "git-status-failed",
+  "head-lineage-mismatch",
+  "head-unresolved",
+  "identity-missing",
+  "load-set-unresolved",
+  "load-set-drift",
+  "seed-invalid",
+  "seed-missing",
+  "seed-unreadable",
+  "dirty-path-drift",
+  "task-cursor-missing",
+  "task-cursor-unresolved",
+  "task-cursor-malformed",
+  "task-cursor-mismatch",
+  "planning-workflow-uncertain",
+]);
+export type RecoveryAuditStopKind = z.infer<typeof RecoveryAuditStopKindSchema>;
 
 /** Structured stop reason for agent rendering. */
-export interface RecoveryAuditStopReason {
-  /** Machine-readable reason category. */
-  kind: RecoveryAuditStopKind;
-  /** Human-readable explanation. */
-  message: string;
-  /** Optional structured detail for the reason. */
-  detail?: unknown;
-}
+export const RecoveryAuditStopReasonSchema = z.strictObject({
+  kind: RecoveryAuditStopKindSchema,
+  message: z.string(),
+  detail: z.unknown().optional(),
+});
+export type RecoveryAuditStopReason = z.infer<typeof RecoveryAuditStopReasonSchema>;
 
 /** Dirty-file comparison carried by the audit result. */
-export interface RecoveryAuditDirtyFiles {
-  expected: string[];
-  actual: string[];
-  pathSetMatch: boolean;
-  dirtyStateConsistent: boolean | null;
-  match: boolean;
-  /**
-   * True when the path-set differs but the difference is fully explained by
-   * commits made since the seed (see {@link RecoveryAuditExplainedDrift}) — so it
-   * does not contribute a stop reason.
-   */
-  explainedByCommittedProgress: boolean;
-}
+export const RecoveryAuditDirtyFilesSchema = z.strictObject({
+  expected: z.array(z.string()),
+  actual: z.array(z.string()),
+  pathSetMatch: z.boolean(),
+  dirtyStateConsistent: z.boolean().nullable(),
+  match: z.boolean(),
+  explainedByCommittedProgress: z.boolean(),
+}).superRefine((value, context) => {
+  if (value.match !== (value.pathSetMatch && value.dirtyStateConsistent === true)) {
+    context.addIssue({ code: "custom", path: ["match"], message: "match must agree with dirty comparisons" });
+  }
+});
+export type RecoveryAuditDirtyFiles = z.infer<typeof RecoveryAuditDirtyFilesSchema>;
 
 /**
  * Drift the audit classified as expected progression rather than a stop signal.
@@ -78,55 +87,66 @@ export interface RecoveryAuditDirtyFiles {
  * fully accounted for by committed work since the seed. The verdict stays binary
  * ready/stop; an explained reason simply does not push a stop.
  */
-export type RecoveryAuditExplainedDrift =
-  | {
-    kind: "dirty-path-drift";
-    message: string;
-    detail: {
-      /** Seed-expected dirty paths now absent because they were committed since the seed. */
-      resolvedPaths: string[];
-      /** The seed head those paths were committed after. */
-      committedSince: string;
-    };
-  }
-  | {
-    kind: "head-advanced";
-    message: string;
-    detail: {
-      expected: string;
-      actual: string;
-    };
-  };
+export const RecoveryAuditExplainedDriftSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("dirty-path-drift"),
+    message: z.string(),
+    detail: z.strictObject({
+      resolvedPaths: z.array(z.string()),
+      committedSince: z.string(),
+    }),
+  }),
+  z.strictObject({
+    kind: z.literal("head-advanced"),
+    message: z.string(),
+    detail: z.strictObject({ expected: z.string(), actual: z.string() }),
+  }),
+]);
+export type RecoveryAuditExplainedDrift = z.infer<typeof RecoveryAuditExplainedDriftSchema>;
 
 /** Branch and HEAD comparison carried by the audit result. */
-export interface RecoveryAuditLocus {
-  expectedBranch: string;
-  actualBranch: string | null;
-  branchMatch: boolean;
-  expectedHead: string;
-  actualHead: string | null;
-  headRelation: "same" | "advanced" | "mismatch" | "unresolved";
-}
+export const RecoveryAuditLocusSchema = z.strictObject({
+  expectedBranch: z.string(),
+  actualBranch: z.string().nullable(),
+  branchMatch: z.boolean(),
+  expectedHead: z.string(),
+  actualHead: z.string().nullable(),
+  headRelation: z.enum(["same", "advanced", "mismatch", "unresolved"]),
+});
+export type RecoveryAuditLocus = z.infer<typeof RecoveryAuditLocusSchema>;
 
 /** Task-cursor comparison carried by the audit result. */
-export interface RecoveryAuditTaskCursor {
-  expected: TaskListCursor | null;
-  actual: TaskListCursorFileResult | null;
-  match: boolean;
-}
+export const RecoveryAuditTaskCursorSchema = z.strictObject({
+  expected: TaskListCursorSchema.nullable(),
+  actual: TaskListCursorFileResultSchema.nullable(),
+  match: z.boolean(),
+});
+export type RecoveryAuditTaskCursor = z.infer<typeof RecoveryAuditTaskCursorSchema>;
 
 /** Structured recovery audit verdict. */
-export interface RecoveryAuditVerdict {
-  status: "ready" | "stop";
-  ready: boolean;
-  stopReasons: RecoveryAuditStopReason[];
-  /** Drift that was suppressed as expected progression; never gates the verdict. */
-  explainedDrift: RecoveryAuditExplainedDrift[];
-  loadSetAudit: LoadSetAuditVerdict | null;
-  locus: RecoveryAuditLocus | null;
-  dirtyFiles: RecoveryAuditDirtyFiles;
-  taskCursor: RecoveryAuditTaskCursor | null;
-}
+export const RecoveryAuditVerdictSchema = z.strictObject({
+  status: z.enum(["ready", "stop"]),
+  ready: z.boolean(),
+  stopReasons: z.array(RecoveryAuditStopReasonSchema),
+  explainedDrift: z.array(RecoveryAuditExplainedDriftSchema),
+  loadSetAudit: LoadSetAuditVerdictSchema.nullable(),
+  locus: RecoveryAuditLocusSchema.nullable(),
+  dirtyFiles: RecoveryAuditDirtyFilesSchema,
+  taskCursor: RecoveryAuditTaskCursorSchema.nullable(),
+}).superRefine((value, context) => {
+  const ready = value.status === "ready";
+  if (value.ready !== ready) {
+    context.addIssue({ code: "custom", path: ["ready"], message: "ready must agree with status" });
+  }
+  if (ready !== (value.stopReasons.length === 0)) {
+    context.addIssue({
+      code: "custom",
+      path: ["stopReasons"],
+      message: "ready verdicts require no stop reasons; stopped verdicts require at least one",
+    });
+  }
+});
+export type RecoveryAuditVerdict = z.infer<typeof RecoveryAuditVerdictSchema>;
 
 /** Fresh recovery probe state consumed by the audit. */
 export interface RecoveryAuditProbeState {

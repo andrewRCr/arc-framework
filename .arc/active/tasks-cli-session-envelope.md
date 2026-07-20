@@ -125,15 +125,11 @@ unknown-stripping variants from the same field shapes to retain its established 
           deriving exported records through `z.infer` without changing diff assembly or field order. Schema tests
           now cover malformed comparisons and `status`/`diverged` consistency beside the behavioral matrix.
 
-    - `[ ]` **2.4.b Define schemas for the recovery-audit record graph**
-        - Replace hand-written output declarations in `lib/recover/audit.ts` with schemas for stop-kind/reason,
-          explained drift, locus, dirty-file accounting, task-cursor comparison, and final verdict; compose the
-          home-owned `LoadSetAuditVerdictSchema` and keep audit functions typed from `z.infer` outputs.
-        - Leave audit inputs, injected resolver contracts, and other non-wire analysis types handwritten.
-        - Build `test-first` (one behavior at a time):
-            - accept every existing ready, stopped, and explained-drift verdict variant;
-            - reject invalid status/kind combinations and malformed nested comparisons;
-            - preserve the exact field order assembled by the audit functions.
+    - `[x]` **2.4.b Define schemas for the recovery-audit record graph**
+        - Replaced hand-written wire outputs with strict schemas for stop reasons, both explained-drift branches,
+          locus, dirty accounting, cursor comparison, and final verdict, composing the load-set authority while
+          leaving inputs and injected analysis contracts handwritten. Tests validate ready, stopped, and explained
+          outputs plus invalid status/kind and nested-comparison rejection without changing assembly order.
 
     - `[ ]` **2.4.c Register recovery records and retain audit behavior**
         - Register `load-set-audit-verdict` and `recovery-audit-verdict` at version 1 with `strict-current` posture
