@@ -16,7 +16,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** activate-work-unit Step 1 — pre-condition gate
 
 - **PR URL:** [none]
 - **Completed:** [none]
