@@ -71,16 +71,38 @@ describe("arc view", () => {
 
   it("resolves checkout-local explicit targets and fails closed on misses", async () => {
     const planned = join(cwd, ".arc", "backlog", "planned");
+    const provisional = join(cwd, ".arc", "backlog", "provisional");
+    const completed = join(cwd, ".arc", "completed");
     await mkdir(planned, { recursive: true });
+    await mkdir(provisional, { recursive: true });
+    await mkdir(completed, { recursive: true });
     await writeFile(join(planned, "meta-planned.md"), [
       "# Metadata: planned", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
     ].join("\n"));
     await writeFile(join(planned, "spec-planned.md"), "# Planned spec\n");
+    await writeFile(join(provisional, "meta-provisional.md"), [
+      "# Metadata: provisional", "", "- **State:** Planning", "- **Branch:** [none]", "- **Task List:** [none]", "",
+    ].join("\n"));
+    await writeFile(join(completed, "meta-completed.md"), [
+      "# Metadata: completed", "", "- **State:** Shipped", "- **Branch:** feat/completed", "- **Task List:** [none]", "",
+    ].join("\n"));
+
+    const active = await runArcNoTty(["view", "meta", "--for", "feature"], cwd);
+    expect(active.exitCode).toBe(0);
+    expect(active.stdout).toContain("meta · feature");
 
     const resolved = await runArcNoTty(["view", "spec", "--for", "planned"], cwd);
     expect(resolved.exitCode).toBe(0);
     expect(resolved.stdout).toContain("spec · planned · 1 line");
     expect(resolved.stdout).toContain("# Planned spec");
+
+    const provisionalResult = await runArcNoTty(["view", "meta", "--for", "provisional"], cwd);
+    expect(provisionalResult.exitCode).toBe(0);
+    expect(provisionalResult.stdout).toContain("meta · provisional");
+
+    const completedResult = await runArcNoTty(["view", "meta", "--for", "completed"], cwd);
+    expect(completedResult.exitCode).toBe(1);
+    expect(completedResult.stderr).toContain("completed viewing is unsupported");
 
     const missing = await runArcNoTty(["view", "meta", "--for", "missing"], cwd);
     expect(missing.exitCode).toBe(1);
@@ -89,6 +111,21 @@ describe("arc view", () => {
     const invalid = await runArcNoTty(["view", "meta", "--for", "../bad"], cwd);
     expect(invalid.exitCode).toBe(1);
     expect(invalid.stderr).toContain("Invalid work-unit slug");
+  });
+
+  it.each([
+    ["working-memory"],
+    ["inbox"],
+  ])("rejects --for with the identity-global %s surface", async (kind) => {
+    const result = await runArcNoTty(["view", kind, "--for", "feature"], cwd);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("identity-global");
+  });
+
+  it("rejects --for with the shared project inbox", async () => {
+    const result = await runArcNoTty(["view", "inbox", "--project", "--for", "feature"], cwd);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("identity-global");
   });
 
   it("applies the user-scoped clock to non-TTY headers and surfaces invalid overrides", async () => {

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { ActiveSessionInitResult } from "../../../src/commands/active.js";
-import { adaptActiveViewTarget } from "../../../src/handlers/view.js";
+import { adaptActiveViewTarget, resolveExplicitViewTarget } from "../../../src/handlers/view.js";
+import { buildLifecycleIndexFromRecords } from "../../../src/lib/work-unit/lifecycle-index.js";
 
 function active(overrides: Partial<ActiveSessionInitResult> = {}): ActiveSessionInitResult {
   return {
@@ -51,5 +52,70 @@ describe("adaptActiveViewTarget", () => {
       taskListPath: ".arc/active/tasks-feature.md",
     });
     expect(adaptActiveViewTarget(multiple, "feat/missing")).toEqual({ status: "unavailable" });
+  });
+});
+
+describe("resolveExplicitViewTarget", () => {
+  it.each([
+    ["active", "Active", "active"],
+    ["planned", "Planning", "planned"],
+    ["provisional", "Planning", "provisional"],
+  ] as const)("resolves a materialized %s target", async (slug, state, location) => {
+    const index = buildLifecycleIndexFromRecords([{ slug, state, location }]);
+    await expect(resolveExplicitViewTarget({
+      cwd: "/repo",
+      slug,
+      index,
+      readFile: async () => `# Metadata: ${slug}\n\n- **Task List:** tasks-${slug}.md\n`,
+    })).resolves.toEqual({
+      status: "resolved",
+      slug,
+      location,
+      metaPath: `.arc/${location === "active" ? "active" : `backlog/${location}`}/meta-${slug}.md`,
+      taskListPath: `.arc/${location === "active" ? "active" : `backlog/${location}`}/tasks-${slug}.md`,
+    });
+  });
+
+  it("returns the completed-specific result only for a materialized completed record", async () => {
+    const index = buildLifecycleIndexFromRecords([{
+      slug: "completed",
+      state: "Shipped",
+      location: "completed",
+    }]);
+    await expect(resolveExplicitViewTarget({
+      cwd: "/repo",
+      slug: "completed",
+      index,
+      readFile: async () => { throw new Error("must not read"); },
+    })).resolves.toEqual({ status: "completed", slug: "completed" });
+  });
+
+  it.each([
+    "unknown",
+    "malformed-index-drop",
+    "remote-only",
+    "sibling-worktree-only",
+    "unmaterialized",
+  ])("collapses the %s miss to unavailable without another authority port", async (slug) => {
+    await expect(resolveExplicitViewTarget({
+      cwd: "/repo",
+      slug,
+      index: buildLifecycleIndexFromRecords([]),
+      readFile: async () => { throw new Error("must not read"); },
+    })).resolves.toEqual({ status: "unavailable", slug });
+  });
+
+  it("collapses an unreadable materialized meta to unavailable", async () => {
+    const index = buildLifecycleIndexFromRecords([{
+      slug: "unreadable",
+      state: "Planning",
+      location: "planned",
+    }]);
+    await expect(resolveExplicitViewTarget({
+      cwd: "/repo",
+      slug: "unreadable",
+      index,
+      readFile: async () => { throw new Error("EACCES"); },
+    })).resolves.toEqual({ status: "unavailable", slug: "unreadable" });
   });
 });

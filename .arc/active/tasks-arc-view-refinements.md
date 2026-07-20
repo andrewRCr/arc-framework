@@ -223,41 +223,46 @@ rather than broaden or postprocess ANSI if a supported Glow/Glamour version inva
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Markdown, TypeScript, and shell lint; source/test typechecking; full Vitest suite; real Glow probe;
+  and build all passed.
+- _Success criteria:_ All 15 criteria met; two adversarial passes and live task-list validation surfaced six
+  confirmed findings, all resolved and regression-covered.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A conventional `tasks-<slug>.md` beside a resolved meta renders before the meta's `Task List` pointer is
+- `[x]` A conventional `tasks-<slug>.md` beside a resolved meta renders before the meta's `Task List` pointer is
   updated; a valid existing non-conventional pointer still wins
-- `[ ]` `arc view --for <slug>` resolves active, planned, and provisional WUs through checkout-local authority;
+- `[x]` `arc view --for <slug>` resolves active, planned, and provisional WUs through checkout-local authority;
   accepts no path; performs no network or direct sibling-worktree read; never falls back on failure; returns one
   unavailable outcome for every unresolved miss; returns the completed-specific error only for a locally
   resolved completed record
-- `[ ]` `--for` is rejected for identity-global surfaces (`working-memory`, `inbox`, `inbox --project`) and
+- `[x]` `--for` is rejected for identity-global surfaces (`working-memory`, `inbox`, `inbox --project`) and
   accepted for every WU-scoped kind including `session-notes`
-- `[ ]` Bare `arc view` renders `tasks`, else `spec`, else `draft`, else `meta`; explicit kinds retain exact
+- `[x]` Bare `arc view` renders `tasks`, else `spec`, else `draft`, else `meta`; explicit kinds retain exact
   selection and omitted-kind `--current` remains task-specific
-- `[ ]` Every non-task header carries the exact logical line count (empty / terminal-newline / no-terminal-newline
+- `[x]` Every non-task header carries the exact logical line count (empty / terminal-newline / no-terminal-newline
   / multiline / CRLF); task documents retain the counter band without a line count
-- `[ ]` `arc.viewClock=24h` and `12h` produce the specified locale-independent timestamps (including midnight and
+- `[x]` `arc.viewClock=24h` and `12h` produce the specified locale-independent timestamps (including midnight and
   noon), with `24h` the default and an invalid value warning then falling back
-- `[ ]` Bat and plain open one source line above the normal current-task target; when the current parent is the
+- `[x]` Bat and plain open one source line above the normal current-task target; when the current parent is the
   first in its explicit phase they open one line above the phase heading even if a later subtask is current; an
   implicit-phase task list retains the normal preceding-task anchor
-- `[ ]` Glow's anchor behavior remains pattern-based and unchanged by the line-addressable anchor refinements
-- `[ ]` Glow displays one blank row at every supported blank-separated sibling boundary, preserves computed
+- `[x]` Glow's anchor behavior remains pattern-based and unchanged by the line-addressable anchor refinements
+- `[x]` Glow displays one blank row at every supported blank-separated sibling boundary, preserves computed
   ordered numbering, leaves ambiguous boundaries compact, and changes no stored source or Bat/plain output
-- `[ ]` Non-TTY invocation remains plain, pager-free, ANSI-free, and render-once; the command adds no writes,
+- `[x]` Non-TTY invocation remains plain, pager-free, ANSI-free, and render-once; the command adds no writes,
   watch loop, input handling, or arbitrary-path surface
-- `[ ]` Corrected viewer `lib` modules have no upward command imports or directly bound production effects;
+- `[x]` Corrected viewer `lib` modules have no upward command imports or directly bound production effects;
   command adapters own filesystem, lifecycle, Git-config, executable-probe, and process-spawn effects
-- `[ ]` Existing public viewer imports remain valid through compatibility exports; the correction introduces no
+- `[x]` Existing public viewer imports remain valid through compatibility exports; the correction introduces no
   competing layout service, command-input framework, Git executor, or general substrate
-- `[ ]` All new behavior is covered through injected unit seams and command-level integration tests, with the
+- `[x]` All new behavior is covered through injected unit seams and command-level integration tests, with the
   optional real-Glow probe confirming the renderer assumption where the binary exists
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 ---

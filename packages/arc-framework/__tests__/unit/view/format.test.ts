@@ -90,6 +90,7 @@ describe("view formatting", () => {
     ["", "0 lines"],
     ["one", "1 line"],
     ["one\n", "1 line"],
+    ["one\ntwo", "2 lines"],
     ["one\r\ntwo\r\n", "2 lines"],
   ])("counts logical source lines for non-task headers", (content, count) => {
     expect(prepareViewDocument({

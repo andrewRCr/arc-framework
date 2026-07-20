@@ -36,16 +36,37 @@ export function formatTaskBand(tallies: TaskListTallies, now: Date, clock: ViewC
     + `rendered ${formatTime(now, clock)}`;
 }
 
-/** Format the non-task artifact header. */
+/** Format the legacy non-task artifact header without a line count. */
+export function formatArtifactHeader(
+  kind: ViewKind,
+  workUnit: string | null,
+  now: Date,
+  clock?: ViewClock,
+): string;
+
+/** Format the non-task artifact header with its logical source-line count. */
 export function formatArtifactHeader(
   kind: ViewKind,
   workUnit: string | null,
   lineCount: number,
   now: Date,
-  clock: ViewClock = "24h",
+  clock?: ViewClock,
+): string;
+
+export function formatArtifactHeader(
+  kind: ViewKind,
+  workUnit: string | null,
+  lineCountOrNow: number | Date,
+  nowOrClock?: Date | ViewClock,
+  requestedClock: ViewClock = "24h",
 ): string {
-  const unit = lineCount === 1 ? "line" : "lines";
-  return `${kind} · ${workUnit ?? "global"} · ${lineCount} ${unit} · rendered ${formatTime(now, clock)}`;
+  if (lineCountOrNow instanceof Date) {
+    const clock = typeof nowOrClock === "string" ? nowOrClock : "24h";
+    return `${kind} · ${workUnit ?? "global"} · rendered ${formatTime(lineCountOrNow, clock)}`;
+  }
+  const now = nowOrClock instanceof Date ? nowOrClock : new Date(Number.NaN);
+  const unit = lineCountOrNow === 1 ? "line" : "lines";
+  return `${kind} · ${workUnit ?? "global"} · ${lineCountOrNow} ${unit} · rendered ${formatTime(now, requestedClock)}`;
 }
 
 /** Prepare one static document for plain output or pager rendering. */

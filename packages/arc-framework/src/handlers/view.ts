@@ -31,7 +31,7 @@ import {
 } from "../lib/view-renderer.js";
 import type { ViewTargetResult } from "../lib/view/types.js";
 import { resolveViewClock } from "../lib/view/clock.js";
-import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { buildLifecycleIndex, type LifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 const execFileAsync = promisify(execFile);
@@ -118,7 +118,7 @@ export async function handleView(
     renderWithPager: (input) => renderViewWithPager({
       ...input,
       terminalWidth: process.stdout.columns,
-    }, { run: runPagerProcess }),
+    }, { run: runPagerProcess, environment: process.env }),
     clock,
   });
 
@@ -149,21 +149,7 @@ function createViewDependencies(
           readFile: readUtf8,
         },
       });
-      const entry = index.get(slug);
-      if (entry === undefined) return { status: "unavailable", slug };
-      if (entry.location === "completed") return { status: "completed", slug };
-      try {
-        const meta = parseMetaFile(await readUtf8(join(cwd, entry.path)));
-        return {
-          status: "resolved",
-          slug: entry.slug,
-          location: entry.location,
-          metaPath: entry.path,
-          taskListPath: resolveTaskListPath(entry.path, meta.taskList),
-        };
-      } catch {
-        return { status: "unavailable", slug };
-      }
+      return resolveExplicitViewTarget({ cwd, slug, index, readFile: readUtf8 });
     },
     resolveCohort: ({ activeMetaPath }) => resolveActiveCohortDocPath({
       cwd,
@@ -176,6 +162,30 @@ function createViewDependencies(
       resolveUserSurfaceResolver({ cwd, identity: resolvedIdentity, exec: gitExec }),
     pathExists,
   };
+}
+
+/** Classify one explicit slug from the checkout-local lifecycle projection. */
+export async function resolveExplicitViewTarget(input: {
+  cwd: string;
+  slug: string;
+  index: LifecycleIndex;
+  readFile: (path: string) => Promise<string>;
+}): Promise<ViewTargetResult> {
+  const entry = input.index.get(input.slug);
+  if (entry === undefined) return { status: "unavailable", slug: input.slug };
+  if (entry.location === "completed") return { status: "completed", slug: input.slug };
+  try {
+    const meta = parseMetaFile(await input.readFile(join(input.cwd, entry.path)));
+    return {
+      status: "resolved",
+      slug: entry.slug,
+      location: entry.location,
+      metaPath: entry.path,
+      taskListPath: resolveTaskListPath(entry.path, meta.taskList),
+    };
+  } catch {
+    return { status: "unavailable", slug: input.slug };
+  }
 }
 
 async function resolveCurrentBranch(cwd: string): Promise<string | null> {
