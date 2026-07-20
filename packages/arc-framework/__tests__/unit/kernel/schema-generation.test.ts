@@ -51,6 +51,7 @@ describe("kernel schema artifact generation", () => {
       "finding-disposition",
       "independent-analysis-contract",
       "independent-analysis-obligation-projection",
+      "independent-analysis-rubric-digest-preimage",
       "priority",
       "project-routing-promotion",
       "review-assurance-input",

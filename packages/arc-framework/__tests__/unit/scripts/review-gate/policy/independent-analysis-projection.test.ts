@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   projectIndependentAnalysisObligation,
 } from "../../../../../src/scripts/review-gate/policy/independent-analysis-projection.js";
+import {
+  INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
+} from "../../../../../src/scripts/review-gate/policy/independent-analysis.js";
 import type { ReviewRoutingDecision } from "../../../../../src/scripts/review-gate/policy/routing-schema.js";
 
-const rubric = {
-  version: "implementation-audit/v1",
-  digest: `sha256:${"a".repeat(64)}`,
-} as const;
+const rubric = INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY;
 
 const decision = (
   independentAnalysis: ReviewRoutingDecision["independentAnalysis"],
@@ -25,12 +25,12 @@ const decision = (
 
 describe("independent-analysis obligation projection", () => {
   it("emits one topology-neutral logical obligation from one routing decision", () => {
-    const projection = projectIndependentAnalysisObligation(decision("required", "full-final"), rubric);
+    const projection = projectIndependentAnalysisObligation(decision("required", "full-final"));
 
     expect(projection).toEqual({
       obligation: "required",
       reasons: ["sensitive-change-set"],
-      rubricVersion: "implementation-audit/v1",
+      rubricVersion: "independent-analysis/v1",
       rubricDigest: rubric.digest,
       retrigger: "full-final",
       count: 1,
@@ -51,7 +51,7 @@ describe("independent-analysis obligation projection", () => {
     expect(projection).toEqual({
       obligation: "exempt",
       reasons: ["auto-eligible-planning"],
-      rubricVersion: "implementation-audit/v1",
+      rubricVersion: "independent-analysis/v1",
       rubricDigest: rubric.digest,
       retrigger: "none",
       count: 1,

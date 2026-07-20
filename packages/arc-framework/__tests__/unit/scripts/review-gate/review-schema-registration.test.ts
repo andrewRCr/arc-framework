@@ -21,6 +21,7 @@ const reviewIdentities = [
   "finding-disposition",
   "independent-analysis-contract",
   "independent-analysis-obligation-projection",
+  "independent-analysis-rubric-digest-preimage",
   "project-routing-promotion",
   "review-assurance-input",
   "review-method-activity",
@@ -53,6 +54,7 @@ describe("review schema registration", () => {
     expect(registry.meta("review-request")?.version).toBe(2);
     expect(registry.meta("review-requirement")?.version).toBe(2);
     expect(registry.meta("review-receipt")?.version).toBe(2);
+    expect(registry.meta("independent-analysis-rubric-digest-preimage")?.version).toBe(1);
     expect(registry.meta("canonical-change-set")?.version).toBe(1);
   });
 

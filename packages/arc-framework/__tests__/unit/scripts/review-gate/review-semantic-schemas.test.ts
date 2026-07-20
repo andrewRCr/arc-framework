@@ -21,6 +21,9 @@ import {
   IndependentAnalysisContractSchema,
 } from "../../../../src/scripts/review-gate/policy/independent-analysis-schema.js";
 import {
+  INDEPENDENT_ANALYSIS_BASELINE_CONTRACT,
+} from "../../../../src/scripts/review-gate/policy/independent-analysis.js";
+import {
   ProjectRoutingPromotionSchema,
 } from "../../../../src/scripts/review-gate/policy/project-promotion-schema.js";
 import {
@@ -160,14 +163,7 @@ describe("review semantic schemas", () => {
   });
 
   it("validates the logical independent-analysis contract", () => {
-    const contract = {
-      version: "independent-analysis/v1",
-      coverage: "complete-exact-change-set",
-      evaluatorBoundary: "independent-source-and-context",
-      rubric: { version: "implementation-audit/v1", digest: `sha256:${"a".repeat(64)}` },
-      findingFloor: "actionable-source-grounded",
-      cleanRule: "all-rubric-dimensions-considered",
-    };
+    const contract = INDEPENDENT_ANALYSIS_BASELINE_CONTRACT;
     expect(IndependentAnalysisContractSchema.parse(contract)).toEqual(contract);
     expect(IndependentAnalysisContractSchema.safeParse({ ...contract, partial: true }).success).toBe(false);
   });

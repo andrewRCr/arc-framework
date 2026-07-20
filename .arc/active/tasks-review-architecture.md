@@ -241,11 +241,11 @@ readiness.
   carrier received, while policy identity changes whenever obligation or admission semantics change.
 - _Context:_ Implements Design §§1.4 and 2.1.
 
-    - `[ ]` **3.2.a Generate the independent-analysis rubric identity**
-        - Derive `independent-analysis/v1` plus `rubricDigest` from one typed baseline contract, including complete
-          coverage, evaluator boundary, rubric, finding floor, and clean rule.
-        - Build `test-first` checks that identity-field changes require an explicit version change while editorial
-          method prose can change without altering the digest.
+    - `[x]` **3.2.a Generate the independent-analysis rubric identity**
+        - Added one immutable typed baseline covering exact complete scope, evaluator isolation, the five-dimension
+          implementation audit, finding floor, and clean rule. Its registered domain-separated preimage generates
+          `independent-analysis/v1` plus a pinned digest; semantic drift requires a version change while prose stays
+          outside the identity.
 
     - `[ ]` **3.2.b Bind carrier guidance projections**
         - Extend hosted Codex guidance and other qualifying adapter surfaces to record the actual baseline plus

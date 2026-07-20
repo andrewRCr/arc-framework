@@ -7,6 +7,9 @@ import {
   createReviewRequirement,
   createReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import {
+  INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
+} from "../../../../../src/scripts/review-gate/policy/independent-analysis.js";
 import { projectForwardReviewContract } from "../../../../../src/scripts/review-gate/runtime/forward-contract.js";
 
 const objectId = (character: string): string => character.repeat(40);
@@ -28,8 +31,8 @@ function contract() {
     projection: {
       obligation: "required",
       reasons: ["sensitive-change-set"],
-      rubricVersion: "independent-analysis/v1",
-      rubricDigest: canonicalDigest({ rubric: "independent-analysis/v1" }),
+      rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+      rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
       retrigger: "full-final",
       count: 1,
     },

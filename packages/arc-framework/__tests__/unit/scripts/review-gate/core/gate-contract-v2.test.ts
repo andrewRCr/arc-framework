@@ -16,6 +16,9 @@ import {
   validateReviewRequirement,
   validateReviewTarget,
 } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import {
+  INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
+} from "../../../../../src/scripts/review-gate/policy/independent-analysis.js";
 
 const objectId = (character: string): string => character.repeat(40);
 
@@ -225,14 +228,14 @@ describe("review gate v2 contract", () => {
       headSha: objectId("c"),
       headTree: objectId("d"),
     });
-    const rubricDigest = canonicalDigest({ rubric: "implementation-audit/v1" });
+    const rubricDigest = INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest;
     const policyVersion = canonicalDigest({ policy: "self-hosting/v2" });
     const requirement = createReviewRequirement({
       target,
       projection: {
         obligation: "required",
         reasons: ["sensitive-change-set", "sensitive-change-set"],
-        rubricVersion: "implementation-audit/v1",
+        rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
         rubricDigest,
         retrigger: "full-final",
         count: 1,
@@ -260,7 +263,7 @@ describe("review gate v2 contract", () => {
       kind: "independent-analysis",
       obligation: "required",
       reasons: ["sensitive-change-set"],
-      rubricVersion: "implementation-audit/v1",
+      rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
       rubricDigest,
       retrigger: "full-final",
       count: 1,
@@ -285,13 +288,13 @@ describe("review gate v2 contract", () => {
       headSha: objectId("c"),
       headTree: objectId("d"),
     });
-    const rubricDigest = canonicalDigest({ rubric: "implementation-audit/v1" });
+    const rubricDigest = INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest;
     const requirement = createReviewRequirement({
       target,
       projection: {
         obligation: "required",
         reasons: ["sensitive-change-set"],
-        rubricVersion: "implementation-audit/v1",
+        rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
         rubricDigest,
         retrigger: "full-final",
         count: 1,
@@ -383,8 +386,8 @@ describe("review gate v2 contract", () => {
       projection: {
         obligation: "required" as const,
         reasons: ["sensitive-change-set" as const],
-        rubricVersion: "implementation-audit/v1",
-        rubricDigest: canonicalDigest({ rubric: "implementation-audit/v1" }),
+        rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+        rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
         retrigger: "full-final" as const,
         count: 1 as const,
       },
@@ -413,7 +416,7 @@ describe("review gate v2 contract", () => {
     }).toEqual({
       targetId: "sha256:d4289a08f0d41356739446723949aaf892a2de41fb6510f6f065a4c93b26bcbd",
       requestId: "sha256:480e17fe526675904ddc4124b18108214be44b199a82dad7a8d6e5f7990aea8b",
-      requirementId: "sha256:11f8d3beb3fe6668316080a4a6daefdf23ceeb7d9b48d4ee58bfda856e4df6df",
+      requirementId: "sha256:cb4b827d547becb161814c809b8bf95151c2b1bee5e811264c4ac3ff31591d3f",
     });
     expect(new Set([target.targetId, request.requestId, requirement.requirementId]).size).toBe(3);
     expect(reordered.requirementId).toBe(requirement.requirementId);
@@ -464,8 +467,8 @@ describe("review gate v2 contract", () => {
       projection: {
         obligation: "required" as const,
         reasons: ["sensitive-change-set" as const],
-        rubricVersion: "implementation-audit/v1",
-        rubricDigest: canonicalDigest({ rubric: "implementation-audit/v1" }),
+        rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+        rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
         retrigger: "full-final" as const,
         count: 1 as const,
       },
@@ -500,8 +503,8 @@ describe("review gate v2 contract", () => {
       projection: {
         obligation: "required",
         reasons: ["sensitive-change-set"],
-        rubricVersion: "implementation-audit/v1",
-        rubricDigest: canonicalDigest({ rubric: "implementation-audit/v1" }),
+        rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+        rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
         retrigger: "full-final",
         count: 1,
       },

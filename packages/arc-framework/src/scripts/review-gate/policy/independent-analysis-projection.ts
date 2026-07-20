@@ -4,6 +4,7 @@ import {
   ReviewRubricIdentitySchema,
   type ReviewRubricIdentity,
 } from "./independent-analysis-schema.js";
+import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "./independent-analysis.js";
 import {
   IndependentAnalysisObligationProjectionSchema,
   type IndependentAnalysisObligationProjection,
@@ -16,7 +17,7 @@ import {
 /** Project one logical independent-analysis obligation without rerunning routing policy. */
 export function projectIndependentAnalysisObligation(
   decisionInput: ReviewRoutingDecision,
-  rubricInput: ReviewRubricIdentity,
+  rubricInput: ReviewRubricIdentity = INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
 ): IndependentAnalysisObligationProjection {
   const decision = ReviewRoutingDecisionSchema.parse(decisionInput);
   const rubric = ReviewRubricIdentitySchema.parse(rubricInput);
