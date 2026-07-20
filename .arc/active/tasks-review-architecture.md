@@ -404,11 +404,10 @@ with adopter-facing contracts mirrored through the package source.
   approval boundary, with shared severity/disposition records across local and hosted channels and deterministic
   evidence that prevents individual fixes from bypassing the approved set.
 
-### `[ ]` **4.3 Ship the channel-neutral review-response contract**
+### `[x]` **4.3 Ship the channel-neutral review-response contract**
 
 - _Goal:_ Local and hosted findings enter one bounded author-side cycle that verifies, approves, fixes, validates,
   persists, and returns authority-specific closure work to its adapter.
-- _Context:_ Implements Design §§2.2 and 5.
 
     - `[x]` **4.3.a Define review-response inputs and outputs**
         - Shipped the configurable `review-response` method and registered strict input/plan schemas. The planner
@@ -431,15 +430,14 @@ with adopter-facing contracts mirrored through the package source.
           `review-suspension` schemas. Strict variants bind exact invalidation and re-entry facts while rejecting
           controller conclusions, approvals, authorizations, receipts, narrative actions, and unknown fields.
 
-    - `[ ]` **4.3.e Implement the project operation-state adapter**
-        - Implement the project adapter under the repository's Git common directory by reusing Task 3.4.b's bounded
-          lock and version-checked atomic-publish primitive in a separate non-evidentiary namespace.
-        - Build `test-first` (one behavior at a time):
-            - Make identical replay idempotent across sibling worktrees.
-            - Reject stale versions and same-ID mismatches without overwriting recoverable state.
-            - Reconstruct absent state on another machine only from canonical host/vehicle facts—never approval,
-              authorization, or review evidence.
-            - Prove operation-state variants cannot enter receipt or gate-evidence reduction.
+    - `[x]` **4.3.e Implement the project operation-state adapter**
+        - Added a Git-common-directory operation store over the shared bounded-lock/atomic-publish primitive. Strict
+          version and identity checks preserve recoverable records, identical sibling-worktree replay is idempotent,
+          and facts-only suspension reconstruction remains structurally outside receipt and evidence parsing.
+
+- _Outcome:_ One typed response family now spans deterministic author actions, channel-owned conversation effects,
+  and resumable local operation continuity while preserving exact approval boundaries and keeping operational state
+  categorically outside review evidence authority.
 
 ### `[ ]` **4.4 Retire the legacy toggle and reconcile hook vocabulary**
 
