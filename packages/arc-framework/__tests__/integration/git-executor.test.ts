@@ -1,5 +1,5 @@
 import { execPath } from "node:process";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -235,6 +235,29 @@ describe("installation diff adapter", () => {
 });
 
 describe("process-backed IO adapters", () => {
+  it("preserves terminal execa failures from prepared ref verification", async () => {
+    const root = await createGitRepo("arc-ref-verification-failure-");
+    const { stdout: head } = await gitExec("git", ["rev-parse", "HEAD"], { cwd: root });
+    const { stdout: ref } = await gitExec("git", ["symbolic-ref", "HEAD"], { cwd: root });
+    const hook = join(root, ".git", "hooks", "reference-transaction");
+    await writeFile(hook, [
+      "#!/bin/sh",
+      'if [ "$1" = "prepared" ]; then',
+      "  echo 'reference transaction denied' >&2",
+      "  exit 1",
+      "fi",
+      "",
+    ].join("\n"), "utf8");
+    await chmod(hook, 0o755);
+
+    await expect(prepareGitRefVerification(root, ref, head)).rejects.toSatisfy((error: unknown) => {
+      return isGitProcessError(error)
+        && error.kind === "nonzero-exit"
+        && error.cause !== undefined
+        && error.stderr.includes("reference transaction denied");
+    });
+  });
+
   it("holds a prepared ref verification lock until release", async () => {
     const root = await createGitRepo("arc-ref-verification-");
     const { stdout: first } = await gitExec("git", ["rev-parse", "HEAD"], { cwd: root });

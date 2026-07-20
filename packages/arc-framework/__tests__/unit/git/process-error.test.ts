@@ -142,9 +142,17 @@ describe("normalizeGitRejection", () => {
   it("never classifies expected outcomes from message-only evidence", () => {
     const legacy = Object.assign(new Error("fatal: couldn't find remote ref missing"), { code: 128 });
     const error = normalizeGitRejection(legacy, { command: "git", args: ["fetch", "origin", "missing"] });
+    const typedWithoutStderr = new GitProcessError({
+      kind: "nonzero-exit",
+      command: "git",
+      args: ["fetch", "origin", "missing"],
+      exitCode: 128,
+      stdout: "fatal: couldn't find remote ref missing",
+    });
 
     expect(error.expectedOutcome).toBeUndefined();
     expect(gitFailureText(legacy)).toBe(legacy.message);
     expect(gitFailureText({ stderr: "stderr", message: "message" })).toBe("stderr");
+    expect(gitFailureText(typedWithoutStderr)).toBe("");
   });
 });

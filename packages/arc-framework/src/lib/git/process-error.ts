@@ -169,7 +169,7 @@ export function normalizeGitRejection(value: unknown, invocation: GitInvocation)
  * @returns Complete stderr first, then a legacy message, or an empty string.
  */
 export function gitFailureText(value: unknown): string {
-  if (isGitProcessError(value) && value.stderr !== "") return value.stderr;
+  if (isGitProcessError(value)) return value.stderr;
   const record = asRecord(value);
   return streamField(record, "stderr") ?? stringField(record, "message") ?? "";
 }

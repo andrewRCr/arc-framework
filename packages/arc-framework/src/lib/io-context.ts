@@ -125,7 +125,10 @@ export async function prepareGitRefVerification(
     extendEnv: false,
   });
   const proc = subprocess.nodeChildProcess;
-  void subprocess.catch(() => undefined);
+  const terminalFailure = subprocess.then(
+    () => undefined,
+    (error: unknown) => normalizeGitRejection(error, { command: "git", args }),
+  );
   const { stdin, stdout: processStdout, stderr: processStderr } = proc;
   if (stdin === null || processStdout === null || processStderr === null) {
     throw new Error("Git ref verification requires piped stdio.");
@@ -179,7 +182,7 @@ export async function prepareGitRefVerification(
   } catch (error) {
     if (proc.exitCode === null && proc.signalCode === null) stdin.end("abort\n");
     await closed;
-    throw error;
+    throw (await terminalFailure) ?? error;
   }
 
   return {
@@ -188,6 +191,8 @@ export async function prepareGitRefVerification(
       released = true;
       stdin.end("abort\n");
       const result = await closed;
+      const terminalError = await terminalFailure;
+      if (terminalError !== undefined) throw terminalError;
       if (result.code !== 0 || !stdout.includes("abort: ok\n")) {
         throw new GitProcessError({
           kind: "nonzero-exit",
