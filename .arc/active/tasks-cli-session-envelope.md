@@ -12,64 +12,40 @@ schema, or Result-composition change can alter the protocol accidentally.
 _Design decisions:_ Characterization precedes every production edit. Normalization may replace machine-specific
 values, but it must preserve key order, nesting, omission-versus-`null`, array order, and probe discriminants.
 
-### `[ ]` **1.1 Characterize the complete session-init envelope representation**
+### `[x]` **1.1 Characterize the complete session-init envelope representation**
 
 - _Goal:_ A compact normalized golden matrix detects any byte-visible change across the session-init envelope's
   mutually exclusive assembly arms before schema or Result migration work begins.
-- _Context:_ Implements the characterize-first decision and Success Criterion 1; the current E2E type redeclares
-  only a loose subset of the envelope.
+    - `[x]` **1.1.a Build deterministic assembly-arm fixtures and one normalizer**
+        - Added a framework-free fixture helper and focused built-CLI suite covering primary Orient, linked active
+          resume, linked current-husk, branch-gone, and identity-missing states with insertion-order-preserving
+          normalization of paths, object ids, machine ids, and time values.
 
-    - `[ ]` **1.1.a Build deterministic assembly-arm fixtures and one normalizer**
-        - Add a focused `__tests__/e2e/session-envelope-compat.e2e.test.ts` suite with compact normalized goldens
-          under `__tests__/fixtures/session-envelope/`; reuse the existing E2E repository and CLI helpers without
-          expanding the scenario-focused `session-init.e2e.test.ts`.
-        - Put reusable full-slot repository setup and environment-value normalization in
-          a framework-free `__tests__/helpers/session-envelope-compat.ts`, so the E2E suite and the Phase 7
-          benchmark share the unnormalized characterization fixture without importing a test module.
-        - Build four successful states: primary Orient/materialization, linked active resume with cohort/task cursor,
-          linked branchless current-husk, and branch-gone recovery. Across the matrix, populate every optional
-          session-init slot and every conditional insertion region at least once without testing the Cartesian
-          product.
-        - Invoke each state through the built CLI with `runArcNoTty()` so no byte assertion crosses the Linux
-          pseudo-TTY. Parse each single JSON value, first prove captured stdout is exactly the parsed object's compact
-          `JSON.stringify` representation plus one trailing newline, then normalize only environment-derived values
-          such as checkout paths, object ids, machine ids, and timestamps in place. Retain object insertion order and
-          distinguish omitted keys from explicit `null`.
+    - `[x]` **1.1.b Lock the normalized successful assembly-arm bytes**
+        - Checked in compact byte goldens for all four successful arms after first proving stdout is exactly one
+          parsed JSON value plus a trailing newline; the matrix covers every conditional insertion region.
 
-    - `[ ]` **1.1.b Lock the normalized successful assembly-arm bytes**
-        - Compare each compact normalized `JSON.stringify` result with its exact checked-in golden payload rather
-          than an object-subset assertion or a reserialized, key-sorted representation.
-        - Across the four arms, cover the bare `mode` top level, success probes, ordered `loadSet`, optional scalar
-          slots, arrays, `compactionSeedWrite` when requested, and the exact key position of every conditional slot.
+    - `[x]` **1.1.c Lock probe-error and omission variants**
+        - Locked the real identity-missing error branch and asserted that every identity-scoped slot stays omitted
+          instead of changing to `null` or an empty probe.
 
-    - `[ ]` **1.1.c Lock probe-error and omission variants**
-        - Add a deterministic variant carrying a real `{ ok: false, error: { kind, message } }` slot and verify the
-          exact wire branch.
-        - Prove gated and identity-scoped slots remain absent on the relevant successful arm when their producers do
-          not run, rather than becoming `null` or empty success values; keep the assertion byte-exact after
-          normalization.
+- _Outcome:_ Five normalized session-init goldens now lock the complete top-level representation, conditional key
+  positions, ordered nested values, and omission semantics before production assembly changes begin.
 
-### `[ ]` **1.2 Characterize the complete recovery-audit envelope representation**
+### `[x]` **1.2 Characterize the complete recovery-audit envelope representation**
 
 - _Goal:_ Recovery audit has an exact normalized baseline for its report, embedded recover envelope, comparisons,
   stop reasons, and ready/not-ready verdicts.
-- _Context:_ Implements the characterize-first decision and Success Criterion 1 against `handleRecoverAudit()` and
-  `auditRecoveryState()`.
+    - `[x]` **1.2.a Build deterministic ready and stopped recovery-audit fixtures**
+        - Reused the linked active fixture to emit complete ready and post-seed `dirty-path-drift` reports through
+          `runArcNoTty()`, with targeted missing- and invalid-seed assertions beside the full report captures.
 
-    - `[ ]` **1.2.a Build deterministic ready and stopped recovery-audit fixtures**
-        - Extend the focused compatibility suite with `runArcNoTty()` reports that exercise a complete ready verdict
-          and a post-seed `dirty-path-drift` stop, so both goldens carry the seed summary and embedded lean recover
-          envelope; retain early missing, unreadable, and invalid-seed arms as targeted assertions rather than full
-          report goldens.
-        - Prove each captured stdout value is the compact parsed report plus one trailing newline before normalizing
-          it, matching the session-init transport assertion.
-        - Normalize seed paths, checkout roots, object ids, and timestamps without rewriting key order or optional
-          field presence.
+    - `[x]` **1.2.b Lock the exact recovery-audit report bytes**
+        - Checked in exact normalized goldens for both complete reports, including seed summaries, embedded recover
+          envelopes, load-set and cursor comparisons, stop reasons, and verdict field order.
 
-    - `[ ]` **1.2.b Lock the exact recovery-audit report bytes**
-        - Golden the raw normalized report emitted by `handlers/recover.ts`, including the seed summary, embedded
-          lean recover envelope, load-set and cursor comparisons, and verdict ordering.
-        - Retain targeted assertions only where they add behavioral clarity beyond the full representation lock.
+- _Outcome:_ Recovery audit now shares the session-init transport and normalization proof, so both envelope families
+  have byte-stable characterize-first baselines against the same deterministic repository vocabulary.
 
 ## **Phase 2:** Shared family schemas and records
 
