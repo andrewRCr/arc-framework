@@ -25,6 +25,7 @@ import {
   writeTreeCommit,
 } from "../git/ref-tree.js";
 import type { GitExec } from "../git/exec.js";
+import { gitFailureText } from "../git/process-error.js";
 import { isNonFastForwardError, isRemoteUnavailableError } from "./notes-merge.js";
 import {
   syncStateRef,
@@ -109,8 +110,9 @@ export async function reconcileSyncStatePush(
       return reconciledOnce ? { kind: "reconciled" } : { kind: "pushed" };
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
-      if (!isNonFastForwardError(error.message)) return { kind: "failed", error };
+      const detail = gitFailureText(err);
+      if (isRemoteUnavailableError(detail)) return { kind: "no-remote" };
+      if (!isNonFastForwardError(detail)) return { kind: "failed", error };
       if (attempt === MAX_RECONCILE_ATTEMPTS) {
         return { kind: "failed", error: new Error("sync-state push: exceeded reconcile attempts") };
       }

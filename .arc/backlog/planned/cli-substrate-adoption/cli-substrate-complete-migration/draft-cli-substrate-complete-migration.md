@@ -7,6 +7,30 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Migrate residual raw-Git bindings to the execa executor**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-20); captured during `cli-git-executor` planning.
+- _Concern:_ standalone roadmap/decomposition scripts and review-gate runtime surfaces retain direct `child_process`
+  Git bindings outside the cohort's execa-backed `GitExec` seam.
+- _Approach:_ add those paths to the post-cohort audit; migrate Git-bearing operations onto the landed executor and
+  structured error taxonomy, while preserving the qualification runner's non-Git subprocess responsibility behind
+  its general process-runner contract.
+
+### `[ ]` **Adopt the session-envelope routed type inventory**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-20); captured during `cli-session-envelope`
+  planning close.
+- _Concern:_ that member leaves 13 shared/deep value types plus the `BaseDriftResult` web on handwritten authorities
+  with thin routing schemas, and records their homes and migration sizes in `notes-cli-session-envelope.md`.
+- _Approach:_ consume the landed inventory rather than rediscovering it; migrate each listed authority to its owning
+  full schema, retire the handwritten type, and tighten thin views while preserving the member's contained/full roots.
+
+---
+
 ## Problem / Motivation
 
 The six contract-owning cohort members deliberately keep their review surfaces bounded. That makes each member

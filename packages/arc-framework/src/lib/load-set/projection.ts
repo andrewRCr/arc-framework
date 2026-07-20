@@ -11,7 +11,12 @@
 
 import { isAbsolute, join } from "node:path";
 
-import { LOAD_SET_MANIFEST_VERSION, type LoadSetEntry, type LoadSetManifest } from "./types.js";
+import {
+  LOAD_SET_MANIFEST_VERSION,
+  LoadSetPathSchema,
+  type LoadSetEntry,
+  type LoadSetManifest,
+} from "./types.js";
 
 /** Session type resolved by the active-work probe. */
 export type LoadSetSessionType = "planning" | "execution" | "integration";
@@ -180,10 +185,10 @@ export function assertLoadSetPath(path: string): void {
 
 /** Assert a resolver-produced identity-global path is safe to include in a load-set manifest. */
 export function assertIdentityGlobalLoadSetPath(path: string): void {
-  if (path.length === 0 || path.includes("\0")) {
-    throw new Error(`Identity-global load-set path must be non-empty: ${path}`);
+  if (!LoadSetPathSchema.safeParse(path).success) {
+    throw new Error(`Identity-global load-set path must be canonical: ${path}`);
   }
-  if (!isAbsolute(path)) {
+  if (!isAbsolute(path) && !/^[A-Za-z]:\\/u.test(path) && !path.startsWith("\\\\")) {
     assertLoadSetPath(path);
   }
 }

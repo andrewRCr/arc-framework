@@ -4,8 +4,16 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { resolveTaskListCursor } from "../../../src/lib/task-list/cursor.js";
-import { resolveTaskListCursorFromFile } from "../../../src/lib/task-list/file-cursor.js";
+import {
+  TaskListCursorReaderSchema,
+  TaskListCursorResultSchema,
+  TaskListCursorSchema,
+  resolveTaskListCursor,
+} from "../../../src/lib/task-list/cursor.js";
+import {
+  TaskListCursorFileResultSchema,
+  resolveTaskListCursorFromFile,
+} from "../../../src/lib/task-list/file-cursor.js";
 
 function taskList(lines: readonly string[]): string {
   return lines.join("\n");
@@ -14,6 +22,58 @@ function taskList(lines: readonly string[]): string {
 async function passthroughRealpath(path: string): Promise<string> {
   return path;
 }
+
+describe("task-list cursor schemas", () => {
+  const cursor = {
+    section: { id: "4.R", title: "Recover", lineHint: 12 },
+    leaf: { id: "4.R.a", title: "Inspect state", lineHint: 18 },
+  };
+
+  it.each([
+    { status: "found", cursor },
+    { status: "no-open-task" },
+    { status: "malformed", error: { line: 8, message: "invalid task marker" } },
+  ])("accepts the cursor result branch $status", (value) => {
+    expect(TaskListCursorResultSchema.parse(value)).toEqual(value);
+  });
+
+  it("accepts the file-backed missing branch", () => {
+    const value = { status: "missing", path: ".arc/active/tasks-fixture.md" };
+    expect(TaskListCursorFileResultSchema.parse(value)).toEqual(value);
+  });
+
+  it.each([
+    { ...cursor, section: { ...cursor.section, id: "invalid" } },
+    { ...cursor, section: { ...cursor.section, id: "1.2.3" } },
+    { ...cursor, leaf: { ...cursor.leaf, title: " " } },
+    { ...cursor, leaf: { ...cursor.leaf, lineHint: 0 } },
+    { ...cursor, leaf: { ...cursor.leaf, lineHint: 1.5 } },
+    { ...cursor, leaked: true },
+  ])("rejects malformed cursors and strict field leakage", (value) => {
+    expect(TaskListCursorSchema.safeParse(value).success).toBe(false);
+  });
+
+  it("strips persisted cursor unknown keys recursively", () => {
+    expect(TaskListCursorReaderSchema.parse({
+      ...cursor,
+      ignored: true,
+      section: { ...cursor.section, ignored: true },
+      leaf: { ...cursor.leaf, ignored: true },
+    })).toEqual(cursor);
+  });
+
+  it("rejects cross-branch leakage on result records", () => {
+    expect(TaskListCursorResultSchema.safeParse({
+      status: "no-open-task",
+      cursor,
+    }).success).toBe(false);
+    expect(TaskListCursorFileResultSchema.safeParse({
+      status: "missing",
+      path: ".arc/active/tasks-fixture.md",
+      error: { line: 1, message: "leak" },
+    }).success).toBe(false);
+  });
+});
 
 describe("resolveTaskListCursor", () => {
   it("returns the parent section and first open subtask leaf", () => {

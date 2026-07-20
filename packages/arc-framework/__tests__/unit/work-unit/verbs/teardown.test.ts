@@ -249,7 +249,10 @@ function installStatefulPrimaryProjection(
   ctx.exec = async (cmd, args, opts) => {
     if (args[0] === "push" && args.some((arg) => arg.startsWith("--force-with-lease=")) && remoteFailures > 0) {
       remoteFailures -= 1;
-      throw new Error("simulated remote transport failure");
+      throw Object.assign(new Error("git push failed"), {
+        code: 1,
+        stderr: "simulated remote transport failure",
+      });
     }
     if (args[0] === "update-ref" && args[1] === "-d" && localFailures > 0) {
       localFailures -= 1;
@@ -1017,7 +1020,12 @@ describe("runTeardown — remote-head cleanup (shipped)", () => {
     const { ctx } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
     const baseExec = ctx.exec;
     ctx.exec = async (cmd, args) => {
-      if (args[0] === "push" && args.includes("--delete")) throw new Error("remote ref does not exist");
+      if (args[0] === "push" && args.includes("--delete")) {
+        throw Object.assign(new Error("git push failed"), {
+          code: 1,
+          stderr: "remote ref does not exist",
+        });
+      }
       return baseExec(cmd, args);
     };
 

@@ -124,6 +124,10 @@ import {
 } from "../lib/status/project-view.js";
 import { renderRoadmapFromIndexViewResult } from "../lib/status/roadmap-regeneration-assert.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
+import {
+  assertSessionInitProbeResult,
+  assertSessionRecoverProbeResult,
+} from "../commands/status/schema.js";
 import { resolveUserSurfaceResolver, type UserSurfaceResolver } from "../lib/user-surfaces.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { resolveComposedLifecycleIndex } from "../lib/work-unit/composed-lifecycle-index.js";
@@ -339,8 +343,8 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       return;
     }
     // Cache the resolution promise instead of awaiting eagerly: a thrown
-    // settings-resolution error now surfaces as a per-probe failure (via the
-    // orchestrator's `safeProbe` wrapper) rather than aborting the whole
+    // settings-resolution error now surfaces through the orchestrator's typed
+    // per-probe Result channel rather than aborting the whole
     // command and breaking the composite-result contract. The mode-validation
     // early-return above runs first to avoid leaving an unawaited rejection on
     // the non-JSON exit path.
@@ -408,6 +412,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       }),
       identityGlobalUserDir: identity === null ? null : (await userSurfacesFor(identity)).identityGlobalRoot,
     });
+    assertSessionRecoverProbeResult(result);
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
@@ -741,6 +746,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         surfaceCompactionSeedWrite(result.compactionSeedWrite);
       }
     }
+    assertSessionInitProbeResult(result);
     if (json) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;

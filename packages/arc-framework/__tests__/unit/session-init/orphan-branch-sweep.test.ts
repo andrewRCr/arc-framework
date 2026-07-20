@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { runOrphanBranchSweep } from "../../../src/lib/session-init/orphan-branch-sweep.js";
+import {
+  OrphanBranchReportSchema,
+  OrphanBranchSweepResultSchema,
+  runOrphanBranchSweep,
+} from "../../../src/lib/session-init/orphan-branch-sweep.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
 const NUL = "\u0000";
@@ -97,6 +101,17 @@ describe("runOrphanBranchSweep", () => {
     ]);
   });
 
+  it("ignores a malformed shipped slug without rejecting the orphan sweep", async () => {
+    const result = await runSweep(
+      { "feat/Not A Slug": { track: "gone", merged: true } },
+      { shipped: ["Not A Slug"] },
+    );
+
+    expect(result.orphans).toEqual([
+      { branch: "feat/Not A Slug", merged: true, shippedWorkUnit: null },
+    ]);
+  });
+
   it("does not sweep a branch whose upstream is still live", async () => {
     const result = await runSweep({ "feat/active": { track: "ahead 1", merged: true } });
 
@@ -188,5 +203,23 @@ describe("runOrphanBranchSweep", () => {
       { branch: "feat/shipped-elsewhere", merged: false, shippedWorkUnit: "shipped-elsewhere" },
       { branch: "fix/unmerged", merged: false, shippedWorkUnit: null },
     ]);
+  });
+});
+
+describe("OrphanBranchSweepResultSchema", () => {
+  it.each([
+    { branch: "feat/shipped", merged: false, shippedWorkUnit: "shipped" },
+    { branch: "fix/unshipped", merged: true, shippedWorkUnit: null },
+  ])("accepts shipped and unshipped orphan authority", (orphan) => {
+    expect(OrphanBranchSweepResultSchema.parse({ orphans: [orphan] })).toEqual({ orphans: [orphan] });
+  });
+
+  it.each([
+    { branch: "", merged: true, shippedWorkUnit: null },
+    { branch: "feat/work", merged: "yes", shippedWorkUnit: null },
+    { branch: "feat/work", merged: true, shippedWorkUnit: "Not A Slug" },
+    { branch: "feat/work", merged: true, shippedWorkUnit: null, leaked: true },
+  ])("rejects a malformed orphan row", (orphan) => {
+    expect(OrphanBranchReportSchema.safeParse(orphan).success).toBe(false);
   });
 });

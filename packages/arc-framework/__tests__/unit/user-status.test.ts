@@ -3489,9 +3489,11 @@ describe("runUserStatus bounded notes-ref fetch", () => {
         && args[3].startsWith(`+${notesRef}:`)
       ) {
         if (fetchBehavior === "abort-error") {
-          const err = new Error("aborted");
-          err.name = "AbortError";
-          throw err;
+          return await new Promise<{ stdout: string; stderr: string }>((_resolve, reject) => {
+            options?.signal?.addEventListener("abort", () => {
+              reject(Object.assign(new Error("canceled"), { isCanceled: true }));
+            });
+          });
         }
         if (fetchBehavior === "generic-error") {
           throw new Error("network down");
@@ -3653,7 +3655,7 @@ describe("runUserStatus bounded notes-ref fetch", () => {
     expect(notesFetch?.options?.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it("classifies AbortError as remote-unavailable / failureReason: timeout", async () => {
+  it("classifies a canceled bounded fetch as remote-unavailable / failureReason: timeout", async () => {
     const calls: ExecCall[] = [];
     const io = makeIO(fakeMustFetchExec(calls, "abort-error"));
 

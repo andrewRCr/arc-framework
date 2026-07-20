@@ -5,23 +5,24 @@
  * with an injectable executor for testability.
  */
 
+import { normalizeGitRejection } from "./process-error.js";
+
 /** Result from executing a git command. */
 export interface ExecResult {
   stdout: string;
   stderr?: string;
 }
 
-/** Optional execution controls forwarded to the underlying child_process. */
+/** Stable execution controls honored by production and injected Git executors. */
 export interface GitExecOptions {
   /**
-   * Abort signal for bounded-time invocations. When the signal fires, the
-   * subprocess is killed and the promise rejects with an `AbortError`.
+   * Abort signal for bounded-time invocations. Production cancellation rejects
+   * with a `GitProcessError` whose kind is `canceled`.
    */
   signal?: AbortSignal;
   /**
-   * Working directory for the spawned process. Forwarded to
-   * `child_process.execFile` so callers can pin the invocation against a
-   * resolved repo root regardless of `process.cwd()`.
+   * Working directory for the process, allowing callers to pin the invocation
+   * against a resolved repo root regardless of `process.cwd()`.
    */
   cwd?: string;
   /**
@@ -32,7 +33,7 @@ export interface GitExecOptions {
   indexFile?: string;
 }
 
-/** Executable function signature matching child_process.execFile patterns. */
+/** Plain-Promise, argument-array Git execution seam. */
 export type GitExec = (
   cmd: string,
   args: string[],
@@ -43,8 +44,8 @@ export type GitExec = (
  * A git invocation that pipes `input` to the subprocess stdin and resolves with
  * its stdout. The stdin-fed counterpart to {@link GitExec}, for plumbing that
  * reads its payload from stdin (`hash-object --stdin`, `mktree`) — which
- * `execFile`-based {@link GitExec} cannot provide. Production wires a
- * spawn-backed implementation, mirroring the user-notes note writer.
+ * captured-output {@link GitExec} cannot provide. Production wires an
+ * execa stdin adapter without shell interpolation.
  */
 export type GitExecInput = (args: string[], input: string) => Promise<string>;
 
@@ -119,15 +120,14 @@ export interface BoundedFetchResult {
  * Bounded `git fetch origin <ref>` — a non-destructive tracking-ref update under
  * an abort-signal timeout so a hung remote cannot stall a probe.
  *
- * Classifies an abort as `timeout` on the `AbortError` name rather than
- * `signal.aborted`, so a non-abort rejection that lands coincident with the
- * timer is not misread as a timeout. Every other rejection resolves to `error`
- * with the raw cause attached for caller-side refinement.
+ * Classifies a rejection as `timeout` only when this helper's signal fired and
+ * normalization identifies cancellation. Every other rejection resolves to
+ * `error` with its typed failure attached for caller-side refinement.
  *
  * @param exec - Injectable command executor
  * @param ref - Remote ref to fetch (a branch name under `origin`)
  * @param timeoutMs - Abort the fetch after this many milliseconds
- * @returns The fetch outcome, carrying the raw rejection on `error`
+ * @returns The fetch outcome, carrying the normalized rejection on `error`
  */
 export async function boundedFetch(
   exec: GitExec,
@@ -142,8 +142,9 @@ export async function boundedFetch(
     await exec("git", ["fetch", "origin", ref], { signal: controller.signal });
     return { outcome: "ok" };
   } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") return { outcome: "timeout" };
-    return { outcome: "error", error: err };
+    const error = normalizeGitRejection(err, { command: "git", args: ["fetch", "origin", ref] });
+    if (controller.signal.aborted && error.kind === "canceled") return { outcome: "timeout" };
+    return { outcome: "error", error };
   } finally {
     clearTimeout(timer);
   }
@@ -167,8 +168,9 @@ export async function boundedGitInvocation(
     await exec("git", args, { signal: controller.signal });
     return { outcome: "ok" };
   } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") return { outcome: "timeout" };
-    return { outcome: "error", error: err };
+    const error = normalizeGitRejection(err, { command: "git", args });
+    if (controller.signal.aborted && error.kind === "canceled") return { outcome: "timeout" };
+    return { outcome: "error", error };
   } finally {
     clearTimeout(timer);
   }
@@ -281,10 +283,10 @@ export async function gitMergeFile(
     ]);
     return { content: stdout, hasConflicts: false };
   } catch (err: unknown) {
-    const stdout = (err as { stdout?: string }).stdout;
-    if (typeof stdout === "string") {
-      return { content: stdout, hasConflicts: true };
-    }
-    throw err;
+    const error = normalizeGitRejection(err, {
+      command: "git", args: ["merge-file", "-p", current, base, other],
+    });
+    if (error.exitCode === 1) return { content: error.stdout, hasConflicts: true };
+    throw error;
   }
 }

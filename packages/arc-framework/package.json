@@ -8,12 +8,13 @@
   },
   "scripts": {
     "build": "tsup",
+    "benchmark:session-envelope": "npm run build && tsx __tests__/benchmarks/session-envelope-validation.ts",
     "test": "vitest run",
     "test:unit": "vitest run --project unit --project unit-mocks",
     "test:integration": "vitest run --project integration",
     "test:arc-contracts": "vitest run --project integration framework-sync pr-open-extensions review-gate-workflows",
     "test:e2e": "vitest run --project e2e",
-    "test:portability": "vitest run user-sync-notes-lock ref-tree-cas state-ref-race.e2e",
+    "test:portability": "vitest run user-sync-notes-lock ref-tree-cas state-ref-race.e2e git-executor",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --noEmit --project tsconfig.test.json",
@@ -28,6 +29,7 @@
   "dependencies": {
     "@clack/prompts": "^1.1.0",
     "commander": "^15.0.0",
+    "execa": "^10.0.0",
     "js-yaml": "^4.2.0",
     "neverthrow": "^8.2.0",
     "semver": "^7.7.4",

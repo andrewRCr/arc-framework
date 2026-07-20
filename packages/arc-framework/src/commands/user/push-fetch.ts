@@ -23,6 +23,7 @@ import {
 } from "../../lib/user-sync/branch-bounded-notes-export.js";
 import { serializeNotesCompactionManifest } from "../../lib/user-sync/compaction-manifest.js";
 import { uniqueRefToken } from "../../lib/git/ref-tree.js";
+import { gitFailureText } from "../../lib/git/process-error.js";
 import { notesRef } from "./shared.js";
 import { runUserLoad } from "./save-load.js";
 import {
@@ -240,7 +241,7 @@ async function classifyGuardedFetchUpdateFailure(
   attempt: number,
 ): Promise<UserFetchResult> {
   const error = err instanceof Error ? err : new Error(String(err));
-  if (!isCasRejectionError(error.message)) return { kind: "remote-unavailable", error };
+  if (!isCasRejectionError(gitFailureText(err))) return { kind: "remote-unavailable", error };
 
   const currentLocalTip = await readLocalRefHash(io, ref);
   if (currentLocalTip === null) return { kind: "remote-unavailable", error };
@@ -358,8 +359,9 @@ export async function reconcileNotesPush(
       return { kind: "blocked", conditions: err.conditions };
     }
     const error = err instanceof Error ? err : new Error(String(err));
-    if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
-    if (!isNonFastForwardError(error.message)) {
+    const detail = gitFailureText(err);
+    if (isRemoteUnavailableError(detail)) return { kind: "no-remote" };
+    if (!isNonFastForwardError(detail)) {
       return { kind: "failed", error };
     }
     return reconcileAndRepush(options);
@@ -458,7 +460,7 @@ async function reconcileAndRepush(
     }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
-    return isRemoteUnavailableError(error.message)
+    return isRemoteUnavailableError(gitFailureText(err))
       ? { kind: "no-remote" }
       : { kind: "failed", error };
   } finally {
@@ -546,8 +548,9 @@ function reconcileRepushFailureOutcome(err: unknown): NotesPushOutcome {
     return { kind: "blocked", conditions: err.conditions };
   }
   const error = err instanceof Error ? err : new Error(String(err));
-  if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
-  if (isNonFastForwardError(error.message)) {
+  const detail = gitFailureText(err);
+  if (isRemoteUnavailableError(detail)) return { kind: "no-remote" };
+  if (isNonFastForwardError(detail)) {
     return {
       kind: "conflict",
       message:

@@ -19,6 +19,16 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Split session-adjacent supplemental workflows from installation operations**
+
+- _Routed from:_ evacuated `ATOMIC-INBOX`, housekeep drain (2026-07-20).
+- _Concern:_ `system/workflows/arc/supplemental/` mixes session-adjacent helpers with framework installation and
+  maintenance operations. The draft already owns the concrete workflow-directory and compiled-procedure model, so
+  moving files independently would pre-empt its taxonomy.
+- _Approach:_ settle the session-adjacent versus installation-level boundary here, including `add-agent`,
+  `integrate-external-content`, `verify-arc-integrity`, and any future mode-switch operation; then carry the chosen
+  directory move and reference cascade as implementation of that model.
+
 ### `[ ]` **Record the engine-owned control-flow asymptote — as orientation, not intent**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-07-18);

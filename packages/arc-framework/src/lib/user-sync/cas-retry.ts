@@ -27,6 +27,7 @@ import {
   type RefTreeWriteIO,
 } from "../git/ref-tree.js";
 import { isCasRejectionError } from "./notes-merge.js";
+import { gitFailureText } from "../git/process-error.js";
 
 /**
  * A per-ref read-modify-write mutation: given the freshly-read tree entries,
@@ -94,7 +95,7 @@ export async function writeTreeWithCasRetry(
       // A genuine CAS rejection means the ref moved underneath us — re-read and
       // rebuild. Any other (non-CAS) git failure surfaces as a typed failure rather
       // than escaping the frame.
-      if (!isCasRejectionError(error.message)) return { kind: "failed", error };
+      if (!isCasRejectionError(gitFailureText(err))) return { kind: "failed", error };
     }
   }
   return {

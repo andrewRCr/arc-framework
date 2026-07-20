@@ -7,7 +7,6 @@
 import { readFile } from "node:fs/promises";
 
 import { runRecoverStatus } from "../commands/status.js";
-import type { SessionRecoverProbeResult } from "../commands/status.js";
 import {
   parseCompactionSeedJson,
   type CompactionSeed,
@@ -26,22 +25,15 @@ import {
   type RecoveryAuditStopReason,
   type RecoveryAuditVerdict,
 } from "../lib/recover/audit.js";
+import {
+  assertRecoverAuditReport,
+  type RecoverAuditReport,
+} from "../lib/recover/report.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface RecoverAuditOptions {
   json?: boolean;
-}
-
-interface RecoverAuditReport {
-  mode: "recover-audit";
-  seedPath: string | null;
-  seed: Pick<
-    CompactionSeed,
-    "schemaVersion" | "emittedAt" | "head" | "branch" | "sessionType"
-  > | null;
-  recover: SessionRecoverProbeResult | null;
-  verdict: RecoveryAuditVerdict;
 }
 
 /** Handle `arc recover audit`. */
@@ -172,6 +164,7 @@ async function readIdentityPointers(): Promise<{
 }
 
 function writeReport(report: RecoverAuditReport, json: boolean): void {
+  assertRecoverAuditReport(report);
   if (json) {
     process.stdout.write(`${JSON.stringify(report)}\n`);
     return;
