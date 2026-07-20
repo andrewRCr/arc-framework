@@ -8,15 +8,15 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-markdown-formatting.md`
+- **Design:** `spec-markdown-formatting.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Formalization-ready design draft captured
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin `create-spec` from `draft-markdown-formatting.md`
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
