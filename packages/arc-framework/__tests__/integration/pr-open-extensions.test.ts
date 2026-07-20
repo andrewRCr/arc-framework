@@ -170,6 +170,34 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("states the agent-ergonomics and host-enforcement boundary", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const brief = await readFile(resolve(base, "reference/briefs/AGENT-BRIEF.ARC.md"), "utf8");
+      const strategy = await readFile(
+        resolve(base, "reference/strategies/arc/strategy-session-operations.md"),
+        "utf8",
+      );
+      const selfReview = await readFile(resolve(base, "system/methods/self-review.md"), "utf8");
+      const frontline = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
+      const independent = await readFile(resolve(base, "system/methods/independent-analysis.md"), "utf8");
+      const guidance = `${brief}\n${strategy}\n${selfReview}\n${frontline}\n${independent}`
+        .replace(/\s+/gu, " ");
+
+      expect(guidance).toContain("Agent-side review methods and extensions are best-effort ergonomics");
+      expect(guidance).toContain("Only a configured required host-side check structurally enforces merge safety");
+      expect(selfReview.replace(/^> ?/gmu, "").replace(/\s+/gu, " "))
+        .toContain("does not structurally enforce merge safety");
+      expect(frontline.replace(/^> ?/gmu, "").replace(/\s+/gu, " "))
+        .toContain("does not structurally enforce merge safety");
+      expect(independent.replace(/^> ?/gmu, "").replace(/\s+/gu, " "))
+        .toContain("defines evidence eligibility, not merge enforcement");
+    }
+
+    const overview = await readFile(resolve(projectArc, "reference/TECHNICAL-OVERVIEW.md"), "utf8");
+    expect(overview).toContain("The review controller is not operational merge authority");
+    expect(overview).toContain("established manual integration path");
+  });
+
   it("keeps adversarial review launch-neutral and mutation-read-only", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");

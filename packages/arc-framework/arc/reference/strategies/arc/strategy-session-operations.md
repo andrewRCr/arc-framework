@@ -359,6 +359,14 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | review-triage         | integrate-work-unit | Integration phase only                     |
 | session-state         | session-handoff     | Session end only                           |
 
+### Review enforcement boundary
+
+Agent-side review methods and extensions are best-effort ergonomics. Method activation and workflow declarations
+can require an agent to run an activity, and independent analysis can produce evidence eligible for a review
+obligation, but none of those agent-layer controls prevents a direct host-UI merge. Only a configured required
+host-side check structurally enforces merge safety. Projects without that host control must describe review as
+procedural discipline, not a merge guarantee.
+
 ---
 
 ## Interlock Model

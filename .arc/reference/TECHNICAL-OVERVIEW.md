@@ -124,6 +124,10 @@ canonical commit/push path under workflow guidance. Off-workflow commits use raw
 
 ### Self-Hosting Review Gate
 
+The review controller is not operational merge authority. Until its separate qualification and promotion work
+completes, integration uses the established manual integration path and the live legacy CI requirement; checked-in
+controller state, receipts, or verdicts must not be treated as permission to merge.
+
 This repository carries a repository-only TypeScript review controller under
 `packages/arc-framework/src/scripts/review-gate/`; it is linted, typechecked, and tested with the CLI source but is
 outside the tsup entry graph and npm package manifest. Its immutable private entrypoint registry composes three layers:

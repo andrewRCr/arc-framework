@@ -16,6 +16,11 @@ increment; see DEV-RULES.ARC § Task Execution.
 **Methods and extensions:** Behavior modules under `system/methods/` and `system/extensions/`,
 loaded when workflow YAML frontmatter declares them.
 
+**Review authority:** Agent-side review methods and extensions are best-effort ergonomics. They improve a change
+and may produce evidence eligible for a review obligation, but an agent workflow can be bypassed by a host-UI merge.
+Only a configured required host-side check structurally enforces merge safety; never infer that guarantee from
+`self-review`, `frontline-review`, a clean report, or passing local checks.
+
 **Quality gates:** Per-project — defined in DEV-RULES.PROJECT, referenced via the
 `quality-gate-commands` method.
 

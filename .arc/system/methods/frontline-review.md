@@ -16,6 +16,7 @@ override-active: false
 > - **Contract:** Run an advisory pre-publication review from fresh context using `adversarial-review` with the
 >   effective `implementation-audit` rubric. Return grounded findings to the author-side response cycle. Frontline
 >   review cannot satisfy an independent-analysis obligation, produce satisfying evidence, or authorize mutation.
+>   As agent-side ergonomics, it does not structurally enforce merge safety.
 
 ## frontline-review.override
 

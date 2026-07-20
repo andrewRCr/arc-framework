@@ -14,7 +14,8 @@ override-active: false
 >
 > - **Contract:** The authoring agent reviews its aggregate local diff for cross-cutting issues that per-task review
 >   misses. This preflight is not peer/independent review evidence and cannot satisfy a review requirement. Callers
->   decide when to invoke it and what gating applies.
+>   decide when to invoke it and what gating applies. As agent-side ergonomics, it does not structurally enforce
+>   merge safety.
 > - **Related:** [review-triage](review-triage.md) — use for finding classification
 
 ## self-review.override

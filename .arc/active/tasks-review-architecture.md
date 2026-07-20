@@ -477,10 +477,11 @@ with adopter-facing contracts mirrored through the package source.
   and which host-side check can enforce merge safety—without claiming this repository's controller is operational.
 - _Context:_ Implements Design §§2.1, 7–8 and the current WORKING-MEMORY enforcement constraint.
 
-    - `[ ]` **4.5.a Document agent ergonomics versus host guarantee**
-        - Update the ARC brief, relevant strategy/method contracts, and technical overview so self-review/frontline
-          are best-effort and only a configured host gate structurally enforces merge.
-        - Keep enablement/qualification claims out of adopter-facing content and this WU's completion claim.
+    - `[x]` **4.5.a Document agent ergonomics versus host guarantee**
+        - The ARC brief, session-operations strategy, and review method contracts now identify agent-side review as
+          best-effort ergonomics and reserve structural merge safety for a configured required host check. The
+          self-hosting technical overview separately records that its controller is not operational merge authority
+          and preserves the established manual integration path pending later qualification and promotion work.
 
     - `[ ]` **4.5.b Project the rubric into native reviewer surfaces**
         - Build generic projector/validator functions and a package-neutral human checklist from the typed
