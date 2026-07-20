@@ -376,26 +376,25 @@ dispositions in Phase 5.
 - _Outcome:_ Readiness consumers now share one semantic managed path and cross into native paths only for writes,
   while Git evidence, policy comparisons, basename recognition, diagnostics, and golden strings remain independent.
 
-### `[ ]` **4.4 Migrate template-output consumers without coupling source and destination roles**
+### `[x]` **4.4 Migrate template-output consumers without coupling source and destination roles**
 
 - _Goal:_ Init and manifest planning share the validated suffix transform while rendering classification,
   provenance, and destination policy keep their established roles.
 
-    - `[ ]` **4.4.a Retire the parallel template-output helper**
-        - Remove internal-only `toOutputPath()` from `src/lib/classification.ts`; keep `needsRendering()` as the
-          independent source-role classifier rather than deriving it from transformed output.
-        - Move transform-focused tests to the layout contract and retain classification tests for render/copy policy.
+    - `[x]` **4.4.a Retire the parallel template-output helper**
+        - Removed the internal parallel transform and its classification-owned tests; render/copy classification
+          remains source-based, while the layout contract retains the transform matrix and branded output proof.
 
-    - `[ ]` **4.4.b Adopt the transform in fresh installation**
-        - Update `src/commands/init.ts` to parse enumerated template-relative paths and call
-          `resolveTemplateOutputPath()` for destinations while preserving the original source path for
-          classification, rendering, and manifest provenance.
-        - Cover templated, untemplated, nested, and unsafe inputs with literal output expectations.
+    - `[x]` **4.4.b Adopt the transform in fresh installation**
+        - Fresh installation now validates every enumerated source before effects and uses the shared transform only
+          for destinations, preserving source identity for classification, rendering, and manifest provenance.
 
-    - `[ ]` **4.4.c Adopt the transform in manifest planning**
-        - Update `src/lib/manifest/plan.ts` so output-to-template maps and new-output sets use validated transformed
-          destinations while template identities remain unchanged.
-        - Preserve update/apply behavior and reject unsafe enumerated input before a plan reaches filesystem effects.
+    - `[x]` **4.4.c Adopt the transform in manifest planning**
+        - Manifest planning validates source identities before constructing output maps and file-set diffs, retaining
+          template provenance and existing update/apply behavior while rejecting unsafe enumerated inputs.
+
+- _Outcome:_ Installation and update planning now share one validated binding transform without conflating package
+  source identities, transformed destinations, rendering policy, classification, or manifest provenance.
 
 ### `[ ]` **4.5 Preserve independent oracles and representative compatibility**
 

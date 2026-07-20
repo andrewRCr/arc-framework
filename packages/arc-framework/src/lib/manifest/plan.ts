@@ -8,7 +8,8 @@
  * @module
  */
 
-import { classifyFile, fileLayer, toOutputPath } from "../classification.js";
+import { classifyFile, fileLayer } from "../classification.js";
+import { resolveTemplateOutputPath, TemplateRelativePathSchema } from "../layout/index.js";
 import { diffFileLists } from "./update-files.js";
 import type { Classification, Layer, FileEntry, Manifest } from "../types.js";
 
@@ -75,14 +76,19 @@ export function buildChangePlan(
   pristineStore: Record<string, string>,
   arcInGitFiles: ReadonlySet<string>,
 ): FileChangePlan {
+  const templateBindings = templateFiles.map((templateFile) => {
+    const templatePath = TemplateRelativePathSchema.parse(templateFile);
+    return { templatePath, outputPath: resolveTemplateOutputPath(templatePath) };
+  });
+
   // Build output→template mapping
   const outputToTemplate: Record<string, string> = {};
-  for (const tf of templateFiles) {
-    outputToTemplate[toOutputPath(tf)] = tf;
+  for (const { templatePath, outputPath } of templateBindings) {
+    outputToTemplate[outputPath] = templatePath;
   }
 
   // Diff file lists
-  const newOutputFiles = templateFiles.map(toOutputPath);
+  const newOutputFiles = templateBindings.map(({ outputPath }) => outputPath);
   const oldOutputFiles = Object.keys(manifest.files);
   const diff = diffFileLists(oldOutputFiles, newOutputFiles);
 

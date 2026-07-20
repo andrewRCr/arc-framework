@@ -220,5 +220,14 @@ describe("buildChangePlan", () => {
         "reference/PROJECT-PRD.md": "reference/PROJECT-PRD.template.md",
       });
     });
+
+    test.each(["", "/absolute.md", "../outside.md", "nested\\file.md"])(
+      "rejects unsafe enumerated template path %j before constructing a plan",
+      (templateFile) => {
+        const manifest = makeManifest({});
+
+        expect(() => buildChangePlan(manifest, [templateFile], {}, new Set())).toThrow();
+      },
+    );
   });
 });
