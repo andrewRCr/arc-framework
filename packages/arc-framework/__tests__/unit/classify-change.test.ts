@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { symlink } from "node:fs/promises";
+import { chmod, symlink } from "node:fs/promises";
 
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
 import {
@@ -424,6 +424,27 @@ describe("classify-change.sh tree-hash", () => {
 
     expect(await treeHash(repo, proseOnly)).toBe(await treeHash(repo, before));
     expect(await treeHash(repo, codeChanged)).not.toBe(await treeHash(repo, proseOnly));
+  });
+
+  it("does not require GNU sort for NUL-safe tree ordering", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const ref = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
+      "code",
+    );
+    const shimDir = join(repo, ".shims");
+    const sortShim = join(shimDir, "sort");
+    await mkdir(shimDir, { recursive: true });
+    await writeFile(sortShim, "#!/bin/sh\nexit 99\n");
+    await chmod(sortShim, 0o755);
+
+    const hash = await treeHash(repo, ref, {
+      PATH: `${shimDir}:${process.env.PATH ?? ""}`,
+    });
+
+    expect(hash).toMatch(/^[0-9a-f]{40}$/);
   });
 
   it("fails closed for malformed enumeration and serialization failures", async () => {

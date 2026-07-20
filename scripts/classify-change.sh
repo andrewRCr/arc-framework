@@ -448,6 +448,42 @@ _cleanup_tree_hash_files() {
   rm -f "$@"
 }
 
+# Sort NUL-delimited ls-tree records by their raw path bytes. Node is already a
+# repository runtime dependency; Buffer ordering keeps this portable across the
+# GNU and BSD userlands used by supported development environments.
+_sort_tree_listing_by_path() {
+  local input_file="$1" output_file="$2"
+  node --input-type=module - "${input_file}" "${output_file}" <<'NODE'
+import { readFileSync, writeFileSync } from "node:fs";
+
+try {
+  const [inputPath, outputPath] = process.argv.slice(2);
+  if (inputPath === undefined || outputPath === undefined) throw new Error();
+  const input = readFileSync(inputPath);
+  if (input.length > 0 && input[input.length - 1] !== 0) throw new Error();
+
+  const records = [];
+  for (let start = 0; start < input.length;) {
+    const end = input.indexOf(0, start);
+    if (end < 0) throw new Error();
+    const record = input.subarray(start, end);
+    const tab = record.indexOf(0x09);
+    if (tab < 0) throw new Error();
+    records.push({ record, path: record.subarray(tab + 1) });
+    start = end + 1;
+  }
+
+  records.sort((left, right) =>
+    Buffer.compare(left.path, right.path) || Buffer.compare(left.record, right.record),
+  );
+  const nul = Buffer.from([0]);
+  writeFileSync(outputPath, Buffer.concat(records.flatMap(({ record }) => [record, nul])));
+} catch {
+  process.exitCode = 1;
+}
+NODE
+}
+
 # Print a deterministic, versioned identity with independent content-sensitive
 # and packaged-tree-shape layers. NUL boundaries preserve all valid filenames;
 # sensitive packaged entries intentionally appear in both layers.
@@ -467,7 +503,7 @@ _code_tree_hash() {
     return 1
   fi
 
-  if ! LC_ALL=C sort -z -t $'\t' -k2 "${listing_file}" >"${sorted_file}"; then
+  if ! _sort_tree_listing_by_path "${listing_file}" "${sorted_file}"; then
     _cleanup_tree_hash_files "${listing_file}" "${sorted_file}" "${identity_file}"
     return 1
   fi
