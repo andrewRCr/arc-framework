@@ -16,7 +16,7 @@
 - **Next Task:** Task 1.1 — Route every Linux CI job through the fail-safe repository variable
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Route every Linux CI job through the fail-safe repository variable
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

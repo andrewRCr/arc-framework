@@ -292,8 +292,12 @@ duration.
 - **Corrected heavy proof:** run
   [29762585288](https://github.com/andrewRCr/arc-framework/actions/runs/29762585288) found Node 24.18.0 in the runner
   tool cache, emitted `weight=heavy reason=unverified` for the new code tree without a runtime error, and completed
-  the entire graph successfully with every Linux job on `arc-ci-linux` and Windows/macOS hosted. The next
-  metadata-only head preserves that code tree and is the required post-rebuild `reason=verified` proof.
+  the entire graph successfully with every Linux job on `arc-ci-linux` and Windows/macOS hosted.
+- **Corrected verified-tree proof:** metadata-only run
+  [29763087262](https://github.com/andrewRCr/arc-framework/actions/runs/29763087262) preserved the corrected heavy
+  run's code tree, found Node 24.18.0 in the runner tool cache, emitted `weight=light reason=verified`, skipped the
+  heavy Linux graph, and passed the self-hosted light roll-ups. This is the positive post-rebuild proof the
+  adversarial pass found missing.
 
 #### Cost and retention baseline
 

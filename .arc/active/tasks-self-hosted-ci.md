@@ -215,6 +215,10 @@ runner teardown or rebuild, and destructive external steps retain their own expl
           tree without artificial churn; proof run 29705207328 completed as the light lane.
         - Inspected the live classifier job log and confirmed its authenticated API lookback emitted
           `weight=light reason=verified`.
+        - Adversarial verification found that proof predated the destructive rebuild: the rebuilt runners lacked
+          the classifier's undeclared Node runtime and safely forced every code PR heavy. Added pinned
+          `actions/setup-node` before classification, proved the corrected heavy tree in run 29762585288, then
+          proved post-rebuild reuse with `weight=light reason=verified` in metadata-only run 29763087262.
 
     - `[x]` **3.2.c Verify prerequisite failure modes remain diagnosable**
         - Confirmed the service account invokes GitHub CLI 2.46.0 and jq 1.8.1, independently exercised the jq
@@ -410,27 +414,36 @@ architecture source of truth with the accepted operating posture.
 
 _Purpose:_ Verify the settled implementation and operational evidence against the full design and project gates.
 
-### `[ ]` **6.1 Complete trial-cutover verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete trial-cutover verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The repository changes, external runner state, reversible trial cutover, fallback and rebuild evidence,
   checked-in runbook, transferred qualification scope, and every retained success criterion withstand the work-unit
   verification workflow.
+- _Quality gates:_ Local build, Markdown lint, TypeScript lint/typecheck, and 144 focused workflow/classifier tests
+  passed after the adversarial correction; exact-head heavy run 29762585288 passed build, workflow/ARC/Markdown/
+  TypeScript/shell lint, typechecks, unit, integration, E2E, Linux portability, and hosted Windows/macOS portability.
+- _Success criteria:_ Nine criteria: seven met; the canary-acceptance and permanent-architecture criteria are
+  superseded with explicit ownership by the planned Heavy `self-hosted-ci-qualification` work unit.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` All nine normal Linux CI jobs use the fail-safe runner variable and execute on the accepted self-hosted
+- `[x]` All nine normal Linux CI jobs use the fail-safe runner variable and execute on the accepted self-hosted
   route, while Windows/macOS portability plus docs and review-gate workflows remain GitHub-hosted.
-- `[ ]` A comparable heavy run records zero billed hosted Linux job-minutes outside an explicitly identified
+- `[x]` A comparable heavy run records zero billed hosted Linux job-minutes outside an explicitly identified
   fallback drill.
 - `[~]` The canary includes at least seven elapsed days and twenty comparable heavy runs, with p95 `merge-ok`
   latency below ten minutes and no runner-caused flake or unexplained offline stall.
-- `[ ]` The variable-only fallback drill restores hosted Linux execution in under five minutes.
-- `[ ]` A no-backup rebuild from `.github/self-hosted-ci.md` restores every accepted runner service within two
+    - **Superseded:** transferred intact to the planned Heavy `self-hosted-ci-qualification` work unit, which starts
+      only after both the 2026-07-26 21:49:27Z elapsed floor and twenty-run floor are satisfied.
+- `[x]` The variable-only fallback drill restores hosted Linux execution in under five minutes.
+- `[x]` A no-backup rebuild from `.github/self-hosted-ci.md` restores every accepted runner service within two
   hours.
-- `[ ]` The live portability check is named `Portability (concurrency guards) (linux)`, matches the classifier,
+- `[x]` The live portability check is named `Portability (concurrency guards) (linux)`, matches the classifier,
   and a known-verified tree produces `weight=light reason=verified` on self-hosted execution.
 - `[~]` `TECHNICAL-OVERVIEW.md` § 3 records the accepted self-hosted Linux execution target at permanent cutover.
-- `[ ]` All quality gates pass (tests, linting, type checking, build, workflow parsing, and shell linting).
-- `[ ]` Ready for integration.
+    - **Superseded:** permanent-posture reconciliation belongs to `self-hosted-ci-qualification`; this work unit
+      intentionally delivers a reversible trial and makes no premature durable architecture claim.
+- `[x]` All quality gates pass (tests, linting, type checking, build, workflow parsing, and shell linting).
+- `[x]` Ready for integration.
