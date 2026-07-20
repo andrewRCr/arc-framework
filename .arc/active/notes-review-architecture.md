@@ -2,8 +2,37 @@
 
 ## Contents
 
+- Scope and proportionality boundaries
 - Touched-surface map (task-gen scoping)
 - Key implementation loci
+
+## Scope and proportionality boundaries
+
+The core stays one work unit because facts → routing → review projection → methods/frontline/response → workflow
+rollout is one forward-contract cutover. Splitting inside that chain would create an unusable intermediate contract
+or duplicate migration ownership. The separately shippable concern is mechanical lifecycle readiness: its
+record/reducer, project adapter, live proof, and required-check promotion remain with
+`review-gate-enforcement-qualification` and `review-gate-enforcement-promotion`.
+
+Keep implementation at the established seams:
+
+- Do not add a generic provider registry, assurance-group algebra, or live-controller activation.
+- Do not add a storage/configuration axis. Machine-local continuity uses one storage-neutral operation-state port
+  and a Git-common-directory project adapter that can later lift into the shared storage abstraction.
+- Keep local receipt evidence and non-evidentiary operation state in separate authorities even when they reuse the
+  same low-level bounded-lock/atomic-publish primitive.
+- Make exact identities, strict v1/v2 separation, pre-mutation authorization, and version-checked local writes
+  robust because they protect concrete trust or concurrency boundaries; avoid generalized machinery beyond those
+  cases.
+- Keep semantic-ID hardening record-specific: exact registered preimage schemas and shared golden vectors for the
+  four gate join IDs, not a generic identity framework beyond the existing Kernel canonical-digest primitive.
+- Close local review through one source-neutral route → request → launch → normalize → attest → reduce → response
+  seam shared by WUs and Errands; do not add a resident orchestration engine.
+- Keep the agent-workflow merge guard here: review settlement only enters candidate assembly, and no merge command
+  is eligible before cadence-required products, complete-tail surfacing, and the final exact-head interlock.
+
+A break-out is warranted only if implementation discovers another independently shippable subsystem, a new
+storage/configuration axis, or a cleanly separable concern not required to make the core contract usable.
 
 ## Touched-surface map
 
@@ -25,9 +54,15 @@ marked project-only. Ripple is wide but individually small.
 - **DEV-RULES.ARC** — concise disposition-invariant anchor (verify findings against source; approve the disposition
   set before fixes land).
 - **CLI** — shared changed-path fact resolver; the routing reducer (the total mapping); the gate-projection contract
-  (forward-only version bump; v1-evidence invalidation); semantic review records register with the schema kernel.
+  (forward-only version bump; v1-evidence invalidation); every durable review record is Zod-authoritative and
+  registers with the schema kernel.
+- **Local state** — Git-common-directory local receipt authority plus a separate, non-evidentiary
+  `ReviewOperationStateStore` for frontline continuity and review suspension; both reuse one bounded-lock /
+  atomic-publish primitive without sharing authority.
 - **Scripts** — `classify-change.sh` becomes a status/rename adapter over the CLI resolver.
 - **Strategy docs** — review-channel posture, review overlay, and enforcement division where they surface.
+- **Downstream qualification** — owns the lifecycle-readiness record/reducer/project adapter, bounded live proof,
+  and required-check cutover; this WU supplies the independent-analysis projection and workflow merge boundary.
 
 ## Key implementation loci
 
@@ -37,10 +72,15 @@ marked project-only. Ripple is wide but individually small.
   regex) retires in favor of the canonical predicate.
 - `packages/arc-framework/src/scripts/review-gate/` — gate-contract forward-only version bump; current v1
   receipts/evidence become ineligible for the new requirement.
+- `packages/arc-framework/src/scripts/review-gate/policy/self-hosting/qualification.ts` — remains a project policy
+  binding for review-source qualification; lifecycle-readiness implementation does not land here in this WU.
+- Review-gate local receipt/storage modules — factor the existing Git-common-directory lock/atomic-publish
+  primitive for separate receipt and review-operation namespaces.
 - `.arc/system/workflows/project/coordinate-pr-review.md` — stays the project binding; graduate the reusable
   procedure into `review-response` + the strengthened `review-triage` contract.
 - `.arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md` — reconcile the doubled `pre-push-review`
-  callouts; interlock reshape.
+  callouts; make `review-settled` candidate entry rather than merge authority; compose and surface the exact tail
+  before the final interlock.
 - `.arc/system/methods/review-triage.md`, `.arc/system/methods/diff-review.md` — upgrade / rename.
 - `.arc/system/arc-config.yml` — `review.pre_merge` retires.
 - `.arc/system/extensions/{pre-pr-open,post-pr-open,pre-merge,pre-commit-review,pre-push-review}.md`.
