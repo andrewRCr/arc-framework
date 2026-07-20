@@ -1,0 +1,102 @@
+/** Exact-head admission contract for local independent-analysis carriers. */
+
+import { z } from "zod";
+
+import {
+  createReviewRequest,
+  validateReviewTarget,
+} from "./gate-contract-v2.js";
+import {
+  GitObjectIdSchema,
+  ReviewCanonicalDigestSchema,
+  ReviewTargetSchema,
+  type ReviewRequestV2,
+  type ReviewTarget,
+} from "./gate-contract-v2-schema.js";
+
+const IdentifierSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u);
+
+export const LocalChangeSetSnapshotSchema = z.strictObject({
+  state: z.enum(["exact", "uncommitted", "unborn"]),
+  repositoryId: IdentifierSchema,
+  baseRef: IdentifierSchema,
+  diffBaseSha: GitObjectIdSchema,
+  diffBaseTree: GitObjectIdSchema,
+  headSha: GitObjectIdSchema,
+  headTree: GitObjectIdSchema,
+});
+export type LocalChangeSetSnapshot = z.infer<typeof LocalChangeSetSnapshotSchema>;
+
+export const LocalAttestationBindingSchema = z.strictObject({
+  evaluatorIdentity: IdentifierSchema,
+  runtimeIdentity: IdentifierSchema,
+  mechanism: IdentifierSchema,
+});
+export type LocalAttestationBinding = z.infer<typeof LocalAttestationBindingSchema>;
+
+export const LocalChangeSetCarrierInputSchema = z.strictObject({
+  target: ReviewTargetSchema,
+  requirementId: ReviewCanonicalDigestSchema,
+  snapshot: LocalChangeSetSnapshotSchema,
+  authorIdentity: IdentifierSchema,
+  evaluatorIdentity: IdentifierSchema,
+  attestation: LocalAttestationBindingSchema,
+  generation: z.number().int().nonnegative(),
+  requestMechanism: IdentifierSchema,
+});
+export type LocalChangeSetCarrierInput = z.infer<typeof LocalChangeSetCarrierInputSchema>;
+
+/** One admitted local request plus the attestation identities later receipt production must retain. */
+export interface LocalChangeSetCarrierContract {
+  target: ReviewTarget;
+  request: ReviewRequestV2;
+  attestation: LocalAttestationBinding;
+}
+
+function snapshotMatchesTarget(snapshot: LocalChangeSetSnapshot, target: ReviewTarget): boolean {
+  return snapshot.repositoryId === target.repositoryId
+    && snapshot.baseRef === target.baseRef
+    && snapshot.diffBaseSha === target.diffBaseSha
+    && snapshot.diffBaseTree === target.diffBaseTree
+    && snapshot.headSha === target.headSha
+    && snapshot.headTree === target.headTree;
+}
+
+/**
+ * Admit a local request only for one committed snapshot and separated evaluator/attestor identities.
+ *
+ * @param input - Exact target, observed Git coordinates, and local actor bindings.
+ * @returns The validated target, derived local request, and retained attestation binding.
+ */
+export function createLocalChangeSetCarrier(
+  input: LocalChangeSetCarrierInput,
+): LocalChangeSetCarrierContract {
+  const parsed = LocalChangeSetCarrierInputSchema.parse(input);
+  if (parsed.snapshot.state !== "exact") {
+    throw new Error(`unsupported local review state: ${parsed.snapshot.state}`);
+  }
+  const target = validateReviewTarget(parsed.target);
+  if (!snapshotMatchesTarget(parsed.snapshot, target)) {
+    throw new Error("local review snapshot does not match the exact target");
+  }
+  if (parsed.attestation.evaluatorIdentity !== parsed.evaluatorIdentity) {
+    throw new Error("local attestation evaluator does not match the admitted evaluator");
+  }
+  if (parsed.attestation.runtimeIdentity === parsed.evaluatorIdentity
+    || parsed.attestation.runtimeIdentity === parsed.authorIdentity) {
+    throw new Error("local attesting runtime must remain distinct from review actors");
+  }
+  const request = createReviewRequest(target, {
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    repositoryId: target.repositoryId,
+    targetId: target.targetId,
+    requirementId: parsed.requirementId,
+    carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
+    authorIdentity: parsed.authorIdentity,
+    evaluatorIdentity: parsed.evaluatorIdentity,
+    generation: parsed.generation,
+    requestMechanism: parsed.requestMechanism,
+  });
+  return { target, request, attestation: parsed.attestation };
+}

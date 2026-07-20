@@ -292,11 +292,10 @@ readiness.
   implicitly.
 - _Context:_ Implements Design §2.1 and Success Criterion 4.
 
-    - `[ ]` **3.4.a Add the local-change-set carrier contract**
-        - Represent repository/base/head target coordinates with `changeRequestId: null`, an exact local carrier,
-          and bound author/evaluator identities.
-        - Build `test-first` checks for author/evaluator separation, exact-tree coverage, unsupported local state,
-          and evaluator/attestor identity mismatch.
+    - `[x]` **3.4.a Add the local-change-set carrier contract**
+        - Added a strict local admission contract that revalidates the full repository/base/head snapshot, derives
+          only the fixed `local-change-set` carrier with a null change-request identity, rejects uncommitted and
+          unborn state, and binds separated author, evaluator, and attesting-runtime identities.
 
     - `[ ]` **3.4.b Implement the local receipt authority**
         - Add a `ReviewReceiptStore` implementation rooted under the repository's Git common directory, with no new
