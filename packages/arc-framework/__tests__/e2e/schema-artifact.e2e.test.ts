@@ -28,6 +28,7 @@ describe("production schema artifact", () => {
       "review-assurance-input",
       "review-guidance-digest-preimage",
       "review-method-activity",
+      "review-policy-version-preimage",
       "review-receipt",
       "review-request",
       "review-request-id-preimage",

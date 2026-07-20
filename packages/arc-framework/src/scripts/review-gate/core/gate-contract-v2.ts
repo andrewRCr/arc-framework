@@ -27,6 +27,7 @@ import {
   type ReviewTarget,
   type ReviewTargetInput,
 } from "./gate-contract-v2-schema.js";
+import { computeReviewPolicyVersion } from "./identity.js";
 
 function targetPreimage(target: ReviewTargetInput) {
   return ReviewTargetIdPreimageSchema.parse({
@@ -60,6 +61,28 @@ function requirementPreimage(requirement: Omit<ReviewRequirementV2, "requirement
   return ReviewRequirementIdPreimageSchema.parse({
     domain: "arc.review-gate.requirement-id/v2",
     ...requirement,
+  });
+}
+
+function policyVersionFor(requirement: {
+  obligation: "recommended" | "required";
+  rubricVersion: string;
+  rubricDigest: string;
+  retrigger: ReviewRequirementV2["retrigger"];
+  acceptableSources: ReviewRequirementV2["acceptableSources"];
+  initialAdmission: ReviewRequirementV2["initialAdmission"];
+}): string {
+  return computeReviewPolicyVersion({
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    kind: "independent-analysis",
+    obligation: requirement.obligation,
+    rubricVersion: requirement.rubricVersion,
+    rubricDigest: requirement.rubricDigest,
+    retrigger: requirement.retrigger,
+    count: 1,
+    acceptableSources: requirement.acceptableSources,
+    initialAdmission: requirement.initialAdmission,
   });
 }
 
@@ -115,20 +138,28 @@ export function createReviewRequirement(
   const creation = ReviewRequirementCreationInputSchema.parse(input);
   const target = validateReviewTarget(creation.target);
   if (creation.projection.obligation === "exempt") return null;
+  const policyFields = {
+    obligation: creation.projection.obligation,
+    rubricVersion: creation.projection.rubricVersion,
+    rubricDigest: creation.projection.rubricDigest,
+    retrigger: creation.projection.retrigger,
+    acceptableSources: normalizedSet(creation.acceptableSources),
+    initialAdmission: creation.initialAdmission,
+  };
   const fields = {
     schemaVersion: 2 as const,
     semanticsVersion: "review-gate/v2" as const,
     targetId: target.targetId,
     kind: "independent-analysis" as const,
-    obligation: creation.projection.obligation,
+    obligation: policyFields.obligation,
     reasons: normalizedSet(creation.projection.reasons),
-    rubricVersion: creation.projection.rubricVersion,
-    rubricDigest: creation.projection.rubricDigest,
-    retrigger: creation.projection.retrigger,
+    rubricVersion: policyFields.rubricVersion,
+    rubricDigest: policyFields.rubricDigest,
+    retrigger: policyFields.retrigger,
     count: 1 as const,
-    acceptableSources: normalizedSet(creation.acceptableSources),
-    initialAdmission: creation.initialAdmission,
-    policyVersion: creation.policyVersion,
+    acceptableSources: policyFields.acceptableSources,
+    initialAdmission: policyFields.initialAdmission,
+    policyVersion: policyVersionFor(policyFields),
   };
   return validateReviewRequirement(target, {
     ...fields,
@@ -144,6 +175,9 @@ export function validateReviewRequirement(targetInput: unknown, input: unknown):
     throw new Error("review requirement target identity does not match its target");
   }
   const { requirementId, ...fields } = requirement;
+  if (policyVersionFor(fields) !== requirement.policyVersion) {
+    throw new Error("review requirement policy version does not match its semantic inputs");
+  }
   if (canonicalDigest(requirementPreimage(fields)) !== requirementId) {
     throw new Error("review requirement ID does not match its preimage");
   }

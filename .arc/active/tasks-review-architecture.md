@@ -235,7 +235,7 @@ readiness.
           bounded GitHub check rendering, and a private runtime entrypoint. Exact identities now cross each boundary
           without admitting legacy evidence or moving provider finding normalization into the neutral core.
 
-### `[ ]` **3.2 Bind rubric, guidance, and policy identities**
+### `[x]` **3.2 Bind rubric, guidance, and policy identities**
 
 - _Goal:_ Gate satisfaction proves both the required independent-analysis contract and the exact instructions a
   carrier received, while policy identity changes whenever obligation or admission semantics change.
@@ -253,10 +253,10 @@ readiness.
           forward guidance digest; missing, stale, unreadable, nested-conflicting, or mismatched guidance cannot
           qualify, while the schema-v1 command digest remains explicitly bounded to compatibility use.
 
-    - `[ ]` **3.2.c Expand policy identity inputs**
-        - Fold normalized obligation, source qualifiers, admission policy, rubric pair, and retrigger treatment into
-          `policyVersion` through `core/identity.ts`.
-        - Add stale-membership tests proving a receipt from any prior identity cannot satisfy the new requirement.
+    - `[x]` **3.2.c Expand policy identity inputs**
+        - Added a registered domain-separated policy preimage over normalized obligation, source qualifiers,
+          admission, rubric identity, and retrigger semantics. Requirement construction now derives the digest and
+          validation recomputes it; stale receipts fail membership after any covered policy input changes.
 
 ### `[ ]` **3.3 Implement exact retrigger and carry-forward proofs**
 

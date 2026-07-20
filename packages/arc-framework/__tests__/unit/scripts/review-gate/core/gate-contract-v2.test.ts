@@ -22,6 +22,24 @@ import {
 
 const objectId = (character: string): string => character.repeat(40);
 
+interface PolicyIdentityOverride {
+  obligation?: "recommended" | "required";
+  acceptableSources?: Array<{ sourceKind: string; qualifier: string | null }>;
+  initialAdmission?: "automatic" | "checkpoint";
+  rubricVersion?: string;
+  rubricDigest?: `sha256:${string}`;
+  retrigger?: "incremental" | "full-final";
+}
+
+const policyIdentityChanges: ReadonlyArray<readonly [string, PolicyIdentityOverride]> = [
+  ["obligation", { obligation: "recommended" }],
+  ["source qualifier", { acceptableSources: [{ sourceKind: "agent", qualifier: "carrier/v2" }] }],
+  ["admission", { initialAdmission: "checkpoint" }],
+  ["rubric version", { rubricVersion: "independent-analysis/v2" }],
+  ["rubric digest", { rubricDigest: canonicalDigest({ rubric: "replacement" }) }],
+  ["retrigger", { retrigger: "incremental" }],
+];
+
 describe("review gate v2 contract", () => {
   it("derives one exact change-set target from its registered preimage", () => {
     const target = createReviewTarget({
@@ -229,7 +247,6 @@ describe("review gate v2 contract", () => {
       headTree: objectId("d"),
     });
     const rubricDigest = INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest;
-    const policyVersion = canonicalDigest({ policy: "self-hosting/v2" });
     const requirement = createReviewRequirement({
       target,
       projection: {
@@ -246,7 +263,6 @@ describe("review gate v2 contract", () => {
         { sourceKind: "human", qualifier: null },
       ],
       initialAdmission: "automatic",
-      policyVersion,
     });
     if (requirement === null) throw new Error("expected a non-exempt requirement");
 
@@ -272,7 +288,7 @@ describe("review gate v2 contract", () => {
         { sourceKind: "human", qualifier: null },
       ],
       initialAdmission: "automatic",
-      policyVersion,
+      policyVersion: "sha256:06d07df0790bedb433464d3646296053ab3e3c224b07c947003f12993427456d",
     }));
   });
 
@@ -301,7 +317,6 @@ describe("review gate v2 contract", () => {
       },
       acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
       initialAdmission: "automatic",
-      policyVersion: canonicalDigest({ policy: "self-hosting/v2" }),
     });
     if (requirement === null) throw new Error("expected requirement");
     const request = createReviewRequest(target, {
@@ -396,7 +411,6 @@ describe("review gate v2 contract", () => {
         { sourceKind: "agent", qualifier: "independent-analysis/v1" },
       ],
       initialAdmission: "automatic" as const,
-      policyVersion: canonicalDigest({ policy: "self-hosting/v2" }),
     };
     const requirement = createReviewRequirement(requirementInput);
     const reordered = createReviewRequirement({
@@ -416,7 +430,7 @@ describe("review gate v2 contract", () => {
     }).toEqual({
       targetId: "sha256:d4289a08f0d41356739446723949aaf892a2de41fb6510f6f065a4c93b26bcbd",
       requestId: "sha256:480e17fe526675904ddc4124b18108214be44b199a82dad7a8d6e5f7990aea8b",
-      requirementId: "sha256:cb4b827d547becb161814c809b8bf95151c2b1bee5e811264c4ac3ff31591d3f",
+      requirementId: "sha256:c47fa4ec60c27c990942466ec01861904a570ec631fd0b0f695a87b2b1f3e751",
     });
     expect(new Set([target.targetId, request.requestId, requirement.requirementId]).size).toBe(3);
     expect(reordered.requirementId).toBe(requirement.requirementId);
@@ -474,7 +488,6 @@ describe("review gate v2 contract", () => {
       },
       acceptableSources: [{ sourceKind: "agent", qualifier: null }],
       initialAdmission: "automatic" as const,
-      policyVersion: canonicalDigest({ policy: "self-hosting/v2" }),
     };
     const requirement = createReviewRequirement(requirementInput);
     const checkpoint = createReviewRequirement({ ...requirementInput, initialAdmission: "checkpoint" });
@@ -510,7 +523,6 @@ describe("review gate v2 contract", () => {
       },
       acceptableSources: [{ sourceKind: "agent", qualifier: null }],
       initialAdmission: "automatic",
-      policyVersion: canonicalDigest({ policy: "self-hosting/v2" }),
     });
     if (requirement === null) throw new Error("expected requirement");
     const request = createReviewRequest(target, {
@@ -555,5 +567,81 @@ describe("review gate v2 contract", () => {
       ...receipt,
       rubricDigest: canonicalDigest({ rubric: "other" }),
     })).toThrow(/rubric/u);
+  });
+
+  it.each(policyIdentityChanges)("rejects a receipt from a prior %s policy identity", (_field, override) => {
+    const target = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: "repo-1",
+      baseRef: "main",
+      diffBaseSha: objectId("a"),
+      diffBaseTree: objectId("b"),
+      headSha: objectId("c"),
+      headTree: objectId("d"),
+    });
+    const projection = {
+      obligation: "required" as const,
+      reasons: ["sensitive-change-set" as const],
+      rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
+      rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
+      retrigger: "full-final" as const,
+      count: 1 as const,
+    };
+    const acceptableSources = [{ sourceKind: "agent", qualifier: "carrier/v1" }];
+    const priorRequirement = createReviewRequirement({
+      target,
+      projection,
+      acceptableSources,
+      initialAdmission: "automatic",
+    });
+    if (priorRequirement === null) throw new Error("expected prior requirement");
+    const priorRequest = createReviewRequest(target, {
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      repositoryId: target.repositoryId,
+      targetId: target.targetId,
+      requirementId: priorRequirement.requirementId,
+      carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
+      authorIdentity: "andrew",
+      evaluatorIdentity: "reviewer-1",
+      generation: 0,
+      requestMechanism: "automatic",
+    });
+    const priorReceipt = createReviewReceipt({
+      target,
+      requirement: priorRequirement,
+      request: priorRequest,
+      applicabilityId: null,
+      reviewRunId: "run-1",
+      evaluatorIdentity: "reviewer-1",
+      attestingRuntimeIdentity: "local-attestor",
+      attestationMechanism: "local-runtime",
+      providerEventIdentity: null,
+      result: "clean",
+    });
+    const nextRequirement = createReviewRequirement({
+      target,
+      projection: {
+        ...projection,
+        obligation: override.obligation ?? projection.obligation,
+        rubricVersion: override.rubricVersion ?? projection.rubricVersion,
+        rubricDigest: override.rubricDigest ?? projection.rubricDigest,
+        retrigger: override.retrigger ?? projection.retrigger,
+      },
+      acceptableSources: override.acceptableSources ?? acceptableSources,
+      initialAdmission: override.initialAdmission ?? "automatic",
+    });
+    if (nextRequirement === null) throw new Error("expected next requirement");
+
+    expect(nextRequirement.policyVersion).not.toBe(priorRequirement.policyVersion);
+    expect(nextRequirement.requirementId).not.toBe(priorRequirement.requirementId);
+    expect(() => validateReviewReceipt(
+      target,
+      nextRequirement,
+      priorRequest,
+      priorReceipt,
+    )).toThrow(/requirement/u);
   });
 });

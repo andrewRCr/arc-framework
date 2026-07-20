@@ -38,7 +38,6 @@ function contract() {
     },
     acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
     initialAdmission: "automatic",
-    policyVersion: canonicalDigest({ policy: "self-hosting/v2" }),
   });
   if (requirement === null) throw new Error("expected requirement");
   const request = createReviewRequest(target, {

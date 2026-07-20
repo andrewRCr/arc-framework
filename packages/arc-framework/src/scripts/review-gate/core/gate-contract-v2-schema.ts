@@ -109,6 +109,37 @@ function isSortedUnique(values: readonly unknown[]): boolean {
   return sortByCanonicalBytes(values).map(canonicalize).every((key, index) => key === keys[index]);
 }
 
+const ReviewPolicyVersionFieldsSchema = z.strictObject({
+  schemaVersion: z.literal(2),
+  semanticsVersion: ReviewGateV2SemanticsSchema,
+  kind: z.literal("independent-analysis"),
+  obligation: z.enum(["recommended", "required"]),
+  rubricVersion: ReviewIdentifierSchema,
+  rubricDigest: ReviewCanonicalDigestSchema,
+  retrigger: ReviewRetriggerSchema,
+  count: z.literal(1),
+  acceptableSources: z.array(ReviewAcceptedSourceSchema).min(1),
+  initialAdmission: z.enum(["automatic", "checkpoint"]),
+});
+
+function policyVersionIsNormalized(policy: z.infer<typeof ReviewPolicyVersionFieldsSchema>): boolean {
+  return policy.retrigger !== "none" && isSortedUnique(policy.acceptableSources);
+}
+
+export const ReviewPolicyVersionInputSchema = ReviewPolicyVersionFieldsSchema.refine(
+  policyVersionIsNormalized,
+  { message: "policy sources must be sorted and unique, with a non-exempt retrigger" },
+);
+export type ReviewPolicyVersionInput = z.infer<typeof ReviewPolicyVersionInputSchema>;
+
+export const ReviewPolicyVersionPreimageSchema = z.strictObject({
+  domain: z.literal("arc.review-gate.policy-version/v2"),
+  ...ReviewPolicyVersionFieldsSchema.shape,
+}).refine(policyVersionIsNormalized, {
+  message: "policy sources must be sorted and unique, with a non-exempt retrigger",
+});
+export type ReviewPolicyVersionPreimage = z.infer<typeof ReviewPolicyVersionPreimageSchema>;
+
 const ReviewRequirementFieldsSchema = z.strictObject({
   schemaVersion: z.literal(2),
   semanticsVersion: ReviewGateV2SemanticsSchema,
@@ -152,7 +183,6 @@ export const ReviewRequirementCreationInputSchema = z.strictObject({
   projection: IndependentAnalysisObligationProjectionSchema,
   acceptableSources: z.array(ReviewAcceptedSourceSchema).min(1),
   initialAdmission: z.enum(["automatic", "checkpoint"]),
-  policyVersion: ReviewCanonicalDigestSchema,
 });
 export type ReviewRequirementCreationInput = z.infer<typeof ReviewRequirementCreationInputSchema>;
 
@@ -214,6 +244,11 @@ export function registerReviewGateV2Schemas(registry: KernelRegistry): KernelReg
   });
   registry.register(ReviewRequirementIdPreimageSchema, {
     id: "review-requirement-id-preimage",
+    version: 2,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ReviewPolicyVersionPreimageSchema, {
+    id: "review-policy-version-preimage",
     version: 2,
     migrationPosture: "strict-current",
   });
