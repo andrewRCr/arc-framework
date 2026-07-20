@@ -19,6 +19,19 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Treat branch-carried project projections as the defect, not only their merge conflicts**
+
+- *Routed from:* parallelism-GA operating review and housekeep drain (2026-07-20).
+- *Evidence:* with three to six work units plus errands running concurrently, `ROADMAP.md` conflicts now add repeated
+  activation, verification, and integration churn. Agents often investigate regeneration mechanics for minutes before
+  discovering the canonical staged-index render command; conflict recovery is only the visible tax of carrying a
+  shared derived projection on every branch.
+- *Posture for grooming:* strengthen the target beyond a more discoverable resolver or merge driver. A work-unit or
+  grooming branch should not carry a project-level `ROADMAP` / eventual `STATUS.PROJECT` projection diff at all.
+  Prefer on-demand or explicitly materialized/base-owned views sourced from authoritative operational state, aligned
+  with `operational-state-docs`, `local-mode`, `arc-backend`, and the storage-evolution north star. Keep the existing
+  resolver wiring as an interim mitigation, but do not mistake faster recovery for the long-term boundary.
+
 ### `[ ]` **Materialize pollutes ROADMAP consistency; in-flight rows key on ephemeral refs**
 
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: roadmap-tooling`), housekeep drain (2026-07-18); captured
