@@ -187,6 +187,43 @@ describe("GitHub host read adapter", () => {
     });
   });
 
+  it("retains copied and type-changed statuses at the host projection boundary", async () => {
+    const changedPaths = [
+      {
+        status: "copied" as const,
+        path: "src/copy.ts",
+        previousPath: "src/original.ts",
+        oldMode: "100644" as const,
+        newMode: "100644" as const,
+      },
+      {
+        status: "type-changed" as const,
+        path: "src/link.ts",
+        oldMode: "100644" as const,
+        newMode: "120000" as const,
+      },
+    ];
+
+    const resolved = await adapter({
+      resolveChangeRequest: async () => ({
+        kind: "resolved",
+        changeRequest,
+        context: {
+          changedPaths,
+          author: { identity: "7", nodeId: "U_7", login: "author", kind: "user" },
+          isDraft: false,
+          isCrossRepository: false,
+          mergeability: "mergeable",
+        },
+      }),
+    }).resolveChangeRequest(changeRequest.hostRef);
+
+    expect(resolved.context.changedPaths).toEqual([
+      { status: "copied", path: "src/copy.ts", previousPath: "src/original.ts" },
+      { status: "type-changed", path: "src/link.ts" },
+    ]);
+  });
+
   it("resolves login-addressed capability while retaining immutable identity", async () => {
     await expect(adapter().resolveActorCapabilities({ login: "author", expectedActorId: "7" })).resolves.toEqual({
       schemaVersion: 1,

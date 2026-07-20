@@ -9,11 +9,10 @@
 _Purpose:_ Establish the normalized change and work facts plus their runtime-schema authority before any policy,
 gate, or workflow consumes them.
 
-### `[ ]` **1.1 Lift canonical change facts into the CLI**
+### `[x]` **1.1 Lift canonical change facts into the CLI**
 
 - _Goal:_ CI weight, review risk, ownership, and review routing consume one validated six-status record, with every
   ambiguous Git shape represented as an unknown change set instead of a weaker parallel interpretation.
-- _Context:_ Implements Design §1.3 against the delivered `classify-change-granularity` shell contract.
 
     - `[x]` **1.1.a Extract the canonical raw-diff parser and record types**
         - Added a dependency-free byte parser and raw Git port in `change-facts.ts`; all six statuses retain exact
@@ -28,13 +27,13 @@ gate, or workflow consumes them.
           module; the shell retains its public commands and conservative path fallback, with Node 24 pinned before
           the dependency-free CI classification path.
 
-    - `[ ]` **1.1.d Replace review-gate change-path approximations**
-        - Migrate `hosts/github/coverage.ts`, `policy/self-hosting/lane.ts`, and runtime composition away from their
-          four-status and TypeScript-extension-only interpretations.
-        - Keep any lossy `copied → added` or `type-changed → modified` projection named and downstream of the
-          canonical resolver.
-        - Update the focused coverage, lane, and runtime-composition suites to prove all six statuses, both
-          rename/copy endpoints, fail-closed malformed input, and removal of silent legacy projections.
+    - `[x]` **1.1.d Replace review-gate change-path approximations**
+        - Routed GitHub coverage, host projection, self-hosting lane policy, provider locators, and runtime
+          composition through canonical changes; copy/type-change identities and both moved endpoints now survive
+          downstream, while malformed raw input fails closed and code-surface policy uses the shared classifier.
+
+- _Outcome:_ CI classification and review-gate coverage, routing, and risk composition now share one dependency-free
+  raw-diff authority, eliminating the parallel status parser and extension-only code-surface approximation.
 
 ### `[ ]` **1.2 Resolve ownership and surface authority at exact refs**
 

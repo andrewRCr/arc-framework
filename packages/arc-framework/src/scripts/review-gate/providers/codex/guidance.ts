@@ -54,7 +54,7 @@ function guidanceCandidates(target: string): string[] {
 function changedTargets(changes: readonly HostChangedPath[]): string[] {
   const targets: string[] = [];
   for (const change of changes) {
-    if (change.status === "renamed") targets.push(change.previousPath, change.path);
+    if (change.previousPath !== undefined) targets.push(change.previousPath, change.path);
     else targets.push(change.path);
   }
   return [...new Set(targets)];

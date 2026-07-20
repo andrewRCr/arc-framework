@@ -3,18 +3,15 @@
 import { posix } from "node:path";
 
 import { parseMetaRecord } from "../../../../lib/active/meta-reader.js";
+import type { CanonicalChange, ChangeStatus } from "../../../../lib/change-facts.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { readMetaAtRef } from "../../../../lib/git/remote-ref-reader.js";
 
 /** Changed-path status supplied by the host adapter. */
-export type ChangedPathStatus = "added" | "modified" | "deleted" | "renamed";
+export type ChangedPathStatus = ChangeStatus;
 
 /** One changed path, with its prior location for renames. */
-export interface ChangedPath {
-  status: ChangedPathStatus;
-  path: string;
-  previousPath?: string;
-}
+export type ChangedPath = Pick<CanonicalChange, "status" | "path" | "previousPath">;
 
 /** Inputs for the ref-backed lane decision. */
 export interface AutoLaneInput {
@@ -95,7 +92,7 @@ export async function resolveAutoLane(input: AutoLaneInput): Promise<LaneDecisio
   for (const change of input.changes) {
     const group = groupForPath(change.path);
     if (group === null) return { lane: "reviewed", reasons: ["non-lane-path"] };
-    if (change.status === "renamed") {
+    if (change.status === "renamed" || change.status === "copied") {
       const previous = change.previousPath === undefined ? null : groupForPath(change.previousPath);
       if (previous === null || previous.key !== group.key) {
         return { lane: "reviewed", reasons: ["ambiguous-move"] };

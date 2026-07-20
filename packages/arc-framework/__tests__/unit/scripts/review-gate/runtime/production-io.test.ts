@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ExecResult, GitExec } from "../../../../../src/lib/git/exec.js";
-import { createAuthenticatedGitExec } from "../../../../../src/scripts/review-gate/runtime/production-io.js";
+import type { RawGitExec } from "../../../../../src/lib/change-facts.js";
+import {
+  createAuthenticatedGitExec,
+  createAuthenticatedRawGitExec,
+} from "../../../../../src/scripts/review-gate/runtime/production-io.js";
 
 const TOKEN = "ghs_narrowreadtoken";
 const EXPECTED_HEADER = `http.extraheader=AUTHORIZATION: basic ${Buffer.from(`x-access-token:${TOKEN}`, "utf8").toString("base64")}`;
@@ -38,5 +42,21 @@ describe("createAuthenticatedGitExec", () => {
 
     await expect(exec("git", ["merge-base", "a", "b"], { signal })).resolves.toBe(result);
     expect(base).toHaveBeenCalledWith("git", ["-c", EXPECTED_HEADER, "merge-base", "a", "b"], { signal });
+  });
+});
+
+describe("createAuthenticatedRawGitExec", () => {
+  it("preserves raw bytes while injecting the same per-invocation credential", async () => {
+    const result = { stdout: Uint8Array.from([0, 128, 255]) };
+    const base = vi.fn<RawGitExec>(async () => result);
+    const exec = createAuthenticatedRawGitExec(TOKEN, base);
+    const options = { cwd: "/repo" };
+
+    await expect(exec(["diff", "--raw", "-z", "a", "b"], options)).resolves.toBe(result);
+    expect(base).toHaveBeenCalledWith(
+      ["-c", EXPECTED_HEADER, "diff", "--raw", "-z", "a", "b"],
+      options,
+    );
+    expect(base.mock.calls[0]?.[0].join(" ")).not.toContain(TOKEN);
   });
 });

@@ -28,7 +28,7 @@ const common = {
 };
 
 describe("self-hosting auto lane", () => {
-  it("accepts existing, new, deleted, and transitioned artifact groups owned by the mapped author", async () => {
+  it("accepts all six canonical statuses for artifact groups owned by the mapped author", async () => {
     const exec = execWith({
       "base:.arc/active/meta-existing.md": meta("andrew"),
       "head:.arc/active/meta-existing.md": meta("andrew"),
@@ -47,6 +47,12 @@ describe("self-hosting auto lane", () => {
           previousPath: ".arc/active/draft-existing.md",
           path: ".arc/active/notes-existing.md",
         },
+        {
+          status: "copied",
+          previousPath: ".arc/active/tasks-existing.md",
+          path: ".arc/active/draft-existing.md",
+        },
+        { status: "type-changed", path: ".arc/active/meta-existing.md" },
       ],
     })).resolves.toEqual({ lane: "auto", reasons: ["author-owned-artifacts"] });
   });
@@ -67,6 +73,9 @@ describe("self-hosting auto lane", () => {
     ["non-nested backlog artifact", { changes: [{ status: "modified", path: ".arc/backlog/planned/tasks-existing.md" }] }],
     ["rename across groups", {
       changes: [{ status: "renamed", previousPath: ".arc/active/tasks-old.md", path: ".arc/active/tasks-new.md" }],
+    }],
+    ["copy across groups", {
+      changes: [{ status: "copied", previousPath: ".arc/active/tasks-old.md", path: ".arc/active/tasks-new.md" }],
     }],
   ];
 
