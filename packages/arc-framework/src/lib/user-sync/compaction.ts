@@ -6,6 +6,7 @@
 
 import { hashBlob, readRefTip, uniqueRefToken } from "../git/ref-tree.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
+import { gitFailureText, normalizeGitRejection } from "../git/process-error.js";
 import {
   NOTES_COMPACTION_MANIFEST_PATH,
   buildNextNotesCompactionManifest,
@@ -134,7 +135,7 @@ export async function compactNotesRefSnapshot(
     await exec("git", ["push", "origin", `${preCompactionTip}:${backupRef}`]);
   } catch (err) {
     const error = toError(err);
-    if (isRemoteUnavailableError(error.message)) return { kind: "no-remote", error };
+    if (isRemoteUnavailableError(gitFailureText(err))) return { kind: "no-remote", error };
     return { kind: "failed", error };
   }
 
@@ -155,10 +156,19 @@ export async function compactNotesRefSnapshot(
   } catch (err) {
     const error = toError(err);
     await rollbackLocalSnapshot(exec, fullRef, preCompactionTip, snapshotTip);
-    if (isLeaseDecline(error.message)) {
+    const publication = normalizeGitRejection(err, {
+      command: "git",
+      args: [
+        "push",
+        `--force-with-lease=${fullRef}:${preCompactionTip}`,
+        "origin",
+        `${snapshotTip}:${fullRef}`,
+      ],
+    });
+    if (publication.expectedOutcome === "stale-lease") {
       return { kind: "lease-declined", preCompactionTip, backupRef, error };
     }
-    if (isRemoteUnavailableError(error.message)) return { kind: "no-remote", error };
+    if (isRemoteUnavailableError(gitFailureText(err))) return { kind: "no-remote", error };
     return { kind: "failed", error };
   }
 
@@ -260,7 +270,7 @@ export async function adoptCompactedNotesRef(
       }
     } catch (err) {
       const error = toError(err);
-      if (isCasRejectionError(error.message)) return { kind: "ref-moved", error };
+      if (isCasRejectionError(gitFailureText(err))) return { kind: "ref-moved", error };
       return { kind: "failed", error };
     }
     return {
@@ -414,13 +424,6 @@ function backupRefFor(fullRef: string, generation: number, createdAt: string): s
   const createdAtMs = Date.parse(createdAt);
   const createdToken = Number.isNaN(createdAtMs) ? Date.now() : Math.trunc(createdAtMs);
   return `refs/backup/${safe}-compaction-g${generation}-created-${createdToken}-${uniqueRefToken()}`;
-}
-
-function isLeaseDecline(message: string): boolean {
-  return message.includes("stale info")
-    || message.includes("would clobber")
-    || message.includes("fetch first")
-    || message.includes("[rejected]");
 }
 
 function toError(err: unknown): Error {

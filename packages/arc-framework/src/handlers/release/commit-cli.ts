@@ -10,15 +10,22 @@
  * @module
  */
 
-import { spawn } from "node:child_process";
 import { access, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
+import { execa } from "execa";
+
 import { resolveAllSettings } from "../../lib/config/resolved-settings.js";
 import { formatError, UserFacingError } from "../../lib/errors.js";
 import { hasEffectiveHook } from "../../lib/hook-manager.js";
-import { environmentForGitCwd, execFileAsync, gitExec } from "../../lib/io-context.js";
+import { gitExec } from "../../lib/io-context.js";
+import {
+  createExecaGitExec,
+  environmentForGitCwd,
+  MAX_GIT_OUTPUT_BYTES,
+} from "../../lib/git/process-executor.js";
+import { normalizeGitRejection } from "../../lib/git/process-error.js";
 import { resolveArcRoot } from "../../lib/paths.js";
 import { createDefaultCommitCheckRepository } from "../../lib/commit-check/repository.js";
 import { renderCommitMessageRemedy } from "../../lib/release/commit-message-remedy.js";
@@ -40,6 +47,8 @@ import { createCommitMessagePreflight } from "./commit-message-preflight.js";
 export interface HandleReleaseCommitOptions {
   args: readonly string[];
 }
+
+const capturedGitExec = createExecaGitExec();
 
 /**
  * Strip a leading `--no-wrap` token from `args`, honoring the `--` terminator.
@@ -142,10 +151,10 @@ async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
     access,
     readFile: (path) => readFile(path, "utf8"),
     resolveGitHookPath: async (root, name) => {
-      const { stdout } = await execFileAsync(
+      const { stdout } = await capturedGitExec(
         "git",
         ["rev-parse", "--path-format=absolute", "--git-path", `hooks/${name}`],
-        { cwd: root, env: environmentForGitCwd(root) },
+        { cwd: root },
       );
       return stdout.trim();
     },
@@ -158,77 +167,34 @@ async function hasPrepareCommitMsgHook(cwd: string): Promise<boolean> {
  * captured streams support hash extraction and hook-failure attribution while
  * being teed verbatim to the user's terminal.
  *
- * @param spawnProcess - Child-process factory used for the wrapped Git invocation
  * @returns A `SpawnGit` adapter with captured output and guarded stdin transport
  */
-export function createSpawnGit(spawnProcess: typeof spawn): SpawnGit {
-  return ({ args, cwd, stdin }) => new Promise((resolve, reject) => {
-    const proc = spawnProcess("git", ["commit", ...args], {
-      stdio: [stdin === undefined ? "inherit" : "pipe", "pipe", "pipe"],
+export function createSpawnGit(): SpawnGit {
+  return async ({ args, cwd, stdin }) => {
+    const invocation = ["commit", ...args];
+    const result = await execa("git", invocation, {
       cwd,
       env: environmentForGitCwd(cwd),
+      extendEnv: false,
+      ...(stdin === undefined ? { stdin: "inherit" as const } : { input: stdin }),
+      stdout: ["inherit", "pipe"],
+      stderr: ["inherit", "pipe"],
+      reject: false,
+      stripFinalNewline: false,
+      maxBuffer: MAX_GIT_OUTPUT_BYTES,
     });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    let fatalTransportError: Error | null = null;
-    const toError = (cause: unknown): Error => cause instanceof Error
-      ? cause
-      : new Error("git commit subprocess failed", { cause });
-    const rejectOnce = (cause: unknown): void => {
-      if (settled) return;
-      settled = true;
-      reject(toError(cause));
-    };
-    const terminateForTransportError = (cause: unknown): void => {
-      if (settled || fatalTransportError !== null) return;
-      fatalTransportError = toError(cause);
-      proc.kill("SIGKILL");
-    };
-    if (proc.stdout === null || proc.stderr === null) {
-      proc.kill("SIGKILL");
-      rejectOnce(new Error("git commit did not expose captured output streams"));
-      return;
-    }
-    proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-      process.stdout.write(chunk);
-    });
-    proc.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-      process.stderr.write(chunk);
-    });
-    proc.on("error", rejectOnce);
-    proc.on("close", (code) => {
-      if (settled) return;
-      if (fatalTransportError !== null) {
-        rejectOnce(fatalTransportError);
-        return;
-      }
-      settled = true;
-      resolve({ exitCode: code ?? 1, stdout, stderr });
-    });
-    if (stdin !== undefined) {
-      if (proc.stdin === null) {
-        terminateForTransportError(new Error("git commit did not expose writable stdin"));
-        return;
-      }
-      proc.stdin.on("error", (cause: unknown) => {
-        if (cause instanceof Error && "code" in cause && cause.code === "EPIPE") return;
-        terminateForTransportError(cause);
-      });
-      proc.stdin.end(stdin);
-    }
-  });
+    if (!result.failed) return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
+
+    const error = normalizeGitRejection(result, { command: "git", args: invocation });
+    if (error.kind !== "nonzero-exit" || error.exitCode === undefined) throw error;
+    return { exitCode: error.exitCode, stdout: error.stdout, stderr: error.stderr };
+  };
 }
 
-const realSpawnGit = createSpawnGit(spawn);
+const realSpawnGit = createSpawnGit();
 
 export const createRealCommitMessageSnapshot: CreateCommitMessageSnapshot = async ({ cwd, bytes }) => {
-  const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], {
-    cwd,
-    env: environmentForGitCwd(cwd),
-  });
+  const { stdout } = await capturedGitExec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
   const path = join(stdout.trim(), `.arc-release-commit-message-${randomUUID()}`);
   const handle = await open(path, "wx", 0o600);
   try {
@@ -267,10 +233,7 @@ export async function readRealCommitMessageFileWithIdentity(path: string): Promi
 
 const realCommitMessageRetryStore = createCommitMessageRetryStore({
   resolveGitDir: async (cwd) => {
-    const { stdout } = await execFileAsync("git", ["rev-parse", "--absolute-git-dir"], {
-      cwd,
-      env: environmentForGitCwd(cwd),
-    });
+    const { stdout } = await capturedGitExec("git", ["rev-parse", "--absolute-git-dir"], { cwd });
     return stdout.trim();
   },
   randomId: randomUUID,
@@ -317,9 +280,6 @@ export async function cleanupRealConsumedMessageRetry(opts: {
 
 /** Resolves `HEAD` post-success for the audit entry's `hash` field. */
 const realResolveHead: ResolveHead = async ({ cwd }) => {
-  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
-    cwd,
-    env: environmentForGitCwd(cwd),
-  });
+  const { stdout } = await capturedGitExec("git", ["rev-parse", "HEAD"], { cwd });
   return stdout.trim();
 };
