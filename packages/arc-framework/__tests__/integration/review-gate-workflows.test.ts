@@ -183,18 +183,33 @@ describe("trusted review-gate workflows", () => {
   it("contains Actions spend while retaining explicit and bounded portability coverage", async () => {
     const workflow = await read("ci.yml");
     expect(workflow).toContain("push:\n    branches: [main]");
-    expect(workflow).toContain("workflow_dispatch:");
-    // Monthly (not weekly) cross-platform cron — macOS multiplier is the spend driver.
-    expect(workflow).toContain("schedule:\n    - cron: '17 8 1 * *'");
+    // Weekly cross-platform cron — a post-merge backstop now that PR runs never
+    // fire the hosted Windows/macOS pair, so the multiplier cost is negligible.
+    expect(workflow).toContain("schedule:\n    - cron: '17 8 * * 1'");
     expect(workflow).toContain("os: [windows-latest, macos-latest]");
-    expect(workflow).toContain("needs.classify.outputs.portability_target == 'true'");
+    // The relevance classifier stays live (fail-safe machinery included) even
+    // though pull-request runs no longer fire the hosted Windows/macOS pair.
     expect(workflow).toContain('echo "::error::portability classifier failed"');
     expect(workflow).toContain('echo "::error::invalid portability classifier output: $portability_target"');
+    // The pair fires only on the weekly schedule or an explicit dispatch
+    // opt-in, so PR synchronizes never bill hosted-runner multipliers.
+    expect(jobValue(workflow, "portability-cross-platform").if).toBe(
+      "${{ (github.event_name == 'workflow_dispatch' && inputs.run_portability_pair) || " +
+        "github.event_name == 'schedule' }}",
+    );
+    // The pair consumes no classify output, so it is dependency-free: a `needs`
+    // paired with a custom `if` would let a failed classify start it anyway.
+    expect(jobValue(workflow, "portability-cross-platform")).not.toHaveProperty("needs");
+    const triggers = (load(workflow) as { on?: Record<string, unknown> }).on;
+    expect(triggers?.workflow_dispatch).toMatchObject({
+      inputs: { run_portability_pair: { type: "boolean", default: false } },
+    });
     const targetedJob = workflow.slice(
       workflow.indexOf("  portability-cross-platform:"),
       workflow.indexOf("  ci_ok:"),
     );
     expect(targetedJob).not.toContain("needs.classify.outputs.weight");
+    expect(targetedJob).not.toContain("github.event_name == 'pull_request'");
   });
 
   it("keeps repository controller scripts outside the published CLI graph", async () => {
