@@ -166,32 +166,25 @@ land; this phase does not absorb any tail-routed shared or deep type web.
 - _Outcome:_ All three session advisories now derive their public output types from strict schemas while preserving
   producer behavior, including the stale-errand date compatibility boundary and notes-history calculation.
 
-### `[ ]` **3.2 Migrate materialization and cleanup advisories to home-module schemas**
+### `[x]` **3.2 Migrate materialization and cleanup advisories to home-module schemas**
 
 - _Goal:_ Materializable-WU, orphan-branch, and retired-subdir slots have full schema/type authority while retaining
   their existing oracle, git, and reconciliation behavior.
-- _Context:_ Implements the contained-advisory depth decision; Success Criteria 3 and 8.
 
-    - `[ ]` **3.2.a Migrate `MaterializableWorkUnitsResult`**
-        - Define and export candidate/result schemas in `lib/session-init/materializable-work-units.ts`, including
-          the optional warning list; derive the public result types via `z.infer` and compose `SlugSchema` for each
-          candidate's work-unit name.
-        - Build `test-first` around candidate identity, optional-warning presence, malformed candidates, and exact
-          pass-through of `findMaterializableWorkUnits()` output.
+    - `[x]` **3.2.a Migrate `MaterializableWorkUnitsResult`**
+        - Added strict candidate/result schemas with `SlugSchema` work-unit identities, non-empty branch names, and
+          optional warning diagnostics while preserving oracle selection output.
 
-    - `[ ]` **3.2.b Migrate `OrphanBranchSweepResult`**
-        - Define and export full report/result schemas in `lib/session-init/orphan-branch-sweep.ts`; leave executor
-          options and set-valued inputs as TypeScript-only operational contracts, and compose `SlugSchema` for a
-          non-null `shippedWorkUnit`.
-        - Build `test-first` around shipped/null authority, merged flags, branch strings, malformed rows, and the
-          existing cleanup-selection behaviors in `orphan-branch-sweep.test.ts`.
+    - `[x]` **3.2.b Migrate `OrphanBranchSweepResult`**
+        - Added strict report/result schemas covering branch and merge verdicts, with nullable shipped identities
+          validated through `SlugSchema`; executor and set-valued inputs remain operational TypeScript contracts.
 
-    - `[ ]` **3.2.c Migrate `RetiredSubdirDetectionResult`**
-        - Define and export the candidates schema in `lib/session-init/retired-subdir-detection.ts`, derive the
-          result type with `SlugSchema`-validated work-unit candidates, and preserve the disk/notes reconciliation
-          algorithm.
-        - Build `test-first` around empty/non-empty candidates and malformed arrays while reusing
-          `retired-subdir-detection.test.ts` for behavioral coverage.
+    - `[x]` **3.2.c Migrate `RetiredSubdirDetectionResult`**
+        - Added strict candidate-array and result schemas with branded work-unit slugs while retaining the existing
+          disk/notes reconciliation algorithm and its empty fast path.
+
+- _Outcome:_ Materialization and cleanup advisories now expose schema-derived work-unit identities end to end;
+  consumer fixtures construct those branded values through the owning schemas rather than raw string assertions.
 
 ### `[ ]` **3.3 Migrate coordination, cascade, and base-sync advisories to home-module schemas**
 

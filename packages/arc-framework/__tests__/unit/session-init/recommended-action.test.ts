@@ -19,7 +19,10 @@ import {
   type WorktreePullPolicy,
 } from "../../../src/lib/session-init/recommended-action.js";
 import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
-import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
+import {
+  RetiredSubdirDetectionResultSchema,
+  type RetiredSubdirDetectionResult,
+} from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
 import type { BaseBranchSyncStatusResult } from "../../../src/lib/git/base-branch-sync.js";
@@ -564,9 +567,9 @@ describe("inferBaseBranchSync — config-gated base-ref freshen", () => {
 
 describe("inferRetiredSubdirs — config-gated retired-subdir reconcile", () => {
   function retiredSubdirs(
-    overrides: Partial<RetiredSubdirDetectionResult> = {},
+    overrides: { candidates?: string[] } = {},
   ): RetiredSubdirDetectionResult {
-    return { candidates: ["old-wu"], ...overrides };
+    return RetiredSubdirDetectionResultSchema.parse({ candidates: ["old-wu"], ...overrides });
   }
 
   const policy = (p: NotesLoadPolicy): NotesLoadPolicy => p;

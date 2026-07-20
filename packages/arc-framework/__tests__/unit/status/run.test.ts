@@ -61,10 +61,16 @@ import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js
 import type { CascadeResolution } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import type { StaleWorktreeSweepResult } from "../../../src/lib/session-init/stale-worktree-sweep.js";
 import type { OrphanBranchSweepResult } from "../../../src/lib/session-init/orphan-branch-sweep.js";
-import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
+import {
+  RetiredSubdirDetectionResultSchema,
+  type RetiredSubdirDetectionResult,
+} from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../../src/lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../../src/lib/session-init/errand-state.js";
-import type { MaterializableWorkUnitsResult } from "../../../src/lib/session-init/materializable-work-units.js";
+import {
+  MaterializableWorkUnitsResultSchema,
+  type MaterializableWorkUnitsResult,
+} from "../../../src/lib/session-init/materializable-work-units.js";
 import type { WorkUnitStateResult } from "../../../src/lib/session-init/work-unit-state.js";
 import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state.js";
 import type { PartialPushMarkerSurfaceResult } from "../../../src/lib/session-init/partial-push-marker-surface.js";
@@ -73,6 +79,16 @@ import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js";
 
 // --- Fixtures ---
+
+function retiredSubdirResult(candidates: string[]): RetiredSubdirDetectionResult {
+  return RetiredSubdirDetectionResultSchema.parse({ candidates });
+}
+
+function materializableResult(
+  candidates: Array<{ name: string; branch: string }>,
+): MaterializableWorkUnitsResult {
+  return MaterializableWorkUnitsResultSchema.parse({ candidates });
+}
 
 function userResult(overrides: Partial<UserStatusResult> = {}): UserStatusResult {
   return {
@@ -1446,7 +1462,7 @@ describe("runSessionInitStatus — retired-subdir reconcile slot", () => {
 
   it("auto-reconciles candidates under `always` on a clean tree (pull)", async () => {
     const probes = sessionInitProbes({
-      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+      retiredSubdirs: vi.fn(async () => retiredSubdirResult(["old-wu"])),
       config: vi.fn(async () => configWithLoadPolicy("always")),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
@@ -1458,7 +1474,7 @@ describe("runSessionInitStatus — retired-subdir reconcile slot", () => {
 
   it("degrades `always` to an offer on a dirty tree (prompt)", async () => {
     const probes = sessionInitProbes({
-      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+      retiredSubdirs: vi.fn(async () => retiredSubdirResult(["old-wu"])),
       config: vi.fn(async () => configWithLoadPolicy("always")),
       dirty: vi.fn(async () => dirtyState({ state: "dirty", fileCount: 2 })),
     });
@@ -1471,7 +1487,7 @@ describe("runSessionInitStatus — retired-subdir reconcile slot", () => {
 
   it("offers under the default `prompt` policy, no auto-run", async () => {
     const probes = sessionInitProbes({
-      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+      retiredSubdirs: vi.fn(async () => retiredSubdirResult(["old-wu"])),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     if (result.retiredSubdirs?.ok) {
@@ -1481,7 +1497,7 @@ describe("runSessionInitStatus — retired-subdir reconcile slot", () => {
 
   it("warns only under `manual` (surface)", async () => {
     const probes = sessionInitProbes({
-      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+      retiredSubdirs: vi.fn(async () => retiredSubdirResult(["old-wu"])),
       config: vi.fn(async () => configWithLoadPolicy("manual")),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
@@ -2393,9 +2409,9 @@ describe("runSessionInitStatus — materializable-WU oracle slot", () => {
   it("fires the oracle slot and surfaces candidates when no active WU resolves (resolution=none)", async () => {
     const probes = sessionInitProbes({
       active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
-      materializableWorkUnits: vi.fn(async () => ({
-        candidates: [{ name: "feature-x", branch: "feat/feature-x" }],
-      })),
+      materializableWorkUnits: vi.fn(async () => materializableResult([
+        { name: "feature-x", branch: "feat/feature-x" },
+      ])),
     });
 
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
@@ -2453,7 +2469,7 @@ describe("runSessionInitStatus — materializable-WU oracle slot", () => {
 describe("runSessionInitStatus — retired-subdir detection slot", () => {
   it("fires the detection when identity resolved, passing the identity", async () => {
     const probes = sessionInitProbes({
-      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+      retiredSubdirs: vi.fn(async () => retiredSubdirResult(["old-wu"])),
     });
     const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
     expect(probes.retiredSubdirs).toHaveBeenCalledWith("andrew");

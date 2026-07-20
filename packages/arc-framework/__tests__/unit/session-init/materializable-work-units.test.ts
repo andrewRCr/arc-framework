@@ -10,7 +10,11 @@ import type {
   InFlightErrand,
   InFlightWorkUnit,
 } from "../../../src/lib/git/in-flight-derivation.js";
-import { findMaterializableWorkUnits } from "../../../src/lib/session-init/materializable-work-units.js";
+import {
+  MaterializableWorkUnitSchema,
+  MaterializableWorkUnitsResultSchema,
+  findMaterializableWorkUnits,
+} from "../../../src/lib/session-init/materializable-work-units.js";
 
 const wu = (over: Partial<InFlightWorkUnit> = {}): InFlightWorkUnit => ({
   kind: "work-unit",
@@ -21,6 +25,30 @@ const wu = (over: Partial<InFlightWorkUnit> = {}): InFlightWorkUnit => ({
   owner: "andrew",
   dependsOn: [],
   ...over,
+});
+
+describe("MaterializableWorkUnitsResultSchema", () => {
+  it("accepts candidates with or without warning diagnostics", () => {
+    const candidate = { name: "in-flight-awareness", branch: "feat/in-flight-awareness" };
+
+    expect(MaterializableWorkUnitsResultSchema.parse({ candidates: [candidate] })).toEqual({ candidates: [candidate] });
+    expect(MaterializableWorkUnitsResultSchema.parse({ candidates: [], warnings: ["remote residue"] })).toEqual({
+      candidates: [],
+      warnings: ["remote residue"],
+    });
+  });
+
+  it.each([
+    { name: "Not A Slug", branch: "feat/not-a-slug" },
+    { name: "valid-slug", branch: "" },
+    { name: "valid-slug", branch: "feat/valid-slug", leaked: true },
+  ])("rejects a malformed candidate", (candidate) => {
+    expect(MaterializableWorkUnitSchema.safeParse(candidate).success).toBe(false);
+  });
+
+  it("rejects malformed warning entries", () => {
+    expect(MaterializableWorkUnitsResultSchema.safeParse({ candidates: [], warnings: [42] }).success).toBe(false);
+  });
 });
 
 const errand = (over: Partial<InFlightErrand> = {}): InFlightErrand => ({
