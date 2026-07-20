@@ -19,8 +19,6 @@ export type ReviewMethodActivity = z.infer<typeof ReviewMethodActivitySchema>;
 export const ReviewAssuranceInputSchema = z.strictObject({
   workContext: WorkContextSchema,
   workClass: RoutingWorkClassSchema,
-}).refine((input) => (input.workContext === "work-unit") === (input.workClass !== "none"), {
-  message: "only work-unit context carries a work class",
 });
 export type ReviewAssuranceInput = z.infer<typeof ReviewAssuranceInputSchema>;
 

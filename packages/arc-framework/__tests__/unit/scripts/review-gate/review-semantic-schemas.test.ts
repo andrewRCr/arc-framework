@@ -85,16 +85,15 @@ describe("review semantic schemas", () => {
     expect(ReviewAssuranceInputSchema.parse({ workContext, workClass })).toEqual({ workContext, workClass });
   });
 
-  it("accepts explicit activity and rejects mismatched assurance", () => {
+  it("accepts independently normalized activity and assurance facts", () => {
     expect(ReviewMethodActivitySchema.parse({ selfReview: true, frontlineReview: false })).toEqual({
       selfReview: true,
       frontlineReview: false,
     });
-    expect(ReviewAssuranceInputSchema.safeParse({ workContext: "errand", workClass: "Heavy" }).success).toBe(false);
-    expect(ReviewAssuranceInputSchema.safeParse({
-      workContext: "work-unit",
-      workClass: "none",
-    }).success).toBe(false);
+    expect(ReviewAssuranceInputSchema.parse({ workContext: "unscoped", workClass: "Heavy" })).toEqual({
+      workContext: "unscoped",
+      workClass: "Heavy",
+    });
     expect(ReviewMethodActivitySchema.safeParse({
       selfReview: true,
       frontlineReview: false,

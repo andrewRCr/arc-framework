@@ -106,15 +106,10 @@ pull-request count, provider choice, or host mechanics.
   no invalid independent-analysis/retrigger pairing.
 - _Context:_ Implements Design §1.2 as a pure reducer, separate from host/provider execution.
 
-    - `[ ]` **2.1.a Implement fail-closed, risk, and routine bases**
-        - Expose `resolveReviewRouting(unknown)` as the public boundary: normalize every closed field independently,
-          preserve valid fields, force `change-set state: unknown` on any missing/invalid field or unknown key, and
-          invoke the typed pure reducer with diagnostics for rejected paths.
-        - Build `test-first` (one behavior at a time):
-            - Unknown/malformed facts select the maximal Stage-A floor while valid `Class` and activity facts
-              survive; invalid values use the Design §1.2 conservative defaults.
-            - Sensitive changes select the Stage-B floor regardless of determinacy.
-            - Routine documentation and code-bearing inputs resolve each Stage-C branch exactly.
+    - `[x]` **2.1.a Implement fail-closed, risk, and routine bases**
+        - Added a field-wise unknown-input normalizer with stable rejected-path diagnostics and conservative defaults,
+          plus a typed pure reducer for maximal unknown/sensitive floors and both routine documentation/code bases;
+          valid assurance and activity fields survive malformed peers, and any rejection forces the unknown route.
 
     - `[ ]` **2.1.b Apply promote-only ownership and authority effects**
         - Encode ordered obligation/action/retrigger lattices rather than branch-specific assignments.
