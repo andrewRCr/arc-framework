@@ -226,39 +226,25 @@ that policy lives in § Top-level slot presence contract. Complete wire roots re
 though their nested thin views pass unowned fields through. Only full authoritative records and complete top-level
 contracts register; registration does not expand the shipped schema bundle.
 
-### `[ ]` **4.1 Define thin routing schemas for shared git and deep-nested slots**
+### `[x]` **4.1 Define thin routing schemas for shared git and deep-nested slots**
 
 - _Goal:_ Shared infrastructure and deep advisory webs reject corrupted workflow-routing fields while their
   hand-written types and unowned nested payloads remain authoritative and untransformed.
-- _Context:_ Implements the thin shared/deep validation decision; Success Criteria 4 and 8. The enumerated routed
-  inventory lives in `notes-cli-session-envelope.md` § Tail-routed value-type inventory.
-- **Additional Context:** `notes-cli-session-envelope.md` §§ Tail-routed value-type inventory; Thin validation field
-  map.
 
-    - `[ ]` **4.1.a Cover shared git primitives with thin schemas**
-        - Add pass-through views in `commands/status/schema.ts` for
-          `DirtyStateResult`, `WorktreeSyncStatusResult`, `BaseDistanceStatusResult`, and `WorktreeRosterResult`.
-          Pin exactly the shared-git fields in the thin validation map; the roster view validates only its object
-          root because none of its nested fields drives agent dispatch.
-        - Build `test-first` (one behavior at a time):
-            - reject invalid `state` and base-drift `verdict` values used for workflow dispatch;
-            - reject a malformed nullable `supersession.superseded` flag while accepting representative commit arrays,
-              nested evidence, overlap, and roster fields without describing their full webs;
-            - return unowned fields unchanged rather than stripping or normalizing them.
+    - `[x]` **4.1.a Cover shared git primitives with thin schemas**
+        - Added loose routing views for dirty state, worktree sync and supersession, base-distance verdicts, and the
+          object-only roster root; unowned evidence and commit arrays pass through unchanged.
 
-    - `[ ]` **4.1.b Cover deep session advisories with thin schemas**
-        - Add pass-through schemas for `CurrentHuskAdvisory`, `StaleWorktreeSweepResult`, `WorkUnitStateResult`, and
-          `ErrandStateResult`, pinning the mapped subject/stamp/report/decision kinds, classifications, resumability,
-          work-unit `behindBase` qualifier, errand materialization candidate identity/branch, and nudge gates consumed
-          by the session workflow.
-        - Build `test-first` around each mapped routing defect and representative deep payloads carrying extra
-          legitimate nested fields.
+    - `[x]` **4.1.b Cover deep session advisories with thin schemas**
+        - Added loose views for husk, stale-worktree, work-unit, and errand advisories, pinning every mapped
+          discriminant, boolean gate, and materialization identity while retaining deeper payloads.
 
-    - `[ ]` **4.1.c Prove the deliberate runtime-subset contract**
-        - Add focused tests showing thin schemas reject their mapped routing fields but do not become a second mirror
-          of the hand-written types.
-        - Keep all full schema-authority work for this routed set outside the diff and leave the inventory intact for
-          `cli-substrate-complete-migration`.
+    - `[x]` **4.1.c Prove the deliberate runtime-subset contract**
+        - Proved mapped-only values are accepted and representative unowned fields survive parsing, leaving the
+          handwritten source types and routed tail inventory intact.
+
+- _Outcome:_ Shared and deep session values now reject corrupted workflow-routing fields through deliberately loose
+  schemas without claiming full authority over their nested record webs.
 
 ### `[ ]` **4.2 Define thin routing schemas for command-owned session slots**
 
