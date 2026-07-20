@@ -114,12 +114,10 @@ unknown-stripping variants from the same field shapes to retain its established 
 - _Outcome:_ Compaction-seed producers now fail strict leakage while persisted readers retain recursive compatibility
   stripping, stable serialization, explicit version posture, and structured recovery-stop classification.
 
-### `[ ]` **2.4 Make recovery-audit records and verdicts schema-authoritative**
+### `[x]` **2.4 Make recovery-audit records and verdicts schema-authoritative**
 
 - _Goal:_ Recovery audit’s stop reasons, comparisons, locus, dirty-file accounting, cursor result, and verdict are
   fully validated records that the handler report can compose directly.
-- _Context:_ Implements complete family-record ownership and strict-current posture; Success Criterion 2.
-
     - `[x]` **2.4.a Migrate load-set audit comparisons in their home module**
         - Added full strict schemas for membership, read-mode changes, path drift, aggregate diffs, and verdicts,
           deriving exported records through `z.infer` without changing diff assembly or field order. Schema tests
@@ -131,11 +129,13 @@ unknown-stripping variants from the same field shapes to retain its established 
           leaving inputs and injected analysis contracts handwritten. Tests validate ready, stopped, and explained
           outputs plus invalid status/kind and nested-comparison rejection without changing assembly order.
 
-    - `[ ]` **2.4.c Register recovery records and retain audit behavior**
-        - Register `load-set-audit-verdict` and `recovery-audit-verdict` at version 1 with `strict-current` posture
-          through `createSessionEnvelopeRegistry()` and compose the latter into the later report schema.
-        - Run the existing `__tests__/unit/recover/audit.test.ts` matrix unchanged in meaning; add schema assertions
-          beside behavioral tests instead of retesting the audit algorithm through mocks.
+    - `[x]` **2.4.c Register recovery records and retain audit behavior**
+        - Registered load-set and recovery verdict roots at version 1 with `strict-current` posture in the family
+          registry. Schema assertions sit beside the unchanged audit behavior matrix, ready for later report
+          composition without wiring either root into bundle publication.
+
+- _Outcome:_ Recovery audit's complete output graph now has home-owned runtime/type authorities and stable registry
+  identities while deterministic auditing, explained-progression classification, and wire field order stay intact.
 
 ## **Phase 3:** Contained advisory schema authority
 

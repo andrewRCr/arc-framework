@@ -9,7 +9,9 @@ import {
   createSessionEnvelopeRegistry,
 } from "../../../src/lib/session-envelope/registry.js";
 import { LoadSetManifestSchema } from "../../../src/lib/load-set/types.js";
+import { LoadSetAuditVerdictSchema } from "../../../src/lib/load-set/audit.js";
 import { CompactionSeedSchema } from "../../../src/lib/compaction-seed/schema.js";
+import { RecoveryAuditVerdictSchema } from "../../../src/lib/recover/audit.js";
 import { TaskListCursorSchema } from "../../../src/lib/task-list/cursor.js";
 import { TaskListCursorFileResultSchema } from "../../../src/lib/task-list/file-cursor.js";
 
@@ -20,8 +22,10 @@ describe("session-envelope schema registry", () => {
 
     expect(first.ids()).toEqual([
       "compaction-seed",
+      "load-set-audit-verdict",
       "load-set-manifest",
       "priority",
+      "recovery-audit-verdict",
       "slug",
       "task-list-cursor",
       "task-list-cursor-file-result",
@@ -33,6 +37,8 @@ describe("session-envelope schema registry", () => {
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.taskListCursorFileResult))
       .toBe(TaskListCursorFileResultSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.compactionSeed)).toBe(CompactionSeedSchema);
+    expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.loadSetAuditVerdict)).toBe(LoadSetAuditVerdictSchema);
+    expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditVerdict)).toBe(RecoveryAuditVerdictSchema);
 
     first.register(z.boolean(), {
       id: "fixture-extension",
