@@ -154,40 +154,51 @@ function reduceReviewRoutingBase(facts: ReviewRoutingFacts): ReviewRoutingDecisi
 /** Reduce normalized facts through ordered bases and promote-only ownership/authority effects. */
 export function reduceReviewRouting(facts: ReviewRoutingFacts): ReviewRoutingDecision {
   const base = reduceReviewRoutingBase(facts);
-  if (facts.changeSetState === "unknown" || facts.reviewRisk === "sensitive") return base;
-
   let independentAnalysis = base.independentAnalysis;
   let retrigger = base.retrigger;
   const reasons = [...base.reasons];
-  const ownershipReason = facts.ownership === "foreign"
-    ? "foreign-owned-artifact"
-    : facts.ownership === "mixed"
-      ? "mixed-ownership"
-      : facts.ownership === "unknown"
-        ? "unknown-ownership"
-        : null;
-  if (ownershipReason !== null) {
-    independentAnalysis = promote(independentAnalysis, "required", REVIEW_OBLIGATION_ORDER);
-    reasons.push(ownershipReason);
+  if (facts.changeSetState !== "unknown" && facts.reviewRisk !== "sensitive") {
+    const ownershipReason = facts.ownership === "foreign"
+      ? "foreign-owned-artifact"
+      : facts.ownership === "mixed"
+        ? "mixed-ownership"
+        : facts.ownership === "unknown"
+          ? "unknown-ownership"
+          : null;
+    if (ownershipReason !== null) {
+      independentAnalysis = promote(independentAnalysis, "required", REVIEW_OBLIGATION_ORDER);
+      reasons.push(ownershipReason);
+    }
+
+    const authorityReason = facts.surfaceAuthority === "design-authority"
+      ? "design-authority"
+      : facts.surfaceAuthority === "constitutional"
+        ? "constitutional-surface"
+        : facts.surfaceAuthority === "unverifiable-derived" || facts.surfaceAuthority === "unknown"
+          ? "unverifiable-derived-surface"
+          : null;
+    if (authorityReason !== null) {
+      independentAnalysis = promote(independentAnalysis, "required", REVIEW_OBLIGATION_ORDER);
+      retrigger = promote(retrigger, "full-final", REVIEW_RETRIGGER_ORDER);
+      reasons.push(authorityReason);
+    }
   }
 
-  const authorityReason = facts.surfaceAuthority === "design-authority"
-    ? "design-authority"
-    : facts.surfaceAuthority === "constitutional"
-      ? "constitutional-surface"
-      : facts.surfaceAuthority === "unverifiable-derived" || facts.surfaceAuthority === "unknown"
-        ? "unverifiable-derived-surface"
-        : null;
-  if (authorityReason !== null) {
-    independentAnalysis = promote(independentAnalysis, "required", REVIEW_OBLIGATION_ORDER);
-    retrigger = promote(retrigger, "full-final", REVIEW_RETRIGGER_ORDER);
-    reasons.push(authorityReason);
-  }
+  const assuranceMode = facts.assurance.workClass === "Heavy" || facts.assurance.workClass === "Novel"
+    ? "terminal-aggregate"
+    : "none";
+  const authorSelfReview = facts.activity.selfReview ? base.authorSelfReview : "exempt";
+  const frontlineAction = facts.activity.frontlineReview ? base.frontlineAction : "skip";
+  if (!facts.activity.selfReview) reasons.push("self-review-inactive");
+  if (!facts.activity.frontlineReview) reasons.push("frontline-inactive");
 
   return ReviewRoutingDecisionSchema.parse({
     ...base,
+    authorSelfReview,
+    frontlineAction,
     independentAnalysis,
     retrigger,
+    assuranceMode,
     reasons,
   });
 }

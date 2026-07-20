@@ -116,11 +116,10 @@ pull-request count, provider choice, or host mechanics.
           analysis, while design/constitutional/unverifiable authority raises it to required full-final review, with
           stable reason coverage and ceiling routes left unchanged.
 
-    - `[ ]` **2.1.c Resolve assurance mode and activation adjustments**
-        - Derive `terminal-aggregate` only for `Heavy | Novel`, then apply self-review/frontline activation without
-          changing the independent-analysis floor.
-        - Prove inactive methods cannot resolve to required invocations and formative planning remains exempt from
-          per-change review inside a heavier WU.
+    - `[x]` **2.1.c Resolve assurance mode and activation adjustments**
+        - Added `Heavy | Novel` terminal assurance after every routing base, then applied independent self-review and
+          frontline activity adjustments; inactive methods cannot produce invocations, independent-analysis stays
+          unchanged, and formative planning remains per-change exempt in heavier work units.
 
     - `[ ]` **2.1.d Validate outputs and project promotions**
         - Enforce the retrigger validity invariant and stable `review-routing/v1` reason vocabulary at the schema

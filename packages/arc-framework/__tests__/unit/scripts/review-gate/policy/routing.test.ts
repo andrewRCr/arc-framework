@@ -42,12 +42,12 @@ describe("review routing bases", () => {
     expect(result.diagnostics).toEqual(["arbitraryFact", "contentKind"]);
     expect(result.decision).toEqual({
       schemaVersion: 1,
-      authorSelfReview: "required",
-      frontlineAction: "attempt",
+      authorSelfReview: "exempt",
+      frontlineAction: "skip",
       independentAnalysis: "required",
       retrigger: "full-final",
-      assuranceMode: "none",
-      reasons: ["unknown-change-set"],
+      assuranceMode: "terminal-aggregate",
+      reasons: ["unknown-change-set", "self-review-inactive", "frontline-inactive"],
     });
   });
 
@@ -75,6 +75,7 @@ describe("review routing bases", () => {
       assurance: { workContext: "unscoped", workClass: "Heavy" },
       activity: { selfReview: true, frontlineReview: true },
     });
+    expect(result.decision.assuranceMode).toBe("terminal-aggregate");
     expect(result.diagnostics).toEqual([
       "activity.frontlineReview",
       "activity.selfReview",
@@ -191,5 +192,57 @@ describe("review routing bases", () => {
     expect(REVIEW_OBLIGATION_ORDER).toEqual(["exempt", "recommended", "required"]);
     expect(FRONTLINE_ACTION_ORDER).toEqual(["skip", "offer", "attempt"]);
     expect(REVIEW_RETRIGGER_ORDER).toEqual(["none", "incremental", "full-final"]);
+  });
+
+  it.each([
+    ["none", "none"],
+    ["Light", "none"],
+    ["Heavy", "terminal-aggregate"],
+    ["Novel", "terminal-aggregate"],
+  ] as const)("maps work class %s to assurance mode %s", (workClass, assuranceMode) => {
+    expect(reduceReviewRouting({
+      ...routineFacts,
+      assurance: { workContext: "work-unit", workClass },
+    }).assuranceMode).toBe(assuranceMode);
+  });
+
+  it("adjusts each inactive method without weakening independent analysis", () => {
+    const active = reduceReviewRouting({ ...routineFacts, contentKind: "code-bearing" });
+    const noSelfReview = reduceReviewRouting({
+      ...routineFacts,
+      contentKind: "code-bearing",
+      activity: { selfReview: false, frontlineReview: true },
+    });
+    const noFrontline = reduceReviewRouting({
+      ...routineFacts,
+      contentKind: "code-bearing",
+      activity: { selfReview: true, frontlineReview: false },
+    });
+
+    expect(noSelfReview).toMatchObject({
+      authorSelfReview: "exempt",
+      frontlineAction: active.frontlineAction,
+      independentAnalysis: active.independentAnalysis,
+      retrigger: active.retrigger,
+    });
+    expect(noSelfReview.reasons.at(-1)).toBe("self-review-inactive");
+    expect(noFrontline).toMatchObject({
+      authorSelfReview: active.authorSelfReview,
+      frontlineAction: "skip",
+      independentAnalysis: active.independentAnalysis,
+      retrigger: active.retrigger,
+    });
+    expect(noFrontline.reasons.at(-1)).toBe("frontline-inactive");
+  });
+
+  it("keeps formative planning exempt inside a heavier work unit", () => {
+    expect(reduceReviewRouting({
+      ...routineFacts,
+      assurance: { workContext: "work-unit", workClass: "Novel" },
+    })).toMatchObject({
+      independentAnalysis: "exempt",
+      retrigger: "none",
+      assuranceMode: "terminal-aggregate",
+    });
   });
 });
