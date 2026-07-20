@@ -11,14 +11,19 @@
  * @module
  */
 
+import { z } from "zod";
+
 import type { StatusViewRow } from "./render.js";
 
+/** Runtime authority for resolved work-class tallies. */
+export const ClassCompositionSchema = z.strictObject({
+  heavy: z.number().int().nonnegative(),
+  light: z.number().int().nonnegative(),
+  novel: z.number().int().nonnegative(),
+});
+
 /** Resolved-weight counts for a status slice. */
-export interface ClassComposition {
-  novel: number;
-  heavy: number;
-  light: number;
-}
+export type ClassComposition = z.infer<typeof ClassCompositionSchema>;
 
 /**
  * Tally the resolved `Class` weights across a slice. `[TBD]` and field-absent

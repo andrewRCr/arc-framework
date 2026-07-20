@@ -8,8 +8,10 @@
 export {
   ResultAsync,
   err,
+  errAsync,
   fromAsyncThrowable,
   fromThrowable,
   ok,
+  okAsync,
   type Result,
 } from "neverthrow";

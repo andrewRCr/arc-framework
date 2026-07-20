@@ -28,10 +28,13 @@
  * @module
  */
 
+import { z } from "zod";
+
 import { isLandedInBase } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
 import { listGoneUpstreamBranches } from "../git/gone-upstream-branches.js";
 import type { WorktreeIdentity } from "../git/worktree-identity.js";
+import { SlugSchema } from "../kernel/index.js";
 import {
   branchToWorkUnitSlug,
   readShippedWorkUnitsFromRef,
@@ -40,28 +43,23 @@ import {
 /** The ref namespace scoping the sweep to local branches. */
 const LOCAL_BRANCH_REF_PREFIX = "refs/heads/";
 
-/** One gone-upstream local branch paired with its cleanup verdicts. */
-export interface OrphanBranchReport {
-  /** The local `<type>/<name>` branch whose upstream is gone. */
-  branch: string;
-  /**
-   * Whether every commit on the branch has landed in the integration base.
-   * Gates the `git branch -d` offer when the WU has no `completed/` record;
-   * an unmerged orphan is surfaced as not-removable (never force-deleted).
-   */
-  merged: boolean;
-  /**
-   * The shipped work-unit name when the branch's slug matches a `completed/`
-   * archive record — the orientation prefers the re-runnable
-   * `arc teardown <name>` offer over a bare branch delete. `null` otherwise.
-   */
-  shippedWorkUnit: string | null;
-}
+/** Runtime authority for one gone-upstream branch and its cleanup verdicts. */
+export const OrphanBranchReportSchema = z.strictObject({
+  branch: z.string().refine((value) => value.trim().length > 0, "branch must not be empty"),
+  merged: z.boolean(),
+  shippedWorkUnit: SlugSchema.nullable(),
+});
 
-export interface OrphanBranchSweepResult {
-  /** Gone-upstream type-prefixed local branches, each with its cleanup verdicts. */
-  orphans: OrphanBranchReport[];
-}
+/** One gone-upstream local branch paired with its cleanup verdicts. */
+export type OrphanBranchReport = z.infer<typeof OrphanBranchReportSchema>;
+
+/** Runtime authority for the orphan-branch sweep advisory. */
+export const OrphanBranchSweepResultSchema = z.strictObject({
+  orphans: z.array(OrphanBranchReportSchema),
+});
+
+/** Gone-upstream type-prefixed local branches and their cleanup verdicts. */
+export type OrphanBranchSweepResult = z.infer<typeof OrphanBranchSweepResultSchema>;
 
 export interface RunOrphanBranchSweepOptions {
   /** Physical-worktree identity of the calling session. */
@@ -112,10 +110,11 @@ export async function runOrphanBranchSweep(
   const orphans = await Promise.all(
     goneBranches.map(async (branch) => {
       const slug = branchToWorkUnitSlug(branch);
+      const shippedSlug = slug !== null && shipped.has(slug) ? SlugSchema.safeParse(slug) : null;
       return {
         branch,
         merged: await isLandedInBase(exec, branch, integrationTarget),
-        shippedWorkUnit: slug !== null && shipped.has(slug) ? slug : null,
+        shippedWorkUnit: shippedSlug?.success === true ? shippedSlug.data : null,
       };
     }),
   );

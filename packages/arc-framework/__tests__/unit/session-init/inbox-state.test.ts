@@ -6,7 +6,10 @@
 
 import { describe, it, expect } from "vitest";
 
-import { runInboxState } from "../../../src/lib/session-init/inbox-state.js";
+import {
+  InboxStateResultSchema,
+  runInboxState,
+} from "../../../src/lib/session-init/inbox-state.js";
 
 const atomicEntry = (title: string): string =>
   ["### `[ ]` **" + title + "**", "", "- _Created:_ `2026-05-30`", "- A routable atomic capture.", ""].join("\n");
@@ -85,5 +88,25 @@ describe("runInboxState", () => {
     ].join("\n");
 
     expect(runInboxState({ content })).toEqual({ routableCount: 0, housekeepNeeded: false });
+  });
+});
+
+describe("InboxStateResultSchema", () => {
+  it("accepts the exact producer result", () => {
+    expect(InboxStateResultSchema.parse({ routableCount: 2, housekeepNeeded: true })).toEqual({
+      routableCount: 2,
+      housekeepNeeded: true,
+    });
+  });
+
+  it.each([-1, 1.5])("rejects an invalid routable count: %s", (routableCount) => {
+    expect(InboxStateResultSchema.safeParse({ routableCount, housekeepNeeded: false }).success).toBe(false);
+  });
+
+  it.each([
+    { routableCount: 0, housekeepNeeded: true },
+    { routableCount: 1, housekeepNeeded: false },
+  ])("rejects an inconsistent count and flag pair", (value) => {
+    expect(InboxStateResultSchema.safeParse(value).success).toBe(false);
   });
 });

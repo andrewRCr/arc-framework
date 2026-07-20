@@ -12,6 +12,13 @@
  * `identity` is populated by direct `git config` reads in the handler,
  * logically parallel to the probe fan-out.
  */
+import { z } from "zod";
+
+import type {
+  CompactionSeedWriteStatusSchema,
+  StatusIdentitySchema,
+} from "./schema.js";
+
 import type {
   ActiveSessionInitResult,
   ActiveStatusResult,
@@ -105,11 +112,11 @@ export interface SessionInitBaseDistanceValue extends BaseDistanceStatusResult {
  * under `manual`, a base checked out elsewhere (primary-aware), or a diverged
  * base; `skip` a current base or when this worktree holds the base.
  */
-export interface SessionInitBaseBranchSyncValue extends BaseBranchSyncStatusResult {
+export type SessionInitBaseBranchSyncValue = BaseBranchSyncStatusResult & {
   recommendedAction: RecommendedAction;
   /** Composed offer text when `recommendedAction ∈ {prompt, surface}`; empty string otherwise. */
   recommendedPromptText: string;
-}
+};
 
 /**
  * User slot shape shared by the session-scoped envelopes. Extends the
@@ -148,12 +155,7 @@ export interface SessionInitRetiredSubdirsValue extends RetiredSubdirDetectionRe
 }
 
 /** Git-config pointers resolved in the composite handler (not a probe). */
-export interface StatusIdentity {
-  /** `git config arc.identity` value; empty and absent normalize to `null`. */
-  identity: string | null;
-  /** `git config arc.role` value; empty and absent normalize to `null`. */
-  role: string | null;
-}
+export type StatusIdentity = z.infer<typeof StatusIdentitySchema>;
 
 /**
  * Per-probe failure reason.
@@ -163,25 +165,32 @@ export interface StatusIdentity {
  * - `runtime` — probe threw (e.g., missing extensions directory on a partial
  *   install). `message` is the `Error.message` or stringified value.
  */
-export interface ProbeError {
-  kind: "identity-missing" | "runtime";
-  message: string;
+export const ProbeErrorSchema = z.strictObject({
+  kind: z.enum(["identity-missing", "runtime"]),
+  message: z.string(),
+});
+
+/** Per-probe failure reason derived from the wire schema authority. */
+export type ProbeError = z.infer<typeof ProbeErrorSchema>;
+
+/**
+ * Build the flat success/error schema for one independently fallible slot.
+ *
+ * @param valueSchema - Runtime contract for the success value
+ * @returns Strict discriminated probe schema preserving the success value
+ */
+export function probe<ValueSchema extends z.ZodType>(valueSchema: ValueSchema) {
+  return z.discriminatedUnion("ok", [
+    z.strictObject({ ok: z.literal(true), value: valueSchema }),
+    z.strictObject({ ok: z.literal(false), error: ProbeErrorSchema }),
+  ]);
 }
 
 /** Discriminated union for a probe slot — success or typed error. */
-export type Probe<T> =
-  | { ok: true; value: T }
-  | { ok: false; error: ProbeError };
+export type Probe<Value> = z.infer<ReturnType<typeof probe<z.ZodType<Value>>>>;
 
 /** JSON-safe summary of a `--write-compaction-seed` attempt. */
-export type CompactionSeedWriteStatus =
-  | { status: "written"; path: string }
-  | { status: "skipped"; reason: "identity-missing" | "load-set-unresolved" }
-  | {
-    status: "failed";
-    reason: "git-failed" | "identity-invalid" | "seed-invalid" | "write-failed";
-    message: string;
-  };
+export type CompactionSeedWriteStatus = z.infer<typeof CompactionSeedWriteStatusSchema>;
 
 /** Full-mode composite result — default (no-flag) rendering. */
 export interface StatusResult {
@@ -330,9 +339,9 @@ export interface SessionInitProbeResult {
   /**
    * Pre-computed user-notes compaction advisory — local notes-ref history size
    * compared to the internal threshold, plus a once-per-calendar-day nudge
-   * marker. Present whenever identity resolved; omitted only when identity is
-   * absent. Workflow renders it as offer-only guidance and never auto-runs
-   * compaction.
+   * marker. Present when identity resolved and the optional probe is supplied;
+   * omitted when identity is absent or the probe is not supplied. Workflow
+   * renders it as offer-only guidance and never auto-runs compaction.
    */
   compactionAdvisory?: Probe<NotesCompactionSessionAdvisoryResult>;
   /**
@@ -505,11 +514,10 @@ export interface SessionHandoffResult {
 /**
  * Probe slots shared by both session-scoped entry points (`session-init` and
  * `session-handoff`). The two probe interfaces below extend this base so the
- * five slots stay declared once — the orchestrator wires them through a single
- * `buildSessionSharedSlots` source rather than re-declaring each per entry
- * point. Full mode (`StatusProbes`) shares only the `user` identity-missing
- * triad (via the generic `userSlot` helper), since its `user` / `active` slots
- * carry different result types and signatures.
+ * five slots stay declared once — the orchestrator starts them through one
+ * `buildSessionSharedSlots` ResultAsync source rather than re-declaring each
+ * per entry point. Full mode (`StatusProbes`) shares only the `user`
+ * identity-missing primitive because its `user` / `active` signatures differ.
  */
 export interface SessionSharedProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;

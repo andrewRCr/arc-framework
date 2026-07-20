@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  AwareMarkerEntrySchema,
+  PartialPushMarkerSurfaceResultSchema,
   runPartialPushMarkerSurface,
   selectAwareMarkers,
 } from "../../../src/lib/session-init/partial-push-marker-surface.js";
@@ -12,13 +14,14 @@ import {
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
 const NOW = "2026-06-26T12:00:00.000Z";
+const ATTEMPTED_COMMIT = "a".repeat(40);
 
 /** A marker whose intent is unfulfilled (differs from the notes-ref tip below). */
 function marker(overrides: Partial<SyncStateMarker> = {}): SyncStateMarker {
   return {
     version: 1,
     machineId: "machine-a",
-    lastAttemptedCommit: "abc1234def5678",
+    lastAttemptedCommit: ATTEMPTED_COMMIT,
     attemptTimestamp: NOW,
     intent: "notes-intent-sha",
     ...overrides,
@@ -43,7 +46,7 @@ describe("selectAwareMarkers", () => {
     expect(result.markers).toEqual([
       {
         machineId: "machine-a",
-        lastAttemptedCommit: "abc1234def5678",
+        lastAttemptedCommit: ATTEMPTED_COMMIT,
         attemptTimestamp: NOW,
       },
     ]);
@@ -175,7 +178,7 @@ describe("runPartialPushMarkerSurface", () => {
     expect(result.markers).toEqual([
       {
         machineId: "machine-a",
-        lastAttemptedCommit: "abc1234def5678",
+        lastAttemptedCommit: ATTEMPTED_COMMIT,
         attemptTimestamp: NOW,
       },
     ]);
@@ -241,12 +244,12 @@ describe("runPartialPushMarkerSurface", () => {
         entries: {
           [liveIntent]: marker({
             machineId: "workspace-id",
-            lastAttemptedCommit: "live-head",
+            lastAttemptedCommit: "1".repeat(40),
             intent: liveIntent,
           }),
           [fulfilledIntent]: marker({
             machineId: "workspace-id",
-            lastAttemptedCommit: "fulfilled-head",
+            lastAttemptedCommit: "2".repeat(40),
             intent: fulfilledIntent,
           }),
         },
@@ -260,9 +263,26 @@ describe("runPartialPushMarkerSurface", () => {
     expect(result.markers).toEqual([
       {
         machineId: "workspace-id",
-        lastAttemptedCommit: "live-head",
+        lastAttemptedCommit: "1".repeat(40),
         attemptTimestamp: NOW,
       },
     ]);
+  });
+});
+
+describe("PartialPushMarkerSurfaceResultSchema", () => {
+  it.each(["a".repeat(40), "b".repeat(64)])("accepts supported git object id widths", (oid) => {
+    const value = { machineId: "legacy machine id", lastAttemptedCommit: oid, attemptTimestamp: NOW };
+    expect(PartialPushMarkerSurfaceResultSchema.parse({ markers: [value] })).toEqual({ markers: [value] });
+  });
+
+  it.each([
+    { machineId: "", lastAttemptedCommit: "a".repeat(40), attemptTimestamp: NOW },
+    { machineId: "machine", lastAttemptedCommit: "abc1234", attemptTimestamp: NOW },
+    { machineId: "machine", lastAttemptedCommit: "g".repeat(40), attemptTimestamp: NOW },
+    { machineId: "machine", lastAttemptedCommit: "a".repeat(40), attemptTimestamp: "yesterday" },
+    { machineId: "machine", lastAttemptedCommit: "a".repeat(40), attemptTimestamp: NOW, leaked: true },
+  ])("rejects a malformed surface marker", (value) => {
+    expect(AwareMarkerEntrySchema.safeParse(value).success).toBe(false);
   });
 });

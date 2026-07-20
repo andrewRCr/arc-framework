@@ -26,6 +26,8 @@
  * @module
  */
 
+import { z } from "zod";
+
 import {
   boundedFetch,
   checkOriginExists,
@@ -35,7 +37,6 @@ import { localPathsEqual } from "../local-path-identity.js";
 import {
   countAheadBehindRef,
   DEFAULT_FETCH_TIMEOUT_MS,
-  type WorktreeSyncState,
 } from "./worktree-sync.js";
 import { scanRegisteredWorktrees } from "./worktree-roster.js";
 
@@ -47,39 +48,65 @@ import { scanRegisteredWorktrees } from "./worktree-roster.js";
  * - `elsewhere` — another worktree holds `<base>`; auto fetch-into-ref is unsafe.
  * - `unknown` — worktree topology could not be read; treat as not auto-safe.
  */
-export type BaseCheckoutLocus =
-  | { kind: "not-checked-out" }
-  | { kind: "current"; path: string; primary: boolean }
-  | { kind: "elsewhere"; path: string; primary: boolean }
-  | { kind: "unknown" };
+export const BaseCheckoutLocusSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("not-checked-out") }),
+  z.strictObject({
+    kind: z.literal("current"),
+    path: z.string().refine((value) => value.trim().length > 0, "path must not be empty"),
+    primary: z.boolean(),
+  }),
+  z.strictObject({
+    kind: z.literal("elsewhere"),
+    path: z.string().refine((value) => value.trim().length > 0, "path must not be empty"),
+    primary: z.boolean(),
+  }),
+  z.strictObject({ kind: z.literal("unknown") }),
+]);
 
-export interface BaseBranchSyncStatusResult {
-  /**
-   * Distance classification reusing {@link WorktreeSyncState}. Healthy arms
-   * (`clean` / `local-ahead` / `remote-ahead` / `diverged`) come from the
-   * distance primitive; degraded arms (`skipped` / `no-remote` /
-   * `remote-unavailable`) are set directly. `remote-ahead` is the
-   * silently-behind-base case this probe exists to surface — the local base ref
-   * is a strict ancestor of the remote and fast-forwardable; `local-ahead` /
-   * `diverged` mean the local base carries unpushed commits (an edge worth
-   * surfacing but never auto-resolved). No `detached-head` arm: the comparison
-   * targets a named base ref, not HEAD, so a detached checkout is irrelevant.
-   */
-  state: WorktreeSyncState;
-  /** Local `<base>` commits not in `origin/<base>`. Always 0 outside healthy states. */
-  ahead: number;
-  /** `origin/<base>` commits not in local `<base>` — the behind distance. Always 0 outside healthy states. */
-  behind: number;
-  /** The base branch compared against (the resolved `branch.base`). */
-  base: string;
-  /**
-   * Checkout locus for the local base branch. Always populated so the
-   * recommendation layer can degrade auto-pull when fetch-into-ref would fail.
-   */
-  checkout: BaseCheckoutLocus;
-  /** Distinguishes failure modes when `state` is `remote-unavailable`. Omitted otherwise. */
-  failureReason?: "timeout" | "error";
-}
+/** Where the local base branch is checked out relative to this session. */
+export type BaseCheckoutLocus = z.infer<typeof BaseCheckoutLocusSchema>;
+
+const BASE_SYNC_COMMON_SHAPE = {
+  base: z.string().refine((value) => value.trim().length > 0, "base branch must not be empty"),
+  checkout: BaseCheckoutLocusSchema,
+};
+const ZERO = z.literal(0);
+const POSITIVE_DISTANCE = z.number().int().positive();
+
+/** Runtime authority for the base-branch synchronization advisory. */
+export const BaseBranchSyncStatusResultSchema = z.discriminatedUnion("state", [
+  z.strictObject({ ...BASE_SYNC_COMMON_SHAPE, state: z.literal("clean"), ahead: ZERO, behind: ZERO }),
+  z.strictObject({
+    ...BASE_SYNC_COMMON_SHAPE,
+    state: z.literal("remote-ahead"),
+    ahead: ZERO,
+    behind: POSITIVE_DISTANCE,
+  }),
+  z.strictObject({
+    ...BASE_SYNC_COMMON_SHAPE,
+    state: z.literal("local-ahead"),
+    ahead: POSITIVE_DISTANCE,
+    behind: ZERO,
+  }),
+  z.strictObject({
+    ...BASE_SYNC_COMMON_SHAPE,
+    state: z.literal("diverged"),
+    ahead: POSITIVE_DISTANCE,
+    behind: POSITIVE_DISTANCE,
+  }),
+  z.strictObject({ ...BASE_SYNC_COMMON_SHAPE, state: z.literal("skipped"), ahead: ZERO, behind: ZERO }),
+  z.strictObject({ ...BASE_SYNC_COMMON_SHAPE, state: z.literal("no-remote"), ahead: ZERO, behind: ZERO }),
+  z.strictObject({
+    ...BASE_SYNC_COMMON_SHAPE,
+    state: z.literal("remote-unavailable"),
+    ahead: ZERO,
+    behind: ZERO,
+    failureReason: z.enum(["timeout", "error"]),
+  }),
+]);
+
+/** Base-branch synchronization status and checkout locus. */
+export type BaseBranchSyncStatusResult = z.infer<typeof BaseBranchSyncStatusResultSchema>;
 
 export interface RunBaseBranchSyncStatusOptions {
   exec: GitExec;
@@ -177,11 +204,11 @@ export async function runBaseBranchSyncStatus(
     };
   }
 
+  let distance: Awaited<ReturnType<typeof countAheadBehindRef>>;
   try {
     // Local `<base>` (not HEAD) against the freshened remote base. A missing
     // local base ref makes `rev-list` throw, caught below as a degraded read.
-    const { ahead, behind, state } = await countAheadBehindRef(exec, baseBranch, `origin/${baseBranch}`);
-    return { state, ahead, behind, base: baseBranch, checkout };
+    distance = await countAheadBehindRef(exec, baseBranch, `origin/${baseBranch}`);
   } catch {
     return {
       state: "remote-unavailable",
@@ -192,4 +219,16 @@ export async function runBaseBranchSyncStatus(
       failureReason: "error",
     };
   }
+
+  const result = {
+    state: distance.state,
+    ahead: distance.ahead,
+    behind: distance.behind,
+    base: baseBranch,
+    checkout,
+  };
+  // Validate for effect so schema defects propagate without letting Zod's
+  // schema-key order change the established session-envelope wire bytes.
+  BaseBranchSyncStatusResultSchema.parse(result);
+  return result as BaseBranchSyncStatusResult;
 }

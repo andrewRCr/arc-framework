@@ -19,10 +19,16 @@ import {
   type WorktreePullPolicy,
 } from "../../../src/lib/session-init/recommended-action.js";
 import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
-import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
+import {
+  RetiredSubdirDetectionResultSchema,
+  type RetiredSubdirDetectionResult,
+} from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
-import type { BaseBranchSyncStatusResult } from "../../../src/lib/git/base-branch-sync.js";
+import {
+  BaseBranchSyncStatusResultSchema,
+  type BaseBranchSyncStatusResult,
+} from "../../../src/lib/git/base-branch-sync.js";
 import type { UserSessionInitStatusResult } from "../../../src/commands/user/types.js";
 
 function baseDistance(
@@ -429,16 +435,16 @@ describe("inferBaseDistance — analyzer-owned advisory", () => {
 
 describe("inferBaseBranchSync — config-gated base-ref freshen", () => {
   function baseBranchSync(
-    overrides: Partial<BaseBranchSyncStatusResult> = {},
+    overrides: Record<string, unknown> = {},
   ): BaseBranchSyncStatusResult {
-    return {
+    return BaseBranchSyncStatusResultSchema.parse({
       state: "clean",
       ahead: 0,
       behind: 0,
       base: "main",
       checkout: { kind: "not-checked-out" },
       ...overrides,
-    };
+    });
   }
 
   const policy = (p: BaseBranchSyncPullPolicy): BaseBranchSyncPullPolicy => p;
@@ -552,7 +558,10 @@ describe("inferBaseBranchSync — config-gated base-ref freshen", () => {
   it("degraded states (no-remote / skipped / remote-unavailable) → skip", () => {
     for (const state of ["no-remote", "skipped", "remote-unavailable"] as const) {
       expect(
-        inferBaseBranchSync(baseBranchSync({ state }), policy("always")).recommendedAction,
+        inferBaseBranchSync(
+          baseBranchSync({ state, ...(state === "remote-unavailable" ? { failureReason: "error" } : {}) }),
+          policy("always"),
+        ).recommendedAction,
       ).toBe("skip");
     }
   });
@@ -564,9 +573,9 @@ describe("inferBaseBranchSync — config-gated base-ref freshen", () => {
 
 describe("inferRetiredSubdirs — config-gated retired-subdir reconcile", () => {
   function retiredSubdirs(
-    overrides: Partial<RetiredSubdirDetectionResult> = {},
+    overrides: { candidates?: string[] } = {},
   ): RetiredSubdirDetectionResult {
-    return { candidates: ["old-wu"], ...overrides };
+    return RetiredSubdirDetectionResultSchema.parse({ candidates: ["old-wu"], ...overrides });
   }
 
   const policy = (p: NotesLoadPolicy): NotesLoadPolicy => p;

@@ -17,15 +17,25 @@
  * @module
  */
 
+import { z } from "zod";
+
 import { parseCrossWuEntries } from "../user-sync/index.js";
 import { managedFlagIsTrue } from "./managed-field.js";
 
-export interface InboxStateResult {
-  /** Count of well-formed (`parse.ok`) entries across `## Errand` + `## Work Unit`. */
-  routableCount: number;
-  /** Whether housekeeping is due — true when at least one entry is routable. */
-  housekeepNeeded: boolean;
-}
+/** Runtime authority for the inbox-state advisory result. */
+export const InboxStateResultSchema = z
+  .object({
+    routableCount: z.number().int().nonnegative(),
+    housekeepNeeded: z.boolean(),
+  })
+  .strict()
+  .refine((value) => value.housekeepNeeded === (value.routableCount > 0), {
+    message: "housekeepNeeded must reflect whether routableCount is positive",
+    path: ["housekeepNeeded"],
+  });
+
+/** Count and derived housekeeping signal for routable inbox entries. */
+export type InboxStateResult = z.infer<typeof InboxStateResultSchema>;
 
 export interface RunInboxStateOptions {
   /** The `USER-INBOX` file's full text. */
