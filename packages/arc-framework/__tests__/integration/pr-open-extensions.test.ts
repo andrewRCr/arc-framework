@@ -139,6 +139,25 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("separates frontline advice from satisfying independent analysis", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const frontline = await readFile(resolve(base, "system/methods/frontline-review.md"), "utf8");
+      const independent = await readFile(resolve(base, "system/methods/independent-analysis.md"), "utf8");
+      expect(frontline).toContain("active: false");
+      expect(frontline).toContain("advisory pre-publication");
+      expect(frontline).toContain("cannot satisfy");
+      expect(frontline).toContain("adversarial-review");
+      expect(frontline).toContain("implementation-audit");
+      expect(independent).toContain("independent-analysis/v1");
+      expect(independent).toContain("complete exact requested change set");
+      expect(independent).toContain("non-author evaluator");
+      expect(independent).toContain("all five rubric dimensions");
+      expect(independent).toContain("stable locus");
+      expect(independent.replace(/\s+/gu, " ")).toContain("typed contract and derived digest");
+      expect(`${frontline}\n${independent}`).not.toMatch(/gh pr|GitHub|CodeRabbit|Codex|review\.frontline_source/iu);
+    }
+  });
+
   it("keeps every review-triage disposition explicit while allowing concise minor roll-up", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/review-triage.md"), "utf8");

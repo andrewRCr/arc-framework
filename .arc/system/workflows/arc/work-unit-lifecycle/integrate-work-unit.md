@@ -4,6 +4,8 @@ audience: agent
 arc:
   methods:
     - self-review
+    - frontline-review
+    - independent-analysis
     - implementation-audit
     - review-triage
     - commit-footer

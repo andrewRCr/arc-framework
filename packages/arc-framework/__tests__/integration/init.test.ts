@@ -266,10 +266,12 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- Per-File Methods and Extensions ---
 
-  it("installs all 9 per-file methods plus README in system/methods/", async () => {
+  it("installs all 11 per-file methods plus README in system/methods/", async () => {
     const methodFiles = [
       "commit-footer.md",
       "commit-format.md",
+      "frontline-review.md",
+      "independent-analysis.md",
       "implementation-audit.md",
       "self-review.md",
       "issue-triage.md",
@@ -313,7 +315,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const manifest = await readManifestFile(tempDir);
 
       const methodNames = [
-        "commit-footer", "commit-format", "implementation-audit", "self-review",
+        "commit-footer", "commit-format", "frontline-review", "independent-analysis",
+        "implementation-audit", "self-review",
         "issue-triage", "quality-gate-commands", "review-triage",
         "session-state", "test-first",
       ];

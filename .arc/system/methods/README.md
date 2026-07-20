@@ -25,15 +25,17 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 Overriding a method without updating its related methods may produce inconsistent behavior. Check related methods
 when populating any `.override` section. Methods not listed here are independent.
 
-| Method             | Related Methods    | Coupling                        |
-|--------------------|--------------------|---------------------------------|
-| commit-format      | commit-footer      | Both govern the commit message  |
-| commit-footer      | commit-format      | Both govern the commit message  |
-| self-review        | review-triage      | Uses review-triage for findings |
-| assess-cohort-fit  | classify-work-unit | Upper/lower WU-boundary tests   |
-| classify-work-unit | assess-cohort-fit  | Upper/lower WU-boundary tests   |
-| testing-standards  | test-first         | Planning/execution seam split   |
-| test-first         | testing-standards  | Planning/execution seam split   |
+| Method               | Related Methods                                         | Coupling                                 |
+|----------------------|---------------------------------------------------------|------------------------------------------|
+| commit-format        | commit-footer                                           | Both govern the commit message           |
+| commit-footer        | commit-format                                           | Both govern the commit message           |
+| frontline-review     | adversarial-review, implementation-audit, review-triage | Advisory review mechanism and lens       |
+| independent-analysis | adversarial-review, implementation-audit, review-triage | Satisfying standard, mechanism, and lens |
+| self-review          | review-triage                                           | Uses review-triage for findings          |
+| assess-cohort-fit    | classify-work-unit                                      | Upper/lower WU-boundary tests            |
+| classify-work-unit   | assess-cohort-fit                                       | Upper/lower WU-boundary tests            |
+| testing-standards    | test-first                                              | Planning/execution seam split            |
+| test-first           | testing-standards                                       | Planning/execution seam split            |
 
 ---
 

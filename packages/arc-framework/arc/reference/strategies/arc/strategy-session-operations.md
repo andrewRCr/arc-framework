@@ -72,9 +72,9 @@ a given session. Loaded on-demand when the agent enters the relevant workflow ph
 Some T3 content becomes near-certain to be needed based on session state available at init time.
 Content meeting these criteria promotes from T3 to the session-init load set:
 
-| Content           | State Signal                                        | Promotes When             |
-|-------------------|-----------------------------------------------------|---------------------------|
-| process-task-loop | Meta file resolved; `**Task List:**` not `[none]`   | Active task work expected |
+| Content           | State Signal                                      | Promotes When             |
+|-------------------|---------------------------------------------------|---------------------------|
+| process-task-loop | Meta file resolved; `**Task List:**` not `[none]` | Active task work expected |
 
 Sessions without active task lists (planning, evaluation, exploratory) don't need ~240 lines of
 dense procedural content. The state signal loads it precisely when relevant.
@@ -103,17 +103,17 @@ The `arc status --session-handoff --json` envelope carries seven probe slots plu
 wraps in the same `Probe<T>` discriminated union as session-init; per-slot failures surface in the error
 branch rather than rejecting the composite. Mirrors the session-init field table in `session-init.md`.
 
-| Field             | Contents                                                                                                                                                                  |
-|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `identity`        | `{identity, role}` — either may be `null`                                                                                                                                 |
-| `dirty`           | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                                      |
-| `worktree`        | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                                          |
-| `user`            | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when `arc.identity` is absent                                         |
-| `syncInterlock`   | `{value, source}` — resolved `arc.syncInterlock`. Gates whether handoff invokes `arc sync` (`on-handoff`) or surfaces unpushed state without firing (`manual`)            |
-| `active`          | Active meta file resolution — same shape as session-init's `active` slot                                                                                                  |
-| `head`            | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                                          |
-| `pushability`     | Pushability pre-check matrix for the worktree push leg (`target: "worktree"`). Cross-reference with `worktree` for the full divergence picture                            |
-| `releaseRouting`  | Resolved release-wrapper routing per class-tag (`taskCommit` / `workflowCommit` / `workflowPush` to `wrapper` or `raw`), plus `rationale` snapshot                        |
+| Field            | Contents                                                                                                                                                       |
+|------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `identity`       | `{identity, role}` — either may be `null`                                                                                                                      |
+| `dirty`          | Working-tree porcelain check (`value.state`: clean / dirty; `value.fileCount` carries the entry count, 0 when clean)                                           |
+| `worktree`       | Worktree sync state vs. `origin/<current-branch>` — same shape as session-init's `worktree` slot                                                               |
+| `user`           | Notes-sync state — same shape as session-init's `user` slot; identity-missing short-circuit applies when `arc.identity` is absent                              |
+| `syncInterlock`  | `{value, source}` — resolved `arc.syncInterlock`. Gates whether handoff invokes `arc sync` (`on-handoff`) or surfaces unpushed state without firing (`manual`) |
+| `active`         | Active meta file resolution — same shape as session-init's `active` slot                                                                                       |
+| `head`           | Current `HEAD` short-hash (`value.hash`) — anchors the `Commit at Handoff` field written by the handoff workflow                                               |
+| `pushability`    | Pushability pre-check matrix for the worktree push leg (`target: "worktree"`). Cross-reference with `worktree` for the full divergence picture                 |
+| `releaseRouting` | Resolved release-wrapper routing per class-tag (`taskCommit` / `workflowCommit` / `workflowPush` to `wrapper` or `raw`), plus `rationale` snapshot             |
 
 Push-interlock and notes-push policy are not surfaced as handoff envelope slots — `arc sync` owns
 their resolution internally. The handoff workflow gates on `syncInterlock` (whether to invoke
@@ -353,6 +353,8 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | commit-format         | prepare-commits     | User-triggered commit events               |
 | commit-footer         | prepare-commits     | User-triggered commit events               |
 | self-review           | integrate-work-unit | Integration phase only                     |
+| frontline-review      | integrate-work-unit | Optional advisory pre-publication review   |
+| independent-analysis  | integrate-work-unit | Satisfying exact-change-set standard       |
 | implementation-audit  | integrate-work-unit | Integration review rubric                  |
 | review-triage         | integrate-work-unit | Integration phase only                     |
 | session-state         | session-handoff     | Session end only                           |
@@ -380,13 +382,13 @@ regardless of approval).
 
 The five interlocks attach to the operational junctions a unit of work passes through:
 
-| Interlock                 | Configurability |
-|---------------------------|-----------------|
-| `task-interlock`          | Invariant       |
-| `commit-interlock`        | Configurable    |
-| `sync-interlock`          | Configurable    |
-| `push-interlock`          | Configurable    |
-| `integration-interlock`   | Invariant       |
+| Interlock               | Configurability |
+|-------------------------|-----------------|
+| `task-interlock`        | Invariant       |
+| `commit-interlock`      | Configurable    |
+| `sync-interlock`        | Configurable    |
+| `push-interlock`        | Configurable    |
+| `integration-interlock` | Invariant       |
 
 All five interlocks are engaged by default. The configurable three release under explicit
 `arc.commitInterlock`, `arc.syncInterlock`, and `arc.pushInterlock` settings; see
@@ -572,13 +574,13 @@ is a candidate future WU if dogfooding shows demand.
 Configurable interlock release creates cascades that can fail after the user has already approved
 the boundary. Classify failures by the state they leave behind before choosing a recovery path:
 
-| Mode | Category | Trigger | Recovery path |
-| ---- | -------- | ------- | ------------- |
-| 1 | Bad state | Pre-commit hook fails during commit-on-task-approval | Fix obvious issues; otherwise fall back to manual-with-prompt |
-| 2 | Bad state | Tier 1/Tier 2 quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback |
-| 3 | Transit | Network failure during push-on-sync | Preserve local state, surface in summary, retry when reachable |
-| 4 | Transit | Partial multi-commit or multi-push cascade | Preserve landed work, surface exact partial state, retry remaining transit |
-| 5 | Process | Agent/session crash mid-cascade | Run crash-recovery scan; prompt continue or rollback |
+| Mode | Category  | Trigger                                                        | Recovery path                                                              |
+|------|-----------|----------------------------------------------------------------|----------------------------------------------------------------------------|
+| 1    | Bad state | Pre-commit hook fails during commit-on-task-approval           | Fix obvious issues; otherwise fall back to manual-with-prompt              |
+| 2    | Bad state | Tier 1/Tier 2 quality gate fails after an auto-released commit | Apply cascade-undo rule before destructive rollback                        |
+| 3    | Transit   | Network failure during push-on-sync                            | Preserve local state, surface in summary, retry when reachable             |
+| 4    | Transit   | Partial multi-commit or multi-push cascade                     | Preserve landed work, surface exact partial state, retry remaining transit |
+| 5    | Process   | Agent/session crash mid-cascade                                | Run crash-recovery scan; prompt continue or rollback                       |
 
 **Bad-state failures** mean ARC produced or nearly produced local history that may be wrong.
 The correct response is repair when obvious, or explicit user choice before rollback/destructive

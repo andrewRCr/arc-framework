@@ -136,7 +136,8 @@ describe("init", () => {
     expect(result.exitCode).toBe(0);
 
     const methodNames = [
-      "commit-footer", "commit-format", "implementation-audit", "self-review",
+      "commit-footer", "commit-format", "frontline-review", "independent-analysis",
+      "implementation-audit", "self-review",
       "issue-triage", "quality-gate-commands", "review-triage",
       "session-state", "test-first",
     ];

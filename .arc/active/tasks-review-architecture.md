@@ -360,10 +360,10 @@ with adopter-facing contracts mirrored through the package source.
           medium-neutral change-realization dimensions, complete-change clean rule, grounded finding contract, and
           override-compatible baseline; registered it for installation and integration-time loading.
 
-    - `[ ]` **4.1.c Add frontline-review and independent-analysis contracts**
-        - Define frontline as an advisory pre-publication fire-point and independent analysis as the satisfying
-          exact-change-set standard, including the typed baseline identity; ship frontline with `active: false`.
-        - Ensure neither method embeds provider commands, controller procedure, or project source policy.
+    - `[x]` **4.1.c Add frontline-review and independent-analysis contracts**
+        - Shipped package/project method pairs separating inactive advisory pre-publication review from the satisfying
+          non-author exact-change-set standard. Both bind the shared mechanism and rubric without carrier commands,
+          controller procedure, or project source policy; the satisfying contract points to its typed v1 identity.
 
     - `[ ]` **4.1.d Reconcile the adversarial-review mechanism**
         - Update cross-references so local satisfying review and frontline both invoke fresh-context
