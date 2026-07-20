@@ -261,74 +261,56 @@ parameter remains authoritative downstream. Project-root discovery, package-temp
 scanner patterns, fixtures, prose examples, and golden strings stay outside layout and receive explicit residual
 dispositions in Phase 5.
 
-### `[ ]` **4.1 Migrate installer and configuration root owners**
+### `[x]` **4.1 Migrate installer and configuration root owners**
 
 - _Goal:_ Installation and configuration entry points select `.arc` through one validated root projection while
   downstream helpers continue consuming their exact caller-supplied installation directory.
 
-    - `[ ]` **4.1.a Replace the root-bearing config segment helper**
-        - Retire `ARC_CONFIG_SEGMENTS` from `src/lib/constants.ts`; retain only the template- or ARC-root-relative
-          config suffix owned by configuration code.
-        - Update `src/lib/config/status-reader.ts` and `src/lib/config/resolve-override.ts` to project and materialize
-          `arc-root` beneath their repository root before composing the validated config suffix.
-        - Cover absolute materialization and unchanged config-read behavior with literal path expectations.
+    - `[x]` **4.1.a Replace the root-bearing config segment helper**
+        - Replaced the root-bearing constant with an ARC-root-relative config suffix and materialized the semantic
+          root in both configuration readers without changing their read contracts.
 
-    - `[ ]` **4.1.b Migrate fresh-install root selection**
-        - Update `src/commands/init.ts` to materialize the selected ARC directory beneath `cwd`, then keep passing that
-          exact `arcDir` to manifest, permission, and post-init helpers.
-        - Preserve pre-install existence checks, installed output, user messages, recipe policy, and focused unit/E2E
-          expectations.
+    - `[x]` **4.1.b Migrate fresh-install root selection**
+        - Materialized the selected ARC directory beneath the supplied repository root and retained the exact result
+          through manifest, permission, existence, and post-init boundaries.
 
-    - `[ ]` **4.1.c Migrate join root selection**
-        - Update `src/commands/join.ts` to use the same root boundary for installation detection and its exact
-          downstream `arcDir`, without changing Git/setup or identity behavior.
-        - Preserve joined-tree and already-installed outcomes with independent expected paths.
+    - `[x]` **4.1.c Migrate join root selection**
+        - Applied the same root boundary to installation detection and the downstream join directory while preserving
+          Git, setup, identity, joined-tree, and already-installed behavior.
 
-    - `[ ]` **4.1.d Migrate update root selection**
-        - Adopt repository-root materialization in `src/commands/update.ts`; keep its exact `arcDir` and owner-local
-          manifest, pristine-store, merge, and removal descendants.
-        - Preserve update result contracts, conflict behavior, and fixtures with literal installed paths.
+    - `[x]` **4.1.d Migrate update root selection**
+        - Materialized the update root once and kept manifest, pristine-store, merge, and removal descendants local.
 
-    - `[ ]` **4.1.e Migrate reconfigure root selection**
-        - Adopt repository-root materialization in `src/commands/reconfigure.ts` while preserving its exact downstream
-          `arcDir`, mode selection, removal plan, and manifest behavior.
-        - Cover retained, removed, and restored files without using layout to produce expected values.
+    - `[x]` **4.1.e Migrate reconfigure root selection**
+        - Materialized the reconfigure root while retaining mode selection, removal planning, and manifest behavior.
 
-    - `[ ]` **4.1.f Migrate health root selection**
-        - Adopt repository-root materialization in `src/commands/health.ts`, then retain its exact `arcDir` plus local
-          manifest and installed-file descendants.
-        - Keep health classification and display strings unchanged.
+    - `[x]` **4.1.f Migrate health root selection**
+        - Materialized the health root and retained exact manifest and installed-file descendants and display strings.
 
-    - `[ ]` **4.1.g Migrate diff root selection**
-        - Adopt repository-root materialization in `src/commands/diff.ts`, then retain its exact `arcDir` plus local
-          manifest, pristine, and current-file descendants.
-        - Keep comparison semantics and literal display paths unchanged.
+    - `[x]` **4.1.g Migrate diff root selection**
+        - Materialized the diff root and retained exact manifest, pristine, and current-file comparison descendants.
 
-    - `[ ]` **4.1.h Migrate commit-check repository binding**
-        - Update `src/lib/commit-check/repository.ts` to materialize `arc-root` beneath the already-discovered project
-          root before reading config or constructing its exact artifact-resolver boundary.
-        - Preserve commit decoding, configuration, merge detection, and resolver behavior in focused tests.
+    - `[x]` **4.1.h Migrate commit-check repository binding**
+        - Materialized the discovered repository's ARC root before config and artifact-resolver composition, preserving
+          commit decoding, merge detection, and resolver behavior.
 
-    - `[ ]` **4.1.i Migrate init-handler internal-store binding**
-        - Update `src/handlers/init.ts` to materialize `arc-root` beneath its repository root before composing the
-          owner-local `.internal` manifest descendant.
-        - Preserve installation-mode selection and existing user-facing diagnostics verbatim.
+    - `[x]` **4.1.i Migrate init-handler internal-store binding**
+        - Materialized the ARC root before composing the internal manifest store without changing diagnostics or mode
+          selection.
 
-    - `[ ]` **4.1.j Migrate release record roots**
-        - Update `src/lib/release/audit-log.ts` and `src/lib/release/setup-marker.ts` to start owner-local identity
-          descendants from a materialized `arc-root` while retaining current-worktree selection and exact filenames.
-        - Keep append, marker, cleanup, and error behavior unchanged with literal expected native paths.
+    - `[x]` **4.1.j Migrate release record roots**
+        - Anchored audit-log and release-marker identity descendants at a materialized ARC root while retaining exact
+          filenames, current-worktree selection, append, cleanup, and error behavior.
 
-    - `[ ]` **4.1.k Migrate constitution status root selection**
-        - Update `src/commands/constitution/status.ts` to materialize `arc-root` before composing its owner-local
-          rules-directory suffix; preserve frontmatter filtering and output behavior.
-        - Cover repository-root independence with literal native paths.
+    - `[x]` **4.1.k Migrate constitution status root selection**
+        - Materialized the ARC root before composing the rules suffix, preserving filtering and output behavior.
 
-    - `[ ]` **4.1.l Preserve root recognition and package-source boundaries**
-        - Keep `resolveArcRoot()` in `src/lib/paths.ts` as project discovery that checks for `.arc`, not as semantic
-          address projection, and preserve exact roots passed into manifest, setup, permission, and hook helpers.
-        - Leave shell hooks, package-template paths, validation regexes, fixture paths, and public display prose as
-          recognition, external-owner, or independent-evidence residuals rather than adding a non-TypeScript shim.
+    - `[x]` **4.1.l Preserve root recognition and package-source boundaries**
+        - Kept project discovery, exact downstream roots, package templates, shell hooks, validation patterns,
+          fixtures, and display prose under their existing recognition or external-evidence authorities.
+
+- _Outcome:_ Repository-root owners now select `.arc` through one validated projection/materialization boundary,
+  while every downstream subsystem continues to receive and own the exact installation directory it already used.
 
 ### `[ ]` **4.2 Migrate actual runtime procedure-root consumers**
 

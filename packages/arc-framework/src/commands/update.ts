@@ -35,6 +35,7 @@ import { UserFacingError, manifestMissingError } from "../lib/errors.js";
 import { lt as semverLt } from "semver";
 import { atomicWriteJson } from "../lib/fs.js";
 import { applyExecutableInstallPermissions } from "../lib/install-permissions.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import type { Recipe, Manifest } from "../lib/types.js";
 import {
   ARC_IN_GIT_CONDITION,
@@ -258,7 +259,7 @@ export async function runUpdate(
   options: UpdateOptions,
 ): Promise<UpdateResult> {
   const { cwd, io, templateDir, recipe } = options;
-  const arcDir = join(cwd, ".arc");
+  const arcDir = materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" }));
   const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
   const manifestPath = join(internalDir, MANIFEST_FILENAME);
   const pristineStorePath = join(internalDir, PRISTINE_FILENAME);

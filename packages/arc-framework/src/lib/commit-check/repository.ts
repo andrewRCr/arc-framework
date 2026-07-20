@@ -1,6 +1,7 @@
 /** Default repository adapter for commit-message validation consumers. */
 
 import { join } from "node:path";
+import { materializeArcPath, resolveArcPath } from "../layout/index.js";
 
 import { parseArcConfig } from "../config/index.js";
 import type { GitExec } from "../git/index.js";
@@ -38,7 +39,7 @@ export async function createDefaultCommitCheckRepository(
   root: string,
   deps: DefaultCommitCheckRepositoryDeps,
 ): Promise<CommitMessageCheckRepository> {
-  const arcRoot = join(root, ".arc");
+  const arcRoot = materializeArcPath(root, resolveArcPath({ kind: "arc-root" }));
   const [configurationText, encodingResult, cleanupResult, roleResult, mergePathResult] = await Promise.all([
     deps.readFile(join(arcRoot, "system", "arc-config.yml")),
     deps.exec("git", ["config", "--get", "--default", "utf-8", "i18n.commitEncoding"], { cwd: root }),

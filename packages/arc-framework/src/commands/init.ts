@@ -22,7 +22,7 @@ import {
 } from "../lib/skills/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import {
-  ARC_CONFIG_SEGMENTS, ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
+  ARC_CONFIG_SUFFIX, ARC_CONFIG_TEMPLATE_PATH, ARC_IN_GIT_CONDITION,
   INTERNAL_DIR_SEGMENTS, MANIFEST_FILENAME, PRISTINE_FILENAME,
   MANIFEST_SCHEMA_VERSION,
 } from "../lib/constants.js";
@@ -38,6 +38,7 @@ import {
 import { UserFacingError } from "../lib/errors.js";
 import { atomicWriteJson } from "../lib/fs.js";
 import { applyExecutableInstallPermissions } from "../lib/install-permissions.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 
 // --- Types ---
 
@@ -80,7 +81,7 @@ export async function isArcInstalled(
   access: AccessFn,
 ): Promise<boolean> {
   try {
-    await access(join(cwd, ...ARC_CONFIG_SEGMENTS));
+    await access(join(materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" })), ...ARC_CONFIG_SUFFIX));
     return true;
   } catch {
     return false;
@@ -168,7 +169,7 @@ export async function runInit(
       });
     }
 
-    const arcDir = join(cwd, ".arc");
+    const arcDir = materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" }));
 
     // Build maps
     const config = buildConfigMap(prompts);

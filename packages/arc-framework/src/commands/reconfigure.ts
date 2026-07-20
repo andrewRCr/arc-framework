@@ -29,6 +29,7 @@ import { UserFacingError, manifestMissingError } from "../lib/errors.js";
 import { atomicWriteJson } from "../lib/fs.js";
 import type { Recipe, Manifest, InstallConfig } from "../lib/types.js";
 import type { RemovalDecision } from "../prompts/removal-prompts.js";
+import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
 import { applyRemovalDecisions } from "../prompts/removal-prompts.js";
 import {
   ARC_IN_GIT_CONDITION,
@@ -130,7 +131,7 @@ export async function runReconfigure(
   options: ReconfigureOptions,
 ): Promise<ReconfigureResult | DryRunResult> {
   const { cwd, io, templateDir, recipe, newInstallConfig } = options;
-  const arcDir = join(cwd, ".arc");
+  const arcDir = materializeArcPath(cwd, resolveArcPath({ kind: "arc-root" }));
   const internalDir = join(arcDir, ...INTERNAL_DIR_SEGMENTS);
   const manifestPath = join(internalDir, MANIFEST_FILENAME);
   const pristineStorePath = join(internalDir, PRISTINE_FILENAME);
