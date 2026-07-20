@@ -100,11 +100,10 @@ gate, or workflow consumes them.
 _Purpose:_ Derive review obligations and frontline action from the closed ARC record without coupling policy to
 pull-request count, provider choice, or host mechanics.
 
-### `[ ]` **2.1 Implement the ordered review-routing reducer**
+### `[x]` **2.1 Implement the ordered review-routing reducer**
 
 - _Goal:_ Every valid or malformed routing input deterministically produces one obligation set, stable reasons, and
   no invalid independent-analysis/retrigger pairing.
-- _Context:_ Implements Design §1.2 as a pure reducer, separate from host/provider execution.
 
     - `[x]` **2.1.a Implement fail-closed, risk, and routine bases**
         - Added a field-wise unknown-input normalizer with stable rejected-path diagnostics and conservative defaults,
@@ -121,11 +120,14 @@ pull-request count, provider choice, or host mechanics.
           frontline activity adjustments; inactive methods cannot produce invocations, independent-analysis stays
           unchanged, and formative planning remains per-change exempt in heavier work units.
 
-    - `[ ]` **2.1.d Validate outputs and project promotions**
-        - Enforce the retrigger validity invariant and stable `review-routing/v1` reason vocabulary at the schema
-          boundary.
-        - Add a typed project-policy promotion seam that consumes the same versioned record, accepts namespaced
-          reasons, and cannot append facts or weaken the framework result.
+    - `[x]` **2.1.d Validate outputs and project promotions**
+        - Added a typed project-policy callback over normalized facts and strict namespaced promotion records; all
+          effects apply through the shared lattices, close over the retrigger invariant, and reject exceptions,
+          unknown keys, or malformed output without altering the framework decision.
+
+- _Outcome:_ One topology-neutral public boundary now normalizes every field, reduces all risk/content bases,
+  composes framework and project promotions monotonically, applies assurance/activity last, and validates the
+  resulting reasoned decision against the closed runtime schema.
 
 ### `[ ]` **2.2 Establish activity and WU assurance inputs**
 

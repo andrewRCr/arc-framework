@@ -245,4 +245,64 @@ describe("review routing bases", () => {
       assuranceMode: "terminal-aggregate",
     });
   });
+
+  it("applies project policy through the same normalized fact record", () => {
+    const result = resolveReviewRouting(routineFacts, (facts) => ({
+      schemaVersion: 1,
+      policyId: "assurance-floor",
+      independentAnalysis: facts.assurance.workClass === "Light" ? "required" : "recommended",
+      reasons: ["project:assurance-floor:light-review"],
+    }));
+
+    expect(result.decision).toMatchObject({
+      independentAnalysis: "required",
+      retrigger: "incremental",
+    });
+    expect(result.decision.reasons.at(-1)).toBe("project:assurance-floor:light-review");
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("closes project promotions over the validity invariant without weakening", () => {
+    const fullFinal = resolveReviewRouting(routineFacts, () => ({
+      schemaVersion: 1,
+      policyId: "release",
+      retrigger: "full-final",
+      reasons: ["project:release:full-final"],
+    })).decision;
+    expect(fullFinal).toMatchObject({ independentAnalysis: "recommended", retrigger: "full-final" });
+
+    const requiredBase = resolveReviewRouting({ ...routineFacts, contentKind: "code-bearing" }, () => ({
+      schemaVersion: 1,
+      policyId: "routine",
+      authorSelfReview: "recommended",
+      frontlineAction: "offer",
+      independentAnalysis: "recommended",
+      retrigger: "incremental",
+      reasons: ["project:routine:minimums"],
+    })).decision;
+    expect(requiredBase).toMatchObject({
+      authorSelfReview: "required",
+      frontlineAction: "attempt",
+      independentAnalysis: "required",
+      retrigger: "incremental",
+    });
+  });
+
+  it("rejects malformed, fact-extending, or failed project policy output", () => {
+    const malformed = resolveReviewRouting(routineFacts, () => ({
+      schemaVersion: 1,
+      policyId: "unsafe",
+      independentAnalysis: "required",
+      reasons: ["project:unsafe:extension"],
+      facts: { providerAvailable: true },
+    }));
+    expect(malformed.decision).toEqual(reduceReviewRouting(routineFacts));
+    expect(malformed.diagnostics).toEqual(["projectPromotion"]);
+
+    const failed = resolveReviewRouting(routineFacts, () => {
+      throw new Error("policy unavailable");
+    });
+    expect(failed.decision).toEqual(reduceReviewRouting(routineFacts));
+    expect(failed.diagnostics).toEqual(["projectPromotion"]);
+  });
 });

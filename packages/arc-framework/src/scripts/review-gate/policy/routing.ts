@@ -17,6 +17,10 @@ import {
   type ReviewRoutingDecision,
   type ReviewRoutingFacts,
 } from "./routing-schema.js";
+import {
+  ProjectRoutingPromotionSchema,
+  type ProjectRoutingPromotion,
+} from "./project-promotion-schema.js";
 
 /** Ascending review-obligation lattice used by framework and project promotions. */
 export const REVIEW_OBLIGATION_ORDER = ["exempt", "recommended", "required"] as const;
@@ -31,6 +35,9 @@ export type ReviewRoutingResolution = {
   readonly decision: ReviewRoutingDecision;
   readonly diagnostics: readonly string[];
 };
+
+/** Project-owned promote-only callback over the normalized framework facts. */
+export type ProjectRoutingPolicy = (facts: Readonly<ReviewRoutingFacts>) => unknown;
 
 const ROOT_KEYS = new Set([
   "schemaVersion",
@@ -203,8 +210,44 @@ export function reduceReviewRouting(facts: ReviewRoutingFacts): ReviewRoutingDec
   });
 }
 
+function applyProjectPromotion(
+  decision: ReviewRoutingDecision,
+  promotion: ProjectRoutingPromotion,
+): ReviewRoutingDecision {
+  const authorSelfReview = promotion.authorSelfReview === undefined
+    ? decision.authorSelfReview
+    : promote(decision.authorSelfReview, promotion.authorSelfReview, REVIEW_OBLIGATION_ORDER);
+  const frontlineAction = promotion.frontlineAction === undefined
+    ? decision.frontlineAction
+    : promote(decision.frontlineAction, promotion.frontlineAction, FRONTLINE_ACTION_ORDER);
+  let independentAnalysis = promotion.independentAnalysis === undefined
+    ? decision.independentAnalysis
+    : promote(decision.independentAnalysis, promotion.independentAnalysis, REVIEW_OBLIGATION_ORDER);
+  let retrigger = promotion.retrigger === undefined
+    ? decision.retrigger
+    : promote(decision.retrigger, promotion.retrigger, REVIEW_RETRIGGER_ORDER);
+
+  if (independentAnalysis === "exempt" && retrigger !== "none") {
+    independentAnalysis = "recommended";
+  } else if (independentAnalysis !== "exempt" && retrigger === "none") {
+    retrigger = "incremental";
+  }
+
+  return ReviewRoutingDecisionSchema.parse({
+    ...decision,
+    authorSelfReview,
+    frontlineAction,
+    independentAnalysis,
+    retrigger,
+    reasons: [...decision.reasons, ...promotion.reasons],
+  });
+}
+
 /** Normalize unknown input field-by-field, then invoke the typed pure reducer. */
-export function resolveReviewRouting(input: unknown): ReviewRoutingResolution {
+export function resolveReviewRouting(
+  input: unknown,
+  projectPolicy?: ProjectRoutingPolicy,
+): ReviewRoutingResolution {
   const diagnostics = new Set<string>();
   const inputRecord = recordAt(input);
   const record = inputRecord ?? {};
@@ -287,9 +330,20 @@ export function resolveReviewRouting(input: unknown): ReviewRoutingResolution {
   };
   if (diagnostics.size > 0) facts.changeSetState = "unknown";
 
+  let decision = reduceReviewRouting(facts);
+  if (projectPolicy !== undefined) {
+    try {
+      const promotion = ProjectRoutingPromotionSchema.safeParse(projectPolicy(facts));
+      if (promotion.success) decision = applyProjectPromotion(decision, promotion.data);
+      else diagnostics.add("projectPromotion");
+    } catch {
+      diagnostics.add("projectPromotion");
+    }
+  }
+
   return {
     facts,
-    decision: reduceReviewRouting(facts),
+    decision,
     diagnostics: [...diagnostics].sort(),
   };
 }
