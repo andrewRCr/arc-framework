@@ -35,22 +35,15 @@ caller migration begins.
     - Defensive parsing rejects unsafe runtime inputs with preserved causes, and every result passes the kernel's
       final managed-path validation without filesystem, Git, environment, clock, or ambient-root dependencies.
 
-### `[ ]` **1.3 Implement contained native-path materialization**
+### `[x]` **1.3 Implement contained native-path materialization**
 
 - _Goal:_ Filesystem callers can materialize canonical managed paths beneath an explicit fully qualified root with
   host-correct containment guarantees and no native separator leakage into canonical contracts.
 
-    - Isolate production host semantics from a non-published POSIX/Windows helper used by deterministic unit tests.
-    - Validate roots, revalidate managed paths, reject Windows drive-designator descendant segments, and prove the
-      result is a strict descendant with host `relative()` and `isAbsolute()` semantics.
-    - Build `test-first` (one behavior at a time):
-        - Materialize POSIX, Windows drive-qualified, and Windows UNC roots.
-        - Reject empty, relative, rooted-volume-relative, drive-relative, device-namespace, dot-segment, and NUL
-          roots as `layout.invalid-materialization-root`.
-        - Reject invalid branded/cast managed paths as `layout.invalid-managed-path`, preserving their validation
-          cause where applicable.
-        - Reject non-contained results and a later `D:bar` segment beneath a `C:` root as
-          `layout.invalid-managed-path`.
+    - Added host-native materialization over a deterministic internal POSIX/Windows seam, with fully qualified root
+      validation, managed-path revalidation, drive-designator rejection, and an independent strict-descendant proof.
+    - Covered POSIX, drive-qualified, and UNC success plus invalid root, unsafe cast, and Windows drive-switch paths;
+      canonical operands remain POSIX managed paths until this filesystem boundary.
 
 ### `[ ]` **1.4 Preserve the validated template binding transform**
 
