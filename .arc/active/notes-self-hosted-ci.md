@@ -258,6 +258,13 @@ have no runner and no meaningful derived duration.
   certificate remained expired at 23:19Z while GitHub Status reported all systems operational and no July 19
   incident, so routing stays hosted pending certificate rotation and a bounded self-hosted requalification. This is
   an explained external GitHub service outage, not a host, service, toolchain, or workspace-residue failure.
+- **Official incident and restoration:** GitHub opened its Actions incident at 23:34Z, later identified the remaining
+  impact as self-hosted and larger-hosted runners, reported full recovery at 04:43Z, and resolved the incident at
+  04:44Z. From the VPS, the replacement token-endpoint certificate was valid from 2026-06-18 through 2026-09-16;
+  the repository still had one admin, zero invitations, and zero forks, and both runner registrations were online.
+  Restored `arc-ci-linux` and ran exact-head workflow-dispatch qualification 29743235379: all nine executable Linux
+  jobs passed across both self-hosted slots, Windows and macOS stayed hosted, and the dispatch-only `ci-ok` and
+  `merge-ok` jobs skipped as designed outside pull-request context.
 
 #### Cost and retention baseline
 
