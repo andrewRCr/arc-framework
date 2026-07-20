@@ -501,28 +501,23 @@ tail-routed authority, handoff/full validation, bundle publication, lifecycle re
 - _Outcome:_ Reproducible local evidence supports the always-on assertion posture with substantial margin while
   keeping performance timing outside ordinary CI.
 
-### `[ ]` **7.3 Close the envelope-family integration and scope-boundary checkpoint**
+### `[x]` **7.3 Close the envelope-family integration and scope-boundary checkpoint**
 
 - _Goal:_ The completed family behaves coherently through real status, seed, and recovery paths, and every excluded
   surface remains visibly outside the implementation.
-- _Context:_ Integrates all Success Criteria and Scope boundary no-gos.
+    - `[x]` **7.3.a Run the cross-family integration checkpoint**
+        - Passed 573 targeted schema, kernel-boundary, orchestration, integration, seed/recovery, session-init E2E,
+          and compatibility E2E tests plus both typechecks, TypeScript lint, and a production build.
+        - Exercised successful JSON, real probe failures, invalid persisted seeds, and current-seed recovery through
+          the built CLI; malformed internal producers remained confined to assertion/substitution tests.
 
-    - `[ ]` **7.3.a Run the cross-family integration checkpoint**
-        - Run targeted schema/module tests, `__tests__/unit/kernel/import-boundary.test.ts`,
-          `__tests__/unit/kernel/schema-generation.test.ts`, `__tests__/unit/status/run.test.ts`,
-          `__tests__/integration/status.test.ts`, compaction-seed and recovery-audit suites, the session-init and
-          compatibility E2E suites, both TypeScript typechecks, TypeScript lint, and a production build.
-        - Through the built CLI, exercise successful JSON, reachable probe failures, invalid persisted seeds, and
-          current seed recovery. Exercise intentionally malformed internal producers through the direct
-          assertion/handler-substitution tests only; do not add a production defect switch.
+    - `[x]` **7.3.b Audit delivered and excluded scope**
+        - Confirmed bare unversioned roots, original-object JSON emission, unchanged lifecycle/transport behavior,
+          handwritten tail authority, and no handoff/full schemas or goldens, alternate transport, or bundle wiring.
+        - Found no additional wholesale target requiring reconciliation with the existing tail inventory.
 
-    - `[ ]` **7.3.b Audit delivered and excluded scope**
-        - Verify no top-level version was added to session-init/recovery, no parsed copy is emitted, no lifecycle or
-          context-loading behavior changed, and no alternate transport appeared.
-        - Verify no handoff/full envelope schema or golden, no full authority for the tail-routed inventory, and no
-          build-projection wiring for envelope schemas landed.
-        - Reconcile any newly discovered wholesale target to the existing tail inventory rather than expanding this
-          task list.
+- _Outcome:_ The complete envelope family closes Phase 7 coherently across real command paths while every declared
+  no-go remains outside the delivered implementation.
 
 ## **Phase 8:** Verification
 
