@@ -120,12 +120,10 @@ unknown-stripping variants from the same field shapes to retain its established 
   fully validated records that the handler report can compose directly.
 - _Context:_ Implements complete family-record ownership and strict-current posture; Success Criterion 2.
 
-    - `[ ]` **2.4.a Migrate load-set audit comparisons in their home module**
-        - Define full schemas in `lib/load-set/audit.ts` for membership, read-mode and path drift, the aggregate diff,
-          and `LoadSetAuditVerdict`; derive the exported comparison types via `z.infer` without changing the diff
-          algorithm or result field order.
-        - Extend `__tests__/unit/load-set/audit.test.ts` with schema acceptance, malformed comparison, and
-          status/`diverged` consistency cases while retaining its existing behavioral matrix.
+    - `[x]` **2.4.a Migrate load-set audit comparisons in their home module**
+        - Added full strict schemas for membership, read-mode changes, path drift, aggregate diffs, and verdicts,
+          deriving exported records through `z.infer` without changing diff assembly or field order. Schema tests
+          now cover malformed comparisons and `status`/`diverged` consistency beside the behavioral matrix.
 
     - `[ ]` **2.4.b Define schemas for the recovery-audit record graph**
         - Replace hand-written output declarations in `lib/recover/audit.ts` with schemas for stop-kind/reason,
