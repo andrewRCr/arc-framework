@@ -109,9 +109,9 @@ readonly PORTABILITY_SURFACE_GLOBS=(
 # The verified-tree lookback skips the heavy suite for a pull request only when
 # every one of these concluded `success` for a commit carrying HEAD's exact code
 # tree. These strings are the source of truth for the corresponding job `name:`
-# fields in .github/workflows/ci.yml — they must stay byte-identical (matrix legs
-# include the `(<matrix value>)` suffix the runner appends to the job name). A drift fails
-# safe to heavy but silently defeats the skip, so the two surfaces move together.
+# fields in .github/workflows/ci.yml — they must stay byte-identical. Matrix legs
+# include the `(<matrix value>)` suffix the runner appends to the job name. A drift
+# fails safe to heavy but silently defeats the skip, so the two surfaces move together.
 readonly HEAVY_CHECK_NAMES=(
   "Lint & Typecheck"
   "Unit Tests"
@@ -119,7 +119,7 @@ readonly HEAVY_CHECK_NAMES=(
   "E2E Tests (1)"
   "E2E Tests (2)"
   "E2E Tests (3)"
-  "Portability (concurrency guards) (ubuntu-latest)"
+  "Portability (concurrency guards) (linux)"
 )
 
 # Upper bound on Checks-API fetches during the verified-tree lookback. Each

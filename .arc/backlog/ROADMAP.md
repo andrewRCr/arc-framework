@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `faff62cc7`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `0406abec2`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -15,11 +15,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State      | Work unit           | Priority | Owner  | Depends on | Cohort                 |
 | ---------- | ------------------- | -------- | ------ | ---------- | ---------------------- |
-| `Planning` | review-architecture | P1       | andrew | —          | —                      |
+| `Active`   | review-architecture | P1       | andrew | —          | —                      |
 | `Planning` | session-locus-model | P1       | andrew | —          | —                      |
+| `Planning` | cli-command-inputs  | P2       | andrew | —          | cli-substrate-adoption |
 | `Planning` | cli-layout-resolver | P2       | andrew | —          | cli-substrate-adoption |
 | `Planning` | markdown-formatting | P3       | andrew | —          | —                      |
-| `Active`   | self-hosted-ci      | P3       | andrew | —          | —                      |
 
 ## Ready
 
@@ -37,7 +37,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | loadset-composition                   | P2       | andrew | —          | agent-context-optimization |
 | commit-increments                     | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization                | P2       | andrew | —          | architecture-remediation   |
-| cli-command-inputs                    | P2       | andrew | —          | cli-substrate-adoption     |
 | cli-validation-surfaces               | P2       | andrew | —          | cli-substrate-adoption     |
 | naming-conventions                    | P2       | andrew | —          | doc-conventions            |
 | cross-wu-coordination                 | P2       | andrew | —          | —                          |
@@ -78,6 +77,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | planning-iteration-mechanics          | P3       | andrew | —          | —                          |
 | quality-gate-hooks                    | P3       | andrew | —          | —                          |
 | rules-restructure                     | P3       | andrew | —          | —                          |
+| self-hosted-ci-qualification          | P3       | andrew | —          | —                          |
 | session-retitle                       | P3       | andrew | —          | —                          |
 | shared-inbox-model                    | P3       | andrew | —          | —                          |
 | skill-infrastructure-cleanup          | P3       | andrew | —          | —                          |
