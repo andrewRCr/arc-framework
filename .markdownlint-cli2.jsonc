@@ -23,9 +23,7 @@
     "gitignore": false,
 
     "globs": [
-        "**/*.md",
-        "!packages/arc-framework/arc/**/*.md",
-        "packages/arc-framework/arc/**/*.template.md"
+        "**/*.md"
     ],
 
     "ignores": [

@@ -12,46 +12,14 @@ gate can act on Markdown content.
 _Design decisions:_ Path identity is one pure shared operation. Formatting and linting derive separate policies
 from that identity, and worktree/index content loaders never reimplement authority rules.
 
-### `[ ]` **1.1 Centralize authoritative Markdown selection and path routing**
+### `[x]` **1.1 Centralize authoritative Markdown selection and path routing**
 
 - _Goal:_ Every Markdown operation receives one repository-relative authority identity, then derives its own
   deterministic action or refusal before reading or writing content.
 
-- **Additional Context:** `strategy-package-project-sync.md` § Edit Flow Rules and
-  `notes-markdown-formatting.md` § Existing Implementation Loci; `file-cursor.ts` path-containment helpers and
-  `framework-sync.test.ts` package-source lookup
-
-    - Resolve the repository root through injected Git execution and `git rev-parse --show-toplevel`; do not reuse
-      source-location-based `resolveRepoRoot()` or `.arc`-walking `resolveArcRoot()` semantics.
-    - Validate canonical repository-relative paths and verify worktree containment before reads or writes, reusing
-      the existing lexical, `realpath`, and `lstat` patterns. Mutating formatter policy rejects any symbolic-link
-      component, including an in-repository target, before content access.
-    - Classify package Framework source, rendered Framework instances, Configurable copies, Scaffolded or
-      project-owned files, derived readiness output, managed meta files, and excluded surfaces as path identities.
-    - Resolve current package↔instance relationships from the recipe evaluated under stored install configuration
-      plus `classifyFile()`. Require mapped Framework outputs to exist; use a present manifest entry as
-      corroboration and fail on contradictory or ambiguous evidence without treating a stale missing per-file entry
-      as the absence of an otherwise deterministic relationship.
-    - Classify a package source with no output in the evaluated current-install recipe as source-only rather than
-      inventing an `.arc/` counterpart.
-    - Keep operation policy separate: formatting routes or refuses by authority, while worktree and staged lint both
-      include authoritative package source and rendered/project content in the selected current scope.
-    - Expose the selector's canonical `globs`, `ignores`, and `gitignore` declaration for root-config alignment;
-      selector code remains path authority rather than evaluating arbitrary configuration globs.
-    - Build `test-first` (one behavior at a time):
-        - Package-source and rendered-instance counterparts share one identity relationship; formatting preserves
-          source-first direction while both lint policies intentionally select both copies.
-        - A recipe-mapped existing Framework output remains projectable when its per-file manifest entry is stale;
-          missing outputs and contradictory mappings fail, while package sources outside the evaluated current
-          install format source-only.
-        - Configurable copies remain independently editable without treating either whole file as authoritative.
-        - Readiness output routes to regeneration, meta files route to normalization, and excluded surfaces refuse.
-        - Missing or invalid manifest/recipe evidence refuses relationship-dependent routing without guessing.
-        - Root path-selection configuration matches the selector structurally, including array order; config-only
-          or nested path-option drift fails closed instead of changing one lint surface independently.
-        - Traversal, every mutating-path symlink form (internal, escaping, or dangling), out-of-repository paths,
-          directories, untracked paths, non-Markdown paths, and empty selections fail before content access.
-        - Primary and linked worktrees produce the same repository-relative classification.
+- _Outcome:_ Added shared Markdown authority and selection APIs for Git-root resolution, current-install
+  package↔instance mapping, source-first routing, config alignment, NUL-safe lint scope enumeration, and
+  pre-content containment validation. Root lint now covers both authoritative package and rendered/project Markdown.
 
 ### `[ ]` **1.2 Define Markdown operation contracts and diagnostics**
 
