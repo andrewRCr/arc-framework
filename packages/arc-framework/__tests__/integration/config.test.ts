@@ -82,7 +82,6 @@ describe("runConfigStatus — full mode", () => {
       "commit.custom_pattern:",
       "commit.context_pattern:",
       "merge.strategy: merge",
-      "review.pre_merge: enabled",
       "platform.type: github",
       "pm.mode: arc-in-git",
       "team.mode: false",

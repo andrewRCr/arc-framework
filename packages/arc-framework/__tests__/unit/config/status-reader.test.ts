@@ -30,8 +30,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 24 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(24);
+  it("enumerates the 23 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(23);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -83,7 +83,6 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["commit.format"]).toBe("conventional");
     expect(result.settings["commit.context_footer"]).toBe("required");
     expect(result.settings["merge.strategy"]).toBe("merge");
-    expect(result.settings["review.pre_merge"]).toBe("enabled");
     expect(result.settings["platform.type"]).toBe("github");
     expect(result.settings["team.mode"]).toBe("false");
     expect(result.settings["session.remote_sync"]).toBe("enabled");
@@ -128,7 +127,6 @@ describe("readConfigSettings — user-supplied values", () => {
       "commit.custom_pattern: ^FOO-.+",
       "commit.context_pattern: ^Relates to",
       "merge.strategy: rebase",
-      "review.pre_merge: disabled",
       "platform.type: gitlab",
       "pm.mode: arc-in-git",
       "team.mode: true",
@@ -343,7 +341,6 @@ describe("readConfigSettings — session.init_pull channels", () => {
       "commit.format: conventional",
       "commit.context_footer: required",
       "merge.strategy: merge",
-      "review.pre_merge: enabled",
       "platform.type: github",
       "pm.mode: arc-in-git",
       "team.mode: false",

@@ -102,7 +102,7 @@ a configurability path (how teams adapt it).
 |-----------------------------------------|-----------|-------------------------------------|-------------------------------------------------------|
 | Zero-tolerance quality gates            | P4        | All errors must be fixed            | Behavioral guidance — adjust severity levels          |
 | Tiered quality gate system (Tier 1/2/3) | P4        | Per-task / per-unit / per-phase     | Behavioral guidance — adjust tier boundaries          |
-| Pre-merge aggregate review              | P4        | Lightweight diff review before push | Config setting — `review.pre_merge` + Method override |
+| Pre-merge aggregate review              | P4        | Lightweight diff review before push | Method activation + override                          |
 | Planning checkpoint review              | P2 / P4   | No checkpoint stop                  | Extension — `pre-activation`                          |
 | Leave it cleaner (capture floor)        | P4        | Fix or document pre-existing issues | Method override — fix-now vs. capture-and-defer       |
 | Test-first assessment                   | P4        | Decision tree by change type        | Method override — substitute assessment criteria      |
@@ -220,7 +220,7 @@ directly — would create update safety or maintenance problems.
 where each developer configures them independently.
 
 - **Project-only settings** — `branch.*`, `commit.*`, `merge.*`, `hooks.*`, `platform.*`, `pm.mode`, `team.mode`,
-  `archive.cadence`, `review.pre_merge`, `session.init_pull.*`, `session.init_load.notes`, `session.remote_sync`.
+  `archive.cadence`, `session.init_pull.*`, `session.init_load.notes`, `session.remote_sync`.
   These are inherently project-wide; per-developer variation would create inconsistency.
 - **Per-developer settings** — identity, role, autonomy interlocks, release-wrapper opt-in. These route through
   **git config** (`git config arc.<key>`). See [Personal Configuration via Git
@@ -334,7 +334,6 @@ Config settings divide into two categories based on how changes take effect:
 - `branch.base`, `branch.protection` — Branch model
 - `merge.strategy` — Integration strategy
 - `platform.type` — Agent platform awareness
-- `review.pre_merge` — Pre-merge review toggle
 
 **Personal settings** route through `git config` (identity, role, tools, autonomy interlocks, release-wrapper
 opt-in) and are managed by `arc init` / `arc join` (identity, role, tools), `arc release setup install` /

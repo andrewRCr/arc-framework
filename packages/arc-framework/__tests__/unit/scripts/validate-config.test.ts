@@ -68,6 +68,15 @@ describe("validate-config.sh — user.notes_push", () => {
   });
 });
 
+describe("validate-config.sh — retired review toggle", () => {
+  it("rejects review.pre_merge as an unknown key", async () => {
+    const result = await runValidateConfig("review.pre_merge: enabled\n");
+
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain("WARN  Unknown key: 'review.pre_merge'");
+  });
+});
+
 describe("validate-config.sh — session.init_load.notes", () => {
   it.each(["manual", "prompt", "always"])("accepts %s", async (value) => {
     const result = await runValidateConfig(`session.init_load.notes: ${value}\n`);

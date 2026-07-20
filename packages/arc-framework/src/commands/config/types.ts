@@ -21,7 +21,6 @@ export interface ConfigSettings {
   "commit.custom_pattern": string;
   "commit.context_pattern": string;
   "merge.strategy": string;
-  "review.pre_merge": string;
   "platform.type": string;
   "pm.mode": string;
   "team.mode": string;

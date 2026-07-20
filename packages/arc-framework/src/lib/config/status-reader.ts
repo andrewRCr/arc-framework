@@ -41,7 +41,6 @@ const DEFAULTS: ConfigSettings = {
   "commit.custom_pattern": "",
   "commit.context_pattern": "",
   "merge.strategy": "merge",
-  "review.pre_merge": "enabled",
   "platform.type": "github",
   "pm.mode": "none",
   "team.mode": "false",

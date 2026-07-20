@@ -113,12 +113,12 @@ then re-enter this guard after it merges.
 
 ### 2) Local diff preflight
 
-If `review.pre_merge` is enabled in [`arc-config.yml`][arc-config]:
+If the [`self-review` method][self-review] is effectively active:
 
 1. Execute the [`self-review` method][self-review] against the local aggregate diff vs the base branch.
    Classify findings per the [`review-triage` method][review-triage]; commit fixes per the
    [`commit-footer` method][commit-footer].
-When disabled, proceed directly to Step 3.
+When inactive, proceed directly to Step 3.
 
 ### 3) Open the PR
 

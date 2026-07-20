@@ -446,10 +446,10 @@ with adopter-facing contracts mirrored through the package source.
 - **Additional Context:** `strategy-configurability-architecture.md` §§ Extension Points and Method Overrides;
   `strategy-workflow-authoring.md` §§ Author-side Declaration Rule and Body Conventions.
 
-    - `[ ]` **4.4.a Remove `review.pre_merge` from the live config surface**
-        - Delete the key from package/project `arc-config.yml`, config types/readers/defaults, templates, docs, and
-          tests; migrate integration callers to effective `self-review` activation.
-        - Ensure no replacement activity toggle is added under a different config key.
+    - `[x]` **4.4.a Remove `review.pre_merge` from the live config surface**
+        - Removed the legacy key from package/project config, validation, typed/default settings, operator docs, and
+          fixtures. Integration now keys local preflight directly from effective `self-review` activation, and the
+          retired key fails shell validation as unknown instead of surviving behind a renamed config toggle.
 
     - `[ ]` **4.4.b Preserve generic extension semantics**
         - Keep `pre-commit-review`, `pre-push-review`, `pre-pr-open`, `post-pr-open`, and `pre-merge` files and

@@ -135,7 +135,6 @@ Use `--dry-run` to preview changes before applying.
 - `branch.base`, `branch.protection` — Branch model
 - `merge.strategy` — Integration strategy
 - `platform.type` — Agent platform awareness
-- `review.pre_merge` — Pre-merge review toggle
 
 ### Project-wide by design
 
@@ -225,12 +224,6 @@ Every setting in `arc-config.yml`, with its options and default.
 | `hooks.test_patterns`               | Pipe-separated patterns   | `__tests__/\|...`    | Test paths excluded from meta-ref checking    |
 | `hooks.meta_ref_patterns`           | Pipe-separated patterns   | *(see below)*        | Patterns flagged as meta-project references   |
 | `hooks.contributor_protected_paths` | Pipe-separated patterns   | `active/\|backlog/`  | Directories that warn when staged by contrib  |
-
-### Review
-
-| Setting            | Options               | Default   | What it controls                                        |
-|--------------------|-----------------------|-----------|---------------------------------------------------------|
-| `review.pre_merge` | `enabled`, `disabled` | `enabled` | Whether the agent reviews aggregate diff before pushing |
 
 ### Platform
 
