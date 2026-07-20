@@ -524,32 +524,36 @@ tail-routed authority, handoff/full validation, bundle publication, lifecycle re
 _Purpose:_ Validate the completed work unit against its design, task plan, compatibility contract, and full project
 quality bar before integration.
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ The validated envelope family, Result migration, compatibility goldens, and performance evidence satisfy
   `spec-cli-session-envelope.md` with no unresolved scope or quality gap.
+- _Quality gates:_ Markdown lint, TypeScript lint, shell lint, both typechecks, 6,805 tests with one skipped, and the
+  production build all passed.
+- _Success criteria:_ All 10 criteria met; a fresh adversarial conformance pass found no blocker, major, or minor
+  gap.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The normalized session-init assembly-arm matrix and recovery-audit goldens remain byte-identical across the
+- `[x]` The normalized session-init assembly-arm matrix and recovery-audit goldens remain byte-identical across the
   production changes.
-- `[ ]` Session-init, recovery, compaction-seed, load-set, task-cursor, and recovery-audit payloads validate through
+- `[x]` Session-init, recovery, compaction-seed, load-set, task-cursor, and recovery-audit payloads validate through
   registered family schemas at their boundaries; top-level producer defects fail without output, the seed producer
   retains its non-fatal exception, conditional-slot presence follows the observable producer contract, and only full
   roots and complete top-level contracts are discoverable. The three complete wire roots reject undeclared
   top-level keys while nested thin views retain unowned fields.
-- `[ ]` Every contained advisory slot derives its TypeScript value type from its home-module schema.
-- `[ ]` Thin shared and deep slot schemas reject corrupted mapped routing fields while passing all other payload
+- `[x]` Every contained advisory slot derives its TypeScript value type from its home-module schema.
+- `[x]` Thin shared and deep slot schemas reject corrupted mapped routing fields while passing all other payload
   fields through unperturbed.
-- `[ ]` Malformed and older-version compaction seeds yield structured `seed-invalid` recovery stops, current seeds
+- `[x]` Malformed and older-version compaction seeds yield structured `seed-invalid` recovery stops, current seeds
   enter normal live audit, and no seed producer defect makes session initialization fatal.
-- `[ ]` Internal asynchronous probe composition uses kernel `Result` / `ResultAsync` exclusively while emitted
+- `[x]` Internal asynchronous probe composition uses kernel `Result` / `ResultAsync` exclusively while emitted
   envelopes retain the bare top level and legacy `{ kind, message }` probe errors.
-- `[ ]` The fixed warm/cold benchmark stays within its p50/p95 materiality thresholds, or an evidence-backed
+- `[x]` The fixed warm/cold benchmark stays within its p50/p95 materiality thresholds, or an evidence-backed
   replacement invariant is recorded before changing the always-on posture.
-- `[ ]` Handoff/full-status envelopes, shared deep type authority, schema-bundle publication, lifecycle behavior,
+- `[x]` Handoff/full-status envelopes, shared deep type authority, schema-bundle publication, lifecycle behavior,
   and transport remain outside this work unit’s delivered scope.
-- `[ ]` All quality gates pass (tests, linting, type checking, build).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking, build).
+- `[x]` Ready for integration.
