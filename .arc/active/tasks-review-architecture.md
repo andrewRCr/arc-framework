@@ -19,15 +19,9 @@ gate, or workflow consumes them.
         - Added a dependency-free byte parser and raw Git port in `change-facts.ts`; all six statuses retain exact
           modes and rename/copy endpoints, while malformed framing, object IDs, and UTF-8 fail closed to `unknown`.
 
-    - `[ ]` **1.1.b Expose a machine-readable classifier entrypoint**
-        - Add a narrow CLI/script boundary that returns the canonical record for explicit base/head coordinates;
-          keep Git execution injectable, byte-preserving, and NUL-safe.
-        - Make the dependency-free module directly runnable through native TypeScript support under the package's
-          Node 24 floor, without importing Zod or another installed dependency.
-        - Build `test-first` (one behavior at a time):
-            - Resolve known records from real temporary repositories.
-            - Return an unknown record on unresolved commits or malformed Git output.
-            - Emit stable JSON without turning filenames into commands or line-oriented data.
+    - `[x]` **1.1.b Expose a machine-readable classifier entrypoint**
+        - Added an injectable base/head resolver and native-TypeScript executable that emits stable canonical JSON;
+          real-repository coverage proves unresolved refs fail closed and hostile filenames remain inert raw data.
 
     - `[ ]` **1.1.c Convert the shell classifier into a compatibility adapter**
         - Make `scripts/classify-change.sh` consume the shared record while preserving `classify`, `lane`,

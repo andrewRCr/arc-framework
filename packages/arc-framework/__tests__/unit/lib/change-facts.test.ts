@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRawDiff } from "../../../src/lib/change-facts.js";
+import { parseRawDiff, resolveChangeSet } from "../../../src/lib/change-facts.js";
 
 const HASH = "a".repeat(40);
 const ZERO_HASH = "0".repeat(40);
@@ -116,5 +116,53 @@ describe("parseRawDiff", () => {
     input.set(invalidPath, header.length);
 
     expect(parseRawDiff(input)).toEqual({ changeSet: "unknown", changes: [] });
+  });
+});
+
+describe("resolveChangeSet", () => {
+  it("resolves explicit base and head coordinates through the raw Git port", async () => {
+    const output = raw(`:000000 100644 ${ZERO_HASH} ${HASH} A`, "new.ts");
+    const calls: string[][] = [];
+
+    const result = await resolveChangeSet(async (args) => {
+      calls.push(args);
+      return { stdout: output };
+    }, "base-ref", "head-ref");
+
+    expect(result).toEqual({
+      changeSet: "known",
+      changes: [
+        {
+          status: "added",
+          path: "new.ts",
+          oldMode: "000000",
+          newMode: "100644",
+        },
+      ],
+    });
+    expect(calls).toEqual([
+      ["diff", "--raw", "-z", "--no-abbrev", "-M", "-C", "base-ref", "head-ref", "--"],
+    ]);
+  });
+
+  it.each([
+    ["Git rejects the coordinates", async () => Promise.reject(new Error("missing ref"))],
+    ["Git returns malformed bytes", async () => ({ stdout: new TextEncoder().encode("not raw") })],
+  ])("returns unknown when %s", async (_label, exec) => {
+    await expect(resolveChangeSet(exec, "base", "head")).resolves.toEqual({
+      changeSet: "unknown",
+      changes: [],
+    });
+  });
+
+  it("rejects option-shaped coordinates before invoking Git", async () => {
+    let invoked = false;
+    const result = await resolveChangeSet(async () => {
+      invoked = true;
+      return { stdout: new Uint8Array() };
+    }, "base", "--output=payload");
+
+    expect(result).toEqual({ changeSet: "unknown", changes: [] });
+    expect(invoked).toBe(false);
   });
 });

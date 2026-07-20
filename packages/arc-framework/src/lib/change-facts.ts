@@ -1,5 +1,9 @@
 /** Canonical, byte-preserving facts derived from Git raw-diff output. */
 
+import { spawn } from "node:child_process";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 export type ChangeStatus =
   | "added"
   | "modified"
@@ -127,4 +131,84 @@ export function parseRawDiff(input: Uint8Array): ChangeSet {
   } catch {
     return UNKNOWN;
   }
+}
+
+/**
+ * Resolve canonical change facts between two explicit Git coordinates.
+ *
+ * @param exec - Byte-preserving Git boundary
+ * @param base - Base commitish
+ * @param head - Head commitish
+ * @returns Canonical facts, or an unknown record when Git or parsing fails
+ */
+export async function resolveChangeSet(
+  exec: RawGitExec,
+  base: string,
+  head: string,
+): Promise<ChangeSet> {
+  if (base.length === 0 || head.length === 0 || base.startsWith("-") || head.startsWith("-")) {
+    return UNKNOWN;
+  }
+
+  try {
+    const { stdout } = await exec([
+      "diff",
+      "--raw",
+      "-z",
+      "--no-abbrev",
+      "-M",
+      "-C",
+      base,
+      head,
+      "--",
+    ]);
+    return parseRawDiff(stdout);
+  } catch {
+    return UNKNOWN;
+  }
+}
+
+/**
+ * Create the production byte-preserving Git boundary.
+ *
+ * @param cwd - Default repository working directory
+ * @returns A raw Git executor
+ */
+export function createRawGitExec(cwd = process.cwd()): RawGitExec {
+  return (args, options) =>
+    new Promise((resolveResult, reject) => {
+      const child = spawn("git", args, {
+        cwd: options?.cwd ?? cwd,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      const stdout: Buffer[] = [];
+      const stderr: Buffer[] = [];
+
+      child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+      child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+      child.on("error", reject);
+      child.on("close", (code) => {
+        const stdoutBytes = Buffer.concat(stdout);
+        const stderrBytes = Buffer.concat(stderr);
+        if (code === 0) {
+          resolveResult({ stdout: stdoutBytes, stderr: stderrBytes });
+          return;
+        }
+        reject(new Error(`git diff failed with exit code ${code ?? "unknown"}`));
+      });
+    });
+}
+
+async function runExecutable(args: string[]): Promise<void> {
+  const [base, head, ...rest] = args;
+  const result =
+    base === undefined || head === undefined || rest.length !== 0
+      ? UNKNOWN
+      : await resolveChangeSet(createRawGitExec(), base, head);
+  process.stdout.write(`${JSON.stringify(result)}\n`);
+}
+
+const invokedPath = process.argv[1];
+if (invokedPath !== undefined && fileURLToPath(import.meta.url) === resolve(invokedPath)) {
+  await runExecutable(process.argv.slice(2));
 }
