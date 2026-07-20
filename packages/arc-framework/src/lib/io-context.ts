@@ -169,7 +169,9 @@ export async function prepareGitRefVerification(
       }));
     }
   });
-  stdin.on("error", (error) => { prepareReject?.(error); });
+  stdin.on("error", (error) => {
+    prepareReject?.(normalizeGitRejection(error, { command: "git", args }));
+  });
   stdin.write(`start\nverify ${ref} ${expectedOid}\nprepare\n`);
 
   try {

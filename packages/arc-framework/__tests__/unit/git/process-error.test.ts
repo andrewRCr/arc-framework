@@ -105,6 +105,14 @@ describe("normalizeGitRejection", () => {
     expect(error.stderr).toBe("ERR");
   });
 
+  it("preserves legacy AbortError cancellation compatibility", () => {
+    const abortError = new Error("aborted");
+    abortError.name = "AbortError";
+
+    expect(normalizeGitRejection(abortError, { command: "git", args: ["fetch"] }))
+      .toMatchObject({ kind: "canceled", isCanceled: true });
+  });
+
   it.each([
     [["fetch", "origin", "missing"], 128, "fatal: couldn't find remote ref missing", "absent-remote-ref"],
     [["push", "origin", "--delete", "missing"], 1, "error: remote ref does not exist", "absent-remote-ref"],

@@ -128,7 +128,7 @@ export function normalizeGitRejection(value: unknown, invocation: GitInvocation)
   const record = asRecord(value);
   const timedOut = record?.timedOut === true;
   const isMaxBuffer = record?.isMaxBuffer === true;
-  const isCanceled = record?.isCanceled === true;
+  const isCanceled = record?.isCanceled === true || stringField(record, "name") === "AbortError";
   const exitCode = numericExitCode(record);
   const signal = stringField(record, "signal");
   const stdout = streamField(record, "stdout") ?? "";

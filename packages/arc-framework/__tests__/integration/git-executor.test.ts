@@ -1,5 +1,5 @@
 import { execPath } from "node:process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -32,6 +32,7 @@ describe("production GitExec", () => {
   it("uses argument arrays, cwd, raw stderr, and compatible stdout normalization", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-execa-git-"));
     tempDirs.push(root);
+    const canonicalRoot = await realpath(root);
     const script = [
       "process.stdout.write(`${process.cwd()}\\n${process.argv[1]}\\n\\n`);",
       "process.stderr.write('diagnostic\\n');",
@@ -39,7 +40,7 @@ describe("production GitExec", () => {
 
     const result = await gitExec(execPath, ["-e", script, "argument with spaces"], { cwd: root });
 
-    expect(result).toEqual({ stdout: `${root}\nargument with spaces`, stderr: "diagnostic\n" });
+    expect(result).toEqual({ stdout: `${canonicalRoot}\nargument with spaces`, stderr: "diagnostic\n" });
   });
 
   it("captures stdout beyond the execFile default buffer under the 64 MiB ceiling", async () => {
