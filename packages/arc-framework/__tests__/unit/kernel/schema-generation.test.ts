@@ -56,6 +56,7 @@ describe("kernel schema artifact generation", () => {
       "project-routing-promotion",
       "review-assurance-input",
       "review-guidance-digest-preimage",
+      "review-lifecycle-tail-proof",
       "review-method-activity",
       "review-policy-version-preimage",
       "review-receipt",

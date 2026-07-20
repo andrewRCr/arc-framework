@@ -2,7 +2,11 @@
 
 import type { CapabilitySet, NormalizedChangeRequest } from "./contracts.js";
 import type { Evidence, FindingClosure } from "./evidence.js";
-import type { LifecycleTailProof } from "./lifecycle-tail.js";
+import type {
+  ForwardLifecycleSurface,
+  ForwardLifecycleTailProof,
+  LifecycleTailProof,
+} from "./lifecycle-tail.js";
 import type {
   ReviewReceiptV2,
   ReviewRequestV2,
@@ -43,6 +47,30 @@ export interface LifecycleTailProofResolutionInput {
 /** Storage adapter boundary; `null` represents a storage tier with no code-head tail. */
 export interface LifecycleTailProofAdapter {
   resolveLifecycleTail(input: LifecycleTailProofResolutionInput): Promise<LifecycleTailProof | null>;
+}
+
+/** One exact target-side scope supplied to forward lifecycle-tail classification. */
+export interface ForwardLifecycleTailScope {
+  target: ReviewTarget;
+  surface: ForwardLifecycleSurface;
+  policyVersion: `sha256:${string}`;
+  rubricVersion: string;
+  rubricDigest: `sha256:${string}`;
+  sourceIdentity: string;
+}
+
+/** Neutral forward input for a storage adapter that may classify a lifecycle tail. */
+export interface ForwardLifecycleTailProofResolutionInput {
+  predicateId: "lifecycle-bookkeeping-tail/v2";
+  reviewed: ForwardLifecycleTailScope;
+  current: ForwardLifecycleTailScope;
+}
+
+/** Forward storage adapter boundary; null means the target has no post-review lifecycle tail. */
+export interface ForwardLifecycleTailProofAdapter {
+  resolveForwardLifecycleTail(
+    input: ForwardLifecycleTailProofResolutionInput,
+  ): Promise<ForwardLifecycleTailProof | null>;
 }
 
 /** Stable diagnostics for an untrusted or unavailable receipt ledger. */

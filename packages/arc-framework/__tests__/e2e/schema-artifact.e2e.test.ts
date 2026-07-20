@@ -27,6 +27,7 @@ describe("production schema artifact", () => {
       "project-routing-promotion",
       "review-assurance-input",
       "review-guidance-digest-preimage",
+      "review-lifecycle-tail-proof",
       "review-method-activity",
       "review-policy-version-preimage",
       "review-receipt",

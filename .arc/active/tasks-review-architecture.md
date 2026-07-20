@@ -269,13 +269,10 @@ readiness.
           contiguous same-source generations, rejects broken or ambiguous bindings and incomplete results, and
           requires a terminal full record at the settled target for `full-final`.
 
-    - `[ ]` **3.3.b Generalize lifecycle-tail carry-forward**
-        - Extend `core/lifecycle-tail.ts` and `hosts/github/lifecycle-tail.ts` from the existing bookkeeping proof to
-          the versioned target/applicability record.
-        - Preserve evidence only when the tail changes no reviewed surface and the exact trees, path manifests,
-          and semantic digests agree.
-        - Keep evidence applicability narrow: proving a tail safe to carry over never proves that required
-          composition/archive products exist or grants merge authority at the current target.
+    - `[x]` **3.3.b Generalize lifecycle-tail carry-forward**
+        - Added a registered v2 lifecycle-tail proof beside the operational v1 bridge. Git classification now binds
+          exact prior/current targets and preserves coverage only when reviewed-surface tree, path-manifest, semantic,
+          policy, rubric, and source identities agree; its strict applicability is limited to review coverage.
 
     - `[ ]` **3.3.c Classify base-reconcile interaction**
         - Define the v2 applicability proof over prior/current target IDs, exact delta `changeSetId`, normalized

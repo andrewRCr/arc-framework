@@ -9,11 +9,13 @@ import { registerProjectRoutingPromotionSchema } from "../policy/project-promoti
 import { registerReviewAssuranceSchemas } from "../policy/assurance-schema.js";
 import { registerReviewRoutingSchemas } from "../policy/routing-schema.js";
 import { registerReviewPrimitiveSchemas } from "./review-primitives.js";
+import { registerForwardLifecycleTailSchema } from "./lifecycle-tail.js";
 
 /** Compose every currently implemented review schema into a fresh kernel registry. */
 export function registerReviewDomainSchemas(registry: KernelRegistry): KernelRegistry {
   registerChangeFactSchemas(registry);
   registerReviewGateV2Schemas(registry);
+  registerForwardLifecycleTailSchema(registry);
   registerReviewPrimitiveSchemas(registry);
   registerReviewAssuranceSchemas(registry);
   registerReviewRoutingSchemas(registry);
