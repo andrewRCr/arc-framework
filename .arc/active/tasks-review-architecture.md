@@ -285,7 +285,7 @@ readiness.
           and projects coverage treatment through the host check. Runtime cases cover bookkeeping, disjoint,
           interacting, conflict, unbound proof, and final-full paths.
 
-### `[ ]` **3.4 Admit local exact-head independent-analysis evidence**
+### `[x]` **3.4 Admit local exact-head independent-analysis evidence**
 
 - _Goal:_ A qualified fresh local evaluator can satisfy `independent-analysis/v1` at an exact head without a pull
   request or hosted provider, through a repository-shared local receipt authority that hosted gates never trust
@@ -313,11 +313,10 @@ readiness.
           and provider-event shape. Forward evaluation and carry/direct controller paths now refuse unqualified
           evidence; local receipts satisfy the shared obligation only where project channel policy admits them.
 
-    - `[ ]` **3.4.e Cover the local carrier-to-evidence path**
-        - Exercise request construction, normalized-result attestation, ledger persistence, stale-head rejection,
-          finding and clean emission, sibling-worktree serialization, conflicting replay, explicit hosted import,
-          cross-machine absence, and check projection through integration tests; Phase 6 owns carrier launch and
-          response orchestration after the method family exists.
+    - `[x]` **3.4.e Cover the local carrier-to-evidence path**
+        - Added real-storage integration coverage from local request construction through clean/finding attestation,
+          durable reads, and check projection. Separate publishers prove sibling-worktree serialization; stale heads,
+          conflicting replay, hosted import validation, namespace isolation, and cross-machine absence fail closed.
 
 ### `[ ]` **3.5 Migrate strict parsers and invalidate legacy evidence safely**
 

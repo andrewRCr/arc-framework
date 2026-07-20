@@ -7,10 +7,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   createReviewReceipt,
-  createReviewRequest,
   createReviewRequirement,
   createReviewTarget,
 } from "../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createLocalChangeSetCarrier } from "../../src/scripts/review-gate/core/local-carrier.js";
 import type { ForwardReviewReceiptStore } from "../../src/scripts/review-gate/core/ports.js";
 import {
   RepositoryGitCommonStatePublisher,
@@ -20,6 +20,8 @@ import {
   LocalForwardReviewReceiptStore,
 } from "../../src/scripts/review-gate/hosts/local/receipt-store.js";
 import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../../src/scripts/review-gate/policy/independent-analysis.js";
+import { attestLocalReviewResult } from "../../src/scripts/review-gate/runtime/local-attestation.js";
+import { projectForwardReviewContract } from "../../src/scripts/review-gate/runtime/forward-contract.js";
 
 const roots: string[] = [];
 const objectId = (character: string): string => character.repeat(40);
@@ -61,18 +63,29 @@ async function fixture() {
     initialAdmission: "automatic",
   });
   if (requirement === null) throw new Error("expected requirement");
-  const request = createReviewRequest(target, {
-    schemaVersion: 2,
-    semanticsVersion: "review-gate/v2",
-    repositoryId: target.repositoryId,
-    targetId: target.targetId,
+  const carrier = createLocalChangeSetCarrier({
+    target,
     requirementId: requirement.requirementId,
-    carrier: { kind: "local-change-set", adapterId: "local", changeRequestId: null },
+    snapshot: {
+      state: "exact",
+      repositoryId: target.repositoryId,
+      baseRef: target.baseRef,
+      diffBaseSha: target.diffBaseSha,
+      diffBaseTree: target.diffBaseTree,
+      headSha: target.headSha,
+      headTree: target.headTree,
+    },
     authorIdentity: "author-1",
     evaluatorIdentity: "evaluator-1",
+    attestation: {
+      evaluatorIdentity: "evaluator-1",
+      runtimeIdentity: "local-attestor-1",
+      mechanism: "local-runtime",
+    },
     generation: 0,
     requestMechanism: "automatic",
   });
+  const request = carrier.request;
   const receipt = createReviewReceipt({
     target,
     requirement,
@@ -85,16 +98,20 @@ async function fixture() {
     providerEventIdentity: null,
     result: "clean",
   });
-  return { root, commonDir, publisher, store, target, requirement, request, receipt };
+  return { root, commonDir, exec, publisher, store, target, requirement, carrier, request, receipt };
 }
 
 describe("local forward receipt authority", () => {
   it("serializes identical sibling replay and publishes one repository-shared receipt", async () => {
     const records = await fixture();
+    const siblingStore = new LocalForwardReviewReceiptStore(
+      new RepositoryGitCommonStatePublisher(records.exec, join(records.root, "sibling-worktree")),
+      records.target.repositoryId,
+    );
 
     const results = await Promise.all([
       records.store.appendReceipt(records.receipt, 0),
-      records.store.appendReceipt(records.receipt, 0),
+      siblingStore.appendReceipt(records.receipt, 0),
     ]);
 
     expect(results).toEqual([
@@ -168,5 +185,99 @@ describe("local forward receipt authority", () => {
       expectedLedgerVersion: 1,
     })).rejects.toThrow(/evaluator/u);
     expect(appended).toHaveLength(1);
+  });
+
+  it.each(["clean", "findings"] as const)(
+    "carries a normalized %s result from local request through durable check projection",
+    async (result) => {
+      const records = await fixture();
+      const receipt = await attestLocalReviewResult({
+        target: records.target,
+        requirement: records.requirement,
+        carrier: records.carrier,
+        result: {
+          status: "complete",
+          result,
+          targetId: records.target.targetId,
+          headSha: records.target.headSha,
+          headTree: records.target.headTree,
+          rubricVersion: records.requirement.rubricVersion,
+          rubricDigest: records.requirement.rubricDigest,
+          evaluatorIdentity: records.request.evaluatorIdentity,
+          reviewRunId: "run-integration",
+          applicabilityId: null,
+        },
+        currentTarget: async () => records.target,
+        runtimeIdentity: records.carrier.attestation.runtimeIdentity,
+        attestationMechanism: records.carrier.attestation.mechanism,
+        store: records.store,
+        expectedLedgerVersion: 0,
+      });
+      const durable = await records.store.readReceipts(records.target.targetId);
+      const projection = projectForwardReviewContract({
+        channel: "local",
+        target: records.target,
+        requirement: records.requirement,
+        request: records.request,
+        receipt: durable.receipts[0],
+      });
+
+      expect(receipt).toEqual(durable.receipts[0]);
+      expect(projection.projection.conclusion).toBe(result === "clean" ? "success" : "failure");
+      expect(projection.checkOutput.summary).toContain(records.target.targetId);
+    },
+  );
+
+  it("rejects a stale head before persistence and leaves another machine without evidence", async () => {
+    const records = await fixture();
+    const otherCommon = join(records.root, "other-machine.git");
+    await mkdir(otherCommon, { recursive: true });
+    const otherExec: GitExec = async () => ({ stdout: `${otherCommon}\n` });
+    const otherStore = new LocalForwardReviewReceiptStore(
+      new RepositoryGitCommonStatePublisher(otherExec, records.root),
+      records.target.repositoryId,
+    );
+    const staleTarget = createReviewTarget({
+      schemaVersion: 2,
+      semanticsVersion: "review-gate/v2",
+      kind: "change-set",
+      repositoryId: records.target.repositoryId,
+      baseRef: records.target.baseRef,
+      diffBaseSha: records.target.diffBaseSha,
+      diffBaseTree: records.target.diffBaseTree,
+      headSha: objectId("e"),
+      headTree: objectId("f"),
+    });
+
+    await expect(attestLocalReviewResult({
+      target: records.target,
+      requirement: records.requirement,
+      carrier: records.carrier,
+      result: {
+        status: "complete",
+        result: "clean",
+        targetId: records.target.targetId,
+        headSha: records.target.headSha,
+        headTree: records.target.headTree,
+        rubricVersion: records.requirement.rubricVersion,
+        rubricDigest: records.requirement.rubricDigest,
+        evaluatorIdentity: records.request.evaluatorIdentity,
+        reviewRunId: "run-stale",
+        applicabilityId: null,
+      },
+      currentTarget: async () => staleTarget,
+      runtimeIdentity: records.carrier.attestation.runtimeIdentity,
+      attestationMechanism: records.carrier.attestation.mechanism,
+      store: records.store,
+      expectedLedgerVersion: 0,
+    })).rejects.toThrow(/current target/iu);
+    await expect(records.store.readReceipts(records.target.targetId)).resolves.toEqual({
+      ledgerVersion: 0,
+      receipts: [],
+    });
+    await expect(otherStore.readReceipts(records.target.targetId)).resolves.toEqual({
+      ledgerVersion: 0,
+      receipts: [],
+    });
   });
 });
