@@ -85,6 +85,31 @@ function promote<T extends string>(current: T, requested: T, order: readonly T[]
   return order.indexOf(requested) > order.indexOf(current) ? requested : current;
 }
 
+function applyAssuranceAndActivity(
+  facts: ReviewRoutingFacts,
+  decision: ReviewRoutingDecision,
+): ReviewRoutingDecision {
+  const assuranceMode = facts.assurance.workClass === "Heavy" || facts.assurance.workClass === "Novel"
+    ? "terminal-aggregate"
+    : "none";
+  const authorSelfReview = facts.activity.selfReview ? decision.authorSelfReview : "exempt";
+  const frontlineAction = facts.activity.frontlineReview ? decision.frontlineAction : "skip";
+  const reasons = [...decision.reasons];
+  if (!facts.activity.selfReview && !reasons.includes("self-review-inactive")) {
+    reasons.push("self-review-inactive");
+  }
+  if (!facts.activity.frontlineReview && !reasons.includes("frontline-inactive")) {
+    reasons.push("frontline-inactive");
+  }
+  return ReviewRoutingDecisionSchema.parse({
+    ...decision,
+    authorSelfReview,
+    frontlineAction,
+    assuranceMode,
+    reasons,
+  });
+}
+
 function reduceReviewRoutingBase(facts: ReviewRoutingFacts): ReviewRoutingDecision {
   if (facts.changeSetState === "unknown") {
     return ReviewRoutingDecisionSchema.parse({
@@ -191,23 +216,13 @@ export function reduceReviewRouting(facts: ReviewRoutingFacts): ReviewRoutingDec
     }
   }
 
-  const assuranceMode = facts.assurance.workClass === "Heavy" || facts.assurance.workClass === "Novel"
-    ? "terminal-aggregate"
-    : "none";
-  const authorSelfReview = facts.activity.selfReview ? base.authorSelfReview : "exempt";
-  const frontlineAction = facts.activity.frontlineReview ? base.frontlineAction : "skip";
-  if (!facts.activity.selfReview) reasons.push("self-review-inactive");
-  if (!facts.activity.frontlineReview) reasons.push("frontline-inactive");
-
-  return ReviewRoutingDecisionSchema.parse({
+  const promoted = ReviewRoutingDecisionSchema.parse({
     ...base,
-    authorSelfReview,
-    frontlineAction,
     independentAnalysis,
     retrigger,
-    assuranceMode,
     reasons,
   });
+  return applyAssuranceAndActivity(facts, promoted);
 }
 
 function applyProjectPromotion(
@@ -334,7 +349,10 @@ export function resolveReviewRouting(
   if (projectPolicy !== undefined) {
     try {
       const promotion = ProjectRoutingPromotionSchema.safeParse(projectPolicy(facts));
-      if (promotion.success) decision = applyProjectPromotion(decision, promotion.data);
+      if (promotion.success) {
+        decision = applyProjectPromotion(decision, promotion.data);
+        decision = applyAssuranceAndActivity(facts, decision);
+      }
       else diagnostics.add("projectPromotion");
     } catch {
       diagnostics.add("projectPromotion");

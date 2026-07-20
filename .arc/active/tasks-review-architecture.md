@@ -188,10 +188,10 @@ pull-request count, provider choice, or host mechanics.
           a valid decision with a congruent obligation/retrigger pair; pinned the complete framework-reason
           vocabulary alongside the existing six readable base-route regressions.
 
-    - `[ ]` **2.4.b Prove monotonic promotion and activation properties**
-        - Add property assertions that sensitivity, ownership, authority, and project policy never lower any
-          obligation/action/retrigger lattice.
-        - Prove activation changes only its own activity result and `Class` changes only assurance mode by default.
+    - `[x]` **2.4.b Prove monotonic promotion and activation properties**
+        - Added generated monotonicity assertions for sensitivity, ownership, authority, and project policy plus
+          isolation properties for activation and `Class`; centralized the terminal assurance/activity adjustment
+          so project promotions cannot reactivate a disabled method.
 
     - `[ ]` **2.4.c Exercise the public classifier-to-router boundary**
         - Run integration cases from real Git change facts through risk/authority/ownership normalization and the
