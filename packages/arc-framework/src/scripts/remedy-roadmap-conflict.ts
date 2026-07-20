@@ -60,13 +60,14 @@ export async function runRoadmapConflictAutoRemedy(
   };
 }
 
-async function main(): Promise<void> {
+/** Run the packaged hidden hook command and forward its process result. */
+export async function runRoadmapConflictAutoRemedyCommand(): Promise<void> {
   const result = await runRoadmapConflictAutoRemedy(process.cwd());
   if (result.stdout !== "") process.stdout.write(result.stdout);
   if (result.stderr !== "") process.stderr.write(result.stderr);
-  process.exit(result.exitCode);
+  if (result.exitCode !== 0) process.exitCode = result.exitCode;
 }
 
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  void main();
+  void runRoadmapConflictAutoRemedyCommand();
 }

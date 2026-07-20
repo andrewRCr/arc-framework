@@ -65,6 +65,34 @@ describe("foreign-write advisory backstop wiring", () => {
   });
 });
 
+describe("ROADMAP conflict auto-remedy wiring", () => {
+  it("runs the package-portable remedy before generic marker rejection", () => {
+    const block = preCommitSource.slice(
+      preCommitSource.indexOf("CHECK 4"),
+      preCommitSource.indexOf("CHECK 5"),
+    );
+
+    expect(block).toContain(
+      "npx tsx packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts",
+    );
+    expect(block).toContain("arc hook-remedy-roadmap-conflict");
+    expect(block.indexOf("roadmap_remedy_output")).toBeLessThan(
+      block.indexOf("conflict_markers="),
+    );
+  });
+
+  it("keeps failed remedies and remaining markers as hard errors", () => {
+    const block = preCommitSource.slice(
+      preCommitSource.indexOf("CHECK 4"),
+      preCommitSource.indexOf("CHECK 5"),
+    );
+
+    expect(block).toContain("roadmap_remedy_status");
+    expect(block).toContain("ROADMAP conflict auto-remedy failed");
+    expect(block.match(/errors=\$\(\(errors \+ 1\)\)/gu)).toHaveLength(2);
+  });
+});
+
 describe("decompose retirement record gate wiring", () => {
   it("uses the source validator when present and the packaged CLI otherwise", () => {
     const block = preCommitSource.slice(

@@ -99,6 +99,7 @@ import {
   handleReleaseStatus,
 } from "./commands/release.js";
 import { runDecomposeRecordValidation } from "./scripts/validate-decompose-record.js";
+import { runRoadmapConflictAutoRemedyCommand } from "./scripts/remedy-roadmap-conflict.js";
 
 const program = new Command();
 
@@ -116,6 +117,10 @@ const checkCmd = program
 program
   .command("hook-validate-decompose-record", { hidden: true })
   .action(runDecomposeRecordValidation);
+
+program
+  .command("hook-remedy-roadmap-conflict", { hidden: true })
+  .action(runRoadmapConflictAutoRemedyCommand);
 
 function isDashPrefixedCheckSourceEscaped(
   rawArgs: readonly string[],
