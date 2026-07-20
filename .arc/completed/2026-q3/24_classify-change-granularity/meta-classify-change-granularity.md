@@ -1,8 +1,8 @@
 # Metadata: classify-change-granularity
 
-| **State**     | **Owner** | **Branch**                         | **Class** | **Priority** |
-| ------------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/classify-change-granularity` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/307>
+- **Completed:** 2026-07-19
 
 ## Release Notes Entry
 
