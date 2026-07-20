@@ -353,6 +353,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | commit-format         | prepare-commits     | User-triggered commit events               |
 | commit-footer         | prepare-commits     | User-triggered commit events               |
 | self-review           | integrate-work-unit | Integration phase only                     |
+| implementation-audit  | integrate-work-unit | Integration review rubric                  |
 | review-triage         | integrate-work-unit | Integration phase only                     |
 | session-state         | session-handoff     | Session end only                           |
 

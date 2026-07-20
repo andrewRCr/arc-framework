@@ -154,7 +154,7 @@ describe("update integration — baseline (real recipe)", () => {
     // through added/removed/updated/conflicts.
     const perFilePaths = [
       ...[
-        "commit-footer", "commit-format", "self-review",
+        "commit-footer", "commit-format", "implementation-audit", "self-review",
         "issue-triage", "quality-gate-commands", "review-triage",
         "session-state", "test-first",
       ].map((n) => `system/methods/${n}.md`),

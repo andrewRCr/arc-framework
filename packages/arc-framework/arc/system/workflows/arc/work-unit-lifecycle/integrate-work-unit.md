@@ -4,6 +4,7 @@ audience: agent
 arc:
   methods:
     - self-review
+    - implementation-audit
     - review-triage
     - commit-footer
   extensions:

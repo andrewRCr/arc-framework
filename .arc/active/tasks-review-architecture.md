@@ -355,10 +355,10 @@ with adopter-facing contracts mirrored through the package source.
           retained its aggregate author-side/non-evidence contract, and migrated installation, classification,
           workflow declarations, indexes, current references, and tests to the new identity.
 
-    - `[ ]` **4.1.b Add the implementation-audit rubric**
-        - Ship the five-dimension rubric—intent/scope, correctness/failure, trust/compatibility,
-          verification/missing cases, coherence/maintainability—as the default change-realization lens.
-        - Keep the rubric medium-agnostic and compatible with method replacement/extension.
+    - `[x]` **4.1.b Add the implementation-audit rubric**
+        - Shipped the package-authoritative `implementation-audit` method and project mirror with the five
+          medium-neutral change-realization dimensions, complete-change clean rule, grounded finding contract, and
+          override-compatible baseline; registered it for installation and integration-time loading.
 
     - `[ ]` **4.1.c Add frontline-review and independent-analysis contracts**
         - Define frontline as an advisory pre-publication fire-point and independent analysis as the satisfying

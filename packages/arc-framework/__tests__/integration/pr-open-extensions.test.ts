@@ -125,6 +125,20 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("ships one medium-neutral implementation audit rubric", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/implementation-audit.md"), "utf8");
+      const normalized = method.toLowerCase();
+      expect(normalized).toContain("intent and scope");
+      expect(normalized).toContain("correctness and failure behavior");
+      expect(normalized).toContain("trust boundaries and compatibility");
+      expect(normalized).toContain("verification quality and missing cases");
+      expect(normalized).toContain("coherence and maintainability");
+      expect(method).toContain("code, configuration, or prose");
+      expect(method).not.toMatch(/GitHub|CodeRabbit|provider command/iu);
+    }
+  });
+
   it("keeps every review-triage disposition explicit while allowing concise minor roll-up", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/review-triage.md"), "utf8");
