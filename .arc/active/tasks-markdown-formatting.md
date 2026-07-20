@@ -45,25 +45,14 @@ path before aligned-table enforcement begins.
   `string-width` 8.1.0, and introduced reusable declared/locked/runtime dependency verification. Worktree lint now
   certifies dependency alignment, and Unicode parity fixtures exercise the same values through aligned `MD060`.
 
-### `[ ]` **2.2 Normalize managed meta core tables without changing fields**
+### `[x]` **2.2 Normalize managed meta core tables without changing fields**
 
 - _Goal:_ Lifecycle writes and explicit normalization produce one display-aligned meta core table while preserving
   every byte outside its three managed rows.
 
-    - Factor one exact-span core-table locator that records source offsets and original line-ending spelling,
-      requires exactly one recognized five-column table before managed bullets, and fails on absent, malformed,
-      duplicated, or unrecognized core-table shapes.
-    - Expose `normalizeMetaCoreTable(content)` through that locator and the existing core-table renderer rather than
-      building a second meta formatter.
-    - Route existing core-field setters through the same display-width-aware locator and renderer so field changes,
-      no-field normalization, duplicate detection, and line-ending preservation cannot drift.
-    - Build `test-first` (one behavior at a time):
-        - A valid core table re-renders its header, delimiter, and value rows without changing any field value.
-        - Missing, malformed, duplicated, and unrecognized core tables fail loudly.
-        - A normalized input is byte-identical.
-        - H1 text, bullets, continuations, ordering, narrative sections, line endings, and final-newline state remain
-          byte-identical outside the three-row span.
-        - Wide glyphs in every permitted core-value class align under display width.
+- _Outcome:_ Added an exact-span, line-ending-preserving managed-table locator and routed normalization plus all
+  core-field setters through one display-width renderer. Structural drift fails loudly, while field values and
+  every byte outside the three managed rows remain unchanged.
 
 ### `[ ]` **2.3 Render status and readiness tables by display width**
 
