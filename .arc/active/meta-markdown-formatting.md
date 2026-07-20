@@ -12,11 +12,11 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Formalization-ready design draft captured
+- **Last Completed:** Detailed RFC finalized after two adversarial review passes
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Begin `generate-tasks` from `spec-markdown-formatting.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
