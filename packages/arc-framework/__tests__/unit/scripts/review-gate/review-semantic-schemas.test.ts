@@ -115,6 +115,10 @@ describe("review semantic schemas", () => {
     };
     expect(ReviewRoutingFactsSchema.parse(facts)).toEqual(facts);
     expect(ReviewRoutingFactsSchema.safeParse({ ...facts, ciWeight: "light" }).success).toBe(false);
+    expect(ReviewRoutingFactsSchema.safeParse({
+      ...facts,
+      reviewRubric: "implementation-audit",
+    }).success).toBe(false);
   });
 
   it("enforces independent-analysis and retrigger pairings", () => {

@@ -140,12 +140,10 @@ pull-request count, provider choice, or host mechanics.
           defaults rejected fields conservatively with diagnostics, and feeds the router without method-file or
           override interpretation; each activity adjustment remains isolated from independent analysis.
 
-    - `[ ]` **2.2.b Add the WU review-rubric overlay field**
-        - Add managed `Review Rubric` metadata in `lib/active/meta-reader.ts` with default `[none]` and one safe
-          rubric/method identity as its only real value; reject paths, inline instructions, and multiple values.
-        - Extend templates and lifecycle preservation, proving fresh projections render `[none]` as semantic
-          absence, the field survives every planning/execution transition, and it never becomes a per-change
-          obligation input.
+    - `[x]` **2.2.b Add the WU review-rubric overlay field**
+        - Added `Review Rubric` to the canonical meta projection with `[none]` as semantic absence and one slug-safe
+          rubric/method identity as its only value; paths, instructions, lists, and other sentinels reject, managed
+          lifecycle rewrites preserve it, and the routing-facts schema explicitly excludes the overlay.
 
     - `[ ]` **2.2.c Resolve WU assurance facts without production method binding**
         - Compose injected activity, WU `Class`, and typed `absent | resolved | unavailable` overlay resolution
