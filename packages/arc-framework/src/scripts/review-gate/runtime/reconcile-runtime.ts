@@ -317,11 +317,10 @@ function singleRequirement(decision: SelfHostingDecision): ReviewRequirement | u
 }
 
 function toChangedPaths(context: HostChangeContext): ChangedPath[] {
-  return context.changedPaths.map((change) => ({
-    status: change.status,
-    path: change.path,
-    ...(change.previousPath === undefined ? {} : { previousPath: change.previousPath }),
-  }));
+  return context.changedPaths.map((change) =>
+    change.status === "renamed" || change.status === "copied"
+      ? { status: change.status, path: change.path, previousPath: change.previousPath }
+      : { status: change.status, path: change.path });
 }
 
 /** Sources the policy licenses to run through the durable-record provider transport. */

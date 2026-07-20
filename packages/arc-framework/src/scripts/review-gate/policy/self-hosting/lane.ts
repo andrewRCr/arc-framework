@@ -3,7 +3,7 @@
 import { posix } from "node:path";
 
 import { parseMetaRecord } from "../../../../lib/active/meta-reader.js";
-import type { CanonicalChange, ChangeStatus } from "../../../../lib/change-facts.js";
+import type { ChangePathFact, ChangeStatus } from "../../../../lib/change-facts.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { readMetaAtRef } from "../../../../lib/git/remote-ref-reader.js";
 
@@ -11,7 +11,7 @@ import { readMetaAtRef } from "../../../../lib/git/remote-ref-reader.js";
 export type ChangedPathStatus = ChangeStatus;
 
 /** One changed path, with its prior location for renames and copies. */
-export type ChangedPath = Pick<CanonicalChange, "status" | "path" | "previousPath">;
+export type ChangedPath = ChangePathFact;
 
 /** Inputs for normalized ownership over one canonical change set. */
 export interface OwnershipResolutionInput {
@@ -115,9 +115,8 @@ async function resolveOwnershipDetailed(input: OwnershipResolutionInput): Promis
       return { relation: "unknown", failureReason: "non-lane-path" };
     }
     if (change.status === "renamed" || change.status === "copied") {
-      const previous = change.previousPath === undefined ? null : groupForPath(change.previousPath);
-      if (change.previousPath === undefined
-        || change.previousPath.startsWith("/")
+      const previous = groupForPath(change.previousPath);
+      if (change.previousPath.startsWith("/")
         || change.previousPath.split("/").includes("..")) {
         return { relation: "unknown", failureReason: "ambiguous-move" };
       }

@@ -6,37 +6,19 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export type ChangeStatus =
-  | "added"
-  | "modified"
-  | "deleted"
-  | "renamed"
-  | "copied"
-  | "type-changed";
+import type {
+  CanonicalChange,
+  ChangePathFact,
+  ChangePathSet,
+  ChangeSet,
+} from "./change-facts.schema.js";
 
-export interface CanonicalChange {
-  status: ChangeStatus;
-  path: string;
-  previousPath?: string;
-  oldMode: string;
-  newMode: string;
-}
-
-/** Mode-insensitive canonical view used by review policy consumers. */
-export type ChangePathFact = Pick<CanonicalChange, "status" | "path" | "previousPath">;
-
-/** Known/unknown path-fact view shared by review policy consumers. */
-export type ChangePathSet =
-  | { changeSet: "known"; changes: readonly ChangePathFact[] }
-  | { changeSet: "unknown"; changes: readonly [] };
-
-export type ChangeSet =
-  | { changeSet: "known"; changes: CanonicalChange[] }
-  | { changeSet: "unknown"; changes: [] };
+export type { CanonicalChange, ChangePathFact, ChangePathSet, ChangeSet };
+export type ChangeStatus = ChangePathFact["status"];
 
 /** Stable union of every affected path, including both move and copy endpoints. */
 export function affectedPaths(
-  changes: readonly Pick<ChangePathFact, "path" | "previousPath">[],
+  changes: readonly { path: string; previousPath?: string }[],
 ): string[] {
   const paths = new Set<string>();
   for (const change of changes) {
@@ -200,7 +182,7 @@ export function parseRawDiff(input: Uint8Array): ChangeSet {
         ...(previousPath === undefined ? {} : { previousPath }),
         oldMode,
         newMode,
-      });
+      } as CanonicalChange);
     }
 
     return changes.length === 0 ? UNKNOWN : { changeSet: "known", changes };

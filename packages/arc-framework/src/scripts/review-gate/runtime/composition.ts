@@ -509,11 +509,10 @@ export async function createAttestRuntime(
           expectedActorId: config.dispatchActorId,
         })
       : await seams.resolveActorCapabilities();
-    const changes: ChangedPath[] = change.context.changedPaths.map((item) => ({
-      status: item.status,
-      path: item.path,
-      ...(item.previousPath === undefined ? {} : { previousPath: item.previousPath }),
-    }));
+    const changes: ChangedPath[] = change.context.changedPaths.map((item) =>
+      item.status === "renamed" || item.status === "copied"
+        ? { status: item.status, path: item.path, previousPath: item.previousPath }
+        : { status: item.status, path: item.path });
     const lane = await resolveAutoLane({
       exec: io.exec,
       diffBaseSha: change.changeRequest.diffBaseSha,

@@ -71,18 +71,11 @@ gate, or workflow consumes them.
 - _Context:_ Implements Design §§1.1, 1.4, and 2.1 on the delivered schema-kernel registry.
 - **Additional Context:** `notes-review-architecture.md` § Scope and proportionality boundaries.
 
-    - `[ ]` **1.3.a Define co-located semantic schemas**
-        - Add Zod schemas beside their semantic owners: change facts beside the dependency-free resolver; routing,
-          activity/assurance inputs, project promotions, shared severity/disposition primitives, and the logical
-          independent-analysis projection beside review policy.
-        - Establish the record-family inventory for every later durable record—gate contracts, receipts,
-          applicability, findings, disposition sets, fix authorization/consumption, frontline continuity, and
-          suspended-review state—so its owning task must infer from and register a co-located schema rather than add
-          an interface-first or adapter-private JSON shape.
-        - Build `test-first` (one behavior at a time):
-            - Accept every closed enum member and reject unknown keys or invalid cross-field combinations.
-            - Infer exported types from schemas rather than maintaining parallel interfaces.
-            - Preserve project reason namespaces without accepting arbitrary fact fields.
+    - `[x]` **1.3.a Define co-located semantic schemas**
+        - Added strict Zod owners for canonical changes, routing facts/decisions, activity and assurance, project
+          promotions, finding primitives, and the independent-analysis contract; exported types infer from those
+          schemas, project reasons remain namespaced, and a closed inventory assigns every later durable record to
+          its semantic owner and stable versioned identity.
 
     - `[ ]` **1.3.b Register stable review schema identities**
         - Expose domain-owned registration functions that accept a fresh registry returned by

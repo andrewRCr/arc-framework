@@ -125,9 +125,6 @@ export class GitHubHostReadAdapter implements GitHostReadAdapter {
           if (change.status !== "renamed" && change.status !== "copied") {
             return { status: change.status, path: change.path };
           }
-          if (change.previousPath === undefined) {
-            throw new GitHubHostReadError(`${change.status}-path-missing-previous-path`);
-          }
           return { status: change.status, path: change.path, previousPath: change.previousPath };
         }),
         author: {
