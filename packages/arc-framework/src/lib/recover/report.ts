@@ -5,6 +5,7 @@ import { z } from "zod";
 import { SessionRecoverProbeResultSchema } from "../../commands/status/schema.js";
 import { COMPACTION_SEED_SCHEMA_VERSION } from "../compaction-seed/schema.js";
 import { RecoveryAuditVerdictSchema } from "./audit.js";
+import { assertSessionEnvelopeContract } from "../session-envelope/validation.js";
 
 const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "value must not be empty");
 
@@ -59,3 +60,8 @@ export const RecoverAuditReportSchema = RecoverAuditReportObjectSchema.superRefi
 
 /** Recovery-audit report derived from its complete runtime authority. */
 export type RecoverAuditReport = z.infer<typeof RecoverAuditReportSchema>;
+
+/** Validate a recovery-audit report for effect while retaining its original object. */
+export function assertRecoverAuditReport(value: unknown): asserts value is RecoverAuditReport {
+  assertSessionEnvelopeContract("recovery-audit-report", RecoverAuditReportSchema, value);
+}

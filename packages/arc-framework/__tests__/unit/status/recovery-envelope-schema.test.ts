@@ -5,7 +5,10 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SessionRecoverProbeResultSchema } from "../../../src/commands/status/schema.js";
+import {
+  assertSessionRecoverProbeResult,
+  SessionRecoverProbeResultSchema,
+} from "../../../src/commands/status/schema.js";
 
 const READY_PATH = join(
   import.meta.dirname,
@@ -26,6 +29,14 @@ function withoutKey(value: Record<string, unknown>, key: string): Record<string,
 }
 
 describe("lean recovery envelope schema", () => {
+  it("asserts mapped producer defects with the registered contract identity", () => {
+    const value = recovery();
+    (value.active as { value: { resolution: string } }).value.resolution = "ambiguous";
+    expect(() => assertSessionRecoverProbeResult(value)).toThrow(
+      /session-recover-envelope: active\.value\.resolution:/u,
+    );
+  });
+
   it("accepts the characterized recovery value and preserves nested payloads", () => {
     const value = recovery();
     expect(SessionRecoverProbeResultSchema.parse(value)).toEqual(value);

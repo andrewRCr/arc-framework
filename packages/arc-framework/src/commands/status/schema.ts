@@ -22,6 +22,7 @@ import { PartialPushMarkerSurfaceResultSchema } from "../../lib/session-init/par
 import { RetiredSubdirDetectionResultSchema } from "../../lib/session-init/retired-subdir-detection.js";
 import { ClassCompositionSchema } from "../../lib/status/class-composition.js";
 import { TaskListCursorFileResultSchema } from "../../lib/task-list/file-cursor.js";
+import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
 
 const NON_EMPTY_TEXT = z.string().refine((value) => value.trim().length > 0, "value must not be empty");
 
@@ -519,3 +520,13 @@ export type SessionInitProbeResultSchemaInputCompatibility<
 export type SessionRecoverProbeResultSchemaInputCompatibility<
   Producer extends SessionRecoverDeclaredInput = SessionRecoverProbeResult,
 > = Producer;
+
+/** Validate a session-init producer for effect while retaining its original object. */
+export function assertSessionInitProbeResult(value: unknown): asserts value is SessionInitProbeResult {
+  assertSessionEnvelopeContract("session-init-envelope", SessionInitProbeResultSchema, value);
+}
+
+/** Validate a lean recovery producer for effect while retaining its original object. */
+export function assertSessionRecoverProbeResult(value: unknown): asserts value is SessionRecoverProbeResult {
+  assertSessionEnvelopeContract("session-recover-envelope", SessionRecoverProbeResultSchema, value);
+}

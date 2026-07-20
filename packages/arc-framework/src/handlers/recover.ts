@@ -25,7 +25,10 @@ import {
   type RecoveryAuditStopReason,
   type RecoveryAuditVerdict,
 } from "../lib/recover/audit.js";
-import type { RecoverAuditReport } from "../lib/recover/report.js";
+import {
+  assertRecoverAuditReport,
+  type RecoverAuditReport,
+} from "../lib/recover/report.js";
 import { createRecoverStatusProbes } from "./recover-probes.js";
 import { requireArcProjectRoot } from "./shared.js";
 
@@ -161,6 +164,7 @@ async function readIdentityPointers(): Promise<{
 }
 
 function writeReport(report: RecoverAuditReport, json: boolean): void {
+  assertRecoverAuditReport(report);
   if (json) {
     process.stdout.write(`${JSON.stringify(report)}\n`);
     return;

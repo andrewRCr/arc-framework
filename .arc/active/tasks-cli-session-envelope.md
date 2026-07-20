@@ -324,82 +324,57 @@ assembled object. The existing top-level CLI error boundary owns internal assert
 remain valid stopped reports rather than producer failures. See `notes-cli-session-envelope.md` § Boundary failure
 disposition.
 
-### `[ ]` **5.1 Validate session-init output while emitting the original object**
+### `[x]` **5.1 Validate session-init output while emitting the original object**
 
 - _Goal:_ Every session-init producer defect fails deterministically before output, while every valid invocation
   serializes the same assembled object and exact bytes characterized in Phase 1.
-- _Context:_ Implements validate-but-emit-original; Success Criteria 1, 2, and 4.
 
-    - `[ ]` **5.1.a Add an injectable producer-validation seam**
-        - Add `lib/session-envelope/validation.ts` with a shared schema-boundary assertion that validates for effect,
-          discards the parsed copy, and throws a kernel `ArcError` with code `session-envelope.invalid`, the contract
-          id, and normalized issue paths.
-        - Import `ArcError` through `lib/kernel/index.ts`; add no family-level direct import of a kernel submodule.
-        - Expose focused session-init and recovery assertions from the status schema module so tests can feed
-          malformed assembled payloads directly without corrupting unrelated probe implementations.
-        - Build `test-first` around valid output, a corrupted full-schema field, a corrupted thin routing field, and
-          stable multi-issue path formatting.
+    - `[x]` **5.1.a Add an injectable producer-validation seam**
+        - Added one kernel-backed validate-for-effect helper plus contract-specific assertions with stable contract
+          ids and normalized multi-issue paths for full and thin producer defects.
 
-    - `[ ]` **5.1.b Wire validation before session-init rendering**
-        - In `handlers/status.ts`, validate the completed result after the optional `compactionSeedWrite` slot is
-          attached and before either JSON emission or interactive summary rendering.
-        - Ignore the parsed return value and pass the original `result` object to `JSON.stringify`; let the assertion
-          reach the existing `program.parseAsync().catch` boundary, which renders the stable error, sets the non-zero
-          exit, and emits no invalid JSON.
-        - Cover assertion behavior directly and handler call placement with a substituted malformed orchestrator
-          result; do not add an environment-controlled production bypass solely to induce a built-CLI defect.
-        - Re-run the exact Phase 1 golden matrix to prove key order, absence-versus-`null`, arrays, conditional-slot
-          positions, and probe branches are unchanged.
+    - `[x]` **5.1.b Wire validation before session-init rendering**
+        - Validated the finalized session-init object after optional seed status and before both render paths, then
+          retained the original object for serialization; all five exact wire goldens remain unchanged.
 
-### `[ ]` **5.2 Validate recovery output and audit reports without changing their JSON**
+- _Outcome:_ Session-init producer defects now fail through the CLI boundary before output while valid assembled
+  objects retain their exact byte shape and identity.
+
+### `[x]` **5.2 Validate recovery output and audit reports without changing their JSON**
 
 - _Goal:_ Both recovery producers reject internal contract defects at their emit boundary while preserving ready
   and early-stop report bytes.
-- _Context:_ Implements producer validation and untrusted-boundary handling; Success Criteria 1, 2, and 4.
 
-    - `[ ]` **5.2.a Validate lean `status --recover` output**
-        - Wire the recovery-envelope assertion in `handlers/status.ts` immediately before `JSON.stringify(result)`;
-          serialize the original `SessionRecoverProbeResult` after validation.
-        - Build `test-first` around valid lean results, corrupted routing fields, optional omission, and deterministic
-          rejection through the top-level CLI error boundary with no JSON output.
+    - `[x]` **5.2.a Validate lean `status --recover` output**
+        - Added validate-for-effect immediately before lean-recovery serialization with valid, malformed-routing,
+          and optional-omission assertion coverage.
 
-    - `[ ]` **5.2.b Validate every recovery-audit report path**
-        - Export a report-specific assertion from `lib/recover/report.ts` through the shared validation helper, then
-          put it inside the existing `writeReport()` choke point so ready, identity-missing, seed-read/parse failure,
-          git-status failure, and ordinary stopped reports all validate before JSON or text rendering.
-        - Let internal report defects reach the top-level CLI error boundary with non-zero status and no partial
-          output; keep valid stopped reports, including untrusted seed failures, on their existing success exit.
-        - Serialize the original report, then prove Phase 1 ready/stopped goldens remain byte-identical.
+    - `[x]` **5.2.b Validate every recovery-audit report path**
+        - Put the report assertion in the shared write choke point so ready and every stopped path validate before
+          text or JSON; characterized ready and dirty-drift bytes remain unchanged.
 
-### `[ ]` **5.3 Preserve non-fatal seed writes and fail-closed persisted-seed handling**
+- _Outcome:_ Lean recovery and audit reports now reject internal defects at their final output choke points while
+  preserving original objects and successful machine-readable stop reports.
+
+### `[x]` **5.3 Preserve non-fatal seed writes and fail-closed persisted-seed handling**
 
 - _Goal:_ Producer seed defects remain a non-fatal session-init side effect, while untrusted persisted-seed defects
   stop recovery deterministically without crashing or manufacturing a replacement baseline.
-- _Context:_ Implements the seed exception and strict-current fail-closed posture; Success Criteria 2 and 5.
 
-    - `[ ]` **5.3.a Retain validation of the original seed before writing**
-        - Preserve the existing pre-write assertion in `lib/compaction-seed/emitter.ts`, adapting it to the
-          schema-backed authority from Phase 2 without introducing a second parse or moving validation after I/O.
-        - Pass the original seed to canonical serialization/write logic rather than persisting a parsed copy.
-        - Map schema failures to the established `seed-invalid` write status so `handlers/status.ts` attaches a
-          valid failed `compactionSeedWrite` slot and still emits the session-init envelope successfully.
+    - `[x]` **5.3.a Retain validation of the original seed before writing**
+        - Kept the single pre-write strict assertion and changed stringification to serialize the original validated
+          seed, retaining `seed-invalid` as a non-throwing failed status.
 
-    - `[ ]` **5.3.b Preserve fail-closed persisted-seed consumption**
-        - Consume the Phase 2 `parseCompactionSeedJson()` result in `handlers/recover.ts`; do not reimplement JSON,
-          version, or schema parsing in this phase.
-        - Map malformed JSON, invalid schema, and older/newer version mismatches to a valid `seed-invalid` stopped
-          report that retains categorized detail, skips `runRecoverStatus()` and `auditRecoveryState()`, and exits
-          successfully for machine consumption.
-        - Prove a current seed enters the normal live audit while every invalid persisted form stops without a crash
-          or a fabricated seed baseline.
+    - `[x]` **5.3.b Preserve fail-closed persisted-seed consumption**
+        - Retained the categorized persisted-seed parser and early stopped report path, which skips live recovery for
+          malformed, invalid, or version-mismatched seeds without manufacturing a baseline.
 
-    - `[ ]` **5.3.c Exercise boundary-appropriate non-fatal behavior**
-        - Use compaction-seed unit coverage to inject an invalid producer seed and handler-level coverage to prove its
-          failed write status remains valid session-init output; add no production-only test switch.
-        - Use built-CLI E2E coverage for the externally reachable invalid-persisted-seed stop and successful current
-          round trip.
-        - Confirm a producer seed failure neither suppresses the valid session-init JSON envelope nor blocks
-          compaction, while a persisted seed failure yields only the structured recovery stop.
+    - `[x]` **5.3.c Exercise boundary-appropriate non-fatal behavior**
+        - Proved invalid producer seeds never write, valid seeds round-trip unchanged, and external invalid persisted
+          seeds yield only successful structured recovery stops without a production bypass.
+
+- _Outcome:_ Seed production remains a non-fatal validated side effect, while persisted seed defects fail closed as
+  valid recovery stops and current seeds continue through the ordinary live audit.
 
 ## **Phase 6:** Result-based internal composition
 

@@ -5,7 +5,10 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { SessionInitProbeResultSchema } from "../../../src/commands/status/schema.js";
+import {
+  assertSessionInitProbeResult,
+  SessionInitProbeResultSchema,
+} from "../../../src/commands/status/schema.js";
 
 const FIXTURE_DIR = join(import.meta.dirname, "..", "..", "fixtures", "session-envelope");
 
@@ -28,6 +31,20 @@ function withoutKey(value: Record<string, unknown>, key: string): Record<string,
 }
 
 describe("session-init envelope schema", () => {
+  it("asserts full and thin producer defects with the registered contract identity", () => {
+    const fullDefect = fixture("orient");
+    (fullDefect.identity as { role: string }).role = "";
+    expect(() => assertSessionInitProbeResult(fullDefect)).toThrow(
+      /session-init-envelope: identity\.role:/u,
+    );
+
+    const thinDefect = fixture("orient");
+    (thinDefect.worktree as { value: { recommendedAction: string } }).value.recommendedAction = "guess";
+    expect(() => assertSessionInitProbeResult(thinDefect)).toThrow(
+      /session-init-envelope: worktree\.value\.recommendedAction:/u,
+    );
+  });
+
   it.each(["orient", "active-resume", "current-husk", "branch-gone", "identity-missing"])(
     "accepts the %s characterization fixture",
     (name) => expect(SessionInitProbeResultSchema.parse(fixture(name))).toEqual(fixture(name)),

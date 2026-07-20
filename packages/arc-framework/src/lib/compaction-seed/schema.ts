@@ -139,11 +139,8 @@ export function parseCompactionSeedJson(content: string): CompactionSeedParseRes
  * @returns Pretty JSON with a trailing newline for file writes
  */
 export function stringifyCompactionSeed(seed: CompactionSeed): string {
-  const result = CompactionSeedSchema.safeParse(seed);
-  if (!result.success) {
-    throw new Error(`compaction-seed: ${formatIssues(result.error.issues)}`);
-  }
-  return `${JSON.stringify(result.data, null, 2)}\n`;
+  assertCompactionSeed(seed);
+  return `${JSON.stringify(seed, null, 2)}\n`;
 }
 
 /**

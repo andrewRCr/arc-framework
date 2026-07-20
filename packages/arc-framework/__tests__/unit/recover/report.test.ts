@@ -5,7 +5,10 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { RecoverAuditReportSchema } from "../../../src/lib/recover/report.js";
+import {
+  assertRecoverAuditReport,
+  RecoverAuditReportSchema,
+} from "../../../src/lib/recover/report.js";
 
 const FIXTURE_DIR = join(import.meta.dirname, "..", "..", "fixtures", "session-envelope");
 
@@ -43,6 +46,12 @@ function earlyStop(): Record<string, unknown> {
 }
 
 describe("recovery-audit report schema", () => {
+  it("asserts report defects with the registered contract identity", () => {
+    expect(() => assertRecoverAuditReport({ ...earlyStop(), mode: "wrong" })).toThrow(
+      /recovery-audit-report: mode:/u,
+    );
+  });
+
   it.each(["ready", "dirty-path-drift"])("accepts the %s characterization fixture", (name) => {
     const value = report(name);
     expect(RecoverAuditReportSchema.parse(value)).toEqual(value);
