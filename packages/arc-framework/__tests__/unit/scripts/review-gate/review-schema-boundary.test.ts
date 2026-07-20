@@ -8,6 +8,7 @@ const packageRoot = resolve(import.meta.dirname, "../../../..");
 const sourceRoot = join(packageRoot, "src");
 const ownerModules = [
   "lib/change-facts.schema.ts",
+  "scripts/review-gate/core/gate-contract-v2-schema.ts",
   "scripts/review-gate/core/review-primitives.ts",
   "scripts/review-gate/policy/assurance-schema.ts",
   "scripts/review-gate/policy/independent-analysis-projection-schema.ts",

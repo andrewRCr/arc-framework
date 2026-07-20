@@ -219,18 +219,10 @@ readiness.
           projection, and ledger parsing; exact keys and bare digests remain readable without canonical-prefix
           coercion, while satisfaction is explicitly characterized only inside the legacy requirement family.
 
-    - `[ ]` **3.1.b Define the forward review-target and request schemas**
-        - Build `test-first` (one behavior at a time):
-            - Require `schemaVersion: 2` and `semanticsVersion: review-gate/v2`; bind repository,
-              diff-base/head SHAs and trees, target ID, carrier, author/evaluator identities, generation, and
-              request mechanism exactly.
-            - Use Kernel `CanonicalDigest` (`sha256:<64-hex>`) for semantic IDs while keeping Git commit/tree
-              object IDs bare.
-            - Reject carrier retargeting, missing hosted change-request identity, cross-repository targets, and
-              unknown fields; reject an author/evaluator identity collision.
-            - Preserve one request against one target/requirement/carrier.
-            - Derive `targetId` and `requestId` only from their exact registered Design §1.4 preimage schemas,
-              excluding the derived ID and unlisted envelope/observation fields.
+    - `[x]` **3.1.b Define the forward review-target and request schemas**
+        - Added strict registered v2 target/request and ID-preimage schemas plus validating constructors; canonical
+          semantic IDs remain distinct from bare Git OIDs, one request binds one repository/target/requirement/
+          carrier, actor and hosted-carrier invariants reject, and retargeting cannot retain a stale derived ID.
 
     - `[ ]` **3.1.c Define forward requirement and receipt schemas**
         - Consume Phase 2's immutable logical projection, then add `rubricDigest`, retrigger treatment, exact
