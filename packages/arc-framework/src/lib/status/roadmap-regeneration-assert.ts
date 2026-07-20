@@ -11,6 +11,7 @@
 import { isAbsolute, relative, sep } from "node:path";
 
 import type { GitExec } from "../git/exec.js";
+import { resolveArcPath } from "../layout/index.js";
 import { buildLifecycleIndex } from "../work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../work-unit/lifecycle-resolver.js";
 
@@ -25,7 +26,7 @@ import {
 } from "./project-view.js";
 
 /** Repo-relative path to the tracked project readiness view. */
-export const ROADMAP_PATH = ".arc/backlog/ROADMAP.md";
+export const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
 /** Command users can run to recreate the tracked readiness view. */
 export const ROADMAP_RERENDER_COMMAND = `arc status --project --staged > ${ROADMAP_PATH}`;

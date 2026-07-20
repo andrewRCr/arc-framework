@@ -332,58 +332,49 @@ dispositions in Phase 5.
 - _Outcome:_ Actual repository workflow consumers now use the semantic procedure root, while procedure recognition,
   package-source enumeration, and exact pointer evidence remain independent oracles for the final ledger.
 
-### `[ ]` **4.3 Migrate project-readiness document consumers by role**
+### `[x]` **4.3 Migrate project-readiness document consumers by role**
 
 - _Goal:_ Semantic readiness writers use the project-document address while status policy, exact Git evidence, and
   basename recognition preserve their stronger local contracts.
 
-    - `[ ]` **4.3.a Derive the status-domain readiness path from layout**
-        - Initialize the exported `ROADMAP_PATH` contract in `src/lib/status/roadmap-regeneration-assert.ts` from the
-          project-document address, retaining its `ManagedPath` value and current remediation strings.
-        - Keep assertion inputs, marker checks, staged-index reads, and golden diagnostics independent from the
-          resolver implementation.
+    - `[x]` **4.3.a Derive the status-domain readiness path from layout**
+        - Derived the exported status-owned `ROADMAP_PATH` from the project-document address while preserving its
+          managed-path type, remediation text, staged-index reads, marker checks, and independent diagnostics.
 
-    - `[ ]` **4.3.b Preserve status remedy and reconciliation consumers**
-        - Continue consuming the status-owned `ROADMAP_PATH` in `src/lib/status/roadmap-conflict-auto-remedy.ts` and
-          `src/lib/base-drift/current-adapters.ts`; materialize it only at the filesystem boundary.
-        - Preserve exact staged/unmerged paths, conflict policy, Git arguments, and user-facing messages.
+    - `[x]` **4.3.b Preserve status remedy and reconciliation consumers**
+        - Kept the remedy and base-drift adapters on the status-owned path, materializing only the remedy's worktree
+          write while leaving conflict policy, exact staged evidence, Git operands, and messages unchanged.
 
-    - `[ ]` **4.3.c Migrate lifecycle readiness regeneration**
-        - Update `src/lib/work-unit/side-effects/readiness-regen.ts` to project the project document and materialize it
-          beneath the supplied repository root while keeping render, newline, directory-creation, advisory, and
-          staging behavior local.
-        - Cover successful and degraded regeneration with literal native and managed path expectations.
+    - `[x]` **4.3.c Migrate lifecycle readiness regeneration**
+        - Projected and materialized the readiness document beneath the supplied repository root while retaining the
+          existing render, newline, parent-directory, native staging, and degraded-advisory behavior.
 
-    - `[ ]` **4.3.d Migrate start-handler readiness staging**
-        - Update `src/handlers/start.ts` to use the project-document address wherever a successful start result stages
-          the readiness view; preserve active-meta ordering and exact Git argument behavior.
-        - Keep literal stage-path expectations in handler and dispatch integration tests.
+    - `[x]` **4.3.d Migrate start-handler readiness staging**
+        - Reused one semantic readiness path for start-ceremony writes and exact staging, preserving active-meta order,
+          Git arguments, and literal handler and integration expectations.
 
-    - `[ ]` **4.3.e Migrate direct-retirement readiness evidence**
-        - Update `src/lib/work-unit/direct-retirement-driver.ts` to use the project-document address for exact blob,
-          operation, and allowed-path operands without changing its retirement proof or canonical inventories.
-        - Cover present, deleted, and unchanged readiness blobs with independent managed paths.
+    - `[x]` **4.3.e Migrate direct-retirement readiness evidence**
+        - Projected the exact blob, operation, staging, restore, and allowed-path operand; literal tests now cover
+          changed-present, deleted, and unchanged readiness blobs without consulting the resolver.
 
-    - `[ ]` **4.3.f Migrate decompose-retirement readiness evidence**
-        - Update `src/lib/work-unit/decompose-retirement-projection.ts` to add the semantic project-document path to
-          its exact allowed set while preserving all Phase 3 placement/pointer boundaries.
-        - Cover the resulting canonical inventory through focused retirement and decompose-shape tests.
+    - `[x]` **4.3.f Migrate decompose-retirement readiness evidence**
+        - Confirmed the decompose projection uses the semantic project document in its exact allowed set, preserving
+          the placement and pointer boundaries established with its retirement migration.
 
-    - `[ ]` **4.3.g Migrate park-landing readiness evidence**
-        - Update `src/lib/work-unit/park-planning-landing.ts` to use the project-document address when recognizing the
-          one permitted readiness operation, without changing exact diff paths or landing policy.
-        - Preserve accepted and rejected operation matrices with literal expected paths.
+    - `[x]` **4.3.g Migrate park-landing readiness evidence**
+        - Confirmed park landing recognizes its one permitted readiness operation through the semantic project
+          document while retaining exact diff evidence, policy, and literal accepted/rejected matrices.
 
-    - `[ ]` **4.3.h Migrate the review-gate lifecycle adapter**
-        - Update `src/scripts/review-gate/hosts/github/lifecycle-tail.ts` to project its semantic readiness operand
-          without changing exact changed-file evidence, lifecycle interpretation, or GitHub behavior.
-        - Cover literal staging and destination expectations in its focused unit and integration tests.
+    - `[x]` **4.3.h Migrate the review-gate lifecycle adapter**
+        - Projected the lifecycle-tail readiness operand without changing exact changed-file evidence, lifecycle
+          interpretation, Git behavior, or the adapter's literal unit expectations.
 
-    - `[ ]` **4.3.i Preserve readiness recognition and external evidence**
-        - Keep `ROADMAP.md` basename exclusion in `decompose-inventory.ts`, status-render prose, shell-hook mechanics,
-          fixtures, and golden CLI strings as local recognition or independent evidence.
-        - Require Phase 5 to account for each remaining `roadmap-name` hit without rewriting shipped procedure prose
-          or forward-referencing a future readiness-view rename.
+    - `[x]` **4.3.i Preserve readiness recognition and external evidence**
+        - Preserved basename exclusion, status prose, hook mechanics, fixtures, and golden CLI strings as independent
+          recognition/evidence; remaining readiness-name hits stay assigned to the Phase 5 ledger.
+
+- _Outcome:_ Readiness consumers now share one semantic managed path and cross into native paths only for writes,
+  while Git evidence, policy comparisons, basename recognition, diagnostics, and golden strings remain independent.
 
 ### `[ ]` **4.4 Migrate template-output consumers without coupling source and destination roles**
 

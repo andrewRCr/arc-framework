@@ -16,7 +16,7 @@
  */
 
 import { readdir, rm, rmdir } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import * as p from "@clack/prompts";
 
@@ -61,6 +61,8 @@ import {
   resolveCurrentBranchName,
   resolveUserIdentity,
 } from "./shared.js";
+
+const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
 export interface StartOptions {
   /** Cold-start in place (the current worktree) instead of spawning a new one. */
@@ -334,7 +336,7 @@ async function createNew(
   const ceremony = await commitAndPushStartCeremony(ctx, {
     cwd: r.worktreePath,
     branch: r.branch,
-    stagePaths: [`.arc/active/meta-${r.wuName}.md`, ".arc/backlog/ROADMAP.md"],
+    stagePaths: [`.arc/active/meta-${r.wuName}.md`, ROADMAP_PATH],
     message: buildCreateNewCeremonyCommitMessage(r.wuName),
   });
   if (!ceremony.ok) {
@@ -536,7 +538,7 @@ async function graduate(
     const ceremony = await commitAndPushStartCeremony(ctx, {
       cwd: result.worktreePath,
       branch: result.branch,
-      stagePaths: [`.arc/active/meta-${wuName}.md`, ".arc/backlog/ROADMAP.md"],
+      stagePaths: [`.arc/active/meta-${wuName}.md`, ROADMAP_PATH],
       message: buildGraduateCeremonyCommitMessage(wuName),
     });
     if (!ceremony.ok) {
@@ -806,10 +808,11 @@ async function refreshRoadmapForStartCeremony(
       baseBranch: settings["branch.base"],
       currentBranch,
     });
-    const dir = join(cwd, ".arc", "backlog");
+    const path = materializeArcPath(cwd, ROADMAP_PATH);
+    const dir = dirname(path);
     await ensureDir(dir, ctx.io.mkdir);
     await ctx.io.writeFile(
-      join(dir, "ROADMAP.md"),
+      path,
       view.markdown.endsWith("\n") ? view.markdown : `${view.markdown}\n`,
     );
     return { ok: true, warnings: view.warnings };
