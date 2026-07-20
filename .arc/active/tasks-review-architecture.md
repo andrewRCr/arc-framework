@@ -214,11 +214,10 @@ readiness.
 - _Context:_ Implements Design §1.4 over `core/contracts.ts`, `core/execution.ts`, `core/receipt-payload.ts`, and
   the existing exact-key validation suite.
 
-    - `[ ]` **3.1.a Characterize the schema-v1 compatibility boundary**
-        - Freeze current request, requirement, receipt, projection, and ledger parsing behavior with focused
-          fixtures before changing the type authority.
-        - Record which v1 values remain readable for diagnostics versus eligible for satisfaction, preserving
-          exact keys and existing bare digest encoding without coercion.
+    - `[x]` **3.1.a Characterize the schema-v1 compatibility boundary**
+        - Added one focused fixture family across change request, requirement, source request, receipt envelope,
+          projection, and ledger parsing; exact keys and bare digests remain readable without canonical-prefix
+          coercion, while satisfaction is explicitly characterized only inside the legacy requirement family.
 
     - `[ ]` **3.1.b Define the forward review-target and request schemas**
         - Build `test-first` (one behavior at a time):
