@@ -258,7 +258,7 @@ readiness.
           admission, rubric identity, and retrigger semantics. Requirement construction now derives the digest and
           validation recomputes it; stale receipts fail membership after any covered policy input changes.
 
-### `[ ]` **3.3 Implement exact retrigger and carry-forward proofs**
+### `[x]` **3.3 Implement exact retrigger and carry-forward proofs**
 
 - _Goal:_ Evidence remains attached to the surface actually reviewed: exact incremental chains may advance it,
   disjoint tails may carry it, and interacting or final-full conditions retrigger only what policy requires.
@@ -279,11 +279,11 @@ readiness.
           exact reviewed, delta, and intersection manifests. Disjoint deltas carry, interactions and conflicts
           retrigger incrementally, and receipt coverage must match the intersection or complete stronger delta.
 
-    - `[ ]` **3.3.d Wire applicability into controller reduction**
-        - Update evidence reduction, requirement state, active-flight invalidation, and verdict projection so the
-          typed proof—not workflow prose—decides carry-forward versus retrigger.
-        - Add controller integration cases for bookkeeping, disjoint merge, interacting merge, conflict merge, and
-          final-full policy.
+    - `[x]` **3.3.d Wire applicability into controller reduction**
+        - Added a dormant controller reducer that validates typed applicability and lifecycle proofs, carries only
+          policy-compatible prior coverage, requires proof-bound incremental receipts, invalidates stale flights,
+          and projects coverage treatment through the host check. Runtime cases cover bookkeeping, disjoint,
+          interacting, conflict, unbound proof, and final-full paths.
 
 ### `[ ]` **3.4 Admit local exact-head independent-analysis evidence**
 

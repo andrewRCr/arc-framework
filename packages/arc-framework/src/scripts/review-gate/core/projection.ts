@@ -38,6 +38,10 @@ export interface ForwardGateProjection {
   requirement: ReviewRequirementV2 | null;
   request: ReviewRequestV2 | null;
   receipt: ReviewReceiptV2 | null;
+  coverage?: {
+    treatment: "none" | "direct" | "carry" | "incremental" | "final-full";
+    applicabilityId: string | null;
+  };
 }
 
 function plain(value: string): string {

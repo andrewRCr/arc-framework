@@ -94,9 +94,9 @@ export interface ForwardLifecycleTailProofInput {
   currentTarget: ReviewTarget;
   reviewedSurface: ForwardLifecycleSurface;
   currentSurface: ForwardLifecycleSurface;
-  policyVersion: `sha256:${string}`;
+  policyVersion: string;
   rubricVersion: string;
-  rubricDigest: `sha256:${string}`;
+  rubricDigest: string;
   sourceIdentity: string;
   artifact: LifecycleTailArtifactIdentity;
   diagnostics: LifecycleTailDiagnostic[];

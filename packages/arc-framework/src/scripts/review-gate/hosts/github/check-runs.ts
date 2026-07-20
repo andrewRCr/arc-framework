@@ -46,6 +46,12 @@ export function renderForwardCheckOutput(projection: ForwardGateProjection): Che
       `**Attesting runtime:** ${escapeText(receipt.attestingRuntimeIdentity)} / ${escapeText(receipt.attestationMechanism)}`,
     );
   }
+  if (projection.coverage !== undefined) {
+    lines.push(`**Coverage:** ${escapeText(projection.coverage.treatment)}`);
+    if (projection.coverage.applicabilityId !== null) {
+      lines.push(`**Applicability:** ${escapeText(projection.coverage.applicabilityId)}`);
+    }
+  }
   if (projection.blockers.length > 0) {
     lines.push("", "**Blockers:**", ...projection.blockers.map((blocker) =>
       `- ${escapeText(blocker.code)}: ${escapeText(blocker.detail)}`));

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { classifyReviewApplicability } from "../../../../../src/scripts/review-gate/core/applicability.js";
 import {
   createReviewReceipt,
   createReviewRequest,
@@ -10,11 +11,21 @@ import {
 import {
   INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
 } from "../../../../../src/scripts/review-gate/policy/independent-analysis.js";
-import { projectForwardReviewContract } from "../../../../../src/scripts/review-gate/runtime/forward-contract.js";
+import { createForwardLifecycleTailProof } from "../../../../../src/scripts/review-gate/core/lifecycle-tail.js";
+import {
+  projectForwardReviewContract,
+  projectReducedForwardReviewContract,
+} from "../../../../../src/scripts/review-gate/runtime/forward-contract.js";
 
 const objectId = (character: string): string => character.repeat(40);
 
-function contract() {
+function contract(options: {
+  head?: string;
+  generation?: number;
+  retrigger?: "incremental" | "full-final";
+  applicabilityId?: `sha256:${string}` | null;
+} = {}) {
+  const generation = options.generation ?? 0;
   const target = createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
@@ -23,8 +34,8 @@ function contract() {
     baseRef: "main",
     diffBaseSha: objectId("a"),
     diffBaseTree: objectId("b"),
-    headSha: objectId("c"),
-    headTree: objectId("d"),
+    headSha: objectId(options.head ?? "c"),
+    headTree: objectId(options.head ?? "d"),
   });
   const requirement = createReviewRequirement({
     target,
@@ -33,7 +44,7 @@ function contract() {
       reasons: ["sensitive-change-set"],
       rubricVersion: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version,
       rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
-      retrigger: "full-final",
+      retrigger: options.retrigger ?? "full-final",
       count: 1,
     },
     acceptableSources: [{ sourceKind: "agent", qualifier: "independent-analysis/v1" }],
@@ -49,25 +60,190 @@ function contract() {
     carrier: { kind: "change-request", adapterId: "github", changeRequestId: "pull/42" },
     authorIdentity: "andrew",
     evaluatorIdentity: "reviewer-1",
-    generation: 0,
-    requestMechanism: "automatic",
+    generation,
+    requestMechanism: generation === 0 ? "automatic" : "refresh",
   });
   const receipt = createReviewReceipt({
     target,
     requirement,
     request,
-    applicabilityId: null,
-    reviewRunId: "run-7",
+    applicabilityId: options.applicabilityId ?? null,
+    reviewRunId: `run-${generation}`,
     evaluatorIdentity: request.evaluatorIdentity,
     attestingRuntimeIdentity: "review-gate-app",
     attestationMechanism: "github-app",
-    providerEventIdentity: "event-7",
+    providerEventIdentity: `event-${generation}`,
     result: "clean",
   });
   return { target, requirement, request, receipt };
 }
 
+function applicability(
+  priorTargetId: string,
+  currentTargetId: string,
+  conflictState: "none" | "resolved",
+  deltaPath: string,
+) {
+  return classifyReviewApplicability({
+    priorTargetId,
+    currentTargetId,
+    changeSetId: canonicalDigest({ deltaPath }),
+    reviewedPaths: ["src/a.ts"],
+    changeSet: {
+      changeSet: "known",
+      changes: [{
+        status: "modified",
+        path: deltaPath,
+        oldMode: "100644",
+        newMode: "100755",
+      }],
+    },
+    conflictState,
+  });
+}
+
 describe("forward review contract projection", () => {
+  it("lets the typed coverage reducer, not projection prose, settle full-final", () => {
+    const records = contract();
+    const result = projectReducedForwardReviewContract({
+      target: records.target,
+      requirement: records.requirement,
+      activeRequest: records.request,
+      links: [{ fromTargetId: null, ...records }],
+      applicability: null,
+      lifecycleTail: null,
+      coveragePaths: [],
+    });
+
+    expect(result).toMatchObject({
+      activeFlight: "current",
+      treatment: "final-full",
+      projection: { conclusion: "success" },
+    });
+  });
+
+  it("carries prior coverage across disjoint reconcile applicability", () => {
+    const prior = contract({ head: "c", retrigger: "incremental" });
+    const current = contract({ head: "d", generation: 1, retrigger: "incremental" });
+    const proof = applicability(prior.target.targetId, current.target.targetId, "none", "docs/a.md");
+
+    const result = projectReducedForwardReviewContract({
+      target: current.target,
+      requirement: current.requirement,
+      activeRequest: current.request,
+      links: [{ fromTargetId: null, ...prior }],
+      applicability: proof,
+      lifecycleTail: null,
+      coveragePaths: [],
+    });
+
+    expect(result).toMatchObject({
+      treatment: "carry",
+      projection: {
+        conclusion: "success",
+        coverage: { treatment: "carry", applicabilityId: proof.applicabilityId },
+      },
+    });
+    expect(result.checkOutput.summary).toContain("Coverage:** carry");
+    expect(result.checkOutput.summary).toContain(proof.applicabilityId);
+  });
+
+  it.each([
+    ["interacting", "none", "src/a.ts"],
+    ["conflict", "resolved", "src/b.ts"],
+  ] as const)("requires proof-bound incremental coverage for an %s reconcile", (_name, conflictState, deltaPath) => {
+    const prior = contract({ head: "c", retrigger: "incremental" });
+    const current = contract({ head: "d", generation: 1, retrigger: "incremental" });
+    const proof = applicability(prior.target.targetId, current.target.targetId, conflictState, deltaPath);
+    const receipt = createReviewReceipt({
+      target: current.target,
+      requirement: current.requirement,
+      request: current.request,
+      applicabilityId: proof.applicabilityId,
+      reviewRunId: "run-1",
+      evaluatorIdentity: current.request.evaluatorIdentity,
+      attestingRuntimeIdentity: "review-gate-app",
+      attestationMechanism: "github-app",
+      providerEventIdentity: "event-1",
+      result: "clean",
+    });
+
+    expect(projectReducedForwardReviewContract({
+      target: current.target,
+      requirement: current.requirement,
+      activeRequest: current.request,
+      links: [
+        { fromTargetId: null, ...prior },
+        { fromTargetId: prior.target.targetId, ...current, receipt },
+      ],
+      applicability: proof,
+      lifecycleTail: null,
+      coveragePaths: proof.interactionPaths.length > 0 ? proof.interactionPaths : proof.deltaPaths,
+    })).toMatchObject({ treatment: "incremental", projection: { conclusion: "success" } });
+  });
+
+  it("keeps interacting coverage pending when the receipt does not bind the applicability proof", () => {
+    const prior = contract({ head: "c", retrigger: "incremental" });
+    const current = contract({ head: "d", generation: 1, retrigger: "incremental" });
+    const proof = applicability(prior.target.targetId, current.target.targetId, "none", "src/a.ts");
+
+    expect(projectReducedForwardReviewContract({
+      target: current.target,
+      requirement: current.requirement,
+      activeRequest: current.request,
+      links: [
+        { fromTargetId: null, ...prior },
+        { fromTargetId: prior.target.targetId, ...current },
+      ],
+      applicability: proof,
+      lifecycleTail: null,
+      coveragePaths: proof.interactionPaths,
+    })).toMatchObject({
+      treatment: "none",
+      projection: {
+        conclusion: "pending",
+        coverage: { treatment: "none", applicabilityId: proof.applicabilityId },
+      },
+    });
+  });
+
+  it("carries a bookkeeping tail while invalidating the stale active flight", () => {
+    const prior = contract({ head: "c", retrigger: "incremental" });
+    const current = contract({ head: "d", generation: 1, retrigger: "incremental" });
+    const surface = {
+      treeId: objectId("e"),
+      pathManifestDigest: canonicalDigest({ paths: ["src/a.ts"] }),
+      semanticDigest: canonicalDigest({ semantic: "same" }),
+    };
+    const lifecycleTail = createForwardLifecycleTailProof({
+      predicateId: "lifecycle-bookkeeping-tail/v2",
+      priorTarget: prior.target,
+      currentTarget: current.target,
+      reviewedSurface: surface,
+      currentSurface: { ...surface },
+      policyVersion: current.requirement.policyVersion,
+      rubricVersion: current.requirement.rubricVersion,
+      rubricDigest: current.requirement.rubricDigest,
+      sourceIdentity: prior.request.evaluatorIdentity,
+      artifact: { workUnitId: "review-architecture", artifactGroupId: "work-unit:review-architecture", cohortPath: null },
+      diagnostics: [],
+    });
+
+    expect(projectReducedForwardReviewContract({
+      target: current.target,
+      requirement: current.requirement,
+      activeRequest: prior.request,
+      links: [{ fromTargetId: null, ...prior }],
+      applicability: null,
+      lifecycleTail,
+      coveragePaths: [],
+    })).toMatchObject({
+      treatment: "carry",
+      activeFlight: "invalidated",
+      projection: { conclusion: "success" },
+    });
+  });
+
   it("carries exact v2 identities into a neutral projection and bounded host output", () => {
     const records = contract();
     const result = projectForwardReviewContract(records);
@@ -81,7 +257,7 @@ describe("forward review contract projection", () => {
       request: { requestId: records.request.requestId },
       receipt: {
         requestId: records.request.requestId,
-        reviewRunId: "run-7",
+        reviewRunId: "run-0",
         attestingRuntimeIdentity: "review-gate-app",
       },
     });

@@ -53,9 +53,9 @@ export interface LifecycleTailProofAdapter {
 export interface ForwardLifecycleTailScope {
   target: ReviewTarget;
   surface: ForwardLifecycleSurface;
-  policyVersion: `sha256:${string}`;
+  policyVersion: string;
   rubricVersion: string;
-  rubricDigest: `sha256:${string}`;
+  rubricDigest: string;
   sourceIdentity: string;
 }
 
