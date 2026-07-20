@@ -202,29 +202,25 @@ never recover operands from the discovered path merely to call layout.
 - _Outcome:_ Retirement and executor boundaries now use layout as an expected-path projector only; committed Git,
   lifecycle-index, and configured evidence remains authoritative and is never reverse-parsed into semantic state.
 
-### `[ ]` **3.4 Migrate archive and cohort-document projections**
+### `[x]` **3.4 Migrate archive and cohort-document projections**
 
 - _Goal:_ Completed destinations and cohort documents project from caller-owned coordinates while allocation,
   membership, nesting, and closeout judgment remain with archive and cohort modules.
 
-    - `[ ]` **3.4.a Route allocated archive destinations through completed placement**
-        - Update `src/lib/work-unit/completed-index.ts` so it continues to allocate quarter and sequence, then passes
-          those coordinates plus a branded work-unit slug to layout for the completed container.
-        - Preserve completed-tree scanning, entry recognition, and closeout-sidecar counting; cover allocation and
-          invalid-slug behavior with literal destination strings.
+    - `[x]` **3.4.a Route allocated archive destinations through completed placement**
+        - Kept quarter and sequence allocation with the completed index, then projected the completed container from
+          validated coordinates and a branded work-unit slug without changing tree recognition or sidecar counting.
 
-    - `[ ]` **3.4.b Route archive artifacts and closeout sidecars through semantic addresses**
-        - Update `src/lib/work-unit/verbs/archive.ts` to project the completed work-unit artifact group and completed
-          cohort documents from the allocated coordinates, validated cohort tuple, and explicit `leaf | parent`
-          closeout fact.
-        - Preserve membership checks, nested-parent selection, archival triggers, exact source paths, and transition
-          effects; cover standalone, leaf-closeout, and parent-closeout paths independently.
+    - `[x]` **3.4.b Route archive artifacts and closeout sidecars through semantic addresses**
+        - Projected completed meta artifacts and leaf/parent cohort closeout documents from allocated coordinates and
+          validated cohort tuples while preserving membership, triggers, exact sources, and transition effects.
 
-    - `[ ]` **3.4.c Route planned cohort-document lookup through layout**
-        - Update `src/lib/session-init/cohort-doc.ts` to parse the owner-supplied one- or two-segment cohort field and
-          project its planned cohort document without changing active-meta reading, membership policy, or existence
-          checks.
-        - Cover top-level, nested, absent, unsafe, and missing-document outcomes with literal path expectations.
+    - `[x]` **3.4.c Route planned cohort-document lookup through layout**
+        - Parsed one- and two-segment cohort fields into branded coordinates and projected planned cohort documents,
+          retaining exact active-meta reads, existence checks, and null-on-miss behavior.
+
+- _Outcome:_ Archive allocation and lifecycle judgment remain with their established owners while completed WU and
+  cohort-document naming now has one semantic projection authority across allocation, closeout, and session init.
 
 ### `[ ]` **3.5 Preserve exact paths and carry semantic operands separately for `arc view`**
 
