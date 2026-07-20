@@ -266,7 +266,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- Per-File Methods and Extensions ---
 
-  it("installs all 11 per-file methods plus README in system/methods/", async () => {
+  it("installs all 12 per-file methods plus README in system/methods/", async () => {
     const methodFiles = [
       "commit-footer.md",
       "commit-format.md",
@@ -276,6 +276,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "self-review.md",
       "issue-triage.md",
       "quality-gate-commands.md",
+      "review-response.md",
       "review-triage.md",
       "session-state.md",
       "test-first.md",
@@ -317,7 +318,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const methodNames = [
         "commit-footer", "commit-format", "frontline-review", "independent-analysis",
         "implementation-audit", "self-review",
-        "issue-triage", "quality-gate-commands", "review-triage",
+        "issue-triage", "quality-gate-commands", "review-response", "review-triage",
         "session-state", "test-first",
       ];
       const extensionNames = [

@@ -45,6 +45,8 @@ describe("production schema artifact", () => {
       "review-request-id-preimage",
       "review-requirement",
       "review-requirement-id-preimage",
+      "review-response-input",
+      "review-response-plan",
       "review-routing-decision",
       "review-routing-facts",
       "review-rubric-overlay-resolution",

@@ -43,6 +43,8 @@ const reviewIdentities = [
   "review-request-id-preimage",
   "review-requirement",
   "review-requirement-id-preimage",
+  "review-response-input",
+  "review-response-plan",
   "review-rubric-overlay-resolution",
   "review-routing-decision",
   "review-routing-facts",

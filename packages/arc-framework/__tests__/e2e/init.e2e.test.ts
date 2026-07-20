@@ -138,7 +138,7 @@ describe("init", () => {
     const methodNames = [
       "commit-footer", "commit-format", "frontline-review", "independent-analysis",
       "implementation-audit", "self-review",
-      "issue-triage", "quality-gate-commands", "review-triage",
+      "issue-triage", "quality-gate-commands", "review-response", "review-triage",
       "session-state", "test-first",
     ];
     const extensionNames = [

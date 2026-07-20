@@ -410,13 +410,11 @@ with adopter-facing contracts mirrored through the package source.
   persists, and returns authority-specific closure work to its adapter.
 - _Context:_ Implements Design §§2.2 and 5.
 
-    - `[ ]` **4.3.a Define review-response inputs and outputs**
-        - Add the exact target, normalized findings/loci, effective routing result, and capability handles to the
-          method contract; exclude provider command prose and controller-private state.
-        - Define the typed CLI plan over current target, dispositions, verification/persistence evidence, and
-          capabilities, emitting one of `awaiting-approval | ready-to-fix | ready-to-persist | ready-to-close |
-          reroute | blocked` with precomposed next-action text.
-        - Return approved dispositions, verification evidence, old/new targets, and explicit blocking status.
+    - `[x]` **4.3.a Define review-response inputs and outputs**
+        - Shipped the configurable `review-response` method and registered strict input/plan schemas. The planner
+          accepts exact targets, normalized findings, routing, approval, evidence, and capability facts only; it
+          emits one of the six response states with legal capabilities, precomposed action text, approved
+          dispositions, verification references, old/new targets, and explicit blocking status.
 
     - `[ ]` **4.3.b Encode the bounded response cycle**
         - Keep method prose to the judgment/communication leaf selected by the plan: disposition approval before

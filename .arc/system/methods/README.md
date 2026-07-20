@@ -36,6 +36,7 @@ when populating any `.override` section. Methods not listed here are independent
 | frontline-review     | adversarial-review, implementation-audit, review-triage | Advisory review mechanism and lens       |
 | independent-analysis | adversarial-review, implementation-audit, review-triage | Satisfying standard, mechanism, and lens |
 | self-review          | review-triage                                           | Uses review-triage for findings          |
+| review-response      | review-triage                                           | Consumes approved finding dispositions   |
 | assess-cohort-fit    | classify-work-unit                                      | Upper/lower WU-boundary tests            |
 | classify-work-unit   | assess-cohort-fit                                       | Upper/lower WU-boundary tests            |
 | testing-standards    | test-first                                              | Planning/execution seam split            |

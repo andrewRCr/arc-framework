@@ -5,6 +5,7 @@ import { registerChangeFactSchemas } from "../../../lib/change-facts.schema.js";
 import { registerReviewGateV2Schemas } from "./gate-contract-v2-schema.js";
 import { registerFindingRecordSchemas } from "./finding-records.js";
 import { registerDispositionRecordSchemas } from "./disposition-records.js";
+import { registerReviewResponseSchemas } from "./response-plan-schema.js";
 import { registerIndependentAnalysisProjectionSchema } from "../policy/independent-analysis-projection-schema.js";
 import { registerIndependentAnalysisSchema } from "../policy/independent-analysis-schema.js";
 import { registerProjectRoutingPromotionSchema } from "../policy/project-promotion-schema.js";
@@ -22,6 +23,7 @@ export function registerReviewDomainSchemas(registry: KernelRegistry): KernelReg
   registerReviewGateV2Schemas(registry);
   registerFindingRecordSchemas(registry);
   registerDispositionRecordSchemas(registry);
+  registerReviewResponseSchemas(registry);
   registerForwardReceiptLedgerSchema(registry);
   registerForwardLifecycleTailSchema(registry);
   registerReviewPrimitiveSchemas(registry);

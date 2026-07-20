@@ -9,6 +9,7 @@ arc:
     - independent-analysis
     - implementation-audit
     - review-triage
+    - review-response
     - commit-footer
   extensions:
     - pre-pr-open
