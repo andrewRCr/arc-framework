@@ -1,9 +1,0 @@
-{
-  "version": 2,
-  "slug": "inbox-drain-2026-07-20-1",
-  "origin": "description",
-  "intent": "inbox-drain-2026-07-20-1",
-  "branch": "chore/inbox-drain-2026-07-20-1",
-  "createdAt": "2026-07-20T13:22:45.869Z",
-  "returnBranch": "main"
-}
