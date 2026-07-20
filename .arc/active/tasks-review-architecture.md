@@ -303,11 +303,10 @@ readiness.
           state handling. The reusable publisher separates evidence and operation namespaces, while explicit hosted
           import revalidates bindings before appending through the destination authority.
 
-    - `[ ]` **3.4.c Produce an attested local review receipt**
-        - Add a narrow runtime/entrypoint that accepts the normalized adversarial-review result, revalidates the
-          exact head, rubric pair, author/evaluator separation, and attesting runtime identity/mechanism, then
-          appends terminal evidence through the injected local receipt authority.
-        - Never accept the primary agent's self-verification, partial report, or unavailable run as clean evidence.
+    - `[x]` **3.4.c Produce an attested local review receipt**
+        - Added a strict normalized-result attestor that revalidates the still-current target, requirement, local
+          carrier, rubric, evaluator, and runtime/mechanism bindings before appending. Only complete clean or
+          finding results attest; partial, unavailable, failed, stale, self, or mismatched runs fail before storage.
 
     - `[ ]` **3.4.d Qualify local evidence in gate reduction**
         - Extend source qualification and requirement evaluation so a valid local receipt satisfies the same
