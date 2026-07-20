@@ -145,7 +145,8 @@ describe("trusted review-gate workflows", () => {
       scripts?: Record<string, string>;
     };
     expect(tsup).toContain('entry: ["src/cli.ts"]');
-    expect(tsup).not.toContain("review-gate");
+    expect(tsup).toContain("registerReviewDomainSchemas");
+    expect(tsup).not.toMatch(/entry:[^\n]*review-gate/u);
     expect(manifest.files).not.toContain("src");
     const rootManifest = JSON.parse(await readRepositoryFile("package.json")) as { scripts: Record<string, string> };
     expect(rootManifest.scripts["review-gate:await"]).toContain("run-await.ts");

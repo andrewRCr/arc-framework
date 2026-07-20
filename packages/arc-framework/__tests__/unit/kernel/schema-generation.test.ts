@@ -6,12 +6,19 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { createRegistry, type KernelSchemaMeta } from "../../../src/lib/kernel/index.js";
+import {
+  createKernelRegistry,
+  createRegistry,
+  type KernelSchemaMeta,
+} from "../../../src/lib/kernel/index.js";
 import {
   projectKernelSchemas,
   serializeKernelSchemaBundle,
   writeKernelSchemaArtifact,
 } from "../../../src/lib/kernel/schema/generate.js";
+import {
+  registerReviewDomainSchemas,
+} from "../../../src/scripts/review-gate/core/register-review-schemas.js";
 
 const temporaryRoots: string[] = [];
 const strict = (id: string): KernelSchemaMeta => ({ id, version: 1, migrationPosture: "strict-current" });
@@ -28,6 +35,40 @@ describe("kernel schema artifact generation", () => {
       "work-class",
       "work-unit-state",
     ]);
+  });
+
+  it("projects the composed review family with stable references and bytes", () => {
+    const first = registerReviewDomainSchemas(createKernelRegistry());
+    const second = registerReviewDomainSchemas(createKernelRegistry());
+    const firstBundle = projectKernelSchemas(first);
+
+    expect(Object.keys(firstBundle.schemas)).toEqual([
+      "canonical-change",
+      "canonical-change-set",
+      "change-path-fact",
+      "change-path-set",
+      "finding-classification",
+      "finding-disposition",
+      "independent-analysis-contract",
+      "priority",
+      "project-routing-promotion",
+      "review-assurance-input",
+      "review-method-activity",
+      "review-routing-decision",
+      "review-routing-facts",
+      "review-severity",
+      "slug",
+      "work-class",
+      "work-unit-state",
+    ]);
+    expect(JSON.stringify(firstBundle.schemas["canonical-change-set"]))
+      .toContain('"$ref":"canonical-change.schema.json"');
+    expect(firstBundle.schemas["finding-classification"]?.properties?.severity)
+      .toEqual({ $ref: "review-severity.schema.json" });
+    expect(firstBundle.schemas["review-routing-facts"]?.properties?.activity)
+      .toEqual({ $ref: "review-method-activity.schema.json" });
+    expect(serializeKernelSchemaBundle(projectKernelSchemas(second)))
+      .toBe(serializeKernelSchemaBundle(firstBundle));
   });
 
   it("serializes identical bytes and ids across opposite registration orders", () => {

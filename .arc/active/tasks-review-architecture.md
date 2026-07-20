@@ -82,12 +82,10 @@ gate, or workflow consumes them.
           entrypoint over caller-owned kernel registries; contract tests preserve the four kernel built-ins, prove
           repeat-composition rejection, and guard the kernel schema modules from review imports and vocabulary.
 
-    - `[ ]` **1.3.c Extend deterministic schema generation and packaging**
-        - Compose the domain registrars into a fresh kernel registry at the `tsup.config.ts` build boundary and pass
-          it to the existing generic artifact writer; keep `projectKernelSchemas()`'s kernel-only default intact.
-        - Extend schema-generation, production-build, and packaging tests for the complete
-          `dist/schemas/kernel.json` bundle, stable `$id`/`$ref` output, byte-identical ordering, and package inclusion
-          without a hand-maintained schema copy.
+    - `[x]` **1.3.c Extend deterministic schema generation and packaging**
+        - Composed the review registrar only in `tsup.config.ts` while retaining the kernel-only projection default;
+          schema-generation and production-artifact tests pin the complete deterministic identity and `$ref` set,
+          and a package dry run proves the generated `dist/schemas/kernel.json` ships through the existing manifest.
 
     - `[ ]` **1.3.d Fence legacy validators during migration**
         - Keep existing V1 parser compatibility explicit while requiring every new schema-owned contract to export
