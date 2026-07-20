@@ -19,6 +19,10 @@ const preCommitSource = readFileSync(
   join(repoRoot, "packages/arc-framework/arc/system/.internal/githooks/pre-commit"),
   "utf-8",
 );
+const projectPreCommitSource = readFileSync(
+  join(repoRoot, ".arc/system/.internal/githooks/pre-commit"),
+  "utf-8",
+);
 
 describe("pre-commit hook shell-script invocation", () => {
   it("invokes validate-links.sh via bash instead of relying on the exec bit", () => {
@@ -66,19 +70,25 @@ describe("foreign-write advisory backstop wiring", () => {
 });
 
 describe("ROADMAP conflict auto-remedy wiring", () => {
+  it("keeps the project and packaged hook copies identical", () => {
+    expect(projectPreCommitSource).toBe(preCommitSource);
+  });
+
   it("runs the package-portable remedy before generic marker rejection", () => {
     const block = preCommitSource.slice(
       preCommitSource.indexOf("CHECK 4"),
       preCommitSource.indexOf("CHECK 5"),
     );
 
-    expect(block).toContain(
+    const markerCheckIndex = block.indexOf("conflict_markers=");
+    const remedyCommands = [
       "npx tsx packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts",
-    );
-    expect(block).toContain("arc hook-remedy-roadmap-conflict");
-    expect(block.indexOf("roadmap_remedy_output")).toBeLessThan(
-      block.indexOf("conflict_markers="),
-    );
+      "arc hook-remedy-roadmap-conflict",
+    ];
+    for (const command of remedyCommands) {
+      expect(block.indexOf(command)).toBeGreaterThanOrEqual(0);
+      expect(block.indexOf(command)).toBeLessThan(markerCheckIndex);
+    }
   });
 
   it("keeps failed remedies and remaining markers as hard errors", () => {
