@@ -2,14 +2,10 @@
  * Renderer selection and one-shot pager composition for `arc view`.
  */
 
-import { execFile, spawn } from "node:child_process";
-import { promisify } from "node:util";
 import stringWidth from "string-width";
 
 import type { GitExec } from "./git/index.js";
 import { resolveGitConfigOverride } from "./config/resolve-override.js";
-
-const execFileAsync = promisify(execFile);
 
 const FENCE_START_RE = /^\s{0,3}(?<marker>`{3,}|~{3,})/u;
 const HEADING_RE = /^\s{0,3}#{1,6}(?:\s|$)/u;
@@ -20,6 +16,7 @@ const THEMATIC_BREAK_RE = /^\s{0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/
 const SETEXT_UNDERLINE_RE = /^\s{0,3}(?:=+|-+)\s*$/u;
 const LINK_DEFINITION_RE = /^\s{0,3}\[[^\]]+\]:/u;
 const GLOW_DISPLAY_GUTTER = 4;
+const GLOW_LOOSE_LIST_SEPARATOR = "<!-- arc-view-loose-list -->";
 
 export const VIEW_RENDERERS = ["glow", "bat", "plain"] as const;
 export type ViewRenderer = typeof VIEW_RENDERERS[number];
@@ -32,7 +29,7 @@ export interface ResolveViewRendererOptions {
   cwd: string;
   exec: GitExec;
   readFile: (path: string) => Promise<string>;
-  probe?: PathCommandProbe;
+  probe: PathCommandProbe;
 }
 
 export interface ResolvedViewRenderer {
@@ -56,7 +53,7 @@ export type PagerProcessRunner = (input: PagerProcessInput) => Promise<void>;
 
 /** Probe PATH in the stable glow → bat → plain order. */
 export async function detectViewRenderer(
-  probe: PathCommandProbe = probePathCommand,
+  probe: PathCommandProbe,
 ): Promise<ViewRenderer> {
   if (await probe("glow")) return "glow";
   if (await probe("bat")) return "bat";
@@ -96,9 +93,9 @@ export function renderViewWithPager(
     anchor?: ViewPagerAnchor;
     terminalWidth?: number;
   },
-  dependencies: { run: PagerProcessRunner } = { run: runPagerProcess },
+  dependencies: { run: PagerProcessRunner; environment: NodeJS.ProcessEnv },
 ): Promise<void> {
-  const processInput = pagerProcessInput(input);
+  const processInput = pagerProcessInput(input, dependencies.environment);
   return dependencies.run(processInput);
 }
 
@@ -108,8 +105,8 @@ function pagerProcessInput(input: {
   displayPath: string;
   anchor?: ViewPagerAnchor;
   terminalWidth?: number;
-}): PagerProcessInput {
-  const baseEnvironment = { ...process.env, LESS: "FRX" };
+}, environment: NodeJS.ProcessEnv): PagerProcessInput {
+  const baseEnvironment = { ...environment, LESS: "FRX" };
   switch (input.renderer) {
     case "glow":
       return {
@@ -167,10 +164,194 @@ function escapeLessSearch(value: string): string {
 
 function prepareGlowContent(content: string, terminalWidth: number | undefined): string {
   const normalized = normalizeMarkdownSoftBreaks(content);
-  if (terminalWidth === undefined || !Number.isInteger(terminalWidth)) return normalized;
+  const adapted = adaptGlowLooseLists(normalized);
+  if (terminalWidth === undefined || !Number.isInteger(terminalWidth)) return adapted;
   const contentWidth = terminalWidth - GLOW_DISPLAY_GUTTER;
-  if (contentWidth < 1) return normalized;
-  return wrapMarkdownProse(normalized, contentWidth);
+  if (contentWidth < 1) return adapted;
+  return wrapMarkdownProse(adapted, contentWidth);
+}
+
+interface GlowListItem {
+  blockquotePrefix: string;
+  indent: string;
+  marker: string;
+  spacing: string;
+  body: string;
+  container: string;
+  ordinal: number | null;
+}
+
+/** Split only provably blank-separated sibling items in Glow's transient copy. */
+function adaptGlowLooseLists(content: string): string {
+  const lines = content.split(/\r?\n/u);
+  const output: string[] = [];
+  const previousByContainer = new Map<string, { sourceIndex: number; ordinal: number | null }>();
+  const activeListIndents = new Map<string, number[]>();
+  let fence: { prefix: string; marker: { character: string; length: number } } | null = null;
+
+  for (const [index, sourceLine] of lines.entries()) {
+    const blockquote = parseBlockquote(sourceLine);
+    const prefix = blockquote?.prefix ?? "";
+    const body = blockquote?.body ?? sourceLine;
+
+    if (fence !== null) {
+      output.push(sourceLine);
+      if (prefix === fence.prefix && isFenceClose(body, fence.marker)) fence = null;
+      continue;
+    }
+    const fenceStart = parseFenceStart(body);
+    if (fenceStart !== null) {
+      output.push(sourceLine);
+      pruneActiveGlowListContext(activeListIndents, prefix, body);
+      fence = { prefix, marker: fenceStart };
+      continue;
+    }
+
+    const item = parseGlowListItem(sourceLine);
+    if (item === null) {
+      output.push(sourceLine);
+      if (body.trim() !== "") pruneActiveGlowListContext(activeListIndents, prefix, body);
+      continue;
+    }
+    if (!activateGlowListItem(activeListIndents, item)) {
+      output.push(sourceLine);
+      continue;
+    }
+
+    const previous = previousByContainer.get(item.container);
+    let marker = item.marker;
+    if (previous !== undefined) {
+      const separatorIndent = resolveGlowLooseSeparatorIndent(lines, previous.sourceIndex + 1, index, item);
+      if (separatorIndent !== null) {
+        if (item.ordinal !== null && previous.ordinal !== null) {
+          const expected = previous.ordinal + 1;
+          if (item.ordinal !== expected) marker = `${expected}${item.marker.endsWith(")") ? ")" : "."}`;
+        }
+        output.push(`${item.blockquotePrefix}${separatorIndent}${GLOW_LOOSE_LIST_SEPARATOR}`);
+      }
+    }
+
+    output.push(`${item.blockquotePrefix}${item.indent}${marker}${item.spacing}${item.body}`);
+    previousByContainer.set(item.container, {
+      sourceIndex: index,
+      ordinal: item.ordinal === null ? null : Number.parseInt(marker, 10),
+    });
+  }
+  return output.join("\n");
+}
+
+function parseGlowListItem(line: string): GlowListItem | null {
+  const blockquote = parseBlockquote(line);
+  const blockquotePrefix = blockquote?.prefix ?? "";
+  const body = blockquote?.body ?? line;
+  const match = /^(?<indent>\s*)(?<marker>[-+*]|\d+[.)])(?<spacing>\s+)(?<body>.*)$/u.exec(body)?.groups;
+  if (
+    match?.indent === undefined
+    || match.marker === undefined
+    || match.spacing === undefined
+    || match.body === undefined
+  ) return null;
+  const ordered = /^\d/u.test(match.marker);
+  const delimiter = ordered ? match.marker.at(-1) : "unordered";
+  return {
+    blockquotePrefix,
+    indent: match.indent,
+    marker: match.marker,
+    spacing: match.spacing,
+    body: match.body,
+    container: `${blockquotePrefix}\u0000${match.indent}\u0000${delimiter}`,
+    ordinal: ordered ? Number.parseInt(match.marker, 10) : null,
+  };
+}
+
+function activateGlowListItem(
+  activeListIndents: Map<string, number[]>,
+  item: GlowListItem,
+): boolean {
+  const key = item.blockquotePrefix.trimEnd();
+  clearOtherGlowListContexts(activeListIndents, key);
+  const stack = activeListIndents.get(key) ?? [];
+  while ((stack.at(-1) ?? -1) >= item.indent.length) stack.pop();
+  if (item.indent.length > 3 && stack.length === 0) {
+    activeListIndents.delete(key);
+    return false;
+  }
+  stack.push(item.indent.length);
+  activeListIndents.set(key, stack);
+  return true;
+}
+
+function pruneActiveGlowListContext(
+  activeListIndents: Map<string, number[]>,
+  blockquotePrefix: string,
+  body: string,
+): void {
+  const key = blockquotePrefix.trimEnd();
+  clearOtherGlowListContexts(activeListIndents, key);
+  const stack = activeListIndents.get(key);
+  if (stack === undefined) return;
+  const indent = /^\s*/u.exec(body)?.[0].length ?? 0;
+  while ((stack.at(-1) ?? -1) >= indent) stack.pop();
+  if (stack.length === 0) activeListIndents.delete(key);
+}
+
+function clearOtherGlowListContexts(
+  activeListIndents: Map<string, number[]>,
+  currentKey: string,
+): void {
+  for (const key of activeListIndents.keys()) {
+    if (key !== currentKey) activeListIndents.delete(key);
+  }
+}
+
+function resolveGlowLooseSeparatorIndent(
+  lines: readonly string[],
+  start: number,
+  end: number,
+  item: GlowListItem,
+): string | null {
+  if (start >= end) return null;
+  const precedingLine = lines[end - 1] ?? "";
+  if (!isGlowContainerBlankLine(precedingLine, item.blockquotePrefix)) return null;
+  let fence: { character: string; length: number } | null = null;
+  let separatorIndent = item.indent;
+
+  for (let index = start; index < end; index += 1) {
+    const sourceLine = lines[index] ?? "";
+    const blockquote = parseBlockquote(sourceLine);
+    const prefix = blockquote?.prefix ?? "";
+    const body = blockquote?.body ?? sourceLine;
+    if (prefix.trimEnd() !== item.blockquotePrefix.trimEnd()) return null;
+    if (body.trim() === "") continue;
+
+    if (fence !== null) {
+      if (isFenceClose(body, fence)) fence = null;
+      continue;
+    }
+    const fenceStart = parseFenceStart(body);
+    const indent = /^\s*/u.exec(body)?.[0].length ?? 0;
+    if (fenceStart !== null) {
+      if (indent <= item.indent.length) return null;
+      fence = fenceStart;
+      continue;
+    }
+
+    const nestedItem = parseGlowListItem(sourceLine);
+    if (nestedItem !== null) {
+      if (nestedItem.indent.length <= item.indent.length) return null;
+      if (nestedItem.indent.length > separatorIndent.length) separatorIndent = nestedItem.indent;
+      continue;
+    }
+    if (indent <= item.indent.length) return null;
+  }
+  return separatorIndent;
+}
+
+function isGlowContainerBlankLine(line: string, blockquotePrefix: string): boolean {
+  const blockquote = parseBlockquote(line);
+  const prefix = blockquote?.prefix ?? "";
+  const body = blockquote?.body ?? line;
+  return prefix.trimEnd() === blockquotePrefix.trimEnd() && body.trim() === "";
 }
 
 function normalizeMarkdownSoftBreaks(content: string): string {
@@ -404,31 +585,4 @@ function hasExplicitHardBreak(line: string): boolean {
 
 function isViewRenderer(value: string): value is ViewRenderer {
   return (VIEW_RENDERERS as readonly string[]).includes(value);
-}
-
-async function probePathCommand(command: "glow" | "bat"): Promise<boolean> {
-  try {
-    await execFileAsync(command, ["--version"]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function runPagerProcess(input: PagerProcessInput): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(input.command, [...input.args], {
-      env: input.env,
-      stdio: ["pipe", "inherit", "inherit"],
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`${input.command} exited with status ${code ?? "unknown"}.`));
-    });
-    child.stdin.on("error", (error: NodeJS.ErrnoException) => {
-      if (error.code !== "EPIPE") reject(error);
-    });
-    child.stdin.end(input.input);
-  });
 }

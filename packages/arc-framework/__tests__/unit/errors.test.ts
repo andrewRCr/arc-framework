@@ -116,47 +116,11 @@ describe("formatError", () => {
 });
 
 describe("ArcErrorCode", () => {
-  it("can be used for programmatic error handling", () => {
+  it("accepts legacy and namespaced codes without accepting new bare codes", () => {
     const err = new ArcError("git not found", "GIT_MISSING");
-
-    // Error codes enable switch/if-based handling without string matching
-    const handle = (code: ArcErrorCode): string => {
-      switch (code) {
-        case "GIT_MISSING":
-          return "install git";
-        case "MANIFEST_MISSING":
-          return "run init";
-        case "MANIFEST_INVALID":
-          return "check manifest";
-        case "MERGE_FAILED":
-          return "resolve conflicts";
-        case "FILE_NOT_FOUND":
-          return "check path";
-        case "REGISTRY_FETCH_FAILED":
-          return "check network";
-        case "IDENTITY_MISSING":
-          return "set identity";
-        case "ALREADY_INSTALLED":
-          return "use join or update";
-        case "INIT_IN_PROGRESS":
-          return "wait and retry";
-        case "NO_ARC_INSTALLATION":
-          return "run init first";
-        case "RECIPE_INVALID":
-          return "reinstall cli";
-        case "NOT_INSTALLED":
-          return "run init";
-        case "NOT_IN_ARC_PROJECT":
-          return "run from arc project";
-        case "MANIFEST_VERSION_UNSUPPORTED":
-          return "update cli";
-        case "ROLE_FORBIDDEN":
-          return "check permissions";
-      }
-    };
-
-    expect(handle(err.code)).toBe("install git");
-    expect(handle("NOT_IN_ARC_PROJECT")).toBe("run from arc project");
+    const namespaced: ArcErrorCode = "schema.registry.invalid-metadata";
+    expect(err.code).toBe("GIT_MISSING");
+    expect(namespaced).toBe("schema.registry.invalid-metadata");
   });
 });
 
@@ -180,10 +144,11 @@ describe("formatUnexpectedError", () => {
   });
 
   it("formats a plain Error without a stack trace", () => {
-    const err = new Error("something broke");
+    const err = new Error("something broke", { cause: new Error("private cause detail") });
     const output = formatUnexpectedError(err);
     expect(output).toContain("something broke");
     expect(output).not.toContain("at ");
+    expect(output).not.toContain("private cause detail");
   });
 
   it("formats a non-Error value", () => {

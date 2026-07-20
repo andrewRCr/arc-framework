@@ -6,9 +6,11 @@ import type {
   RunViewOptions,
   ViewArtifactResolver,
   ViewOutput,
-} from "./types.js";
-import { prepareViewDocument, type ViewDocumentAnchor } from "./format.js";
+} from "../../lib/view/types.js";
+import { prepareViewDocument, type ViewDocumentAnchor } from "../../lib/view/format.js";
+import { isSlugSafe } from "../../lib/kernel/index.js";
 import type { ResolvedViewRenderer, ViewRenderer } from "../../lib/view-renderer.js";
+import type { ResolvedViewClock } from "../../lib/view/clock.js";
 
 export interface ViewDependencies {
   resolveArtifact: ViewArtifactResolver;
@@ -21,6 +23,7 @@ export interface ViewDependencies {
     anchor?: ViewDocumentAnchor;
   }) => Promise<void>;
   now?: () => Date;
+  clock?: ResolvedViewClock;
 }
 
 /** Resolve one semantic kind and emit its plain, read-only representation. */
@@ -28,12 +31,29 @@ export async function runView(
   options: RunViewOptions,
   dependencies: ViewDependencies,
 ): Promise<ViewOutput> {
-  const kind = options.kind ?? "tasks";
+  const kind = options.current === true && options.kind === undefined ? "tasks" : options.kind;
+  if (options.forSlug !== undefined) {
+    if (!isSlugSafe(options.forSlug)) {
+      return {
+        stdout: "",
+        stderr: `Invalid work-unit slug "${options.forSlug}".\n`,
+        exitCode: 1,
+      };
+    }
+    if (kind === "working-memory" || kind === "inbox") {
+      return {
+        stdout: "",
+        stderr: `--for is not valid with the identity-global ${kind} kind.\n`,
+        exitCode: 1,
+      };
+    }
+  }
   const artifact = await dependencies.resolveArtifact({
     cwd: options.cwd,
-    kind,
+    ...(kind === undefined ? {} : { kind }),
     project: options.project,
     identity: options.identity,
+    ...(options.forSlug === undefined ? {} : { forSlug: options.forSlug }),
   });
 
   if (artifact.status === "error") {
@@ -70,6 +90,8 @@ export async function runView(
     content,
     current: options.current === true,
     now: dependencies.now?.() ?? new Date(),
+    clock: dependencies.clock?.clock ?? "24h",
+    warnings: dependencies.clock?.warnings ?? [],
   });
   if (options.nonInteractive !== false || prepared.bypassPager) {
     return {

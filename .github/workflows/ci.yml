@@ -252,6 +252,8 @@ jobs:
     - run: npm run lint:arc:domain-rules
     - run: npm run lint:arc:section-refs
     - run: npm run -s lint:md
+    - if: ${{ needs.classify.outputs.weight == 'light' }}
+      run: npm run test:arc-contracts
     # Code checks - only when the change touches code (weight != light). Prefer the
     # shared dist artifact when setup produced it; fall back to a local build only
     # if setup was skipped (should not happen on heavy weight).

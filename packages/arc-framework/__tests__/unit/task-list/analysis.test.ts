@@ -45,6 +45,7 @@ describe("analyzeTaskList", () => {
         section: { id: "2.1", title: "Current parent", lineHint: 11 },
         leaf: { id: "2.1.b", title: "Current child", lineHint: 15 },
       },
+      phaseHeadingLine: 9,
       tallies: {
         phase: { current: 2, total: 3 },
         taskId: "2.1",
@@ -52,6 +53,37 @@ describe("analyzeTaskList", () => {
         overall: { done: 3, total: 7 },
       },
     });
+  });
+
+  it("exposes an explicit phase heading only for the first parent in that phase", () => {
+    const firstWithLaterSubtask = analyzeTaskList(taskList([
+      "## **Phase 1:** Build",
+      "",
+      "### `[ ]` **1.1 First parent**",
+      "",
+      "    - `[x]` **1.1.a Complete child**",
+      "    - `[ ]` **1.1.b Current child**",
+      "",
+      "### `[ ]` **1.2 Later parent**",
+    ]));
+    expect(firstWithLaterSubtask).toMatchObject({
+      status: "found",
+      phaseHeadingLine: 1,
+      cursor: { section: { id: "1.1" }, leaf: { id: "1.1.b" } },
+    });
+
+    const laterParent = analyzeTaskList(taskList([
+      "## **Phase 1:** Build",
+      "",
+      "### `[x]` **1.1 First parent**",
+      "",
+      "### `[ ]` **1.2 Later parent**",
+    ]));
+    expect(laterParent).toMatchObject({ status: "found", cursor: { section: { id: "1.2" } } });
+    expect(laterParent).not.toHaveProperty("phaseHeadingLine");
+
+    const implicit = analyzeTaskList(taskList(["### `[ ]` **1.1 Only parent**"]));
+    expect(implicit).not.toHaveProperty("phaseHeadingLine");
   });
 
   it("reports malformed task grammar without throwing", () => {
