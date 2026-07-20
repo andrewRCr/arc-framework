@@ -85,6 +85,8 @@ function input() {
     verificationPassed: false,
     verificationRefs: [],
     capabilities,
+    channel: "local" as const,
+    conversations: [],
   };
 }
 
@@ -129,7 +131,42 @@ describe("review response planning", () => {
       allowedCapabilities: ["close"],
       newTarget: null,
       blocking: false,
+      channelActions: [],
     });
+  });
+
+  it("emits only authenticated per-finding hosted conversation actions", () => {
+    expect(projectReviewResponse({
+      ...input(),
+      ...approved("defer"),
+      channel: "hosted",
+      conversations: [{
+        findingId: "finding-1",
+        replyToRef: "github:comment-1",
+        threadId: "github:thread-1",
+        canReply: true,
+        canResolve: true,
+      }],
+    })).toMatchObject({
+      state: "ready-to-close",
+      channelActions: [{
+        kind: "hosted-conversation",
+        findingId: "finding-1",
+        reply: true,
+        resolve: true,
+      }],
+    });
+    expect(() => projectReviewResponse({
+      ...input(),
+      ...approved("reject"),
+      conversations: [{
+        findingId: "finding-1",
+        replyToRef: "github:comment-1",
+        threadId: "github:thread-1",
+        canReply: true,
+        canResolve: true,
+      }],
+    })).toThrow(/local review/iu);
   });
 
   it("blocks stale findings, failed verification, and unavailable required capabilities", () => {

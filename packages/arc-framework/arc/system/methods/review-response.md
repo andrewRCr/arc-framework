@@ -63,6 +63,18 @@ Follow the planner state; do not infer or combine transitions:
 The cycle contains at most one fix increment. Any changed head re-enters through `reroute`; it never loops, selects a
 review source, persists, or performs adapter-owned closure within this method.
 
+### Keep response etiquette at the channel boundary
+
+- **Local:** The approved disposition report is the complete audience-visible record. Emit no synthetic reply or
+  closure surface.
+- **Hosted:** Return reply or resolution work only for a finding whose adapter supplied an authoritative comment or
+  thread capability. A finding without its own conversation produces no hosted response; never create a roll-up
+  comment.
+
+Conversation resolution records host state only. It is not disposition approval or provider closure authority.
+Never impersonate a provider, infer provider closure from a resolved thread, or let coordinator-authored text satisfy
+source-confirmed closure.
+
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md

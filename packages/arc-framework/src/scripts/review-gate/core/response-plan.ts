@@ -29,6 +29,20 @@ function plan(
     verificationRefs: input.verificationRefs,
     blocking: options.blocking,
     allowedCapabilities: options.allowedCapabilities,
+    channelActions: state === "ready-to-close" && input.channel === "hosted"
+      ? input.conversations.flatMap((capability) => {
+          const known = input.findings.some((finding) => finding.findingId === capability.findingId);
+          if (!known || (!capability.canReply && !capability.canResolve)) return [];
+          return [{
+            kind: "hosted-conversation" as const,
+            findingId: capability.findingId,
+            replyToRef: capability.replyToRef,
+            threadId: capability.threadId,
+            reply: capability.canReply,
+            resolve: capability.canResolve,
+          }];
+        })
+      : [],
     nextAction: options.nextAction,
   });
 }

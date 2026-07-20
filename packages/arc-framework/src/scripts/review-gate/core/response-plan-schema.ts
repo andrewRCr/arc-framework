@@ -20,6 +20,22 @@ export const ReviewResponseCapabilitiesSchema = z.strictObject({
 });
 export type ReviewResponseCapabilities = z.infer<typeof ReviewResponseCapabilitiesSchema>;
 
+export const ReviewConversationCapabilitySchema = z.strictObject({
+  findingId: z.string().trim().min(1).max(512),
+  replyToRef: z.string().trim().min(1).nullable(),
+  threadId: z.string().trim().min(1).nullable(),
+  canReply: z.boolean(),
+  canResolve: z.boolean(),
+}).superRefine((capability, context) => {
+  if (capability.canReply && capability.replyToRef === null) {
+    context.addIssue({ code: "custom", message: "reply capability requires an authoritative reply surface" });
+  }
+  if (capability.canResolve && capability.threadId === null) {
+    context.addIssue({ code: "custom", message: "resolution capability requires an authoritative thread" });
+  }
+});
+export type ReviewConversationCapability = z.infer<typeof ReviewConversationCapabilitySchema>;
+
 export const ReviewResponseInputSchema = z.strictObject({
   currentTarget: ReviewTargetSchema,
   findings: z.array(NormalizedReviewFindingSchema).min(1),
@@ -31,6 +47,23 @@ export const ReviewResponseInputSchema = z.strictObject({
   verificationPassed: z.boolean(),
   verificationRefs: z.array(z.string().trim().min(1)),
   capabilities: ReviewResponseCapabilitiesSchema,
+  channel: z.enum(["local", "hosted"]),
+  conversations: z.array(ReviewConversationCapabilitySchema),
+}).superRefine((input, context) => {
+  if (input.channel === "local" && input.conversations.length > 0) {
+    context.addIssue({ code: "custom", message: "local review has no conversation action surface" });
+  }
+  const findingIds = new Set(input.findings.map((finding) => finding.findingId));
+  const conversationIds = new Set<string>();
+  for (const [index, conversation] of input.conversations.entries()) {
+    if (!findingIds.has(conversation.findingId)) {
+      context.addIssue({ code: "custom", message: "conversation names an unknown finding", path: ["conversations", index] });
+    }
+    if (conversationIds.has(conversation.findingId)) {
+      context.addIssue({ code: "custom", message: "duplicate conversation finding", path: ["conversations", index] });
+    }
+    conversationIds.add(conversation.findingId);
+  }
 });
 export type ReviewResponseInput = z.infer<typeof ReviewResponseInputSchema>;
 
@@ -54,6 +87,14 @@ export const ReviewResponsePlanSchema = z.strictObject({
   verificationRefs: z.array(z.string().trim().min(1)),
   blocking: z.boolean(),
   allowedCapabilities: z.array(ReviewResponseCapabilitySchema),
+  channelActions: z.array(z.strictObject({
+    kind: z.literal("hosted-conversation"),
+    findingId: z.string().trim().min(1).max(512),
+    replyToRef: z.string().trim().min(1).nullable(),
+    threadId: z.string().trim().min(1).nullable(),
+    reply: z.boolean(),
+    resolve: z.boolean(),
+  })),
   nextAction: z.string().trim().min(1),
 });
 export type ReviewResponsePlan = z.infer<typeof ReviewResponsePlanSchema>;

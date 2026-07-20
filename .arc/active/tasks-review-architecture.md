@@ -421,10 +421,10 @@ with adopter-facing contracts mirrored through the package source.
           increment with quality evidence. Persistence, adapter reply/closure, and retrigger selection remain
           caller-owned; changed heads return through `reroute`, and blocked states cannot mutate.
 
-    - `[ ]` **4.3.c Define channel-specific etiquette boundaries**
-        - Keep local review's disposition report as its complete record; send hosted reply/resolution actions only
-          to findings with authoritative conversation surfaces.
-        - Prohibit roll-up noise, coordinator-authored provider closure, and thread resolution as authority.
+    - `[x]` **4.3.c Define channel-specific etiquette boundaries**
+        - Local review now ends at its disposition report; hosted plans emit only per-finding actions backed by
+          authenticated reply/thread capabilities. Strict schemas reject local, duplicate, and foreign conversation
+          actions, while the method forbids roll-up noise, provider impersonation, and resolution-as-authority.
 
     - `[ ]` **4.3.d Define shared review-operation state**
         - Add the injected `ReviewOperationStateStore` port over a registered Zod discriminated union with
