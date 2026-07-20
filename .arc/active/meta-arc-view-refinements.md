@@ -9,14 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-arc-view-refinements.md`
-- **Task List:** [none]
+- **Task List:** `tasks-arc-view-refinements.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
