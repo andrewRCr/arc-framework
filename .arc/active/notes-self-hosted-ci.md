@@ -156,12 +156,14 @@ placement is proved from the Actions jobs API's runner names and labels, not bil
 | [29706274349](https://github.com/andrewRCr/arc-framework/actions/runs/29706274349) | `0889fa255` | 1        | yes                   | yes              | 2026-07-19 22:30:35 | 2026-07-19 22:33:48    | 3m13s   | 0 self-hosted Linux; 11 hosted Linux          | no       | success; planned hosted rebuild window                               |
 | [29706622340](https://github.com/andrewRCr/arc-framework/actions/runs/29706622340) | `e183ddd8e` | 1        | yes                   | yes              | 2026-07-19 22:42:11 | 2026-07-19 22:46:09    | 3m58s   | 11 self-hosted Linux; 0 hosted Linux          | yes      | success                                                              |
 | [29707373193](https://github.com/andrewRCr/arc-framework/actions/runs/29707373193) | `a10b3f670` | 2        | yes                   | no               | 2026-07-19 23:06:45 | 2026-07-19 23:18:16    | 11m31s  | attempt 1 unassigned; attempt 2 hosted Linux  | no       | external GitHub TLS expiry; hosted light rerun passed                |
+| [29743963622](https://github.com/andrewRCr/arc-framework/actions/runs/29743963622) | `6d4a6b0ef` | 1        | yes                   | yes              | 2026-07-20 12:53:41 | 2026-07-20 12:57:44    | 4m03s   | 11 self-hosted Linux; 0 hosted Linux          | yes      | success                                                              |
 
 #### Per-attempt Linux job ledger
 
-All timestamp triples below are the Actions jobs API `created_at` / `started_at` / `completed_at` values on
-2026-07-19 UTC. `Q/R` is queue delay / running duration in seconds. Skipped jobs retain their API time triple but
-have no runner and no meaningful derived duration.
+All timestamp triples below are the Actions jobs API `created_at` / `started_at` / `completed_at` values in UTC;
+runs through 29707373193 occurred on 2026-07-19 and run 29743963622 occurred on 2026-07-20. `Q/R` is queue delay /
+running duration in seconds. Skipped jobs retain their API time triple but have no runner and no meaningful derived
+duration.
 
 | Run / attempt   | Job                                      | Created / started / completed (UTC) | Q/R (s) | Runner           | Label           | Result    |
 |-----------------|------------------------------------------|-------------------------------------|---------|------------------|-----------------|-----------|
@@ -243,6 +245,17 @@ have no runner and no meaningful derived duration.
 | 29707373193 / 2 | E2E Tests                                | 23:16:38 / 23:16:38 / 23:16:38      | —       | —                | `ubuntu-latest` | skipped   |
 | 29707373193 / 2 | ci-ok                                    | 23:18:03 / 23:18:06 / 23:18:09      | 3/3     | hosted           | `ubuntu-latest` | success   |
 | 29707373193 / 2 | merge-ok                                 | 23:18:10 / 23:18:13 / 23:18:16      | 3/3     | hosted           | `ubuntu-latest` | success   |
+| 29743963622 / 1 | Classify lane & weight                   | 12:53:42 / 12:53:44 / 12:53:48      | 2/4     | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29743963622 / 1 | Shared setup                             | 12:53:49 / 12:53:50 / 12:54:06      | 1/16    | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29743963622 / 1 | Lint & Typecheck                         | 12:54:07 / 12:54:08 / 12:55:47      | 1/99    | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29743963622 / 1 | Unit Tests                               | 12:54:07 / 12:55:45 / 12:56:30      | 98/45   | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29743963622 / 1 | Integration Tests                        | 12:54:07 / 12:55:48 / 12:57:09      | 101/81  | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
+| 29743963622 / 1 | E2E Tests (1)                            | 12:54:07 / 12:54:50 / 12:55:44      | 43/54   | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29743963622 / 1 | E2E Tests (2)                            | 12:54:07 / 12:54:08 / 12:54:48      | 1/40    | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29743963622 / 1 | E2E Tests (3)                            | 12:54:07 / 12:56:52 / 12:57:35      | 165/43  | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29743963622 / 1 | Portability (concurrency guards) (linux) | 12:54:07 / 12:56:32 / 12:56:51      | 145/19  | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29743963622 / 1 | ci-ok                                    | 12:57:35 / 12:57:37 / 12:57:39      | 2/2     | `arc-ci-linux-2` | `arc-ci-linux`  | success   |
+| 29743963622 / 1 | merge-ok                                 | 12:57:40 / 12:57:41 / 12:57:44      | 1/3     | `arc-ci-linux-1` | `arc-ci-linux`  | success   |
 
 #### External GitHub TLS incident
 
@@ -279,9 +292,9 @@ have no runner and no meaningful derived duration.
   contaminate the canary. Persistent runner journals remain bounded to 60 days / 1 GB (24 MB at baseline), and the
   protected pre-rebuild journal/telemetry export bridges the intentionally destroyed first host instance.
 
-- **Canary window / qualifying sample count:** opened 2026-07-19 21:49:27Z; 2/20 qualifying heavy PR runs; elapsed
+- **Canary window / qualifying sample count:** opened 2026-07-19 21:49:27Z; 3/20 qualifying heavy PR runs; elapsed
   floor 0/7 days; earliest possible close 2026-07-26 21:49:27Z if the run floor is also met
-- **`merge-ok` p95:** provisional 4m01s at N=2 (nearest-rank position 2); not an acceptance result before both floors
+- **`merge-ok` p95:** provisional 4m03s at N=3 (nearest-rank position 3); not an acceptance result before both floors
 - **Runner-caused flakes:** 0 provisional; cancellations are planned fallback or explained external GitHub expiry
 - **Unexplained offline stalls:** 0 provisional; the unassigned 29707373193 attempt is explained by the expired
   GitHub token-endpoint certificate and excluded from the latency sample
