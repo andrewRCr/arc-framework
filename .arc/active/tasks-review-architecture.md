@@ -47,14 +47,10 @@ gate, or workflow consumes them.
           endpoints now read authoritative metas only where they exist, reduce neutral and known-owner groups with
           closed precedence, and return `unknown` for unavailable evidence, transitions, or ambiguous moves.
 
-    - `[ ]` **1.2.b Classify surface authority independently of ownership**
-        - Add stable project predicates for the Design §1.1 self-hosting mapping: formative artifacts,
-          specifications/strategies/ADRs, constitutional direction/rules/harness contracts, ordinary surfaces,
-          unverifiable derived projections, and unknown inputs.
-        - Reduce the affected-endpoint union with the closed strongest-member order and prove authority does not
-          inherit from ownership, WU `Class`, diff size, or CI weight.
-        - Cover every artifact family, rename/copy boundary crossing, mixed-authority set, derived-source proof,
-          unknown path, and predicate failure in the policy tests.
+    - `[x]` **1.2.b Classify surface authority independently of ownership**
+        - Added project predicates and a closed strongest-member reducer for formative, design, constitutional,
+          ordinary, derived, and unknown surfaces; both move/copy endpoints participate, declared projections
+          require injected source proof, and malformed inputs or failed policy evaluation resolve to `unknown`.
 
     - `[ ]` **1.2.c Unify review-risk path membership**
         - Replace `runtime/composition.ts`'s `derivesCodeSurface()` approximation and feed
