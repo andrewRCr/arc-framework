@@ -16,7 +16,7 @@ describe("PR-open lifecycle extensions", () => {
   it.each([
     [packageArc, "system/extensions/pre-pr-open.md", "pre-pr-open", false, true],
     [packageArc, "system/extensions/post-pr-open.md", "post-pr-open", false, true],
-    [projectArc, "system/extensions/pre-pr-open.md", "pre-pr-open", true, false],
+    [projectArc, "system/extensions/pre-pr-open.md", "pre-pr-open", false, true],
     [projectArc, "system/extensions/post-pr-open.md", "post-pr-open", false, false],
   ])("registers the managed extension at %s/%s", async (base, relative, name, active, placeholder) => {
     const content = await readFile(resolve(base, relative), "utf8");
@@ -246,11 +246,11 @@ describe("PR-open lifecycle extensions", () => {
     expect(finalHook).toContain("read-only, idempotent, or retry-safe");
   });
 
-  it("keeps the interim self-hosting review gate path-only and NUL-safe", async () => {
-    const extension = await readFile(resolve(projectArc, "system/extensions/pre-pr-open.md"), "utf8");
+  it("keeps pre-pr-open action-neutral after frontline review moves to its method", async () => {
+    const project = await readFile(resolve(projectArc, "system/extensions/pre-pr-open.md"), "utf8");
+    const packaged = await readFile(resolve(packageArc, "system/extensions/pre-pr-open.md"), "utf8");
 
-    expect(extension).toContain("git diff --name-only -z {baseRef}...{headRef}");
-    expect(extension).toContain("bash scripts/classify-change.sh classify --stdin0");
-    expect(extension).not.toContain("classify-change.sh decide");
+    expect(project).toBe(packaged);
+    expect(project).not.toMatch(/CodeRabbit|review-triage|ci-defer-heavy|classify-change/iu);
   });
 });

@@ -451,11 +451,10 @@ with adopter-facing contracts mirrored through the package source.
           fixtures. Integration now keys local preflight directly from effective `self-review` activation, and the
           retired key fails shell validation as unknown instead of surviving behind a renamed config toggle.
 
-    - `[ ]` **4.4.b Preserve generic extension semantics**
-        - Keep `pre-commit-review`, `pre-push-review`, `pre-pr-open`, `post-pr-open`, and `pre-merge` files and
-          contracts action-neutral.
-        - Remove project frontline/provider behavior from `pre-pr-open.actions` without changing the extension's
-          lifecycle frequency or retry contract.
+    - `[x]` **4.4.b Preserve generic extension semantics**
+        - Restored the project `pre-pr-open` extension to its inactive, action-neutral package baseline, removing
+          classification, billing-label, provider, triage, and review-routing policy while retaining the same
+          proposed-change-request input, lifecycle fire point, authored-order halt, and retry-safe contract.
 
     - `[ ]` **4.4.c Reconcile workflow declarations and fire points**
         - Update `integrate-work-unit.md`, `run-errand.md`, and every agent-managed workflow callsite that invokes
