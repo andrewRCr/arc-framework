@@ -1,22 +1,22 @@
 # Metadata: arc-view-refinements
 
-| **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ---------- | --------- | --------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/arc-view-refinements` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
+| --------- | --------- | --------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/arc-view-refinements` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** cli-schema-kernel
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-arc-view-refinements.md`
 - **Task List:** `tasks-arc-view-refinements.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Relocate neutral viewer types and VIEW_KINDS into lib
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Phase 1 implementation — Task 1.1
 
 - **PR URL:** [none]
 - **Completed:** [none]
