@@ -187,6 +187,17 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("anchors review finding verification before mutation in universal rules", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const rules = await readFile(resolve(base, "system/rules/DEV-RULES.ARC.md"), "utf8");
+      const normalized = rules.toLowerCase().replace(/\s+/gu, " ");
+      expect(normalized).toContain("verify every review finding against source");
+      expect(normalized).toContain("complete proposed disposition set");
+      expect(normalized).toContain("approval before applying any finding-driven fix");
+      expect(rules).not.toMatch(/GitHub|CodeRabbit|review-gate/iu);
+    }
+  });
+
   it("routes self-hosting actions through one controller workflow", async () => {
     const workflow = await readFile(resolve(projectArc, "system/workflows/project/coordinate-pr-review.md"), "utf8");
     expect(workflow).toContain("one caller-supplied `openedChangeRequest");

@@ -228,6 +228,12 @@ fresh subagent when the harness supports one — fresh context, at the primary's
 default. When subagents are unavailable, skip with a note (delegated review is advisory) or run a
 manual fresh-session pass; never a primary-context self-pass presented as independent.
 
+### Review finding mutation guard
+
+Verify every review finding against source with your own judgment; reviewer or delegated output remains advisory.
+Present the complete proposed disposition set and obtain approval before applying any finding-driven fix. This
+constraint applies regardless of who reviewed the change or where the findings arrived.
+
 ### Task granularity
 
 Break down a task into subtasks if it requires:

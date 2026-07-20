@@ -385,10 +385,10 @@ with adopter-facing contracts mirrored through the package source.
           `fix | defer | reject` disposition, and minor-only code-review `nit`; the method contract now requires
           independent source verification and approval of the complete set before any mutation.
 
-    - `[ ]` **4.2.b Add the high-miss-cost DEV-RULES anchor**
-        - Amend package/project `DEV-RULES.ARC.md` copies with the concise universal finding-verification and
-          approval-before-fix constraint; leave procedural detail in `review-triage.md`.
-        - Keep the rule independent of PR channels, providers, and review-gate availability.
+    - `[x]` **4.2.b Add the high-miss-cost DEV-RULES anchor**
+        - Added a concise package/project universal rule requiring independent source verification and approval of
+          the complete proposed disposition set before any finding-driven fix, independent of reviewer or channel;
+          procedural classification remains in `review-triage`.
 
     - `[ ]` **4.2.c Migrate finding and settlement records**
         - Starting from Phase 3's envelope-only migration, update provider normalizers, finding reducers, controller
