@@ -1,7 +1,7 @@
 # Metadata: cli-validation-surfaces
 
 | **State**  | **Owner** | **Branch**                     | **Class** | **Priority** |
-| ---------- | --------- | ------------------------------ | --------- | ------------ |
+|------------|-----------|--------------------------------|-----------|--------------|
 | `Planning` | `andrew`  | `plan/cli-validation-surfaces` | `Heavy`   | `P2`         |
 
 - **Cohort:** `cli-substrate-adoption`
@@ -11,7 +11,7 @@
 - **Design:** `draft-cli-validation-surfaces.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
