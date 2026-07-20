@@ -1,8 +1,8 @@
 # Metadata: cli-git-executor
 
-| **State**     | **Owner** | **Branch**              | **Class** | **Priority** |
-| ------------- | --------- | ----------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/cli-git-executor` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** `cli-substrate-adoption`
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/310>
+- **Completed:** 2026-07-20
 
 ## Release Notes Entry
 
