@@ -14,7 +14,14 @@
  * @module
  */
 
+import { z } from "zod";
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+const parseCreatedDayAtUtcMidnight = (created: string): number | null => {
+  const parsed = Date.parse(`${created}T00:00:00.000Z`);
+  return Number.isNaN(parsed) ? null : parsed;
+};
 
 /** A candidate entry to age: a stable key and its `YYYY-MM-DD` capture date. */
 export interface DatedErrandEntry {
@@ -24,20 +31,28 @@ export interface DatedErrandEntry {
   created: string;
 }
 
-/** One stale entry surfaced for execute-or-demote. */
-export interface StaleErrandReport {
-  /** The entry's key — its `chore/<slug>` branch name. */
-  slug: string;
-  /** The entry's capture date (`YYYY-MM-DD`). */
-  created: string;
-  /** Whole-day age of the entry at sweep time. */
-  ageDays: number;
-}
+/** Runtime authority for one stale entry surfaced for execute-or-demote. */
+export const StaleErrandReportSchema = z
+  .object({
+    slug: z.string().refine((value) => value.trim().length > 0, "entry title must not be empty"),
+    created: z.string().refine(
+      (value) => parseCreatedDayAtUtcMidnight(value) !== null,
+      "created must be parseable as a UTC-midnight day",
+    ),
+    ageDays: z.number().int().nonnegative(),
+  })
+  .strict();
 
-export interface ErrandStalenessSweepResult {
-  /** Entries pending past the threshold — surfaced to execute or demote. */
-  stale: StaleErrandReport[];
-}
+/** One stale inbox entry surfaced for execute-or-demote. */
+export type StaleErrandReport = z.infer<typeof StaleErrandReportSchema>;
+
+/** Runtime authority for the stale-errand advisory result. */
+export const ErrandStalenessSweepResultSchema = z
+  .object({ stale: z.array(StaleErrandReportSchema) })
+  .strict();
+
+/** Entries pending past the threshold. */
+export type ErrandStalenessSweepResult = z.infer<typeof ErrandStalenessSweepResultSchema>;
 
 export interface RunErrandStalenessSweepOptions {
   /** Candidate entries to age; empty when no source is in scope. */
@@ -65,8 +80,8 @@ export function runErrandStalenessSweep(
 
   const stale: StaleErrandReport[] = [];
   for (const { key, created } of entries) {
-    const createdMs = Date.parse(`${created}T00:00:00.000Z`);
-    if (Number.isNaN(createdMs)) continue;
+    const createdMs = parseCreatedDayAtUtcMidnight(created);
+    if (createdMs === null) continue;
     const ageDays = Math.floor((nowMs - createdMs) / MS_PER_DAY);
     if (ageDays > thresholdDays) {
       stale.push({ slug: key, created, ageDays });

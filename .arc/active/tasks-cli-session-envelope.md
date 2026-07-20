@@ -146,38 +146,25 @@ _Design decisions:_ Each home module exports its strict schema, derives the publ
 and retains existing behavior. `lib/session-envelope/registry.ts` centrally registers those roots after all ten
 land; this phase does not absorb any tail-routed shared or deep type web.
 
-### `[ ]` **3.1 Migrate inbox, reminder, and compaction advisories to home-module schemas**
+### `[x]` **3.1 Migrate inbox, reminder, and compaction advisories to home-module schemas**
 
 - _Goal:_ Identity-scoped routing, stale-reminder, and notes-compaction slots expose fully validated home-module
   contracts without changing their computations or session-init gating.
-- _Context:_ Implements the contained-advisory depth decision; Success Criteria 3 and 8.
 
-    - `[ ]` **3.1.a Migrate `InboxStateResult`**
-        - Define and export the schema in `lib/session-init/inbox-state.ts`, derive `InboxStateResult`, and extend
-          `__tests__/unit/session-init/inbox-state.test.ts` with malformed count/flag cases.
-        - Build `test-first` around exact `{ routableCount, housekeepNeeded }` output and reject negative/non-integer
-          counts plus inconsistent count/flag pairs while leaving `runInboxState()` behavior intact.
+    - `[x]` **3.1.a Migrate `InboxStateResult`**
+        - Added a strict schema-backed result with non-negative integer counts and count/flag consistency while
+          retaining the exact producer output.
 
-    - `[ ]` **3.1.b Migrate `ErrandStalenessSweepResult`**
-        - Define schemas for stale reports and the result in `lib/session-init/errand-staleness-sweep.ts`; derive the
-          public output types and retain input-only option interfaces. Preserve the legacy `slug` wire field as a
-          non-empty inbox-entry title and correct its misleading branch-slug documentation rather than applying
-          `SlugSchema` to arbitrary H3 titles.
-        - Share one compatibility parser between schema validation and `runErrandStalenessSweep()` that matches the
-          producer's existing `Date.parse` domain for the created-day value at UTC midnight. Keep regex-shaped
-          impossible dates on their current normalization path rather than changing which records the producer emits.
-        - Build `test-first` around valid dates, non-negative whole-day ages, malformed reports, unparseable-date
-          omission, and characterization of the existing impossible-date normalization in
-          `errand-staleness-sweep.test.ts`; do not introduce strict calendar-day behavior in this migration.
+    - `[x]` **3.1.b Migrate `ErrandStalenessSweepResult`**
+        - Added strict stale-report and sweep schemas backed by one shared UTC-midnight compatibility parser; arbitrary
+          non-empty inbox titles and existing impossible-date normalization remain accepted.
 
-    - `[ ]` **3.1.c Migrate `NotesCompactionSessionAdvisoryResult`**
-        - Define the local session-slot view schema in `lib/session-init/notes-compaction-advisory.ts` and derive only
-          `NotesCompactionSessionAdvisoryResult`; keep the shared handwritten `NotesCompactionAdvisory` and
-          `NudgeMarkerState` authorities, the input type, and unrelated user-sync consumers unchanged.
-        - Add `__tests__/unit/session-init/notes-compaction-advisory.test.ts` for valid
-          history/threshold/nudge output, malformed counts, booleans, paths, and calendar days, plus
-          `shouldSuggest === (historyCommitCount > threshold)` consistency; keep the underlying git-history
-          calculation behavior unchanged.
+    - `[x]` **3.1.c Migrate `NotesCompactionSessionAdvisoryResult`**
+        - Added strict local session-view authority for history, suggestion consistency, and nudge fields without
+          changing the shared advisory or nudge contracts and their other consumers.
+
+- _Outcome:_ All three session advisories now derive their public output types from strict schemas while preserving
+  producer behavior, including the stale-errand date compatibility boundary and notes-history calculation.
 
 ### `[ ]` **3.2 Migrate materialization and cleanup advisories to home-module schemas**
 

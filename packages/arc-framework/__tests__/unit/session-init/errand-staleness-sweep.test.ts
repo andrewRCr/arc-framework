@@ -7,6 +7,8 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  ErrandStalenessSweepResultSchema,
+  StaleErrandReportSchema,
   runErrandStalenessSweep,
   type DatedErrandEntry,
 } from "../../../src/lib/session-init/errand-staleness-sweep.js";
@@ -53,9 +55,45 @@ describe("runErrandStalenessSweep", () => {
     expect(result.stale).toEqual([]);
   });
 
+  it("retains Date.parse normalization for regex-shaped impossible dates", () => {
+    const result = runErrandStalenessSweep({
+      entries: [entry("legacy title", "2026-02-30")],
+      thresholdDays: 3,
+      now: NOW,
+    });
+
+    expect(result.stale).toEqual([{ slug: "legacy title", created: "2026-02-30", ageDays: 84 }]);
+  });
+
   it("returns no stale entries when there are no candidates", () => {
     const result = runErrandStalenessSweep({ entries: [], thresholdDays: 3, now: NOW });
 
     expect(result.stale).toEqual([]);
+  });
+});
+
+describe("ErrandStalenessSweepResultSchema", () => {
+  it("accepts producer reports including legacy non-slug titles", () => {
+    expect(
+      ErrandStalenessSweepResultSchema.parse({
+        stale: [{ slug: "Fix the release docs", created: "2026-05-18", ageDays: 7 }],
+      }),
+    ).toEqual({ stale: [{ slug: "Fix the release docs", created: "2026-05-18", ageDays: 7 }] });
+  });
+
+  it("accepts an impossible date that the producer normalizes through Date.parse", () => {
+    expect(
+      StaleErrandReportSchema.safeParse({ slug: "legacy title", created: "2026-02-30", ageDays: 84 }).success,
+    ).toBe(true);
+  });
+
+  it.each([
+    { slug: "", created: "2026-05-18", ageDays: 7 },
+    { slug: "title", created: "not-a-date", ageDays: 7 },
+    { slug: "title", created: "2026-05-18", ageDays: -1 },
+    { slug: "title", created: "2026-05-18", ageDays: 1.5 },
+    { slug: "title", created: "2026-05-18", ageDays: 7, leaked: true },
+  ])("rejects a malformed stale report", (report) => {
+    expect(StaleErrandReportSchema.safeParse(report).success).toBe(false);
   });
 });
