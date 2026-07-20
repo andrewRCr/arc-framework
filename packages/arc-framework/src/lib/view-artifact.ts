@@ -1,47 +1,38 @@
 /**
  * Semantic artifact-group resolver for `arc view`.
  *
- * The viewer asks for kinds; this module owns every path derivation and
- * composes the active, cohort, session-notes, and user-surface resolvers.
+ * The viewer asks for kinds; this module selects the target and derives the
+ * artifact group while every production effect arrives through injected ports.
+ *
+ * @module
  */
 
-import { access, readFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 
-import {
-  resolveTaskListPath,
-  runActiveSessionInitStatus,
-  type ActiveSessionInitResult,
-  type MetaFileCandidate,
-} from "../commands/active.js";
+import type { SessionNotesPathResult } from "./handoff/session-notes-path.js";
 import {
   VIEW_KINDS,
+  type ResolvedViewTarget,
   type ResolveViewArtifactOptions,
   type ViewArtifactResult,
   type ViewKind,
-} from "../commands/view.js";
-import { gitConfigGet, type GitExec } from "./git/index.js";
-import { gitExec } from "./io-context.js";
-import { resolveActiveCohortDocPath } from "./session-init/cohort-doc.js";
-import {
-  resolveWorkUnitSessionNotesPath,
-  type SessionNotesPathResult,
-} from "./handoff/session-notes-path.js";
-import {
-  resolveUserSurfaceResolver,
-  type UserSurfaceResolver,
-} from "./user-surfaces.js";
+  type ViewTargetResult,
+} from "./view/types.js";
 
 interface UserSurfacePaths {
   identityGlobalPath: (...segments: readonly string[]) => string;
 }
 
 export interface ViewArtifactDependencies {
-  resolveActive: (options: {
+  resolveAmbientTarget: (options: {
     cwd: string;
     identity: string | null;
-  }) => Promise<ActiveSessionInitResult>;
-  resolveCurrentBranch: (cwd: string) => Promise<string | null>;
+  }) => Promise<ViewTargetResult>;
+  resolveExplicitTarget: (options: {
+    cwd: string;
+    slug: string;
+  }) => Promise<ViewTargetResult>;
+  resolveRecordedTarget?: (options: { cwd: string }) => Promise<ViewTargetResult>;
   resolveCohort: (options: { cwd: string; activeMetaPath: string }) => Promise<string | null>;
   resolveSessionNotes: (options: {
     cwd: string;
@@ -55,22 +46,16 @@ export interface ViewArtifactDependencies {
   pathExists: (path: string) => Promise<boolean>;
 }
 
-interface ResolvedWorkUnit {
-  metaPath: string;
-  taskListPath: string | null;
-  name: string;
-}
-
-/** Resolve one view kind through the shared artifact-group oracle. */
+/** Resolve one view kind through the injected semantic authorities. */
 export async function resolveViewArtifact(
   options: ResolveViewArtifactOptions,
-  dependencies: ViewArtifactDependencies = createViewArtifactDependencies(gitExec),
+  dependencies: ViewArtifactDependencies,
 ): Promise<ViewArtifactResult> {
   try {
     return await resolveViewArtifactUnchecked(options, dependencies);
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
-    return error(options.kind, `Unable to resolve ${options.kind}: ${message}`);
+    return error(options.kind ?? "view", `Unable to resolve ${options.kind ?? "view"}: ${message}`);
   }
 }
 
@@ -78,7 +63,9 @@ async function resolveViewArtifactUnchecked(
   options: ResolveViewArtifactOptions,
   dependencies: ViewArtifactDependencies,
 ): Promise<ViewArtifactResult> {
-  if (!isViewKind(options.kind)) return error(options.kind, `Unknown view kind "${options.kind}".`);
+  if (options.kind !== undefined && !isViewKind(options.kind)) {
+    return error(options.kind, `Unknown view kind "${options.kind}". Valid kinds: ${VIEW_KINDS.join(", ")}.`);
+  }
   const kind = options.kind;
 
   if (kind === "inbox" && options.project) {
@@ -102,35 +89,85 @@ async function resolveViewArtifactUnchecked(
     return presentOrAbsent(kind, surfaces.identityGlobalPath(filename), null, dependencies);
   }
 
-  const workUnit = await resolveWorkUnit(options, dependencies);
-  if (workUnit === null) {
-    return error(kind, "No active work unit matches the current branch.");
+  const target = await resolveTarget(options, dependencies);
+  if (target.status === "completed") {
+    return error(kind ?? "view", `Work unit "${target.slug}" is completed; completed viewing is unsupported.`);
+  }
+  if (target.status === "unavailable") {
+    return options.forSlug === undefined
+      ? error(kind ?? "view", "No active work unit matches the current branch.")
+      : error(kind ?? "view", `Work unit "${options.forSlug}" is unavailable in this checkout.`);
   }
 
+  if (kind === undefined) return resolveFurthestPresent(options.cwd, target, dependencies);
+  return resolveExactKind(options, kind, target, dependencies);
+}
+
+async function resolveTarget(
+  options: ResolveViewArtifactOptions,
+  dependencies: ViewArtifactDependencies,
+): Promise<ViewTargetResult> {
+  if (options.forSlug !== undefined) {
+    return dependencies.resolveExplicitTarget({ cwd: options.cwd, slug: options.forSlug });
+  }
+  const ambient = await dependencies.resolveAmbientTarget({
+    cwd: options.cwd,
+    identity: options.identity,
+  });
+  return ambient.status !== "unavailable" || dependencies.resolveRecordedTarget === undefined
+    ? ambient
+    : dependencies.resolveRecordedTarget({ cwd: options.cwd });
+}
+
+async function resolveFurthestPresent(
+  cwd: string,
+  target: ResolvedViewTarget,
+  dependencies: ViewArtifactDependencies,
+): Promise<ViewArtifactResult> {
+  for (const kind of ["tasks", "spec", "draft", "meta"] as const) {
+    const result = await resolveExactKind({
+      cwd,
+      kind,
+      project: false,
+      identity: null,
+    }, kind, target, dependencies);
+    if (result.status === "resolved") return result;
+  }
+  return error("view", `Work unit "${target.slug}" has no readable meta artifact.`);
+}
+
+async function resolveExactKind(
+  options: ResolveViewArtifactOptions,
+  kind: ViewKind,
+  target: ResolvedViewTarget,
+  dependencies: ViewArtifactDependencies,
+): Promise<ViewArtifactResult> {
   switch (kind) {
     case "meta":
-      return presentOrAbsent(kind, absolute(options.cwd, workUnit.metaPath), workUnit.name, dependencies);
-    case "tasks":
-      return workUnit.taskListPath === null
+      return presentOrAbsent(kind, absolute(options.cwd, target.metaPath), target.slug, dependencies);
+    case "tasks": {
+      const path = await resolveTaskPath(options.cwd, target, dependencies);
+      return path === null
         ? { status: "absent", kind }
-        : presentOrAbsent(kind, absolute(options.cwd, workUnit.taskListPath), workUnit.name, dependencies);
+        : { status: "resolved", kind, path, workUnit: target.slug };
+    }
     case "spec":
     case "draft":
     case "notes":
       return presentOrAbsent(
         kind,
-        join(options.cwd, dirname(workUnit.metaPath), `${kind}-${workUnit.name}.md`),
-        workUnit.name,
+        join(options.cwd, dirname(target.metaPath), `${kind}-${target.slug}.md`),
+        target.slug,
         dependencies,
       );
     case "cohort": {
       const path = await dependencies.resolveCohort({
         cwd: options.cwd,
-        activeMetaPath: workUnit.metaPath,
+        activeMetaPath: target.metaPath,
       });
       return path === null
         ? { status: "absent", kind }
-        : presentOrAbsent(kind, absolute(options.cwd, path), workUnit.name, dependencies);
+        : presentOrAbsent(kind, absolute(options.cwd, path), target.slug, dependencies);
     }
     case "session-notes": {
       if (options.identity === null) {
@@ -139,51 +176,29 @@ async function resolveViewArtifactUnchecked(
       const result = await dependencies.resolveSessionNotes({
         cwd: options.cwd,
         identity: options.identity,
-        workUnitName: workUnit.name,
+        workUnitName: target.slug,
       });
       if (result.status === "error") return { status: "error", kind, message: result.message };
       if (result.status === "absent") return { status: "absent", kind };
-      return presentOrAbsent(kind, result.path, workUnit.name, dependencies);
+      return presentOrAbsent(kind, result.path, target.slug, dependencies);
     }
-    default: {
-      const _exhaustive: never = kind;
-      return _exhaustive;
-    }
+    case "working-memory":
+    case "inbox":
+      return error(kind, `The ${kind} artifact is identity-global and has no work-unit target.`);
   }
 }
 
-async function resolveWorkUnit(
-  options: ResolveViewArtifactOptions,
+async function resolveTaskPath(
+  cwd: string,
+  target: ResolvedViewTarget,
   dependencies: ViewArtifactDependencies,
-): Promise<ResolvedWorkUnit | null> {
-  const result = await dependencies.resolveActive({ cwd: options.cwd, identity: options.identity });
-  let candidate: MetaFileCandidate | null = null;
-  let taskListPath: string | null = null;
-
-  if (result.resolution === "single" && result.path !== null) {
-    candidate = {
-      path: result.path,
-      filename: basename(result.path),
-      branch: null,
-      state: null,
-      nextTask: null,
-      taskList: null,
-      nextAction: null,
-      currentWorkflow: null,
-    };
-    taskListPath = result.taskListPath ?? null;
-  } else if (result.resolution === "multiple") {
-    const branch = await dependencies.resolveCurrentBranch(options.cwd);
-    const matches = result.candidates.filter((entry) => entry.branch !== null && entry.branch === branch);
-    if (matches.length !== 1) return null;
-    candidate = matches[0] ?? null;
-    if (candidate !== null) taskListPath = resolveTaskListPath(candidate.path, candidate.taskList);
+): Promise<string | null> {
+  if (target.taskListPath !== null) {
+    const pointer = absolute(cwd, target.taskListPath);
+    if (await dependencies.pathExists(pointer)) return pointer;
   }
-
-  if (candidate === null) return null;
-  const name = /^meta-(.+)\.md$/u.exec(basename(candidate.path))?.[1];
-  if (name === undefined) return null;
-  return { metaPath: candidate.path, taskListPath, name };
+  const conventional = join(cwd, dirname(target.metaPath), `tasks-${target.slug}.md`);
+  return await dependencies.pathExists(conventional) ? conventional : null;
 }
 
 function isViewKind(kind: string): kind is ViewKind {
@@ -201,57 +216,10 @@ async function presentOrAbsent(
     : { status: "absent", kind };
 }
 
-function error(kind: string, prefix: string): ViewArtifactResult {
-  return {
-    status: "error",
-    kind,
-    message: `${prefix} Valid kinds: ${VIEW_KINDS.join(", ")}.`,
-  };
+function error(kind: string, message: string): ViewArtifactResult {
+  return { status: "error", kind, message };
 }
 
 function absolute(cwd: string, path: string): string {
   return isAbsolute(path) ? path : join(cwd, path);
-}
-
-function createViewArtifactDependencies(exec: GitExec): ViewArtifactDependencies {
-  return {
-    resolveActive: async ({ cwd, identity }) => runActiveSessionInitStatus({
-      cwd,
-      identity,
-      role: await gitConfigGet(exec, "arc.role"),
-      exec,
-    }),
-    resolveCurrentBranch: async (cwd) => {
-      try {
-        const result = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd });
-        const branch = result.stdout.trim();
-        return branch === "" || branch === "HEAD" ? null : branch;
-      } catch {
-        return null;
-      }
-    },
-    resolveCohort: ({ cwd, activeMetaPath }) => resolveActiveCohortDocPath({
-      cwd,
-      activeMetaPath,
-      fs: {
-        readFile: (path) => readFile(path, "utf8"),
-        pathExists,
-      },
-    }),
-    resolveSessionNotes: ({ cwd, identity, workUnitName }) =>
-      resolveWorkUnitSessionNotesPath(cwd, identity, workUnitName, { access }),
-    resolveUserSurfaces: ({ cwd, identity }): Promise<UserSurfaceResolver> =>
-      resolveUserSurfaceResolver({ cwd, identity, exec }),
-    pathExists,
-  };
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-    throw error;
-  }
 }

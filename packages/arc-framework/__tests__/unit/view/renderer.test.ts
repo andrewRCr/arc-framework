@@ -2,6 +2,8 @@
  * Unit tests for renderer selection and pager composition.
  */
 
+import { spawnSync } from "node:child_process";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -10,6 +12,15 @@ import {
   resolveViewRenderer,
   type PagerProcessRunner,
 } from "../../../src/lib/view-renderer.js";
+
+const glowAvailable = spawnSync("glow", ["--version"], { stdio: "ignore" }).status === 0;
+
+function pagerDependencies(run: PagerProcessRunner): {
+  run: PagerProcessRunner;
+  environment: NodeJS.ProcessEnv;
+} {
+  return { run, environment: { ARC_VIEW_TEST: "true" } };
+}
 
 describe("detectViewRenderer", () => {
   it("selects glow first when it is available", async () => {
@@ -72,12 +83,13 @@ describe("renderViewWithPager", () => {
       renderer,
       content: "# Tasks\n",
       displayPath: "tasks.md",
-    }, { run });
+    }, pagerDependencies(run));
 
     expect(run).toHaveBeenCalledWith(expect.objectContaining({
       command,
       args,
       input: "# Tasks\n",
+      env: expect.objectContaining({ ARC_VIEW_TEST: "true" }),
     }));
   });
 
@@ -111,7 +123,7 @@ describe("renderViewWithPager", () => {
       renderer: "glow",
       content,
       displayPath: "tasks.md",
-    }, { run });
+    }, pagerDependencies(run));
 
     expect(run.mock.calls[0]?.[0].input).toBe([
       "# Heading",
@@ -150,7 +162,7 @@ describe("renderViewWithPager", () => {
       ].join("\n"),
       displayPath: "tasks.md",
       terminalWidth: 42,
-    }, { run });
+    }, pagerDependencies(run));
 
     expect(run.mock.calls[0]?.[0].input).toBe([
       "A paragraph with `styled` words",
@@ -175,7 +187,7 @@ describe("renderViewWithPager", () => {
       ].join("\n"),
       displayPath: "inbox.md",
       terminalWidth: 42,
-    }, { run });
+    }, pagerDependencies(run));
 
     expect(run.mock.calls[0]?.[0].input).toBe([
       "> A quoted paragraph authored across",
@@ -198,7 +210,7 @@ describe("renderViewWithPager", () => {
       content,
       displayPath: "notes.md",
       terminalWidth: 42,
-    }, { run });
+    }, pagerDependencies(run));
 
     expect(run.mock.calls[0]?.[0].input).toBe(content);
   });
@@ -216,9 +228,205 @@ describe("renderViewWithPager", () => {
       content,
       displayPath: "notes.md",
       terminalWidth: 42,
-    }, { run });
+    }, pagerDependencies(run));
 
     expect(run.mock.calls[0]?.[0].input).toBe(content);
+  });
+
+  it("inserts transient separators only at provable loose unordered-list boundaries", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = [
+      "- tight one",
+      "- tight two",
+      "",
+      "  - nested one",
+      "",
+      "  - nested two",
+      "",
+      "> - quoted one",
+      ">",
+      "> - quoted two",
+      "",
+    ].join("\n");
+
+    await renderViewWithPager({ renderer: "glow", content, displayPath: "notes.md" }, pagerDependencies(run));
+
+    expect(run.mock.calls[0]?.[0].input).toBe([
+      "- tight one",
+      "- tight two",
+      "",
+      "  - nested one",
+      "",
+      "  <!-- arc-view-loose-list -->",
+      "  - nested two",
+      "",
+      "> - quoted one",
+      ">",
+      "> <!-- arc-view-loose-list -->",
+      "> - quoted two",
+      "",
+    ].join("\n"));
+  });
+
+  it("restores each top-level loose-list gap without changing task markers", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = [
+      "- [ ] first task",
+      "",
+      "- [x] second task",
+      "",
+      "- [~] third task",
+      "",
+    ].join("\n");
+    await renderViewWithPager({ renderer: "glow", content, displayPath: "tasks.md" }, pagerDependencies(run));
+    expect(run.mock.calls[0]?.[0].input).toBe([
+      "- [ ] first task",
+      "",
+      "<!-- arc-view-loose-list -->",
+      "- [x] second task",
+      "",
+      "<!-- arc-view-loose-list -->",
+      "- [~] third task",
+      "",
+    ].join("\n"));
+  });
+
+  it("restores loose gaps between ARC task entries with nested outcome blocks", async () => {
+    let renderedInput = "";
+    const content = [
+      "- _Goal:_ Parent item",
+      "    - `[x]` **1.3.a First nested task**",
+      "        - First nested outcome.",
+      "",
+      "    - `[x]` **1.3.b Second nested task**",
+      "        - Second nested outcome.",
+      "",
+      "- _Outcome:_ Parent outcome",
+      "",
+    ].join("\n");
+
+    await renderViewWithPager({ renderer: "glow", content, displayPath: "tasks.md" }, {
+      environment: { ARC_VIEW_TEST: "true" },
+      run: async (input) => {
+        renderedInput = input.input;
+      },
+    });
+
+    expect(renderedInput).toBe([
+      "- _Goal:_ Parent item",
+      "    - `[x]` **1.3.a First nested task**",
+      "        - First nested outcome.",
+      "",
+      "        <!-- arc-view-loose-list -->",
+      "    - `[x]` **1.3.b Second nested task**",
+      "        - Second nested outcome.",
+      "",
+      "        <!-- arc-view-loose-list -->",
+      "- _Outcome:_ Parent outcome",
+      "",
+    ].join("\n"));
+  });
+
+  it("leaves fenced and ambiguous multi-block boundaries untouched", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = [
+      "```md",
+      "- apparent item",
+      "",
+      "- still fenced",
+      "```",
+      "",
+      "- item with another block",
+      "",
+      "continuation paragraph outside the list",
+      "",
+      "- later item",
+      "",
+    ].join("\n");
+    await renderViewWithPager({ renderer: "glow", content, displayPath: "notes.md" }, pagerDependencies(run));
+    expect(run.mock.calls[0]?.[0].input).toBe(content);
+  });
+
+  it("leaves four-space-indented list-like code untouched", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = [
+      "    - code one",
+      "",
+      "    - code two",
+      "",
+    ].join("\n");
+    await renderViewWithPager({ renderer: "glow", content, displayPath: "notes.md" }, pagerDependencies(run));
+    expect(run.mock.calls[0]?.[0].input).toBe(content);
+    expect(run.mock.calls[0]?.[0].input).not.toContain("arc-view-loose-list");
+  });
+
+  it("materializes lazy ordered ordinals only in the transient Glow copy", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = ["1. first", "", "1. second", "", "1. third", ""].join("\n");
+    await renderViewWithPager({ renderer: "glow", content, displayPath: "notes.md" }, pagerDependencies(run));
+    expect(run.mock.calls[0]?.[0].input).toBe([
+      "1. first",
+      "",
+      "<!-- arc-view-loose-list -->",
+      "2. second",
+      "",
+      "<!-- arc-view-loose-list -->",
+      "3. third",
+      "",
+    ].join("\n"));
+
+    const sequential = ["1. first", "", "2. second", ""].join("\n");
+    await renderViewWithPager({ renderer: "glow", content: sequential, displayPath: "notes.md" }, pagerDependencies(run));
+    expect(run.mock.calls[1]?.[0].input).toContain("2. second");
+  });
+
+  it("confines loose-list adaptation to Glow input", async () => {
+    const run = vi.fn<PagerProcessRunner>().mockResolvedValue(undefined);
+    const content = "- first\n\n- second\n";
+    await renderViewWithPager({ renderer: "bat", content, displayPath: "notes.md" }, pagerDependencies(run));
+    await renderViewWithPager({ renderer: "plain", content, displayPath: "notes.md" }, pagerDependencies(run));
+    expect(run.mock.calls[0]?.[0].input).toBe(content);
+    expect(run.mock.calls[1]?.[0].input).toBe(content);
+  });
+
+  it.runIf(glowAvailable)("restores ARC task-list gaps through the real Glow command", async () => {
+    const content = [
+      "- _Goal:_ Parent item",
+      "    - `[x]` **1.3.a First nested task**",
+      "        - First nested outcome.",
+      "",
+      "    - `[x]` **1.3.b Second nested task**",
+      "        - Second nested outcome.",
+      "",
+      "- _Outcome:_ Parent outcome",
+      "",
+    ].join("\n");
+    let status: number | null = null;
+    let stdout = "";
+
+    await renderViewWithPager({ renderer: "glow", content, displayPath: "tasks.md" }, {
+      environment: { ...process.env, PAGER: "cat" },
+      run: async (input) => {
+        const result = spawnSync(input.command, [...input.args], {
+          input: input.input,
+          encoding: "utf8",
+          env: input.env,
+        });
+        status = result.status;
+        stdout = result.stdout;
+      },
+    });
+
+    expect(status).toBe(0);
+    const lines = stdout.split("\n");
+    const firstOutcome = lines.findIndex((line) => line.includes("First nested outcome"));
+    const secondTask = lines.findIndex((line) => line.includes("1.3.b"));
+    const secondOutcome = lines.findIndex((line) => line.includes("Second nested outcome"));
+    const parentOutcome = lines.findIndex((line) => line.includes("Parent outcome"));
+    expect(firstOutcome).toBeGreaterThanOrEqual(0);
+    expect(secondTask).toBe(firstOutcome + 2);
+    expect(secondOutcome).toBeGreaterThan(secondTask);
+    expect(parentOutcome).toBe(secondOutcome + 2);
   });
 
   it("passes renderer-appropriate anchors to pager modes", async () => {
@@ -229,7 +437,7 @@ describe("renderViewWithPager", () => {
       content: "# Tasks\n",
       displayPath: "tasks.md",
       anchor: { line: 42, id: "3.R" },
-    }, { run });
+    }, pagerDependencies(run));
     expect(run.mock.calls[0]?.[0].env.LESS).toBe("FRX +/###.*3\\.R");
 
     await renderViewWithPager({
@@ -237,7 +445,7 @@ describe("renderViewWithPager", () => {
       content: "# Tasks\n",
       displayPath: "tasks.md",
       anchor: { line: 42, id: "3.1" },
-    }, { run });
+    }, pagerDependencies(run));
     expect(run.mock.calls[1]?.[0].env.BAT_PAGER).toBe("less -RFX +42");
 
     await renderViewWithPager({
@@ -245,7 +453,7 @@ describe("renderViewWithPager", () => {
       content: "# Tasks\n",
       displayPath: "tasks.md",
       anchor: { line: 42, id: "3.1" },
-    }, { run });
+    }, pagerDependencies(run));
     expect(run.mock.calls[2]?.[0].args).toContain("+42");
   });
 });

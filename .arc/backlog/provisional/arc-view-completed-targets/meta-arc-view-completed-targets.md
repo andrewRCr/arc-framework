@@ -1,14 +1,14 @@
-# Metadata: arc-view-refinements
+# Metadata: arc-view-completed-targets
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** draft-arc-view-refinements.md
+- **Design:** `draft-arc-view-completed-targets.md`
 - **Task List:** [none]
 
 - **Current Workflow:** [none]

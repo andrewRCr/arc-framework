@@ -9,4 +9,4 @@ export {
   type ViewArtifactResult,
   type ViewKind,
   type ViewOutput,
-} from "./view/types.js";
+} from "../lib/view/types.js";

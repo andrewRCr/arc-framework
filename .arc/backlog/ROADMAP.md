@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `898a50cbe`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `18b70ab20`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,13 +13,13 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit            | Priority | Owner  | Depends on                  | Cohort                 |
-| ------------- | -------------------- | -------- | ------ | --------------------------- | ---------------------- |
-| `Planning`    | review-architecture  | P1       | andrew | classify-change-granularity | —                      |
-| `Planning`    | session-locus-model  | P1       | andrew | cli-session-envelope        | —                      |
-| `Integrating` | cli-git-executor     | P2       | andrew | —                           | cli-substrate-adoption |
-| `Integrating` | cli-session-envelope | P2       | andrew | —                           | cli-substrate-adoption |
-| `Active`      | self-hosted-ci       | P3       | andrew | —                           | —                      |
+| State         | Work unit            | Priority | Owner  | Depends on           | Cohort                 |
+| ------------- | -------------------- | -------- | ------ | -------------------- | ---------------------- |
+| `Planning`    | review-architecture  | P1       | andrew | —                    | —                      |
+| `Planning`    | session-locus-model  | P1       | andrew | cli-session-envelope | —                      |
+| `Integrating` | cli-git-executor     | P2       | andrew | —                    | cli-substrate-adoption |
+| `Integrating` | cli-session-envelope | P2       | andrew | —                    | cli-substrate-adoption |
+| `Active`      | self-hosted-ci       | P3       | andrew | —                    | —                      |
 
 ## Ready
 
@@ -41,8 +41,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cli-layout-resolver                   | P2       | andrew | —          | cli-substrate-adoption     |
 | cli-validation-surfaces               | P2       | andrew | —          | cli-substrate-adoption     |
 | naming-conventions                    | P2       | andrew | —          | doc-conventions            |
-| arc-view-refinements                  | P2       | andrew | —          | —                          |
-| classify-change-granularity           | P2       | andrew | —          | —                          |
 | cross-wu-coordination                 | P2       | andrew | —          | —                          |
 | execution-delegation-doctrine         | P2       | andrew | —          | —                          |
 | frictionless-capture                  | P2       | andrew | —          | —                          |

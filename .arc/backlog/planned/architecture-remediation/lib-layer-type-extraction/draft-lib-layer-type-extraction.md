@@ -1,5 +1,22 @@
 # Draft: Lib-Layer Type Extraction
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration._
+
+### `[ ]` **Reconcile the viewer inventory with its local correction**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-20); captured during
+  `arc-view-refinements` design review.
+- _Concern:_ the shipped viewer added command-owned view and active contracts below the lib layer, but
+  `arc-view-refinements` owns the viewer-local correction while it changes the resolver and rendering pipeline.
+  This inventory predates that surface and must not rediscover or duplicate the landed extraction.
+- _Approach:_ at grooming, remove viewer inversions already corrected locally, retain residual non-schema inversions,
+  preserve the `cli-schema-kernel` carve-out, and treat command-specific active envelopes as adapter inputs rather than
+  re-homing them speculatively.
+
+---
+
 ## Problem / Motivation
 
 Several `lib/` modules import type contracts from `commands/`, inverting the intended

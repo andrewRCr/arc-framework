@@ -99,6 +99,7 @@ import {
   handleReleaseStatus,
 } from "./commands/release.js";
 import { runDecomposeRecordValidation } from "./scripts/validate-decompose-record.js";
+import { runRoadmapConflictAutoRemedyCommand } from "./scripts/remedy-roadmap-conflict.js";
 
 const program = new Command();
 
@@ -116,6 +117,10 @@ const checkCmd = program
 program
   .command("hook-validate-decompose-record", { hidden: true })
   .action(runDecomposeRecordValidation);
+
+program
+  .command("hook-remedy-roadmap-conflict", { hidden: true })
+  .action(runRoadmapConflictAutoRemedyCommand);
 
 function isDashPrefixedCheckSourceEscaped(
   rawArgs: readonly string[],
@@ -585,10 +590,11 @@ program
   .description("Render an artifact from the current ARC work context")
   .argument(
     "[kind]",
-    "Artifact kind: tasks | spec | draft | meta | notes | cohort | session-notes | working-memory | inbox (default: tasks)",
+    "Artifact kind: tasks | spec | draft | meta | notes | cohort | session-notes | working-memory | inbox",
   )
   .option("--project", "With inbox: render the shared project inbox")
   .option("--current", "With tasks: render only the current task region")
+  .option("--for <slug>", "Override ambient context with the named work-unit slug")
   .action((kind: string | undefined, opts: ViewCliOptions) => handleView(kind, opts));
 
 // --- Status (composite) ---

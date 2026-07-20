@@ -27,6 +27,17 @@ artifacts.
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Publish the session-envelope registry through the schema projection**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-07-20); captured during `cli-session-envelope`
+  planning close.
+- _Concern:_ `createSessionEnvelopeRegistry()` registers session-init, recovery, family-record, and contained-advisory
+  roots, but the shipped `schemas/kernel.json` build remains deliberately kernel-only. Registration alone therefore
+  does not publish the envelope contracts for introspection.
+- _Approach:_ widen the generated-schema projection deliberately after consuming the landed registry. Preserve
+  deterministic identity/version/posture metadata and retain the kernel-only default regression until this WU defines
+  the publication contract.
+
 ### `[ ]` **Introspection reads the kernel's schema registry, never the TypeScript compiler**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: schema-introspection-layer`), housekeep drain

@@ -1,14 +1,14 @@
-# Metadata: classify-change-granularity
+# Metadata: recurring-errand-pr-resolution
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Light`   | `P2`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-classify-change-granularity.md`
+- **Design:** `draft-recurring-errand-pr-resolution.md`
 - **Task List:** [none]
 
 - **Current Workflow:** [none]
