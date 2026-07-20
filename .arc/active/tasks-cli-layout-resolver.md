@@ -60,23 +60,15 @@ caller migration begins.
 _Purpose:_ Make configured identity a validated semantic input and route user-document construction through the
 resolver without changing fallback or root-selection policy.
 
-### `[ ]` **2.1 Split configured identity reading from fallback resolution**
+### `[x]` **2.1 Split configured identity reading from fallback resolution**
 
 - _Goal:_ Present `arc.identity` values are preserved byte-for-byte and either become branded `Slug` values or fail
   with one actionable identity-domain error, while absent configuration retains existing fallback behavior.
 
-    - Add `readConfiguredIdentity(exec)` in `src/lib/git/identity.ts` using
-      `git config --null --get arc.identity`, requiring exactly one terminal NUL and removing only that delimiter.
-    - Change `resolveIdentity()` to `Promise<Slug | null>`; keep derived and prompted slugification, cancellation,
-      and missing identity behavior while parsing every non-null configured, derived, and prompted result through
-      `SlugSchema` and never swallowing `identity.invalid`.
-    - Build `test-first` (one behavior at a time):
-        - Distinguish absent configuration from empty, whitespace-padded, malformed, and canonical configured values.
-        - Preserve non-absence Git failures for caller-owned degradation and emit the exact `UserFacingError`
-          remediation contract for present invalid values.
-        - Retain valid configured, `user.name`-derived, prompted, missing, and cancelled outcomes.
-        - Exercise the production `GitExec` in a temporary repository so canonical, whitespace-padded, empty, and
-          absent `arc.identity` values prove the NUL delimiter preserves exact configured bytes end to end.
+    - Added a delimiter-preserving configured-only reader that returns a branded slug, distinguishes Git exit-1
+      absence, rejects every present invalid value with the exact identity remediation, and propagates other failures.
+    - The fallback resolver now retains derived/prompted slugification and cancellation behavior while returning only
+      validated slugs; production Git integration proves canonical, padded, empty, and absent byte handling.
 
 ### `[ ]` **2.2 Migrate configured-only identity readers with exact failure semantics**
 
