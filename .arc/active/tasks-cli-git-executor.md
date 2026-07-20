@@ -16,11 +16,9 @@ _Purpose:_ Establish the execa-backed failure contract and prove replacement ada
 - **Additional Context:** `notes-cli-git-executor.md` § Rejection ABI and cutover; § Compatibility classifier
   inventory; § Expected outcome classification matrix
 
-    - `[ ]` **1.1.a Add execa 10 as the supported Git process runtime**
-        - Add execa 10 to `packages/arc-framework/package.json` and the workspace lockfile without changing the
-          declared Node engine; confirm the installed release supports Node 24 and ESM import.
-        - Record execa as the Git process-execution runtime in `.arc/reference/TECHNICAL-OVERVIEW.md` § 3 in the
-          same increment as the dependency.
+    - `[x]` **1.1.a Add execa 10 as the supported Git process runtime**
+        - Added the ESM-only execa 10 runtime dependency without changing the Node ≥24 engine contract, and recorded
+          it as the Git process-execution runtime in `.arc/reference/TECHNICAL-OVERVIEW.md`.
 
     - `[ ]` **1.1.b Implement the concrete `GitProcessError` ABI**
         - Co-locate `GitProcessError` under `src/lib/git/` with the six `kind` values and `ArcError.code` mappings
