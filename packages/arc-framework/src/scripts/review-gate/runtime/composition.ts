@@ -17,7 +17,7 @@ import { meetsMinimumPermission, type CapabilitySet, type ReviewRequirement } fr
 import type { ReviewReceipt } from "../core/execution.js";
 import type { GitHostAdapter, ReviewProviderAdapter, ReviewReceiptStore } from "../core/ports.js";
 import type { GitExec } from "../../../lib/git/exec.js";
-import { affectedPaths, isCodeSurfacePath, type RawGitExec } from "../../../lib/change-facts.js";
+import type { RawGitExec } from "../../../lib/change-facts.js";
 import { GitHubHostAdapter } from "../hosts/github/adapter.js";
 import { GitHubGraphQLClient } from "../hosts/github/api/graphql.js";
 import type { HttpFetch } from "../hosts/github/api/http.js";
@@ -49,7 +49,7 @@ import {
   GitHubRestIssueCommentApi,
   type ReceiptWriteState,
 } from "../hosts/github/receipt-store.js";
-import { classifyReviewRisk } from "../policy/self-hosting/risk.js";
+import { classifyReviewRiskFromChangeSet } from "../policy/self-hosting/risk.js";
 import { resolveAutoLane, type ChangedPath } from "../policy/self-hosting/lane.js";
 import { resolveSelfHostingDecision } from "../policy/self-hosting/decision.js";
 import {
@@ -185,10 +185,6 @@ function assertSharedConfig(config: SharedInfrastructureConfig): void {
 function assertAttestConfig(config: AttestRuntimeConfig): void {
   assertNonEmpty(config.dispatchActorLogin, "dispatchActorLogin");
   assertNonEmpty(config.dispatchActorId, "dispatchActorId");
-}
-
-function changesTouchCodeSurface(changes: ChangedPath[]): boolean {
-  return affectedPaths(changes).some(isCodeSurfacePath);
 }
 
 function composeCodeRabbitApi(
@@ -459,10 +455,7 @@ export async function createReconcileRuntime(
       authorMap: config.policy.authorMap,
       changes: input.changes,
     }),
-    resolveRisk: (changes) => classifyReviewRisk({
-      paths: affectedPaths(changes),
-      codeSurface: changesTouchCodeSurface(changes),
-    }),
+    resolveRisk: (changes) => classifyReviewRiskFromChangeSet({ changeSet: "known", changes }),
     listCommandComments: () => commandReader.list(),
     readTriggerHistory: (headSha) => triggerHistory.read(headSha),
   };
@@ -529,10 +522,7 @@ export async function createAttestRuntime(
       authorMap: config.policy.authorMap,
       changes,
     });
-    const risk = classifyReviewRisk({
-      paths: affectedPaths(changes),
-      codeSurface: changesTouchCodeSurface(changes),
-    });
+    const risk = classifyReviewRiskFromChangeSet({ changeSet: "known", changes });
     const decision = resolveSelfHostingDecision({ policy: config.policy, changeRequest: change.changeRequest, lane, risk });
     const requirement = decision.requirements[0];
     if (requirement === undefined || decision.requirements.length !== 1) {

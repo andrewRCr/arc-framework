@@ -35,12 +35,10 @@ gate, or workflow consumes them.
 - _Outcome:_ CI classification and review-gate coverage, routing, and risk composition now share one dependency-free
   raw-diff authority, eliminating the parallel status parser and extension-only code-surface approximation.
 
-### `[ ]` **1.2 Resolve ownership and surface authority at exact refs**
+### `[x]` **1.2 Resolve ownership and surface authority at exact refs**
 
 - _Goal:_ The router receives one explicit ownership relation and one artifact-authority classification derived
   from exact target refs, including safe answers for mixed, ownerless, moved, and unverifiable surfaces.
-- _Context:_ Implements Design §§1.1–1.3 by generalizing the current self-hosting automatic-lane logic without
-  preserving `auto | reviewed` as policy input.
 
     - `[x]` **1.2.a Normalize ownership across the full change set**
         - Added a six-relation exact-ref ownership resolver beside the derived legacy lane projection; canonical
@@ -57,10 +55,14 @@ gate, or workflow consumes them.
           predicate; package manifests, shell, fixtures, workflows, project extensions, deletions, and both
           rename/copy endpoints now share membership, while empty or unresolved sets remain sensitive.
 
-    - `[ ]` **1.2.d Preserve CI/review decision independence**
-        - Make CI weight, review risk, and authority each map the same facts through their own policy functions.
-        - Add contract tests proving a light CI change can still be review-sensitive and that review routing never
-          consumes verified-tree history.
+    - `[x]` **1.2.d Preserve CI/review decision independence**
+        - Added a mode-insensitive canonical change-set view and dedicated risk mapper alongside the full CI and
+          authority policies; contract coverage proves light CI documentation may remain design-sensitive and
+          review fact mapping cannot observe verified-tree history.
+
+- _Outcome:_ The canonical change record now feeds three independent project decisions: mode-aware CI weight,
+  status/endpoint-aware review risk, and exact-ref ownership/authority. The legacy lane is only a downstream
+  presentation, so routing can consume closed facts without inheriting CI history or owner-policy shortcuts.
 
 ### `[ ]` **1.3 Register the review-domain record family**
 

@@ -1,5 +1,11 @@
 /** Stable sensitive-path classification for self-hosting review policy. */
 
+import {
+  affectedPaths,
+  isCodeSurfacePath,
+  type ChangePathSet,
+} from "../../../../lib/change-facts.js";
+
 /** Review-risk classification. */
 export type ReviewRisk = "routine" | "sensitive";
 
@@ -47,4 +53,13 @@ export function classifyReviewRisk(input: ReviewRiskInput): ReviewRiskDecision {
   return reasons.length === 0
     ? { risk: "routine", reasons: ["routine-doc-surface"] }
     : { risk: "sensitive", reasons };
+}
+
+/** Map canonical status-and-endpoint facts to review risk without CI history. */
+export function classifyReviewRiskFromChangeSet(changeSet: ChangePathSet): ReviewRiskDecision {
+  if (changeSet.changeSet === "unknown") {
+    return { risk: "sensitive", reasons: ["unknown-change-set"] };
+  }
+  const paths = affectedPaths(changeSet.changes);
+  return classifyReviewRisk({ paths, codeSurface: paths.some(isCodeSurfacePath) });
 }

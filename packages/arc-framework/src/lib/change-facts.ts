@@ -22,13 +22,21 @@ export interface CanonicalChange {
   newMode: string;
 }
 
+/** Mode-insensitive canonical view used by review policy consumers. */
+export type ChangePathFact = Pick<CanonicalChange, "status" | "path" | "previousPath">;
+
+/** Known/unknown path-fact view shared by review policy consumers. */
+export type ChangePathSet =
+  | { changeSet: "known"; changes: readonly ChangePathFact[] }
+  | { changeSet: "unknown"; changes: readonly [] };
+
 export type ChangeSet =
   | { changeSet: "known"; changes: CanonicalChange[] }
   | { changeSet: "unknown"; changes: [] };
 
 /** Stable union of every affected path, including both move and copy endpoints. */
 export function affectedPaths(
-  changes: readonly Pick<CanonicalChange, "path" | "previousPath">[],
+  changes: readonly Pick<ChangePathFact, "path" | "previousPath">[],
 ): string[] {
   const paths = new Set<string>();
   for (const change of changes) {

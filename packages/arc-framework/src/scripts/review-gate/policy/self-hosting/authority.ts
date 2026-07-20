@@ -1,6 +1,6 @@
 /** Project path policy for normalized review surface authority. */
 
-import type { ChangeSet } from "../../../../lib/change-facts.js";
+import type { ChangePathSet } from "../../../../lib/change-facts.js";
 
 const CHANGE_STATUSES = new Set(["added", "modified", "deleted", "renamed", "copied", "type-changed"]);
 
@@ -82,7 +82,7 @@ const AUTHORITY_RANK: Record<SurfaceAuthority, number> = {
 
 /** Reduce every affected endpoint to the strongest project authority. */
 export function resolveSurfaceAuthority(
-  changeSet: ChangeSet,
+  changeSet: ChangePathSet,
   options: SurfaceAuthorityOptions = {},
 ): SurfaceAuthorityResolution {
   if (changeSet.changeSet === "unknown" || changeSet.changes.length === 0) return { authority: "unknown" };
