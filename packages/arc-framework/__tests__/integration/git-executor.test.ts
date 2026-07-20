@@ -227,7 +227,7 @@ describe("installation diff adapter", () => {
     const root = await mkdtemp(join(tmpdir(), "arc-execa-diff-spawn-"));
     tempDirs.push(root);
 
-    await expect(realGitDiff("left", "right", join(root, "missing-git")))
+    await expect(realGitDiff("left", "right", join(root, "missing-git.exe")))
       .rejects.toSatisfy((error: unknown) => isGitProcessError(error) && error.kind === "spawn-failure");
   });
 });
