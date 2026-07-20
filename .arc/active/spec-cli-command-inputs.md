@@ -178,11 +178,11 @@ operations that share one command policy.
 | `user pull`: local overwrite | Protected; cancel or decline stops pull | Require `--yes` when overwrite would occur | Fetch/restore waits for confirmation |
 | `user sync`: contested direction | Optional safe default `save-only`; cancel stops before save | Save only; `--yes` never chooses `push` | Remote push requires chosen direction |
 | `user sync`: local overwrite | Protected; cancel or decline skips pull/load | Require `--yes` for overwrite | Restore waits for confirmation |
-| `user sync`: notes push | Protected; decline leaves authorized local save | Save only unless `--yes` accepts push | Remote notes push waits |
-| `sync`: notes push | Protected; decline leaves earlier authorized legs | Save only unless `--yes` accepts push | Notes push waits |
+| `user sync`: notes push | Configured `manual` saves only; `on-sync` pushes; `prompt` asks and decline leaves the authorized local save | Preserve `manual` / `on-sync`; `prompt` saves only unless `--yes` accepts push | Prompt-policy remote push waits |
+| `sync`: notes push | Configured `manual` saves only; `on-sync` pushes; `prompt` asks and decline leaves earlier authorized legs | Preserve `manual` / `on-sync`; `prompt` saves only unless `--yes` accepts push | Prompt-policy notes push waits |
 | `start`: resolved-plan confirmation | Courtesy; cancel stops start | Proceed; legacy `start --yes` aliases no-input | Start waits for resolved inputs/disposition |
 | `start`: indeterminate lifecycle-oracle override | Interactive-only safety override; cancel/decline stops | Refuse; `--yes`, `--no-input`, CI, and non-TTY cannot authorize | No branch or ceremony mutation while lifecycle truth is indeterminate |
-| Release install: existing-install action | Optional safe default `exit`; cancel is successful no-op | `--idempotency-action <exit\|re-verify\|update-markers\|add-harness>`, else `exit` | No mutation before branch inputs |
+| Release install: existing-install action | Optional safe default `exit`; cancel is successful no-op | `--idempotency-action <exit\|re-verify\|update-markers\|add-harness>`, else `exit` | No mutation before the selected branch's inputs resolve |
 | Release install: trust acknowledgment | Protected; cancel or decline aborts | Require new command-local `--yes` | Marker/config writes wait |
 | Release install: workflow verification | Required external evidence; cancel or decline aborts | Require `--workflow-verified` | Writes wait for evidence |
 | Release uninstall: cleanup verification | Required external evidence; cancel/false refuses | Require `--cleanup-verified` | Marker removal waits for evidence |
@@ -273,9 +273,11 @@ The substrate acquires and validates values; it does not decide what a lifecycle
 5. Finish with an AST/declaration reconciliation proving every prompt-capable, value-bearing, and
    interaction-capable site is classified.
 
-Residual reusable-import and shim cleanup routes to `cli-substrate-complete-migration`. Consumer-facing schema
-publication routes to `schema-introspection-layer`. This work introduces no agent-interpreted control flow: the CLI
-computes interaction and validation outcomes and returns command-domain messages through existing output boundaries.
+Command-input-specific acquisition, prompt-policy, and no-input helpers are retired as their callers migrate so this
+work leaves one reusable command-input mechanism. Unrelated residual imports and shims route to
+`cli-substrate-complete-migration`. Consumer-facing schema publication routes to `schema-introspection-layer`. This
+work introduces no agent-interpreted control flow: the CLI computes interaction and validation outcomes and returns
+command-domain messages through existing output boundaries.
 
 ## Alternatives & Rationale
 
@@ -354,8 +356,8 @@ schema publication remains with `schema-introspection-layer`.
   an acquisition class, schema owner, automation behavior, and mutation boundary.
 - Semantic derived command inputs and ambient execution context follow the closed boundary above; typed declarations
   make every non-syntactic command field discoverable and exact registry membership deterministic.
-- Every canonical in-scope command contract parses supplied and prompted values through one command-owned Zod object
-  schema before dependent effects.
+- Every canonical command path with schema-owned input parses supplied and prompted values through one command-owned
+  Zod object schema before dependent effects.
 - Registry membership equals the mechanically derived command ID set (AST value syntax plus declared semantic fields)
   after opaque-only paths are subtracted, plus the four kernel identities, with no leaf/helper or opaque-passthrough
   registrations.
