@@ -39,8 +39,12 @@ describe("production GitExec", () => {
     ].join("");
 
     const result = await gitExec(execPath, ["-e", script, "argument with spaces"], { cwd: root });
+    const [reportedCwd, argument] = result.stdout.split("\n");
 
-    expect(result).toEqual({ stdout: `${canonicalRoot}\nargument with spaces`, stderr: "diagnostic\n" });
+    expect(reportedCwd).toBeDefined();
+    expect(await realpath(reportedCwd ?? "")).toBe(canonicalRoot);
+    expect(argument).toBe("argument with spaces");
+    expect(result.stderr).toBe("diagnostic\n");
   });
 
   it("captures stdout beyond the execFile default buffer under the 64 MiB ceiling", async () => {
@@ -124,7 +128,9 @@ describe("production GitExec", () => {
         && error.stdout.length <= 128;
     });
 
-    await expect(gitExec("arc-command-that-does-not-exist", []))
+    const spawnRoot = await mkdtemp(join(tmpdir(), "arc-execa-spawn-"));
+    tempDirs.push(spawnRoot);
+    await expect(gitExec("git", ["--version"], { cwd: join(spawnRoot, "missing") }))
       .rejects.toMatchObject({ kind: "spawn-failure" });
   });
 
@@ -218,8 +224,10 @@ describe("installation diff adapter", () => {
   });
 
   it("rejects spawn failures through the typed taxonomy", async () => {
-    vi.stubEnv("PATH", "");
-    await expect(realGitDiff("left", "right"))
+    const root = await mkdtemp(join(tmpdir(), "arc-execa-diff-spawn-"));
+    tempDirs.push(root);
+
+    await expect(realGitDiff("left", "right", join(root, "missing-git")))
       .rejects.toSatisfy((error: unknown) => isGitProcessError(error) && error.kind === "spawn-failure");
   });
 });
@@ -271,6 +279,10 @@ describe("process-backed IO adapters", () => {
   });
 
   it("writes and reads large note content through execa stdin without interpolation", async () => {
+    vi.stubEnv("GIT_AUTHOR_NAME", "ARC Test");
+    vi.stubEnv("GIT_AUTHOR_EMAIL", "arc-test@example.com");
+    vi.stubEnv("GIT_COMMITTER_NAME", "ARC Test");
+    vi.stubEnv("GIT_COMMITTER_EMAIL", "arc-test@example.com");
     const ref = `refs/notes/arc-execa-test-${process.pid}`;
     const content = `literal $() and spaces\n${"payload\n".repeat(32_768)}`;
     const context = createUserIOContext();

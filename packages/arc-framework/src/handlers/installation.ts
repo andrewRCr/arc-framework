@@ -134,14 +134,25 @@ export async function handleDiff(): Promise<void> {
   p.outro("Done.");
 }
 
-/** Production `git diff --no-index` adapter with exit 1 retained as domain data. */
-export async function realGitDiff(pristinePath: string, currentPath: string): Promise<string> {
+/**
+ * Run `git diff --no-index`, retaining exit 1 as domain data.
+ *
+ * @param pristinePath - Pristine file to compare.
+ * @param currentPath - Current file to compare.
+ * @param command - Git executable; injectable for process-boundary tests.
+ * @returns The rendered diff, or an empty string when the files match.
+ */
+export async function realGitDiff(
+  pristinePath: string,
+  currentPath: string,
+  command = "git",
+): Promise<string> {
   const args = ["diff", "--no-index", "--", pristinePath, currentPath];
-  const result = await execa("git", args, {
+  const result = await execa(command, args, {
     reject: false,
     stripFinalNewline: false,
     maxBuffer: MAX_GIT_OUTPUT_BYTES,
   });
   if (!result.failed || result.exitCode === 1) return result.stdout;
-  throw normalizeGitRejection(result, { command: "git", args });
+  throw normalizeGitRejection(result, { command, args });
 }
