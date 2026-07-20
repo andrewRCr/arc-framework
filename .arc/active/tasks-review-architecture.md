@@ -308,11 +308,10 @@ readiness.
           carrier, rubric, evaluator, and runtime/mechanism bindings before appending. Only complete clean or
           finding results attest; partial, unavailable, failed, stale, self, or mismatched runs fail before storage.
 
-    - `[ ]` **3.4.d Qualify local evidence in gate reduction**
-        - Extend source qualification and requirement evaluation so a valid local receipt satisfies the same
-          independent-analysis requirement as a hosted source.
-        - Prove `local`, `hosted`, and `both` project-channel policies remain explicit and no hosted requirement is
-          silently activated by choosing local review.
+    - `[x]` **3.4.d Qualify local evidence in gate reduction**
+        - Added explicit `local` / `hosted` / `both` source qualification over carrier kind, accepted rubric source,
+          and provider-event shape. Forward evaluation and carry/direct controller paths now refuse unqualified
+          evidence; local receipts satisfy the shared obligation only where project channel policy admits them.
 
     - `[ ]` **3.4.e Cover the local carrier-to-evidence path**
         - Exercise request construction, normalized-result attestation, ledger persistence, stale-head rejection,

@@ -6,6 +6,7 @@ import {
   type ReviewApplicabilityProof,
 } from "./applicability.js";
 import { reduceForwardCoverage, type ForwardCoverageLink } from "./forward-coverage.js";
+import { qualifyForwardReviewSource, type ReviewChannel } from "./forward-source-qualification.js";
 import { validateReviewRequest, validateReviewRequirement, validateReviewTarget } from "./gate-contract-v2.js";
 import { ReviewRequestV2Schema, type ReviewRequestV2 } from "./gate-contract-v2-schema.js";
 import {
@@ -16,6 +17,7 @@ import { renderForwardGateProjection, type ForwardGateProjection } from "./proje
 
 /** Inputs for applicability-driven forward reduction. */
 export interface ForwardControllerInput {
+  channel: ReviewChannel;
   target: unknown;
   requirement: unknown;
   activeRequest: unknown;
@@ -96,7 +98,21 @@ export function reduceForwardController(input: ForwardControllerInput): ForwardC
       sourceIdentity: prior.request.evaluatorIdentity,
     });
   if ((carryByApplicability || carryByLifecycle) && priorCoverage?.satisfied === true && samePolicy) {
-    const base = renderForwardGateProjection({ target, requirement, request: null, receipt: null });
+    const priorTerminal = priorCoverage.chain.at(-1);
+    const priorQualified = priorTerminal !== undefined && qualifyForwardReviewSource({
+      channel: input.channel,
+      requirement: priorTerminal.requirement,
+      request: priorTerminal.request,
+      receipt: priorTerminal.receipt,
+    }).qualified;
+    if (!priorQualified) return pendingResult(input, target, requirement, flight, proof);
+    const base = renderForwardGateProjection({
+      channel: input.channel,
+      target,
+      requirement,
+      request: null,
+      receipt: null,
+    });
     return {
       projection: withCoverage(
         successfulProjection(base, `independent analysis: carried to ${target.targetId}`),
@@ -111,11 +127,18 @@ export function reduceForwardController(input: ForwardControllerInput): ForwardC
 
   const currentCoverage = reduceForwardCoverage({ target, requirement, links: input.links });
   const terminal = currentCoverage.chain.at(-1);
+  const sourceQualified = terminal !== undefined && qualifyForwardReviewSource({
+    channel: input.channel,
+    requirement: terminal.requirement,
+    request: terminal.request,
+    receipt: terminal.receipt,
+  }).qualified;
   const applicabilitySatisfied = proof === null || (terminal !== undefined
     && proof.currentTargetId === target.targetId
     && validateIncrementalApplicabilityReceipt(proof, terminal.receipt, input.coveragePaths));
-  if (currentCoverage.satisfied && terminal !== undefined && applicabilitySatisfied) {
+  if (currentCoverage.satisfied && terminal !== undefined && applicabilitySatisfied && sourceQualified) {
     const projection = renderForwardGateProjection({
+      channel: input.channel,
       target,
       requirement,
       request: terminal.request,
@@ -137,7 +160,18 @@ export function reduceForwardController(input: ForwardControllerInput): ForwardC
     };
   }
 
+  return pendingResult(input, target, requirement, flight, proof);
+}
+
+function pendingResult(
+  input: ForwardControllerInput,
+  target: ReturnType<typeof validateReviewTarget>,
+  requirement: ReturnType<typeof validateReviewRequirement>,
+  flight: ReturnType<typeof currentRequest>,
+  proof: ReviewApplicabilityProof | null,
+): ForwardControllerResult {
   const projection = renderForwardGateProjection({
+    channel: input.channel,
     target,
     requirement,
     request: flight.request,

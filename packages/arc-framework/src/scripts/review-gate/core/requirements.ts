@@ -13,6 +13,10 @@ import type {
   ReviewRequirementV2,
   ReviewTarget,
 } from "./gate-contract-v2-schema.js";
+import {
+  qualifyForwardReviewSource,
+  type ReviewChannel,
+} from "./forward-source-qualification.js";
 
 /** Candidate evidence chain already proven current by the evidence reducer. */
 export interface RequirementCandidate {
@@ -59,6 +63,7 @@ export interface AggregateRequirementDisposition {
 
 /** Exact v2 records accepted by the forward requirement boundary. */
 export interface ForwardRequirementEvaluationInput {
+  channel: ReviewChannel;
   target: unknown;
   requirement: unknown;
   request: unknown;
@@ -71,7 +76,7 @@ export interface ForwardRequirementEvaluation {
   requirement: ReviewRequirementV2 | null;
   request: ReviewRequestV2 | null;
   receipt: ReviewReceiptV2 | null;
-  state: "inapplicable" | "unrequested" | "pending" | "clean" | "findings" | "failed" | "unavailable";
+  state: "inapplicable" | "unrequested" | "pending" | "unqualified" | "clean" | "findings" | "failed" | "unavailable";
 }
 
 function sourceAccepted(requirement: ReviewRequirement, candidate: RequirementCandidate): boolean {
@@ -157,5 +162,8 @@ export function evaluateForwardRequirement(
   }
 
   const receipt = validateReviewReceipt(target, requirement, request, input.receipt);
+  if (!qualifyForwardReviewSource({ channel: input.channel, requirement, request, receipt }).qualified) {
+    return { target, requirement, request, receipt, state: "unqualified" };
+  }
   return { target, requirement, request, receipt, state: receipt.result };
 }

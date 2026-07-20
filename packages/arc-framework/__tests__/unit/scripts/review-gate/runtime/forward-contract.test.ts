@@ -24,6 +24,7 @@ function contract(options: {
   generation?: number;
   retrigger?: "incremental" | "full-final";
   applicabilityId?: `sha256:${string}` | null;
+  carrier?: "local" | "hosted";
 } = {}) {
   const generation = options.generation ?? 0;
   const target = createReviewTarget({
@@ -57,7 +58,9 @@ function contract(options: {
     repositoryId: target.repositoryId,
     targetId: target.targetId,
     requirementId: requirement.requirementId,
-    carrier: { kind: "change-request", adapterId: "github", changeRequestId: "pull/42" },
+    carrier: options.carrier === "local"
+      ? { kind: "local-change-set", adapterId: "local", changeRequestId: null }
+      : { kind: "change-request", adapterId: "github", changeRequestId: "pull/42" },
     authorIdentity: "andrew",
     evaluatorIdentity: "reviewer-1",
     generation,
@@ -72,10 +75,10 @@ function contract(options: {
     evaluatorIdentity: request.evaluatorIdentity,
     attestingRuntimeIdentity: "review-gate-app",
     attestationMechanism: "github-app",
-    providerEventIdentity: `event-${generation}`,
+    providerEventIdentity: options.carrier === "local" ? null : `event-${generation}`,
     result: "clean",
   });
-  return { target, requirement, request, receipt };
+  return { channel: "hosted" as const, target, requirement, request, receipt };
 }
 
 function applicability(
@@ -103,9 +106,23 @@ function applicability(
 }
 
 describe("forward review contract projection", () => {
+  it.each([
+    ["local", "local", "success"],
+    ["both", "local", "success"],
+    ["hosted", "local", "failure"],
+    ["local", "hosted", "failure"],
+  ] as const)("keeps %s channel policy explicit for %s evidence", (channel, carrier, conclusion) => {
+    const records = contract({ carrier });
+    expect(projectForwardReviewContract({ ...records, channel }).projection).toMatchObject({
+      conclusion,
+      ...(conclusion === "failure" ? { blockers: [{ code: "independent-analysis:unqualified" }] } : {}),
+    });
+  });
+
   it("lets the typed coverage reducer, not projection prose, settle full-final", () => {
     const records = contract();
     const result = projectReducedForwardReviewContract({
+      channel: "hosted",
       target: records.target,
       requirement: records.requirement,
       activeRequest: records.request,
@@ -128,6 +145,7 @@ describe("forward review contract projection", () => {
     const proof = applicability(prior.target.targetId, current.target.targetId, "none", "docs/a.md");
 
     const result = projectReducedForwardReviewContract({
+      channel: "hosted",
       target: current.target,
       requirement: current.requirement,
       activeRequest: current.request,
@@ -169,6 +187,7 @@ describe("forward review contract projection", () => {
     });
 
     expect(projectReducedForwardReviewContract({
+      channel: "hosted",
       target: current.target,
       requirement: current.requirement,
       activeRequest: current.request,
@@ -188,6 +207,7 @@ describe("forward review contract projection", () => {
     const proof = applicability(prior.target.targetId, current.target.targetId, "none", "src/a.ts");
 
     expect(projectReducedForwardReviewContract({
+      channel: "hosted",
       target: current.target,
       requirement: current.requirement,
       activeRequest: current.request,
@@ -230,6 +250,7 @@ describe("forward review contract projection", () => {
     });
 
     expect(projectReducedForwardReviewContract({
+      channel: "hosted",
       target: current.target,
       requirement: current.requirement,
       activeRequest: prior.request,
@@ -270,6 +291,7 @@ describe("forward review contract projection", () => {
   it("projects an exempt decision without inventing requirement, request, or receipt identities", () => {
     const { target } = contract();
     const result = projectForwardReviewContract({
+      channel: "hosted",
       target,
       requirement: null,
       request: null,
@@ -288,6 +310,7 @@ describe("forward review contract projection", () => {
   it("keeps incomplete evidence pending and provider unavailability fail-closed", () => {
     const records = contract();
     expect(projectForwardReviewContract({
+      channel: "hosted",
       target: records.target,
       requirement: records.requirement,
       request: records.request,
@@ -303,7 +326,7 @@ describe("forward review contract projection", () => {
       evaluatorIdentity: records.request.evaluatorIdentity,
       attestingRuntimeIdentity: "review-gate-app",
       attestationMechanism: "github-app",
-      providerEventIdentity: null,
+      providerEventIdentity: "event-8",
       result: "unavailable",
     });
     expect(projectForwardReviewContract({ ...records, receipt: unavailable }).projection).toMatchObject({
@@ -323,6 +346,7 @@ describe("forward review contract projection", () => {
       requirement: { ...records.requirement, requirementId: canonicalDigest({ stale: true }) },
     })).toThrow(/requirement ID/u);
     expect(() => projectForwardReviewContract({
+      channel: "hosted",
       target: records.target,
       requirement: null,
       request: records.request,
