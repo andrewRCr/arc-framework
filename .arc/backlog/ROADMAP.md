@@ -1,6 +1,6 @@
 # Roadmap: Project Status
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `a473f400b`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `0cf8fec87`.
 > Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
@@ -13,14 +13,13 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit            | Priority | Owner  | Depends on           | Cohort                 |
-| ------------- | -------------------- | -------- | ------ | -------------------- | ---------------------- |
-| `Planning`    | review-architecture  | P1       | andrew | —                    | —                      |
-| `Planning`    | session-locus-model  | P1       | andrew | cli-session-envelope | —                      |
-| `Planning`    | cli-git-executor     | P2       | andrew | —                    | cli-substrate-adoption |
-| `Planning`    | cli-session-envelope | P2       | andrew | —                    | cli-substrate-adoption |
-| `Integrating` | arc-view-refinements | P2       | andrew | —                    | —                      |
-| `Active`      | self-hosted-ci       | P3       | andrew | —                    | —                      |
+| State      | Work unit            | Priority | Owner  | Depends on           | Cohort                 |
+| ---------- | -------------------- | -------- | ------ | -------------------- | ---------------------- |
+| `Planning` | review-architecture  | P1       | andrew | —                    | —                      |
+| `Planning` | session-locus-model  | P1       | andrew | cli-session-envelope | —                      |
+| `Active`   | cli-git-executor     | P2       | andrew | —                    | cli-substrate-adoption |
+| `Planning` | cli-session-envelope | P2       | andrew | —                    | cli-substrate-adoption |
+| `Active`   | self-hosted-ci       | P3       | andrew | —                    | —                      |
 
 ## Ready
 
