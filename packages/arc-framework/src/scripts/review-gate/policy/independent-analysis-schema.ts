@@ -14,6 +14,15 @@ const SortedUniqueStringsSchema = z.array(z.string().min(1)).min(1).refine((valu
   return new Set(keys).size === keys.length
     && sortByCanonicalBytes(values).map(canonicalize).every((key, index) => key === keys[index]);
 }, { message: "identity lists must be sorted and unique" }).readonly();
+const ReviewGuidanceEntrySchema = z.strictObject({
+  path: z.string().min(1),
+  content: z.string().min(1),
+});
+const SortedUniqueGuidanceEntriesSchema = z.array(ReviewGuidanceEntrySchema).min(1).refine((values) => {
+  const keys = values.map(canonicalize);
+  return new Set(keys).size === keys.length
+    && sortByCanonicalBytes(values).map(canonicalize).every((key, index) => key === keys[index]);
+}, { message: "guidance entries must be sorted and unique" }).readonly();
 
 export const ReviewRubricIdentitySchema = z.strictObject({
   version: z.string().min(1),
@@ -58,6 +67,16 @@ export type IndependentAnalysisRubricDigestPreimage = z.infer<
   typeof IndependentAnalysisRubricDigestPreimageSchema
 >;
 
+export const ReviewGuidanceDigestPreimageSchema = z.strictObject({
+  domain: z.literal("arc.review-guidance.digest/v2"),
+  schemaVersion: z.literal(2),
+  semanticsVersion: z.literal("review-gate/v2"),
+  carrierId: z.string().min(1),
+  baseline: IndependentAnalysisContractSchema,
+  projectAugmentation: SortedUniqueGuidanceEntriesSchema,
+}).readonly();
+export type ReviewGuidanceDigestPreimage = z.infer<typeof ReviewGuidanceDigestPreimageSchema>;
+
 /** Register the logical independent-analysis contract with a caller-owned registry. */
 export function registerIndependentAnalysisSchema(registry: KernelRegistry): KernelRegistry {
   registry.register(IndependentAnalysisRubricDigestPreimageSchema, {
@@ -68,6 +87,11 @@ export function registerIndependentAnalysisSchema(registry: KernelRegistry): Ker
   registry.register(IndependentAnalysisContractSchema, {
     id: "independent-analysis-contract",
     version: 1,
+    migrationPosture: "strict-current",
+  });
+  registry.register(ReviewGuidanceDigestPreimageSchema, {
+    id: "review-guidance-digest-preimage",
+    version: 2,
     migrationPosture: "strict-current",
   });
   return registry;

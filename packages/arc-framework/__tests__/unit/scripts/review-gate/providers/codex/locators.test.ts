@@ -110,6 +110,9 @@ describe("receipt-backed Codex locators", () => {
     await expect(locator.resolveRequestGuidance(request)).resolves.toEqual({
       qualified: true,
       guidanceDigest: guidance.digest,
+      forwardGuidanceDigest: guidance.guidanceDigest,
+      rubricVersion: guidance.rubricVersion,
+      rubricDigest: guidance.rubricDigest,
     });
     await expect(locator.resolveRun(computeRequestKey(request))).resolves.toMatchObject({
       pullNumber: 7,

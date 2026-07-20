@@ -8,6 +8,7 @@ import type {
   ReviewProviderAdapter,
 } from "../../core/ports.js";
 import { computeRequestKey } from "../../core/request-key.js";
+import { INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY } from "../../policy/independent-analysis.js";
 import { CODEX_RUBRIC_VERSION } from "./guidance.js";
 
 export interface CodexCapabilities {
@@ -79,7 +80,13 @@ export type CodexTriggerOutcome =
 export interface CodexApi {
   validateCurrent(request: ReviewRequest): Promise<"current" | "replay" | "stale">;
   resolveRequestGuidance(request: ReviewRequest): Promise<
-    | { qualified: true; guidanceDigest: string }
+    | {
+      qualified: true;
+      guidanceDigest: string;
+      forwardGuidanceDigest: string;
+      rubricVersion: string;
+      rubricDigest: string;
+    }
     | { qualified: false; reasons: string[] }
   >;
   acknowledgeUserTrigger(request: ReviewRequest): Promise<CodexTriggerOutcome>;
@@ -294,6 +301,11 @@ export class CodexProviderAdapter implements ReviewProviderAdapter {
     }
     const guidance = await this.api.resolveRequestGuidance(request);
     if (!guidance.qualified) return { qualified: false, reason: guidance.reasons[0] ?? "guidance-unresolved" };
+    if (guidance.rubricVersion !== INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version
+      || guidance.rubricDigest !== INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest
+      || !/^sha256:[0-9a-f]{64}$/u.test(guidance.forwardGuidanceDigest)) {
+      return { qualified: false, reason: "guidance-contract-mismatch" };
+    }
     if (request.requestCommand !== buildCodexReviewCommand(guidance.guidanceDigest)) {
       return { qualified: false, reason: "guidance-command-mismatch" };
     }

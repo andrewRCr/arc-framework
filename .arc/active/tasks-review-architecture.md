@@ -247,10 +247,11 @@ readiness.
           `independent-analysis/v1` plus a pinned digest; semantic drift requires a version change while prose stays
           outside the identity.
 
-    - `[ ]` **3.2.b Bind carrier guidance projections**
-        - Extend hosted Codex guidance and other qualifying adapter surfaces to record the actual baseline plus
-          project augmentation as `guidanceDigest`.
-        - Treat missing, stale, nested-conflicting, or unverifiable guidance as advisory/non-satisfying.
+    - `[x]` **3.2.b Bind carrier guidance projections**
+        - Added a registered canonical guidance preimage over the generated baseline and exact effective project
+          documents. Codex resolution and locator/adapter qualification now expose and verify the rubric pair plus
+          forward guidance digest; missing, stale, unreadable, nested-conflicting, or mismatched guidance cannot
+          qualify, while the schema-v1 command digest remains explicitly bounded to compatibility use.
 
     - `[ ]` **3.2.c Expand policy identity inputs**
         - Fold normalized obligation, source qualifiers, admission policy, rubric pair, and retrigger treatment into

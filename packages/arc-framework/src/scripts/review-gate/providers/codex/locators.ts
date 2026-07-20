@@ -50,7 +50,13 @@ export class ReceiptBackedCodexLocator implements CodexRequestLocator, CodexObse
   }
 
   async resolveRequestGuidance(request: ReviewRequest): Promise<
-    | { qualified: true; guidanceDigest: string }
+    | {
+      qualified: true;
+      guidanceDigest: string;
+      forwardGuidanceDigest: string;
+      rubricVersion: string;
+      rubricDigest: string;
+    }
     | { qualified: false; reasons: string[] }
   > {
     const change = await resolvedChange(this.deps);
@@ -65,7 +71,13 @@ export class ReceiptBackedCodexLocator implements CodexRequestLocator, CodexObse
       reader: this.deps.guidanceReader,
     });
     return guidance.qualified
-      ? { qualified: true, guidanceDigest: guidance.digest }
+      ? {
+        qualified: true,
+        guidanceDigest: guidance.digest,
+        forwardGuidanceDigest: guidance.guidanceDigest,
+        rubricVersion: guidance.rubricVersion,
+        rubricDigest: guidance.rubricDigest,
+      }
       : { qualified: false, reasons: guidance.reasons };
   }
 

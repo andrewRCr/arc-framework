@@ -1,9 +1,15 @@
 /** Exact-head resolution for hosted Codex review guidance. */
 
+import { canonicalDigest, sortByCanonicalBytes } from "../../../../lib/kernel/index.js";
 import { hashContent } from "../../../../lib/manifest/hash.js";
 import type { HostChangedPath } from "../../core/ports.js";
+import { ReviewGuidanceDigestPreimageSchema } from "../../policy/independent-analysis-schema.js";
+import {
+  INDEPENDENT_ANALYSIS_BASELINE_CONTRACT,
+  INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY,
+} from "../../policy/independent-analysis.js";
 
-export const CODEX_RUBRIC_VERSION = "independent-analysis/v1";
+export const CODEX_RUBRIC_VERSION = INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.version;
 
 const REQUIRED_DIMENSIONS = [
   "intent and scope",
@@ -27,8 +33,13 @@ export type CodexGuidanceResolution =
     qualified: true;
     headSha: string;
     rubricVersion: typeof CODEX_RUBRIC_VERSION;
+    rubricDigest: string;
     targets: string[];
     guidancePaths: string[];
+    baseline: typeof INDEPENDENT_ANALYSIS_BASELINE_CONTRACT;
+    projectAugmentation: Array<{ path: string; content: string }>;
+    guidanceDigest: string;
+    /** Schema-v1 command digest retained until explicit contract dispatch migrates the carrier. */
     digest: string;
   }
   | { qualified: false; reasons: string[] };
@@ -110,12 +121,25 @@ export async function resolveCodexGuidance(input: {
     return { qualified: false, reasons: ["conflicting-effective-guidance"] };
   }
   const effective = effectiveSets[0] ?? [{ path: "AGENTS.md", content: root.content }];
+  const projectAugmentation = sortByCanonicalBytes(effective);
+  const guidancePreimage = ReviewGuidanceDigestPreimageSchema.parse({
+    domain: "arc.review-guidance.digest/v2",
+    schemaVersion: 2,
+    semanticsVersion: "review-gate/v2",
+    carrierId: "hosted-codex",
+    baseline: INDEPENDENT_ANALYSIS_BASELINE_CONTRACT,
+    projectAugmentation,
+  });
   return {
     qualified: true,
     headSha: input.headSha,
     rubricVersion: CODEX_RUBRIC_VERSION,
+    rubricDigest: INDEPENDENT_ANALYSIS_RUBRIC_IDENTITY.digest,
     targets,
     guidancePaths: effective.map((item) => item.path),
+    baseline: INDEPENDENT_ANALYSIS_BASELINE_CONTRACT,
+    projectAugmentation,
+    guidanceDigest: canonicalDigest(guidancePreimage),
     digest: hashContent(JSON.stringify(effective)),
   };
 }
