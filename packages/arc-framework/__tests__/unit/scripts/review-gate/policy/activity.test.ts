@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bindReviewMethodActivity,
   resolveReviewMethodActivity,
+  type ReviewMethodFilePort,
   type ReviewMethodActivityPort,
 } from "../../../../../src/scripts/review-gate/policy/activity.js";
 import { reduceReviewRouting } from "../../../../../src/scripts/review-gate/policy/routing.js";
@@ -21,6 +23,21 @@ const facts: ReviewRoutingFacts = {
 
 const port = (value: unknown): ReviewMethodActivityPort => ({
   readReviewMethodActivity: () => value,
+});
+
+const method = (name: string, active: unknown, extra: string[] = []): string => [
+  "---",
+  `name: ${name}`,
+  "description: Review method",
+  `active: ${String(active)}`,
+  "override-active: false",
+  ...extra,
+  "---",
+  "",
+].join("\n");
+
+const files = (values: Record<string, unknown>): ReviewMethodFilePort => ({
+  readMethodFile: (name) => values[name],
 });
 
 describe("review method activity port", () => {
@@ -67,6 +84,54 @@ describe("review method activity port", () => {
       authorSelfReview: baseline.authorSelfReview,
       frontlineAction: "skip",
       independentAnalysis: baseline.independentAnalysis,
+    });
+  });
+
+  it("binds package defaults and project activation through the injected activity port", () => {
+    const defaults = bindReviewMethodActivity(files({}));
+    expect(resolveReviewMethodActivity(defaults.activityPort).activity).toEqual({
+      selfReview: true,
+      frontlineReview: false,
+    });
+    expect(defaults.activations.selfReview.source).toBe("package-default");
+    expect(defaults.activations.frontlineReview.source).toBe("package-default");
+
+    const project = bindReviewMethodActivity(files({
+      "self-review": method("self-review", false),
+      "frontline-review": method("frontline-review", true),
+    }));
+    expect(resolveReviewMethodActivity(project.activityPort)).toEqual({
+      activity: { selfReview: false, frontlineReview: true },
+      diagnostics: [],
+    });
+    expect(project.activations.selfReview.source).toBe("project");
+    expect(project.activations.frontlineReview.source).toBe("project");
+  });
+
+  it("falls back per method for missing or malformed project activation", () => {
+    const bound = bindReviewMethodActivity(files({
+      "self-review": "not frontmatter",
+      "frontline-review": method("frontline-review", "enabled"),
+    }));
+    expect(resolveReviewMethodActivity(bound.activityPort).activity).toEqual({
+      selfReview: true,
+      frontlineReview: false,
+    });
+    expect(bound.diagnostics).toEqual(expect.arrayContaining([
+      expect.stringContaining("self-review"),
+      expect.stringContaining("frontline-review"),
+    ]));
+  });
+
+  it("keeps activation independent of override population and mode", () => {
+    const bound = bindReviewMethodActivity(files({
+      "self-review": method("self-review", false, ["override-active: true", "override-mode: extend"])
+        .replace("override-active: false\n", ""),
+      "frontline-review": method("frontline-review", true),
+    }));
+    expect(resolveReviewMethodActivity(bound.activityPort).activity).toEqual({
+      selfReview: false,
+      frontlineReview: true,
     });
   });
 });

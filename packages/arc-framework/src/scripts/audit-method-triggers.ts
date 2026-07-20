@@ -19,6 +19,10 @@ import { fileURLToPath } from "node:url";
 import { resolveRepoRoot } from "./repo-root.js";
 import { walkMarkdown } from "../lib/fs/walk-markdown.js";
 import { parseFrontmatter } from "../lib/frontmatter/index.js";
+import {
+  ACTIVATABLE_METHOD_REGISTRY,
+  isActivatableMethodName,
+} from "../lib/method-activation-registry.js";
 
 /** Declarations extracted from a single workflow file's frontmatter. */
 export interface WorkflowDeclarations {
@@ -69,6 +73,39 @@ export function enumerateMethods(dir: string): string[] {
 /** Enumerate extension names from a per-file extensions directory. */
 export function enumerateExtensions(dir: string): string[] {
   return enumerateEntries(dir);
+}
+
+/** Audit package method activation fields against the closed typed registry. */
+export function auditActivatableMethodCorpus(methodsDir: string): string[] {
+  const diagnostics: string[] = [];
+  const names = enumerateMethods(methodsDir);
+  const nameSet = new Set(names);
+
+  for (const name of names) {
+    const parsed = parseFrontmatter(readFileSync(join(methodsDir, `${name}.md`), "utf8"));
+    if (parsed.parseError !== undefined || parsed.data === null || typeof parsed.data !== "object") continue;
+    const active = (parsed.data as Record<string, unknown>).active;
+    if (active !== undefined && !isActivatableMethodName(name)) {
+      diagnostics.push(`Method "${name}" declares active but is absent from the activatable-method registry.`);
+    }
+  }
+
+  for (const [name, definition] of Object.entries(ACTIVATABLE_METHOD_REGISTRY)) {
+    if (!nameSet.has(name)) {
+      diagnostics.push(`Activatable method "${name}" is missing from the package method corpus.`);
+      continue;
+    }
+    const parsed = parseFrontmatter(readFileSync(join(methodsDir, `${name}.md`), "utf8"));
+    const data = parsed.data !== null && typeof parsed.data === "object"
+      ? parsed.data as Record<string, unknown>
+      : {};
+    if (data.active !== definition.defaultActive) {
+      diagnostics.push(
+        `Activatable method "${name}" must declare package default ${String(definition.defaultActive)}.`,
+      );
+    }
+  }
+  return diagnostics;
 }
 
 /**
@@ -212,8 +249,9 @@ async function main(): Promise<void> {
     join(systemDir, "extensions"),
     join(systemDir, "workflows"),
   );
-  if (!result.pass) {
-    for (const d of result.diagnostics) {
+  const diagnostics = [...result.diagnostics, ...auditActivatableMethodCorpus(join(systemDir, "methods"))];
+  if (diagnostics.length > 0) {
+    for (const d of diagnostics) {
       process.stderr.write(`${d}\n`);
     }
     process.exit(1);

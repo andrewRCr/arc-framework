@@ -344,11 +344,10 @@ readiness.
 _Purpose:_ Give every review activity, rubric, standard, response cycle, and invariant one explicit layer owner,
 with adopter-facing contracts mirrored through the package source.
 
-### `[ ]` **4.1 Ship the review activity, rubric, and standard contracts**
+### `[x]` **4.1 Ship the review activity, rubric, and standard contracts**
 
 - _Goal:_ Author review, frontline review, implementation audit, and independent analysis are separately named,
   overridable surfaces whose contracts cannot be confused with carrier or evidence roles.
-- _Context:_ Implements Design §§2 and 6 through package-authoritative method files and mirrored project copies.
 
     - `[x]` **4.1.a Rename author diff review to self-review**
         - Renamed the package-authoritative method and project mirror to `self-review`, shipped it active by default,
@@ -370,16 +369,10 @@ with adopter-facing contracts mirrored through the package source.
           mechanism unconditionally. Frontline and local satisfying roles now bind the implementation rubric through
           this mechanism, with reviewers read-only and only an authorized adapter able to attest an exact-target run.
 
-    - `[ ]` **4.1.e Bind activatable methods to routing facts**
-        - Extend method frontmatter with optional `active`, orthogonal to `override-active` and `override-mode`, while
-          leaving existing non-activatable methods unchanged.
-        - Make a typed activatable-method registry authoritative for names/defaults (`self-review: true`,
-          `frontline-review: false`); reject `active` on unregistered methods and corpus-check package frontmatter
-          against the registry.
-        - Resolve `{ active, source: project | package-default, diagnostics }`; on a missing/malformed project
-          file/value, emit a diagnostic and use the registry default.
-        - Bind the resolved booleans through Phase 2's injected port and cover package defaults, project activation,
-          missing/malformed values, unregistered fields, registry drift, and override independence.
+    - `[x]` **4.1.e Bind activatable methods to routing facts**
+        - Added the typed `self-review: true` / `frontline-review: false` registry, registry-scoped optional `active`
+          frontmatter, package-corpus/default validation, and per-method project resolution with diagnostic fallback.
+          The adapter binds effective booleans through the existing routing port independently of override state.
 
 ### `[ ]` **4.2 Upgrade review triage to severity × disposition**
 

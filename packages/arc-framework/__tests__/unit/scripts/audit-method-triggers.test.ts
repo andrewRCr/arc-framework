@@ -19,6 +19,7 @@ import {
   formatMethodDiagnostic,
   formatExtensionDiagnostic,
   audit,
+  auditActivatableMethodCorpus,
   type WorkflowEntry,
 } from "../../../src/scripts/audit-method-triggers.js";
 
@@ -85,6 +86,39 @@ describe("enumerateMethods", () => {
   it("lists .md entries from methods dir and excludes README.md", () => {
     const dir = writeMethodsDir(["alpha", "beta", "gamma"]);
     expect(enumerateMethods(dir)).toEqual(["alpha", "beta", "gamma"]);
+  });
+});
+
+describe("activatable method corpus", () => {
+  function activationMethod(name: string, active: boolean): string {
+    return [
+      "---",
+      `name: ${name}`,
+      "description: Review activity",
+      `active: ${String(active)}`,
+      "override-active: false",
+      "---",
+      "",
+    ].join("\n");
+  }
+
+  it("matches package frontmatter to the typed registry defaults", () => {
+    const methods = writeMethodsDir([]);
+    writeFileSync(join(methods, "self-review.md"), activationMethod("self-review", true));
+    writeFileSync(join(methods, "frontline-review.md"), activationMethod("frontline-review", false));
+    expect(auditActivatableMethodCorpus(methods)).toEqual([]);
+  });
+
+  it("detects missing entries, default drift, and activation on unregistered methods", () => {
+    const methods = writeMethodsDir([]);
+    writeFileSync(join(methods, "self-review.md"), activationMethod("self-review", false));
+    writeFileSync(join(methods, "other.md"), activationMethod("other", true));
+    const diagnostics = auditActivatableMethodCorpus(methods);
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.stringContaining("self-review"),
+      expect.stringContaining("frontline-review"),
+      expect.stringContaining("other"),
+    ]));
   });
 });
 

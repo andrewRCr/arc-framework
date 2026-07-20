@@ -11,6 +11,10 @@ An optional `override-mode` frontmatter field selects the disposition when `.ove
 (the default; absent ⇒ this) stands alone — follow the override and skip `.default`. `extend` applies `.default`
 first, then appends the override to it.
 
+Registered activatable methods may also declare `active`. Activation controls whether callers invoke the activity;
+it is independent of `override-active` (whether an override is populated) and `override-mode` (how it composes).
+Unregistered methods must omit `active`.
+
 **Loading model:** Method defaults and overrides always load on-demand at workflow trigger points. Session-init
 does not read methods; the `override-active` frontmatter field is consumed by the framework-repo CI audit, docs
 generation, and authoring tooling, not by session-init. Workflow documents declare their method dependencies in
