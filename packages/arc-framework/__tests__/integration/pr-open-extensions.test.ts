@@ -158,6 +158,21 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
+  it("keeps adversarial review launch-neutral and mutation-read-only", async () => {
+    for (const base of [packageArc, projectArc]) {
+      const method = await readFile(resolve(base, "system/methods/adversarial-review.md"), "utf8");
+      const normalized = method.replace(/\s+/gu, " ");
+      expect(normalized).toContain("caller owns launch policy");
+      expect(normalized).toContain("offer callout marks a discretionary invocation");
+      expect(normalized).toContain("required invocation is unconditional");
+      expect(normalized).toContain("reviewer never edits the target");
+      expect(normalized).toContain("only an authorized adapter may attest a completed exact target");
+      expect(method).toContain("implementation-audit");
+      expect(method).toContain("frontline-review");
+      expect(method).toContain("independent-analysis");
+    }
+  });
+
   it("keeps every review-triage disposition explicit while allowing concise minor roll-up", async () => {
     for (const base of [packageArc, projectArc]) {
       const method = await readFile(resolve(base, "system/methods/review-triage.md"), "utf8");

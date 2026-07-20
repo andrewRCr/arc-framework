@@ -3,6 +3,7 @@ purpose: Ship a work unit — PR open, review iteration, post-approval compositi
 audience: agent
 arc:
   methods:
+    - adversarial-review
     - self-review
     - frontline-review
     - independent-analysis

@@ -365,13 +365,10 @@ with adopter-facing contracts mirrored through the package source.
           non-author exact-change-set standard. Both bind the shared mechanism and rubric without carrier commands,
           controller procedure, or project source policy; the satisfying contract points to its typed v1 identity.
 
-    - `[ ]` **4.1.d Reconcile the adversarial-review mechanism**
-        - Update cross-references so local satisfying review and frontline both invoke fresh-context
-          `adversarial-review` with `implementation-audit`, differing only in evidentiary role and position.
-        - Make launch policy caller-owned: an offer callout marks a discretionary invocation, while required
-          independent analysis invokes the same mechanism unconditionally.
-        - Keep findings advisory for mutation and primary-held verification, dispositions, and all execution edits
-          outside the reviewer pass; allow only the authorized adapter to attest a completed exact-target run.
+    - `[x]` **4.1.d Reconcile the adversarial-review mechanism**
+        - Made launch policy caller-owned: offers use the existing callout while required analysis invokes the same
+          mechanism unconditionally. Frontline and local satisfying roles now bind the implementation rubric through
+          this mechanism, with reviewers read-only and only an authorized adapter able to attest an exact-target run.
 
     - `[ ]` **4.1.e Bind activatable methods to routing facts**
         - Extend method frontmatter with optional `active`, orthogonal to `override-active` and `override-mode`, while
