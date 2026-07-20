@@ -222,51 +222,34 @@ never recover operands from the discovered path merely to call layout.
 - _Outcome:_ Archive allocation and lifecycle judgment remain with their established owners while completed WU and
   cohort-document naming now has one semantic projection authority across allocation, closeout, and session init.
 
-### `[ ]` **3.5 Preserve exact paths and carry semantic operands separately for `arc view`**
+### `[x]` **3.5 Preserve exact paths and carry semantic operands separately for `arc view`**
 
 - _Goal:_ Lifecycle records and configured pointers remain authoritative while conventional viewing receives the
   branded identity and structured placement it needs without reverse-parsing those paths or changing the
   agent-facing session envelope.
 
-    - `[ ]` **3.5.a Lock lifecycle-index exact-path authority**
-        - Keep caller-supplied `path` values authoritative in `buildLifecycleIndexFromRecords()` and both production
-          adapters; retain the pathless fallback as lifecycle-owned synthetic diagnostic projection.
-        - Extend lifecycle-index coverage for custom, nested, and archived record paths without forcing incomplete
-          archive coordinates through layout.
+    - `[x]` **3.5.a Lock lifecycle-index exact-path authority**
+        - Kept caller-supplied record paths authoritative and the pathless lifecycle fallback synthetic, with explicit
+          coverage for custom active, nested backlog, and coordinate-bearing archived paths.
 
-    - `[ ]` **3.5.b Carry semantic active candidates without changing the session envelope**
-        - Extend the active-meta discovery/resolution internals to validate the recognized conventional filename into
-          a branded `Slug` and retain it with explicit project- or contributor-active `WorkUnitPlacement` beside the
-          exact candidate path through single and unique-current-branch selection.
-        - Derive contributor scope only from the already-resolved role and branded configured identity, never from
-          the discovered path; preserve the existing missing-identity short circuit.
-        - Keep `ActiveSessionInitResult` and its serialized JSON byte-shape unchanged by explicitly projecting away
-          the internal semantic field; do not add a slug to the agent-facing single-result arm.
-        - Cover invalid recognized slugs, single and multiple resolution, contributor roots, and unchanged
-          session-init JSON output before migrating the view adapter.
+    - `[x]` **3.5.b Carry semantic active candidates without changing the session envelope**
+        - Added an internal active result carrying branded slugs and project/contributor placements alongside exact
+          candidates; the public session envelope is projected separately and remains byte-identical.
 
-    - `[ ]` **3.5.c Add branded identity and structured placement to resolved view targets**
-        - Change `ResolvedViewTarget.slug` in `src/lib/view/types.ts` to kernel `Slug` and add
-          `WorkUnitPlacement`, using the layout-owned type instead of a parallel view descriptor while retaining
-          `location`, exact `metaPath`, and exact configured `taskListPath` fields.
-        - Update `src/handlers/view.ts` so ambient targets consume the internal semantic active result, including its
-          project or contributor scope; explicit targets parse the lifecycle index's `entry.slug` and `entry.cohort`
-          fields and preserve `entry.path`.
-        - Fail closed on invalid semantic fields and extend handler tests for active, planned, provisional, nested,
-          invalid, contributor, and exact-pointer targets.
+    - `[x]` **3.5.c Add branded identity and structured placement to resolved view targets**
+        - Added kernel `Slug` and layout-owned `WorkUnitPlacement` to resolved targets; ambient view consumes internal
+          active semantics and explicit view validates record slug/cohort fields while preserving exact pointers.
 
-    - `[ ]` **3.5.d Resolve only conventional view siblings from placement**
-        - Update `src/lib/view-artifact.ts` to preserve exact meta and configured task-list pointers, but use the
-          target's structured placement and branded slug for conventional task/spec/draft/notes fallbacks.
-        - Extend focused artifact tests so configured pointers win unchanged, conventional siblings use placement,
-          and no fallback derives placement with `dirname(metaPath)`.
+    - `[x]` **3.5.d Resolve only conventional view siblings from placement**
+        - Preserved exact meta and configured task-list pointers while projecting conventional task, spec, draft, and
+          notes fallbacks from placement, with a custom meta path proving no directory inference remains.
 
-    - `[ ]` **3.5.e Lock cross-boundary behavior with integration tests**
-        - Preserve custom discovery, lifecycle record, and configured-pointer paths end to end while covering active,
-          contributor-active, standalone backlog, nested backlog, and unsupported completed viewing.
-        - Prove no migrated lifecycle or view caller reverse-parses an exact path solely to reconstruct an address,
-          the session-init envelope remains unchanged, and all expected path strings stay independent from the
-          resolver under test.
+    - `[x]` **3.5.e Lock cross-boundary behavior with integration tests**
+        - Covered project and contributor active semantics, standalone and nested backlog targets, invalid operands,
+          exact lifecycle/configured pointers, unchanged session JSON, and unsupported completed viewing.
+
+- _Outcome:_ `arc view` now carries semantic coordinates separately from exact discovery and pointer evidence, so
+  conventional fallback projection is canonical without altering the stable session-init wire contract.
 
 ## **Phase 4:** Remaining resolver consumers and compatibility coverage
 

@@ -7,12 +7,14 @@ import {
   type ViewArtifactDependencies,
 } from "../../../src/lib/view-artifact.js";
 import type { ResolvedViewTarget } from "../../../src/lib/view/types.js";
+import { SlugSchema } from "../../../src/lib/kernel/index.js";
 
 const CWD = "/repo";
 
 const TARGET: ResolvedViewTarget = {
   status: "resolved",
-  slug: "feature",
+  slug: SlugSchema.parse("feature"),
+  placement: { kind: "active", scope: { kind: "project" } },
   location: "active",
   metaPath: ".arc/active/meta-feature.md",
   taskListPath: ".arc/active/tasks-feature.md",
@@ -109,6 +111,23 @@ describe("resolveViewArtifact", () => {
       resolveAmbientTarget: vi.fn().mockResolvedValue({ ...TARGET, taskListPath: null }),
       pathExists: vi.fn().mockResolvedValue(false),
     }))).resolves.toEqual({ status: "absent", kind: "tasks" });
+  });
+
+  it("projects conventional siblings from placement rather than the exact meta directory", async () => {
+    const target = {
+      ...TARGET,
+      placement: { kind: "backlog", commitment: "planned", cohort: [SlugSchema.parse("coh")] } as const,
+      metaPath: "custom/record.md",
+      taskListPath: null,
+    };
+    const dependencies = deps({ resolveAmbientTarget: vi.fn().mockResolvedValue(target) });
+
+    await expect(resolve("tasks", dependencies)).resolves.toMatchObject({
+      path: "/repo/.arc/backlog/planned/coh/feature/tasks-feature.md",
+    });
+    await expect(resolve("spec", dependencies)).resolves.toMatchObject({
+      path: "/repo/.arc/backlog/planned/coh/feature/spec-feature.md",
+    });
   });
 
   it("uses the explicit target in preference to the ambient target", async () => {
