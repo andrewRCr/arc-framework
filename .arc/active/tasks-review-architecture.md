@@ -135,11 +135,10 @@ pull-request count, provider choice, or host mechanics.
   lifecycle transition and fails visibly when it cannot be resolved.
 - _Context:_ Implements Design §§1.2, 3, and 6 plus Cross-cutting § Review overlay.
 
-    - `[ ]` **2.2.a Keep method activity as an injected routing fact**
-        - Model effective `self-review` and `frontline-review` activation as closed booleans supplied through a
-          narrow port; do not read method files or reinterpret `override-active` inside the reducer.
-        - Build `test-first` coverage proving each activity adjustment affects only its own result and never lowers
-          the independent-analysis floor.
+    - `[x]` **2.2.a Keep method activity as an injected routing fact**
+        - Added a narrow read port that accepts only effective self-review/frontline booleans, preserves valid peers,
+          defaults rejected fields conservatively with diagnostics, and feeds the router without method-file or
+          override interpretation; each activity adjustment remains isolated from independent analysis.
 
     - `[ ]` **2.2.b Add the WU review-rubric overlay field**
         - Add managed `Review Rubric` metadata in `lib/active/meta-reader.ts` with default `[none]` and one safe
