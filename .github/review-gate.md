@@ -678,7 +678,9 @@ sessions load both project actions. Freeze merges and compare the live outage ch
 ### Shadow rehearsal and retained evidence
 
 The checked-in `.github/review-gate-repair-rehearsal.json` records the non-mutating contract rehearsal and contains no
-live claims. Its executable test fixes the safe ordering before hosted rehearsal is possible.
+live claims. Its review-contract posture names the still-operational legacy controller explicitly; forward-v2 test
+fixtures are dormant contract proofs, not hosted merge authority. Its executable test fixes the safe ordering before
+hosted rehearsal is possible.
 
 After this workflow reaches the default branch and before final cutover, rehearse with the App projection still
 non-required and legacy CI still required. Use a disposable PR and sanitized attestation, execute environment compare,

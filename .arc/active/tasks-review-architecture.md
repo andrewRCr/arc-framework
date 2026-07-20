@@ -318,7 +318,7 @@ readiness.
           durable reads, and check projection. Separate publishers prove sibling-worktree serialization; stale heads,
           conflicting replay, hosted import validation, namespace isolation, and cross-machine absence fail closed.
 
-### `[ ]` **3.5 Migrate strict parsers and invalidate legacy evidence safely**
+### `[x]` **3.5 Migrate strict parsers and invalidate legacy evidence safely**
 
 - _Goal:_ Existing installations fail safely across the forward migration: legacy records remain diagnosable, new
   records parse strictly, and no stale evidence is silently promoted.
@@ -334,11 +334,10 @@ readiness.
           authority; only exact v2 composites receive membership keys. Mixed/downgraded receipts, requirements, and
           projections fail, while all five legacy provider severities and existing dispositions remain unchanged.
 
-    - `[ ]` **3.5.c Update durable and workflow fixtures**
-        - Migrate `.github` controller examples, qualification fixtures, repair rehearsal data, receipt comments,
-          and Actions payload assertions to the forward contract where they represent new state.
-        - Retain named v1 fixtures only where compatibility behavior is under test; ensure forward fixtures do not
-          imply that dormant v2 review projection or downstream readiness qualification is live merge authority.
+    - `[x]` **3.5.c Update durable and workflow fixtures**
+        - Renamed operational qualification builders as explicit legacy-v1 fixtures and marked repair rehearsal data
+          with its live contract posture. Forward target/request/receipt, local-store, and check fixtures remain v2
+          contract proofs, with runbook text stating that they are dormant and carry no hosted merge authority.
 
 ## **Phase 4:** Shipped review doctrine and method family
 

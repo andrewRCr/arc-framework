@@ -55,7 +55,7 @@ export function parseVersionedReviewRequirement(input: unknown, target: unknown)
     : { version, record: validateReviewRequirement(target, input) };
 }
 
-/** Parse a workflow/provider request only beside a target from the same contract generation. */
+/** Parse a request only beside a target from the same contract generation. */
 export function parseVersionedReviewRequest(input: unknown, target: unknown):
   | { version: 1; record: ReturnType<typeof parseReviewRequest> }
   | { version: 2; record: ReturnType<typeof validateReviewRequest> } {

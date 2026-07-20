@@ -12,7 +12,7 @@ import { SELF_HOSTING_POLICY } from "../../../../../src/scripts/review-gate/poli
 const SHA = "a".repeat(40);
 const HASH = "b".repeat(64);
 
-export function qualificationScope(): QualificationScope {
+export function legacyV1QualificationScope(): QualificationScope {
   const cellScopes = Object.fromEntries(QUALIFICATION_CELL_IDS.map((cellId, index) => [cellId, {
     pullRequestNumber: 7 + index,
     changeRequestId: `CR_kwDOqualification_${index + 1}`,
@@ -71,8 +71,8 @@ const outcomes: Record<QualificationCellId, QualificationOutcome> = {
   "repair-authority": "repaired",
 };
 
-export function qualificationCell(cellId: QualificationCellId): QualificationCellResult {
-  const scope = qualificationScope();
+export function legacyV1QualificationCell(cellId: QualificationCellId): QualificationCellResult {
+  const scope = legacyV1QualificationScope();
   const cellScope = scope.cellScopes[cellId];
   const provider = cellId.startsWith("coderabbit-") || cellId.startsWith("codex-");
   return {

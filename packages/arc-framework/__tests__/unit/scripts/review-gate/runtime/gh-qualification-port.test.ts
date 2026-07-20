@@ -12,7 +12,7 @@ import {
   type QualificationProbeDescriptor,
 } from "../../../../../src/scripts/review-gate/runtime/gh-qualification-port.js";
 import type { ProcessRunner } from "../../../../../src/scripts/review-gate/runtime/gh-action-port.js";
-import { qualificationScope } from "./qualification-fixtures.js";
+import { legacyV1QualificationScope } from "./qualification-fixtures.js";
 
 function descriptor(): QualificationProbeDescriptor {
   return {
@@ -23,7 +23,7 @@ function descriptor(): QualificationProbeDescriptor {
 }
 
 function bundle() {
-  const scope = qualificationScope();
+  const scope = legacyV1QualificationScope();
   const cell = scope.cellScopes["pending-first"];
   const request: ReviewRequest = {
     schemaVersion: 1,
@@ -91,7 +91,7 @@ function bundle() {
 }
 
 function runner(evidence: unknown = bundle()): { process: ProcessRunner; run: ReturnType<typeof vi.fn> } {
-  const scope = qualificationScope();
+  const scope = legacyV1QualificationScope();
   const run = vi.fn(async (_command: string, args: string[]) => {
     if (args.includes("user")) return { stdout: `${scope.expectedActorIdentity}\n` };
     if (args.some((value) => value.includes("/pulls/7"))) {
@@ -111,7 +111,7 @@ function codexActionRunner(): {
   process: ProcessRunner;
   run: ReturnType<typeof vi.fn>;
 } {
-  const scope = qualificationScope();
+  const scope = legacyV1QualificationScope();
   const cellId = "codex-comment-trigger";
   const cell = scope.cellScopes[cellId];
   const command = buildCodexReviewCommand(scope.guidanceDigests.codex ?? "");
@@ -257,7 +257,7 @@ function codexActionRunner(): {
 
 describe("developer-authenticated qualification probe port", () => {
   it("derives the pending cell from App-authored live records instead of descriptor claims", async () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     const fake = runner();
     const port = new GhQualificationProbePort(fake.process, [descriptor()]);
     await expect(port.execute("pending-first", scope)).resolves.toMatchObject({
@@ -276,7 +276,7 @@ describe("developer-authenticated qualification probe port", () => {
   });
 
   it("revalidates pending state and preserves the qualified policy on the action redispatch", async () => {
-    const scope = qualificationScope();
+    const scope = legacyV1QualificationScope();
     const fake = codexActionRunner();
     const port = new GhQualificationProbePort(fake.process, [fake.descriptor]);
     await expect(port.execute("codex-comment-trigger", scope)).resolves.toMatchObject({
@@ -302,7 +302,7 @@ describe("developer-authenticated qualification probe port", () => {
 
   it("rejects unrelated nonempty records, wrong dispatch classes, actors, and outside paths", async () => {
     await expect(new GhQualificationProbePort(runner({ id: 1 }).process, [descriptor()])
-      .execute("pending-first", qualificationScope())).rejects.toThrow(/workflow-run/u);
+      .execute("pending-first", legacyV1QualificationScope())).rejects.toThrow(/workflow-run/u);
     expect(() => new GhQualificationProbePort(runner().process, [{ ...descriptor(), dispatch: "none" }]))
       .toThrow(/dispatch-mismatch/u);
     expect(() => new GhQualificationProbePort(runner().process, [{
@@ -315,11 +315,11 @@ describe("developer-authenticated qualification probe port", () => {
       evidenceApiPaths: ["repos/o/r/qualification-bundle"],
       dispatch: "none",
     }])).toThrow(/dispatch-mismatch/u);
-    const wrongActorScope = { ...qualificationScope(), expectedActorIdentity: "999" };
+    const wrongActorScope = { ...legacyV1QualificationScope(), expectedActorIdentity: "999" };
     await expect(new GhQualificationProbePort(runner().process, [descriptor()])
       .execute("pending-first", wrongActorScope)).rejects.toThrow(/actor-mismatch/u);
     const outside = { ...descriptor(), evidenceApiPaths: ["repos/other/repo/issues/7/comments"] };
     await expect(new GhQualificationProbePort(runner().process, [outside])
-      .execute("pending-first", qualificationScope())).rejects.toThrow(/outside-repository/u);
+      .execute("pending-first", legacyV1QualificationScope())).rejects.toThrow(/outside-repository/u);
   });
 });
