@@ -270,7 +270,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const methodFiles = [
       "commit-footer.md",
       "commit-format.md",
-      "diff-review.md",
+      "self-review.md",
       "issue-triage.md",
       "quality-gate-commands.md",
       "review-triage.md",
@@ -312,7 +312,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       const manifest = await readManifestFile(tempDir);
 
       const methodNames = [
-        "commit-footer", "commit-format", "diff-review",
+        "commit-footer", "commit-format", "self-review",
         "issue-triage", "quality-gate-commands", "review-triage",
         "session-state", "test-first",
       ];

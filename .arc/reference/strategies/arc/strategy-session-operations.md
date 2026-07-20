@@ -352,7 +352,7 @@ Both avoid unnecessary body reads at init, but they serve different decisions an
 | test-first            | process-task-loop   | Conditional — tasks with test-first marker |
 | commit-format         | prepare-commits     | User-triggered commit events               |
 | commit-footer         | prepare-commits     | User-triggered commit events               |
-| diff-review           | integrate-work-unit | Integration phase only                     |
+| self-review           | integrate-work-unit | Integration phase only                     |
 | review-triage         | integrate-work-unit | Integration phase only                     |
 | session-state         | session-handoff     | Session end only                           |
 

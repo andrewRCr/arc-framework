@@ -350,10 +350,10 @@ with adopter-facing contracts mirrored through the package source.
   overridable surfaces whose contracts cannot be confused with carrier or evidence roles.
 - _Context:_ Implements Design §§2 and 6 through package-authoritative method files and mirrored project copies.
 
-    - `[ ]` **4.1.a Rename author diff review to self-review**
-        - Replace `diff-review.md` with `self-review.md`, retaining aggregate author-side checks and the explicit
-          non-evidence contract while removing the legacy config-gating claim and shipping `active: true`.
-        - Update manifest/classification, method indexes, workflow declarations, links, tests, and package mirrors.
+    - `[x]` **4.1.a Rename author diff review to self-review**
+        - Renamed the package-authoritative method and project mirror to `self-review`, shipped it active by default,
+          retained its aggregate author-side/non-evidence contract, and migrated installation, classification,
+          workflow declarations, indexes, current references, and tests to the new identity.
 
     - `[ ]` **4.1.b Add the implementation-audit rubric**
         - Ship the five-dimension rubric—intent/scope, correctness/failure, trust/compatibility,

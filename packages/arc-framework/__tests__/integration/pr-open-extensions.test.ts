@@ -113,9 +113,9 @@ describe("PR-open lifecycle extensions", () => {
     }
   });
 
-  it("keeps diff review author-side and provider-neutral", async () => {
+  it("keeps self-review author-side and provider-neutral", async () => {
     for (const base of [packageArc, projectArc]) {
-      const method = await readFile(resolve(base, "system/methods/diff-review.md"), "utf8");
+      const method = await readFile(resolve(base, "system/methods/self-review.md"), "utf8");
       expect(method).toContain("author-side");
       expect(method).toContain("not peer/independent review evidence");
       expect(method).toContain("**Correctness**");

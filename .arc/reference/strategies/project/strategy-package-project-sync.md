@@ -236,7 +236,7 @@ arc-in-git files are annotated explicitly.
 - `system/extensions/pre-push-review.md`
 - `system/methods/commit-footer.md`
 - `system/methods/commit-format.md`
-- `system/methods/diff-review.md`
+- `system/methods/self-review.md`
 - `system/methods/issue-triage.md`
 - `system/methods/quality-gate-commands.md`
 - `system/methods/review-triage.md`

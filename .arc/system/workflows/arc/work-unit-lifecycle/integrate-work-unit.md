@@ -3,7 +3,7 @@ purpose: Ship a work unit — PR open, review iteration, post-approval compositi
 audience: agent
 arc:
   methods:
-    - diff-review
+    - self-review
     - review-triage
     - commit-footer
   extensions:
@@ -110,7 +110,7 @@ then re-enter this guard after it merges.
 
 If `review.pre_merge` is enabled in [`arc-config.yml`][arc-config]:
 
-1. Execute the [`diff-review` method][diff-review] against the local aggregate diff vs the base branch.
+1. Execute the [`self-review` method][self-review] against the local aggregate diff vs the base branch.
    Classify findings per the [`review-triage` method][review-triage]; commit fixes per the
    [`commit-footer` method][commit-footer].
 When disabled, proceed directly to Step 3.
@@ -481,7 +481,7 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 ---
 
 [branch-format]: ../../../methods/branch-format.md
-[diff-review]: ../../../methods/diff-review.md
+[self-review]: ../../../methods/self-review.md
 [review-triage]: ../../../methods/review-triage.md
 [commit-footer]: ../../../methods/commit-footer.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md

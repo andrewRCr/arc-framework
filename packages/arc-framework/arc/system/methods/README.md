@@ -29,7 +29,7 @@ when populating any `.override` section. Methods not listed here are independent
 |--------------------|--------------------|---------------------------------|
 | commit-format      | commit-footer      | Both govern the commit message  |
 | commit-footer      | commit-format      | Both govern the commit message  |
-| diff-review        | review-triage      | Uses review-triage for findings |
+| self-review        | review-triage      | Uses review-triage for findings |
 | assess-cohort-fit  | classify-work-unit | Upper/lower WU-boundary tests   |
 | classify-work-unit | assess-cohort-fit  | Upper/lower WU-boundary tests   |
 | testing-standards  | test-first         | Planning/execution seam split   |

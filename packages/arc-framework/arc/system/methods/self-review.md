@@ -1,28 +1,27 @@
 ---
-name: diff-review
+name: self-review
 description: Local author-side aggregate diff preflight — generic and composable
 related:
   - review-triage
+active: true
 override-active: false
 ---
 
-# Method: diff-review
+# Method: self-review
 
 > - **Workflow:** [integrate-work-unit.md][integrate-work-unit] (primary caller)
 > - **When:** When a workflow or skill invokes local diff preflight — notably before opening a change request
 >
 > - **Contract:** The authoring agent reviews its aggregate local diff for cross-cutting issues that per-task review
->   misses. This preflight is not peer/independent review evidence and cannot satisfy a review requirement. Generic
->   activity contract — callers decide when to invoke and what gating applies. The primary caller
->   (integrate-work-unit.md) gates on `review.pre_merge` in [`arc-config.yml`][arc-config]; other callers apply
->   their own gating.
+>   misses. This preflight is not peer/independent review evidence and cannot satisfy a review requirement. Callers
+>   decide when to invoke it and what gating applies.
 > - **Related:** [review-triage](review-triage.md) — use for finding classification
 
-## diff-review.override
+## self-review.override
 
 [No override configured]
 
-## diff-review.default
+## self-review.default
 
 Lightweight author-side diff preflight. It catches issues that only emerge at the aggregate level; it invokes no
 external review provider by default and authors no independent evidence.
@@ -60,4 +59,3 @@ preflight as independent evidence.
 ---
 
 [integrate-work-unit]: ../workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[arc-config]: ../arc-config.yml
