@@ -6,12 +6,14 @@
  */
 
 import { createKernelRegistry, type KernelRegistry } from "../kernel/index.js";
+import { CompactionSeedSchema } from "../compaction-seed/schema.js";
 import { LoadSetManifestSchema } from "../load-set/types.js";
 import { TaskListCursorSchema } from "../task-list/cursor.js";
 import { TaskListCursorFileResultSchema } from "../task-list/file-cursor.js";
 
 /** Stable identities for the currently registered session-envelope roots. */
 export const SESSION_ENVELOPE_SCHEMA_IDS = {
+  compactionSeed: "compaction-seed",
   loadSetManifest: "load-set-manifest",
   taskListCursor: "task-list-cursor",
   taskListCursorFileResult: "task-list-cursor-file-result",
@@ -29,6 +31,10 @@ const STRICT_CURRENT_V1 = {
  */
 export function createSessionEnvelopeRegistry(): KernelRegistry {
   const registry = createKernelRegistry();
+  registry.register(CompactionSeedSchema, {
+    id: SESSION_ENVELOPE_SCHEMA_IDS.compactionSeed,
+    ...STRICT_CURRENT_V1,
+  });
   registry.register(LoadSetManifestSchema, {
     id: SESSION_ENVELOPE_SCHEMA_IDS.loadSetManifest,
     ...STRICT_CURRENT_V1,

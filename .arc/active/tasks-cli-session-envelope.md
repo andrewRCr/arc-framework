@@ -93,35 +93,26 @@ unknown-stripping variants from the same field shapes to retain its established 
 - _Outcome:_ Load-set and cursor records now share strict producer, compatibility-reader, inferred TypeScript, and
   stable discovery authorities while preserving projection, parsing, and file-containment behavior.
 
-### `[ ]` **2.3 Replace the compaction-seed validator with its registered schema**
+### `[x]` **2.3 Replace the compaction-seed validator with its registered schema**
 
 - _Goal:_ The persisted compaction seed parses through one strict-current Zod authority while retaining exact
   canonical serialization and structured recovery-stop classification.
-- _Context:_ Implements consumer `safeParse`, strict-current posture, and Success Criteria 2 and 5.
+    - `[x]` **2.3.a Express the full compaction-seed record as a schema**
+        - Replaced the hand-written guard graph with strict producer and recursively stripping persisted-reader
+          schemas composed from shared load-set and cursor authorities. Public seed types now derive through
+          `z.infer`; canonical field order and POSIX/Windows/UNC plus unsafe-path behavior remain locked.
 
-    - `[ ]` **2.3.a Express the full compaction-seed record as a schema**
-        - Replace the hand-written guard graph in `lib/compaction-seed/schema.ts` with a schema composed from the
-          shared load-set and task-cursor field shapes; derive `CompactionSeed` and related value types through
-          `z.infer` from the strict producer schema.
-        - Compose the persisted reader from the recursively stripping variants so successful `safeParse` retains
-          top-level and nested unknown-field removal without duplicating the record definition.
-        - Build `test-first` (one behavior at a time):
-            - accept current canonical payloads on POSIX, Windows-drive, and UNC checkout roots;
-            - reject unsafe relative fields, malformed nested records, and invalid session types;
-            - preserve the established unknown-field stripping and canonical key order on serialization.
+    - `[x]` **2.3.b Preserve parse-result and version-mismatch semantics**
+        - Preserved distinct malformed, invalid, and older/newer version failures with the explicit version guard
+          preceding `safeParse`; invalid-schema messages now carry normalized actionable field paths without leaking
+          Zod issue objects into the caller contract.
 
-    - `[ ]` **2.3.b Preserve parse-result and version-mismatch semantics**
-        - Keep malformed JSON, absent/invalid schema, and older/newer version mismatches distinct in
-          `CompactionSeedParseResult`; both older and newer versions retain the existing `schema-version-mismatch`
-          kind plus `actualVersion`, and `safeParse` runs only after the explicit version guard.
-        - Retain actionable validation paths in `CompactionSeedSchemaError` without exposing raw Zod structures as
-          the caller contract.
+    - `[x]` **2.3.c Register the compaction seed without changing publication**
+        - Registered the strict seed root at version 1 with `strict-current` posture in the composed family registry,
+          leaving hand-enforced version checks and kernel bundle publication unchanged.
 
-    - `[ ]` **2.3.c Register the compaction seed without changing publication**
-        - Register `compaction-seed` at version 1 with `strict-current` posture and prove metadata/discovery through
-          `createSessionEnvelopeRegistry()`.
-        - Keep the top-level seed’s hand-rolled version enforcement and the load-set manifest-version guard active;
-          registry metadata remains declarative.
+- _Outcome:_ Compaction-seed producers now fail strict leakage while persisted readers retain recursive compatibility
+  stripping, stable serialization, explicit version posture, and structured recovery-stop classification.
 
 ### `[ ]` **2.4 Make recovery-audit records and verdicts schema-authoritative**
 

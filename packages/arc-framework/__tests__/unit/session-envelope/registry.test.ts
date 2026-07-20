@@ -9,6 +9,7 @@ import {
   createSessionEnvelopeRegistry,
 } from "../../../src/lib/session-envelope/registry.js";
 import { LoadSetManifestSchema } from "../../../src/lib/load-set/types.js";
+import { CompactionSeedSchema } from "../../../src/lib/compaction-seed/schema.js";
 import { TaskListCursorSchema } from "../../../src/lib/task-list/cursor.js";
 import { TaskListCursorFileResultSchema } from "../../../src/lib/task-list/file-cursor.js";
 
@@ -18,6 +19,7 @@ describe("session-envelope schema registry", () => {
     const second = createSessionEnvelopeRegistry();
 
     expect(first.ids()).toEqual([
+      "compaction-seed",
       "load-set-manifest",
       "priority",
       "slug",
@@ -30,6 +32,7 @@ describe("session-envelope schema registry", () => {
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.taskListCursor)).toBe(TaskListCursorSchema);
     expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.taskListCursorFileResult))
       .toBe(TaskListCursorFileResultSchema);
+    expect(first.get(SESSION_ENVELOPE_SCHEMA_IDS.compactionSeed)).toBe(CompactionSeedSchema);
 
     first.register(z.boolean(), {
       id: "fixture-extension",
