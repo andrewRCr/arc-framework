@@ -67,20 +67,15 @@ _Purpose:_ Move specialized raw Git processes onto the shared execa substrate wh
 - _Outcome:_ `io-context.ts` no longer owns raw child-process implementations for binary reads, stdin execution,
   note transport, or prepared ref leases; their specialized contracts now share the execa error substrate.
 
-### `[ ]` **2.2 Migrate inherited-stdio worktree pushes**
+### `[x]` **2.2 Migrate inherited-stdio worktree pushes**
 
 - _Goal:_ Wrapped pushes continue streaming user-visible output and returning complete rejection evidence through
   the existing `PushWorktreeSpawn` seam without a raw `spawn()` implementation.
 
-    - Replace `defaultSpawnPush` with a specialized execa adapter using `reject: false`, preserving inherited
-      stdin/stdout, captured-and-teed stderr, `cwd`, ordered argument passthrough, exit-code results, and injected
-      `spawnPush` tests. Only spawn, transport, output-limit, cancellation, or unexpected execution failures reject.
-    - Extend the internal result source-compatibly with an optional normalized non-zero error. Have
-      `pushWorktreeBranch()` preserve it while retaining the generic-error fallback for injected fakes that omit it.
-    - Build `test-first` (one behavior at a time):
-        - Successful and rejected pushes retain their existing `PushWorktreeBranchResult` shapes.
-        - Stderr is displayed exactly once while remaining fully available within the process ceiling, typed
-          non-zero evidence survives the result seam, and transport failures reject through the taxonomy.
+    - Replaced the inherited-stdio push binding with a `reject: false` execa adapter that streams stdin/stdout, tees
+      and captures stderr once, preserves ordered arguments and `cwd`, and rejects only non-control failures.
+    - Extended the injected spawn result with optional normalized evidence; real non-zero exits now preserve their
+      typed status while legacy fakes retain the established generic-error fallback.
 
 ### `[ ]` **2.3 Migrate direct handler Git invocations**
 
