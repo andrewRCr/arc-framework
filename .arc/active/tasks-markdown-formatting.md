@@ -21,25 +21,14 @@ from that identity, and worktree/index content loaders never reimplement authori
   package↔instance mapping, source-first routing, config alignment, NUL-safe lint scope enumeration, and
   pre-content containment validation. Root lint now covers both authoritative package and rendered/project Markdown.
 
-### `[ ]` **1.2 Define Markdown operation contracts and diagnostics**
+### `[x]` **1.2 Define Markdown operation contracts and diagnostics**
 
 - _Goal:_ Formatter and lint entry points compose narrow operation contracts over shared identity and diagnostic
   primitives without landing incomplete public commands or a cross-operation result hierarchy.
 
-    - Define separate discriminated inputs and results for explicit-path formatting, selected-scope worktree lint,
-      and staged-snapshot lint; share only path identities, diagnostic/remedy records, and aggregation helpers.
-    - Keep changed-range and partial-write outcomes formatter-specific rather than adding irrelevant variants to
-      read-only lint results.
-    - Centralize file-specific remediation text so table failures, authority refusals, and derived-output routes
-      name the exact command owned by the responsible operation.
-    - Keep command orchestration repository-local while allowing display-width, table transformation, and managed
-      meta logic to live in the CLI library.
-    - Adapt operation failures to the established `ArcError`/`UserFacingError` boundary instead of introducing a
-      second terminal-error format.
-    - Build `test-first` (one behavior at a time):
-        - Diagnostics retain stable ordering and repository-relative unusual path spelling.
-        - Multi-file validation and write results aggregate without losing per-path status.
-        - Loader-specific failures retain the operation and remedy chosen by shared policy.
+- _Outcome:_ Added independent explicit-format, worktree-lint, and staged-lint contracts with operation-specific
+  results, stable path-preserving diagnostic aggregation, centralized exact remedies, and `UserFacingError`
+  adaptation.
 
 ## **Phase 2:** Display-width and table machinery
 
