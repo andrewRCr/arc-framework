@@ -14,6 +14,8 @@ import {
 import { validateManagedPath, type ManagedPath } from "../canonical/managed-path.js";
 import { artifactGroupDigest } from "../canonical/receipt-id.js";
 import { getCurrentBranch } from "../git/exec.js";
+import { SlugSchema, type Slug } from "../kernel/index.js";
+import { resolveArcPath, type WorkUnitArtifactKind } from "../layout/index.js";
 import type { DecomposeAllocationEntry, DecomposeAllocationMap } from "./decompose-cut-map.js";
 import type { DecomposeFinalTarget } from "./decompose-finalization.js";
 import {
@@ -27,7 +29,7 @@ import { artifactMatcher } from "./mutators/relocate-artifacts.js";
 import { resolveRetirementRecordPath } from "./retirement-record-store.js";
 import type { RetirementAuthorityScope } from "./retirement-authority.js";
 
-const ROADMAP_PATH = validateManagedPath(".arc/backlog/ROADMAP.md");
+const ROADMAP_PATH = resolveArcPath({ kind: "project-document", document: "roadmap" });
 
 export interface PreparationBinding {
   scope: RetirementAuthorityScope;
@@ -128,7 +130,36 @@ function sourceDigest(artifacts: readonly DecomposeSourceArtifact[]): CanonicalD
 }
 
 function cohortDocumentPath(cohort: string): ManagedPath {
-  return validateManagedPath(`.arc/backlog/planned/${cohort}/cohort-${posix.basename(cohort)}.md`);
+  const segments = cohort.split("/").map((segment) => SlugSchema.parse(segment));
+  let coordinate: [Slug] | [Slug, Slug];
+  if (segments.length === 1 && segments[0] !== undefined) coordinate = [segments[0]];
+  else if (segments.length === 2 && segments[0] !== undefined && segments[1] !== undefined) {
+    coordinate = [segments[0], segments[1]];
+  } else {
+    throw new Error(`Invalid cohort coordinate: ${cohort}`);
+  }
+  return resolveArcPath({
+    kind: "cohort-document",
+    placement: { kind: "planned" },
+    cohort: coordinate,
+  });
+}
+
+function conventionalMemberArtifactPath(slugValue: string, cohortValue: string, artifact: string): ManagedPath | null {
+  const slug = SlugSchema.parse(slugValue);
+  const kinds: WorkUnitArtifactKind[] = ["meta", "draft", "spec", "tasks", "notes"];
+  const kind = kinds.find((candidate) => artifact === `${candidate}-${slug}.md`);
+  if (kind === undefined) return null;
+  return resolveArcPath({
+    kind: "work-unit-artifact",
+    placement: {
+      kind: "backlog",
+      commitment: "planned",
+      cohort: cohortValue.split("/").map((segment) => SlugSchema.parse(segment)),
+    },
+    slug,
+    artifact: kind,
+  });
 }
 
 function entryDirectory(index: LifecycleIndex, slug: string): string | null {
@@ -147,9 +178,7 @@ export function destinationArtifactPath(
     const existingDirectory = entryDirectory(index, entry.slug);
     if (existingDirectory !== null) return validateManagedPath(posix.join(existingDirectory, artifact));
     const cohort = allocation.cohort ?? placementCohort;
-    return cohort === undefined
-      ? null
-      : validateManagedPath(`.arc/backlog/planned/${cohort}/${entry.slug}/${artifact}`);
+    return cohort === undefined ? null : conventionalMemberArtifactPath(entry.slug, cohort, artifact);
   }
   if (entry.kind === "existing-home") {
     if (entry.target.kind === "document") {
@@ -175,8 +204,10 @@ function deriveAllowedPaths(
   const entries = new Map(allocation.entries.map((entry) => [entry.destinationId, entry]));
   for (const entry of allocation.entries) {
     if (entry.kind === "new-member") {
-      allowed.add(validateManagedPath(`.arc/backlog/planned/${placementCohort}/${entry.slug}/meta-${entry.slug}.md`));
-      allowed.add(validateManagedPath(`.arc/backlog/planned/${placementCohort}/${entry.slug}/draft-${entry.slug}.md`));
+      const metaPath = conventionalMemberArtifactPath(entry.slug, placementCohort, `meta-${entry.slug}.md`);
+      const draftPath = conventionalMemberArtifactPath(entry.slug, placementCohort, `draft-${entry.slug}.md`);
+      if (metaPath !== null) allowed.add(metaPath);
+      if (draftPath !== null) allowed.add(draftPath);
     } else if (entry.kind === "existing-home" && entry.target.kind === "document") {
       allowed.add(validateManagedPath(entry.target.path));
     } else if (entry.kind === "cohort-coordination") {

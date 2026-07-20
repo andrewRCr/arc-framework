@@ -178,36 +178,29 @@ never recover operands from the discovered path merely to call layout.
 - _Outcome:_ Backlog producers now distinguish semantic destinations from exact source evidence, including declared
   cohort placement that can intentionally differ from a legacy source directory without reverse-parsing that path.
 
-### `[ ]` **3.3 Migrate executor and retirement comparison projections**
+### `[x]` **3.3 Migrate executor and retirement comparison projections**
 
 - _Goal:_ Executor and retirement code share canonical expected-path projection without converting exact Git/index
   evidence or recognition policy into inferred layout state.
 
-    - `[ ]` **3.3.a Migrate executor side-effect paths**
-        - Replace conventional active meta construction in `src/lib/work-unit/executor-context.ts` with validated
-          project-active artifact addresses at the side-effect boundary.
-        - Preserve cwd-relative `ManagedPath` values through Git/index seams and retain all side-effect policy;
-          cover exact dispatched paths with literal expectations.
+    - `[x]` **3.3.a Migrate executor side-effect paths**
+        - Projected project-active meta artifacts at dependency-discharge and PR-withdrawal boundaries while
+          preserving cwd-relative managed paths and all side-effect policy.
 
-    - `[ ]` **3.3.b Migrate park-landing comparison paths**
-        - In `src/lib/work-unit/park-planning-landing.ts`, derive project-active/planned comparison roots and the
-          expected planned container from the validated receipt name and declared cohort field.
-        - Keep tree entries, staged paths, receipt paths, and blob paths exact; compare them to the semantic
-          projection without replacing their authority or changing landing policy.
-        - Cover standalone, nested, invalid-cohort, and exact-tree mismatch cases with independent path strings.
+    - `[x]` **3.3.b Migrate park-landing comparison paths**
+        - Projected lifecycle roots and the expected planned container from receipt identity and declared cohort,
+          retaining tree entries, staged paths, receipt paths, and blob paths as exact Git evidence.
 
-    - `[ ]` **3.3.c Migrate park-retirement proof comparisons**
-        - In `src/lib/work-unit/park-retirement-proof.ts`, parse the declared meta cohort and project its expected
-          planned container, then compare the discovered meta directory directly to that result.
-        - Remove cohort recovery from the discovered directory while preserving exact artifact-map keys and every
-          retirement refusal outcome; extend the focused proof tests accordingly.
+    - `[x]` **3.3.c Migrate park-retirement proof comparisons**
+        - Projected the expected planned container from the declared meta cohort and compared its exact directory
+          directly, removing cohort recovery from discovered paths while preserving artifact-map keys and refusals.
 
-    - `[ ]` **3.3.d Split semantic and exact decompose-retirement targets**
-        - In `src/lib/work-unit/decompose-retirement-projection.ts`, project only new-member containers,
-          conventional member artifacts, and cohort documents from branded allocation operands.
-        - Preserve lifecycle-index directories, explicit document targets, dependent meta paths, and other exact
-          existing-home pointers; cover the split through the retirement driver and decompose-shape integration
-          tests without using layout to build expected values.
+    - `[x]` **3.3.d Split semantic and exact decompose-retirement targets**
+        - Projected only conventional new-member artifacts and cohort documents, leaving lifecycle-index homes,
+          explicit document targets, dependent meta paths, and other existing pointers exact.
+
+- _Outcome:_ Retirement and executor boundaries now use layout as an expected-path projector only; committed Git,
+  lifecycle-index, and configured evidence remains authoritative and is never reverse-parsed into semantic state.
 
 ### `[ ]` **3.4 Migrate archive and cohort-document projections**
 
