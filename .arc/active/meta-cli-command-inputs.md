@@ -1,22 +1,22 @@
 # Metadata: cli-command-inputs
 
-| **State**  | **Owner** | **Branch**                | **Class** | **Priority** |
-| ---------- | --------- | ------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/cli-command-inputs` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch**                | **Class** | **Priority** |
+| --------- | --------- | ------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/cli-command-inputs` | `Heavy`   | `P2`         |
 
 - **Cohort:** `cli-substrate-adoption`
-- **Depends On:** `work-organization-reform`, `cli-schema-kernel`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-cli-command-inputs.md`
 - **Task List:** `tasks-cli-command-inputs.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Define canonical command-input declarations and inventory records
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — Define canonical command-input declarations and inventory records
 
 - **PR URL:** [none]
 - **Completed:** [none]
