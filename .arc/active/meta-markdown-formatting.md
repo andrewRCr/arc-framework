@@ -9,14 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-markdown-formatting.md`
-- **Task List:** [none]
+- **Task List:** `tasks-markdown-formatting.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** Detailed RFC finalized after two adversarial review passes
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin `generate-tasks` from `spec-markdown-formatting.md`
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

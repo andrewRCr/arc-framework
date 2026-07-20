@@ -39,8 +39,9 @@ marker spelling and hook policy remain internal development choices.
 - Make every selected Markdown table satisfy source column-width alignment using the same Unicode display-width
   calculation in hand-authored fixes, meta rendering, and status/readiness rendering.
 - Make `_underscore_` italics and `**asterisk**` strong emphasis deterministic throughout the repository's current
-  authoritative lint surface.
-- Make wrapped root descriptor clusters in ARC task lists loose while preserving compact one-line clusters.
+  authoritative lint surface, retaining the pinned linter's required asterisk exception for intraword emphasis.
+- Make wrapped root descriptor clusters in ARC task lists loose while allowing one-line clusters to remain tight
+  or loose.
 - Normalize existing drift in reviewable mechanical passes with proof that unrelated bytes and rendered semantics
   did not change.
 - Enforce the resulting contract in CI and against the exact Git index before commit, with actionable file-specific
@@ -82,9 +83,11 @@ width implementation. The repository currently resolves different implementation
 the CLI reaches 8.2.2, and those versions disagree for some keycap and spacing-mark sequences. Treat the linter as
 the version authority: pin the CLI's direct dependency to the exact `string-width` version resolved by the pinned
 `markdownlint`, with no range, and make a dependency-alignment check fail when the two resolved versions differ.
-An upgrade to either dependency therefore requires one deliberate paired update. Width fixtures run through both
-the shared primitive and `MD060`, including known version-sensitive inputs, so equal package metadata is backed by
-behavioral parity.
+The check consumes the root and package manifests, lockfile resolutions, and actually imported package versions
+through loader-independent inputs so worktree and staged callers can share it. An upgrade to either dependency
+therefore requires one deliberate paired update and an installed tree matching the candidate metadata. Width
+fixtures run through both the shared primitive and `MD060`, including known version-sensitive inputs, so equal
+package metadata is backed by behavioral parity.
 
 ### 2. Table-only formatter
 
@@ -97,6 +100,11 @@ npm run format:tables -- <path> [<path> ...]
 The command requires one or more explicit tracked Markdown paths. Empty invocation, directories, globs expanded to
 no files, untracked paths, and non-Markdown paths fail without modifying the worktree. Paths resolve from the Git
 top level so the same invocation behaves identically from the primary checkout and linked worktrees.
+
+Load each selected formatter input as bytes and decode with fatal UTF-8 while preserving an initial BOM. Malformed
+UTF-8 fails before transformation or writing. Re-encoding a valid untouched slice must reproduce its original
+bytes, including BOM and non-ASCII content, so the outside-range byte guarantee does not depend on Node's
+replacement-character text reader.
 
 For ordinary authoritative files, the formatter:
 
@@ -134,13 +142,16 @@ escaped pipes, code spans, emphasis, and a rejected inconsistent-prefix case.
 ### 3. Authority-aware path routing
 
 Centralize path classification behind the formatter rather than duplicating shell expressions across scripts and
-documentation. Classification uses the repository Git top level plus the installed manifest's file classification
-where a package/instance relationship exists.
+documentation. Classification uses the repository Git top level, the recipe evaluated under stored install
+configuration, `classifyFile()`, and any current manifest entry where a package/instance relationship exists.
 
 Each selected path resolves to exactly one action:
 
-- **Authoritative package Framework source:** format in `packages/arc-framework/arc/`; the rendered `.arc/` copy is
-  updated through the existing render/sync path.
+- **Authoritative package Framework source with a current installed counterpart:** format in
+  `packages/arc-framework/arc/`, then project the transformed source into its rendered `.arc/` counterpart through
+  the selected Framework projection described below.
+- **Authoritative package source with no current installed counterpart:** format the package source only. Absence
+  from the evaluated current-install recipe is a complete source-only result, not an inferred `.arc/` relationship.
 - **Rendered Framework instance:** refuse the wrong-direction edit and print the corresponding package-source path.
 - **Configurable file:** allow only the selected copy; package framework sections and project-instance sections are
   migrated in separate source-first passes, never by copying the whole file.
@@ -153,6 +164,28 @@ Each selected path resolves to exactly one action:
 
 Diagnostics name the supplied path, its resolved authority class, and the exact next command. Classification is a
 pure, unit-tested decision surface; filesystem writes occur only after all decisions are known.
+
+For mutating formatter operations, reject any selected lexical path whose file or directory chain contains a
+symbolic link, even when it resolves inside the repository. This happens before content access. Read-only staged
+lint remains safe to inspect a tracked symlink's exact Git blob; the formatter never chooses between replacing the
+link and overwriting its resolved target.
+
+The self-hosting repository does not run the adopter-facing `arc update` workflow against itself. Add a narrow
+selected Framework projection that reuses `renderTemplate()` with the manifest's stored install configuration and
+an in-memory source overlay. The evaluated recipe plus `classifyFile()` is the mapping authority for the current
+install; require its rendered Framework output to exist. A present per-file manifest entry corroborates that
+relationship, and contradictory classification or template mapping fails closed. A stale missing per-file manifest
+entry does not erase an otherwise unambiguous current-install mapping, and the projection does not repair it.
+
+A table-format invocation computes the transformed package source and any current rendered counterpart together,
+validates the full plan before writing, and includes both in its per-file atomic write plan. A source with no output
+in the evaluated current-install recipe remains a source-only operation. Expose the projection independently as
+`npm run render:framework -- <package-source> [<package-source> ...]` for later non-table source edits. It accepts
+only explicit package sources mapped to existing installed Framework outputs and writes only those rendered `.arc/`
+counterparts; it never runs `arc update`, edits Configurable files, or mutates manifest, pristine, skill, or harness
+state. Repository-specific token and conditional output is recomputed from the stored install configuration;
+Configurable, Scaffolded, and project-owned content remains outside the projection so its intentional local content
+is preserved.
 
 ### 4. Content-preserving meta normalization
 
@@ -194,29 +227,66 @@ package Markdown and rendered/project Markdown while preserving exclusions for d
 private identity-global files, and temporary artifacts. Duplicate checking of a Framework source and its rendered
 copy is intentional: the source check protects what ships, and the instance check detects render or sync drift.
 
+The shared selector owns that path scope for both worktree and staged operations. The root
+`.markdownlint-cli2.jsonc` `globs`, `ignores`, and `gitignore` values are an integrity mirror of the selector's
+canonical declaration, not a second policy engine: both loaders require exact structural equality, including
+ordered path arrays, and fail closed on config-only drift. Nested configurations are rule-only and refuse
+path-selection options. Deliberately changing the selected scope therefore updates the selector and root
+configuration together in one increment.
+
+The pinned `MD049` implementation remains the emphasis-style authority, including its semantic exception for
+intraword emphasis: when underscore delimiters would no longer parse as emphasis, an asterisk-delimited span is
+retained and accepted. The migration targets every reported violation rather than replacing delimiter-shaped bytes
+that the rule intentionally leaves alone.
+
 Keep targeted `lint:md:file` and fix commands available for explicit paths. Replace the interim table-tool guidance
-in `DEV-RULES.PROJECT.md` and `QUICK-REFERENCE.md` with `format:tables`; a table-rule failure prints the same exact
-command for the affected path.
+in the project-instance `DEV-RULES.PROJECT.md` and `QUICK-REFERENCE.md` with `format:tables`; a table-rule failure
+prints the same exact command for the affected path.
 
 The marker choices are repository policy. They are documented only in the project rule/configuration surfaces and
 are not added to `DEV-RULES.ARC.md`, ARC configuration, or adopter hooks.
 
 ### 7. Exact-index pre-commit enforcement
 
-Add a project-local Markdown runner to the Husky chain. It fires when the staged index changes any selected
-Markdown file or Markdown-check configuration. The runner enumerates the complete selected tracked Markdown scope
-from the index and reads each candidate with `git show :<path>`; it never substitutes worktree bytes.
+Add a project-local Markdown runner to the Husky chain. Husky invokes the lightweight command before the existing
+package-sync and TypeScript checks; the runner itself performs NUL-safe relevant-change detection and exits before
+corpus loading when the index changes no selected Markdown, Markdown configuration, checker implementation,
+canonical fixture, or dependency input (`package.json`, `packages/arc-framework/package.json`, and
+`package-lock.json`). This keeps trigger ownership beside the selector rather than duplicating path logic in shell.
 
-Lint the resulting `{ path: indexedContent }` map in one process with the staged configuration and the declared
-`markdownlint` API. Add direct development dependencies for APIs the runner imports, including JSONC parsing when
-needed; do not import `markdownlint-cli2` internals. Failure output uses repository-relative paths and, for aligned
-table failures, prints `npm run format:tables -- <path>` as the worktree remedy.
+When triggered, enumerate the complete selected tracked Markdown scope from the index through NUL-safe Git
+plumbing. Read every selected blob and configuration exactly once through the existing
+`readGitBlobBytes(cwd, null, path)` primitive and decode with fatal UTF-8 handling; never substitute worktree bytes
+or add a second `git show` reader.
+
+Enumerate every indexed configuration filename recognized by pinned `markdownlint-cli2`: the
+`.markdownlint-cli2.{jsonc,yaml,cjs,mjs}` and `.markdownlint.{jsonc,json,yaml,yml,cjs,mjs}` families. Support only
+the repository's current `.markdownlint-cli2.jsonc` form in the staged loader; any other recognized form fails
+closed with a conversion diagnostic rather than being ignored or evaluated. Load every supported config from the
+same indexed view, require the root configuration, and parse JSONC through a declared direct development
+dependency. Validate the supported top-level option surface and fail closed on missing, malformed, invalid-UTF-8,
+or unsupported configuration rather than silently diverging from the worktree command. Require the indexed root
+path-selection options to be structurally identical to the shared selector's canonical declaration and reject
+path-selection options in nested configs; never evaluate arbitrary indexed globs as a parallel selector. Apply
+directory-scoped ancestor rule inheritance, including the existing `docs/` override, and group files by effective
+`.config` value.
+
+Read the three dependency inputs from the indexed view and run the shared dependency-alignment check against their
+declared and locked versions plus the versions actually imported by the runner. A dependency-only commit therefore
+triggers certification and fails until the installed modules match the candidate pinned metadata.
+
+Lint those groups in one process through `lint()` from `markdownlint/promise`; run the descriptor validator over
+the same full `{ path: indexedContent }` map. Do not import `markdownlint-cli2` internals. Failure output uses
+repository-relative paths and, for aligned table failures, prints `npm run format:tables -- <path>` as the
+worktree remedy.
 
 The gate is check-only. It never edits or stages files. Tests construct divergent index/worktree pairs and prove:
 
 - an unstaged worktree fix cannot hide an invalid indexed blob;
 - an unstaged worktree violation cannot block a valid indexed blob;
-- a staged configuration change governs the candidate commit; and
+- staged supported root and nested rule changes govern the candidate commit, while path-selection drift fails
+  closed unless the selector and root declaration change together;
+- dependency-only changes trigger alignment and reject candidate/runtime version drift; and
 - path deletion, rename, spaces, and linked-worktree invocation remain safe.
 
 This runner lives in the repository Husky layer. ARC's shipped pre-commit hook remains limited to universal ARC
@@ -226,35 +296,52 @@ the descriptor-cluster validator from the next section. A commit passes only whe
 ### 8. Task descriptor spacing
 
 Update the authoritative package-source task-list strategy, task template, and generate-tasks checklist together,
-then render/sync their project instances. A parent task's root descriptor cluster contains `_Goal:_`, any peer
-descriptor (`_Context:_`, `_Rationale:_`, `_Approach:_`, `_Shape:_`, `_Note:_`), and optional
-`**Additional Context:**` entries before operational children.
+then update their project instances through the selected Framework projection. A parent task's root descriptor
+cluster contains `_Goal:_`, any peer descriptor (`_Context:_`, `_Rationale:_`, `_Approach:_`, `_Shape:_`,
+`_Note:_`), and optional `**Additional Context:**` entries before operational children.
+
+Register the canonical task template in `init-recipe.json` and the current self-host manifest because the shipped
+generate-tasks workflow links it. Use the existing manifest entry and hash machinery for this targeted repair,
+correct the template's relative links to the installed generate-tasks workflow and task-list strategy, and cover
+fresh initialization so the template and both rendered link targets resolve. Broader recipe/manifest inventory
+reconciliation remains outside this work unit.
 
 Singular `_Note:_` is the canonical peer descriptor. Correct the existing generate-tasks instruction that emits
 plural `_Notes:_` for a `notes-{name}.md` cross-reference to emit `_Note:_` instead; the validator recognizes only
 the documented singular form. The plural spelling is source drift to normalize, not a second descriptor kind.
 
-- If every cluster entry occupies one physical source line, entries may remain adjacent.
-- If any entry has continuation content, every pair of cluster entries must be separated by one blank line.
+- If every cluster entry occupies one physical source line, entries may be either adjacent or blank-line-separated.
+- If any entry has continuation content, every pair of cluster entries must be separated by at least one blank line.
+- Existing `MD012` enforcement owns excess consecutive blank lines.
 - Existing blank-line boundaries before operational children and `_Outcome:_` remain unchanged.
 
-Implement the focused repository check as a line-oriented validator over the stable task-list grammar, not as a
-new universal Markdown parser rule. It recognizes task checkbox boundaries and only the documented root-level
-descriptor labels; unknown list content is outside its authority and is left to normal Markdown linting. The check
-covers current tracked `tasks-*.md` files outside excluded history/private surfaces, plus canonical package-source
-template fixtures. Focused fixtures cover all-one-line clusters, each supported multi-line descriptor position,
-`Additional Context`, operational-child boundaries, completed tasks, and nested list content.
+Factor the existing canonical parent/subtask grammar from the task-list cursor into a shared, fence-aware
+line-oriented structural scanner. Both the cursor and validator consume its events. The scanner ignores
+canonical-looking task markers inside backtick and tilde fenced code blocks, including the examples in the task
+template, while preserving current cursor behavior outside fences.
+
+Implement the focused repository check over the scanner events, not as a new universal Markdown parser rule. It
+recognizes task checkbox boundaries and only the documented root-level descriptor labels; unknown list content is
+outside its authority and is left to normal Markdown linting. The check covers current tracked `tasks-*.md` files
+outside excluded history/private surfaces, plus canonical package-source template fixtures. Focused fixtures cover
+all-one-line clusters, each supported multi-line descriptor position, `Additional Context`, operational-child
+boundaries, completed tasks, nested list content, and fenced examples. The canonical task template contains a
+representative wrapped peer-descriptor cluster so the real fixture exercises the loose-spacing contract.
 
 Expose the validator as a pure `{ path, content }` operation and wire it through two named repository commands:
 
-- `lint:md:descriptors` reads the selected worktree files and is composed into `lint:md`, so the existing CI
-  `npm run -s lint:md` step enforces both markdownlint and descriptor spacing at the merge boundary.
+- `lint:md:descriptors` reads the selected worktree files. Rename the underlying markdownlint-only script to
+  `lint:md:markdownlint`; after configuration-alignment validation, it passes explicit selector-emitted paths to
+  `markdownlint-cli2 --no-globs`. The public `lint:md` command runs it and then descriptor validation in sequence,
+  so the existing CI `npm run -s lint:md` step enforces both at the merge boundary. Targeted file and fix commands
+  remain markdownlint-only.
 - `lint:md:staged` reads the complete selected index snapshot once and runs both markdownlint and the same pure
   descriptor validator; Husky invokes this command before the existing package-sync and TypeScript checks.
 
-The staged command fires for selected Markdown changes, Markdown configuration, the selector, or descriptor-rule
-implementation/fixtures. The CI/worktree and pre-commit/index paths share selector and validation modules; only
-their content loaders differ.
+The staged command fires for selected Markdown changes, every Markdown configuration, selector code, descriptor
+validation, staged-runner and configuration-loader code, canonical fixtures, or the three dependency inputs. The
+CI/worktree and pre-commit/index paths share the selector, selection-config alignment, and descriptor validator;
+their worktree/CLI and index/API content, configuration, and lint adapters remain operation-specific.
 
 The strategy and generated examples communicate ARC's preferred document shape. The repository-only validator is
 not shipped or described as a parser-required adopter invariant.
@@ -266,8 +353,8 @@ Land normalization as separable review increments so semantic changes are not bu
 1. authority selection, checks, and command interfaces;
 2. display-width primitive, meta/status renderers, meta normalizer, and table formatter;
 3. `MD060` enablement plus source-first table normalization and derived-output regeneration;
-4. `MD049` / `MD050` enablement plus source-first emphasis normalization and render/sync;
-5. descriptor guidance, canonical fixtures, validator, and live-task normalization;
+4. `MD049` / `MD050` enablement plus source-first emphasis normalization and selected Framework projection;
+5. descriptor guidance, task-template registration, canonical fixtures, validator, and live-task normalization;
 6. exact-index Husky wiring and discoverability reconciliation.
 
 The table formatter's source-range contract proves table-only changes by construction and unit tests. For the
@@ -280,6 +367,12 @@ worktree result. It parses both as GFM, strips positional metadata, and requires
 the raw diff must contain only emphasis delimiter substitutions. Code spans, links, HTML, task checkbox structure,
 and text content therefore remain unchanged. The audit takes explicit paths or the authority selector's emitted
 path list and fails on an untracked or unreadable baseline.
+
+Normalize through the pinned markdownlint fixer over authority-selected explicit Markdown batches: package sources
+first, never their rendered instances; then project recipe-mapped current Framework outputs while leaving sources
+outside the current install source-only; then migrate Configurable, Scaffolded, and project-owned paths
+independently. Audit only the migrated Markdown paths. Dependency, configuration, and implementation changes remain
+outside the delimiter proof and receive their normal focused review.
 
 Every migration pass is idempotent and is verified before it joins the next pass.
 
@@ -346,9 +439,11 @@ with mutually inconsistent checks. The implementation remains reviewable through
 
 - Treat command-line paths and Git-index paths as untrusted input: normalize to repository-relative paths, reject
   traversal and out-of-repository resolution, and pass path arguments after `--` without shell interpolation.
+- Reject symbolic links anywhere in a mutating formatter path, including links whose targets remain in-repository.
 - Use Git plumbing with NUL-delimited path lists where available so spaces and unusual tracked filenames remain
   safe.
-- Parse Markdown and JSONC without evaluating repository content as JavaScript.
+- Decode formatter Markdown as fatal, BOM-preserving UTF-8 and parse Markdown/JSONC without evaluating repository
+  content as JavaScript.
 - Compute all formatter outputs before writes and use same-directory temporary-file replacement only for validated
   explicit paths; no recursive filesystem walk controls mutation scope.
 
@@ -357,15 +452,19 @@ with mutually inconsistent checks. The implementation remains reviewable through
 - A full selected-scope Markdown pass is expected at roughly the current four-second baseline and is acceptable
   when Markdown or its configuration is staged.
 - Parse each document once per operation. Share selected-path enumeration and lint configuration across files.
-- Skip the project-local Markdown gate entirely when no relevant staged path changed.
+- Exit the project-local Markdown runner before corpus loading or linting when no relevant staged path changed.
 
 ### Testing
 
 - Unit-test display-width padding, GFM table range replacement, authority classification, meta normalization,
   descriptor validation, and migration audits.
 - Integration-test explicit multi-file validation-before-write, per-file atomic replacement and mid-write failure
-  reporting, Git-index linting, linked-worktree path resolution, generated readiness regeneration, and
-  package/project synchronization.
+  reporting, exact-index linting in real temporary Git repositories, linked-worktree path resolution, generated
+  readiness regeneration, and package/project synchronization.
+- Exercise in-repository symlink refusal, malformed UTF-8 rejection, BOM preservation, and staged unsupported
+  Markdown configuration filenames at their real filesystem/Git boundaries.
+- Exercise worktree and staged root path-selection alignment, nested path-option refusal, and config-only scope
+  drift at their real loader boundaries.
 - Exercise `MD049`, `MD050`, and `MD060` through the pinned linter rather than duplicating their acceptance logic.
 - Keep existing status/meta golden behavior while adding wide-glyph fixtures and exact byte-preservation assertions.
 - Exercise the descriptor validator through both `lint:md` worktree composition and `lint:md:staged` index
@@ -373,8 +472,8 @@ with mutually inconsistent checks. The implementation remains reviewable through
 
 ### Migration and rollout
 
-- Source-first ordering is mandatory: package Framework content before rendered instances; generator before derived
-  output; configurable copies edited independently.
+- Source-first ordering is mandatory: package Framework content before its selected rendered projection; generator
+  before derived output; configurable copies edited independently.
 - Enable each lint rule in the same review increment as its corresponding corpus normalization so the branch never
   knowingly ends an increment with an impossible baseline.
 - Keep table and emphasis migrations separate from behavioral code and guidance changes.
@@ -394,9 +493,10 @@ with mutually inconsistent checks. The implementation remains reviewable through
 
 ### Documentation and package/project sync
 
-- Framework methodology edits originate in `packages/arc-framework/arc/` and render/sync to `.arc/`.
-- Configurable `DEV-RULES.PROJECT.md` and `QUICK-REFERENCE.md` copies receive targeted edits that preserve project
-  overrides; whole-file copies are forbidden.
+- Framework methodology edits originate in `packages/arc-framework/arc/` and reach `.arc/` through the selected
+  Framework projection; self-hosting never runs the broad adopter `arc update` workflow.
+- The project-instance Configurable `DEV-RULES.PROJECT.md` and `QUICK-REFERENCE.md` receive targeted edits that
+  preserve project overrides. Their generic package templates remain unchanged; whole-file copies are forbidden.
 - Failure output is the point-of-need remedy. Reference docs list the command but do not duplicate formatter
   semantics.
 
@@ -407,6 +507,11 @@ with mutually inconsistent checks. The implementation remains reviewable through
 - The explicit-path table formatter rejects empty or unauthorized input, validates every selected path before any
   write, replaces each file atomically, reports any partially completed multi-file write precisely, is safe to retry,
   and changes no bytes outside GFM table ranges.
+- Mutating formatter paths reject every symbolic-link component before content access, and malformed UTF-8 fails
+  while BOM and non-ASCII bytes outside table ranges remain exact.
+- Package sources outside the evaluated current install format source-only. Recipe-mapped installed Framework
+  sources project to existing `.arc/` outputs despite stale missing per-file manifest entries; rendered inputs,
+  missing outputs, and contradictory relationships refuse safely.
 - ASCII, CJK, combining-mark, emoji-variation, and ZWJ fixtures produce tables accepted by aligned `MD060` through
   the formatter, meta renderer, and status/readiness renderer using the same display-width primitive.
 - The CLI and `MD060` resolve the same exact `string-width` version; dependency and version-sensitive behavioral
@@ -419,16 +524,24 @@ with mutually inconsistent checks. The implementation remains reviewable through
 - The emphasis migration preserves position-free GFM syntax trees and changes only emphasis delimiter bytes across
   the authority-selected corpus.
 - Multi-line root descriptor clusters are loose in authoritative guidance, templates, and current selected task
-  lists; all-one-line clusters may remain tight; `lint:md` enforces the validator in CI and `lint:md:staged`
-  enforces the same rule over exact indexed content before commit.
+  lists; all-one-line clusters may be tight or loose; `lint:md` enforces the validator in CI and
+  `lint:md:staged` enforces the same rule over exact indexed content before commit.
 - Task guidance emits canonical singular `_Note:_` for inline references to `notes-{name}.md`; stale plural
   `_Notes:_` guidance is absent and is not accepted as a separate descriptor kind.
-- The project pre-commit Markdown gate lints exact indexed files under exact indexed configuration, remains
-  check-only, skips irrelevant commits, and passes the two inverse partial-staging tests.
+- Fresh initialization installs the canonical task template linked by generate-tasks, and the targeted self-host
+  manifest registration is valid without broad inventory reconciliation; both rendered template links resolve.
+- The project pre-commit Markdown gate lints exact indexed files under the indexed root and nested configuration
+  cascade, remains check-only, skips irrelevant commits, and passes the two inverse partial-staging tests.
+- Every configuration filename recognized by pinned `markdownlint-cli2` triggers the staged gate; unsupported
+  formats fail closed instead of being ignored or evaluated.
+- Root Markdown path-selection options remain structurally aligned with the shared selector in worktree and staged
+  views; nested or config-only path-selection drift fails closed.
+- Dependency-only changes trigger indexed lint/width alignment, and candidate metadata must match the installed
+  `markdownlint` and `string-width` versions.
 - Package/project synchronization checks pass, and no completed, temporary, private-user, or otherwise excluded
   path changes during the default migration.
-- `DEV-RULES.PROJECT.md`, `QUICK-REFERENCE.md`, and gate diagnostics agree on the width-aware remediation command;
-  stale third-party formatter instructions are absent.
+- The project-instance `DEV-RULES.PROJECT.md`, `QUICK-REFERENCE.md`, and gate diagnostics agree on the width-aware
+  remediation command; stale third-party formatter instructions are absent from current guidance.
 - The relevant TypeScript lint, source/test typechecks, unit/integration tests, Markdown lint, shell lint, build,
   and full repository test suite pass at the work-unit verification boundary.
 - Durable coordination captures have been routed to `quality-gate-hooks` and `task-list-conventions` before

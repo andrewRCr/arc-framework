@@ -53,8 +53,9 @@ assertion would not prove the table producer and `MD060` still agree.
   does not promise byte identity inside a serializer-owned table range.
 - An emphasis pass needs its own raw-diff restriction in addition to syntax-tree equality because the permitted
   change is narrower than arbitrary Markdown canonicalization.
-- Framework content migrates package-source first and renders/syncs to `.arc/`; configurable copies receive
-  targeted edits independently; readiness output regenerates; meta tables use the three-row normalizer.
+- Framework content migrates package-source first and reaches `.arc/` through the selected Framework projection;
+  configurable copies receive targeted edits independently; readiness output regenerates; meta tables use the
+  three-row normalizer.
 - The current plural `_Notes:_` instruction in `generate-tasks.template.md` is drift. Normalize it to canonical
   singular `_Note:_`; do not add plural as a second validator-recognized descriptor.
 
