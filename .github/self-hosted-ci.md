@@ -177,11 +177,15 @@ those roll-ups already pass for the exact head through the pull-request event, a
 ## Hosted fallback
 
 From a trusted local workstation, set the explicit hosted route (or delete the variable to use the workflow's
-empty-value fallback), cancel queued self-hosted jobs, and re-run:
+empty-value fallback):
 
 ```sh
 gh variable set ARC_CI_LINUX_RUNNER --body ubuntu-latest
 ```
+
+Cancel every queued workflow attempt targeting `arc-ci-linux` and every in-progress attempt already executing on a
+self-hosted runner. Confirm the Actions job list contains no queued or running job with the `arc-ci-linux` label
+before rerunning; changing the variable does not migrate work that was already assigned.
 
 Confirm the new run's Linux jobs report GitHub-hosted runner names before treating fallback as complete. Fallback
 precedes runner maintenance, rebuild, incident response, decommissioning, and any public-repository transition.

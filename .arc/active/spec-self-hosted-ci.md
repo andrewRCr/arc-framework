@@ -102,7 +102,9 @@ runs-on: ${{ vars.ARC_CI_LINUX_RUNNER || 'ubuntu-latest' }}
 Its normal value is the custom self-hosted label (`arc-ci-linux`); an unset or empty variable defaults to
 `ubuntu-latest`, so initial setup and accidental deletion fail *toward* hosted execution rather than an
 unmatchable queue. The fallback procedure is: set the variable to `ubuntu-latest` (or clear it), cancel any queued
-run, and re-run — restoring the hosted path in under five minutes with no workflow edit.
+self-hosted attempt plus every in-progress attempt already using `arc-ci-linux`, confirm no queued or running job
+still targets that label, and only then re-run — restoring the hosted path in under five minutes with no workflow
+edit.
 
 Nine jobs route through the variable: `classify`, `setup`, `lint-typecheck`, `unit`, `integration`, `e2e` (shard
 matrix), `portability`, `ci_ok`, and `merge-ok`. Successful self-hosted execution is not a branch-protection
