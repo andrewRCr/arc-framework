@@ -226,8 +226,10 @@ describe("installation diff adapter", () => {
   it("rejects spawn failures through the typed taxonomy", async () => {
     const root = await mkdtemp(join(tmpdir(), "arc-execa-diff-spawn-"));
     tempDirs.push(root);
+    const invalidExecutable = join(root, "invalid-git.exe");
+    await writeFile(invalidExecutable, "not an executable", "utf8");
 
-    await expect(realGitDiff("left", "right", join(root, "missing-git.exe")))
+    await expect(realGitDiff("left", "right", invalidExecutable))
       .rejects.toSatisfy((error: unknown) => isGitProcessError(error) && error.kind === "spawn-failure");
   });
 });
