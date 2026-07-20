@@ -94,6 +94,17 @@ describe("normalizeGitRejection", () => {
     expect(normalizeGitRejection("bad", { command: "git", args: [] }).kind).toBe("unexpected");
   });
 
+  it("preserves byte-backed partial streams from buffered execa failures", () => {
+    const error = normalizeGitRejection({
+      isMaxBuffer: true,
+      stdout: Uint8Array.from([0, 1, 128, 255]),
+      stderr: Uint8Array.from([69, 82, 82]),
+    }, { command: "git", args: ["cat-file", "blob", "abc"] });
+
+    expect([...error.stdout].map((character) => character.charCodeAt(0))).toEqual([0, 1, 128, 255]);
+    expect(error.stderr).toBe("ERR");
+  });
+
   it.each([
     [["fetch", "origin", "missing"], 128, "fatal: couldn't find remote ref missing", "absent-remote-ref"],
     [["push", "origin", "--delete", "missing"], 1, "error: remote ref does not exist", "absent-remote-ref"],
@@ -108,6 +119,12 @@ describe("normalizeGitRejection", () => {
     ["not-git", ["push", "--force-with-lease", "x"], 1, "[rejected]"],
     ["git", ["status", "--force-with-lease"], 1, "[rejected]"],
     ["git", ["push", "--delete", "x"], 1, "[rejected]"],
+    [
+      "git",
+      ["push", "origin", "--force-with-lease=refs/heads/x:abc", ":refs/heads/x"],
+      1,
+      "! [rejected] (delete) -> x (fetch first)",
+    ],
     ["git", ["fetch", "origin", "x"], 1, "couldn't find remote ref x"],
   ] as const)("does not over-classify %s %j", (command, args, exitCode, stderr) => {
     expect(normalizeGitRejection({ exitCode, stderr }, { command, args: [...args] }).expectedOutcome)

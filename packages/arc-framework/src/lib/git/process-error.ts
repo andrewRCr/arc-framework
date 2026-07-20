@@ -131,8 +131,8 @@ export function normalizeGitRejection(value: unknown, invocation: GitInvocation)
   const isCanceled = record?.isCanceled === true;
   const exitCode = numericExitCode(record);
   const signal = stringField(record, "signal");
-  const stdout = stringField(record, "stdout") ?? "";
-  const stderr = stringField(record, "stderr") ?? "";
+  const stdout = streamField(record, "stdout") ?? "";
+  const stderr = streamField(record, "stderr") ?? "";
 
   let kind: GitProcessErrorKind;
   if (timedOut) kind = "timed-out";
@@ -171,7 +171,7 @@ export function normalizeGitRejection(value: unknown, invocation: GitInvocation)
 export function gitFailureText(value: unknown): string {
   if (isGitProcessError(value) && value.stderr !== "") return value.stderr;
   const record = asRecord(value);
-  return stringField(record, "stderr") ?? stringField(record, "message") ?? "";
+  return streamField(record, "stderr") ?? stringField(record, "message") ?? "";
 }
 
 function classifyExpectedOutcome(
@@ -188,9 +188,11 @@ function classifyExpectedOutcome(
 
   const pushArgs = invocation.args.slice(1);
   const deletion = pushArgs.includes("--delete") || pushArgs.some((arg) => /^:[^:]/u.test(arg));
-  if (deletion && /remote ref does not exist/iu.test(stderr)) return "absent-remote-ref";
-
   const leased = pushArgs.some((arg) => arg === "--force-with-lease" || arg.startsWith("--force-with-lease="));
+  if (deletion) {
+    if (/remote ref does not exist/iu.test(stderr)) return "absent-remote-ref";
+    return leased && /stale info/iu.test(stderr) ? "stale-lease" : undefined;
+  }
   if (!leased) return undefined;
   return /stale info|would clobber|fetch first|\[rejected\]/iu.test(stderr) ? "stale-lease" : undefined;
 }
@@ -227,6 +229,12 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 function stringField(record: Record<string, unknown> | undefined, field: string): string | undefined {
   const value = record?.[field];
   return typeof value === "string" ? value : undefined;
+}
+
+function streamField(record: Record<string, unknown> | undefined, field: string): string | undefined {
+  const value = record?.[field];
+  if (typeof value === "string") return value;
+  return value instanceof Uint8Array ? Buffer.from(value).toString("latin1") : undefined;
 }
 
 function numericExitCode(record: Record<string, unknown> | undefined): number | undefined {

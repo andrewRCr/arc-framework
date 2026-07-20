@@ -13,6 +13,7 @@ import {
   readGitBlobBytes,
 } from "../../src/lib/io-context.js";
 import { boundedFetch, boundedGitInvocation } from "../../src/lib/git/exec.js";
+import { deleteRemoteBranch } from "../../src/lib/work-unit/mutators/reconcile-branch.js";
 import {
   createExecaGitExec,
   createExecaGitExecInput,
@@ -154,6 +155,25 @@ describe("production GitExec", () => {
     const result = await boundedGitInvocation(boundExec, ["cat-file", "--batch"], 25);
 
     expect(result).toEqual({ outcome: "timeout" });
+  });
+
+  it("classifies a real rejected production lease as stale", async () => {
+    const root = await createGitRepo("arc-stale-lease-");
+    const remote = await mkdtemp(join(tmpdir(), "arc-stale-lease-remote-"));
+    tempDirs.push(remote);
+    await gitExec("git", ["init", "--bare"], { cwd: remote });
+    await gitExec("git", ["remote", "add", "origin", remote], { cwd: root });
+    const { stdout: expectedOid } = await gitExec("git", ["rev-parse", "HEAD"], { cwd: root });
+    await gitExec("git", ["push", "origin", `HEAD:refs/heads/lease-race`], { cwd: root });
+    await writeFile(join(root, "seed.txt"), "advanced", "utf8");
+    await gitExec("git", ["commit", "-am", "advance lease target"], { cwd: root });
+    await gitExec("git", ["push", "origin", `HEAD:refs/heads/lease-race`], { cwd: root });
+    const boundExec = (command: string, args: string[], options = {}) =>
+      gitExec(command, args, { ...options, cwd: root });
+
+    const outcome = await deleteRemoteBranch(boundExec, "origin", "lease-race", expectedOid);
+
+    expect(outcome).toBe("stale");
   });
 });
 

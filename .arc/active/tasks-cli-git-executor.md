@@ -214,7 +214,13 @@ absorbing raw bindings reserved for the cohort tail.
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Full tests (6,440 passed, 1 skipped), source/test typecheck, TypeScript and shell lint, Markdown
+  lint, build, and portability (47 passed) all completed successfully after verification fixes.
+- _Success criteria:_ All 10 criteria are met. Two fresh adversarial passes surfaced three major gaps in expected
+  outcome precedence, production stale-lease proof, and buffered partial-output retention; each was fixed and the
+  full gate set rerun.
 
 ---
 
@@ -248,4 +254,4 @@ absorbing raw bindings reserved for the cohort tail.
 
 - `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration

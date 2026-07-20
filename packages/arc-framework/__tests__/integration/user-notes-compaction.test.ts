@@ -16,6 +16,7 @@ import {
 } from "../helpers/integration.js";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import { reconcileNotesPush, runUserCompact, type UserIOContext } from "../../src/commands/user.js";
+import type { GitExec, GitExecInput } from "../../src/lib/git/exec.js";
 import { gitExec, gitExecInput } from "../../src/lib/io-context.js";
 import { planBranchBoundedNotesExport } from "../../src/lib/user-sync/branch-bounded-notes-export.js";
 import { CROSS_WU_NOTE_WINDOW, listNoteEntries, readNotesCompactionSyncMarker } from "../../src/lib/user-sync/index.js";
@@ -27,6 +28,14 @@ import {
 
 const IDENTITY = "test-user";
 const NOTES_REF = `refs/notes/arc/user/${IDENTITY}`;
+
+function makeProductionGitExec(cwd: string): GitExec {
+  return (command, args, options) => gitExec(command, args, { ...options, cwd });
+}
+
+function makeProductionGitExecInput(cwd: string): GitExecInput {
+  return (args, input) => gitExecInput(["-C", cwd, ...args], input);
+}
 
 async function git(cwd: string, args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd });
@@ -182,14 +191,9 @@ describe("user notes compaction", () => {
     const entries = await listNoteEntries(makeGitExec(repo), NOTES_REF);
     const retained = entries.filter((entry) => entry.commit === keepCommit);
     const pruned = entries.filter((entry) => entry.commit === pruneCommit);
-    const productionExec = (command: string, args: string[], options = {}) =>
-      gitExec(command, args, { ...options, cwd: repo });
-    const productionExecInput = (args: string[], input: string) =>
-      gitExecInput(["-C", repo!, ...args], input);
-
     const outcome = await compactNotesRefSnapshot({
-      exec: productionExec,
-      execInput: productionExecInput,
+      exec: makeProductionGitExec(repo),
+      execInput: makeProductionGitExecInput(repo),
       fullRef: NOTES_REF,
       retained,
       pruned,
@@ -223,8 +227,8 @@ describe("user notes compaction", () => {
 
     const entries = await listNoteEntries(makeGitExec(repo), NOTES_REF);
     const outcome = await compactNotesRefSnapshot({
-      exec: makeGitExec(repo),
-      execInput: makeGitExecInput(repo),
+      exec: makeProductionGitExec(repo),
+      execInput: makeProductionGitExecInput(repo),
       fullRef: NOTES_REF,
       retained: entries.filter((entry) => entry.commit === keepCommit),
       pruned: entries.filter((entry) => entry.commit === pruneCommit),
@@ -270,8 +274,8 @@ describe("user notes compaction", () => {
     const pruned = entries.filter((entry) => entry.commit === pruneCommit);
 
     const outcome = await compactNotesRefSnapshot({
-      exec: makeGitExec(repo),
-      execInput: makeGitExecInput(repo),
+      exec: makeProductionGitExec(repo),
+      execInput: makeProductionGitExecInput(repo),
       fullRef: NOTES_REF,
       retained,
       pruned,
