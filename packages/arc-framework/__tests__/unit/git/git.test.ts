@@ -141,6 +141,7 @@ describe("gitMergeFile", () => {
     const conflictContent =
       "<<<<<<< current.txt\nours\n=======\ntheirs\n>>>>>>> other.txt\n";
     const error = Object.assign(new Error("exit code 1"), {
+      code: 1,
       stdout: conflictContent,
     });
     const mockExec = vi.fn().mockRejectedValue(error);
@@ -154,9 +155,10 @@ describe("gitMergeFile", () => {
   });
 
   it("throws when input files are missing", async () => {
-    const error = new Error(
-      "fatal: could not open 'missing.txt' for reading",
-    );
+    const error = Object.assign(new Error("git merge-file failed"), {
+      code: 255,
+      stderr: "fatal: could not open 'missing.txt' for reading",
+    });
     const mockExec = vi.fn().mockRejectedValue(error);
     await expect(
       gitMergeFile(mockExec, "missing.txt", "base.txt", "other.txt"),

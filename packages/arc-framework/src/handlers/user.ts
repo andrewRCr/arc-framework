@@ -32,6 +32,7 @@ import { createUserIOContext } from "../lib/io-context.js";
 import { createSyncOutput, type SyncOutput } from "../lib/sync-output.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { pushNotesWithReconcile } from "./push-recovery.js";
+import { gitFailureText } from "../lib/git/process-error.js";
 import {
   runWithSpinner, isHandledError, isNonInteractiveEnvironment,
   requireArcProjectRoot, resolveUserIdentity, isRemoteError,
@@ -432,7 +433,7 @@ export async function handleUserPush(opts: UserPushOptions): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = gitFailureText(err) || String(err);
       if (isRemoteError(msg)) {
         p.log.error("No remote configured. Push requires a remote repository.");
         p.log.info("Set up a remote with: git remote add origin <url>");

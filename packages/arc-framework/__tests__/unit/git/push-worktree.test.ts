@@ -5,6 +5,7 @@ import {
   type PushWorktreeSpawn,
 } from "../../../src/lib/git/push-worktree.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
+import { GitProcessError } from "../../../src/lib/git/process-error.js";
 
 describe("pushWorktreeBranch — capture mode (default)", () => {
   it("invokes `git push origin <branch>` and reports success with captured streams", async () => {
@@ -189,5 +190,30 @@ describe("pushWorktreeBranch — inheritStdio: true (spawn mode)", () => {
       expect(result.stderr).toContain("rejected");
       expect(result.error.message).toContain("1");
     }
+  });
+
+  it("preserves normalized non-zero evidence supplied by the production adapter", async () => {
+    const error = new GitProcessError({
+      kind: "nonzero-exit",
+      command: "git",
+      args: ["push", "origin", "feature/x"],
+      exitCode: 7,
+      stderr: "rejected\n",
+    });
+    const spawnPush: PushWorktreeSpawn = vi.fn().mockResolvedValue({
+      exitCode: 7,
+      stderr: "rejected\n",
+      error,
+    });
+
+    const result = await pushWorktreeBranch({
+      exec: vi.fn(),
+      branch: "feature/x",
+      inheritStdio: true,
+      spawnPush,
+    });
+
+    expect(result.status).toBe("failed");
+    if (result.status === "failed") expect(result.error).toBe(error);
   });
 });
