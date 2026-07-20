@@ -111,9 +111,10 @@ pull-request count, provider choice, or host mechanics.
           plus a typed pure reducer for maximal unknown/sensitive floors and both routine documentation/code bases;
           valid assurance and activity fields survive malformed peers, and any rejection forces the unknown route.
 
-    - `[ ]` **2.1.b Apply promote-only ownership and authority effects**
-        - Encode ordered obligation/action/retrigger lattices rather than branch-specific assignments.
-        - Build `test-first` coverage proving Stage D can only raise results and emits the matching stable reasons.
+    - `[x]` **2.1.b Apply promote-only ownership and authority effects**
+        - Added explicit ascending obligation, frontline, and retrigger lattices; ownership raises independent
+          analysis, while design/constitutional/unverifiable authority raises it to required full-final review, with
+          stable reason coverage and ceiling routes left unchanged.
 
     - `[ ]` **2.1.c Resolve assurance mode and activation adjustments**
         - Derive `terminal-aggregate` only for `Heavy | Novel`, then apply self-review/frontline activation without

@@ -18,6 +18,13 @@ import {
   type ReviewRoutingFacts,
 } from "./routing-schema.js";
 
+/** Ascending review-obligation lattice used by framework and project promotions. */
+export const REVIEW_OBLIGATION_ORDER = ["exempt", "recommended", "required"] as const;
+/** Ascending frontline-action lattice used by framework and project promotions. */
+export const FRONTLINE_ACTION_ORDER = ["skip", "offer", "attempt"] as const;
+/** Ascending retrigger lattice used by framework and project promotions. */
+export const REVIEW_RETRIGGER_ORDER = ["none", "incremental", "full-final"] as const;
+
 /** One normalized routing result plus rejected input paths. */
 export type ReviewRoutingResolution = {
   readonly facts: ReviewRoutingFacts;
@@ -67,8 +74,11 @@ function normalizeNestedField<T>(
   return normalizeField(schema, parent[key], fallback, path, diagnostics);
 }
 
-/** Reduce already-normalized facts through the fail-closed, risk, and routine bases. */
-export function reduceReviewRouting(facts: ReviewRoutingFacts): ReviewRoutingDecision {
+function promote<T extends string>(current: T, requested: T, order: readonly T[]): T {
+  return order.indexOf(requested) > order.indexOf(current) ? requested : current;
+}
+
+function reduceReviewRoutingBase(facts: ReviewRoutingFacts): ReviewRoutingDecision {
   if (facts.changeSetState === "unknown") {
     return ReviewRoutingDecisionSchema.parse({
       schemaVersion: 1,
@@ -139,6 +149,47 @@ export function reduceReviewRouting(facts: ReviewRoutingFacts): ReviewRoutingDec
         assuranceMode: "none",
         reasons: ["routine-code"],
       });
+}
+
+/** Reduce normalized facts through ordered bases and promote-only ownership/authority effects. */
+export function reduceReviewRouting(facts: ReviewRoutingFacts): ReviewRoutingDecision {
+  const base = reduceReviewRoutingBase(facts);
+  if (facts.changeSetState === "unknown" || facts.reviewRisk === "sensitive") return base;
+
+  let independentAnalysis = base.independentAnalysis;
+  let retrigger = base.retrigger;
+  const reasons = [...base.reasons];
+  const ownershipReason = facts.ownership === "foreign"
+    ? "foreign-owned-artifact"
+    : facts.ownership === "mixed"
+      ? "mixed-ownership"
+      : facts.ownership === "unknown"
+        ? "unknown-ownership"
+        : null;
+  if (ownershipReason !== null) {
+    independentAnalysis = promote(independentAnalysis, "required", REVIEW_OBLIGATION_ORDER);
+    reasons.push(ownershipReason);
+  }
+
+  const authorityReason = facts.surfaceAuthority === "design-authority"
+    ? "design-authority"
+    : facts.surfaceAuthority === "constitutional"
+      ? "constitutional-surface"
+      : facts.surfaceAuthority === "unverifiable-derived" || facts.surfaceAuthority === "unknown"
+        ? "unverifiable-derived-surface"
+        : null;
+  if (authorityReason !== null) {
+    independentAnalysis = promote(independentAnalysis, "required", REVIEW_OBLIGATION_ORDER);
+    retrigger = promote(retrigger, "full-final", REVIEW_RETRIGGER_ORDER);
+    reasons.push(authorityReason);
+  }
+
+  return ReviewRoutingDecisionSchema.parse({
+    ...base,
+    independentAnalysis,
+    retrigger,
+    reasons,
+  });
 }
 
 /** Normalize unknown input field-by-field, then invoke the typed pure reducer. */

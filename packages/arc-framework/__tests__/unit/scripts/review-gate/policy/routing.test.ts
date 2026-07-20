@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  FRONTLINE_ACTION_ORDER,
+  REVIEW_OBLIGATION_ORDER,
+  REVIEW_RETRIGGER_ORDER,
   reduceReviewRouting,
   resolveReviewRouting,
 } from "../../../../../src/scripts/review-gate/policy/routing.js";
@@ -139,5 +142,54 @@ describe("review routing bases", () => {
       retrigger: "incremental",
       reasons: ["routine-code"],
     });
+  });
+
+  it.each([
+    ["foreign", "foreign-owned-artifact"],
+    ["mixed", "mixed-ownership"],
+    ["unknown", "unknown-ownership"],
+  ] as const)("promotes %s ownership without lowering another result", (ownership, reason) => {
+    const decision = reduceReviewRouting({ ...routineFacts, ownership });
+
+    expect(decision).toMatchObject({
+      authorSelfReview: "recommended",
+      frontlineAction: "skip",
+      independentAnalysis: "required",
+      retrigger: "incremental",
+    });
+    expect(decision.reasons).toEqual(["reviewed-routine-documentation", reason]);
+  });
+
+  it.each([
+    ["design-authority", "design-authority"],
+    ["constitutional", "constitutional-surface"],
+    ["unverifiable-derived", "unverifiable-derived-surface"],
+    ["unknown", "unverifiable-derived-surface"],
+  ] as const)("promotes %s authority to the full-final floor", (surfaceAuthority, reason) => {
+    const decision = reduceReviewRouting({
+      ...routineFacts,
+      contentKind: "code-bearing",
+      changeDeterminacy: "atomic",
+      surfaceAuthority,
+    });
+
+    expect(decision).toMatchObject({
+      authorSelfReview: "required",
+      frontlineAction: "offer",
+      independentAnalysis: "required",
+      retrigger: "full-final",
+    });
+    expect(decision.reasons).toEqual([
+      "routine-code",
+      "atomic-determinate",
+      "atomic-softened",
+      reason,
+    ]);
+  });
+
+  it("publishes closed ascending lattices for every promotable result", () => {
+    expect(REVIEW_OBLIGATION_ORDER).toEqual(["exempt", "recommended", "required"]);
+    expect(FRONTLINE_ACTION_ORDER).toEqual(["skip", "offer", "attempt"]);
+    expect(REVIEW_RETRIGGER_ORDER).toEqual(["none", "incremental", "full-final"]);
   });
 });
