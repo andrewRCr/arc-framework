@@ -153,6 +153,21 @@ describe("trusted review-gate workflows", () => {
     }
   });
 
+  it("provisions Node before the classifier hashes the code tree", async () => {
+    const workflow = await read("ci.yml");
+    const classifySteps = jobValue(workflow, "classify").steps;
+    expect(Array.isArray(classifySteps)).toBe(true);
+
+    const steps = classifySteps as Array<Record<string, unknown>>;
+    const setupNodeIndex = steps.findIndex(
+      (step) => typeof step.uses === "string" && step.uses.startsWith("actions/setup-node@"),
+    );
+    const classifierIndex = steps.findIndex((step) => step.id === "c");
+
+    expect(setupNodeIndex).toBeGreaterThanOrEqual(0);
+    expect(classifierIndex).toBeGreaterThan(setupNodeIndex);
+  });
+
   it("keeps the Linux portability check executor-neutral and non-matrix", async () => {
     const workflow = await read("ci.yml");
     const portability = jobValue(workflow, "portability");
