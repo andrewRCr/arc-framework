@@ -463,41 +463,24 @@ _Design decisions:_ Hardening uses composed-fixture mutations rather than duplic
 the four boundary dispositions, and measures production validation without a CLI bypass. It does not widen into
 tail-routed authority, handoff/full validation, bundle publication, lifecycle redesign, or another transport.
 
-### `[ ]` **7.1 Harden full and thin schemas against malformed producer payloads**
+### `[x]` **7.1 Harden full and thin schemas against malformed producer payloads**
 
 - _Goal:_ Cross-family tests prove the composed contracts reject every routing-breaking defect while preserving
   legitimate unowned nested data and exact original emission.
-- _Context:_ Closes Success Criteria 2, 3, 4, and 8 and the risk that a stricter-looking schema could itself cause a
-  wire regression.
+    - `[x]` **7.1.a Build the composed malformed-payload matrix**
+        - Added canonical-fixture mutation matrices covering every mapped thin field, every registered family root,
+          all top-level presence rules and strict roots, every recovery stop kind, and normalized contract paths.
 
-    - `[ ]` **7.1.a Build the composed malformed-payload matrix**
-        - Extend the focused top-level status/recovery schema tests with data-driven mutations of the canonical
-          complete envelope/report fixtures: one representative defect per registered family root, every thin
-          routing field in `notes-cli-session-envelope.md` § Thin validation field map, every cross-field row in
-          § Top-level slot presence contract, every recovery stop kind, and an undeclared top-level key on each of
-          the session-init, lean-recovery, and recovery-report roots.
-        - Assert the shared boundary error identifies the contract and normalized failing path. Leave exhaustive
-          contained-record and routing-domain cases in their Phase 2–4 home-module tests rather than repeating them
-          at the composed level.
+    - `[x]` **7.1.b Prove boundary dispositions, thin pass-through, and original emission**
+        - Proved deep unowned-field pass-through, validate-but-emit-original behavior, stable failure output, non-fatal
+          seed production, probe-free invalid-seed stops, and byte-identical characterization goldens.
 
-    - `[ ]` **7.1.b Prove boundary dispositions, thin pass-through, and original emission**
-        - Feed representative deep payloads with legitimate unmodeled fields through each thin schema and assert
-          they survive unchanged.
-        - Prove internal session-init, lean-recovery, and recovery-report defects fail non-zero with stable stderr
-          and no stdout through direct assertion/handler-substitution coverage. Keep a producer seed defect non-fatal
-          as a failed `compactionSeedWrite` slot, and keep invalid persisted seeds on the successful structured-stop
-          path without live recovery probes.
-        - Re-run all Phase 1 goldens after validation and Result changes; fail on any key-order, optionality,
-          conditional-slot position, nesting, array-order, or error-channel drift.
+    - `[x]` **7.1.c Prove type-authority boundaries**
+        - Added source-graph proofs for schema-derived owned records and handwritten tail types, retained one-way
+          producer compatibility checks, and reconfirmed the exact family registry and kernel-only build bundle.
 
-    - `[ ]` **7.1.c Prove type-authority boundaries**
-        - Add compile-time or source-graph assertions that contained advisory and family-record public output types
-          derive from schemas, while every tail-routed type remains hand-written and thinly validated.
-        - Reconfirm the one-way producer-to-schema-input assignability checks for both top-level envelopes; do not
-          assert the intentionally false reverse direction for partial thin views.
-        - Confirm the composed family registry contains the intended stable ids, and extend
-          `__tests__/unit/kernel/schema-generation.test.ts` to retain the exact kernel-only default bundle. Do not
-          pass the family registry to build projection.
+- _Outcome:_ The composed contracts now have adversarial cross-family coverage without widening thin authority or
+  changing the established wire representation and failure dispositions.
 
 ### `[ ]` **7.2 Measure warm and cold producer-validation latency**
 
