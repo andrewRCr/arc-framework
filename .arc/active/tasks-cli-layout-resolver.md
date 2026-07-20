@@ -45,18 +45,15 @@ caller migration begins.
     - Covered POSIX, drive-qualified, and UNC success plus invalid root, unsafe cast, and Windows drive-switch paths;
       canonical operands remain POSIX managed paths until this filesystem boundary.
 
-### `[ ]` **1.4 Preserve the validated template binding transform**
+### `[x]` **1.4 Preserve the validated template binding transform**
 
 - _Goal:_ Template installation retains its byte-stable suffix behavior while source-relative and output-relative
   paths gain distinct validated roles.
 
-    - Export `TEMPLATE_BINDING_SUFFIX` and `resolveTemplateOutputPath()` without branding either path as a
-      repository-relative `ManagedPath`.
-    - Build `test-first` (one behavior at a time):
-        - Preserve `.template` removal only when it precedes the final extension.
-        - Preserve safe untemplated inputs unchanged.
-        - Reject every lexical safety class on input and revalidate transformed output independently as
-          `layout.invalid-template-path`, preserving the validation cause where applicable.
+    - Added the stable binding suffix and a validated source-to-output transform with distinct template-relative
+      brands, preserving templated and copy-as-is behavior without representing either role as a repository path.
+    - Both transform boundaries validate independently, and unsafe source paths fail with the originating schema
+      cause under the local template-path error code.
 
 ## **Phase 2:** Identity and user-document boundaries
 
